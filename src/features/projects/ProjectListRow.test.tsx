@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { memberKey, type State } from '../../api/store';
+import { SubCompaniesProvider } from '../../app/subCompanies';
 import { useCall } from '../../app/runtime';
 import { renderWithRuntime } from '../../test/render';
 import { ProjectCover } from './ProjectCard';
@@ -155,5 +156,32 @@ describe('the project row', () => {
     expect(store.state.projects.prj_001.status).toBe('archived');
     await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
     await waitFor(() => expect(store.state.projects.prj_001.status).toBe('active'));
+  });
+});
+
+describe('the sub-company of a row (fbk_007)', () => {
+  it('shows the logo of the sub-company on the tile, labelled with its name', async () => {
+    await renderWithRuntime(
+      <SubCompaniesProvider><Card id="prj_001" /></SubCompaniesProvider>,
+      (state) => {
+        state.subCompanies = { sub_001: { id: 'sub_001', name: 'Vado', nameAr: 'فادو', logo: null, createdBy: 'usr_001', createdAt: '2026-10-18T09:00:00.000+03:00' } };
+        state.projects.prj_001.subCompanyId = 'sub_001';
+      },
+      { path: '/' },
+    );
+    const row = await screen.findByRole('link', { name: /Corniche Office Tower/ });
+    expect(await within(row).findByRole('img', { name: 'Vado' })).toBeInTheDocument();
+  });
+
+  it('shows no logo on a row whose project has no sub-company', async () => {
+    await renderWithRuntime(
+      <SubCompaniesProvider><Card id="prj_001" /></SubCompaniesProvider>,
+      (state) => {
+        state.subCompanies = { sub_001: { id: 'sub_001', name: 'Vado', nameAr: 'فادو', logo: null, createdBy: 'usr_001', createdAt: '2026-10-18T09:00:00.000+03:00' } };
+      },
+      { path: '/' },
+    );
+    const row = await screen.findByRole('link', { name: /Corniche Office Tower/ });
+    expect(within(row).queryByRole('img', { name: 'Vado' })).toBeNull();
   });
 });

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
   ClientId, ClientInitials, Day, DeadlineId, FileId, HealthValue, LinkKind, linkUrlOk, MAX_PREREQUISITES, PauseKind, ProjectId, ProjectStatus, ProjectTemplateId, StageId,
-  TeamId, UserId, type Deadline, type Project, type ProjectTemplate, type Task,
+  SubCompanyId, TeamId, UserId, type Deadline, type Project, type ProjectTemplate, type Task,
 } from '../contract/entities';
 import { DeadlineRow, ProjectDetail, ProjectSummary } from '../contract/views';
 import { ApiError, invalid, notFound } from '../errors';
@@ -12,7 +12,7 @@ import { assertStagePrerequisites, watchStage } from '../flow';
 import { notify, projectPeople } from '../notify';
 import { peopleFilter, teamFilter } from '../pause';
 import { can, projectRoleOf } from '../permissions';
-import { memberKey, nextId, paymentsOf, projectTemplatesOf, teamsOf, trackerOf, type State } from '../store';
+import { memberKey, nextId, paymentsOf, projectTemplatesOf, subCompaniesOf, teamsOf, trackerOf, type State } from '../store';
 import { detailOf, stagesOf, summaryOf } from '../views';
 import { diffDays } from '../../lib/dates';
 import {
@@ -203,6 +203,26 @@ function addTemplateTasks(ctx: Ctx, projectId: string, stageIdOf: Map<string, st
 
 const detail = (ctx: Ctx, project: Project) => detailOf(ctx.state, project, ctx.today, ctx.authority);
 
+/** A sub-company that the office does not hold is not found (fbk_007). null is no sub-company, and it passes. */
+function assertSubCompany(ctx: Ctx, id: string | null): void {
+  if (id !== null && !subCompaniesOf(ctx.state)[id]) throw notFound('Sub-company', id);
+}
+
+/**
+ * The sub-company of a new project (fbk_007). When the office has sub-companies, a new project names one: the call refuses a new
+ * project with none. An office with no sub-company takes a project with none. Returns the id, or null.
+ */
+function subCompanyOfNew(ctx: Ctx, id: string | null | undefined): string | null {
+  if (id) {
+    assertSubCompany(ctx, id);
+    return id;
+  }
+  if (Object.keys(subCompaniesOf(ctx.state)).length > 0) {
+    throw invalid('subCompanyId', 'Choose a sub-company for the project.', 'sub_company_required');
+  }
+  return null;
+}
+
 function requireEditable(ctx: Ctx, projectId: string): Project {
   const project = requireProject(ctx, projectId);
   assertCan(ctx, 'project.edit', { projectRole: roleIn(ctx, project.id) });
@@ -237,6 +257,8 @@ export const projectsList = defineCall({
     clientId: ClientId.optional(),
     /** A project matches when any person of the team leads it or is on its team (colleague comment 15). */
     teamId: TeamId.optional(),
+    /** The projects of one sub-company (fbk_007). The Projects filter and the MCP agents use it. */
+    subCompanyId: SubCompanyId.optional(),
     sort: z.enum(['updated', 'deadline', 'name']).default('updated'),
   }),
   output: z.array(ProjectSummary),
@@ -252,6 +274,7 @@ export const projectsList = defineCall({
       .filter((p) => input.filter !== 'stage_no_end' || stagesOf(state, p.id).some((stage) => stage.endDate === null))
       .filter((p) => !input.leaderId || p.leaderId === input.leaderId)
       .filter((p) => !input.clientId || p.clientId === input.clientId)
+      .filter((p) => !input.subCompanyId || p.subCompanyId === input.subCompanyId)
       .filter(inTeam)
       .map((p) => summaryOf(state, p, today, authority))
       .filter((s) => input.filter !== 'at_risk' || (s.health !== null && s.health.value !== 'on_track'))
@@ -274,6 +297,8 @@ export const projectsCreate = defineCall({
   input: z.object({
     name: ProjectName,
     clientId: ClientId.nullable().default(null),
+    /** The sub-company (fbk_007). An office with sub-companies needs one; an office with none takes none. */
+    subCompanyId: SubCompanyId.nullable().optional(),
     leader: z.union([z.literal('me'), z.literal('none'), UserId]).default('me'),
     location: Location.default(''),
     areaM2: Area.nullable().default(null),
@@ -300,6 +325,7 @@ export const projectsCreate = defineCall({
     assertCan(ctx, 'project.create');
     const { state, actor, stamp, today } = ctx;
     assertDates(input.startDate, input.targetEndDate, 'targetEndDate');
+    const subCompanyId = subCompanyOfNew(ctx, input.subCompanyId);
     const made = templateMadeOf(ctx, input);
     const leaderId = input.leader === 'me' ? ctx.authority.id : input.leader === 'none' ? null : input.leader;
     if (leaderId) assertLeader(ctx, leaderId);
@@ -329,6 +355,7 @@ export const projectsCreate = defineCall({
       status: 'active', leaderId, currentStageId: stageIds[0], location: input.location, areaM2: input.areaM2,
       startDate, targetEndDate, contractStartDate: input.contractStartDate, coverFileId: null, modelFolderPath: input.modelFolderPath,
       description: input.description, healthOverride: null, mark: pickMark(id, Object.values(state.projects)),
+      ...(subCompanyId ? { subCompanyId } : {}),
       createdBy: actor.id, createdAt: stamp, updatedAt: stamp,
     };
     state.projects[id] = project;
@@ -361,6 +388,8 @@ export const projectsUpdate = defineCall({
       modelFolderPath: FolderPath.optional(),
       description: Description.optional(),
       coverFileId: FileId.nullable().optional(),
+      /** The sub-company (fbk_007). null takes it away; an id the office does not hold is not found. */
+      subCompanyId: SubCompanyId.nullable().optional(),
       /** A correction of the code: the Admin only (right project.editCode). The History records it as project.code_changed. */
       code: TypedCode.optional(),
     }),
@@ -371,6 +400,7 @@ export const projectsUpdate = defineCall({
   run(input, ctx) {
     const project = requireEditable(ctx, input.id);
     const { code, ...patch } = input.patch;
+    if (patch.subCompanyId !== undefined) assertSubCompany(ctx, patch.subCompanyId);
     const newCode = code !== undefined && code !== project.code ? code : undefined;
     if (newCode !== undefined) {
       // The checks come before any change, so a refused code changes nothing.

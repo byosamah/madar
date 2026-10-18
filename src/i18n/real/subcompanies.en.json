@@ -18,11 +18,17 @@
     "deleted": "Sub-company deleted.",
     "actions": "Actions for {{name}}",
     "edit": "Edit",
-    "delete": "Delete sub-company"
+    "delete": "Delete sub-company",
+    "label": "Sub-company",
+    "none": "No sub-company",
+    "choose": "Choose a sub-company",
+    "any": "Any sub-company",
+    "required": "Choose a sub-company for this project."
   },
   "errors": {
     "reasons": {
-      "sub_company_in_use": "A project uses this sub-company. Change the project first."
+      "sub_company_in_use": "A project uses this sub-company. Change the project first.",
+      "sub_company_required": "Choose a sub-company for this project."
     }
   }
 }

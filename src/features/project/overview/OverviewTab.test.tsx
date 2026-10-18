@@ -142,3 +142,16 @@ describe('the contract start date (colleague comment 7)', () => {
     await waitFor(() => expect(within(about).getByText('Contract start date').closest('div')).toHaveTextContent('10 May 2026'));
   });
 });
+
+describe('the sub-company in About (fbk_007)', () => {
+  it('shows one line with the name of the sub-company and its logo, which a screen reader skips', async () => {
+    await renderApp('/projects/prj_001', (state) => {
+      state.subCompanies = { sub_001: { id: 'sub_001', name: 'Vado', nameAr: 'فادو', logo: null, createdBy: 'usr_001', createdAt: '2026-10-18T09:00:00.000+03:00' } };
+      state.projects.prj_001.subCompanyId = 'sub_001';
+    });
+    const about = await screen.findByRole('region', { name: 'About' });
+    await waitFor(() => expect(within(about).getByText('Sub-company').closest('div')).toHaveTextContent('Vado'));
+    expect(within(about).queryByRole('img', { name: 'Vado' })).toBeNull();
+    expect(about.querySelector('[aria-hidden="true"] [role="img"]')).not.toBeNull();
+  });
+});

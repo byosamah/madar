@@ -2,7 +2,7 @@ import { z } from 'zod';
 import {
   Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, Gender, HealthValue,
   Message, Payment, Project, Team,
-  ProjectId, Stage, StageId, Stamp, Task, TaskId, TaskStatus, TrackerDirection, TrackerEntry, TrackerType, TrackerWaiting, UpdateId, UserId,
+  ProjectId, Stage, StageId, Stamp, SubCompanyId, Task, TaskId, TaskStatus, TrackerDirection, TrackerEntry, TrackerType, TrackerWaiting, UpdateId, UserId,
 } from './entities';
 
 export const UserCard = z.object({
@@ -87,6 +87,8 @@ export const ProjectSummary = z.object({
    * answers still parse.
    */
   stageEnd: z.object({ date: Day, daysLeft: z.number().int() }).nullable().optional(),
+  /** The sub-company of the project, or null (fbk_007). The list shows its logo on the tile. */
+  subCompanyId: SubCompanyId.nullable(),
   leader: UserCard.nullable(),
   team: z.array(UserCard),
   openTasks: z.number().int().min(0),

@@ -40,6 +40,7 @@ export async function projectsList(L: Load, input: Input): Promise<void> {
     .filter((p) => input.filter !== 'stage_no_end' || stagesOf(office, p.id).some((stage) => stage.endDate === null))
     .filter((p) => !input.leaderId || p.leaderId === input.leaderId)
     .filter((p) => !input.clientId || p.clientId === input.clientId)
+    .filter((p) => !str(input.subCompanyId) || p.subCompanyId === str(input.subCompanyId))
     .filter(inTeam)
     .map((p) => p.id);
   await tasksOf(L, ids, PROJECT_LIST_TASK_FIELDS);

@@ -25,3 +25,23 @@ describe('the edit project form: no browser memory (fbk_010)', () => {
     expect(sheet.querySelector('form')).toHaveAttribute('autocomplete', 'off');
   });
 });
+
+describe('the sub-company in the edit form (fbk_007)', () => {
+  it('saves the sub-company that the person picks, and offers "No sub-company" as the first choice', async () => {
+    const { store } = await renderApp('/projects/prj_001', (state) => {
+      const created = '2026-10-18T09:00:00.000+03:00';
+      state.subCompanies = {
+        sub_001: { id: 'sub_001', name: 'Vado', nameAr: 'فادو', logo: null, createdBy: 'usr_001', createdAt: created },
+        sub_002: { id: 'sub_002', name: 'Bunah', nameAr: 'بناة', logo: null, createdBy: 'usr_001', createdAt: created },
+      };
+    });
+    await userEvent.click(await screen.findByRole('button', { name: 'More actions' }, LOAD));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Edit project' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Edit project' });
+    const field = await within(sheet).findByLabelText('Sub-company');
+    expect(within(field).getByRole('option', { name: 'No sub-company' })).toBeInTheDocument();
+    await userEvent.selectOptions(field, 'Vado');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(store.state.projects.prj_001.subCompanyId).toBe('sub_001'));
+  });
+});

@@ -3,7 +3,7 @@ import { PlusIcon } from '../../components/icons/animated/plus';
 import { XIcon } from '../../components/icons/animated/x';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Client, ProjectTemplate, User } from '../../api/contract/entities';
+import type { Client, ProjectTemplate, SubCompany, User } from '../../api/contract/entities';
 import { useLang } from '../../app/lang';
 import { useByPersonName, usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
@@ -22,7 +22,7 @@ import { CodeAnywayTick, ProjectCodeFields } from './ProjectCodeFields';
 import { TemplateDetails, TemplatePicker } from './TemplateUse';
 import { validateProjectForm, type ProjectFormErrors, type ProjectFormRules, type ProjectFormValues } from './projectForm';
 
-const CHECKED: (keyof ProjectFormErrors)[] = ['name', 'area', 'startDate', 'targetEndDate', 'stages', 'code', 'template', ...CODE_FIELDS];
+const CHECKED: (keyof ProjectFormErrors)[] = ['name', 'area', 'startDate', 'targetEndDate', 'stages', 'code', 'template', 'subCompanyId', ...CODE_FIELDS];
 
 /**
  * Form state that shows an error only after the person changes a field and leaves it, or on submit (spec 4.4). A field that the
@@ -103,6 +103,30 @@ function ClientPicker({ value, onChange, clients }: { value: string; onChange: (
   );
 }
 
+/**
+ * The sub-company select (fbk_007). It shows only when the office has sub-companies. A new project needs one, so its first choice
+ * names the step; an edit may leave the project with none.
+ */
+function SubCompanyPicker({ value, onChange, subCompanies, required, error }: {
+  value: string; onChange: (id: string) => void; subCompanies: SubCompany[]; required: boolean; error?: string;
+}) {
+  const { t } = useTranslation();
+  const lang = useLang();
+  return (
+    <SelectField
+      id="project-sub-company"
+      label={t('subCompanies.label')}
+      required={required}
+      error={error}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+    >
+      <option value="">{required ? t('subCompanies.choose') : t('subCompanies.none')}</option>
+      {subCompanies.map((sub) => <option key={sub.id} value={sub.id}>{lang === 'ar' ? sub.nameAr : sub.name}</option>)}
+    </SelectField>
+  );
+}
+
 export function StageList({
   stages, onChange, onBlur, error,
 }: { stages: ProjectFormValues['stages']; onChange: (stages: ProjectFormValues['stages']) => void; onBlur: () => void; error?: string }) {
@@ -177,6 +201,7 @@ export function ProjectFields({
   const session = useCall('session.get', {});
   const users = useCall('users.list', {});
   const clients = useCall('clients.list', {});
+  const subCompanies = useCall('subCompanies.list', {});
   const meId = session.data?.authority.id;
   const humans = (users.data ?? []).filter((user) => user.kind === 'human');
   const people = humans.filter((user) => user.id !== meId).sort(byName);
@@ -220,6 +245,15 @@ export function ProjectFields({
         </div>
       )}
       <ClientPicker value={values.clientId} onChange={(id) => set('clientId', id)} clients={clients.data ?? []} />
+      {(subCompanies.data ?? []).length > 0 && (
+        <SubCompanyPicker
+          value={values.subCompanyId}
+          onChange={(id) => set('subCompanyId', id)}
+          subCompanies={subCompanies.data ?? []}
+          required={mode === 'create'}
+          error={error('subCompanyId')}
+        />
+      )}
       {mode === 'create' && <ProjectCodeFields form={form} clients={clients.data ?? []} />}
       {mode === 'create' && (
         <SelectField id="project-leader" label={t('projectForm.leader')} value={values.leader} onChange={(event) => set('leader', event.target.value)}>

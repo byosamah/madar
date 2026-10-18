@@ -42,6 +42,8 @@ export const INSTRUCTIONS = [
   'IDs have a prefix and a number, for example prj_001, tsk_014, usr_003. Dates are YYYY-MM-DD in Riyadh time. Read before you write: find IDs with the list and get tools.',
   '',
   'Project codes: a new code reads YYMMSSINI-CLS-Type, for example 260902AZT-RES-Villa: the month of registration (YYMM), the series of that month (SS), the client initials (INI), the class (RES, COM, IND, INS, REC, AGR, UTL or MIX) and the building type. The first part, 260902AZT, is the project key; people write #260902AZT in posts. Older projects keep codes like KH-26-014. Two projects of one contract share one code. The code is fixed after create: only the Admin corrects it, with projects.update. Some projects keep a code of their own: a person may keep a code outside this pattern after a warning. A typed code outside the pattern fails with reason code_format, and one with the month and series of another contract with code_taken: only your person decides to keep it, and then you call again with codeAnyway: true.',
+  '',
+  'Sub-companies are the companies of the office group, for example Vado and Bunah. subCompanies.list gives their names. projects.list takes subCompanyId, the sub-company of a project.',
 ].join('\n');
 
 /** The role names that the Madar screens show. */
@@ -139,11 +141,11 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.get': {
     title: 'Get a project',
-    description: 'Returns one project by id (for example prj_001): its code, stages and the current stage, its team, leader, client, dates, health, deadlines and links. The code is 260902AZT-RES-Villa (new form) or KH-26-014 (old form). nextDeadline is the next named deadline. stageEnd (date, daysLeft) is the end of the current stage of an active project: the screens show it when there is no named deadline. It is null with no end date.',
+    description: 'Returns one project by id (for example prj_001): its code, stages and the current stage, its team, leader, client, dates, health, deadlines and links. The code is 260902AZT-RES-Villa (new form) or KH-26-014 (old form). nextDeadline is the next named deadline. stageEnd (date, daysLeft) is the end of the current stage of an active project: the screens show it when there is no named deadline. It is null with no end date. subCompanyId names the sub-company, or it is null (subCompanies.list gives the names).',
   },
   'projects.list': {
     title: 'List projects',
-    description: 'Lists the projects, with their code, stage, health and leader. A code is 260902AZT-RES-Villa (new form, key 260902AZT) or KH-26-014 (old form). Filters: status, filter (all, mine, at_risk, no_area, stage_no_end: a stage with no end date), stageName, health, leaderId, clientId, teamId; sort by updated, deadline (the next named deadline, else the end of the current stage) or name. Each project gives nextDeadline and stageEnd, as projects.get does.',
+    description: 'Lists the projects, with their code, stage, health and leader. A code is 260902AZT-RES-Villa (new form, key 260902AZT) or KH-26-014 (old form). Filters: status, filter (all, mine, at_risk, no_area, stage_no_end: a stage with no end date), stageName, health, leaderId, clientId, teamId, subCompanyId (a sub-company, see subCompanies.list); sort by updated, deadline (the next named deadline, else the end of the current stage) or name. Each project gives nextDeadline, stageEnd and subCompanyId, as projects.get does.',
   },
   'projects.setStatus': {
     title: 'Set the project status',
@@ -151,7 +153,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.update': {
     title: 'Change project details',
-    description: 'Changes the details of one project: name, client, location, area in square metres, dates, model folder path, description, cover file. Send only the fields that change, in "patch". The project leader and the Admin may do this. "code" corrects the project code (for example 260902AZT-RES-Villa): only the Admin may do that, and the History records it. A code outside the office pattern, or with the month and series of another contract, fails with reason code_format or code_taken: tell your person, and send codeAnyway: true only when they say to keep the code.',
+    description: 'Changes the details of one project: name, client, sub-company (subCompanyId; null clears it), location, area in square metres, dates, model folder path, description, cover file. Send only the changed fields in "patch". The project leader and the Admin may do this. "code" corrects the project code (for example 260902AZT-RES-Villa): only the Admin may do that, and the History records it. A code outside the office pattern, or with the month and series of another contract, fails with reason code_format or code_taken: tell your person, and send codeAnyway: true only when they say to keep the code.',
   },
   'search.query': {
     title: 'Search',

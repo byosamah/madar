@@ -311,3 +311,33 @@ describe("the New Project sheet: Madar's calendar on a computer (fbk_009)", () =
     }
   });
 });
+
+describe('the sub-company of a new project (fbk_007)', () => {
+  const sub = (id: string, name: string) => ({ id, name, nameAr: `${name} ar`, logo: null, createdBy: 'usr_001', createdAt: '2026-10-18T09:00:00.000+03:00' });
+
+  it('needs a sub-company when the office has some, and sends the one that the person picks', async () => {
+    const { store } = await renderWithRuntime(<Harness />, (state) => {
+      state.subCompanies = { sub_001: sub('sub_001', 'Vado'), sub_002: sub('sub_002', 'Bunah') };
+    }, { path: '/' });
+    await userEvent.click(screen.getByText('Start'));
+    const sheet = await screen.findByRole('dialog', { name: 'New Project' });
+    await userEvent.type(within(sheet).getByLabelText('Name'), 'Kiosk');
+    await fillCode(sheet);
+    // The select comes after Client, and its first choice names the step.
+    expect(await within(sheet).findByRole('option', { name: 'Choose a sub-company' })).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
+    expect(await within(sheet).findByText('Choose a sub-company for this project.')).toBeInTheDocument();
+    expect(Object.values(store.state.projects).some((project) => project.name === 'Kiosk')).toBe(false);
+    await userEvent.selectOptions(within(sheet).getByLabelText('Sub-company'), 'Bunah');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
+    await waitFor(() => expect(Object.values(store.state.projects).find((project) => project.name === 'Kiosk')?.subCompanyId).toBe('sub_002'));
+  });
+
+  it('shows no sub-company select when the office has none', async () => {
+    await renderWithRuntime(<Harness />, undefined, { path: '/' });
+    await userEvent.click(screen.getByText('Start'));
+    const sheet = await screen.findByRole('dialog', { name: 'New Project' });
+    await waitFor(() => expect(within(sheet).getByLabelText('Client')).toBeInTheDocument());
+    expect(within(sheet).queryByLabelText('Sub-company')).toBeNull();
+  });
+});

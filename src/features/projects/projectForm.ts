@@ -15,6 +15,8 @@ export type ProjectFormValues = CodeValues & TemplateChoice & {
   code: string;
   name: string;
   clientId: string;
+  /** The sub-company (fbk_007). Empty is no sub-company. */
+  subCompanyId: string;
   leader: string;
   location: string;
   area: string;
@@ -29,20 +31,22 @@ export type ProjectFormValues = CodeValues & TemplateChoice & {
 
 /** Each value is a text key, so the form shows the message in the current language. */
 /** "template" has no field text: the line under the dates says why the plan does not fit. It only stops the create. */
-export type ProjectFormErrors = Partial<Record<'name' | 'area' | 'startDate' | 'targetEndDate' | 'stages' | 'code' | 'template', string>> & CodeErrors;
+export type ProjectFormErrors = Partial<Record<'name' | 'area' | 'startDate' | 'targetEndDate' | 'stages' | 'code' | 'template' | 'subCompanyId', string>> & CodeErrors;
 
 /**
  * Which extra rules apply: the code group of a new project, or the Admin's code correction in the edit form. "templates" are the
  * project templates that the new-project form offers, so the form can check the chosen one. "projects" are the codes that a typed
  * code must not take the series of, and "project" is the saved project of the edit form: its own code needs no new check.
+ * "subCompanies" is true when the office has sub-companies: a new project then needs one (fbk_007).
  */
 export type ProjectFormRules = {
   create?: boolean; editCode?: boolean; templates?: readonly ProjectTemplate[]; projects?: CodeProjects; project?: { id: string; code: string };
+  subCompanies?: boolean;
 };
 
 export function emptyProjectForm(stages: string[]): ProjectFormValues {
   return {
-    name: '', clientId: '', leader: 'me', location: '', area: '', contractStartDate: '', startDate: '', targetEndDate: '',
+    name: '', clientId: '', subCompanyId: '', leader: 'me', location: '', area: '', contractStartDate: '', startDate: '', targetEndDate: '',
     stages: stages.map((name) => ({ name })), teamIds: [], modelFolderPath: '', description: '', code: '', ...emptyCodeValues(),
     ...emptyTemplateChoice(),
   };
@@ -75,6 +79,7 @@ export function validateProjectForm(values: ProjectFormValues, rules: ProjectFor
     else if (template && !errors.targetEndDate && planOfForm(template, values)?.ok === false) errors.template = 'templateUse.tooShort';
   } else if (values.stages.length === 0) errors.stages = 'projectForm.errors.stageRequired';
   else if (values.stages.some((stage) => !stage.name.trim())) errors.stages = 'projectForm.errors.stageName';
+  if (rules.create && rules.subCompanies && !values.subCompanyId) errors.subCompanyId = 'subCompanies.required';
   if (rules.create) Object.assign(errors, validateCodeValues(values, rules.projects));
   if (rules.editCode && normalizeTypedCode(values.code) !== rules.project?.code) {
     const error = typedCodeError(values.code, values.codeAnyway, rules.projects ?? [], rules.project?.id ?? null);

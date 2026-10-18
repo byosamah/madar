@@ -772,3 +772,19 @@ describe('the notices of requests and bugs (review 2026-10-07)', () => {
     expect(deleted(run, 'notifications')).toEqual([done[1]]);
   });
 });
+
+describe('the sub-company filter of projects.list (fbk_007)', () => {
+  it('gives the same projects on the server path as on the whole office, with and without the filter', async () => {
+    const state = office((s) => {
+      const sub = (name: string) => ({ name, nameAr: `${name} ar`, logo: null, createdBy: ADMIN, createdAt: '2026-10-18T09:00:00.000+03:00' });
+      s.subCompanies = { sub_001: { id: 'sub_001', ...sub('Vado') }, sub_002: { id: 'sub_002', ...sub('Bunah') } };
+      s.projects.prj_001.subCompanyId = 'sub_001';
+      s.projects.prj_002.subCompanyId = 'sub_002';
+    });
+    const run = await same(state, 'projects.list', { status: 'all', subCompanyId: 'sub_001' }, ADMIN);
+    expect(run.outcome.error).toBeUndefined();
+    expect((run.outcome.output as { project: { id: string } }[]).map((row) => row.project.id)).toEqual(['prj_001']);
+    const all = await same(state, 'projects.list', { status: 'all' }, ADMIN);
+    expect((all.outcome.output as unknown[]).length).toBe(Object.keys(state.projects).length);
+  });
+});

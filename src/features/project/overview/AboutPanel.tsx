@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ProjectDetail } from '../../../api/contract/views';
+import { useSubCompany } from '../../../app/subCompanies';
 import { useLang } from '../../../app/lang';
+import { SubCompanyLogo } from '../../../components/SubCompanyLogo';
 import { formatDay, formatNumber } from '../../../lib/dates';
 import { parseProjectCode } from '../../../lib/projectCode';
 import { ProjectCover } from '../../projects/ProjectCard';
@@ -13,6 +15,7 @@ export function AboutPanel({ detail }: { detail: ProjectDetail }) {
   const lang = useLang();
   const { project } = detail;
   const none = t('overview.none');
+  const subCompany = useSubCompany(project.subCompanyId);
   const parts = parseProjectCode(project.code);
   // The full code, and for a new code its class in words (owner, 2026-10-05).
   const code = (
@@ -21,8 +24,16 @@ export function AboutPanel({ detail }: { detail: ProjectDetail }) {
       {parts && <span className="block text-footnote text-ink-2">{t(`projectCode.classes.${parts.classification}`)}</span>}
     </>
   );
+  // The sub-company with its logo (fbk_007). The logo is decoration: the name in text is the one label.
+  const subCompanyLine = subCompany && (
+    <span className="inline-flex items-center gap-2">
+      <span aria-hidden="true"><SubCompanyLogo subCompanyId={subCompany.id} size={24} /></span>
+      <bdi dir="auto">{lang === 'ar' ? subCompany.nameAr : subCompany.name}</bdi>
+    </span>
+  );
   const facts: [string, ReactNode][] = [
     [t('projectCode.group'), code],
+    ...(subCompanyLine ? [[t('subCompanies.label'), subCompanyLine] as [string, ReactNode]] : []),
     [t('projectForm.location'), project.location || none],
     [t('projectForm.area'), project.areaM2 === null ? none : formatNumber(project.areaM2, lang)],
     [t('projectForm.contractStartDate'), project.contractStartDate ? formatDay(project.contractStartDate, lang, 'long') : none],

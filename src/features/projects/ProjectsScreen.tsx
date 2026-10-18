@@ -17,7 +17,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { FilterButton } from '../../components/FilterButton';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { clientName } from '../../lib/clientName';
-import { clientParam, oneOf, teamParam, userParam } from '../../lib/params';
+import { clientParam, oneOf, subCompanyParam, teamParam, userParam } from '../../lib/params';
 import { NewProjectSheet } from './NewProjectSheet';
 import { ProjectListRow } from './ProjectListRow';
 
@@ -74,6 +74,8 @@ export function ProjectsScreen() {
   // The Dashboard opens this list with its Leader and Client filters too, so the list holds the projects it counted (owner, 2026-10-06).
   const leaderId = userParam(params.get('leader'));
   const clientId = clientParam(params.get('client'));
+  // The sub-company of the project (fbk_007). The filter shows only when the office has sub-companies.
+  const subCompanyId = subCompanyParam(params.get('subCompany'));
   const healthParam = params.get('health');
   const health = HEALTH.includes(healthParam as (typeof HEALTH)[number]) ? (healthParam as (typeof HEALTH)[number]) : undefined;
   // The filters live in the link, so the dashboard can open this screen with a filter set (spec 8.2).
@@ -99,6 +101,7 @@ export function ProjectsScreen() {
   const teams = useCall('teams.list', {});
   const users = useCall('users.list', {});
   const clients = useCall('clients.list', {});
+  const subCompanies = useCall('subCompanies.list', {});
   const people = (users.data ?? []).filter((user) => user.kind === 'human').sort(byName);
   const list = useCall('projects.list', {
     status,
@@ -109,8 +112,9 @@ export function ProjectsScreen() {
     teamId,
     leaderId,
     clientId,
+    subCompanyId,
   });
-  const active = [filterParam !== 'all' || gap, stageName, status !== 'active', sort !== 'updated', teamId, leaderId, clientId].filter(Boolean).length;
+  const active = [filterParam !== 'all' || gap, stageName, status !== 'active', sort !== 'updated', teamId, leaderId, clientId, subCompanyId].filter(Boolean).length;
   const setParam = (key: string, value: string) => update((next) => (value ? next.set(key, value) : next.delete(key)));
   const showAll = useStableHandler(() => setParams({ status: 'all' }, { replace: true }));
   const retry = useStableHandler(() => void list.refetch());
@@ -164,6 +168,15 @@ export function ProjectsScreen() {
               {(clients.data ?? []).map((client) => <option key={client.id} value={client.id}>{clientName(client, lang)}</option>)}
             </select>
           </label>
+          {(subCompanies.data ?? []).length > 0 && (
+            <label className={LEGEND}>
+              {t('subCompanies.label')}
+              <select value={subCompanyId ?? ''} onChange={(event) => setParam('subCompany', event.target.value)} className={SELECT}>
+                <option value="">{t('subCompanies.any')}</option>
+                {(subCompanies.data ?? []).map((sub) => <option key={sub.id} value={sub.id}>{lang === 'ar' ? sub.nameAr : sub.name}</option>)}
+              </select>
+            </label>
+          )}
           <label className={LEGEND}>
             {t('projects.statusFilter')}
             <select value={status} onChange={(event) => setStatus(event.target.value as (typeof STATUSES)[number])} className={SELECT}>

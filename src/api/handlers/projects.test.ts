@@ -421,3 +421,76 @@ describe('the contract start date', () => {
     expect(updated.project.contractStartDate).toBe('2026-08-20');
   });
 });
+
+describe('the sub-company of a project (fbk_007)', () => {
+  const sub = (id: string, name: string) => ({ id, name, nameAr: `${name} ar`, logo: null, createdBy: 'usr_001', createdAt: STAMP });
+
+  /** The sample office with two sub-companies, Vado and Bunah. The actor is a team member, who may create and edit projects. */
+  function office() {
+    const t = testApi(projectCalls);
+    t.store.state.subCompanies = { sub_001: sub('sub_001', 'Vado'), sub_002: sub('sub_002', 'Bunah') };
+    t.as('usr_002');
+    return t;
+  }
+
+  it('asks for a sub-company on create when the office has some', async () => {
+    const t = office();
+    await expect(t.api.call('projects.create', { name: 'Kiosk' })).rejects.toMatchObject({
+      code: 'invalid_input', details: { reason: 'sub_company_required' },
+    });
+    await expect(t.api.call('projects.create', { name: 'Kiosk', subCompanyId: null })).rejects.toMatchObject({
+      details: { reason: 'sub_company_required' },
+    });
+    expect(Object.values(t.store.state.projects).some((project) => project.name === 'Kiosk')).toBe(false);
+  });
+
+  it('creates a project with its sub-company, and the summary names it', async () => {
+    const t = office();
+    const detail = await t.api.call('projects.create', { name: 'Kiosk', subCompanyId: 'sub_002' });
+    expect(detail.project.subCompanyId).toBe('sub_002');
+    expect((await t.api.call('projects.get', { id: detail.project.id })).subCompanyId).toBe('sub_002');
+  });
+
+  it('lets a project have no sub-company when the office has none', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    const detail = await t.api.call('projects.create', { name: 'Kiosk' });
+    expect(detail.project.subCompanyId).toBeUndefined();
+    expect(detail.subCompanyId).toBeNull();
+  });
+
+  it('refuses a sub-company that the office does not hold', async () => {
+    const t = office();
+    await expect(t.api.call('projects.create', { name: 'Kiosk', subCompanyId: 'sub_099' })).rejects.toMatchObject({ code: 'not_found' });
+    await expect(t.api.call('projects.update', { id: 'prj_001', patch: { subCompanyId: 'sub_099' } })).rejects.toMatchObject({ code: 'not_found' });
+  });
+
+  it('sets and clears the sub-company with projects.update', async () => {
+    const t = office();
+    const set = await t.api.call('projects.update', { id: 'prj_001', patch: { subCompanyId: 'sub_001' } });
+    expect(set.project.subCompanyId).toBe('sub_001');
+    expect(set.subCompanyId).toBe('sub_001');
+    const cleared = await t.api.call('projects.update', { id: 'prj_001', patch: { subCompanyId: null } });
+    expect(cleared.project.subCompanyId).toBeNull();
+    expect(cleared.subCompanyId).toBeNull();
+  });
+
+  it('keeps an update that leaves the sub-company out as it was', async () => {
+    const t = office();
+    await t.api.call('projects.update', { id: 'prj_001', patch: { subCompanyId: 'sub_002' } });
+    await t.api.call('projects.update', { id: 'prj_001', patch: { name: 'Corniche Tower' } });
+    expect((await t.api.call('projects.get', { id: 'prj_001' })).project.subCompanyId).toBe('sub_002');
+  });
+
+  it('lists only the projects of one sub-company, with projects.list', async () => {
+    const t = office();
+    await t.api.call('projects.update', { id: 'prj_001', patch: { subCompanyId: 'sub_001' } });
+    await t.api.call('projects.create', { name: 'Kiosk', subCompanyId: 'sub_002' });
+    const vado = await t.api.call('projects.list', { status: 'all', subCompanyId: 'sub_001' });
+    expect(vado.map((row) => row.project.id)).toEqual(['prj_001']);
+    expect(vado[0].subCompanyId).toBe('sub_001');
+    const bunah = await t.api.call('projects.list', { status: 'all', subCompanyId: 'sub_002' });
+    expect(bunah.map((row) => row.project.name)).toEqual(['Kiosk']);
+    expect((await t.api.call('projects.list', { status: 'all' })).length).toBe(Object.keys(t.store.state.projects).length);
+  });
+});

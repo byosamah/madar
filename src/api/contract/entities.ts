@@ -246,6 +246,8 @@ export const Project = z.object({
   stageBack: StageBack.nullable().optional(),
   /** The day the client's contract starts (colleague comment 7, 2026-10-01). Optional, so older offices still load. */
   contractStartDate: Day.nullable().optional(),
+  /** The sub-company of the project (fbk_007). Optional, so offices saved before sub-companies still load. */
+  subCompanyId: SubCompanyId.nullable().optional(),
   createdBy: UserId,
   createdAt: Stamp,
   updatedAt: Stamp,

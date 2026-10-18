@@ -28,11 +28,14 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
   const settings = useCall('settings.get', {});
   const templates = useCall('projectTemplates.list', {});
   const users = useCall('users.list', {});
+  // The sub-companies of the office: when there are any, a new project needs one (fbk_007).
+  const subCompanies = useCall('subCompanies.list', {});
   // The codes of the office, so a typed code that takes the series of another contract warns before Create (feedback fbk_003).
   const projects = useCall('projects.list', { status: 'all' });
   const defaults = settings.data?.defaultStages ?? [];
   const form = useProjectForm(emptyProjectForm(defaults), {
     create: true, templates: templates.data, projects: projects.data?.map((summary) => summary.project),
+    subCompanies: (subCompanies.data ?? []).length > 0,
   });
   const [cover, setCover] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -84,6 +87,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
       const detail = await api.call('projects.create', {
         name: v.name.trim(),
         clientId: v.clientId || null,
+        subCompanyId: v.subCompanyId || null,
         leader: v.leader,
         location: v.location.trim(),
         areaM2: areaValue(v.area),

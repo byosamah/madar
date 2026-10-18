@@ -17,6 +17,7 @@ function valuesOf(detail: ProjectDetail): ProjectFormValues {
   return {
     name: project.name,
     clientId: project.clientId ?? '',
+    subCompanyId: project.subCompanyId ?? '',
     leader: 'me',
     location: project.location,
     area: project.areaM2 === null ? '' : String(project.areaM2),
@@ -57,6 +58,9 @@ export function EditProjectSheet({ detail, open, onOpenChange }: { detail: Proje
     const meta = { correlationId: newStoryId() };
     // A corrected code goes only when the Admin changed it, so a save by the Admin never records a code change by mistake.
     const code = editCode && normalizeTypedCode(v.code) !== detail.project.code ? normalizeTypedCode(v.code) : undefined;
+    // The sub-company goes only when the person changed it, so a list that has not loaded never clears it (fbk_007).
+    const subCompanyId = v.subCompanyId || null;
+    const subCompanyPatch = subCompanyId !== (detail.project.subCompanyId ?? null) ? { subCompanyId } : {};
     setSaving(true);
     try {
       await api.call('projects.update', {
@@ -64,6 +68,7 @@ export function EditProjectSheet({ detail, open, onOpenChange }: { detail: Proje
         patch: {
           name: v.name.trim(),
           clientId: v.clientId || null,
+          ...subCompanyPatch,
           location: v.location.trim(),
           areaM2: areaValue(v.area),
           contractStartDate: v.contractStartDate || null,

@@ -25,6 +25,11 @@ export function clientParam(value: string | null): string | undefined {
   return value && /^cli_\d{3,}$/.test(value) ? value : undefined;
 }
 
+/** A sub-company from the link, when it has the form of a sub-company id (fbk_007). */
+export function subCompanyParam(value: string | null): string | undefined {
+  return value && /^sub_\d{3,}$/.test(value) ? value : undefined;
+}
+
 /**
  * The link of a list screen with one task panel open over it (Tasks, Home, the Task list). An office task has no project, so the
  * link names the task alone (owner, 2026-10-06).

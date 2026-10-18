@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { State } from '../../api/store';
 import { renderApp } from '../../test/render';
 
 const rows = () => {
@@ -120,5 +121,29 @@ describe('the Projects screen', () => {
     second.unmount();
     await renderApp('/projects?status=on_hold');
     expect(await screen.findByRole('link', { name: /Gulf Crest HQ Interiors/ })).toBeInTheDocument();
+  });
+});
+
+describe('the sub-company filter of the Projects screen (fbk_007)', () => {
+  const sub = (id: string, name: string) => ({ id, name, nameAr: `${name} ar`, logo: null, createdBy: 'usr_001', createdAt: '2026-10-18T09:00:00.000+03:00' });
+  const offices = (state: State) => {
+    state.subCompanies = { sub_001: sub('sub_001', 'Vado'), sub_002: sub('sub_002', 'Bunah') };
+    state.projects.prj_001.subCompanyId = 'sub_001';
+  };
+
+  it('lists only the projects of the sub-company that the filter names', async () => {
+    await renderApp('/projects?subCompany=sub_001', offices);
+    await ready();
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(screen.getByRole('link', { name: /Corniche Office Tower/ })).toBeInTheDocument();
+  });
+
+  it('offers the sub-company in the filter sheet, and a choice in it narrows the list', async () => {
+    await renderApp('/projects', offices);
+    await ready();
+    const dialog = await openFilter();
+    await userEvent.selectOptions(within(dialog).getByLabelText('Sub-company'), 'Vado');
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(screen.getByRole('link', { name: /Corniche Office Tower/ })).toBeInTheDocument();
   });
 });
