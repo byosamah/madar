@@ -13,9 +13,10 @@ import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../../components/icons/animated/plus';
 import { XIcon } from '../../../components/icons/animated/x';
 import {
-  addRole, addStage, addTask, draftError, draftInput, draftOf, emptyDraft, moveStage, removeRole, removeStage, tasksEndDay,
-  type DraftRole, type DraftStage, type DraftTask, type TemplateDraft,
+  addRole, addStage, addTask, draftError, draftInput, draftOf, emptyDraft, moveStage, removeRole, removeStage,
+  startsBeforeStageAbove, tasksEndDay, type DraftRole, type DraftStage, type DraftTask, type TemplateDraft,
 } from './templateDraft';
+import { SortableStages, type StageDrag } from './SortableStages';
 import { TemplateTimeline } from './TemplateTimeline';
 
 /** A small field with its label above, for the numbers and the role of a task. The label is the accessible name. */
@@ -72,18 +73,22 @@ function TaskRow({ task, draft, onChange, onRemove }: { task: DraftTask; draft: 
 }
 
 function StageCard({
-  stage, index, count, draft, setDraft,
-}: { stage: DraftStage; index: number; count: number; draft: TemplateDraft; setDraft: (draft: TemplateDraft) => void }) {
+  stage, index, count, draft, setDraft, drag,
+}: {
+  stage: DraftStage; index: number; count: number; draft: TemplateDraft; setDraft: (draft: TemplateDraft) => void; drag: StageDrag;
+}) {
   const { t } = useTranslation();
   const tasks = draft.tasks.filter((task) => task.stageId === stage.id);
   const tasksEnd = tasksEndDay(draft, stage.id);
+  const startsBefore = startsBeforeStageAbove(draft, index);
   const n = index + 1;
   const setStage = (next: DraftStage) => setDraft({ ...draft, stages: draft.stages.map((s) => (s.id === stage.id ? next : s)) });
   const setTask = (next: DraftTask) => setDraft({ ...draft, tasks: draft.tasks.map((task) => (task.id === next.id ? next : task)) });
   const id = `tpl-${stage.id}`;
   return (
-    <li className="flex flex-col gap-1 rounded-2xl border border-separator p-3">
+    <div className={`flex flex-col gap-1 rounded-2xl border border-separator p-3 ${drag.lifted ? 'surface relative z-10 shadow-float' : ''}`}>
       <div className="flex items-center gap-2">
+        {drag.grip}
         <span aria-hidden className="tabular w-6 shrink-0 text-center text-footnote text-ink-2">{n}</span>
         <input
           id={`${id}-name`}
@@ -117,6 +122,7 @@ function StageCard({
           </div>
         </div>
         {tasksEnd !== null && <p className="text-footnote text-ink-2">{t('projectTemplates.tasksEnd', { day: tasksEnd })}</p>}
+        {startsBefore && <p className="text-footnote text-ink-2">{t('projectTemplates.startsBeforeAbove')}</p>}
       </div>
       {tasks.length > 0 && (
         <ul className="hairline flex flex-col">
@@ -135,7 +141,7 @@ function StageCard({
         <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
         {t('projectTemplates.addTask')}
       </Button>
-    </li>
+    </div>
   );
 }
 
@@ -254,11 +260,13 @@ export function ProjectTemplateEditor({ template, onClose }: { template: Project
         <section aria-labelledby="template-stages" className="flex flex-col gap-2">
           <h3 id="template-stages" className="field-label">{t('projectTemplates.stages')}</h3>
           <p className="text-footnote text-ink-2">{t('projectTemplates.stagesHint')}</p>
-          <ol className="flex flex-col gap-3">
-            {draft.stages.map((stage, index) => (
-              <StageCard key={stage.id} stage={stage} index={index} count={draft.stages.length} draft={draft} setDraft={setDraft} />
-            ))}
-          </ol>
+          <SortableStages
+            draft={draft}
+            setDraft={setDraft}
+            render={(stage, index, drag) => (
+              <StageCard stage={stage} index={index} count={draft.stages.length} draft={draft} setDraft={setDraft} drag={drag} />
+            )}
+          />
           <Button className="self-start" onClick={() => setDraft(addStage(draft))}>
             <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
             {t('projectTemplates.addStage')}

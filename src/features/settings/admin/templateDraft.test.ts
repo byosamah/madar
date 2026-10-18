@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ProjectTemplate } from '../../../api/contract/entities';
 import {
   addRole, addStage, addTask, draftError, draftInput, draftOf, draftPlanTemplate, emptyDraft, moveStage, moveStageStart, removeRole, removeStage,
-  tasksEndDay, type TemplateDraft,
+  reorderStages, startsBeforeStageAbove, tasksEndDay, type TemplateDraft,
 } from './templateDraft';
 
 const SAVED: ProjectTemplate = {
@@ -137,5 +137,46 @@ describe('the end of the tasks of a stage', () => {
     expect(tasksEndDay(draft, 's1')).toBeNull();
     const long = { ...draft, stages: draft.stages.map((stage) => (stage.id === 's1' ? { ...stage, start: '0', days: '20' } : stage)) };
     expect(tasksEndDay(long, 's1')).toBeNull();
+  });
+});
+
+describe('reorderStages', () => {
+  it('moves a stage to a new place, and the other stages keep their order', () => {
+    const draft = draftOf(SAVED);
+    expect(reorderStages(draft, 0, 1).stages.map((stage) => stage.id)).toEqual(['s2', 's1']);
+    expect(reorderStages(draft, 1, 0).stages.map((stage) => stage.id)).toEqual(['s2', 's1']);
+    const three = addStage(draft);
+    expect(reorderStages(three, 0, 2).stages.map((stage) => stage.id)).toEqual(['s2', 's3', 's1']);
+    expect(reorderStages(three, 2, 0).stages.map((stage) => stage.id)).toEqual(['s3', 's1', 's2']);
+  });
+
+  it('gives the draft back for the same place or for a place outside the list', () => {
+    const draft = draftOf(SAVED);
+    expect(reorderStages(draft, 1, 1)).toBe(draft);
+    expect(reorderStages(draft, 0, 2)).toBe(draft);
+    expect(reorderStages(draft, -1, 0)).toBe(draft);
+  });
+
+  it('keeps the tasks of each stage as they are', () => {
+    expect(reorderStages(draftOf(SAVED), 0, 1).tasks).toEqual(draftOf(SAVED).tasks);
+  });
+});
+
+describe('startsBeforeStageAbove', () => {
+  it('is false for the first stage and for a stage that starts after the stage above it', () => {
+    const draft = draftOf(SAVED);
+    expect(startsBeforeStageAbove(draft, 0)).toBe(false);
+    // Permits starts on day 20, after Concept, which starts on day 0.
+    expect(startsBeforeStageAbove(draft, 1)).toBe(false);
+  });
+
+  it('is true when a stage that starts earlier comes after a stage that starts later', () => {
+    expect(startsBeforeStageAbove(reorderStages(draftOf(SAVED), 0, 1), 1)).toBe(true);
+  });
+
+  it('is false when the stage has no days and no task to compare', () => {
+    const draft = draftOf(SAVED);
+    const withoutConcept = { ...draft, tasks: draft.tasks.filter((task) => task.stageId !== 's1') };
+    expect(startsBeforeStageAbove(reorderStages(withoutConcept, 0, 1), 1)).toBe(false);
   });
 });

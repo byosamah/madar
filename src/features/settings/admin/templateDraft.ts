@@ -102,6 +102,19 @@ export function moveStage(draft: TemplateDraft, stageId: string, delta: -1 | 1):
   return { ...draft, stages };
 }
 
+/**
+ * Moves the stage at place `from` to place `to`. The other stages keep their order, and each stage keeps its tasks. The same
+ * place, or a place outside the list, gives the draft back.
+ */
+export function reorderStages(draft: TemplateDraft, from: number, to: number): TemplateDraft {
+  const count = draft.stages.length;
+  if (from === to || from < 0 || to < 0 || from >= count || to >= count) return draft;
+  const stages = [...draft.stages];
+  const [moved] = stages.splice(from, 1);
+  stages.splice(to, 0, moved);
+  return { ...draft, stages };
+}
+
 const clampOffset = (n: number) => Math.min(OFFSET_MAX, Math.max(0, Math.round(n)));
 
 /**
@@ -142,6 +155,23 @@ export function tasksEndDay(draft: TemplateDraft, stageId: string): number | nul
   const span = stageSpan(stage, plan.tasks.filter((task) => task.stageId === stageId));
   // The span end comes after the last working day, so the last day is one less.
   return span && span.end > stage.startOffset + stage.durationDays ? span.end - 1 : null;
+}
+
+/**
+ * True when the stage at `index` starts before the stage above it, the stage at `index - 1`. A start is the span of the own days
+ * and the tasks of a stage, as a project shows it. A stage with no span gives false, and so does the first stage.
+ */
+export function startsBeforeStageAbove(draft: TemplateDraft, index: number): boolean {
+  if (index <= 0 || index >= draft.stages.length) return false;
+  const plan = draftPlanTemplate(draft);
+  const startOf = (stageId: string): number | null => {
+    const stage = plan.stages.find((part) => part.id === stageId);
+    if (!stage) return null;
+    return stageSpan(stage, plan.tasks.filter((task) => task.stageId === stageId))?.start ?? null;
+  };
+  const here = startOf(draft.stages[index].id);
+  const above = startOf(draft.stages[index - 1].id);
+  return here !== null && above !== null && here < above;
 }
 
 function twice(names: string[]): boolean {
