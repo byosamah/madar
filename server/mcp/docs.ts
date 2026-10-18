@@ -153,7 +153,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.update': {
     title: 'Change project details',
-    description: 'Changes the details of one project: name, client, sub-company (subCompanyId; null clears it), location, area in square metres, the pin (geo: { lat, lng } or null), dates, model folder path, description, cover file. Send only the changed fields in "patch". The project leader and the Admin may do this. "code" corrects the project code (for example 260902AZT-RES-Villa): only the Admin may do that, and the History records it. A code outside the office pattern, or with the month and series of another contract, fails with reason code_format or code_taken: tell your person, and send codeAnyway: true only when they say to keep the code.',
+    description: 'Changes the details of one project: name, client, sub-company (subCompanyId; null clears it), location, area in square metres, the pin (geo: {lat, lng} or null), dates, model folder path, description, cover file. Send only the changed fields in "patch". The project leader and the Admin may do this. "code" corrects the project code: only the Admin may do that, and the History records it. A code outside the office pattern, or with the month and series of another contract, fails with reason code_format or code_taken: tell your person, and send codeAnyway: true only when they say to keep the code.',
   },
   'search.query': {
     title: 'Search',
