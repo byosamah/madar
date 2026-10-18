@@ -38,6 +38,14 @@ describe('the template part of the new-project form', () => {
     expect(fixedIdsOf(TEMPLATE, { t3: true, t1: false, s3: false })).toEqual(['t1', 's3']);
   });
 
+  it('locks a stage with its own numbers when all its tasks are locked', () => {
+    // Concept has its own numbers. Its tasks t1 and t2 stretch, and t3 is locked by the template.
+    const own = { ...TEMPLATE, stages: TEMPLATE.stages.map((stage) => (stage.id === 's1' ? { ...stage, startOffset: 0, durationDays: 10 } : stage)) };
+    expect(fixedIdsOf(own, {})).toEqual(['t3']);
+    expect(fixedIdsOf(own, { t1: false })).toEqual(['t1', 't3']);
+    expect(fixedIdsOf(own, { t1: false, t2: false })).toEqual(['t1', 't2', 't3', 's1']);
+  });
+
   it('gives a stage tick for all its tasks: on, off or mixed', () => {
     expect(stageStretch(TEMPLATE, 's1', {})).toBe('on');
     expect(stageStretch(TEMPLATE, 's2', {})).toBe('off');

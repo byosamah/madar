@@ -26,12 +26,20 @@ export function roleChoice(role: TemplateRole, values: Pick<TemplateValues, 'tem
   return fallback?.active ? fallback.id : '';
 }
 
-/** The tasks, and the stages with no tasks but with numbers, whose tick is off: they keep their length. */
+/**
+ * The tasks whose tick is off, and the stages with their own numbers that keep their length. A stage with no tasks has its own
+ * tick. A stage with tasks keeps its length when all its tasks keep theirs.
+ */
 export function fixedIdsOf(template: ProjectTemplate, stretch: Record<string, boolean>): string[] {
-  const withTasks = new Set(template.tasks.map((task) => task.stageId));
   const tasks = template.tasks.filter((task) => !(stretch[task.id] ?? task.flexible)).map((task) => task.id);
+  const locked = new Set(tasks);
   const stages = template.stages
-    .filter((stage) => !withTasks.has(stage.id) && stage.startOffset !== null && !(stretch[stage.id] ?? true))
+    .filter((stage) => {
+      if (stage.startOffset === null) return false;
+      const own = template.tasks.filter((task) => task.stageId === stage.id);
+      if (own.length === 0) return !(stretch[stage.id] ?? true);
+      return own.every((task) => locked.has(task.id));
+    })
     .map((stage) => stage.id);
   return [...tasks, ...stages];
 }
