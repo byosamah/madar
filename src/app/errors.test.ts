@@ -51,6 +51,28 @@ describe('errorMessage', () => {
 });
 
 
+describe('errorMessage for group chats (fbk_011)', () => {
+  it('has a text in both languages for every refusal of a group chat', () => {
+    const refusals = [
+      invalid('remove', 'x', 'group_too_small'),
+      invalid('add', 'x', 'group_full'),
+      forbidden('x', { reason: 'not_maker' }),
+    ];
+    for (const language of ['en', 'ar'] as const) {
+      const i18n = initI18n(language);
+      const t = i18n.t.bind(i18n);
+      for (const refusal of refusals) {
+        const reason = String(refusal.details.reason);
+        expect({ language, reason, exists: i18n.exists(`errors.reasons.${reason}`) }).toEqual({ language, reason, exists: true });
+        expect(errorMessage(refusal, t)).toBe(t(`errors.reasons.${reason}`));
+      }
+    }
+    const en = initI18n('en');
+    expect(errorMessage(invalid('remove', 'x', 'group_too_small'), en.t.bind(en))).toBe('A group keeps at least two people. Archive the chat instead.');
+  });
+});
+
+
 describe('canRetry', () => {
   it('offers a Retry after a failed call and after an ended session, never after a refusal or a turned-off account', () => {
     expect(canRetry(new ApiError('failed', 'Could not save.'))).toBe(true);

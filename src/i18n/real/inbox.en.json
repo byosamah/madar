@@ -21,5 +21,12 @@
     "leaveTitle": "Leave this group?",
     "leaveBody": "You do not see its new messages after you leave.",
     "leaveConfirm": "Leave the group"
+  },
+  "errors": {
+    "reasons": {
+      "group_too_small": "A group keeps at least two people. Archive the chat instead.",
+      "group_full": "A group holds 50 people at most.",
+      "not_maker": "Only the person who made the group can remove other people."
+    }
   }
 }

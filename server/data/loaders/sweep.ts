@@ -33,6 +33,7 @@ export function readSweep(office: State): SweepCall[] {
       ['notifications.count', {}, actor],
       ['chats.list', {}, actor],
       ['chats.unreadCount', {}, actor],
+      ['chats.waiting', {}, actor],
       ['events.list', { limit: 20 }, actor],
       ['events.list', { since: '2026-10-01T00:00:00+03:00', limit: 500 }, actor],
       ['search.query', { text: 'a' }, actor],
