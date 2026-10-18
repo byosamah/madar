@@ -163,6 +163,15 @@ describe('the Open space screen', () => {
     expect(direction).toHaveAttribute('dir', 'rtl');
   });
 
+  it('shows the small logo of the sub-company beside the picture of a project (fbk_007)', async () => {
+    await renderApp('/dashboard/space', (state) => {
+      state.subCompanies = { sub_001: { id: 'sub_001', name: 'Vado', nameAr: 'فادو', logo: null, createdBy: 'usr_001', createdAt: '2026-10-18T09:00:00.000+03:00' } };
+      state.projects.prj_001.subCompanyId = 'sub_001';
+    });
+    await waitFor(() => expect(countOf('[data-kind="project"]')).toBeGreaterThan(0));
+    await waitFor(() => expect(countOf('[data-kind="project"] [data-sub-company-badge]')).toBe(1));
+  });
+
   it('opens every project and stage with Open all, and closes them with Close all', async () => {
     await renderApp('/dashboard/space');
     await userEvent.click(await screen.findByRole('button', { name: 'Open all' }));

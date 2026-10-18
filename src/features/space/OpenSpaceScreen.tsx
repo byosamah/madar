@@ -7,6 +7,7 @@ import { errorMessage } from '../../app/errors';
 import { useLang } from '../../app/lang';
 import { useByPersonName, usePersonName } from '../../app/personName';
 import { PicturesProvider } from '../../app/pictures';
+import { SubCompaniesProvider } from '../../app/subCompanies';
 import { useCall } from '../../app/runtime';
 import type { Stage } from '../../api/contract/entities';
 import type { ProjectSummary, TaskRow } from '../../api/contract/views';
@@ -31,10 +32,10 @@ type FlowHandle = { fitView: (options?: { padding?: number }) => unknown };
 
 /**
  * The Open space (feedback fbk_015, 2026-10-18): a read-only mind map of the office, for the managers who want the whole office
- * at one look. It sits outside the app frame, as the meeting view does, so it reads the profile pictures itself.
+ * at one look. It sits outside the app frame, as the meeting view does, so it reads the profile pictures and the sub-companies itself.
  */
 export function OpenSpaceScreen() {
-  return <PicturesProvider><SpaceScreen /></PicturesProvider>;
+  return <PicturesProvider><SubCompaniesProvider><SpaceScreen /></SubCompaniesProvider></PicturesProvider>;
 }
 
 function SpaceScreen() {

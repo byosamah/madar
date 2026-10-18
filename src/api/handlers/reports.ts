@@ -10,7 +10,7 @@ import {
   periodRange, REPORT_COMPLETED_VERB, REPORT_KEYS, REPORT_PAUSED_VERB, REPORT_REVIEW_VERBS, REPORT_STAGE_VERB, ReportPeriodKind, type DayRange,
 } from '../reportPeriod';
 import { defineCall, type Ctx } from '../registry';
-import { paymentsOf, trackerOf, type State } from '../store';
+import { paymentsOf, subCompaniesOf, trackerOf, type State } from '../store';
 import { stagesOf, userCard } from '../views';
 import { assertCan } from './shared';
 
@@ -93,6 +93,11 @@ function buildReport(ctx: Ctx, input: { period: ReportPeriodKind; start?: string
     return stage ? { id: stage.id, name: stage.name } : null;
   };
 
+  const subCompanies = subCompaniesOf(state);
+  const subCompanyOf = (project: Project) => {
+    const sub = project.subCompanyId ? subCompanies[project.subCompanyId] : undefined;
+    return sub ? { id: sub.id, name: sub.name, nameAr: sub.nameAr } : null;
+  };
   const projectRow = (project: Project): ReportProject => {
     const own = tasks.filter((task) => task.projectId === project.id);
     const deadlineCounts = deadlinesOf(project.id);
@@ -102,6 +107,7 @@ function buildReport(ctx: Ctx, input: { period: ReportPeriodKind; start?: string
     const health = computeHealth({ project, stages: stagesOf(state, project.id), tasks: own }, today);
     return {
       project: { id: project.id, code: project.code, name: project.name, mark: markOf(project) },
+      subCompany: subCompanyOf(project),
       status: project.status,
       stageAtStart: stageOn(project.id, range.from),
       stageAtEnd: stageOn(project.id, range.to),

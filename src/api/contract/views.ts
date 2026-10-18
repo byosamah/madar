@@ -297,9 +297,12 @@ export type PaymentRow = z.infer<typeof PaymentRow>;
 const ReportCount = z.number().int().min(0);
 const ReportRef = z.object({ id: ProjectId, code: z.string(), name: z.string(), mark: z.number().int().nonnegative() });
 const ReportStage = z.object({ id: StageId, name: z.string() });
+const ReportSubCompany = z.object({ id: SubCompanyId, name: z.string(), nameAr: z.string() });
 const ReportDeadlines = z.object({ met: ReportCount, missed: ReportCount });
 export const ReportProject = z.object({
   project: ReportRef,
+  /** The sub-company of the project, or null (fbk_007). */
+  subCompany: ReportSubCompany.nullable(),
   status: ProjectStatus,
   stageAtStart: ReportStage.nullable(),
   stageAtEnd: ReportStage.nullable(),

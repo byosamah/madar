@@ -180,6 +180,16 @@ describe('reports.office: the numbers of the week of 27 September', () => {
     });
   });
 
+  it('names the sub-company of a project, and gives null for a project without one (fbk_007)', async () => {
+    const state = office();
+    state.subCompanies = { sub_001: { id: 'sub_001', name: 'Vado', nameAr: 'فادو', logo: null, createdBy: 'usr_001', createdAt: '2026-09-01T09:00:00.000+03:00' } };
+    const before = await testApi(reportsCalls, state).api.call('reports.office', { period: 'week', start: '2026-09-28' });
+    expect(before.projects[0]!.subCompany).toBeNull();
+    state.projects.prj_001.subCompanyId = 'sub_001';
+    const named = await testApi(reportsCalls, state).api.call('reports.office', { period: 'week', start: '2026-09-28' });
+    expect(named.projects[0]!.subCompany).toEqual({ id: 'sub_001', name: 'Vado', nameAr: 'فادو' });
+  });
+
   it('gives the period of the last full month with no start', async () => {
     const t = world();
     const report = await t.api.call('reports.office', { period: 'month' });

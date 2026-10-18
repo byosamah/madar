@@ -116,7 +116,7 @@ function ProjectCard({ data }: { data: SpaceCardData }) {
     <div data-kind={data.kind} data-open={data.open} data-faded={data.faded} onClick={clickToggles(data)} className={cardClass(data)}>
       <button type="button" aria-expanded={data.expandable ? data.open : undefined} className="block w-full text-start">
         <span className="flex items-center gap-2.5">
-          <ProjectTile id={summary.project.id} mark={summary.project.mark} size={32} />
+          <ProjectTile id={summary.project.id} mark={summary.project.mark} size={32} subCompanyId={summary.subCompanyId} />
           <span className="flex min-w-0 flex-col gap-0.5">
             <bdi dir="auto" className="truncate text-subheadline font-semibold text-ink">{summary.project.name}</bdi>
             {/* On track is the normal state, so its word stays for a screen reader only. */}

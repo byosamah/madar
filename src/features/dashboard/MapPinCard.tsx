@@ -15,7 +15,7 @@ export function MapPinCard({ summary }: { summary: ProjectSummary }) {
   const { project, currentStage, leader, health } = summary;
   return (
     <section aria-label={project.name} className="panel flex flex-wrap items-center gap-4 p-5">
-      <ProjectTile id={project.id} mark={project.mark} size={34} />
+      <ProjectTile id={project.id} mark={project.mark} size={34} subCompanyId={summary.subCompanyId} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <bdi dir="auto" className="break-words text-headline text-ink">{project.name}</bdi>
         <span dir="ltr" className="tabular text-footnote text-ink-2">{projectKey(project.code)}</span>

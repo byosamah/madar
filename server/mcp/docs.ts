@@ -247,7 +247,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'reports.office': {
     title: 'Get the office report',
-    description: 'Gives the office report of one period: a week, a month, a quarter or a year. Send period, and start (YYYY-MM-DD, any day in the period) to pick it. The answer has the data and the design guide (design). Build a clean document on a white page with design: its colors, type and rules. The money part (money) comes only for people with the payment right; without it, money is null. Needs the report right, which the Admin and Management hold by default.',
+    description: 'Gives the office report of one period: a week, a month, a quarter or a year. Send period, and start (YYYY-MM-DD, any day in the period) to pick it. The answer has the data and the design guide (design). Each project row names its sub-company (subCompany), or null. Build a clean document on a white page with design: its colors, type and rules. The money part (money) comes only for people with the payment right; without it, money is null. Needs the report right, which the Admin and Management hold by default.',
   },
   'users.list': {
     title: 'List people',
