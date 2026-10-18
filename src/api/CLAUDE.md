@@ -184,6 +184,11 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - The endpoint must be the https address of a known push service (`isPushEndpoint`): the server posts to it, so a free address
   would let a person aim the server at any host. See `server/push/CLAUDE.md`.
 
+## The project pin (owner, 2026-10-18, fbk_017)
+- `Project.geo` is an optional `GeoPoint` (`lat` -90 to 90, `lng` -180 to 180). `ProjectSummary.geo` is that point or null (`summaryOf`).
+- `projects.create` takes `geo` (default null). `projects.update` takes `patch.geo` (null removes the pin). Both refuse a value out of range.
+- MCP: `TOOL_DOCS` of `projects.update`, `projects.get` and `projects.list` name `geo`. `samples.json` holds inputs only, so it did not change.
+
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.
 2. If it is server-only: its contract in `contract/server.ts`, its fake in `handlers/serverFakes.ts`, its server body in

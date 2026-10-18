@@ -67,6 +67,16 @@ any screen work.
   (`madar.pushOff.<user id>`, `isPushOptedOut` and `setPushOptOut` in `push.ts`), sets it before the turn off, takes it back when
   the turn off fails, and clears it at a turn on. The ask also stays away from that person. The choice is never on the server.
 
+## The project pin and the map (owner, 2026-10-18, fbk_017)
+- `src/features/map/`: `MapCanvas.tsx` is the one MapLibre wrapper, `PinPicker.tsx` the pin sheet, `mapStyle.ts` the Madar style.
+  `src/lib/geo.ts` reads a pasted link or a pair of coordinates. The form line "Pin on the map" is in `ProjectFields.tsx`.
+- MapLibre loads only in the real build. `PinPicker.tsx` folds the flag with `import.meta.env.VITE_MADAR_API === 'remote'` itself
+  (as `main.tsx` does): `REMOTE` from mode.ts does not fold, and the prototype would keep the map code and its stylesheet.
+- The worker and the stylesheet come from the lazy loader in `MapCanvas.tsx`. The worker is a `?worker&url` import (it needs its own
+  imports bundled). `check-bundles.ts` fails a prototype dist or a first load that holds the `maplibregl-` marker.
+- The map style follows the theme and the language of the screens. Its colors are tokens (`MAP_COLORS`, checked by `mapStyle.test.ts`).
+- A short Google Maps link holds no place: the paste field says so, and no pin is set.
+
 ## Data on screens
 - Screens call `api.call(name, input)` through `useCall` (reads) and `useAction` (writes) in `app/runtime.tsx`.
 - `app/readMap.ts` says which change kinds each read reads. The remote build keeps answers until a change signal names

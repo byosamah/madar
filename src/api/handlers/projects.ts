@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
-  ClientId, ClientInitials, Day, DeadlineId, FileId, HealthValue, LinkKind, linkUrlOk, MAX_PREREQUISITES, PauseKind, ProjectId, ProjectStatus, ProjectTemplateId, StageId,
+  ClientId, ClientInitials, Day, DeadlineId, FileId, GeoPoint, HealthValue, LinkKind, linkUrlOk, MAX_PREREQUISITES, PauseKind, ProjectId, ProjectStatus, ProjectTemplateId, StageId,
   SubCompanyId, TeamId, UserId, type Deadline, type Project, type ProjectTemplate, type Task,
 } from '../contract/entities';
 import { DeadlineRow, ProjectDetail, ProjectSummary } from '../contract/views';
@@ -302,6 +302,8 @@ export const projectsCreate = defineCall({
     leader: z.union([z.literal('me'), z.literal('none'), UserId]).default('me'),
     location: Location.default(''),
     areaM2: Area.nullable().default(null),
+    /** The pin on the map (owner, 2026-10-18, fbk_017): a point in decimal degrees, or null for no pin. */
+    geo: GeoPoint.nullable().default(null),
     startDate: Day.nullable().default(null),
     targetEndDate: Day.nullable().default(null),
     contractStartDate: Day.nullable().default(null),
@@ -352,7 +354,7 @@ export const projectsCreate = defineCall({
     const targetEndDate = made ? made.use.endDate ?? planEnd : input.targetEndDate;
     const project: Project = {
       id, code, name: input.name, clientId: input.clientId,
-      status: 'active', leaderId, currentStageId: stageIds[0], location: input.location, areaM2: input.areaM2,
+      status: 'active', leaderId, currentStageId: stageIds[0], location: input.location, areaM2: input.areaM2, geo: input.geo,
       startDate, targetEndDate, contractStartDate: input.contractStartDate, coverFileId: null, modelFolderPath: input.modelFolderPath,
       description: input.description, healthOverride: null, mark: pickMark(id, Object.values(state.projects)),
       ...(subCompanyId ? { subCompanyId } : {}),
@@ -382,6 +384,8 @@ export const projectsUpdate = defineCall({
       clientId: ClientId.nullable().optional(),
       location: Location.optional(),
       areaM2: Area.nullable().optional(),
+      /** The pin on the map (owner, 2026-10-18, fbk_017): a point, or null to remove it. */
+      geo: GeoPoint.nullable().optional(),
       startDate: Day.nullable().optional(),
       targetEndDate: Day.nullable().optional(),
       contractStartDate: Day.nullable().optional(),

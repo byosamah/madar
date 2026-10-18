@@ -215,6 +215,7 @@ export function summaryOf(state: State, project: Project, today: string, viewer:
     nextDeadline: next ? { id: next.id, name: next.name, date: next.date, daysLeft: diffDays(today, next.date) } : null,
     stageEnd: stageEndDate ? { date: stageEndDate, daysLeft: diffDays(today, stageEndDate) } : null,
     subCompanyId: project.subCompanyId ?? null,
+    geo: project.geo ?? null,
     leader: project.leaderId ? cardOf(state, project.leaderId) : null,
     team: Object.values(state.members)
       .filter((m) => m.projectId === project.id && m.userId !== project.leaderId)

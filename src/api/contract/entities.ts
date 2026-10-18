@@ -220,6 +220,10 @@ export type StageBack = z.infer<typeof StageBack>;
  */
 export const ProjectCode = z.string().regex(RECORD_CODE_PATTERN, 'Write the code on one line, with visible characters and 60 characters or fewer.');
 
+/** A point on the map: the pin of a project, in decimal degrees (owner, 2026-10-18, fbk_017). */
+export const GeoPoint = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) });
+export type GeoPoint = z.infer<typeof GeoPoint>;
+
 export const Project = z.object({
   id: ProjectId,
   /** The old form KH-26-014, or the new form YYMMSSINI-CLS-Type (owner, 2026-10-05, lib/projectCode.ts). Two projects of one contract share one code. */
@@ -231,6 +235,8 @@ export const Project = z.object({
   currentStageId: StageId,
   location: z.string().max(120),
   areaM2: z.number().nonnegative().nullable(),
+  /** The pin on the map (owner, 2026-10-18, fbk_017). Optional, so offices saved before pins existed still load. */
+  geo: GeoPoint.nullable().optional(),
   startDate: Day.nullable(),
   targetEndDate: Day.nullable(),
   coverFileId: FileId.nullable(),

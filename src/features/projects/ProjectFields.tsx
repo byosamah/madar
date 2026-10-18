@@ -3,7 +3,7 @@ import { PlusIcon } from '../../components/icons/animated/plus';
 import { XIcon } from '../../components/icons/animated/x';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Client, ProjectTemplate, SubCompany, User } from '../../api/contract/entities';
+import type { Client, GeoPoint, ProjectTemplate, SubCompany, User } from '../../api/contract/entities';
 import { useLang } from '../../app/lang';
 import { useByPersonName, usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
@@ -12,6 +12,7 @@ import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
 import { DateField } from '../../components/DateField';
 import { SelectField, TextArea, TextField } from '../../components/Fields';
+import { Sheet } from '../../components/Sheet';
 import { IconButton } from '../../components/IconButton';
 import { clientName } from '../../lib/clientName';
 import { ClientForm, useClientForm } from './ClientForm';
@@ -20,6 +21,7 @@ import { FREE_CODE_MAX } from '../../lib/projectCode';
 import { CODE_FIELDS, isCodeWarning, upperCodeHead } from './codeForm';
 import { CodeAnywayTick, ProjectCodeFields } from './ProjectCodeFields';
 import { TemplateDetails, TemplatePicker } from './TemplateUse';
+import { PinPicker, coordinatesOf } from '../map/PinPicker';
 import { validateProjectForm, type ProjectFormErrors, type ProjectFormRules, type ProjectFormValues } from './projectForm';
 
 const CHECKED: (keyof ProjectFormErrors)[] = ['name', 'area', 'startDate', 'targetEndDate', 'stages', 'code', 'template', 'subCompanyId', ...CODE_FIELDS];
@@ -271,6 +273,7 @@ export function ProjectFields({
         autoComplete="off"
         onChange={(event) => set('location', event.target.value)}
       />
+      <PinLine value={values.geo} onChange={(geo) => set('geo', geo)} />
       <TextField
         id="project-area"
         label={t('projectForm.area')}
@@ -322,6 +325,31 @@ export function ProjectFields({
         onChange={(event) => set('modelFolderPath', event.target.value)}
       />
       <TextArea id="project-description" label={t('projectForm.description')} autoComplete="off" value={values.description} dir="auto" onChange={(event) => set('description', event.target.value)} />
+    </div>
+  );
+}
+
+/**
+ * The pin line under Location (owner, 2026-10-18, fbk_017): the state of the pin, then "Set pin" (or "Change"), and "Remove" with a
+ * pin. "Set pin" opens the pin picker in a sheet. A change waits for the form's Save, as every other field does.
+ */
+function PinLine({ value, onChange }: { value: GeoPoint | null; onChange: (point: GeoPoint | null) => void }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <span className="text-subheadline text-ink-2">{t('map.pin.label')}</span>
+      <span dir="auto" className="text-subheadline">{value ? t('map.pin.value', coordinatesOf(value)) : t('map.pin.none')}</span>
+      <Button onClick={() => setOpen(true)}>{value ? t('map.pin.change') : t('map.pin.set')}</Button>
+      {value && <Button onClick={() => onChange(null)}>{t('map.pin.remove')}</Button>}
+      <Sheet
+        open={open}
+        onOpenChange={setOpen}
+        title={t('map.pinSheet.title')}
+        footer={<Button variant="primary" onClick={() => setOpen(false)}>{t('map.pinSheet.done')}</Button>}
+      >
+        <PinPicker value={value} onChange={onChange} />
+      </Sheet>
     </div>
   );
 }

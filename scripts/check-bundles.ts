@@ -47,6 +47,8 @@ export const FIRST_LOAD_MAX_BYTES = 1_350_000;
 /** Text that only the chart package (recharts), the zod schemas and the word files hold. A test checks the word files. */
 export const CHART_MARKER = 'recharts-wrapper';
 export const ZOD_MARKER = '$ZodObject';
+/** Text that only the map library (MapLibre) holds: its CSS class names survive the minifier (owner, 2026-10-18, fbk_017). */
+export const MAP_LIBRARY_MARKER = 'maplibregl-';
 export const WORD_MARKERS = {
   en: 'Something went wrong on this page. Go to Home and try again.',
   ar: 'حدث خطأ في هذه الصفحة. انتقل إلى الرئيسية وحاول مرة أخرى.',
@@ -148,6 +150,8 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
     // Browser push (owner, 2026-10-08): the prototype never registers the worker, and vite.config.ts drops the file.
     report("the push service worker 'sw.js'", names.filter((name) => name === 'sw.js' || name.endsWith('/sw.js')));
     report("a registration of '/sw.js'", texts.filter((f) => f.text.includes('/sw.js')).map((f) => f.name));
+    // The prototype is one script file: the map library (a lazy chunk of the real build) must not be in it (fbk_017).
+    report("the map library ('maplibregl-')", texts.filter((f) => f.text.includes(MAP_LIBRARY_MARKER)).map((f) => f.name));
     const js = names.filter((name) => name.endsWith('.js'));
     rule('the prototype is one script file', js.length === 1 ? [] : [`${js.length} script files (${js.join(', ')})`], js.join(', '));
     const early = ['modulepreload', 'preload', 'preconnect'].flatMap((rel) => rels(rel).map(() => rel));
@@ -172,6 +176,8 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
     none(`chart code ('${CHART_MARKER}')`, [CHART_MARKER]);
     none(`zod schemas ('${ZOD_MARKER}')`, [ZOD_MARKER]);
     none('words of a language', [WORD_MARKERS.en, WORD_MARKERS.ar]);
+    // MapLibre loads only at Set pin, in a chunk of its own: the first load holds none of it (fbk_017).
+    none("map library ('maplibregl-')", [MAP_LIBRARY_MARKER]);
     rule(
       `the first-load scripts stay at ${FIRST_LOAD_MAX_BYTES} B or less`,
       bytes > FIRST_LOAD_MAX_BYTES ? [`${closure.length} files hold ${bytes} B`] : [],

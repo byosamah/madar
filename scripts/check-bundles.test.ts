@@ -350,3 +350,22 @@ describe('the helpers of the bundle check', () => {
     expect(originsOf({})).toEqual([]);
   });
 });
+
+describe('the map library (fbk_017): MapLibre loads only at Set pin, never in the prototype', () => {
+  it('fails a prototype dist that holds the map library, because the prototype is one script file', () => {
+    const result = checkBundles('prototype', dist({ 'index.html': prototypeIndex, 'assets/index-abc.js': 'const c="maplibregl-canvas";' }));
+    expect(result.ok).toBe(false);
+    expect(result.lines.join('\n')).toMatch(/FAIL: the map library \('maplibregl-'\) found in: assets\/index-abc\.js/);
+  });
+
+  it('passes a prototype dist with no map library', () => {
+    const result = checkBundles('prototype', dist({ 'index.html': prototypeIndex, 'assets/index-abc.js': 'const c=1;' }));
+    expect(result.ok).toBe(true);
+  });
+
+  it('fails a remote first load that holds the map library, so the map would load with the page', () => {
+    const result = checkRemote((files) => { files['assets/vendor-v1.js'] += 'const c="maplibregl-ctrl";'; });
+    expect(result.ok).toBe(false);
+    expect(result.text).toMatch(/FAIL: no map library \('maplibregl-'\) in the first-load scripts: found in vendor-v1\.js\./);
+  });
+});

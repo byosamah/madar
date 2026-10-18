@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-  Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, Gender, HealthValue,
+  Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, Gender, GeoPoint, HealthValue,
   Message, Payment, Project, Team,
   ProjectId, Stage, StageId, Stamp, SubCompanyId, Task, TaskId, TaskStatus, TrackerDirection, TrackerEntry, TrackerType, TrackerWaiting, UpdateId, UserId,
 } from './entities';
@@ -89,6 +89,8 @@ export const ProjectSummary = z.object({
   stageEnd: z.object({ date: Day, daysLeft: z.number().int() }).nullable().optional(),
   /** The sub-company of the project, or null (fbk_007). The list shows its logo on the tile. */
   subCompanyId: SubCompanyId.nullable(),
+  /** The pin of the project on the map (owner, 2026-10-18, fbk_017): the same point as project.geo, or null. */
+  geo: GeoPoint.nullable(),
   leader: UserCard.nullable(),
   team: z.array(UserCard),
   openTasks: z.number().int().min(0),

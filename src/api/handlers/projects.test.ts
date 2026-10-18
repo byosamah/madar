@@ -494,3 +494,39 @@ describe('the sub-company of a project (fbk_007)', () => {
     expect((await t.api.call('projects.list', { status: 'all' })).length).toBe(Object.keys(t.store.state.projects).length);
   });
 });
+
+describe('the map pin (owner, 2026-10-18, fbk_017)', () => {
+  it('is saved on create, changed on update, cleared with null and shown to every viewer', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_003');
+    const created = await t.api.call('projects.create', { name: 'Harbour Kiosk', geo: { lat: 26.28, lng: 50.21 } });
+    expect(created.project.geo).toEqual({ lat: 26.28, lng: 50.21 });
+    expect(created.geo).toEqual({ lat: 26.28, lng: 50.21 });
+    const id = created.project.id;
+    expect((await t.api.call('projects.update', { id, patch: { geo: { lat: 26.3, lng: 50.2 } } })).geo).toEqual({ lat: 26.3, lng: 50.2 });
+    t.as('usr_004');
+    expect((await t.api.call('projects.get', { id })).geo).toEqual({ lat: 26.3, lng: 50.2 });
+    t.as('usr_003');
+    expect((await t.api.call('projects.update', { id, patch: { geo: null } })).geo).toBeNull();
+    expect((await t.api.call('projects.get', { id })).geo).toBeNull();
+  });
+
+  it('refuses a latitude or longitude out of range, and a value that is not a number', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    await expect(t.api.call('projects.update', { id: 'prj_001', patch: { geo: { lat: 91, lng: 50 } } })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('projects.update', { id: 'prj_001', patch: { geo: { lat: 26, lng: 181 } } })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('projects.update', { id: 'prj_001', patch: { geo: { lat: Number.NaN, lng: 50 } } })).rejects.toMatchObject({ code: 'invalid_input' });
+    expect((await t.api.call('projects.get', { id: 'prj_001' })).geo).toBeNull();
+  });
+
+  it('gives no pin for a project saved before the field existed, and lists the pin in projects.list', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    expect('geo' in t.store.state.projects.prj_001).toBe(false);
+    expect((await t.api.call('projects.get', { id: 'prj_001' })).geo).toBeNull();
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: { lat: 26.28, lng: 50.21 } } });
+    const row = (await t.api.call('projects.list', { status: 'all' })).find((summary) => summary.project.id === 'prj_001');
+    expect(row?.geo).toEqual({ lat: 26.28, lng: 50.21 });
+  });
+});

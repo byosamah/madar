@@ -1,4 +1,4 @@
-import type { ProjectTemplate } from '../../api/contract/entities';
+import type { GeoPoint, ProjectTemplate } from '../../api/contract/entities';
 import { normalizeTypedCode } from '../../lib/projectCode';
 import { emptyCodeValues, typedCodeError, validateCodeValues, type CodeErrors, type CodeProjects, type CodeValues } from './codeForm';
 import { planOfForm } from './templateForm';
@@ -19,6 +19,8 @@ export type ProjectFormValues = CodeValues & TemplateChoice & {
   subCompanyId: string;
   leader: string;
   location: string;
+  /** The pin on the map (owner, 2026-10-18, fbk_017): null for no pin. */
+  geo: GeoPoint | null;
   area: string;
   contractStartDate: string;
   startDate: string;
@@ -46,7 +48,7 @@ export type ProjectFormRules = {
 
 export function emptyProjectForm(stages: string[]): ProjectFormValues {
   return {
-    name: '', clientId: '', subCompanyId: '', leader: 'me', location: '', area: '', contractStartDate: '', startDate: '', targetEndDate: '',
+    name: '', clientId: '', subCompanyId: '', leader: 'me', location: '', geo: null, area: '', contractStartDate: '', startDate: '', targetEndDate: '',
     stages: stages.map((name) => ({ name })), teamIds: [], modelFolderPath: '', description: '', code: '', ...emptyCodeValues(),
     ...emptyTemplateChoice(),
   };

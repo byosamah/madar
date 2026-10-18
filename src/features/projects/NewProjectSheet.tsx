@@ -90,6 +90,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
         subCompanyId: v.subCompanyId || null,
         leader: v.leader,
         location: v.location.trim(),
+        geo: v.geo,
         areaM2: areaValue(v.area),
         contractStartDate: v.contractStartDate || null,
         ...plan,

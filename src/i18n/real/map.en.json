@@ -1,0 +1,28 @@
+{
+  "map": {
+    "pin": {
+      "label": "Pin on the map",
+      "none": "No pin yet",
+      "value": "{{latitude}}, {{longitude}}",
+      "set": "Set pin",
+      "change": "Change",
+      "remove": "Remove"
+    },
+    "pinSheet": {
+      "title": "Pin on the map",
+      "done": "Done"
+    },
+    "paste": {
+      "label": "Paste a Google Maps link or the coordinates",
+      "hint": "Copy the full address from Google Maps. Or type the latitude and the longitude, for example 26.28, 50.21.",
+      "found": "The pin is set from this text.",
+      "short": "This is a short link. It holds no place. Open it in Google Maps, copy the full address, and paste it here.",
+      "none": "Madar cannot read a place in this text."
+    },
+    "canvas": {
+      "label": "Map. Drag the pin to move it.",
+      "pin": "Project pin",
+      "attribution": "Map data © OpenStreetMap contributors"
+    }
+  }
+}
