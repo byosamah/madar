@@ -12,6 +12,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ProjectTile } from '../../components/ProjectTile';
 import { Composer, MessageLog, type Bubble } from './Thread';
+import { ArchiveMenu } from './ChatList';
 import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-check';
 import { actorContext } from '../../lib/grammar';
 import { taskLink } from '../../lib/params';
@@ -87,7 +88,12 @@ export function ChatPane({ id }: { id: string }) {
   const subtitle = chat.kind === 'project' ? t('chat.projectChat') : chat.personLeft ? t('chat.inactive', { context }) : t('chat.directChat');
   return (
     <>
-      <Header lead={lead} title={<bdi>{chat.kind === 'direct' && chat.person ? nameOf(chat.person) : chat.title}</bdi>} subtitle={subtitle} />
+      <Header
+        lead={lead}
+        title={<bdi>{chat.kind === 'direct' && chat.person ? nameOf(chat.person) : chat.title}</bdi>}
+        subtitle={subtitle}
+        action={<ArchiveMenu id={id} archived={chat.archived} />}
+      />
       <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} />
       {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{t('chat.closed')}</p> : (
         <Composer
@@ -147,12 +153,15 @@ export function TaskPane({ id }: { id: string }) {
         title={<bdi>{task.data.task.title}</bdi>}
         subtitle={`${t('chat.taskThread')} · ${where ? where.name : t('office.word')}`}
         action={(
-          <Link
-            to={taskLink(where?.id ?? null, id)}
-            className="pressable inline-flex min-h-11 shrink-0 items-center rounded-full bg-fill px-4 text-subheadline font-semibold text-ink"
-          >
-            {t('chat.openTask')}
-          </Link>
+          <>
+            <Link
+              to={taskLink(where?.id ?? null, id)}
+              className="pressable inline-flex min-h-11 shrink-0 items-center rounded-full bg-fill px-4 text-subheadline font-semibold text-ink"
+            >
+              {t('chat.openTask')}
+            </Link>
+            <ArchiveMenu id={id} archived={row?.archived ?? false} />
+          </>
         )}
       />
       <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} />

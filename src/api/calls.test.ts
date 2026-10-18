@@ -35,7 +35,7 @@ const TEMPLATE_CALLS = ['stageTemplates.list', 'stageTemplates.save', 'stageTemp
 const TASK_CALLS = ['taskTemplates.list', 'taskTemplates.save', 'taskTemplates.rename', 'taskTemplates.delete', 'tasks.createFromTemplate', 'tasks.newVersion'];
 const EXTRA_CALLS = ['session.setSimulateErrors', 'session.resetSampleData', 'me.updateProfile', 'notifications.count', 'events.undoStory', 'deadlines.list'];
 // The chat (owner decision, 2026-10-01).
-const CHAT_CALLS = ['chats.list', 'chats.messages', 'chats.send', 'chats.markRead', 'chats.openDirect', 'chats.unreadCount'];
+const CHAT_CALLS = ['chats.list', 'chats.messages', 'chats.send', 'chats.markRead', 'chats.openDirect', 'chats.unreadCount', 'chats.archive'];
 // Share an existing file into a chat or a task conversation (owner request, 2026-10-01).
 const SHARE_CALLS = ['files.share'];
 // The client tracker (owner request, 2026-10-01). A file marked as delivered logs a tracker entry.
@@ -69,7 +69,7 @@ describe('the call map', () => {
   it('has every call from the spec plus the documented extras, and the 11 server calls', () => {
     expect(Object.keys(mapCalls).sort()).toEqual([...MAP_CALLS].sort());
     expect(Object.keys(calls).sort()).toEqual([...MAP_CALLS, ...SERVER_CALLS].sort());
-    expect(Object.keys(calls)).toHaveLength(132);
+    expect(Object.keys(calls)).toHaveLength(133);
   });
 
   it('marks exactly the read calls as read-only', () => {
@@ -103,17 +103,17 @@ describe('the call map', () => {
     expect(marked).toEqual(Object.keys(calls).filter((name) => name.startsWith('session.')).sort());
   });
 
-  it('has 121 calls in the map', () => {
-    expect(MAP_CALLS).toHaveLength(121);
-    expect(Object.keys(mapCalls)).toHaveLength(121);
+  it('has 122 calls in the map', () => {
+    expect(MAP_CALLS).toHaveLength(122);
+    expect(Object.keys(mapCalls)).toHaveLength(122);
   });
 });
 
 describe('the calls the server runs', () => {
-  it('are the 117 calls of the map without the prototype controls and the blob read', () => {
+  it('are the 118 calls of the map without the prototype controls and the blob read', () => {
     expect([...SERVER_EXCLUDED].sort()).toEqual(['files.get', 'session.previewAs', 'session.resetSampleData', 'session.setSimulateErrors']);
     const names = Object.keys(sharedCalls);
-    expect(names).toHaveLength(117);
+    expect(names).toHaveLength(118);
     for (const name of SERVER_EXCLUDED) expect(names).not.toContain(name);
     for (const name of names) expect(Object.keys(mapCalls)).toContain(name);
     for (const name of SERVER_CALLS) expect(names).not.toContain(name);

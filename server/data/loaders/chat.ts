@@ -105,6 +105,17 @@ export async function chatsUnread(L: Load): Promise<void> {
   await everyChat(L, { badge: true });
 }
 
+/**
+ * chats.archive: the chat (its office record, already loaded) or the task of a thread, and the own read mark, which the write keeps.
+ * It reads no message and no comment: the archive mark needs neither (owner, 2026-10-18).
+ */
+export async function chatsArchive(L: Load, input: Input): Promise<void> {
+  const id = typeof input.conversationId === 'string' ? input.conversationId : '';
+  if (!L.authority || id === '') return;
+  if (id.startsWith('tsk_')) await L.byKey('tasks', [id]);
+  await L.byKey('chatReads', [chatReadKey(id, L.authority.id)]);
+}
+
 /** chats.markRead: as chats.list (it returns the full unread count), and the newest comment of a task thread it marks. */
 export async function chatsMarkRead(L: Load, input: Input): Promise<void> {
   await everyChat(L, { inWrite: true });

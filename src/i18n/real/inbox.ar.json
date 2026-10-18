@@ -1,0 +1,9 @@
+{
+  "chat": {
+    "archive": "أرشفة",
+    "archivedCount": "المؤرشفة ({{count}})",
+    "backToInbox": "العودة إلى الوارد",
+    "moveBack": "إعادة إلى الوارد",
+    "options": "خيارات المحادثة"
+  }
+}

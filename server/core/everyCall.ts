@@ -82,6 +82,7 @@ function rest(office: State): Record<string, [unknown, string?]> {
     'events.undo': [{ eventId: ownEvent?.id ?? 'evt_001' }],
     'notifications.updateSettings': [{ channel: 'email', trigger: 'mention', on: false }],
     'chats.openDirect': [{ userId: 'usr_002' }],
+    'chats.archive': [{ conversationId: 'cnv_001', archived: true }],
     'stageTemplates.list': [{}],
     'stageTemplates.save': [{ name: 'Short', stages: ['Concept', 'Design'] }],
     'stageTemplates.delete': [{ id: 'stt_002' }],

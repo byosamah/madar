@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import { ConversationId, FileId, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, TaskId, UserId, type Comment, type Conversation, type Message, type Project, type Task, type User } from '../contract/entities';
 import { ChatRow, ChatThread, MessageView } from '../contract/views';
-import { addDirectConversation, canSeeConversation, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
+import { addDirectConversation, canSeeConversation, isArchived, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
 import { notifyIn } from '../notify';
 import { can, mayViewTask, principalOf } from '../permissions';
@@ -46,6 +46,7 @@ function rowOf(state: State, conversation: Conversation, viewer: User): ChatRow 
   const project = conversation.projectId ? state.projects[conversation.projectId] : undefined;
   const otherId = conversation.kind === 'direct' ? conversation.memberIds.find((id) => id !== viewer.id) : undefined;
   const person = otherId ? cardOf(state, otherId) : null;
+  const lastAt = last?.createdAt ?? conversation.createdAt;
   return {
     kind: conversation.kind,
     id: conversation.id,
@@ -56,9 +57,10 @@ function rowOf(state: State, conversation: Conversation, viewer: User): ChatRow 
     preview: last ? previewOf(last.body) : '',
     previewAuthor: last ? cardOf(state, last.authorId) : null,
     previewMine: last ? isMine(state, last, viewer.id) : false,
-    lastAt: last?.createdAt ?? conversation.createdAt,
+    lastAt,
     unread: unreadIn(state, conversation.id, viewer.id),
     personLeft: personLeft(state, conversation, viewer),
+    archived: isArchived(state.chatReads[chatReadKey(conversation.id, viewer.id)], lastAt),
   };
 }
 
@@ -119,6 +121,7 @@ function taskRows(state: State, viewer: User): ChatRow[] {
       kind: 'task', id: task.id, title: task.title, project: project ? { id: project.id, code: project.code, name: project.name, mark: markOf(project) } : null, person: null,
       taskId: task.id, preview: previewOf(last.body), previewAuthor: cardOf(state, last.authorId),
       previewMine: principalOf(state, last.authorId) === viewer.id, lastAt: last.createdAt, unread: taskUnread(state, task.id, comments, viewer.id), personLeft: false,
+      archived: isArchived(state.chatReads[chatReadKey(task.id, viewer.id)], last.createdAt),
     };
   });
 }
@@ -144,7 +147,9 @@ function totalUnread(state: State, viewer: User): number {
  */
 function writeReadMark(ctx: Ctx, conversationId: string, lastAt: string | undefined): void {
   const lastReadAt = lastAt && lastAt > ctx.stamp ? lastAt : ctx.stamp;
-  ctx.state.chatReads[chatReadKey(conversationId, ctx.authority.id)] = { conversationId, userId: ctx.authority.id, lastReadAt };
+  const key = chatReadKey(conversationId, ctx.authority.id);
+  // The archive mark stays (owner, 2026-10-18): a newer message clears it in the view, not here.
+  ctx.state.chatReads[key] = { ...ctx.state.chatReads[key], conversationId, userId: ctx.authority.id, lastReadAt };
   if (ctx.state.counts) ctx.state.counts[unreadCountKey(conversationId, ctx.authority.id)] = 0;
 }
 
@@ -233,12 +238,17 @@ export const chatsSend = defineCall({
   },
 });
 
-/** A task thread read now: every comment in it so far counts as read. Reading follows the rule of comments.list. */
-function markTaskReadNow(ctx: Ctx, taskId: string): void {
+/** The checks of a task thread that the person reads or archives: the task is visible and its comments are readable. */
+function requireTaskThread(ctx: Ctx, taskId: string): void {
   const task = ctx.state.tasks[taskId];
   // An office task that the person does not see reads as missing (owner, 2026-10-06).
   if (!task || !mayViewTask(ctx.state, ctx.authority, task)) throw notFound('Task', taskId);
   if (!can(ctx.authority, 'comment.read')) throw forbidden('You cannot read these comments.', { action: 'comment.read' });
+}
+
+/** A task thread read now: every comment in it so far counts as read. Reading follows the rule of comments.list. */
+function markTaskReadNow(ctx: Ctx, taskId: string): void {
+  requireTaskThread(ctx, taskId);
   const last = Object.values(ctx.state.comments)
     .filter((c) => c.targetType === 'task' && c.targetId === taskId)
     .reduce((latest, c) => (c.createdAt > latest ? c.createdAt : latest), '');
@@ -253,6 +263,29 @@ export const chatsMarkRead = defineCall({
     if (input.conversationId.startsWith('tsk_')) markTaskReadNow(ctx, input.conversationId);
     else markReadNow(ctx, requireConversation(ctx, input.conversationId));
     return { unread: totalUnread(ctx.state, ctx.authority) };
+  },
+});
+
+/** The read time of a chat with no read mark yet: older than any message, so archiving marks nothing read. */
+const NEVER_READ = '1970-01-01T00:00:00.000Z';
+
+export const chatsArchive = defineCall({
+  /**
+   * Archives a chat or a task thread for the person, or moves it back to the Inbox (owner, 2026-10-18). Only the person's own read
+   * mark changes, and no event is written. The checks are those of chats.markRead, so a hidden chat answers the same way.
+   */
+  input: z.object({ conversationId: z.union([ConversationId, TaskId]), archived: z.boolean() }),
+  output: z.object({ archived: z.boolean() }),
+  run(input, ctx) {
+    const id = input.conversationId;
+    if (id.startsWith('tsk_')) requireTaskThread(ctx, id);
+    else requireConversation(ctx, id);
+    const key = chatReadKey(id, ctx.authority.id);
+    const read = ctx.state.chatReads[key];
+    ctx.state.chatReads[key] = {
+      conversationId: id, userId: ctx.authority.id, lastReadAt: read?.lastReadAt ?? NEVER_READ, archivedAt: input.archived ? ctx.stamp : null,
+    };
+    return { archived: input.archived };
   },
 });
 
@@ -294,6 +327,7 @@ export const chatCalls = {
   'chats.messages': chatsMessages,
   'chats.send': chatsSend,
   'chats.markRead': chatsMarkRead,
+  'chats.archive': chatsArchive,
   'chats.openDirect': chatsOpenDirect,
   'chats.unreadCount': chatsUnreadCount,
 };

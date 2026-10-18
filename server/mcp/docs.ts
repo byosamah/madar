@@ -66,7 +66,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'chats.list': {
     title: 'List chats',
-    description: 'Lists the chats that your person may open: the project chats, the direct chats and the task threads, newest first, each with its unread count. A direct chat gives no preview: you may send to it, you never read it. Use it to find the id (conversationId) of a project chat for chats.send.',
+    description: 'Lists the chats that your person may open: the project chats, the direct chats and the task threads, newest first, each with its unread count. A direct chat gives no preview: you may send to it, you never read it. Each row has archived: true when your person archived the chat; a new message clears it. Use it to find the id (conversationId) of a project chat for chats.send.',
   },
   'chats.openDirect': {
     title: 'Open a direct chat',

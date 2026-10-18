@@ -188,6 +188,8 @@ export const ChatRow = z.object({
   unread: z.number().int().min(0),
   /** A direct chat whose other person left the office. It takes no new messages (audit 2026-10-03, SHL-15). */
   personLeft: z.boolean(),
+  /** The person archived the chat and no message came after the archive. The list shows it under "Archived" (owner, 2026-10-18). */
+  archived: z.boolean(),
 });
 export type ChatRow = z.infer<typeof ChatRow>;
 

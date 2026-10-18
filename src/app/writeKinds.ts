@@ -82,6 +82,7 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'notifications.updateSettings': ['preferences'],
   'chats.send': ['chatReads', 'messages'],
   'chats.markRead': ['chatReads'],
+  'chats.archive': ['chatReads'],
   'chats.openDirect': ['chatReads', 'conversations'],
   'stageTemplates.save': ['events', 'stageTemplates'],
   'stageTemplates.delete': ['events', 'stageTemplates'],

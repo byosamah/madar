@@ -286,6 +286,17 @@ describe('the 18 places of AM 6', () => {
     await same(state, 'chats.markRead', { conversationId: task.id }, 'usr_006');
   });
 
+  it('chats.archive: the loader gives the handler the same answer, for a project chat and for a task thread (owner, 2026-10-18)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project');
+    const task = Object.values(state.tasks)[0];
+    if (!room || !task) throw new Error('The sample office needs a project chat and a task.');
+    const chat = await same(state, 'chats.archive', { conversationId: room.id, archived: true }, 'usr_001');
+    expect(chat.outcome.output).toEqual({ archived: true });
+    const thread = await same(state, 'chats.archive', { conversationId: task.id, archived: true }, 'usr_001');
+    expect(thread.outcome.output).toEqual({ archived: true });
+  });
+
   it('row 16: a task approved after review moves its dependents by the days it was late on the review day', async () => {
     const state = office();
     const leader = state.projects.prj_001.leaderId!;

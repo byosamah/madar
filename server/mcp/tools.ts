@@ -56,8 +56,9 @@ export const MCP_DENY = [
   // Files: uploads and links happen in the Madar screens.
   'files.upload', 'files.uploadStart', 'files.link', 'files.delete', 'files.markDelivered', 'files.share',
   // Notifications and read marks: screen state of one person. An agent sends a message but never reads a chat (owner, 2026-10-12).
+  // An archive mark is screen state too: an agent never archives a chat (owner, 2026-10-18).
   'notifications.list', 'notifications.count', 'notifications.markRead', 'notifications.markAllRead', 'notifications.markUnread',
-  'notifications.updateSettings', 'chats.messages', 'chats.markRead', 'chats.unreadCount',
+  'notifications.updateSettings', 'chats.messages', 'chats.markRead', 'chats.unreadCount', 'chats.archive',
   // Templates, tracker extras and payment deletes.
   'stageTemplates.list', 'stageTemplates.save', 'stageTemplates.delete',
   'projectTemplates.list', 'projectTemplates.save', 'projectTemplates.delete',

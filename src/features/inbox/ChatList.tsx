@@ -9,6 +9,8 @@ import { Avatar } from '../../components/Avatar';
 import { ProjectTile } from '../../components/ProjectTile';
 import { normalizeForSearch } from '../../lib/text';
 import { usePersonName } from '../../app/personName';
+import { useAction } from '../../app/runtime';
+import { Menu } from '../../components/Menu';
 import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-check';
 
 type Row = CallOutput<'chats.list'>[number];
@@ -26,6 +28,21 @@ function useTitleOf(): (row: Row) => string {
 }
 
 /**
+ * The menu of a chat, in its row and in its header: Archive, or Move back to Inbox in the archived list (owner, 2026-10-18).
+ * Only the person sees it: an agent never archives a chat (the MCP deny list).
+ */
+export function ArchiveMenu({ id, archived }: { id: string; archived: boolean }) {
+  const { t } = useTranslation();
+  const archive = useAction('chats.archive');
+  return (
+    <Menu
+      label={t('chat.options')}
+      items={[{ label: archived ? t('chat.moveBack') : t('chat.archive'), onSelect: () => archive.mutate({ conversationId: id, archived: !archived }) }]}
+    />
+  );
+}
+
+/**
  * Memoized, so a chat switch, a send or a key in the search renders again only the rows whose data or selection changed
  * (performance audit 2026-10-07, RND-5). A row keeps its object across reloads (structural sharing), and its age refreshes
  * through AgeRefresh.
@@ -38,11 +55,11 @@ const ChatRowItem = memo(function ChatRowItem({ row, selected }: { row: Row; sel
   // A direct chat shows the other person's words without a name, unless the words are mine.
   const showBy = row.preview !== '' && by !== '' && (row.kind !== 'direct' || row.previewMine);
   return (
-    <li>
+    <li className="flex items-center">
       <Link
         to={`/inbox/${row.id}`}
         aria-current={selected ? 'page' : undefined}
-        className={`pressable flex min-h-[4.25rem] items-center gap-3 px-3 py-2.5 transition-colors hover:bg-fill/50 ${selected ? 'bg-fill' : ''}`}
+        className={`pressable flex min-h-[4.25rem] min-w-0 flex-1 items-center gap-3 px-3 py-2.5 transition-colors hover:bg-fill/50 ${selected ? 'bg-fill' : ''}`}
       >
         <Lead row={row} />
         <span className="flex min-w-0 flex-1 flex-col">
@@ -68,17 +85,28 @@ const ChatRowItem = memo(function ChatRowItem({ row, selected }: { row: Row; sel
           </span>
         </span>
       </Link>
+      <span className="shrink-0 pe-1">
+        <ArchiveMenu id={row.id} archived={row.archived} />
+      </span>
     </li>
   );
 });
 
-/** The chats on the start side: a search field and one link for each project chat, direct chat and task thread. */
+/**
+ * The chats on the start side: a search field and one link for each project chat, direct chat and task thread. The last line is
+ * the quiet row of the archive: "Archived (n)" opens the archived chats, and "Back to Inbox" closes them (owner, 2026-10-18).
+ */
 export function ChatList({ rows, selectedId }: { rows: Row[]; selectedId: string | undefined }) {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
+  // The archived chats leave the main list. The archived list closes by itself when its last chat moves back (owner, 2026-10-18).
+  const [wantArchived, setWantArchived] = useState(false);
+  const archivedRows = rows.filter((row) => row.archived);
+  const archivedOpen = wantArchived && archivedRows.length > 0;
+  const listed = archivedOpen ? archivedRows : rows.filter((row) => !row.archived);
   const needle = normalizeForSearch(query);
   // A direct chat matches both names of the person (owner item 12).
-  const shown = needle === '' ? rows : rows.filter((row) => normalizeForSearch(`${row.title} ${row.person?.nameAr ?? ''} ${row.project?.name ?? ''}`).includes(needle));
+  const shown = needle === '' ? listed : listed.filter((row) => normalizeForSearch(`${row.title} ${row.person?.nameAr ?? ''} ${row.project?.name ?? ''}`).includes(needle));
   // A new object on each render: the row ages read the clock on each switch and each search key, as before the memo (RND-5).
   const refresh = {};
   return (
@@ -96,10 +124,21 @@ export function ChatList({ rows, selectedId }: { rows: Row[]; selectedId: string
           className="min-h-11 w-full rounded-full bg-fill ps-9 pe-4 text-subheadline text-ink placeholder:text-ink-2"
         />
       </div>
-      {shown.length === 0 && <p className="px-4 pb-4 text-subheadline text-ink-2">{t('chat.noMatch')}</p>}
+      {shown.length === 0 && needle !== '' && <p className="px-4 pb-4 text-subheadline text-ink-2">{t('chat.noMatch')}</p>}
       <AgeRefresh.Provider value={refresh}>
         <ul aria-label={t('chat.list')} className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
           {shown.map((row) => <ChatRowItem key={row.id} row={row} selected={row.id === selectedId} />)}
+          {archivedRows.length > 0 && (
+            <li>
+              <button
+                type="button"
+                onClick={() => setWantArchived((on) => !on)}
+                className="pressable flex min-h-11 w-full items-center px-4 py-2 text-start text-footnote text-ink-2 hover:text-ink"
+              >
+                {archivedOpen ? t('chat.backToInbox') : t('chat.archivedCount', { count: archivedRows.length })}
+              </button>
+            </li>
+          )}
         </ul>
       </AgeRefresh.Provider>
     </>

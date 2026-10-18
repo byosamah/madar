@@ -1,4 +1,4 @@
-import type { Conversation, Message, User } from './contract/entities';
+import type { ChatRead, Conversation, Message, User } from './contract/entities';
 import { can, principalOf, projectRoleOf } from './permissions';
 import { chatReadKey, nextId, unreadCountKey, type State } from './store';
 
@@ -62,6 +62,15 @@ export function unreadIn(state: State, conversationId: string, userId: string): 
   return Object.values(state.messages).filter(
     (m) => m.conversationId === conversationId && m.createdAt > lastRead && principalOf(state, m.authorId) !== userId && m.actingForId !== userId,
   ).length;
+}
+
+/**
+ * True when the person archived the chat and no message came after the archive (owner, 2026-10-18). A new message, from anyone,
+ * brings the chat back in the view: its time is newer than the archive. "lastAt" is the time of the newest message (or of the chat).
+ */
+export function isArchived(read: ChatRead | undefined, lastAt: string | null): boolean {
+  if (!read?.archivedAt) return false;
+  return lastAt === null || lastAt <= read.archivedAt;
 }
 
 /**

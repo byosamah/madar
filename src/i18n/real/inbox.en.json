@@ -1,0 +1,9 @@
+{
+  "chat": {
+    "archive": "Archive",
+    "archivedCount": "Archived ({{count}})",
+    "backToInbox": "Back to Inbox",
+    "moveBack": "Move back to Inbox",
+    "options": "Chat options"
+  }
+}

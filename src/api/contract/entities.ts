@@ -530,8 +530,14 @@ export const Message = z.object({
 export type Message = z.infer<typeof Message>;
 
 /** When a person last read a conversation. */
-/** One read mark. The conversation is a chat, or a task whose comments the Inbox shows as a thread (audit 2026-10-03, SHL-5). */
-export const ChatRead = z.object({ conversationId: z.union([ConversationId, TaskId]), userId: UserId, lastReadAt: Stamp });
+/**
+ * One read mark. The conversation is a chat, or a task whose comments the Inbox shows as a thread (audit 2026-10-03, SHL-5).
+ * "archivedAt" is set when the person archives the chat (owner, 2026-10-18). It is private to the person. A newer message clears
+ * it in the view (isArchived), so a new message needs no write to the mark.
+ */
+export const ChatRead = z.object({
+  conversationId: z.union([ConversationId, TaskId]), userId: UserId, lastReadAt: Stamp, archivedAt: Stamp.nullable().optional(),
+});
 export type ChatRead = z.infer<typeof ChatRead>;
 
 /** The screens call 'balady' Government since 2026-10-12: any government body, not only the Balady portal (owner). The value stays. */

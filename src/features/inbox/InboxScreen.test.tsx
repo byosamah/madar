@@ -334,3 +334,41 @@ describe('the Inbox renders (performance audit 2026-10-07, RND-5)', () => {
     expect(renders.bodies).toContain('Fresh words for the log.');
   }, 30_000);
 });
+
+describe('the Inbox archive (owner, 2026-10-18)', () => {
+  const chatsList = () => screen.getByRole('list', { name: 'Chats' });
+  const menuOfRow = (link: HTMLElement) => within(link.closest('li') as HTMLElement).getByRole('button', { name: 'Chat options' });
+
+  it('archives a chat from its row menu, and the quiet row opens the archived list', async () => {
+    await renderApp('/inbox');
+    await userEvent.click(menuOfRow(await rowLink(/Corniche Office Tower/)));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Archive' }));
+    await waitFor(() => expect(within(chatsList()).queryByRole('link', { name: /Corniche Office Tower/ })).toBeNull());
+    await userEvent.click(within(chatsList()).getByRole('button', { name: 'Archived (1)' }));
+    expect(await rowLink(/Corniche Office Tower/)).toBeInTheDocument();
+    expect(within(chatsList()).getByRole('button', { name: 'Back to Inbox' })).toBeInTheDocument();
+  });
+
+  it('moves a chat back to the Inbox from the archived list', async () => {
+    await renderApp('/inbox');
+    await userEvent.click(menuOfRow(await rowLink(/Corniche Office Tower/)));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Archive' }));
+    await waitFor(() => expect(within(chatsList()).queryByRole('link', { name: /Corniche Office Tower/ })).toBeNull());
+    await userEvent.click(within(chatsList()).getByRole('button', { name: 'Archived (1)' }));
+    await userEvent.click(menuOfRow(await rowLink(/Corniche Office Tower/)));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Move back to Inbox' }));
+    await waitFor(() => expect(within(chatsList()).queryByRole('button', { name: /Archived/ })).toBeNull());
+    expect(await rowLink(/Corniche Office Tower/)).toBeInTheDocument();
+  });
+
+  it('archives the open chat from the header menu and keeps the chat open', async () => {
+    await renderApp('/inbox');
+    await userEvent.click(await rowLink(/Corniche Office Tower/));
+    await screen.findByRole('log', { name: 'Messages' });
+    const headerMenus = screen.getAllByRole('button', { name: 'Chat options' });
+    await userEvent.click(headerMenus[headerMenus.length - 1]);
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Archive' }));
+    await waitFor(() => expect(within(chatsList()).queryByRole('link', { name: /Corniche Office Tower/ })).toBeNull());
+    expect(screen.getByRole('heading', { level: 2, name: /Corniche Office Tower/ })).toBeInTheDocument();
+  });
+});
