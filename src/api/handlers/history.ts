@@ -9,6 +9,7 @@ import { feedbackNoticeHidden } from '../notify';
 import { can, holdsAdminRights, mayViewTask, principalOf, taskResource, type Action, type Resource } from '../permissions';
 import { eventLabel, eventViewOf, mayDeleteTracker, officeResource } from '../views';
 import { involves, onlyTicks } from '../../lib/taskPeople';
+import { isRoleEvent, undoRoleChange } from './roles';
 import { assertCan, roleIn, touch } from './shared';
 
 type Fields = Record<string, unknown>;
@@ -320,7 +321,8 @@ function undoOne(ctx: Ctx, event: Event, guard: boolean, followOn = false): Even
     const back = fieldsOf(event.before).status;
     if (back === 'done' || back === 'in_review') assertMayFinish(ctx.state, { ...task, status: String(back) as Task['status'] });
   }
-  const undo = undoEvent(ctx, event.id);
+  // A role change lives in the office settings, not in a collection, so its own Undo takes it back (handlers/roles.ts).
+  const undo = isRoleEvent(event) ? undoRoleChange(ctx, event) : undoEvent(ctx, event.id);
   const now = event.targetType === 'task' ? ctx.state.tasks[event.targetId] : undefined;
   // The cause of these reopens is the Undo itself, which is never in a story, so a story Undo never relieves them (audit 2026-10-03, V-2).
   if (was === 'done' && now && now.status !== 'done') reopenDependents(ctx, now, undo.id);

@@ -141,7 +141,9 @@ any screen work.
   files, team), `/work` (Tasks), `/dashboard`, `/dashboard/meeting` (full screen), `/dashboard/space` (Open space, full screen, read only), `/inbox`, `/notifications`, `/search`,
   `/settings`, `/admin` and `/admin/:section`. Remote only: `/sign-in`, `/welcome`, `/forgot`, `/reset`, `/oauth/consent`.
 - Admin: a grouped side list, one section at a time. The sections, their groups and roles are in one registry,
-  `features/settings/admin/sections.ts`; a new section is one line there. A desk opens the first section at `/admin`; a
+  `features/settings/admin/sections.ts`; a new section is one line there. A section with `right` opens for each person who holds
+  that right (owner, 2026-10-18, fbk_014): `sectionsFor` reads the viewer, and `opensAdminPage` (`api/rights.ts`) decides the person
+  menu. The Roles section (`RolesSection.tsx`, `RoleSheet.tsx`) is the Admin's only. A desk opens the first section at `/admin`; a
   phone shows the list there. An unknown or forbidden section goes back to `/admin`.
 - Project templates: the Admin section (`ProjectTemplatesSection.tsx`, the editor works on a text draft, `templateDraft.ts`)
   and "Start from a template" in the new-project form (`features/projects/TemplateUse.tsx`, `templateForm.ts`). A chosen
@@ -186,6 +188,7 @@ any screen work.
 - Roles: Admin, Management, Accounting, Member; per project a leader and a team. Anyone creates a project and leads it.
   Everyone sees all projects. Payments only for the payment right (by default Admin, Management, Accounting; fbk_014). Agents never join a team. The person who adds a
   project task changes and deletes it like the leader while on the team; the review stays with the leader (owner, 2026-10-07).
+  Only the Admin changes a role. Management reads the role of a person as text in the person sheet (owner, 2026-10-18, fbk_014).
 - Home (`features/home/`): the Today panel lists my tasks due today or past due. With none, it is "Coming up": my next 3 open
   tasks with a due date (`comingUp`, `lib/home.ts`, owner 2026-10-07). With neither, it says that nothing is due today. Home
   follows the shared order of the Tasks screen (`api/CLAUDE.md`).

@@ -63,6 +63,10 @@ function rest(office: State): Record<string, [unknown, string?]> {
     'clients.update': [{ id: 'cli_001', patch: { name: 'Gulf Crest Co' } }],
     'settings.get': [{}],
     'settings.update': [{ patch: {} }],
+    // The sample office has no custom role, so the first role made (rol_001) is the one the last call removes (roles.delete is a remover).
+    'roles.create': [{ name: 'Site lead', nameAr: 'مسؤول الموقع', rights: ['project.editCode'] }],
+    'roles.update': [{ role: 'accounting', rights: ['payment.manage'] }],
+    'roles.delete': [{ id: 'rol_001' }],
     'deadlines.list': [{}],
     'projects.create': [{ name: 'A new villa', clientId: 'cli_001', leaderId: 'usr_002', stageTemplateId: 'stt_001' }],
     'projects.setLeader': [{ id: 'prj_001', leaderId: 'usr_005' }],

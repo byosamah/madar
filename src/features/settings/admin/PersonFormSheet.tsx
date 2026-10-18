@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Language, SystemRole, User } from '../../../api/contract/entities';
 import { fieldError } from '../../../app/errors';
+import { useLang } from '../../../app/lang';
 import { PROTOTYPE } from '../../../app/mode';
 import { useByPersonName, usePersonName } from '../../../app/personName';
 import { useAction, useCall } from '../../../app/runtime';
@@ -13,8 +14,10 @@ import { Sheet } from '../../../components/Sheet';
 type Form = {
   name: string; nameAr: string; email: string; systemRole: SystemRole; kind: 'human' | 'agent'; ownerId: string; discipline: string;
   gender: 'male' | 'female'; language: Language;
+  /** The custom role of a Member, or '' for none (owner, 2026-10-18, fbk_014). */
+  roleId: string;
 };
-const EMPTY: Form = { name: '', nameAr: '', email: '', systemRole: 'member', kind: 'human', ownerId: '', discipline: '', gender: 'male', language: 'en' };
+const EMPTY: Form = { name: '', nameAr: '', email: '', systemRole: 'member', kind: 'human', ownerId: '', discipline: '', gender: 'male', language: 'en', roleId: '' };
 
 /**
  * Add a person or an agent, or edit a person (spec 9). The kind is set once, when the person is added (plan clarification 6).
@@ -31,6 +34,14 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
   const users = useCall('users.list', {});
   const session = useCall('session.get', {}).data;
   const viewerIsAdmin = session?.authority.systemRole === 'admin';
+  // The custom roles of the office. Only the Admin picks one; Management reads the role of the person as text (fbk_014).
+  const lang = useLang();
+  const customRoles = useCall('settings.get', {}).data?.roles?.custom ?? [];
+  const roleName = (roleId: string, systemRole: SystemRole) => {
+    const custom = customRoles.find((role) => role.id === roleId);
+    if (custom) return lang === 'ar' ? custom.nameAr : custom.name;
+    return t(`admin.roles.${systemRole}`);
+  };
   const viewerLanguage = session?.user.preferences.language ?? 'en';
   const [form, setForm] = useState<Form>(EMPTY);
   const done = (message: string) => {
@@ -44,12 +55,17 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
     create.reset();
     update.reset();
     setForm(person
-      ? { name: person.name, nameAr: person.nameAr ?? '', email: person.email, systemRole: person.systemRole, kind: person.kind, ownerId: person.ownerId ?? '', discipline: person.discipline, gender: person.gender ?? 'male', language: person.preferences.language }
+      ? { name: person.name, nameAr: person.nameAr ?? '', email: person.email, systemRole: person.systemRole, kind: person.kind, ownerId: person.ownerId ?? '', discipline: person.discipline, gender: person.gender ?? 'male', language: person.preferences.language, roleId: person.roleId ?? '' }
       : { ...EMPTY, language: viewerLanguage });
     // The form starts fresh each time it opens; an old refusal must not stay under a field.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, person]);
   const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm((current) => ({ ...current, [key]: value }));
+  // A custom role belongs to a Member, so picking one sets the Member role with it. A built-in role clears the custom role.
+  const chooseRole = (value: string) => {
+    if (customRoles.some((role) => role.id === value)) setForm((current) => ({ ...current, systemRole: 'member', roleId: value }));
+    else setForm((current) => ({ ...current, systemRole: value as SystemRole, roleId: '' }));
+  };
   // An Arabic name is required for a new person only.
   const arabicNeeded = !person && form.kind === 'human';
   const valid = form.name.trim() && (!arabicNeeded || form.nameAr.trim()) && form.email.trim() && form.discipline.trim() && (form.kind === 'human' || form.ownerId);
@@ -66,10 +82,14 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
       name: form.name.trim(), ...arabic, email: form.email.trim(), systemRole: isAgent ? 'member' as const : form.systemRole,
       discipline: form.discipline.trim(), ...(isAgent ? {} : { gender: form.gender }),
     };
-    if (person) update.mutate({ id: person.id, patch: common });
+    // The custom role of a person. An agent holds none. An edit sends null for no role; a new person leaves the field out (users.create).
+    if (person) update.mutate({ id: person.id, patch: { ...common, ...(isAgent ? {} : { roleId: form.roleId || null }) } });
     else {
       // users.create takes `language` from track A (A8). Until then the contract drops the extra field, so the input goes as a value.
-      const input = { ...common, kind: form.kind, ownerId: form.kind === 'agent' ? form.ownerId : undefined, ...(form.kind === 'agent' ? {} : { language: form.language }) };
+      const input = {
+        ...common, kind: form.kind, ownerId: form.kind === 'agent' ? form.ownerId : undefined,
+        ...(form.kind === 'agent' ? {} : { language: form.language }), ...(form.roleId && !isAgent ? { roleId: form.roleId } : {}),
+      };
       create.mutate(input);
     }
   };
@@ -98,13 +118,25 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
           hint={emailLocked ? t('admin.emailAdminOnly') : undefined} error={errorFor('email', t('admin.errors.email'))}
           onChange={(event) => set('email', event.target.value)}
         />
-        {!isAgent && (
-          <SelectField id="person-role" label={t('admin.role')} value={form.systemRole} error={errorFor('systemRole', t('errors.invalid_input'))} onChange={(event) => set('systemRole', event.target.value as Form['systemRole'])}>
+        {/* Only the Admin changes a role (owner, 2026-10-18). Management reads the role of the person as text. */}
+        {!isAgent && !viewerIsAdmin && (
+          <div className="flex flex-col gap-1">
+            <span className="text-footnote font-medium text-label-2">{t('admin.role')}</span>
+            <p className="text-body"><bdi>{roleName(form.roleId, form.systemRole)}</bdi></p>
+          </div>
+        )}
+        {!isAgent && viewerIsAdmin && (
+          <SelectField
+            id="person-role" label={t('admin.role')} value={form.roleId || form.systemRole}
+            error={errorFor('systemRole', t('errors.invalid_input')) ?? errorFor('roleId', t('errors.invalid_input'))}
+            onChange={(event) => chooseRole(event.target.value)}
+          >
             <option value="member">{t('admin.roles.member')}</option>
             <option value="management">{t('admin.roles.management')}</option>
             <option value="accounting">{t('admin.roles.accounting')}</option>
             {/* Only an Admin makes an Admin. The API refuses it for Management too. */}
-            {viewerIsAdmin && <option value="admin">{t('admin.roles.admin')}</option>}
+            <option value="admin">{t('admin.roles.admin')}</option>
+            {customRoles.map((role) => <option key={role.id} value={role.id}>{lang === 'ar' ? role.nameAr : role.name}</option>)}
           </SelectField>
         )}
         {/* Only an Admin adds an agent, so the Kind field shows to the Admin only (audit 2026-10-03, SHL-9). */}

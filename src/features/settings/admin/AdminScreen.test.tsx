@@ -209,7 +209,7 @@ describe('the Admin side list', () => {
   it('lists the sections in their groups, with one page title', async () => {
     await renderApp('/admin');
     expect(groupsOf(await sectionList())).toEqual([
-      { group: 'People', rows: ['People', 'Teams'] },
+      { group: 'People', rows: ['People', 'Teams', 'Roles'] },
       { group: 'Office', rows: ['Office settings', 'Clients', 'Sub-companies'] },
       { group: 'Templates', rows: ['Project templates', 'Task templates'] },
       // Usage is a section of the real build only.
@@ -408,7 +408,9 @@ describe('the Admin page for Management and Accounting', () => {
     expect(screen.queryByText('Only the Admin and Management can open this page.')).toBeNull();
     await userEvent.click(within(people).getByRole('button', { name: 'Add person' }));
     const sheet = await screen.findByRole('dialog', { name: 'Add person' });
-    expect(within(within(sheet).getByLabelText('Role')).getAllByRole('option').map((option) => option.textContent)).toEqual(['Member', 'Management', 'Accounting']);
+    // Only the Admin changes a role, so Management reads the role of the new person as text (owner, 2026-10-18, fbk_014).
+    expect(within(sheet).queryByLabelText('Role')).toBeNull();
+    expect(within(sheet).getByText('Member')).toBeInTheDocument();
     await userEvent.type(within(sheet).getByLabelText('Name in English'), 'Nora Salem');
     await userEvent.type(within(sheet).getByLabelText('Name in Arabic'), 'نورة سالم');
     await userEvent.type(within(sheet).getByLabelText('Email'), 'nora.salem@madar.test');
@@ -417,16 +419,16 @@ describe('the Admin page for Management and Accounting', () => {
     await waitFor(() => expect(Object.values(store.state.users).some((u) => u.name === 'Nora Salem' && u.systemRole === 'member')).toBe(true));
   });
 
-  it('lets Management change a role, and offers no actions on an Admin', async () => {
-    const { store } = await renderApp('/admin', as('usr_010'));
+  it('shows Management the role of a person as text, and offers no actions on an Admin', async () => {
+    await renderApp('/admin', as('usr_010'));
     const people = await region('People');
     expect(within(people).queryByRole('button', { name: 'Actions for Hala Nasser' })).toBeNull();
     await userEvent.click(await within(people).findByRole('button', { name: 'Actions for Omar Haddad' }));
     await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Edit' }));
     const sheet = await screen.findByRole('dialog', { name: 'Edit person' });
-    await userEvent.selectOptions(within(sheet).getByLabelText('Role'), 'accounting');
-    await userEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(store.state.users.usr_004.systemRole).toBe('accounting'));
+    // Management never changes a role (owner, 2026-10-18): the role is text, and the Admin changes it.
+    expect(within(sheet).queryByLabelText('Role')).toBeNull();
+    expect(within(sheet).getByText('Member')).toBeInTheDocument();
   });
 
   it('shows Management the email of a person as read-only, and says why (security review of P2)', async () => {

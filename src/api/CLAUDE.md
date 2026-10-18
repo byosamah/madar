@@ -215,6 +215,9 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - The undo of a role change follows the same rule (`handlers/history.ts`).
 - `admin.manage` reads only the Admin role, so it needs no office right.
 - `session.get` returns the authority with its `officeRights`, so a screen reads the same rights.
+- `roles.create`, `roles.update` and `roles.delete` (`handlers/roles.ts`) need `admin.manage`. Each change writes one settings event:
+  `role.created`, `role.updated` or `role.deleted`. Its target is the role id, or `management`, `accounting` or `member` for a built-in
+  role. `handlers/history.ts` (`undoOne`) takes these back with `undoRoleChange`, not with `undoEvent`. MCP: deny list.
 
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.

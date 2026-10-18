@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import type { User } from '../../../api/contract/entities';
 import { holdsAdminRights } from '../../../api/permissions';
 import { useUndoable } from '../../../app/actions';
+import { useLang } from '../../../app/lang';
 import { useByPersonName, usePersonName } from '../../../app/personName';
 import { REMOTE } from '../../../app/mode';
 import { useAction, useCall } from '../../../app/runtime';
@@ -26,6 +27,14 @@ export function PeopleSection() {
   const users = useCall('users.list', { includeInactive: true });
   const session = useCall('session.get', {});
   const teams = useCall('teams.list', {});
+  // The custom roles of the office: a Member with one shows the name of that role (owner, 2026-10-18, fbk_014).
+  const settings = useCall('settings.get', {});
+  const lang = useLang();
+  const roleOf = (user: User) => {
+    const custom = settings.data?.roles?.custom?.find((role) => role.id === user.roleId);
+    if (custom) return lang === 'ar' ? custom.nameAr : custom.name;
+    return t(`admin.roles.${user.systemRole}`);
+  };
   // Who still waits for their invitation (plan 5.1). The prototype has no sign-in, so it never asks.
   const invites = useCall('users.invites', {}, { enabled: REMOTE });
   const invited = new Set((invites.data ?? []).filter((row) => row.state === 'invited').map((row) => row.userId));
@@ -70,7 +79,7 @@ export function PeopleSection() {
                 {user.active && invited.has(user.id) && <span className="rounded-full bg-fill px-2 text-caption text-label-2">{t('people.invited', { context: actorContext(user) })}</span>}
               </p>
               <p className="truncate text-footnote text-label-2">
-                <span dir="ltr">{user.email}</span> · {t(`admin.roles.${user.systemRole}`)} · <bdi>{user.discipline}</bdi>
+                <span dir="ltr">{user.email}</span> · {roleOf(user)} · <bdi>{user.discipline}</bdi>
                 {inTeams.length > 0 && <> · <bdi>{inTeams.join(', ')}</bdi></>}
               </p>
             </div>

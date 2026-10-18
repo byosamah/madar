@@ -22,6 +22,7 @@ import { useSignOut } from '../features/auth/signOut';
 import { SparklesIcon } from '../components/icons/animated/sparkles';
 import { WHATS_NEW } from '../whatsNew/entries';
 import { hasNew, readSeen } from '../whatsNew/seen';
+import { opensAdminPage } from '../api/rights';
 
 /**
  * The person's picture opens their name, the language, light or dark mode and Settings (redesign spec 2.5). The prototype adds
@@ -32,8 +33,8 @@ export function PersonMenu({ id }: { id: string }) {
   const nameOf = usePersonName();
   const session = useCall('session.get', {}).data;
   const user = session?.user;
-  // Management reaches the Admin page too, for the People section only.
-  const admin = session?.authority.systemRole === 'admin' || session?.authority.systemRole === 'management';
+  // The Admin page opens to a person with a right that opens a section (Management by default, fbk_014).
+  const admin = session !== undefined && opensAdminPage(session.authority);
   const switchLanguage = useSwitchLanguage();
   const preferences = useAction('me.updatePreferences');
   const ref = useRef<HTMLButtonElement>(null);

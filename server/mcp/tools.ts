@@ -48,6 +48,8 @@ export const MCP_DENY = [
   'clients.list', 'clients.create', 'clients.update', 'teams.list', 'teams.create', 'teams.update', 'teams.delete',
   'subCompanies.save', 'subCompanies.delete',
   'settings.get', 'settings.update',
+  // Office roles and their rights: only the Admin makes or changes a role, in the screens (owner, 2026-10-18, fbk_014).
+  'roles.create', 'roles.update', 'roles.delete',
   // Project set-up, members, stages, links, health and deletes.
   'projects.create', 'projects.setLeader', 'projects.pause', 'projects.resume', 'projects.addLink', 'projects.updateLink',
   'projects.removeLink', 'projects.setHealthOverride', 'projects.clearHealthOverride', 'projects.delete',

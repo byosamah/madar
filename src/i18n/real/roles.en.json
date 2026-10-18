@@ -1,0 +1,61 @@
+{
+  "roles": {
+    "title": "Roles",
+    "intro": "Set the rights of each role. The Admin holds every right.",
+    "new": "New role",
+    "edit": "Edit role",
+    "everything": "Everything",
+    "saved": "Role saved.",
+    "deleted": "Role deleted.",
+    "inUse": "{{count}} people hold this role. Move them to another role first.",
+    "inUse_one": "1 person holds this role. Move the person to another role first.",
+    "inUse_other": "{{count}} people hold this role. Move them to another role first.",
+    "sheet": {
+      "newTitle": "New role",
+      "editTitle": "Edit role",
+      "name": "Name in English",
+      "nameAr": "Name in Arabic",
+      "rights": "Rights",
+      "save": "Save role",
+      "delete": "Delete role"
+    },
+    "rights": {
+      "peopleManage": {
+        "label": "Manage people",
+        "hint": "Add, change and turn off people. Manage the teams too."
+      },
+      "paymentManage": {
+        "label": "Payments",
+        "hint": "See and change the payments of every project."
+      },
+      "projectDelete": {
+        "label": "Delete projects",
+        "hint": "Delete any project of the office."
+      },
+      "projectEditCode": {
+        "label": "Change project codes",
+        "hint": "Correct the code of any project."
+      },
+      "clientsManage": {
+        "label": "Manage clients",
+        "hint": "Change the name and the details of each client."
+      },
+      "templatesManageAll": {
+        "label": "Change any template",
+        "hint": "Change or delete a template that another person made."
+      },
+      "reportOffice": {
+        "label": "Ask for the office report",
+        "hint": "Agents of this person may read the office report."
+      }
+    }
+  },
+  "errors": {
+    "reasons": {
+      "role_name_taken": "Another role has this name. Use another name.",
+      "built_in_name": "A built-in role keeps its name.",
+      "role_limit": "The office has the most roles it can hold. Delete a role first.",
+      "role_missing": "This role does not exist."
+    }
+  }
+}

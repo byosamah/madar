@@ -74,6 +74,9 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'clients.update': office,
   'settings.get': office,
   'settings.update': office,
+  'roles.create': office,
+  'roles.update': office,
+  'roles.delete': office,
 
   'projects.list': overview(projectsList),
   'projects.get': project((L, i) => projectCall(L, i.id)),

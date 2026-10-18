@@ -29,6 +29,22 @@ export function withOfficeRights(user: User, roles: RoleSettings | undefined): A
 }
 
 /**
+ * The rights that open a section of the Admin page (owner, 2026-10-18, fbk_014). sections.ts names one of them for each section that a
+ * right opens (a test checks that they agree). The list stays here, because the person menu reads it and must not load the screens.
+ */
+export const ADMIN_PAGE_RIGHTS: readonly OfficeRight[] = ['people.manage', 'clients.manage', 'templates.manageAll'];
+
+/**
+ * True when the person sees the Admin page: the Admin always, and anyone who holds a right that opens a section. The person menu asks
+ * this, with the rights that session.get attaches (officeRights), so a Member with such a right sees the page too.
+ */
+export function opensAdminPage(actor: Actor): boolean {
+  if (actor.systemRole === 'admin') return true;
+  const held = actor.officeRights ?? DEFAULT_RIGHTS[actor.systemRole];
+  return ADMIN_PAGE_RIGHTS.some((right) => held.includes(right));
+}
+
+/**
  * The person with the office rights of one state attached. Every loader, server call and handler takes the person this way, so no
  * check reads the default rights of a role by mistake (owner, 2026-10-18, fbk_014).
  */

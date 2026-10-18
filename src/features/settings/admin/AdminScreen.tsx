@@ -27,7 +27,8 @@ export function AdminScreen() {
   const phone = useIsPhone();
   const session = useCall('session.get', {});
   if (!session.data) return null;
-  const sections = sectionsFor(session.data.authority.systemRole);
+  // The sections follow the role and the office rights of the person (owner, 2026-10-18, fbk_014).
+  const sections = sectionsFor(session.data.authority);
   // An unknown section, or a section that the role may not see, goes back to /admin.
   const open = sections.find((section) => section.id === openId);
   if (openId !== undefined && !open) return <Navigate to="/admin" replace />;

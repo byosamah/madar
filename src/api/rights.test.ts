@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { type CustomRole, OfficeRight, type RoleSettings } from './contract/entities';
 import { can, DEFAULT_RIGHTS, OFFICE_RIGHTS, type Actor } from './permissions';
-import { rightsOf, withOfficeRights } from './rights';
+import { ADMIN_PAGE_RIGHTS, opensAdminPage, rightsOf, withOfficeRights } from './rights';
 import { executeParsed, resolveAuthority } from './execute';
 import type { AnyCall } from './registry';
 import { makeUser, makeWorld } from '../test/factories';
@@ -21,6 +21,29 @@ const probe = {
   run: (_input: unknown, ctx: { authority: Actor }) => ctx.authority.officeRights ?? null,
   output: z.any(),
 } as unknown as AnyCall;
+
+describe('opensAdminPage: who sees the Admin page (owner, 2026-10-18, fbk_014)', () => {
+  it('opens the page to the Admin, and to Management by its default people right', () => {
+    expect(opensAdminPage(admin)).toBe(true);
+    expect(opensAdminPage(management)).toBe(true);
+  });
+
+  it('keeps the page from Accounting and from a Member with no right that a section names', () => {
+    expect(opensAdminPage(accounting)).toBe(false);
+    expect(opensAdminPage(member)).toBe(false);
+    expect(opensAdminPage({ ...member, officeRights: ['payment.manage', 'report.office'] })).toBe(false);
+  });
+
+  it('opens the page to a Member with a custom role that holds a section right', () => {
+    const planner = { ...member, officeRights: ['people.manage'] as const };
+    expect(opensAdminPage(planner)).toBe(true);
+    expect(opensAdminPage({ ...management, officeRights: ['report.office'] })).toBe(false);
+  });
+
+  it('names the rights that open a section, and only those', () => {
+    expect(sorted(ADMIN_PAGE_RIGHTS)).toEqual(['clients.manage', 'people.manage', 'templates.manageAll']);
+  });
+});
 
 describe('rightsOf: the office rights of each person', () => {
   it('gives the default rights when the office has no settings', () => {
