@@ -7,12 +7,13 @@
 #   {{SUPABASE_WSS}}  wss://<ref>.supabase.co: the Realtime socket
 #   {{FILES}}         the host of the signed file links: the Supabase host while MADAR_FILE_STORE is supabase
 #                     (proof Z0a, item 6), https://<account>.eu.r2.cloudflarestorage.com after the move to R2
+# The fixed host https://nominatim.openstreetmap.org in connect-src is the place search of the pin picker (Task 12b, fbk_017).
 # style-src keeps 'unsafe-inline', because vaul adds a <style> element. img-src keeps blob: for the pictures of a new upload.
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
   X-Frame-Options: DENY
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {{FILES}}; font-src 'self' data:; connect-src 'self' {{SUPABASE}} {{SUPABASE_WSS}} {{FILES}}; frame-src {{FILES}}; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {{FILES}}; font-src 'self' data:; connect-src 'self' {{SUPABASE}} {{SUPABASE_WSS}} {{FILES}} https://nominatim.openstreetmap.org; frame-src {{FILES}}; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable

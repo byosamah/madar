@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
+import type { GeoPoint } from '../../api/contract/entities';
 import { renderWithRuntime } from '../../test/render';
 import MapCanvas from './MapCanvas';
 
@@ -39,6 +41,17 @@ vi.mock('pmtiles', () => ({ Protocol: class {
 } }));
 vi.mock('maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url', () => ({ default: 'worker.js' }));
 
+/** A map with a button. The button sets the point that the map centers on, as a search hit does. */
+function Host() {
+  const [point, setPoint] = useState<GeoPoint | null>(null);
+  return (
+    <>
+      <button type="button" onClick={() => setPoint({ lat: 26.3, lng: 50.1 })}>Go</button>
+      <MapCanvas pins={[]} centerOn={point} />
+    </>
+  );
+}
+
 describe('MapCanvas (fbk_017)', () => {
   beforeEach(() => {
     made.length = 0;
@@ -52,5 +65,12 @@ describe('MapCanvas (fbk_017)', () => {
   it('names the box of the pin picker as a map where the pin moves by a drag', async () => {
     await renderWithRuntime(<MapCanvas pins={[]} draggablePin />);
     expect(screen.getByRole('region', { name: 'Map. Drag the pin to move it.' })).toBeTruthy();
+  });
+
+  it('moves the view to the point of centerOn, and keeps a zoom of at least 14', async () => {
+    await renderWithRuntime(<Host />);
+    await waitFor(() => expect(made).toHaveLength(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Go' }));
+    expect(made[0].easeTo).toHaveBeenCalledWith(expect.objectContaining({ center: [50.1, 26.3], zoom: 14 }));
   });
 });

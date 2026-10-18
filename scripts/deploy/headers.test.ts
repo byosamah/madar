@@ -7,6 +7,7 @@ const template = readFileSync(new URL('../../config/headers.template', import.me
 const TEST = 'https://qdgwpnesxppnqsaabqzd.supabase.co';
 const PRODUCTION = 'https://oprkvdjudjxxhvodkzgs.supabase.co';
 const ACCOUNT = 'd76d34779c63849f5acdf3d6af3751cd';
+const NOMINATIM = 'https://nominatim.openstreetmap.org';
 
 /** The sources of one CSP directive. */
 function directive(headers: string, name: string): string[] {
@@ -39,14 +40,14 @@ describe('renderHeaders', () => {
   it('adds no host for the push services: the browser, not the page, talks to them', () => {
     const headers = renderHeaders(template, { supabaseUrl: TEST, store: 'supabase' });
     for (const host of ['fcm.googleapis.com', 'push.services.mozilla.com', 'push.apple.com', 'notify.windows.com']) expect(headers).not.toContain(host);
-    expect(directive(headers, 'connect-src').every((source) => source === "'self'" || source.includes('qdgwpnesxppnqsaabqzd.supabase.co'))).toBe(true);
+    expect(directive(headers, 'connect-src').every((source) => source === "'self'" || source === NOMINATIM || source.includes('qdgwpnesxppnqsaabqzd.supabase.co'))).toBe(true);
   });
 
   it('while the files are on Supabase Storage, names the Supabase host for pictures, the PDF frame and the calls, and no R2 host', () => {
     const headers = renderHeaders(template, { supabaseUrl: TEST, store: 'supabase' });
     expect(directive(headers, 'img-src')).toEqual(["'self'", 'data:', 'blob:', TEST]);
     expect(directive(headers, 'frame-src')).toEqual([TEST]);
-    expect(directive(headers, 'connect-src')).toEqual(["'self'", TEST, 'wss://qdgwpnesxppnqsaabqzd.supabase.co']);
+    expect(directive(headers, 'connect-src')).toEqual(["'self'", TEST, 'wss://qdgwpnesxppnqsaabqzd.supabase.co', NOMINATIM]);
     expect(headers).not.toContain('r2.cloudflarestorage.com');
   });
 
@@ -56,8 +57,8 @@ describe('renderHeaders', () => {
     expect(test).not.toContain('oprkvdjudjxxhvodkzgs');
     expect(production).not.toContain('qdgwpnesxppnqsaabqzd');
     const hosts = (text: string) => [...new Set([...text.matchAll(/(?:https|wss):\/\/[^\s;]+/g)].map((match) => match[0]))];
-    expect(hosts(test)).toEqual([TEST, 'wss://qdgwpnesxppnqsaabqzd.supabase.co']);
-    expect(hosts(production)).toEqual([PRODUCTION, 'wss://oprkvdjudjxxhvodkzgs.supabase.co']);
+    expect(hosts(test)).toEqual([TEST, 'wss://qdgwpnesxppnqsaabqzd.supabase.co', NOMINATIM]);
+    expect(hosts(production)).toEqual([PRODUCTION, 'wss://oprkvdjudjxxhvodkzgs.supabase.co', NOMINATIM]);
   });
 
   it('after the move to R2, names the R2 EU host for the files and keeps the Supabase host for the calls', () => {
@@ -65,7 +66,7 @@ describe('renderHeaders', () => {
     const r2 = `https://${ACCOUNT}.eu.r2.cloudflarestorage.com`;
     expect(directive(headers, 'img-src')).toEqual(["'self'", 'data:', 'blob:', r2]);
     expect(directive(headers, 'frame-src')).toEqual([r2]);
-    expect(directive(headers, 'connect-src')).toEqual(["'self'", TEST, 'wss://qdgwpnesxppnqsaabqzd.supabase.co', r2]);
+    expect(directive(headers, 'connect-src')).toEqual(["'self'", TEST, 'wss://qdgwpnesxppnqsaabqzd.supabase.co', r2, NOMINATIM]);
   });
 
   it('drops the comments of the template and leaves no placeholder', () => {

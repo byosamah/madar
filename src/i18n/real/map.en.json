@@ -19,6 +19,14 @@
       "short": "This is a short link. It holds no place. Open it in Google Maps, copy the full address, and paste it here.",
       "none": "Madar cannot read a place in this text."
     },
+    "search": {
+      "label": "Search a place",
+      "hint": "Type a name, then press Search or Enter.",
+      "button": "Search",
+      "results": "Places found",
+      "none": "No place found for this search.",
+      "failed": "The search failed. Try again."
+    },
     "canvas": {
       "label": "Map. Drag the pin to move it.",
       "labelView": "Map of the projects",

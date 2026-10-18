@@ -18,6 +18,8 @@ export type MapCanvasProps = {
   onMapClick?: (point: GeoPoint) => void;
   /** 'pins' fits the view to every pin. 'start' centers on the first pin, or on Al Khobar when there is none. */
   fitTo?: 'pins' | 'start';
+  /** A new point moves the view to it, with a zoom of at least 14. A search hit sets it. The pins do not move the view. */
+  centerOn?: GeoPoint | null;
 };
 
 let loading: Promise<typeof MapLib> | undefined;
@@ -58,7 +60,7 @@ const themeNow = (): MapTheme => (document.documentElement.dataset.theme === 'da
  * position relative, so an absolute box would collapse. The box sits inside a sheet with data-vaul-no-drag, so a drag on the map
  * does not close the sheet. The controls sit on the start side of the language.
  */
-export default function MapCanvas({ pins, onPinClick, draggablePin = false, onPinMove, onMapClick, fitTo = 'start' }: MapCanvasProps) {
+export default function MapCanvas({ pins, onPinClick, draggablePin = false, onPinMove, onMapClick, fitTo = 'start', centerOn }: MapCanvasProps) {
   const { t } = useTranslation();
   const lang = useLang();
   const theme = useSyncExternalStore(subscribeTheme, themeNow);
@@ -109,6 +111,12 @@ export default function MapCanvas({ pins, onPinClick, draggablePin = false, onPi
     shownStyle.current = key;
     map.setStyle(madarMapStyle(theme, lang));
   }, [map, theme, lang]);
+
+  // A new centerOn point moves the view to it. The pins stay where they are.
+  useEffect(() => {
+    if (!map || !centerOn) return;
+    map.easeTo({ center: [centerOn.lng, centerOn.lat], zoom: Math.max(map.getZoom(), 14), duration: 0 });
+  }, [map, centerOn]);
 
   // The pins: one marker for each. The markers are made again when the pins change, not while one is dragged.
   useEffect(() => {
