@@ -219,6 +219,11 @@ describe('the Open space screen', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Open all' }));
     await waitFor(() => expect(flow.fitView).toHaveBeenCalledTimes(1));
     expect(flow.fitView).toHaveBeenLastCalledWith(expect.objectContaining({ minZoom: 0.7 }));
+    // With every project open the view shows the office, the first project and the stages of that project, not a spread of the whole tree.
+    const opened = (flow.fitView.mock.lastCall![0] as { nodes: { id: string }[] }).nodes.map((node) => node.id);
+    expect(opened[0]).toBe('office');
+    expect(opened.length).toBeGreaterThan(2);
+    expect(opened.length).toBeLessThan(15);
     await userEvent.click(screen.getByRole('button', { name: 'Close all' }));
     await waitFor(() => expect(flow.fitView).toHaveBeenCalledTimes(2));
   });

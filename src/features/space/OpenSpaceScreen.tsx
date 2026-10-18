@@ -17,7 +17,7 @@ import { ScreenTitle } from '../../components/ScreenTitle';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { SpaceCard, type SpaceCardData, type SpaceFlowNode } from './SpaceNode';
-import { buildSpaceTree, isOpenProject, OFFICE_ID, type SpaceNode } from './spaceTree';
+import { buildSpaceTree, isOpenProject, OFFICE_ID, type SpaceNode, type SpaceTree } from './spaceTree';
 
 const NODE_TYPES: NodeTypes = { space: SpaceCard };
 const LABEL = 'flex flex-col gap-1 text-footnote font-semibold text-ink-2';
@@ -34,11 +34,18 @@ type FlowHandle = { fitView: (options?: { padding?: number; minZoom?: number; ma
 // top of the map, and the person moves down with the wheel or a drag. Fit to screen is the way to see the whole tree.
 const FIRST_PROJECTS = 5;
 
-/** The view that keeps the cards readable. A phone is narrow, so it may zoom out further than a computer. */
-function readableView(nodes: SpaceNode[]) {
-  const projects = nodes.filter((node) => node.kind === 'project').sort((a, b) => a.y - b.y).slice(0, FIRST_PROJECTS);
+/**
+ * The view that keeps the cards readable. A phone is narrow, so it may zoom out further than a computer. With every project closed it
+ * shows the first five projects. When the first project is open it shows that project and its stages, as the open projects spread the tree.
+ */
+function readableView(tree: SpaceTree) {
+  const projects = tree.nodes.filter((node) => node.kind === 'project').sort((a, b) => a.y - b.y);
+  const first = projects[0];
+  const shown = first?.open
+    ? [first, ...tree.edges.filter((edge) => edge.from === first.id).map((edge) => ({ id: edge.to }))]
+    : projects.slice(0, FIRST_PROJECTS);
   const narrow = typeof window !== 'undefined' && window.innerWidth < 640;
-  return { padding: 0.15, minZoom: narrow ? 0.45 : 0.7, maxZoom: 1, nodes: [{ id: OFFICE_ID }, ...projects.map((node) => ({ id: node.id }))] };
+  return { padding: 0.15, minZoom: narrow ? 0.45 : 0.7, maxZoom: 1, nodes: [{ id: OFFICE_ID }, ...shown.map((node) => ({ id: node.id }))] };
 }
 
 /**
@@ -74,7 +81,7 @@ function SpaceScreen() {
     [summaries, rows, opened, focusPersonId, dir],
   );
 
-  const view = readableView(tree.nodes);
+  const view = readableView(tree);
   const viewRef = useRef(view);
   viewRef.current = view;
 
