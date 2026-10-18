@@ -1,11 +1,15 @@
 # Cloudflare Pages Functions
 
-`scripts/deploy/pages.sh` uploads this folder with the screens. It holds four functions:
+`scripts/deploy/pages.sh` uploads this folder with the screens. It holds five functions:
 - `mcp/[[path]].ts`: the short MCP address (https://madar.vado.sa/mcp), logic in `server/http/pagesMcpProxy.ts`.
 - `api/[[path]].ts`: the page's own `/api` (owner, 2026-10-16), logic in `server/http/pagesApiProxy.ts`.
 - `.well-known/oauth-authorization-server/[[path]].ts` and `.well-known/openid-configuration/[[path]].ts` (exit wave 4): the
   discovery of the own OAuth server, only for a copy with the word office (`server/http/pagesWellKnown.ts`); every other copy
   answers 404. Two narrow files, not one `.well-known/[[path]].ts`, so no other `/.well-known/` path of the site changes.
+- `map/[[path]].ts`: the same-origin street map of the Dashboard (fbk_017, probe of 2026-10-18), logic in `server/http/pagesMap.ts`.
+  It reads the R2 bucket of the binding `MAP`. Without the binding, every request answers 404 `map_not_ready`. Only the map keys
+  pass: the PMTiles file, the RTL text plugin and the glyph files of two font stacks. It has no host list. The rule "A new function
+  here runs on every Pages host" asks for one. This route reads one bucket and forwards nothing, so the owner decides the list. The binding waits for the owner OK (proof.md, Map basemap probe).
 
 Both follow `config/server-host.json` (`server/core/serverHost.ts`), which Pages builds into the function: with `workers` or
 `office` (exit wave 4), each request goes to the Worker of its copy through a Pages service binding (`MADAR_SERVER_TEST` on the

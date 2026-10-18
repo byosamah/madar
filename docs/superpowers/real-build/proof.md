@@ -1683,3 +1683,23 @@ say `supabase`, no Worker got a secret, `office-backup.yml` is off (no `vars.OFF
     text, overlap or sideways scroll. The prototype smoke after c50d0d0: 87 of 87. `npm run build` and `build:remote -- test`
     after 8f5eac5: both bundle checks pass (first load 1,131,652 B).
   - The local sign-ins of one run stayed under the own limit (30 for one address in 15 minutes): no limit refusal.
+
+## Map basemap probe (2026-10-18, fbk_017, Task 11)
+
+**Status: pending: the file is not built and not uploaded; waits for the owner OK.** Nothing in Cloudflare changed: no
+binding, no bucket and no wrangler setting.
+
+- Built in the repo: `server/http/pagesMap.ts` (the key rule, the range rule, the content types and the route), its test
+  `server/http/pagesMap.test.ts` (20 tests), and the Pages Function `functions/map/[[path]].ts`.
+- Until a binding named `MAP` exists, every request under `/map` answers 404 with `map_not_ready`, on every host.
+- Written, not run: `scripts/map/build-basemap.sh`. It builds `sa.pmtiles` (Saudi Arabia, up to zoom 15), the glyph files of
+  Noto Sans and Noto Sans Arabic, and `rtl-text.js`. Without `--upload`, it uploads nothing.
+- Checks for this section: `server/http/pagesMap.test.ts`, 20 of 20 pass. `npm run typecheck` passes.
+
+Open for the owner (Task 11, Steps 3 to 5):
+- The newest Protomaps daily build. The owner or the merge lead sets `PMTILES_SOURCE`. No build is chosen yet.
+- The OK for the R2 upload. Then the bucket (default name `madar-map`) and the `MAP` binding in the Pages project.
+- The size of `sa.pmtiles`.
+- The measurement on the test copy: the time to the first tiles from Al Khobar, and the requests for one map view. The
+  results go here after the run.
+- The fallback (free OpenFreeMap tiles, same style) when the probe fails.
