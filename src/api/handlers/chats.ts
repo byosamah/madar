@@ -266,7 +266,7 @@ export const chatsMarkRead = defineCall({
   },
 });
 
-/** The read time of a chat with no read mark yet: older than any message, so archiving marks nothing read. */
+/** The read time of a chat with no read mark yet: older than any message, so the archive marks nothing read. */
 const NEVER_READ = '1970-01-01T00:00:00.000Z';
 
 export const chatsArchive = defineCall({

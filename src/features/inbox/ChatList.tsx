@@ -55,11 +55,11 @@ const ChatRowItem = memo(function ChatRowItem({ row, selected }: { row: Row; sel
   // A direct chat shows the other person's words without a name, unless the words are mine.
   const showBy = row.preview !== '' && by !== '' && (row.kind !== 'direct' || row.previewMine);
   return (
-    <li className="flex items-center">
+    <li className={`flex items-center transition-colors hover:bg-fill/50 ${selected ? 'bg-fill' : ''}`}>
       <Link
         to={`/inbox/${row.id}`}
         aria-current={selected ? 'page' : undefined}
-        className={`pressable flex min-h-[4.25rem] min-w-0 flex-1 items-center gap-3 px-3 py-2.5 transition-colors hover:bg-fill/50 ${selected ? 'bg-fill' : ''}`}
+        className="pressable flex min-h-[4.25rem] min-w-0 flex-1 items-center gap-3 px-3 py-2.5"
       >
         <Lead row={row} />
         <span className="flex min-w-0 flex-1 flex-col">

@@ -48,6 +48,7 @@ describe('chats.archive', () => {
     await t.api.call('chats.archive', { conversationId: t.room, archived: true });
     setNow(new Date(NOW.getTime() + 60_000));
     await t.api.call('chats.send', { conversationId: t.room, body: 'I will check it.' });
+    expect(t.store.state.chatReads[chatReadKey(t.room, 'usr_003')]?.archivedAt).toBe(STAMP);
     expect((await t.api.call('chats.list', {})).find((row) => row.id === t.room)?.archived).toBe(false);
   });
 
