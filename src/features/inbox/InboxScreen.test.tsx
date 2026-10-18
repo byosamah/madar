@@ -417,6 +417,19 @@ describe('group chats', () => {
     expect(await screen.findByRole('heading', { level: 2, name: 'Tower team' })).toBeInTheDocument();
   });
 
+  it('marks each picked person with a check mark, so the choice shows without colour', async () => {
+    await renderApp('/inbox');
+    await userEvent.click(await screen.findByRole('button', { name: 'New message' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Make a group' }));
+    const faisal = await screen.findByRole('button', { name: /Faisal Al-Harbi/ });
+    const before = faisal.querySelectorAll('svg').length;
+    await userEvent.click(faisal);
+    expect(faisal).toHaveAttribute('aria-pressed', 'true');
+    expect(faisal.querySelectorAll('svg').length).toBe(before + 1);
+    await userEvent.click(faisal);
+    expect(faisal.querySelectorAll('svg').length).toBe(before);
+  });
+
   it('shows a group in the list by its name', async () => {
     await renderApp('/inbox', withGroup);
     expect(await rowLink(/Tower team/)).toBeInTheDocument();

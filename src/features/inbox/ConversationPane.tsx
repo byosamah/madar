@@ -1,4 +1,5 @@
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { CheckIcon } from '../../components/icons/animated/check';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -132,6 +133,7 @@ function GroupSheet({ id, mode, name, people, meId, onClose }: {
               >
                 <Avatar user={person} size={36} />
                 <bdi className="truncate text-subheadline font-medium text-ink">{nameOf(person)}</bdi>
+                {picked.includes(person.id) && <AnimatedIcon icon={CheckIcon} size={20} aria-hidden className="ms-auto size-5 shrink-0 text-accent" />}
               </button>
             </li>
           ))}

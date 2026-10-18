@@ -6,6 +6,8 @@ import { useAction, useCall } from '../../app/runtime';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { CheckIcon } from '../../components/icons/animated/check';
 import { TextField } from '../../components/Fields';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenTitle } from '../../components/ScreenTitle';
@@ -78,6 +80,7 @@ function NewMessage({ open, onOpenChange }: { open: boolean; onOpenChange: (open
                 <bdi className="truncate text-subheadline font-medium text-ink">{nameOf(person)}</bdi>
                 <span className="truncate text-footnote text-ink-2">{person.discipline}</span>
               </span>
+              {grouping && picked.includes(person.id) && <AnimatedIcon icon={CheckIcon} size={20} aria-hidden className="ms-auto size-5 shrink-0 text-accent" />}
             </button>
           </li>
         ))}

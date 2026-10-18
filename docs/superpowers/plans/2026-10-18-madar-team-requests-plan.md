@@ -424,7 +424,7 @@ can move a track to another wave, because the tracks of different waves share no
 - Consumes: `canSeeConversation`, `taskThreads` (`chats.ts:88-113`), `isArchived` (Task 6).
 - Produces:
   `WaitingRow = { kind: 'direct' | 'group' | 'project' | 'task'; id: string; title: string; project: ProjectRef | null; from: UserCard; body: string /* first 280 characters */; at: Stamp; days: number }`,
-  `waitingFor(state: State, personId: UserId): WaitingRow[]` (oldest first, the rules of A.2; a message by the person's agent
+  `waitingFor(state: State, personId: UserId, now: Date): WaitingRow[]` (oldest first, the rules of A.2; a message by the person's agent
   counts as the person's own),
   the call `chats.waiting` input `{}`, output `WaitingRow[]`.
 
