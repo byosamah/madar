@@ -64,8 +64,8 @@ function byTaskDue(a: TaskRow, b: TaskRow): number {
 /**
  * The map of the office as a tree (feedback fbk_015, 2026-10-18). The office has every open project (active or paused). A
  * project shows its stages, and a stage shows its open tasks, only once each is opened. A done task never shows. The
- * layout comes from d3-hierarchy; in a right to left layout the office sits at the largest x, so the tree reads from the
- * end side.
+ * layout comes from d3-hierarchy. The office stays at x 0 in both layouts, so a card never moves when a level opens or
+ * closes. In a right to left layout the levels grow to the negative side, so the tree reads from the end side.
  */
 export function buildSpaceTree(input: SpaceTreeInput): SpaceTree {
   const { opened, focusPersonId, dir } = input;
@@ -100,13 +100,12 @@ export function buildSpaceTree(input: SpaceTreeInput): SpaceTree {
   const root: Item = { id: OFFICE_ID, kind: 'office', faded: false, children: projects.map(projectItem) };
   const laid = tree<Item>().nodeSize([NEIGHBOUR_GAP, LEVEL_GAP])(hierarchy(root, (item) => item.children));
   const placed = laid.descendants();
-  const deepest = Math.max(...placed.map((node) => node.depth));
 
   const nodes = placed.map((node): SpaceNode => ({
     id: node.data.id,
     kind: node.data.kind,
     depth: node.depth,
-    x: (dir === 'rtl' ? deepest - node.depth : node.depth) * LEVEL_GAP,
+    x: (dir === 'rtl' ? -node.depth : node.depth) * LEVEL_GAP,
     y: node.x,
     open: node.data.kind === 'office' || (node.data.kind !== 'task' && opened.has(node.data.id)),
     faded: node.data.faded,

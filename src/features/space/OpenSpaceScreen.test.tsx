@@ -140,6 +140,18 @@ describe('the Open space screen', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
   });
 
+  it('opens and closes a stage that has tasks with Space, as a button does', async () => {
+    await renderApp('/dashboard/space');
+    await userEvent.click(await screen.findByRole('button', { name: 'Open all' }));
+    const stage = document.querySelector<HTMLElement>('[data-kind="stage"][role="button"]');
+    expect(stage).not.toBeNull();
+    stage!.focus();
+    await userEvent.keyboard(' ');
+    expect(stage).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.keyboard(' ');
+    expect(stage).toHaveAttribute('aria-expanded', 'true');
+  });
+
   it('lays out a card from the end side in Arabic, so the tile and the words follow the language', async () => {
     await renderApp('/dashboard/space', (state) => {
       state.users.usr_001.preferences.language = 'ar';

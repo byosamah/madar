@@ -113,6 +113,15 @@ describe('buildSpaceTree', () => {
     expect(node(rtl, 'stg_a1')!.x).toBeLessThan(node(rtl, 'prj_a')!.x);
   });
 
+  it('keeps every shown card where it is when a level opens or closes, in both layouts', () => {
+    for (const dir of ['ltr', 'rtl'] as const) {
+      const closed = build([], null, dir).nodes;
+      const open = build(['prj_a', 'stg_a1'], null, dir).nodes;
+      expect(node(open, 'office')!.x).toBe(node(closed, 'office')!.x);
+      expect(node(open, 'prj_a')!.x).toBe(node(closed, 'prj_a')!.x);
+    }
+  });
+
   it('joins each shown node to its parent with one edge', () => {
     const { edges } = build(['prj_a', 'stg_a1']);
     expect(edges).toEqual(expect.arrayContaining([

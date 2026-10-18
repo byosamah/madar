@@ -54,9 +54,9 @@ function datesOf(stage: Stage, t: TFunction, lang: Lang): string {
   return single ? formatDay(single, lang) : t('space.noDate');
 }
 
-/** Enter opens or closes a card that has a next level. An Enter on a button inside the card only presses that button. */
-function toggleOnEnter(event: KeyboardEvent<HTMLDivElement>, data: SpaceCardData) {
-  if (event.key !== 'Enter' || event.target !== event.currentTarget || !data.expandable) return;
+/** Enter or Space opens or closes a card that has a next level. A key on a button inside the card only presses that button. */
+function toggleOnKey(event: KeyboardEvent<HTMLDivElement>, data: SpaceCardData) {
+  if ((event.key !== 'Enter' && event.key !== ' ') || event.target !== event.currentTarget || !data.expandable) return;
   event.preventDefault();
   data.onToggle(data.id);
 }
@@ -98,7 +98,7 @@ function levelProps(data: SpaceCardData) {
     tabIndex: data.expandable ? 0 : undefined,
     'aria-expanded': data.expandable ? data.open : undefined,
     onClick: clickToggles(data),
-    onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => toggleOnEnter(event, data),
+    onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => toggleOnKey(event, data),
     className: cardClass(data),
   };
 }

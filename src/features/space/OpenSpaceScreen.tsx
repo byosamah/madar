@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Position, ReactFlow, type Edge, type NodeTypes } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useTranslation } from 'react-i18next';
@@ -21,6 +21,10 @@ import { buildSpaceTree, isOpenProject, type SpaceNode } from './spaceTree';
 const NODE_TYPES: NodeTypes = { space: SpaceCard };
 const LABEL = 'flex flex-col gap-1 text-footnote font-semibold text-ink-2';
 const SELECT = 'field mt-1.5 font-normal';
+// The "React Flow" label keeps the library colours unless the map sets its own: a light patch in dark mode, and a corner that the
+// round box cuts. The map gives it a token fill, a token link colour and a margin.
+const FLOW_CLASS = '[&_.react-flow__attribution]:m-2 [&_.react-flow__attribution]:rounded-md [&_.react-flow__attribution_a]:text-label-2';
+const FLOW_STYLE = { '--xy-attribution-background-color': 'var(--c-fill)' } as CSSProperties;
 
 /** The part of the React Flow instance that the screen uses. */
 type FlowHandle = { fitView: (options?: { padding?: number }) => unknown };
@@ -162,6 +166,8 @@ function SpaceScreen() {
             nodes={nodes}
             edges={edges}
             nodeTypes={NODE_TYPES}
+            className={FLOW_CLASS}
+            style={FLOW_STYLE}
             onInit={(instance) => {
               flow.current = instance;
             }}
