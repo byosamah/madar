@@ -1,8 +1,12 @@
 import { motion } from 'motion/react';
+import { useLang } from '../app/lang';
 import { useSubCompany } from '../app/subCompanies';
 import { spring } from '../design/motion';
 import { decodeMark, formPath, markGlow, markOf } from '../lib/projectMark';
 import { SubCompanyLogo } from './SubCompanyLogo';
+
+/** The smallest badge of a sub-company, in pixels. */
+const MIN_BADGE = 18;
 
 /** The mark's drawing symbol in ink, turned about its center. It fills its box, so the caller sets the size. */
 export function MarkForm({ mark, className = '' }: { mark: number; className?: string }) {
@@ -24,8 +28,10 @@ export function ProjectTile({ id, mark, size = 34, shared = false, subCompanyId 
 }) {
   const value = markOf({ id, mark });
   const sub = useSubCompany(subCompanyId);
-  // The badge is 45% of the tile. Its center sits on the end corner, so half of it stays outside the tile (fbk_007).
-  const badge = Math.round(size * 0.45);
+  const lang = useLang();
+  // The badge is 45% of the tile, and 18 px at least, so a mark still reads on a small tile (PRJ-11). Its center sits on the end
+  // corner, so half of it stays outside the tile (fbk_007).
+  const badge = Math.max(MIN_BADGE, Math.round(size * 0.45));
   return (
     <span className="relative inline-flex shrink-0" style={{ width: size, height: size }}>
       <motion.span
@@ -41,6 +47,7 @@ export function ProjectTile({ id, mark, size = 34, shared = false, subCompanyId 
       {sub && (
         <span
           data-sub-company-badge
+          title={lang === 'ar' ? sub.nameAr : sub.name}
           style={{ insetBlockEnd: -badge / 2, insetInlineEnd: -badge / 2, boxShadow: '0 0 0 2px var(--c-panel)' }}
           className="absolute rounded-full"
         >

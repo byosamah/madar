@@ -23,6 +23,25 @@ describe('the project tile and its sub-company (fbk_007)', () => {
     expect(logo.closest('[data-sub-company-badge]')).not.toBeNull();
   });
 
+  it('keeps the badge at 18 px at least, so a mark still reads on a small tile, and names the sub-company in a tooltip (PRJ-11)', () => {
+    const { container } = render(tile({ subCompanyId: 'sub_001', size: 30 }));
+    const badge = container.querySelector<HTMLElement>('[data-sub-company-badge]');
+    expect(screen.getByRole('img', { name: 'Vado' })).toHaveStyle({ width: '18px', height: '18px' });
+    expect(badge).toHaveAttribute('title', 'Vado');
+  });
+
+  it('draws the logo on a white plate in both themes, so a dark mark never vanishes in dark mode (PRJ-10)', () => {
+    const logo = 'data:image/png;base64,iVBORw0KGgo=';
+    const withLogo: SubCompany = { ...vado, logo };
+    const { container } = render(
+      <SubCompaniesContext.Provider value={new Map([[withLogo.id, withLogo]])}>
+        <ProjectTile id="prj_001" subCompanyId="sub_001" />
+      </SubCompaniesContext.Provider>,
+    );
+    const plate = container.querySelector<HTMLElement>('[data-sub-company-badge] img')!.parentElement!;
+    expect(plate.style.background).toBe('rgb(255, 255, 255)');
+  });
+
   it('draws the badge with a 2 px ring in the card color', () => {
     const { container } = render(tile({ subCompanyId: 'sub_001' }));
     const badge = container.querySelector<HTMLElement>('[data-sub-company-badge]');

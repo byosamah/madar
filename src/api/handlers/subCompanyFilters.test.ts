@@ -150,6 +150,13 @@ describe('the count of projects and the move on delete (PRJ-12, INT-24)', () => 
     expect(t.store.state.subCompanies?.sub_001).toBeDefined();
   });
 
+  it('can move the projects to no sub-company', async () => {
+    const t = testApi(calls, office());
+    await t.api.call('subCompanies.delete', { id: 'sub_001', moveToId: null });
+    expect(t.store.state.projects.prj_001.subCompanyId ?? null).toBeNull();
+    expect(t.store.state.subCompanies?.sub_001).toBeUndefined();
+  });
+
   it('refuses a move to itself or to a sub-company that does not exist', async () => {
     const t = testApi(calls, office());
     await expect(t.api.call('subCompanies.delete', { id: 'sub_001', moveToId: 'sub_001' })).rejects.toMatchObject({ code: 'invalid_input' });

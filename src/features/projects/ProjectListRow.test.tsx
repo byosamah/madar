@@ -62,19 +62,28 @@ describe('the project row', () => {
     const row = await screen.findByRole('link', { name: /Corniche Office Tower/ });
     const team = within(row.querySelector('[data-team-column]') as HTMLElement);
     const pictures = team.getAllByRole('img');
-    expect(pictures).toHaveLength(3);
+    // Three pictures and the "+2" circle, which carries the names of the two hidden people.
+    expect(pictures).toHaveLength(4);
     expect(pictures[0]).toHaveAccessibleName('Faisal Al-Harbi');
     expect(pictures[1]).toHaveAccessibleName('Omar Haddad');
     expect(pictures[2]).toHaveAccessibleName('Reem Al-Ghamdi');
     expect(team.getByText('+2')).toBeInTheDocument();
   });
 
-  it('shows 3 pictures and "+1" for no leader and 4 team members', async () => {
+  // PRJ-18 (2026-10-19): one hidden person shows as a picture, since "+1" takes the same width.
+  it('shows the fourth picture, not "+1", for no leader and 4 team members', async () => {
     await renderWithRuntime(<Card id="prj_001" />, teamOf(null, ['usr_003', 'usr_004', 'usr_005', 'usr_006']), { path: '/' });
     const row = await screen.findByRole('link', { name: /Corniche Office Tower/ });
     const team = within(row.querySelector('[data-team-column]') as HTMLElement);
-    expect(team.getAllByRole('img')).toHaveLength(3);
-    expect(team.getByText('+1')).toBeInTheDocument();
+    expect(team.getAllByRole('img')).toHaveLength(4);
+    expect(team.queryByText('+1')).toBeNull();
+  });
+
+  it('names the hidden people on "+N"', async () => {
+    await renderWithRuntime(<Card id="prj_001" />, teamOf('usr_002', ['usr_003', 'usr_004', 'usr_005', 'usr_006']), { path: '/' });
+    const row = await screen.findByRole('link', { name: /Corniche Office Tower/ });
+    const more = within(row.querySelector('[data-team-column]') as HTMLElement).getByText('+2').parentElement!;
+    expect(more.getAttribute('aria-label')).toMatch(/^More: .+, .+$/);
   });
 
   it('truncates a long name and keeps the row in shape', async () => {

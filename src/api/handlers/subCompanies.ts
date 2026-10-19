@@ -65,12 +65,12 @@ const subCompaniesSave = defineCall({
 });
 
 /**
- * The delete refuses a sub-company that a project names, unless the call says where the projects go (moveToId). Then the
- * projects move first and the sub-company goes, all in one story, so one Undo brings everything back (PRJ-12). The Undo toast
- * brings a deleted one back.
+ * The delete refuses a sub-company that a project names, unless the call says where the projects go (moveToId: another
+ * sub-company, or null for none). Then the projects move first and the sub-company goes, all in one story, so one Undo brings
+ * everything back (PRJ-12). The Undo toast brings a deleted one back.
  */
 const subCompaniesDelete = defineCall({
-  input: z.object({ id: SubCompanyId, moveToId: SubCompanyId.optional() }),
+  input: z.object({ id: SubCompanyId, moveToId: SubCompanyId.nullable().optional() }),
   output: z.object({}),
   run(input, ctx) {
     assertCan(ctx, 'admin.manage');
@@ -81,7 +81,7 @@ const subCompaniesDelete = defineCall({
       throw new ApiError('conflict', 'A project uses this sub-company. Change the project first.', { reason: 'sub_company_in_use', count: naming.length });
     }
     if (input.moveToId !== undefined) {
-      requireSubCompany(ctx, input.moveToId);
+      if (input.moveToId !== null) requireSubCompany(ctx, input.moveToId);
       for (const project of naming) {
         applyPatch(ctx, project, { subCompanyId: input.moveToId }, { projectId: project.id, verb: 'project.updated', targetType: 'project', targetId: project.id });
         touch(ctx, project.id);
