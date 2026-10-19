@@ -65,6 +65,9 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   `hiddenTask`: projectId, ownerId, helperIds, createdBy). `chats.list`, `chats.markRead` and the notification writes keep
   whole rows. `pickedByKey` (`steps.ts`) is only for a read that never saves and loads nothing else of that table, because a
   later `byKey` keeps the picked copy.
+- The unread count and the reply that waits of a task thread read the messages only (fbk_027): the chat loader adds `MESSAGES_ONLY`
+  (`dates` and `kind` null) to the count, to the newest message and to the own newest message, and keeps the reads of the newest item of any
+  kind (the preview, the order, who is in the thread). Change `taskUnread` and `waitingThread` (`src/api/handlers/chats.ts`) with it.
 - `atBefore` (a Cond on a stamp column) is the upper bound of a period: a timestamp test in SQL, in memorySource and in the
   SQLite compile, never text. `reports.office` (`loaders/report.ts`) reads the clock from `LoadCtx.now` (the call's time), and
   its counts come from `countWhere` with one key for each value (`REPORT_KEYS`). A loader without the clock never resolves a period.

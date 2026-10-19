@@ -129,4 +129,9 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   (`agents.spec.ts`) uses the own OAuth routes under `/mcp` (register, authorize, token). The day cap of the test Worker counts a
   request of `/mcp` itself as a write and the OAuth routes as reads (`server/office/cap.ts`). No tool, `TOOL_DOCS` line or
   `INSTRUCTIONS` rule changed in wave 4.
+- Reminders and lines (owner, 2026-10-19): `INSTRUCTIONS` has a "Pauses:" line (the restart date `project.pause.resumeOn` is a reminder, and
+  Madar never restarts a project by itself) and `projects.setStatus` says it. `projects.setRestart` is on the deny list with Pause and Resume.
+  `comments.list` gives `kind` (`message`, `due_date`, `start_date`, `shifted`, `reopened`) and `chats.list` gives `previewKind`: a line is
+  no message and never waits for a reply. `dashboard.get` gives `workload.unassigned` (the No lead row). Tests: `pauseDocs.test.ts`,
+  `dashboardDocs.test.ts`.
 - `server/mcp/oauth/sdk.test.ts` runs the whole flow with `@modelcontextprotocol/sdk` 1.32.0 on node:sqlite.

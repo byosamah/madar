@@ -121,7 +121,8 @@ The other host stays deployed as the way back. Each area below has its own guide
 - pg_cron calls `jobs/run` of the Supabase jobs function every 15 minutes, in both host settings (owner, 2026-10-16), with the
   secret header `x-madar-jobs-secret`. The Worker keeps `/jobs` mounted, but nothing calls it: pg_cron and the Vault
   `project_url` do not change. Steps (`jobs/steps/`):
-  heartbeat, triggers, summary, outbox, cleanup, uploads, usage. Each step is idempotent.
+  heartbeat, triggers, summary, outbox, cleanup, uploads, usage. Each step is idempotent. The triggers step also sends `resume_due`
+  (the planned restart day of a paused project) to the leader and to the person who paused it (`src/api/CLAUDE.md`).
 - Usage meters and the 80% Admin warning (`usage/`). The free-plan limits are in `FREE_PLAN_LIMITS`. The calls limit follows
   the host that serves the copy (`config.servingHost`, from `config/server-host.json`): 500,000 on Supabase, 10 million on
   Workers Paid, 3 million on the office host (`CALL_LIMITS`, `core/ports.ts`). The office host sends no month calls warning: the

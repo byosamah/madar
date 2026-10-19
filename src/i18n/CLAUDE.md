@@ -6,7 +6,8 @@ speaker, so write it as natural Arabic, not as a word-for-word copy of the Engli
 ## Files
 - Base words: `en.json` and `ar.json`.
 - Track files: `real/<track>.en.json` and `real/<track>.ar.json`, one pair for each build track (agents, auth, core,
-  files, h, mail, notices, p, people, q, s, usage, dash, office, fbnotices, fbadmin, push).
+  files, h, mail, notices, p, people, q, s, usage, dash, office, fbnotices, fbadmin, push, teama).
+  `teama` holds the words of the team-requests batch of 2026-10-19 (fbk_024, fbk_025, fbk_027).
 - A task adds new words only to its own track files.
 - Server code reads the word files with plain JSON imports (no `import.meta.glob`).
 - `words.en.ts` and `words.ar.ts` each merge one language (the base file plus the track files). `trees.ts` gives both trees,
