@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import { CustomRole, OfficeRight, RoleId, RoleSettings, type Event } from '../contract/entities';
 import { ApiError, invalid } from '../errors';
-import { recordCreate, recordDelete, writeEvent } from '../events';
+import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { DEFAULT_RIGHTS, OFFICE_RIGHTS } from '../permissions';
 import { nextId, type State } from '../store';
 import { assertCan } from './shared';
@@ -117,7 +117,14 @@ export const rolesUpdate = defineCall({
 });
 
 export const rolesDelete = defineCall({
-  input: z.object({ id: RoleId }),
+  input: z.object({
+    id: RoleId,
+    /**
+     * The role that the people of the deleted role take (ADM-14): a built-in role (not Admin) or another custom role. Without it, a role
+     * that people hold is refused. With it, the people move first and the role goes, all in one story, so one Undo brings both back.
+     */
+    moveTo: z.union([z.enum(BUILT_IN), RoleId]).optional(),
+  }),
   output: z.object({}),
   run(input, ctx) {
     assertCan(ctx, 'admin.manage');
@@ -127,9 +134,18 @@ export const rolesDelete = defineCall({
     if (!role) throw invalid('id', 'This role does not exist.', 'role_missing');
     // A person keeps the role until the Admin moves them, so the role stays while anyone holds it. A removed person is in no list
     // and the Admin cannot move them, so the count skips them. A turned-off person still counts: the Admin sees and moves them.
-    const holders = Object.values(ctx.state.users).filter((user) => !user.removed && user.roleId === role.id).length;
-    if (holders > 0) {
-      throw new ApiError('invalid_input', 'People hold this role. Move them to another role first.', { fields: ['id'], reason: 'role_in_use', count: holders });
+    const holders = Object.values(ctx.state.users).filter((user) => !user.removed && user.roleId === role.id);
+    if (holders.length > 0) {
+      if (input.moveTo === undefined) {
+        throw new ApiError('invalid_input', 'People hold this role. Move them to another role first.', { fields: ['id'], reason: 'role_in_use', count: holders.length });
+      }
+      if (input.moveTo === role.id || (!isBuiltIn(input.moveTo) && !custom.some((item) => item.id === input.moveTo))) {
+        throw invalid('moveTo', 'Choose another role that the office has.', 'role_missing');
+      }
+      const next = isBuiltIn(input.moveTo) ? { systemRole: input.moveTo, roleId: null } : { systemRole: 'member' as const, roleId: input.moveTo };
+      for (const user of holders) {
+        applyPatch(ctx, user, next, { projectId: null, verb: 'user.updated', targetType: 'user', targetId: user.id });
+      }
     }
     roles.custom = custom.filter((item) => item.id !== role.id);
     recordDelete(ctx, { projectId: null, verb: 'role.deleted', targetType: 'settings', targetId: role.id, entity: role });

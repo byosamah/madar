@@ -384,12 +384,18 @@ describe('the Admin page for Management and Accounting', () => {
     expect(hala).toHaveTextContent('· Admin ·');
   });
 
-  it('gives the Admin four roles in the form, and saves the Accounting role', async () => {
+  it('gives the Admin the roles in the form, the Admin last, and saves the Accounting role', async () => {
     const { store } = await renderApp('/admin');
     await userEvent.click(within(await region('People')).getByRole('button', { name: 'Add person' }));
     const sheet = await screen.findByRole('dialog', { name: 'Add person' });
     const role = within(sheet).getByLabelText('Role');
-    expect(within(role).getAllByRole('option').map((option) => option.textContent)).toEqual(['Member', 'Management', 'Accounting', 'Admin']);
+    expect(within(role).getAllByRole('option').map((option) => option.textContent)).toEqual(['Member', 'Management', 'Accounting', 'Cashier', 'Admin']);
+    expect(within(role).getByRole('option', { name: 'Cashier' }).closest('optgroup')).toHaveAttribute('label', 'Office roles');
+    // One line under the field says what the chosen role gives (ADM-16).
+    expect(within(sheet).getByText('Member: the standard rights.')).toBeInTheDocument();
+    await userEvent.selectOptions(role, 'management');
+    expect(within(sheet).getByText(/^Management: Member rights plus /)).toBeInTheDocument();
+    await userEvent.selectOptions(role, 'member');
     await userEvent.type(within(sheet).getByLabelText('Name in English'), 'Nora Salem');
     await userEvent.type(within(sheet).getByLabelText('Name in Arabic'), 'نورة سالم');
     await userEvent.type(within(sheet).getByLabelText('Email'), 'nora.salem@madar.test');

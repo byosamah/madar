@@ -58,7 +58,7 @@
       "leader": "قائد مشروع",
       "member": "عضو فريق",
       "agent": "وكيل",
-      "management": "الإدارة",
+      "management": "الإدارة العليا",
       "accounting": "المحاسبة"
     }
   },
@@ -1162,7 +1162,7 @@
     "roles": {
       "admin": "مدير النظام",
       "member": "عضو",
-      "management": "الإدارة",
+      "management": "الإدارة العليا",
       "accounting": "المحاسبة"
     },
     "kind": "النوع",

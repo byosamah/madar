@@ -1,31 +1,36 @@
 {
   "roles": {
     "title": "Roles",
-    "intro": "Set the rights of each role. The Admin holds every right.",
+    "intro": "Tap a role to see its people and set its rights. The Admin holds every right.",
     "new": "New role",
-    "edit": "Edit role",
     "everything": "Everything",
     "saved": "Role saved.",
     "deleted": "Role deleted.",
-    "inUse": "{{count}} people hold this role. Move them to another role first.",
     "inUse_one": "1 person holds this role. Move the person to another role first.",
     "inUse_other": "{{count}} people hold this role. Move them to another role first.",
     "sheet": {
       "newTitle": "New role",
-      "editTitle": "Edit role",
       "name": "Name in English",
       "nameAr": "Name in Arabic",
       "rights": "Rights",
       "save": "Save role",
-      "delete": "Delete role"
+      "delete": "Delete role",
+      "holders": "People with this role",
+      "nobody": "No one has this role yet.",
+      "moveTitle": "Delete {{name}}?",
+      "moveBody_one": "{{names}} holds this role. Delete the role and give the person this role instead:",
+      "moveBody_other": "{{names}} hold this role. Delete the role and give them this role instead:",
+      "moveTo": "New role of these people",
+      "deleteMove": "Delete and move",
+      "back": "Back"
     },
     "rights": {
       "peopleManage": {
         "label": "Manage people",
-        "hint": "Add, change and turn off people. Manage the teams too."
+        "hint": "Add, change and turn off people. Manage the teams too. Only the Admin changes a role."
       },
       "paymentManage": {
-        "label": "Payments",
+        "label": "See and change payments",
         "hint": "See and change the payments of every project."
       },
       "projectDelete": {
@@ -45,10 +50,24 @@
         "hint": "Change or delete a template that another person made."
       },
       "reportOffice": {
-        "label": "Ask for the office report",
-        "hint": "Agents of this person may read the office report."
+        "label": "Office report for AI assistants",
+        "hint": "The AI assistant (MCP) of this person can make the week, month or year report."
       }
-    }
+    },
+    "rowMeta": "{{people}} · {{rights}}",
+    "noPeople": "No one yet",
+    "peopleCount_one": "1 person",
+    "peopleCount_other": "{{count}} people",
+    "rightsCount": "{{count}} of {{total}} rights",
+    "deletedMoved_one": "Role deleted. 1 person moved.",
+    "deletedMoved_other": "Role deleted. {{count}} people moved.",
+    "line": {
+      "admin": "Admin: everything.",
+      "member": "Member: the standard rights.",
+      "plus": "{{name}}: Member rights plus {{rights}}.",
+      "only": "{{name}}: Member rights only."
+    },
+    "officeRoles": "Office roles"
   },
   "errors": {
     "reasons": {
