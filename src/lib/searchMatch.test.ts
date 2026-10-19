@@ -30,6 +30,11 @@ describe('the words of a search (design item 16)', () => {
     expect(markedParts('سعر الأسعار اليوم', ['اسعار'])).toEqual([
       { text: 'سعر ', marked: false }, { text: 'الأسعار', marked: true }, { text: ' اليوم', marked: false },
     ]);
-    expect(markedParts('The Riser, again', ['riser'])).toEqual([{ text: 'The ', marked: false }, { text: 'Riser,', marked: true }, { text: ' again', marked: false }]);
+    expect(markedParts('The Riser, again', ['riser'])).toEqual([{ text: 'The ', marked: false }, { text: 'Riser', marked: true }, { text: ', again', marked: false }]);
+  });
+  it('keeps the punctuation at the start or the end of a word out of the mark', () => {
+    expect(markedParts('Please update the stage.', ['stage'])).toEqual([{ text: 'Please update the ', marked: false }, { text: 'stage', marked: true }, { text: '.', marked: false }]);
+    expect(markedParts('قال «الأسعار»، ثم', ['اسعار'])).toEqual([{ text: 'قال «', marked: false }, { text: 'الأسعار', marked: true }, { text: '»، ثم', marked: false }]);
+    expect(markedParts('(B14)', ['b14'])).toEqual([{ text: '(', marked: false }, { text: 'B14', marked: true }, { text: ')', marked: false }]);
   });
 });

@@ -49,15 +49,27 @@ export function hitLine(plain: string, words: readonly string[], max = HIT_LINE_
   return `…${excerptOf(parts.slice(Math.max(0, first - 3)).join(' '), max - 1)}`;
 }
 
-/** Each whole word whose fold holds a search word is one marked part. The text between marked words joins into one unmarked part. */
+/**
+ * Each whole word whose fold holds a search word is one marked part. The punctuation at the start or the end of that word ("stage.",
+ * «الأسعار»،) stays out of the mark. The text between marked words joins into one unmarked part.
+ */
 export function markedParts(line: string, words: readonly string[]): { text: string; marked: boolean }[] {
   const out: { text: string; marked: boolean }[] = [];
-  for (const token of line.split(/(\s+)/)) {
-    if (token === '') continue;
-    const marked = !/^\s+$/.test(token) && holdsAny(token, words);
+  const add = (text: string, marked: boolean) => {
+    if (text === '') return;
     const last = out[out.length - 1];
-    if (!marked && last && !last.marked) last.text += token;
-    else out.push({ text: token, marked });
+    if (!marked && last && !last.marked) last.text += text;
+    else out.push({ text, marked });
+  };
+  for (const token of line.split(/(\s+)/)) {
+    if (token === '' || /^\s+$/.test(token) || !holdsAny(token, words)) {
+      add(token, false);
+      continue;
+    }
+    const [, lead = '', core = token, tail = ''] = /^([\p{P}\p{S}]*)(.*?)([\p{P}\p{S}]*)$/u.exec(token) ?? [];
+    add(lead, false);
+    add(core, true);
+    add(tail, false);
   }
   return out;
 }
