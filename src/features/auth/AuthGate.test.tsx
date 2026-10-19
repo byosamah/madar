@@ -9,7 +9,7 @@ import { renderRemoteApp, SAMPLE_ACCOUNTS } from './renderAuth';
 const UPDATE = '/projects/prj_001?tab=activity';
 const MEETING = '/dashboard/meeting?mode=projects';
 const sheet = () => screen.findByRole('dialog', { name: 'Your session ended' });
-const savedDrafts = () => Object.keys(window.sessionStorage).filter((key) => key.startsWith('madar.draft.'));
+const savedDrafts = () => Object.keys(window.localStorage).filter((key) => key.startsWith('madar.draft.'));
 
 async function typeUpdate(text: string) {
   const form = await screen.findByRole('form', { name: 'Post an update' });
@@ -114,7 +114,7 @@ describe('the sign-in gate of the remote build (plan U2, client map 7.3)', () =>
     await act(async () => { await queryClient.invalidateQueries({ queryKey: ['api'] }); });
     await waitFor(() => expect(router.state.location.pathname).toBe('/sign-in'));
     expect(await screen.findByText('Your account is turned off. Ask the Admin.')).toHaveAttribute('role', 'status');
-    expect(Object.keys(window.sessionStorage).filter((key) => key.startsWith('madar.draft.'))).toEqual([]);
+    expect(Object.keys(window.localStorage).filter((key) => key.startsWith('madar.draft.'))).toEqual([]);
     expect(auth.status()).toBe('signed_out');
     expect(screen.queryByRole('dialog', { name: 'Your session ended' })).toBeNull();
   });
@@ -134,7 +134,7 @@ describe('the sign-in gate of the remote build (plan U2, client map 7.3)', () =>
     await userEvent.click(within(await sheet()).getByRole('button', { name: 'Sign in as another person' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Sign in to Madar' })).toBeInTheDocument();
     expect(router.state.location.search).toBe('?reason=expired');
-    expect(Object.keys(window.sessionStorage).filter((key) => key.startsWith('madar.draft.'))).toEqual([]);
+    expect(Object.keys(window.localStorage).filter((key) => key.startsWith('madar.draft.'))).toEqual([]);
   });
 
   it('passes the calm checks in English and in Arabic right to left', async () => {
