@@ -5,7 +5,7 @@ import { SegmentedControl } from '../../../components/SegmentedControl';
 import { counted } from '../../../lib/grammar';
 import { stageSpan, templateDays } from '../../../lib/projectPlan';
 import { barOf, chartDays, dayAt, waitsThrough, weekStarts } from './ganttMath';
-import { draftPlanTemplate, moveStageStart, wholeNumber, type DraftTask, type TemplateDraft } from './templateDraft';
+import { draftPlanTemplate, moveStageStart, touchTask, wholeNumber, type DraftTask, type TemplateDraft } from './templateDraft';
 
 /** One working day is this many pixels wide on the chart at least. "Fit" widens the chart to its box, "Zoom in" doubles it and more. */
 const DAY_PX = 12;
@@ -105,8 +105,9 @@ export function TemplateGantt({ draft, onChange, onLink, selected, onSelect }: {
   // The drawing uses percent of the chart, counted from its start side. Arabic mirrors each x value.
   const X = (percent: number) => (rtl ? 100 - percent : percent);
 
+  // A bar that the person drags or stretches gives the task days of its own, so the task is no longer fresh (fbk_031).
   const patchTask = (id: string, patch: Partial<DraftTask>) => {
-    onChange({ ...draft, tasks: draft.tasks.map((part) => (part.id === id ? { ...part, ...patch } : part)) });
+    onChange({ ...draft, tasks: draft.tasks.map((part) => (part.id === id ? touchTask({ ...part, ...patch }) : part)) });
   };
 
   /** The place that a gesture gives at this pointer x. A stage moves as a whole, and a task keeps its days inside the chart. */

@@ -11,7 +11,11 @@
       },
       "2026-10-23-28": {
         "title": "Frame your profile picture",
-        "body": "Now you can move and zoom a new profile picture before you save it. Choose a picture in Settings. Drag it inside the circle, move the slider to zoom, and see how it looks. Then press Save."
+        "body": "Now you can move and zoom a new profile picture before you save it. Choose a picture in Settings. Drag it inside the circle. Move the slider to zoom. Then press Save."
+      },
+      "2026-10-23-29": {
+        "title": "Change the stage of a task in a template",
+        "body": "Now you can pick the stage of a task in a project template. Open the task and use the Stage field. This works for a new task and for an old task. The days of an old task stay as they are. A note tells you when they no longer fit the stage."
       }
     }
   },
@@ -27,5 +31,9 @@
     "frameHint": "Drag the picture to move it. Use the slider to zoom.",
     "zoom": "Zoom",
     "preview": "How it looks in Madar"
+  },
+  "projectTemplates": {
+    "taskStage": "Stage",
+    "taskOutside": "The days of this task are outside the days of its stage. Change the start day, or the days of the stage."
   }
 }

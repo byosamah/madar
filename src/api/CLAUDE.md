@@ -73,6 +73,10 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - Template tasks and stages can wait for other parts of their own template (`prerequisiteIds`, fbk_008). `projectTemplates.save`
   refuses a wait on a missing part (`prerequisite_not_in_template`), a repeated wait and a loop (`dependency_cycle`, `hasCycle`
   in `flow.ts`). A new project links the waits to its new ids. A task with waits is `dynamic` there, with its planned working days.
+- A task may move to another stage of its template (fbk_031, owner 2026-10-23): `projectTemplates.save` only checks that `stageId` names a stage of the same
+  template (`assertParts`), so a move is a plain save of the same task id with a new `stageId` (one `projectTemplate.updated` event; Undo takes it back).
+  The update of linked projects (`syncDiff`) has no kind for it: the project task keeps its stage, and its dates follow the offsets as before. A task
+  that is new to a project still comes under the stage that the template names.
 - Stage templates merged into project templates. Their calls stay in the contract, their screens are gone. Version 9 and the
   migration `20261005000100_project_templates.sql` made one project template from each stage template, once.
 - Link an older project (fbk_008 item 4): `projectTemplates.matchPlan` reads the matches by name (`matchByNames`,

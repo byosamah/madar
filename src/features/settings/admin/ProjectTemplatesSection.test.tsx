@@ -374,6 +374,114 @@ describe('the Admin section Project templates', () => {
     expect(saved.tasks[0].prerequisiteIds).toBeUndefined();
   });
 
+  // fbk_031 (Faisal): "adding a task to an existing template does not let you change which stage it's added in".
+  describe('the stage of a task (fbk_031)', () => {
+    /** Two stages with their own days, and one task in each. */
+    const TWO = {
+      name: 'Two stages',
+      roles: [],
+      stages: [{ id: 's1', name: 'Concept', startOffset: 0, durationDays: 10 }, { id: 's2', name: 'Permits', startOffset: 20, durationDays: 10 }],
+      tasks: [
+        { id: 't1', stageId: 's1', title: 'Massing options', description: '', checklist: [], needsReview: true, roleId: null, startOffset: 0, durationDays: 8, flexible: true },
+        { id: 't2', stageId: 's2', title: 'Balady pack', description: '', checklist: [], needsReview: true, roleId: null, startOffset: 20, durationDays: 6, flexible: true },
+      ],
+    };
+
+    it('has a Stage field in the details of every task, with the stages of the template, and shows the stage of the task', async () => {
+      const { api } = await renderApp('/admin/project-templates');
+      await api.call('projectTemplates.save', TWO as never);
+      const sheet = await openEditor(/^Two stages/);
+      await pick(sheet, 'Massing options');
+      const stage = within(details(sheet)).getByLabelText('Stage');
+      expect(stage).toHaveValue('s1');
+      expect(within(stage).getAllByRole('option').map((option) => option.textContent)).toEqual(['Concept', 'Permits']);
+      // It sits right under the title, before the task lead.
+      const labels = [...details(sheet).querySelectorAll('label')].map((label) => label.textContent);
+      expect(labels.findIndex((text) => text?.startsWith('Stage'))).toBe(labels.findIndex((text) => text?.startsWith('Task title')) + 1);
+    });
+
+    it('moves an old task to another stage and keeps its days, and the save accepts it', async () => {
+      const { store, api } = await renderApp('/admin/project-templates');
+      await api.call('projectTemplates.save', TWO as never);
+      const sheet = await openEditor(/^Two stages/);
+      await pick(sheet, 'Massing options');
+      await userEvent.selectOptions(within(details(sheet)).getByLabelText('Stage'), 'Permits');
+      expect(within(details(sheet)).getByLabelText('Start day')).toHaveValue('0');
+      expect(within(details(sheet)).getByLabelText('Working days')).toHaveValue('8');
+      // The days of the task are outside the days of its new stage (20 to 30): the editor says so, and moves nothing.
+      expect(within(details(sheet)).getByText('The days of this task are outside the days of its stage. Change the start day, or the days of the stage.')).toBeInTheDocument();
+      await userEvent.click(within(sheet).getByRole('button', { name: 'Save template' }));
+      expect(await screen.findByText('Template saved.')).toBeInTheDocument();
+      const saved = savedNamed(store, 'Two stages')!;
+      // The list stays grouped by stage: the moved task goes after the last task of Permits.
+      expect(saved.tasks.map((task) => [task.id, (task as unknown as { stageId: string }).stageId, task.startOffset, task.durationDays])).toEqual([['t2', 's2', 20, 6], ['t1', 's2', 0, 8]]);
+      expect(saved.stages.map((stage) => stage.id)).toEqual(['s1', 's2']);
+    });
+
+    it('shows no note when the days of the task fit the days of the new stage', async () => {
+      const { api } = await renderApp('/admin/project-templates');
+      await api.call('projectTemplates.save', { ...TWO, tasks: [{ ...TWO.tasks[0], startOffset: 22, durationDays: 4 }, TWO.tasks[1]] } as never);
+      const sheet = await openEditor(/^Two stages/);
+      await pick(sheet, 'Massing options');
+      await userEvent.selectOptions(within(details(sheet)).getByLabelText('Stage'), 'Permits');
+      expect(within(details(sheet)).queryByText(/outside the days of its stage/)).toBeNull();
+    });
+
+    it('lets the person change the stage of a task that was just added, and the task starts where Add task would put it in that stage', async () => {
+      const { store, api } = await renderApp('/admin/project-templates');
+      await api.call('projectTemplates.save', TWO as never);
+      const sheet = await openEditor(/^Two stages/);
+      // Add task goes to the last stage (nothing is picked): Permits. Its first day is the end of Balady pack, day 26.
+      await userEvent.click(within(sheet).getByRole('button', { name: 'Add a task' }));
+      const panel = details(sheet);
+      expect(within(panel).getByLabelText('Stage')).toHaveValue('s2');
+      expect(within(panel).getByLabelText('Start day')).toHaveValue('26');
+      await userEvent.type(within(panel).getByLabelText('Task title'), 'Site survey');
+      await userEvent.selectOptions(within(panel).getByLabelText('Stage'), 'Concept');
+      // Now it starts at the end of Massing options in Concept, day 8.
+      expect(within(panel).getByLabelText('Start day')).toHaveValue('8');
+      await userEvent.click(within(sheet).getByRole('button', { name: 'Save template' }));
+      expect(await screen.findByText('Template saved.')).toBeInTheDocument();
+      const added = savedNamed(store, 'Two stages')!.tasks.find((task) => task.title === 'Site survey') as unknown as { stageId: string; startOffset: number; durationDays: number };
+      expect(added).toMatchObject({ stageId: 's1', startOffset: 8, durationDays: 5 });
+    });
+
+    it('keeps the days of a new task after the person typed its start day, whatever the stage', async () => {
+      const { store, api } = await renderApp('/admin/project-templates');
+      await api.call('projectTemplates.save', TWO as never);
+      const sheet = await openEditor(/^Two stages/);
+      await userEvent.click(within(sheet).getByRole('button', { name: 'Add a task' }));
+      const panel = details(sheet);
+      await userEvent.type(within(panel).getByLabelText('Task title'), 'Site survey');
+      const start = within(panel).getByLabelText('Start day');
+      await userEvent.clear(start);
+      await userEvent.type(start, '3');
+      await userEvent.selectOptions(within(panel).getByLabelText('Stage'), 'Concept');
+      expect(within(panel).getByLabelText('Start day')).toHaveValue('3');
+      await userEvent.click(within(sheet).getByRole('button', { name: 'Save template' }));
+      expect(await screen.findByText('Template saved.')).toBeInTheDocument();
+      expect(savedNamed(store, 'Two stages')!.tasks.find((task) => task.title === 'Site survey')).toMatchObject({ startOffset: 3 });
+    });
+
+    it('shows the Stage field in the details sheet on a phone as well', async () => {
+      vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+        matches: query === '(max-width: 639px)', media: query, onchange: null,
+        addListener: () => undefined, removeListener: () => undefined,
+        addEventListener: () => undefined, removeEventListener: () => undefined, dispatchEvent: () => false,
+      }) as MediaQueryList);
+      const { store, api } = await renderApp('/admin/project-templates');
+      await api.call('projectTemplates.save', TWO as never);
+      const sheet = await openEditor(/^Two stages/);
+      await userEvent.click(within(sheet).getByRole('button', { name: /Massing options/ }));
+      const part = await screen.findByRole('dialog', { name: 'Massing options' });
+      await userEvent.selectOptions(within(part).getByLabelText('Stage'), 'Permits');
+      await userEvent.click(within(part).getByRole('button', { name: 'Done' }));
+      await userEvent.click(within(sheet).getByRole('button', { name: 'Save template' }));
+      expect(await screen.findByText('Template saved.')).toBeInTheDocument();
+      expect(savedNamed(store, 'Two stages')!.tasks.find((task) => task.id === 't1')).toMatchObject({ stageId: 's2', startOffset: 0 });
+    });
+  });
+
   it('shows a list of rows on a phone, and a press on a row opens its details in a sheet', async () => {
     vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
       matches: query === '(max-width: 639px)', media: query, onchange: null,

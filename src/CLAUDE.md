@@ -233,6 +233,13 @@ any screen work.
   a stage start moves its tasks by the same days (`moveStageStart`, on blur), a new wait that points back moves the waiting part
   (`addWait`, with an Undo toast), a save problem names its part and field (`draftProblem`), and Cancel, Escape and the close button ask
   "Discard the changes?" when the draft changed (a control with `data-autofocus` takes the focus in a sheet).
+  The details of a task have a **Stage** field under the title (fbk_031, owner 2026-10-23: a person could not pick the stage of a task, new or old).
+  `moveTaskToStage` (`templateDraft.ts`) has one rule: the move changes the stage and nothing else, so the days of a task stay where they are and the
+  waits stay true; a note under the field says when the days are outside the own days of the new stage (`taskOutsideStage`; the stage panel keeps
+  its notes `tasksEndDay` and `startsBeforeStageAbove`). The one exception is a task that Add task just made and the person has not touched
+  (`DraftTask.fresh`, set by `addTask`, cleared by `touchTask` when the person or a bar of the chart sets its days; a task with a wait is never
+  placed again): it goes where Add task would put it in the new stage. The list stays grouped by stage: the moved task goes after the last task of
+  its new stage. `fresh` lives in the draft only; `draftInput` and `draftOf` never carry it.
 - Apply a template (owner, 2026-10-19, fbk_020): "Apply a template" in the "More actions" menu of the project header
   (`features/project/ApplyTemplateSheet.tsx`), for `viewerCan.edit` (the leader and the Admin) on an active or paused project. Step 1 is a
   list of the office templates (name, stages, tasks); one press opens step 2, `LinkProjectSheet` in `mode="apply"` over it (same matching,
