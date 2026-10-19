@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderWithRuntime } from '../../test/render';
+import { resetGate } from '../../lib/nominatimGate';
 import { PinPicker } from './PinPicker';
 
 // The real build shows the map (a double here) and the place search. The one field shows in both builds.
@@ -38,6 +39,7 @@ function type(text: string) {
 const enter = () => fireEvent.keyDown(screen.getByLabelText(FIELD), { key: 'Enter' });
 
 beforeEach(() => {
+  resetGate();
   fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
 });

@@ -323,16 +323,15 @@ export function ProjectFields({
           <option value="none">{t('projectForm.leaderNone')}</option>
         </SelectField>
       )}
-      <TextField
-        id="project-location"
-        label={t('projectForm.location')}
-        hint={t('projectForm.locationHint')}
-        value={values.location}
-        dir="auto"
-        autoComplete="off"
-        onChange={(event) => set('location', event.target.value)}
+      <LocationField
+        geo={values.geo}
+        address={values.location}
+        changed={mode !== 'create' && (form.edited('geo') || form.edited('location'))}
+        onChange={(geo, address) => {
+          set('geo', geo);
+          set('location', address);
+        }}
       />
-      <PinLine value={values.geo} changed={mode !== 'create' && form.edited('geo')} onChange={(geo) => set('geo', geo)} />
       <TextField
         id="project-area"
         label={t('projectForm.area')}
@@ -389,45 +388,47 @@ export function ProjectFields({
 }
 
 /**
- * The pin line under Location (owner, 2026-10-18, fbk_017): the state of the pin ("Set" or "Not set", with a link that opens the
- * place in Google Maps), then "Set pin" (or "Change"), and "Remove" with a pin. "Set pin" opens the pin sheet; its "Use this place"
- * keeps the pin in the form. A change waits for the form's Save, as every other field does, and the line says so (PRJ-13, PRJ-21).
+ * The one Location field (owner, 2026-10-19): a project has one place, its pin, and the Location text is the address of that pin. The
+ * field shows the address ("King Fahd Road, Dammam"), or "Pinned on the map." when the pin has no address, or "No location yet". The
+ * text of an old project with no pin shows too, until a person sets a pin. A link opens the place in Google Maps. "Set location" (or
+ * "Change") opens the pin sheet; its "Use this place" gives the pin and its address, and the form keeps both until "Save changes",
+ * as it keeps every other field. The save sends the pin and the address in one write, so one Undo takes both back. "Remove" takes
+ * away the pin and the address together.
  */
-function PinLine({ value, changed, onChange }: { value: GeoPoint | null; changed: boolean; onChange: (point: GeoPoint | null) => void }) {
+function LocationField({ geo, address, changed, onChange }: {
+  geo: GeoPoint | null;
+  address: string;
+  changed: boolean;
+  onChange: (geo: GeoPoint | null, address: string) => void;
+}) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  // The name of the place, when a search hit set the pin in this sheet. A pin from the map or a link has no name.
-  const [place, setPlace] = useState<string | null>(null);
+  const shown = address || (geo ? t('map.pinned.map') : t('map.location.none'));
   return (
-    <div className="-mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-      <span className="text-subheadline text-ink-2">{t('map.pin.label')}</span>
-      <span className="text-subheadline">
-        {value ? (place ? <>{t('map.pin.state')}: <bdi dir="auto">{place}</bdi></> : t('map.pin.state')) : t('map.pin.none')}
-      </span>
-      {changed && <span className="text-footnote text-ink-2">{t('map.pin.unsaved')}</span>}
-      {value && (
-        <a href={googleMapsUrl(value)} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-11 items-center text-subheadline text-link underline underline-offset-2">
-          {t('map.pin.open')}
-        </a>
-      )}
-      <Button onClick={() => setOpen(true)}>{value ? t('map.pin.change') : t('map.pin.set')}</Button>
-      {value && (
-        <Button
-          onClick={() => {
-            setPlace(null);
-            onChange(null);
-          }}
-        >
-          {t('map.pin.remove')}
-        </Button>
-      )}
+    <div role="group" aria-labelledby="project-location-label" className="flex min-w-0 flex-col gap-1.5">
+      <span id="project-location-label" className="field-label">{t('projectForm.location')}</span>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className={`text-subheadline ${address || geo ? 'text-ink' : 'text-ink-2'}`}>
+          <bdi dir="auto">{shown}</bdi>
+        </span>
+        {changed && <span className="text-footnote text-ink-2">{t('map.pin.unsaved')}</span>}
+        {geo && (
+          <a href={googleMapsUrl(geo)} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-11 items-center text-subheadline text-link underline underline-offset-2">
+            {t('map.pin.open')}
+          </a>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={() => setOpen(true)}>{geo ? t('map.pin.change') : t('map.location.set')}</Button>
+        {(geo || address) && <Button variant="plain" onClick={() => onChange(null, '')}>{t('map.pin.remove')}</Button>}
+      </div>
       <PinSheet
         open={open}
         onOpenChange={setOpen}
-        initial={value}
-        onUse={(point, name) => {
-          setPlace(name);
-          onChange(point);
+        initial={geo}
+        address={address}
+        onUse={(point, found) => {
+          onChange(point, found);
           setOpen(false);
         }}
       />

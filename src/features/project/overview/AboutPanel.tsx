@@ -37,10 +37,11 @@ export function AboutPanel({ detail }: { detail: ProjectDetail }) {
       <bdi dir="auto">{lang === 'ar' ? subCompany.nameAr : subCompany.name}</bdi>
     </span>
   );
-  // The Location text, and one tap to directions when the project has a pin (audit 2026-10-19, PRJ-04).
+  // The Location is the address of the pin, then one tap to directions (audit 2026-10-19, PRJ-04; owner, 2026-10-19). A pin with no
+  // address shows the link alone. A project with no pin shows its old typed text, else "Not set".
   const locationLine = (
     <>
-      <span className="block">{project.location || none}</span>
+      {(project.location || !detail.geo) && <span className="block">{project.location || none}</span>}
       {detail.geo && (
         <a
           href={googleMapsUrl(detail.geo)}

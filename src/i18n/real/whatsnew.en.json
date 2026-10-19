@@ -37,7 +37,7 @@
       },
       "2026-10-23-8": {
         "title": "The project on the map",
-        "body": "Now you can pin the project on a map in Edit project. Search a place by name or paste a map link. The Dashboard has a Map tab. It shows the street map in Madar colors, with all the pins."
+        "body": "Now you can pin the project on a map in Edit project. Search a place by name or paste a map link. The Dashboard has a Map tab. It shows the street map in Madar colors, with all the pins. The Location of a project is its pin. Madar takes the address from the map."
       },
       "2026-10-23-9": {
         "title": "Open space",

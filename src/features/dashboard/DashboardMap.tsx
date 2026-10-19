@@ -157,8 +157,9 @@ export function DashboardMap({ filters }: { filters: DashboardFilters }) {
         initial={null}
         description={editing?.project.name}
         busy={save.isPending}
-        onUse={(point) => {
-          if (editing) save.mutate({ id: editing.project.id, patch: { geo: point } });
+        // The pin and its address go in one write, so one Undo takes both back (owner, 2026-10-19).
+        onUse={(point, address) => {
+          if (editing) save.mutate({ id: editing.project.id, patch: { geo: point, location: address } });
         }}
       />
       {cardInSheet && MapCanvas && (

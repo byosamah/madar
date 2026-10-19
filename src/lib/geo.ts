@@ -62,6 +62,12 @@ export function pointText(point: GeoPoint): string {
   return `${Number(point.lat.toFixed(6))}, ${Number(point.lng.toFixed(6))}`;
 }
 
+/** True when two pins are the same place. A missing pin (null or undefined) equals another missing pin. */
+export function samePoint(a: GeoPoint | null | undefined, b: GeoPoint | null | undefined): boolean {
+  if (!a || !b) return !a && !b;
+  return a.lat === b.lat && a.lng === b.lng;
+}
+
 /** The Google Maps address of a pin: one tap opens the place, with directions (audit 2026-10-19, PRJ-04). */
 export function googleMapsUrl(point: GeoPoint): string {
   return `https://www.google.com/maps?q=${Number(point.lat.toFixed(6))},${Number(point.lng.toFixed(6))}`;

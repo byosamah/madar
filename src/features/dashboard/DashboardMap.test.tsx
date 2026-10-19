@@ -1,8 +1,9 @@
-import { afterAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { GeoPoint } from '../../api/contract/entities';
 import type { State } from '../../api/store';
+import { resetGate } from '../../lib/nominatimGate';
 import { projectKey } from '../../lib/projectCode';
 import { renderWithRuntime } from '../../test/render';
 import { DashboardMap } from './DashboardMap';
@@ -68,6 +69,20 @@ async function pinned(api: Api, filter: { leaderId?: string } = {}) {
 const mapPins = () => within(screen.getByRole('region', { name: 'Map' })).queryAllByRole('button')
   .map((pin) => pin.getAttribute('aria-label') ?? '')
   .sort();
+
+// The pin sheet looks up the address of a pin when the person presses "Use this place" (the Location is the address of the pin,
+// owner, 2026-10-19). The tests never reach the network: this double answers.
+const fetchMock = vi.fn();
+const addressAnswer = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+beforeEach(() => {
+  resetGate();
+  fetchMock.mockReset();
+  fetchMock.mockResolvedValue(addressAnswer({ address: { road: 'King Fahd Road', city: 'Dammam' } }));
+  vi.stubGlobal('fetch', fetchMock);
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('the Dashboard map (fbk_017)', () => {
   it('puts one pin on the map for each active project with a pin', async () => {
@@ -154,6 +169,38 @@ describe('the Dashboard map (fbk_017)', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Use this place' }));
     await waitFor(async () => expect((await api.call('projects.get', { id: target!.project.id })).geo).toEqual({ lat: 26.2834, lng: 50.2105 }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('saves the pin and its address in one write: one Undo takes both back', async () => {
+    const { api } = await renderWithRuntime(<DashboardMap filters={{}} />, pinFirstFour, { path: '/dashboard' });
+    const unpinned = (await openProjects(api)).filter((row) => row.geo === null);
+    const target = unpinned.find((row) => row.viewerCan.edit)!;
+    await userEvent.click(await screen.findByRole('button', { name: `No pin yet (${unpinned.length})` }));
+    await userEvent.click(screen.getByRole('button', { name: `Set pin for ${target.project.name}` }));
+    const dialog = await screen.findByRole('dialog', { name: 'Pin on the map' });
+    fireEvent.change(within(dialog).getByLabelText('Search a place or paste a Google Maps link'), { target: { value: '26.2834, 50.2105' } });
+    expect(fetchMock).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Use this place' }));
+    await waitFor(async () => expect((await api.call('projects.get', { id: target.project.id })).project.location).toBe('King Fahd Road, Dammam'));
+    const saved = await api.call('projects.get', { id: target.project.id });
+    expect(saved.geo).toEqual({ lat: 26.2834, lng: 50.2105 });
+    await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+    await waitFor(async () => expect((await api.call('projects.get', { id: target.project.id })).geo).toBeNull());
+    expect((await api.call('projects.get', { id: target.project.id })).project.location).toBe(target.project.location);
+  });
+
+  it('saves the pin with an empty address when the lookup fails, and the old text does not stay beside the new pin', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    const { api } = await renderWithRuntime(<DashboardMap filters={{}} />, pinFirstFour, { path: '/dashboard' });
+    const unpinned = (await openProjects(api)).filter((row) => row.geo === null);
+    const target = unpinned.find((row) => row.viewerCan.edit)!;
+    await userEvent.click(await screen.findByRole('button', { name: `No pin yet (${unpinned.length})` }));
+    await userEvent.click(screen.getByRole('button', { name: `Set pin for ${target.project.name}` }));
+    const dialog = await screen.findByRole('dialog', { name: 'Pin on the map' });
+    fireEvent.change(within(dialog).getByLabelText('Search a place or paste a Google Maps link'), { target: { value: '26.2834, 50.2105' } });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Use this place' }));
+    await waitFor(async () => expect((await api.call('projects.get', { id: target.project.id })).geo).toEqual({ lat: 26.2834, lng: 50.2105 }));
+    expect((await api.call('projects.get', { id: target.project.id })).project.location).toBe('');
   });
 
   it('keeps the old pin when the person presses Cancel in the Set pin sheet (PRJ-13)', async () => {

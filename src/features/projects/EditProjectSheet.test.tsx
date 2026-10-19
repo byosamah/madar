@@ -18,7 +18,7 @@ describe('the edit project form: no browser memory (fbk_010)', () => {
     await waitFor(() => expect(sheet.querySelector('input[aria-label="Stage 1"]')).not.toBeNull());
     const fields = textFieldsOf(sheet);
     expect(fields.map((field) => field.id || field.getAttribute('aria-label'))).toEqual(expect.arrayContaining([
-      'project-location', 'project-area', 'Stage 1', 'project-folder', 'project-description', 'client-contact', 'client-phone', 'client-email',
+      'project-area', 'Stage 1', 'project-folder', 'project-description', 'client-contact', 'client-phone', 'client-email',
     ]));
     for (const field of fields) {
       expect(field, field.id || field.getAttribute('aria-label') || 'a field').toHaveAttribute('autocomplete', 'off');
@@ -85,10 +85,10 @@ describe('the pin in the edit form (audit 2026-10-19, PRJ-13, PRJ-21)', () => {
     return { ...app, sheet };
   }
 
-  it('shows Set with a link to check the place, and no raw numbers', async () => {
+  it('shows the address of the pin with a link to check the place, and no raw numbers', async () => {
     const { sheet } = await openEdit();
-    expect(within(sheet).getByText('Pin on the map')).toBeInTheDocument();
-    expect(within(sheet).getByText('Set')).toBeInTheDocument();
+    expect(within(sheet).getByText('Location')).toBeInTheDocument();
+    expect(within(sheet).getByText('Al Khobar, Corniche')).toBeInTheDocument();
     expect(within(sheet).getByRole('link', { name: 'Open in Google Maps' })).toHaveAttribute('href', 'https://www.google.com/maps?q=26.2928,50.2172');
     expect(within(sheet).queryByText(/26\.2928/)).toBeNull();
     expect(within(sheet).queryByText('Not saved yet')).toBeNull();

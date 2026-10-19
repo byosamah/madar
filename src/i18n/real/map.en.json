@@ -1,18 +1,20 @@
 {
   "map": {
     "pin": {
-      "label": "Pin on the map",
-      "none": "Not set",
       "set": "Set pin",
       "change": "Change",
       "remove": "Remove",
-      "state": "Set",
       "unsaved": "Not saved yet",
       "open": "Open in Google Maps"
+    },
+    "location": {
+      "none": "No location yet",
+      "set": "Set location"
     },
     "pinSheet": {
       "title": "Pin on the map",
       "use": "Use this place",
+      "looking": "Finding the address",
       "saved": "Pin saved."
     },
     "find": {

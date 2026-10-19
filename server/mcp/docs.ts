@@ -48,6 +48,8 @@ export const INSTRUCTIONS = [
   '',
   'Project codes: a new code reads YYMMSSINI-CLS-Type, for example 260902AZT-RES-Villa: the month of registration (YYMM), the series of that month (SS), the client initials (INI), the class (RES, COM, IND, INS, REC, AGR, UTL or MIX) and the building type. The first part, 260902AZT, is the project key; people write #260902AZT in posts. Older projects keep codes like KH-26-014. Two projects of one contract share one code. The code is fixed after create. Correcting it with projects.update needs the code right (by default only the Admin). Some projects keep a code of their own: a person may keep a code outside this pattern after a warning. A typed code outside the pattern fails with reason code_format, and one with the month and series of another contract with code_taken: only your person decides to keep it, and then you call again with codeAnyway: true.',
   '',
+  'Place: the location of a project is the address of its pin (geo). Send geo and location together in projects.update. A new geo without location clears the old address. A geo of null clears it too. A location alone fails with reason location_needs_pin while the project has a pin.',
+  '',
   'Sub-companies are the companies of the office group, for example Vado and Bunah. subCompanies.list gives their names and project counts. projects.list, tasks.list, deadlines.list, dashboard.get and reports.office take subCompanyId, the sub-company of a project. projects.list filter no_sub_company lists the projects with none.',
 ].join('\n');
 
@@ -163,7 +165,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.get': {
     title: 'Get a project',
-    description: 'Returns one project by id (for example prj_001): its code, stages and the current stage, its team, leader, client, dates, health, deadlines and links. The code is 260902AZT-RES-Villa (new form) or KH-26-014 (old form). nextDeadline is the next named deadline. stageEnd (date, daysLeft) is the end of the current stage of an active project. It is null with no end date. subCompanyId names the sub-company, or it is null. geo is the pin on the map ({ lat, lng }), or null. With no pin of its own, the location link gives it. templateId is the id of the template the project came from, or null.',
+    description: 'Returns one project by id (for example prj_001): its code, stages and the current stage, its team, leader, client, dates, health, deadlines and links. The code is 260902AZT-RES-Villa (new form) or KH-26-014 (old form). nextDeadline is the next named deadline. stageEnd (date, daysLeft) is the end of the current stage of an active project, or null. subCompanyId names the sub-company, or it is null. geo is the pin ({ lat, lng }), or null. With no pin of its own, the location link gives it. location is the address of the pin. templateId is the id of the template the project came from, or null.',
   },
   'projects.list': {
     title: 'List projects',
@@ -175,7 +177,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.update': {
     title: 'Change project details',
-    description: 'Changes the details of one project: name, client, sub-company (subCompanyId; null clears it), location, area in square metres, the pin (geo: {lat, lng} or null), dates, model folder path, description, cover file. Send only the changed fields in "patch". The project leader and the Admin may do this. "code" corrects the project code. It needs the code right (by default only the Admin). The History records it. A code that breaks the office rules fails with reason code_format or code_taken: tell your person, and send codeAnyway: true only when they say to keep the code.',
+    description: 'Changes one project. Send only changed fields in "patch": name, client, sub-company (null clears it), location, area, geo ({lat, lng} or null), dates, folder, description, cover. The leader and the Admin may do this. Location is the address of the pin: send geo and location together. A geo without location clears the address (geo null too). A location alone fails (reason location_needs_pin) while a pin is set. "code" corrects the code: it needs the code right (by default only the Admin). A code outside the rules fails with code_format or code_taken: ask your person, then send codeAnyway: true.',
   },
   'search.query': {
     title: 'Search',

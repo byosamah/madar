@@ -5,6 +5,7 @@ import { useLang } from '../../app/lang';
 import { Button } from '../../components/Button';
 import { TextField } from '../../components/Fields';
 import { googleMapsUrl, inSaudi, parseMapPoint, pointText, swapPoint } from '../../lib/geo';
+import { gated } from '../../lib/nominatimGate';
 import { parseResults, searchUrl, shortName, simplerQuery, type PlaceHit } from '../../lib/placeSearch';
 import { resolveShortLink, shortLinkIn } from '../../lib/shortLink';
 
@@ -22,8 +23,6 @@ const SEARCH_GAP_MS = 1000;
 
 /** What the last place search showed. */
 type Outcome = { kind: 'idle' } | { kind: 'none' } | { kind: 'failed' } | { kind: 'hits'; hits: PlaceHit[] };
-
-const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
  * The pin of a project in one field (owner, 2026-10-18, fbk_017; one field since the audit of 2026-10-19, PRJ-13). The field takes a
@@ -114,16 +113,18 @@ export function PinPicker({ value, onChange, onPlace }: {
     use(swapped);
   }
 
-  /** One request to OpenStreetMap. */
-  async function ask(query: string): Promise<PlaceHit[]> {
-    const response = await fetch(searchUrl(query, lang));
-    if (!response.ok) throw new Error(String(response.status));
-    return parseResults(await response.json());
+  /** One request to OpenStreetMap, through the gate that the address lookup shares: one at a time, one second apart. */
+  function ask(query: string): Promise<PlaceHit[]> {
+    return gated(async () => {
+      const response = await fetch(searchUrl(query, lang));
+      if (!response.ok) throw new Error(String(response.status));
+      return parseResults(await response.json());
+    });
   }
 
   /**
-   * Searches a name. When nothing is found, it searches once more with a shorter name (no district word, no city), after the
-   * gap that the OpenStreetMap policy asks. One search runs at a time.
+   * Searches a name. When nothing is found, it searches once more with a shorter name (no district word, no city); the gate holds
+   * that request until the gap that the OpenStreetMap policy asks has passed. One search runs at a time.
    */
   async function search() {
     const query = text.trim();
@@ -134,10 +135,7 @@ export function PinPicker({ value, onChange, onPlace }: {
     try {
       let hits = await ask(query);
       const shorter = simplerQuery(query);
-      if (hits.length === 0 && shorter) {
-        await wait(Math.max(0, SEARCH_GAP_MS - (Date.now() - started)));
-        hits = await ask(shorter);
-      }
+      if (hits.length === 0 && shorter) hits = await ask(shorter);
       setOutcome(hits.length > 0 ? { kind: 'hits', hits } : { kind: 'none' });
     } catch {
       setOutcome({ kind: 'failed' });
