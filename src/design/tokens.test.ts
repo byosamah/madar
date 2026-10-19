@@ -206,3 +206,19 @@ describe('the side of text with its own direction', () => {
     expect(css).toMatch(/body \[dir="auto"\],\s*body \[dir="ltr"\],\s*body bdi \{\s*text-align: -webkit-match-parent;/);
   });
 });
+
+describe('the names-you mark (chat design item 4)', () => {
+  it('has its two tokens in light and dark', () => {
+    expect(token(':root', '--c-mention-bg')).toBe('#F4EDFF');
+    expect(token(':root', '--c-mention-bar')).toBe('#7E22CE');
+    expect(token('[data-theme="dark"]', '--c-mention-bg')).toBe('#2D2442');
+    expect(token('[data-theme="dark"]', '--c-mention-bar')).toBe('#C29BFF');
+  });
+  it('keeps the text 4.5:1 and the bar 3:1 on the tint, in light and dark', () => {
+    for (const block of [':root', '[data-theme="dark"]']) {
+      const tint = hex(token(block, '--c-mention-bg'));
+      for (const name of ['--c-ink', '--c-ink-2', '--c-link']) expect(contrast(hex(token(block, name)), tint), `${name} in ${block}`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(hex(token(block, '--c-mention-bar')), tint)).toBeGreaterThanOrEqual(3);
+    }
+  });
+});

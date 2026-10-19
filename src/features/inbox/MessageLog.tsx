@@ -107,7 +107,7 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier }: MessageLog
       <ol ref={items} className="flex flex-col gap-0.5">
         {groupByDay(bubbles, (b) => stampDay(b.createdAt)).flatMap((group) => [
           <li key={`day-${group.day}`} className="self-center py-2 text-footnote font-semibold text-ink-2">{dayLabel(group.day)}</li>,
-          ...group.items.map((bubble) => <MessageBubble key={bubble.id} bubble={bubble} runStart={starts.has(bubble.id)} fresh={!first.has(bubble.id) && Date.parse(bubble.createdAt) > newestAtFirst} />),
+          ...group.items.map((bubble) => <MessageBubble key={bubble.id} bubble={bubble} runStart={starts.has(bubble.id)} namesMe={bubble.namesMe ?? false} fresh={!first.has(bubble.id) && Date.parse(bubble.createdAt) > newestAtFirst} />),
         ])}
       </ol>
     </div>

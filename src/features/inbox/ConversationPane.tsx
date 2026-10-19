@@ -61,7 +61,7 @@ function useBubbles<V extends object>(views: V[], toBubble: (view: V) => Bubble,
 function bubbleOfMessage(view: MessageView): Bubble {
   return {
     id: view.message.id, author: view.author, actingFor: view.actingFor, body: view.message.body, files: view.files,
-    createdAt: view.message.createdAt, mine: view.mine, edited: view.message.editedAt !== null,
+    createdAt: view.message.createdAt, mine: view.mine, edited: view.message.editedAt !== null, namesMe: view.namesMe,
   };
 }
 
@@ -187,7 +187,7 @@ export function TaskPane({ id }: { id: string }) {
   // "mine" depends on the person, so the kept bubbles start again when the person changes.
   const bubbles = useBubbles(comments.data ?? NO_COMMENTS, (view: CommentView): Bubble => ({
     id: view.comment.id, author: view.author, actingFor: null, body: view.comment.body, files: view.files, createdAt: view.comment.createdAt,
-    mine: view.author.id === me, edited: view.comment.editedAt !== null,
+    mine: view.author.id === me, edited: view.comment.editedAt !== null, namesMe: view.namesMe,
     // The reason of a date move or of a reopening is a quiet line, not a message of a person (fbk_027).
     ...(view.kind === 'message' ? {} : { reason: { kind: view.kind, dates: view.comment.dates } }),
   }), me);

@@ -27,6 +27,8 @@ export type Bubble = {
   createdAt: string;
   mine: boolean;
   edited: boolean;
+  /** True when the message names the reader (an @mention, or a reply to the reader). Another person's bubble then gets the names-you mark (item 4). */
+  namesMe?: boolean;
   /** A quiet line of a group (a person joined or left, a new name). It is no message: the log draws it as one grey line. */
   line?: GroupLine;
   /** A quiet line of a task thread (fbk_027): the reason of a date move or of a reopening, or a Madar shift. The log draws one grey line. */
@@ -80,7 +82,7 @@ export function clockTime(stamp: string, lang: Lang): string {
  * RND-5). The panes keep one Bubble object for each message (bubblesOf), so an unchanged message keeps its props. `runStart` is a
  * boolean, so the memo holds: only the first bubble of a run shows the face, the name and the clock (design item 2).
  */
-export const MessageBubble = memo(function MessageBubble({ bubble, fresh, runStart }: { bubble: Bubble; fresh: boolean; runStart: boolean }) {
+export const MessageBubble = memo(function MessageBubble({ bubble, fresh, runStart, namesMe }: { bubble: Bubble; fresh: boolean; runStart: boolean; namesMe: boolean }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const lang = useLang();
@@ -90,6 +92,8 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh, runSta
   if (bubble.reason) return <ReasonLineItem bubble={bubble} reason={bubble.reason} />;
   // A photo sent with no words has its file name as its words. Beside the preview that name is noise, so the bubble leaves it out.
   const photoOnly = photoOnlyBody(bubble.body, bubble.files, isPicture);
+  // The names-you mark is for another person's bubble: your own bubble keeps its blue (item 4).
+  const marked = namesMe && !mine;
   // The side spot sits beside the bubble: at its end side for another person, at its start side for your own. A next message of a run
   // keeps its time here at opacity 0 until hover or focus (opacity, not visibility, so a screen reader still reads it).
   const side = (
@@ -121,8 +125,10 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh, runSta
         )}
         <div
           style={mine ? { background: 'var(--p-blue-bg)' } : undefined}
-          className={`rounded-2xl px-3 py-2 text-ink ${mine ? 'rounded-ee-md' : 'rounded-es-md bg-fill'} ${runStart ? '' : mine ? 'rounded-se-md' : 'rounded-ss-md'}`}
+          className={`rounded-2xl px-3 py-2 text-ink ${mine ? 'rounded-ee-md' : `rounded-es-md ${marked ? 'relative ps-4 bg-mention-bg' : 'bg-fill'}`} ${runStart ? '' : mine ? 'rounded-se-md' : 'rounded-ss-md'}`}
         >
+          {marked && <span aria-hidden className="absolute inset-y-2 start-1.5 w-[3px] rounded-full bg-mention-bar" />}
+          {marked && <span className="sr-only">{t('chat.namesYou')}</span>}
           {!photoOnly && <RichText body={bubble.body} className="natural-side text-subheadline" />}
           <AttachmentList files={bubble.files} />
           {(runStart || bubble.edited) && (
