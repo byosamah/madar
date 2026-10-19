@@ -75,7 +75,7 @@ export function MessageTools({ bubble }: { bubble: Bubble }) {
       label={actions.menuLabel}
       items={menuItemsOf(bubble, actions, t)}
       head={actions.canReact ? <ReactionRow bubble={bubble} actions={actions} /> : undefined}
-      triggerClassName="text-label-2 opacity-0 hover:bg-fill group-focus-within:opacity-100 group-hover:opacity-100 aria-expanded:opacity-100 pointer-coarse:hidden"
+      triggerClassName={`text-label-2 opacity-0 hover:bg-fill group-focus-within:opacity-100 group-hover:opacity-100 aria-expanded:opacity-100 ${actions.inSheet ? 'pointer-coarse:opacity-100' : 'pointer-coarse:hidden'}`}
     />
   );
 }

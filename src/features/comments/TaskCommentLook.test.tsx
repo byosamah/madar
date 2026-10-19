@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { emptyReactions } from '../../api/contract/entities';
 import type { State } from '../../api/store';
@@ -62,6 +62,22 @@ describe('the task panel in the look of the chat', () => {
     expect(within(menu).getByRole('menuitem', { name: 'Reply' })).toBeInTheDocument();
     expect(within(menu).queryByRole('menuitem', { name: 'Edit' })).toBeNull();
     expect(within(menu).queryByRole('menuitem', { name: 'Delete' })).toBeNull();
+  });
+
+  it('keeps the menu button on a phone, and opens no second sheet on a long press (the panel is a sheet itself)', async () => {
+    const { comments } = await openPanel();
+    const mine = commentOf(comments, 'My note');
+    const button = within(mine).getByRole('button', { name: 'Actions for this comment' });
+    // A finger sees the button: the chat hides it on a touch screen and opens a sheet on a long press, but a bottom sheet cannot open
+    // inside the bottom sheet of the task on a phone.
+    expect(button.className).not.toMatch(/pointer-coarse:hidden/);
+    expect(button.className).toMatch(/pointer-coarse:opacity-100/);
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    fireEvent.pointerDown(within(mine).getByText('My note'), { pointerType: 'touch', clientX: 10, clientY: 10 });
+    vi.advanceTimersByTime(700);
+    fireEvent.pointerUp(within(mine).getByText('My note'), { pointerType: 'touch' });
+    vi.useRealTimers();
+    expect(screen.queryByRole('dialog', { name: /^Your message · / })).toBeNull();
   });
 
   it('puts the own comment on the end side, with Edit and Delete in its menu', async () => {

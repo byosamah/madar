@@ -140,7 +140,7 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh, runSta
         data-message-id={bubble.id}
         data-framed={framed || undefined}
         aria-busy={bubble.status === 'pending' ? true : undefined}
-        {...(actions && saved ? press : {})}
+        {...(actions && saved && !actions.inSheet ? press : {})}
         initial={fresh && !bubble.fromOutbox ? { opacity: 0, y: 12 } : false}
         animate={{ opacity: 1, y: 0 }}
         transition={spring.standard}

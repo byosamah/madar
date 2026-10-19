@@ -37,6 +37,11 @@ export type BubbleActions = {
   focusMessage(id: string): void;
   /** The people that a name in the text can point to (the edit form of a message). */
   people: UserCard[];
+  /**
+   * True in the task panel, which is a bottom sheet on a phone: a second bottom sheet cannot open inside it, so a finger gets the "..."
+   * button there and no long press. Missing: a chat, where a long press opens the sheet of the message (item 9).
+   */
+  inSheet?: boolean;
 };
 
 export const BubbleActionsContext = createContext<BubbleActions | null>(null);

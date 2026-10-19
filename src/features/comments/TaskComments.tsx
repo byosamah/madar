@@ -75,7 +75,7 @@ export const TaskComments = memo(function TaskComments({ targetId, list, people,
 
   // One stable object for all the bubbles: a bubble renders again only when its own Bubble changes.
   const actions = useMemo<BubbleActions>(() => ({
-    menuLabel: t('comments.actions'), canReact: canPost, meId: me ?? '', people,
+    menuLabel: t('comments.actions'), inSheet: true, canReact: canPost, meId: me ?? '', people,
     react: (bubble, emoji) => react.mutate({ commentId: bubble.id, emoji }),
     canReply: canPost, reply: (bubble) => onReply(replyRefOfBubble(bubble)),
     edit: (bubble) => setEditingId(bubble.id),
