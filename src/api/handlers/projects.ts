@@ -549,10 +549,12 @@ function requireLink(project: Project, linkId: string) {
 
 /**
  * Saves the links. A location link that holds coordinates inside Saudi Arabia sets the pin in the same save, so the place is one
- * record, and one Undo takes both back (audit 2026-10-19, PRJ-04). Any other link leaves the pin as it is.
+ * record, and one Undo takes both back (audit 2026-10-19, PRJ-04). Any other link leaves the pin as it is. Only a person who may
+ * edit the project moves the pin: a team member who may only post adds the link alone (security review 2026-10-19).
  */
 function saveLinks(ctx: Ctx, project: Project, links: Project['links'], saved?: { kind: string; url: string }) {
-  const place = saved ? pinFromLinks([saved]) : null;
+  const mayPin = can(ctx.authority, 'project.edit', { projectRole: roleIn(ctx, project.id) });
+  const place = saved && mayPin ? pinFromLinks([saved]) : null;
   applyPatch(ctx, project, { links, ...(place ? { geo: place } : {}) }, { projectId: project.id, verb: 'project.updated', targetType: 'project', targetId: project.id });
   touch(ctx, project.id);
   return detail(ctx, project);

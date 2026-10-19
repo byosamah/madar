@@ -553,6 +553,16 @@ describe('the pin and the location link (audit 2026-10-19, PRJ-04)', () => {
     expect((await t.api.call('projects.get', { id: 'prj_001' })).geo).toEqual({ lat: 26.3, lng: 50.1 });
   });
 
+  it('saves the link of a team member who may not edit the project, and leaves the pin as it is', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: { lat: 26.28, lng: 50.21 } } });
+    t.as('usr_003');
+    const detail = await t.api.call('projects.addLink', { projectId: 'prj_001', kind: 'location', label: '', url: LINK });
+    expect(detail.project.links!.at(-1)!.url).toBe(LINK);
+    expect(detail.geo).toEqual({ lat: 26.28, lng: 50.21 });
+  });
+
   it('keeps the pin for a location link with no coordinates, a short link, or a place outside Saudi Arabia', async () => {
     const t = testApi(projectCalls);
     t.as('usr_002');
