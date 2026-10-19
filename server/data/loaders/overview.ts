@@ -134,6 +134,9 @@ export async function searchQuery(L: Load, input: Input): Promise<void> {
   await messageHits(L, input, seen);
 }
 
+/** The most times the comment read of a search goes again without the deleted tasks it found (security review 2026-10-19). */
+export const GONE_REREADS = 3;
+
 /**
  * The Messages group (chat design 2026-10-19, item 16): the newest MESSAGE_HITS live messages of the chats that the person may open,
  * and the newest MESSAGE_HITS comments of the tasks that the person may read, whose folded text holds every word of the query. A query
@@ -149,10 +152,11 @@ async function messageHits(L: Load, input: Input, seen: readonly string[]): Prom
   const newest = { order: { col: 'created_at', desc: true, id: true } as const, limit: MESSAGE_HITS };
   await L.select({ c: 'messages', where: [{ col: 'conversation_id', in: chats }, LIVE, ...holds], ...newest });
   // The comments of project tasks. Postgres keeps the project of a comment after its task goes, so a read can name a task that the load
-  // does not hold. The handler drops such a comment, so the read goes again without that task, until no read names one.
+  // does not hold. The handler drops such a comment, so the read goes again without that task, until no read names one. It goes again
+  // GONE_REREADS times at most: one search never makes an unbounded number of reads, and many deleted tasks give fewer hits, not more reads.
   const projects = Object.keys(L.office.projects);
   const gone: string[] = [];
-  for (;;) {
+  for (let read = 0; read <= GONE_REREADS; read += 1) {
     const rows = (await L.select({
       c: 'comments', where: [{ col: 'target_type', in: ['task'] }, { col: 'project_id', in: projects }, ...holds, ...(gone.length > 0 ? [{ col: 'target_id', notIn: gone }] : [])], ...newest,
     })) as Comment[];

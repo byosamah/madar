@@ -6,7 +6,7 @@ import { snapshotOf } from '../officeCache';
 import { Load } from './build';
 import { memorySource } from './memorySource';
 import type { Select } from './query';
-import { searchQuery } from './overview';
+import { GONE_REREADS, searchQuery } from './overview';
 import type { Source } from './source';
 
 /**
@@ -51,6 +51,34 @@ describe('the comments of search.query on a deleted task', () => {
     const loaded = await L.state();
     expect(loaded.tasks[task.id]).toBeDefined();
     expect(loaded.tasks.tsk_gone).toBeUndefined();
+  });
+
+  it('reads again at most three times, also when many deleted tasks hold a match', async () => {
+    // 50 deleted tasks, each with a newer matching comment: each read names one more of them. The reads stop after three more
+    // (security review 2026-10-19: one search must not make an unbounded number of reads).
+    const state = structuredClone(seed);
+    const inner = memorySource(state);
+    const asked: Select[] = [];
+    const ghosts = Array.from({ length: 50 }, (_, i) => ({
+      ord: 99_000 + i,
+      doc: { id: `cmt_9${String(i).padStart(2, '0')}x`, targetType: 'task', targetId: `tsk_gone${i}`, authorId: 'usr_002', body: 'The riser of a gone task', createdAt: '2026-10-04T09:00:00.000+03:00', editedAt: null, reactions: {} },
+    }));
+    const src: Source = {
+      ...inner,
+      async select(s) {
+        asked.push(s);
+        const rows = await inner.select(s);
+        const projectRead = s.c === 'comments' && s.where.some((cond) => 'col' in cond && cond.col === 'project_id' && 'in' in cond && cond.in.length > 0);
+        if (!projectRead) return rows;
+        const skip = s.where.flatMap((cond) => ('col' in cond && cond.col === 'target_id' && 'notIn' in cond ? cond.notIn : []));
+        const next = ghosts.find((g) => !skip.includes(g.doc.targetId));
+        return next ? [...rows, next] : rows;
+      },
+    };
+    await searchQuery(new Load({ src, office: snapshotOf(state, 1), actorId: 'usr_003', write: false }), { text: 'riser' });
+    const reads = asked.filter((s) => s.c === 'comments' && s.where.some((cond) => 'col' in cond && cond.col === 'project_id' && 'in' in cond));
+    expect(GONE_REREADS).toBe(3);
+    expect(reads).toHaveLength(1 + GONE_REREADS);
   });
 
   it('makes one read of the comments of project tasks when every task exists', async () => {
