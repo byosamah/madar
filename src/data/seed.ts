@@ -1,4 +1,5 @@
 import { addDirectConversation, addProjectConversation } from '../api/chatState';
+import { addSampleGroupChat } from './seedGroup';
 import { chatReadKey, emptyState, memberKey, nextId, type State } from '../api/store';
 import {
   defaultPreferences, emptyReactions, type FileRec, type FileVersion, type Project, type Task, type TrackerEntry, type User,
@@ -438,6 +439,8 @@ function addChatTalk(state: State, today: string, humans: User[]): void {
   if (towerRoom) read(towerRoom.id, unreadFor, at(addDays(today, -1), 11, 0));
   const withFaisal = Object.values(state.conversations).find((c) => c.kind === 'direct' && c.memberIds.includes(who(0).id) && c.memberIds.includes(who(1).id));
   if (withFaisal) read(withFaisal.id, unreadFor, at(addDays(today, -1), 17, 12));
+  // One sample group with a mention and a quiet line, all read (UX audit 2026-10-19, INT-08).
+  addSampleGroupChat(state, today, humans);
 }
 
 /** Builds the sample office. Every date comes from "today", so the data is fresh on any day. */

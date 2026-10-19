@@ -68,7 +68,7 @@ describe('errorMessage for group chats (fbk_011)', () => {
       }
     }
     const en = initI18n('en');
-    expect(errorMessage(invalid('remove', 'x', 'group_too_small'), en.t.bind(en))).toBe('A group keeps at least two people. Archive the chat instead.');
+    expect(errorMessage(invalid('remove', 'x', 'group_too_small'), en.t.bind(en))).toBe('A group keeps at least two people.');
   });
 });
 
