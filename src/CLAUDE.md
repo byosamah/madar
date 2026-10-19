@@ -326,6 +326,20 @@ any screen work.
   "New" after the item, and Home ends its date line with the link "See what's new", until the person opens the page. There is no dot
   and no bold item.
 
+## Chat reading (track read, 2026-10-19)
+- Runs (`features/inbox/runs.ts`): the messages of one person within 5 minutes of the one before form a run; a new day, a quiet line, another person, an agent message or the New line starts a run. A next message shows no face and no name; its time sits in the side spot (`data-part="side"`) at opacity 0 until hover or focus.
+- Names you: `MessageView.namesMe` and `CommentView.namesMe` (a mention or a reply to you) give another person's bubble `bg-mention-bg`, a 3 px `bg-mention-bar` on its start side and the hidden sentence `chat.namesYou`.
+- Keep my place (`MessageLog`, `logScroll.ts`): a new message moves the log only when the reader is in the last 80 px or sent it. Else the round Newest button shows (sticky inside the log, `aria-live="off"`), still, with no count.
+- New line (`newLine.ts`): the pane keeps the read state of the first fresh answer (`useOpenMark`) and shows the log only then. A chat places the line by `ChatThread.readUpTo`, a task thread by the unread count of its `chats.list` row. The line goes when the person sends. The mark read goes only after the mark exists, so a stale cached answer never clears the unread count first.
+- Open at one message: `MessageLog` `focusId` centers that bubble (by `data-message-id`), frames it for 1 s (`FRAME_MS`, `data-framed`) and calls `onFocused` once. Tracks msg (reply strip) and find (notices, search, the route) pass it. At the open the focus message beats the New line, and the New line beats the bottom.
+- Read only while you look: `ChatPane` and `useMarkTaskRead` mark read only while `usePageVisible()` (`app/usePageVisible.ts`) is true. A task thread is marked once for each new count of comments. A hidden tab only marks the lists (`app/signals.ts`), so a message reaches an open chat in a hidden tab only when something else loads it; a test that needs that loads the chat itself with `queryClient.refetchQueries`.
+- Links (`segmentsOf`, `RichText`): an `http://` or `https://` address is a link with `dir="ltr"` and `break-all`; an outside address opens in a new tab with `noopener noreferrer`. The marks of the sentence at its end (`. , ; : ! ? ' "`, the Arabic comma, semicolon and question mark, `»`, `]`, `}`) and a closing bracket the address did not open stay out of the link.
+- Drafts (`app/drafts.ts`): the text of a draft lives in localStorage for each person, so it stays after the tab closes. A sign-out (`keepDraftsOf('')`) and a change of person clear both stores. A draft of the old session store moves to localStorage on its first read. Picked files stay in memory only.
+- On a phone (`useIsPhone`) Enter in the chat box adds a line; the Send button sends.
+- A cut title: the `<bdi>` itself is `block truncate`, never its parent, so a title in the other language cuts at its end (`Header` in `ConversationPane.tsx` takes a plain string).
+- Upload progress: `CallMeta.onProgress` reaches `xhrPut` through the upload adapter (screen only, never on the wire; the small picture reports nothing). `useAttachments` keeps a whole percent for each file (`progress`), `PickedFiles` draws a 3 px grey bar for each file and locks Remove while the uploads run; the uploads still start at Send, and `onSend(body, fileIds, clear)` keeps its order.
+- Drop and paste (`ChatDrop.tsx`): `ChatDropArea` wraps a loaded chat or task thread and shows its frame only while the box registered a receiver (`useChatDropReceiver`); it still stops the browser from opening a dropped file. Files go to the picked chips; nothing sends until Send. A paste with text stays text; a paste of only pictures adds them. Picked files wait in memory for each chat (`app/drafts.ts`), so a test that picks files calls `keepDraftsOf('')` after it.
+
 ## Design rules (the short form of DESIGN.md)
 - Judge every choice from the view of the employees with ADHD: one next step, the fewest controls.
 - Start from the LIVE app's design system (glow tiles, the tokens), never from the spec alone.

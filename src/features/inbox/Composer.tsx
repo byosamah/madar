@@ -5,10 +5,12 @@ import type { UserCard } from '../../api/contract/views';
 import { newStoryId } from '../../app/actions';
 import { readDraftFiles, useDraftOwner, useDraftText, writeDraftFiles } from '../../app/drafts';
 import { useToast } from '../../app/toasts';
+import { useIsPhone } from '../../app/useIsPhone';
 import { Button } from '../../components/Button';
 import { MentionField } from '../../components/MentionField';
 import { withMentionMarkup } from '../../lib/text';
 import { AttachButton, PickedFiles, useAttachments, type UploadTarget } from '../files/Attachments';
+import { useChatDropReceiver } from './ChatDrop';
 
 type ComposerProps = {
   id: string;
@@ -30,13 +32,16 @@ export function Composer(props: ComposerProps) {
 }
 
 /**
- * Enter sends, Shift+Enter starts a new line, and the focus lands here when a chat opens. Opening another chat, another tab or
+ * Enter sends, Shift+Enter starts a new line, and the focus lands here when a chat opens. On a phone, Enter starts a new line and only the
+ * Send button sends. Opening another chat, another tab or
  * Search unmounts the box; its draft waits until the person comes back or sends it (audit 2026-10-03, SHL-4). The text uses the
  * keys of the comment box (CommentThread), so a task thread and the comments of its task share one draft.
  */
 function ComposerBox({ id, people, pending, onSend, upload, owner }: ComposerProps & { owner: string }) {
   const { t } = useTranslation();
   const toast = useToast();
+  // On a phone, Enter makes a new line and only the Send button sends (chat design 2026-10-19, item 7).
+  const phone = useIsPhone();
   const draftKey = id.startsWith('tsk_') ? `task:${id}` : `chat:${id}`;
   const attachments = useAttachments(MAX_ATTACHMENTS, readDraftFiles(owner, draftKey));
   const [uploading, setUploading] = useState(false);
@@ -48,6 +53,8 @@ function ComposerBox({ id, people, pending, onSend, upload, owner }: ComposerPro
   useEffect(() => {
     field.current?.focus();
   }, [id]);
+  // Files dropped on the chat join the picked chips, and nothing sends until Send (item 14).
+  useChatDropReceiver(upload ? (dropped) => { attachments.add(dropped); field.current?.focus(); } : null);
   // A file may go with no words: its name becomes the words, the same way Share does (audit 2026-10-03, SHL-21).
   const files = upload ? attachments.files : [];
   const submit = async () => {
@@ -79,14 +86,22 @@ function ComposerBox({ id, people, pending, onSend, upload, owner }: ComposerPro
         void submit();
       }}
     >
-      {upload && <PickedFiles files={attachments.files} onRemove={attachments.remove} />}
+      {upload && <PickedFiles files={attachments.files} onRemove={attachments.remove} progress={attachments.progress} busy={uploading} />}
       <div className="flex items-end gap-2">
       {upload && <AttachButton compact onPick={attachments.add} />}
       <div
         className="min-w-0 flex-1"
+        onPaste={(event) => {
+          // A paste that holds text stays text. A paste of only pictures adds them as picked files (item 14).
+          if (!upload || event.clipboardData.getData('text/plain') !== '') return;
+          const pictures = [...event.clipboardData.files].filter((file) => file.type.startsWith('image/'));
+          if (pictures.length === 0) return;
+          event.preventDefault();
+          attachments.add(pictures);
+        }}
         onKeyDown={(event) => {
-          // The mention list handles its own Enter and marks the event. Only a plain Enter sends.
-          if (event.key !== 'Enter' || event.shiftKey || event.defaultPrevented || event.nativeEvent.isComposing) return;
+          // The mention list handles its own Enter and marks the event. Only a plain Enter sends, and not on a phone.
+          if (phone || event.key !== 'Enter' || event.shiftKey || event.defaultPrevented || event.nativeEvent.isComposing) return;
           event.preventDefault();
           void submit();
         }}

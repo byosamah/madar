@@ -308,7 +308,7 @@ describe('the Inbox chat after the audit of 2026-10-03', () => {
   }, 20000);
 
   // A draft belongs to the person who typed it, not to the browser tab (audit 2026-10-03, V-22).
-  const savedDrafts = () => Object.keys(window.sessionStorage).filter((key) => key.startsWith('madar.draft.')).map((key) => window.sessionStorage.getItem(key));
+  const savedDrafts = () => Object.keys(window.localStorage).filter((key) => key.startsWith('madar.draft.')).map((key) => window.localStorage.getItem(key));
 
   it('shows the next person no unsent words or files of the person before, after Preview as (V-22)', async () => {
     const { api } = await renderApp('/inbox');

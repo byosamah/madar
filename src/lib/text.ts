@@ -58,19 +58,46 @@ export function firstLineOf(body: string): string {
 export type Segment =
   | { kind: 'text'; text: string }
   | { kind: 'mention'; name: string; userId: string }
-  | { kind: 'project'; code: string };
+  | { kind: 'project'; code: string }
+  | { kind: 'url'; url: string };
 
-const TOKEN = new RegExp(`${MENTION.source}|${LINKED_CODE}`, 'g');
+/** A web address starts with http:// or https:// (chat design 2026-10-19, item 7). Another scheme makes no link. */
+const WEB_ADDRESS = '(https?:\\/\\/[^\\s<>"]+)';
+const TOKEN = new RegExp(`${MENTION.source}|${LINKED_CODE}|${WEB_ADDRESS}`, 'g');
 
-/** Splits a post into plain text, mentions and project links (spec 7.2), for display. */
+/** The marks that end a sentence, not an address: they come off the end of an address. A closing bracket comes off only when the address did not open it. */
+const ADDRESS_END = new Set(Array.from('.,;:!?\'"\u060C\u061B\u061F\u00BB]}'));
+
+/** The address without the marks of the sentence at its end. */
+function trimAddress(address: string): string {
+  let end = address.length;
+  for (;;) {
+    const last = address[end - 1];
+    if (ADDRESS_END.has(last)) end -= 1;
+    else if (last === ')' && address.slice(0, end).split(')').length > address.slice(0, end).split('(').length) end -= 1;
+    else break;
+  }
+  return address.slice(0, end);
+}
+
+/** Splits a post into plain text, mentions, project links and web addresses (spec 7.2), for display. */
 export function segmentsOf(body: string): Segment[] {
   const out: Segment[] = [];
   let last = 0;
   for (const match of body.matchAll(TOKEN)) {
     const index = match.index ?? 0;
+    let segment: Segment;
+    let length = match[0].length;
+    if (match[4] !== undefined) {
+      // The cut part goes back into the text. An address with nothing after its scheme stays text.
+      const url = trimAddress(match[4]);
+      if (/^https?:\/\/$/.test(url)) continue;
+      segment = { kind: 'url', url };
+      length = url.length;
+    } else segment = match[3] ? { kind: 'project', code: match[3] } : { kind: 'mention', name: match[1], userId: match[2] };
     if (index > last) out.push({ kind: 'text', text: body.slice(last, index) });
-    out.push(match[3] ? { kind: 'project', code: match[3] } : { kind: 'mention', name: match[1], userId: match[2] });
-    last = index + match[0].length;
+    out.push(segment);
+    last = index + length;
   }
   if (last < body.length) out.push({ kind: 'text', text: body.slice(last) });
   return out;

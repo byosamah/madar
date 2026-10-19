@@ -8,7 +8,7 @@ import { renderRemoteApp, SAMPLE_ACCOUNTS } from './renderAuth';
 vi.mock('../../app/mode', () => ({ REMOTE: true, PROTOTYPE: false }));
 
 type App = Awaited<ReturnType<typeof renderRemoteApp>>;
-const savedDrafts = () => Object.keys(window.sessionStorage).filter((key) => key.startsWith('madar.draft.')).map((key) => window.sessionStorage.getItem(key));
+const savedDrafts = () => Object.keys(window.localStorage).filter((key) => key.startsWith('madar.draft.')).map((key) => window.localStorage.getItem(key));
 const chats = async () => within(await screen.findByRole('list', { name: 'Chats' }));
 const PICKED = 'Files to send';
 

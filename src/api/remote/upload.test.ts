@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MAX_FILE_BYTES } from '../contract/entities';
 import { ApiError } from '../errors';
-import { putFailure, uploadAdapter, type PutResult, type PutSender } from './upload';
+import { putFailure, uploadAdapter, xhrPut, type PutResult, type PutSender } from './upload';
 import type { AdapterCtx } from './wire';
 
 const MB = 1024 * 1024;
@@ -267,5 +267,27 @@ describe('putFailure', () => {
     expect(putFailure({ status: 0, body: '' })).toBe('failed');
     expect(putFailure({ status: 200, body: '' })).toBeNull();
     expect(putFailure({ status: 204, body: '' })).toBeNull();
+  });
+});
+
+describe('the progress of an upload (design item 14)', () => {
+  it('passes the progress of the file upload to the screen, and not of the small picture', async () => {
+    const { ctx, steps } = wire();
+    const onProgress = vi.fn();
+    ctx.meta = { onProgress };
+    const put: PutSender = async (target, _body, report) => { steps.push(`PUT ${target.url}`); report?.(40, 80); return { status: 200, body: '' }; };
+    await uploadAdapter({ makeThumb: async () => new Blob(['webp'], { type: 'image/webp' }), put })({ ...SCREEN_INPUT, blob: picture() }, ctx);
+    expect(onProgress.mock.calls).toEqual([[40, 80]]);
+  });
+  it('reads the progress events of the browser upload', async () => {
+    const onProgress = vi.fn();
+    let xhr: { upload: { onprogress?: (e: ProgressEvent) => void }; onload?: () => void; status: number; responseText: string } | undefined;
+    vi.stubGlobal('XMLHttpRequest', class { upload = {}; status = 200; responseText = ''; open() {} setRequestHeader() {} send() { xhr = this as never; } });
+    const sent = xhrPut(PUT, new Blob(['x']), onProgress);
+    xhr!.upload.onprogress!({ lengthComputable: true, loaded: 5, total: 10 } as ProgressEvent);
+    xhr!.onload!();
+    await sent;
+    expect(onProgress).toHaveBeenCalledWith(5, 10);
+    vi.unstubAllGlobals();
   });
 });

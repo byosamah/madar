@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { ChatRow, CommentView, GroupLine, MessageView } from '../../api/contract/views';
+import { usePageVisible } from '../../app/usePageVisible';
 import { usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
 import { Avatar } from '../../components/Avatar';
@@ -22,8 +23,15 @@ import { actorContext } from '../../lib/grammar';
 import { taskLink } from '../../lib/params';
 import { useMarkTaskRead } from '../comments/markRead';
 import { useEarlierMessages } from './earlier';
+import { useOpenMark } from './newLine';
+import { ChatDropArea } from './ChatDrop';
 
-function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: ReactNode; subtitle: ReactNode; action?: ReactNode }) {
+/**
+ * The head of a pane. The title is a plain string: the `<bdi>` inside the heading is the element that cuts (`block truncate`), never the
+ * heading itself, so a title in the other language cuts at its end and not at its start (chat design 2026-10-19, item 8). A `<bdi>`
+ * takes the direction of its own text, and its side from the page (tokens.css).
+ */
+function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: string; subtitle: ReactNode; action?: ReactNode }) {
   const { t } = useTranslation();
   return (
     <header className="flex items-center gap-3 border-b border-hairline px-3 py-2.5 sm:px-5">
@@ -32,7 +40,7 @@ function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: Rea
       </Link>
       {lead}
       <div className="min-w-0 flex-1">
-        <h2 className="truncate text-headline text-ink">{title}</h2>
+        <h2 className="min-w-0 text-headline text-ink"><bdi className="block truncate">{title}</bdi></h2>
         <div className="truncate text-footnote text-ink-2">{subtitle}</div>
       </div>
       {action}
@@ -61,7 +69,7 @@ function useBubbles<V extends object>(views: V[], toBubble: (view: V) => Bubble,
 function bubbleOfMessage(view: MessageView): Bubble {
   return {
     id: view.message.id, author: view.author, actingFor: view.actingFor, body: view.message.body, files: view.files,
-    createdAt: view.message.createdAt, mine: view.mine, edited: view.message.editedAt !== null,
+    createdAt: view.message.createdAt, mine: view.mine, edited: view.message.editedAt !== null, namesMe: view.namesMe,
   };
 }
 
@@ -108,12 +116,18 @@ export function ChatPane({ id }: { id: string }) {
     ? messageBubbles
     : [...messageBubbles, ...lineBubbles].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || (a.line ? 1 : 0) - (b.line ? 1 : 0));
   const unread = data?.chat.unread ?? 0;
+  // The read state from before the open (item 3). The open marks the chat read, so the first fresh answer is kept. The mark goes only
+  // after it, so a stale cached answer never marks the chat read before the fresh one has told what was unread.
+  const mark = useOpenMark(thread, (d) => ({ unread: d.chat.unread, readUpTo: d.readUpTo }));
+  const opened = mark !== null;
+  // Read only while the person looks (item 5): a hidden tab marks nothing, and the tab marks again when it shows.
+  const visible = usePageVisible();
   useEffect(() => {
-    if (unread > 0) markRead.mutate({ conversationId: id });
-    // The mutation object changes on every render. Only a new count of unread messages matters here.
-  }, [id, unread]);
+    if (opened && visible && unread > 0) markRead.mutate({ conversationId: id });
+    // The mutation object changes on every render. Only a new count of unread messages, or the tab that shows, matters here.
+  }, [id, unread, opened, visible]);
   if (thread.error) return <div className="p-4"><LoadFailed error={thread.error} onRetry={() => void thread.refetch()} /></div>;
-  if (!data) return <div className="flex-1" aria-busy="true" />;
+  if (!data || !mark) return <div className="flex-1" aria-busy="true" />;
   const { chat } = data;
   const isGroup = chat.kind === 'group';
   // A group shows one picture. One press on it, or on the count of people, opens the People sheet (UX audit 2026-10-19, chats-07 and 08).
@@ -137,16 +151,16 @@ export function ChatPane({ id }: { id: string }) {
     : chat.kind === 'project' ? t('chat.projectChat') : chat.personLeft ? t('chat.inactive', { context }) : t('chat.directChat');
   const title = chat.kind === 'direct' && chat.person ? nameOf(chat.person) : chat.title;
   return (
-    <>
+    <ChatDropArea note={chat.kind === 'project' ? t('chat.dropProject') : t('chat.dropChat')}>
       <Header
         lead={lead}
-        title={<bdi>{title}</bdi>}
+        title={title}
         subtitle={subtitle}
         action={isGroup
           ? <GroupMenu id={id} archived={chat.archived} title={title} onPick={setSheet} onArchive={archive} />
           : <ArchiveMenu id={id} archived={chat.archived} title={title} onArchive={archive} />}
       />
-      <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} />
+      <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} readUpTo={mark.readUpTo} unreadAtOpen={mark.unread} />
       {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{isGroup ? t('chat.groupAlone') : t('chat.closed')}</p> : (
         <Composer
           id={id}
@@ -158,7 +172,7 @@ export function ChatPane({ id }: { id: string }) {
         />
       )}
       {isGroup && <GroupSheets id={id} mode={sheet} onMode={setSheet} name={chat.title} people={data.people} me={session.data?.authority} makerId={chat.makerId} />}
-    </>
+    </ChatDropArea>
   );
 }
 
@@ -182,18 +196,21 @@ export function TaskPane({ id }: { id: string }) {
   const session = useCall('session.get', {});
   const create = useAction('comments.create');
   const archive = useArchive();
-  useMarkTaskRead(id, comments.data, session.data?.authority.id);
+  // The Inbox row of the thread tells how many comments were unread at the open (`comments.list` gives no read time). The first fresh
+  // answer keeps it, and the mark read goes only after that (item 3).
+  const mark = useOpenMark(comments, () => ({ unread: row?.unread ?? 0 }));
+  useMarkTaskRead(id, mark ? comments.data : undefined, session.data?.authority.id);
   const me = session.data?.authority.id;
   // "mine" depends on the person, so the kept bubbles start again when the person changes.
   const bubbles = useBubbles(comments.data ?? NO_COMMENTS, (view: CommentView): Bubble => ({
     id: view.comment.id, author: view.author, actingFor: null, body: view.comment.body, files: view.files, createdAt: view.comment.createdAt,
-    mine: view.author.id === me, edited: view.comment.editedAt !== null,
+    mine: view.author.id === me, edited: view.comment.editedAt !== null, namesMe: view.namesMe,
     // The reason of a date move or of a reopening is a quiet line, not a message of a person (fbk_027).
     ...(view.kind === 'message' ? {} : { reason: { kind: view.kind, dates: view.comment.dates } }),
   }), me);
   const failed = task.error ?? comments.error;
   if (failed) return <div className="p-4"><LoadFailed error={failed} onRetry={() => { void task.refetch(); void comments.refetch(); }} /></div>;
-  if (!task.data || !comments.data) return <div className="flex-1" aria-busy="true" />;
+  if (!task.data || !comments.data || !mark) return <div className="flex-1" aria-busy="true" />;
   const where = task.data.project;
   const canPost = where ? project.data?.viewerCan.post ?? false : task.data.viewerCan.contribute;
   const maker = users.data?.find((user) => user.id === task.data?.task.createdBy);
@@ -205,10 +222,10 @@ export function TaskPane({ id }: { id: string }) {
   const people = (where ? (project.data?.members ?? []).map((member) => member.user) : officePeople)
     .filter((user, index, list) => user.id !== me && list.findIndex((other) => other.id === user.id) === index);
   return (
-    <>
+    <ChatDropArea note={where ? t('chat.dropProject') : t('chat.dropOfficeTask')}>
       <Header
         lead={<span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><AnimatedIcon icon={ClipboardCheckIcon} size={18} aria-hidden /></span>}
-        title={<bdi>{task.data.task.title}</bdi>}
+        title={task.data.task.title}
         subtitle={`${t('chat.taskThread')} · ${where ? where.name : t('office.word')}`}
         action={(
           <>
@@ -222,7 +239,7 @@ export function TaskPane({ id }: { id: string }) {
           </>
         )}
       />
-      <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} />
+      <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} unreadAtOpen={mark.unread} />
       {canPost ? (
         <Composer
           id={id}
@@ -232,7 +249,7 @@ export function TaskPane({ id }: { id: string }) {
           onSend={(body, fileIds, clear) => create.mutate({ targetType: 'task', targetId: id, body, fileIds }, { onSuccess: clear })}
         />
       ) : <p className="border-t border-hairline p-3 text-footnote text-ink-2">{t('comments.cannot')}</p>}
-    </>
+    </ChatDropArea>
   );
 }
 
