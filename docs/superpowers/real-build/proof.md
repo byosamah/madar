@@ -1802,3 +1802,10 @@ The ceilings in `server/office/test/pins.ts` are the measured rows plus 10%. The
 until the restart. The new ceilings are 17,820 and 34,736. The comment read costs most: no index of `comments` gives the order of `created_at`, so
 the read takes every comment of the 50 projects and tests `instr` on each row. `exit-handoff.md`, section 7, names the FTS5 index for the restart.
 
+
+### Chat batch: the waits pin on the office path (merge lead, 2026-10-19)
+- `chats.waiting {}` as usr_005 on the year office read 22,579 rows after the new wait rules of item 22 (a group waits only when a
+  message names the person, and a 👍 or ✅ on the message that waits answers it). The rule reads the reactions and the reply links of
+  the newer messages. Before: a ceiling of 21,488 (the measured rows of 2026-10-18 plus 10%). The new ceiling is 24,837 (22,579 plus 10%).
+  The Admin form (usr_001, 48,725) stays under its ceiling.
+- The other chat reads on the year office stay under their ceilings (`npm run test:office`: 36 of 37 passed before this change).

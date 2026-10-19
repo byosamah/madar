@@ -12,8 +12,9 @@ export const READ_PINS: readonly ReadPin[] = [
   { name: 'chats.unreadCount', input: {}, actorId: 'usr_005', rowsRead: 16_994 },
   { name: 'chats.unreadCount', input: {}, actorId: 'usr_001', rowsRead: 16_968 },
   { name: 'chats.list', input: {}, actorId: 'usr_001', rowsRead: 16_990 },
-  // chats.waiting (fbk_011): the ceiling is the measured rows of the year office plus 10% (2026-10-18).
-  { name: 'chats.waiting', input: {}, actorId: 'usr_005', rowsRead: 21_488 },
+  // chats.waiting (fbk_011): the ceiling is the measured rows of the year office plus 10% (2026-10-18). The chat batch of 2026-10-19
+  // (item 22: a group waits only when named, a 👍 or ✅ answers) reads the reactions and reply links too: 22,579 measured, so 24,837.
+  { name: 'chats.waiting', input: {}, actorId: 'usr_005', rowsRead: 24_837 },
   { name: 'chats.waiting', input: {}, actorId: 'usr_001', rowsRead: 48_725 },
   { name: 'notifications.count', input: {}, actorId: 'usr_005', rowsRead: 2 },
   { name: 'notifications.list', input: {}, actorId: 'usr_005', rowsRead: 118 },
