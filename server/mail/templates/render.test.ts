@@ -6,7 +6,8 @@ import { MAIL_TEMPLATES, USAGE_METERS, renderMail, type MailData, type MailTempl
 
 /**
  * The mail templates (plan 5.4, change 22; task N2.1): snapshots in both languages, Arabic right to left with the female forms,
- * and no client data in a notice or a summary.
+ * and no client data in a notice. The morning summary lists the open tasks of the person (fbk_021, owner 2026-10-19): the titles
+ * and the project keys it is given, and nothing else.
  */
 
 const LINK = 'https://madar.example/tasks/tsk_001?from=mail';
@@ -16,7 +17,14 @@ const SAMPLES: { [K in MailTemplate]: MailData[K] } = {
   invite: { name: 'Sara', inviterName: 'Huda', link: 'https://madar.example/welcome?token_hash=abc&type=invite' },
   reset: { name: 'Sara', link: 'https://madar.example/reset?token_hash=abc&type=recovery' },
   notice: { trigger: 'task_assigned', link: LINK },
-  summary: { dueToday: 3, reviewsWaiting: 1, link: 'https://madar.example/' },
+  summary: {
+    pastDue: [{ title: 'Check the setback of the villa', where: '260902AZT', due: '2026-10-01' }],
+    today: [{ title: 'Renew the trade licence', where: null, due: '2026-10-04' }, { title: 'مراجعة مخططات الواجهة', where: '260903BNH', due: '2026-10-04' }],
+    week: [{ title: 'Send the survey to the client', where: 'KH-26-014', due: '2026-10-07' }],
+    more: 3,
+    reviewsWaiting: 1,
+    link: 'https://madar.example/',
+  },
   limitWarning: { meter: 'files', percent: 85, link: 'https://madar.example/admin' },
   quotaWarning: { limit: 90, link: 'https://madar.example/admin' },
 };
@@ -121,7 +129,7 @@ describe('renderMail', () => {
     expect(renderMail('notice', 'ar', SAMPLES.notice, { reader: 'male' }).text).toContain('افتح ');
   });
 
-  it('never puts client data in a notice or a summary: no task title, project name or comment text from its data', () => {
+  it('never puts client data in a notice: no task title, project name or comment text from its data', () => {
     const secret = { title: 'Villa Al Rashid facade', projectName: 'Rashid Tower', commentText: 'The client wants marble', actorName: 'Huda Saleh' };
     for (const lang of ['en', 'ar'] as Language[]) {
       for (const g of [{}, FEMALE] as { actor?: Gender; reader?: Gender }[]) {
@@ -129,9 +137,22 @@ describe('renderMail', () => {
           const out = allOutput(renderMail('notice', lang, { ...secret, trigger, link: LINK } as MailData['notice'], g));
           for (const value of Object.values(secret)) expect(out).not.toContain(value);
         }
-        const summary = allOutput(renderMail('summary', lang, { ...secret, dueToday: 2, reviewsWaiting: 2, link: LINK } as MailData['summary'], g));
-        for (const value of Object.values(secret)) expect(summary).not.toContain(value);
       }
+    }
+  });
+
+  it('puts in a summary only the title, the key and the day of each line it is given, never another field of the data', () => {
+    const extra = { projectName: 'Rashid Tower', commentText: 'The client wants marble', clientName: 'Mr Al Rashid' };
+    const data = {
+      ...extra,
+      pastDue: [{ title: 'Check the setback', where: '260902AZT', due: '2026-10-01', ...extra }],
+      today: [], week: [], more: 0, reviewsWaiting: 0, link: LINK,
+    } as unknown as MailData['summary'];
+    for (const lang of ['en', 'ar'] as Language[]) {
+      const out = allOutput(renderMail('summary', lang, data));
+      expect(out).toContain('Check the setback');
+      expect(out).toContain('260902AZT');
+      for (const value of Object.values(extra)) expect(out).not.toContain(value);
     }
   });
 
@@ -158,13 +179,13 @@ describe('renderMail', () => {
     expect(() => renderMail('reset', 'en', { name: 'Sara', link: 'not a url' })).toThrow(/link/);
   });
 
-  it('leaves out a summary line whose count is zero, and inflects the Arabic counts', () => {
-    const onlyReviews = renderMail('summary', 'en', { dueToday: 0, reviewsWaiting: 2, link: LINK });
+  it('leaves out the review line when no review waits, and inflects the Arabic counts', () => {
+    const base = { pastDue: [], today: [], week: [], more: 0, link: LINK };
+    const onlyReviews = renderMail('summary', 'en', { ...base, reviewsWaiting: 2 });
     expect(onlyReviews.text).toContain('2 reviews wait for you.');
-    expect(onlyReviews.text).not.toMatch(/due today/);
-    expect(renderMail('summary', 'en', { dueToday: 1, reviewsWaiting: 0, link: LINK }).text).toContain('1 task is due today.');
-    const counts = [1, 2, 3, 11].map((n) => renderMail('summary', 'ar', { dueToday: n, reviewsWaiting: 0, link: LINK }).text.split('\n').find((l) => l.includes('موعد'))!);
-    expect(counts).toEqual(['مهمة واحدة موعدها اليوم.', 'مهمتان موعدهما اليوم.', '3 مهام موعدها اليوم.', '11 مهمة موعدها اليوم.']);
+    expect(renderMail('summary', 'en', { ...base, reviewsWaiting: 0 }).text).not.toMatch(/review/);
+    const counts = [1, 2, 3, 11].map((n) => renderMail('summary', 'ar', { ...base, reviewsWaiting: n }).text.split('\n').find((l) => l.includes('بانتظارك'))!);
+    expect(counts).toEqual(['مراجعة واحدة بانتظارك.', 'مراجعتان بانتظارك.', '3 مراجعات بانتظارك.', '11 مراجعة بانتظارك.']);
   });
 
   it('names the meter and its one next step in a limit warning, for every meter', () => {
@@ -205,10 +226,111 @@ describe('renderMail', () => {
         expect(m.text).not.toMatch(/undefined|\{\{|(^|\s)mail\.\w/);
         if (lang === 'ar') {
           // Latin letters may appear only in the link, the names of the sample, the CSS and the HTML tags.
-          const words = m.text.replace(/https?:\/\/\S+/g, '').replace(/Sara|Huda/g, '');
+          const words = m.text.replace(/https?:\/\/\S+/g, '').replace(/Sara|Huda/g, '')
+            .replace(/Check the setback of the villa|Renew the trade licence|Send the survey to the client|260902AZT|260903BNH|KH-26-014/g, '');
           expect({ kind, latin: words.match(/[A-Za-z]+/g) }).toEqual({ kind, latin: null });
         }
       }
     }
+  });
+});
+
+describe('the morning summary lists the open tasks (fbk_021, owner 2026-10-19)', () => {
+  const line = (n: number, where: string | null = '260902AZT', due = '2026-10-01') => ({ title: `Task number ${n}`, where, due });
+  const MANY: MailData['summary'] = {
+    pastDue: [line(1), line(2), line(3)],
+    today: [line(4, null, '2026-10-04'), line(5, '260903BNH', '2026-10-04')],
+    week: [line(6, 'KH-26-014', '2026-10-07'), line(7, '260902AZT', '2026-10-08'), line(8, '260902AZT', '2026-10-08')],
+    more: 5,
+    reviewsWaiting: 2,
+    link: LINK,
+  };
+  const NONE: MailData['summary'] = { pastDue: [], today: [], week: [], more: 0, reviewsWaiting: 0, link: LINK };
+
+  it('keeps the subject short and of the same kind as before', () => {
+    expect(renderMail('summary', 'en', MANY).subject).toBe('Your morning summary from Madar');
+    expect(renderMail('summary', 'ar', MANY).subject).toBe('ملخص الصباح من مدار');
+  });
+
+  it('shows the three groups in order, and a line for each task: the title, the project key or Office, and the due day', () => {
+    const { text } = renderMail('summary', 'en', MANY);
+    const at = ['Past due', 'Today', 'This week'].map((heading) => text.indexOf(`\n${heading}\n`));
+    expect(at.every((index) => index > 0)).toBe(true);
+    expect(at).toEqual([...at].sort((a, b) => a - b));
+    expect(text).toContain('Past due\n- Task number 1\n  260902AZT · Thu 1 Oct\n');
+    expect(text).toContain('- Task number 4\n  Office · Sun 4 Oct\n');
+    expect(text).toContain('- Task number 6\n  KH-26-014 · Wed 7 Oct\n');
+  });
+
+  it('shows the same eight lines in the HTML and in the text, then "and N more tasks", the reviews and one button', () => {
+    const m = renderMail('summary', 'en', MANY, {}, { appUrl: APP_URL });
+    expect(m.text.match(/^- Task number \d$/gm)).toHaveLength(8);
+    expect(m.html.match(/Task number \d/g)).toHaveLength(8);
+    expect(m.text).toContain('and 5 more tasks.');
+    expect(m.html).toContain('and 5 more tasks.');
+    expect(m.text).toContain('2 reviews wait for you.');
+    // The "more" line and the review line come after the lists and before the button.
+    expect(m.text.indexOf('and 5 more tasks.')).toBeGreaterThan(m.text.indexOf('- Task number 8'));
+    expect(m.text.indexOf('2 reviews wait for you.')).toBeGreaterThan(m.text.indexOf('and 5 more tasks.'));
+    expect(m.text.indexOf('Open Madar: ')).toBeGreaterThan(m.text.indexOf('2 reviews wait for you.'));
+    expect(m.html.match(/>Open Madar<\/a>/g)).toHaveLength(1);
+    expect(m.text.match(/Open Madar: /g)).toHaveLength(1);
+    expect(m.text).not.toMatch(/[\u2013\u2014]/);
+    expect(m.html).not.toMatch(/[\u2013\u2014]/);
+  });
+
+  it('leaves out an empty group, the "more" line when nothing is left, and the review line when no review waits', () => {
+    const m = renderMail('summary', 'en', { ...NONE, today: [line(4, null, '2026-10-04')] });
+    expect(m.text).toContain('\nToday\n');
+    expect(m.text).not.toContain('Past due');
+    expect(m.text).not.toContain('This week');
+    expect(m.text).not.toMatch(/more task|review/);
+    expect(m.html).not.toMatch(/Past due|This week|more task|review/);
+  });
+
+  it('renders a person with no open task as the intro and the button only', () => {
+    const m = renderMail('summary', 'en', NONE);
+    expect(m.text).toContain('Here is what waits for you today.');
+    expect(m.text).not.toMatch(/^- /m);
+    expect(m.text).toContain('Open Madar: https://madar.example');
+  });
+
+  it('adds no picture but the Madar mark, no style sheet, no script and no link but the button link and the mark', () => {
+    for (const lang of ['en', 'ar'] as Language[]) {
+      const html = renderMail('summary', lang, MANY, {}, { appUrl: APP_URL }).html;
+      expect(html.match(/<img /g)).toHaveLength(1);
+      expect(html).not.toMatch(/<script|<style|<link |<iframe|<video|<audio|<object|background-image|url\(|track|pixel|open\?/i);
+      const urls = [...html.matchAll(/https?:\/\/[^"'<\s]+/g)].map((match) => match[0]);
+      expect(new Set(urls)).toEqual(new Set([LINK, `${APP_URL}/icons/madar-192.png`]));
+      const bare = renderMail('summary', lang, MANY).html;
+      expect(bare).not.toContain('<img');
+    }
+  });
+
+  it('escapes a title for the HTML, keeps it plain in the text, and isolates it so a title in another script does not break the line', () => {
+    const odd = { ...NONE, today: [{ title: `<b>Plan</b> & "section" A's`, where: '260902AZT', due: '2026-10-04' }] };
+    const m = renderMail('summary', 'en', odd);
+    expect(m.html).toContain('<bdi dir="auto">&lt;b&gt;Plan&lt;/b&gt; &amp; &quot;section&quot; A&#39;s</bdi>');
+    expect(m.html).not.toContain('<b>Plan</b>');
+    expect(m.text).toContain(`- <b>Plan</b> & "section" A's`);
+  });
+
+  it('renders in Arabic, right to left, with the Arabic group names, "Office", the Arabic day and the Arabic counts', () => {
+    const m = renderMail('summary', 'ar', MANY, FEMALE, { appUrl: APP_URL });
+    expect(m.html).toMatch(/<html lang="ar" dir="rtl">/);
+    expect(m.html).toContain('text-align:right');
+    for (const heading of ['تجاوزت موعدها', 'اليوم', 'هذا الأسبوع']) expect(m.text, heading).toContain(`\n${heading}\n`);
+    expect(m.text).toContain('- Task number 1\n  260902AZT · الخميس، 1 أكتوبر\n');
+    expect(m.text).toContain('- Task number 4\n  المكتب · الأحد، 4 أكتوبر\n');
+    expect(m.text).toContain('و5 مهام أخرى.');
+    expect(m.text).toContain('مراجعتان بانتظارك.');
+    expect(m.text).toContain('فتح مدار: ');
+    expect(m.text).not.toMatch(/[\u2013\u2014]/);
+  });
+
+  it('inflects the Arabic "more" line for 1, 2, 3 and 11 tasks', () => {
+    const more = [1, 2, 3, 11, 100].map((n) => renderMail('summary', 'ar', { ...NONE, more: n }).text.split('\n').find((l) => l.includes('أخر'))!);
+    expect(more).toEqual(['ومهمة أخرى.', 'ومهمتان أخريان.', 'و3 مهام أخرى.', 'و11 مهمة أخرى.', 'و100 مهمة أخرى.']);
+    expect(renderMail('summary', 'en', { ...NONE, more: 1 }).text).toContain('and 1 more task.');
   });
 });

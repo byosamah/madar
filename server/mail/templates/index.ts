@@ -1,14 +1,18 @@
 import type { EmailTrigger, Gender, Language } from '../../../src/api/contract/entities';
+import { formatDay } from '../../../src/lib/dates';
 import { actorContext } from '../../../src/lib/grammar';
-import { logoAddress, renderPage, type RenderedMail } from './layout';
+import type { SummaryLine } from '../summaryTasks';
+import { logoAddress, renderPage, type MailGroup, type RenderedMail } from './layout';
 import { mailWords } from './words';
 
 export type { RenderedMail } from './layout';
 
 /**
  * The mail templates (plan 5.4; task N2.1): one for each kind, in the person's language, Arabic right to left with the female forms.
- * Notice and summary mails carry no client data (plan 2, change 22; section 10, decision 8): Resend keeps mail content in the US,
- * so they say what happened in general words, give a count and a link, and never a task title, a project name or comment text.
+ * A notice mail carries no client data (plan 2, change 22; section 10, decision 8): Resend keeps mail content in the US, so it
+ * says what happened in general words and gives a link, and never a task title, a project name or comment text. The morning
+ * summary is the one exception (owner, 2026-10-19, fbk_021): it lists the open tasks of its reader, each with the task title, the
+ * project key (or "Office") and the due day, and nothing else of the project, the client or a comment.
  * A template reads only the fields of its data type, so extra fields that a caller passes never reach the mail.
  */
 
@@ -32,7 +36,8 @@ export type MailData = {
   reset: { name: string; link: string };
   /** Only a trigger that sends email: the notices of requests and bugs have no mail words (owner, 2026-10-07). */
   notice: { trigger: EmailTrigger; link: string };
-  summary: { dueToday: number; reviewsWaiting: number; link: string };
+  /** The open tasks in three groups (server/mail/summaryTasks.ts), at most 8 lines in all; more: the tasks that do not show. */
+  summary: { pastDue: SummaryLine[]; today: SummaryLine[]; week: SummaryLine[]; more: number; reviewsWaiting: number; link: string };
   limitWarning: { meter: UsageMeter; percent: number; link: string };
   /** limit: the daily notice limit that stopped the mail (90). */
   quotaWarning: { limit: number; link: string };
@@ -44,9 +49,12 @@ export type MailGenders = { actor?: Gender; reader?: Gender };
 /** appUrl: the screens (APP_URL of the server config), for the Madar mark in the header. Without it the header shows the name only. */
 export type MailOptions = { appUrl?: string };
 
-type Parts = { subject: string; greeting?: string; paragraphs: string[]; button: string; footer: 'footerNotice' | 'footerSummary' | 'footerAuto' };
+type Parts = {
+  subject: string; greeting?: string; paragraphs: string[]; groups?: MailGroup[]; closing?: string[]; button: string;
+  footer: 'footerNotice' | 'footerSummary' | 'footerAuto';
+};
 
-function partsOf<K extends MailTemplate>(kind: K, data: MailData[K], t: ReturnType<typeof mailWords>, g: MailGenders): Parts {
+function partsOf<K extends MailTemplate>(kind: K, lang: Language, data: MailData[K], t: ReturnType<typeof mailWords>, g: MailGenders): Parts {
   const actor = { context: actorContext({ gender: g.actor }) };
   const reader = { context: actorContext({ gender: g.reader }) };
   switch (kind) {
@@ -77,11 +85,18 @@ function partsOf<K extends MailTemplate>(kind: K, data: MailData[K], t: ReturnTy
     }
     case 'summary': {
       const d = data as MailData['summary'];
-      const lines = [
-        ...(d.dueToday > 0 ? [t('mail.summary.dueToday', { count: d.dueToday })] : []),
+      // A row: the title, then the project key (or Office) and the due day. The middle dot is no word, so it has no key.
+      const rows = (lines: SummaryLine[]) => lines.map((line) => ({ title: line.title, meta: `${line.where ?? t('mail.summary.office')} \u00b7 ${formatDay(line.due, lang, 'withWeekday')}` }));
+      const groups: MailGroup[] = [
+        { heading: t('mail.summary.pastDue'), rows: rows(d.pastDue) },
+        { heading: t('mail.summary.today'), rows: rows(d.today) },
+        { heading: t('mail.summary.week'), rows: rows(d.week) },
+      ].filter((group) => group.rows.length > 0);
+      const closing = [
+        ...(d.more > 0 ? [t('mail.summary.more', { count: d.more })] : []),
         ...(d.reviewsWaiting > 0 ? [t('mail.summary.reviewsWaiting', { count: d.reviewsWaiting })] : []),
       ];
-      return { subject: t('mail.summary.subject'), paragraphs: [t('mail.summary.intro'), ...lines], button: t('mail.common.open'), footer: 'footerSummary' };
+      return { subject: t('mail.summary.subject'), paragraphs: [t('mail.summary.intro')], groups, closing, button: t('mail.common.open'), footer: 'footerSummary' };
     }
     case 'limitWarning': {
       const d = data as MailData['limitWarning'];
@@ -109,13 +124,15 @@ function partsOf<K extends MailTemplate>(kind: K, data: MailData[K], t: ReturnTy
 export function renderMail<K extends MailTemplate>(kind: K, lang: Language, data: MailData[K], g: MailGenders = {}, o: MailOptions = {}): RenderedMail {
   const t = mailWords(lang);
   const reader = { context: actorContext({ gender: g.reader }) };
-  const parts = partsOf(kind, data, t, g);
+  const parts = partsOf(kind, lang, data, t, g);
   return renderPage(
     {
       lang,
       subject: parts.subject,
       greeting: parts.greeting,
       paragraphs: parts.paragraphs,
+      groups: parts.groups,
+      closing: parts.closing,
       button: { label: parts.button, link: data.link },
       linkHelp: t('mail.common.linkHelp', reader),
       footer: t(`mail.common.${parts.footer}`, reader),

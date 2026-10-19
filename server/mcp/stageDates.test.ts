@@ -104,12 +104,12 @@ describe('stages.setDates over MCP (fbk_023)', () => {
     for (const word of ['stageId', 'YYYY-MM-DD', 'both dates', 'leader', 'Admin', 'no reason', 'time order', 'current stage', 'when your person asks']) {
       expect(doc.description, word).toContain(word);
     }
-    expect(doc.description).not.toMatch(/[–—]/);
+    expect(doc.description).not.toMatch(/[\u2013\u2014]/);
     // The rule for stage dates is the opposite of the rule for task dates, so INSTRUCTIONS names both.
     const line = INSTRUCTIONS.split('\n').find((text) => text.startsWith('Stages: '));
     expect(line).toBeDefined();
     for (const word of ['stages.setDates', 'no reason', 'dateReason', 'leader', 'Admin']) expect(line, word).toContain(word);
-    expect(line).not.toMatch(/[–—]/);
+    expect(line).not.toMatch(/[\u2013\u2014]/);
   });
 
   it('lets the agent of the leader set a stage date, and the History names the agent and the leader', async () => {

@@ -11,7 +11,8 @@ import { release } from '../mail/quota';
 // It registers the mail effects (the mail.notice producers and handlers), as server/core/deps.ts does for the entries.
 import '../mail/effects';
 import { outboxMailPort } from '../mail/outboxDriver';
-import { buildSummary, sendSummary, summaryPeople } from '../mail/summary';
+import { buildMorning, buildSummary, sendSummary, summaryPeople } from '../mail/summary';
+import { weekEndOf } from '../mail/summaryTasks';
 import { NOW, TODAY, newBatch, startOffice, type ItOffice } from './runCallOffice';
 
 /**
@@ -195,6 +196,17 @@ describe('suite 9: the notice mail on the local database, as madar_server', () =
       const expected = dueToday + reviewsWaiting > 0 ? { dueToday, reviewsWaiting } : null;
       if (expected) withSomething += 1;
       expect({ id: person.id, summary: await deps.db.tx('read', (q) => buildSummary(q, person, TODAY)) }).toEqual({ id: person.id, summary: expected });
+      // The open tasks of the morning mail (fbk_021): the same rule on Postgres. The mail has something to say for a past due task,
+      // a task due today or a review; every open task due by the end of this week shows or counts in "more".
+      const open = tasks.filter((t) => liveTask(t) && (t.status === 'todo' || t.status === 'in_progress') && t.dueDate !== null
+        && t.dueDate <= weekEndOf(TODAY) && peopleOfTask(t).includes(person.id));
+      const morning = await deps.db.tx('read', (q) => buildMorning(q, person, TODAY));
+      expect({ id: person.id, says: morning !== null }).toEqual({ id: person.id, says: open.some((t) => t.dueDate! <= TODAY) || reviewsWaiting > 0 });
+      if (morning) {
+        const { pastDue, today, week, more } = morning.tasks;
+        expect({ id: person.id, listed: pastDue.length + today.length + week.length + more, reviews: morning.reviewsWaiting })
+          .toEqual({ id: person.id, listed: open.length, reviews: reviewsWaiting });
+      }
     }
     expect(withSomething).toBeGreaterThan(0);
     expect((await deps.db.tx('read', (q) => summaryPeople(q))).sort()).toEqual(

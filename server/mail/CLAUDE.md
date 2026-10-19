@@ -5,7 +5,8 @@ after the commit of the call that asked for it.
 
 ## Files
 - `resend.ts` (the Resend driver), `outboxDriver.ts` (the local driver), `quota.ts` (the day quota), `effects.ts`, `register.ts`.
-- `notices.ts` (notice mail), `summary.ts` (the morning summary), `templates/` (layout, words, and the snapshot tests).
+- `notices.ts` (notice mail), `summary.ts` (the morning summary), `summaryTasks.ts` (its three task groups), `templates/` (layout, words, and
+  the snapshot tests).
 - The sign-in mail (invitation, reset, email-changed notice) is in `server/auth/mail.ts`.
 
 ## Drivers
@@ -39,11 +40,21 @@ after the commit of the call that asked for it.
   `mail_outbox` of the object.
 
 ## Content
-- Notice and summary mail carry no client data: no task, project or comment text.
+- Notice mail carries no client data: no task, project or comment text. The morning summary is the one exception (owner, 2026-10-19,
+  fbk_021): it lists the open tasks of its reader, and each line holds the task title, the project key (`projectKey`, or "Office" for an
+  office task) and the due day. It holds no project name, no client name, no comment text and no link of a task. Resend keeps the
+  content, so keep it to those three fields: a template reads only the fields of its data type.
 - The two notices of requests and bugs never send mail (`IN_APP_ONLY_TRIGGERS`, `emailOn`). `MailData.notice` takes only an
   `EmailTrigger`, and the mail tests iterate `EMAIL_TRIGGERS`.
-- The morning summary goes at 07:30 Riyadh, Sunday to Thursday. Its counts include office tasks: those the person leads or
-  helps on, and those in review that the person made (owner, 2026-10-06).
+- The morning summary goes at 07:30 Riyadh, Sunday to Thursday. It lists the open tasks (to do or in progress) that the person
+  leads or helps on, in an active project or with no project, in three groups: Past due, Today and This week. The groups follow the
+  Work screen (`weekEndOf` has the same week rule as `workGroupOf`; a test pins both). A group keeps the shared order of the screens
+  (a placed task first, then the date). The mail shows at most 8 lines in all, the past due first, then "and N more tasks" and one
+  button "Open Madar". It adds the count of the reviews that wait for the person, including those of office tasks that the person
+  made (owner, 2026-10-06). The mail goes when something is past due or due today, or a review waits: a task due later this week alone
+  makes no mail. The subject, the footer and the idempotency key `summary-<day>-<person>` are as before. No signed link, no file, no
+  tracking pixel and no picture but the Madar mark of the header. Tests: `summaryTasks.test.ts`, `summaryBrief.test.ts` (the outbox driver
+  on SQLite), `templates/render.test.ts`.
 - Arabic mail is right to left and uses the `_female` forms for a woman.
 - A mail names a person in the language of the person who gets it (`personName` of `src/lib/personName.ts`).
 - Every word comes from the word files, in English and Arabic. Never use an em-dash.
