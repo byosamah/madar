@@ -681,3 +681,21 @@ Builders: Haiku 5.5. Checkers: Sonnet 5.5 (owner, 2026-10-18, for these builds).
 - [x] The UX fixes on the test copy (2026-10-19, d9b320a): gates green, deploy suite 164 passed and 1 walk timeout that passed on a rerun, the free map draws with pins and no CSP violation. Record: proof.md
 - [x] The owner questions of 2026-10-18 are closed by the audit: one tap for a direct chat and a "New group" button, any person can leave a group, a group mention names the group, the template side panel and the timeline give the same stage start (INT-12), the map pin is the project tile with a status shape, the place search keeps the Nominatim policy (no referrer, 1 s between searches), a person added late reads the whole group history, and a quiet line in the chat tells the members who joined (INT-15), the template timeline is the editor (ADM-06).
 - [x] Team B (2026-10-19, branch `rb/team-b`): fbk_023 an AI agent sets the dates of one stage with `stages.setDates` (the leader and the Admin; no reason is needed, unlike a task date; 45 tools, 49 for an Admin). fbk_021 the morning email lists the open tasks in three groups with the task title, the project key and the due day (at most 8 lines, "and N more tasks"; owner, 2026-10-19). The merge lead runs `test:it` (new summary statement) and sets the tool count pins if another track adds a tool.
+
+## 2026-10-19: a better chat, with lessons from Campfire (branch `rb/chat-campfire`, worktree `~/dev/madar-rb/chat-campfire`)
+Design `docs/superpowers/specs/2026-10-19-madar-chat-campfire-design.md` (owner approved 2026-10-19), plan
+`docs/superpowers/plans/2026-10-19-madar-chat-campfire-plan.md`. Opus plans and joins, Sonnet 5.5 builds (owner, 2026-10-19). No
+separate checker. No production change before Friday 2026-10-23. Answers fbk_028 (both parts) and fbk_030.
+
+- [x] Study of Campfire against the Madar chat, the owner's 16 choices and 6 rule answers, the mockup, the design, the builder check
+- [x] The plan: 52 tasks in 4 tracks plus the base (msg B1 to B17, read A1 to A12, find D1 to D13, notify E1 to E10)
+- [ ] Wave 1: the base, B1 to B7 (one builder on `rb/chat-campfire`)
+- [ ] Wave 2: track read A1 to A12 (`rb/chat-read`)
+- [ ] Wave 2: track msg B8 to B14, B17 (`rb/chat-msg`)
+- [ ] Wave 2: track find D1 to D12 (`rb/chat-find`)
+- [ ] Wave 2: track notify E1 to E10 (`rb/chat-notify`)
+- [ ] Join: read, msg, find, notify into `rb/chat-campfire`
+- [ ] Wave 3: B15, B16, D13
+- [ ] Gate: typecheck, npm test, builds, test:db, test:it, test:mcp, test:lite, test:office, prototype smoke, screenshots
+- [ ] The test copy, then main
+- [ ] Release: production from Friday 2026-10-23 by the owner; then `feedback.setStatus` done for fbk_028 and fbk_030 after the owner says live
