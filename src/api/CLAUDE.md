@@ -161,6 +161,9 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   word has 3 letters or more. Each hit has `chatId` (the task id for a comment), `kind` (`project`, `direct`, `group`, `task`), `title`,
   `project`, `person`, `author`, `mine`, `line` (`hitLine`) and `at`. A comment of a deleted task is dropped. The loader reads the newest
   5 matching rows of each kind, so the cut of the handler gives the same rows. An agent gets the hits of its person. Chat files stay out.
+- A notice with `messageId` links to `/inbox/<chat or task>?at=<id>` (`chatLink`, `lib/params.ts`): a chat notice opens the chat at the
+  message, and a task notice whose `messageId` starts with `cmt_` opens the Inbox task thread at that comment. A notice with no
+  `messageId` (saved before) keeps its old link; an office task that the viewer no longer sees still gives no link.
 - A chat that the person may not open answers `not_found` ("Conversation <id> does not exist."), whatever its kind (chat design
   2026-10-19, item 17): `requireConversation` serves `chats.messages`, `chats.send`, `chats.markRead`, `chats.archive` and the group
   writes. The answer equals the one for an id that was never made, so an outsider learns nothing, the Admin included for a direct chat.
