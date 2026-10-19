@@ -8,5 +8,8 @@
   },
   "project": {
     "chat": "Project chat"
+  },
+  "chat": {
+    "newerMessages": "Show newer messages"
   }
 }

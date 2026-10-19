@@ -3,7 +3,7 @@ import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import type { ChatRow, CommentView, GroupLine, MessageView } from '../../api/contract/views';
 import { usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
@@ -19,9 +19,10 @@ import { GroupSheets, type GroupMode } from './GroupSheets';
 import { useArchive } from './archive';
 import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-check';
 import { actorContext } from '../../lib/grammar';
-import { taskLink } from '../../lib/params';
+import { chatLink, messageParam, taskLink } from '../../lib/params';
 import { useMarkTaskRead } from '../comments/markRead';
 import { useEarlierMessages } from './earlier';
+import { NewerMessages } from './NewerMessages';
 
 function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: ReactNode; subtitle: ReactNode; action?: ReactNode }) {
   const { t } = useTranslation();
@@ -89,13 +90,17 @@ function GroupMenu({ id, archived, title, onPick, onArchive }: {
   );
 }
 
-/** A project chat, a direct chat or a group. Opening it marks it read. */
-export function ChatPane({ id }: { id: string }) {
+/**
+ * A project chat, a direct chat or a group. Opening it marks it read. A link with a message (`?at=`, chat design 2026-10-19, item 17)
+ * opens the page that holds that message: when newer messages follow the page, "Show newer messages" and a send go to the newest page.
+ */
+export function ChatPane({ id, focusFromRoute }: { id: string; focusFromRoute: string | null }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
+  const navigate = useNavigate();
   const session = useCall('session.get', {});
   const [sheet, setSheet] = useState<GroupMode | null>(null);
-  const thread = useCall('chats.messages', { conversationId: id });
+  const thread = useCall('chats.messages', { conversationId: id, ...(focusFromRoute ? { around: focusFromRoute } : {}) });
   const markRead = useAction('chats.markRead');
   const send = useAction('chats.send');
   const archive = useArchive();
@@ -136,6 +141,9 @@ export function ChatPane({ id }: { id: string }) {
     )
     : chat.kind === 'project' ? t('chat.projectChat') : chat.personLeft ? t('chat.inactive', { context }) : t('chat.directChat');
   const title = chat.kind === 'direct' && chat.person ? nameOf(chat.person) : chat.title;
+  // The window of an old message ends before the newest message: the newest page is the chat without the mark in its link.
+  const newer = data.newer;
+  const showNewest = () => navigate(chatLink(id), { replace: true });
   return (
     <>
       <Header
@@ -147,6 +155,7 @@ export function ChatPane({ id }: { id: string }) {
           : <ArchiveMenu id={id} archived={chat.archived} title={title} onArchive={archive} />}
       />
       <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} />
+      {newer && <NewerMessages onShow={showNewest} />}
       {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{isGroup ? t('chat.groupAlone') : t('chat.closed')}</p> : (
         <Composer
           id={id}
@@ -154,7 +163,7 @@ export function ChatPane({ id }: { id: string }) {
           pending={send.isPending}
           // A project chat joins the files of its project. A direct chat or a group keeps its files in the chat (owner, 2026-10-19).
           upload={chat.kind === 'project' ? (chat.project ? { projectId: chat.project.id } : undefined) : { projectId: null, conversationId: id }}
-          onSend={(body, fileIds, clear) => send.mutate({ conversationId: id, body, fileIds }, { onSuccess: clear })}
+          onSend={(body, fileIds, clear) => send.mutate({ conversationId: id, body, fileIds }, { onSuccess: () => { clear(); if (newer) showNewest(); } })}
         />
       )}
       {isGroup && <GroupSheets id={id} mode={sheet} onMode={setSheet} name={chat.title} people={data.people} me={session.data?.authority} makerId={chat.makerId} />}
@@ -165,8 +174,8 @@ export function ChatPane({ id }: { id: string }) {
 const NO_COMMENTS: CommentView[] = [];
 const NO_LINES: GroupLine[] = [];
 
-/** The comments of one task as a chat. A message posts a task comment. */
-export function TaskPane({ id }: { id: string }) {
+/** The comments of one task as a chat. A message posts a task comment. A link with a comment (`?at=`) names the comment to frame (D13). */
+export function TaskPane({ id }: { id: string; focusFromRoute: string | null }) {
   const { t } = useTranslation();
   const task = useCall('tasks.get', { id });
   // An office task has no project (owner, 2026-10-06): its people are its maker, its lead and its helpers.
@@ -239,7 +248,11 @@ export function TaskPane({ id }: { id: string }) {
 /** What shows beside the list. A task thread has a task id. Anything else is a chat. */
 export function ConversationPane({ id }: { id: string }) {
   const { t } = useTranslation();
-  if (id.startsWith('tsk_')) return <TaskPane key={id} id={id} />;
-  if (id.startsWith('cnv_')) return <ChatPane key={id} id={id} />;
+  // A link may name one message or comment (`?at=`). A new mark opens a new pane, so the page loads again at that message.
+  const [params] = useSearchParams();
+  const at = messageParam(params.get('at')) ?? null;
+  const key = `${id}:${at ?? ''}`;
+  if (id.startsWith('tsk_')) return <TaskPane key={key} id={id} focusFromRoute={at} />;
+  if (id.startsWith('cnv_')) return <ChatPane key={key} id={id} focusFromRoute={at} />;
   return <div className="p-4"><EmptyState title={t('common.loadFailed')} body={t('errors.not_found')} /></div>;
 }
