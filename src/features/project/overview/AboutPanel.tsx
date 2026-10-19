@@ -5,6 +5,7 @@ import { useSubCompany } from '../../../app/subCompanies';
 import { useLang } from '../../../app/lang';
 import { SubCompanyLogo } from '../../../components/SubCompanyLogo';
 import { formatDay, formatNumber } from '../../../lib/dates';
+import { googleMapsUrl } from '../../../lib/geo';
 import { parseProjectCode } from '../../../lib/projectCode';
 import { ProjectCover } from '../../projects/ProjectCard';
 import { ProjectLinks } from './ProjectLinks';
@@ -31,10 +32,26 @@ export function AboutPanel({ detail }: { detail: ProjectDetail }) {
       <bdi dir="auto">{lang === 'ar' ? subCompany.nameAr : subCompany.name}</bdi>
     </span>
   );
+  // The Location text, and one tap to directions when the project has a pin (audit 2026-10-19, PRJ-04).
+  const locationLine = (
+    <>
+      <span className="block">{project.location || none}</span>
+      {detail.geo && (
+        <a
+          href={googleMapsUrl(detail.geo)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="pressable -my-1.5 inline-flex min-h-11 items-center text-link underline underline-offset-2"
+        >
+          {t('map.pin.open')}
+        </a>
+      )}
+    </>
+  );
   const facts: [string, ReactNode][] = [
     [t('projectCode.group'), code],
     ...(subCompanyLine ? [[t('subCompanies.label'), subCompanyLine] as [string, ReactNode]] : []),
-    [t('projectForm.location'), project.location || none],
+    [t('projectForm.location'), locationLine],
     [t('projectForm.area'), project.areaM2 === null ? none : formatNumber(project.areaM2, lang)],
     [t('projectForm.contractStartDate'), project.contractStartDate ? formatDay(project.contractStartDate, lang, 'long') : none],
     [t('projectForm.startDate'), project.startDate ? formatDay(project.startDate, lang, 'long') : none],

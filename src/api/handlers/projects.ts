@@ -21,6 +21,7 @@ import {
 } from '../../lib/projectCode';
 import { planProject, type ProjectPlan } from '../../lib/projectPlan';
 import { workingDaysInclusive } from '../../lib/templatePlan';
+import { pinFromLinks } from '../../lib/geo';
 import { markOf, pickMark } from '../../lib/projectMark';
 import { involves } from '../../lib/taskPeople';
 import { addMember, assertCan, requireProject, requireStage, requireUser, roleIn, touch } from './shared';
@@ -541,8 +542,13 @@ function requireLink(project: Project, linkId: string) {
   return link;
 }
 
-function saveLinks(ctx: Ctx, project: Project, links: Project['links']) {
-  applyPatch(ctx, project, { links }, { projectId: project.id, verb: 'project.updated', targetType: 'project', targetId: project.id });
+/**
+ * Saves the links. A location link that holds coordinates inside Saudi Arabia sets the pin in the same save, so the place is one
+ * record, and one Undo takes both back (audit 2026-10-19, PRJ-04). Any other link leaves the pin as it is.
+ */
+function saveLinks(ctx: Ctx, project: Project, links: Project['links'], saved?: { kind: string; url: string }) {
+  const place = saved ? pinFromLinks([saved]) : null;
+  applyPatch(ctx, project, { links, ...(place ? { geo: place } : {}) }, { projectId: project.id, verb: 'project.updated', targetType: 'project', targetId: project.id });
   touch(ctx, project.id);
   return detail(ctx, project);
 }
@@ -557,7 +563,7 @@ export const projectsAddLink = defineCall({
     assertLink(input.kind, input.url);
     const links = project.links ?? [];
     if (links.length >= 20) throw invalid('url', 'A project holds up to 20 links.');
-    return saveLinks(ctx, project, [...links, { id: nextId(ctx.state, 'lnk'), kind: input.kind, label: input.label, url: input.url }]);
+    return saveLinks(ctx, project, [...links, { id: nextId(ctx.state, 'lnk'), kind: input.kind, label: input.label, url: input.url }], input);
   },
 });
 
@@ -570,7 +576,7 @@ export const projectsUpdateLink = defineCall({
     const link = requireLink(project, input.linkId);
     const next = { ...link, ...(input.kind ? { kind: input.kind } : {}), ...(input.label !== undefined ? { label: input.label } : {}), ...(input.url ? { url: input.url } : {}) };
     assertLink(next.kind, next.url);
-    return saveLinks(ctx, project, (project.links ?? []).map((item) => (item.id === link.id ? next : item)));
+    return saveLinks(ctx, project, (project.links ?? []).map((item) => (item.id === link.id ? next : item)), next);
   },
 });
 

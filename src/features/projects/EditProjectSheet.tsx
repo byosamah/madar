@@ -20,7 +20,8 @@ function valuesOf(detail: ProjectDetail): ProjectFormValues {
     subCompanyId: project.subCompanyId ?? '',
     leader: 'me',
     location: project.location,
-    geo: project.geo ?? null,
+    // The pin of the summary: old data shows the place of its location link, and a save then keeps it as the pin (PRJ-04).
+    geo: detail.geo ?? null,
     area: project.areaM2 === null ? '' : String(project.areaM2),
     contractStartDate: project.contractStartDate ?? '',
     startDate: project.startDate ?? '',
