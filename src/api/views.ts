@@ -70,7 +70,7 @@ export function countFiles(state: State, taskId: string): number {
 export const FEED_VERBS = new Set([
   'project.created', 'project.stage_changed', 'project.leader_changed', 'project.code_changed', 'task.created', 'task.status_changed',
   'task.approved', 'task.sent_back', 'task.version_opened', 'task.reopened', 'task.dates_shifted', 'file.added', 'file.version_added', 'member.added',
-  'project.template_synced',
+  'project.template_synced', 'project.template_applied',
 ]);
 
 function lastLetter(value: unknown): string {
@@ -114,6 +114,15 @@ export function eventLabel(state: State, event: Event): { label: string; detail:
       if (event.verb === 'project.template_synced') {
         const templateId = (after.templateLink as { templateId?: string } | null | undefined)?.templateId;
         return { label: name, detail: { template: (templateId && projectTemplatesOf(state)[templateId]?.name) || '' } };
+      }
+      // The apply of a template (fbk_020): the name of the template and what came in. The event keeps the numbers (addedParts).
+      if (event.verb === 'project.template_applied') {
+        const templateId = (after.templateLink as { templateId?: string } | null | undefined)?.templateId;
+        const added = after.addedParts as { stages?: number; tasks?: number } | undefined;
+        return {
+          label: name,
+          detail: { template: (templateId && projectTemplatesOf(state)[templateId]?.name) || '', stages: String(added?.stages ?? 0), tasks: String(added?.tasks ?? 0) },
+        };
       }
       if (typeof after.currentStageId === 'string') return { label: name, detail: { stage: state.stages[after.currentStageId]?.name ?? '' } };
       if ('leaderId' in after) {

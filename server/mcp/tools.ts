@@ -84,8 +84,8 @@ export const MCP_DENY = [
   // Templates, tracker extras and payment deletes.
   'stageTemplates.list', 'stageTemplates.save', 'stageTemplates.delete',
   'projectTemplates.list', 'projectTemplates.save', 'projectTemplates.delete',
-  // Linking an older project to a template, and the update of its projects, are Admin tasks in the screens (fbk_008 item 4):
-  // no agent links, reads the matches, reads the update plan or sends the update.
+  // Linking an older project to a template, the apply of a template to an ongoing project (the leader's menu, fbk_020) and the update of
+  // its projects are screen tasks: no agent links, applies, reads the matches, reads the update plan or sends the update.
   'projectTemplates.matchPlan', 'projectTemplates.link', 'projectTemplates.usage', 'projectTemplates.syncPlan', 'projectTemplates.syncApply',
   'taskTemplates.list', 'taskTemplates.save', 'taskTemplates.rename', 'taskTemplates.delete',
   'tracker.delete', 'tracker.assignReply', 'tracker.export', 'payments.delete',

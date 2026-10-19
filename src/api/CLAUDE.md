@@ -75,9 +75,21 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   in `flow.ts`). A new project links the waits to its new ids. A task with waits is `dynamic` there, with its planned working days.
 - Stage templates merged into project templates. Their calls stay in the contract, their screens are gone. Version 9 and the
   migration `20261005000100_project_templates.sql` made one project template from each stage template, once.
-- Link an older project (fbk_008 item 4, Admin only): `projectTemplates.matchPlan` reads the matches by name (`matchByNames`,
+- Link an older project (fbk_008 item 4): `projectTemplates.matchPlan` reads the matches by name (`matchByNames`,
   `src/lib/templateMatch.ts`). `projectTemplates.link` writes one story: the `templateLink`, each matched part id, and `droppedPartIds`
   for each part with no pick. A second link is refused (`already_linked`). Both calls are on the MCP deny list.
+- Apply a template to an ongoing project (owner, 2026-10-19, fbk_020): `matchPlan`, `link` and the adding need `project.edit` on the
+  target project (the leader and the Admin), and the project must be open (`active` or `on_hold`; else reason `project_closed`),
+  `assertMayApply`. A project holds one `templateLink`. `link` with `replace: true` takes another template for a project that follows
+  one: it first removes the part ids of the old template from the stages and tasks (an event for each, so one Undo of the story brings
+  them back), then writes the new link. The same template is refused (`already_linked`): that is an update. The adding is
+  `syncApply` with `apply: true` and exactly the picks of `isApplyChoices` (only `bringBack`): the project right is enough. Any other
+  pick, or `apply` without them, needs `admin.manage` as before. In apply mode the added parts start from `shiftAdded`
+  (`lib/projectPlan.ts`): when the earliest added part starts before today, all added parts move forward by the same working days so it
+  starts today; an old item never moves. The lead of a new task is the role's person from `link.rolePeople` (the sheet sends the
+  default person only when active) and gets the `task_assigned` notice. The closing event is `project.template_applied`
+  (a feed verb; `after.addedParts` holds `{ stages, tasks }`) in place of `project.template_synced`. Template edits, `usage`,
+  `syncPlan` and the update of many projects stay with the Admin. All five calls stay on the MCP deny list: an agent cannot apply.
 - Update of linked projects (fbk_008 item 4, Admin only): `projectTemplates.usage` lists the open projects, linked or not.
   `projectTemplates.syncPlan` gives the diff (`syncDiff`, `src/api/templateSync.ts`) of each listed project linked to the template.
   `projectTemplates.syncApply` makes the picked changes of one project, in one story. A closed task keeps its dates and its lead.
