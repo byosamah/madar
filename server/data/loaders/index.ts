@@ -2,7 +2,7 @@ import type { z } from 'zod';
 import type { SharedCallName, SharedCalls } from '../../../src/api/sharedCalls';
 import type { State } from '../../../src/api/store';
 import { Load, type LoadCtx } from './build';
-import { chatsAll, chatsArchive, chatsMarkRead, chatsMessages, chatsUnread, chatsWaiting } from './chat';
+import { chatMessageCall, chatsAll, chatsArchive, chatsMarkRead, chatsMessages, chatsUnread, chatsWaiting } from './chat';
 import { inboxCount, inboxList } from './inbox';
 import { dashboardGet, eventsList, projectsList, searchQuery, tasksList, templateSyncTasks } from './overview';
 import {
@@ -152,6 +152,7 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'chats.list': chat(chatsAll),
   'chats.messages': chat(chatsMessages),
   'chats.send': chat(chatsSend),
+  'chats.editMessage': chat(chatMessageCall),
   'chats.markRead': chat(chatsMarkRead),
   'chats.archive': chat(chatsArchive),
   'chats.openDirect': office,

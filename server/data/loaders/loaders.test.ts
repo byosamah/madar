@@ -462,6 +462,29 @@ describe('the 18 places of AM 6', () => {
     }
   });
 
+  // Track msg B8 (chat design 2026-10-19, item 11): an edit finds the names again. The notices of the message must be in the scoped load,
+  // or the removal of a name would leave its notice behind, and the whole office would delete it.
+  it('chats.editMessage: the scoped load adds the notice of a new name and takes away the notice of a removed name (B8)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const team = Object.values(state.members).filter((m) => m.projectId === 'prj_001').map((m) => m.userId).filter((id) => id !== ADMIN && state.users[id].kind === 'human');
+    const [author, first, second] = team;
+    if (!author || !first || !second) throw new Error('The sample office needs three team members on prj_001.');
+    const idOf = (view: unknown) => (view as { message: { id: string } }).message.id;
+    const sent = idOf(apply(state, 'chats.send', { conversationId: room.id, body: `${mentionMarkup(state.users[first].name, first)} look at the wall.` }, author, { now: new Date(NOW.getTime() + 60_000) }));
+    expect(Object.values(state.notifications).filter((n) => n.messageId === sent && n.userId === first)).toHaveLength(1);
+    const removed = await same(state, 'chats.editMessage', { id: sent, body: 'Look at the wall.' }, author);
+    expect(removed.outcome.error).toBeUndefined();
+    expect(deleted(removed, 'notifications')).toHaveLength(1);
+    expect(inserted(removed, 'notifications')).toHaveLength(0);
+    const swapped = await same(state, 'chats.editMessage', { id: sent, body: `${mentionMarkup(state.users[second].name, second)} look at the wall.` }, author);
+    expect(swapped.outcome.error).toBeUndefined();
+    expect(deleted(swapped, 'notifications')).toHaveLength(1);
+    expect(inserted(swapped, 'notifications')).toHaveLength(1);
+    const other = await same(state, 'chats.editMessage', { id: sent, body: 'Not mine' }, first);
+    expect(other.outcome.error).toMatchObject({ code: 'forbidden' });
+  });
+
   it('row 16: a task approved after review moves its dependents by the days it was late on the review day', async () => {
     const state = office();
     const leader = state.projects.prj_001.leaderId!;

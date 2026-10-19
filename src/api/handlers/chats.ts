@@ -263,6 +263,24 @@ export const chatsMessages = defineCall({
   },
 });
 
+/**
+ * The people that a message body names (chat design items 4 and 10): the active people of the chat whom the text names with @, and
+ * the author of the old message when the message is a reply. A reply names the person behind the old message, unless that is the
+ * sender, or the person left, or cannot open the chat. A person named in the text too has the one plain notice, so "replyOnly" is the
+ * reply author named by the reply alone. "mentions" is the list the message keeps.
+ */
+function namesIn(ctx: Ctx, conversation: Conversation, body: string, old: Message | undefined): { named: string[]; replyOnly: string | undefined; mentions: string[] } {
+  const named = mentionedUserIds(body).filter((id) => {
+    const user = ctx.state.users[id];
+    return user?.active === true && canSeeConversation(ctx.state, conversation, user);
+  });
+  const replyUser = old === undefined ? undefined : ctx.state.users[old.actingForId];
+  const replyAuthor = replyUser !== undefined && replyUser.id !== ctx.authority.id && replyUser.active && canSeeConversation(ctx.state, conversation, replyUser)
+    ? replyUser.id : undefined;
+  const replyOnly = replyAuthor !== undefined && !named.includes(replyAuthor) ? replyAuthor : undefined;
+  return { named, replyOnly, mentions: replyOnly === undefined ? named : [...named, replyOnly] };
+}
+
 /** Checks the files of a message against the room, then stores the message. A project room takes files of its project. A direct room takes files that both people may open. */
 export function postMessage(ctx: Ctx, conversation: Conversation, body: string, fileIds: string[], replyToId?: string): MessageView {
   // A reply answers a live message of the same chat. Every other case gives one refusal, so the answer never tells that an id exists elsewhere.
@@ -279,17 +297,7 @@ export function postMessage(ctx: Ctx, conversation: Conversation, body: string, 
       assertFilesForDirect(ctx, fileIds, others, conversation.id);
     }
   }
-  const named = mentionedUserIds(body).filter((id) => {
-    const user = ctx.state.users[id];
-    return user?.active === true && canSeeConversation(ctx.state, conversation, user);
-  });
-  // A reply names the person behind the old message, unless that is the sender, or the person left, or cannot open the chat. A person
-  // named in the text too has the one plain notice.
-  const replyUser = old === undefined ? undefined : ctx.state.users[old.actingForId];
-  const replyAuthor = replyUser !== undefined && replyUser.id !== ctx.authority.id && replyUser.active && canSeeConversation(ctx.state, conversation, replyUser)
-    ? replyUser.id : undefined;
-  const replyOnly = replyAuthor !== undefined && !named.includes(replyAuthor) ? replyAuthor : undefined;
-  const mentions = replyOnly === undefined ? named : [...named, replyOnly];
+  const { named, replyOnly, mentions } = namesIn(ctx, conversation, body, old);
   const id = nextId(ctx.state, 'msg');
   const message: Message = {
     id, conversationId: conversation.id, authorId: ctx.actor.id, actingForId: ctx.authority.id, body, mentions, fileIds,
@@ -607,10 +615,68 @@ export const chatsWaiting = defineCall({
   },
 });
 
+/**
+ * The message by id, for a call that changes it (chat design items 11 and 12). A missing message, a message of a chat that the person
+ * may not open, and (unless "allowDeleted") a deleted message all answer not_found, the same answer for an id that was never made, so
+ * an outsider learns nothing of a chat (Review Focus 5). With "author", a person who is not the author gets forbidden with the reason
+ * not_author: the person can open the chat, so the refusal tells nothing new. An agent's message belongs to its person (isMine).
+ */
+export function requireMessage(ctx: Ctx, id: string, rules: { author: boolean; allowDeleted: boolean }): { message: Message; conversation: Conversation } {
+  const message = ctx.state.messages[id];
+  const conversation = message ? ctx.state.conversations[message.conversationId] : undefined;
+  if (!message || !conversation || !canSeeConversation(ctx.state, conversation, ctx.authority) || (!rules.allowDeleted && !isLiveMessage(message))) {
+    throw notFound('Message', id);
+  }
+  if (rules.author && !isMine(ctx.state, message, ctx.authority.id)) {
+    throw forbidden('You can change only your own messages.', { messageId: id, reason: 'not_author' });
+  }
+  return { message, conversation };
+}
+
+/** The old message that a reply answers, for the names of an edit: the same chat only, also when it is deleted since. */
+function replyTargetOf(ctx: Ctx, message: Message): Message | undefined {
+  const old = message.replyToId === undefined ? undefined : ctx.state.messages[message.replyToId];
+  return old !== undefined && old.conversationId === message.conversationId ? old : undefined;
+}
+
+/** Takes away the notices that point to one message, for the given people only (every person when "userIds" is left out). */
+function dropMessageNotices(ctx: Ctx, message: Message, userIds?: readonly string[]): void {
+  for (const [key, notice] of Object.entries(ctx.state.notifications)) {
+    if (notice.targetType !== 'chat' || notice.targetId !== message.conversationId || notice.messageId !== message.id) continue;
+    if (userIds === undefined || userIds.includes(notice.userId)) delete ctx.state.notifications[key];
+  }
+}
+
+export const chatsEditMessage = defineCall({
+  /**
+   * The author changes the words of a chat message, at any time, in a closed chat too (design item 11). The same words change nothing.
+   * The names are found again: a person named for the first time gets the mention notice, a person whose name the edit removes loses
+   * the notices of this message, and the reply author stays named while that person is active and in the chat. It writes no History
+   * event, as a message never does.
+   */
+  input: z.object({ id: MessageId, body: z.string().trim().min(1).max(MESSAGE_MAX) }),
+  output: MessageView,
+  run(input, ctx) {
+    const { message, conversation } = requireMessage(ctx, input.id, { author: true, allowDeleted: false });
+    if (input.body === message.body) return messageViewOf(ctx.state, message, ctx.authority);
+    const { named, replyOnly, mentions } = namesIn(ctx, conversation, input.body, replyTargetOf(ctx, message));
+    const edited: Message = { ...message, body: input.body, mentions, editedAt: ctx.stamp };
+    ctx.state.messages[message.id] = edited;
+    dropMessageNotices(ctx, message, message.mentions.filter((id) => !mentions.includes(id)));
+    const first = (ids: readonly string[]) => ids.filter((id) => !message.mentions.includes(id));
+    notifyIn(ctx, { userIds: first(named), trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: message.id });
+    if (replyOnly !== undefined) {
+      notifyIn(ctx, { userIds: first([replyOnly]), trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: message.id, reply: true });
+    }
+    return messageViewOf(ctx.state, edited, ctx.authority);
+  },
+});
+
 export const chatCalls = {
   'chats.list': chatsList,
   'chats.messages': chatsMessages,
   'chats.send': chatsSend,
+  'chats.editMessage': chatsEditMessage,
   'chats.markRead': chatsMarkRead,
   'chats.archive': chatsArchive,
   'chats.openDirect': chatsOpenDirect,

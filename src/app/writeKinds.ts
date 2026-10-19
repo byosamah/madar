@@ -85,6 +85,7 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'notifications.markUnread': ['notifications'],
   'notifications.updateSettings': ['preferences'],
   'chats.send': ['chatReads', 'messages'],
+  'chats.editMessage': ['messages', 'notifications'],
   'chats.markRead': ['chatReads'],
   'chats.archive': ['chatReads'],
   'chats.openDirect': ['chatReads', 'conversations'],
