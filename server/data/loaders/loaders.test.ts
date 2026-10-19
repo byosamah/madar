@@ -327,6 +327,37 @@ describe('the 18 places of AM 6', () => {
     expect(thread.outcome.output).toEqual({ archived: true });
   });
 
+  it('chats.markUnread: the loader gives the handler the same answer, and the unread mark counts in the list, the badge and the chat (fbk_028, owner 2026-10-23)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const task = tasksOfProject(state, 'prj_001').find((t) => t.ownerId === ADMIN) ?? tasksOfProject(state, 'prj_001')[0];
+    // The person reads the chat and the thread first, so nothing is unread.
+    apply(state, 'chats.markRead', { conversationId: room.id }, ADMIN);
+    apply(state, 'comments.create', { targetType: 'task', targetId: task.id, body: 'A note.' }, ADMIN);
+    apply(state, 'chats.markRead', { conversationId: task.id }, ADMIN);
+    const before = (await same(state, 'chats.list', {}, ADMIN)).outcome.output as { id: string; unread: number }[];
+    expect(before.find((row) => row.id === room.id)?.unread).toBe(0);
+    for (const id of [room.id, task.id]) {
+      const run = await same(state, 'chats.markUnread', { conversationId: id }, ADMIN);
+      expect(run.outcome.output).toEqual({ unread: true });
+      // The write changed only the own read mark of the person.
+      expect(docs(run, 'chat_reads')).toHaveLength(1);
+      apply(state, 'chats.markUnread', { conversationId: id }, ADMIN);
+    }
+    const list = (await same(state, 'chats.list', {}, ADMIN)).outcome.output as { id: string; unread: number }[];
+    expect(list.find((row) => row.id === room.id)?.unread).toBe(1);
+    expect(list.find((row) => row.id === task.id)?.unread).toBe(1);
+    const badge = (await same(state, 'chats.unreadCount', {}, ADMIN)).outcome.output as { unread: number };
+    expect(badge.unread).toBe(list.reduce((sum, row) => sum + row.unread, 0));
+    const thread = (await same(state, 'chats.messages', { conversationId: room.id }, ADMIN)).outcome.output as { chat: { unread: number } };
+    expect(thread.chat.unread).toBe(1);
+    // Opening the chat again ends the mark, for the loader as for the whole office.
+    for (const id of [room.id, task.id]) await same(state, 'chats.markRead', { conversationId: id }, ADMIN);
+    apply(state, 'chats.markRead', { conversationId: room.id }, ADMIN);
+    const after = (await same(state, 'chats.list', {}, ADMIN)).outcome.output as { id: string; unread: number }[];
+    expect(after.find((row) => row.id === room.id)?.unread).toBe(0);
+  });
+
   it('chats.waiting: the loader gives the handler the same answer, for a project mention and a named task thread (fbk_011, owner 2026-10-18)', async () => {
     const state = office();
     const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
@@ -880,6 +911,10 @@ describe('the chat badge and the bell (performance audit DB-6, DB-M1, DB-M2)', (
     expect((await rows('usr_006')).find((row) => row.id === licence.id)?.unread).toBe(1);
     expect((await rows('usr_005')).find((row) => row.id === hall.id)?.unread).toBe(1);
     expect((await rows('usr_006')).find((row) => row.id === hall.id)).toBeUndefined();
+    // A chat and a thread that the leader read and marked unread (fbk_028): one each. The leader wrote the last comment of the thread.
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    expect((await rows(leader)).find((row) => row.id === room.id)?.unread).toBe(1);
+    expect((await rows(leader)).find((row) => row.id === tie[0].targetId)?.unread).toBe(1);
     const views = async (actor: string) => (await same(state, 'notifications.list', {}, actor)).outcome.output as View[];
     expect((await views('usr_006')).find((v) => v.notification.targetId === hall.id)).toMatchObject({ gone: true });
     expect((await views(member)).some((v) => v.notification.targetType === 'task' && v.gone && !state.tasks[v.notification.targetId])).toBe(true);

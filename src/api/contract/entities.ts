@@ -679,6 +679,8 @@ export type Message = z.infer<typeof Message>;
  */
 export const ChatRead = z.object({
   conversationId: z.union([ConversationId, TaskId]), userId: UserId, lastReadAt: Stamp, archivedAt: Stamp.nullable().optional(),
+  /** The person marked the chat unread (chats.markUnread, fbk_028). The chat counts as unread until a read mark replaces this record. */
+  markedUnread: z.boolean().optional(),
 });
 export type ChatRead = z.infer<typeof ChatRead>;
 

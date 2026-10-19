@@ -58,6 +58,9 @@ any screen work.
   (`vite.config.ts`) drops the file from its dist; `check-bundles.ts` fails a prototype with it and a remote build without it.
 - The public VAPID key comes from `VITE_VAPID_PUBLIC_KEY` (`config/remote.<env>.env`). Without it the section says push is not set up.
 - A sign-out unsubscribes the browser, so the person who stays signed out gets no push.
+- No notice while Madar is in front (owner, 2026-10-23, fbk_028): `public/sw.js` shows no line when a window of Madar is visible and has the focus, in
+  Chromium only. Firefox and an engine that is not known show it. WebKit (Safari, and every browser on an iPhone) revokes the subscription of a site that gets a push and shows no notice, so
+  there the line always shows, as the first thing the worker does. An engine that is not known shows it too. Record and reasons: `server/push/CLAUDE.md`.
 - Push is on by default (owner, 2026-10-09). A browser lets a page turn push on only after a tap on Allow, so each new device gets
   one ask: `features/home/PushAskCard.tsx`, a small card under Today on Home with one short line and one button (not the main
   button; `canAsk` in `push.ts`). Any answer ends the ask; a closed question leaves it. The permission then stays in the browser, so
@@ -297,7 +300,13 @@ any screen work.
   have its row). An archive and a move back show a toast with Undo (`archive.ts`, `useArchive`; `chats.archive` writes no event, so
   the Undo calls it again with the other value). The menu button of a row shows on hover or focus only (`pointer-coarse:hidden`,
   `max-sm:hidden`); on a phone or a finger a swipe on the row archives it. The menu button names its chat ("Options for <title>").
-- A chat that was read and waits for a reply shows "Waits for your reply" on its row (`chats.waiting` in `InboxScreen`).
+- No "Waits for your reply" line (owner, 2026-10-19, fbk_028): the Inbox does not call `chats.waiting` any more (the call stays for agents). In its
+  place the menu of a chat has "Mark as unread" (`chatMenuItems` in `ChatList.tsx`: the row menu, and the menu in the header of the open chat, which is
+  the way on a phone). It shows only for a chat with nothing unread that is not archived. The call is `chats.markUnread`; the toast "Marked as unread."
+  has Undo, which calls `chats.markRead` (`inbox/markUnread.ts`, kept in `InboxScreen` so the toast stays when the open chat closes). The open chat
+  goes back to the list. The chat is bold again, the badge counts it, until the person opens it again. `ChatPane` marks a chat read when it loads and
+  when a new message comes (the triggers are the load and the newest message, not the number), so a mark set on the open chat stays; `useMarkTaskRead`
+  also sends the mark for a thread that the cached list shows as unread, so a thread whose newest comment is the own comment of the person ends it too.
 - A group has one picture, `GroupPicture` (the glow of its id and a people icon), never a stack of faces. The header shows the
   count of people ("4 people") as a button; it and the picture open the People sheet (`GroupSheets.tsx`): names with "You" and
   "Group maker", Add people at the top, Remove on each other row for the maker (toast with Undo), Leave group at the end (a confirm

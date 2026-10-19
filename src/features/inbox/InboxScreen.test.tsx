@@ -522,15 +522,145 @@ describe('the row menu of the Inbox list (chats-06)', () => {
   });
 });
 
-describe('what waits for a reply in the Inbox (INT-26)', () => {
-  it('shows "Waits for your reply" on a chat whose newest message came from someone else, and takes it away after the answer', async () => {
+describe('no "Waits for your reply" line in the Inbox (fbk_028, owner 2026-10-19)', () => {
+  it('shows no such line on a chat whose newest message came from someone else, before or after the chat is opened', async () => {
     await renderApp('/inbox');
     const row = await rowLink(/Faisal Al-Harbi/);
-    await waitFor(() => expect(within(row).getByText('Waits for your reply')).toBeInTheDocument());
+    // Faisal wrote the newest message of this chat. Before fbk_028 the row said that it waits for a reply.
+    expect(within(row).getByText(/Unread: 1/)).toBeInTheDocument();
+    expect(screen.queryByText('Waits for your reply')).toBeNull();
     await userEvent.click(row);
-    await userEvent.type(await screen.findByRole('textbox', { name: 'Message' }), 'On it.');
-    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
-    await waitFor(() => expect(within(row).queryByText('Waits for your reply')).toBeNull());
+    await waitFor(() => expect(within(row).queryByText(/Unread: 1/)).toBeNull());
+    expect(screen.queryByText('Waits for your reply')).toBeNull();
+  });
+});
+
+describe('Mark as unread (fbk_028, owner 2026-10-19)', () => {
+  const rowOf = async (name: RegExp) => (await rowLink(name)).closest('li') as HTMLElement;
+  /** Opens the chat of a row, so the chat is read, and waits until its number is gone. */
+  async function readChat(name: RegExp) {
+    const link = await rowLink(name);
+    await userEvent.click(link);
+    await waitFor(() => expect(within(link).queryByText(/^Unread: \d+$/)).toBeNull());
+    return link;
+  }
+
+  it('offers it in the row menu of a chat that was read: the row is unread again, with a toast and Undo, and the open chat closes', async () => {
+    const { store, api } = await renderApp('/inbox');
+    await readChat(/Faisal Al-Harbi/);
+    expect(await screen.findByRole('heading', { level: 2, name: 'Faisal Al-Harbi' })).toBeInTheDocument();
+    const badgeBefore = (await api.call('chats.unreadCount', {})).unread;
+    await userEvent.click(within(await rowOf(/Faisal Al-Harbi/)).getByRole('button', { name: 'Options for Faisal Al-Harbi' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Mark as unread' }));
+    expect(await screen.findByText('Marked as unread.')).toBeInTheDocument();
+    const link = await rowLink(/Faisal Al-Harbi/);
+    await waitFor(() => expect(within(link).getByText('Unread: 1')).toBeInTheDocument());
+    // The chat that was open goes back to the list: the person marked it to come back to it later.
+    await waitFor(() => expect(screen.queryByRole('heading', { level: 2, name: 'Faisal Al-Harbi' })).toBeNull());
+    expect(screen.getByText('Pick a chat')).toBeInTheDocument();
+    expect(Object.values(store.state.chatReads).find((r) => r.userId === 'usr_001' && r.markedUnread)).toBeDefined();
+    // The Inbox badge counts it.
+    expect((await api.call('chats.unreadCount', {})).unread).toBe(badgeBefore + 1);
+  });
+
+  it('takes the mark back with Undo', async () => {
+    await renderApp('/inbox');
+    const link = await readChat(/Faisal Al-Harbi/);
+    await userEvent.click(within(await rowOf(/Faisal Al-Harbi/)).getByRole('button', { name: 'Options for Faisal Al-Harbi' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Mark as unread' }));
+    await waitFor(() => expect(within(link).getByText('Unread: 1')).toBeInTheDocument());
+    await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(within(link).queryByText(/^Unread: \d+$/)).toBeNull());
+  });
+
+  it('ends when the person opens the chat again', async () => {
+    const { store } = await renderApp('/inbox');
+    const link = await readChat(/Faisal Al-Harbi/);
+    await userEvent.click(within(await rowOf(/Faisal Al-Harbi/)).getByRole('button', { name: 'Options for Faisal Al-Harbi' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Mark as unread' }));
+    await waitFor(() => expect(within(link).getByText('Unread: 1')).toBeInTheDocument());
+    await userEvent.click(link);
+    await waitFor(() => expect(within(link).queryByText(/^Unread: \d+$/)).toBeNull());
+    expect(Object.values(store.state.chatReads).some((r) => r.userId === 'usr_001' && r.markedUnread)).toBe(false);
+  });
+
+  it('keeps another chat open when the row menu of a different chat marks that chat', async () => {
+    await renderApp('/inbox');
+    await readChat(/Faisal Al-Harbi/);
+    await readChat(/Corniche Office Tower/);
+    await screen.findByRole('heading', { level: 2, name: 'Corniche Office Tower' });
+    await userEvent.click(within(await rowOf(/Faisal Al-Harbi/)).getByRole('button', { name: 'Options for Faisal Al-Harbi' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Mark as unread' }));
+    const marked = await rowLink(/Faisal Al-Harbi/);
+    await waitFor(() => expect(within(marked).getByText('Unread: 1')).toBeInTheDocument());
+    expect(screen.getByRole('heading', { level: 2, name: 'Corniche Office Tower' })).toBeInTheDocument();
+  });
+
+  it('offers it only for a chat with nothing unread: a chat with new messages has Archive alone', async () => {
+    await renderApp('/inbox');
+    const tower = await rowOf(/Corniche Office Tower/);
+    await userEvent.click(within(tower).getByRole('button', { name: 'Options for Corniche Office Tower' }));
+    expect(await screen.findByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Mark as unread' })).toBeNull();
+  });
+
+  it('puts it in the menu of the open chat as well, which is the way on a phone, and it works there', async () => {
+    await renderApp('/inbox');
+    await readChat(/Faisal Al-Harbi/);
+    const header = (await screen.findByRole('heading', { level: 2, name: 'Faisal Al-Harbi' })).closest('header') as HTMLElement;
+    await userEvent.click(within(header).getByRole('button', { name: 'Options for Faisal Al-Harbi' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Mark as unread' }));
+    expect(await screen.findByText('Marked as unread.')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('heading', { level: 2, name: 'Faisal Al-Harbi' })).toBeNull());
+    expect(within(await rowLink(/Faisal Al-Harbi/)).getByText('Unread: 1')).toBeInTheDocument();
+  });
+
+  it('works in a group and in a task thread, from the menu of the open chat', async () => {
+    await renderApp('/inbox', (state) => {
+      withTaskTalk(state);
+      addGroupConversation(state, 'Tower team', 'usr_001', ['usr_001', 'usr_002', 'usr_003'], '2026-09-30T09:00:00.000+03:00');
+    });
+    for (const [name, title] of [[/Tower team/, 'Tower team'], [/Room finish schedule/, 'Room finish schedule']] as const) {
+      await readChat(name);
+      const header = (await screen.findByRole('heading', { level: 2, name: title })).closest('header') as HTMLElement;
+      await userEvent.click(within(header).getByRole('button', { name: `Options for ${title}` }));
+      await userEvent.click(await screen.findByRole('menuitem', { name: 'Mark as unread' }));
+      await waitFor(() => expect(within(screen.getByRole('list', { name: 'Chats' })).getAllByText('Unread: 1').length).toBeGreaterThan(0));
+      await waitFor(() => expect(screen.queryByRole('heading', { level: 2, name: title })).toBeNull());
+      expect(within(await rowLink(name)).getByText('Unread: 1')).toBeInTheDocument();
+    }
+  });
+
+  it('keeps the mark while the chat is open: a mark set from outside is not undone by the open chat', async () => {
+    const { api } = await renderApp('/inbox');
+    await readChat(/Faisal Al-Harbi/);
+    const { id } = await api.call('chats.openDirect', { userId: 'usr_002' });
+    await act(async () => { await api.call('chats.markUnread', { conversationId: id }); });
+    await settle();
+    expect(within(await rowLink(/Faisal Al-Harbi/)).getByText('Unread: 1')).toBeInTheDocument();
+  });
+
+  it('ends the mark of a task thread when it opens, also when the newest comment is the own comment of the person', async () => {
+    const { api, store } = await renderApp('/inbox', withTaskTalk);
+    const task = Object.values(store.state.tasks).find((t) => t.title === 'Room finish schedule')!;
+    await api.call('comments.create', { targetType: 'task', targetId: task.id, body: 'On it.' });
+    await api.call('chats.markUnread', { conversationId: task.id });
+    const link = await rowLink(/Room finish schedule/);
+    await waitFor(() => expect(within(link).getByText('Unread: 1')).toBeInTheDocument());
+    await userEvent.click(link);
+    await waitFor(() => expect(within(link).queryByText(/^Unread: \d+$/)).toBeNull());
+    expect(Object.values(store.state.chatReads).some((r) => r.conversationId === task.id && r.markedUnread)).toBe(false);
+  });
+
+  it('shows no "Mark as unread" for an archived chat in the archived list', async () => {
+    await renderApp('/inbox');
+    await readChat(/Faisal Al-Harbi/);
+    await userEvent.click(within(await rowOf(/Faisal Al-Harbi/)).getByRole('button', { name: 'Options for Faisal Al-Harbi' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Archive' }));
+    await userEvent.click(await screen.findByRole('button', { name: /Archived \(1\)/ }));
+    await userEvent.click(within(await rowOf(/Faisal Al-Harbi/)).getByRole('button', { name: 'Options for Faisal Al-Harbi' }));
+    expect(await screen.findByRole('menuitem', { name: 'Move back to Inbox' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Mark as unread' })).toBeNull();
   });
 });
 
@@ -645,14 +775,15 @@ describe('group chats', () => {
     expect(within(sheet).queryByRole('button', { name: /^Remove/ })).toBeNull();
   });
 
-  it('keeps Rename and Archive in the group menu, and nothing else', async () => {
+  it('keeps Rename, Mark as unread and Archive in the group menu, and nothing else', async () => {
     await renderApp('/inbox', withGroup);
     await openGroup();
     const menus = screen.getAllByRole('button', { name: 'Options for Tower team' });
     await userEvent.click(menus[menus.length - 1]);
     expect(await screen.findByRole('menuitem', { name: 'Rename' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Mark as unread' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
-    expect(screen.getAllByRole('menuitem')).toHaveLength(2);
+    expect(screen.getAllByRole('menuitem')).toHaveLength(3);
   });
 
   it('lets the maker rename the group, and writes one quiet line about it', async () => {

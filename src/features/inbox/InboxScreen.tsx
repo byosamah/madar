@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router';
 import { useByPersonName, usePersonName } from '../../app/personName';
@@ -15,6 +15,7 @@ import { Sheet } from '../../components/Sheet';
 import { useBlockFileDrop } from '../files/Attachments';
 import { ChatList } from './ChatList';
 import { ConversationPane } from './ConversationPane';
+import { useMarkUnread } from './markUnread';
 
 /**
  * Starts a direct chat: a person is picked, and the chat opens with one tap. "New group" lets the person pick two people or more
@@ -128,9 +129,8 @@ export function InboxScreen() {
   useBlockFileDrop();
   const [picking, setPicking] = useState(false);
   const list = useCall('chats.list', {});
-  // The chats that were read and wait for a reply of the person (UX audit 2026-10-19, INT-26). The list shows a word on each.
-  const waitingRows = useCall('chats.waiting', {});
-  const waiting = useMemo(() => new Set((waitingRows.data ?? []).map((row) => row.id)), [waitingRows.data]);
+  // "Mark as unread" lives here, so the toast with Undo stays when the open chat closes (fbk_028).
+  const markUnread = useMarkUnread();
   const rows = list.data ?? [];
   const open = conversationId !== undefined;
   return (
@@ -145,11 +145,11 @@ export function InboxScreen() {
         <aside className={`panel hairline flex w-full min-w-0 flex-col overflow-hidden sm:w-[340px] sm:shrink-0 ${open ? 'max-sm:hidden' : ''}`}>
           {list.error && <div className="p-3"><LoadFailed error={list.error} onRetry={() => void list.refetch()} /></div>}
           {list.data && rows.length === 0 && <div className="p-3"><EmptyState title={t('chat.emptyTitle')} body={t('chat.empty')} /></div>}
-          {list.data && rows.length > 0 && <ChatList rows={rows} selectedId={conversationId} waiting={waiting} />}
+          {list.data && rows.length > 0 && <ChatList rows={rows} selectedId={conversationId} onMarkUnread={markUnread} />}
         </aside>
         <section className={`panel hairline flex min-w-0 flex-1 flex-col overflow-hidden ${open ? '' : 'max-sm:hidden'}`}>
           {conversationId
-            ? <ConversationPane id={conversationId} />
+            ? <ConversationPane id={conversationId} onMarkUnread={markUnread} />
             : (
               <div className="grid flex-1 place-items-center p-8 text-center">
                 <div className="flex max-w-xs flex-col items-center gap-1.5">

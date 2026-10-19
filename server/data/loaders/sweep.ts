@@ -370,6 +370,13 @@ export function badgeTraps(traps: State): State {
   const gone = apply(state, 'tasks.create', { projectId: 'prj_001', title: 'Short lived', ownerId: member }, leader, 'cor_trap_badge_gone', undefined, at(9)) as { task: { id: string } };
   apply(state, 'tasks.delete', { id: gone.task.id }, leader, 'cor_trap_badge_delete', undefined, at(9, 10));
   apply(state, 'feedback.send', { kind: 'bug', message: 'The badge counts twice.' }, 'usr_003', 'cor_trap_badge_report', { shots: [] }, at(9, 20));
+  // A project chat and a thread that the leader read and then marked unread (fbk_028): the mark counts in the list, the badge and the
+  // chat, in memory and in the database. The leader reads both first, so the count is the mark alone.
+  const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+  for (const id of [room.id, thread.id]) {
+    apply(state, 'chats.markRead', { conversationId: id }, leader, 'cor_trap_badge_read', undefined, at(9, 30));
+    apply(state, 'chats.markUnread', { conversationId: id }, leader, 'cor_trap_badge_unread', undefined, at(9, 40));
+  }
   return state;
 }
 

@@ -4,10 +4,18 @@
       "2026-10-23-26": {
         "title": "Paste and drop files in chats",
         "body": "Now you can paste a picture or a file into a chat box. Copy it, click the box, and press Ctrl+V or Cmd+V. You can also drag files onto a chat. The files go the same way as with the Attach files button."
+      },
+      "2026-10-23-27": {
+        "title": "Quiet notices and Mark as unread",
+        "body": "In Chrome and Edge, a desktop notice no longer shows while you look at Madar. The line \"Waits for your reply\" is gone. Now you can mark a chat as unread. Point at the chat, press the three dots, then press Mark as unread. On a phone, use the menu at the top of the chat. The chat stays bold until you open it again."
       }
     }
   },
   "attachments": {
     "drop": "Drop to attach"
+  },
+  "chat": {
+    "markUnread": "Mark as unread",
+    "markedUnreadToast": "Marked as unread."
   }
 }

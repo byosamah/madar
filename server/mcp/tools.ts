@@ -79,9 +79,10 @@ export const MCP_DENY = [
   'files.upload', 'files.uploadStart', 'files.link', 'files.delete', 'files.markDelivered', 'files.share',
   // Notifications and read marks: screen state of one person. An agent reads the chats of its person (fbk_011, owner 2026-10-18), but
   // a read mark is the person's own act: an agent never marks a chat read (owner, 2026-10-12).
-  // An archive mark is screen state too: an agent never archives a chat (owner, 2026-10-18).
+  // An archive mark is screen state too: an agent never archives a chat (owner, 2026-10-18). Nor does it mark a chat unread (fbk_028,
+  // owner 2026-10-23): an unread mark is the person's own reminder, and a bold row with nothing new in it would only confuse the person.
   'notifications.list', 'notifications.count', 'notifications.markRead', 'notifications.markAllRead', 'notifications.markUnread',
-  'notifications.updateSettings', 'chats.markRead', 'chats.unreadCount', 'chats.archive',
+  'notifications.updateSettings', 'chats.markRead', 'chats.markUnread', 'chats.unreadCount', 'chats.archive',
   // Group chats are screen work (fbk_011): an agent may send to a group, but it does not make, rename or leave one.
   'chats.createGroup', 'chats.updateGroup', 'chats.leaveGroup',
   // Templates, tracker extras and payment deletes.
