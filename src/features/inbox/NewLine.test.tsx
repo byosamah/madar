@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { State } from '../../api/store';
+import { memberKey, type State } from '../../api/store';
 import { renderApp } from '../../test/render';
 import { expectCalm } from '../auth/calmChecks';
 
@@ -20,11 +20,17 @@ const withTaskTalk = (state: State) => {
   };
 };
 
+// Item 23: the Admin counts every message of a project chat only when she works on its project. Hala is not on the Corniche Office Tower
+// team in the sample, so the tests of its New line put her on the team first.
+const withHalaOnTower = (state: State) => {
+  state.members[memberKey('prj_001', 'usr_001')] = { projectId: 'prj_001', userId: 'usr_001', discipline: 'Architect' };
+};
+
 const newLine = (log: HTMLElement) => log.querySelector('[data-new-line]');
 
 describe('the New line (design item 3)', () => {
   it('opens the tower chat at its first unread message, under a thin blue line with the word New', async () => {
-    await renderApp('/inbox');
+    await renderApp('/inbox', withHalaOnTower);
     await userEvent.click(await rowLink(/Corniche Office Tower/));
     const log = await screen.findByRole('log', { name: 'Messages' });
     await within(log).findByText(/The sprinkler riser clashes with beam B14/);
@@ -34,7 +40,7 @@ describe('the New line (design item 3)', () => {
     expect(line.nextElementSibling).toHaveTextContent(/The sprinkler riser clashes with beam B14/);
   });
   it('keeps the line after the open marks the chat read, and drops it when the person sends a message', async () => {
-    await renderApp('/inbox');
+    await renderApp('/inbox', withHalaOnTower);
     await userEvent.click(await rowLink(/Corniche Office Tower/));
     const log = await screen.findByRole('log', { name: 'Messages' });
     await waitFor(() => expect(within(screen.getByRole('list', { name: 'Chats' })).queryByText('Unread: 2')).toBeNull());
@@ -59,7 +65,7 @@ describe('the New line (design item 3)', () => {
     expect(newLine(log)?.nextElementSibling).toHaveTextContent('The finish codes are ready.');
   });
   it('reads جديد in Arabic and passes the calm checks', async () => {
-    await renderApp('/inbox', (state) => { state.users.usr_001.preferences.language = 'ar'; });
+    await renderApp('/inbox', (state) => { withHalaOnTower(state); state.users.usr_001.preferences.language = 'ar'; });
     await waitFor(() => expect(document.documentElement.dir).toBe('rtl'));
     await userEvent.click(await within(await screen.findByRole('list', { name: 'المحادثات' })).findByRole('link', { name: /Corniche Office Tower|برج/ }));
     const log = await screen.findByRole('log', { name: 'الرسائل' });

@@ -533,6 +533,20 @@ describe('the new messages of a save (the push producer reads them)', () => {
   });
 });
 
+describe('the new comments of a save (the push producer reads them)', () => {
+  it('lists the ids of the comments that the save inserted, and leaves the list out when there are none', async () => {
+    const after = copy();
+    const comment = Object.values(after.comments)[0];
+    after.comments.cmt_901 = { ...comment, id: 'cmt_901' };
+    after.comments.cmt_902 = { ...comment, id: 'cmt_902' };
+    expect((await save(recorder().q, seed, after)).commentIds).toEqual(['cmt_901', 'cmt_902']);
+    const edited = copy();
+    Object.values(edited.comments)[0].body = 'Edited';
+    expect((await save(recorder().q, seed, edited)).commentIds).toBeUndefined();
+    expect(diffState(seed, edited).commentIds).toEqual([]);
+  });
+});
+
 describe('the new notices of a save (the mail and push producers on SQLite read them)', () => {
   it('lists the ids of the notices that the save inserted, and leaves the list out when there are none', async () => {
     const after = copy();

@@ -4,7 +4,7 @@ import { addGroupConversation } from '../../../src/api/chatState';
 import { runScheduledTriggers } from '../../../src/api/notify';
 import { isReferenced } from '../../../src/api/references';
 import { sharedCalls, type SharedCallName } from '../../../src/api/sharedCalls';
-import { chatReadKey, type State } from '../../../src/api/store';
+import { chatReadKey, memberKey, type State } from '../../../src/api/store';
 import { buildSeed } from '../../../src/data/seed';
 import { mentionMarkup } from '../../../src/lib/text';
 import { snapshotOf } from '../officeCache';
@@ -387,6 +387,27 @@ describe('the 18 places of AM 6', () => {
     expect(thread.outcome.output).toEqual({ archived: true });
   });
 
+  it('chats.markRead and chats.archive: the loader loads the unread mention notices of the chat, so the write marks them read (item 20)', async () => {
+    const room = Object.values(seed.conversations).find((c) => c.kind === 'project')!;
+    const task = Object.values(seed.tasks)[0];
+    const notice = (id: string, targetType: 'chat' | 'task', targetId: string, trigger: Notification['trigger'] = 'mention'): Notification => ({
+      id, userId: 'usr_001', trigger, actorId: 'usr_002', targetType, targetId, read: false, createdAt: '2026-10-04T08:00:00.000+03:00', dedupeKey: null,
+    });
+    const state = office((s) => {
+      s.notifications.ntf_901 = notice('ntf_901', 'chat', room.id);
+      s.notifications.ntf_902 = notice('ntf_902', 'task', task.id);
+      s.notifications.ntf_903 = notice('ntf_903', 'chat', room.id, 'added_to_group');
+    });
+    const chat = await same(state, 'chats.markRead', { conversationId: room.id }, 'usr_001');
+    expect(docs(chat, 'notifications').map((d) => [d.id, d.read])).toEqual([['ntf_901', true]]);
+    const thread = await same(state, 'chats.markRead', { conversationId: task.id }, 'usr_001');
+    expect(docs(thread, 'notifications').map((d) => [d.id, d.read])).toEqual([['ntf_902', true]]);
+    const archived = await same(state, 'chats.archive', { conversationId: room.id, archived: true }, 'usr_001');
+    expect(docs(archived, 'notifications').map((d) => d.id)).toEqual(['ntf_901']);
+    const back = await same(state, 'chats.archive', { conversationId: room.id, archived: false }, 'usr_001');
+    expect(docs(back, 'notifications')).toEqual([]);
+  });
+
   it('chats.waiting: the loader gives the handler the same answer, for a project mention and a named task thread (fbk_011, owner 2026-10-18)', async () => {
     const state = office();
     const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
@@ -404,6 +425,61 @@ describe('the 18 places of AM 6', () => {
     const rows = run.outcome.output as { kind: string; id: string }[];
     expect(rows.map((row) => row.kind)).toEqual(expect.arrayContaining(['project', 'task']));
     expect(rows.find((row) => row.id === task.id)).toBeDefined();
+  });
+
+  // Design item 23: the Admin's other project chats count only the messages that name the Admin, in the grouped count too.
+  it('chats.list, chats.unreadCount and chats.markRead: the scoped count of an Admin outside the project holds only the named messages (item 23)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    // Hala (the Admin) is not on prj_001. Two plain messages are unread for her already (the sample), and one more names her.
+    apply(state, 'chats.send', { conversationId: room.id, body: `${mentionMarkup(state.users[ADMIN].name, ADMIN)} please approve 5513.` }, 'usr_002', { now: at(5) });
+    const unreadOf = (run: Run) => (run.outcome.output as { id: string; unread: number }[]).find((row) => row.id === room.id)?.unread;
+    expect(unreadOf(await same(state, 'chats.list', {}, ADMIN))).toBe(1);
+    expect((await same(state, 'chats.unreadCount', {}, ADMIN)).outcome.output).toMatchObject({ unread: expect.any(Number) });
+    // A person on the team keeps the count of every unread message.
+    const sara = Object.values(state.members).find((m) => m.projectId === 'prj_001' && m.userId !== 'usr_002' && state.users[m.userId].kind === 'human')!.userId;
+    state.chatReads[chatReadKey(room.id, sara)] = { conversationId: room.id, userId: sara, lastReadAt: '2026-10-03T11:00:00.000+03:00', notify: 'named' };
+    expect(unreadOf(await same(state, 'chats.list', {}, sara))).toBe(3);
+    // The Admin picks All messages: the count comes back.
+    state.chatReads[chatReadKey(room.id, ADMIN)] = { ...state.chatReads[chatReadKey(room.id, ADMIN)], notify: 'all' };
+    expect(unreadOf(await same(state, 'chats.list', {}, ADMIN))).toBe(3);
+    state.chatReads[chatReadKey(room.id, ADMIN)] = { ...state.chatReads[chatReadKey(room.id, ADMIN)], notify: 'named' };
+    const read = await same(state, 'chats.markRead', { conversationId: room.id }, ADMIN);
+    expect(read.outcome.error).toBeUndefined();
+  });
+
+  // Design item 22: a group waits only for a message that names the person, a reply to a comment names its author, and a 👍 answers.
+  it('chats.waiting: the scoped load gives the same answer for a group that names the person, a reply to a comment and a 👍 (item 22)', async () => {
+    const state = office();
+    const team = Object.values(state.members).filter((m) => m.projectId === 'prj_001').map((m) => m.userId).filter((id) => id !== ADMIN && state.users[id].kind === 'human');
+    const [person, other] = team;
+    if (!person || !other) throw new Error('The sample office needs two team members on prj_001.');
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    const idOf = (view: unknown) => (view as { message: { id: string } }).message.id;
+    const { id: group } = apply(state, 'chats.createGroup', { name: 'Item 22 team', memberIds: [person, ADMIN] }, other) as { id: string };
+    apply(state, 'chats.send', { conversationId: group, body: 'Plain group note 6641.' }, other, { now: at(1) });
+    const { id: direct } = apply(state, 'chats.openDirect', { userId: person }, other) as { id: string };
+    const question = idOf(apply(state, 'chats.send', { conversationId: direct, body: 'Direct question 2231.' }, other, { now: at(2) }));
+    const task = tasksOfProject(state, 'prj_001').find((t) => t.ownerId !== null && t.ownerId !== person)!;
+    // The reply answers the first comment of the person, which is older than the newest comment of the person: only a load by key sees it.
+    const first = apply(state, 'comments.create', { targetType: 'task', targetId: task.id, body: 'I will check the wall.' }, person, { now: at(3) }) as { comment: { id: string } };
+    apply(state, 'comments.create', { targetType: 'task', targetId: task.id, body: 'Second note.' }, person, { now: at(4) });
+    apply(state, 'comments.create', { targetType: 'task', targetId: task.id, body: 'Thanks.', replyToId: first.comment.id }, other, { now: at(5) });
+    // The plain group note names nobody, so the group does not wait yet.
+    const before = (await same(state, 'chats.waiting', {}, person)).outcome.output as { kind: string; id: string }[];
+    expect(before.map((row) => row.id)).not.toContain(group);
+    expect(before.map((row) => row.id)).toEqual(expect.arrayContaining([direct, task.id]));
+    // The naming message is older than the newest message of the group: only the select of the newest naming message sees it.
+    apply(state, 'chats.send', { conversationId: group, body: `${mentionMarkup(state.users[person].name, person)} Please look at 6641.` }, other, { now: at(6) });
+    apply(state, 'chats.send', { conversationId: group, body: 'And a plain word after it.' }, other, { now: at(7) });
+    const named = (await same(state, 'chats.waiting', {}, person)).outcome.output as { kind: string; id: string }[];
+    expect(named.map((row) => row.id)).toContain(group);
+    // A 👍 of the person on the question and on the comment that waits answers them.
+    state.messages[question].reactions = { ...emptyReactions(), '👍': [person] };
+    const answered = (await same(state, 'chats.waiting', {}, person)).outcome.output as { kind: string; id: string }[];
+    expect(answered.map((row) => row.id)).not.toContain(direct);
+    expect(answered.map((row) => row.id)).toContain(group);
   });
 
   // Base B3 (chat design 2026-10-19): a deleted message leaves every read path, also in the scoped load.
@@ -705,6 +781,8 @@ describe('unread counts (plan 4.13, A9)', () => {
     const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
     const leader = state.projects.prj_001.leaderId!;
     const agent = Object.values(state.users).find((u) => u.kind === 'agent' && u.ownerId === leader);
+    // Item 23: the Admin counts every message of a chat only of a project that the Admin works on, so the Admin joins the team here.
+    state.members[memberKey('prj_001', ADMIN)] = { projectId: 'prj_001', userId: ADMIN, discipline: 'Architect' };
     for (const key of Object.keys(state.chatReads)) if (state.chatReads[key].userId === ADMIN) delete state.chatReads[key];
     for (let i = 0; i < LONG; i += 1) {
       const id = `msg_${String(10_000 + i)}`;

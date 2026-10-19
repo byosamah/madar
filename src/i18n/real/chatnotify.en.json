@@ -1,0 +1,8 @@
+{
+  "chat": {
+    "notify": "Notify me",
+    "notifyAll": "All messages",
+    "notifyNamed": "Only when I am named",
+    "notifyNote": "The unread count still shows every message."
+  }
+}

@@ -14,7 +14,7 @@ import type { Deps, Query } from './ports';
  *   rows, so registerOutbox refuses its name (at compile time and at run time). A server write writes its own rows with
  *   writeOutbox(q, rows) inside its own transaction, and calls processOutbox(deps, ids) after its commit.
  * - A track registers the handler of one effect kind with registerEffect(kind, handler). Kinds and owners: auth.invite, auth.ban,
- *   auth.unban, auth.email (P), auth.emailNotice (S), agents.revokeAll (G), mail.notice (N2), r2.delete (F).
+ *   auth.unban, auth.email (P), auth.emailNotice (S), agents.revokeAll (G), mail.notice (N2), r2.delete (F), push.chat (notify), mail.chatNotice (notify).
  * - The module that registers must be imported by the entry: the call files through server/calls/index.ts, the effect handlers
  *   through server/core/deps.ts.
  * - Claim before work: processOutbox and the job claim a row with one statement first. No row means another worker has it, or
@@ -32,7 +32,16 @@ export type OutboxRow = { kind: string; payload: Record<string, unknown> };
  * save never waits for Resend or for a push service. Every other kind (auth.*, agents.revokeAll, r2.delete) runs before the answer. With no after
  * (tests, scripts), every kind runs before the answer. A test keeps these names equal to the kinds of mail/ and usage/.
  */
-export const AFTER_ANSWER_KINDS: ReadonlySet<string> = new Set(['mail.notice', 'mail.quotaWarning', 'usage.limitWarning', 'push.notify']);
+export const AFTER_ANSWER_KINDS: ReadonlySet<string> = new Set([
+  'mail.notice', 'mail.quotaWarning', 'usage.limitWarning', 'push.notify', 'push.chat', 'mail.chatNotice',
+]);
+/** How long the waited kinds wait after the answer (chat design item 20): a person who reads the chat in this time gets no push and no mail. */
+export const CHAT_WAIT_MS = 10_000;
+/**
+ * The kinds of AFTER_ANSWER_KINDS that wait CHAT_WAIT_MS first, on a chain of their own: the push of a chat message or a task comment,
+ * and the mention mail of one. Their effects check again after the wait (server/push/notify.ts, server/mail/notices.ts).
+ */
+export const WAITED_KINDS: ReadonlySet<string> = new Set(['push.chat', 'mail.chatNotice']);
 export type OutboxProducer = (output: unknown, saved: SaveResult, q: Query) => Promise<OutboxRow[]>;
 export type EffectHandler = (payload: Record<string, unknown>, deps: Deps) => Promise<void>;
 /** Only shared calls: runCall asks their producers. A server call writes its own rows (see above). */

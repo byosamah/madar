@@ -182,7 +182,8 @@ describe('app shell', () => {
     });
     const nav = await pill();
     expect(await within(nav).findByRole('link', { name: 'Notifications, 1 item needs action' })).toBeInTheDocument();
-    expect(await within(nav).findByRole('link', { name: 'Inbox, Unread messages: 5' })).toBeInTheDocument();
+    // Item 23: the Admin's count of a project chat outside her projects holds only the messages that name her.
+    expect(await within(nav).findByRole('link', { name: 'Inbox, Unread messages: 3' })).toBeInTheDocument();
   });
 
   it('starts the open screen again for the next person after Preview as, so no unsent update goes over (audit 2026-10-03, V-22)', async () => {

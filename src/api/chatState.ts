@@ -1,7 +1,7 @@
 import { isLiveMessage } from './chatNaming';
-import type { ChatRead, Conversation, Message, User } from './contract/entities';
+import type { ChatRead, Conversation, Message, NotifyLevel, User } from './contract/entities';
 import { forbidden, invalid, notFound } from './errors';
-import { can, principalOf, projectRoleOf } from './permissions';
+import { can, principalOf, projectRoleOf, type ProjectRole } from './permissions';
 import { chatReadKey, nextId, unreadCountKey, type State } from './store';
 
 /** Makes the chat room of a project. A project has one. */
@@ -83,6 +83,25 @@ export function chatForUpload(state: State, conversationId: string, person: User
   return conversation;
 }
 
+/**
+ * The "Notify me" level from a stored read mark and the kind of the chat (design item 21): the stored level, else "named" for a project
+ * chat and "all" for a direct chat or a group. A loader and the push facts hold no State, so they use this. notifyLevelOf
+ * (chatNaming.ts) reads the same rule from a State, and a test keeps the two equal.
+ */
+export function levelFromRead(read: Pick<ChatRead, 'notify'> | undefined, kind: Conversation['kind']): NotifyLevel {
+  return read?.notify ?? (kind === 'project' ? 'named' : 'all');
+}
+
+/**
+ * True when the unread count of a chat holds only the messages that name the person (chat design item 23): the project chat of a project
+ * that the person neither leads nor works on the team of, for a person who did not pick All messages. Only an Admin opens a project
+ * chat with the role "other" (`can`, "chat.project"), so this is the Admin's "other project chat". A task lead outside the team does not
+ * count as on the project. The loader (server/data/loaders/chat.ts) and unreadIn use this one rule.
+ */
+export function countsNamedOnly(role: ProjectRole, conversation: Conversation, level: NotifyLevel): boolean {
+  return conversation.kind === 'project' && role === 'other' && level !== 'all';
+}
+
 /** The messages of one page of a chat when the screen names no limit, and the most it may ask for (plan 4.13, A5; AM 7.5). */
 export const MESSAGE_PAGE = 200;
 export const MESSAGE_PAGE_MAX = 500;
@@ -102,13 +121,19 @@ export function messagesOf(state: State, conversationId: string): Message[] {
 /**
  * Live messages that other people wrote after the person last read the room. A person's own agent counts as the person.
  * A count that a server loader put in the state comes first (plan 4.13, A9); without it, a scan of the messages in the state.
+ * The Admin's other project chats count only the messages that name the Admin (countsNamedOnly, design item 23).
  */
 export function unreadIn(state: State, conversationId: string, userId: string): number {
   const counted = state.counts?.[unreadCountKey(conversationId, userId)];
   if (counted !== undefined) return counted;
-  const lastRead = state.chatReads[chatReadKey(conversationId, userId)]?.lastReadAt ?? '';
+  const read = state.chatReads[chatReadKey(conversationId, userId)];
+  const lastRead = read?.lastReadAt ?? '';
+  // The Admin's other project chats count only the messages that name the Admin, unless the Admin picked All messages (item 23).
+  const chat = state.conversations[conversationId];
+  const namedOnly = chat !== undefined && countsNamedOnly(projectRoleOf(state, chat.projectId, userId), chat, levelFromRead(read, chat.kind));
   return Object.values(state.messages).filter(
-    (m) => m.conversationId === conversationId && isLiveMessage(m) && m.createdAt > lastRead && principalOf(state, m.authorId) !== userId && m.actingForId !== userId,
+    (m) => m.conversationId === conversationId && isLiveMessage(m) && m.createdAt > lastRead && principalOf(state, m.authorId) !== userId && m.actingForId !== userId
+      && (!namedOnly || m.mentions.includes(userId)),
   ).length;
 }
 

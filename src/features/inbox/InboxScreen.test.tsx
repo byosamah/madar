@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { addGroupConversation } from '../../api/chatState';
-import type { State } from '../../api/store';
+import { memberKey, type State } from '../../api/store';
 import { renderApp } from '../../test/render';
 
 // Render counters for the performance tests (audit 2026-10-07, RND-5). The wrappers call the real parts, so every other test of
@@ -38,6 +38,12 @@ const withTaskTalk = (state: State) => {
   };
 };
 
+// Item 23: the Admin counts every message of a project chat only when she works on its project. Hala is not on the Corniche Office Tower
+// team in the sample, so a test of a count that drops or clears puts her on the team first.
+const withHalaOnTower = (state: State) => {
+  state.members[memberKey('prj_001', 'usr_001')] = { projectId: 'prj_001', userId: 'usr_001', discipline: 'Architect' };
+};
+
 describe('the Inbox chat', () => {
   it('lists project chats, direct chats and task threads', async () => {
     await renderApp('/inbox', withTaskTalk);
@@ -58,7 +64,7 @@ describe('the Inbox chat', () => {
   });
 
   it('shows the unread count of a chat and clears it when the chat opens', async () => {
-    const { store } = await renderApp('/inbox');
+    const { store } = await renderApp('/inbox', withHalaOnTower);
     const row = await rowLink(/Corniche Office Tower/);
     expect(within(row).getByText('Unread: 2')).toBeInTheDocument();
     await userEvent.click(row);
@@ -356,12 +362,13 @@ describe('the bell and the Inbox badge', () => {
     await renderApp('/dashboard');
     const nav = await screen.findByRole('navigation', { name: 'Main navigation' });
     const inbox = within(nav).getByRole('link', { name: /^Inbox/ });
-    // Three chat messages, and two task threads with a new comment from someone else (audit 2026-10-03, SHL-5).
-    expect(await within(inbox).findByText('Unread messages: 5')).toBeInTheDocument();
+    // One direct chat message, and two task threads with a new comment from someone else (audit 2026-10-03, SHL-5).
+    // Item 23: the Admin's count of a project chat outside her projects holds only the messages that name her, and the tower chat names her in none.
+    expect(await within(inbox).findByText('Unread messages: 3')).toBeInTheDocument();
   });
 
   it('counts a new chat message and clears the count once the chat is read', async () => {
-    const { api, store } = await renderApp('/dashboard');
+    const { api, store } = await renderApp('/dashboard', withHalaOnTower);
     const nav = await screen.findByRole('navigation', { name: 'Main navigation' });
     await within(within(nav).getByRole('link', { name: /^Inbox/ })).findByText('Unread messages: 5');
     await api.call('chats.markRead', { conversationId: Object.values(store.state.conversations).find((c) => c.projectId === 'prj_001')?.id ?? '' });
@@ -450,7 +457,7 @@ describe('the Inbox archive (owner, 2026-10-18; UX audit 2026-10-19)', () => {
   });
 
   it('drops the unread number of the Inbox badge when a chat with unread messages is archived', async () => {
-    await renderApp('/inbox');
+    await renderApp('/inbox', withHalaOnTower);
     const nav = await screen.findByRole('navigation', { name: 'Main navigation' });
     await within(within(nav).getByRole('link', { name: /^Inbox/ })).findByText('Unread messages: 5');
     await archiveFromRow(await rowLink(/Corniche Office Tower/), 'Corniche Office Tower');
@@ -650,7 +657,7 @@ describe('group chats', () => {
     expect(within(sheet).queryByRole('button', { name: /^Remove/ })).toBeNull();
   });
 
-  it('keeps Rename and Archive in the group menu, and nothing else', async () => {
+  it('keeps Rename and Archive as the two items of the group menu, then the Notify me choice and nothing else', async () => {
     await renderApp('/inbox', withGroup);
     await openGroup();
     const menus = screen.getAllByRole('button', { name: 'Options for Tower team' });
@@ -658,6 +665,7 @@ describe('group chats', () => {
     expect(await screen.findByRole('menuitem', { name: 'Rename' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
     expect(screen.getAllByRole('menuitem')).toHaveLength(2);
+    expect(screen.getAllByRole('menuitemradio').map((item) => item.textContent)).toEqual(['All messages', 'Only when I am named']);
   });
 
   it('lets the maker rename the group, and writes one quiet line about it', async () => {

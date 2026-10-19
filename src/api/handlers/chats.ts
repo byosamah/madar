@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ConversationId, FileId, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, TaskId, UserId, emptyReactions, type Comment, type Conversation, type GroupLogEntry, type Message, type Project, type Reaction, type Task, type User } from '../contract/entities';
+import { ConversationId, FileId, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, NotifyLevel, TaskId, UserId, emptyReactions, type Comment, type Conversation, type GroupLogEntry, type Message, type Project, type Reaction, type Task, type User } from '../contract/entities';
 import { ChatRow, ChatThread, MessageView, WaitingRow, type GroupLine } from '../contract/views';
 import { messagePageAround } from '../chatAround';
 import { addDirectConversation, addGroupConversation, canSeeConversation, closedChatError, isArchived, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, personLeft, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
@@ -202,6 +202,21 @@ function markReadNow(ctx: Ctx, conversation: Conversation): void {
   writeReadMark(ctx, conversation.id, messagesOf(ctx.state, conversation.id).at(-1)?.createdAt);
 }
 
+/**
+ * A read of a chat or a task thread also reads its mention notices (chat design item 20): the unread notices of the person with the
+ * trigger "mention" (a reply notice has it too) that point to this chat or task. The bell then shows nothing the person has seen,
+ * and the mention mail and push of the 10-second wait find the notice read. Notices of other chats, and every other trigger (for
+ * example added_to_group), stay as they are. chats.send does not call this: its loader loads no notices, and the open chat marked them.
+ */
+function readMentionNotices(ctx: Ctx, chatId: string): void {
+  const targetType = chatId.startsWith('tsk_') ? 'task' : 'chat';
+  for (const notice of Object.values(ctx.state.notifications)) {
+    if (notice.userId === ctx.authority.id && !notice.read && notice.trigger === 'mention' && notice.targetType === targetType && notice.targetId === chatId) {
+      notice.read = true;
+    }
+  }
+}
+
 export const chatsList = defineCall({
   input: z.object({}),
   output: z.array(ChatRow),
@@ -360,6 +375,7 @@ export const chatsMarkRead = defineCall({
   run(input, ctx) {
     if (input.conversationId.startsWith('tsk_')) markTaskReadNow(ctx, input.conversationId);
     else markReadNow(ctx, requireConversation(ctx, input.conversationId));
+    readMentionNotices(ctx, input.conversationId);
     return { unread: totalUnread(ctx.state, ctx.authority) };
   },
 });
@@ -380,7 +396,10 @@ export const chatsArchive = defineCall({
     const id = input.conversationId;
     if (id.startsWith('tsk_')) requireTaskThread(ctx, id);
     else requireConversation(ctx, id);
-    if (input.archived) writeReadMark(ctx, id, undefined);
+    if (input.archived) {
+      writeReadMark(ctx, id, undefined);
+      readMentionNotices(ctx, id);
+    }
     const key = chatReadKey(id, ctx.authority.id);
     const read = ctx.state.chatReads[key];
     // Every other field of the mark stays, the "Notify me" choice too (chat design item 21).
@@ -388,6 +407,26 @@ export const chatsArchive = defineCall({
       ...read, conversationId: id, userId: ctx.authority.id, lastReadAt: read?.lastReadAt ?? NEVER_READ, archivedAt: input.archived ? ctx.stamp : null,
     };
     return { archived: input.archived };
+  },
+});
+
+export const chatsSetNotify = defineCall({
+  /**
+   * Keeps the "Notify me" choice of the person for one chat (chat design item 21): "all" pushes every message, "named" pushes only a
+   * message that names the person. A chat only: a task thread has no choice. Only the own read mark changes, every other field of it
+   * stays, and no event, notice or message is written. With no mark yet, the mark holds NEVER_READ, so the chat stays as unread as it
+   * was. The checks are those of chats.markRead, so a hidden chat answers the same way.
+   */
+  input: z.object({ conversationId: ConversationId, notify: NotifyLevel }),
+  output: z.object({ notify: NotifyLevel }),
+  run(input, ctx) {
+    requireConversation(ctx, input.conversationId);
+    const key = chatReadKey(input.conversationId, ctx.authority.id);
+    const read = ctx.state.chatReads[key];
+    ctx.state.chatReads[key] = {
+      ...read, conversationId: input.conversationId, userId: ctx.authority.id, lastReadAt: read?.lastReadAt ?? NEVER_READ, notify: input.notify,
+    };
+    return { notify: input.notify };
   },
 });
 
@@ -545,6 +584,14 @@ const laterThan = (a: { createdAt: string; id: string }, b: { createdAt: string;
 /** The whole days from a stamp to now. */
 const daysSince = (at: string, now: Date): number => Math.max(0, Math.floor((now.getTime() - Date.parse(at)) / DAY_MS));
 
+/**
+ * True when the viewer put a 👍 or a ✅ on the message or comment that waits (chat design item 22): that counts as the answer. A reaction
+ * of an agent of the viewer counts as the viewer's own. A 👀 is no answer: it says "seen", not "done".
+ */
+export function answeredByReaction(state: State, reactions: Partial<Record<Reaction, string[]>> | undefined, viewerId: string): boolean {
+  return (['👍', '✅'] as const).some((emoji) => (reactions?.[emoji] ?? []).some((id) => principalOf(state, id) === viewerId));
+}
+
 /** A chat that waits for the reply of the viewer, with the message that waits. Null when nothing waits. */
 function waitingChat(state: State, conversation: Conversation, viewer: User, now: Date): WaitingRow | null {
   const messages = messagesOf(state, conversation.id);
@@ -554,16 +601,18 @@ function waitingChat(state: State, conversation: Conversation, viewer: User, now
   // A group with nobody else in it takes no reply (UX audit 2026-10-19, chats-11).
   if (conversation.kind === 'group' && personLeft(state, conversation, viewer)) return null;
   let waiting: Message | undefined;
-  if (conversation.kind === 'project') {
-    // A project chat: a message that names the viewer, and is newer than the viewer's newest message.
+  if (conversation.kind === 'direct') {
+    // A direct chat: its newest message came from another person.
+    if (last && !isMine(state, last, viewer.id)) waiting = last;
+  } else {
+    // A group or a project chat: the newest message of another person that names the viewer (an @mention, or a reply to a message of the
+    // viewer, which joined "mentions" when it was sent), and is newer than the viewer's newest message (chat design item 22).
     const own = messages.findLast((m) => isMine(state, m, viewer.id));
-    const named = messages.findLast((m) => m.mentions.includes(viewer.id));
+    const named = messages.findLast((m) => namesPerson(state, m, viewer.id));
     if (named && (!own || laterThan(named, own))) waiting = named;
-  } else if (last && !isMine(state, last, viewer.id)) {
-    // A direct or group chat: its newest message came from another person.
-    waiting = last;
   }
-  if (!waiting) return null;
+  // A 👍 or a ✅ of the viewer on the message that waits is the answer.
+  if (!waiting || answeredByReaction(state, waiting.reactions, viewer.id)) return null;
   const row = rowOf(state, conversation, viewer);
   return {
     kind: conversation.kind, id: conversation.id, title: row.title, project: row.project, from: cardOf(state, waiting.authorId),
@@ -573,9 +622,9 @@ function waitingChat(state: State, conversation: Conversation, viewer: User, now
 
 /**
  * A task thread that waits for the reply of the viewer. Its newest comment came from another person.
- * The viewer leads the task, or a newer comment of another person names the viewer with @. Comments keep
- * no mention list, so the body holds the mention markup. The row shows the newest comment for the lead,
- * and the named comment otherwise.
+ * The viewer leads the task, or a newer comment of another person names the viewer: an @ in the body, or a reply to a comment of the
+ * viewer (namesPerson). Comments keep no mention list, so the body holds the mention markup. The row shows the newest comment for the
+ * lead, and the named comment otherwise. A 👍 or ✅ of the viewer on that comment is the answer (chat design item 22).
  */
 function waitingThread(state: State, thread: TaskThread, viewer: User, now: Date): WaitingRow | null {
   const { task, project } = thread;
@@ -586,8 +635,8 @@ function waitingThread(state: State, thread: TaskThread, viewer: User, now: Date
   if (isArchived(state.chatReads[chatReadKey(task.id, viewer.id)], last.createdAt)) return null;
   const own = comments.findLast((c) => principalOf(state, c.authorId) === viewer.id);
   const others = comments.filter((c) => principalOf(state, c.authorId) !== viewer.id && (!own || laterThan(c, own)));
-  const waiting = task.ownerId === viewer.id ? others.at(-1) : others.findLast((c) => mentionedUserIds(c.body).includes(viewer.id));
-  if (!waiting) return null;
+  const waiting = task.ownerId === viewer.id ? others.at(-1) : others.findLast((c) => namesPerson(state, c, viewer.id));
+  if (!waiting || answeredByReaction(state, waiting.reactions, viewer.id)) return null;
   return {
     kind: 'task', id: task.id, title: task.title, project: project ? { id: project.id, code: project.code, name: project.name, mark: markOf(project) } : null,
     from: cardOf(state, waiting.authorId), body: Array.from(plainText(waiting.body)).slice(0, WAITING_BODY_MAX).join(''),
@@ -597,9 +646,11 @@ function waitingThread(state: State, thread: TaskThread, viewer: User, now: Date
 
 /**
  * The chats and task threads that wait for the reply of the person (fbk_011, owner 2026-10-18), oldest first.
- * - A direct or group chat waits when its newest message came from another person.
- * - A project chat waits when a message that names the person is newer than the person's newest message.
+ * - A direct chat waits when its newest message came from another person.
+ * - A group or a project chat waits when a message that names the person (an @mention or a reply to the person) is newer than the
+ *   person's newest message (design item 22; a group no longer waits for each member).
  * - A task thread waits when its newest comment came from another person, and the person leads the task or is named (see waitingThread).
+ * - In every kind, a 👍 or ✅ of the person on the message that waits is the answer (answeredByReaction).
  * A message or comment of an agent of the person counts as the person's own. An archived chat does not count. A chat or task that
  * the person may not open is never in the list: the chats come from canSeeConversation, the threads from taskThreads.
  */
@@ -739,6 +790,7 @@ export const chatCalls = {
   'chats.deleteMessage': chatsDeleteMessage,
   'chats.markRead': chatsMarkRead,
   'chats.archive': chatsArchive,
+  'chats.setNotify': chatsSetNotify,
   'chats.openDirect': chatsOpenDirect,
   'chats.createGroup': chatsCreateGroup,
   'chats.updateGroup': chatsUpdateGroup,

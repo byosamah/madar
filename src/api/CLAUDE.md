@@ -174,6 +174,11 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   gives the newest page when the message is in it, else 20 live messages before it and every newer one, up to 500 in all, and
   `ChatThread.newer` is true when more follow. `around` with `before` fails `invalid`. A message that is no live message of this
   chat (deleted, another chat, unknown) gives the newest page and no error. The loader reads the window next to the newest page.
+- Notify me (chat design item 21): `chats.setNotify { conversationId, notify }` keeps `ChatRead.notify` ("all" or "named") for the person and
+  one chat (a project chat, a direct chat or a group; a task thread id fails the input). It writes the own read mark only, keeps the other
+  fields (`lastReadAt`, `archivedAt`), and writes no event. With no mark it stores `NEVER_READ`. The default is "named" for a project chat
+  and "all" otherwise (`levelFromRead`). `chats.markRead` and `chats.archive` (when it archives) also mark the unread mention and reply
+  notices of that chat or task thread read (`readMentionNotices`, design item 20), so their `WRITE_KINDS` lines hold `notifications`.
 - Files of a direct chat or a group (owner, 2026-10-19): `files.upload` and `files.uploadStart` take `conversationId` in place of a
   project or an office task. `FileRec.conversationId` (optional, so older files load) names the chat; `projectId`, `stageId` and `taskId`
   are null. `mayViewFile` is `canSeeConversation` of that chat: exactly the people who read its messages, never the Admin who is not a

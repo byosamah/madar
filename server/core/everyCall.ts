@@ -99,6 +99,7 @@ function rest(office: State): Record<string, [unknown, string?]> {
     'chats.archive': [{ conversationId: 'cnv_001', archived: true }],
     'chats.editMessage': [{ id: talk.id, body: 'A corrected line' }, talk.actingForId],
     'chats.deleteMessage': [{ id: gone.id }, gone.actingForId],
+    'chats.setNotify': [{ conversationId: 'cnv_001', notify: 'all' }],
     'stageTemplates.list': [{}],
     'stageTemplates.save': [{ name: 'Short', stages: ['Concept', 'Design'] }],
     'stageTemplates.delete': [{ id: 'stt_002' }],

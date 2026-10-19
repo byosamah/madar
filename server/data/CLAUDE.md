@@ -22,7 +22,7 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - `push_devices` (`20261008000100_push_devices.sql`, owner 2026-10-08): the private rows of the browsers that get push. Not an office
   list. `loaders/push.ts` reads the own rows of the person of the call and nothing more (`push.register` also reads the row of
   its endpoint). `diffState` adds no kind for it, so a save of a device sends no signal. `endpoint` has a unique index.
-  `SaveResult.messageIds` lists the messages a save inserted, for the push producer.
+  `SaveResult.messageIds` and `SaveResult.commentIds` list the messages and comments a save inserted, for the push producer.
 - A file of a direct chat or a group (owner, 2026-10-19) keeps `conversationId` in its `files` doc: no column and no migration, because
   no read selects by it. Its row has `project_id` and `task_id` null, so the search loader and `files.list` never load it. `diffState`
   counts `files` as a kind of `PRIVATE_CHAT_KINDS`: its save sends the anonymous office signal of a private chat (`save.ts`).
@@ -85,6 +85,9 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - The unread count and the reply that waits of a task thread read the messages only (fbk_027): the chat loader adds `MESSAGES_ONLY`
   (`dates` and `kind` null) to the count, to the newest message and to the own newest message, and keeps the reads of the newest item of any
   kind (the preview, the order, who is in the thread). Change `taskUnread` and `waitingThread` (`src/api/handlers/chats.ts`) with it.
+- The unread count of a chat is one grouped count, or two (chat design item 23): the project chats that `countsNamedOnly` marks (the Admin's
+  chats of projects that the Admin neither leads nor works on, with no stored `notify: 'all'`) get a second grouped count with the extra
+  condition `{ has: 'mentions', value: userId }`; every other chat keeps the first. Change `unreadIn` (`src/api/chatState.ts`) with it.
 - `atBefore` (a Cond on a stamp column) is the upper bound of a period: a timestamp test in SQL, in memorySource and in the
   SQLite compile, never text. `reports.office` (`loaders/report.ts`) reads the clock from `LoadCtx.now` (the call's time), and
   its counts come from `countWhere` with one key for each value (`REPORT_KEYS`). A loader without the clock never resolves a period.

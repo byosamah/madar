@@ -130,3 +130,20 @@ tokenizer, fed by the save, and lower the `search.query` pins (`server/office/te
 - `all.sh test` with no keyboard answers its config question with yes, which is the right answer for both projects.
 - `grep -c` that counts 0 exits 1 and stops a `&&` chain.
 - A worktree whose `node_modules` links to the main folder can lack a new package (bcryptjs): link it to `deploy-test`.
+
+## 10. Chat counts and pushes for Track R (chat campfire, 2026-10-19)
+Track R stores an unread number for each person and chat. The chat campfire batch (design `docs/superpowers/specs/2026-10-19-madar-chat-campfire-design.md`,
+items 19 to 23) changes what that number counts and who gets a push. The restart counts the same way:
+1. The stored unread number counts every unread live message of a chat for each person who may open it, whatever `ChatRead.notify`.
+2. The one exception (item 23): the project chat of a project that the Admin does not lead and is not on the team of counts only the
+   unread messages whose `mentions` hold the Admin (a reply author is in `mentions`), unless the Admin stored `notify: 'all'`. A task lead
+   outside the team does not count as on the project. The rule is `countsNamedOnly` (`src/api/chatState.ts`). The loader runs a second
+   grouped count with the extra condition on `mentions` for those chats (`chatsOf`, `server/data/loaders/chat.ts`).
+3. A deleted message, a reaction, an edit and a quiet line never count.
+4. A task thread counts as today (`taskUnread`).
+5. The push reads `ChatRead.notify` (`server/push/chatRule.ts`, `planPushes`), so the stored row keeps it. A project chat pushes only the
+   people its message names, unless the person stored `notify: 'all'`.
+6. The office object runs `push.chat` and `mail.chatNotice` right after the answer with no 10-second wait (`AFTER_ANSWER_KINDS` holds
+   them, and only `runCall` waits `CHAT_WAIT_MS` for `WAITED_KINDS`). At the restart, `runEffects` waits `CHAT_WAIT_MS` for the kinds
+   in `WAITED_KINDS` before it runs them, so a person who reads the chat in that time gets no push and no mention mail.
+7. The SQLite push producer reads the items by key and the levels for each chat (`PUSH_LEVELS_LITE`, `server/push/chatFacts.ts`).

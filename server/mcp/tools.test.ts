@@ -50,7 +50,7 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
       expect(MCP_DENY, name).not.toContain(name);
       expect(tools.map((tool) => tool.name), name).toContain(name);
     }
-    for (const name of ['chats.markRead', 'chats.unreadCount', 'chats.archive']) {
+    for (const name of ['chats.markRead', 'chats.unreadCount', 'chats.archive', 'chats.setNotify']) {
       expect(MCP_DENY, name).toContain(name);
       expect(tools.map((tool) => tool.name), name).not.toContain(name);
     }

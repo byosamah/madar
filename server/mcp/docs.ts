@@ -90,7 +90,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'chats.list': {
     title: 'List chats',
-    description: 'Lists the chats that your person may open, newest first: project, direct and group chats, and task threads. A row has its unread count, its newest message (preview and author) and archived: true when your person archived it (a new message clears that). Use the id (conversationId) with chats.messages and chats.send. A row of kind task has a task id: read it with comments.list (targetType task) and answer with comments.create. previewKind names a quiet line (a reason). A direct chat with no message shows only for the person who opened it.',
+    description: 'Lists the chats your person may open, newest first: project, direct and group chats and task threads. A row has its unread count, newest message, author and archived: true when your person archived it (a new message clears it). For an Admin, a chat of a project the Admin neither leads nor works on counts only the unread messages that name the Admin, unless your person picks All messages. A direct chat with no message shows only for the person who opened it. Use the id with chats.messages and chats.send; a row of kind task with comments.list and comments.create. previewKind names a quiet line.',
   },
   'chats.messages': {
     title: 'Read a chat',
@@ -98,7 +98,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'chats.waiting': {
     title: 'List what waits for a reply',
-    description: 'Lists the chats and task threads that wait for the reply of your person, oldest first. A direct or group chat waits when its newest message came from someone else. A project chat waits when a newer message names your person. A task thread waits when its newest comment came from someone else, and your person leads the task or is named in a newer comment. Each row has the id, the sender (from), the first 280 characters in plain text (body) and the days it waited. A row of kind task has a task id: answer it with comments.create (targetType task). Archived chats are left out. Read only.',
+    description: 'Lists the chats and task threads that wait for the reply of your person, oldest first. A direct chat waits when its newest message came from someone else. A group or a project chat waits when a newer message names your person (an @mention or a reply). A task thread waits when its newest comment came from someone else and your person leads the task, or a newer comment names your person. A 👍 or ✅ of your person on that message counts as a reply. A row has id, from, body (plain text) and days. A row of kind task: answer it with comments.create. Archived chats are left out. Read only.',
   },
   'chats.openDirect': {
     title: 'Open a direct chat',

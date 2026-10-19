@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { defaultPreferences, type Preferences } from '../../src/api/contract/entities';
 import { sharedCalls } from '../../src/api/sharedCalls';
-import { EFFECTS_OF, registerEffect } from '../core/effects';
+import { EFFECTS_OF, processOutbox, registerEffect, writeOutbox } from '../core/effects';
 import { fakeDeps } from '../test/fakes/deps';
 import { memoryMailDb } from './memoryMailDb';
 import {
-  ADMINS_SQL, ADMIN_MAIL_SQL, NEW_NOTICES_SQL, NOTICE_EFFECT, NOTICE_FREE_CALLS, NOTICE_MAIL_SQL, QUOTA_WARNING_EFFECT, USER_MAIL_SQL,
-  appLink, noticeRows, sendNoticeMail, sendQuotaWarning,
+  ADMINS_SQL, ADMIN_MAIL_SQL, CHAT_NOTICE_EFFECT, NEW_NOTICES_SQL, NOTICE_EFFECT, NOTICE_FREE_CALLS, NOTICE_MAIL_SQL, NOTICE_UNREAD_LITE, NOTICE_UNREAD_SQL, QUOTA_WARNING_EFFECT,
+  USER_MAIL_SQL, appLink, noticeRows, sendChatNoticeMail, sendNoticeMail, sendQuotaWarning,
 } from './notices';
 import { registerMailEffects } from './register';
 
@@ -29,10 +29,13 @@ const withPrefs = (change: (p: Preferences) => void) => {
   return p;
 };
 
-function setup(o: { people?: Person[]; notices?: { id: string; userId: string; trigger: string }[] } = {}) {
+function setup(o: { people?: Person[]; notices?: { id: string; userId: string; trigger: string }[]; unread?: string[] } = {}) {
   const people = new Map((o.people ?? [person('usr_002')]).map((p) => [p.id, p]));
   const notices = o.notices ?? [{ id: 'ntf_1', userId: 'usr_002', trigger: 'task_assigned' }];
+  // The notices that are still unread when the chat mail runs: all of them, unless a test says otherwise.
+  const unread = o.unread ?? notices.map((n) => n.id);
   const mem = memoryMailDb((text, values) => {
+    if (text === NOTICE_UNREAD_SQL) return unread.includes(values[0] as string) ? [{ id: values[0] }] : [];
     if (text === NOTICE_MAIL_SQL) {
       const n = notices.find((x) => x.id === values[0]);
       const p = n && people.get(n.userId);
@@ -262,5 +265,65 @@ describe('appLink', () => {
   it('joins the screens URL and a path with one slash', () => {
     expect(appLink('https://madar.test/', '/notifications')).toBe('https://madar.test/notifications');
     expect(appLink('https://madar.test', '/work')).toBe('https://madar.test/work');
+  });
+});
+
+describe('the mention mail of a chat waits and skips a read notice (chat design item 20)', () => {
+  const undo: (() => void)[] = [];
+  afterEach(() => {
+    while (undo.length > 0) undo.pop()!();
+  });
+  const mention = (id: string, userId: string, target_type: string, message_id: string | null) => ({
+    id, user_id: userId, trigger: 'mention', kind: 'human', active: true, preferences: defaultPreferences(), target_type, message_id,
+  });
+
+  it('writes a mail.chatNotice row for a new mention notice of a chat message or a task comment, and mail.notice for any other', async () => {
+    const q = (async (text: string) => {
+      expect(text).toBe(NEW_NOTICES_SQL);
+      return [
+        mention('ntf_1', 'usr_002', 'chat', 'msg_9'),
+        mention('ntf_2', 'usr_002', 'task', 'cmt_9'),
+        mention('ntf_3', 'usr_002', 'update', 'cmt_8'),
+        { ...mention('ntf_4', 'usr_002', 'task', null), trigger: 'task_assigned' },
+      ];
+    }) as never;
+    const rows = await noticeRows(q, { kinds: new Set(['notifications']), people: new Set(['usr_002']) });
+    expect(rows.map((r) => [r.kind, r.payload.notificationId])).toEqual([
+      [CHAT_NOTICE_EFFECT, 'ntf_1'], [CHAT_NOTICE_EFFECT, 'ntf_2'], [NOTICE_EFFECT, 'ntf_3'], [NOTICE_EFFECT, 'ntf_4'],
+    ]);
+  });
+
+  it('reads the target and the message of each notice', () => {
+    expect(NEW_NOTICES_SQL).toContain('n.target_type');
+    expect(NEW_NOTICES_SQL).toContain("n.doc->>'messageId' as message_id");
+  });
+
+  it('sendChatNoticeMail sends nothing for a notice that is read by now, or gone', async () => {
+    const { mem, deps } = setup({ notices: [{ id: 'ntf_1', userId: 'usr_002', trigger: 'mention' }], unread: [] });
+    await sendChatNoticeMail({ notificationId: 'ntf_1' }, deps);
+    expect(deps.mail.sent).toEqual([]);
+    expect(mem.log).toEqual([]);
+    expect(mem.statements).toEqual([NOTICE_UNREAD_SQL]);
+  });
+
+  it('sendChatNoticeMail sends the notice mail with the key notice-<id> when the notice is still unread', async () => {
+    const { mem, deps } = setup({ notices: [{ id: 'ntf_1', userId: 'usr_002', trigger: 'mention' }] });
+    await sendChatNoticeMail({ notificationId: 'ntf_1' }, deps);
+    expect(deps.mail.sent.map((m) => [m.to, m.tag, m.idempotencyKey])).toEqual([['usr_002@madar.test', 'notice', 'notice-ntf_1']]);
+    expect(mem.log.filter((r) => r.kind === 'notice')).toHaveLength(1);
+  });
+
+  it('keeps the SQLite form of the unread test', () => {
+    expect(NOTICE_UNREAD_SQL).toBe('select id from notifications where id = $1 and not read');
+    expect(NOTICE_UNREAD_LITE).toBe('select id from notifications where id = ?1 and read = 0');
+  });
+
+  it('registers mail.chatNotice with registerMailEffects: processOutbox runs a mail.chatNotice row', async () => {
+    const { mem, deps } = setup({ notices: [{ id: 'ntf_1', userId: 'usr_002', trigger: 'mention' }] });
+    undo.push(registerMailEffects());
+    const [id] = await writeOutbox(mem.q, [{ kind: CHAT_NOTICE_EFFECT, payload: { notificationId: 'ntf_1' } }]);
+    expect(await processOutbox(deps, [id])).toEqual({ done: [id], failed: [] });
+    expect(deps.mail.sent.map((m) => m.idempotencyKey)).toEqual(['notice-ntf_1']);
+    expect(() => registerEffect(CHAT_NOTICE_EFFECT, async () => undefined)).toThrow(/already registered/);
   });
 });

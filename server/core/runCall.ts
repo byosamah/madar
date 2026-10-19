@@ -9,7 +9,7 @@ import { save, type SaveOptions, type SaveResult } from '../data/save';
 import { runErrorOf } from '../http/errors';
 import { resolveActor } from './actor';
 import { requestHost } from './after';
-import { AFTER_ANSWER_KINDS, outboxRowsOf, processOutbox, writeOutbox, type OutboxRow } from './effects';
+import { AFTER_ANSWER_KINDS, CHAT_WAIT_MS, outboxRowsOf, processOutbox, WAITED_KINDS, writeOutbox, type OutboxRow } from './effects';
 import { digestOf, replay, sqlKeys, type KeyStore, type StoredResult } from './idempotency';
 import { busyOf, logLockHold, takeOfficeLock } from './lock';
 import type { Deps, Query } from './ports';
@@ -32,7 +32,8 @@ import type { ChangeSignal, OfficeSnapshot, RunRequest, RunResult } from './type
  *      rolls back, so a failed call writes nothing and sends nothing.
  *   6. After the commit: the effects of this call, once, best effort; the 15-minute job retries the rest. On a host with after
  *      (core/after.ts), the mail kinds (AFTER_ANSWER_KINDS) run after the answer, on one chain for each batch, so the mails of
- *      a batch keep their order. Every other kind runs before the answer. With no after, every kind runs before it.
+ *      a batch keep their order. The kinds of WAITED_KINDS (push.chat, mail.chatNotice) wait CHAT_WAIT_MS on a chain of their own first.
+ *      Every other kind runs before the answer. With no after, every kind runs before it, with no wait.
  *   7. An ApiError becomes { ok: false, error }. Any other error becomes failed, and the log gets the call name.
  *
  * The office: each call reads office_meta through the office cache (plan 4.7), a read inside its snapshot and a write after the
@@ -85,6 +86,8 @@ export type RunCallOptions = {
   data?: (deps: Deps) => CallData;
   /** What runs the effects after the commit. Tests pass a recorder. */
   afterCommit?: (deps: Deps, ids: string[]) => Promise<unknown>;
+  /** The wait before the rows of WAITED_KINDS run after the answer. Tests pass a gate. */
+  wait?: (ms: number) => Promise<void>;
 };
 
 export type RunCall = (deps: Deps, req: RunRequest) => Promise<RunResult>;
@@ -109,6 +112,7 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
   const calls = o.calls ?? serverCallMap;
   const dataOf = o.data ?? sqlData;
   const afterCommit = o.afterCommit ?? processOutbox;
+  const wait = o.wait ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
 
   async function runServerCall(deps: Deps, req: RunRequest, entry: ServerEntry, parsed: unknown, data: CallData): Promise<RunResult> {
     const office = req.batch.office ?? (await data.office());
@@ -213,8 +217,10 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
       const warn = (error: unknown) =>
         deps.log.warn('The effects after the commit did not run. The job tries them again.', { name: entry.name, error: error instanceof Error ? error.message : String(error) });
       const { after } = requestHost();
-      const later = after ? done.effects.filter((e) => AFTER_ANSWER_KINDS.has(e.kind)).map((e) => e.id) : [];
-      const now = done.effects.filter((e) => !later.includes(e.id)).map((e) => e.id);
+      const afterEffects = after ? done.effects.filter((e) => AFTER_ANSWER_KINDS.has(e.kind)) : [];
+      const later = afterEffects.filter((e) => !WAITED_KINDS.has(e.kind)).map((e) => e.id);
+      const waited = afterEffects.filter((e) => WAITED_KINDS.has(e.kind)).map((e) => e.id);
+      const now = done.effects.filter((e) => !later.includes(e.id) && !waited.includes(e.id)).map((e) => e.id);
       if (now.length > 0) {
         try {
           await afterCommit(deps, now);
@@ -227,6 +233,9 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
         req.batch.mail = chain;
         after(chain);
       }
+      // The chat push and the chat mention mail wait CHAT_WAIT_MS on a chain of their own, so a person who reads the chat in this time
+      // gets neither (chat design item 20). The sleep costs no CPU. If the host stops the work, the job runs the rows later.
+      if (after && waited.length > 0) after(wait(CHAT_WAIT_MS).then(() => afterCommit(deps, waited)).then(() => undefined, warn));
     }
     const own = ownSignals(done.signals, actorId);
     return {

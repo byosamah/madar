@@ -33,10 +33,13 @@ The other host stays deployed as the way back. Each area below has its own guide
 - After the commit, `processOutbox` runs the effects once. The 15-minute job retries the rest. `core/after.ts` keeps work
   alive after the answer on both hosts: on Supabase within the 150 s of the function, on the Worker through waitUntil for
   about 30 s after the answer. A long mail or push chain can stop part way there; the 15-minute job retries the outbox.
-- The kinds in `AFTER_ANSWER_KINDS` (`core/effects.ts`: `mail.notice`, `mail.quotaWarning`, `usage.limitWarning`, `push.notify`) run after
-  the answer when the host has `after`, on one chain per batch (`BatchScope.mail`), so the mails keep the order of the
-  entries. Every other kind runs before the answer. With no `after` (tests, scripts), every kind runs before the answer. A
-  new mail or push kind goes into `AFTER_ANSWER_KINDS`; `effects.test.ts` pins the names (performance audit 2026-10-07).
+- The kinds in `AFTER_ANSWER_KINDS` (`core/effects.ts`: `mail.notice`, `mail.quotaWarning`, `usage.limitWarning`, `push.notify`,
+  `push.chat`, `mail.chatNotice`) run after the answer when the host has `after`, on one chain per batch (`BatchScope.mail`), so the
+  mails keep the order of the entries. Every other kind runs before the answer. With no `after` (tests, scripts), every kind runs
+  before the answer. A new mail or push kind goes into `AFTER_ANSWER_KINDS`; `effects.test.ts` pins the names (performance audit
+  2026-10-07). The kinds in `WAITED_KINDS` (`push.chat`, `mail.chatNotice`) wait `CHAT_WAIT_MS` (10 s) after the answer on a chain
+  of their own, so the server can skip a person who read the chat (design item 20). The office object runs them with no wait
+  (exit-handoff section 10).
 - The screens depend on two facts of this path (performance audit FET-3). `http/batch.ts` runs the calls of a request one
   after the other, and a write clears `batch.office` (`core/runCall.ts`), so a read after a write in the same request sees
   the write. A change that runs the reads of a request in parallel, or keeps the office copy across a write, lets a screen

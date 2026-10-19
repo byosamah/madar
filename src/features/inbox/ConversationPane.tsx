@@ -14,7 +14,7 @@ import { useStableHandler } from '../../app/useStableHandler';
 import { Avatar } from '../../components/Avatar';
 import { EmptyState } from '../../components/EmptyState';
 import { LoadFailed } from '../../components/LoadFailed';
-import { Menu } from '../../components/Menu';
+import { Menu, type MenuItem } from '../../components/Menu';
 import { ProjectTile } from '../../components/ProjectTile';
 import { Composer, MessageLog, type Bubble } from './Thread';
 import { BubbleActionsContext, EditingContext, type BubbleActions } from './bubbleActions';
@@ -24,6 +24,7 @@ import { ArchiveMenu } from './ChatList';
 import { GroupPicture } from './GroupPicture';
 import { GroupSheets, type GroupMode } from './GroupSheets';
 import { useArchive } from './archive';
+import { useNotifyItems } from './NotifyChoice';
 import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-check';
 import { actorContext } from '../../lib/grammar';
 import { chatLink, messageParam, taskLink } from '../../lib/params';
@@ -88,11 +89,12 @@ function bubbleOfLine(line: GroupLine): Bubble {
 }
 
 /**
- * The menu of a group (UX audit 2026-10-19, chats-07): Rename and Archive. The people, adding people and leaving moved to the People
- * sheet, which one press on the count or on the picture opens. The archive item is the same as in the list (ArchiveMenu).
+ * The menu of a group (UX audit 2026-10-19, chats-07): Rename and Archive, then the Notify me choice (chat design item 21, the extra
+ * items). The people, adding people and leaving moved to the People sheet, which one press on the count or on the picture opens. The
+ * archive item is the same as in the list (ArchiveMenu).
  */
-function GroupMenu({ id, archived, title, onPick, onArchive }: {
-  id: string; archived: boolean; title: string; onPick: (mode: GroupMode) => void; onArchive: (id: string, archived: boolean) => void;
+function GroupMenu({ id, archived, title, onPick, onArchive, extra }: {
+  id: string; archived: boolean; title: string; onPick: (mode: GroupMode) => void; onArchive: (id: string, archived: boolean) => void; extra: MenuItem[];
 }) {
   const { t } = useTranslation();
   return (
@@ -101,6 +103,7 @@ function GroupMenu({ id, archived, title, onPick, onArchive }: {
       items={[
         { label: t('chat.rename'), onSelect: () => onPick('rename') },
         { label: archived ? t('chat.moveBack') : t('chat.archive'), onSelect: () => onArchive(id, !archived) },
+        ...extra,
       ]}
     />
   );
@@ -134,6 +137,8 @@ export function ChatPane({ id, focusFromRoute }: { id: string; focusFromRoute: s
     setEditingId(null);
     requestAnimationFrame(() => document.getElementById(`composer-${id}`)?.focus());
   });
+  // The "Notify me" items of the header menu. A hook, so it sits before the early returns. A task thread has none (TaskPane).
+  const notifyItems = useNotifyItems(id, data?.notify ?? 'all');
   const { messages, earlier } = useEarlierMessages(id, data?.messages);
   // Instant send (chat design 2026-10-19, item 13): a message shows at once as a faded bubble, and the saved message takes its place.
   const outbox = useOutbox<CallInput<'chats.send'>>(messages.map((view) => ({ id: view.message.id, mine: view.mine, body: view.message.body })));
@@ -179,10 +184,17 @@ export function ChatPane({ id, focusFromRoute }: { id: string; focusFromRoute: s
   const opened = mark !== null;
   // Read only while the person looks (item 5): a hidden tab marks nothing, and the tab marks again when it shows.
   const visible = usePageVisible();
+  // The newest message is newer than the read time. An Admin's project chat outside the Admin's projects counts only the messages that
+  // name the Admin (design item 23), so its count can be 0 while plain messages are new: the open must still move the read mark, so the
+  // "New" line of a later message sits right (it reads readUpTo). A read mark moves to the newest message or later, so this ends at once.
+  // The times compare as instants: a stamp comes in the +03:00 form or the Z form.
+  const newestAt = data?.messages.at(-1)?.message.createdAt;
+  const behind = newestAt !== undefined && (data?.readUpTo == null || Date.parse(newestAt) > Date.parse(data.readUpTo));
   useEffect(() => {
-    if (opened && visible && unread > 0) markRead.mutate({ conversationId: id });
-    // The mutation object changes on every render. Only a new count of unread messages, or the tab that shows, matters here.
-  }, [id, unread, opened, visible]);
+    if (opened && visible && (unread > 0 || behind)) markRead.mutate({ conversationId: id });
+    // The mutation object changes on every render. Only a new count of unread messages, a newer message than the read time, or the tab
+    // that shows, matters here.
+  }, [id, unread, opened, visible, behind]);
   if (thread.error) return <div className="p-4"><LoadFailed error={thread.error} onRetry={() => void thread.refetch()} /></div>;
   if (!data || !mark) return <div className="flex-1" aria-busy="true" />;
   const { chat } = data;
@@ -217,8 +229,8 @@ export function ChatPane({ id, focusFromRoute }: { id: string; focusFromRoute: s
         title={title}
         subtitle={subtitle}
         action={isGroup
-          ? <GroupMenu id={id} archived={chat.archived} title={title} onPick={setSheet} onArchive={archive} />
-          : <ArchiveMenu id={id} archived={chat.archived} title={title} onArchive={archive} />}
+          ? <GroupMenu id={id} archived={chat.archived} title={title} onPick={setSheet} onArchive={archive} extra={notifyItems} />
+          : <ArchiveMenu id={id} archived={chat.archived} title={title} onArchive={archive} extra={notifyItems} />}
       />
       <BubbleActionsContext.Provider value={actions}>
         <EditingContext.Provider value={editingId}>
