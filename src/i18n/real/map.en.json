@@ -2,44 +2,56 @@
   "map": {
     "pin": {
       "label": "Pin on the map",
-      "none": "No pin yet",
-      "value": "{{latitude}}, {{longitude}}",
+      "none": "Not set",
       "set": "Set pin",
       "change": "Change",
-      "remove": "Remove"
+      "remove": "Remove",
+      "state": "Set",
+      "unsaved": "Not saved yet",
+      "open": "Open in Google Maps"
     },
     "pinSheet": {
       "title": "Pin on the map",
-      "done": "Done"
+      "use": "Use this place",
+      "saved": "Pin saved."
+    },
+    "find": {
+      "label": "Search a place or paste a Google Maps link",
+      "hint": "Type a name and press Enter. A link or two coordinates work at once.",
+      "labelPaste": "Paste a Google Maps link or the coordinates",
+      "hintPaste": "Copy the full address from Google Maps. Or type the latitude and the longitude, for example 26.28, 50.21."
     },
     "paste": {
-      "label": "Paste a Google Maps link or the coordinates",
-      "hint": "Copy the full address from Google Maps. Or type the latitude and the longitude, for example 26.28, 50.21.",
-      "found": "The pin is set from this text.",
-      "short": "This is a short link. It holds no place. Open it in Google Maps, copy the full address, and paste it here.",
-      "none": "Madar cannot read a place in this text."
+      "reading": "Madar reads the link.",
+      "short": "Madar cannot read this short link now. Open it in Google Maps, copy the full address, and paste it here.",
+      "none": "Madar cannot read a place in this text.",
+      "outside": "This place is outside Saudi Arabia. Did you swap the two numbers?",
+      "swap": "Swap them",
+      "stillOutside": "The two numbers are outside Saudi Arabia in both orders."
     },
     "search": {
-      "label": "Search a place",
-      "hint": "Type a name, then press Search or Enter.",
-      "button": "Search",
       "results": "Places found",
-      "none": "No place found for this search.",
+      "none": "No place found. Try a shorter name, the name in English, or pan the map and tap the place.",
       "failed": "The search failed. Try again."
+    },
+    "pinned": {
+      "place": "Pinned:",
+      "map": "Pinned on the map."
     },
     "canvas": {
       "label": "Map. Drag the pin to move it.",
       "labelView": "Map of the projects",
       "pin": "Project pin",
-      "attribution": "Map data © OpenStreetMap contributors"
+      "failed": "The street map is not ready yet.",
+      "attribution": "Map: OpenFreeMap © OpenMapTiles. Data © OpenStreetMap contributors."
     },
     "dashboard": {
       "note": "The map works in the real Madar.",
       "pinned": "Projects on the map",
       "pinnedNone": "No project has a pin yet.",
       "noPin": "No pin yet ({{n}})",
+      "askLeader": "Ask the leader to set the pin.",
       "setPinFor": "Set pin for {{name}}",
-      "save": "Save pin",
       "none": "No active project matches the filters."
     },
     "card": {

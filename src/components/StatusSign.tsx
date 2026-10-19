@@ -6,7 +6,7 @@ export type SignState = 'on_track' | 'at_risk' | 'late' | 'paused' | 'awaiting_c
 const COLOR: Partial<Record<SignState, string>> = { on_track: 'text-green-text', at_risk: 'text-orange-text', late: 'text-red-text' };
 
 /** The shape for each state, so the color never carries the meaning alone. */
-function Glyph({ state }: { state: SignState }) {
+export function SignGlyph({ state }: { state: SignState }) {
   const shape = (() => {
     switch (state) {
       case 'on_track': return <circle cx="5.5" cy="5.5" r="4.6" fill="currentColor" />;
@@ -33,7 +33,7 @@ export function StatusSign({ state, children }: { state: SignState; children: Re
   const loud = state in COLOR;
   return (
     <span data-sign={state} className={`inline-flex min-h-6 shrink-0 items-center gap-1.5 whitespace-nowrap text-caption font-semibold ${loud ? 'text-ink' : 'text-ink-2'}`}>
-      <Glyph state={state} />
+      <SignGlyph state={state} />
       {children}
     </span>
   );

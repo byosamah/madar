@@ -8,6 +8,7 @@ const TEST = 'https://qdgwpnesxppnqsaabqzd.supabase.co';
 const PRODUCTION = 'https://oprkvdjudjxxhvodkzgs.supabase.co';
 const ACCOUNT = 'd76d34779c63849f5acdf3d6af3751cd';
 const NOMINATIM = 'https://nominatim.openstreetmap.org';
+const OPENFREEMAP = 'https://tiles.openfreemap.org';
 
 /** The sources of one CSP directive. */
 function directive(headers: string, name: string): string[] {
@@ -26,7 +27,8 @@ describe('renderHeaders', () => {
     expect(headers).toMatch(/\/assets\/\*\n {2}Cache-Control: public, max-age=31536000, immutable/);
     expect(directive(headers, 'frame-ancestors')).toEqual(["'none'"]);
     expect(directive(headers, 'style-src')).toEqual(["'self'", "'unsafe-inline'"]);
-    expect(directive(headers, 'script-src')).toEqual(["'self'"]);
+    // 'wasm-unsafe-eval' lets the Arabic text plugin of the map run its WebAssembly. It allows no eval() (owner, 2026-10-19).
+    expect(directive(headers, 'script-src')).toEqual(["'self'", "'wasm-unsafe-eval'"]);
   });
 
   it('lets the service worker of browser push run from the own site only, and never lets it be cached (owner, 2026-10-08)', () => {
@@ -40,14 +42,14 @@ describe('renderHeaders', () => {
   it('adds no host for the push services: the browser, not the page, talks to them', () => {
     const headers = renderHeaders(template, { supabaseUrl: TEST, store: 'supabase' });
     for (const host of ['fcm.googleapis.com', 'push.services.mozilla.com', 'push.apple.com', 'notify.windows.com']) expect(headers).not.toContain(host);
-    expect(directive(headers, 'connect-src').every((source) => source === "'self'" || source === NOMINATIM || source.includes('qdgwpnesxppnqsaabqzd.supabase.co'))).toBe(true);
+    expect(directive(headers, 'connect-src').every((source) => source === "'self'" || source === NOMINATIM || source === OPENFREEMAP || source.includes('qdgwpnesxppnqsaabqzd.supabase.co'))).toBe(true);
   });
 
   it('while the files are on Supabase Storage, names the Supabase host for pictures, the PDF frame and the calls, and no R2 host', () => {
     const headers = renderHeaders(template, { supabaseUrl: TEST, store: 'supabase' });
     expect(directive(headers, 'img-src')).toEqual(["'self'", 'data:', 'blob:', TEST]);
     expect(directive(headers, 'frame-src')).toEqual([TEST]);
-    expect(directive(headers, 'connect-src')).toEqual(["'self'", TEST, 'wss://qdgwpnesxppnqsaabqzd.supabase.co', NOMINATIM]);
+    expect(directive(headers, 'connect-src')).toEqual(["'self'", TEST, 'wss://qdgwpnesxppnqsaabqzd.supabase.co', NOMINATIM, OPENFREEMAP]);
     expect(headers).not.toContain('r2.cloudflarestorage.com');
   });
 
@@ -57,8 +59,8 @@ describe('renderHeaders', () => {
     expect(test).not.toContain('oprkvdjudjxxhvodkzgs');
     expect(production).not.toContain('qdgwpnesxppnqsaabqzd');
     const hosts = (text: string) => [...new Set([...text.matchAll(/(?:https|wss):\/\/[^\s;]+/g)].map((match) => match[0]))];
-    expect(hosts(test)).toEqual([TEST, 'wss://qdgwpnesxppnqsaabqzd.supabase.co', NOMINATIM]);
-    expect(hosts(production)).toEqual([PRODUCTION, 'wss://oprkvdjudjxxhvodkzgs.supabase.co', NOMINATIM]);
+    expect(hosts(test)).toEqual([TEST, 'wss://qdgwpnesxppnqsaabqzd.supabase.co', NOMINATIM, OPENFREEMAP]);
+    expect(hosts(production)).toEqual([PRODUCTION, 'wss://oprkvdjudjxxhvodkzgs.supabase.co', NOMINATIM, OPENFREEMAP]);
   });
 
   it('after the move to R2, names the R2 EU host for the files and keeps the Supabase host for the calls', () => {
@@ -66,7 +68,7 @@ describe('renderHeaders', () => {
     const r2 = `https://${ACCOUNT}.eu.r2.cloudflarestorage.com`;
     expect(directive(headers, 'img-src')).toEqual(["'self'", 'data:', 'blob:', r2]);
     expect(directive(headers, 'frame-src')).toEqual([r2]);
-    expect(directive(headers, 'connect-src')).toEqual(["'self'", TEST, 'wss://qdgwpnesxppnqsaabqzd.supabase.co', r2, NOMINATIM]);
+    expect(directive(headers, 'connect-src')).toEqual(["'self'", TEST, 'wss://qdgwpnesxppnqsaabqzd.supabase.co', r2, NOMINATIM, OPENFREEMAP]);
   });
 
   it('drops the comments of the template and leaves no placeholder', () => {

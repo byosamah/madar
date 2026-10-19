@@ -1,0 +1,10 @@
+/* The card of a pin sits on the map as a Madar panel: MapLibre draws only its box and its tip (fbk_017). */
+.madar-popup .maplibregl-popup-content {
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  border-radius: 0;
+}
+.madar-popup .maplibregl-popup-tip {
+  display: none;
+}

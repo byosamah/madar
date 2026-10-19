@@ -1687,6 +1687,14 @@ say `supabase`, no Worker got a secret, `office-backup.yml` is off (no `vars.OFF
 ## Map basemap probe (2026-10-18, fbk_017, Task 11)
 
 **Status: pending: the file is not built and not uploaded; waits for the owner OK.** Nothing in Cloudflare changed: no
+
+**Update 2026-10-19 (owner): the screens use OpenFreeMap now.** The street map is free with no account, no key and no bill: tiles from
+`https://tiles.openfreemap.org/planet` (OpenMapTiles schema, CORS open), glyphs from `/fonts/{fontstack}/{range}.pbf`. Probe with curl: the
+stacks `Noto Sans Regular` and `Noto Sans Bold` answer 200 for 0-255 (76 KB) and 1536-1791 (96 KB, the Arabic block); the presentation-form
+ranges answer 404, and the Arabic labels still shape correctly with the RTL text plugin (Playwright shots, 2026-10-19). The style is written by hand
+in `src/features/map/mapStyle.ts`. The Arabic text plugin is a file of the build (`?url`). The own file below stays in the repo as the later
+option (`functions/map`, `server/http/pagesMap.ts`, `scripts/map/build-basemap.sh`); no screen reads it, and nothing in Cloudflare changed.
+The short Google Maps link has its own small Pages Function `/maplink` (`server/http/pagesMapLink.ts`): it follows the redirect and keeps nothing.
 binding, no bucket and no wrangler setting.
 
 - Built in the repo: `server/http/pagesMap.ts` (the key rule, the range rule, the content types and the route), its test
