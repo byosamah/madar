@@ -158,7 +158,7 @@ describe('the Dashboard map (fbk_017)', () => {
 
   it('keeps the old pin when the person presses Cancel in the Set pin sheet (PRJ-13)', async () => {
     const { api } = await renderWithRuntime(<DashboardMap filters={{}} />, pinFirstFour, { path: '/dashboard' });
-    const unpinned = (await api.call('projects.list', { status: 'active', sort: 'name' })).filter((row) => row.geo === null);
+    const unpinned = (await openProjects(api)).filter((row) => row.geo === null);
     const target = unpinned.find((row) => row.viewerCan.edit)!;
     await userEvent.click(await screen.findByRole('button', { name: `No pin yet (${unpinned.length})` }));
     await userEvent.click(screen.getByRole('button', { name: `Set pin for ${target.project.name}` }));
@@ -176,7 +176,7 @@ describe('the Dashboard map (fbk_017)', () => {
       if (found) state.session.currentUserId = found.id;
     };
     const { api } = await renderWithRuntime(<DashboardMap filters={{}} />, member, { path: '/dashboard' });
-    const unpinned = (await api.call('projects.list', { status: 'active', sort: 'name' })).filter((row) => row.geo === null);
+    const unpinned = (await openProjects(api)).filter((row) => row.geo === null);
     const blocked = unpinned.filter((row) => !row.viewerCan.edit && row.leader);
     expect(blocked.length).toBeGreaterThan(0);
     await userEvent.click(await screen.findByRole('button', { name: `No pin yet (${unpinned.length})` }));

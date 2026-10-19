@@ -484,11 +484,15 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
     // kind and no names (review 2026-10-06). The screens match their own changes by the signal id.
     const shared = { v: 1 as const, projects: [...projects].sort(), office };
     const publicBase = {
-      ...shared, id: crypto.randomUUID(), kinds: [...diff.publicKinds].sort(), ...(diff.anonymous ? {} : { storyId: story.storyId, actorId: story.actorId }),
+      ...shared, id: crypto.randomUUID(), kinds: [...diff.publicKinds].sort(), storyId: story.storyId, actorId: story.actorId,
     };
+    // A save of only private chat kinds sends the office signal with no actor and no story, so the office does not learn who
+    // wrote to whom (INT-16). The person signals keep both: each one goes to one person only.
+    const { storyId: _story, actorId: _actor, ...nameless } = publicBase;
+    const officeBase = diff.anonymous ? nameless : publicBase;
     const privateBase = diff.privateChange ? { ...shared, id: crypto.randomUUID(), kinds: [...diff.kinds].sort() } : null;
     const baseOf = (userId: string) => (privateBase && (diff.privateOnly || diff.privatePeople.has(userId)) ? privateBase : publicBase);
-    if (officeSignal) signals.push({ ...publicBase, channel: 'office', seq: officeSeq, people: [] });
+    if (officeSignal) signals.push({ ...officeBase, channel: 'office', seq: officeSeq, people: [] });
     for (const userId of people) signals.push({ ...baseOf(userId), channel: `person:${userId}`, seq: personSeq.get(userId) ?? 0, people: [userId] });
   }
   return result({ office, bytesWritten, signals, ...(version === undefined ? {} : { officeVersion: version }) });
