@@ -2,9 +2,12 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLang } from '../../app/lang';
 import { Button } from '../../components/Button';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { ChevronDownIcon } from '../../components/icons/animated/chevron-down';
 import { addDays, formatDay, stampDay, todayISO } from '../../lib/dates';
 import { groupByDay } from '../../lib/group';
 import { MessageBubble, type Bubble } from './MessageBubble';
+import { isNearBottom } from './logScroll';
 import { runStarts } from './runs';
 
 /**
@@ -40,6 +43,12 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier }: MessageLog
   // True while the person reads the newest messages (the log is at its bottom, within 80 px). A picture grows its box when it has loaded,
   // and the log then keeps the bottom in view. A person who reads old messages is not moved.
   const atBottom = useRef(true);
+  // The mirror of atBottom for the screen: the round Newest button shows while the reader is away from the bottom. It changes only at
+  // the edge, so a scroll renders nothing else.
+  const [away, setAway] = useState(false);
+  // The newest time that the log has seen. A last message counts as new only when it is later than this (a delete or a restore of the
+  // last message moves nothing).
+  const seenNewest = useRef(Number.NEGATIVE_INFINITY);
   // The distance from the bottom when the person asked for earlier messages, and whether the focus was on that control.
   const anchor = useRef<{ fromBottom: number; focused: boolean; firstId: string | undefined } | null>(null);
   // The messages that are here when the log first shows do not animate. A message newer than all of them does. An earlier page
@@ -50,10 +59,24 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier }: MessageLog
   const lastId = bubbles.at(-1)?.id;
   // The messages of one person within 5 minutes form a run (design item 2): only the first shows the face and the name.
   const starts = useMemo(() => runStarts(bubbles), [bubbles]);
-  useLayoutEffect(() => {
-    if (region.current) region.current.scrollTop = region.current.scrollHeight;
+  const toBottom = (log: HTMLElement) => {
+    log.scrollTop = log.scrollHeight;
     atBottom.current = true;
-  }, [lastId, resetKey]);
+    setAway(false);
+  };
+  // The open: the log starts at its bottom. A new message moves the log only for a reader at the bottom, or for the sender (item 1).
+  useLayoutEffect(() => {
+    if (region.current) toBottom(region.current);
+    seenNewest.current = newestAtFirst;
+  }, [resetKey]);
+  const newestMine = bubbles.at(-1)?.mine ?? false;
+  useLayoutEffect(() => {
+    const last = bubbles.at(-1);
+    const at = last ? Date.parse(last.createdAt) : Number.NaN;
+    if (!(at > seenNewest.current)) return;
+    seenNewest.current = at;
+    if (region.current && (atBottom.current || newestMine)) toBottom(region.current);
+  }, [lastId]);
   useEffect(() => {
     const log = region.current;
     const list = items.current;
@@ -71,6 +94,8 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier }: MessageLog
     // Only the arrival of the page counts: a new oldest message, or the control gone after an empty last page.
     if (!log || !kept || (firstId === kept.firstId && hasEarlier)) return;
     log.scrollTop = log.scrollHeight - kept.fromBottom;
+    atBottom.current = isNearBottom(log);
+    setAway(!atBottom.current);
     // The control goes after the first page of the chat. The focus then stays in the log, not on the page body.
     if (!hasEarlier && kept.focused) log.focus({ preventScroll: true });
     anchor.current = null;
@@ -90,8 +115,8 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier }: MessageLog
       tabIndex={-1}
       aria-label={t('chat.messages')}
       onScroll={(event) => {
-        const log = event.currentTarget;
-        atBottom.current = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+        atBottom.current = isNearBottom(event.currentTarget);
+        setAway(!atBottom.current);
       }}
       className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 outline-none [overflow-anchor:none] sm:px-5"
     >
@@ -110,6 +135,24 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier }: MessageLog
           ...group.items.map((bubble) => <MessageBubble key={bubble.id} bubble={bubble} runStart={starts.has(bubble.id)} namesMe={bubble.namesMe ?? false} fresh={!first.has(bubble.id) && Date.parse(bubble.createdAt) > newestAtFirst} />),
         ])}
       </ol>
+      {/* The Newest button sits inside the scroll region, so the pane stays the parent of the log. Still, with no count and no motion. */}
+      <div aria-live="off" className="pointer-events-none sticky bottom-3 flex h-0 justify-end">
+        {away && (
+          <button
+            type="button"
+            aria-label={t('chat.newest')}
+            title={t('chat.newest')}
+            onClick={() => {
+              if (!region.current) return;
+              toBottom(region.current);
+              region.current.focus({ preventScroll: true });
+            }}
+            className="pressable pointer-events-auto grid size-11 -translate-y-full place-items-center rounded-full border border-hairline bg-panel text-ink shadow-float"
+          >
+            <AnimatedIcon icon={ChevronDownIcon} size={20} aria-hidden />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 {
   "chat": {
-    "namesYou": "This message names you."
+    "namesYou": "This message names you.",
+    "newest": "Go to the newest message"
   }
 }
