@@ -15,6 +15,7 @@ import { IDEMPOTENCY_CLEANUP_SQL, OFFICE_DELETES_CLEANUP_SQL, RATE_LIMITS_CLEANU
 import { HEARTBEAT_SQL, heartbeat } from './heartbeat';
 import { OUTBOX_BATCH, OUTBOX_DUE_SQL, OUTBOX_MAX_ATTEMPTS, outboxRetry } from './outbox';
 import { SUMMARY_DONE_SQL, SUMMARY_MARK_SQL, SUMMARY_SENT_SQL, summary, summaryDay } from './summary';
+import { meetings, SETTLE_SQL } from './meetings';
 import { USED_DEDUPE_SQL, usedDedupeKeys } from './triggers';
 import { INTENTS_DELETE_SQL, INTENT_KEEP_MS, OLD_INTENTS_SQL, STAGING_KEEP_MS, UPLOADS_BATCH, uploads } from './uploads';
 
@@ -82,6 +83,19 @@ describe('step 1, the dedupe lookup of the scheduled triggers', () => {
     const r = recorder();
     expect([...(await usedDedupeKeys(r.mem.q, state, WORLD_NOW))]).toEqual([]);
     expect(r.calls).toEqual([]);
+  });
+});
+
+describe('step 1b, the meetings that ended (fbk_022, wave 2)', () => {
+  it('asks for the meetings of the last 14 days that ended, with the stamp of the run and the stamp 14 days before it, in office time', async () => {
+    const r = recorder((text) => (text === SETTLE_SQL ? [] : undefined));
+    const report = await meetings(fakeDeps({ db: r.db }), AT);
+    expect(report).toEqual({ settled: 0, skipped: 0, failed: 0, extended: 0 });
+    // 06:00 UTC is 09:00 in Riyadh.
+    expect(r.valuesOf(SETTLE_SQL)).toEqual([['2026-10-04T09:00:00.000+03:00', '2026-09-20T09:00:00.000+03:00']]);
+    // One statement, and no office read, no transaction and no call when nothing is due.
+    expect(r.calls).toHaveLength(1);
+    expect(r.txs).toEqual([]);
   });
 });
 

@@ -125,8 +125,15 @@ The other host stays deployed as the way back. Each area below has its own guide
 - pg_cron calls `jobs/run` of the Supabase jobs function every 15 minutes, in both host settings (owner, 2026-10-16), with the
   secret header `x-madar-jobs-secret`. The Worker keeps `/jobs` mounted, but nothing calls it: pg_cron and the Vault
   `project_url` do not change. Steps (`jobs/steps/`):
-  heartbeat, triggers, summary, outbox, cleanup, uploads, usage. Each step is idempotent. The triggers step also sends `resume_due`
+  heartbeat, triggers, meetings, summary, outbox, cleanup, uploads, usage. Each step is idempotent. The triggers step also sends `resume_due`
   (the planned restart day of a paused project) to the leader and to the person who paused it (`src/api/CLAUDE.md`).
+- The meetings step (fbk_022, wave 2; `jobs/steps/meetings.ts`) settles the meetings that ended. One read (`SETTLE_SQL`, `SETTLE_LITE`, served by the
+  partial index `meetings_to_settle`) gives at most 20 due meetings, the oldest end first: scheduled, not settled, ended in the last 14 days. For each
+  one the step runs the normal call `meetings.settle` as the organizer (`settleActorOf`: else the first active Admin for a project meeting, else the
+  first active attendee), so the mark and the Tracker line come from the one settle rule and carry the events of a normal call. It writes no row of
+  its own. A failure logs the id and the code only and the loop goes on. It reports `{ settled, skipped, failed, extended }` (`extended` waits for
+  wave 3). `Deps.runCall` (`core/ports.ts`) is the run of a normal call for a step: only the office object sets it (its own SQLite run, `office/parts.ts`);
+  every other host uses the Postgres `runCall`.
 - Usage meters and the 80% Admin warning (`usage/`). The free-plan limits are in `FREE_PLAN_LIMITS`. The calls limit follows
   the host that serves the copy (`config.servingHost`, from `config/server-host.json`): 500,000 on Supabase, 10 million on
   Workers Paid, 3 million on the office host (`CALL_LIMITS`, `core/ports.ts`). The office host sends no month calls warning: the

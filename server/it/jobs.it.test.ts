@@ -244,7 +244,7 @@ describe('suite 10: the 15-minute job on the local database, as madar_server', (
     const body = (await response.json()) as { ok: boolean; steps: { name: string; ok: boolean; error?: string }[] };
     expect(body.steps.filter((s) => !s.ok)).toEqual([]);
     expect(response.status).toBe(200);
-    expect(body.steps.map((s) => s.name)).toEqual(['heartbeat', 'triggers', 'summary', 'outbox', 'cleanup', 'uploads', 'usage']);
+    expect(body.steps.map((s) => s.name)).toEqual(['heartbeat', 'triggers', 'meetings', 'summary', 'outbox', 'cleanup', 'uploads', 'usage']);
     const [beat] = await office.sql<{ done_at: Date }>("select done_at from job_runs where key = 'heartbeat'");
     expect(beat.done_at.toISOString()).toBe(friday.toISOString());
     expect(deps.meter.requests).toBe(requests + 1);

@@ -37,7 +37,7 @@ async function start(): Promise<{ runtime: Runtime; language: Language }> {
   const { bootstrap, startScheduler } = await import('./app/bootstrap');
   const runtime = await bootstrap();
   const user = runtime.store.state.users[runtime.store.state.session.currentUserId];
-  startScheduler(runtime.store);
+  startScheduler(runtime.store, runtime.api);
   return { runtime, language: user?.preferences.language ?? 'en' };
 }
 

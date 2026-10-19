@@ -3,6 +3,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Meeting } from '../../src/api/contract/entities';
 import { runCall } from '../core/runCall';
+import { SETTLE_SQL } from '../jobs/steps/meetings';
 import { dropSchema, localClient, migrationFiles } from './migrate';
 import { newBatch, startOffice, type ItOffice } from './runCallOffice';
 
@@ -91,6 +92,22 @@ describe.runIf(process.env.MADAR_IT === '1')('the meetings migration, on the loc
     expect(rows.map((row) => row.indexname)).toEqual(['meetings_attendees', 'meetings_pkey', 'meetings_project_starts', 'meetings_starts', 'meetings_to_settle']);
     const [partial] = (await db.query("select indexdef from pg_indexes where schemaname = $1 and indexname = 'meetings_to_settle'", [schema])).rows;
     expect(partial.indexdef).toContain("WHERE ((status = 'scheduled'::text) AND (settled_at IS NULL))");
+  });
+
+  it('serves the read of the settle job with the partial index, and the read gives only the meetings that are due', async () => {
+    const stamps = ['2026-10-22T09:30:00.000+03:00', '2026-10-08T09:30:00.000+03:00'];
+    // Two rows cannot show a plan choice, so the test turns the sequential scan off: the planner then uses the index if the read can.
+    await db.query('set enable_seqscan = off');
+    try {
+      const text = SETTLE_SQL.replace('$1::text', `'${stamps[0]}'::text`).replace('$2::text', `'${stamps[1]}'::text`);
+      const plan = (await db.query(`explain ${text}`)).rows.map((row) => String(row['QUERY PLAN'])).join('\n');
+      expect(plan).toContain('meetings_to_settle');
+      // mtg_002 has its mark, mtg_001 ends on 2026-10-21 at 11:00, so it is due at 2026-10-22 09:30.
+      const due = await db.query(SETTLE_SQL, stamps);
+      expect(due.rows.map((row) => row.id)).toEqual(['mtg_001']);
+    } finally {
+      await db.query('reset enable_seqscan');
+    }
   });
 
   it('turns on Row Level Security for the table', async () => {

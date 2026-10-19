@@ -1,3 +1,4 @@
+import type { RunCall } from './runCall';
 import type { ServerHost } from './serverHost';
 import type { ChangeSignal } from './types';
 
@@ -169,4 +170,9 @@ export type Deps = {
   pushFetch?: typeof globalThis.fetch;
   /** The live socket tickets. Only the office object has them; live.ticket answers not_found without them. */
   live?: LivePort;
+  /**
+   * The run of a normal call, for a job step that runs one (fbk_022: the meetings step runs meetings.settle). The office object puts its
+   * own run here, which reads and writes the SQLite data. Left out on every other host: the step then uses the Postgres runCall.
+   */
+  runCall?: RunCall;
 };
