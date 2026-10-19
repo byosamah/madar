@@ -19,11 +19,13 @@ const as = (userId: string, change?: (state: State) => void) => (state: State) =
   change?.(state);
 };
 
+/** The items of the project menu: none when the page has no menu, or when the menu holds no item for this person. */
 async function menuItems(): Promise<string[]> {
-  const button = await screen.findByRole('button', { name: 'More actions' }, LOAD).catch(() => null);
+  await screen.findByRole('heading', { level: 1 }, LOAD);
+  const button = screen.queryByRole('button', { name: 'More actions' });
   if (!button) return [];
   await userEvent.click(button);
-  return screen.getAllByRole('menuitem').map((item) => item.textContent ?? '');
+  return screen.queryAllByRole('menuitem').map((item) => item.textContent ?? '');
 }
 
 async function openPicker() {
