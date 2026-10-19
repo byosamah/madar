@@ -90,7 +90,7 @@ const BubbleItem = memo(function BubbleItem({ bubble, fresh }: { bubble: Bubble;
           style={mine ? { background: 'var(--p-blue-bg)' } : undefined}
           className={`rounded-2xl px-3 py-2 text-ink ${mine ? 'rounded-ee-md' : 'rounded-es-md bg-fill'}`}
         >
-          <RichText body={bubble.body} className="text-subheadline" />
+          <RichText body={bubble.body} className="natural-side text-subheadline" />
           <FileChips files={bubble.files} />
           <p className="tabular pt-0.5 text-end text-caption text-ink-2">
             <time dateTime={bubble.createdAt}>{clockTime(bubble.createdAt, lang)}</time>

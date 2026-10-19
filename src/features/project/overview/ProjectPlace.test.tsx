@@ -32,12 +32,11 @@ const pinned = (state: State) => {
   state.projects.prj_001.geo = { lat: 26.29, lng: 50.21 };
 };
 
-// The owner asked for the map of the project on its Overview, under the project details (2026-10-19).
+// The owner asked for the map of the project at the top of About, in place of the cover picture (2026-10-19).
 describe('the place of the project on the Overview', () => {
   it('shows the pin of the project on a map, with full screen', async () => {
     await renderWithRuntime(<Host />, pinned);
-    const panel = await screen.findByRole('region', { name: 'On the map' }, LOAD);
-    const map = await within(panel).findByRole('region', { name: 'Map' }, LOAD);
+    const map = await screen.findByRole('region', { name: 'Map' }, LOAD);
     expect(within(map).getByText('pin Corniche Office Tower')).toBeInTheDocument();
     expect(map).toHaveAttribute('data-fullscreen', 'true');
   });
@@ -47,6 +46,6 @@ describe('the place of the project on the Overview', () => {
       state.projects.prj_001.geo = null;
     });
     await waitFor(() => expect(screen.queryByText('loading')).toBeNull(), LOAD);
-    expect(screen.queryByRole('region', { name: 'On the map' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Map' })).toBeNull();
   });
 });

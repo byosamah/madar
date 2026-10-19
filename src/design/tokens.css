@@ -335,6 +335,13 @@
     text-align: -webkit-match-parent;
     text-align: match-parent;
   }
+  /* The owner (2026-10-19): text that a person types, and the text of a chat or a comment, follows its own language: Arabic from
+     the right, English from the left. The rule above stays for names and labels. */
+  body textarea[dir="auto"],
+  body input[dir="auto"],
+  body .natural-side[dir="auto"] {
+    text-align: start;
+  }
   :root[lang="ar"] body {
     font-family: "Madar Dot", "Thmanyah Sans", "IBM Plex Sans Arabic", "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
   }

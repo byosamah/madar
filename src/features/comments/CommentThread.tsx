@@ -90,7 +90,7 @@ const CommentItem = memo(function CommentItem({ view, people, canPost }: { view:
             {moved && <DateMoveLines move={moved} className="mt-0.5 text-footnote font-semibold text-ink-2" />}
             {byMadar && moved?.byTaskTitle && moved.lateDays
               ? <p dir="auto" className="text-subheadline">{t('dateReason.auto', { task: moved.byTaskTitle, lateness: counted(t, 'taskSheet.durationValue', moved.lateDays) })}</p>
-              : <RichText body={comment.body} className="text-subheadline" />}
+              : <RichText body={comment.body} className="natural-side text-subheadline" />}
           </>
         )}
         <FileChips files={files} />

@@ -59,7 +59,6 @@
       "stage": "Stage: {{name}}"
     },
     "overview": {
-      "title": "On the map",
       "label": "Map of this project"
     }
   },

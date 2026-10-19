@@ -119,8 +119,9 @@ any screen work.
   remove the button: the data is free only with the credit (ODbL).
 - `fullscreen` on `MapCanvas` adds the MapLibre full screen button beside the zoom (the Dashboard map and the project map). A
   browser with no full screen (iPhone) fills its window instead.
-- The project Overview shows the pin under About (`features/project/overview/ProjectPlace.tsx`, "On the map", a `compact` map),
-  only in the real build and only when the project has a pin.
+- The About panel shows the pin at its top, in place of the cover picture (owner, 2026-10-19: "the map is better";
+  `features/project/overview/ProjectPlace.tsx`, a `compact` map), only in the real build and only when the project has a pin. The cover
+  still shows on the Open space cards.
 - The real build's pin picker has a place search (`src/lib/placeSearch.ts`). It asks OpenStreetMap (`nominatim.openstreetmap.org`) only on Enter, never while the person types.
 
 ## Data on screens
@@ -319,7 +320,8 @@ any screen work.
 - RTL: logical classes only (`start/end`, `ms/me`, `ps/pe`). `scripts/check-rtl.ts` fails on left or right styles.
 - Write a direction mark as an escape (`\u2068`), never as the raw character: GitHub flags hidden bidi characters.
 - Text with its own direction (`dir="auto"`, `dir="ltr"`, `<bdi>`) takes its side from the page (`tokens.css`), so an
-  English name sits on the right in Arabic. Put `dir="auto"` on the text, never on a flex or grid box or with
+  English name sits on the right in Arabic. Typed text (a `textarea` or `input` with `dir="auto"`) and the text of a chat or a comment
+  (`natural-side`) follow their own language instead: Arabic from the right, English from the left (owner, 2026-10-19). Put `dir="auto"` on the text, never on a flex or grid box or with
   `text-start`/`text-end`: `scripts/check-rtl.ts` fails on that. A name with a colon is one `<bdi>` ("Faisal:").
 - Every visible word comes from a word key (see `i18n/CLAUDE.md`).
 - Dates: a date that saves itself uses `DateDraftField`. A date in a form that saves with its own button uses `DateField`

@@ -198,3 +198,11 @@ describe('the font stacks', () => {
     ]);
   });
 });
+
+// The owner (2026-10-19): typed text and chat text follow their own language; names and labels keep the side of the page.
+describe('the side of text with its own direction', () => {
+  it('lets typed text and chat text follow their own language', () => {
+    expect(css).toMatch(/body textarea\[dir="auto"\],\s*body input\[dir="auto"\],\s*body \.natural-side\[dir="auto"\] \{\s*text-align: start;/);
+    expect(css).toMatch(/body \[dir="auto"\],\s*body \[dir="ltr"\],\s*body bdi \{\s*text-align: -webkit-match-parent;/);
+  });
+});

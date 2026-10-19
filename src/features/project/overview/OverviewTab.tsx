@@ -22,7 +22,6 @@ import { TaskSheet } from '../tasks/TaskSheet';
 import { Loop } from '../tracker/OpenLoops';
 import { amountText, PaymentsPanel } from '../payments/PaymentsPanel';
 import { AboutPanel } from './AboutPanel';
-import { ProjectPlace } from './ProjectPlace';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { CornerUpLeftIcon } from '../../../components/icons/animated/corner-up-left';
 
@@ -300,7 +299,6 @@ export function OverviewTab({ detail }: TabProps) {
         <ComingUp detail={detail} />
         <LatestUpdate detail={detail} />
         <AboutPanel detail={detail} />
-        <ProjectPlace detail={detail} />
       </aside>
       {taskId && <TaskSheet key={taskId} taskId={taskId} detail={detail} onClose={panel.close} />}
     </div>

@@ -25,10 +25,11 @@ describe('the Project screen header', () => {
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('moves the cover into the About panel of the Overview', async () => {
+  // The owner chose the map over the cover picture in About (2026-10-19). The prototype has no map, so About has no picture there.
+  it('shows no cover picture in the About panel of the Overview', async () => {
     await renderApp(PROJECT);
     const about = await screen.findByRole('region', { name: 'About' });
-    expect(within(about).getByRole('img', { name: 'Cover image of Corniche Office Tower' })).toBeInTheDocument();
+    expect(within(about).queryByRole('img', { name: 'Cover image of Corniche Office Tower' })).toBeNull();
     expect(within(about).getByText('Al Khobar, Corniche')).toBeInTheDocument();
   });
 
