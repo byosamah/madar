@@ -440,6 +440,18 @@ describe('the Inbox archive (owner, 2026-10-18; UX audit 2026-10-19)', () => {
   });
 });
 
+describe('the row menu of the Inbox list (chats-06)', () => {
+  it('shows only while the pointer or the keyboard is on the row, and is gone on a phone and under a finger', async () => {
+    await renderApp('/inbox');
+    const row = await rowLink(/Corniche Office Tower/);
+    const holder = within(row.closest('li') as HTMLElement).getByRole('button', { name: 'Options for Corniche Office Tower' }).parentElement as HTMLElement;
+    const classes = holder.className.split(' ');
+    expect(classes).toEqual(expect.arrayContaining(['sm:opacity-0', 'sm:group-hover:opacity-100', 'sm:group-focus-within:opacity-100', 'max-sm:hidden', 'pointer-coarse:hidden']));
+    // The row itself is a group of the hover and the focus, and it can slide for the swipe.
+    expect((row.closest('li') as HTMLElement).className).toContain('group');
+  });
+});
+
 describe('what waits for a reply in the Inbox (INT-26)', () => {
   it('shows "Waits for your reply" on a chat whose newest message came from someone else, and takes it away after the answer', async () => {
     await renderApp('/inbox');
@@ -492,7 +504,7 @@ describe('group chats', () => {
     await userEvent.type(await screen.findByRole('textbox', { name: 'Group name' }), 'Tower team');
     await userEvent.click(screen.getByRole('button', { name: 'Make group' }));
     await waitFor(() => expect(window.location.hash).toMatch(/#\/inbox\/cnv_\d+/));
-    expect(Object.values(store.state.conversations).find((c) => c.kind === 'group')).toMatchObject({ name: 'Tower team', makerId: 'usr_001' });
+    expect(Object.values(store.state.conversations).find((c) => c.kind === 'group' && c.name === 'Tower team')).toMatchObject({ name: 'Tower team', makerId: 'usr_001' });
     expect(await screen.findByRole('heading', { level: 2, name: 'Tower team' })).toBeInTheDocument();
   });
 
@@ -511,8 +523,7 @@ describe('group chats', () => {
     expect(within(sheet).getByText('2 people picked')).toBeInTheDocument();
     expect(make).toBeEnabled();
     await userEvent.click(make);
-    await waitFor(() => expect(Object.values(store.state.conversations).some((c) => c.kind === 'group')).toBe(true));
-    expect(Object.values(store.state.conversations).find((c) => c.kind === 'group')?.name).toMatch(/Faisal.*Reem/);
+    await waitFor(() => expect(Object.values(store.state.conversations).some((c) => c.kind === 'group' && /Faisal.*Reem/.test(c.name ?? ''))).toBe(true));
   });
 
   it('goes back to one person with the link Message one person', async () => {
@@ -594,11 +605,11 @@ describe('group chats', () => {
     const { store } = await renderApp('/inbox', withGroup);
     const sheet = await openPeople();
     await userEvent.click(within(sheet).getAllByRole('button', { name: /^Remove / })[0]);
-    await waitFor(() => expect(Object.values(store.state.conversations).find((c) => c.kind === 'group')?.memberIds).toHaveLength(2));
+    await waitFor(() => expect(Object.values(store.state.conversations).find((c) => c.kind === 'group' && c.name === 'Tower team')?.memberIds).toHaveLength(2));
     expect(await screen.findByText(/ removed\.$/)).toBeInTheDocument();
     // The open sheet blocks the page, and the unit tests load no Tailwind classes, so the toast button takes a plain click.
     fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
-    await waitFor(() => expect(Object.values(store.state.conversations).find((c) => c.kind === 'group')?.memberIds).toHaveLength(3));
+    await waitFor(() => expect(Object.values(store.state.conversations).find((c) => c.kind === 'group' && c.name === 'Tower team')?.memberIds).toHaveLength(3));
   });
 
   it('adds people with a line that says they read the earlier messages, and writes a quiet line in the chat', async () => {
@@ -612,7 +623,7 @@ describe('group chats', () => {
     const name = candidate.querySelector('bdi')!.textContent!;
     await userEvent.click(candidate);
     await userEvent.click(within(add).getByRole('button', { name: 'Add' }));
-    await waitFor(() => expect(Object.values(store.state.conversations).find((c) => c.kind === 'group')?.memberIds).toHaveLength(4));
+    await waitFor(() => expect(Object.values(store.state.conversations).find((c) => c.kind === 'group' && c.name === 'Tower team')?.memberIds).toHaveLength(4));
     const line = await within(await screen.findByRole('log', { name: 'Messages' })).findByText(/ added /);
     expect(line.textContent?.replace(/[\u2068\u2069]/g, '')).toBe(`Hala Nasser added ${name}`);
   });
@@ -632,7 +643,7 @@ describe('group chats', () => {
   it('lets the last person stay in a closed chat that takes no new messages', async () => {
     await renderApp('/inbox', (state) => {
       withGroup(state);
-      const group = Object.values(state.conversations).find((c) => c.kind === 'group')!;
+      const group = Object.values(state.conversations).find((c) => c.kind === 'group' && c.name === 'Tower team')!;
       state.conversations[group.id] = { ...group, memberIds: ['usr_001'] };
     });
     await openGroup();
