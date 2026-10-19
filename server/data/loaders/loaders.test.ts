@@ -327,6 +327,27 @@ describe('the 18 places of AM 6', () => {
     expect(thread.outcome.output).toEqual({ archived: true });
   });
 
+  it('chats.markRead and chats.archive: the loader loads the unread mention notices of the chat, so the write marks them read (item 20)', async () => {
+    const room = Object.values(seed.conversations).find((c) => c.kind === 'project')!;
+    const task = Object.values(seed.tasks)[0];
+    const notice = (id: string, targetType: 'chat' | 'task', targetId: string, trigger: Notification['trigger'] = 'mention'): Notification => ({
+      id, userId: 'usr_001', trigger, actorId: 'usr_002', targetType, targetId, read: false, createdAt: '2026-10-04T08:00:00.000+03:00', dedupeKey: null,
+    });
+    const state = office((s) => {
+      s.notifications.ntf_901 = notice('ntf_901', 'chat', room.id);
+      s.notifications.ntf_902 = notice('ntf_902', 'task', task.id);
+      s.notifications.ntf_903 = notice('ntf_903', 'chat', room.id, 'added_to_group');
+    });
+    const chat = await same(state, 'chats.markRead', { conversationId: room.id }, 'usr_001');
+    expect(docs(chat, 'notifications').map((d) => [d.id, d.read])).toEqual([['ntf_901', true]]);
+    const thread = await same(state, 'chats.markRead', { conversationId: task.id }, 'usr_001');
+    expect(docs(thread, 'notifications').map((d) => [d.id, d.read])).toEqual([['ntf_902', true]]);
+    const archived = await same(state, 'chats.archive', { conversationId: room.id, archived: true }, 'usr_001');
+    expect(docs(archived, 'notifications').map((d) => d.id)).toEqual(['ntf_901']);
+    const back = await same(state, 'chats.archive', { conversationId: room.id, archived: false }, 'usr_001');
+    expect(docs(back, 'notifications')).toEqual([]);
+  });
+
   it('chats.waiting: the loader gives the handler the same answer, for a project mention and a named task thread (fbk_011, owner 2026-10-18)', async () => {
     const state = office();
     const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;

@@ -33,8 +33,13 @@ export const NOTICE_EFFECT = 'mail.notice';
 export const CHAT_NOTICE_EFFECT = 'mail.chatNotice';
 export const QUOTA_WARNING_EFFECT = 'mail.quotaWarning';
 
-/** The calls that change old notices and never make one: no notice producer runs for them. */
-export const NOTICE_FREE_CALLS: ReadonlySet<string> = new Set(['notifications.markRead', 'notifications.markAllRead', 'notifications.markUnread']);
+/**
+ * The calls that change old notices and never make one: no notice producer runs for them. A read of a chat or a task thread and an
+ * archive mark its mention notices read (chat design item 20), and the Notify me choice (chats.setNotify) touches no notice.
+ */
+export const NOTICE_FREE_CALLS: ReadonlySet<string> = new Set([
+  'notifications.markRead', 'notifications.markAllRead', 'notifications.markUnread', 'chats.markRead', 'chats.archive',
+]);
 
 /** $1 the people whose notices the save changed. The unread notices that the open transaction inserted, with their person. */
 export const NEW_NOTICES_SQL = `select n.id, n.user_id, n.doc->>'trigger' as trigger, n.target_type, n.doc->>'messageId' as message_id, u.kind, u.active, u.doc->'preferences' as preferences

@@ -204,6 +204,21 @@ function markReadNow(ctx: Ctx, conversation: Conversation): void {
   writeReadMark(ctx, conversation.id, messagesOf(ctx.state, conversation.id).at(-1)?.createdAt);
 }
 
+/**
+ * A read of a chat or a task thread also reads its mention notices (chat design item 20): the unread notices of the person with the
+ * trigger "mention" (a reply notice has it too) that point to this chat or task. The bell then shows nothing the person has seen,
+ * and the mention mail and push of the 10-second wait find the notice read. Notices of other chats, and every other trigger (for
+ * example added_to_group), stay as they are. chats.send does not call this: its loader loads no notices, and the open chat marked them.
+ */
+function readMentionNotices(ctx: Ctx, chatId: string): void {
+  const targetType = chatId.startsWith('tsk_') ? 'task' : 'chat';
+  for (const notice of Object.values(ctx.state.notifications)) {
+    if (notice.userId === ctx.authority.id && !notice.read && notice.trigger === 'mention' && notice.targetType === targetType && notice.targetId === chatId) {
+      notice.read = true;
+    }
+  }
+}
+
 export const chatsList = defineCall({
   input: z.object({}),
   output: z.array(ChatRow),
@@ -344,6 +359,7 @@ export const chatsMarkRead = defineCall({
   run(input, ctx) {
     if (input.conversationId.startsWith('tsk_')) markTaskReadNow(ctx, input.conversationId);
     else markReadNow(ctx, requireConversation(ctx, input.conversationId));
+    readMentionNotices(ctx, input.conversationId);
     return { unread: totalUnread(ctx.state, ctx.authority) };
   },
 });
@@ -364,7 +380,10 @@ export const chatsArchive = defineCall({
     const id = input.conversationId;
     if (id.startsWith('tsk_')) requireTaskThread(ctx, id);
     else requireConversation(ctx, id);
-    if (input.archived) writeReadMark(ctx, id, undefined);
+    if (input.archived) {
+      writeReadMark(ctx, id, undefined);
+      readMentionNotices(ctx, id);
+    }
     const key = chatReadKey(id, ctx.authority.id);
     const read = ctx.state.chatReads[key];
     // Every other field of the mark stays, the "Notify me" choice too (chat design item 21).

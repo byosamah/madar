@@ -47,4 +47,30 @@ describe('chats.archive, the signal of the call', () => {
     }
     expect(Object.keys(mem.tables.state.events)).toHaveLength(eventsBefore);
   });
+
+  it('sends only a person signal when the archive also marks a mention notice read', async () => {
+    const office = structuredClone(seed);
+    // An unread mention notice of usr_001 for the project chat cnv_001: the archive marks it read (chat design item 20).
+    office.notifications.ntf_901 = {
+      id: 'ntf_901', userId: 'usr_001', trigger: 'mention', actorId: 'usr_002', targetType: 'chat', targetId: 'cnv_001', messageId: 'msg_001', read: false,
+      createdAt: '2026-10-04T08:00:00.000+03:00', dedupeKey: null,
+    };
+    const mem = memoryData(office);
+    const deps = fakeDeps({ db: mem.db });
+    deps.clock.set(NOW);
+    const run = createRunCall({ data: () => mem.data() });
+    const result = await run(deps, {
+      principal: { userId: 'usr_001' },
+      name: 'chats.archive',
+      input: { conversationId: 'cnv_001', archived: true },
+      batch: { storyRefs: new Map(), overviewCalls: 0 },
+    });
+    if (!result.ok) throw new Error('call failed');
+    expect(mem.tables.state.notifications.ntf_901.read).toBe(true);
+    const signals = result.signals ?? [];
+    expect(signals).toHaveLength(1);
+    expect(signals[0].office).toBe(false);
+    expect(signals[0].kinds).toEqual(['chatReads', 'notifications']);
+    expect(signals[0].channel).toBe('person:usr_001');
+  });
 });

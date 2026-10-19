@@ -124,13 +124,26 @@ export async function chatsArchive(L: Load, input: Input): Promise<void> {
   if (!L.authority || id === '') return;
   if (id.startsWith('tsk_')) await L.byKey('tasks', [id]);
   await L.byKey('chatReads', [chatReadKey(id, L.authority.id)]);
+  // An archive reads the mention notices of the chat too (chat design item 20).
+  if (input.archived === true) await mentionNoticesOf(L, id);
+}
+
+/**
+ * The unread notices of the person that point to one chat or task thread (the index notifications_inbox: user, read, created_at).
+ * A read of the chat marks the mention and reply ones read (chat design item 20), so the write needs them in the State.
+ */
+async function mentionNoticesOf(L: Load, chatId: string): Promise<void> {
+  if (!L.authority) return;
+  await L.select({ c: 'notifications', where: [{ col: 'user_id', eq: L.authority.id }, { col: 'read', eq: false }, { col: 'target_id', eq: chatId }] });
 }
 
 /** chats.markRead: as chats.list (it returns the full unread count), and the newest comment of a task thread it marks. */
 export async function chatsMarkRead(L: Load, input: Input): Promise<void> {
   await everyChat(L, { inWrite: true });
   const id = typeof input.conversationId === 'string' ? input.conversationId : '';
-  if (!id.startsWith('tsk_') || !L.authority) return;
+  if (!L.authority || id === '') return;
+  await mentionNoticesOf(L, id);
+  if (!id.startsWith('tsk_')) return;
   await L.byKey('tasks', [id]);
   await L.byKey('chatReads', [chatReadKey(id, L.authority.id)]);
   await L.select({
