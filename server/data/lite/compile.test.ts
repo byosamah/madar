@@ -49,6 +49,8 @@ const CASES: [string, Select][] = [
   ['search text', { c: 'tasks', where: [{ col: 'search_text', contains: 'roof' }] }],
   ['an or of two conditions', { c: 'tasks', where: [{ or: [{ col: 'status', in: ['done'] }, { has: 'helperIds', value: 'usr_002' }] }] }],
   ['a time at or after, with offsets and milliseconds', { c: 'events', where: [{ col: 'created_at', atOrAfter: '2026-10-16T09:00:00.000+03:00' }] }],
+  ['a stamp and id after a pair', { c: 'events', where: [{ after: { at: '2026-10-16T09:00:00.000+03:00', id: 'evt_001' } }] }],
+  ['a text that holds a LIKE wildcard', { c: 'tasks', where: [{ col: 'search_text', contains: '%' }] }],
   ['a stamp and id before a pair', { c: 'events', where: [{ before: { at: '2026-10-16T09:00:00.000+03:00', id: 'evt_003' } }] }],
   ['an int column in a list of texts', { c: 'events', where: [{ col: 'seq', in: ['2', '3'] }] }],
   ['events that no undo names', { c: 'events', where: [{ notUndone: true }] }],

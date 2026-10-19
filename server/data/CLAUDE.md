@@ -60,6 +60,9 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - `atOrAfter` (`events.list` since) adds a text lower bound on `created_at collate "C"`: the UTC text of the time minus 36
   hours. The timestamptz test still decides, so the bound never removes a row. A count with a bounds condition on its `per`
   column joins the bound rows to the table on that column.
+- `after` is the mirror of `before`, and `order.asc` reads oldest first (no ties); `chats.messages` with `around` uses both.
+  `contains` sends an escaped LIKE on Postgres (`likeOf`, `sqlSource.ts`), so a trigram index serves it; memory and SQLite keep
+  the substring test.
 - `referencing` (the Undo check of a create) sends one equality on the text column when the reference path is one plain field
   with a text column in `query.ts` (`columnOfField`). A list or nested path keeps `jsonb_path_exists`.
 - Leak rule for picks: `chats.unreadCount` has its own loader (`chatsUnread`), with `THREAD_TASK_FIELDS` and

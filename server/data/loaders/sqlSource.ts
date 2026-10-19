@@ -2,7 +2,7 @@ import { jsonPathOf } from '../../../src/api/references';
 import type { Query } from '../../core/ports';
 import { COUNTERS_SELECT_SQL } from '../rows';
 import { tableOf, type TableCollection } from '../tables';
-import { columnOf, columnOfField, fieldName, matchesNothing, type Bound, type Cond, type CountSelect, type Row, type Select } from './query';
+import { assertOrder, columnOf, columnOfField, fieldName, isAscending, matchesNothing, type Bound, type Cond, type CountSelect, type Row, type Select } from './query';
 import type { Source } from './source';
 
 /**
@@ -62,6 +62,10 @@ function whereSql(s: Select | CountSelect, values: unknown[], joined?: Cond): { 
       const at = param(one.before.at, 'text');
       return `(t.created_at ${C} < ${at} or (t.created_at = ${at} and t.id ${C} < ${param(one.before.id, 'text')}))`;
     }
+    if ('after' in one) {
+      const at = param(one.after.at, 'text');
+      return `(t.created_at ${C} > ${at} or (t.created_at = ${at} and t.id ${C} > ${param(one.after.id, 'text')}))`;
+    }
     if ('bounds' in one) {
       if (one === joined) return `(${BOUND_TERMS})`;
       return `exists (select 1 from jsonb_to_recordset(${param(boundRows(one.bounds.by), 'jsonb')}) as b(k text, gt text, ge text, aat text, aid text) `
@@ -79,7 +83,7 @@ function whereSql(s: Select | CountSelect, values: unknown[], joined?: Cond): { 
     if ('in' in one) return `${column} = any(${param(one.in, type === 'int' ? 'int[]' : 'text[]')})`;
     if ('notIn' in one) return `(${column} is null or not (${column} = any(${param(one.notIn, 'text[]')})))`;
     if ('eq' in one) return one.eq === null ? `${column} is null` : `${column} = ${param(one.eq, type === 'bool' ? 'boolean' : type === 'int' ? 'int' : 'text')}`;
-    if ('contains' in one) return `strpos(${column}, ${param(one.contains, 'text')}) > 0`;
+    if ('contains' in one) return `${column} like ${param(likeOf(one.contains), 'text')}`;
     // An upper bound gets the mirror of the lower one (36 hours later), so the index bounds the period at both ends (reports.office).
     if ('atBefore' in one) {
       const time = `(${column})::timestamptz < ${param(one.atBefore, 'timestamptz')}`;
@@ -93,6 +97,14 @@ function whereSql(s: Select | CountSelect, values: unknown[], joined?: Cond): { 
 
   const conds = s.where.map(cond);
   return { col, conds, where: conds.length > 0 ? ` where ${conds.join(' and ')}` : '' };
+}
+
+/**
+ * The LIKE pattern of a contains condition: the text with \\, % and _ escaped by \\, between two %. Postgres uses the backslash as the
+ * escape character of LIKE, so a typed % or _ is a letter and never a wildcard. A trigram index serves this pattern (strpos cannot).
+ */
+export function likeOf(text: string): string {
+  return `%${text.replace(/[\\%_]/g, (letter) => `\\${letter}`)}%`;
 }
 
 /** jsonb_build_object takes at most 100 arguments, so a pick of more fields reads them with jsonb_each. */
@@ -127,6 +139,7 @@ export function selectSql(s: Select): { text: string; values: unknown[] } {
     values.push(value);
     return `$${values.length}::${type}`;
   };
+  assertOrder(s);
   const table = tableOf(s.c).table;
   // The newest rows of each key of an in-list (performance audit DB-2): one read on the index of each key, never a window over
   // every row of the keys. rank() <= N keeps the same rows as FETCH FIRST N ROWS WITH TIES in the same order, and row_number()
@@ -139,8 +152,9 @@ export function selectSql(s: Select): { text: string; values: unknown[] } {
 
   const order = s.order;
   const columnType = order ? columnOf(s.c, order.col).type : 'text';
+  const way = order && isAscending(order) ? 'asc' : 'desc';
   const ordering = order
-    ? [`${col(order.col)}${columnType === 'text' ? ` ${C}` : ''} desc`, ...(order.id ? [`t.id ${C} desc`] : []), ...(s.ties ? [] : ['t.ord desc'])].join(', ')
+    ? [`${col(order.col)}${columnType === 'text' ? ` ${C}` : ''} ${way}`, ...(order.id ? [`t.id ${C} ${way}`] : []), ...(s.ties ? [] : [`t.ord ${way}`])].join(', ')
     : 't.ord';
   const limit = param(s.limit, 'int');
   if (perList) {

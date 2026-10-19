@@ -1,6 +1,6 @@
 import { emptyState } from '../../../src/api/store';
 import type { Query } from '../../core/ports';
-import { columnOf, columnOfField, matchesNothing, type Cond, type CountSelect, type Row, type Select } from '../loaders/query';
+import { assertOrder, columnOf, columnOfField, isAscending, matchesNothing, type Cond, type CountSelect, type Row, type Select } from '../loaders/query';
 import type { Source } from '../loaders/source';
 import { tableOf } from '../tables';
 import { keyColumnsOf } from './columns';
@@ -41,9 +41,10 @@ select id, last, mine from threads`;
 
 function orderOf(s: Select): string {
   if (!s.order) return 't.rowid';
-  const terms = [`t.${s.order.col} desc`];
-  if (s.order.id) terms.push('t.id desc');
-  else if (!s.ties) terms.push('t.rowid desc');
+  const way = isAscending(s.order) ? 'asc' : 'desc';
+  const terms = [`t.${s.order.col} ${way}`];
+  if (s.order.id) terms.push(`t.id ${way}`);
+  else if (!s.ties) terms.push(`t.rowid ${way}`);
   return terms.join(', ');
 }
 
@@ -54,12 +55,14 @@ function cut(rows: DocRow[], s: Select): DocRow[] {
   const valueOf = (row: DocRow) => (order ? columnOf(s.c, order.col).value(row.doc, EMPTY, spec) : null);
   const compare = (a: DocRow, b: DocRow): number => {
     if (!order) return a.ord - b.ord;
-    const x = valueOf(a);
-    const y = valueOf(b);
-    const byCol = typeof x === 'number' && typeof y === 'number' ? y - x : textOrder(String(y ?? ''), String(x ?? ''));
+    // Newest first puts b before a in the comparison; oldest first puts a before b.
+    const [p, q] = isAscending(order) ? [a, b] : [b, a];
+    const x = valueOf(p);
+    const y = valueOf(q);
+    const byCol = typeof x === 'number' && typeof y === 'number' ? x - y : textOrder(String(x ?? ''), String(y ?? ''));
     if (byCol !== 0) return byCol;
-    if (order.id) return textOrder(spec.key(b.doc), spec.key(a.doc));
-    return s.ties ? 0 : b.ord - a.ord;
+    if (order.id) return textOrder(spec.key(p.doc), spec.key(q.doc));
+    return s.ties ? 0 : p.ord - q.ord;
   };
   const sorted = [...rows].sort(compare);
   const kept: DocRow[] = [];
@@ -120,6 +123,7 @@ export function liteSource(q: Query): Source {
 
   return {
     async select(s) {
+      assertOrder(s);
       if (matchesNothing(s)) return [];
       if (s.limit === undefined) return finish(await every(s), s);
       const timed = s.where.some((one) => 'atOrAfter' in one);

@@ -58,6 +58,22 @@ describe('the Source on SQLite (server/data/lite/source.ts)', () => {
     expect(log.some((text) => text.endsWith('order by t.seq desc, t.rowid desc limit ?'))).toBe(true);
   });
 
+  it('cuts an ascending read in SQL with order by asc and limit, as the memory source does', async () => {
+    const { read, memory, log } = await both();
+    const s: Select = { c: 'events', where: [{ col: 'id', in: ['evt_002', 'evt_003', 'evt_004'] }], order: { col: 'created_at', asc: true, id: true }, limit: 2 };
+    const rows = await read((src) => src.select(s));
+    expect(rows.map((row) => row.doc.id)).toEqual((await memory.select(s)).map((row) => row.doc.id));
+    expect(rows.map((row) => row.doc.id)).toEqual(['evt_002', 'evt_003']);
+    expect(log.some((text) => text.includes('order by t.created_at asc, t.id asc limit ?'))).toBe(true);
+  });
+
+  it('refuses an ascending read with ties in the memory and the SQLite form', async () => {
+    const { read, memory } = await both();
+    const s: Select = { c: 'events', where: [], order: { col: 'created_at', asc: true }, limit: 2, ties: true };
+    await expect(memory.select(s)).rejects.toThrow('An ascending read takes no ties.');
+    await expect(read((src) => src.select(s))).rejects.toThrow('An ascending read takes no ties.');
+  });
+
   it('keeps every row that ties at the cut', async () => {
     const { read, memory } = await both();
     const s: Select = { c: 'updates', where: [{ col: 'project_id', in: ['prj_001', 'prj_002'] }], order: { col: 'created_at', desc: true }, per: 'project_id', limit: 1, ties: true };
