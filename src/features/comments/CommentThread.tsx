@@ -76,6 +76,7 @@ const CommentItem = memo(function CommentItem({ view, people, canPost }: { view:
             <p className="flex flex-wrap items-center gap-x-2">
               <span dir="auto">{reasonLineText(t, { kind: line, body: comment.body, dates: comment.dates }, { name: nameOf(author), gender: author.gender })}</span>
               <span className="text-label-2">
+                <span aria-hidden>· </span>
                 <Age stamp={comment.createdAt} />
                 {comment.editedAt && ` · ${t('comments.edited')}`}
               </span>

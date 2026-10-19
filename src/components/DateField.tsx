@@ -39,7 +39,8 @@ export function DateFace({ shown, roomForClear, invalid, empty }: { shown: strin
       aria-hidden
       className={`pointer-events-none flex min-h-11 items-center rounded-xl border ps-3.5 text-subheadline peer-hover:bg-fill peer-focus-visible:outline-2 peer-focus-visible:outline-link ${roomForClear ? 'pe-10' : 'pe-3.5'} ${invalid ? 'border-late' : 'border-transparent'}`}
     >
-      {shown ? <span className="tabular truncate text-ink">{shown}</span> : <span className="truncate text-ink-2">{empty ?? t('dateField.set')}</span>}
+      {shown ? <span className="tabular truncate text-ink">{shown}</span>
+        : empty !== undefined ? <span className="truncate font-semibold text-link">{empty}</span> : <span className="truncate text-ink-2">{t('dateField.set')}</span>}
     </span>
   );
 }
