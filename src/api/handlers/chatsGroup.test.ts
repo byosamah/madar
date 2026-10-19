@@ -122,12 +122,13 @@ describe('chats.updateGroup and chats.leaveGroup', () => {
     expect(t.store.state.conversations[id]).toMatchObject({ makerId: 'usr_002', memberIds: ['usr_002', 'usr_001'] });
   });
 
-  it('keeps at least two people in a group', async () => {
+  it('keeps at least two people in a group when a person is removed, and lets a person leave at any time (chats-11)', async () => {
     const { t, id } = await groupOfSara();
     t.as('usr_003');
     await t.api.call('chats.updateGroup', { conversationId: id, remove: ['usr_001'] });
-    expect(await failureOf(t.api.call('chats.leaveGroup', { conversationId: id }))).toMatchObject({ code: 'invalid_input' });
-    expect(t.store.state.conversations[id].memberIds).toHaveLength(2);
+    expect(await failureOf(t.api.call('chats.updateGroup', { conversationId: id, remove: ['usr_002'] }))).toMatchObject({ code: 'invalid_input' });
+    await t.api.call('chats.leaveGroup', { conversationId: id });
+    expect(t.store.state.conversations[id].memberIds).toEqual(['usr_002']);
   });
 
   it('refuses a rename with a blank name, and a change of a chat that is not a group', async () => {

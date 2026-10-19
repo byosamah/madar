@@ -82,15 +82,15 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'chats.list': {
     title: 'List chats',
-    description: 'Lists the chats that your person may open, newest first: the project chats, the direct chats, the group chats and the task threads. Each row has its unread count and its newest message (preview, with its author). Each row has archived: true when your person archived the chat; a new message clears it. Use the id (conversationId) with chats.messages and chats.send.',
+    description: 'Lists the chats that your person may open, newest first: the project chats, the direct chats, the group chats and the task threads. Each row has its unread count and its newest message (preview, with its author). Each row has archived: true when your person archived the chat; a new message clears it. Use the id (conversationId) with chats.messages and chats.send. A row of kind task has a task id: read it with comments.list (targetType task) and answer with comments.create.',
   },
   'chats.messages': {
     title: 'Read a chat',
-    description: 'Reads one page of a chat that your person may open. Use the conversationId from chats.list. It gives the newest messages, oldest first, up to limit (default 200, at most 500). Give before (a message id) to read the page before it. Each message has its author, the person it was sent for (actingFor) and its files. Reading marks nothing read. A chat that your person may not open fails.',
+    description: 'Reads one page of a chat that your person may open. Use the conversationId from chats.list. It gives the newest messages, oldest first, up to limit (default 200, at most 500). Give before (a message id) to read the page before it. Each message has its author, the person it was sent for (actingFor) and its files. Reading marks nothing read. A group also gives lines: its quiet lines (added, removed, left, renamed), oldest first. A line is not a message. A chat that your person may not open fails.',
   },
   'chats.waiting': {
     title: 'List what waits for a reply',
-    description: 'Lists the chats and task threads that wait for the reply of your person, oldest first. A direct or group chat waits when its newest message came from someone else. A project chat waits when a newer message names your person. A task thread waits when its newest comment came from someone else, and your person leads the task or is named in a newer comment. Each row has the id, the sender (from), the first 280 characters in plain text (body) and the days it waited. Archived chats are left out. Read only.',
+    description: 'Lists the chats and task threads that wait for the reply of your person, oldest first. A direct or group chat waits when its newest message came from someone else. A project chat waits when a newer message names your person. A task thread waits when its newest comment came from someone else, and your person leads the task or is named in a newer comment. Each row has the id, the sender (from), the first 280 characters in plain text (body) and the days it waited. A row of kind task has a task id: answer it with comments.create (targetType task). Archived chats are left out. Read only.',
   },
   'chats.openDirect': {
     title: 'Open a direct chat',

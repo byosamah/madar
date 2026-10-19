@@ -110,9 +110,9 @@ describe('the notices of requests and bugs', () => {
     expect(Preferences.safeParse({ ...defaultPreferences(), notifications: { mention: true, week_under_target: true } }).success).toBe(false);
   });
 
-  it('sends email for every trigger but the two that stay in the app', () => {
-    expect([...IN_APP_ONLY_TRIGGERS]).toEqual(['feedback_sent', 'feedback_done']);
-    expect(EMAIL_TRIGGERS).toEqual(TRIGGERS.filter((trigger) => trigger !== 'feedback_sent' && trigger !== 'feedback_done'));
+  it('sends email for every trigger but the three that stay in the app', () => {
+    expect([...IN_APP_ONLY_TRIGGERS]).toEqual(['feedback_sent', 'feedback_done', 'added_to_group']);
+    expect(EMAIL_TRIGGERS).toEqual(TRIGGERS.filter((trigger) => trigger !== 'feedback_sent' && trigger !== 'feedback_done' && trigger !== 'added_to_group'));
     expect(EMAIL_TRIGGERS).toEqual(OLD);
     expect(isEmailTrigger('feedback_done')).toBe(false);
     expect(isEmailTrigger('feedback_sent')).toBe(false);

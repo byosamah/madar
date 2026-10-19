@@ -34,6 +34,11 @@ export const NotificationView = z.object({
   gone: z.boolean(),
   /** The due day a reminder names, so the screen writes the day, never "tomorrow" (audit 2026-10-03, API-11). Null for other notices. */
   dueDate: Day.nullable(),
+  /**
+   * The kind of the chat of a chat notice, so a group notice does not read as a direct message (UX audit 2026-10-19, INT-03).
+   * Null for any other notice. For a group, "target" is its name while the viewer is a member, else empty.
+   */
+  chatKind: z.enum(['project', 'direct', 'group']).nullable().default(null),
 });
 export type NotificationView = z.infer<typeof NotificationView>;
 
@@ -86,6 +91,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   let canApprove = false;
   const gone = isGone(state, n, viewer);
   let dueDate: string | null = null;
+  let chatKind: NotificationView['chatKind'] = null;
   if (n.targetType === 'task' && hiddenTask(state, n, viewer)) {
     // Nothing of an office task that the viewer no longer sees: no title, no day, no link (owner, 2026-10-06).
   } else if (n.targetType === 'task') {
@@ -112,8 +118,9 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     const conversation = state.conversations[n.targetId];
     const project = conversation?.projectId ? state.projects[conversation.projectId] : undefined;
     // A direct chat has no name of its own, and its other member is the sender, so the target stays empty and the
-    // screen says "a direct message" (audit 2026-10-03, SHL-14).
-    target = project?.name ?? '';
+    // screen says "a direct message" (audit 2026-10-03, SHL-14). A group notice names the group while the viewer is in it.
+    chatKind = conversation?.kind ?? null;
+    target = project?.name ?? (conversation?.kind === 'group' && !gone ? (conversation.name ?? '') : '');
     projectCode = project?.code ?? null;
     tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
     if (!gone) link = `/inbox/${n.targetId}`;
@@ -132,7 +139,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
       const { feedback: _words, correlationId: _story, ...rest } = n;
       return {
         notification: { ...rest, actorId: null, targetId: 'hidden' }, actor: null, target: '', projectCode: null, project: null, link: '',
-        needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove: false, gone, dueDate: null,
+        needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove: false, gone, dueDate: null, chatKind: null,
       };
     }
     // The notice keeps the start of the message, so it needs no report row. A done notice opens nothing: it only tells the sender.
@@ -141,7 +148,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   }
   return {
     notification: n, actor: n.actorId ? cardOf(state, n.actorId) : null, target, projectCode, project: tile, link,
-    needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove, gone, dueDate,
+    needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove, gone, dueDate, chatKind,
   };
 }
 

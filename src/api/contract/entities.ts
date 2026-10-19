@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { INITIALS_PATTERN, RECORD_CODE_PATTERN } from '../../lib/projectCode';
-import { DEFAULT_STALE_DAYS, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, PICTURE_DATA, REACTIONS } from './limits';
+import { DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, PICTURE_DATA, REACTIONS } from './limits';
 import { PUSH_ENDPOINT_MAX, PUSH_LABEL_MAX, isPushEndpoint } from './push';
 
 // The plain limits live in limits.ts, with no zod, for the screens of the first load (performance audit BND-6).
-export { DEFAULT_STALE_DAYS, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, PICTURE_DATA, REACTIONS };
+export { DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, PICTURE_DATA, REACTIONS };
 
 const id = (prefix: string) =>
   z.string().regex(new RegExp(`^${prefix}_\\d{3,}$`), `Expected an id like ${prefix}_001.`);
@@ -53,12 +53,13 @@ export type Glass = z.infer<typeof Glass>;
 export const TRIGGERS = [
   'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested',
   'task_approved', 'task_sent_back', 'stage_changed', 'added_to_project', 'resume_due',
-  'feedback_sent', 'feedback_done',
+  'feedback_sent', 'feedback_done', 'added_to_group',
 ] as const;
 export const Trigger = z.enum(TRIGGERS);
 export type Trigger = z.infer<typeof Trigger>;
 /** The notices that stay in the app: no email and no email switch (owner, 2026-10-07). */
-export const IN_APP_ONLY_TRIGGERS = ['feedback_sent', 'feedback_done'] as const satisfies readonly Trigger[];
+// "added_to_group": a person is added to a group chat (UX audit 2026-10-19, INT-15). It stays in the app too.
+export const IN_APP_ONLY_TRIGGERS = ['feedback_sent', 'feedback_done', 'added_to_group'] as const satisfies readonly Trigger[];
 export type EmailTrigger = Exclude<Trigger, (typeof IN_APP_ONLY_TRIGGERS)[number]>;
 export function isEmailTrigger(trigger: Trigger): trigger is EmailTrigger {
   return !(IN_APP_ONLY_TRIGGERS as readonly Trigger[]).includes(trigger);
@@ -578,6 +579,21 @@ export const Comment = z.object({
 export type Comment = z.infer<typeof Comment>;
 
 /**
+ * One quiet line of a group (UX audit 2026-10-19, chats-10): a person was added, was removed or left, or the group got a new
+ * name. It is no message, so it is never unread, makes no push and does not change the preview. "personIds" are the people it
+ * names (added, removed). "name" is the new name of a rename.
+ */
+export const GroupLogEntry = z.object({
+  id: z.string().min(1).max(40),
+  at: Stamp,
+  type: z.enum(['added', 'removed', 'left', 'renamed']),
+  actorId: UserId,
+  personIds: z.array(UserId).max(GROUP_MAX),
+  name: z.string().max(GROUP_NAME_MAX).optional(),
+});
+export type GroupLogEntry = z.infer<typeof GroupLogEntry>;
+
+/**
  * A chat room. A project chat has no member list: its people are the project team and the Admin. A direct chat has exactly two.
  * A group (owner, 2026-10-18) has 3 to 50 people, a name and a maker. Its people keep the order in which they joined.
  */
@@ -589,6 +605,8 @@ export const Conversation = z.object({
   // A group only. The maker made the group. When the maker leaves, the first person in memberIds becomes the maker.
   name: z.string().trim().min(1).max(GROUP_NAME_MAX).optional(),
   makerId: UserId.optional(),
+  // A group only: its quiet lines, oldest first, the newest GROUP_LOG_MAX.
+  log: z.array(GroupLogEntry).max(GROUP_LOG_MAX).optional(),
   createdAt: Stamp,
 })
   .refine((c) => c.kind !== 'direct' || c.memberIds.length === 2, { message: 'A direct chat holds exactly two people.' })

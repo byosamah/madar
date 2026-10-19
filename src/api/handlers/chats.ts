@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ConversationId, FileId, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, TaskId, UserId, type Comment, type Conversation, type Message, type Project, type Task, type User } from '../contract/entities';
-import { ChatRow, ChatThread, MessageView, WaitingRow } from '../contract/views';
+import { ConversationId, FileId, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, TaskId, UserId, type Comment, type Conversation, type GroupLogEntry, type Message, type Project, type Task, type User } from '../contract/entities';
+import { ChatRow, ChatThread, MessageView, WaitingRow, type GroupLine } from '../contract/views';
 import { addDirectConversation, addGroupConversation, canSeeConversation, isArchived, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
 import { notifyIn } from '../notify';
@@ -10,6 +10,8 @@ import { chatReadKey, nextId, unreadCountKey, type State } from '../store';
 import { attachmentsOf, cardOf, mayViewFile } from '../views';
 import { assertFilesForDirect, assertFilesInProject } from './attach';
 import { mentionedUserIds, plainText } from '../../lib/text';
+import { listFormat } from '../../lib/dates';
+import { personName } from '../../lib/personName';
 import { markOf } from '../../lib/projectMark';
 
 const PREVIEW_MAX = 140;
@@ -49,10 +51,25 @@ function isMine(state: State, message: Message, viewerId: string): boolean {
   return message.actingForId === viewerId || principalOf(state, message.authorId) === viewerId;
 }
 
-/** True for a direct chat whose other person is no longer active: nobody reads new messages there (audit 2026-10-03, SHL-15). */
+/**
+ * The person who acts as the maker of a group: the maker while the maker is active, else the first active person of the group
+ * (UX audit 2026-10-19, INT-05). The record keeps the first maker, so a turn-on gives the role back. Null when nobody is active.
+ */
+export function actingMaker(state: State, group: Conversation): string | null {
+  const active = (id: string) => state.users[id]?.active === true;
+  if (group.makerId && group.memberIds.includes(group.makerId) && active(group.makerId)) return group.makerId;
+  return group.memberIds.find(active) ?? null;
+}
+
+/**
+ * True for a chat that takes no new messages: a direct chat whose other person is no longer active (audit 2026-10-03, SHL-15), or
+ * a group with no other active person (UX audit 2026-10-19, chats-11). The history stays readable.
+ */
 function personLeft(state: State, conversation: Conversation, viewer: User): boolean {
+  const others = conversation.memberIds.filter((id) => id !== viewer.id);
+  if (conversation.kind === 'group') return !others.some((id) => state.users[id]?.active === true);
   if (conversation.kind !== 'direct') return false;
-  return conversation.memberIds.some((id) => id !== viewer.id && state.users[id]?.active === false);
+  return others.some((id) => state.users[id]?.active === false);
 }
 
 function rowOf(state: State, conversation: Conversation, viewer: User): ChatRow {
@@ -69,7 +86,7 @@ function rowOf(state: State, conversation: Conversation, viewer: User): ChatRow 
     project: project ? { id: project.id, code: project.code, name: project.name, mark: markOf(project) } : null,
     person,
     taskId: null,
-    makerId: group ? (conversation.makerId ?? null) : null,
+    makerId: group ? (actingMaker(state, conversation) ?? conversation.makerId ?? null) : null,
     members: group ? conversation.memberIds.slice(0, 3).map((id) => cardOf(state, id)) : [],
     preview: last ? previewOf(last.body) : '',
     previewAuthor: last ? cardOf(state, last.authorId) : null,
@@ -198,6 +215,24 @@ export const chatsList = defineCall({
   },
 });
 
+/** The quiet lines of a group for the screen, oldest first, with the people named. They are no messages (UX audit 2026-10-19). */
+function linesOf(state: State, group: Conversation): GroupLine[] {
+  return (group.log ?? []).map((entry) => ({
+    id: entry.id, at: entry.at, type: entry.type, actor: cardOf(state, entry.actorId), people: entry.personIds.map((id) => cardOf(state, id)), name: entry.name ?? null,
+  }));
+}
+
+/** The log of a group with new lines at the end. The ids count up, and only the newest GROUP_LOG_MAX stay. */
+function withLines(ctx: Ctx, group: Conversation, lines: Array<Pick<GroupLogEntry, 'type' | 'personIds'> & { name?: string }>): GroupLogEntry[] {
+  const old = group.log ?? [];
+  let seq = old.reduce((top, entry) => Math.max(top, Number(entry.id.slice(2)) || 0), 0);
+  const added = lines.map((line): GroupLogEntry => {
+    seq += 1;
+    return { id: `gl${seq}`, at: ctx.stamp, type: line.type, actorId: ctx.authority.id, personIds: line.personIds, ...(line.name === undefined ? {} : { name: line.name }) };
+  });
+  return [...old, ...added].slice(-GROUP_LOG_MAX);
+}
+
 export const chatsMessages = defineCall({
   /**
    * One page of messages (plan 4.13, A5): the newest "limit" messages before the message "before", oldest first.
@@ -221,6 +256,7 @@ export const chatsMessages = defineCall({
       chat: { ...rowOf(ctx.state, conversation, ctx.authority), id: conversation.id },
       people,
       messages: page.map((m) => messageViewOf(ctx.state, m, ctx.authority)),
+      lines: conversation.kind === 'group' ? linesOf(ctx.state, conversation) : [],
     };
   },
 });
@@ -263,7 +299,10 @@ export const chatsSend = defineCall({
   run(input, ctx) {
     const conversation = requireConversation(ctx, input.conversationId);
     if (personLeft(ctx.state, conversation, ctx.authority)) {
-      throw forbidden('This person is inactive. This chat takes no new messages.', { conversationId: conversation.id, reason: 'person_left' });
+      throw forbidden(
+        conversation.kind === 'group' ? 'Everyone else left this group. This chat takes no new messages.' : 'This person is inactive. This chat takes no new messages.',
+        { conversationId: conversation.id, reason: 'person_left' },
+      );
     }
     return postMessage(ctx, conversation, input.body, input.fileIds);
   },
@@ -304,6 +343,8 @@ export const chatsArchive = defineCall({
   /**
    * Archives a chat or a task thread for the person, or moves it back to the Inbox (owner, 2026-10-18). Only the person's own read
    * mark changes, and no event is written. The checks are those of chats.markRead, so a hidden chat answers the same way.
+   * An archive also marks the chat read up to now (UX audit 2026-10-19, INT-01): the Inbox badge never counts a chat that the person
+   * cannot find in the list. A new message brings the chat back with its own unread number. Moving back keeps the read mark.
    */
   input: z.object({ conversationId: z.union([ConversationId, TaskId]), archived: z.boolean() }),
   output: z.object({ archived: z.boolean() }),
@@ -311,6 +352,7 @@ export const chatsArchive = defineCall({
     const id = input.conversationId;
     if (id.startsWith('tsk_')) requireTaskThread(ctx, id);
     else requireConversation(ctx, id);
+    if (input.archived) writeReadMark(ctx, id, undefined);
     const key = chatReadKey(id, ctx.authority.id);
     const read = ctx.state.chatReads[key];
     ctx.state.chatReads[key] = {
@@ -347,9 +389,25 @@ export const chatsOpenDirect = defineCall({
 /** A group name: 1 to 60 letters, with the spaces at its ends cut. */
 const GroupName = z.string().trim().min(1).max(GROUP_NAME_MAX);
 
-/** A group of the person and 2 to 49 other active people (owner, 2026-10-18). The person is its maker. It writes no History event. */
+/**
+ * The name of a group that the maker did not name (UX audit 2026-10-19, chats-09): the first names of the people, three at most,
+ * in the language of the maker, then "+N" for the rest. The group can be renamed later like any other.
+ */
+function autoGroupName(state: State, maker: User, memberIds: string[]): string {
+  const lang = maker.preferences.language;
+  const firsts = memberIds.map((id) => personName(state.users[id], lang).split(/\s+/)[0]);
+  const shown = firsts.slice(0, 3);
+  const rest = firsts.length - shown.length;
+  const text = rest > 0 ? `${shown.join(', ')} +${rest}` : listFormat(lang).format(shown);
+  return Array.from(text).slice(0, GROUP_NAME_MAX).join('');
+}
+
+/**
+ * A group of the person and 2 to 49 other active people (owner, 2026-10-18). The person is its maker. It writes no History event.
+ * The name is optional: with none, the group takes the first names of its people.
+ */
 export const chatsCreateGroup = defineCall({
-  input: z.object({ name: GroupName, memberIds: z.array(UserId).min(2).max(GROUP_MAX - 1) }),
+  input: z.object({ name: GroupName.optional(), memberIds: z.array(UserId).min(2).max(GROUP_MAX - 1) }),
   output: z.object({ id: ConversationId }),
   run(input, ctx) {
     const seen = new Set<string>();
@@ -360,14 +418,17 @@ export const chatsCreateGroup = defineCall({
       if (seen.has(id)) throw invalid('memberIds', 'A person is in the list twice.');
       seen.add(id);
     }
-    const group = addGroupConversation(ctx.state, input.name, ctx.authority.id, [ctx.authority.id, ...input.memberIds], ctx.stamp);
+    const name = input.name ?? autoGroupName(ctx.state, ctx.authority, input.memberIds);
+    const group = addGroupConversation(ctx.state, name, ctx.authority.id, [ctx.authority.id, ...input.memberIds], ctx.stamp);
     return { id: group.id };
   },
 });
 
 /**
- * Renames a group, adds people or removes people (owner, 2026-10-18). Any member renames and adds. Only the maker removes people,
- * and the maker never removes itself (chats.leaveGroup does that). A group keeps at least two people. It writes no History event.
+ * Renames a group, adds people or removes people (owner, 2026-10-18). Any member renames and adds. Only the maker removes people
+ * (the first active person while the maker is turned off), and the maker never removes itself (chats.leaveGroup does that). A
+ * removal keeps at least two people. It writes no History event. Each change writes one quiet line in the group, and an added
+ * person gets one notice (UX audit 2026-10-19, chats-10 and INT-15).
  */
 export const chatsUpdateGroup = defineCall({
   input: z.object({
@@ -381,10 +442,11 @@ export const chatsUpdateGroup = defineCall({
     const group = requireGroup(ctx, input.conversationId);
     const add = input.add ?? [];
     const remove = input.remove ?? [];
-    if (remove.length > 0 && group.makerId !== ctx.authority.id) {
+    const maker = actingMaker(ctx.state, group);
+    if (remove.length > 0 && maker !== ctx.authority.id) {
       throw forbidden('Only the maker of the group removes people.', { conversationId: group.id, reason: 'not_maker' });
     }
-    if (remove.some((id) => id === group.makerId || !group.memberIds.includes(id))) throw invalid('remove', 'Pick a person of the group who is not the maker.');
+    if (remove.some((id) => id === maker || !group.memberIds.includes(id))) throw invalid('remove', 'Pick a person of the group who is not the maker.');
     const kept = group.memberIds.filter((id) => !remove.includes(id));
     const seen = new Set<string>();
     for (const id of add) {
@@ -396,20 +458,34 @@ export const chatsUpdateGroup = defineCall({
     }
     if (kept.length + add.length > GROUP_MAX) throw invalid('add', 'A group holds 50 people at most.', 'group_full');
     if (kept.length + add.length < 2) throw invalid('remove', 'A group keeps at least two people.', 'group_too_small');
-    ctx.state.conversations[group.id] = { ...group, memberIds: [...kept, ...add], name: input.name ?? group.name };
+    const renamed = input.name !== undefined && input.name !== group.name;
+    const lines: Array<Pick<GroupLogEntry, 'type' | 'personIds'> & { name?: string }> = [
+      ...(renamed ? [{ type: 'renamed' as const, personIds: [], name: input.name }] : []),
+      ...(add.length > 0 ? [{ type: 'added' as const, personIds: add }] : []),
+      ...(remove.length > 0 ? [{ type: 'removed' as const, personIds: remove }] : []),
+    ];
+    ctx.state.conversations[group.id] = {
+      ...group, memberIds: [...kept, ...add], name: input.name ?? group.name, ...(lines.length > 0 ? { log: withLines(ctx, group, lines) } : {}),
+    };
+    if (add.length > 0) notifyIn(ctx, { userIds: add, trigger: 'added_to_group', targetType: 'chat', targetId: group.id });
     return { id: group.id };
   },
 });
 
-/** Leaves a group. When the maker leaves, the first other person in the group becomes the maker. A group keeps at least two people. */
+/**
+ * Leaves a group. A person can always leave (UX audit 2026-10-19, chats-11): the people who stay keep the history, and the last
+ * one reads a closed chat. When the maker leaves, the first other active person becomes the maker. A quiet line says who left.
+ */
 export const chatsLeaveGroup = defineCall({
   input: z.object({ conversationId: ConversationId }),
   output: z.object({}),
   run(input, ctx) {
     const group = requireGroup(ctx, input.conversationId);
     const kept = group.memberIds.filter((id) => id !== ctx.authority.id);
-    if (kept.length < 2) throw invalid('conversationId', 'A group keeps at least two people.', 'group_too_small');
-    ctx.state.conversations[group.id] = { ...group, memberIds: kept, makerId: group.makerId === ctx.authority.id ? kept[0] : group.makerId };
+    const makerId = group.makerId === ctx.authority.id
+      ? (kept.find((id) => ctx.state.users[id]?.active === true) ?? kept[0] ?? ctx.authority.id)
+      : group.makerId;
+    ctx.state.conversations[group.id] = { ...group, memberIds: kept, makerId, log: withLines(ctx, group, [{ type: 'left', personIds: [] }]) };
     return {};
   },
 });
@@ -440,6 +516,8 @@ function waitingChat(state: State, conversation: Conversation, viewer: User, now
   const last = messages.at(-1);
   const lastAt = last?.createdAt ?? conversation.createdAt;
   if (isArchived(state.chatReads[chatReadKey(conversation.id, viewer.id)], lastAt)) return null;
+  // A group with nobody else in it takes no reply (UX audit 2026-10-19, chats-11).
+  if (conversation.kind === 'group' && personLeft(state, conversation, viewer)) return null;
   let waiting: Message | undefined;
   if (conversation.kind === 'project') {
     // A project chat: a message that names the viewer, and is newer than the viewer's newest message.

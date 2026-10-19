@@ -44,3 +44,6 @@ export const PASSWORD_SET_MARK = 'madar_password_set';
 
 /** A paused project turns stale after this many days, when the office settings name no number (colleague comment 16). */
 export const DEFAULT_STALE_DAYS = 30;
+
+/** The most quiet lines a group keeps (a person joined, left, was removed, or the group got a new name). The newest stay. */
+export const GROUP_LOG_MAX = 100;

@@ -69,7 +69,7 @@ describe('chats.archive', () => {
     expect((await t.api.call('chats.list', {})).find((row) => row.id === t.room)?.archived).toBe(false);
   });
 
-  it('writes no event and does not mark an unread chat read', async () => {
+  it('writes no event, and marks the chat read so the badge never counts a chat that is out of the list (INT-01)', async () => {
     const t = world();
     t.as('usr_001');
     await t.api.call('chats.send', { conversationId: t.room, body: 'Please check the riser.' });
@@ -77,7 +77,8 @@ describe('chats.archive', () => {
     const events = Object.keys(t.store.state.events).length;
     await t.api.call('chats.archive', { conversationId: t.room, archived: true });
     expect(Object.keys(t.store.state.events)).toHaveLength(events);
-    expect((await t.api.call('chats.list', {})).find((row) => row.id === t.room)?.unread).toBe(1);
+    expect((await t.api.call('chats.list', {})).find((row) => row.id === t.room)?.unread).toBe(0);
+    expect((await t.api.call('chats.unreadCount', {})).unread).toBe(0);
   });
 
   it('archives a task thread that the person may read', async () => {

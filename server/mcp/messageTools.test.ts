@@ -285,3 +285,21 @@ describe('the agent of a member of a group and the file rows of a message', () =
     expect(text).not.toContain(OFFICE_FILE_NAME);
   });
 });
+
+// UX audit 2026-10-19, INT-18 and chats-10: the tool texts that the model reads at the call must say how to read and answer a task
+// thread, and that a group gives quiet lines that are no messages.
+describe('the texts of the message tools', () => {
+  it('tell the model how to read and answer a row of kind task, and what a group line is', async () => {
+    const { TOOL_DOCS } = await import('./docs');
+    for (const name of ['chats.list', 'chats.waiting'] as const) {
+      const text = TOOL_DOCS[name].description;
+      expect(text, name).toContain('kind task');
+      expect(text, name).toContain('comments.create');
+      expect(text.length, name).toBeGreaterThanOrEqual(40);
+      expect(text.length, name).toBeLessThanOrEqual(600);
+    }
+    expect(TOOL_DOCS['chats.list'].description).toContain('comments.list');
+    expect(TOOL_DOCS['chats.messages'].description).toContain('quiet lines');
+    expect(TOOL_DOCS['chats.messages'].description.length).toBeLessThanOrEqual(600);
+  });
+});

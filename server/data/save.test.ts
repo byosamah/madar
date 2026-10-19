@@ -642,3 +642,56 @@ describe('writeDiff', () => {
     expect(result.changed).toBe(true);
   });
 });
+
+// UX audit 2026-10-19, INT-16: the office signal of a message in a chat with no project (a direct chat, a group) tells every browser
+// on the office topic that "somebody wrote", and nothing of who or which story.
+describe('the office signal of a private chat message', () => {
+  const groupAfter = (): State => {
+    const group = copy();
+    group.conversations.cnv_901 = {
+      id: 'cnv_901', kind: 'group', projectId: null, memberIds: ['usr_002', 'usr_003', 'usr_004'], name: 'Tower team', makerId: 'usr_002',
+      createdAt: '2026-10-04T10:00:00.000+03:00',
+    } as State['conversations'][string];
+    group.messages.msg_901 = { ...Object.values(group.messages)[0], id: 'msg_901', conversationId: 'cnv_901' };
+    return group;
+  };
+
+  it('names no actor and no story for a group message, and still reaches the office and the person who read', async () => {
+    const after = groupAfter();
+    const { q } = recorder({ officeSeq: 4 });
+    const diff = diffState(seed, after);
+    expect(diff.anonymous).toBe(true);
+    const result = await writeDiff(q, diff, { story: { storyId: 'sty_g', actorId: 'usr_003' } });
+    const office = result.signals.find((signal) => signal.channel === 'office')!;
+    expect(office).toBeDefined();
+    expect(office).not.toHaveProperty('actorId');
+    expect(office).not.toHaveProperty('storyId');
+    expect(office.kinds).toContain('messages');
+    expect(JSON.stringify(result.signals)).not.toContain('usr_003');
+  });
+
+  it('names no actor and no story for a group made, renamed or changed in its people', async () => {
+    const after = groupAfter();
+    delete after.messages.msg_901;
+    const { q } = recorder({ officeSeq: 4 });
+    const diff = diffState(seed, after);
+    expect(diff.anonymous).toBe(true);
+    const result = await writeDiff(q, diff, { story: { storyId: 'sty_g', actorId: 'usr_003' } });
+    expect(result.signals.every((signal) => !('actorId' in signal) && !('storyId' in signal))).toBe(true);
+  });
+
+  it('keeps the actor and the story for a project chat message and for a change of a project', async () => {
+    const after = copy();
+    const message = Object.values(after.messages)[0];
+    message.body = 'Edited';
+    const diff = diffState(seed, after);
+    expect(diff.anonymous).toBe(false);
+    const { q } = recorder({ officeSeq: 4 });
+    const result = await writeDiff(q, diff, { story: { storyId: 'sty_p', actorId: 'usr_003' } });
+    expect(result.signals.find((signal) => signal.channel === 'office')).toMatchObject({ actorId: 'usr_003', storyId: 'sty_p' });
+    const mixed = groupAfter();
+    Object.values(mixed.tasks)[0].title = 'x';
+    expect(diffState(seed, mixed).anonymous).toBe(false);
+  });
+});
+

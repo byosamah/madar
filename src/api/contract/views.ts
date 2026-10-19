@@ -230,11 +230,24 @@ export const MessageView = z.object({
 });
 export type MessageView = z.infer<typeof MessageView>;
 
+/** One quiet line of a group, with the people named. The screen writes the sentence in its language (UX audit 2026-10-19). */
+export const GroupLine = z.object({
+  id: z.string(),
+  at: Stamp,
+  type: z.enum(['added', 'removed', 'left', 'renamed']),
+  actor: UserCard,
+  people: z.array(UserCard),
+  name: z.string().nullable(),
+});
+export type GroupLine = z.infer<typeof GroupLine>;
+
 export const ChatThread = z.object({
   chat: ChatRow.extend({ id: ConversationId }),
   /** People the composer can mention. */
   people: z.array(UserCard),
   messages: z.array(MessageView),
+  /** A group only: its quiet lines (the newest 100), oldest first. The screen puts them between the messages by time. */
+  lines: z.array(GroupLine).default([]),
 });
 export type ChatThread = z.infer<typeof ChatThread>;
 

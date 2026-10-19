@@ -96,7 +96,9 @@ describe('a removed member reads nothing of a group after the removal', () => {
     await t.api.call('chats.updateGroup', { conversationId: group, add: ['usr_004'] });
     await t.api.call('chats.send', { conversationId: group, body: `Please read ${mentionMarkup('Omar Other', 'usr_004')}` });
     t.as('usr_004');
-    expect((await t.api.call('notifications.list', {})).filter((n) => n.notification.targetId === group)).toHaveLength(1);
+    // One notice for the mention, and one that says he was added (UX audit 2026-10-19, INT-15).
+    expect((await t.api.call('notifications.list', {})).filter((n) => n.notification.targetId === group && n.notification.trigger === 'mention')).toHaveLength(1);
+    expect((await t.api.call('notifications.list', {})).filter((n) => n.notification.targetId === group && n.notification.trigger === 'added_to_group')).toHaveLength(1);
     // A new member reads the history too: the secret text of before he joined counts as unread as well.
     expect((await t.api.call('chats.unreadCount', {})).unread).toBe(2);
     t.as('usr_003');

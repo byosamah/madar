@@ -70,6 +70,12 @@ export type Diff = {
    * signal to each of privatePeople (review 2026-10-06).
    */
   privateOnly: boolean;
+  /**
+   * True when the change touched only chats that belong to no project (a direct chat or a group) and the marks and notices of their
+   * people. Its office signal names no actor and no story, so a browser of another person learns that somebody wrote, and not who
+   * (UX audit 2026-10-19, INT-16).
+   */
+  anonymous: boolean;
 };
 
 export type SaveResult = {
@@ -91,6 +97,8 @@ export type SaveResult = {
 export type SaveOptions = { story?: SignalMeta; signals?: boolean };
 
 const PERSONAL_KINDS = new Set<Kind>(['chatReads', 'notifications', 'preferences']);
+/** The kinds that a direct chat or a group writes (UX audit 2026-10-19, INT-16): a save of these kinds alone names no actor in its signal. */
+const PRIVATE_CHAT_KINDS = new Set<Kind>(['messages', 'conversations', 'chatReads', 'notifications']);
 /** The collections whose records belong to no project. A change of one of them is an office change. */
 const OFFICE_SCOPE = new Set<string>(['clients', 'teams', 'settings', 'stageTemplates', 'taskTemplates', 'projectTemplates', 'feedback']);
 
@@ -368,6 +376,7 @@ export function diffState(before: State, after: State): Diff {
   }
 
   const personal = kinds.size > 0 && [...kinds].every((kind) => PERSONAL_KINDS.has(kind));
+  const anonymous = publicKinds.size > 0 && projects.size === 0 && officeTasks.size === 0 && [...publicKinds].every((kind) => PRIVATE_CHAT_KINDS.has(kind));
   const messageIds = tables.find((change) => change.spec.collection === 'messages')?.inserted ?? [];
   const noticeIds = tables.find((change) => change.spec.collection === 'notifications')?.inserted ?? [];
   return {
@@ -376,6 +385,7 @@ export function diffState(before: State, after: State): Diff {
     privateChange: officeTasks.size > 0,
     privatePeople,
     publicKinds,
+    anonymous,
     // A comment whose project writeDiff still looks up may belong to a project, so it keeps the office signal.
     privateOnly: officeTasks.size > 0 && !office && projects.size === 0 && unresolvedComments.length === 0,
   };
@@ -473,7 +483,9 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
     // kinds of that part. The office task part: one signal with its own id for each person of the task and each Admin, with every
     // kind and no names (review 2026-10-06). The screens match their own changes by the signal id.
     const shared = { v: 1 as const, projects: [...projects].sort(), office };
-    const publicBase = { ...shared, id: crypto.randomUUID(), kinds: [...diff.publicKinds].sort(), storyId: story.storyId, actorId: story.actorId };
+    const publicBase = {
+      ...shared, id: crypto.randomUUID(), kinds: [...diff.publicKinds].sort(), ...(diff.anonymous ? {} : { storyId: story.storyId, actorId: story.actorId }),
+    };
     const privateBase = diff.privateChange ? { ...shared, id: crypto.randomUUID(), kinds: [...diff.kinds].sort() } : null;
     const baseOf = (userId: string) => (privateBase && (diff.privateOnly || diff.privatePeople.has(userId)) ? privateBase : publicBase);
     if (officeSignal) signals.push({ ...publicBase, channel: 'office', seq: officeSeq, people: [] });

@@ -142,7 +142,7 @@ describe('the switches and the notices of requests and bugs', () => {
     expect(visibleTriggers(state.users.usr_003)).toContain('feedback_done');
     expect(visibleTriggers(state.users.usr_003)).toHaveLength(TRIGGERS.length - 1);
     expect(visibleTriggers(state.users.usr_001)).toEqual([...TRIGGERS]);
-    expect(visibleTriggers(state.users.usr_001)).toHaveLength(12);
+    expect(visibleTriggers(state.users.usr_001)).toHaveLength(13);
   });
 
   it('lists every active human Admin, never an agent or a person who left', () => {
