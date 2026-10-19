@@ -118,6 +118,8 @@ export const ProjectDetail = ProjectSummary.extend({
     active: z.boolean(),
   })),
   deadlines: z.array(Deadline),
+  /** The project chat when the viewer may open it, else null (chat design 2026-10-19, item 18): the Project chat button needs it. */
+  chatId: ConversationId.nullable().default(null),
 });
 export type ProjectDetail = z.infer<typeof ProjectDetail>;
 

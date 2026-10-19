@@ -44,7 +44,8 @@ const rule = (scope: ReadScope, kinds: readonly Kind[], projectOf?: ReadRule['pr
 const PROJECT_DETAIL: Kind[] = ['clients', 'comments', 'deadlines', 'events', 'files', 'members', 'projects', 'stages', 'tasks', 'updates', 'users'];
 
 const RULES: Record<string, ReadRule> = {
-  'projects.get': rule('project', [...PROJECT_DETAIL, 'projectTouched', 'settings'], (input) => field(input, 'id')),
+  // conversations: the project chat id and the right to open it (chat design 2026-10-19, item 18).
+  'projects.get': rule('project', [...PROJECT_DETAIL, 'conversations', 'projectTouched', 'settings'], (input) => field(input, 'id')),
   'updates.list': rule('project', ['comments', 'events', 'files', 'members', 'projects', 'stages', 'tasks', 'updates', 'users'], byProjectId),
   'tasks.list': rule('project', ['comments', 'files', 'members', 'projects', 'stages', 'tasks', 'users'], byProjectId),
   'tasks.get': rule('project', ['comments', 'events', 'files', 'members', 'projects', 'stages', 'tasks', 'users'],

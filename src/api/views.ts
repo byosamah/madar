@@ -274,7 +274,10 @@ export function detailOf(state: State, project: Project, today: string, viewer: 
       active: state.users[m.userId]?.active ?? false,
     }))
     .sort((a, b) => Number(b.isLeader) - Number(a.isLeader) || a.user.name.localeCompare(b.user.name));
-  return { ...summary, members, deadlines: deadlinesOf(state, project.id) };
+  // The project chat, when the viewer may open it (an outsider gets null, and no id of the chat).
+  const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === project.id);
+  const chatId = room && canSeeConversation(state, room, viewer) ? room.id : null;
+  return { ...summary, members, deadlines: deadlinesOf(state, project.id), chatId };
 }
 
 export function eventViewOf(state: State, event: Event): EventView {

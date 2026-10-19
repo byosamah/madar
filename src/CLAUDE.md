@@ -307,6 +307,10 @@ any screen work.
 - Every chat takes files (owner, 2026-10-19). The box of a project chat uploads into the files of its project. The box of a direct chat
   and of a group uploads into the chat itself (`UploadTarget.conversationId`, `ConversationPane.tsx`), with the same attach button and
   the same limits. A chat file shows in no Files tab and no search.
+- Shortcuts to a chat (chat design 2026-10-19, item 18): the person sheet of Search has a grey Message button (`PersonSheet.tsx`) that calls
+  `chats.openDirect` and opens `/inbox/<id>`; the own person and an agent have none. The project page header has a grey Project chat link
+  (`ProjectHeader.tsx`, `ProjectDetail.chatId`, null for a person who may not open the chat). Both use the message icon and the secondary
+  look, never the navy main button.
 - Search has a Messages group, last (`features/search/MessageHits.tsx`; chat design 2026-10-19, item 16): the newest 5 messages and task
   comments with every word (a word of 3 letters or more). A hit shows the chat picture (32 px), the chat name, the person ("You" for the
   own line), the line with each matched whole word in a grey `<mark>`, and the date; a press opens `/inbox/<id>?at=<message>`. The words

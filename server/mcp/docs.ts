@@ -171,7 +171,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.get': {
     title: 'Get a project',
-    description: 'Returns one project by id (for example prj_001): its code, stages and the current stage, its team, leader, client, dates, health, deadlines and links. The code is 260902AZT-RES-Villa (new form) or KH-26-014 (old form). nextDeadline is the next named deadline. stageEnd (date, daysLeft) is the end of the current stage of an active project, or null. subCompanyId names the sub-company, or it is null. geo is the pin ({ lat, lng }), or null. With no pin of its own, the location link gives it. location is the address of the pin. templateId is the id of the template the project came from, or null.',
+    description: 'Returns one project by id (for example prj_001): its code, stages and current stage, team, leader, client, dates, health, deadlines and links. The code is 260902AZT-RES-Villa (new) or KH-26-014 (old). nextDeadline is the next named deadline. stageEnd (date, daysLeft) ends the current stage of an active project, or null. subCompanyId: the sub-company, or null. geo is the pin ({ lat, lng }) or null; with no pin, the location link gives it. location is the address of the pin. templateId: the template it came from, or null. chatId: the project chat when your person may open it, or null.',
   },
   'projects.list': {
     title: 'List projects',

@@ -274,6 +274,17 @@ describe('the message tools over MCP (owner, 2026-10-12)', () => {
     expect(TOOL_DOCS['search.query'].description.length).toBeLessThanOrEqual(600);
   });
 
+  it('gives the project chat id of a project in projects.get, for the person of the agent', async () => {
+    const w = world();
+    const project = Object.values(seed.conversations).find((c) => c.kind === 'project')!;
+    const got = await call(w, 'projects.get', { id: project.projectId! });
+    expect(got.result.isError, JSON.stringify(got.result)).toBeUndefined();
+    expect(got.result.structuredContent.output.chatId).toBe(project.id);
+    const { TOOL_DOCS } = await import('./docs');
+    expect(TOOL_DOCS['projects.get'].description).toContain('chatId');
+    expect(TOOL_DOCS['projects.get'].description.length).toBeLessThanOrEqual(600);
+  });
+
   it('reads a group of its person with chats.messages', async () => {
     const w = world();
     const { text, result } = await call(w, 'chats.messages', { conversationId: groupRoom });

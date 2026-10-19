@@ -1,5 +1,6 @@
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
+import { MessageCircleIcon } from '../../components/icons/animated/message-circle';
 import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
@@ -54,8 +55,15 @@ export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPos
             {viewOnly && <span className="rounded-full bg-fill px-2.5 text-caption font-semibold text-ink-2">{t('project.viewOnly')}</span>}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {detail.viewerCan.post && <Button variant="primary" onClick={onPost}>{t('projects.postUpdate')}</Button>}
+          {/* The project chat, for the people who may open it (chat design 2026-10-19, item 18). A grey button, never the main one. */}
+          {detail.chatId && (
+            <Link to={`/inbox/${detail.chatId}`} className="pressable inline-flex min-h-11 items-center gap-2 rounded-full bg-fill px-4 text-subheadline font-semibold text-ink hover:bg-fill-strong">
+              <AnimatedIcon icon={MessageCircleIcon} size={18} aria-hidden />
+              {t('project.chat')}
+            </Link>
+          )}
           <ProjectActions detail={detail} />
         </div>
       </div>
