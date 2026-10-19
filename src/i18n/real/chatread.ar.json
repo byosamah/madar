@@ -3,6 +3,10 @@
     "namesYou": "هذه الرسالة تذكرك.",
     "newest": "انتقل إلى أحدث رسالة",
     "newLine": "جديد",
-    "uploading": "{{name}}: رُفع {{percent}}%"
+    "uploading": "{{name}}: رُفع {{percent}}%",
+    "dropToAttach": "أفلت الملفات لإرفاقها",
+    "dropProject": "تنضم الملفات أيضًا إلى ملفات المشروع.",
+    "dropChat": "تبقى الملفات في هذه المحادثة.",
+    "dropOfficeTask": "تبقى الملفات مع هذه المهمة."
   }
 }

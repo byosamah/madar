@@ -3,6 +3,10 @@
     "namesYou": "This message names you.",
     "newest": "Go to the newest message",
     "newLine": "New",
-    "uploading": "{{name}}: {{percent}}% uploaded"
+    "uploading": "{{name}}: {{percent}}% uploaded",
+    "dropToAttach": "Drop to attach",
+    "dropProject": "The files also join the files of the project.",
+    "dropChat": "The files stay in this chat.",
+    "dropOfficeTask": "The files stay with this task."
   }
 }

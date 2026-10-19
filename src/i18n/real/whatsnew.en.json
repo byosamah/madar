@@ -3,6 +3,14 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-23": {
+        "title": "Drop files into a chat",
+        "body": "Drag files from your computer and drop them on an open chat, or paste a picture into the message box. Each file shows how much of it went up. Nothing goes until you press Send."
+      },
+      "2026-10-23-22": {
+        "title": "A calmer chat",
+        "body": "The chat keeps your place now. It opens at the first new message, under a thin New line. New messages do not move the chat while you read older ones; the round Newest button takes you down. The messages of one person in 5 minutes sit together. A message that names you has a soft color. A chat counts as read only while you look at it. Web addresses are links, and a half-written message stays after you close the tab."
+      },
       "2026-10-23-21": {
         "title": "Files & Links",
         "body": "Now the links of a project are in the Files & Links tab, above the files. You add a file or a link from one button, Add. The About panel does not show the links."

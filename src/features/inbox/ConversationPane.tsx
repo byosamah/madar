@@ -24,6 +24,7 @@ import { taskLink } from '../../lib/params';
 import { useMarkTaskRead } from '../comments/markRead';
 import { useEarlierMessages } from './earlier';
 import { useOpenMark } from './newLine';
+import { ChatDropArea } from './ChatDrop';
 
 /**
  * The head of a pane. The title is a plain string: the `<bdi>` inside the heading is the element that cuts (`block truncate`), never the
@@ -150,7 +151,7 @@ export function ChatPane({ id }: { id: string }) {
     : chat.kind === 'project' ? t('chat.projectChat') : chat.personLeft ? t('chat.inactive', { context }) : t('chat.directChat');
   const title = chat.kind === 'direct' && chat.person ? nameOf(chat.person) : chat.title;
   return (
-    <>
+    <ChatDropArea note={chat.kind === 'project' ? t('chat.dropProject') : t('chat.dropChat')}>
       <Header
         lead={lead}
         title={title}
@@ -171,7 +172,7 @@ export function ChatPane({ id }: { id: string }) {
         />
       )}
       {isGroup && <GroupSheets id={id} mode={sheet} onMode={setSheet} name={chat.title} people={data.people} me={session.data?.authority} makerId={chat.makerId} />}
-    </>
+    </ChatDropArea>
   );
 }
 
@@ -221,7 +222,7 @@ export function TaskPane({ id }: { id: string }) {
   const people = (where ? (project.data?.members ?? []).map((member) => member.user) : officePeople)
     .filter((user, index, list) => user.id !== me && list.findIndex((other) => other.id === user.id) === index);
   return (
-    <>
+    <ChatDropArea note={where ? t('chat.dropProject') : t('chat.dropOfficeTask')}>
       <Header
         lead={<span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><AnimatedIcon icon={ClipboardCheckIcon} size={18} aria-hidden /></span>}
         title={task.data.task.title}
@@ -248,7 +249,7 @@ export function TaskPane({ id }: { id: string }) {
           onSend={(body, fileIds, clear) => create.mutate({ targetType: 'task', targetId: id, body, fileIds }, { onSuccess: clear })}
         />
       ) : <p className="border-t border-hairline p-3 text-footnote text-ink-2">{t('comments.cannot')}</p>}
-    </>
+    </ChatDropArea>
   );
 }
 

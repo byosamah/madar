@@ -338,6 +338,7 @@ any screen work.
 - On a phone (`useIsPhone`) Enter in the chat box adds a line; the Send button sends.
 - A cut title: the `<bdi>` itself is `block truncate`, never its parent, so a title in the other language cuts at its end (`Header` in `ConversationPane.tsx` takes a plain string).
 - Upload progress: `CallMeta.onProgress` reaches `xhrPut` through the upload adapter (screen only, never on the wire; the small picture reports nothing). `useAttachments` keeps a whole percent for each file (`progress`), `PickedFiles` draws a 3 px grey bar for each file and locks Remove while the uploads run; the uploads still start at Send, and `onSend(body, fileIds, clear)` keeps its order.
+- Drop and paste (`ChatDrop.tsx`): `ChatDropArea` wraps a loaded chat or task thread and shows its frame only while the box registered a receiver (`useChatDropReceiver`); it still stops the browser from opening a dropped file. Files go to the picked chips; nothing sends until Send. A paste with text stays text; a paste of only pictures adds them. Picked files wait in memory for each chat (`app/drafts.ts`), so a test that picks files calls `keepDraftsOf('')` after it.
 
 ## Design rules (the short form of DESIGN.md)
 - Judge every choice from the view of the employees with ADHD: one next step, the fewest controls.

@@ -10,6 +10,7 @@ import { Button } from '../../components/Button';
 import { MentionField } from '../../components/MentionField';
 import { withMentionMarkup } from '../../lib/text';
 import { AttachButton, PickedFiles, useAttachments, type UploadTarget } from '../files/Attachments';
+import { useChatDropReceiver } from './ChatDrop';
 
 type ComposerProps = {
   id: string;
@@ -52,6 +53,8 @@ function ComposerBox({ id, people, pending, onSend, upload, owner }: ComposerPro
   useEffect(() => {
     field.current?.focus();
   }, [id]);
+  // Files dropped on the chat join the picked chips, and nothing sends until Send (item 14).
+  useChatDropReceiver(upload ? (dropped) => { attachments.add(dropped); field.current?.focus(); } : null);
   // A file may go with no words: its name becomes the words, the same way Share does (audit 2026-10-03, SHL-21).
   const files = upload ? attachments.files : [];
   const submit = async () => {
@@ -88,6 +91,14 @@ function ComposerBox({ id, people, pending, onSend, upload, owner }: ComposerPro
       {upload && <AttachButton compact onPick={attachments.add} />}
       <div
         className="min-w-0 flex-1"
+        onPaste={(event) => {
+          // A paste that holds text stays text. A paste of only pictures adds them as picked files (item 14).
+          if (!upload || event.clipboardData.getData('text/plain') !== '') return;
+          const pictures = [...event.clipboardData.files].filter((file) => file.type.startsWith('image/'));
+          if (pictures.length === 0) return;
+          event.preventDefault();
+          attachments.add(pictures);
+        }}
         onKeyDown={(event) => {
           // The mention list handles its own Enter and marks the event. Only a plain Enter sends, and not on a phone.
           if (phone || event.key !== 'Enter' || event.shiftKey || event.defaultPrevented || event.nativeEvent.isComposing) return;
