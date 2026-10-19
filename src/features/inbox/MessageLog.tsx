@@ -38,14 +38,24 @@ export type MessageLogProps = {
   readUpTo?: string | null;
   /** How many messages were unread at the open. 0 or missing: no New line. */
   unreadAtOpen?: number;
+  /**
+   * The id of a message (a `msg_` or `cmt_` id, also a reason line) that the log scrolls to, puts in the middle and frames softly for
+   * one second (items 10 and 17). The caller clears it after `onFocused`. It beats the New line at the open.
+   */
+  focusId?: string | null;
+  /** Runs once, right after the log scrolled to the focus message. */
+  onFocused?: () => void;
 };
+
+/** How long the soft frame of the focus message stays. */
+export const FRAME_MS = 1000;
 
 /**
  * The messages by day. The region scrolls to the bottom when a message arrives. New messages rise in. With `earlier`, the top of
  * the log has an "Earlier messages" control; its page goes above the shown messages, and the scroll keeps its distance from the
  * bottom, so the message the person reads stays in place.
  */
-export function MessageLog({ bubbles, resetKey, emptyText, earlier, readUpTo, unreadAtOpen }: MessageLogProps) {
+export function MessageLog({ bubbles, resetKey, emptyText, earlier, readUpTo, unreadAtOpen, focusId, onFocused }: MessageLogProps) {
   const { t } = useTranslation();
   const dayLabel = useDayLabel();
   const region = useRef<HTMLDivElement>(null);
@@ -56,6 +66,10 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier, readUpTo, un
   // The mirror of atBottom for the screen: the round Newest button shows while the reader is away from the bottom. It changes only at
   // the edge, so a scroll renders nothing else.
   const [away, setAway] = useState(false);
+  // The message that wears the soft frame now, and the timer that takes it off. The timer stays when the caller clears the focus id.
+  const [framedId, setFramedId] = useState<string | null>(null);
+  const frameTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(frameTimer.current), []);
   // The newest time that the log has seen. A last message counts as new only when it is later than this (a delete or a restore of the
   // last message moves nothing).
   const seenNewest = useRef(Number.NEGATIVE_INFINITY);
@@ -78,6 +92,7 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier, readUpTo, un
   }, [bubbles, sentSinceOpen, unreadAtOpen, readUpTo, newestAtFirst]);
   // The messages of one person within 5 minutes form a run (design item 2): only the first shows the face and the name.
   const starts = useMemo(() => runStarts(bubbles, newLineId), [bubbles, newLineId]);
+  const focusPresent = focusId != null && bubbles.some((b) => b.id === focusId);
   const toBottom = (log: HTMLElement) => {
     log.scrollTop = log.scrollHeight;
     atBottom.current = true;
@@ -88,7 +103,9 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier, readUpTo, un
     const log = region.current;
     seenNewest.current = newestAtFirst;
     if (!log) return;
-    // With a New line the log opens with the line 16 px under its top. Else it opens at the bottom.
+    // The place of the open: the focus message first (its own effect below puts it in the middle), then the New line 16 px under the
+    // top, then the bottom.
+    if (focusPresent) return;
     const line = newLineId ? log.querySelector('[data-new-line]') : null;
     if (line) {
       log.scrollTop = scrollTopFor(log.scrollTop, log.getBoundingClientRect(), line.getBoundingClientRect(), 'start');
@@ -96,6 +113,20 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier, readUpTo, un
       setAway(!atBottom.current);
     } else toBottom(log);
   }, [resetKey]);
+  // Open at one message (items 10 and 17): when the focus message is in the log, it goes to the middle and wears the frame for one second.
+  useLayoutEffect(() => {
+    const log = region.current;
+    if (!log || !focusId || !focusPresent) return;
+    const target = Array.from(log.querySelectorAll('[data-message-id]')).find((el) => el.getAttribute('data-message-id') === focusId);
+    if (!target) return;
+    log.scrollTop = scrollTopFor(log.scrollTop, log.getBoundingClientRect(), target.getBoundingClientRect(), 'center');
+    atBottom.current = isNearBottom(log);
+    setAway(!atBottom.current);
+    setFramedId(focusId);
+    clearTimeout(frameTimer.current);
+    frameTimer.current = setTimeout(() => setFramedId(null), FRAME_MS);
+    onFocused?.();
+  }, [focusId, focusPresent]);
   const newestMine = bubbles.at(-1)?.mine ?? false;
   useLayoutEffect(() => {
     const last = bubbles.at(-1);
@@ -168,7 +199,7 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier, readUpTo, un
                 </li>
               )]
               : []),
-            <MessageBubble key={bubble.id} bubble={bubble} runStart={starts.has(bubble.id)} namesMe={bubble.namesMe ?? false} fresh={!first.has(bubble.id) && Date.parse(bubble.createdAt) > newestAtFirst} />,
+            <MessageBubble key={bubble.id} bubble={bubble} runStart={starts.has(bubble.id)} namesMe={bubble.namesMe ?? false} framed={bubble.id === framedId} fresh={!first.has(bubble.id) && Date.parse(bubble.createdAt) > newestAtFirst} />,
           ]),
         ])}
       </ol>

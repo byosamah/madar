@@ -35,6 +35,9 @@ export type Bubble = {
   reason?: { kind: ReasonKind; dates?: DateMove };
 };
 
+/** The soft frame of the message that the log opened at (item 10): the closest `li` takes it for one second. */
+export const FRAME_CLASS = 'rounded-2xl outline outline-2 outline-offset-2 outline-link/40';
+
 /** The word key of each kind of quiet line. */
 const LINE_KEY = { added: 'chat.lineAdded', removed: 'chat.lineRemoved', left: 'chat.lineLeft', renamed: 'chat.lineRenamed' } as const;
 
@@ -42,7 +45,7 @@ const LINE_KEY = { added: 'chat.lineAdded', removed: 'chat.lineRemoved', left: '
  * One quiet line of a group, in the screen language: "Hala added Yousef". Each name sits between FSI and PDI, so an English name in an
  * Arabic line keeps its own direction (UX audit 2026-10-19, chats-10).
  */
-function GroupLineItem({ id, line }: { id: string; line: GroupLine }) {
+function GroupLineItem({ id, line, framed }: { id: string; line: GroupLine; framed: boolean }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const lang = useLang();
@@ -53,7 +56,7 @@ function GroupLineItem({ id, line }: { id: string; line: GroupLine }) {
     name: isolate(line.name ?? ''),
     context: actorContext(line.actor),
   });
-  return <li data-message-id={id} className="group mt-1.5 self-center px-3 py-0.5 text-center text-footnote text-ink-2">{text}</li>;
+  return <li data-message-id={id} data-framed={framed || undefined} className={`group mt-1.5 self-center px-3 py-0.5 text-center text-footnote text-ink-2 ${framed ? FRAME_CLASS : ''}`}>{text}</li>;
 }
 
 /**
@@ -61,12 +64,12 @@ function GroupLineItem({ id, line }: { id: string; line: GroupLine }) {
  * grey line between the messages, as a group line is. It is no message: no bubble, no sender above it, no clock. The moved dates come
  * under it in a smaller size.
  */
-function ReasonLineItem({ bubble, reason }: { bubble: Bubble; reason: NonNullable<Bubble['reason']> }) {
+function ReasonLineItem({ bubble, reason, framed }: { bubble: Bubble; reason: NonNullable<Bubble['reason']>; framed: boolean }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const text = reasonLineText(t, { kind: reason.kind, body: bubble.body, dates: reason.dates }, { name: nameOf(bubble.author), gender: bubble.author.gender });
   return (
-    <li data-message-id={bubble.id} className="group mt-1.5 flex flex-col items-center self-center px-3 py-0.5 text-center text-footnote text-ink-2">
+    <li data-message-id={bubble.id} data-framed={framed || undefined} className={`group mt-1.5 flex flex-col items-center self-center px-3 py-0.5 text-center text-footnote text-ink-2 ${framed ? FRAME_CLASS : ''}`}>
       <span dir="auto">{text}</span>
       {reason.dates && <DateMoveLines move={reason.dates} className="items-center text-caption text-label-2" />}
     </li>
@@ -82,14 +85,14 @@ export function clockTime(stamp: string, lang: Lang): string {
  * RND-5). The panes keep one Bubble object for each message (bubblesOf), so an unchanged message keeps its props. `runStart` is a
  * boolean, so the memo holds: only the first bubble of a run shows the face, the name and the clock (design item 2).
  */
-export const MessageBubble = memo(function MessageBubble({ bubble, fresh, runStart, namesMe }: { bubble: Bubble; fresh: boolean; runStart: boolean; namesMe: boolean }) {
+export const MessageBubble = memo(function MessageBubble({ bubble, fresh, runStart, namesMe, framed }: { bubble: Bubble; fresh: boolean; runStart: boolean; namesMe: boolean; framed: boolean }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const lang = useLang();
   const isPicture = usePictureTest();
   const { author, mine } = bubble;
-  if (bubble.line) return <GroupLineItem id={bubble.id} line={bubble.line} />;
-  if (bubble.reason) return <ReasonLineItem bubble={bubble} reason={bubble.reason} />;
+  if (bubble.line) return <GroupLineItem id={bubble.id} line={bubble.line} framed={framed} />;
+  if (bubble.reason) return <ReasonLineItem bubble={bubble} reason={bubble.reason} framed={framed} />;
   // A photo sent with no words has its file name as its words. Beside the preview that name is noise, so the bubble leaves it out.
   const photoOnly = photoOnlyBody(bubble.body, bubble.files, isPicture);
   // The names-you mark is for another person's bubble: your own bubble keeps its blue (item 4).
@@ -108,10 +111,11 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh, runSta
   return (
     <motion.li
       data-message-id={bubble.id}
+      data-framed={framed || undefined}
       initial={fresh ? { opacity: 0, y: 12 } : false}
       animate={{ opacity: 1, y: 0 }}
       transition={spring.standard}
-      className={`group flex max-w-[88%] items-end gap-2 sm:max-w-[75%] ${mine ? 'self-end' : 'self-start'} ${runStart ? 'mt-1.5' : ''}`}
+      className={`group flex max-w-[88%] items-end gap-2 sm:max-w-[75%] ${mine ? 'self-end' : 'self-start'} ${runStart ? 'mt-1.5' : ''} ${framed ? FRAME_CLASS : ''}`}
     >
       {mine && side}
       {!mine && (runStart ? <Avatar user={author} size={28} /> : <span aria-hidden className="w-7 shrink-0" />)}

@@ -331,6 +331,7 @@ any screen work.
 - Names you: `MessageView.namesMe` and `CommentView.namesMe` (a mention or a reply to you) give another person's bubble `bg-mention-bg`, a 3 px `bg-mention-bar` on its start side and the hidden sentence `chat.namesYou`.
 - Keep my place (`MessageLog`, `logScroll.ts`): a new message moves the log only when the reader is in the last 80 px or sent it. Else the round Newest button shows (sticky inside the log, `aria-live="off"`), still, with no count.
 - New line (`newLine.ts`): the pane keeps the read state of the first fresh answer (`useOpenMark`) and shows the log only then. A chat places the line by `ChatThread.readUpTo`, a task thread by the unread count of its `chats.list` row. The line goes when the person sends. The mark read goes only after the mark exists, so a stale cached answer never clears the unread count first.
+- Open at one message: `MessageLog` `focusId` centers that bubble (by `data-message-id`), frames it for 1 s (`FRAME_MS`, `data-framed`) and calls `onFocused` once. Tracks msg (reply strip) and find (notices, search, the route) pass it. At the open the focus message beats the New line, and the New line beats the bottom.
 
 ## Design rules (the short form of DESIGN.md)
 - Judge every choice from the view of the employees with ADHD: one next step, the fewest controls.
