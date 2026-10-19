@@ -1,4 +1,4 @@
-import type { OfficeRight, Task, User } from './contract/entities';
+import type { Meeting, OfficeRight, Task, User } from './contract/entities';
 import { memberKey } from './rowKeys';
 import type { State } from './store';
 
@@ -6,7 +6,7 @@ export type Action =
   | 'project.view' | 'project.create' | 'project.edit' | 'project.changeLeader' | 'project.archive'
   | 'project.delete' | 'project.healthOverride' | 'project.editCode'
   | 'task.view' | 'task.createForAnyone' | 'task.createForSelf' | 'task.updateOwn' | 'task.contribute' | 'task.updateAny' | 'task.review' | 'task.delete'
-  | 'task.take'
+  | 'task.take' | 'meeting.view' | 'meeting.create' | 'meeting.edit'
   | 'content.post' | 'content.editOwn' | 'chat.project' | 'comment.read'
   | 'event.undoAgent' | 'admin.manage' | 'people.manage' | 'payment.manage' | 'clients.manage' | 'templates.manageAll' | 'report.office';
 
@@ -51,6 +51,12 @@ function heldRights(actor: Actor): readonly OfficeRight[] {
 export type Resource = {
   projectRole?: ProjectRole; ownerId?: string | null; helperIds?: string[]; authorId?: string; targetUserId?: string;
   office?: boolean; makerId?: string;
+  /**
+   * A meeting (fbk_022). organizerId is the person behind the organizer (an agent organizer is its person). noProject: the meeting has
+   * no project, so only its organizer and its attendees read it, the Admin too only as an attendee (owner, 2026-10-19). A project
+   * meeting reads like its project and carries projectRole.
+   */
+  meeting?: { organizerId: string; attendeeIds: readonly string[]; noProject: boolean };
 };
 
 export function projectRoleOf(state: State, projectId: string | null, userId: string): ProjectRole {
@@ -130,8 +136,60 @@ function canOnOfficeTask(actor: User, action: Action, resource: Resource): boole
   }
 }
 
+type MeetingPeople = Pick<Meeting, 'projectId' | 'organizerId' | 'attendeeIds'>;
+
+/**
+ * The resource of a meeting for the rules of one person: the role of the person in the project of a project meeting, or the people of
+ * a meeting with no project. Every rule on a meeting asks can() with this resource.
+ */
+export function meetingResource(state: State, meeting: MeetingPeople, viewerId: string): Resource {
+  const people = { organizerId: principalOf(state, meeting.organizerId), attendeeIds: meeting.attendeeIds, noProject: meeting.projectId === null };
+  if (meeting.projectId === null) return { meeting: people };
+  return { projectRole: projectRoleOf(state, meeting.projectId, viewerId), meeting: people };
+}
+
+/** The one view rule of a meeting: everyone sees a project meeting; a meeting with no project shows to its organizer and its attendees only. */
+export function mayViewMeeting(state: State, viewer: User, meeting: MeetingPeople): boolean {
+  return can(viewer, 'meeting.view', meetingResource(state, meeting, viewer.id));
+}
+
+/**
+ * The rules of a meeting (fbk_022, owner 2026-10-19). A project meeting is read by everyone. The team, the leader and the Admin plan
+ * one (the right to post). The organizer, the leader and the Admin change or cancel it. A meeting with no project is planned by
+ * anyone, read by its organizer and its attendees, and changed by its organizer. The Admin has no extra right there.
+ */
+function canOnMeeting(actor: User, action: Action, resource: Resource): boolean {
+  const people = resource.meeting!;
+  const organizer = people.organizerId === actor.id;
+  if (people.noProject) {
+    switch (action) {
+      case 'meeting.view':
+        return organizer || people.attendeeIds.includes(actor.id);
+      case 'meeting.create':
+        return true;
+      case 'meeting.edit':
+        return organizer;
+      default:
+        return false;
+    }
+  }
+  const leads = actor.systemRole === 'admin' || resource.projectRole === 'leader';
+  switch (action) {
+    case 'meeting.view':
+      return true;
+    case 'meeting.create':
+      return leads || resource.projectRole === 'team';
+    case 'meeting.edit':
+      return leads || organizer;
+    default:
+      return false;
+  }
+}
+
 /** The permission table from spec section 2.3. No screen checks permissions in another way. */
 export function can(actor: Actor, action: Action, resource: Resource = {}): boolean {
+  // A person who left the office reads and changes no meeting.
+  if (resource.meeting) return actor.active && canOnMeeting(actor, action, resource);
   // A project task reads like its project. An office task stays with its people.
   if (!actor.active) return action === 'project.view' || (action === 'task.view' && !resource.office);
   if (resource.office) return canOnOfficeTask(actor, action, resource);

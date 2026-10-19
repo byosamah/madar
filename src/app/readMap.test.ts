@@ -6,6 +6,7 @@ import type { AnyCall } from '../api/registry';
 import { READ_CALLS } from '../api/remote/keys';
 import type { Kind } from '../api/remote/wire';
 import type { State } from '../api/store';
+import { addSampleMeetings } from '../data/sampleMeetings';
 import { buildSeed } from '../data/seed';
 import { NOW, TODAY } from '../test/factories';
 import { COLLECTION_KINDS, READS } from './readMap';
@@ -133,6 +134,9 @@ function inputsOf(name: string, s: State): unknown[] {
       return name === 'projectTemplates.usage' ? [{ templateId: plan.id }] : [{ templateId: plan.id, projectIds: projectIds.slice(0, 50) }];
     }
     case 'taskTemplates.list': return [{}, ...(stageName ? [{ stageName }] : [])];
+    // The meetings of the sample office (fbk_022): one of a project and one with no project. Each person reads each one, so the view rule runs.
+    case 'meetings.get': return ids(s.meetings).map((id) => ({ id }));
+    case 'meetings.list': return [{}, { from: '2026-09-01', to: '2026-12-31' }, ...projectIds.map((projectId) => ({ projectId, mine: false }))];
     default: return [{}];
   }
 }
@@ -146,6 +150,7 @@ const traced = new Map<string, { kinds: Set<Kind>; runs: number }>();
 
 beforeAll(async () => {
   const state = await buildSeed(TODAY, async () => undefined);
+  addSampleMeetings(state, TODAY);
   for (const name of READ_CALLS) {
     const rule = READS[name];
     if (!rule || rule.scope === 'none') continue;

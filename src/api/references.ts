@@ -100,6 +100,16 @@ export const REFERENCE_FIELDS: readonly ReferenceField[] = [
   { collection: 'teams', path: 'memberIds[]', targets: ['user'] },
 
   { collection: 'subCompanies', path: 'createdBy', targets: ['user'] },
+
+  // A meeting names its project and its people. A minutes task names its meeting (fbk_022).
+  { collection: 'meetings', path: 'projectId', targets: ['project'] },
+  { collection: 'meetings', path: 'organizerId', targets: ['user'] },
+  { collection: 'meetings', path: 'attendeeIds[]', targets: ['user'] },
+  { collection: 'meetings', path: 'minutesById', targets: ['user'] },
+  { collection: 'meetings', path: 'createdBy', targets: ['user'] },
+  { collection: 'meetings', path: 'minutesTaskId', targets: ['task'] },
+  { collection: 'meetings', path: 'trackerEntryId', targets: ['tracker'] },
+  { collection: 'tasks', path: 'meetingId', targets: ['meeting'] },
 ];
 
 /** For each target type, the fields that can hold its id. A type with no entry (a member, a deadline, a comment) is never used elsewhere. */
@@ -145,7 +155,7 @@ export function jsonPathOf(path: string): string {
 const OWN_COLLECTION: Partial<Record<EventTarget, RefCollection>> = {
   project: 'projects', member: 'members', stage: 'stages', deadline: 'deadlines', task: 'tasks', update: 'updates', comment: 'comments',
   file: 'files', client: 'clients', user: 'users', stageTemplate: 'stageTemplates', taskTemplate: 'taskTemplates', tracker: 'tracker',
-  payment: 'payments', feedback: 'feedback', team: 'teams', projectTemplate: 'projectTemplates', subCompany: 'subCompanies',
+  payment: 'payments', feedback: 'feedback', team: 'teams', projectTemplate: 'projectTemplates', subCompany: 'subCompanies', meeting: 'meetings',
 };
 
 /** True when a record other than the target itself still holds the target's id in one of its reference fields. */

@@ -9,7 +9,7 @@ export type EventMeta = { projectId: string | null; verb: string; targetType: Ev
 export const COLLECTION: Record<EventTarget, keyof State | null> = {
   project: 'projects', member: 'members', stage: 'stages', deadline: 'deadlines', task: 'tasks', update: 'updates',
   comment: 'comments', file: 'files', client: 'clients', user: 'users', settings: null, stageTemplate: 'stageTemplates', taskTemplate: 'taskTemplates', tracker: 'tracker', payment: 'payments', feedback: 'feedback', team: 'teams',
-  projectTemplate: 'projectTemplates', subCompany: 'subCompanies',
+  projectTemplate: 'projectTemplates', subCompany: 'subCompanies', meeting: 'meetings',
 };
 
 /** Changes that follow from other changes. The project's stage tag follows its tasks, so it has no Undo of its own: it moves again with them. */

@@ -1,0 +1,17 @@
+{
+  "errors": {
+    "reasons": {
+      "in_the_past": "A meeting cannot start more than 14 days ago.",
+      "start_not_on_five": "A meeting starts on a multiple of 5 minutes, for example 10:00 or 10:05.",
+      "minutes_not_attending": "The person for the minutes must be the organizer or an attendee.",
+      "attendee_agent": "An agent cannot attend a meeting. Choose a person.",
+      "title_hidden": "Write the title on one line, with visible characters only.",
+      "project_fixed": "A meeting stays in its project. Cancel it and plan a new one.",
+      "window_too_long": "A list of meetings covers at most 400 days.",
+      "window_reversed": "The end of the period comes before its start.",
+      "project_needed": "A list of meetings that are not yours needs a project.",
+      "meeting_cancelled": "This meeting is cancelled. It cannot change.",
+      "meeting_over": "This meeting is over. Only its notes change."
+    }
+  }
+}

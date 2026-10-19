@@ -329,6 +329,32 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   still gives the preview and the order, so a line can be the preview. `tasks.newVersion` writes the `reopened` line, so `comments` is in its
   `WRITE_KINDS` line.
 
+## Meetings (owner, 2026-10-19, fbk_022)
+- `Meeting` (`mtg_`, `contract/entities.ts`): a meeting, a client meeting, a team meeting or a site visit (`MeetingKind`). Kind and project are two
+  separate choices. `projectId` may be null. Stamps are in office time (`+03:00`): `startsAt` is a multiple of 5 minutes, and `endsAt` is
+  stored. A meeting lasts 15 to 720 minutes. `State.meetings` is optional (`meetingsOf`), so there is no `STATE_VERSION` step.
+  Plain limits: `MEETING_LIMITS` and `MEETING_KINDS` in `contract/limits.ts`. Plain rules: `src/lib/meetings.ts` (`dayOf`, `phaseOf`, `kindDefaults`).
+- Calls (`handlers/meetings.ts`): `meetings.list` (window of the office day of the start, default today to 60 days, at most 400 days, 200 rows,
+  `mine` true by default, `mine: false` needs `projectId`), `meetings.get`, `meetings.create`, `meetings.update`, `meetings.cancel`. `create` is
+  the first key of `meetingCalls` on purpose: the call sweep (`server/core/everyCall.ts`) runs in that order and the others need a meeting.
+- Reasons (`invalid_input` unless said): `in_the_past` (a start more than 14 days ago), `start_not_on_five`, `project_closed` (the project is
+  not active or on hold), `minutes_not_attending`, `attendee_agent`, `person_inactive`, `title_hidden`, `project_fixed` (a meeting never
+  changes its project), `window_too_long`, `window_reversed`, `project_needed`; `conflict`: `meeting_cancelled`, `meeting_over` (after the end
+  only `notes` change, and a cancel is refused).
+- Rights (`permissions.ts`): `meeting.view`, `meeting.create`, `meeting.edit`, with `meetingResource` and `mayViewMeeting`. A project meeting is
+  read by everyone, planned by the team, the leader and the Admin (the right to post), and changed or cancelled by its organizer, the leader and
+  the Admin. A meeting with no project is read by its organizer and its attendees only, and changed by its organizer only. The Admin has no
+  extra right there (owner, 2026-10-19, Q4: this differs from an office task). The organizer of an agent is its person (`organizerId` is always
+  a person; `createdBy` is the agent).
+- `rev` starts at 1 and grows with a change of the start, the end or the place, and with a cancel. It is not in the event: an Undo of a meeting
+  change raises `rev` once more (`undoOne`), so `rev` never goes down and a calendar sees the change.
+- `projects.delete` deletes the meetings of the project and their notices. A person who is an attendee and leaves keeps the record.
+- `Task.meetingId`, `TrackerEntry.auto: 'meeting'` and `Meeting.settledAt`, `minutesTaskId`, `trackerEntryId`, `seriesId`, `repeat` are in the
+  contract for the later waves (minutes, series). Nothing sets them in wave 1.
+- The sample office (`data/sampleMeetings.ts`, only the prototype and `sampleOffice`, as the sample sub-companies): one client meeting of an open
+  project and one meeting with no project for the Admin and a leader. The prototype day shift moves `startsAt` and `endsAt` (`PLANNED_FIELDS`,
+  `data/shift.ts`) and never pulls them back before now.
+
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.
 2. If it is server-only: its contract in `contract/server.ts`, its fake in `handlers/serverFakes.ts`, its server body in

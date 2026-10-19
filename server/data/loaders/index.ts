@@ -4,6 +4,7 @@ import type { State } from '../../../src/api/store';
 import { Load, type LoadCtx } from './build';
 import { chatsAll, chatsArchive, chatsMarkRead, chatsMessages, chatsUnread, chatsWaiting } from './chat';
 import { inboxCount, inboxList } from './inbox';
+import { meetingCall, meetingsList } from './meetings';
 import { dashboardGet, eventsList, projectsList, searchQuery, tasksList, templateSyncTasks } from './overview';
 import {
   fileCall, filesList, filesUpload, paymentCall, paymentsOfProject, projectCall, projectsCreate, stagesReplace, trackerCall, trackerExport,
@@ -36,11 +37,12 @@ import {
  *   projectDelete  every row of P and what points at it
  *   push           the push devices of the person of the call (push.register also reads the row of its endpoint)
  *   report         reports.office: the tasks, Tracker entries and payments of the projects, and the events of the period as counts
+ *   meetings       the meetings of one window (meetings.list), or one meeting by id with the records it names (meetings.get, update, cancel)
  *
  * The 9 server calls of plan 4.11 run their own code on the office snapshot and have no loader.
  */
 
-export type LoaderName = 'office' | 'feedback' | 'project' | 'task' | 'content' | 'story' | 'inbox' | 'chat' | 'overview' | 'projectDelete' | 'push' | 'report';
+export type LoaderName = 'office' | 'feedback' | 'project' | 'task' | 'content' | 'story' | 'inbox' | 'chat' | 'overview' | 'projectDelete' | 'push' | 'report' | 'meetings';
 type InputOf<N extends SharedCallName> = z.output<SharedCalls[N]['input']>;
 export type LoaderSpec<I> = { loader: LoaderName; load(L: Load, input: I): Promise<unknown> };
 
@@ -55,6 +57,7 @@ const chat = <I>(load: (L: Load, input: I) => Promise<unknown>): LoaderSpec<I> =
 const push = <I>(load: (L: Load, input: I) => Promise<unknown>): LoaderSpec<I> => ({ loader: 'push', load });
 const overview = <I>(load: (L: Load, input: I) => Promise<unknown>): LoaderSpec<I> => ({ loader: 'overview', load });
 const report = <I>(load: (L: Load, input: I) => Promise<unknown>): LoaderSpec<I> => ({ loader: 'report', load });
+const meetings = <I>(load: (L: Load, input: I) => Promise<unknown>): LoaderSpec<I> => ({ loader: 'meetings', load });
 
 /** The project of a stage or a deadline, from the office. */
 const projectOfStage = (L: Load, stageId: string) => L.office.stages[stageId]?.projectId;
@@ -217,6 +220,13 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'subCompanies.list': office,
   'subCompanies.save': office,
   'subCompanies.delete': office,
+
+  // A new meeting reads the office only (its project, its team and its people). A change reads the meeting by id (fbk_022).
+  'meetings.list': meetings(meetingsList),
+  'meetings.get': meetings(meetingCall),
+  'meetings.create': office,
+  'meetings.update': meetings(meetingCall),
+  'meetings.cancel': meetings(meetingCall),
 };
 
 /**

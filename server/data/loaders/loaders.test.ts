@@ -15,7 +15,7 @@ import { INBOX_TASK_FIELDS } from './inbox';
 import { LOADER_OF } from './index';
 import { loadJobs } from './jobs';
 import { memorySource } from './memorySource';
-import { AGENT_MADE_TASK, badgeTraps, OFFICE_AGENT, officeWrites, readSweep, trapOffice, writeSweep } from './sweep';
+import { AGENT_MADE_TASK, badgeTraps, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, trapOffice, writeSweep } from './sweep';
 
 /**
  * Task C2: each loader gives the handler the same answer as the whole office (plan 4.6, "Safety net"). runBoth runs the call on
@@ -656,6 +656,71 @@ describe('office tasks (owner, 2026-10-06)', () => {
     const again = await loadJobs({ src: memorySource(traps), office: snapshotOf(traps, 1) });
     runScheduledTriggers(again, NOW, { dedupeUsed });
     expect(Object.values(again.notifications).filter((n) => n.targetId === paper.id).map((n) => [n.userId, n.trigger])).toEqual([[paper.createdBy, 'overdue']]);
+  });
+});
+
+describe('meetings (fbk_022, owner 2026-10-19)', () => {
+  it('the writes on the traps give the same answer on the scoped load: the people succeed, the outsider and the Admin who is not invited get not_found', async () => {
+    const traps = trapOffice(seed);
+    const writes = meetingWrites(traps);
+    expect(writes.length).toBeGreaterThan(8);
+    const hidden = Object.values(traps.meetings!).find((m) => m.projectId === null && m.attendeeIds.length > 0 && m.createdBy === m.organizerId)!;
+    for (const [name, input, actor] of writes) {
+      const run = await same(traps, name, input, actor);
+      const id = (input as { id?: string }).id;
+      if (id === hidden.id && actor !== hidden.organizerId && !hidden.attendeeIds.includes(actor)) {
+        expect(run.outcome.error, `${name} as ${actor}`).toEqual({ code: 'not_found', message: `Meeting ${hidden.id} does not exist.` });
+      }
+    }
+  });
+
+  it('meetings.list loads only the window and the meetings that the person may see, and not the private meeting of other people', async () => {
+    const traps = trapOffice(seed);
+    const [privateOne, privateTwo, projectOne] = Object.values(traps.meetings!);
+    const loadedFor = async (actor: string, input: Record<string, unknown>) => {
+      const { whole, loaded } = await runBoth(traps, 'meetings.list', input, actor, { now: NOW, correlationId: 'cor_test' });
+      expect(whole.outcome.error).toBeUndefined();
+      return { loaded: Object.keys(loaded.meetings ?? {}).sort(), rows: (whole.outcome.output as { id: string }[]).map((row) => row.id) };
+    };
+    // The organizer and the attendee of the first private meeting read it, with their own project meetings.
+    expect(await loadedFor(privateOne.organizerId, { from: '2026-10-04', to: '2026-10-10' })).toEqual({ loaded: [privateOne.id], rows: [privateOne.id] });
+    expect((await loadedFor(privateOne.attendeeIds[0], { from: '2026-10-04', to: '2026-10-10' })).rows).toEqual([privateOne.id]);
+    // The Admin is on no private meeting: the project meeting of "not mine" only, and nothing else is loaded.
+    expect(await loadedFor(ADMIN, { from: '2026-10-04', to: '2026-10-10', projectId: 'prj_001', mine: false })).toEqual({ loaded: [projectOne.id], rows: [projectOne.id] });
+    expect(await loadedFor(ADMIN, { from: '2026-10-04', to: '2026-10-10' })).toEqual({ loaded: [], rows: [] });
+    // The window: a day with no meeting loads no row, and a day after the last one loads none.
+    expect(await loadedFor(privateTwo.organizerId, { from: '2026-10-08', to: '2026-10-09' })).toEqual({ loaded: [], rows: [] });
+    // The agent of the organizer reads what its person reads.
+    expect(await loadedFor(OFFICE_AGENT, { from: '2026-10-04', to: '2026-10-10' })).toEqual(await loadedFor('usr_005', { from: '2026-10-04', to: '2026-10-10' }));
+  });
+
+  it('meetings.list keeps a meeting at 23:30 Riyadh on its own day on both loads', async () => {
+    const state = office();
+    const maker = 'usr_003';
+    apply(state, 'meetings.create', { kind: 'meeting', title: 'Late call', startsAt: '2026-10-06T23:30:00+03:00' }, maker);
+    apply(state, 'meetings.create', { kind: 'meeting', title: 'Early call', startsAt: '2026-10-07T00:10:00+03:00' }, maker);
+    const day = async (from: string) => ((await same(state, 'meetings.list', { from, to: from }, maker)).outcome.output as { title: string }[]).map((row) => row.title);
+    expect(await day('2026-10-06')).toEqual(['Late call']);
+    expect(await day('2026-10-07')).toEqual(['Early call']);
+  });
+
+  it('meetings.get brings the minutes task and the Tracker line that the meeting names, so the detail is the same on both loads', async () => {
+    const state = office();
+    const maker = 'usr_003';
+    const made = apply(state, 'meetings.create', { kind: 'client', title: 'Review', projectId: 'prj_001', startsAt: '2026-10-06T10:00:00+03:00' }, state.projects.prj_001.leaderId!) as { id: string };
+    const task = todo(state, 'prj_001')[0];
+    const entry = Object.values(state.tracker!)[0];
+    Object.assign(state.meetings![made.id], { minutesTaskId: task.id, trackerEntryId: entry.id });
+    const run = await same(state, 'meetings.get', { id: made.id }, maker);
+    expect(run.outcome.output).toMatchObject({ minutesTask: { id: task.id }, trackerEntry: { id: entry.id } });
+  });
+
+  it('projects.delete takes the meetings of the project and their notices, and leaves a meeting with no project', async () => {
+    const traps = trapOffice(seed);
+    const run = await same(traps, 'projects.delete', { id: 'prj_001', confirm: true }, ADMIN);
+    expect(run.outcome.error).toBeUndefined();
+    const project = Object.values(traps.meetings!).find((m) => m.projectId === 'prj_001')!;
+    expect(deleted(run, 'meetings')).toEqual([project.id]);
   });
 });
 

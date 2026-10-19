@@ -97,6 +97,8 @@ export const MCP_DENY = [
   'push.register', 'push.remove', 'push.mine',
   // Live updates (exit wave 3): the ticket opens a browser socket. An agent has no socket.
   'live.ticket',
+  // Meetings (fbk_022): the next commit opens these five calls to the agent, with their written instructions.
+  'meetings.list', 'meetings.get', 'meetings.create', 'meetings.update', 'meetings.cancel',
 ] as const satisfies readonly (SharedCallName | ServerCallName)[];
 
 /**

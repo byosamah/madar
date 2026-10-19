@@ -3,6 +3,10 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-22": {
+        "title": "Meetings",
+        "body": "Now you can plan a meeting, a client meeting or a site visit, and see it in Tasks. The people you invite get a notice, and a reminder 30 minutes before the start. A meeting with no project is private to its people."
+      },
       "2026-10-23-21": {
         "title": "Files & Links",
         "body": "Now the links of a project are in the Files & Links tab, above the files. You add a file or a link from one button, Add. The About panel does not show the links."

@@ -1,9 +1,10 @@
-import type { Event, Task, Update } from '../../../src/api/contract/entities';
+import type { Event, Meeting, Task, Update } from '../../../src/api/contract/entities';
 import type { Load } from './build';
 
 /**
  * The project delete loader (plan 4.6): every row of P, the comments and notices that point at its tasks and posts (also the ones
  * deleted earlier, which a delete event names), at P, or at its chat, and the chat with its messages and read marks (AM 7.2, A2).
+ * The meetings of P go with it, and the notices that point at them (fbk_022).
  */
 export async function projectsDelete(L: Load, input: Record<string, unknown>): Promise<void> {
   const projectId = typeof input.id === 'string' ? input.id : '';
@@ -19,7 +20,8 @@ export async function projectsDelete(L: Load, input: Record<string, unknown>): P
   const rooms = Object.values(L.office.conversations).filter((c) => c.kind === 'project' && c.projectId === projectId).map((c) => c.id);
   await L.select({ c: 'messages', where: [{ col: 'conversation_id', in: rooms }] });
   await L.select({ c: 'chatReads', where: [{ col: 'conversation_id', in: rooms }] });
-  for (const [targetType, ids] of [['project', [projectId]], ['task', taskIds], ['update', updateIds], ['chat', rooms]] as const) {
+  const meetings = (await L.select({ c: 'meetings', where: inP })) as Meeting[];
+  for (const [targetType, ids] of [['project', [projectId]], ['task', taskIds], ['update', updateIds], ['chat', rooms], ['meeting', meetings.map((m) => m.id)]] as const) {
     await L.select({ c: 'notifications', where: [{ col: 'target_type', eq: targetType }, { col: 'target_id', in: [...ids] }] });
   }
 }

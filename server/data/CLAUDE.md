@@ -26,6 +26,11 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - A file of a direct chat or a group (owner, 2026-10-19) keeps `conversationId` in its `files` doc: no column and no migration, because
   no read selects by it. Its row has `project_id` and `task_id` null, so the search loader and `files.list` never load it. `diffState`
   counts `files` as a kind of `PRIVATE_CHAT_KINDS`: its save sends the anonymous office signal of a private chat (`save.ts`).
+- `meetings` (`20261020000100_meetings.sql`, fbk_022): not an office list. Generated columns `project_id`, `organizer_id`, `starts_at`, `ends_at`,
+  `status`, `settled_at`; text indexes on `starts_at collate "C"` and `(project_id, starts_at)`, and a GIN index on `doc->'attendeeIds'`.
+  `loaders/meetings.ts`: `meetings.list` reads one window (`atOrAfter` and `atBefore` on `starts_at`), `meetingConds` is the view rule in SQL
+  (`project_id` in the office projects, or the person is the organizer or an attendee), and `meetingCall` reads one meeting by id with the
+  minutes task and the Tracker line it names. The handler checks the view rule again on the rows. `meetings.create` reads the office only.
 - `events` only grows: a trigger refuses update and delete, and madar_server has only select and insert. Undo is a new
   event (`undoes`). The save never writes `undoneBy`.
 
@@ -128,6 +133,8 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   `usage/warn.ts` and may import no value from `server/office/` (`workerGraph.test.ts`); `server/office/meter.ts` exports it again.
 - Schema version 4 (fbk_007) adds the office list `sub_companies`, with only `id` and `doc`. `LITE_STEPS` is
   `{ 3: [USAGE_DAY_SQL], 4: [the create table of sub_companies] }`; the SQL text is in `lite/schema.ts`.
+- Schema version 5 (fbk_022) adds the table `meetings` with its key columns and two read indexes (`meetings_starts`, `meetings_project_starts`).
+  Its step is in `LITE_STEPS` and makes the same objects as a new office (`schema.test.ts` checks it).
 - Each event index costs 1 row written for each event, and a read needs each of the 8. Task 18 dropped four of them, one at a
   time: a read then took 12,815 to 183,416 rows in place of 4 to 4,189 (proof.md "Wave 1: the rows pins"). Drop one only with
   a rows pin that shows that no read needs it.

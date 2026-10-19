@@ -5,6 +5,7 @@ import { contentCalls } from './handlers/content';
 import { fileCalls } from './handlers/files';
 import { historyCalls } from './handlers/history';
 import { insightCalls } from './handlers/insights';
+import { meetingCalls } from './handlers/meetings';
 import { notificationCalls } from './handlers/notifications';
 import { paymentCalls } from './handlers/payments';
 import { peopleCalls } from './handlers/people';
@@ -44,6 +45,7 @@ export const mapCalls = {
   ...paymentCalls,
   ...teamCalls,
   ...subCompanyCalls,
+  ...meetingCalls,
   ...projectTemplateCalls,
   ...pushCalls,
   ...rolesCalls,

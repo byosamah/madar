@@ -23,7 +23,7 @@ export type ReadRule = { scope: ReadScope; kinds: readonly Kind[]; projectOf?(in
 export const COLLECTION_KINDS = [
   'users', 'clients', 'projects', 'members', 'stages', 'deadlines', 'tasks', 'updates', 'comments', 'files', 'notifications',
   'events', 'conversations', 'messages', 'chatReads', 'stageTemplates', 'taskTemplates', 'projectTemplates', 'tracker', 'payments',
-  'feedback', 'teams', 'settings', 'subCompanies',
+  'feedback', 'teams', 'settings', 'subCompanies', 'meetings',
 ] as const satisfies readonly Kind[];
 
 /** The kinds of a change that belongs to one person: they go only on that person's channel (plan, change 13). */
@@ -70,6 +70,10 @@ const RULES: Record<string, ReadRule> = {
   'settings.get': rule('office', ['settings', 'users']),
   'teams.list': rule('office', ['teams', 'users']),
   'subCompanies.list': rule('office', ['projects', 'subCompanies', 'users']),
+  // The meetings (fbk_022): a list of my meetings spans projects, and a meeting with no project reaches only its people on their person
+  // channels, so both reads are office reads. members: the leader and the team change who may edit a project meeting.
+  'meetings.list': rule('office', ['meetings', 'members', 'projects', 'tasks', 'tracker', 'users']),
+  'meetings.get': rule('office', ['meetings', 'members', 'projects', 'tasks', 'tracker', 'users']),
   'stageTemplates.list': rule('office', ['stageTemplates', 'users']),
   'taskTemplates.list': rule('office', ['taskTemplates', 'users']),
   'projectTemplates.list': rule('office', ['projectTemplates', 'projects', 'users']),

@@ -7,7 +7,7 @@ import * as server from './server';
 describe('the plain limits of the contract (performance audit BND-6)', () => {
   it('keep each name and value in entities.ts or server.ts, so every importer of the contract sees no change', () => {
     const names = Object.keys(limits).sort();
-    expect(names).toEqual(['DEFAULT_STALE_DAYS', 'GROUP_LOG_MAX', 'GROUP_MAX', 'GROUP_NAME_MAX', 'MAX_ATTACHMENTS', 'MAX_FILE_BYTES', 'MAX_HELPERS', 'MAX_PREREQUISITES', 'MAX_SHOT_BYTES', 'PASSWORD_SET_MARK', 'PICTURE_DATA', 'REACTIONS']);
+    expect(names).toEqual(['DEFAULT_STALE_DAYS', 'GROUP_LOG_MAX', 'GROUP_MAX', 'GROUP_NAME_MAX', 'MAX_ATTACHMENTS', 'MAX_FILE_BYTES', 'MAX_HELPERS', 'MAX_PREREQUISITES', 'MAX_SHOT_BYTES', 'MEETING_KINDS', 'MEETING_LIMITS', 'PASSWORD_SET_MARK', 'PICTURE_DATA', 'REACTIONS']);
     const contract: Record<string, unknown> = { ...entities, ...server };
     for (const name of names) expect(contract[name], name).toBe((limits as Record<string, unknown>)[name]);
   });

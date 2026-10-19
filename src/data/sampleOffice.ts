@@ -1,5 +1,6 @@
 import type { State } from '../api/store';
 import { todayISO } from '../lib/dates';
+import { addSampleMeetings } from './sampleMeetings';
 import { addSampleSubCompanies } from './sampleSubCompanies';
 import { buildSeed, type PutBlob } from './seed';
 import { settleFuture } from './shift';
@@ -12,5 +13,6 @@ import { settleFuture } from './shift';
 export async function sampleOffice(now: Date, putBlob: PutBlob): Promise<State> {
   const state = await buildSeed(todayISO(now), putBlob);
   addSampleSubCompanies(state, todayISO(now));
+  addSampleMeetings(state, todayISO(now));
   return settleFuture(state, now);
 }

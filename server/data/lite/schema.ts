@@ -15,8 +15,10 @@ import type { SqlHost } from './host';
  * step: no office object below version 3 exists outside the tests (the first real office comes in wave 5).
  *
  * Version 4 (fbk_007): the office list sub_companies. Its step is in LITE_STEPS.
+ *
+ * Version 5 (fbk_022): the table meetings, with key columns and two read indexes. Its step is in LITE_STEPS.
  */
-export const LITE_SCHEMA_VERSION = 4;
+export const LITE_SCHEMA_VERSION = 5;
 
 export type LiteIndex = { table: string; name: string; columns: string; unique?: true; where?: string };
 
@@ -24,6 +26,8 @@ export type LiteIndex = { table: string; name: string; columns: string; unique?:
 export const LITE_INDEXES: readonly LiteIndex[] = [
   { table: 'push_devices', name: 'push_devices_endpoint', columns: 'endpoint', unique: true },
   { table: 'push_devices', name: 'push_devices_user', columns: 'user_id' },
+  { table: 'meetings', name: 'meetings_starts', columns: 'starts_at' },
+  { table: 'meetings', name: 'meetings_project_starts', columns: 'project_id, starts_at' },
   { table: 'tasks', name: 'tasks_project', columns: 'project_id' },
   { table: 'tasks', name: 'tasks_owner', columns: 'owner_id' },
   { table: 'updates', name: 'updates_project_created', columns: 'project_id, created_at' },
@@ -112,10 +116,16 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
  * of a step must leave the same schema as liteSchemaSql of that version, so a stepped office and a new office are equal.
  * Version 3 adds the day meters. It has no text for the sign-in tables of wave 2 (see the top of this file).
  * Version 4 adds the table sub_companies (fbk_007). It is an office list, so it has only id and doc, as in liteSchemaSql.
+ * Version 5 adds the table meetings (fbk_022) with the key columns of query.ts and its two read indexes, as in liteSchemaSql.
  */
 export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   3: [USAGE_DAY_SQL],
   4: ['create table sub_companies (id text primary key, doc text not null)'],
+  5: [
+    'create table meetings (id text primary key, doc text not null, project_id text, organizer_id text, starts_at text, ends_at text, status text, settled_at text)',
+    'create index meetings_starts on meetings (starts_at)',
+    'create index meetings_project_starts on meetings (project_id, starts_at)',
+  ],
 };
 
 /** The sign-in tables of wave 2: the import of wave 4 and the restore check copy them with the office. */

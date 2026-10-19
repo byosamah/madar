@@ -1,5 +1,5 @@
 import type {
-  ChatRead, Client, Comment, Conversation, Deadline, Event, Feedback, FileRec, Message, Notification, Payment, Project, ProjectMember, ProjectTemplate, PushDevice,
+  ChatRead, Client, Comment, Conversation, Deadline, Event, Feedback, FileRec, Meeting, Message, Notification, Payment, Project, ProjectMember, ProjectTemplate, PushDevice,
   Settings, Stage, StageTemplate, SubCompany, Task, TaskTemplate, Team, TrackerEntry, Update, User,
 } from './contract/entities';
 import { DEFAULT_STALE_DAYS } from './contract/limits';
@@ -54,6 +54,11 @@ export type State = {
   teams?: Record<string, Team>;
   /** The sub-companies of the office group (fbk_007). Offices saved before this feature have none, so reads go through subCompaniesOf. */
   subCompanies?: Record<string, SubCompany>;
+  /**
+   * The meetings (fbk_022). Offices saved before this feature have none, so reads go through meetingsOf. No version step: the
+   * collection starts empty and needs no backfill.
+   */
+  meetings?: Record<string, Meeting>;
   /**
    * The browsers and phones that get push notices (owner, 2026-10-08). Private to each person. Offices saved before this feature
    * have none, so reads go through pushDevicesOf. No version step: the collection starts empty and needs no backfill.
@@ -152,6 +157,12 @@ export function teamsOf(state: State): Record<string, Team> {
 export function subCompaniesOf(state: State): Record<string, SubCompany> {
   state.subCompanies ??= {};
   return state.subCompanies;
+}
+
+/** The meetings. An old office has none, so this makes the collection when it is missing. */
+export function meetingsOf(state: State): Record<string, Meeting> {
+  state.meetings ??= {};
+  return state.meetings;
 }
 
 export { chatReadKey, memberKey } from './rowKeys';

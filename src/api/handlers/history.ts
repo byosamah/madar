@@ -1,12 +1,12 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { EventId, EventTarget, ProjectId, Stamp, type ChecklistItem, type Event, type FileRec, type Notification, type Task, type TrackerEntry, type User } from '../contract/entities';
+import { EventId, EventTarget, ProjectId, Stamp, type ChecklistItem, type Event, type FileRec, type Meeting, type Notification, type Task, type TrackerEntry, type User } from '../contract/entities';
 import { EventLineView, EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
 import { DERIVED, FOLLOW_ON, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../events';
 import { assertHasLead, assertMayFinish, reopenDependents, resyncStage, stageTag } from '../flow';
 import { feedbackNoticeHidden } from '../notify';
-import { can, holdsAdminRights, mayViewTask, principalOf, taskResource, type Action, type Resource } from '../permissions';
+import { can, holdsAdminRights, mayViewTask, meetingResource, principalOf, taskResource, type Action, type Resource } from '../permissions';
 import { eventLabel, eventViewOf, mayDeleteTracker, officeResource } from '../views';
 import { involves, onlyTicks } from '../../lib/taskPeople';
 import { isRoleEvent, undoRoleChange } from './roles';
@@ -263,6 +263,13 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
         throw forbidden('Only the Admin changes a role, in the Madar screens.', { action: 'admin.manage', reason: 'admin_only' });
       }
       return need('admin.manage');
+    case 'meeting': {
+      // A change of a meeting is taken back by the people who may change that meeting now (fbk_022). The record is the live meeting,
+      // or the whole meeting that a create event keeps.
+      const meeting = ctx.state.meetings?.[event.targetId] ?? (event.after as Meeting | null) ?? (event.before as Meeting | null);
+      if (!meeting) return need('admin.manage');
+      return need('meeting.edit', meetingResource(ctx.state, meeting, ctx.authority.id));
+    }
     case 'subCompany':
       // An agent never makes, changes or deletes a sub-company (MCP deny list), so it never takes such a change back either:
       // an undo of a making deletes the sub-company, and an undo of a change brings an old logo back (INT-27).
@@ -336,6 +343,9 @@ function undoOne(ctx: Ctx, event: Event, guard: boolean, followOn = false): Even
   }
   // A role change lives in the office settings, not in a collection, so its own Undo takes it back (handlers/roles.ts).
   const undo = isRoleEvent(event) ? undoRoleChange(ctx, event) : undoEvent(ctx, event.id);
+  // rev is not in the event of a meeting. A change that comes back is a new copy for a calendar, so rev grows again (fbk_022).
+  const meeting = event.targetType === 'meeting' ? ctx.state.meetings?.[event.targetId] : undefined;
+  if (meeting && undo.after !== null) meeting.rev += 1;
   const now = event.targetType === 'task' ? ctx.state.tasks[event.targetId] : undefined;
   // The cause of these reopens is the Undo itself, which is never in a story, so a story Undo never relieves them (audit 2026-10-03, V-2).
   if (was === 'done' && now && now.status !== 'done') reopenDependents(ctx, now, undo.id);
