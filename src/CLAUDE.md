@@ -348,6 +348,9 @@ any screen work.
 - Home: `home/MeetingsCard.tsx` ("Meetings today", only my meetings that are on or still to come, three rows). Project Overview:
   `project/overview/ProjectMeetings.tsx` (the next two meetings; the button "Plan a meeting" for `viewerCan.post` on an open project). Both read
   through `meetings/readInputs.ts`, and `tabReads` (`project/tabs.tsx`, now with `today`) prefetches the panel read with the same input.
+- `public/privacy.html` is the public privacy page at `/privacy` (English and Arabic, no script, no outside file). The Google Auth Platform
+  needs its link to publish the app. It names the one calendar scope and says Madar writes only the title, the time and the place: a change
+  of the Google sync changes this page in the same commit (`app/privacy.test.ts`).
 - The feed words: `feed.meeting.<created|updated|cancelled>_<meeting|visit>` (`projects/feed.ts`, with `_female` forms in Arabic).
 - Screen tests: `meetings/testMeetings.ts` (`withMeeting`, `as`). In the test office usr_002 (Faisal) leads prj_001, usr_005 and usr_006 are on its team,
   and "now" is Wednesday 2026-09-30 09:00 in Riyadh.

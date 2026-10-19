@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Madar privacy</title>
+<style>
+  :root { color-scheme: light dark; --ink: #1b1d24; --muted: #5b6070; --page: #f6f6f8; --card: #ffffff; --line: #e3e4ea; --link: #1f2a55; }
+  @media (prefers-color-scheme: dark) { :root { --ink: #eceef4; --muted: #a3a8b8; --page: #111216; --card: #1a1c22; --line: #2c2f38; --link: #c9d4ff; } }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 32px 16px 64px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 24px; margin-bottom: 24px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 24px 0 8px; }
+  p, li { color: var(--ink); }
+  .date { color: var(--muted); margin: 0 0 16px; }
+  a { color: var(--link); }
+  code { font-size: 14px; overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<main>
+<section>
+  <h1>Madar privacy</h1>
+  <p class="date">Last change: 19 October 2026</p>
+  <p>Madar is the internal project tool of our architecture office and its sub-companies in Al Khobar, Saudi Arabia. Only the people of the office can sign in. Madar has no public accounts, and we do not sell or share data.</p>
+
+  <h2>The data that Madar keeps</h2>
+  <p>Madar keeps the work data of the office: the names and work emails of the staff, the projects, tasks, comments, chats, files, payments and meetings. Our service providers host it: Cloudflare, and a database in Frankfurt, Germany. Madar sends its emails through Resend.</p>
+
+  <h2>Google Calendar</h2>
+  <p>A person can connect Madar to their Google Calendar in Madar Settings. Madar asks Google for one permission only: <code>https://www.googleapis.com/auth/calendar.app.created</code>. With it, Madar makes one calendar of its own and writes the Madar meetings of that person there. Madar cannot read the other calendars or the other events of the person.</p>
+  <ul>
+    <li>Madar writes only the title, the time and the place of each meeting. It does not send notes, guests or project data to Google.</li>
+    <li>Madar keeps the key that Google gives, encrypted, on its server, and uses it only to write these meetings.</li>
+    <li>The person can disconnect in Madar Settings, or at <a href="https://myaccount.google.com/permissions">https://myaccount.google.com/permissions</a>. Madar then deletes the key.</li>
+  </ul>
+  <p>The use of the information that Madar gets from Google APIs follows the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, with its Limited Use requirements. Madar does not use Google data for ads, does not sell it, and does not give it to other people.</p>
+
+  <h2>Contact</h2>
+  <p>For a question or to delete your data, write to <a href="mailto:o.khalil@mazj.org">o.khalil@mazj.org</a>.</p>
+</section>
+
+<section lang="ar" dir="rtl">
+  <h1>الخصوصية في مدار</h1>
+  <p class="date">آخر تعديل: 19 أكتوبر 2026</p>
+  <p>مدار أداة المشاريع الداخلية لمكتبنا المعماري وشركاته الفرعية في الخبر، السعودية. يدخلها موظفو المكتب فقط. لا يفتح مدار حسابات للعامة، ولا نبيع بياناتك ولا نشاركها.</p>
+
+  <h2>البيانات التي يحفظها مدار</h2>
+  <p>يحفظ مدار بيانات العمل في المكتب: أسماء الموظفين وبريدهم في العمل، والمشاريع والمهام والتعليقات والمحادثات والملفات والدفعات والاجتماعات. تستضيفها شركات نتعامل معها: Cloudflare، وقاعدة بيانات في فرانكفورت بألمانيا. ويرسل مدار رسائل البريد عن طريق Resend.</p>
+
+  <h2>تقويم Google</h2>
+  <p>تستطيع أن تربط مدار بتقويم Google من الإعدادات في مدار. يطلب مدار من Google إذنًا واحدًا فقط: <code dir="ltr">https://www.googleapis.com/auth/calendar.app.created</code>. بهذا الإذن ينشئ مدار تقويمًا خاصًا به، ويكتب فيه اجتماعاتك في مدار. لا يقدر مدار أن يقرأ تقاويمك الأخرى ولا مواعيدك الأخرى.</p>
+  <ul>
+    <li>يكتب مدار عنوان الاجتماع ووقته ومكانه فقط. لا يرسل إلى Google الملاحظات ولا أسماء الضيوف ولا بيانات المشروع.</li>
+    <li>يحفظ مدار المفتاح الذي يعطيه Google مشفّرًا على خادمه، ويستعمله لكتابة هذه الاجتماعات فقط.</li>
+    <li>تستطيع أن تفصل الربط من الإعدادات في مدار، أو من <a href="https://myaccount.google.com/permissions" dir="ltr">https://myaccount.google.com/permissions</a>. وعندها يحذف مدار المفتاح.</li>
+  </ul>
+  <p>يتبع مدار في استعمال ما يأخذه من Google <a href="https://developers.google.com/terms/api-services-user-data-policy">سياسة Google لبيانات المستخدمين</a>، ومنها شروط الاستعمال المحدود. لا يستعمل مدار بيانات Google في الإعلانات، ولا يبيعها، ولا يعطيها لأحد.</p>
+
+  <h2>للتواصل</h2>
+  <p>إذا كان لديك سؤال أو أردت أن تحذف بياناتك، راسلنا على <a href="mailto:o.khalil@mazj.org" dir="ltr">o.khalil@mazj.org</a>.</p>
+</section>
+</main>
+</body>
+</html>
