@@ -10,6 +10,9 @@ import { PUSH_CHAT_EFFECT, PUSH_EFFECT, pushRows, sendChatPush, sendPushNotify }
  */
 export const PUSH_FREE_CALLS: ReadonlySet<string> = new Set([...NOTICE_FREE_CALLS, 'push.register', 'push.remove']);
 
+/** The calls that bring old records back: a comment that an Undo inserts again is no new comment, so it pushes nobody (chat design item 11). */
+export const UNDO_CALLS: ReadonlySet<string> = new Set(['events.undo', 'events.undoStory']);
+
 /**
  * Wires the push effect into runCall (owner, 2026-10-08): the effect handler, and the push producer on every shared write call
  * except PUSH_FREE_CALLS. Any write can make a notice or a message, so the producer runs after each save, and it asks the database
@@ -25,7 +28,7 @@ export function registerPushEffects(): () => void {
     undo.push(registerEffect(PUSH_CHAT_EFFECT, sendChatPush));
     for (const [name, def] of Object.entries(sharedCalls)) {
       if (def.readOnly || PUSH_FREE_CALLS.has(name)) continue;
-      undo.push(registerOutbox(name as SharedCallName, (_output, saved, q) => pushRows(q, saved)));
+      undo.push(registerOutbox(name as SharedCallName, (_output, saved, q) => pushRows(q, saved, { undo: UNDO_CALLS.has(name) })));
     }
   } catch (error) {
     removeAll();

@@ -22,7 +22,7 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - `push_devices` (`20261008000100_push_devices.sql`, owner 2026-10-08): the private rows of the browsers that get push. Not an office
   list. `loaders/push.ts` reads the own rows of the person of the call and nothing more (`push.register` also reads the row of
   its endpoint). `diffState` adds no kind for it, so a save of a device sends no signal. `endpoint` has a unique index.
-  `SaveResult.messageIds` lists the messages a save inserted, for the push producer.
+  `SaveResult.messageIds` and `SaveResult.commentIds` list the messages and comments a save inserted, for the push producer.
 - A file of a direct chat or a group (owner, 2026-10-19) keeps `conversationId` in its `files` doc: no column and no migration, because
   no read selects by it. Its row has `project_id` and `task_id` null, so the search loader and `files.list` never load it. `diffState`
   counts `files` as a kind of `PRIVATE_CHAT_KINDS`: its save sends the anonymous office signal of a private chat (`save.ts`).

@@ -13,24 +13,31 @@ Madar window, or opens `/`.
 - `vapid.ts`: the ES256 token (RFC 8292) with WebCrypto only, so it runs on Deno Edge Functions and on Workers. No Node API and
   no package. `vapidConfigOf` reads the three secrets. `makeVapidKeys` makes a pair.
 - `send.ts`: one push to one endpoint. `sendPush` tells `sent`, `gone` or `refused`, or throws `PushSendError` for a retry.
-- `notify.ts`: the producer `pushRows` (SQL), the effect `sendPushNotify`, and the four SQL texts.
+- `notify.ts`: the producer `pushRows`, the effects `sendPushNotify` and `sendChatPush`, and their SQL texts.
+- `chatRule.ts`: the pure rule `planPushes` and its facts. `chatFacts.ts`: the fact readers with their SQL texts, Postgres and SQLite.
 - `register.ts`, `effects.ts`: the registration, like `server/mail/register.ts` and `effects.ts`. `deps.ts` imports `effects.ts`.
 - The calls (`push.register`, `push.remove`, `push.mine`) are in `src/api/handlers/push.ts`. The record is `PushDevice`.
 
 ## Who gets a push
-- A person gets ONE push for each transaction that wrote, for them, an unread notice (every trigger, the two notices of requests
-  and bugs too) or a message in a chat that they read and did not write. The other chat members get it: a direct chat goes to the
-  other person, a group goes to its other members, a project chat to the leader, the team and the Admins.
-- Never the sender: the author of a message and the person the author acts for (an agent writes for a person) are left out.
+- A new unread notice that does not point to a chat message or a task comment (`isChatItemNotice`) gives a `push.notify` row at
+  once. A new chat message, a new task comment, and a mention or reply notice of one give a `push.chat` row, after the 10-second wait.
+  `planPushes` (`chatRule.ts`) decides: a direct chat or a group pushes its members; a project chat pushes the people its message
+  names (an @mention or a reply); a person who picked All messages (`ChatRead.notify`) gets every message; a task comment pushes the
+  task lead and the maker of an office task, and other people only when named. Never the author or the person an agent writes for;
+  never for a reaction, a delete, a quiet line or an Undo; an edit pushes only a person it names for the first time. One row for each
+  person for each save: a `push.notify` row wins over a `push.chat` row. The mention switch of Settings does not stop a push that
+  names a person.
 - Only an active human with at least one device. A person with no device gets no row.
 - The switches of the notices (`Preferences.notifications`) already decide whether a notice exists. There is no push switch
   for a kind. The one switch of a person is per device: "Notify me on this device" in Settings.
 
 ## The path
-1. After the save of a write call, the producer (`pushRows`, registered for every shared write except `PUSH_FREE_CALLS`) writes
-   one `push.notify` outbox row for each person, in the transaction of the call. A rollback sends nothing.
-   A new notice is a row whose `xmin` is the id of the open transaction (the rule of `NEW_NOTICES_SQL` in the mail guide). A new
-   message is one of `SaveResult.messageIds` (the ids that the save inserted).
+1. After the save of a write call, the producer (`pushRows`, registered for every shared write except `PUSH_FREE_CALLS`) reads the
+   facts of the save (`chatFacts.ts`: at most five statements on Postgres, in the transaction of the call; the office lists and
+   reads by key on SQLite), asks `planPushes`, and writes one outbox row for each person (`push.notify` or `push.chat`). A rollback
+   sends nothing. A new notice is a row whose `xmin` is the id of the open transaction (the rule of `NEW_NOTICES_SQL` in the mail
+   guide). A new message and a new comment are `SaveResult.messageIds` and `SaveResult.commentIds` (the ids that the save inserted).
+   An Undo call (`UNDO_CALLS`) pushes nothing for the comments it brings back.
 2. `push.notify` is in `AFTER_ANSWER_KINDS` (`server/core/effects.ts`), so on the hosted functions it runs right after the
    answer, on the chain of the mails of the batch. Without `after` (tests, scripts) it runs before the answer.
 3. The 15-minute job writes the same rows after its own save (`jobs/steps/triggers.ts`) and retries a failed row (up to 5 times).
