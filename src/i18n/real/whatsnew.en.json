@@ -3,29 +3,33 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-13": {
+        "title": "Who changes a role",
+        "body": "Now only the Admin changes the role of a person. Management can read a role, but cannot change it."
+      },
       "2026-10-23-1": {
         "title": "The project list",
-        "body": "Now the project list shows 3 pictures of the people. A number after them, such as +2, counts the rest."
+        "body": "Now the project list shows who works on each project. It shows 3 pictures, then a number such as +2 for the rest."
       },
       "2026-10-23-2": {
         "title": "Your profile photo",
         "body": "Now a photo with a see-through background shows your glow behind it. Upload the photo again to see the glow."
       },
       "2026-10-23-3": {
-        "title": "The calendar on a computer",
-        "body": "Now the calendar on a computer moves one month for each step of the mouse wheel."
+        "title": "A new calendar",
+        "body": "Madar has its own calendar on a computer. Turn the mouse wheel to move one month. Press the month name to jump to another month or year. Press Today to come back."
       },
       "2026-10-23-4": {
         "title": "Archive a chat",
-        "body": "Now you can archive a chat. A new message brings it back."
+        "body": "Now you can archive a chat. Press the three dots on the chat, or swipe the chat on a phone. A new message brings it back. The row Archived is under the search field."
       },
       "2026-10-23-5": {
         "title": "Group chats",
-        "body": "Now you can make a group chat with 2 or more people. Press New message, then Make a group."
+        "body": "Now you can make a group chat with 2 or more people. Press New message, then New group. Press the number of people under the name of a group to see who is in it."
       },
       "2026-10-23-6": {
         "title": "Agents read your chats",
-        "body": "Now your AI agent can read your chats. It can also list the chats that wait for your reply."
+        "body": "Now your AI agent can read your chats and list the chats that wait for your reply. The AI agent of a colleague in a chat can read the messages of that chat. The agent of a person who is not in the chat cannot read it."
       },
       "2026-10-23-7": {
         "title": "Sub-companies",
@@ -33,7 +37,7 @@
       },
       "2026-10-23-8": {
         "title": "The project on the map",
-        "body": "Now you can pin the project on a map in the project settings. Search a place by name or paste a map link. The Dashboard has a Map tab with all the pins."
+        "body": "Now you can pin the project on a map in Edit project. Search a place by name or paste a map link. The Dashboard has a Map tab. It shows the street map in Madar colors, with all the pins."
       },
       "2026-10-23-9": {
         "title": "Open space",
@@ -41,7 +45,7 @@
       },
       "2026-10-23-10": {
         "title": "Project templates",
-        "body": "Now the Admin can drag the stages of a project template, copy a template, see its timeline, and send an update to the projects made from it."
+        "body": "Now a stage keeps its start and length after you add a task. The Admin can drag the stages of a project template, copy a template, and see its timeline. Each task and stage has a Waits for picker. The Admin can also send an update to the projects made from a template."
       },
       "2026-10-23-11": {
         "title": "Roles and rights",
@@ -51,6 +55,10 @@
         "title": "The office report",
         "body": "Now a person with the report right can ask an AI agent for the full office report."
       }
-    }
+    },
+    "newMark": "New",
+    "seeNew": "See what's new",
+    "open": "Open",
+    "openItem": "Open: {{title}}"
   }
 }

@@ -23,6 +23,8 @@ import { PushAskCard } from './PushAskCard';
 import { TodayPanel } from './TodayPanel';
 import { isLive } from '../../lib/overview';
 import { readRoleHint, writeRoleHint } from './roleHint';
+import { WHATS_NEW } from '../../whatsNew/entries';
+import { hasNew, readSeen } from '../../whatsNew/seen';
 
 /**
  * Both columns of Home: the greeting, Next for you, Today and Your projects. It takes only plain props and stable handlers, so a
@@ -55,6 +57,10 @@ const HomeBody = memo(function HomeBody({ session, mine, review, listed, listedE
               {/* One count for today (audit PER-12): the ring when it shows. With no task of mine due, the header names what
                   waits, so it never says "1 thing today" above "Nothing is due today" (audit BRW-16). */}
               {ring.total === 0 && review.length > 0 && <> · {counted(t, 'home.reviewsWaiting', review.length)}</>}
+              {/* One quiet link while the newest What's new entry is not seen; it goes after the visit (UX audit 2026-10-19, chats-16). */}
+              {hasNew(WHATS_NEW, readSeen(user.id)) && (
+                <> · <Link to="/whats-new" className="text-link hover:underline">{t('whatsNew.seeNew')}</Link></>
+              )}
             </span>
             <DayRing done={ring.done} total={ring.total} />
           </span>

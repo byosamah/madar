@@ -87,10 +87,12 @@ export function PersonMenu({ id }: { id: string }) {
               <AnimatedIcon icon={SettingsIcon} size={18} className="text-ink-2" aria-hidden />
               {t('nav.settings')}
             </Link>
-            {/* The item is bold until the person sees the newest What's new entry (fbk_018). The page marks the entry seen when the person opens it. */}
-            <Link to="/whats-new" onClick={close} className={hasNew(WHATS_NEW, readSeen(user.id)) ? `${row} font-bold` : row}>
+            {/* The small word New follows the item until the person sees the newest What's new entry (fbk_018; UX audit 2026-10-19, chats-16).
+                The page marks the entry seen when the person opens it. */}
+            <Link to="/whats-new" onClick={close} className={row}>
               <AnimatedIcon icon={SparklesIcon} size={18} className="text-ink-2" aria-hidden />
               {t('whatsNew.menu')}
+              {hasNew(WHATS_NEW, readSeen(user.id)) && <span className="ms-auto text-footnote text-ink-2">{t('whatsNew.newMark')}</span>}
             </Link>
             {/* The focus goes back to the picture first, so the sheet gives it back there when it closes (audit 2026-10-03, SHL-19). */}
             <button type="button" onClick={() => { close(); setFeedback(true); }} className={row}>

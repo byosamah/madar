@@ -41,4 +41,22 @@ describe("What's new entries", () => {
       }
     }
   });
+
+  it('name a real right and a real address when they have them (chats-14)', () => {
+    const rights = ['admin.manage', 'people.manage', 'payment.manage', 'clients.manage', 'templates.manageAll', 'report.office'];
+    for (const entry of WHATS_NEW) {
+      if (entry.right) expect(rights, entry.id).toContain(entry.right);
+      if (entry.to) expect(entry.to, entry.id).toMatch(/^\/[a-z-]+(\/[a-z-]+)*(\?[a-z]+=[a-z]+)?$/);
+    }
+    // Every entry that only the Admin can use has a right, so a Member does not read it.
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-7')?.right).toBe('admin.manage');
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-11')?.right).toBe('admin.manage');
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-12')?.right).toBe('report.office');
+  });
+
+  it('have a short "Open" link word and a "New" mark in both languages', () => {
+    for (const tree of [en, ar]) {
+      for (const key of ['newMark', 'seeNew', 'open', 'openItem']) expect(typeof wordAt(tree, ['whatsNew', key]), key).toBe('string');
+    }
+  });
 });

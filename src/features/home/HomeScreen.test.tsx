@@ -31,7 +31,8 @@ describe('Home', () => {
     await screen.findByRole('progressbar', { name: /done today/ });
     const header = screen.getByRole('heading', { level: 1 }).nextElementSibling as HTMLElement;
     expect(within(header).queryByText(/review/)).toBeNull();
-    expect(within(header).getByText(/30 September/).textContent).toBe('Wednesday 30 September');
+    // The date, then the quiet What's new link while the newest entry is not seen (chats-16).
+    expect(within(header).getByText(/30 September/).textContent).toMatch(/^Wednesday 30 September( · See what's new)?$/);
     expect(within(await next()).getByText('Approve “Toilet details”')).toBeInTheDocument();
   });
 
@@ -144,5 +145,21 @@ describe('Home', () => {
     await next();
     expect(document.querySelectorAll('main .signature')).toHaveLength(1);
     expect(document.querySelectorAll('main .glow')).toHaveLength(1);
+  });
+});
+
+// UX audit 2026-10-19, chats-16: one quiet link at the end of the greeting line while the newest What's new entry is not seen.
+describe("Home and What's new", () => {
+  it("ends the greeting line with the link See what's new, and drops it after the person opens the page", async () => {
+    await renderApp('/', as('usr_005'));
+    const link = await screen.findByRole('link', { name: "See what's new" });
+    expect(link).toHaveAttribute('href', expect.stringMatching(/\/whats-new$/));
+    // It sits in the line under the greeting, after the date, so Home keeps its order and shows no card.
+    expect(link.parentElement?.textContent).toMatch(/^Wednesday 30 September · See what's new$/);
+    await userEvent.click(link);
+    expect(await screen.findByRole('heading', { level: 1, name: "What's new" })).toBeInTheDocument();
+    window.location.hash = '#/';
+    await screen.findByRole('heading', { level: 1, name: /^Good morning/ });
+    expect(screen.queryByRole('link', { name: "See what's new" })).toBeNull();
   });
 });

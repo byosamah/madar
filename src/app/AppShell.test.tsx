@@ -117,21 +117,24 @@ describe('app shell', () => {
     for (const row of rows) expect(row).toHaveClass('text-start');
   });
 
-  it("shows What's new in bold while the newest entry is not seen (fbk_018)", async () => {
+  it("shows the small word New after What's new while the newest entry is not seen (fbk_018; chats-16)", async () => {
     await renderApp('/dashboard');
     await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
-    const link = within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('link', { name: "What's new" });
-    expect(link).toHaveClass('font-bold');
+    const link = within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('link', { name: /^What's new/ });
+    expect(within(link).getByText('New')).toHaveClass('text-ink-2');
+    // The word is a plain word in secondary ink: no bold, no dot, no colour.
+    expect(link).not.toHaveClass('font-bold');
+    expect(link.querySelector('[class*="bg-"]')).toBeNull();
   });
 
-  it("shows What's new in normal weight after the person opens the page (fbk_018)", async () => {
+  it("drops the word New after the person opens the page (fbk_018; chats-16)", async () => {
     await renderApp('/dashboard');
     await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
-    await userEvent.click(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('link', { name: "What's new" }));
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('link', { name: /^What's new/ }));
     expect(await screen.findByRole('heading', { level: 1, name: "What's new" })).toBeInTheDocument();
     await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
     const link = within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('link', { name: "What's new" });
-    expect(link).not.toHaveClass('font-bold');
+    expect(within(link).queryByText('New')).toBeNull();
   });
 
   it('switches between light and dark from the person menu', async () => {
