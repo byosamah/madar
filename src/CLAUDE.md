@@ -357,7 +357,9 @@ any screen work.
   (`messageParam`) and keys each pane by id and mark, so a new mark opens a new pane. A chat asks `chats.messages` with `around`; a window
   of an old message ends with a plain "Show newer messages" button (`NewerMessages.tsx`), and a send from a window goes to the newest page
   (`navigate(chatLink(id), { replace: true })`). A window page holds at least 220 messages, so the Earlier messages control shows by the
-  size rule of `useEarlierMessages`. A task thread takes the mark as `focusFromRoute` (the frame comes with D13).
+  size rule of `useEarlierMessages`. The ChatPane and the TaskPane start `focusId` at the mark (`focusFromRoute`), so the opened message goes to the
+  middle and wears the soft frame once; the query keeps `around` after the frame. A press on a reply strip (`focusMessage` of the ChatPane) frames the
+  old message when it is in the loaded pages, and else navigates to `chatLink(id, target)`, the page at that old message.
 - Shortcuts to a chat (chat design 2026-10-19, item 18): the person sheet of Search has a grey Message button (`PersonSheet.tsx`) that calls
   `chats.openDirect` and opens `/inbox/<id>`; the own person and an agent have none. The project page header has a grey Project chat link
   (`ProjectHeader.tsx`, `ProjectDetail.chatId`, null for a person who may not open the chat). Both use the message icon and the secondary

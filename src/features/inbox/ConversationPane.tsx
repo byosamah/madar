@@ -120,8 +120,9 @@ export function ChatPane({ id, focusFromRoute }: { id: string; focusFromRoute: s
     setEditingId(null);
     requestAnimationFrame(() => document.getElementById(`composer-${id}`)?.focus());
   });
-  // The message that the log goes to and frames (items 10 and 17). A press on a reply strip sets it; the log clears it after the frame.
-  const [focusId, setFocusId] = useState<string | null>(null);
+  // The message that the log goes to and frames (items 10 and 17). The link starts it (`?at=`), a press on a reply strip sets it; the log
+  // clears it after the frame. The query keeps `around` after that (it reads the prop, not this state), so the page stays.
+  const [focusId, setFocusId] = useState<string | null>(focusFromRoute);
   // The "Notify me" items of the header menu. A hook, so it sits before the early returns. A task thread has none (TaskPane).
   const notifyItems = useNotifyItems(id, data?.notify ?? 'all');
   const { messages, earlier } = useEarlierMessages(id, data?.messages);
@@ -135,6 +136,12 @@ export function ChatPane({ id, focusFromRoute }: { id: string; focusFromRoute: s
     outbox.markRetry(entry.key);
     send.retry(entry.input);
   });
+  // A press on a reply strip (item 10): an old message that is in the log gets the frame. One that is older than the loaded pages opens
+  // its own page, as a link with `?at=` does.
+  const focusMessage = useStableHandler((target: string) => {
+    if (messages.some((view) => view.message.id === target)) setFocusId(target);
+    else navigate(chatLink(id, target));
+  });
   // One stable object for all the bubbles (chat design 2026-10-19, item 9): a bubble renders again only when its own Bubble changes.
   const actions = useMemo<BubbleActions>(() => ({
     menuLabel: t('chat.messageActions'), canReact: true, meId, people,
@@ -143,8 +150,8 @@ export function ChatPane({ id, focusFromRoute }: { id: string; focusFromRoute: s
     edit: (bubble) => setEditingId(bubble.id),
     remove: (bubble) => deleteMessage(bubble.id),
     saveEdit: (bubble, body) => editMessage.mutate({ id: bubble.id, body }, { onSuccess: endEdit }),
-    endEdit, retry: retrySend, focusMessage: setFocusId,
-  }), [t, meId, people, canReply, react.mutate, editMessage.mutate, deleteMessage, endEdit, retrySend]);
+    endEdit, retry: retrySend, focusMessage,
+  }), [t, meId, people, canReply, react.mutate, editMessage.mutate, deleteMessage, endEdit, retrySend, focusMessage]);
   const me = session.data ? cardOfUser(session.data.authority) : undefined;
   const messageBubbles = useBubbles(messages, (view) => ({ ...bubbleOfMessage(view), ...(outbox.claimed.has(view.message.id) ? { fromOutbox: true as const } : {}) }));
   const lineBubbles = useBubbles(data?.lines ?? NO_LINES, bubbleOfLine);
@@ -256,8 +263,8 @@ const NO_LINES: GroupLine[] = [];
 const NO_PEOPLE: UserCard[] = [];
 const NO_UNSENT: never[] = [];
 
-/** The comments of one task as a chat. A message posts a task comment. A link with a comment (`?at=`) names the comment to frame (D13). */
-export function TaskPane({ id }: { id: string; focusFromRoute: string | null }) {
+/** The comments of one task as a chat. A message posts a task comment. A link with a comment (`?at=`) names the comment to frame. */
+export function TaskPane({ id, focusFromRoute }: { id: string; focusFromRoute: string | null }) {
   const { t } = useTranslation();
   const task = useCall('tasks.get', { id });
   // An office task has no project (owner, 2026-10-06): its people are its maker, its lead and its helpers.
@@ -300,8 +307,9 @@ export function TaskPane({ id }: { id: string; focusFromRoute: string | null }) 
     setEditingId(null);
     requestAnimationFrame(() => document.getElementById(`composer-${id}`)?.focus());
   });
-  // The comment that the log goes to and frames (items 10 and 17), as in a chat.
-  const [focusId, setFocusId] = useState<string | null>(null);
+  // The comment that the log goes to and frames (items 10 and 17), as in a chat. All comments of a task are in the log, so a press on a strip
+  // needs no page.
+  const [focusId, setFocusId] = useState<string | null>(focusFromRoute);
   // Instant send, as in a chat (item 13).
   const outbox = useOutbox<CallInput<'comments.create'>>((comments.data ?? NO_COMMENTS).filter((view) => view.kind === 'message').map((view) => ({ id: view.comment.id, mine: view.author.id === me, body: view.comment.body })));
   const paneOpen = usePaneOpen();

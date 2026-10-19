@@ -11,6 +11,10 @@
         "title": "Fewer pushes",
         "body": "A project chat now sends you a push only when a message names you. In the menu of each chat, Notify me sets All messages or Only when I am named. Madar sends no push for a chat that you already read. A 👍 or ✅ on a message answers it."
       },
+      "2026-10-23-40": {
+        "title": "Search messages",
+        "body": "Search now finds the messages of your chats and the comments of tasks. Press a result to open the chat at that message. A person card has a Message button, and a project page has a Project chat button."
+      },
       "2026-10-23-23": {
         "title": "Drop files into a chat",
         "body": "Drag files from your computer and drop them on an open chat, or paste a picture into the message box. Each file shows how much of it went up. Nothing goes until you press Send."

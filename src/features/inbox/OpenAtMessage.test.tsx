@@ -116,3 +116,69 @@ describe('the Inbox opens at one message', () => {
     expect((await inLog('الرسائل')).getByText('Line 50')).toBeInTheDocument();
   }, 30_000);
 });
+
+describe('the frame on the opened message (chat design 2026-10-19, items 10 and 17)', () => {
+  it('frames the message of the link once', async () => {
+    await renderApp(`/inbox/cnv_001?at=${idOf(50)}`, lines(600));
+    const row = (await screen.findByText('Line 50', {}, { timeout: 10_000 })).closest('li')!;
+    expect(row).toHaveAttribute('data-framed');
+    await waitFor(() => expect(row).not.toHaveAttribute('data-framed'), { timeout: 2000 });
+    // The frame does not come back, also when the chat loads its messages again.
+    await waitFor(() => expect(document.querySelectorAll('[data-framed]')).toHaveLength(0));
+  }, 30_000);
+
+  it('frames the comment of a task thread link', async () => {
+    await renderApp('/inbox/tsk_001?at=cmt_990', (state) => {
+      const taskId = Object.values(state.tasks).find((t) => t.projectId === 'prj_001')!.id;
+      state.comments.cmt_990 = {
+        id: 'cmt_990', targetType: 'task', targetId: taskId, authorId: 'usr_002', body: 'Check the manhole spacing', reactions: emptyReactions(), fileIds: [],
+        createdAt: stampAfter(state, 1), editedAt: null,
+      };
+    });
+    const row = (await screen.findByText('Check the manhole spacing', {}, { timeout: 10_000 })).closest('li')!;
+    expect(row).toHaveAttribute('data-framed');
+    await waitFor(() => expect(row).not.toHaveAttribute('data-framed'), { timeout: 2000 });
+  }, 30_000);
+
+  it('frames nothing when the chat opens with no message mark', async () => {
+    await renderApp('/inbox/cnv_001', lines(10));
+    expect(await (await inLog()).findByText('Line 10')).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-framed]')).toHaveLength(0);
+  });
+
+  it('opens the page of an old message when a reply strip points to it', async () => {
+    await renderApp('/inbox/cnv_001', (state) => {
+      lines(600)(state);
+      // A reply at the end of the chat answers Line 10, which is far older than the newest page of 200 messages.
+      state.messages.msg_1700 = {
+        id: 'msg_1700', conversationId: roomOf(state), authorId: 'usr_003', actingForId: 'usr_003', body: 'Back to the first lines', mentions: [], fileIds: [],
+        replyToId: idOf(10), createdAt: stampAfter(state, 1), editedAt: null,
+      };
+    });
+    const first = await inLog();
+    expect(await first.findByText('Back to the first lines')).toBeInTheDocument();
+    expect(first.queryByText('Line 11')).toBeNull();
+    await userEvent.click(first.getByRole('button', { name: /Line 10$/ }));
+    await waitFor(() => expect(window.location.hash).toBe(`#/inbox/cnv_001?at=${idOf(10)}`));
+    await expectInLog('Line 11');
+    const row = within(screen.getByRole('log', { name: 'Messages' })).getByText('Line 10').closest('li')!;
+    expect(row).toHaveAttribute('data-framed');
+    expect(screen.getByRole('button', { name: 'Show newer messages' })).toBeInTheDocument();
+  }, 30_000);
+
+  it('goes to a message that is already in the log with no new page', async () => {
+    await renderApp('/inbox/cnv_001', (state) => {
+      lines(30)(state);
+      state.messages.msg_1700 = {
+        id: 'msg_1700', conversationId: roomOf(state), authorId: 'usr_003', actingForId: 'usr_003', body: 'Back to line 5', mentions: [], fileIds: [],
+        replyToId: idOf(5), createdAt: stampAfter(state, 1), editedAt: null,
+      };
+    });
+    const log = await inLog();
+    expect(await log.findByText('Back to line 5')).toBeInTheDocument();
+    await userEvent.click(log.getByRole('button', { name: /Line 5$/ }));
+    await waitFor(() => expect(document.querySelector(`[data-message-id="${idOf(5)}"]`)).toHaveAttribute('data-framed'));
+    // The link stays as it was: the old message is in the page already.
+    expect(window.location.hash).toBe('#/inbox/cnv_001');
+  }, 30_000);
+});
