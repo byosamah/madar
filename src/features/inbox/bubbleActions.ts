@@ -16,6 +16,10 @@ export type BubbleActions = {
   /** The id of the person who reads: the reaction of this person has the ring. */
   meId: string;
   react(bubble: Bubble, emoji: Reaction): void;
+  /** True where the box shows (a chat that is open; a task thread for a person who may post): the menu then offers Reply. */
+  canReply: boolean;
+  /** Starts a reply to this bubble: the strip shows in the box and the focus goes into the field. */
+  reply(bubble: Bubble): void;
   /** The people that a name in the text can point to (the edit form of a message). */
   people: UserCard[];
 };

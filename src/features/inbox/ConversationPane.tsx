@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import type { ChatRow, CommentView, GroupLine, MessageView, UserCard } from '../../api/contract/views';
+import type { ChatRow, CommentView, GroupLine, MessageView, ReplyRef, UserCard } from '../../api/contract/views';
 import { usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
 import { Avatar } from '../../components/Avatar';
@@ -14,6 +14,7 @@ import { Menu } from '../../components/Menu';
 import { ProjectTile } from '../../components/ProjectTile';
 import { Composer, MessageLog, type Bubble } from './Thread';
 import { BubbleActionsContext, type BubbleActions } from './bubbleActions';
+import { replyRefOfBubble } from './ReplyStrip';
 import { ArchiveMenu } from './ChatList';
 import { GroupPicture } from './GroupPicture';
 import { GroupSheets, type GroupMode } from './GroupSheets';
@@ -62,7 +63,7 @@ function useBubbles<V extends object>(views: V[], toBubble: (view: V) => Bubble,
 function bubbleOfMessage(view: MessageView): Bubble {
   return {
     id: view.message.id, author: view.author, actingFor: view.actingFor, body: view.message.body, files: view.files,
-    createdAt: view.message.createdAt, mine: view.mine, edited: view.message.editedAt !== null, reactions: view.message.reactions,
+    createdAt: view.message.createdAt, mine: view.mine, edited: view.message.editedAt !== null, reactions: view.message.reactions, replyTo: view.replyTo,
   };
 }
 
@@ -104,11 +105,15 @@ export function ChatPane({ id }: { id: string }) {
   const data = thread.data;
   const people = data?.people ?? NO_PEOPLE;
   const meId = session.data?.authority.id ?? '';
+  // The message that the next send answers (chat design 2026-10-19, item 10). A closed chat takes no reply.
+  const [replyTo, setReplyTo] = useState<ReplyRef | null>(null);
+  const canReply = data !== undefined && !data.chat.personLeft;
   // One stable object for all the bubbles (chat design 2026-10-19, item 9): a bubble renders again only when its own Bubble changes.
   const actions = useMemo<BubbleActions>(() => ({
     menuLabel: t('chat.messageActions'), canReact: true, meId, people,
     react: (bubble, emoji) => react.mutate({ messageId: bubble.id, emoji }),
-  }), [t, meId, people, react.mutate]);
+    canReply, reply: (bubble) => setReplyTo(replyRefOfBubble(bubble)),
+  }), [t, meId, people, canReply, react.mutate]);
   const { messages, earlier } = useEarlierMessages(id, data?.messages);
   const messageBubbles = useBubbles(messages, bubbleOfMessage);
   const lineBubbles = useBubbles(data?.lines ?? NO_LINES, bubbleOfLine);
@@ -165,7 +170,14 @@ export function ChatPane({ id }: { id: string }) {
           pending={send.isPending}
           // A project chat joins the files of its project. A direct chat or a group keeps its files in the chat (owner, 2026-10-19).
           upload={chat.kind === 'project' ? (chat.project ? { projectId: chat.project.id } : undefined) : { projectId: null, conversationId: id }}
-          onSend={(body, fileIds, clear) => send.mutate({ conversationId: id, body, fileIds }, { onSuccess: clear })}
+          replyTo={replyTo}
+          onCancelReply={() => setReplyTo(null)}
+          onSend={(body, fileIds, clear) => send.mutate({ conversationId: id, body, fileIds, ...(replyTo ? { replyToId: replyTo.id } : {}) }, {
+            onSuccess: () => {
+              clear();
+              setReplyTo(null);
+            },
+          })}
         />
       )}
       {isGroup && <GroupSheets id={id} mode={sheet} onMode={setSheet} name={chat.title} people={data.people} me={session.data?.authority} makerId={chat.makerId} />}
@@ -197,16 +209,18 @@ export function TaskPane({ id }: { id: string }) {
   const archive = useArchive();
   useMarkTaskRead(id, comments.data, session.data?.authority.id);
   const me = session.data?.authority.id;
+  const [replyTo, setReplyTo] = useState<ReplyRef | null>(null);
   const where = task.data?.project ?? null;
   const canPost = task.data ? (where ? project.data?.viewerCan.post ?? false : task.data.viewerCan.contribute) : false;
   const actions = useMemo<BubbleActions>(() => ({
     menuLabel: t('comments.actions'), canReact: canPost, meId: me ?? '', people: NO_PEOPLE,
     react: (bubble, emoji) => react.mutate({ commentId: bubble.id, emoji }),
+    canReply: canPost, reply: (bubble) => setReplyTo(replyRefOfBubble(bubble)),
   }), [t, canPost, me, react.mutate]);
   // "mine" depends on the person, so the kept bubbles start again when the person changes.
   const bubbles = useBubbles(comments.data ?? NO_COMMENTS, (view: CommentView): Bubble => ({
     id: view.comment.id, author: view.author, actingFor: null, body: view.comment.body, files: view.files, createdAt: view.comment.createdAt,
-    mine: view.author.id === me, edited: view.comment.editedAt !== null, reactions: view.comment.reactions,
+    mine: view.author.id === me, edited: view.comment.editedAt !== null, reactions: view.comment.reactions, replyTo: view.replyTo,
     // The reason of a date move or of a reopening is a quiet line, not a message of a person (fbk_027).
     ...(view.kind === 'message' ? {} : { reason: { kind: view.kind, dates: view.comment.dates } }),
   }), me);
@@ -248,7 +262,14 @@ export function TaskPane({ id }: { id: string }) {
           people={people}
           pending={create.isPending}
           upload={{ projectId: where?.id ?? null, stageId: task.data.task.stageId, taskId: id }}
-          onSend={(body, fileIds, clear) => create.mutate({ targetType: 'task', targetId: id, body, fileIds }, { onSuccess: clear })}
+          replyTo={replyTo}
+          onCancelReply={() => setReplyTo(null)}
+          onSend={(body, fileIds, clear) => create.mutate({ targetType: 'task', targetId: id, body, fileIds, ...(replyTo ? { replyToId: replyTo.id } : {}) }, {
+            onSuccess: () => {
+              clear();
+              setReplyTo(null);
+            },
+          })}
         />
       ) : <p className="border-t border-hairline p-3 text-footnote text-ink-2">{t('comments.cannot')}</p>}
     </>

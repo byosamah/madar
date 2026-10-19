@@ -299,6 +299,10 @@ any screen work.
   and the TaskPane each give one stable object (`useMemo`). A task thread names its menu "Actions for this comment"; a person who may not post sees
   plain pills and no menu. Reaction pills (`ReactionPills.tsx`) are 28 px high with a 44 px press area; the names come in `title` and, after a long
   press, in a `role="tooltip"`; the pill of the reader has the ring; no faces.
+- Reply: the menu item "Reply" (first in the list, also in the phone sheet) puts `ComposerReplyStrip` above the field of the box (the name, the first line
+  and an X; Escape in the field with no open mention list drops it too) and moves the focus into the field. The next send passes `replyToId` (`chats.send`
+  or `comments.create`) and clears the strip. The sent bubble shows `BubbleReplyQuote` above its words (the name and the first line, or only "Deleted message").
+  A closed chat has no Reply (`canReply`). The server names the author of the old message (`api/CLAUDE.md`).
 
 ## Inbox, groups and What's new (owner 2026-10-18; UX audit 2026-10-19)
 - Inbox list (`features/inbox/ChatList.tsx`): "Archived (n)" is one quiet row under the search field, only while a chat is archived

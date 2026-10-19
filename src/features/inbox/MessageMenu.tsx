@@ -16,8 +16,11 @@ import type { Bubble } from './MessageBubble';
  * (Reply), the last after it (Edit, Delete). The reactions are not items: they sit in the head of the menu and in the top row of the
  * sheet. The items show only what the person may do with this bubble.
  */
-function itemGroups(_bubble: Bubble, _actions: BubbleActions, _t: TFunction): { first: MenuItem[]; last: MenuItem[] } {
-  return { first: [], last: [] };
+function itemGroups(bubble: Bubble, actions: BubbleActions, t: TFunction): { first: MenuItem[]; last: MenuItem[] } {
+  return {
+    first: actions.canReply ? [{ label: t('chat.reply'), onSelect: () => actions.reply(bubble) }] : [],
+    last: [],
+  };
 }
 
 /** The items of the menu on a computer, in order. */

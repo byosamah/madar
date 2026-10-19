@@ -10,6 +10,10 @@
     "reactions": "التفاعلات",
     "yourMessage": "رسالتك",
     "copyText": "انسخ النص",
-    "copied": "نُسخ النص."
+    "copied": "نُسخ النص.",
+    "reply": "رد",
+    "replyTo": "رد على {{name}}",
+    "cancelReply": "ألغِ الرد",
+    "deletedMessage": "رسالة محذوفة"
   }
 }

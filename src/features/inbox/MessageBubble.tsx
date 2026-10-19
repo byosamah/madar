@@ -2,7 +2,7 @@ import { motion } from 'motion/react';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DateMove, Reaction } from '../../api/contract/entities';
-import type { Attachment, GroupLine, UserCard } from '../../api/contract/views';
+import type { Attachment, GroupLine, ReplyRef, UserCard } from '../../api/contract/views';
 import { usePictureTest } from '../../app/files';
 import { useLang } from '../../app/lang';
 import { usePersonName } from '../../app/personName';
@@ -19,6 +19,7 @@ import { useBubbleActions } from './bubbleActions';
 import { useLongPress } from './longPress';
 import { MessageSheet, MessageTools } from './MessageMenu';
 import { ReactionPills } from './ReactionPills';
+import { BubbleReplyQuote } from './ReplyStrip';
 
 /** One bubble. A chat message and a task comment both turn into this. */
 export type Bubble = {
@@ -33,6 +34,8 @@ export type Bubble = {
   edited: boolean;
   /** The people behind each reaction (chat design item 12). Missing means none. */
   reactions?: Record<Reaction, string[]>;
+  /** The message or comment that this one answers (item 10). Null or missing: it answers nothing. */
+  replyTo?: ReplyRef | null;
   /** A quiet line of a group (a person joined or left, a new name). It is no message: the log draws it as one grey line. */
   line?: GroupLine;
   /** A quiet line of a task thread (fbk_027): the reason of a date move or of a reopening, or a Madar shift. The log draws one grey line. */
@@ -125,6 +128,7 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh }: { bu
             style={mine ? { background: 'var(--p-blue-bg)' } : undefined}
             className={`rounded-2xl px-3 py-2 text-ink ${mine ? 'rounded-ee-md' : 'rounded-es-md bg-fill'}`}
           >
+            {bubble.replyTo && <BubbleReplyQuote replyTo={bubble.replyTo} />}
             {!photoOnly && <RichText body={bubble.body} className="natural-side text-subheadline" />}
             <AttachmentList files={bubble.files} />
             <p className="tabular pt-0.5 text-end text-caption text-ink-2">

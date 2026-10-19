@@ -10,6 +10,10 @@
     "reactions": "Reactions",
     "yourMessage": "Your message",
     "copyText": "Copy text",
-    "copied": "Text copied."
+    "copied": "Text copied.",
+    "reply": "Reply",
+    "replyTo": "Reply to {{name}}",
+    "cancelReply": "Cancel the reply",
+    "deletedMessage": "Deleted message"
   }
 }
