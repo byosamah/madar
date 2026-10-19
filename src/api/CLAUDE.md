@@ -410,6 +410,10 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   The mark has no Undo: `events.undo` answers `conflict`, reason `settle_final` (`meeting.settled` is in `NOT_UNDOABLE`, and `undoOne` raises the
   reason first), because the next job run would settle the meeting again. The Undo of `tracker.logged` deletes the line, as for any line; the
   meeting then keeps `trackerEntryId`, which `REFERENCE_FIELDS` leaves out on purpose, so the delete is not refused. MCP: deny list.
+  The author of the line (`createdBy`) is always the organizer, whoever settles (the job, the first minutes save, or any person who sees the
+  meeting); the events name the caller as the actor (security fix, 2026-10-19). `mayDeleteTracker` (`views.ts`) gives a line with `auto: 'meeting'`
+  no author delete: only the project leader or the Admin deletes it, and so only they undo its `tracker.logged` (`history.ts` uses the same rule).
+  The screens read `canDelete` of the row, so the Delete button follows. Tests: `meetingSettle.test.ts` ("the author and the delete of the line").
 - Files of a meeting with no project (wave 2, owner 2026-10-19; the pattern of the chat files): `files.upload` and `files.uploadStart` take `meetingId`
   in place of a project, an office task or a chat. `FileRec.meetingId` (optional) names the meeting; `projectId`, `stageId` and `taskId` are null. Only a
   meeting with no project takes one: a project meeting, also a team meeting, uses the files of its project, and an upload with its id fails with

@@ -188,12 +188,13 @@ describe('the refusals', () => {
     over();
     await as(w, 'usr_003', () => w.t.api.call('meetings.settle', { id: w.client }));
     const [line] = lines(w);
-    await as(w, 'usr_003', () => w.t.api.call('tracker.delete', { id: line.id }));
+    // The leader deletes the line: the line of a meeting has no author delete (the fix of 2026-10-19).
+    await as(w, 'usr_002', () => w.t.api.call('tracker.delete', { id: line.id }));
     expect(await failureOf(save(w, 'usr_002', { id: w.client }))).toMatchObject({ code: 'conflict', details: { reason: 'minutes_line_gone' } });
     const detail = await as(w, 'usr_002', () => w.t.api.call('meetings.get', { id: w.client }));
     expect(detail.viewerCan.minutes).toBe(false);
     const deleted = Object.values(w.t.store.state.events).find((event) => event.verb === 'tracker.deleted')!;
-    await as(w, 'usr_003', () => w.t.api.call('events.undo', { eventId: deleted.id }));
+    await as(w, 'usr_002', () => w.t.api.call('events.undo', { eventId: deleted.id }));
     expect((await save(w, 'usr_002', { id: w.client })).minutes?.text).toBe(TEXT);
   });
 

@@ -54,6 +54,11 @@ type NewEntry = Pick<TrackerEntry, 'projectId' | 'type' | 'direction' | 'title'>
   & {
     /** A line that Madar makes for a meeting that ended (fbk_022, wave 2): the id was reserved first, the meeting, and the event that caused it. */
     id?: string; meetingId?: string; causeEventId?: string;
+    /**
+     * The author of a line that Madar makes (the organizer of the meeting). Left out: the person who makes the call. The event still
+     * names the person who made the call as its actor.
+     */
+    createdBy?: string;
   };
 
 /**
@@ -66,7 +71,7 @@ export function addTrackerEntry(ctx: Ctx, input: NewEntry): TrackerEntry {
   const entry: TrackerEntry = {
     id, projectId: input.projectId, type: input.type, direction: input.direction, title: input.title, note: input.note ?? '',
     date: input.date ?? ctx.today, waiting: input.waiting ?? null, closedAt: null, closedBy: null, fileIds: input.fileIds ?? [],
-    peopleIds: input.peopleIds ?? [], auto: input.auto ?? null, createdBy: ctx.actor.id, createdAt: ctx.stamp,
+    peopleIds: input.peopleIds ?? [], auto: input.auto ?? null, createdBy: input.createdBy ?? ctx.actor.id, createdAt: ctx.stamp,
     ...(input.meetingId ? { meetingId: input.meetingId, minutes: null } : {}),
   };
   trackerOf(ctx.state)[id] = entry;

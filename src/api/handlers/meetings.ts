@@ -297,9 +297,11 @@ export function settleMeeting(ctx: Ctx, meeting: Meeting, o: { ownStory?: boolea
     { projectId: meeting.projectId, verb: 'meeting.settled', targetType: 'meeting', targetId: meeting.id },
   );
   if (lineId === null || meeting.projectId === null) return;
+  // The author of the line is the organizer, whoever settles: the 15-minute job, the first minutes save, or any person who sees the
+  // meeting (security fix, 2026-10-19). So the person who settles gets no author rights on the line (mayDeleteTracker).
   addTrackerEntry(sc, {
     id: lineId, projectId: meeting.projectId, type: 'meeting', direction: 'both', title: meeting.title, note: meeting.notes, date: dayOf(meeting),
-    peopleIds: [meeting.organizerId, ...meeting.attendeeIds].slice(0, 20), auto: 'meeting', meetingId: meeting.id,
+    peopleIds: [meeting.organizerId, ...meeting.attendeeIds].slice(0, 20), auto: 'meeting', meetingId: meeting.id, createdBy: meeting.organizerId,
     ...(mark ? { causeEventId: mark.id } : {}),
   });
 }

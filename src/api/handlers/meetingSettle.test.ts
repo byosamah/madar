@@ -176,6 +176,8 @@ describe('meetings.settle', () => {
     t.as('usr_003');
     const made = await t.api.call('meetings.create', project());
     at('2026-10-01T11:05:00+03:00');
+    // The leader settles: a person undoes only an own change, and only the leader or the Admin takes back the line of a meeting.
+    t.as('usr_002');
     await t.api.call('meetings.settle', { id: made.id });
     const events = Object.values(t.store.state.events);
     const mark = events.find((event) => event.verb === 'meeting.settled')!;
@@ -184,7 +186,7 @@ describe('meetings.settle', () => {
       t.as(person);
       expect(await refusal(() => t.api.call('events.undo', { eventId: mark.id })), person).toMatchObject({ code: 'conflict', reason: 'settle_final' });
     }
-    t.as('usr_003');
+    t.as('usr_002');
     await t.api.call('events.undo', { eventId: logged.id });
     expect(lines(t)).toHaveLength(0);
     // The mark stays: the next job run does not settle the meeting again.
@@ -192,7 +194,7 @@ describe('meetings.settle', () => {
     expect(dueToSettle(t.store.state, now())).toEqual([]);
   });
 
-  it('lets any person who sees a project meeting settle it, with that person as the actor', async () => {
+  it('lets any person who sees a project meeting settle it, with that person as the actor and the organizer as the author', async () => {
     const t = world();
     t.as('usr_003');
     const made = await t.api.call('meetings.create', project());
@@ -200,9 +202,11 @@ describe('meetings.settle', () => {
     t.as('usr_004');
     const settled = await t.api.call('meetings.settle', { id: made.id });
     expect(settled.trackerEntryId).toMatch(/^trk_/);
-    // The line is made for the people of the meeting, whoever the actor is.
-    expect(lines(t)[0].createdBy).toBe('usr_004');
+    // The line is made for the people of the meeting, whoever the actor is. Its author is the organizer.
+    expect(lines(t)[0].createdBy).toBe('usr_003');
     expect(lines(t)[0].peopleIds).toEqual(['usr_003']);
+    const logged = Object.values(t.store.state.events).find((event) => event.verb === 'tracker.logged')!;
+    expect(logged.actorId).toBe('usr_004');
   });
 
   it('settles for the person of an agent, with the agent as the actor', async () => {
@@ -214,6 +218,88 @@ describe('meetings.settle', () => {
     await t.api.call('meetings.settle', { id: made.id });
     const mark = Object.values(t.store.state.events).find((event) => event.verb === 'meeting.settled')!;
     expect(mark).toMatchObject({ actorId: 'usr_005', actingForId: 'usr_003', actorKind: 'agent' });
+    // The author is the organizer (a person), never the agent.
+    expect(lines(t)[0].createdBy).toBe('usr_003');
+  });
+});
+
+/**
+ * The author and the delete of the line of a meeting (security fix, 2026-10-19). Any person who sees a project meeting may settle it, so
+ * the person who settles must not become the author of the line: the author is always the organizer. The line is no line that a person
+ * logged, so the rule "the author deletes" does not apply to it. Only the project leader and the Admin delete it (or undo its log).
+ */
+describe('the author and the delete of the line of a meeting', () => {
+  async function settledBy(person: string) {
+    const t = world();
+    t.as('usr_003');
+    const made = await t.api.call('meetings.create', project({ attendeeIds: ['usr_004', 'usr_006'] }));
+    at('2026-10-01T11:05:00+03:00');
+    t.as(person);
+    await t.api.call('meetings.settle', { id: made.id });
+    const [line] = lines(t);
+    const logged = Object.values(t.store.state.events).find((event) => event.verb === 'tracker.logged')!;
+    return { t, made, line, logged };
+  }
+  const canDeleteOf = async (t: ReturnType<typeof world>, person: string, id: string) => {
+    t.as(person);
+    const rows = await t.api.call('tracker.list', { projectId: 'prj_001' });
+    return rows.find((row) => row.entry.id === id)?.canDelete;
+  };
+
+  it('makes the organizer the author when an attendee who is not the organizer settles it, and refuses that attendee the delete', async () => {
+    const { t, line, logged } = await settledBy('usr_004');
+    expect(line.createdBy).toBe('usr_003');
+    expect(logged.actorId).toBe('usr_004');
+    t.as('usr_004');
+    expect(await refusal(() => t.api.call('tracker.delete', { id: line.id }))).toMatchObject({ code: 'forbidden' });
+    expect(await refusal(() => t.api.call('events.undo', { eventId: logged.id }))).toMatchObject({ code: 'forbidden' });
+    expect(lines(t)).toHaveLength(1);
+  });
+
+  it('gives the organizer no delete as the author of the line', async () => {
+    const { t, line, logged } = await settledBy('usr_003');
+    expect(line.createdBy).toBe('usr_003');
+    expect(await canDeleteOf(t, 'usr_003', line.id)).toBe(false);
+    t.as('usr_003');
+    expect(await refusal(() => t.api.call('tracker.delete', { id: line.id }))).toMatchObject({ code: 'forbidden' });
+    expect(await refusal(() => t.api.call('events.undo', { eventId: logged.id }))).toMatchObject({ code: 'forbidden' });
+    expect(lines(t)).toHaveLength(1);
+  });
+
+  it('lets the project leader and the Admin delete the line, and the leader bring it back with Undo', async () => {
+    const { t, line } = await settledBy('usr_006');
+    expect(await canDeleteOf(t, 'usr_002', line.id)).toBe(true);
+    expect(await canDeleteOf(t, 'usr_001', line.id)).toBe(true);
+    t.as('usr_002');
+    await t.api.call('tracker.delete', { id: line.id });
+    expect(lines(t)).toHaveLength(0);
+    const deleted = Object.values(t.store.state.events).find((event) => event.verb === 'tracker.deleted')!;
+    await t.api.call('events.undo', { eventId: deleted.id });
+    expect(lines(t)).toHaveLength(1);
+    t.as('usr_001');
+    await t.api.call('tracker.delete', { id: line.id });
+    expect(lines(t)).toHaveLength(0);
+  });
+
+  it('makes the organizer the author when the first minutes save of an attendee settles the meeting', async () => {
+    const t = world();
+    t.as('usr_003');
+    const made = await t.api.call('meetings.create', project({ attendeeIds: ['usr_004'] }));
+    at('2026-10-01T11:05:00+03:00');
+    t.as('usr_004');
+    await t.api.call('meetings.saveMinutes', { id: made.id, text: 'We agreed on the facade.' });
+    const [line] = lines(t);
+    expect(line).toMatchObject({ createdBy: 'usr_003', minutes: { text: 'We agreed on the facade.', updatedBy: 'usr_004' } });
+    expect(await refusal(() => t.api.call('tracker.delete', { id: line.id }))).toMatchObject({ code: 'forbidden' });
+  });
+
+  it('keeps the author delete for a meeting line that a person logged by hand', async () => {
+    const t = world();
+    t.as('usr_003');
+    const { entry } = await t.api.call('tracker.log', { projectId: 'prj_001', type: 'meeting', direction: 'both', title: 'A call by hand' });
+    expect(entry.auto).toBeNull();
+    await t.api.call('tracker.delete', { id: entry.id });
+    expect(t.store.state.tracker?.[entry.id]).toBeUndefined();
   });
 });
 

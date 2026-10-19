@@ -431,11 +431,15 @@ export function fileViewOf(state: State, file: FileRec, viewer: User): FileView 
   return { file, latest, uploader: cardOf(state, latest.uploadedBy), canDelete: mayDeleteFile(state, viewer, file) };
 }
 
-/** True when this person may delete the entry: its author (or the person an agent author acted for), the leader or the Admin. */
+/**
+ * True when this person may delete the entry: its author (or the person an agent author acted for), the leader or the Admin. The line
+ * that Madar made for a meeting (auto 'meeting') has no author delete: only the leader or the Admin deletes it, the organizer too has no
+ * author right on it (security fix, 2026-10-19). The Undo of its log follows this rule too (history.ts).
+ */
 export function mayDeleteTracker(state: State, viewer: User, entry: TrackerEntry): boolean {
   if (!viewer.active) return false;
-  return can(viewer, 'task.delete', { projectRole: projectRoleOf(state, entry.projectId, viewer.id) })
-    || principalOf(state, entry.createdBy) === viewer.id;
+  if (can(viewer, 'task.delete', { projectRole: projectRoleOf(state, entry.projectId, viewer.id) })) return true;
+  return entry.auto !== 'meeting' && principalOf(state, entry.createdBy) === viewer.id;
 }
 
 /** The reply task of an entry. A task that was deleted counts as no task. */

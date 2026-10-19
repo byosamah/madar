@@ -90,6 +90,19 @@ describe('the meetings step of the 15-minute job', () => {
     expect(row.settled_at).toBe('2026-10-04T12:15:00.000+03:00');
   });
 
+  it('makes the organizer the author of the Tracker line, also when the organizer is off and the Admin acts (fix of 2026-10-19)', async () => {
+    const { deps, db } = await office([MIX[0]], (seed) => {
+      seed.users.usr_002 = { ...seed.users.usr_002, active: false };
+    });
+    deps.runCall = createRunCall({ data: liteData });
+    expect(await meetings(deps, AT)).toEqual({ settled: 1, skipped: 0, failed: 0, extended: 0 });
+    const [line] = await db.statement<{ id: string; author: string }>('read', "select id, json_extract(doc, '$.createdBy') as author from tracker where json_extract(doc, '$.auto') = 'meeting'");
+    expect(line.author).toBe('usr_002');
+    // The Admin made the call, so the event of the line names the Admin as the actor.
+    const logged = await db.statement<{ actor: string }>('read', "select json_extract(doc, '$.actorId') as actor from events where json_extract(doc, '$.verb') = 'tracker.logged' and json_extract(doc, '$.targetId') = ?1", [line.id]);
+    expect(logged).toEqual([{ actor: 'usr_001' }]);
+  });
+
   it('goes on after a failure, and logs the id and the code, never the title', async () => {
     const { deps } = await office([meeting('mtg_001', '2026-10-04T12:00:00.000+03:00'), meeting('mtg_002', '2026-10-04T12:10:00.000+03:00')]);
     const { seen, run } = stub(['mtg_001']);
