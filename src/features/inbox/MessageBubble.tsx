@@ -14,6 +14,8 @@ import { clockFormat, listFormat, type Lang } from '../../lib/dates';
 import { actorContext } from '../../lib/grammar';
 import { reasonLineText, type ReasonKind } from '../comments/ReasonLine';
 import { AttachmentList, photoOnlyBody } from '../files/PictureAttachments';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { BadgeAlertIcon } from '../../components/icons/animated/badge-alert';
 import { DateMoveLines } from '../project/tasks/DateReason';
 import { EditingContext, useBubbleActions } from './bubbleActions';
 import { useLongPress } from './longPress';
@@ -35,6 +37,13 @@ export type Bubble = {
   edited: boolean;
   /** The people behind each reaction (chat design item 12). Missing means none. */
   reactions?: Record<Reaction, string[]>;
+  /**
+   * A message of the person that the server has not saved (instant send, item 13): faded while it goes, and with "Not sent" and "Send again"
+   * when it failed. It has no menu, no pills and no sheet. Missing: a saved message.
+   */
+  status?: 'pending' | 'failed';
+  /** True on the saved message that took the place of a faded copy: it skips its rise, so the swap shows no second motion. */
+  fromOutbox?: true;
   /** True when the reader may edit and delete this bubble: the author of a message or of a comment (item 11). */
   canEdit?: boolean;
   /** The message or comment that this one answers (item 10). Null or missing: it answers nothing. */
@@ -102,18 +111,20 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh }: { bu
   const [sheet, setSheet] = useState(false);
   const press = useLongPress(() => setSheet(true));
   const { author, mine } = bubble;
+  const saved = bubble.status === undefined;
   if (bubble.line) return <GroupLineItem line={bubble.line} />;
   if (bubble.reason) return <ReasonLineItem bubble={bubble} reason={bubble.reason} />;
   // A photo sent with no words has its file name as its words. Beside the preview that name is noise, so the bubble leaves it out.
   const photoOnly = photoOnlyBody(bubble.body, bubble.files, isPicture);
   // The side spot holds the "..." button: at the start of your own message and at the end of another message.
-  const side = <div data-part="side" className="flex items-center gap-1.5 self-center"><MessageTools bubble={bubble} /></div>;
+  const side = <div data-part="side" className="flex items-center gap-1.5 self-center">{saved && <MessageTools bubble={bubble} />}</div>;
   return (
     <>
       <motion.li
         data-message-id={bubble.id}
-        {...(actions ? press : {})}
-        initial={fresh ? { opacity: 0, y: 12 } : false}
+        aria-busy={bubble.status === 'pending' ? true : undefined}
+        {...(actions && saved ? press : {})}
+        initial={fresh && !bubble.fromOutbox ? { opacity: 0, y: 12 } : false}
         animate={{ opacity: 1, y: 0 }}
         transition={spring.standard}
         className={`group flex max-w-[88%] items-end gap-2 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none] sm:max-w-[75%] ${mine ? 'self-end' : 'self-start'}`}
@@ -130,7 +141,7 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh }: { bu
           )}
           <div
             style={mine ? { background: 'var(--p-blue-bg)' } : undefined}
-            className={`rounded-2xl px-3 py-2 text-ink ${mine ? 'rounded-ee-md' : 'rounded-es-md bg-fill'}`}
+            className={`rounded-2xl px-3 py-2 text-ink ${mine ? 'rounded-ee-md' : 'rounded-es-md bg-fill'} ${saved ? '' : 'opacity-60'}`}
           >
             {bubble.replyTo && <BubbleReplyQuote replyTo={bubble.replyTo} />}
             {editing ? <MessageEditForm bubble={bubble} /> : !photoOnly && <RichText body={bubble.body} className="natural-side text-subheadline" />}
@@ -140,7 +151,19 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh }: { bu
               {bubble.edited && ` · ${t('comments.edited')}`}
             </p>
           </div>
-          <ReactionPills bubble={bubble} />
+          {saved && <ReactionPills bubble={bubble} />}
+          {bubble.status === 'failed' && (
+            <div className="flex items-center justify-end gap-1 px-1 text-footnote">
+              <span className="inline-flex items-center gap-1 font-medium text-late">
+                <AnimatedIcon icon={BadgeAlertIcon} size={14} aria-hidden />
+                <span>{t('chat.notSent')}</span>
+              </span>
+              <span aria-hidden className="text-ink-2">·</span>
+              <button type="button" onClick={() => actions?.retry(bubble)} className="pressable min-h-11 rounded-full px-2 font-medium text-link hover:bg-fill">
+                {t('chat.sendAgain')}
+              </button>
+            </div>
+          )}
         </div>
         {!mine && side}
       </motion.li>

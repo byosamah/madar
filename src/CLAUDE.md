@@ -309,6 +309,12 @@ any screen work.
   Delete asks nothing: `useDeleteMessage` (`deleteMessage.ts`) calls `chats.deleteMessage` and shows the toast "Message deleted." with Undo (the same
   call with `deleted: false`); a task comment keeps `comments.update` and `useUndoable('comments.delete')`. `useEarlierMessages` keeps a message that
   left the newest page only when it is older than the oldest message of the new page, so a deleted message does not stay after "Earlier messages".
+- Instant send (`features/inbox/outbox.ts`, a chat and a task thread in the Inbox): a send adds an entry to the outbox and clears the box at once; the log
+  draws it as a faded bubble (`Bubble.status` "pending", `aria-busy`) with no menu. The saved message takes its place: `matchOutbox` pairs an entry with the
+  saved message of the person that has the same words and was not in the log at the send (or with the message of the answer id), one to one, oldest first,
+  so a change signal that comes before the answer shows the message once. The saved bubble has `fromOutbox` and skips its rise. A send that fails (code
+  `failed`) shows "Not sent" in the error color with "Send again" (`useAction` `retry`: the same input and the idempotency key of the failed attempt, so
+  nothing goes twice) and no toast; a refusal still shows its toast, and a failure after the pane closed shows the toast with Retry as before.
 
 ## Inbox, groups and What's new (owner 2026-10-18; UX audit 2026-10-19)
 - Inbox list (`features/inbox/ChatList.tsx`): "Archived (n)" is one quiet row under the search field, only while a chat is archived

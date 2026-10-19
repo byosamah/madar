@@ -28,6 +28,8 @@ export type BubbleActions = {
   saveEdit(bubble: Bubble, body: string): void;
   /** Closes the edit and puts the focus back into the box. */
   endEdit(): void;
+  /** Sends a message that did not go once more, with the same key (instant send, item 13). */
+  retry(bubble: Bubble): void;
   /** The people that a name in the text can point to (the edit form of a message). */
   people: UserCard[];
 };

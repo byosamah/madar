@@ -20,8 +20,8 @@ import { NOW, TODAY } from './factories';
 // The routes start initialized only when their screens are loaded (performance audit BND-1), as in render.tsx.
 await preloadScreens();
 
-/** One call that the screens asked, with its input. */
-export type Asked = { name: string; input: unknown };
+/** One call that the screens asked, with its input and the idempotency key it carried (a write of the real build; a retry carries the key of the failed attempt). */
+export type Asked = { name: string; input: unknown; key?: string };
 
 /** No change signals: a test of the start of the reads sees only the reads that the screens ask, no reload pass. */
 const quiet: ChangeSource = { subscribe: () => () => undefined, status: () => 'open' };
@@ -43,7 +43,7 @@ export async function renderHeldRemoteApp(path: string, prepare?: (state: State)
   let holding = o.hold ?? false;
   let held: Array<() => void> = [];
   api.call = ((name: string, input: unknown, meta?: unknown) => {
-    asked.push({ name, input });
+    asked.push({ name, input, key: (meta as { key?: string } | undefined)?.key });
     const answer = () => (o.fail?.(name, input) ? Promise.reject(new ApiError('failed', 'The call failed. Try again.')) : original(name, input, meta));
     if (!holding) return answer();
     return new Promise<unknown>((resolve, reject) => {
@@ -84,5 +84,7 @@ export async function renderHeldRemoteApp(path: string, prepare?: (state: State)
   );
   /** The calls of one name, in the order they were asked. */
   const callsOf = (name: string) => asked.filter((call) => call.name === name).map((call) => call.input);
-  return { ...view, store, api, router, queryClient, asked, callsOf, hold, release, releaseHeld };
+  /** The idempotency keys of the calls of one name, in the order they were asked. */
+  const keysOf = (name: string) => asked.filter((call) => call.name === name).map((call) => call.key);
+  return { ...view, store, api, router, queryClient, asked, callsOf, keysOf, hold, release, releaseHeld };
 }

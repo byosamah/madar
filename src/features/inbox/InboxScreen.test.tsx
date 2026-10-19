@@ -204,15 +204,20 @@ describe('the Inbox chat', () => {
 });
 
 describe('the Inbox chat after the audit of 2026-10-03', () => {
-  it('empties the box after a Retry of a failed send, so the next Send does not post it twice (SHL-10)', async () => {
+  // Instant send (chat design 2026-10-19, item 13): the box empties at once. A failed message stays in the log as "Not sent" with its own
+  // button, and the button sends it again with the same key, so the message does not go twice.
+  it('empties the box at once, and sends a failed message again once (SHL-10)', async () => {
     const { store } = await renderApp('/inbox', undefined, { failFirst: 'chats.send' });
     await userEvent.click(await rowLink(/Corniche Office Tower/));
     const box = await screen.findByRole('textbox', { name: 'Message' });
     await userEvent.type(box, 'Please check beam B14.');
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    expect(box).toHaveValue('');
+    await userEvent.click(await screen.findByRole('button', { name: 'Send again' }));
     await waitFor(() => expect(Object.values(store.state.messages).filter((m) => m.body === 'Please check beam B14.')).toHaveLength(1));
-    await waitFor(() => expect(box).toHaveValue(''));
+    await waitFor(() => expect(screen.queryByText('Not sent')).toBeNull());
+    await waitFor(() => expect(within(screen.getByRole('log', { name: 'Messages' })).getAllByText('Please check beam B14.')).toHaveLength(1));
+    expect(box).toHaveValue('');
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
   });
 

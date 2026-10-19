@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
+import type { CallInput } from '../../api/calls';
 import type { ChatRow, CommentView, GroupLine, MessageView, ReplyRef, UserCard } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
 import { usePersonName } from '../../app/personName';
@@ -27,6 +28,8 @@ import { actorContext } from '../../lib/grammar';
 import { taskLink } from '../../lib/params';
 import { useMarkTaskRead } from '../comments/markRead';
 import { useEarlierMessages } from './earlier';
+import { bubbleOfOutgoing, cardOfUser, newOutboxKey, refusedByOutbox, useOutbox, usePaneOpen } from './outbox';
+import { nowStamp } from '../../lib/dates';
 
 function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: ReactNode; subtitle: ReactNode; action?: ReactNode }) {
   const { t } = useTranslation();
@@ -102,7 +105,6 @@ export function ChatPane({ id }: { id: string }) {
   const [sheet, setSheet] = useState<GroupMode | null>(null);
   const thread = useCall('chats.messages', { conversationId: id });
   const markRead = useAction('chats.markRead');
-  const send = useAction('chats.send');
   const react = useAction('reactions.toggle');
   const editMessage = useAction('chats.editMessage');
   const deleteMessage = useStableHandler(useDeleteMessage());
@@ -119,6 +121,17 @@ export function ChatPane({ id }: { id: string }) {
     setEditingId(null);
     requestAnimationFrame(() => document.getElementById(`composer-${id}`)?.focus());
   });
+  const { messages, earlier } = useEarlierMessages(id, data?.messages);
+  // Instant send (chat design 2026-10-19, item 13): a message shows at once as a faded bubble, and the saved message takes its place.
+  const outbox = useOutbox<CallInput<'chats.send'>>(messages.map((view) => ({ id: view.message.id, mine: view.mine, body: view.message.body })));
+  const paneOpen = usePaneOpen();
+  const send = useAction('chats.send', { onRefused: (error, input) => refusedByOutbox(paneOpen.current, outbox.markFailed, error, input) });
+  const retrySend = useStableHandler((bubble: Bubble) => {
+    const entry = outbox.unsent.find((item) => `out-${item.key}` === bubble.id);
+    if (!entry) return;
+    outbox.markRetry(entry.key);
+    send.retry(entry.input);
+  });
   // One stable object for all the bubbles (chat design 2026-10-19, item 9): a bubble renders again only when its own Bubble changes.
   const actions = useMemo<BubbleActions>(() => ({
     menuLabel: t('chat.messageActions'), canReact: true, meId, people,
@@ -127,15 +140,18 @@ export function ChatPane({ id }: { id: string }) {
     edit: (bubble) => setEditingId(bubble.id),
     remove: (bubble) => deleteMessage(bubble.id),
     saveEdit: (bubble, body) => editMessage.mutate({ id: bubble.id, body }, { onSuccess: endEdit }),
-    endEdit,
-  }), [t, meId, people, canReply, react.mutate, editMessage.mutate, deleteMessage, endEdit]);
-  const { messages, earlier } = useEarlierMessages(id, data?.messages);
-  const messageBubbles = useBubbles(messages, bubbleOfMessage);
+    endEdit, retry: retrySend,
+  }), [t, meId, people, canReply, react.mutate, editMessage.mutate, deleteMessage, endEdit, retrySend]);
+  const me = session.data ? cardOfUser(session.data.authority) : undefined;
+  const messageBubbles = useBubbles(messages, (view) => ({ ...bubbleOfMessage(view), ...(outbox.claimed.has(view.message.id) ? { fromOutbox: true as const } : {}) }));
   const lineBubbles = useBubbles(data?.lines ?? NO_LINES, bubbleOfLine);
-  // The quiet lines of a group go between the messages by time. A message comes before a line of the same moment.
-  const bubbles = lineBubbles.length === 0
+  const unsentBubbles = useBubbles(me ? outbox.unsent : NO_UNSENT, (entry) => bubbleOfOutgoing(entry, me!), meId);
+  // The quiet lines of a group go between the messages by time. A message comes before a line of the same moment. A message that waits
+  // for its answer comes last.
+  const settled = lineBubbles.length === 0
     ? messageBubbles
     : [...messageBubbles, ...lineBubbles].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || (a.line ? 1 : 0) - (b.line ? 1 : 0));
+  const bubbles = unsentBubbles.length === 0 ? settled : [...settled, ...unsentBubbles];
   // The Up key in an empty box opens the edit of the newest message of the person (item 11).
   const editLast = () => {
     const last = bubbles.findLast((bubble) => bubble.canEdit);
@@ -191,18 +207,21 @@ export function ChatPane({ id }: { id: string }) {
         <Composer
           id={id}
           people={data.people}
-          pending={send.isPending}
+          pending={false}
           // A project chat joins the files of its project. A direct chat or a group keeps its files in the chat (owner, 2026-10-19).
           upload={chat.kind === 'project' ? (chat.project ? { projectId: chat.project.id } : undefined) : { projectId: null, conversationId: id }}
           replyTo={replyTo}
           onCancelReply={() => setReplyTo(null)}
           onEditLast={editLast}
-          onSend={(body, fileIds, clear) => send.mutate({ conversationId: id, body, fileIds, ...(replyTo ? { replyToId: replyTo.id } : {}) }, {
-            onSuccess: () => {
-              clear();
-              setReplyTo(null);
-            },
-          })}
+          onSend={(body, fileIds, clear) => {
+            const input = { conversationId: id, body, fileIds, ...(replyTo ? { replyToId: replyTo.id } : {}) };
+            const key = newOutboxKey();
+            outbox.add({ key, input, body, replyTo, at: nowStamp(), seen: new Set(messages.map((view) => view.message.id)), failed: false });
+            // The box is free at once: the next message does not wait for this one.
+            clear();
+            setReplyTo(null);
+            send.mutate(input, { onSuccess: (view) => outbox.markSaved(key, view.message.id) });
+          }}
         />
       )}
       {isGroup && <GroupSheets id={id} mode={sheet} onMode={setSheet} name={chat.title} people={data.people} me={session.data?.authority} makerId={chat.makerId} />}
@@ -213,6 +232,7 @@ export function ChatPane({ id }: { id: string }) {
 const NO_COMMENTS: CommentView[] = [];
 const NO_LINES: GroupLine[] = [];
 const NO_PEOPLE: UserCard[] = [];
+const NO_UNSENT: never[] = [];
 
 /** The comments of one task as a chat. A message posts a task comment. */
 export function TaskPane({ id }: { id: string }) {
@@ -229,7 +249,6 @@ export function TaskPane({ id }: { id: string }) {
   const users = useCall('users.list', {}, { enabled: office });
   const comments = useCall('comments.list', { targetType: 'task', targetId: id });
   const session = useCall('session.get', {});
-  const create = useAction('comments.create');
   const react = useAction('reactions.toggle');
   const updateComment = useAction('comments.update');
   const removeComment = useUndoable('comments.delete', { message: () => t('comments.deleted') });
@@ -256,6 +275,16 @@ export function TaskPane({ id }: { id: string }) {
     setEditingId(null);
     requestAnimationFrame(() => document.getElementById(`composer-${id}`)?.focus());
   });
+  // Instant send, as in a chat (item 13).
+  const outbox = useOutbox<CallInput<'comments.create'>>((comments.data ?? NO_COMMENTS).filter((view) => view.kind === 'message').map((view) => ({ id: view.comment.id, mine: view.author.id === me, body: view.comment.body })));
+  const paneOpen = usePaneOpen();
+  const create = useAction('comments.create', { onRefused: (error, input) => refusedByOutbox(paneOpen.current, outbox.markFailed, error, input) });
+  const retrySend = useStableHandler((bubble: Bubble) => {
+    const entry = outbox.unsent.find((item) => `out-${item.key}` === bubble.id);
+    if (!entry) return;
+    outbox.markRetry(entry.key);
+    create.retry(entry.input);
+  });
   const actions = useMemo<BubbleActions>(() => ({
     menuLabel: t('comments.actions'), canReact: canPost, meId: me ?? '', people,
     react: (bubble, emoji) => react.mutate({ commentId: bubble.id, emoji }),
@@ -263,16 +292,21 @@ export function TaskPane({ id }: { id: string }) {
     edit: (bubble) => setEditingId(bubble.id),
     remove: (bubble) => removeComment.mutate({ id: bubble.id }),
     saveEdit: (bubble, body) => updateComment.mutate({ id: bubble.id, body }, { onSuccess: endEdit }),
-    endEdit,
-  }), [t, canPost, me, people, react.mutate, updateComment.mutate, removeComment.mutate, endEdit]);
+    endEdit, retry: retrySend,
+  }), [t, canPost, me, people, react.mutate, updateComment.mutate, removeComment.mutate, endEdit, retrySend]);
+  const meCard = session.data ? cardOfUser(session.data.authority) : undefined;
   // "mine" depends on the person, so the kept bubbles start again when the person changes.
-  const bubbles = useBubbles(comments.data ?? NO_COMMENTS, (view: CommentView): Bubble => ({
+  const settled = useBubbles(comments.data ?? NO_COMMENTS, (view: CommentView): Bubble => ({
     id: view.comment.id, author: view.author, actingFor: null, body: view.comment.body, files: view.files, createdAt: view.comment.createdAt,
     mine: view.author.id === me, edited: view.comment.editedAt !== null, reactions: view.comment.reactions, replyTo: view.replyTo,
     canEdit: view.canEdit && view.kind === 'message',
+    ...(outbox.claimed.has(view.comment.id) ? { fromOutbox: true as const } : {}),
     // The reason of a date move or of a reopening is a quiet line, not a message of a person (fbk_027).
     ...(view.kind === 'message' ? {} : { reason: { kind: view.kind, dates: view.comment.dates } }),
   }), me);
+  const unsentBubbles = useBubbles(meCard ? outbox.unsent : NO_UNSENT, (entry) => bubbleOfOutgoing(entry, meCard!), me);
+  // A comment that waits for its answer comes last.
+  const bubbles = unsentBubbles.length === 0 ? settled : [...settled, ...unsentBubbles];
   const failed = task.error ?? comments.error;
   if (failed) return <div className="p-4"><LoadFailed error={failed} onRetry={() => { void task.refetch(); void comments.refetch(); }} /></div>;
   if (!task.data || !comments.data) return <div className="flex-1" aria-busy="true" />;
@@ -309,17 +343,19 @@ export function TaskPane({ id }: { id: string }) {
         <Composer
           id={id}
           people={people}
-          pending={create.isPending}
+          pending={false}
           upload={{ projectId: where?.id ?? null, stageId: task.data.task.stageId, taskId: id }}
           replyTo={replyTo}
           onCancelReply={() => setReplyTo(null)}
           onEditLast={editLast}
-          onSend={(body, fileIds, clear) => create.mutate({ targetType: 'task', targetId: id, body, fileIds, ...(replyTo ? { replyToId: replyTo.id } : {}) }, {
-            onSuccess: () => {
-              clear();
-              setReplyTo(null);
-            },
-          })}
+          onSend={(body, fileIds, clear) => {
+            const input = { targetType: 'task' as const, targetId: id, body, fileIds, ...(replyTo ? { replyToId: replyTo.id } : {}) };
+            const key = newOutboxKey();
+            outbox.add({ key, input, body, replyTo, at: nowStamp(), seen: new Set((comments.data ?? []).map((view) => view.comment.id)), failed: false });
+            clear();
+            setReplyTo(null);
+            create.mutate(input, { onSuccess: (view) => outbox.markSaved(key, view.comment.id) });
+          }}
         />
       ) : <p className="border-t border-hairline p-3 text-footnote text-ink-2">{t('comments.cannot')}</p>}
     </>
