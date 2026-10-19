@@ -1754,3 +1754,17 @@ Open for the owner (Task 11, Steps 3 to 5):
 - Second run, after the fix, each of the two specs alone, once: both passed (the chat test 4.5 s, the walk 3.8 min).
 - Result: 165 passed, 3 skipped, 0 failed. The seed ran before and after each run and exited 0.
 - No `.playwright-mcp` folder and no new file appeared in either folder.
+
+### The UX audit of the 13 team requests on the test copy (2026-10-19, d9b320a)
+
+- 4 auditors found 91 findings; 4 builders fixed them on `rb/ux-chats`, `rb/ux-projects`, `rb/ux-integration` and `rb/ux-admin`,
+  joined on `rb/ux-all`. The merge lead added 4 fixes: the pin of a location link only for a person who may edit the project (security
+  review), the person signal keeps its story (INT-16 kept for the office signal), the map tests count the paused projects, and the calm
+  test allows the sub-company logo.
+- Gates on the Mac: typecheck, npm test 6,294 passed (6 skipped), the three builds, test:lite 1,504, test:office 37, test:db 1,504,
+  test:it 283 (one Realtime test failed, fixed, then 8 of 8), test:mcp 194 and the conformance run (5 of 32, as expected), prototype
+  smoke 87 of 87 (one calm test fixed, then 11 of 11).
+- Deploy suite on the test copy: 164 passed, 1 failed, 3 skipped by design. The failure was "walk ar-1440", which hit the 15-minute
+  limit on Settings; the Arabic phone walk passed in the same run. A rerun of the walk alone passed in 3.1 minutes.
+- The free map on the test copy (as the Admin, Dashboard Map tab): the map canvas drew, 5 pins, tiles 5 of 5 and glyphs 3 of 3 from
+  tiles.openfreemap.org, no CSP violation (the Arabic plugin runs under `'wasm-unsafe-eval'`), at 1440 px and 390 px.
