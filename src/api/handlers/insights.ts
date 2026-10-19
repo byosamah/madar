@@ -54,6 +54,12 @@ export const DashboardView = z.object({
      * today on, so nothing counts twice; week 1 also holds the tasks in review that the person reviews (reviewersOf).
      */
     rows: z.array(z.object({ user: UserCard, overdue: Count, counts: z.array(Count).length(4), over: z.array(z.boolean()).length(4) })),
+    /**
+     * The open tasks with no lead (ownerId null), in the same columns as a person (fbk_024, owner 2026-10-19): past due, and due in
+     * each week from today. No review part, because a task with no lead cannot go to review. It counts the tasks of the active
+     * projects in the filters and the office tasks that the viewer sees. Optional, so an older answer still parses.
+     */
+    unassigned: z.object({ overdue: Count, counts: z.array(Count).length(4) }).optional(),
   }),
   schedule: z.array(z.object({
     project: Ref, currentStageId: StageId, health: HealthValue, stages: z.array(Stage), deadlines: z.array(Deadline),
@@ -237,6 +243,17 @@ export const dashboardGet = defineCall({
       return { user: userCard(user), overdue, counts, over: counts.map((count) => count > limit) };
     });
 
+    // The open tasks with no lead: the same columns as a person. The lists that the cells open are the Task list with the filter
+    // no_lead and the same due range (fbk_024).
+    const unled = activeTasks.filter((t) => t.ownerId === null);
+    const unassigned = {
+      overdue: unled.filter((t) => isOverdue(t, today)).length,
+      counts: weeks.map((ws) => {
+        const from = maxDay(ws, today);
+        return unled.filter((t) => (t.status === 'todo' || t.status === 'in_progress') && t.dueDate !== null && t.dueDate >= from && t.dueDate <= addDays(ws, 6)).length;
+      }),
+    };
+
     return {
       tiles: {
         activeProjects: active.length,
@@ -254,7 +271,7 @@ export const dashboardGet = defineCall({
         throughput,
         submissions,
       },
-      workload: { weeks, limit, rows: workloadRows },
+      workload: { weeks, limit, rows: workloadRows, unassigned },
       attention: {
         stale: Object.values(state.projects)
           .filter(inFilters)

@@ -53,3 +53,13 @@ describe('the agent docs of the Dashboard batch (owner, 2026-10-06)', () => {
     expect(INSTRUCTIONS).toContain('The Admin decides what each role may do. A call that the role of your person may not make fails for you too.');
   });
 });
+
+// fbk_024 (owner, 2026-10-19): the People tab has a No lead row, and an agent reads it as workload.unassigned.
+describe('the agent docs of the No lead row (fbk_024)', () => {
+  it('name workload.unassigned in dashboard.get', () => {
+    const dashboard = TOOL_DOCS['dashboard.get'].description;
+    expect(dashboard).toContain('unassigned');
+    expect(dashboard).toContain('tasks with no lead');
+    expect(dashboard.length).toBeLessThanOrEqual(600);
+  });
+});

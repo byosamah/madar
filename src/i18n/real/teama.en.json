@@ -8,5 +8,12 @@
     "trigger": {
       "resume_due_past": "{{target}}: the planned restart was {{day}}. Resume it or set a new date."
     }
+  },
+  "dashboard": {
+    "noLeadAll": "No lead: all open tasks"
+  },
+  "taskList": {
+    "dueUntil": "Due until {{to}}",
+    "dueFrom": "Due from {{from}}"
   }
 }

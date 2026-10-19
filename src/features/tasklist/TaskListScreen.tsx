@@ -136,7 +136,9 @@ function TaskResults() {
   const today = todayISO();
   const reviews = workOf !== undefined && (!from || from <= today) && (!to || today <= to) ? t('taskList.withReviews') : '';
   const range = (key: string, a?: string, b?: string) => (a && b ? t(key, { from: formatDay(a, lang), to: formatDay(b, lang) }) : '');
-  const subtitle = [scopeText, range('taskList.dueRange', from, to), reviews, range('taskList.createdRange', createdFrom, createdTo), range('taskList.doneRange', doneFrom, doneTo)]
+  // A range with one end only (the past-due cell of No lead has an end only) names that end.
+  const dueText = from && to ? range('taskList.dueRange', from, to) : to ? t('taskList.dueUntil', { to: formatDay(to, lang) }) : from ? t('taskList.dueFrom', { from: formatDay(from, lang) }) : '';
+  const subtitle = [scopeText, dueText, reviews, range('taskList.createdRange', createdFrom, createdTo), range('taskList.doneRange', doneFrom, doneTo)]
     .filter(Boolean).join(' · ');
   const taskId = params.get('task');
   const projectId = params.get('project');
