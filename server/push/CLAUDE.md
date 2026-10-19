@@ -19,7 +19,7 @@ Madar window, or opens `/`.
 
 ## Who gets a push
 - A person gets ONE push for each transaction that wrote, for them, an unread notice (every trigger, the two notices of requests
-  and bugs too) or a message in a chat that they read and did not write. The other chat members get it: a direct chat goes to the
+  and bugs and the two notices of a meeting too: a new, moved or cancelled meeting, and the reminder 30 minutes before the start, fbk_022) or a message in a chat that they read and did not write. The other chat members get it: a direct chat goes to the
   other person, a group goes to its other members, a project chat to the leader, the team and the Admins.
 - Never the sender: the author of a message and the person the author acts for (an agent writes for a person) are left out.
 - Only an active human with at least one device. A person with no device gets no row.

@@ -43,6 +43,8 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   (writes) are on `MCP_ALLOW`. `meetings.create` is additive; the other two writes are not. They tell the attendees, who are real people, so
   `TOOL_DOCS` and the `Meetings:` paragraph of `INSTRUCTIONS` say: ask your person before you add attendees. A meeting with no project is
   private to its organizer and its attendees: for anyone else, also an agent of an Admin who is not invited, every call answers `not_found`.
+  An agent gets no notice and sends none of its own: the attendees get `meeting_invited` as for any person, and the person of the agent none
+  (`notify` skips the actor and the person of an agent actor).
   The `INSTRUCTIONS` sentence that says Madar makes the minutes task and the Tracker line after a project meeting is true when wave 2
   (`meetings.settle`) is live. The three meeting writes take `storyId` like any write.
 - Sub-companies (review 2026-10-19): `dashboard.get`, `tasks.list`, `deadlines.list`, `projects.list` and `reports.office` take `subCompanyId`;

@@ -16,10 +16,11 @@ import { stampDay } from '../../lib/dates';
 
 /**
  * The Inbox badge counts only unread items of these kinds (spec 3.2). A restart day asks the leader to act, as a due day does. The
- * Admin acts on a new report, and the sender tests a done one (owner, 2026-10-07).
+ * Admin acts on a new report, and the sender tests a done one (owner, 2026-10-07). A meeting notice asks for a look at the time (fbk_022).
  */
 export const ACTION_TRIGGERS: ReadonlySet<string> = new Set([
   'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested', 'task_sent_back', 'resume_due', 'feedback_sent', 'feedback_done',
+  'meeting_invited', 'meeting_soon',
 ]);
 
 export const NotificationView = z.object({

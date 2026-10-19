@@ -229,6 +229,15 @@ describe('the notices that stay in the app', () => {
     expect(await noticeRows(q, { kinds: new Set(['notifications', 'feedback']), people: new Set(['usr_001', 'usr_003']) })).toEqual([]);
   });
 
+  it('writes no mail row for a meeting notice or its reminder, even with the email switch on (fbk_022)', async () => {
+    const prefs = withPrefs((p) => { p.email = { meeting_invited: true, meeting_soon: true }; });
+    const q = rowsFor([
+      { id: 'ntf_7', user_id: 'usr_003', trigger: 'meeting_invited', kind: 'human', active: true, preferences: prefs },
+      { id: 'ntf_8', user_id: 'usr_004', trigger: 'meeting_soon', kind: 'human', active: true, preferences: prefs },
+    ]);
+    expect(await noticeRows(q, { kinds: new Set(['notifications', 'meetings']), people: new Set(['usr_003', 'usr_004']) })).toEqual([]);
+  });
+
   it('still writes a mail row for a mention to a person with the 10 old switches only, and reads a missing switch as on', async () => {
     const missing = withPrefs((p) => { delete p.notifications.mention; });
     const q = rowsFor([

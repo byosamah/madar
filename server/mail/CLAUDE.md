@@ -44,7 +44,8 @@ after the commit of the call that asked for it.
   fbk_021): it lists the open tasks of its reader, and each line holds the task title, the project key (`projectKey`, or "Office" for an
   office task) and the due day. It holds no project name, no client name, no comment text and no link of a task. Resend keeps the
   content, so keep it to those three fields: a template reads only the fields of its data type.
-- The two notices of requests and bugs never send mail (`IN_APP_ONLY_TRIGGERS`, `emailOn`). `MailData.notice` takes only an
+- The two notices of requests and bugs, the notice of a new group and the two notices of a meeting (`meeting_invited`, `meeting_soon`, fbk_022)
+  never send mail (`IN_APP_ONLY_TRIGGERS`, `emailOn`). A meeting sends no mail: the quota is 100 a day, and calendar apps remind by themselves. `MailData.notice` takes only an
   `EmailTrigger`, and the mail tests iterate `EMAIL_TRIGGERS`.
 - The morning summary goes at 07:30 Riyadh, Sunday to Thursday. It lists the open tasks (to do or in progress) that the person
   leads or helps on, in an active project or with no project, in three groups: Past due, Today and This week. The groups follow the

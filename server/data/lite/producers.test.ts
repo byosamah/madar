@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { State } from '../../../src/api/store';
 import { buildSeed } from '../../../src/data/seed';
+import { runOn } from '../loaders/compare';
 import { noticeRows } from '../../mail/notices';
 import { pushRows } from '../../push/notify';
 import { liteSave } from './save';
@@ -107,5 +108,23 @@ describe('the mail and push producers on SQLite (server/mail/notices.ts, server/
     const after = withDirectMessage(seed, { authorId: 'usr_009', actingForId: 'usr_002' });
     const rows = await db.tx('write', async (q) => pushRows(q, await liteSave(q, seed, after)));
     expect(rows).toEqual([{ kind: 'push.notify', payload: { userId: 'usr_003' } }]);
+  });
+});
+
+describe('the producers after a meeting (fbk_022)', () => {
+  const NOW = new Date('2026-10-04T06:00:00Z');
+
+  it('writes one push row and no mail row for the notice of a new meeting, and none for the actor', async () => {
+    const { db, seed } = await office();
+    const after = structuredClone(seed);
+    // usr_002 and usr_003 have a push device. usr_004 plans a meeting with both and with usr_005, who has no device.
+    const made = runOn(after, 'meetings.create', { kind: 'meeting', title: 'Review', startsAt: '2026-10-06T10:00:00+03:00', attendeeIds: ['usr_002', 'usr_003', 'usr_005'] }, 'usr_004', { now: NOW, correlationId: 'cor_meeting' });
+    expect(made.error).toBeUndefined();
+    const { mail, push } = await db.tx('write', async (q) => {
+      const saved = await liteSave(q, seed, after);
+      return { mail: await noticeRows(q, saved), push: await pushRows(q, saved) };
+    });
+    expect(mail).toEqual([]);
+    expect(push).toEqual([{ kind: 'push.notify', payload: { userId: 'usr_002' } }, { kind: 'push.notify', payload: { userId: 'usr_003' } }]);
   });
 });

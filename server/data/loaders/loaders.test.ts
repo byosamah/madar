@@ -726,6 +726,32 @@ describe('meetings (fbk_022, owner 2026-10-19)', () => {
     expect(deleted(own, 'meetings')).toEqual([privateOne.id]);
   });
 
+  it('the jobs load brings the meetings that start within the hour, so their people get the reminder, and no other meeting', async () => {
+    const state = office();
+    const at = new Date('2026-10-04T06:00:00Z');
+    const plan = (title: string, startsAt: string, actor: string, more: Record<string, unknown> = {}) =>
+      (apply(state, 'meetings.create', { kind: 'meeting', title, startsAt, attendeeIds: ['usr_004'], ...more }, actor) as { id: string }).id;
+    // 09:00 Riyadh is the time of the run. The first starts in 20 minutes, the second in 45, the third in 2 hours, the fourth is over.
+    const soon = plan('Soon', '2026-10-04T09:20:00+03:00', 'usr_003');
+    const later = plan('Later today', '2026-10-04T09:45:00+03:00', 'usr_003', { projectId: null });
+    plan('Far', '2026-10-04T11:00:00+03:00', 'usr_003');
+    plan('Over', '2026-10-04T08:00:00+03:00', 'usr_003');
+    const cancelled = plan('Cancelled', '2026-10-04T09:30:00+03:00', 'usr_003');
+    apply(state, 'meetings.cancel', { id: cancelled }, 'usr_003');
+    const whole = structuredClone(state);
+    const wholeBefore = structuredClone(whole);
+    const count = runScheduledTriggers(whole, at);
+    const loaded = await loadJobs({ src: memorySource(state), office: snapshotOf(state, 1), now: at });
+    expect(Object.keys(loaded.meetings ?? {}).sort()).toEqual([soon, later].sort());
+    const scoped = structuredClone(loaded);
+    const dedupeUsed = (k: string) => Object.values(state.notifications).some((n) => n.dedupeKey === k);
+    expect(runScheduledTriggers(scoped, at, { dedupeUsed })).toBe(count);
+    expect(changesOf(loaded, scoped)).toEqual(changesOf(wholeBefore, whole));
+    const reminders = Object.values(scoped.notifications).filter((n) => n.trigger === 'meeting_soon');
+    // Only the first meeting is inside the 30 minutes of the reminder; the second is loaded and waits for a later run.
+    expect(reminders.map((n) => [n.targetId, n.userId]).sort()).toEqual([[soon, 'usr_003'], [soon, 'usr_004']]);
+  });
+
   it('meetings.list keeps a meeting at 23:30 Riyadh on its own day on both loads', async () => {
     const state = office();
     const maker = 'usr_003';

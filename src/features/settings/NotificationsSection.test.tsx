@@ -88,9 +88,9 @@ describe('the Notifications section in the remote build (plan 5.4; task N2.2)', 
       delete state.users.usr_001.preferences.morningSummary;
     });
     const section = await sectionOf(en);
-    // The Admin: 13 in-app switches, 10 email switches (the notices of requests and bugs, and of a new group, stay in the app) and the Morning summary.
+    // The Admin: 15 in-app switches, 10 email switches (the notices of requests and bugs, of a new group and of a meeting stay in the app) and the Morning summary.
     expect(within(section).getAllByRole('switch')).toHaveLength(TRIGGERS.length + EMAIL_TRIGGERS.length + 1);
-    expect(within(section).getAllByRole('switch')).toHaveLength(24);
+    expect(within(section).getAllByRole('switch')).toHaveLength(26);
     for (const trigger of EMAIL_TRIGGERS) {
       const row = within(section).getByTestId(`notice-row-${trigger}`);
       expect(within(row).getAllByRole('switch')).toHaveLength(2);
@@ -184,25 +184,25 @@ describe('the switches of requests and bugs', () => {
     state.session.currentUserId = 'usr_003';
   };
 
-  it('shows 13 switches to an Admin and 12 to a member, with no new-report switch for the member, in the prototype build', async () => {
+  it('shows 15 switches to an Admin and 14 to a member, with no new-report switch for the member, in the prototype build', async () => {
     await renderWithRuntime(<NotificationsSection />);
     const admin = await sectionOf(en);
-    expect(within(admin).getAllByRole('switch')).toHaveLength(13);
+    expect(within(admin).getAllByRole('switch')).toHaveLength(15);
     expect(within(admin).getByRole('switch', { name: triggerWords(en).feedback_sent })).toBeInTheDocument();
     cleanup();
     await renderWithRuntime(<NotificationsSection />, asMember);
     const member = await sectionOf(en);
-    expect(within(member).getAllByRole('switch')).toHaveLength(12);
+    expect(within(member).getAllByRole('switch')).toHaveLength(14);
     expect(within(member).queryByRole('switch', { name: triggerWords(en).feedback_sent })).toBeNull();
     expect(within(member).queryByText(triggerWords(en).feedback_sent)).toBeNull();
     expect(within(member).getByRole('switch', { name: triggerWords(en).feedback_done })).toBeInTheDocument();
   });
 
-  it('shows 23 switches to a member in the remote build, with one switch in the row of a done report', async () => {
+  it('shows 25 switches to a member in the remote build, with one switch in the row of a done report', async () => {
     remote(true);
     await renderWithRuntime(<NotificationsSection />, asMember);
     const section = await sectionOf(en);
-    expect(within(section).getAllByRole('switch')).toHaveLength(23);
+    expect(within(section).getAllByRole('switch')).toHaveLength(25);
     expect(within(section).queryByTestId('notice-row-feedback_sent')).toBeNull();
     const row = within(section).getByTestId('notice-row-feedback_done');
     expect(within(row).getAllByRole('switch')).toHaveLength(1);
@@ -217,7 +217,9 @@ describe('the switches of requests and bugs', () => {
     });
     const section = await sectionOf(en);
     const rows = within(section).getAllByTestId(/^notice-row-/).map((row) => row.dataset.testid);
-    expect(rows.slice(-3)).toEqual(['notice-row-feedback_sent', 'notice-row-feedback_done', 'notice-row-added_to_group']);
+    expect(rows.slice(-5)).toEqual([
+      'notice-row-feedback_sent', 'notice-row-feedback_done', 'notice-row-added_to_group', 'notice-row-meeting_invited', 'notice-row-meeting_soon',
+    ]);
     const row = within(section).getByTestId('notice-row-feedback_done');
     expect(within(row).getByRole('switch', { name: appName(en, 'feedback_done') })).toHaveAttribute('aria-checked', 'false');
     expect(within(row).queryByText(notices(en).emailNeedsApp)).toBeNull();

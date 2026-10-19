@@ -21,6 +21,8 @@ export type NotifyInput = {
   dueDate?: string;
   /** The kind and the excerpt of a report (owner, 2026-10-07). */
   feedback?: NoticeFeedback;
+  /** What happened to the meeting of a meeting_invited notice (fbk_022). */
+  meeting?: Notification['meeting'];
 };
 
 /** True when the person gets the in-app notice of this trigger. A switch the person never set means on (owner, 2026-10-07). */
@@ -96,6 +98,7 @@ export function notify(state: State, actor: User | null, stamp: string, input: N
       ...(input.correlationId ? { correlationId: input.correlationId } : {}),
       ...(input.dueDate ? { dueDate: input.dueDate } : {}),
       ...(input.feedback ? { feedback: { ...input.feedback } } : {}),
+      ...(input.meeting ? { meeting: { ...input.meeting } } : {}),
     };
     state.notifications[id] = notification;
     created.push(notification);
@@ -132,6 +135,9 @@ export function projectPeople(state: State, projectId: string): string[] {
   if (leaderId) ids.push(leaderId);
   return [...new Set(ids)];
 }
+
+/** The reminder of a meeting starts this long before its start (fbk_022, owner 2026-10-19). The 15-minute job has one run in the window. */
+export const MEETING_SOON_MS = 30 * 60_000;
 
 /** The last working day before a day. The "due" reminder goes out on it, so a task due on Sunday is named on Thursday. */
 function lastWorkingDayBefore(day: string): string {
@@ -172,6 +178,17 @@ export function runScheduledTriggers(state: State, at: Date, options: NotifyOpti
     count += notify(state, null, stamp, {
       userIds: [...reviewersOf(state, project.id), principalOf(state, project.pause.by)], trigger: 'resume_due', targetType: 'project', targetId: project.id,
       dedupeKey: `resume_due:${project.id}:${day}`, dueDate: day,
+    }, options).length;
+  }
+  // A meeting that starts within 30 minutes: its organizer and its attendees get one reminder. The key holds the start, so a meeting
+  // that moves reminds again for its new start. A cancelled meeting sends none (fbk_022, owner 2026-10-19).
+  for (const meeting of Object.values(state.meetings ?? {})) {
+    if (meeting.status !== 'scheduled') continue;
+    const start = Date.parse(meeting.startsAt);
+    if (at.getTime() >= start || at.getTime() < start - MEETING_SOON_MS) continue;
+    count += notify(state, null, stamp, {
+      userIds: [meeting.organizerId, ...meeting.attendeeIds], trigger: 'meeting_soon', targetType: 'meeting', targetId: meeting.id,
+      dedupeKey: `meeting_soon:${meeting.id}:${meeting.startsAt}`,
     }, options).length;
   }
   return count;

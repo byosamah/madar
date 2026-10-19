@@ -357,6 +357,18 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   (a person taken off the attendees) reads as gone and names nothing (`hiddenMeeting`, `notifications.ts`; `noticeMeetingHidden`, `history.ts`);
   `notify` skips a person who does not see the meeting. The leak tests: `handlers/meetingLeaks.test.ts`, `server/mcp/meetingTools.test.ts`,
   `server/core/meetingsSignal.test.ts`, `server/it/meetings.it.test.ts`.
+- Notices (owner, 2026-10-19; `handlers/meetings.ts`, `notify.ts`): two triggers, `meeting_invited` and `meeting_soon`. Both are in
+  `IN_APP_ONLY_TRIGGERS` (no mail and no email switch; push goes for every notice) and in `ACTION_TRIGGERS` (the bell counts them).
+  `Notification.meeting.change` is `new`, `moved` or `cancelled`. Create: each attendee gets `new`. Update: an added attendee gets `new`;
+  a change of the start, the end (day, time or length) or the place gives `moved` to the attendees who stay, and to the organizer when
+  another person made the change; a title, note, guest, kind or minutes change tells nobody. Cancel: each attendee, and the organizer when
+  another person cancelled, gets `cancelled`; a second cancel tells nobody. The actor and the person of an agent actor get none (`notify`).
+  The notice joins the story of the call, so an Undo of the story takes it back (`dropNotices`). `NotificationView.target` is the title,
+  `startsAt` the start (null when the viewer no longer sees the meeting), `link` is `meetingLink` (`/meetings?meeting=<id>`).
+  The reminder: `runScheduledTriggers` gives the organizer and the attendees of a scheduled meeting one `meeting_soon` from 30 minutes
+  before the start (`MEETING_SOON_MS`) until the start; the dedupe key is `meeting_soon:<id>:<startsAt>`, so a moved meeting reminds again.
+  The server job loads the scheduled meetings that start within the hour (`loadJobs`, `now` of the run). The screen words are in
+  `src/i18n/real/meetings.*.json` (`inbox.trigger.meeting_invited`, `_moved`, `_cancelled`, `meeting_soon`, `inbox.meetingGone`).
 - `projects.delete` deletes the meetings of the project and their notices. A person who is an attendee and leaves keeps the record.
 - `Task.meetingId`, `TrackerEntry.auto: 'meeting'` and `Meeting.settledAt`, `minutesTaskId`, `trackerEntryId`, `seriesId`, `repeat` are in the
   contract for the later waves (minutes, series). Nothing sets them in wave 1.

@@ -13,5 +13,20 @@
       "meeting_cancelled": "This meeting is cancelled. It cannot change.",
       "meeting_over": "This meeting is over. Only its notes change."
     }
+  },
+  "inbox": {
+    "trigger": {
+      "meeting_invited": "{{actor}} invited you to {{target}}, {{day}} at {{time}}",
+      "meeting_invited_moved": "{{actor}} moved {{target}} to {{day}} at {{time}}",
+      "meeting_invited_cancelled": "{{actor}} cancelled {{target}}, which was planned for {{day}} at {{time}}",
+      "meeting_soon": "{{target}} starts soon, at {{time}}"
+    },
+    "meetingGone": "A meeting that you can no longer see"
+  },
+  "settings": {
+    "triggers": {
+      "meeting_invited": "A meeting is planned, moved or cancelled for me",
+      "meeting_soon": "A meeting starts soon"
+    }
   }
 }

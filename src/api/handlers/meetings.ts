@@ -5,6 +5,7 @@ import { MeetingDetail, MeetingRow } from '../contract/views';
 import { ApiError, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate } from '../events';
 import { can, mayViewMeeting, mayViewTask, meetingResource, type Actor } from '../permissions';
+import { notifyIn } from '../notify';
 import { meetingsOf, nextId, type State } from '../store';
 import { cardOf } from '../views';
 import { addDays, diffDays } from '../../lib/dates';
@@ -89,6 +90,16 @@ export function meetingDetailOf(state: State, meeting: Meeting, viewer: Actor, a
 }
 
 /**
+ * A notice meeting_invited for these people (fbk_022). The actor and the person of an agent actor get none, an agent gets none, a person
+ * who left gets none, and a person with the switch off gets none (notify). A person who cannot see the meeting gets none either, so a
+ * meeting with no project tells only its people. The notice joins the story of the call, so an Undo of the story takes it back.
+ */
+function tell(ctx: Ctx, meeting: Meeting, userIds: readonly string[], change: 'new' | 'moved' | 'cancelled'): void {
+  if (userIds.length === 0) return;
+  notifyIn(ctx, { userIds: [...userIds], trigger: 'meeting_invited', targetType: 'meeting', targetId: meeting.id, meeting: { change } });
+}
+
+/**
  * The attendees and the person for the minutes, checked. The organizer and a repeated person drop out of the attendees. An attendee
  * is an active person, never an agent. The person for the minutes is the organizer or an attendee, or nobody.
  */
@@ -165,6 +176,7 @@ const meetingsCreate = defineCall({
     };
     meetingsOf(ctx.state)[id] = meeting;
     recordCreate(ctx, { projectId, verb: 'meeting.created', targetType: 'meeting', targetId: id, entity: meeting });
+    tell(ctx, meeting, attendeeIds, 'new');
     return meetingDetailOf(ctx.state, meeting, ctx.authority, ctx.now);
   },
 });
@@ -215,11 +227,18 @@ const meetingsUpdate = defineCall({
     if (phaseOf(meeting, ctx.now) === 'done' && changed.some((key) => key !== 'notes')) {
       throw conflict('This meeting is over. Only its notes change.', 'meeting_over');
     }
+    const wasOn = [...meeting.attendeeIds];
     const event = applyPatch(ctx, meeting, Object.fromEntries(changed.map((key) => [key, next[key]])) as Partial<Meeting>, {
       projectId: meeting.projectId, verb: 'meeting.updated', targetType: 'meeting', targetId: meeting.id,
     });
     // rev is not in the event: an Undo brings the time or the place back and raises rev again (history.ts), so it never goes down.
-    if (event && changed.some((key) => key === 'startsAt' || key === 'endsAt' || key === 'where')) meeting.rev += 1;
+    const moved = changed.some((key) => key === 'startsAt' || key === 'endsAt' || key === 'where');
+    if (event && moved) meeting.rev += 1;
+    // A person added to the list hears "new". The people who stay hear "moved" when the day, the time or the place changes: the
+    // attendees, and the organizer when another person moved it. A person taken off hears nothing.
+    const added = meeting.attendeeIds.filter((id) => !wasOn.includes(id));
+    if (moved) tell(ctx, meeting, [meeting.organizerId, ...meeting.attendeeIds].filter((id) => !added.includes(id)), 'moved');
+    tell(ctx, meeting, added, 'new');
     return meetingDetailOf(ctx.state, meeting, ctx.authority, ctx.now);
   },
 });
@@ -235,6 +254,7 @@ const meetingsCancel = defineCall({
     if (phaseOf(meeting, ctx.now) === 'done') throw conflict('This meeting is over. It cannot be cancelled.', 'meeting_over');
     applyPatch(ctx, meeting, { status: 'cancelled' }, { projectId: meeting.projectId, verb: 'meeting.cancelled', targetType: 'meeting', targetId: meeting.id });
     meeting.rev += 1;
+    tell(ctx, meeting, [meeting.organizerId, ...meeting.attendeeIds], 'cancelled');
     return meetingDetailOf(ctx.state, meeting, ctx.authority, ctx.now);
   },
 });

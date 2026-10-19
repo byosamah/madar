@@ -16,7 +16,7 @@ import { pushRows } from '../../push/notify';
 
 /**
  * Step 1 of the 15-minute job (plan 5.5): the scheduled triggers (due and overdue reminders, the restart day of a paused
- * project) under the office lock, as one write:
+ * project, the reminder of a meeting 30 minutes before its start) under the office lock, as one write:
  *
  *   the lock, the office, the jobs loader of C2 (loadJobs), runScheduledTriggers with a dedupe lookup backed by the unique index
  *   (plan 4.13, A3), the save, the mail.notice outbox rows of N2 (noticeRows) and the push.notify rows (pushRows, owner 2026-10-08),
@@ -51,7 +51,7 @@ export async function triggers(deps: Deps, at: Date): Promise<{ notices: number;
       lockedAt = performance.now();
       // The office object (exit wave 3): its office lists in memory and the SQLite source and save.
       const office = isLite(q) ? await readLiteOffice(liteDbOf(q), q) : await readOffice(deps, q);
-      const state = await loadJobs({ src: isLite(q) ? liteSource(q) : sqlSource(q, { bytes: (n) => deps.meter.addBytes(n) }), office });
+      const state = await loadJobs({ src: isLite(q) ? liteSource(q) : sqlSource(q, { bytes: (n) => deps.meter.addBytes(n) }), office, now: at });
       const used = await usedDedupeKeys(q, state, at);
       const before = structuredClone(state);
       const notices = runScheduledTriggers(state, at, { dedupeUsed: (key) => used.has(key) });

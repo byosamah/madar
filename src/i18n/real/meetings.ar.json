@@ -13,5 +13,23 @@
       "meeting_cancelled": "هذا الاجتماع ملغى. لا يمكن تغييره.",
       "meeting_over": "انتهى هذا الاجتماع. لا تتغير إلا ملاحظاته."
     }
+  },
+  "inbox": {
+    "trigger": {
+      "meeting_invited": "{{actor}} دعاك إلى {{target}}، {{day}} الساعة {{time}}",
+      "meeting_invited_female": "{{actor}} دعتك إلى {{target}}، {{day}} الساعة {{time}}",
+      "meeting_invited_moved": "{{actor}} نقل {{target}} إلى {{day}} الساعة {{time}}",
+      "meeting_invited_moved_female": "{{actor}} نقلت {{target}} إلى {{day}} الساعة {{time}}",
+      "meeting_invited_cancelled": "{{actor}} ألغى {{target}} الذي كان مقررًا {{day}} الساعة {{time}}",
+      "meeting_invited_cancelled_female": "{{actor}} ألغت {{target}} الذي كان مقررًا {{day}} الساعة {{time}}",
+      "meeting_soon": "{{target}} يبدأ قريبًا، في {{time}}"
+    },
+    "meetingGone": "اجتماع لم يعد بإمكانك رؤيته"
+  },
+  "settings": {
+    "triggers": {
+      "meeting_invited": "اجتماع جديد أو معدّل أو ملغى لي",
+      "meeting_soon": "اجتماع يبدأ قريبًا"
+    }
   }
 }
