@@ -10,7 +10,7 @@ import { makeVapidKeys } from '../push/vapid';
 // It registers the push effect and the push producers, as server/core/deps.ts does for the entries.
 import '../push/effects';
 import '../mail/effects';
-import { newBatch, startOffice, type ItOffice } from './runCallOffice';
+import { newBatch, NOW, startOffice, type ItOffice } from './runCallOffice';
 
 /**
  * Browser push on the local database (owner, 2026-10-08), as madar_server: the three device calls, the unique endpoint, the
@@ -146,7 +146,7 @@ describe('browser push on the local database, as madar_server', () => {
   it('pushes a plain task comment to the task lead, and not to the author or a third person (item 19)', async () => {
     const [sara, omar, third] = members;
     for (const user of [sara, omar, third]) await register(user.id);
-    const task = okOf<{ id: string }>(await call(leader, 'tasks.create', { projectId: project.id, title: 'A task for Sara', ownerId: sara.id }));
+    const { task } = okOf<{ task: { id: string } }>(await call(leader, 'tasks.create', { projectId: project.id, title: 'A task for Sara', ownerId: sara.id }));
     posted.length = 0;
     await office.sql('truncate outbox');
     okOf(await call(omar.id, 'comments.create', { targetType: 'task', targetId: task.id, body: 'A plain note.' }));
@@ -168,12 +168,14 @@ describe('browser push on the local database, as madar_server', () => {
     okOf(await call(b.id, 'chats.markRead', { conversationId: direct.id }));
     await processOutbox(deps, held);
     expect(posted).toEqual([]);
-    // A message that the person did not read still pushes after the wait.
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    // A message that the person did not read still pushes after the wait. The office clock stands still in this test, so it moves one
+    // minute: a message with the same stamp as the read mark counts as read.
+    deps.clock.set(new Date(NOW.getTime() + 60_000));
     held.length = 0;
     okOf(await sendHeld(deps, { principal: { userId: a.id }, name: 'chats.send', input: { conversationId: direct.id, body: 'Unread this time' }, batch: newBatch() }));
     await processOutbox(deps, held);
     expect(pushedTo()).toEqual([endpointOf(b.id)]);
+    deps.clock.set(NOW);
   });
 
   it('pushes a group message to the other people of the group, and to nobody outside it (2026-10-18)', async () => {
