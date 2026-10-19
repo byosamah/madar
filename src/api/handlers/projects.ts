@@ -255,8 +255,11 @@ const SORTS: Record<'updated' | 'deadline' | 'name', Sorter> = {
 export const projectsList = defineCall({
   input: z.object({
     status: z.union([ProjectStatus, z.literal('all')]).default('active'),
-    /** no_area: the projects with no area. stage_no_end: the projects with a stage that has no end date (owner, 2026-10-06). */
-    filter: z.enum(['all', 'mine', 'at_risk', 'no_area', 'stage_no_end']).default('all'),
+    /**
+     * no_area: the projects with no area. stage_no_end: the projects with a stage that has no end date (owner, 2026-10-06).
+     * no_sub_company: the projects with no sub-company, for the Admin to fill in (INT-10).
+     */
+    filter: z.enum(['all', 'mine', 'at_risk', 'no_area', 'stage_no_end', 'no_sub_company']).default('all'),
     stageName: z.string().optional(),
     /** One health value, so each number of the dashboard's health mix opens exactly its projects (spec 8.3). */
     health: HealthValue.optional(),
@@ -279,6 +282,7 @@ export const projectsList = defineCall({
       .filter((p) => input.filter !== 'mine' || projectRoleOf(state, p.id, authority.id) !== 'other')
       .filter((p) => input.filter !== 'no_area' || p.areaM2 === null)
       .filter((p) => input.filter !== 'stage_no_end' || stagesOf(state, p.id).some((stage) => stage.endDate === null))
+      .filter((p) => input.filter !== 'no_sub_company' || !p.subCompanyId)
       .filter((p) => !input.leaderId || p.leaderId === input.leaderId)
       .filter((p) => !input.clientId || p.clientId === input.clientId)
       .filter((p) => !input.subCompanyId || p.subCompanyId === input.subCompanyId)
@@ -923,6 +927,8 @@ export const deadlinesList = defineCall({
     /** Only the deadlines of the projects that this person leads, or of this client: the Dashboard filters (owner, 2026-10-06). */
     leaderId: UserId.optional(),
     clientId: ClientId.optional(),
+    /** Only the deadlines of the projects of one sub-company: the Dashboard filter (INT-09). */
+    subCompanyId: SubCompanyId.optional(),
   }),
   output: z.array(DeadlineRow),
   readOnly: true,

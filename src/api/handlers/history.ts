@@ -263,6 +263,11 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
         throw forbidden('Only the Admin changes a role, in the Madar screens.', { action: 'admin.manage', reason: 'admin_only' });
       }
       return need('admin.manage');
+    case 'subCompany':
+      // An agent never makes, changes or deletes a sub-company (MCP deny list), so it never takes such a change back either:
+      // an undo of a making deletes the sub-company, and an undo of a change brings an old logo back (INT-27).
+      if (ctx.actor.kind === 'agent') throw forbidden('Only the Admin changes a sub-company, in the Madar screens.', { action: 'admin.manage', reason: 'admin_only' });
+      return need('admin.manage');
     default:
       return need('admin.manage');
   }

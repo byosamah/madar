@@ -48,7 +48,7 @@ export const INSTRUCTIONS = [
   '',
   'Project codes: a new code reads YYMMSSINI-CLS-Type, for example 260902AZT-RES-Villa: the month of registration (YYMM), the series of that month (SS), the client initials (INI), the class (RES, COM, IND, INS, REC, AGR, UTL or MIX) and the building type. The first part, 260902AZT, is the project key; people write #260902AZT in posts. Older projects keep codes like KH-26-014. Two projects of one contract share one code. The code is fixed after create. Correcting it with projects.update needs the code right (by default only the Admin). Some projects keep a code of their own: a person may keep a code outside this pattern after a warning. A typed code outside the pattern fails with reason code_format, and one with the month and series of another contract with code_taken: only your person decides to keep it, and then you call again with codeAnyway: true.',
   '',
-  'Sub-companies are the companies of the office group, for example Vado and Bunah. subCompanies.list gives their names. projects.list takes subCompanyId, the sub-company of a project.',
+  'Sub-companies are the companies of the office group, for example Vado and Bunah. subCompanies.list gives their names and project counts. projects.list, tasks.list, deadlines.list, dashboard.get and reports.office take subCompanyId, the sub-company of a project. projects.list filter no_sub_company lists the projects with none.',
 ].join('\n');
 
 /** The role names that the Madar screens show. */
@@ -102,7 +102,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'dashboard.get': {
     title: 'Office dashboard',
-    description: 'Office overview for the filters leaderId, clientId, teamId and status (default active): tiles (inDesignWithoutArea: projects in design with no area), health counts, charts (submissions: Tracker entries sent to clients per week), workload (per person: overdue, then open tasks due each of 4 weeks from today; week 1 adds reviews), waitingForUs (client items waiting for our reply), inReview (by reviewer), schedule, attention, leaders. gaps (noDueDate, noLead, projectsStageNoEnd, noArea; Admin only) and money (payments due) needs the payment right (default Admin, Management, Accounting); else null.',
+    description: 'Office overview for the filters leaderId, clientId, teamId, subCompanyId and status (default active): tiles (inDesignWithoutArea: projects in design with no area), health counts, charts (submissions: Tracker entries sent to clients per week), workload (per person: overdue, then open tasks due each of 4 weeks from today; week 1 adds reviews), waitingForUs (client items waiting for our reply), inReview (by reviewer), schedule, attention, leaders. gaps (noDueDate, noLead, projectsStageNoEnd, noArea, noSubCompany; Admin only) and money (payments due) needs the payment right; else null.',
   },
 
   'deadlines.create': {
@@ -111,7 +111,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'deadlines.list': {
     title: 'List deadlines',
-    description: 'Lists the deadlines of all projects that you may see, in date order. Filters: from and to (YYYY-MM-DD), project status, and the project filters of dashboard.get: leaderId, clientId, teamId. Each line names its project and stage.',
+    description: 'Lists the deadlines of all projects that you may see, in date order. Filters: from and to (YYYY-MM-DD), project status, and the project filters of dashboard.get: leaderId, clientId, teamId, subCompanyId. Each line names its project and stage.',
   },
   'deadlines.update': {
     title: 'Change a deadline',
@@ -123,11 +123,11 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'events.undo': {
     title: 'Undo one change',
-    description: 'Takes back one change by its event ID (from events.list), under the rules of the original action. An undo of a create removes the record. You may undo your own changes and those of the person you act for. You may not undo a change to a person (an email, a role, turned off or on) or a change to the rights of a role: only a person does that, in the Madar screens. The undo is a new change in the History.',
+    description: 'Takes back one change by its event ID (from events.list), under the rules of the original action. An undo of a create removes the record. You may undo your own changes and those of the person you act for. You may not undo a change to a person (an email, a role, turned off or on), to the rights of a role, or to a sub-company: only a person does that, in the Madar screens. The undo is a new change in the History.',
   },
   'events.undoStory': {
     title: 'Undo a story',
-    description: 'Takes back every change of one story, given its storyId as correlationId. The changes come back together, newest first. Use it to take back the whole of one request. A story that holds a change to a person or to the rights of a role fails: only a person undoes that, in the Madar screens.',
+    description: 'Takes back every change of one story, given its storyId as correlationId. The changes come back together, newest first. Use it to take back the whole of one request. A story that holds a change to a person, to the rights of a role or to a sub-company fails: only a person undoes that, in the Madar screens.',
   },
   'feedback.list': {
     title: 'List requests and bugs',
@@ -167,7 +167,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.list': {
     title: 'List projects',
-    description: 'Lists the projects, with their code, stage, health and leader. A code is 260902AZT-RES-Villa (new form, key 260902AZT) or KH-26-014 (old form). Filters: status, filter (all, mine, at_risk, no_area, stage_no_end: a stage with no end date), stageName, health, leaderId, clientId, teamId, subCompanyId (a sub-company, see subCompanies.list); sort by updated, deadline (the next named deadline, else the end of the current stage) or name. Each project gives nextDeadline, stageEnd, subCompanyId and geo, as projects.get does. templateId is the id of the template the project came from, or null.',
+    description: 'Lists the projects, with their code, stage, health and leader. A code is 260902AZT-RES-Villa (new form, key 260902AZT) or KH-26-014 (old form). Filters: status, filter (all, mine, at_risk, no_area, stage_no_end: a stage with no end date, no_sub_company), stageName, health, leaderId, clientId, teamId, subCompanyId (see subCompanies.list); sort by updated, deadline (the next named deadline, else the end of the current stage) or name. Each project gives nextDeadline, stageEnd, subCompanyId and geo, as projects.get does. templateId is the id of the template the project came from, or null.',
   },
   'projects.setStatus': {
     title: 'Set the project status',
@@ -179,7 +179,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'search.query': {
     title: 'Search',
-    description: 'Searches projects, tasks of active projects, people and files by words in "text". Returns the matches of each kind, with their IDs. Use it when you know a name but not the ID.',
+    description: 'Searches projects, tasks of active projects, people, files and sub-companies by words in "text". Returns the matches of each kind, with their IDs. A sub-company match gives its project count: list its projects with projects.list and subCompanyId. Use it when you know a name but not the ID.',
   },
   'tasks.approve': {
     title: 'Approve a task',
@@ -199,7 +199,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'tasks.list': {
     title: 'List tasks',
-    description: 'Lists tasks. Filters: projectId, ownerId, filter (all, mine, overdue, flagged, review_for_me, no_lead, no_date), status, due, created and done date ranges, includeDone, activeProjectsOnly, and the project filters of dashboard.get: leaderId, clientId, teamId. workOf lists the work of one person as dashboard.get counts it: open tasks the person leads or helps on, and tasks in review that the person reviews. Without includeDone, done tasks are left out. owner is null for a task with no lead. An office task (project null) shows only with no project filter.',
+    description: 'Lists tasks. Filters: projectId, ownerId, filter (all, mine, overdue, flagged, review_for_me, no_lead, no_date), status, due, created and done date ranges, includeDone, activeProjectsOnly, and the project filters of dashboard.get: leaderId, clientId, teamId, subCompanyId. workOf lists the work of one person as dashboard.get counts it: open tasks the person leads or helps on, and tasks in review that the person reviews. Without includeDone, done tasks are left out. owner is null for a task with no lead. An office task (project null) shows only with no project filter.',
   },
   'tasks.move': {
     title: 'Move a task',
@@ -247,7 +247,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'reports.office': {
     title: 'Get the office report',
-    description: 'Gives the office report of one period: a week, a month, a quarter or a year. Send period, and start (YYYY-MM-DD, any day in the period) to pick it. The answer has the data and the design guide (design). Each project row names its sub-company (subCompany), or null. Build a clean document on a white page with design: its colors, type and rules. The money part (money) comes only for people with the payment right; without it, money is null. Needs the report right, which the Admin and Management hold by default.',
+    description: 'Gives the office report of one period: a week, a month, a quarter or a year. Send period, and start (YYYY-MM-DD, any day in the period) to pick it. subCompanyId makes the report of one sub-company only. The answer has the data and the design guide (design). Each project row names its sub-company (subCompany), or null. Build a clean document on a white page with design: its colors, type and rules. The money part (money) comes only for people with the payment right; without it, money is null. Needs the report right, which the Admin and Management hold by default.',
   },
   'users.list': {
     title: 'List people',
@@ -255,7 +255,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'subCompanies.list': {
     title: 'List sub-companies',
-    description: 'Lists the sub-companies of the office, with their English name (name) and Arabic name (nameAr). Logos are left out.',
+    description: 'Lists the sub-companies of the office, with their English name (name), Arabic name (nameAr) and projectCount (the projects that name it). Logos are left out.',
   },
   'comments.create': {
     title: 'Add a comment',

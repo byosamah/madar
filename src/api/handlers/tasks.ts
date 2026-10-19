@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
-  ChecklistItem, ClientId, Day, DurationDays, MAX_HELPERS, MAX_PREREQUISITES, ProjectId, StageId, TaskId, TaskSchedule, TaskStatus, TaskTemplateId, TeamId, UserId, type DateMove, type Task,
+  ChecklistItem, ClientId, Day, DurationDays, MAX_HELPERS, MAX_PREREQUISITES, ProjectId, StageId, SubCompanyId, TaskId, TaskSchedule, TaskStatus, TaskTemplateId, TeamId, UserId, type DateMove, type Task,
 } from '../contract/entities';
 import { TaskDetail, TaskRow } from '../contract/views';
 import { ApiError, forbidden, invalid, notFound } from '../errors';
@@ -174,6 +174,8 @@ export const tasksList = defineCall({
     /** Only the tasks of the projects that this person leads, or of this client: the Dashboard filters (owner, 2026-10-06). */
     leaderId: UserId.optional(),
     clientId: ClientId.optional(),
+    /** Only the tasks of the projects of one sub-company: the Dashboard filter (INT-09). */
+    subCompanyId: SubCompanyId.optional(),
     /**
      * The work of one person, as the People tab of the Dashboard counts it (owner, 2026-10-06): the open tasks the person leads
      * or helps on that are not in review, and the tasks in review that the person reviews (reviewersOf). A task in review passes
@@ -188,7 +190,7 @@ export const tasksList = defineCall({
     const { projectId, ownerId, status, dueFrom, dueTo } = input;
     const inFilters = peopleFilter(state, input);
     // An office task belongs to no project, so a project filter leaves it out. It shows only to its people and the Admin (owner, 2026-10-06).
-    const officeIn = !projectId && !input.leaderId && !input.clientId && !input.teamId;
+    const officeIn = !projectId && !input.leaderId && !input.clientId && !input.teamId && !input.subCompanyId;
     const tasks = Object.values(state.tasks).filter((task) => {
       if (task.projectId === null) {
         if (!officeIn || !mayViewTask(state, authority, task)) return false;
