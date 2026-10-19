@@ -8,14 +8,24 @@ import { renderWithRuntime } from '../../test/render';
 import { DashboardMap } from './DashboardMap';
 
 // The real build loads the street map. These tests run the real-build branch, with the map itself replaced by a double.
-vi.hoisted(() => {
+const mapState = vi.hoisted(() => {
   vi.stubEnv('VITE_MADAR_API', 'remote');
+  return { failed: false };
 });
 
 vi.mock('../map/MapCanvas', async () => {
   const React = await import('react');
+  type Pin = { id: string; label?: string };
+  type Props = {
+    pins: Pin[];
+    onPinClick?: (id: string) => void;
+    selectedId?: string | null;
+    renderPin?: (pin: Pin, selected: boolean) => unknown;
+    renderPopup?: (id: string) => unknown;
+    onFailedChange?: (failed: boolean) => void;
+  };
   return {
-    default: (props: { pins: { id: string; label?: string }[]; onPinClick?: (id: string) => void }) => React.createElement(
+    default: (props: Props) => (React.useEffect(() => props.onFailedChange?.(mapState.failed), [props.onFailedChange]), React.createElement(
       'div',
       { role: 'region', 'aria-label': 'Map' },
       props.pins.map((pin) => React.createElement('button', {
@@ -23,8 +33,9 @@ vi.mock('../map/MapCanvas', async () => {
         type: 'button',
         'aria-label': pin.label,
         onClick: () => props.onPinClick?.(pin.id),
-      })),
-    ),
+      }, props.renderPin?.(pin, props.selectedId === pin.id) as never)),
+      props.selectedId && props.renderPopup ? (props.renderPopup(props.selectedId) as never) : null,
+    )),
   };
 });
 
@@ -34,7 +45,7 @@ afterAll(() => {
 
 type Api = Awaited<ReturnType<typeof renderWithRuntime>>['api'];
 
-const HEALTH_WORD = { on_track: 'On track', at_risk: 'At risk', late: 'Late' } as const;
+const HEALTH_WORD = { at_risk: 'At risk', late: 'Late' } as const;
 
 /** The first four projects of the office get a pin. The others have none. */
 function pinFirstFour(state: State) {
@@ -82,7 +93,10 @@ describe('the Dashboard map (fbk_017)', () => {
     expect(within(card).getByText(projectKey(target.project.code))).toBeInTheDocument();
     expect(within(card).getByText(`Stage: ${target.currentStage.name}`)).toBeInTheDocument();
     if (target.leader) expect(within(card).getByText(`Leader: ${target.leader.name}`)).toBeInTheDocument();
-    if (target.health) expect(within(card).getByText(HEALTH_WORD[target.health.value])).toBeInTheDocument();
+    // The health shows as a status sign for At risk and Late only. On track shows nothing (PRJ-14).
+    const health = target.health?.value;
+    if (health === 'late' || health === 'at_risk') expect(within(card).getByText(HEALTH_WORD[health])).toBeInTheDocument();
+    expect(within(card).queryByText('On track')).toBeNull();
     expect(within(card).getByRole('link', { name: 'Open project' })).toHaveAttribute('href', `/projects/${target.project.id}`);
   });
 
@@ -132,9 +146,68 @@ describe('the Dashboard map (fbk_017)', () => {
     await userEvent.click(await screen.findByRole('button', { name: `No pin yet (${unpinned.length})` }));
     await userEvent.click(screen.getByRole('button', { name: `Set pin for ${target!.project.name}` }));
     const dialog = await screen.findByRole('dialog', { name: 'Pin on the map' });
-    fireEvent.change(within(dialog).getByLabelText(/Paste a Google Maps link/), { target: { value: 'https://www.google.com/maps/@26.2834,50.2105,17z' } });
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Save pin' }));
+    fireEvent.change(within(dialog).getByLabelText('Search a place or paste a Google Maps link'), { target: { value: 'https://www.google.com/maps/@26.2834,50.2105,17z' } });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Use this place' }));
     await waitFor(async () => expect((await api.call('projects.get', { id: target!.project.id })).geo).toEqual({ lat: 26.2834, lng: 50.2105 }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('keeps the old pin when the person presses Cancel in the Set pin sheet (PRJ-13)', async () => {
+    const { api } = await renderWithRuntime(<DashboardMap filters={{}} />, pinFirstFour, { path: '/dashboard' });
+    const unpinned = (await api.call('projects.list', { status: 'active', sort: 'name' })).filter((row) => row.geo === null);
+    const target = unpinned.find((row) => row.viewerCan.edit)!;
+    await userEvent.click(await screen.findByRole('button', { name: `No pin yet (${unpinned.length})` }));
+    await userEvent.click(screen.getByRole('button', { name: `Set pin for ${target.project.name}` }));
+    const dialog = await screen.findByRole('dialog', { name: 'Pin on the map' });
+    fireEvent.change(within(dialog).getByLabelText('Search a place or paste a Google Maps link'), { target: { value: '26.2834, 50.2105' } });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect((await api.call('projects.get', { id: target.project.id })).geo).toBeNull();
+  });
+
+  it('shows the leader of each project that the person may not edit, so the person knows whom to ask (PRJ-20)', async () => {
+    const member = (state: State) => {
+      pinFirstFour(state);
+      const found = Object.values(state.users).find((user) => user.kind === 'human' && user.active && user.systemRole === 'member');
+      if (found) state.session.currentUserId = found.id;
+    };
+    const { api } = await renderWithRuntime(<DashboardMap filters={{}} />, member, { path: '/dashboard' });
+    const unpinned = (await api.call('projects.list', { status: 'active', sort: 'name' })).filter((row) => row.geo === null);
+    const blocked = unpinned.filter((row) => !row.viewerCan.edit && row.leader);
+    expect(blocked.length).toBeGreaterThan(0);
+    await userEvent.click(await screen.findByRole('button', { name: `No pin yet (${unpinned.length})` }));
+    for (const row of blocked) expect(screen.getAllByText(`Leader: ${row.leader!.name}`).length).toBeGreaterThan(0);
+  });
+
+  it('opens the card in a short sheet on a phone, not next to the pin (PRJ-14)', async () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+      matches: true, media: query, onchange: null, addEventListener: () => undefined, removeEventListener: () => undefined,
+      addListener: () => undefined, removeListener: () => undefined, dispatchEvent: () => false,
+    }) as MediaQueryList);
+    try {
+      const { api } = await renderWithRuntime(<DashboardMap filters={{}} />, pinFirstFour, { path: '/dashboard' });
+      const target = (await pinned(api))[0];
+      const map = await screen.findByRole('region', { name: 'Map' });
+      await userEvent.click(within(map).getByRole('button', { name: target.project.name }));
+      const sheet = await screen.findByRole('dialog', { name: target.project.name });
+      expect(within(sheet).getByRole('link', { name: 'Open project' })).toHaveAttribute('href', `/projects/${target.project.id}`);
+      expect(within(map).queryByRole('link', { name: 'Open project' })).toBeNull();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('opens the card in a sheet when the street map did not load, so the person still reaches the project (PRJ-01)', async () => {
+    mapState.failed = true;
+    try {
+      const { api } = await renderWithRuntime(<DashboardMap filters={{}} />, pinFirstFour, { path: '/dashboard' });
+      const target = (await pinned(api))[0];
+      const list = await screen.findByRole('list', { name: 'Projects on the map' });
+      await userEvent.click(within(list).getByRole('button', { name: new RegExp(target.project.name) }));
+      const sheet = await screen.findByRole('dialog', { name: target.project.name });
+      expect(within(sheet).getByRole('link', { name: 'Open project' })).toBeInTheDocument();
+    } finally {
+      mapState.failed = false;
+    }
   });
 });

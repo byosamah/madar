@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type * as MapLib from 'maplibre-gl';
-import type { Map as MapLibreMap, Marker } from 'maplibre-gl';
+import type { Map as MapLibreMap, Marker, Popup } from 'maplibre-gl';
 import type { GeoPoint } from '../../api/contract/entities';
 import { useLang } from '../../app/lang';
-import { MAP_PATHS, START_POINT, START_ZOOM, madarMapStyle, type MapTheme } from './mapStyle';
+import { START_POINT, START_ZOOM, madarMapStyle, type MapTheme } from './mapStyle';
 
 export type MapPin = { id: string; point: GeoPoint; label?: string };
 
@@ -20,25 +21,37 @@ export type MapCanvasProps = {
   fitTo?: 'pins' | 'start';
   /** A new point moves the view to it, with a zoom of at least 14. A search hit sets it. The pins do not move the view. */
   centerOn?: GeoPoint | null;
+  /** The look of one pin. With none, a pin is a round dot. The content sits in a box of 44 px, the size of a touch target. */
+  renderPin?: (pin: MapPin, selected: boolean) => ReactNode;
+  /** The pin that is chosen. With renderPopup, its card opens next to it. */
+  selectedId?: string | null;
+  /** The card next to the chosen pin (a computer). A phone shows the card in a sheet, outside the map. */
+  renderPopup?: (id: string) => ReactNode;
+  /** The person closed the card by a press on the map. */
+  onPopupClose?: () => void;
+  /** True while the map does not start (no WebGL, or the tiles do not come). The screen then shows the card outside the map. */
+  onFailedChange?: (failed: boolean) => void;
 };
 
 let loading: Promise<typeof MapLib> | undefined;
 
 /**
  * Loads MapLibre once (owner, 2026-10-18, fbk_017). The worker is a file of this build, so the page needs no blob worker in its
- * policy. The pmtiles protocol reads the map file, and the Arabic text plugin comes from the own address.
+ * policy. The Arabic text plugin is a file of this build as well, never from a third party (owner, 2026-10-19). The tiles and the
+ * glyphs come from OpenFreeMap (mapStyle.ts).
  */
 function loadMapLib(): Promise<typeof MapLib> {
   loading ??= (async () => {
-    const [lib, pmtiles, worker] = await Promise.all([
+    const [lib, worker, rtl] = await Promise.all([
       import('maplibre-gl'),
-      import('pmtiles'),
       import('maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'),
+      // A path into node_modules: the package lists only src/index.js in its exports, so the built plugin file has no package name.
+      import('../../../node_modules/@mapbox/mapbox-gl-rtl-text/dist/mapbox-gl-rtl-text.js?url'),
       import('maplibre-gl/dist/maplibre-gl.css'),
+      import('./mapPopup.css'),
     ]);
     lib.setWorkerUrl(worker.default);
-    lib.setRTLTextPlugin(MAP_PATHS.rtlText, true).catch(() => undefined);
-    lib.addProtocol('pmtiles', new pmtiles.Protocol().tile);
+    lib.setRTLTextPlugin(new URL(rtl.default, window.location.href).href, true).catch(() => undefined);
     return lib;
   })();
   return loading;
@@ -55,23 +68,37 @@ function subscribeTheme(onChange: () => void) {
 }
 const themeNow = (): MapTheme => (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
 
+/** The round dot of a pin with no look of its own (the pin picker): the accent color with a ring, in a box of 44 px. */
+function Dot({ label }: { label: string }) {
+  return (
+    <span role="img" aria-label={label} className="grid size-11 place-items-center">
+      <span className="size-6 rounded-full border-[3px] border-card bg-accent shadow-md" />
+    </span>
+  );
+}
+
 /**
  * The one MapLibre wrapper of Madar (owner, 2026-10-18, fbk_017). The map box has a fixed height: MapLibre sets its own box to
  * position relative, so an absolute box would collapse. The box sits inside a sheet with data-vaul-no-drag, so a drag on the map
- * does not close the sheet. The controls sit on the start side of the language.
+ * does not close the sheet. The controls sit on the start side of the language. A pin is a React tree in a MapLibre marker (a
+ * portal), so it can use the project tile. When the map cannot start or the tiles do not load, the box says so in one line.
  */
-export default function MapCanvas({ pins, onPinClick, draggablePin = false, onPinMove, onMapClick, fitTo = 'start', centerOn }: MapCanvasProps) {
+export default function MapCanvas({ pins, onPinClick, draggablePin = false, onPinMove, onMapClick, fitTo = 'start', centerOn, renderPin, selectedId = null, renderPopup, onPopupClose, onFailedChange }: MapCanvasProps) {
   const { t } = useTranslation();
   const lang = useLang();
   const theme = useSyncExternalStore(subscribeTheme, themeNow);
   const box = useRef<HTMLDivElement>(null);
   const [mapLib, setMapLib] = useState<typeof MapLib | null>(null);
   const [map, setMap] = useState<MapLibreMap | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [hosts, setHosts] = useState<{ id: string; element: HTMLElement }[]>([]);
+  const [popupHost, setPopupHost] = useState<HTMLElement | null>(null);
   const shownStyle = useRef('');
+  useEffect(() => onFailedChange?.(failed), [failed, onFailedChange]);
   // The latest props and words, so a marker or a map event never calls an old handler.
-  const latest = useRef({ theme, lang, pins, onPinClick, onPinMove, onMapClick, pinWord: t('map.canvas.pin') });
+  const latest = useRef({ theme, lang, pins, onPinClick, onPinMove, onMapClick, onPopupClose });
   useEffect(() => {
-    latest.current = { theme, lang, pins, onPinClick, onPinMove, onMapClick, pinWord: t('map.canvas.pin') };
+    latest.current = { theme, lang, pins, onPinClick, onPinMove, onMapClick, onPopupClose };
   });
   const pinsKey = JSON.stringify(pins.map((pin) => [pin.id, pin.point.lat, pin.point.lng, pin.label ?? '']));
 
@@ -79,24 +106,39 @@ export default function MapCanvas({ pins, onPinClick, draggablePin = false, onPi
   useEffect(() => {
     let cancelled = false;
     let made: MapLibreMap | undefined;
-    void loadMapLib().then((lib) => {
+    loadMapLib().then((lib) => {
       const element = box.current;
       if (cancelled || !element) return;
       const { theme: now, lang: language, pins: first } = latest.current;
       const start = first[0]?.point ?? START_POINT;
-      made = new lib.Map({
-        container: element,
-        style: madarMapStyle(now, language),
-        center: [start.lng, start.lat],
-        zoom: first.length > 0 ? 13 : START_ZOOM,
-        attributionControl: false,
-      });
+      try {
+        made = new lib.Map({
+          container: element,
+          style: madarMapStyle(now, language),
+          center: [start.lng, start.lat],
+          zoom: first.length > 0 ? 13 : START_ZOOM,
+          attributionControl: false,
+        });
+      } catch {
+        // A browser with no WebGL cannot draw the map.
+        setFailed(true);
+        return;
+      }
       shownStyle.current = `${now}-${language}`;
       made.addControl(new lib.NavigationControl({ showCompass: false }), language === 'ar' ? 'bottom-right' : 'bottom-left');
       made.on('click', (event) => latest.current.onMapClick?.(roundPoint(event.lngLat)));
+      // An error before the first load is a map that does not start (the tiles or the style do not come). Later errors retry by themselves.
+      let started = false;
+      made.on('load', () => {
+        started = true;
+        setFailed(false);
+      });
+      made.on('error', () => {
+        if (!started) setFailed(true);
+      });
       setMapLib(lib);
       setMap(made);
-    });
+    }, () => setFailed(true));
     return () => {
       cancelled = true;
       made?.remove();
@@ -121,31 +163,79 @@ export default function MapCanvas({ pins, onPinClick, draggablePin = false, onPi
   // The pins: one marker for each. The markers are made again when the pins change, not while one is dragged.
   useEffect(() => {
     if (!map || !mapLib) return;
-    const { pins: list, pinWord } = latest.current;
-    const markers: Marker[] = list.map((pin) => {
-      const element = document.createElement('button');
-      element.type = 'button';
-      element.setAttribute('aria-label', pin.label ?? pinWord);
-      element.style.cssText = 'width:22px;height:22px;padding:0;border-radius:50%;background:var(--c-accent);border:3px solid var(--c-card);box-shadow:0 1px 4px rgba(0,0,0,0.3);cursor:pointer';
-      element.addEventListener('click', () => latest.current.onPinClick?.(pin.id));
+    const { pins: list } = latest.current;
+    const made: { id: string; element: HTMLElement; marker: Marker }[] = list.map((pin) => {
+      const element = document.createElement('div');
       const marker = new mapLib.Marker({ element, draggable: draggablePin }).setLngLat([pin.point.lng, pin.point.lat]).addTo(map);
       marker.on('dragend', () => latest.current.onPinMove?.(roundPoint(marker.getLngLat())));
-      return marker;
+      return { id: pin.id, element, marker };
     });
+    setHosts(made.map(({ id, element }) => ({ id, element })));
     if (fitTo === 'pins' && list.length > 0) {
       const bounds = new mapLib.LngLatBounds();
       for (const pin of list) bounds.extend([pin.point.lng, pin.point.lat]);
-      map.fitBounds(bounds, { padding: 48, maxZoom: 14, duration: 0 });
+      map.fitBounds(bounds, { padding: 72, maxZoom: 14, duration: 0 });
     }
     return () => {
-      for (const marker of markers) marker.remove();
+      for (const { marker } of made) marker.remove();
+      setHosts([]);
     };
   }, [map, mapLib, pinsKey, draggablePin, fitTo]);
 
+  // The card of the chosen pin opens next to it. A pin out of the view moves into it first.
+  const chosen = renderPopup && selectedId ? pins.find((pin) => pin.id === selectedId) : undefined;
+  const chosenLat = chosen?.point.lat;
+  const chosenLng = chosen?.point.lng;
+  useEffect(() => {
+    if (!map || !mapLib || chosenLat === undefined || chosenLng === undefined) return;
+    const element = document.createElement('div');
+    const popup: Popup = new mapLib.Popup({ closeButton: false, closeOnClick: true, maxWidth: 'none', offset: 28, className: 'madar-popup' })
+      .setLngLat([chosenLng, chosenLat])
+      .setDOMContent(element)
+      .addTo(map);
+    // Only a press on the map closes the card for the person. A change of the chosen pin removes the old card and says nothing.
+    let silent = false;
+    popup.on('close', () => {
+      if (!silent) latest.current.onPopupClose?.();
+    });
+    if (!map.getBounds().contains([chosenLng, chosenLat])) map.easeTo({ center: [chosenLng, chosenLat], duration: 0 });
+    setPopupHost(element);
+    return () => {
+      silent = true;
+      popup.remove();
+      setPopupHost(null);
+    };
+  }, [map, mapLib, chosenLat, chosenLng]);
+
   return (
     <div className="flex flex-col gap-2">
-      <div ref={box} data-vaul-no-drag role="region" aria-label={t(draggablePin ? 'map.canvas.label' : 'map.canvas.labelView')} className="h-80 w-full overflow-hidden rounded-card" />
+      <div className="relative">
+        {/* MapLibre places pins, cards and controls in a left to right box: on an Arabic screen (dir="rtl") they land far away. The cards set the language direction again. */}
+        <div ref={box} dir="ltr" data-vaul-no-drag role="region" aria-label={t(draggablePin ? 'map.canvas.label' : 'map.canvas.labelView')} className={`w-full overflow-hidden rounded-card ${draggablePin ? 'h-80' : 'h-96 sm:h-[30rem]'}`} />
+        {failed && (
+          <p role="status" className="absolute inset-0 grid place-items-center rounded-card bg-fill p-6 text-center text-subheadline text-ink-2">
+            {t('map.canvas.failed')}
+          </p>
+        )}
+      </div>
       <p className="text-footnote text-ink-2">{t('map.canvas.attribution')}</p>
+      {hosts.map(({ id, element }) => {
+        const pin = pins.find((item) => item.id === id);
+        if (!pin) return null;
+        const label = pin.label ?? t('map.canvas.pin');
+        return createPortal(
+          renderPin ? (
+            <button type="button" aria-label={label} aria-pressed={selectedId === id} onClick={() => onPinClick?.(id)} className="pressable grid size-11 place-items-center">
+              {renderPin(pin, selectedId === id)}
+            </button>
+          ) : (
+            <Dot label={label} />
+          ),
+          element,
+          id,
+        );
+      })}
+      {popupHost && chosen && renderPopup && createPortal(<div dir={lang === 'ar' ? 'rtl' : 'ltr'}>{renderPopup(chosen.id)}</div>, popupHost)}
     </div>
   );
 }

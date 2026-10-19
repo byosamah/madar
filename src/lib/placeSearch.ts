@@ -32,3 +32,20 @@ export function parseResults(json: unknown): PlaceHit[] {
   }
   return hits;
 }
+
+/** The words of a district, and the cities of the office, that a second search leaves out (audit 2026-10-19, PRJ-19). */
+const LEAVE_OUT = /(?:^|[\s,،.])(?:حي|الحي|district|dist|saudi arabia|السعودية|al[\s-]?khobar|khobar|الخبر|dammam|الدمام|dhahran|الظهران)(?=$|[\s,،.])/gi;
+
+/**
+ * A shorter form of a query, for the second search when the first finds nothing: without the word district and without the
+ * city. Null when the query does not change, or nothing is left.
+ */
+export function simplerQuery(query: string): string | null {
+  const shorter = query.replace(LEAVE_OUT, ' ').replace(/[,،.]/g, ' ').replace(/\s+/g, ' ').trim();
+  return shorter === '' || shorter === query.trim() ? null : shorter;
+}
+
+/** The first two parts of a long place name of OpenStreetMap: "Corniche, Al Khobar". */
+export function shortName(name: string): string {
+  return name.split(',').slice(0, 2).map((part) => part.trim()).join(', ');
+}

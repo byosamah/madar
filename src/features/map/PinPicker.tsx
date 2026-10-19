@@ -4,15 +4,18 @@ import type { GeoPoint } from '../../api/contract/entities';
 import { useLang } from '../../app/lang';
 import { Button } from '../../components/Button';
 import { TextField } from '../../components/Fields';
-import { parseMapLink } from '../../lib/geo';
-import { parseResults, searchUrl, type PlaceHit } from '../../lib/placeSearch';
+import { googleMapsUrl, inSaudi, parseMapPoint, pointText, swapPoint } from '../../lib/geo';
+import { parseResults, searchUrl, shortName, simplerQuery, type PlaceHit } from '../../lib/placeSearch';
+import { resolveShortLink, shortLinkIn } from '../../lib/shortLink';
 
 // The map loads in the real build only, in a chunk of its own. The flag itself, not REMOTE from mode.ts: the bundler folds this
 // comparison. It drops the branch, so the prototype build keeps the paste field alone and no map code (fbk_017).
 const MapCanvas = import.meta.env.VITE_MADAR_API === 'remote' ? lazy(() => import('./MapCanvas')) : null;
+// The short link needs the server function /maplink, which the prototype does not have.
+const HAS_SERVER = import.meta.env.VITE_MADAR_API === 'remote';
 
-type Note = 'found' | 'short' | 'none';
-const NOTE_KEYS = { found: 'map.paste.found', short: 'map.paste.short', none: 'map.paste.none' } as const;
+/** What the one field says about its text. 'outside' keeps the numbers that it read, for the swap. */
+type Note = null | 'reading' | 'short' | 'none' | 'stillOutside' | { kind: 'outside'; raw: GeoPoint };
 
 /** The least time between the starts of two searches, as the OpenStreetMap policy asks. */
 const SEARCH_GAP_MS = 1000;
@@ -20,34 +23,121 @@ const SEARCH_GAP_MS = 1000;
 /** What the last place search showed. */
 type Outcome = { kind: 'idle' } | { kind: 'none' } | { kind: 'failed' } | { kind: 'hits'; hits: PlaceHit[] };
 
-/** The digits of a pin on the screen: six decimals, as the map stores them. */
-export function coordinatesOf(point: GeoPoint): { latitude: number; longitude: number } {
-  return { latitude: Number(point.lat.toFixed(6)), longitude: Number(point.lng.toFixed(6)) };
-}
+const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
- * The place search of the pin picker (Task 12b, fbk_017). It asks OpenStreetMap only when the person presses Search or Enter.
- * It never asks while the person types, and one search runs at a time. The OpenStreetMap policy allows one request each second,
- * so the next search waits until a second has passed since the start of the last one.
+ * The pin of a project in one field (owner, 2026-10-18, fbk_017; one field since the audit of 2026-10-19, PRJ-13). The field takes a
+ * Google Maps link or two coordinates and reads them at once. It takes a place name and searches when the person presses Enter
+ * (never while the person types). A short link goes to the server, which follows it (PRJ-03). Under the field, the real build
+ * shows a small map: a tap sets the pin, and a drag moves it. The result line names the place and gives a link to check it.
+ * The prototype build has no map and no search: the field only reads a link or coordinates.
  */
-function PlaceSearch({ onPick }: { onPick: (point: GeoPoint) => void }) {
+export function PinPicker({ value, onChange, onPlace }: {
+  value: GeoPoint | null;
+  onChange: (point: GeoPoint | null) => void;
+  /** The name of the place when a search hit set the pin, else null. The sheet keeps it for the pin line of the form. */
+  onPlace?: (name: string | null) => void;
+}) {
   const { t } = useTranslation();
   const lang = useLang();
-  const [query, setQuery] = useState('');
+  const [text, setText] = useState('');
+  const [note, setNote] = useState<Note>(null);
+  const [view, setView] = useState<GeoPoint | null>(null);
+  const [place, setPlace] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<Outcome>({ kind: 'idle' });
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
+  // The number of the last paste: the answer of an older short link is dropped.
+  const reading = useRef(0);
+  const pins = value ? [{ id: 'pin', point: value }] : [];
 
+  /** A new place from the field: the pin moves, and the map follows. */
+  function use(point: GeoPoint, name: string | null = null) {
+    setPlace(name);
+    onPlace?.(name);
+    setView({ ...point });
+    onChange(point);
+  }
+
+  function edit(next: string) {
+    setText(next);
+    setOutcome({ kind: 'idle' });
+    setPlace(null);
+    onPlace?.(null);
+    reading.current += 1;
+    if (next.trim() === '') {
+      setNote(null);
+      return;
+    }
+    const found = parseMapPoint(next);
+    if (found === 'short_link') {
+      readShortLink(next);
+    } else if (found === null) {
+      // A name: the real build waits for Enter. The prototype cannot search, so it says so at once.
+      setNote(MapCanvas ? null : 'none');
+    } else if (inSaudi(found)) {
+      setNote(null);
+      use(found);
+    } else {
+      setNote({ kind: 'outside', raw: found });
+    }
+  }
+
+  function readShortLink(next: string) {
+    const link = shortLinkIn(next);
+    if (!HAS_SERVER || !link) {
+      setNote('short');
+      return;
+    }
+    setNote('reading');
+    const mine = reading.current;
+    void resolveShortLink(link).then((long) => {
+      if (mine !== reading.current) return;
+      const found = long ? parseMapPoint(long) : null;
+      if (found && found !== 'short_link' && inSaudi(found)) {
+        setNote(null);
+        use(found);
+      } else {
+        setNote('short');
+      }
+    });
+  }
+
+  function swap(raw: GeoPoint) {
+    const swapped = swapPoint(raw);
+    if (!inSaudi(swapped)) {
+      setNote('stillOutside');
+      return;
+    }
+    setNote(null);
+    setText(pointText(swapped));
+    use(swapped);
+  }
+
+  /** One request to OpenStreetMap. */
+  async function ask(query: string): Promise<PlaceHit[]> {
+    const response = await fetch(searchUrl(query, lang));
+    if (!response.ok) throw new Error(String(response.status));
+    return parseResults(await response.json());
+  }
+
+  /**
+   * Searches a name. When nothing is found, it searches once more with a shorter name (no district word, no city), after the
+   * gap that the OpenStreetMap policy asks. One search runs at a time.
+   */
   async function search() {
-    const text = query.trim();
-    if (text === '' || running.current) return;
+    const query = text.trim();
+    if (query === '' || running.current || parseMapPoint(query) !== null) return;
     running.current = true;
     setBusy(true);
     const started = Date.now();
     try {
-      const response = await fetch(searchUrl(text, lang));
-      if (!response.ok) throw new Error(String(response.status));
-      const hits = parseResults(await response.json());
+      let hits = await ask(query);
+      const shorter = simplerQuery(query);
+      if (hits.length === 0 && shorter) {
+        await wait(Math.max(0, SEARCH_GAP_MS - (Date.now() - started)));
+        hits = await ask(shorter);
+      }
       setOutcome(hits.length > 0 ? { kind: 'hits', hits } : { kind: 'none' });
     } catch {
       setOutcome({ kind: 'failed' });
@@ -59,100 +149,75 @@ function PlaceSearch({ onPick }: { onPick: (point: GeoPoint) => void }) {
     }
   }
 
-  return (
-    <div className="flex flex-col gap-3">
-      <TextField
-        id="map-search"
-        label={t('map.search.label')}
-        hint={t('map.search.hint')}
-        value={query}
-        dir="auto"
-        autoComplete="off"
-        onChange={(event) => setQuery(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key !== 'Enter') return;
-          event.preventDefault();
-          void search();
-        }}
-      />
-      <Button className="self-start" disabled={busy || query.trim() === ''} onClick={() => void search()}>
-        {t('map.search.button')}
-      </Button>
-      {outcome.kind === 'none' && <p role="status" className="text-subheadline text-ink-2">{t('map.search.none')}</p>}
-      {outcome.kind === 'failed' && <p role="status" className="text-subheadline text-late">{t('map.search.failed')}</p>}
-      {outcome.kind === 'hits' && (
-        <ul aria-label={t('map.search.results')} className="hairline flex flex-col">
-          {outcome.hits.map((hit, index) => (
-            <li key={index}>
-              <button
-                type="button"
-                onClick={() => onPick({ lat: Number(hit.lat.toFixed(6)), lng: Number(hit.lng.toFixed(6)) })}
-                className="pressable flex min-h-11 w-full items-center py-2 text-start text-subheadline text-ink hover:bg-fill/50"
-              >
-                <bdi dir="auto">{hit.name}</bdi>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-/**
- * The pin of a project (owner, 2026-10-18, fbk_017). The real build shows a small map: a tap sets the pin, and a drag moves it.
- * The real build also searches a place by name (Task 12b). Both builds take a pasted Google Maps address or a pair of coordinates.
- * A short link gets a message, because it holds no place.
- */
-export function PinPicker({ value, onChange }: { value: GeoPoint | null; onChange: (point: GeoPoint | null) => void }) {
-  const { t } = useTranslation();
-  const [text, setText] = useState('');
-  const [note, setNote] = useState<Note | null>(null);
-  const [view, setView] = useState<GeoPoint | null>(null);
-  const pins = value ? [{ id: 'pin', point: value }] : [];
-
-  function paste(next: string) {
-    setText(next);
-    if (next.trim() === '') {
-      setNote(null);
-      return;
-    }
-    const found = parseMapLink(next);
-    if (found === 'short_link') setNote('short');
-    else if (found === null) setNote('none');
-    else {
-      setNote('found');
-      onChange(found);
-    }
-  }
-
-  // A search hit sets the pin and moves the map. A new object moves the map even to a point that it already shows.
-  function pick(point: GeoPoint) {
-    setView({ ...point });
+  const moved = (point: GeoPoint) => {
+    setPlace(null);
+    onPlace?.(null);
     onChange(point);
-  }
+  };
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
+        <TextField
+          id="map-find"
+          label={t(MapCanvas ? 'map.find.label' : 'map.find.labelPaste')}
+          hint={t(MapCanvas ? 'map.find.hint' : 'map.find.hintPaste')}
+          value={text}
+          dir="auto"
+          autoComplete="off"
+          enterKeyHint={MapCanvas ? 'search' : undefined}
+          aria-busy={busy || undefined}
+          onChange={(event) => edit(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || !MapCanvas) return;
+            event.preventDefault();
+            void search();
+          }}
+        />
+        {note === 'reading' && <p role="status" className="text-subheadline text-ink-2">{t('map.paste.reading')}</p>}
+        {(note === 'short' || note === 'none' || note === 'stillOutside') && (
+          <p role="status" className="text-subheadline text-ink-2">{t(note === 'short' ? 'map.paste.short' : note === 'none' ? 'map.paste.none' : 'map.paste.stillOutside')}</p>
+        )}
+        {typeof note === 'object' && note && (
+          <div className="flex flex-col items-start gap-2">
+            <p role="status" className="text-subheadline text-ink-2">{t('map.paste.outside')}</p>
+            <Button onClick={() => swap(note.raw)}>{t('map.paste.swap')}</Button>
+          </div>
+        )}
+        {outcome.kind === 'none' && <p role="status" className="text-subheadline text-ink-2">{t('map.search.none')}</p>}
+        {outcome.kind === 'failed' && <p role="status" className="text-subheadline text-late">{t('map.search.failed')}</p>}
+        {outcome.kind === 'hits' && (
+          <ul aria-label={t('map.search.results')} className="hairline flex flex-col">
+            {outcome.hits.map((hit, index) => (
+              <li key={index}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    use({ lat: Number(hit.lat.toFixed(6)), lng: Number(hit.lng.toFixed(6)) }, shortName(hit.name));
+                    setOutcome({ kind: 'idle' });
+                  }}
+                  className="pressable flex min-h-11 w-full items-center py-2 text-start text-subheadline text-ink hover:bg-fill/50"
+                >
+                  <bdi dir="auto">{hit.name}</bdi>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       {MapCanvas && (
-        <>
-          <PlaceSearch onPick={pick} />
-          <Suspense fallback={<div className="h-80" />}>
-            <MapCanvas pins={pins} draggablePin onPinMove={onChange} onMapClick={onChange} fitTo="start" centerOn={view} />
-          </Suspense>
-        </>
+        <Suspense fallback={<div className="h-80" />}>
+          <MapCanvas pins={pins} draggablePin onPinMove={moved} onMapClick={moved} fitTo="start" centerOn={view} />
+        </Suspense>
       )}
-      {value && <p className="text-subheadline text-ink-2">{t('map.pin.value', coordinatesOf(value))}</p>}
-      <TextField
-        id="map-paste"
-        label={t('map.paste.label')}
-        hint={t('map.paste.hint')}
-        value={text}
-        dir="auto"
-        autoComplete="off"
-        onChange={(event) => paste(event.target.value)}
-      />
-      {note && <p role="status" className={`text-subheadline ${note === 'found' ? 'text-done' : 'text-ink-2'}`}>{t(NOTE_KEYS[note])}</p>}
+      {value && (
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-subheadline text-ink">
+          <span>{place ? <>{t('map.pinned.place')} <bdi dir="auto">{place}</bdi></> : t('map.pinned.map')}</span>
+          <a href={googleMapsUrl(value)} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-11 items-center text-link underline underline-offset-2">
+            {t('map.pin.open')}
+          </a>
+        </p>
+      )}
     </div>
   );
 }

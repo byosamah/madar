@@ -6,6 +6,7 @@ import { computeHealth, isOverdue } from './health';
 import { can, principalOf, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
 import { commentCountKey, fileCountKey, type State } from './store';
 import { diffDays } from '../lib/dates';
+import { pinFromLinks } from '../lib/geo';
 import { markOf } from '../lib/projectMark';
 import { helpersOf, involves } from '../lib/taskPeople';
 import { openPrerequisites, openPrerequisiteStages, stagesChrono, stageTagOf, tasksChrono } from '../lib/stageFlow';
@@ -215,7 +216,8 @@ export function summaryOf(state: State, project: Project, today: string, viewer:
     nextDeadline: next ? { id: next.id, name: next.name, date: next.date, daysLeft: diffDays(today, next.date) } : null,
     stageEnd: stageEndDate ? { date: stageEndDate, daysLeft: diffDays(today, stageEndDate) } : null,
     subCompanyId: project.subCompanyId ?? null,
-    geo: project.geo ?? null,
+    // A pin of its own (a point, or null for a removed pin) wins. Old data has none: its location link gives the place (PRJ-04).
+    geo: project.geo === undefined ? pinFromLinks(project.links) : project.geo,
     leader: project.leaderId ? cardOf(state, project.leaderId) : null,
     team: Object.values(state.members)
       .filter((m) => m.projectId === project.id && m.userId !== project.leaderId)

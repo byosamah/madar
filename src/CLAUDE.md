@@ -67,17 +67,37 @@ any screen work.
   (`madar.pushOff.<user id>`, `isPushOptedOut` and `setPushOptOut` in `push.ts`), sets it before the turn off, takes it back when
   the turn off fails, and clears it at a turn on. The ask also stays away from that person. The choice is never on the server.
 
-## The project pin and the map (owner, 2026-10-18, fbk_017)
-- `src/features/map/`: `MapCanvas.tsx` is the one MapLibre wrapper, `PinPicker.tsx` the pin sheet, `mapStyle.ts` the Madar style.
+## The project pin and the map (owner, 2026-10-18, fbk_017; the free map since 2026-10-19)
+- `src/features/map/`: `MapCanvas.tsx` is the one MapLibre wrapper, `PinPicker.tsx` the one field of the pin, `PinSheet.tsx` the sheet
+  around it (Cancel and "Use this place"), `ProjectPin.tsx` the pin of a project, `mapStyle.ts` the Madar style.
   `src/lib/geo.ts` reads a pasted link or a pair of coordinates. The form line "Pin on the map" is in `ProjectFields.tsx`.
+- **Zero cost (owner, 2026-10-19): a map service has no account, no key and no bill.** OpenFreeMap (tiles and glyphs) and OpenStreetMap
+  Nominatim (the place search) pass. `mapStyle.test.ts` pins the one host in the style. A paid or keyed service (Mapbox, Google Maps JS,
+  MapTiler, Stadia) never goes in. The own map file (`functions/map`, `server/http/pagesMap.ts`, `scripts/map/build-basemap.sh`) stays in the
+  repo as the later option; no screen uses it.
+- The style is written by hand for the OpenMapTiles layers: `MAP_COLORS` are tokens (`mapStyle.test.ts` checks it), labels follow the language
+  of the screen (`name:ar` first in Arabic), no points of interest, glyph stacks `Noto Sans Regular` and `Noto Sans Bold` (both hold the Arabic block).
+- The Arabic text plugin is a file of this build: `MapCanvas.tsx` imports `@mapbox/mapbox-gl-rtl-text/dist/mapbox-gl-rtl-text.js?url` by a path
+  into `node_modules` (the package lists only `src/index.js` in its exports). Its WebAssembly needs `'wasm-unsafe-eval'` in `script-src`
+  (`config/headers.template`). Never load it from a CDN.
 - MapLibre loads only in the real build. `PinPicker.tsx` folds the flag with `import.meta.env.VITE_MADAR_API === 'remote'` itself
   (as `main.tsx` does): `REMOTE` from mode.ts does not fold, and the prototype would keep the map code and its stylesheet.
-- The worker and the stylesheet come from the lazy loader in `MapCanvas.tsx`. The worker is a `?worker&url` import (it needs its own
+- The worker, the plugin and the stylesheets come from the lazy loader in `MapCanvas.tsx`. The worker is a `?worker&url` import (it needs its own
   imports bundled). `check-bundles.ts` fails a prototype dist or a first load that holds the `maplibregl-` marker.
-- The map style follows the theme and the language of the screens. Its colors are tokens (`MAP_COLORS`, checked by `mapStyle.test.ts`).
-- A short Google Maps link holds no place: the paste field says so, and no pin is set.
-- The Dashboard has a Map tab (`src/features/dashboard/DashboardMap.tsx`, `MapPinCard.tsx`). It reads `projects.list` with the Leader, Client and Team filters, and folds the flag itself as `PinPicker.tsx` does. In the prototype it shows the pinned list and the note "The map works in the real Madar.", and no map.
-- The real build's pin picker has a place search (`src/lib/placeSearch.ts`). It asks OpenStreetMap (`nominatim.openstreetmap.org`) only on Search or Enter, never while the person types.
+- The map box is `dir="ltr"`: MapLibre places pins, cards and controls left to right, and an Arabic page (`dir="rtl"`) put them far away.
+  The card of a pin sets the language direction again.
+- A pin is a React tree in a MapLibre marker (a portal): `ProjectPin` is the project tile with a ring, and the status shape on Late and At risk
+  only. A press opens the card next to the pin (a MapLibre popup) on a computer, and a sheet on a phone or when the map did not load.
+  When the map cannot start or the tiles do not come, the box shows the one line "The street map is not ready yet."
+- The pin picker is one field: a link or two coordinates are read at once, a name is searched on Enter (OpenStreetMap, one search each second,
+  and one second search with a shorter name when nothing is found). A pair outside Saudi Arabia (`inSaudi`) sets no pin and offers "Swap them".
+  A short Google Maps link goes to the Pages Function `/maplink` (`server/http/pagesMapLink.ts`), which follows the redirect; when it fails the
+  field says to paste the full address. The prototype has no server and no search.
+- The place is one record: the pin. A saved location link that holds coordinates inside Saudi Arabia sets the pin in the same save
+  (`saveLinks` in `src/api/handlers/projects.ts`). Old data with no pin (`geo` undefined, never null) shows the place of its location link
+  (`pinFromLinks` in `src/api/views.ts`); a removed pin is null and stays removed. The About panel gives "Open in Google Maps" from the pin.
+- The Dashboard has a Map tab (`src/features/dashboard/DashboardMap.tsx`, `MapPinCard.tsx`). It reads `projects.list` with the Leader, Client and Team filters, and folds the flag itself as `PinPicker.tsx` does. In the prototype it shows the pinned list and the note "The map works in the real Madar.", and no map. A person who may not edit an unpinned project sees its leader.
+- The real build's pin picker has a place search (`src/lib/placeSearch.ts`). It asks OpenStreetMap (`nominatim.openstreetmap.org`) only on Enter, never while the person types.
 
 ## Data on screens
 - Screens call `api.call(name, input)` through `useCall` (reads) and `useAction` (writes) in `app/runtime.tsx`.

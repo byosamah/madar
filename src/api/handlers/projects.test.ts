@@ -530,3 +530,52 @@ describe('the map pin (owner, 2026-10-18, fbk_017)', () => {
     expect(row?.geo).toEqual({ lat: 26.28, lng: 50.21 });
   });
 });
+
+describe('the pin and the location link (audit 2026-10-19, PRJ-04)', () => {
+  const LINK = 'https://maps.google.com/?q=26.2928,50.2172';
+
+  it('sets the pin from a location link that holds coordinates, in the same save', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    const detail = await t.api.call('projects.addLink', { projectId: 'prj_001', kind: 'location', label: 'Google Maps', url: LINK });
+    expect(detail.project.geo).toEqual({ lat: 26.2928, lng: 50.2172 });
+    expect(detail.geo).toEqual({ lat: 26.2928, lng: 50.2172 });
+  });
+
+  it('moves the pin when the location link changes, and leaves it when another kind of link changes', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    const added = await t.api.call('projects.addLink', { projectId: 'prj_001', kind: 'location', label: '', url: LINK });
+    const link = added.project.links!.at(-1)!;
+    const moved = await t.api.call('projects.updateLink', { projectId: 'prj_001', linkId: link.id, url: 'https://www.google.com/maps/@26.3,50.1,17z' });
+    expect(moved.geo).toEqual({ lat: 26.3, lng: 50.1 });
+    await t.api.call('projects.addLink', { projectId: 'prj_001', kind: 'moodboard', label: '', url: 'https://pinterest.com/x?q=26.9,50.9' });
+    expect((await t.api.call('projects.get', { id: 'prj_001' })).geo).toEqual({ lat: 26.3, lng: 50.1 });
+  });
+
+  it('keeps the pin for a location link with no coordinates, a short link, or a place outside Saudi Arabia', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: { lat: 26.28, lng: 50.21 } } });
+    for (const url of ['https://maps.google.com/?q=Al+Khobar', 'https://maps.app.goo.gl/AbC123', 'https://maps.google.com/?q=50.2,26.3']) {
+      const detail = await t.api.call('projects.addLink', { projectId: 'prj_001', kind: 'location', label: '', url });
+      expect(detail.geo, url).toEqual({ lat: 26.28, lng: 50.21 });
+    }
+  });
+
+  it('shows the place of the location link for a project with no pin of its own (old data), and never when the pin was removed', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    const project = t.store.state.projects.prj_001;
+    delete project.geo;
+    project.links = [{ id: 'lnk_900', kind: 'location', label: 'Google Maps', url: LINK }];
+    expect((await t.api.call('projects.get', { id: 'prj_001' })).geo).toEqual({ lat: 26.2928, lng: 50.2172 });
+    expect((await t.api.call('projects.list', { status: 'active' })).find((row) => row.project.id === 'prj_001')?.geo).toEqual({ lat: 26.2928, lng: 50.2172 });
+    // A pin of its own wins over the link.
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: { lat: 26.4, lng: 50.0 } } });
+    expect((await t.api.call('projects.get', { id: 'prj_001' })).geo).toEqual({ lat: 26.4, lng: 50.0 });
+    // A removed pin stays removed: the link does not bring it back.
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: null } });
+    expect((await t.api.call('projects.get', { id: 'prj_001' })).geo).toBeNull();
+  });
+});

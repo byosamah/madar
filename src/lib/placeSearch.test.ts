@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseResults, searchUrl } from './placeSearch';
+import { parseResults, searchUrl, shortName, simplerQuery } from './placeSearch';
 
 describe('searchUrl (Task 12b, fbk_017)', () => {
   it('asks OpenStreetMap for Saudi places, five at most, with names in the screen language', () => {
@@ -49,5 +49,30 @@ describe('parseResults (Task 12b, fbk_017)', () => {
   it('keeps at most five hits', () => {
     const rows = Array.from({ length: 7 }, (_, index) => ({ display_name: `Place ${index}`, lat: '26.3', lon: '50.1' }));
     expect(parseResults(rows)).toHaveLength(5);
+  });
+});
+
+describe('simplerQuery (PRJ-19)', () => {
+  it('takes away the word district and the city, in Arabic', () => {
+    expect(simplerQuery('حي الراكة الخبر')).toBe('الراكة');
+  });
+
+  it('takes away the word district and the city, in English', () => {
+    expect(simplerQuery('Al Rakah district Khobar')).toBe('Al Rakah');
+    expect(simplerQuery('Rakah dist., Al Khobar, Saudi Arabia')).toBe('Rakah');
+  });
+
+  it('gives null when nothing changes, or when nothing is left, so no second search runs', () => {
+    expect(simplerQuery('Al Khobar Corniche')).toBe('Corniche');
+    expect(simplerQuery('Corniche')).toBeNull();
+    expect(simplerQuery('Al Khobar')).toBeNull();
+    expect(simplerQuery('حي')).toBeNull();
+  });
+});
+
+describe('shortName (PRJ-13)', () => {
+  it('keeps the first two parts of a long place name', () => {
+    expect(shortName('Corniche, Al Khobar, Eastern Province, 34429, Saudi Arabia')).toBe('Corniche, Al Khobar');
+    expect(shortName('Corniche')).toBe('Corniche');
   });
 });

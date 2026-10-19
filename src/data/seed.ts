@@ -3,7 +3,7 @@ import { addSampleGroupChat } from './seedGroup';
 import { chatReadKey, emptyState, memberKey, nextId, type State } from '../api/store';
 import {
   defaultPreferences, emptyReactions, type FileRec, type FileVersion, type Project, type Task, type TrackerEntry, type User,
-  type LinkKind,
+  type GeoPoint, type LinkKind,
 } from '../api/contract/entities';
 import { writeEvent, type EventContext } from '../api/events';
 import { projectTemplateFromStages } from '../api/projectTemplates';
@@ -189,6 +189,8 @@ function addProject(seed: SeedCtx, plan: Plan, index: number): void {
     currentStageId: stageIds[plan.stage], location: plan.location, areaM2: plan.area, startDate: firstStart, targetEndDate: lastEnd,
     coverFileId: null, modelFolderPath: `\\\\STUDIO\\Projects\\${plan.code}`, description: `${plan.name} for ${CLIENTS[plan.client][0]}.`,
     healthOverride: null, mark: pickMark(projectId, Object.values(state.projects)), createdBy: leader.id, createdAt: created, updatedAt: created,
+    // Five projects have a pin and seven have none, so the Dashboard map shows pins, a late sign, and the "No pin yet" list (INT-08).
+    geo: SAMPLE_PINS[plan.code] ?? null,
     ...(plan.pause ? { pause: { reason: plan.pause.reason, resumeOn: null, by: leader.id, at: at(addDays(today, -plan.pause.daysAgo), 9), kind: plan.pause.kind } } : {}),
   };
   state.projects[projectId] = project;
@@ -442,6 +444,15 @@ function addChatTalk(state: State, today: string, humans: User[]): void {
   // One sample group with a mention and a quiet line, all read (UX audit 2026-10-19, INT-08).
   addSampleGroupChat(state, today, humans);
 }
+
+/** The pins of the sample projects, around Al Khobar, Dhahran and Dammam. The other sample projects have no pin yet. */
+const SAMPLE_PINS: Record<string, GeoPoint> = {
+  'KH-26-001': { lat: 26.2928, lng: 50.2172 },
+  'KH-26-002': { lat: 26.3412, lng: 50.1951 },
+  'KH-26-003': { lat: 26.3069, lng: 50.1453 },
+  'KH-26-004': { lat: 26.4207, lng: 50.0888 },
+  'KH-26-006': { lat: 26.3144, lng: 50.2009 },
+};
 
 /** Builds the sample office. Every date comes from "today", so the data is fresh on any day. */
 /** A few links to places outside Madar, so the About panel shows what the list looks like (colleague comment 5). */

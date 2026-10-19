@@ -12,7 +12,6 @@ import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
 import { DateField } from '../../components/DateField';
 import { SelectField, TextArea, TextField } from '../../components/Fields';
-import { Sheet } from '../../components/Sheet';
 import { IconButton } from '../../components/IconButton';
 import { clientName } from '../../lib/clientName';
 import { ClientForm, useClientForm } from './ClientForm';
@@ -21,7 +20,8 @@ import { FREE_CODE_MAX } from '../../lib/projectCode';
 import { CODE_FIELDS, isCodeWarning, upperCodeHead } from './codeForm';
 import { CodeAnywayTick, ProjectCodeFields } from './ProjectCodeFields';
 import { TemplateDetails, TemplatePicker } from './TemplateUse';
-import { PinPicker, coordinatesOf } from '../map/PinPicker';
+import { PinSheet } from '../map/PinSheet';
+import { googleMapsUrl } from '../../lib/geo';
 import { validateProjectForm, type ProjectFormErrors, type ProjectFormRules, type ProjectFormValues } from './projectForm';
 
 const CHECKED: (keyof ProjectFormErrors)[] = ['name', 'area', 'startDate', 'targetEndDate', 'stages', 'code', 'template', 'subCompanyId', ...CODE_FIELDS];
@@ -42,6 +42,10 @@ export function useProjectForm(initial: ProjectFormValues, rules: ProjectFormRul
     set<K extends keyof ProjectFormValues>(key: K, value: ProjectFormValues[K]) {
       edited.current.add(key);
       setValues((current) => ({ ...current, [key]: value }));
+    },
+    /** True when the person changed the field since the form opened (or since the last reset). */
+    edited(key: keyof ProjectFormValues): boolean {
+      return edited.current.has(key);
     },
     /** Each error field has the name of its value, so a field shows its message on blur only after a change. */
     touch(field: keyof ProjectFormErrors) {
@@ -273,7 +277,7 @@ export function ProjectFields({
         autoComplete="off"
         onChange={(event) => set('location', event.target.value)}
       />
-      <PinLine value={values.geo} onChange={(geo) => set('geo', geo)} />
+      <PinLine value={values.geo} changed={mode !== 'create' && form.edited('geo')} onChange={(geo) => set('geo', geo)} />
       <TextField
         id="project-area"
         label={t('projectForm.area')}
@@ -331,26 +335,48 @@ export function ProjectFields({
 }
 
 /**
- * The pin line under Location (owner, 2026-10-18, fbk_017): the state of the pin, then "Set pin" (or "Change"), and "Remove" with a
- * pin. "Set pin" opens the pin picker in a sheet. A change waits for the form's Save, as every other field does.
+ * The pin line under Location (owner, 2026-10-18, fbk_017): the state of the pin ("Set" or "Not set", with a link that opens the
+ * place in Google Maps), then "Set pin" (or "Change"), and "Remove" with a pin. "Set pin" opens the pin sheet; its "Use this place"
+ * keeps the pin in the form. A change waits for the form's Save, as every other field does, and the line says so (PRJ-13, PRJ-21).
  */
-function PinLine({ value, onChange }: { value: GeoPoint | null; onChange: (point: GeoPoint | null) => void }) {
+function PinLine({ value, changed, onChange }: { value: GeoPoint | null; changed: boolean; onChange: (point: GeoPoint | null) => void }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  // The name of the place, when a search hit set the pin in this sheet. A pin from the map or a link has no name.
+  const [place, setPlace] = useState<string | null>(null);
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="-mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
       <span className="text-subheadline text-ink-2">{t('map.pin.label')}</span>
-      <span dir="auto" className="text-subheadline">{value ? t('map.pin.value', coordinatesOf(value)) : t('map.pin.none')}</span>
+      <span className="text-subheadline">
+        {value ? (place ? <>{t('map.pin.state')}: <bdi dir="auto">{place}</bdi></> : t('map.pin.state')) : t('map.pin.none')}
+      </span>
+      {changed && <span className="text-footnote text-ink-2">{t('map.pin.unsaved')}</span>}
+      {value && (
+        <a href={googleMapsUrl(value)} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-11 items-center text-subheadline text-link underline underline-offset-2">
+          {t('map.pin.open')}
+        </a>
+      )}
       <Button onClick={() => setOpen(true)}>{value ? t('map.pin.change') : t('map.pin.set')}</Button>
-      {value && <Button onClick={() => onChange(null)}>{t('map.pin.remove')}</Button>}
-      <Sheet
+      {value && (
+        <Button
+          onClick={() => {
+            setPlace(null);
+            onChange(null);
+          }}
+        >
+          {t('map.pin.remove')}
+        </Button>
+      )}
+      <PinSheet
         open={open}
         onOpenChange={setOpen}
-        title={t('map.pinSheet.title')}
-        footer={<Button variant="primary" onClick={() => setOpen(false)}>{t('map.pinSheet.done')}</Button>}
-      >
-        <PinPicker value={value} onChange={onChange} />
-      </Sheet>
+        initial={value}
+        onUse={(point, name) => {
+          setPlace(name);
+          onChange(point);
+          setOpen(false);
+        }}
+      />
     </div>
   );
 }

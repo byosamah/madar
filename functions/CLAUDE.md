@@ -1,17 +1,18 @@
 # Cloudflare Pages Functions
 
-`scripts/deploy/pages.sh` uploads this folder with the screens. It holds five functions:
+`scripts/deploy/pages.sh` uploads this folder with the screens. It holds six functions:
 - `mcp/[[path]].ts`: the short MCP address (https://madar.vado.sa/mcp), logic in `server/http/pagesMcpProxy.ts`.
 - `api/[[path]].ts`: the page's own `/api` (owner, 2026-10-16), logic in `server/http/pagesApiProxy.ts`.
 - `.well-known/oauth-authorization-server/[[path]].ts` and `.well-known/openid-configuration/[[path]].ts` (exit wave 4): the
   discovery of the own OAuth server, only for a copy with the word office (`server/http/pagesWellKnown.ts`); every other copy
   answers 404. Two narrow files, not one `.well-known/[[path]].ts`, so no other `/.well-known/` path of the site changes.
-- `map/[[path]].ts`: the same-origin street map of the Dashboard (fbk_017, probe of 2026-10-18), logic in `server/http/pagesMap.ts`.
-  It reads the R2 bucket of the binding `MAP`. Without the binding, every request answers 404 `map_not_ready`. Only the map keys
-  pass: the PMTiles file, the RTL text plugin and the glyph files of Noto Sans Regular, which hold Arabic (the route also allows
-  the name Noto Sans Arabic Regular, which no upload makes). It has no host list. The rule "A new function here runs on every
-  Pages host" asks for one. This route reads one bucket and forwards nothing, so the owner decides the list. The binding waits
-  for the owner OK (proof.md, Map basemap probe).
+- `map/[[path]].ts`: the same-origin street map files (fbk_017, probe of 2026-10-18), logic in `server/http/pagesMap.ts`. The screens do not use it
+  since 2026-10-19: they read the free OpenFreeMap tiles (`src/features/map/mapStyle.ts`). The route stays as the later option for an own map
+  file. It reads the R2 bucket of the binding `MAP`; without the binding, every request answers 404 `map_not_ready`. Only the map keys pass.
+  It has no host list; the binding waits for the owner OK (proof.md, Map basemap probe).
+- `maplink.ts`: `POST /maplink` follows a short Google Maps link (`maps.app.goo.gl`, `goo.gl/maps`) and answers the long address
+  (audit 2026-10-19, PRJ-03), logic in `server/http/pagesMapLink.ts`. It needs no key and no binding. It opens only the short link, follows a
+  redirect only to a Google host, never opens the last address, and answers only a request from the same site.
 
 Both follow `config/server-host.json` (`server/core/serverHost.ts`), which Pages builds into the function: with `workers` or
 `office` (exit wave 4), each request goes to the Worker of its copy through a Pages service binding (`MADAR_SERVER_TEST` on the
