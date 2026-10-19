@@ -38,6 +38,22 @@ Each question has a recommended answer. The plan follows the recommended answer 
 
 ---
 
+## Owner decisions (2026-10-19, these replace the recommended answers above)
+
+- Q1: **B, one way.** Each person presses "Connect Google Calendar" once in Settings. Madar writes each meeting of that person into
+  their Google Calendar at once and keeps it updated (create, change, cancel). A change in Google does not come back. No calendar link
+  (Tasks 9 to 11 are replaced by the `gcal` track, Task 14, which moves to wave 2). The office uses SEPARATE Google Workspaces
+  (bunah.sa, vado.sa, mazj.sa, tubah.sa and more): the Google app is "External" and "In production", unverified. Each Workspace admin
+  marks the OAuth client as trusted (Admin console, API controls, App access control), so people connect with no warning screen. An
+  unverified app takes up to 100 users. Google review stays optional. Zero cost. The owner creates the Google Cloud project and the
+  OAuth client; the build reads GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET from the secrets files, never from code.
+- Q2: yes, only the title, the time and the place go to Google. Never the notes, the guests, the people or the project name.
+- Q3: inside Tasks, as a second view.
+- Q4: **only its people**, NOT the Admin (this differs from the office task rule). Task 3 keeps the leak tests with the Admin as an outsider.
+- Q5: all project meetings except team meetings write a Tracker line.
+- Q6: one minutes task, the organizer by default, due the next working day; no minutes task for a team meeting.
+- Q7: "every day" is Sunday to Thursday.
+
 ## Global Constraints
 
 - All rules of "Global Constraints" in `docs/superpowers/plans/2026-10-18-madar-team-requests-plan.md` hold: ASD-STE100, no
