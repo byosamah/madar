@@ -94,7 +94,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'chats.messages': {
     title: 'Read a chat',
-    description: 'Reads one page of a chat that your person may open. Use the conversationId from chats.list. It gives the newest messages, oldest first, up to limit (default 200, at most 500). Give before (a message id) to read the page before it. Each message has its author, the person it was sent for (actingFor) and its files (id, name, type). A file of a direct or group chat shows by name only: you cannot open it. Reading marks nothing read. A group also gives lines: its quiet lines (added, removed, left, renamed), oldest first. A line is not a message. A chat that your person may not open fails.',
+    description: 'Reads one page of a chat that your person may open: the newest messages, oldest first, up to limit (default 200, at most 500); before (a message id) reads the page before. A message has author, actingFor, files (id, name, type; a file of a direct or group chat is a name only), reactions (emoji: user ids), editedAt, replyTo (id, author, firstLine, deleted) and namesMe. Deleted messages are left out. readUpTo: the last read time of your person; notify: all or named. A group also gives its quiet lines. Reading marks nothing read.',
   },
   'chats.waiting': {
     title: 'List what waits for a reply',
@@ -275,6 +275,6 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'comments.list': {
     title: 'List comments',
-    description: 'Lists the comments on one task or one update (targetType and targetId), oldest first, with their authors, reactions and files (id, name, type). Each comment has kind: message (words of a person), or a quiet line that Madar shows without a bubble: due_date and start_date (the reason of a date move), reopened (the reason of a task that opens again) or shifted (a move that Madar made). A line is no message: it never waits for a reply.',
+    description: 'Lists the comments on one task or one update (targetType and targetId), oldest first, with their authors, reactions and files (id, name, type). Each comment has kind: message (words of a person), or a quiet line that Madar shows without a bubble: due_date and start_date (the reason of a date move), reopened (the reason of a task that opens again) or shifted (a move that Madar made). A line is no message: it never waits for a reply. replyTo is the comment it answers (id, author, firstLine, deleted), and namesMe is true when it names your person.',
   },
 };

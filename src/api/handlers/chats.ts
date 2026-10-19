@@ -4,6 +4,7 @@ import { ConversationId, FileId, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_A
 import { ChatRow, ChatThread, MessageView, WaitingRow, type GroupLine } from '../contract/views';
 import { addDirectConversation, addGroupConversation, canSeeConversation, closedChatError, isArchived, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, personLeft, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
+import { namesPerson, notifyLevelOf, replyRefOf } from '../chatNaming';
 import { notifyIn } from '../notify';
 import { can, mayViewTask, principalOf } from '../permissions';
 import { chatReadKey, nextId, unreadCountKey, type State } from '../store';
@@ -176,9 +177,8 @@ function messageViewOf(state: State, message: Message, viewer: User): MessageVie
     actingFor: message.actingForId !== message.authorId ? cardOf(state, message.actingForId) : null,
     mine: isMine(state, message, viewer.id),
     files: attachmentsOf(state, fileIds),
-    // The reply link and the names-you mark come in base B5.
-    replyTo: null,
-    namesMe: false,
+    replyTo: replyRefOf(state, message, viewer.id),
+    namesMe: namesPerson(state, message, viewer.id),
   };
 }
 
@@ -255,6 +255,9 @@ export const chatsMessages = defineCall({
       people,
       messages: page.map((m) => messageViewOf(ctx.state, m, ctx.authority)),
       lines: conversation.kind === 'group' ? linesOf(ctx.state, conversation) : [],
+      // The read time before this read (the read itself marks nothing, but the open of the screen does), for the "New" line.
+      readUpTo: ctx.state.chatReads[chatReadKey(conversation.id, ctx.authority.id)]?.lastReadAt ?? null,
+      notify: notifyLevelOf(ctx.state, conversation, ctx.authority.id),
     };
   },
 });

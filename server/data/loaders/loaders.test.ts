@@ -382,6 +382,53 @@ describe('the 18 places of AM 6', () => {
     expect(JSON.stringify(waits)).not.toMatch(/7731|9921/);
   });
 
+  // Base B5 (chat design 2026-10-19): a reply link reads an old message or comment that the scoped load may not hold yet.
+  it('chats.messages: the scoped load brings the old message of a reply that is older than the page (base B5)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const team = Object.values(state.members).filter((m) => m.projectId === 'prj_001').map((m) => m.userId).filter((id) => id !== ADMIN && state.users[id].kind === 'human');
+    const [person, other] = team;
+    if (!person || !other) throw new Error('The sample office needs two team members on prj_001.');
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    const idOf = (view: unknown) => (view as { message: { id: string } }).message.id;
+    const old = idOf(apply(state, 'chats.send', { conversationId: room.id, body: `${mentionMarkup(state.users[person].name, person)} Old question 3318.\nSecond line.` }, other, { now: at(1) }));
+    apply(state, 'chats.send', { conversationId: room.id, body: 'Middle one.' }, other, { now: at(2) });
+    apply(state, 'chats.send', { conversationId: room.id, body: 'Middle two.' }, other, { now: at(3) });
+    const last = idOf(apply(state, 'chats.send', { conversationId: room.id, body: 'The answer.' }, person, { now: at(4) }));
+    state.messages[last].replyToId = old;
+    for (const actor of [person, other, ADMIN]) {
+      const run = await same(state, 'chats.messages', { conversationId: room.id, limit: 2 }, actor);
+      const page = run.outcome.output as { messages: { message: { id: string }; replyTo: { firstLine: string; deleted: boolean } | null; namesMe: boolean }[]; notify: string; readUpTo: string | null };
+      expect(page.messages, actor).toHaveLength(2);
+      const reply = page.messages.find((view) => view.message.id === last)!;
+      expect(reply.replyTo, actor).toMatchObject({ firstLine: expect.stringContaining('Old question 3318.'), deleted: false });
+      expect(page.messages.some((view) => view.message.id === old), 'the old message is not on the page').toBe(false);
+    }
+  });
+
+  it('comments.update and reactions.toggle: the scoped load brings the comment a reply answers (base B5)', async () => {
+    const state = office();
+    const task = Object.values(state.tasks).find((t) => t.projectId !== null && t.ownerId !== null)!;
+    const lead = task.ownerId as string;
+    const other = Object.values(state.members).filter((m) => m.projectId === task.projectId).map((m) => m.userId).find((id) => id !== lead && id !== ADMIN && state.users[id].kind === 'human')!;
+    const add = (id: string, authorId: string, at: string, extra: Partial<State['comments'][string]> = {}) => {
+      state.comments[id] = { id, targetType: 'task', targetId: task.id, authorId, body: `Note ${id} 6641`, reactions: emptyReactions(), fileIds: [], createdAt: at, editedAt: null, ...extra };
+    };
+    add('cmt_901', lead, '2026-10-01T09:00:00.000+03:00');
+    add('cmt_902', other, '2026-10-02T09:00:00.000+03:00', { replyToId: 'cmt_901' });
+    for (const [name, input, actor] of [
+      ['comments.list', { targetType: 'task', targetId: task.id }, lead],
+      ['comments.update', { id: 'cmt_902', body: 'A new word for the reply.' }, other],
+      ['reactions.toggle', { commentId: 'cmt_902', emoji: '👍' }, lead],
+    ] as const) {
+      const run = await same(state, name, input, actor);
+      expect(run.outcome.error, name).toBeUndefined();
+    }
+    const view = (await same(state, 'reactions.toggle', { commentId: 'cmt_902', emoji: '👍' }, lead)).outcome.output as { replyTo: { id: string; deleted: boolean } | null; namesMe: boolean };
+    expect(view.replyTo).toMatchObject({ id: 'cmt_901', deleted: false });
+    expect(view.namesMe).toBe(true);
+  });
+
   it('row 16: a task approved after review moves its dependents by the days it was late on the review day', async () => {
     const state = office();
     const leader = state.projects.prj_001.leaderId!;

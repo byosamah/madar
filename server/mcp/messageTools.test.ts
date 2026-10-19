@@ -374,6 +374,19 @@ describe('a file of a group chat over MCP (owner, 2026-10-19)', () => {
   });
 });
 
+// Base B5 (chat design 2026-10-19): the texts of chats.messages and comments.list name the new fields of the views.
+describe('the new view fields in the texts of the message tools (base B5)', () => {
+  it('names the new message fields in chats.messages and comments.list', async () => {
+    const { TOOL_DOCS } = await import('./docs');
+    const read = TOOL_DOCS['chats.messages'].description;
+    for (const word of ['reactions', 'editedAt', 'replyTo', 'namesMe', 'readUpTo', 'Deleted messages are left out', 'direct or group chat', 'quiet lines']) expect(read, word).toContain(word);
+    // 540 leaves 60 characters for the "around" input of track find.
+    expect(read.length).toBeLessThanOrEqual(540);
+    for (const word of ['replyTo', 'namesMe']) expect(TOOL_DOCS['comments.list'].description, word).toContain(word);
+    expect(TOOL_DOCS['comments.list'].description.length).toBeLessThanOrEqual(600);
+  });
+});
+
 // UX audit 2026-10-19, INT-18 and chats-10: the tool texts that the model reads at the call must say how to read and answer a task
 // thread, and that a group gives quiet lines that are no messages.
 describe('the texts of the message tools', () => {

@@ -71,6 +71,8 @@ export async function commentCall(L: Load, input: Input): Promise<void> {
   const comment = L.get<Comment>('comments', id);
   if (!comment) return;
   await target(L, comment.targetType, comment.targetId);
+  // The comment that this one answers: the view gives its reply link and the names-you mark (chat design items 4 and 10).
+  await L.byKey('comments', [comment.replyToId]);
   // A task that is gone: its delete event holds its last copy, which tells whether the comment was on a private office task.
   if (comment.targetType === 'task' && !L.get('tasks', comment.targetId)) {
     await L.select({ c: 'events', where: [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: [comment.targetId] }, { col: 'verb', in: ['task.deleted'] }] });

@@ -161,6 +161,9 @@ export async function chatsMessages(L: Load, input: Input): Promise<void> {
     where: [{ col: 'conversation_id', in: [id] }, LIVE, ...(before ? [{ before: { at: before.createdAt, id: before.id } }] : [])],
     order: { col: 'created_at', desc: true, id: true }, limit,
   })) as Message[];
+  // The old message of each reply on the page, by key: it may be older than the page. replyRefOf shows it only when it is live and in
+  // this chat, and a deleted or foreign one reads as deleted, so no extra rule is needed here.
+  await L.byKey('messages', page.map((message) => message.replyToId));
   // The page and the newest message: the files that the message views name, and the office task of each office file. A message view
   // shows a file row only when the viewer may view the file (messageViewOf), and that rule reads the task of an office file.
   const shown = [...page, ...L.list<Message>('messages').filter((m) => m.conversationId === id)];

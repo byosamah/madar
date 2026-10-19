@@ -3,6 +3,7 @@ import type {
   Attachment, CommentView, EventView, FeedItem, FileView, ProjectDetail, ProjectSummary, PaymentRow, TaskDetail, TaskRow, TrackerRow, UserCard,
 } from './contract/views';
 import { canSeeConversation } from './chatState';
+import { namesPerson, replyRefOf } from './chatNaming';
 import { computeHealth, isOverdue } from './health';
 import { can, principalOf, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
 import { commentCountKey, fileCountKey, projectTemplatesOf, type State } from './store';
@@ -373,9 +374,8 @@ export function commentViewOf(state: State, comment: Comment, viewer: User): Com
       : canEditContent(state, target.projectId, comment.authorId, viewer),
     files: attachmentsOf(state, comment.fileIds),
     kind: lineKindOf(comment),
-    // The reply link and the names-you mark come in base B5.
-    replyTo: null,
-    namesMe: false,
+    replyTo: replyRefOf(state, comment, viewer.id),
+    namesMe: namesPerson(state, comment, viewer.id),
   };
 }
 
