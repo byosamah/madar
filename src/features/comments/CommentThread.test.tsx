@@ -118,15 +118,21 @@ describe('comments', () => {
     expect(within(sheet).getByText('File removed')).toBeInTheDocument();
   });
 
-  it('toggles a reaction', async () => {
+  // The three reactions sit in the menu of a comment, and a reaction in use shows as a pill under the bubble (chat design 2026-10-19, item 12).
+  it('toggles a reaction from the menu of a comment, and from its pill', async () => {
     const { store } = await renderApp(TASK('tsk_007'), as('usr_006'));
     const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
-    const [look] = await within(sheet).findAllByRole('button', { name: /React with 👀/ });
-    await userEvent.click(look);
-    await waitFor(() => expect(Object.values(store.state.comments).some((c) => c.reactions['👀'].includes('usr_006'))).toBe(true));
-    await waitFor(() => expect(within(sheet).getAllByRole('button', { name: /React with 👀/ })[0]).toHaveAttribute('aria-pressed', 'true'));
-    await userEvent.click(within(sheet).getAllByRole('button', { name: /React with 👀/ })[0]);
-    await waitFor(() => expect(Object.values(store.state.comments).some((c) => c.reactions['👀'].includes('usr_006'))).toBe(false));
+    const [menuButton] = await within(sheet).findAllByRole('button', { name: 'Actions for this comment' });
+    const row = menuButton.closest('li') as HTMLElement;
+    const reacted = () => Object.values(store.state.comments).some((c) => c.reactions['👀'].includes('usr_006'));
+    await userEvent.click(menuButton);
+    await userEvent.click(within(screen.getByRole('menu', { name: 'Actions for this comment' })).getByRole('menuitemcheckbox', { name: /React with 👀/ }));
+    await waitFor(() => expect(reacted()).toBe(true));
+    const pill = await within(row).findByRole('button', { name: /React with 👀/ });
+    await waitFor(() => expect(pill).toHaveAttribute('aria-pressed', 'true'));
+    await userEvent.click(pill);
+    await waitFor(() => expect(reacted()).toBe(false));
+    expect(within(row).queryByRole('button', { name: /React with 👀/ })).toBeNull();
   });
 
   it('edits and deletes my own comment, with Undo', async () => {
@@ -174,13 +180,21 @@ describe('comments', () => {
     await waitFor(() => expect(store.state.updates.upd_002).toBeDefined());
   });
 
+  // The comments of a task are bubbles with a clock, so only the quiet lines (here: three reopenings) still show an age.
   it('types in the comment box with no new render of the comments, and every age still reads the clock on each key (performance audit RND-3)', async () => {
     const stamps = Array.from({ length: 20 }, (_, i) => `2026-09-29T${String(8 + Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}:07.000+03:00`);
+    const lineStamps = ['2026-09-29T19:00:07.000+03:00', '2026-09-29T19:10:07.000+03:00', '2026-09-29T19:20:07.000+03:00'];
     const { store } = await renderApp(TASK('tsk_007'), (state) => {
       state.session.currentUserId = 'usr_006';
       stamps.forEach((createdAt, i) => {
         state.comments[`cmt_8${String(i).padStart(2, '0')}`] = {
           id: `cmt_8${String(i).padStart(2, '0')}`, targetType: 'task', targetId: 'tsk_007', authorId: 'usr_002', body: `Comment ${i}.`,
+          reactions: { '👍': [], '✅': [], '👀': [] }, createdAt, editedAt: null,
+        };
+      });
+      lineStamps.forEach((createdAt, i) => {
+        state.comments[`cmt_9${i}0`] = {
+          id: `cmt_9${i}0`, targetType: 'task', targetId: 'tsk_007', authorId: 'usr_002', body: `Reason ${i}`, kind: 'reopened',
           reactions: { '👍': [], '✅': [], '👀': [] }, createdAt, editedAt: null,
         };
       });
@@ -190,12 +204,13 @@ describe('comments', () => {
     await waitFor(() => expect(Object.values(store.state.chatReads).some((r) => r.conversationId === 'tsk_007' && r.userId === 'usr_006')).toBe(true));
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
     const comments = () => renders.bodies.filter((body) => body.startsWith('Comment ')).length;
-    const ages = () => renders.ages.filter((stamp) => stamps.includes(stamp)).length;
+    const ages = () => renders.ages.filter((stamp) => lineStamps.includes(stamp)).length;
     const before = { comments: comments(), ages: ages() };
+    expect(before.ages).toBeGreaterThan(0);
     const box = within(sheet).getByRole('textbox', { name: 'Add a comment' });
     await userEvent.type(box, 'abcde');
     expect(box).toHaveValue('abcde');
     expect(comments()).toBe(before.comments);
-    expect(ages()).toBeGreaterThanOrEqual(before.ages + 5 * stamps.length);
+    expect(ages()).toBeGreaterThanOrEqual(before.ages + 5 * lineStamps.length);
   }, 30_000);
 });

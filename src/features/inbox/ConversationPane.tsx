@@ -31,6 +31,7 @@ import { chatLink, messageParam, taskLink } from '../../lib/params';
 import { useMarkTaskRead } from '../comments/markRead';
 import { useEarlierMessages } from './earlier';
 import { useOpenMark } from './newLine';
+import { bubbleOfComment, useBubbles } from './bubbles';
 import { ChatDropArea } from './ChatDrop';
 import { bubbleOfOutgoing, cardOfUser, newOutboxKey, refusedByOutbox, useOutbox, usePaneOpen } from './outbox';
 import { nowStamp } from '../../lib/dates';
@@ -56,24 +57,6 @@ function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: str
       {action}
     </header>
   );
-}
-
-/**
- * One Bubble for each message view, kept while the view object stays the same, so a bubble that did not change keeps its props
- * and its memo holds (performance audit 2026-10-07, RND-5). An edited message gets a new view, so a new bubble.
- */
-function useBubbles<V extends object>(views: V[], toBubble: (view: V) => Bubble, resetKey?: string): Bubble[] {
-  const kept = useRef<{ key: string | undefined; map: WeakMap<V, Bubble> }>({ key: resetKey, map: new WeakMap() });
-  if (kept.current.key !== resetKey) kept.current = { key: resetKey, map: new WeakMap() };
-  const { map } = kept.current;
-  return views.map((view) => {
-    let bubble = map.get(view);
-    if (!bubble) {
-      bubble = toBubble(view);
-      map.set(view, bubble);
-    }
-    return bubble;
-  });
 }
 
 function bubbleOfMessage(view: MessageView): Bubble {
@@ -341,12 +324,8 @@ export function TaskPane({ id }: { id: string; focusFromRoute: string | null }) 
   const meCard = session.data ? cardOfUser(session.data.authority) : undefined;
   // "mine" depends on the person, so the kept bubbles start again when the person changes.
   const settled = useBubbles(comments.data ?? NO_COMMENTS, (view: CommentView): Bubble => ({
-    id: view.comment.id, author: view.author, actingFor: null, body: view.comment.body, files: view.files, createdAt: view.comment.createdAt,
-    mine: view.author.id === me, edited: view.comment.editedAt !== null, namesMe: view.namesMe, reactions: view.comment.reactions, replyTo: view.replyTo,
-    canEdit: view.canEdit && view.kind === 'message',
+    ...bubbleOfComment(view, me),
     ...(outbox.claimed.has(view.comment.id) ? { fromOutbox: true as const } : {}),
-    // The reason of a date move or of a reopening is a quiet line, not a message of a person (fbk_027).
-    ...(view.kind === 'message' ? {} : { reason: { kind: view.kind, dates: view.comment.dates } }),
   }), me);
   const unsentBubbles = useBubbles(meCard ? outbox.unsent : NO_UNSENT, (entry) => bubbleOfOutgoing(entry, meCard!), me);
   // A comment that waits for its answer comes last.

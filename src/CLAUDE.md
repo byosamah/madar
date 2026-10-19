@@ -315,6 +315,15 @@ any screen work.
   so a change signal that comes before the answer shows the message once. The saved bubble has `fromOutbox` and skips its rise. A send that fails (code
   `failed`) shows "Not sent" in the error color with "Send again" (`useAction` `retry`: the same input and the idempotency key of the failed attempt, so
   nothing goes twice) and no toast; a refusal still shows its toast, and a failure after the pane closed shows the toast with Retry as before.
+- A press on a reply strip goes to the old message (B15): `BubbleReplyQuote` is a button (the name and the first line, 44 px high) when the old
+  message is live and the pane gives `BubbleActions.focusMessage`; the strip of a deleted message stays plain text. The ChatPane and the TaskPane hold
+  `focusId` and pass `focusId` and `onFocused` to `MessageLog`, which puts the old message in the middle and frames it for one second (`FRAME_MS`).
+- The task panel takes the chat look (B16, design item 6): `CommentThread` draws a task comment with `TaskComments.tsx` (by day, `MessageBubble` with
+  `runStart` from `runs.ts`, the pills, the menu "Actions for this comment", its own `BubbleActionsContext` and `EditingContext`) and a post comment with
+  `CommentItem.tsx` as before. A quiet reason line is still a `CommentItem` line (a grey line with its age and Edit). The comments stay in the scroll
+  of the panel: no Newest button, no "New" line, no faded copy. A press on a strip there scrolls the old comment to the middle (`scrollIntoView`) and
+  frames it. The box of a task holds `ComposerReplyStrip` and sends `replyToId`; the X drops the reply (Escape stays with the panel). `bubbles.ts`
+  (`useBubbles`, `bubbleOfComment`) is shared by `TaskPane` and `TaskComments`.
 - The bell says "X replied to you" for a mention notice with `reply: true` (`NotificationsScreen.tsx`): `notices.repliedDirect` in a direct chat,
   `notices.repliedGroupGone` in a group the reader left, `notices.repliedToYou` elsewhere. The link, the face and the row stay as for a mention.
 
