@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ProjectTemplate } from '../../../api/contract/entities';
 import { newStoryId } from '../../../app/actions';
+import { useLang } from '../../../app/lang';
 import { useCall, useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { Sheet } from '../../../components/Sheet';
+import { formatDay, todayISO } from '../../../lib/dates';
+import { planProject, shiftAdded } from '../../../lib/projectPlan';
 import { DEFAULT_CHOICES } from './SyncSteps';
 
 /** The item of the project for each part of the template: a stage for a stage part, a task for a task part. Null: no item. */
@@ -62,11 +65,21 @@ function PickList({ title, parts, items, picked, onPick }: {
  * how many parts match, shows the parts with no match first, and folds the matched parts. One choice covers every part with no match:
  * leave them out (the older project keeps its own plan) or add them to the project with the dates of the template. Save link sends the
  * link once, with the adding in the same story, and the toast has an Undo. Nothing is sent before Save link.
+ *
+ * The same sheet is the matching step of "Apply a template" in the project menu (mode "apply", fbk_020): "Add them" is the start choice,
+ * and the main button says Apply template. The added parts start today when the dates of the template are past (shiftAdded, the same
+ * function as the server). A project that follows another template takes this one only with "replace".
  */
-export function LinkProjectSheet({ projectId, template, onClose }: {
+export function LinkProjectSheet({ projectId, template, onClose, onDone, mode = 'link', replace = false }: {
   projectId: string;
   template: ProjectTemplate;
+  /** Cancel and the close button. */
   onClose: () => void;
+  /** After a save. It is onClose when the caller gives none. */
+  onDone?: () => void;
+  mode?: 'link' | 'apply';
+  /** The project follows another template, and the person confirmed to apply this one instead. */
+  replace?: boolean;
 }) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -75,9 +88,10 @@ export function LinkProjectSheet({ projectId, template, onClose }: {
   const tasks = useCall('tasks.list', { projectId, includeDone: true, activeProjectsOnly: false });
   const match = useCall('projectTemplates.matchPlan', { projectId, templateId: template.id });
   const users = useCall('users.list', {});
+  const lang = useLang();
   // The picks that the Admin changed. Until the Admin changes one, the picks are the matches of the names.
   const [changed, setChanged] = useState<Picks | null>(null);
-  const [rest, setRest] = useState<'leave' | 'add'>('leave');
+  const [rest, setRest] = useState<'leave' | 'add'>(mode === 'apply' ? 'add' : 'leave');
   const [saving, setSaving] = useState(false);
   const picks: Picks = changed ?? match.data ?? { stages: {}, tasks: {} };
   const stages = project.data?.stages ?? [];
@@ -97,6 +111,20 @@ export function LinkProjectSheet({ projectId, template, onClose }: {
   const noMatch = stageParts.filter((part) => !picked('stages', part.id)).length + taskParts.filter((part) => !picked('tasks', part.id)).length;
   const unmatchedCount = stageParts.filter((part) => !matched('stages', part.id)).length + taskParts.filter((part) => !matched('tasks', part.id)).length;
   const matchedCount = stageParts.length + taskParts.length - unmatchedCount;
+  // The dates that the added parts get: the plan from the project start, moved forward when it is past (the server uses the same function).
+  const startDate = project.data?.project.startDate ?? null;
+  const addedDates = useMemo(() => {
+    if (!startDate) return null;
+    const plan = planProject(template, { startDate, fixedIds: [] });
+    if (!plan.ok) return null;
+    const open = (kind: 'stages' | 'tasks', parts: { id: string }[]) => parts.filter((part) => !picks[kind][part.id]).map((part) => part.id);
+    return shiftAdded(plan, { taskIds: open('tasks', template.tasks), stageIds: open('stages', template.stages) }, todayISO());
+  }, [startDate, template, picks]);
+  const datesLine = !startDate
+    ? t('projectTemplates.apply.noStart')
+    : addedDates?.startDate && addedDates.endDate
+      ? [t('projectTemplates.apply.dates', { from: formatDay(addedDates.startDate, lang), to: formatDay(addedDates.endDate, lang) }), ...(addedDates.shiftDays > 0 ? [t('projectTemplates.apply.datesMoved')] : [])].join(' ')
+      : null;
 
   const submit = async () => {
     if (match.data === undefined || users.data === undefined || saving) return;
@@ -111,6 +139,7 @@ export function LinkProjectSheet({ projectId, template, onClose }: {
         stageMatches: Object.fromEntries(template.stages.map((part) => [part.id, picks.stages[part.id] ?? null])),
         taskMatches: Object.fromEntries(template.tasks.map((part) => [part.id, picks.tasks[part.id] ?? null])),
         rolePeople: Object.fromEntries(template.roles.map((role) => [role.id, role.defaultUserId !== null && active.has(role.defaultUserId) ? role.defaultUserId : null])),
+        ...(replace ? { replace: true } : {}),
       }, { correlationId: storyId });
       storyId = linked.storyId;
       // "Add them": the parts with no match come back at once, with the dates of the template, in the same story.
@@ -119,6 +148,8 @@ export function LinkProjectSheet({ projectId, template, onClose }: {
           templateId: template.id,
           projectId,
           choices: { ...DEFAULT_CHOICES, add: false, text: false, dates: false, leads: false, stages: false, bringBack: true },
+          // The apply of a template to an ongoing project: the project right is enough, and the dates start from today.
+          apply: true,
         }, { correlationId: storyId });
         storyId = added.storyId;
       }
@@ -128,21 +159,21 @@ export function LinkProjectSheet({ projectId, template, onClose }: {
       return;
     }
     const story = storyId;
-    toast.undo(t('projectTemplates.link.linked'), () => {
+    toast.undo(t(mode === 'apply' ? 'projectTemplates.apply.done' : 'projectTemplates.link.linked'), () => {
       api.call('events.undoStory', { correlationId: story }).then(() => undefined, (error: unknown) => toast.failed(error));
     });
-    onClose();
+    (onDone ?? onClose)();
   };
 
   return (
     <Sheet
       open
       onOpenChange={(open) => { if (!open) onClose(); }}
-      title={t('projectTemplates.link.title', { project: project.data?.project.name ?? '', template: template.name })}
+      title={t(mode === 'apply' ? 'projectTemplates.apply.matchTitle' : 'projectTemplates.link.title', { project: project.data?.project.name ?? '', template: template.name })}
       footer={(
         <>
           <Button onClick={onClose}>{t('common.cancel')}</Button>
-          <Button variant="primary" disabled={match.data === undefined || users.data === undefined || saving} onClick={() => { void submit(); }}>{t('projectTemplates.link.save')}</Button>
+          <Button variant="primary" disabled={match.data === undefined || users.data === undefined || saving} onClick={() => { void submit(); }}>{t(mode === 'apply' ? 'projectTemplates.apply.save' : 'projectTemplates.link.save')}</Button>
         </>
       )}
     >
@@ -172,6 +203,12 @@ export function LinkProjectSheet({ projectId, template, onClose }: {
                     </label>
                   ))}
                 </fieldset>
+                {rest === 'add' && noMatch > 0 && (
+                  <div className="flex flex-col gap-1 text-footnote text-ink-2">
+                    <p>{t('projectTemplates.apply.leads')}</p>
+                    {datesLine !== null && <p>{datesLine}</p>}
+                  </div>
+                )}
                 <PickList
                   title={t('projectTemplates.link.stages')}
                   parts={stageParts.filter((part) => !matched('stages', part.id))}

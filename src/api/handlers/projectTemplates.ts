@@ -6,16 +6,17 @@ import {
 } from '../contract/entities';
 import { ProjectRef } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
-import { applyPatch, recordCreate, recordDelete } from '../events';
+import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { hasCycle, watchStage } from '../flow';
 import { notifyIn } from '../notify';
 import { staleDaysOf } from '../pause';
 import { can } from '../permissions';
 import { nextId, projectTemplatesOf } from '../store';
 import { markOf } from '../../lib/projectMark';
+import { shiftAdded } from '../../lib/projectPlan';
 import { matchByNames } from '../../lib/templateMatch';
 import { workingDaysInclusive } from '../../lib/templatePlan';
-import { baseOf, nextBase, planOf, syncDiff, textChanges, type ItemRef, type SyncDiff } from '../templateSync';
+import { baseOf, nextBase, planOf, syncDiff, textChanges, type ItemRef, type SyncChoices, type SyncDiff } from '../templateSync';
 import { namesUnder, stagesOf } from '../views';
 import { assertCan, byName, ensureOnTeam, insertComment, roleIn, touch } from './shared';
 import { dateMoveOf } from './tasks';
@@ -216,26 +217,53 @@ function assertMatches(field: 'stageMatches' | 'taskMatches', matches: Record<st
 }
 
 /**
- * The project items that match each part of a template, by name (fbk_008 item 4). The Admin's link sheet fills its picks with
- * this read. A link is a template matter, so only the Admin reads it.
+ * The apply of a template to one ongoing project (owner, 2026-10-19, fbk_020) is a project matter: the leader of the project and the
+ * Admin may do it (project.edit), on an open project (active or paused). A done or archived project is refused. The update of many
+ * projects and the template edits stay with the Admin and the template right (ADM-03).
+ */
+function assertMayApply(ctx: Ctx, project: Project): void {
+  assertCan(ctx, 'project.edit', { projectRole: roleIn(ctx, project.id) });
+  if (project.status !== 'active' && project.status !== 'on_hold') {
+    throw invalid('projectId', 'This project is closed. A template goes only to an open project.', 'project_closed');
+  }
+}
+
+/**
+ * The project items that match each part of a template, by name (fbk_008 item 4). The link sheet fills its picks with this read.
+ * The leader of the project and the Admin read it (assertMayApply).
  */
 const projectTemplatesMatchPlan = defineCall({
   input: z.object({ projectId: ProjectId, templateId: ProjectTemplateId }),
   output: MatchPlanOutput,
   readOnly: true,
   run(input, ctx) {
-    assertCan(ctx, 'admin.manage');
+    const project = ctx.state.projects[input.projectId];
+    if (!project) throw notFound('Project', input.projectId);
+    assertMayApply(ctx, project);
     const template = projectTemplatesOf(ctx.state)[input.templateId];
     if (!template) throw notFound('Project template', input.templateId);
-    if (!ctx.state.projects[input.projectId]) throw notFound('Project', input.projectId);
     const { stages, tasks } = itemsOf(ctx, input.projectId);
     return matchByNames(template, stages, tasks);
   },
 });
 
 /**
+ * Takes the part id off a stage or a task, as one event. The event keeps the old id, so an Undo of the story puts it back. As in
+ * applyPatch, the event names the field on both sides (after is undefined), so the stored event reads the same way (pairEventFields).
+ */
+function forgetPartId(ctx: Ctx, item: Stage | Task, targetType: 'stage' | 'task'): void {
+  if (item.templatePartId === undefined) return;
+  const before = { templatePartId: item.templatePartId };
+  delete item.templatePartId;
+  writeEvent(ctx, { projectId: item.projectId, verb: `${targetType}.template_linked`, targetType, targetId: item.id, before, after: { templatePartId: undefined } });
+}
+
+/**
  * Links an older project to a template (fbk_008 item 4). The picks say which item of the project matches each part. A template part
  * with no pick is dropped from the project. One story holds the link and every part id, so one Undo takes all of it back.
+ * A project holds one link. A project that follows a template takes another one only with "replace": the part ids of the old template
+ * leave its stages and tasks first, so they never look like parts of the new template (owner, 2026-10-19, fbk_020).
+ * The leader of the project and the Admin may link (assertMayApply).
  */
 const projectTemplatesLink = defineCall({
   input: z.object({
@@ -244,15 +272,18 @@ const projectTemplatesLink = defineCall({
     stageMatches: z.record(TemplatePartId, StageId.nullable()),
     taskMatches: z.record(TemplatePartId, TaskId.nullable()),
     rolePeople: z.record(TemplatePartId, UserId.nullable()),
+    replace: z.boolean().optional(),
   }),
   output: z.object({}),
   run(input, ctx) {
-    assertCan(ctx, 'admin.manage');
     const project = ctx.state.projects[input.projectId];
     if (!project) throw notFound('Project', input.projectId);
+    assertMayApply(ctx, project);
     const template = projectTemplatesOf(ctx.state)[input.templateId];
     if (!template) throw notFound('Project template', input.templateId);
-    if (project.templateLink) throw invalid('projectId', 'This project is already linked to a template.', 'already_linked');
+    if (project.templateLink && (input.replace !== true || project.templateLink.templateId === template.id)) {
+      throw invalid('projectId', 'This project is already linked to a template.', 'already_linked');
+    }
     const { stages, tasks } = itemsOf(ctx, input.projectId);
     assertMatches('stageMatches', input.stageMatches, template.stages.map((part) => part.id), stages.map((stage) => stage.id));
     assertMatches('taskMatches', input.taskMatches, template.tasks.map((part) => part.id), tasks.map((task) => task.id));
@@ -269,6 +300,10 @@ const projectTemplatesLink = defineCall({
     const dropped = [...stageParts, ...taskParts].filter((part) => part.itemId === null).map((part) => part.partId);
     const rolePeople = Object.fromEntries(template.roles.map((role) => [role.id, input.rolePeople[role.id] ?? null]));
     const meta = { projectId: project.id };
+    if (project.templateLink) {
+      for (const stage of stages) forgetPartId(ctx, stage, 'stage');
+      for (const task of tasks) forgetPartId(ctx, task, 'task');
+    }
     applyPatch(ctx, project, {
       templateLink: { templateId: template.id, linkedAt: ctx.stamp, syncedAt: null, rolePeople, droppedPartIds: dropped, base: baseOf(template, planOf(template, project)) },
     }, { ...meta, verb: 'project.template_linked', targetType: 'project', targetId: project.id });
@@ -301,6 +336,14 @@ const SyncChoicesInput = z.object({
   /** The tasks and stages that the team edited and the template changed too. keep: the team's version stays (ADM-01). */
   edited: z.enum(['keep', 'use_template']).default('keep'),
 });
+
+/**
+ * The picks of the apply of a template to an ongoing project: only the parts that the project leaves out come in. A person with the
+ * project right sends exactly these picks; any other pick is the update of linked projects, which stays with the Admin.
+ */
+const isApplyChoices = (choices: SyncChoices): boolean =>
+  choices.bringBack && !choices.add && choices.removed === 'keep' && !choices.text && !choices.dates && !choices.leads
+  && choices.closed === 'leave' && !choices.stages && choices.edited === 'keep';
 
 const PartRefOut = z.object({ partId: TemplatePartId, title: z.string(), stagePartId: TemplatePartId.nullable() });
 const SpanOut = z.object({ start: z.string().nullable(), due: z.string().nullable() });
@@ -392,13 +435,26 @@ const projectTemplatesSyncPlan = defineCall({
  * the story takes all of it back. A task that was dropped comes back only with bringBack. A closed task keeps its dates and lead.
  */
 const projectTemplatesSyncApply = defineCall({
-  input: z.object({ templateId: ProjectTemplateId, projectId: ProjectId, choices: SyncChoicesInput, dateReason: DateReason.optional() }),
+  input: z.object({
+    templateId: ProjectTemplateId,
+    projectId: ProjectId,
+    choices: SyncChoicesInput,
+    dateReason: DateReason.optional(),
+    /**
+     * The apply of a template to an ongoing project (owner, 2026-10-19, fbk_020), right after its link, in the same story. With the
+     * picks of isApplyChoices the project right is enough (assertMayApply). The added parts then start today when the template dates
+     * are past (shiftAdded), their leads get the new-task notice, and the History line says that the template was applied.
+     */
+    apply: z.boolean().optional(),
+  }),
   output: SyncCounts,
   run(input, ctx) {
-    assertCan(ctx, 'admin.manage');
+    const applying = input.apply === true && isApplyChoices(input.choices);
+    if (!applying) assertCan(ctx, 'admin.manage');
     const template = templateOf(ctx, input.templateId);
     const project = ctx.state.projects[input.projectId];
     if (!project) throw notFound('Project', input.projectId);
+    if (applying) assertMayApply(ctx, project);
     const link = project.templateLink;
     if (!link) throw invalid('projectId', 'This project is not linked to a template.', 'not_linked');
     if (link.templateId !== template.id) throw invalid('templateId', 'This project is linked to another template.', 'other_template');
@@ -426,6 +482,8 @@ const projectTemplatesSyncApply = defineCall({
     const stagePart = new Map(template.stages.map((part) => [part.id, part]));
     const taskPart = new Map(template.tasks.map((part) => [part.id, part]));
     const rolePart = new Map(template.roles.map((role) => [role.id, role]));
+    const stageIdOf = (partId: string): string | undefined =>
+      Object.values(ctx.state.stages).find((stage) => stage.projectId === project.id && stage.templatePartId === partId)?.id;
     // The lead of a role for a new task: the template's person when the lead pick is on, else the person the project has now.
     const leadOf = (roleId: string): string | null => {
       const role = rolePart.get(roleId);
@@ -454,14 +512,24 @@ const projectTemplatesSyncApply = defineCall({
         counts.edited += 1;
       }
     }
-    const stageParts = [
+    const wanted = [
       ...(choices.add ? diff.add : []).map((part) => ({ part, back: false })),
       ...(choices.bringBack ? diff.dropped : []).map((part) => ({ part, back: true })),
-    ].filter(({ part }) => part.stagePartId === null);
+    ];
+    const stageParts = wanted.filter(({ part }) => part.stagePartId === null);
+    // A task comes in when its stage is in the project, or comes in now.
+    const newStageParts = new Set(stageParts.map(({ part }) => part.partId));
+    const taskParts = wanted.filter(({ part }) => part.stagePartId !== null && (newStageParts.has(part.stagePartId) || stageIdOf(part.stagePartId) !== undefined));
+    // The apply of a template to an ongoing project: the added parts start today when the dates of the template are past (shiftAdded).
+    const shifted = applying && plan
+      ? shiftAdded(plan, { taskIds: taskParts.map(({ part }) => part.partId), stageIds: stageParts.map(({ part }) => part.partId) }, ctx.today)
+      : null;
+    const stageDates = (partId: string) => (shifted ? shifted.stages[partId] : plan?.stages[partId]);
+    const taskDates = (partId: string) => (shifted ? shifted.tasks[partId] : plan?.tasks[partId]);
     let order = Math.max(-1, ...stagesOf(ctx.state, project.id).map((stage) => stage.order));
     for (const { part, back } of stageParts) {
       const id = nextId(ctx.state, 'stg');
-      const dates = plan?.stages[part.partId];
+      const dates = stageDates(part.partId);
       order += 1;
       const stage: Stage = {
         id, projectId: project.id, name: part.title, order, startDate: dates?.startDate ?? null, endDate: dates?.endDate ?? null,
@@ -486,12 +554,7 @@ const projectTemplatesSyncApply = defineCall({
 
     // New tasks: the tasks of the template that the project lacks, and the dropped ones that come back. A task waits for the tasks
     // that its template task waits for, when those are in the project or made in this update.
-    const stageIdOf = (partId: string): string | undefined =>
-      Object.values(ctx.state.stages).find((stage) => stage.projectId === project.id && stage.templatePartId === partId)?.id;
-    const taskWanted = [
-      ...(choices.add ? diff.add : []).map((part) => ({ part, back: false })),
-      ...(choices.bringBack ? diff.dropped : []).map((part) => ({ part, back: true })),
-    ].filter(({ part }) => part.stagePartId !== null).flatMap(({ part, back }) => {
+    const taskWanted = taskParts.flatMap(({ part, back }) => {
       const stageId = stageIdOf(part.stagePartId!);
       return stageId ? [{ part, back, stageId }] : [];
     });
@@ -504,7 +567,7 @@ const projectTemplatesSyncApply = defineCall({
         const waited = idOf.get(partId) ?? projectTaskOf(partId)?.id;
         return waited ? [waited] : [];
       });
-      const planned = plan?.tasks[part.partId];
+      const planned = taskDates(part.partId);
       const dynamic = planned !== undefined && waits.length > 0;
       const ownerId = templateTask.roleId === null ? null : leadOf(templateTask.roleId);
       if (ownerId !== null) ensureOnTeam(ctx, project.id, ownerId, 'ownerId');
@@ -519,6 +582,8 @@ const projectTemplatesSyncApply = defineCall({
       };
       ctx.state.tasks[id] = task;
       recordCreate(ctx, { projectId: project.id, verb: 'task.created', targetType: 'task', targetId: id, entity: task });
+      // The lead of a new task gets the normal new-task notice (the person who applies gets none).
+      if (applying && ownerId !== null) notifyIn(ctx, { userIds: [ownerId], trigger: 'task_assigned', targetType: 'task', targetId: id });
       counts[back ? 'broughtBack' : 'added'] += 1;
       if (back) restored.add(part.partId);
     }
@@ -582,12 +647,16 @@ const projectTemplatesSyncApply = defineCall({
     const rolePeople = choices.leads
       ? Object.fromEntries(template.roles.map((role) => [role.id, role.defaultUserId !== null && active(role.defaultUserId) ? role.defaultUserId : null]))
       : { ...link.rolePeople };
-    applyPatch(ctx, project, {
+    const closing = applyPatch(ctx, project, {
       templateLink: {
         ...link, syncedAt: ctx.stamp, rolePeople, droppedPartIds: link.droppedPartIds.filter((id) => !restored.has(id)),
         base: nextBase(template, plan, link.base, diff, choices),
       },
-    }, { projectId: project.id, verb: 'project.template_synced', targetType: 'project', targetId: project.id });
+    }, { projectId: project.id, verb: applying ? 'project.template_applied' : 'project.template_synced', targetType: 'project', targetId: project.id });
+    // The History line of the apply counts what came in. The event keeps the numbers, so a feed read needs no other event.
+    if (applying && closing) {
+      (closing.after as Record<string, unknown>).addedParts = { stages: stageParts.length, tasks: taskWanted.length };
+    }
     watch.finish({ ask: false });
     touch(ctx, project.id);
     return counts;

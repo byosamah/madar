@@ -45,7 +45,7 @@
       },
       "2026-10-23-10": {
         "title": "Project templates",
-        "body": "Now a stage keeps its start and length after you add a task. The Admin can drag the stages of a project template, copy a template, and see its timeline. Each task and stage has a Waits for picker. The Admin can also send an update to the projects made from a template."
+        "body": "Now a stage keeps its start and length after you add a task. The Admin can drag the stages of a project template, copy a template, and see its timeline. Each task and stage has a Waits for picker. The Admin can also send an update to the projects made from a template. A project leader can apply a template to an ongoing project from the project menu."
       },
       "2026-10-23-11": {
         "title": "Roles and rights",

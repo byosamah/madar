@@ -17,6 +17,7 @@ import { fieldError } from '../../app/errors';
 import { todayISO, addDays } from '../../lib/dates';
 import { EditProjectSheet } from '../projects/EditProjectSheet';
 import { projectKey } from '../../lib/projectCode';
+import { ApplyTemplateSheet } from './ApplyTemplateSheet';
 
 type SheetProps = { detail: ProjectDetail; open: boolean; onOpenChange: (open: boolean) => void };
 
@@ -134,10 +135,10 @@ function PauseSheet({ detail, open, onOpenChange }: SheetProps) {
   );
 }
 
-/** The "…" menu next to the main button: Edit, Change leader, the status changes and Delete (spec 5.1). */
+/** The "…" menu next to the main button: Edit, Change leader, Apply a template, the status changes and Delete (spec 5.1). */
 export function ProjectActions({ detail }: { detail: ProjectDetail }) {
   const { t } = useTranslation();
-  const [sheet, setSheet] = useState<'edit' | 'leader' | 'delete' | 'pause' | null>(null);
+  const [sheet, setSheet] = useState<'edit' | 'leader' | 'delete' | 'pause' | 'template' | null>(null);
   const status = useUndoable('projects.setStatus', { message: () => t('project.statusChanged') });
   const resume = useUndoable('projects.resume', { message: () => t('project.resumedToast') });
   const { project, viewerCan } = detail;
@@ -150,6 +151,8 @@ export function ProjectActions({ detail }: { detail: ProjectDetail }) {
   const items: MenuItem[] = [
     { label: t('project.edit'), onSelect: () => setSheet('edit'), hidden: !viewerCan.edit },
     { label: t('project.changeLeader'), onSelect: () => setSheet('leader'), hidden: !viewerCan.changeLeader },
+    // A template goes to an open project (active or paused), for the people who may edit it: the leader and the Admin (fbk_020).
+    { label: t('projectTemplates.apply.menu'), onSelect: () => setSheet('template'), hidden: !viewerCan.edit || (project.status !== 'active' && project.status !== 'on_hold') },
     { label: t('project.pause'), onSelect: () => setSheet('pause'), hidden: !viewerCan.archive || project.status !== 'active' },
     // The paused banner has the Resume button, so the menu offers it only when no banner shows (audit 2026-10-03, PRJ-20).
     { label: t('project.resume'), onSelect: () => resume.mutate({ id: project.id }), hidden: !viewerCan.archive || project.status !== 'on_hold' || Boolean(project.pause) },
@@ -168,6 +171,7 @@ export function ProjectActions({ detail }: { detail: ProjectDetail }) {
       <LeaderSheet detail={detail} open={sheet === 'leader'} onOpenChange={onOpenChange} />
       <DeleteProjectSheet detail={detail} open={sheet === 'delete'} onOpenChange={onOpenChange} />
       <PauseSheet detail={detail} open={sheet === 'pause'} onOpenChange={onOpenChange} />
+      <ApplyTemplateSheet detail={detail} open={sheet === 'template'} onOpenChange={onOpenChange} />
     </>
   );
 }
