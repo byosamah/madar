@@ -446,7 +446,7 @@ describe('the row menu of the Inbox list (chats-06)', () => {
     const row = await rowLink(/Corniche Office Tower/);
     const holder = within(row.closest('li') as HTMLElement).getByRole('button', { name: 'Options for Corniche Office Tower' }).parentElement as HTMLElement;
     const classes = holder.className.split(' ');
-    expect(classes).toEqual(expect.arrayContaining(['sm:opacity-0', 'sm:group-hover:opacity-100', 'sm:group-focus-within:opacity-100', 'max-sm:hidden', 'pointer-coarse:hidden']));
+    expect(classes).toEqual(expect.arrayContaining(['absolute', 'sm:opacity-0', 'sm:group-hover:opacity-100', 'sm:group-focus-within:opacity-100', 'max-sm:hidden', 'pointer-coarse:hidden']));
     // The row itself is a group of the hover and the focus, and it can slide for the swipe.
     expect((row.closest('li') as HTMLElement).className).toContain('group');
   });

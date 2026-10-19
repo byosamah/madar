@@ -87,7 +87,7 @@ const ChatRowItem = memo(function ChatRowItem({ row, selected, waiting, swipe, s
           swiped.current = false;
         }, 0);
       }}
-      className={`group flex items-center transition-colors hover:bg-fill/50 ${selected ? 'bg-fill' : 'bg-panel'}`}
+      className={`group relative flex items-center transition-colors hover:bg-fill/50 ${selected ? 'bg-fill' : 'bg-panel'}`}
     >
       <Link
         to={`/inbox/${row.id}`}
@@ -126,7 +126,9 @@ const ChatRowItem = memo(function ChatRowItem({ row, selected, waiting, swipe, s
           {waiting && <span className="text-footnote font-medium text-ink">{t('chat.waiting')}</span>}
         </span>
       </Link>
-      <span className="shrink-0 pe-1 pointer-coarse:hidden max-sm:hidden sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100 sm:has-[[aria-expanded=true]]:opacity-100">
+      {/* The menu takes no room in the row: it floats over the end of the row and shows on hover or focus, so no empty strip waits
+          for the mouse (owner, 2026-10-19). A phone has no menu: a swipe archives the chat. */}
+      <span className="absolute inset-y-0 end-1 flex items-center rounded-full pointer-coarse:hidden max-sm:hidden sm:pointer-events-none sm:opacity-0 sm:group-focus-within:pointer-events-auto sm:group-focus-within:opacity-100 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100 sm:has-[[aria-expanded=true]]:pointer-events-auto sm:has-[[aria-expanded=true]]:opacity-100 [&>*]:bg-panel">
         <ArchiveMenu id={row.id} archived={row.archived} title={title} onArchive={onArchive} />
       </span>
     </motion.li>
