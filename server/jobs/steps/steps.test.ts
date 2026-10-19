@@ -9,7 +9,7 @@ import { KEYS_IN_USE_SQL } from '../../files/effects';
 import { memoryMailDb } from '../../mail/memoryMailDb';
 import { USER_MAIL_SQL } from '../../mail/notices';
 import { MailSendError } from '../../mail/resend';
-import { SUMMARY_COUNTS_SQL, SUMMARY_PEOPLE_SQL } from '../../mail/summary';
+import { SUMMARY_COUNTS_SQL, SUMMARY_PEOPLE_SQL, SUMMARY_TASKS_SQL } from '../../mail/summary';
 import { fakeDeps } from '../../test/fakes/deps';
 import { IDEMPOTENCY_CLEANUP_SQL, OFFICE_DELETES_CLEANUP_SQL, RATE_LIMITS_CLEANUP_SQL, STORIES_CLEANUP_SQL, cleanup } from './cleanup';
 import { HEARTBEAT_SQL, heartbeat } from './heartbeat';
@@ -104,6 +104,10 @@ describe('step 2, the morning summary', () => {
       }
       if (text === USER_MAIL_SQL) return [people.get(values[0] as string)].filter(Boolean);
       if (text === SUMMARY_COUNTS_SQL) return [counts[values[0] as string]];
+      // The open tasks (fbk_021): usr_a and usr_c have one task due today, usr_b has none.
+      if (text === SUMMARY_TASKS_SQL) {
+        return values[0] === 'usr_b' ? [] : [{ id: `tsk_${values[0]}`, title: 'Check the setback', due_date: '2026-10-04', rank: null, project_code: '260902AZT-RES-Villa' }];
+      }
       return undefined;
     });
     const deps = fakeDeps({ db: r.db, config: { appUrl: 'https://madar.test' } });

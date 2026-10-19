@@ -57,10 +57,10 @@ describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
 
   it('sends the morning summary to each person with something to say, marks the day, and sends nothing in a second run', async () => {
     const { seed, deps } = await office();
-    // The rule of SUMMARY_COUNTS_SQL on the State: a task due today that the person leads or helps with, or a review that waits.
+    // The rule of buildMorning on the State: an open task, past due or due today, that the person leads or helps with, or a review that waits.
     const active = (projectId: string | null) => projectId === null || seed.projects[projectId]?.status === 'active';
     const says = (id: string) => Object.values(seed.tasks).some((t) =>
-      (t.dueDate === DAY && (t.status === 'todo' || t.status === 'in_progress') && active(t.projectId) && (t.ownerId === id || (t.helperIds ?? []).includes(id)))
+      (t.dueDate !== null && t.dueDate <= DAY && (t.status === 'todo' || t.status === 'in_progress') && active(t.projectId) && (t.ownerId === id || (t.helperIds ?? []).includes(id)))
       || (t.status === 'in_review' && active(t.projectId) && reviewersOfTask(seed, t).includes(id)));
     const expected = Object.values(seed.users)
       .filter((u) => u.kind === 'human' && u.active && (u.preferences.morningSummary ?? true) && says(u.id))

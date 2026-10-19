@@ -41,12 +41,16 @@
     "summary": {
       "subject": "Your morning summary from Madar",
       "intro": "Here is what waits for you today.",
-      "dueToday": "{{count}} tasks are due today.",
-      "dueToday_one": "1 task is due today.",
-      "dueToday_other": "{{count}} tasks are due today.",
       "reviewsWaiting": "{{count}} reviews wait for you.",
       "reviewsWaiting_one": "1 review waits for you.",
-      "reviewsWaiting_other": "{{count}} reviews wait for you."
+      "reviewsWaiting_other": "{{count}} reviews wait for you.",
+      "pastDue": "Past due",
+      "today": "Today",
+      "week": "This week",
+      "office": "Office",
+      "more": "and {{count}} more tasks.",
+      "more_one": "and 1 more task.",
+      "more_other": "and {{count}} more tasks."
     },
     "limit": {
       "subject": "Madar is near a free plan limit",

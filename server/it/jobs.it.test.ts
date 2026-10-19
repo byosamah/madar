@@ -8,7 +8,7 @@ import type { FilesPort } from '../core/ports';
 import { clearOfficeCaches } from '../data/officeCache';
 import { supabaseStorageFilesPort } from '../files/supabaseStorage';
 import { NOTICE_EFFECT } from '../mail/notices';
-import { buildSummary, summaryPeople } from '../mail/summary';
+import { buildMorning, summaryPeople } from '../mail/summary';
 // The entries load the mail and usage effects for their side effect (server/core/deps.ts); this suite does the same.
 import '../mail/effects';
 import '../usage/effects';
@@ -165,7 +165,7 @@ describe('suite 10: the 15-minute job on the local database, as madar_server', (
     const day = '2026-10-04'; // Sunday
     const people = await deps.db.tx('read', (q) => summaryPeople(q));
     const withNews: User[] = [];
-    for (const id of people) if (await deps.db.tx('read', (q) => buildSummary(q, { id }, day))) withNews.push(office.seed.users[id]);
+    for (const id of people) if (await deps.db.tx('read', (q) => buildMorning(q, { id }, day))) withNews.push(office.seed.users[id]);
     expect(withNews.length).toBeGreaterThanOrEqual(2);
     const [unset, off] = withNews;
     await office.sql("update users set doc = doc #- '{preferences,morningSummary}' where id = $1", [unset.id]);

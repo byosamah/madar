@@ -32,10 +32,10 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 
 ## Tools
 - MCP spec 2026-07-28, stateless. A 2025-era client gets the stateless legacy answer.
-- 44 tools for every agent in `MCP_ALLOW`, plus 3 for an agent of an Admin in `MCP_ADMIN` (`feedback.list`,
-  `feedback.screenshot`, `feedback.setStatus`): 47, with 21 reads and 26 writes. The reads include `subCompanies.list`, which
+- 45 tools for every agent in `MCP_ALLOW`, plus 3 for an agent of an Admin in `MCP_ADMIN` (`feedback.list`,
+  `feedback.screenshot`, `feedback.setStatus`): 48, with 21 reads and 27 writes. The reads include `subCompanies.list`, which
   leaves the logo data out (`run.ts`). `MCP_BY_RIGHT` adds `reports.office` (the office
-  report, fbk_016) for an agent whose person holds the report right (Admin and Management by default), so an Admin's agent gets 48.
+  report, fbk_016) for an agent whose person holds the report right (Admin and Management by default), so an Admin's agent gets 49.
   The factory in `app.ts` picks the list for each request from the office rights of the owner, never the agent user. A 2026-07-28 client can keep tools/list for 5 minutes, and a
   2025-era client keeps it until it connects again (the server says listChanged but never sends that notice). So a role change
   shows late in a client, and tools/call always checks.
@@ -78,6 +78,12 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   change it. Only a change of the vado.sa icon or an MCP address on another main domain would.
 - `users.list` gives both names (`name`, `nameAr`), leaves picture data out of `avatarUrl`, and adds `roleName` to each row, the role name that the screens show (`run.ts`, INT-19).
 - 60 tool calls a minute for each person (`TOOL_CALLS_PER_MINUTE`, `app.ts`).
+- Stage dates (owner, fbk_023): `stages.setDates` is on `MCP_ALLOW`. It sets both dates of one stage, as the Schedule tab does, for the
+  project leader and the Admin (`project.edit`); an agent of a team member or an outsider gets `forbidden`. It needs no reason: the
+  call never asks for one, so it has no `dateReason` field (that field belongs to `tasks.update`). The stages sit in time order by
+  their dates, so new dates can move the current stage of the project and its health. `stages.replace` and `stages.setPrerequisites`
+  stay on `MCP_DENY`: an agent does not add, remove, rename or reorder stages, or change what a stage needs. INSTRUCTIONS has a
+  Stages paragraph that says: change a stage date only when the person asks. The tests are in `stageDates.test.ts`.
 - Two refusals need a reason from the person (`reasons.ts`): a move back to an earlier stage and a change of set dates. They
   answer with `input_required`. The agent must ask its person, never invent the reason.
 

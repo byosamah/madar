@@ -1,7 +1,7 @@
 /**
  * The written instructions for AI agents (plan 5.6; spec 1, section 17, rule 7). INSTRUCTIONS goes in the answer of
  * server/discover and starts the answer of madar.readFirst (readFirstAnswer adds who the agent acts for). TOOL_DOCS gives each of
- * the 48 tools its title and description. Every agent gets 44 of them. An agent of an Admin gets 3 more. An agent of a person with
+ * the 49 tools its title and description. Every agent gets 45 of them. An agent of an Admin gets 3 more. An agent of a person with
  * the report right gets reports.office (tools.ts).
  * The reader is a model that acts for one person, so the texts are short, exact, and in plain English.
  * tools.test.ts checks that each description is 40 to 600 characters.
@@ -43,6 +43,8 @@ export const INSTRUCTIONS = [
   'Pauses: a paused project may hold a restart date (project.pause.resumeOn). The date is a reminder only: on that day the person who paused the project and its leader get a notice, and Madar never restarts the project by itself. The person pauses, resumes and moves the date in the Madar screens.',
   '',
   'Health: an active project is late when today is after the end date of its current stage. It is at risk when one of its open tasks is 3 or more days past due, or when the stage ends within 7 days and less than 70% of its tasks are done. A task 1 or 2 days past due still counts as past due (tasks.list filter overdue), but it does not put the project at risk.',
+  '',
+  'Stages: stages.setDates sets the start and end dates of one stage. The project leader and the Admin may do this. It needs no reason, unlike a change of a task date, which needs "dateReason". The dates put the stages in time order, and the end date of the current stage decides when the project is late. So change a stage date only when your person asks. Adding, removing and renaming stages is screen work.',
   '',
   'IDs have a prefix and a number, for example prj_001, tsk_014, usr_003. Dates are YYYY-MM-DD in Riyadh time. Read before you write: find IDs with the list and get tools.',
   '',
@@ -184,6 +186,10 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   'search.query': {
     title: 'Search',
     description: 'Searches projects, tasks of active projects, people, files and sub-companies by words in "text". Returns the matches of each kind, with their IDs. A sub-company match gives its project count: list its projects with projects.list and subCompanyId. Use it when you know a name but not the ID. It never finds a file of a direct or group chat.',
+  },
+  'stages.setDates': {
+    title: 'Set stage dates',
+    description: 'Sets the start and end dates (YYYY-MM-DD, or null to clear one) of one stage (stageId, from projects.get). It sets both dates, so send the date that stays too. The end cannot be before the start. The project leader and the Admin may do this. It needs no reason. Stages sit in time order by their dates, so new dates can reorder them or overlap them, and they can change the current stage of the project and so its health. Change them only when your person asks.',
   },
   'tasks.approve': {
     title: 'Approve a task',

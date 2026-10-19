@@ -6,12 +6,19 @@ import type { Language } from '../../../src/api/contract/entities';
  * and on the content block, with text-align from the direction (Gmail does not read start and end).
  */
 
+/** A list of rows under a small heading (the morning summary). A row is a title and one small line under it. */
+export type MailGroup = { heading: string; rows: { title: string; meta: string }[] };
+
 export type MailPage = {
   lang: Language;
   subject: string;
   /** "Hello Sara," or nothing. */
   greeting?: string;
   paragraphs: string[];
+  /** Lists of rows after the paragraphs. Nothing renders for a missing or empty list. */
+  groups?: MailGroup[];
+  /** Short paragraphs after the lists and before the button. */
+  closing?: string[];
   button: { label: string; link: string };
   linkHelp: string;
   footer: string;
@@ -87,6 +94,12 @@ export function renderPage(page: MailPage, brand: string): RenderedMail {
     brandHeader(brand, dir, page.logo),
     ...(page.greeting ? [p(page.greeting)] : []),
     ...page.paragraphs.map((text) => p(text)),
+    ...(page.groups ?? []).flatMap((group) => [
+      `<p style="margin:20px 0 10px;font-size:14px;font-weight:600;color:${MUTED};border-top:1px solid #e6e3dc;padding-top:12px;">${escapeHtml(group.heading)}</p>`,
+      // The title sits in a bdi, so a title in another script keeps its own direction and does not bend the line around it.
+      ...group.rows.map((row) => `<p style="margin:0 0 12px;"><bdi dir="auto">${escapeHtml(row.title)}</bdi><br><span style="font-size:14px;color:${MUTED};">${escapeHtml(row.meta)}</span></p>`),
+    ]),
+    ...(page.closing ?? []).map((text) => p(text)),
     `<p style="margin:24px 0;"><a href="${escapeHtml(link)}" style="display:inline-block;padding:12px 20px;background:${INK};color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">${escapeHtml(page.button.label)}</a></p>`,
     p(page.linkHelp, `font-size:14px;color:${MUTED};margin-bottom:4px;`),
     `<p style="margin:0 0 24px;font-size:14px;word-break:break-all;" dir="ltr"><a href="${escapeHtml(link)}" style="color:${INK};">${escapeHtml(link)}</a></p>`,
@@ -98,6 +111,8 @@ export function renderPage(page: MailPage, brand: string): RenderedMail {
   const text = [
     ...(page.greeting ? [page.greeting, ''] : []),
     ...page.paragraphs.flatMap((paragraph) => [paragraph, '']),
+    ...(page.groups ?? []).flatMap((group) => [group.heading, ...group.rows.flatMap((row) => [`- ${row.title}`, `  ${row.meta}`]), '']),
+    ...(page.closing ?? []).flatMap((paragraph) => [paragraph, '']),
     `${page.button.label}: ${link}`,
     '',
     page.footer,
