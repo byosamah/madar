@@ -60,11 +60,12 @@ test('Home and Projects at 1440 have no glass panel and no picture in the projec
   await page.goto('/#/');
   await expect(homeRows(page).first()).toBeVisible();
   await expect(page.locator('main .glass')).toHaveCount(0);
-  await expect(page.getByRole('list', { name: 'Your projects' }).locator('img')).toHaveCount(0);
+  // The small sub-company logo beside a project picture is an image on purpose (fbk_007); no other picture may show.
+  await expect(page.getByRole('list', { name: 'Your projects' }).locator('img:not([data-sub-company-logo])')).toHaveCount(0);
   await page.goto('/#/projects');
   await expect(projectRows(page).first()).toBeVisible();
   await expect(page.locator('main .glass')).toHaveCount(0);
-  await expect(page.getByRole('list', { name: 'Projects' }).locator('img')).toHaveCount(0);
+  await expect(page.getByRole('list', { name: 'Projects' }).locator('img:not([data-sub-company-logo])')).toHaveCount(0);
 });
 
 test('Arabic turns the page right to left, the pill stays, and English turns it back', async ({ page }) => {

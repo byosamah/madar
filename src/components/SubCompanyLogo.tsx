@@ -22,7 +22,7 @@ export function SubCompanyLogo({ subCompanyId, size }: { subCompanyId: string; s
       // Logos are made for white paper. The plate stays white in both themes, so a dark mark on a see-through ground shows in dark
       // mode too (PRJ-10). The letter below keeps the fill token.
       <span style={{ ...box, background: LOGO_PLATE }} className="inline-flex shrink-0 overflow-hidden rounded-full ring-1 ring-inset ring-ink/10">
-        <img src={logo} alt={name} className="h-full w-full object-contain" />
+        <img src={logo} alt={name} data-sub-company-logo="" className="h-full w-full object-contain" />
       </span>
     );
   }
