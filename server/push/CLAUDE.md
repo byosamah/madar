@@ -34,6 +34,9 @@ Madar window, or opens `/`.
 2. `push.notify` is in `AFTER_ANSWER_KINDS` (`server/core/effects.ts`), so on the hosted functions it runs right after the
    answer, on the chain of the mails of the batch. Without `after` (tests, scripts) it runs before the answer.
 3. The 15-minute job writes the same rows after its own save (`jobs/steps/triggers.ts`) and retries a failed row (up to 5 times).
+   A `push.chat` row (a chat message, a task comment, or a mention or reply notice of one) waits 10 s after the answer
+   (`WAITED_KINDS`). Then `sendChatPush` asks `PUSH_STILL_NEW_SQL` which items the person has not read on any device
+   (`chat_reads.lastReadAt`) and which are not deleted, and sends one push only when one is left.
 4. The effect `sendPushNotify` reads the devices of the person again from the primary, and posts to each device at once.
    - 201 or 202: sent. The effect sets `lastPushAt` of the device.
    - 404 or 410: the browser dropped the subscription. The effect deletes the device.

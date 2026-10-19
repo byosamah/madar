@@ -4,7 +4,8 @@ import { AFTER_ANSWER_KINDS, EFFECTS_OF, processOutbox, registerEffect, writeOut
 import { memoryMailDb } from '../mail/memoryMailDb';
 import { fakeDeps } from '../test/fakes/deps';
 import {
-  PUSH_DEVICES_SQL, PUSH_EFFECT, PUSH_GONE_SQL, PUSH_MESSAGE_PEOPLE_SQL, PUSH_NOTICE_PEOPLE_SQL, PUSH_SENT_SQL, pushRows, sendPushNotify,
+  PUSH_CHAT_EFFECT, PUSH_DEVICES_SQL, PUSH_EFFECT, PUSH_GONE_SQL, PUSH_MESSAGE_PEOPLE_SQL, PUSH_NOTICE_PEOPLE_SQL, PUSH_SENT_SQL, PUSH_STILL_NEW_SQL, pushRows,
+  sendChatPush, sendPushNotify,
 } from './notify';
 import { PUSH_FREE_CALLS, registerPushEffects } from './register';
 import { makeVapidKeys, type VapidConfig } from './vapid';
@@ -233,6 +234,79 @@ describe('sendPushNotify: the push of one person', () => {
     } finally {
       undo();
     }
+  });
+});
+
+describe('sendChatPush: the push after the wait (item 20)', () => {
+  let vapid: VapidConfig;
+  beforeEach(async () => {
+    vapid = { ...(await makeVapidKeys()), subject: 'mailto:madar@vado.sa' };
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const device = (n: number) => `${FCM}secret-token-${n}`;
+  const items = [{ chatId: 'cnv_013', itemId: 'msg_901' }];
+
+  function setup(o: { devices?: string[]; stillNew?: string[] } = {}) {
+    const asked: { text: string; values: unknown[] }[] = [];
+    const mem = memoryMailDb((text, values) => {
+      asked.push({ text, values });
+      if (text === PUSH_STILL_NEW_SQL) return (o.stillNew ?? []).map((item_id) => ({ item_id }));
+      if (text === PUSH_DEVICES_SQL) return (o.devices ?? [device(1)]).map((endpoint) => ({ endpoint }));
+      if (text === PUSH_SENT_SQL || text === PUSH_GONE_SQL) return [];
+      return undefined;
+    });
+    const deps = fakeDeps({ db: mem.db, config: { push: vapid } });
+    deps.clock.set(NOW);
+    const calls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      calls.push(url);
+      return new Response(null, { status: 201 });
+    }));
+    return { mem, deps, calls, seen: (text: string) => asked.filter((a) => a.text === text).map((a) => a.values) };
+  }
+
+  it('posts to each device of the person when an item is still new', async () => {
+    const { deps, calls, seen } = setup({ devices: [device(1)], stillNew: ['msg_901'] });
+    await sendChatPush({ userId: 'usr_002', items }, deps);
+    expect(calls).toEqual([device(1)]);
+    expect(seen(PUSH_STILL_NEW_SQL)).toEqual([['usr_002', JSON.stringify(items)]]);
+  });
+
+  it('sends nothing and reads no device when no item is still new', async () => {
+    const { deps, calls, seen } = setup({ devices: [device(1)], stillNew: [] });
+    await sendChatPush({ userId: 'usr_002', items }, deps);
+    expect(calls).toEqual([]);
+    expect(seen(PUSH_DEVICES_SQL)).toEqual([]);
+  });
+
+  it('sends nothing for a row with no items', async () => {
+    const { deps, calls, seen } = setup({ stillNew: ['msg_901'] });
+    await sendChatPush({ userId: 'usr_002', items: [] }, deps);
+    expect(calls).toEqual([]);
+    expect(seen(PUSH_STILL_NEW_SQL)).toEqual([]);
+  });
+
+  it('keeps the rules in its SQL: the read mark of the person, deletedAt, and the stamps as text', () => {
+    for (const part of ['chat_reads', "doc->>'deletedAt' is null", 'collate "C"', "doc->>'lastReadAt'"]) expect(PUSH_STILL_NEW_SQL).toContain(part);
+  });
+
+  it('is the handler of push.chat after registerPushEffects: processOutbox runs a push.chat row through sendChatPush', async () => {
+    const { mem, deps, calls } = setup({ devices: [device(1)], stillNew: ['msg_901'] });
+    const undo = registerPushEffects();
+    try {
+      const [id] = await writeOutbox(mem.q, [{ kind: PUSH_CHAT_EFFECT, payload: { userId: 'usr_002', items } }]);
+      expect(await processOutbox(deps, [id])).toEqual({ done: [id], failed: [] });
+      expect(calls).toEqual([device(1)]);
+    } finally {
+      undo();
+    }
+  });
+
+  it('runs after the answer and waits, like the other chat kind', () => {
+    expect(AFTER_ANSWER_KINDS.has(PUSH_CHAT_EFFECT)).toBe(true);
   });
 });
 

@@ -2,7 +2,7 @@ import type { SharedCallName } from '../../src/api/sharedCalls';
 import { sharedCalls } from '../../src/api/sharedCalls';
 import { registerEffect, registerOutbox } from '../core/effects';
 import { NOTICE_FREE_CALLS } from '../mail/notices';
-import { PUSH_EFFECT, pushRows, sendPushNotify } from './notify';
+import { PUSH_CHAT_EFFECT, PUSH_EFFECT, pushRows, sendChatPush, sendPushNotify } from './notify';
 
 /**
  * The calls with no push producer: the read marks (they never make a notice, the rule of the notice mail) and the push device
@@ -22,6 +22,7 @@ export function registerPushEffects(): () => void {
   };
   try {
     undo.push(registerEffect(PUSH_EFFECT, sendPushNotify));
+    undo.push(registerEffect(PUSH_CHAT_EFFECT, sendChatPush));
     for (const [name, def] of Object.entries(sharedCalls)) {
       if (def.readOnly || PUSH_FREE_CALLS.has(name)) continue;
       undo.push(registerOutbox(name as SharedCallName, (_output, saved, q) => pushRows(q, saved)));

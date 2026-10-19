@@ -7,6 +7,7 @@ import { readLiteOffice } from '../data/lite/office';
 import type { SaveResult } from '../data/save';
 import type { OutboxRow } from '../core/effects';
 import type { Deps, Query } from '../core/ports';
+import type { ChatPushItem } from './chatRule';
 import { sendPush, PushSendError } from './send';
 import { PushConfigError } from './vapid';
 
@@ -83,6 +84,26 @@ export const PUSH_NOTICE_PEOPLE_LITE = 'select distinct user_id from notificatio
 export const PUSH_DEVICE_PEOPLE_LITE = 'select distinct user_id from push_devices where user_id in (select value from json_each(?1))';
 export const MESSAGE_LITE = 'select conversation_id, doc from messages where id = ?1';
 
+/**
+ * $1 the person, $2 the items as JSON text ([{ chatId, itemId }]). The items of a waited push that are still new for the person: the
+ * message or the comment exists, a message is not deleted, and the person has no read mark of that chat or task thread that is newer.
+ * The stamps compare as text with collate "C", as the unread count does (server/data/loaders/sqlSource.ts, BOUND_TERMS). It runs on
+ * the primary, as devicesOf does, because the read or the delete may have committed a moment ago.
+ */
+export const PUSH_STILL_NEW_SQL = `select i."itemId" as item_id
+from jsonb_to_recordset($2::jsonb) as i("chatId" text, "itemId" text)
+left join messages m on m.id = i."itemId"
+left join comments k on k.id = i."itemId"
+left join chat_reads r on r.conversation_id = i."chatId" and r.user_id = $1
+where coalesce(m.created_at, k.created_at) is not null
+  and (m.id is null or m.doc->>'deletedAt' is null)
+  and (r.conversation_id is null or coalesce(m.created_at, k.created_at) collate "C" > (r.doc->>'lastReadAt') collate "C")
+order by 1`;
+
+// The SQLite forms of PUSH_STILL_NEW_SQL: one message or comment and one read mark at a time, then the same test in JavaScript.
+export const PUSH_COMMENT_LITE = 'select target_type, target_id, created_at, doc from comments where id = ?1';
+export const CHAT_READ_LITE = 'select doc from chat_reads where conversation_id = ?1 and user_id = ?2';
+
 /** $1 the person. The push addresses of an active human, oldest device first. */
 export const PUSH_DEVICES_SQL = `select d.endpoint
 from push_devices d join users u on u.id = d.user_id
@@ -156,6 +177,41 @@ async function litePushRows(q: Query, saved: Pick<SaveResult, 'kinds' | 'people'
   if (people.size === 0) return [];
   const withDevice = new Set((await q<PersonRow>(PUSH_DEVICE_PEOPLE_LITE, [[...people].sort()])).map((row) => row.user_id));
   return [...people].filter((userId) => withDevice.has(userId)).sort().map((userId) => ({ kind: PUSH_EFFECT, payload: { userId } }));
+}
+
+/** The items of a waited push that are still new for the person (PUSH_STILL_NEW_SQL), on both databases. */
+async function stillNewItems(deps: Deps, userId: string, items: ChatPushItem[]): Promise<string[]> {
+  if (!isLite(deps.db)) {
+    const rows = await deps.db.statement<{ item_id: string }>('write', PUSH_STILL_NEW_SQL, [userId, JSON.stringify(items)]);
+    return rows.map((row) => row.item_id);
+  }
+  const fresh: string[] = [];
+  for (const { chatId, itemId } of items) {
+    let createdAt: string | undefined;
+    if (itemId.startsWith('msg_')) {
+      const [message] = await deps.db.statement<{ doc: { createdAt?: string; deletedAt?: string } }>('write', MESSAGE_LITE, [itemId]);
+      if (message && message.doc.deletedAt === undefined) createdAt = message.doc.createdAt;
+    } else {
+      const [comment] = await deps.db.statement<{ created_at: string }>('write', PUSH_COMMENT_LITE, [itemId]);
+      createdAt = comment?.created_at;
+    }
+    if (createdAt === undefined) continue;
+    const [read] = await deps.db.statement<{ doc: { lastReadAt?: string } }>('write', CHAT_READ_LITE, [chatId, userId]);
+    if (!read || (read.doc.lastReadAt !== undefined && createdAt > read.doc.lastReadAt)) fresh.push(itemId);
+  }
+  return fresh.sort();
+}
+
+/**
+ * The push.chat effect (chat design item 20): it runs 10 seconds after the answer (WAITED_KINDS), asks which items the person has
+ * not read on any device and which are not deleted, and sends the one empty push only when one is left.
+ */
+export async function sendChatPush(payload: Record<string, unknown>, deps: Deps): Promise<void> {
+  const userId = String(payload.userId ?? '');
+  const items = Array.isArray(payload.items) ? (payload.items as ChatPushItem[]) : [];
+  if (items.length === 0) return;
+  if ((await stillNewItems(deps, userId, items)).length === 0) return;
+  await sendPushNotify({ userId }, deps);
 }
 
 /** The push.notify effect: one push to each device of one person. */
