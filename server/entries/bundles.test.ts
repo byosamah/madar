@@ -149,7 +149,9 @@ describe('the minified function bundles (performance audit SRV-11)', () => {
   it('builds the api bundle minified, and it still answers a preflight', async () => {
     const file = await build('api', 'server/entries/deno-api.ts', join(OUT, 'api'));
     const text = readFileSync(file, 'utf8');
-    expect(text.length).toBeLessThan(700_000);
+    // The bound proves the minify: a bundle that is not minified is far larger. The chat batch of 2026-10-19 (search, the push rules,
+    // edit and delete, Notify me) took the minified bundle from about 688,000 to 711,111 characters, so the bound is 760,000.
+    expect(text.length).toBeLessThan(760_000);
     expect(text.includes('JWTExpired')).toBe(true);
     expect(text.includes('@param {import(')).toBe(false);
     expect(checkBundles('server', dirname(file)).ok).toBe(true);
