@@ -31,5 +31,117 @@
       "meeting_invited": "اجتماع جديد أو معدّل أو ملغى لي",
       "meeting_soon": "اجتماع يبدأ قريبًا"
     }
+  },
+  "meetings": {
+    "switch": {
+      "label": "عرض",
+      "meetings": "الاجتماعات"
+    },
+    "new": "اجتماع جديد",
+    "empty": "لا اجتماعات لك في الأيام الستين القادمة.",
+    "list": "اجتماعاتك",
+    "group": {
+      "today": "اليوم",
+      "week": "هذا الأسبوع",
+      "later": "لاحقًا"
+    },
+    "earlier": "السابقة ({{n}})",
+    "kind": {
+      "meeting": "اجتماع",
+      "client": "اجتماع عميل",
+      "team": "اجتماع الفريق",
+      "site_visit": "زيارة موقع"
+    },
+    "state": {
+      "now": "الآن",
+      "cancelled": "ملغى",
+      "done": "انتهى"
+    },
+    "range": "{{from}} إلى {{to}}",
+    "sheet": {
+      "gone": "هذا الاجتماع غير متاح.",
+      "menu": "خيارات الاجتماع",
+      "edit": "تعديل",
+      "cancel": "إلغاء الاجتماع",
+      "join": "انضم",
+      "teamView": "افتح عرض اجتماع الفريق",
+      "when": "الموعد",
+      "where": "المكان",
+      "project": "المشروع",
+      "officeNote": "اجتماع المكتب. يراه المشاركون فيه فقط.",
+      "organizer": "المنظّم",
+      "people": "المشاركون",
+      "minutesBy": "كاتب المحضر",
+      "minutesTask": "افتح مهمة المحضر",
+      "guests": "الضيوف",
+      "notes": "ملاحظات",
+      "cancelTitle": "إلغاء هذا الاجتماع؟",
+      "cancelBody": "يصل إشعار إلى المشاركين في الاجتماع.",
+      "cancelConfirm": "إلغاء الاجتماع",
+      "keep": "إبقاء الاجتماع",
+      "cancelled": "أُلغي الاجتماع."
+    },
+    "form": {
+      "newTitle": "تخطيط اجتماع",
+      "editTitle": "تعديل الاجتماع",
+      "kind": "النوع",
+      "title": "العنوان",
+      "project": "المشروع",
+      "noProject": "بدون مشروع (اجتماع مكتب)",
+      "day": "اليوم",
+      "time": "الوقت",
+      "length": "المدة",
+      "people": "المشاركون",
+      "where": "المكان",
+      "more": "المزيد",
+      "minutesBy": "كاتب المحضر",
+      "nobody": "لا أحد",
+      "guests": "الضيوف",
+      "notes": "ملاحظات",
+      "officeHint": "يرى الاجتماع الذي بلا مشروع أنت والأشخاص الذين تختارهم فقط.",
+      "peopleHint": "يصلهم إشعار.",
+      "chosen": "اخترت {{n}} أشخاص",
+      "chosen_zero": "لم تختر أحدًا",
+      "chosen_one": "اخترت شخصًا واحدًا",
+      "chosen_two": "اخترت شخصين",
+      "chosen_few": "اخترت {{count}} أشخاص",
+      "chosen_many": "اخترت {{count}} شخصًا",
+      "chosen_other": "اخترت {{count}} شخص",
+      "guestsHint": "أشخاص من خارج المكتب. لا يصلهم إشعار.",
+      "whereHint": "مكان أو رابط انضمام.",
+      "moved": "يصل إشعار إلى الحاضرين.",
+      "plan": "تخطيط الاجتماع",
+      "save": "حفظ التغييرات",
+      "planned": "خُطّط للاجتماع.",
+      "saved": "حُفظ الاجتماع.",
+      "min": "{{n}} د",
+      "hour": "{{n}} س",
+      "hourMin": "{{h}} س {{m}} د"
+    },
+    "home": {
+      "title": "اجتماعات اليوم",
+      "all": "كل الاجتماعات"
+    },
+    "project": {
+      "title": "الاجتماعات",
+      "plan": "خطّط لاجتماع",
+      "none": "لا اجتماع مخطط."
+    }
+  },
+  "feed": {
+    "meeting": {
+      "created_meeting": "خطّط لاجتماع «{{label}}»",
+      "created_meeting_female": "خطّطت لاجتماع «{{label}}»",
+      "created_visit": "خطّط لزيارة الموقع «{{label}}»",
+      "created_visit_female": "خطّطت لزيارة الموقع «{{label}}»",
+      "updated_meeting": "غيّر الاجتماع «{{label}}»",
+      "updated_meeting_female": "غيّرت الاجتماع «{{label}}»",
+      "updated_visit": "غيّر زيارة الموقع «{{label}}»",
+      "updated_visit_female": "غيّرت زيارة الموقع «{{label}}»",
+      "cancelled_meeting": "ألغى الاجتماع «{{label}}»",
+      "cancelled_meeting_female": "ألغت الاجتماع «{{label}}»",
+      "cancelled_visit": "ألغى زيارة الموقع «{{label}}»",
+      "cancelled_visit_female": "ألغت زيارة الموقع «{{label}}»"
+    }
   }
 }

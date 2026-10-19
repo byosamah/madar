@@ -6,6 +6,7 @@ import { WelcomeScreen } from '../features/auth/WelcomeScreen';
 import { DashboardScreen } from '../features/dashboard/DashboardScreen';
 import { MeetingView } from '../features/dashboard/MeetingView';
 import { InboxScreen } from '../features/inbox/InboxScreen';
+import { MeetingsScreen } from '../features/meetings/MeetingsScreen';
 import { OpenSpaceScreen } from '../features/space/OpenSpaceScreen';
 import { NotificationsScreen } from '../features/notifications/NotificationsScreen';
 import { ConsentScreen } from '../features/oauth/ConsentScreen';
@@ -28,6 +29,7 @@ export const LOADERS = {
   projects: () => Promise.resolve(ProjectsScreen),
   project: () => Promise.resolve(ProjectScreen),
   work: () => Promise.resolve(WorkScreen),
+  meetings: () => Promise.resolve(MeetingsScreen),
   inbox: () => Promise.resolve(InboxScreen),
   notifications: () => Promise.resolve(NotificationsScreen),
   search: () => Promise.resolve(SearchScreen),

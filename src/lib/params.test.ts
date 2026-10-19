@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clientParam, dayParam, oneOf, userParam } from './params';
+import { clientParam, closeMeeting, dayParam, meetingParam, oneOf, openMeeting, userParam } from './params';
 
 describe('link values', () => {
   it('keeps a known value and falls back on anything else', () => {
@@ -22,5 +22,15 @@ describe('link values', () => {
     expect(clientParam('cli_001')).toBe('cli_001');
     expect(clientParam('usr_001')).toBeUndefined();
     expect(clientParam('')).toBeUndefined();
+  });
+
+  it('opens and closes the sheet of a meeting by its id (fbk_022)', () => {
+    expect(meetingParam('mtg_001')).toBe('mtg_001');
+    expect(meetingParam('tsk_001')).toBeUndefined();
+    expect(meetingParam('mtg_1')).toBeUndefined();
+    expect(meetingParam(null)).toBeUndefined();
+    const open = openMeeting(new URLSearchParams('x=1'), 'mtg_002');
+    expect(open.toString()).toBe('x=1&meeting=mtg_002');
+    expect(closeMeeting(open).toString()).toBe('x=1');
   });
 });

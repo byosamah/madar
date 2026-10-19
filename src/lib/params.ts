@@ -52,3 +52,22 @@ export function taskLink(projectId: string | null, taskId: string, thread = fals
   if (projectId === null) return `/work?task=${taskId}${thread ? '&thread=1' : ''}`;
   return `/projects/${projectId}?tab=tasks&task=${taskId}${thread ? '&thread=1' : ''}`;
 }
+
+/** A meeting from the link, when it has the form of a meeting id (fbk_022). Anything else opens no sheet. */
+export function meetingParam(value: string | null): string | undefined {
+  return value && /^mtg_\d{3,}$/.test(value) ? value : undefined;
+}
+
+/** The link of the Meetings view with the sheet of one meeting open over it (fbk_022). */
+export function openMeeting(current: URLSearchParams, meetingId: string): URLSearchParams {
+  const next = new URLSearchParams(current);
+  next.set('meeting', meetingId);
+  return next;
+}
+
+/** The link of the Meetings view without the sheet. */
+export function closeMeeting(current: URLSearchParams): URLSearchParams {
+  const next = new URLSearchParams(current);
+  next.delete('meeting');
+  return next;
+}

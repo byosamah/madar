@@ -28,5 +28,7 @@ export const NOTIFICATIONS_ITEM: NavItem = { to: '/notifications', key: 'nav.not
 export function isNavActive(to: string, pathname: string): boolean {
   if (to === '/') return pathname === '/';
   if (to === '/dashboard' && pathname === '/tasks') return true;
+  // Meetings are the second view of the Tasks tab (fbk_022).
+  if (to === '/work' && pathname === '/meetings') return true;
   return pathname === to || pathname.startsWith(`${to}/`);
 }
