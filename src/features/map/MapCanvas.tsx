@@ -58,6 +58,16 @@ let loading: Promise<typeof MapLib> | undefined;
  * fetch, and the map worker obeys its own header, not the page's. A new address each release makes the browser fetch the worker
  * again with the policy of this release (the owner's map showed no tiles under the old policy, 2026-10-19).
  */
+/**
+ * Folds the credit of the map to its small "i" button. MapLibre opens a compact credit when the map starts and folds it at the first
+ * drag; the owner wants no text over the map (2026-10-19). A tap on the button still opens the credit, which the free data needs.
+ */
+export function foldCredit(box: Element): void {
+  const credit = box.querySelector('.maplibregl-ctrl-attrib');
+  credit?.removeAttribute('open');
+  credit?.classList.remove('maplibregl-compact-show');
+}
+
 export function releaseUrl(url: string, release: string | undefined): string {
   return `${url}?release=${encodeURIComponent(release ?? '0')}`;
 }
@@ -151,11 +161,13 @@ export default function MapCanvas({ pins, onPinClick, draggablePin = false, onPi
       made.addControl(new lib.NavigationControl({ showCompass: false }), near);
       if (latest.current.fullscreen) made.addControl(new lib.FullscreenControl({}), near);
       made.addControl(new lib.AttributionControl({ compact: true, customAttribution: MAP_CREDIT }), language === 'ar' ? 'bottom-left' : 'bottom-right');
+      foldCredit(element);
       made.on('click', (event) => latest.current.onMapClick?.(roundPoint(event.lngLat)));
       // An error before the first load is a map that does not start (the tiles or the style do not come). Later errors retry by themselves.
       let started = false;
       made.on('load', () => {
         started = true;
+        foldCredit(element);
         setFailed(false);
       });
       made.on('error', () => {

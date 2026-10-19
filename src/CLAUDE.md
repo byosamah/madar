@@ -100,7 +100,8 @@ any screen work.
   (`pinFromLinks` in `src/api/views.ts`); a removed pin is null and stays removed. The About panel gives "Open in Google Maps" from the pin.
 - The Dashboard has a Map tab (`src/features/dashboard/DashboardMap.tsx`, `MapPinCard.tsx`). It reads `projects.list` with the Leader, Client and Team filters, and folds the flag itself as `PinPicker.tsx` does. In the prototype it shows the pinned list and the note "The map works in the real Madar.", and no map. A person who may not edit an unpinned project sees its leader.
 - The credit of the free map is the small MapLibre button inside the map (`AttributionControl`, `compact`, `MAP_CREDIT` in
-  `MapCanvas.tsx`), never a line under it (owner, 2026-10-19). Never remove it: the data is free only with the credit (ODbL).
+  `MapCanvas.tsx`), never a line under it (owner, 2026-10-19). It starts folded to the "i" (`foldCredit`); a tap opens it. Never
+  remove the button: the data is free only with the credit (ODbL).
 - `fullscreen` on `MapCanvas` adds the MapLibre full screen button beside the zoom (the Dashboard map and the project map). A
   browser with no full screen (iPhone) fills its window instead.
 - The project Overview shows the pin under About (`features/project/overview/ProjectPlace.tsx`, "On the map", a `compact` map),
