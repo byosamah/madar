@@ -6,6 +6,7 @@ import { stagesOf } from '../../../src/api/views';
 import { normalizeForSearch } from '../../../src/lib/text';
 import type { Cond } from './query';
 import type { Load } from './build';
+import { privateMeetingsOf } from './meetings';
 import { covers, eventTargets, feed, officeState, officeTasks, tasksOf } from './steps';
 
 /**
@@ -151,6 +152,10 @@ export async function eventsList(L: Load, input: Input): Promise<void> {
     const seen = (await officeTasks(L)).map((task) => task.id);
     where.push({ or: [{ field: 'officeTaskId', null: true }, { field: 'officeTaskId', in: seen }] });
   }
+  // A change of a meeting with no project shows only to a person of that meeting, the Admin too only when invited (owner, 2026-10-19).
+  // So no person skips this test, and the limit counts only the changes that the person reads. The meetings of the person come whole.
+  const mine = (await privateMeetingsOf(L)).map((meeting) => meeting.id);
+  where.push({ or: [{ field: 'officeMeetingId', null: true }, { field: 'officeMeetingId', in: mine }] });
   const events = (await L.select({ c: 'events', where, order: { col: 'seq', desc: true }, limit: (input.limit as number | undefined) ?? 50 })) as Event[];
   await eventTargets(L, events);
 }

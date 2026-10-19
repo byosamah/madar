@@ -183,6 +183,19 @@ describe('a meeting with no project over MCP (owner, 2026-10-19)', () => {
     }
   });
 
+  it('holds nothing of it in the lists, the History or the search of the agent of the Admin', async () => {
+    const w = world();
+    for (const [name, args] of [
+      ['meetings.list', { from: '2026-10-01', to: '2026-12-31' }], ['meetings.list', { from: '2026-10-01', to: '2026-12-31', projectId: 'prj_001', mine: false }],
+      ['events.list', { limit: 500 }], ['events.list', { targetType: 'meeting', limit: 500 }], ['events.list', { targetId: hidden }],
+      ['search.query', { text: 'salary' }], ['dashboard.get', {}],
+    ] as const) {
+      const { text } = await call(w, name, args as Record<string, unknown>);
+      expect(text, name).not.toContain(SECRET_TITLE);
+      expect(text, name).not.toContain(hidden);
+    }
+  });
+
   it('shows it to the agent of its organizer and keeps the Undo of its event with the organizer', async () => {
     const w = world(OMAR_AGENT);
     const got = await call(w, 'meetings.get', { id: hidden });

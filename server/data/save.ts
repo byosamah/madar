@@ -1,4 +1,4 @@
-import type { Task } from '../../src/api/contract/entities';
+import type { Meeting, Task } from '../../src/api/contract/entities';
 import type { State } from '../../src/api/store';
 import type { Query } from '../core/ports';
 import type { ChangeSignal, Kind } from '../core/types';
@@ -57,17 +57,20 @@ export type Diff = {
   unresolvedComments: { id: string; targetType: string; targetId: string }[];
   meta: SignalMeta;
   /**
-   * True when the change touched an office task, its comments or its files (owner, 2026-10-06): its signals name no actor and no
-   * story (review 2026-10-06).
+   * True when the change touched an office task, its comments or its files (owner, 2026-10-06), or a meeting with no project, its
+   * notices or its events (fbk_022, owner 2026-10-19): its signals name no actor and no story (review 2026-10-06).
    */
   privateChange: boolean;
-  /** The people of the office tasks that the change touched, and every active Admin. */
+  /**
+   * The people of the office tasks that the change touched, and every active Admin; and the organizer and the attendees, before and
+   * after the change, of the private meetings that it touched. The Admin hears a meeting only as one of its people.
+   */
   privatePeople: Set<string>;
   /** The kinds of the project part of the change (all kinds when it touched no office task): the office signal tells only these. */
   publicKinds: Set<Kind>;
   /**
-   * True when the change touched office tasks and nothing of a project or of the office: it sends no office signal, only a person
-   * signal to each of privatePeople (review 2026-10-06).
+   * True when the change touched office tasks or private meetings and nothing of a project or of the office: it sends no office
+   * signal, only a person signal to each of privatePeople (review 2026-10-06).
    */
   privateOnly: boolean;
   /**
@@ -184,6 +187,8 @@ export function diffState(before: State, after: State): Diff {
   let meta: SignalMeta | undefined;
   /** The office tasks that the change touched: the task, its comments, its files and their events (owner, 2026-10-06). */
   const officeTasks = new Set<string>();
+  /** The meetings with no project that the change touched: the meeting, its notices and its events (fbk_022). */
+  const officeMeetings = new Set<string>();
   /** Comments whose target neither State holds: their event tells whether they belong to an office task. */
   const pendingComments: { id: string; row: Row | undefined; deleted: boolean; targetType: string; targetId: string }[] = [];
 
@@ -193,6 +198,8 @@ export function diffState(before: State, after: State): Diff {
   };
   const taskOf = (id: unknown): Rec | undefined => (typeof id === 'string' ? (after.tasks[id] ?? before.tasks[id]) as Rec | undefined : undefined);
   const isOfficeTask = (id: unknown): boolean => taskOf(id)?.projectId === null;
+  const meetingOf = (id: unknown): Rec | undefined => (typeof id === 'string' ? (after.meetings?.[id] ?? before.meetings?.[id]) as Rec | undefined : undefined);
+  const isPrivateMeeting = (id: unknown): boolean => meetingOf(id)?.projectId === null;
   /** A kind of the project part (or the office) of the change, which the office signal may tell. */
   const pub = (kind: Kind) => {
     kinds.add(kind);
@@ -229,8 +236,23 @@ export function diffState(before: State, after: State): Diff {
         for (const side of sides) {
           // A notice of an office task, or a read mark of its thread, is of the office task part.
           const officeSide = spec.collection === 'notifications' ? side.targetType === 'task' && isOfficeTask(side.targetId) : isOfficeTask(side.conversationId);
-          (officeSide ? priv : pub)(spec.collection);
+          // A notice of a meeting with no project is of the private meeting part (fbk_022).
+          const privateMeeting = spec.collection === 'notifications' && side.targetType === 'meeting' && isPrivateMeeting(side.targetId);
+          if (privateMeeting) officeMeetings.add(side.targetId as string);
+          (officeSide || privateMeeting ? priv : pub)(spec.collection);
           people.add(side.userId as string);
+        }
+        return;
+      case 'meetings':
+        for (const side of sides) {
+          // A meeting with no project belongs to its people: no project and no office signal. A project meeting belongs to its project.
+          if (side.projectId === null || side.projectId === undefined) {
+            priv('meetings');
+            officeMeetings.add(side.id as string);
+          } else {
+            pub('meetings');
+            addProject(side.projectId);
+          }
         }
         return;
       case 'comments': {
@@ -276,6 +298,10 @@ export function diffState(before: State, after: State): Diff {
         if (typeof rec!.officeTaskId === 'string') {
           priv('events');
           officeTasks.add(rec!.officeTaskId);
+        } else if (typeof rec!.officeMeetingId === 'string') {
+          // The same for a change of a meeting with no project (fbk_022).
+          priv('events');
+          officeMeetings.add(rec!.officeMeetingId);
         } else {
           pub('events');
           addProject(rec!.projectId);
@@ -383,20 +409,28 @@ export function diffState(before: State, after: State): Diff {
   if (officeTasks.size > 0) {
     for (const user of Object.values(after.users)) if (user.kind === 'human' && user.active && user.systemRole === 'admin') privatePeople.add(user.id);
   }
+  // The people of each private meeting that the change touched, before and after it: a person taken off still hears the change that
+  // drops the meeting from their lists. The Admin is not added: the Admin hears a meeting only as one of its people (owner, 2026-10-19).
+  for (const id of officeMeetings) {
+    for (const meeting of [before.meetings?.[id], after.meetings?.[id]].filter((one): one is Meeting => one !== undefined)) {
+      privatePeople.add(principal(meeting.organizerId));
+      for (const attendee of meeting.attendeeIds) privatePeople.add(attendee);
+    }
+  }
 
   const personal = kinds.size > 0 && [...kinds].every((kind) => PERSONAL_KINDS.has(kind));
-  const anonymous = publicKinds.size > 0 && projects.size === 0 && officeTasks.size === 0 && [...publicKinds].every((kind) => PRIVATE_CHAT_KINDS.has(kind));
+  const anonymous = publicKinds.size > 0 && projects.size === 0 && officeTasks.size === 0 && officeMeetings.size === 0 && [...publicKinds].every((kind) => PRIVATE_CHAT_KINDS.has(kind));
   const messageIds = tables.find((change) => change.spec.collection === 'messages')?.inserted ?? [];
   const noticeIds = tables.find((change) => change.spec.collection === 'notifications')?.inserted ?? [];
   return {
     tables, counters, kinds, projects, office: personal ? false : office, people, messageIds, noticeIds, officeRows, personal, unresolvedComments,
     meta: meta ?? { storyId: '', actorId: '' },
-    privateChange: officeTasks.size > 0,
+    privateChange: officeTasks.size > 0 || officeMeetings.size > 0,
     privatePeople,
     publicKinds,
     anonymous,
     // A comment whose project writeDiff still looks up may belong to a project, so it keeps the office signal.
-    privateOnly: officeTasks.size > 0 && !office && projects.size === 0 && unresolvedComments.length === 0,
+    privateOnly: (officeTasks.size > 0 || officeMeetings.size > 0) && !office && projects.size === 0 && unresolvedComments.length === 0,
   };
 }
 

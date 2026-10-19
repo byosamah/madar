@@ -694,6 +694,38 @@ describe('meetings (fbk_022, owner 2026-10-19)', () => {
     expect(await loadedFor(OFFICE_AGENT, { from: '2026-10-04', to: '2026-10-10' })).toEqual(await loadedFor('usr_005', { from: '2026-10-04', to: '2026-10-10' }));
   });
 
+  it('events.list holds the events of a meeting with no project for its people only, the Admin who is not invited too, on both loads', async () => {
+    const traps = trapOffice(seed);
+    const [privateOne, privateTwo] = Object.values(traps.meetings!);
+    const events = Object.values(traps.events).filter((e) => e.officeMeetingId !== undefined);
+    expect(events.map((e) => e.officeMeetingId).sort()).toEqual([privateOne.id, privateTwo.id]);
+    const ids = async (actor: string) => ((await same(traps, 'events.list', { limit: 500 }, actor)).outcome.output as { event: { id: string } }[]).map((row) => row.event.id);
+    const mine = events.find((e) => e.officeMeetingId === privateOne.id)!.id;
+    expect(await ids(privateOne.organizerId)).toContain(mine);
+    expect(await ids(privateOne.attendeeIds[0])).toContain(mine);
+    for (const outsider of [ADMIN, 'usr_003', 'usr_002']) {
+      for (const event of events) expect(await ids(outsider), `${outsider} ${event.id}`).not.toContain(event.id);
+    }
+    // The agent of the organizer of the second meeting reads what its person reads.
+    expect(await ids(OFFICE_AGENT)).toEqual(await ids(privateTwo.organizerId));
+    expect(await ids(OFFICE_AGENT)).toContain(events.find((e) => e.officeMeetingId === privateTwo.id)!.id);
+  });
+
+  it('the Undo of a meeting event asks for the meeting of the event: a person who is not in it gets not_found on both loads', async () => {
+    const traps = trapOffice(seed);
+    const [privateOne] = Object.values(traps.meetings!);
+    const created = Object.values(traps.events).find((e) => e.verb === 'meeting.created' && e.targetId === privateOne.id)!;
+    for (const outsider of [ADMIN, 'usr_003']) {
+      const run = await same(traps, 'events.undo', { eventId: created.id }, outsider);
+      expect(run.outcome.error, outsider).toMatchObject({ code: 'not_found' });
+      const story = await same(traps, 'events.undoStory', { correlationId: created.correlationId }, outsider);
+      expect(story.outcome.error, outsider).toMatchObject({ code: 'not_found' });
+    }
+    const own = await same(traps, 'events.undo', { eventId: created.id }, privateOne.organizerId);
+    expect(own.outcome.error).toBeUndefined();
+    expect(deleted(own, 'meetings')).toEqual([privateOne.id]);
+  });
+
   it('meetings.list keeps a meeting at 23:30 Riyadh on its own day on both loads', async () => {
     const state = office();
     const maker = 'usr_003';

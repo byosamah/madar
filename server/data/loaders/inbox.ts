@@ -16,13 +16,15 @@ type Input = Record<string, unknown>;
  * maker. A post or a report counts only by being there (feedbackNoticeHidden reads the notice alone), so it needs its id only.
  */
 export const INBOX_TASK_FIELDS = ['id', 'projectId', 'ownerId', 'helperIds', 'createdBy'] as const;
+/** The meeting fields that the bell reads (fbk_022): whether the meeting is there, and its view rule (mayViewMeeting). */
+export const INBOX_MEETING_FIELDS = ['id', 'projectId', 'organizerId', 'attendeeIds'] as const;
 
 async function unreadOf(L: Load, userId: string): Promise<void> {
   await L.select({ c: 'notifications', where: [{ col: 'user_id', in: [userId] }, { col: 'read', eq: false }] });
 }
 
 /**
- * The target of each notice that is not an office row: a task, a post or a report. Projects and chats are in the office. A report
+ * The target of each notice that is not an office row: a task, a post, a meeting or a report. Projects and chats are in the office. A report
  * notice reads as gone when its report is gone, so it needs the row, but the view takes no words from it (review 2026-10-07).
  * counted: the read of the bell, which takes only the fields that its count reads (performance audit DB-M2). The list and the
  * writes keep whole rows.
@@ -34,10 +36,12 @@ async function targets(L: Load, counted = false): Promise<void> {
     await pickedByKey(L, 'tasks', of('task'), INBOX_TASK_FIELDS);
     await pickedByKey(L, 'updates', of('update'), ['id']);
     await pickedByKey(L, 'feedback', of('feedback'), ['id']);
+    await pickedByKey(L, 'meetings', of('meeting'), INBOX_MEETING_FIELDS);
     return;
   }
   await L.byKey('tasks', of('task'));
   await L.byKey('updates', of('update'));
+  await L.byKey('meetings', of('meeting'));
   await L.byKey('feedback', of('feedback'));
 }
 

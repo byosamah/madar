@@ -61,3 +61,8 @@ export function onFiveMinutes(stamp: string): boolean {
 export function earliestStart(at: Date): Date {
   return new Date(at.getTime() - MEETING_LIMITS.pastDays * 24 * 60 * 60_000);
 }
+
+/** The address that opens the sheet of a meeting on the Meetings view of Tasks (fbk_022). */
+export function meetingLink(meetingId: string): string {
+  return `/meetings?meeting=${meetingId}`;
+}

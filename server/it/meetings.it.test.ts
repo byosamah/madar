@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Meeting } from '../../src/api/contract/entities';
+import { runCall } from '../core/runCall';
 import { dropSchema, localClient, migrationFiles } from './migrate';
+import { newBatch, startOffice, type ItOffice } from './runCallOffice';
 
 /**
  * The migration of meetings (fbk_022) on the local stack: the table of the Meeting record. The test applies the migrations before
@@ -92,5 +94,92 @@ describe.runIf(process.env.MADAR_IT === '1')('the meetings migration, on the loc
   it('turns on Row Level Security for the table', async () => {
     const { rows } = await db.query("select relrowsecurity from pg_class where oid = 'meetings'::regclass");
     expect(rows[0].relrowsecurity).toBe(true);
+  });
+});
+
+/**
+ * Privacy of a meeting with no project (fbk_022, owner 2026-10-19, Q4), through runCall on the local database as madar_server: the SQL
+ * conditions of the loaders (meetingConds, privateMeetingsOf), the events filter and the signals of the real save. The memory form of
+ * the same probes runs in src/api/handlers/meetingLeaks.test.ts and server/core/meetingsSignal.test.ts.
+ */
+describe.runIf(process.env.MADAR_IT === '1')('a meeting with no project, on the local database', () => {
+  const ADMIN = 'usr_001';
+  const OUTSIDER = 'usr_002';
+  const ATTENDEE = 'usr_003';
+  const ORGANIZER = 'usr_004';
+  const REMOVED = 'usr_006';
+  const TITLE = 'Salary talk DB-5521';
+  let office: ItOffice;
+  let deps: ReturnType<ItOffice['isolate']>;
+  let id: string;
+  const call = (userId: string, name: string, input: unknown) => runCall(deps, { principal: { userId }, name, input, batch: newBatch() });
+
+  beforeAll(async () => {
+    office = await startOffice('mtg');
+    deps = office.isolate();
+    const sent = deps.signal.sent.length;
+    const made = await call(ORGANIZER, 'meetings.create', { kind: 'meeting', title: TITLE, startsAt: '2026-10-06T10:00:00+03:00', attendeeIds: [ATTENDEE, REMOVED] });
+    if (!made.ok) throw new Error(`meetings.create failed: ${made.error.message}`);
+    id = (made.output as { id: string }).id;
+    expect(deps.signal.sent.slice(sent).map((signal) => signal.channel).sort()).toEqual([ATTENDEE, ORGANIZER, REMOVED].map((user) => `person:${user}`));
+  }, 60_000);
+
+  afterAll(async () => {
+    await office?.close();
+  });
+
+  it('keeps the row with no project, and sends its signals to the person channels of its people only', async () => {
+    expect(await office.sql('select id, project_id, organizer_id from meetings')).toEqual([{ id, project_id: null, organizer_id: ORGANIZER }]);
+    for (const signal of deps.signal.sent) {
+      expect(JSON.stringify(signal)).not.toContain(TITLE);
+      expect(signal.channel).not.toBe('office');
+      expect(signal).not.toHaveProperty('actorId');
+    }
+  });
+
+  it('lists it for its people and for nobody else, whoever asks, with the filters of the loaders', async () => {
+    for (const [person, seen] of [[ORGANIZER, true], [ATTENDEE, true], [REMOVED, true], [ADMIN, false], [OUTSIDER, false]] as const) {
+      for (const input of [{ from: '2026-10-01', to: '2026-12-31' }, { from: '2026-10-06', to: '2026-10-06', mine: false, projectId: 'prj_001' }]) {
+        const listed = await call(person, 'meetings.list', input);
+        if (!listed.ok) throw new Error(listed.error.message);
+        expect((listed.output as { id: string }[]).some((row) => row.id === id), `${person} ${JSON.stringify(input)}`).toBe(seen && input.mine === undefined);
+      }
+    }
+  });
+
+  it('answers get, update and cancel for the Admin who is not invited as for an unknown id', async () => {
+    for (const [name, input, missing] of [
+      ['meetings.get', { id }, { id: 'mtg_999' }], ['meetings.update', { id, notes: 'x' }, { id: 'mtg_999', notes: 'x' }], ['meetings.cancel', { id }, { id: 'mtg_999' }],
+    ] as const) {
+      const hidden = await call(ADMIN, name, input);
+      const gone = await call(ADMIN, name, missing);
+      expect(hidden.ok, name).toBe(false);
+      if (hidden.ok || gone.ok) continue;
+      expect(hidden.error.code, name).toBe('not_found');
+      expect(hidden.error.message, name).toBe(gone.error.message.replace('mtg_999', id));
+    }
+  });
+
+  it('holds none of its events in the History of the Admin or of an outsider, and all of them in the History of the organizer', async () => {
+    for (const person of [ADMIN, OUTSIDER]) {
+      const listed = await call(person, 'events.list', { limit: 500 });
+      if (!listed.ok) throw new Error(listed.error.message);
+      expect(JSON.stringify(listed.output), person).not.toContain(TITLE);
+    }
+    const own = await call(ORGANIZER, 'events.list', { limit: 500 });
+    if (!own.ok) throw new Error(own.error.message);
+    expect(JSON.stringify(own.output)).toContain('meeting.created');
+  });
+
+  it('keeps hiding it from a person who was taken off, and still tells that person by signal', async () => {
+    const sent = deps.signal.sent.length;
+    const changed = await call(ORGANIZER, 'meetings.update', { id, attendeeIds: [ATTENDEE], minutesById: null });
+    expect(changed.ok).toBe(true);
+    expect(deps.signal.sent.slice(sent).map((signal) => signal.channel).sort()).toEqual([ATTENDEE, ORGANIZER, REMOVED].map((user) => `person:${user}`));
+    const got = await call(REMOVED, 'meetings.get', { id });
+    expect(got.ok).toBe(false);
+    const listed = await call(REMOVED, 'events.list', { limit: 500 });
+    if (!listed.ok) throw new Error(listed.error.message);
+    expect(JSON.stringify(listed.output)).not.toContain(TITLE);
   });
 });

@@ -31,3 +31,9 @@ revoke all on sequence meetings_ord_seq from public, anon, authenticated;
 grant select, insert, update, delete on table meetings to madar_server;
 grant usage, select on sequence meetings_ord_seq to madar_server;
 create policy server_all on meetings for all to madar_server using (true) with check (true);
+
+-- events.list keeps the changes of a meeting with no project for its people only (doc->'officeMeetingId', as doc->'officeTaskId' does for
+-- office tasks in 20261007000100_read_indexes.sql). Without statistics on that expression, Postgres guesses few matches for the test
+-- "no officeMeetingId or one of mine" and may choose a poor plan for every events.list.
+create statistics events_office_meeting on (doc->'officeMeetingId') from events;
+analyze events;

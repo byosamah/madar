@@ -31,6 +31,9 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   `loaders/meetings.ts`: `meetings.list` reads one window (`atOrAfter` and `atBefore` on `starts_at`), `meetingConds` is the view rule in SQL
   (`project_id` in the office projects, or the person is the organizer or an attendee), and `meetingCall` reads one meeting by id with the
   minutes task and the Tracker line it names. The handler checks the view rule again on the rows. `meetings.create` reads the office only.
+  `events.list` adds the test "no `officeMeetingId`, or one of the private meetings of the person" for every person (`privateMeetingsOf`), the
+  Admin too (owner, 2026-10-19, Q4), and the migration adds the statistics `events_office_meeting` for it. `notifications.count` reads the
+  meeting of a notice with `INBOX_MEETING_FIELDS`. `projectDelete` reads the meetings of the project and their notices.
 - `events` only grows: a trigger refuses update and delete, and madar_server has only select and insert. Undo is a new
   event (`undoes`). The save never writes `undoneBy`.
 

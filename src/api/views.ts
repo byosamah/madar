@@ -72,7 +72,7 @@ export function countFiles(state: State, taskId: string): number {
 export const FEED_VERBS = new Set([
   'project.created', 'project.stage_changed', 'project.leader_changed', 'project.code_changed', 'task.created', 'task.status_changed',
   'task.approved', 'task.sent_back', 'task.version_opened', 'task.reopened', 'task.dates_shifted', 'file.added', 'file.version_added', 'member.added',
-  'project.template_synced', 'project.template_applied',
+  'project.template_synced', 'project.template_applied', 'meeting.created', 'meeting.updated', 'meeting.cancelled',
 ]);
 
 function lastLetter(value: unknown): string {
@@ -131,6 +131,13 @@ export function eventLabel(state: State, event: Event): { label: string; detail:
         return { label: name, detail: typeof after.leaderId === 'string' ? namesUnder('leader', state.users[after.leaderId]) : { leader: '' } };
       }
       return { label: name, detail: {} };
+    }
+    case 'meeting': {
+      // The title of the meeting, for the project feed and the History (fbk_022). The kind helps a screen choose its words.
+      const meeting = state.meetings?.[event.targetId];
+      const title = meeting?.title ?? (typeof after.title === 'string' ? after.title : typeof before.title === 'string' ? before.title : '');
+      const kind = meeting?.kind ?? (typeof after.kind === 'string' ? after.kind : typeof before.kind === 'string' ? before.kind : '');
+      return { label: title, detail: kind ? { kind } : {} };
     }
     case 'member': {
       const userId = event.targetId.split(':')[1] ?? '';

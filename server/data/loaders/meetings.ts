@@ -23,9 +23,17 @@ export function meetingConds(L: Load): Cond[] {
 }
 
 /** The meetings of the person (organizer or attendee), as one condition. */
-function mineConds(L: Load): Cond[] {
+export function mineConds(L: Load): Cond[] {
   if (!L.authority) return [{ col: 'id', in: [] }];
   return [{ or: [{ col: 'organizer_id', in: [L.authority.id] }, { has: 'attendeeIds', value: L.authority.id }] }];
+}
+
+/**
+ * The meetings with no project that the person takes part in, whole. A change of such a meeting shows only to them, the Admin too
+ * only when invited (owner, 2026-10-19), so events.list and the notices read this set (fbk_022).
+ */
+export async function privateMeetingsOf(L: Load): Promise<Meeting[]> {
+  return (await L.select({ c: 'meetings', where: [{ col: 'project_id', eq: null }, ...mineConds(L)] })) as Meeting[];
 }
 
 /** The rows that a meeting names: its minutes task and its Tracker line (wave 2), by id. */

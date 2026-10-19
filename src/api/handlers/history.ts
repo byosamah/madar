@@ -6,7 +6,7 @@ import { ApiError, forbidden, notFound } from '../errors';
 import { DERIVED, FOLLOW_ON, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../events';
 import { assertHasLead, assertMayFinish, reopenDependents, resyncStage, stageTag } from '../flow';
 import { feedbackNoticeHidden } from '../notify';
-import { can, holdsAdminRights, mayViewTask, meetingResource, principalOf, taskResource, type Action, type Resource } from '../permissions';
+import { can, holdsAdminRights, mayViewMeeting, mayViewTask, meetingResource, principalOf, taskResource, type Action, type Resource } from '../permissions';
 import { eventLabel, eventViewOf, mayDeleteTracker, officeResource } from '../views';
 import { involves, onlyTicks } from '../../lib/taskPeople';
 import { isRoleEvent, undoRoleChange } from './roles';
@@ -48,6 +48,12 @@ function officeOf(ctx: Ctx, event: Event, undo: boolean, viewer: User = ctx.auth
  * person than the one of the call, for example the owner of a notice.
  */
 export function seesEvent(ctx: Ctx, event: Event, undo = false, viewer: User = ctx.authority): boolean {
+  // A change of a meeting with no project shows to the people of that meeting only. The Admin has no extra view (owner, 2026-10-19).
+  // A meeting that is gone shows its changes to nobody, so the History tells nothing of it.
+  if (event.officeMeetingId) {
+    const meeting = ctx.state.meetings?.[event.officeMeetingId];
+    return meeting !== undefined && mayViewMeeting(ctx.state, viewer, meeting);
+  }
   return !event.officeTaskId || can(viewer, 'task.view', officeOf(ctx, event, undo, viewer));
 }
 
@@ -396,6 +402,13 @@ function noticeTaskHidden(ctx: Ctx, targetType: string, targetId: string, person
   return task !== undefined && task.projectId === null && !mayViewTask(ctx.state, person, task);
 }
 
+/** True for a notice of a meeting with no project that the person may not see: the rule of a gone notice (notifications.ts). */
+function noticeMeetingHidden(ctx: Ctx, targetType: string, targetId: string, person: User): boolean {
+  if (targetType !== 'meeting') return false;
+  const meeting = ctx.state.meetings?.[targetId];
+  return meeting !== undefined && !mayViewMeeting(ctx.state, person, meeting);
+}
+
 /** The number of standing changes that moved this report from open to done. Each one sent the one done notice (owner, 2026-10-07). */
 function movesToDone(standing: Event[], reportId: string): number {
   return standing.filter((e) => e.targetType === 'feedback' && e.targetId === reportId
@@ -419,6 +432,8 @@ function dropNotices(ctx: Ctx, correlationId: string): void {
     // A notice of an office task that its owner no longer sees already reads as gone and names nothing. It stays, so an Undo never
     // changes the list or the count of a person who left the task (final check 3, review 2026-10-06).
     if (owner !== undefined && noticeTaskHidden(ctx, notice.targetType, notice.targetId, owner)) continue;
+    // The same for the notice of a meeting that its owner no longer sees (a person taken off the attendees, fbk_022).
+    if (owner !== undefined && noticeMeetingHidden(ctx, notice.targetType, notice.targetId, owner)) continue;
     // The same for the notice of a new report that a former Admin holds (owner, 2026-10-07).
     if (owner !== undefined && feedbackNoticeHidden(notice, owner)) continue;
     let kept: boolean;
@@ -433,7 +448,7 @@ function dropNotices(ctx: Ctx, correlationId: string): void {
       // takes back only the notice of that report (owner, 2026-10-07).
       kept = standing.some((e) => e.targetType === 'feedback' && e.targetId === notice.targetId);
     } else {
-      kept = standing.some((e) => !e.officeTaskId || (owner !== undefined && seesEvent(ctx, e, true, owner)));
+      kept = standing.some((e) => (!e.officeTaskId && !e.officeMeetingId) || (owner !== undefined && seesEvent(ctx, e, true, owner)));
     }
     if (!kept) delete ctx.state.notifications[id];
   }

@@ -174,7 +174,8 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - Office tasks count in the lists of a person, `overdueTasks`, the workload, `inReview` and the gaps of `dashboard.get`, only
   with no people filter. They never count in a project number.
 - Three functions hold the rule of a hidden notice: `hiddenTask` (`notifications.ts`) and `noticeTaskHidden`
-  (`handlers/history.ts`) for an office task, and `feedbackNoticeHidden` (`notify.ts`) for a report. Change them together.
+  (`handlers/history.ts`) for an office task, and `feedbackNoticeHidden` (`notify.ts`) for a report. Change them together. A fourth,
+  `hiddenMeeting` (`notifications.ts`) with `noticeMeetingHidden` (`history.ts`), holds the rule of a meeting with no project (fbk_022).
 
 ## Task makers (owner, 2026-10-07)
 - The person who adds a project task (`principalOf(createdBy)`, so the task of an agent belongs to its person) holds the
@@ -348,6 +349,14 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   a person; `createdBy` is the agent).
 - `rev` starts at 1 and grows with a change of the start, the end or the place, and with a cancel. It is not in the event: an Undo of a meeting
   change raises `rev` once more (`undoOne`), so `rev` never goes down and a calendar sees the change.
+- A hidden meeting answers as a missing one (owner, 2026-10-19): `not_found` Meeting (`requireMeeting`) on get, update and cancel, and nothing in
+  `meetings.list`, `events.list` or `search.query`. Every event of a meeting with no project carries `officeMeetingId` (`events.ts`, as
+  `officeTaskId`), and `seesEvent` (`handlers/history.ts`) shows it to the people of that meeting only. The Admin who is not invited sees
+  nothing, and a meeting that is gone shows its events to nobody. An Undo event takes the `officeMeetingId` of the event it undoes.
+  `events.undo` and `events.undoStory` answer such an event or story as a missing one. The notice of a meeting that its owner no longer sees
+  (a person taken off the attendees) reads as gone and names nothing (`hiddenMeeting`, `notifications.ts`; `noticeMeetingHidden`, `history.ts`);
+  `notify` skips a person who does not see the meeting. The leak tests: `handlers/meetingLeaks.test.ts`, `server/mcp/meetingTools.test.ts`,
+  `server/core/meetingsSignal.test.ts`, `server/it/meetings.it.test.ts`.
 - `projects.delete` deletes the meetings of the project and their notices. A person who is an attendee and leaves keeps the record.
 - `Task.meetingId`, `TrackerEntry.auto: 'meeting'` and `Meeting.settledAt`, `minutesTaskId`, `trackerEntryId`, `seriesId`, `repeat` are in the
   contract for the later waves (minutes, series). Nothing sets them in wave 1.

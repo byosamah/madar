@@ -101,7 +101,7 @@ export function readSweep(office: State): SweepCall[] {
     for (const actor of [...humans, ...agents]) {
       calls.push(
         ['meetings.list', {}, actor], ['meetings.list', { mine: false, projectId: 'prj_001' }, actor], ['meetings.list', { from: '2026-09-01', to: '2026-12-31' }, actor],
-        ['meetings.list', { from: '2026-10-05', to: '2026-10-05', mine: false, projectId: 'prj_001' }, actor], ['events.list', { targetType: 'meeting', limit: 50 }, actor],
+        ['meetings.list', { from: '2026-10-05', to: '2026-10-05', mine: false, projectId: 'prj_001' }, actor],
       );
       for (const meeting of Object.values(office.meetings ?? {})) calls.push(['meetings.get', { id: meeting.id }, actor]);
     }

@@ -1,15 +1,16 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { Day, isEmailTrigger, Notification, NotificationId, Trigger, User, type Event, type Task } from '../contract/entities';
+import { Day, isEmailTrigger, Notification, NotificationId, Stamp, Trigger, User, type Event, type Task } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { canSeeConversation } from '../chatState';
 import { applyPatch } from '../events';
 import { feedbackNoticeHidden } from '../notify';
 import type { State } from '../store';
-import { can, mayViewTask, taskResource } from '../permissions';
+import { can, mayViewMeeting, mayViewTask, taskResource } from '../permissions';
 import { cardOf } from '../views';
 import { markOf } from '../../lib/projectMark';
+import { meetingLink } from '../../lib/meetings';
 import { taskLink } from '../../lib/params';
 import { stampDay } from '../../lib/dates';
 
@@ -40,6 +41,8 @@ export const NotificationView = z.object({
    * Null for any other notice. For a group, "target" is its name while the viewer is a member, else empty.
    */
   chatKind: z.enum(['project', 'direct', 'group']).nullable().default(null),
+  /** The start of the meeting of a meeting notice, so the words name the time (fbk_022). Null for any other notice, and for a meeting the viewer no longer sees. */
+  startsAt: Stamp.nullable().default(null),
 });
 export type NotificationView = z.infer<typeof NotificationView>;
 
@@ -68,9 +71,20 @@ function hiddenTask(state: State, n: Notification, viewer: User): boolean {
   return task !== null && task.projectId === null && !mayViewTask(state, viewer, task);
 }
 
+/**
+ * A meeting of a notice that the viewer may not see: a meeting with no project that the viewer is no longer on (fbk_022, owner
+ * 2026-10-19). Its notice reads as gone and names nothing. The Admin is not an exception.
+ */
+function hiddenMeeting(state: State, n: Notification, viewer: User): boolean {
+  if (n.targetType !== 'meeting') return false;
+  const meeting = state.meetings?.[n.targetId];
+  return meeting !== undefined && !mayViewMeeting(state, viewer, meeting);
+}
+
 /** True when the item of a notice is gone, or is a chat the viewer can no longer see. It builds no text, so the badge count stays cheap. */
 function isGone(state: State, n: Notification, viewer: User): boolean {
   if (n.targetType === 'task') return !state.tasks[n.targetId] || hiddenTask(state, n, viewer);
+  if (n.targetType === 'meeting') return !state.meetings?.[n.targetId] || hiddenMeeting(state, n, viewer);
   if (n.targetType === 'update') return !state.updates[n.targetId];
   if (n.targetType === 'project') return !state.projects[n.targetId];
   if (n.targetType === 'chat') {
@@ -93,6 +107,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   const gone = isGone(state, n, viewer);
   let dueDate: string | null = null;
   let chatKind: NotificationView['chatKind'] = null;
+  let startsAt: string | null = null;
   if (n.targetType === 'task' && hiddenTask(state, n, viewer)) {
     // Nothing of an office task that the viewer no longer sees: no title, no day, no link (owner, 2026-10-06).
   } else if (n.targetType === 'task') {
@@ -135,6 +150,17 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     // A restart reminder names its planned day, so the screen says "is today" or "was <day>" (fbk_025). A notice saved before it
     // kept the day takes the day it was made: the job makes it on the planned day or the first run after it.
     if (n.trigger === 'resume_due') dueDate = n.dueDate ?? stampDay(n.createdAt);
+  } else if (n.targetType === 'meeting') {
+    // Nothing of a meeting that the viewer does not see or that is gone: no title, no time, no project, no link.
+    const meeting = gone ? undefined : state.meetings?.[n.targetId];
+    if (meeting) {
+      const project = meeting.projectId ? state.projects[meeting.projectId] : undefined;
+      target = meeting.title;
+      projectCode = project?.code ?? null;
+      tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
+      link = meetingLink(meeting.id);
+      startsAt = meeting.startsAt;
+    }
   } else if (n.targetType === 'feedback') {
     if (gone) {
       // A former Admin reads nothing of the report: no words, no sender and no link (owner, 2026-10-07). The same for a report
@@ -143,7 +169,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
       const { feedback: _words, correlationId: _story, ...rest } = n;
       return {
         notification: { ...rest, actorId: null, targetId: 'hidden' }, actor: null, target: '', projectCode: null, project: null, link: '',
-        needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove: false, gone, dueDate: null, chatKind: null,
+        needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove: false, gone, dueDate: null, chatKind: null, startsAt: null,
       };
     }
     // The notice keeps the start of the message, so it needs no report row. A done notice opens nothing: it only tells the sender.
@@ -152,7 +178,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   }
   return {
     notification: n, actor: n.actorId ? cardOf(state, n.actorId) : null, target, projectCode, project: tile, link,
-    needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove, gone, dueDate, chatKind,
+    needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove, gone, dueDate, chatKind, startsAt,
   };
 }
 
