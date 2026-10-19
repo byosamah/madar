@@ -3,6 +3,30 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-20": {
+        "title": "The ring on Home",
+        "body": "The ring next to the date on Home now says what it counts: how many of your tasks for today are done."
+      },
+      "2026-10-23-19": {
+        "title": "A restart reminder",
+        "body": "The planned restart of a paused project is a reminder. On that day the person who paused the project and its leader get a notice: resume the project or set a new date."
+      },
+      "2026-10-23-18": {
+        "title": "Tasks with no lead",
+        "body": "The Workload of the Dashboard has a No lead row. It counts the open tasks that nobody leads, for each week. Press a number to see the tasks."
+      },
+      "2026-10-23-17": {
+        "title": "Reasons in task chats",
+        "body": "The reason for a new date or a reopened task shows as a short line in the task chat, not as a message from a person."
+      },
+      "2026-10-23-16": {
+        "title": "Your tasks in the morning email",
+        "body": "The morning email now lists your open tasks: past due, today and this week, with the project of each task."
+      },
+      "2026-10-23-15": {
+        "title": "AI agents set stage dates",
+        "body": "An AI agent of a project leader can now set the start and end dates of a stage, as the leader does in the Schedule tab."
+      },
       "2026-10-23-14": {
         "title": "Apply a template to your project",
         "body": "Now the leader of a project can apply a template to an ongoing project. Open the project menu and press Apply a template. Madar adds the stages and tasks that the project does not have yet, from today."
