@@ -690,4 +690,18 @@ Builders: Haiku 5.5. Checkers: Sonnet 5.5 (owner, 2026-10-18, for these builds).
 - [x] fbk_029 (Osama): a frame step (drag, zoom, round previews, Save) for the profile picture, one shared `PictureFrame` with the sub-company logo
 - [x] fbk_031 (Faisal), bug: a Stage field for every task in the template editor; the move keeps the days of a saved task, and a task that Add task just made goes where Add task would put it in the new stage
 - [ ] Release: the owner says when it is live, then `feedback.setStatus` done for fbk_028, fbk_029, fbk_030, fbk_031 and fbk_032
-- [ ] Open for the merge lead: the update of linked projects (`syncDiff`) has no kind for a task that moved to another stage; `chats.waiting` stays in the contract and on the MCP allow list but no screen reads it; the `it` test `server/it/markUnread.it.test.ts` needs Docker (not run here)
+- [ ] Open: the update of linked projects (`syncDiff`) has no kind for a task that moved to another stage; `chats.waiting` stays in the contract and on the MCP allow list but no screen reads it
+- [x] `server/it/markUnread.it.test.ts` ran in the join gate (2026-10-19, test:it 318 passed after the fix of 2 Google tests)
+
+## Meetings (fbk_022, plan `docs/superpowers/plans/2026-10-19-madar-meetings-plan.md`)
+
+- [x] Wave 1 (Tasks 1 to 6): the meetings, private meetings with no project, Home and the project tab; on main at 5bc54585, no "Minutes by" (owner, 2026-10-19: any attendee writes the minutes); the privacy page `/privacy` for Google (5e1e537)
+- [ ] Wave 1 release: the owner pushes main and runs production at 5e1e537
+- [x] Wave 2, track minutes (`rb/meetings-minutes`): the 15-minute job settles an ended meeting and makes its Tracker line; any attendee writes the minutes; files of a meeting with no project stay with its people; What's new 2026-10-23-24
+- [x] Wave 2, track gcal (`rb/meetings-gcal`): one-way Google Calendar connect in Settings (scope `calendar.app.created`, only the title, the time and the place); the callback passes the code to the signed-in screen, which calls `google.connect`; What's new 2026-10-23-25
+- [x] Join on `rb/meetings-join` with the five team requests (2026-10-19) and two security fixes: the organizer is the author of the Tracker line of a meeting, and only the leader or the Admin deletes it; `users.remove` sets the Google row of the person to revoking in its own transaction, so the cleanup deletes it when Google never answers
+- [x] Join gates (2026-10-19): typecheck, npm test 7,263 (1 deploy-script test timed out under load, 53 of 53 alone), test:lite 1,773, test:office 38, builds, test:db 1,773, test:it 318 (2 new Google tests fixed: the local runCall runs gcal.revoke at once; the cleanup test has the Google count), test:mcp 240 and conformance 5 of 32 as expected, prototype smoke 87 of 87
+- [ ] Join to main and the test copy after the wave 1 release; then `scripts/google/setup-secrets.ts test` and `production` from deploy-test (the 3 Google secrets), `all.sh test`, the deploy suite
+- [ ] Task 14.5: the owner connects Google Calendar on the test copy; check the replaced flag (does a revoke of an old refresh token end a newer one?) and the second "Madar" calendar
+- [ ] Wave 2 release: production by the owner; fbk_022 stays open until wave 3 is live
+- [ ] Wave 3: repeating meetings (every day Sunday to Thursday, every week, every 2 weeks)
