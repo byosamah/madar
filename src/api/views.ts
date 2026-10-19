@@ -373,6 +373,9 @@ export function commentViewOf(state: State, comment: Comment, viewer: User): Com
       : canEditContent(state, target.projectId, comment.authorId, viewer),
     files: attachmentsOf(state, comment.fileIds),
     kind: lineKindOf(comment),
+    // The reply link and the names-you mark come in base B5.
+    replyTo: null,
+    namesMe: false,
   };
 }
 

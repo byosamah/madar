@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { INITIALS_PATTERN, RECORD_CODE_PATTERN } from '../../lib/projectCode';
-import { DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, PICTURE_DATA, REACTIONS } from './limits';
+import { DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, NOTIFY_LEVELS, PICTURE_DATA, REACTIONS } from './limits';
 import { PUSH_ENDPOINT_MAX, PUSH_LABEL_MAX, isPushEndpoint } from './push';
 
 // The plain limits live in limits.ts, with no zod, for the screens of the first load (performance audit BND-6).
-export { DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, PICTURE_DATA, REACTIONS };
+export { DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, NOTIFY_LEVELS, PICTURE_DATA, REACTIONS };
 
 const id = (prefix: string) =>
   z.string().regex(new RegExp(`^${prefix}_\\d{3,}$`), `Expected an id like ${prefix}_001.`);
@@ -70,6 +70,10 @@ export const ADMIN_ONLY_TRIGGERS: ReadonlySet<Trigger> = new Set<Trigger>(['feed
 
 export const Reaction = z.enum(REACTIONS);
 export type Reaction = z.infer<typeof Reaction>;
+
+/** The "Notify me" level of a person for one chat: every message, or only a message that names the person (limits.ts, NOTIFY_LEVELS). */
+export const NotifyLevel = z.enum(NOTIFY_LEVELS);
+export type NotifyLevel = z.infer<typeof NotifyLevel>;
 
 export const EventTarget = z.enum([
   'project', 'member', 'stage', 'deadline', 'task', 'update', 'comment', 'file', 'client', 'user', 'settings', 'stageTemplate', 'taskTemplate', 'tracker', 'payment', 'feedback', 'team',
@@ -603,6 +607,11 @@ export const Comment = z.object({
   dates: DateMove.optional(),
   // Only on the line that Madar writes when a task opens again. Other comments have none.
   kind: CommentKind.optional(),
+  /**
+   * The comment of the same task that this comment answers (chat design item 10, owner 2026-10-19). A link, never a copy. Optional,
+   * so older comments load.
+   */
+  replyToId: CommentId.optional(),
   createdAt: Stamp,
   editedAt: Stamp.nullable(),
 });
@@ -655,6 +664,21 @@ export const Message = z.object({
   mentions: z.array(UserId),
   // Older saved messages have no list. A missing list means no files.
   fileIds: z.array(FileId).max(MAX_ATTACHMENTS).optional(),
+  /**
+   * The message of the same chat that this message answers (chat design item 10, owner 2026-10-19). A link, never a copy: an edit
+   * shows the new text, and a deleted message shows as "Deleted message". Optional, so older messages load.
+   */
+  replyToId: MessageId.optional(),
+  /**
+   * The reactions on this message (item 12), as on a comment. A written record holds all three keys (emptyReactions). A missing
+   * record means no reactions. Optional, so older messages load.
+   */
+  reactions: z.record(Reaction, z.array(UserId)).optional(),
+  /**
+   * Set when the author deletes the message (item 11). A set value means deleted: no read path gives the message, until an Undo
+   * removes the key. Optional, so older messages load.
+   */
+  deletedAt: Stamp.optional(),
   createdAt: Stamp,
   editedAt: Stamp.nullable(),
 });
@@ -668,6 +692,11 @@ export type Message = z.infer<typeof Message>;
  */
 export const ChatRead = z.object({
   conversationId: z.union([ConversationId, TaskId]), userId: UserId, lastReadAt: Stamp, archivedAt: Stamp.nullable().optional(),
+  /**
+   * The "Notify me" choice of the person for this chat (item 21). Missing means the start value of the chat kind (notifyLevelOf):
+   * "named" for a project chat, "all" for a direct chat or a group. Optional, so older read marks load.
+   */
+  notify: NotifyLevel.optional(),
 });
 export type ChatRead = z.infer<typeof ChatRead>;
 
@@ -793,6 +822,13 @@ export const Notification = z.object({
   dueDate: Day.optional(),
   /** The words of a report notice. Optional, so older notices load. */
   feedback: NoticeFeedback.optional(),
+  /**
+   * The chat message or the task comment that a mention notice points to, so a press opens the chat at that message (item 17).
+   * Optional, so older notices load.
+   */
+  messageId: z.string().min(1).max(40).optional(),
+  /** True on a notice of a reply: the person wrote the message that this one answers (item 10). Optional, so older notices load. */
+  reply: z.literal(true).optional(),
 });
 export type Notification = z.infer<typeof Notification>;
 

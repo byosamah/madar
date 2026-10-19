@@ -8,6 +8,12 @@
 export const REACTIONS = ['👍', '✅', '👀'] as const;
 
 /**
+ * The "Notify me" choices of a person for one chat (chat design item 21, owner 2026-10-19): "all" is every message, "named" is
+ * only a message that names the person. A plain value, so a screen of the Inbox chunk reads it with no zod.
+ */
+export const NOTIFY_LEVELS = ['all', 'named'] as const;
+
+/**
  * The profile picture (owner item 10, 2026-10-05). The browser cuts it to a 128 px square and saves it as a data address,
  * so no file store holds it. A data address of a WebP, JPEG or PNG picture.
  */

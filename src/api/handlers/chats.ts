@@ -176,6 +176,9 @@ function messageViewOf(state: State, message: Message, viewer: User): MessageVie
     actingFor: message.actingForId !== message.authorId ? cardOf(state, message.actingForId) : null,
     mine: isMine(state, message, viewer.id),
     files: attachmentsOf(state, fileIds),
+    // The reply link and the names-you mark come in base B5.
+    replyTo: null,
+    namesMe: false,
   };
 }
 
