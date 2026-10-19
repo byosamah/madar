@@ -9,7 +9,7 @@ describe("What's new screen", () => {
     await renderApp('/whats-new');
     expect(await screen.findByRole('heading', { level: 1, name: "What's new" })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 3, name: 'The project list' })).toBeInTheDocument();
-    expect(screen.getByText(/^Now you can archive a chat\. Press the three dots/)).toBeInTheDocument();
+    expect(screen.getByText(/^Now you can archive a chat\. Point at the chat and press the three dots/)).toBeInTheDocument();
   });
 
   it('shows the Arabic title and the Arabic entry in Arabic', async () => {
@@ -29,7 +29,7 @@ describe("What's new screen", () => {
   it('opens in the real build too', async () => {
     await renderRemoteApp('/whats-new');
     expect(await screen.findByRole('heading', { level: 1, name: "What's new" })).toBeInTheDocument();
-    expect(screen.getByText(/^Now you can archive a chat\. Press the three dots/)).toBeInTheDocument();
+    expect(screen.getByText(/^Now you can archive a chat\. Point at the chat and press the three dots/)).toBeInTheDocument();
   });
 
   // UX audit 2026-10-19, chats-14: a person reads only the entries that the person can use, and one link takes the person there.

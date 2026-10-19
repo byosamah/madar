@@ -157,6 +157,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - A contract change is additive or keeps both forms. The test count only grows, except when the code a test checks
   is deleted.
 - Every visible word has an English and an Arabic key.
+- Every feature or fix updates the What's new page before the deploy (`src/whatsNew/entries.ts`, `whatsnew.en.json` and
+  `whatsnew.ar.json`): one short line in the person's terms, in an entry that the people who use it can see (owner, 2026-10-19).
 - Every feature change updates the MCP side in the same commit: the allow, Admin or deny list (`server/mcp/tools.ts`), `TOOL_DOCS`
   (`server/mcp/docs.ts`), and `INSTRUCTIONS` when a rule changes (owner, 2026-10-05).
 - A feature that hides a record from some people gets leak tests from its own builder: probes as an outsider on
