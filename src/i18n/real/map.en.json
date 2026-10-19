@@ -42,8 +42,7 @@
       "label": "Map. Drag the pin to move it.",
       "labelView": "Map of the projects",
       "pin": "Project pin",
-      "failed": "The street map is not ready yet.",
-      "attribution": "Map: OpenFreeMap © OpenMapTiles. Data © OpenStreetMap contributors."
+      "failed": "The street map is not ready yet."
     },
     "dashboard": {
       "note": "The map works in the real Madar.",
@@ -56,6 +55,10 @@
     },
     "card": {
       "stage": "Stage: {{name}}"
+    },
+    "overview": {
+      "title": "On the map",
+      "label": "Map of this project"
     }
   },
   "dashboard": {

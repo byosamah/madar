@@ -60,6 +60,7 @@ export function DashboardMap({ filters }: { filters: DashboardFilters }) {
               <Suspense fallback={<div className="h-96" />}>
                 <MapCanvas
                   pins={pins}
+                  fullscreen
                   fitTo="pins"
                   onPinClick={setSelected}
                   onFailedChange={setMapFailed}

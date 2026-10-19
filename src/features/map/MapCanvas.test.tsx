@@ -10,6 +10,7 @@ type Handler = (event?: unknown) => void;
 const made = vi.hoisted(() => [] as { easeTo: (options: unknown) => void; handlers: Record<string, Handler[]>; style: unknown }[]);
 const markers = vi.hoisted(() => [] as { element: HTMLElement; lngLat: number[] }[]);
 const popups = vi.hoisted(() => [] as { content: HTMLElement | null; lngLat: number[]; options: unknown; removed: boolean }[]);
+const controls = vi.hoisted(() => [] as [string, unknown][]);
 const rtl = vi.hoisted(() => ({ setRTLTextPlugin: undefined as unknown as ReturnType<typeof vi.fn> }));
 
 vi.mock('maplibre-gl', () => {
@@ -36,6 +37,16 @@ vi.mock('maplibre-gl', () => {
     }
   }
   class FakeControl {}
+  class FakeAttribution {
+    constructor(options: unknown) {
+      controls.push(['attribution', options]);
+    }
+  }
+  class FakeFullscreen {
+    constructor(options: unknown) {
+      controls.push(['fullscreen', options]);
+    }
+  }
   class FakeBounds {
     extend() {}
   }
@@ -84,6 +95,8 @@ vi.mock('maplibre-gl', () => {
   return {
     Map: FakeMap,
     NavigationControl: FakeControl,
+    AttributionControl: FakeAttribution,
+    FullscreenControl: FakeFullscreen,
     LngLatBounds: FakeBounds,
     Marker: FakeMarker,
     Popup: FakePopup,
@@ -119,6 +132,7 @@ describe('MapCanvas (fbk_017)', () => {
     made.length = 0;
     markers.length = 0;
     popups.length = 0;
+    controls.length = 0;
   });
 
   // This test comes first: the library loads once for the whole file, so only the first render calls the plugin loader.
@@ -129,6 +143,28 @@ describe('MapCanvas (fbk_017)', () => {
     expect(style.sources.openmaptiles.url).toBe('https://tiles.openfreemap.org/planet');
     expect(rtl.setRTLTextPlugin).toHaveBeenCalledWith(expect.stringMatching(/\/assets\/rtl-text-abc\.js$/), true);
     expect(String(rtl.setRTLTextPlugin.mock.calls[0][0])).not.toMatch(/^https:\/\/(?!localhost)/);
+  });
+
+  // The owner asked for no credit line under the map (2026-10-19). The free data still needs its credit (ODbL), so it is the small
+  // button of MapLibre inside the map: open when the map starts, folded after the first move.
+  it('credits OpenStreetMap inside the map as a small button, and shows no credit line under the map', async () => {
+    await renderWithRuntime(<MapCanvas pins={[]} />);
+    await waitFor(() => expect(controls.some(([name]) => name === 'attribution')).toBe(true));
+    const [, options] = controls.find(([name]) => name === 'attribution')!;
+    expect(options).toMatchObject({ compact: true });
+    expect(String((options as { customAttribution: string }).customAttribution)).toMatch(/OpenStreetMap/);
+    expect(screen.queryByText(/OpenStreetMap contributors/)).toBeNull();
+  });
+
+  it('offers full screen only to a map that asks for it', async () => {
+    await renderWithRuntime(<MapCanvas pins={[]} fullscreen />);
+    await waitFor(() => expect(made).toHaveLength(1));
+    expect(controls.filter(([name]) => name === 'fullscreen')).toHaveLength(1);
+    controls.length = 0;
+    made.length = 0;
+    await renderWithRuntime(<MapCanvas pins={[]} />);
+    await waitFor(() => expect(made).toHaveLength(1));
+    expect(controls.filter(([name]) => name === 'fullscreen')).toHaveLength(0);
   });
 
   it('names the box of the Dashboard map as a map of the projects, because no pin moves', async () => {

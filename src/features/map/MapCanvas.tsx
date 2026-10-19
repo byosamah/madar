@@ -31,7 +31,20 @@ export type MapCanvasProps = {
   onPopupClose?: () => void;
   /** True while the map does not start (no WebGL, or the tiles do not come). The screen then shows the card outside the map. */
   onFailedChange?: (failed: boolean) => void;
+  /** A button beside the zoom opens the map full screen (owner, 2026-10-19). A browser with no full screen (iPhone) fills its window. */
+  fullscreen?: boolean;
+  /** A shorter map for a side panel (the project Overview). */
+  compact?: boolean;
+  /** The name of the map for a screen reader. With none, a view map is "Map of the projects". */
+  label?: string;
 };
+
+/**
+ * The credit of the free map, as OpenFreeMap sends it in its TileJSON (MapLibre shows one copy of the same text). The data is free
+ * only with this credit (ODbL). It is the small button of MapLibre inside the map, not a line under it (owner, 2026-10-19).
+ */
+const MAP_CREDIT =
+  '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank">&copy; OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>';
 
 let loading: Promise<typeof MapLib> | undefined;
 
@@ -92,7 +105,7 @@ function Dot({ label }: { label: string }) {
  * does not close the sheet. The controls sit on the start side of the language. A pin is a React tree in a MapLibre marker (a
  * portal), so it can use the project tile. When the map cannot start or the tiles do not load, the box says so in one line.
  */
-export default function MapCanvas({ pins, onPinClick, draggablePin = false, onPinMove, onMapClick, fitTo = 'start', centerOn, renderPin, selectedId = null, renderPopup, onPopupClose, onFailedChange }: MapCanvasProps) {
+export default function MapCanvas({ pins, onPinClick, draggablePin = false, onPinMove, onMapClick, fitTo = 'start', centerOn, renderPin, selectedId = null, renderPopup, onPopupClose, onFailedChange, fullscreen = false, compact = false, label }: MapCanvasProps) {
   const { t } = useTranslation();
   const lang = useLang();
   const theme = useSyncExternalStore(subscribeTheme, themeNow);
@@ -105,9 +118,9 @@ export default function MapCanvas({ pins, onPinClick, draggablePin = false, onPi
   const shownStyle = useRef('');
   useEffect(() => onFailedChange?.(failed), [failed, onFailedChange]);
   // The latest props and words, so a marker or a map event never calls an old handler.
-  const latest = useRef({ theme, lang, pins, onPinClick, onPinMove, onMapClick, onPopupClose });
+  const latest = useRef({ theme, lang, pins, onPinClick, onPinMove, onMapClick, onPopupClose, fullscreen });
   useEffect(() => {
-    latest.current = { theme, lang, pins, onPinClick, onPinMove, onMapClick, onPopupClose };
+    latest.current = { theme, lang, pins, onPinClick, onPinMove, onMapClick, onPopupClose, fullscreen };
   });
   const pinsKey = JSON.stringify(pins.map((pin) => [pin.id, pin.point.lat, pin.point.lng, pin.label ?? '']));
 
@@ -134,7 +147,10 @@ export default function MapCanvas({ pins, onPinClick, draggablePin = false, onPi
         return;
       }
       shownStyle.current = `${now}-${language}`;
-      made.addControl(new lib.NavigationControl({ showCompass: false }), language === 'ar' ? 'bottom-right' : 'bottom-left');
+      const near = language === 'ar' ? 'bottom-right' : 'bottom-left';
+      made.addControl(new lib.NavigationControl({ showCompass: false }), near);
+      if (latest.current.fullscreen) made.addControl(new lib.FullscreenControl({}), near);
+      made.addControl(new lib.AttributionControl({ compact: true, customAttribution: MAP_CREDIT }), language === 'ar' ? 'bottom-left' : 'bottom-right');
       made.on('click', (event) => latest.current.onMapClick?.(roundPoint(event.lngLat)));
       // An error before the first load is a map that does not start (the tiles or the style do not come). Later errors retry by themselves.
       let started = false;
@@ -220,14 +236,13 @@ export default function MapCanvas({ pins, onPinClick, draggablePin = false, onPi
     <div className="flex flex-col gap-2">
       <div className="relative">
         {/* MapLibre places pins, cards and controls in a left to right box: on an Arabic screen (dir="rtl") they land far away. The cards set the language direction again. */}
-        <div ref={box} dir="ltr" data-vaul-no-drag role="region" aria-label={t(draggablePin ? 'map.canvas.label' : 'map.canvas.labelView')} className={`w-full overflow-hidden rounded-card ${draggablePin ? 'h-80' : 'h-96 sm:h-[30rem]'}`} />
+        <div ref={box} dir="ltr" data-vaul-no-drag role="region" aria-label={label ?? t(draggablePin ? 'map.canvas.label' : 'map.canvas.labelView')} className={`w-full overflow-hidden rounded-card ${compact ? 'h-56' : draggablePin ? 'h-80' : 'h-96 sm:h-[30rem]'}`} />
         {failed && (
           <p role="status" className="absolute inset-0 grid place-items-center rounded-card bg-fill p-6 text-center text-subheadline text-ink-2">
             {t('map.canvas.failed')}
           </p>
         )}
       </div>
-      <p className="text-footnote text-ink-2">{t('map.canvas.attribution')}</p>
       {hosts.map(({ id, element }) => {
         const pin = pins.find((item) => item.id === id);
         if (!pin) return null;
