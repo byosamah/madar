@@ -13,7 +13,7 @@ import { isFinePointer } from '../../lib/calendar';
 import { usePersonName } from '../../app/personName';
 import { useStableHandler } from '../../app/useStableHandler';
 import { useIsPhone } from '../../app/useIsPhone';
-import { Menu } from '../../components/Menu';
+import { Menu, type MenuItem } from '../../components/Menu';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { ChevronRightIcon } from '../../components/icons/animated/chevron-right';
 import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-check';
@@ -42,12 +42,15 @@ export function useTitleOf(): (row: Row) => string {
  * Only the person sees it: an agent never archives a chat (the MCP deny list). The button names its chat, so a screen reader
  * does not hear "Chat options" for every row (UX audit 2026-10-19, chats-06).
  */
-export function ArchiveMenu({ id, archived, title, onArchive }: { id: string; archived: boolean; title: string; onArchive: (id: string, archived: boolean) => void }) {
+export function ArchiveMenu({ id, archived, title, onArchive, extra = [] }: {
+  id: string; archived: boolean; title: string; onArchive: (id: string, archived: boolean) => void; extra?: MenuItem[];
+}) {
   const { t } = useTranslation();
   return (
     <Menu
       label={t('chat.optionsFor', { title })}
-      items={[{ label: archived ? t('chat.moveBack') : t('chat.archive'), onSelect: () => onArchive(id, !archived) }]}
+      // The extra items come after Archive: the header menu adds "Notify me" there (chat design item 21). The row menu adds none.
+      items={[{ label: archived ? t('chat.moveBack') : t('chat.archive'), onSelect: () => onArchive(id, !archived) }, ...extra]}
     />
   );
 }

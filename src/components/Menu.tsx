@@ -1,15 +1,23 @@
 import { AnimatePresence, motion } from 'motion/react';
 import {
-  useCallback, useEffect, useRef, useState,
+  Fragment, useCallback, useEffect, useRef, useState,
   type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
 import { spring } from '../design/motion';
 import { AnimatedIcon } from './icons/AnimatedIcon';
+import { CheckIcon } from './icons/animated/check';
 import { EllipsisIcon } from './icons/animated/ellipsis';
 import { fixedFrame, inFrame, measure, menuPlace } from './placement';
 
-export type MenuItem = { label: string; onSelect: () => void; destructive?: boolean; hidden?: boolean };
+/**
+ * `checked` makes the item a radio item (`role="menuitemradio"`, `aria-checked`) and draws a check mark at its end when it is true.
+ * `heading` draws a hairline and a small label above the item, `note` a small line under it (the "Notify me" part of a chat menu,
+ * chat design item 21). A heading and a note are text, not items: the arrow keys skip them.
+ */
+export type MenuItem = { label: string; onSelect: () => void; destructive?: boolean; hidden?: boolean; checked?: boolean; heading?: string; note?: string };
+
+const ITEM_SELECTOR = '[role="menuitem"], [role="menuitemradio"]';
 
 /** The list of a menu. It takes the focus, moves with the arrow keys, and closes on Escape, Tab or a press outside. */
 export function MenuList({
@@ -24,7 +32,7 @@ export function MenuList({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    ref.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    ref.current?.querySelector<HTMLElement>(ITEM_SELECTOR)?.focus();
   }, []);
   useEffect(() => {
     const onDown = (event: PointerEvent) => {
@@ -36,7 +44,7 @@ export function MenuList({
     return () => document.removeEventListener('pointerdown', onDown);
   }, [onClose, boundary]);
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const all = [...(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+    const all = [...(ref.current?.querySelectorAll<HTMLElement>(ITEM_SELECTOR) ?? [])];
     const index = all.indexOf(document.activeElement as HTMLElement);
     if (event.key === 'ArrowDown') {
       event.preventDefault();
@@ -66,19 +74,26 @@ export function MenuList({
       className={`float z-50 flex min-w-52 flex-col rounded-2xl p-1.5 ${className}`}
     >
       {items.filter((item) => !item.hidden).map((item) => (
-        <button
-          key={item.label}
-          type="button"
-          role="menuitem"
-          tabIndex={-1}
-          onClick={() => {
-            onClose(true);
-            item.onSelect();
-          }}
-          className={`flex min-h-11 w-full items-center rounded-xl px-3 text-start text-body hover:bg-fill focus:bg-fill focus:outline-none ${item.destructive ? 'text-late' : 'text-ink'}`}
-        >
-          {item.label}
-        </button>
+        <Fragment key={item.label}>
+          {item.heading && (
+            <div className="mx-3 mt-1 border-t border-hairline pb-1 pt-3 text-footnote font-semibold text-ink-2">{item.heading}</div>
+          )}
+          <button
+            type="button"
+            role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
+            aria-checked={item.checked}
+            tabIndex={-1}
+            onClick={() => {
+              onClose(true);
+              item.onSelect();
+            }}
+            className={`flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-start text-body hover:bg-fill focus:bg-fill focus:outline-none ${item.destructive ? 'text-late' : 'text-ink'}`}
+          >
+            <span className="min-w-0 flex-1">{item.label}</span>
+            {item.checked === true && <AnimatedIcon icon={CheckIcon} size={18} aria-hidden className="shrink-0 text-accent" />}
+          </button>
+          {item.note && <p className="px-3 pb-1.5 text-footnote text-ink-2">{item.note}</p>}
+        </Fragment>
       ))}
     </motion.div>
   );
@@ -120,7 +135,10 @@ export function Menu({
     // The measures come in the units of the menu, so the menu opens next to its button also under Big screen.
     const { box, screen } = measure(trigger.current);
     const dialog = trigger.current.closest<HTMLElement>('[role="dialog"]');
-    const onScreen = menuPlace(box, screen, { itemCount: items.filter((item) => !item.hidden).length, rtl: document.documentElement.dir === 'rtl', align });
+    // A heading and a note take about the height of one more item each.
+    const shown = items.filter((item) => !item.hidden);
+    const itemCount = shown.length + shown.filter((item) => item.heading).length + shown.filter((item) => item.note).length;
+    const onScreen = menuPlace(box, screen, { itemCount, rtl: document.documentElement.dir === 'rtl', align });
     // A sheet that moves (a transform) is the frame of a fixed list inside it, so the place turns into the sheet's units.
     setPlace(dialog ? inFrame(onScreen, fixedFrame(dialog), screen) : onScreen);
     setLayer(dialog);

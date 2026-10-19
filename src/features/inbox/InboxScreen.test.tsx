@@ -645,7 +645,7 @@ describe('group chats', () => {
     expect(within(sheet).queryByRole('button', { name: /^Remove/ })).toBeNull();
   });
 
-  it('keeps Rename and Archive in the group menu, and nothing else', async () => {
+  it('keeps Rename and Archive as the two items of the group menu, then the Notify me choice and nothing else', async () => {
     await renderApp('/inbox', withGroup);
     await openGroup();
     const menus = screen.getAllByRole('button', { name: 'Options for Tower team' });
@@ -653,6 +653,7 @@ describe('group chats', () => {
     expect(await screen.findByRole('menuitem', { name: 'Rename' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
     expect(screen.getAllByRole('menuitem')).toHaveLength(2);
+    expect(screen.getAllByRole('menuitemradio').map((item) => item.textContent)).toEqual(['All messages', 'Only when I am named']);
   });
 
   it('lets the maker rename the group, and writes one quiet line about it', async () => {

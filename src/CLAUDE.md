@@ -301,7 +301,11 @@ any screen work.
 - A group has one picture, `GroupPicture` (the glow of its id and a people icon), never a stack of faces. The header shows the
   count of people ("4 people") as a button; it and the picture open the People sheet (`GroupSheets.tsx`): names with "You" and
   "Group maker", Add people at the top, Remove on each other row for the maker (toast with Undo), Leave group at the end (a confirm
-  sheet with Cancel in focus). The group menu holds Rename and Archive only. A group of one person left reads a closed chat.
+  sheet with Cancel in focus). The group menu holds Rename and Archive, then the Notify me choice. A group of one person left reads a closed chat.
+- Notify me (design item 21): the header menu of a project chat, a direct chat or a group holds, under Archive, the heading Notify me and two
+  radio items (`useNotifyItems`, `NotifyChoice.tsx`), saved by `chats.setNotify`. A `MenuItem` takes `checked`, `heading` and `note`
+  (`components/Menu.tsx`): a checked item is `role="menuitemradio"` with a check mark at its end. The row menu of the list and a task
+  thread have no Notify me.
 - New group (`InboxScreen.tsx`): the title says "New group", a line counts the people, the name field shows from the start and is
   optional (an empty name takes the first names), and one full-width button makes the group.
 - Every chat takes files (owner, 2026-10-19). The box of a project chat uploads into the files of its project. The box of a direct chat

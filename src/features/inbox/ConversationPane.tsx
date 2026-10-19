@@ -10,13 +10,14 @@ import { useAction, useCall } from '../../app/runtime';
 import { Avatar } from '../../components/Avatar';
 import { EmptyState } from '../../components/EmptyState';
 import { LoadFailed } from '../../components/LoadFailed';
-import { Menu } from '../../components/Menu';
+import { Menu, type MenuItem } from '../../components/Menu';
 import { ProjectTile } from '../../components/ProjectTile';
 import { Composer, MessageLog, type Bubble } from './Thread';
 import { ArchiveMenu } from './ChatList';
 import { GroupPicture } from './GroupPicture';
 import { GroupSheets, type GroupMode } from './GroupSheets';
 import { useArchive } from './archive';
+import { useNotifyItems } from './NotifyChoice';
 import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-check';
 import { actorContext } from '../../lib/grammar';
 import { taskLink } from '../../lib/params';
@@ -71,11 +72,12 @@ function bubbleOfLine(line: GroupLine): Bubble {
 }
 
 /**
- * The menu of a group (UX audit 2026-10-19, chats-07): Rename and Archive. The people, adding people and leaving moved to the People
- * sheet, which one press on the count or on the picture opens. The archive item is the same as in the list (ArchiveMenu).
+ * The menu of a group (UX audit 2026-10-19, chats-07): Rename and Archive, then the Notify me choice (chat design item 21, the extra
+ * items). The people, adding people and leaving moved to the People sheet, which one press on the count or on the picture opens. The
+ * archive item is the same as in the list (ArchiveMenu).
  */
-function GroupMenu({ id, archived, title, onPick, onArchive }: {
-  id: string; archived: boolean; title: string; onPick: (mode: GroupMode) => void; onArchive: (id: string, archived: boolean) => void;
+function GroupMenu({ id, archived, title, onPick, onArchive, extra }: {
+  id: string; archived: boolean; title: string; onPick: (mode: GroupMode) => void; onArchive: (id: string, archived: boolean) => void; extra: MenuItem[];
 }) {
   const { t } = useTranslation();
   return (
@@ -84,6 +86,7 @@ function GroupMenu({ id, archived, title, onPick, onArchive }: {
       items={[
         { label: t('chat.rename'), onSelect: () => onPick('rename') },
         { label: archived ? t('chat.moveBack') : t('chat.archive'), onSelect: () => onArchive(id, !archived) },
+        ...extra,
       ]}
     />
   );
@@ -100,6 +103,8 @@ export function ChatPane({ id }: { id: string }) {
   const send = useAction('chats.send');
   const archive = useArchive();
   const data = thread.data;
+  // The "Notify me" items of the header menu. A hook, so it sits before the early returns. A task thread has none (TaskPane).
+  const notifyItems = useNotifyItems(id, data?.notify ?? 'all');
   const { messages, earlier } = useEarlierMessages(id, data?.messages);
   const messageBubbles = useBubbles(messages, bubbleOfMessage);
   const lineBubbles = useBubbles(data?.lines ?? NO_LINES, bubbleOfLine);
@@ -143,8 +148,8 @@ export function ChatPane({ id }: { id: string }) {
         title={<bdi>{title}</bdi>}
         subtitle={subtitle}
         action={isGroup
-          ? <GroupMenu id={id} archived={chat.archived} title={title} onPick={setSheet} onArchive={archive} />
-          : <ArchiveMenu id={id} archived={chat.archived} title={title} onArchive={archive} />}
+          ? <GroupMenu id={id} archived={chat.archived} title={title} onPick={setSheet} onArchive={archive} extra={notifyItems} />
+          : <ArchiveMenu id={id} archived={chat.archived} title={title} onArchive={archive} extra={notifyItems} />}
       />
       <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} />
       {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{isGroup ? t('chat.groupAlone') : t('chat.closed')}</p> : (
