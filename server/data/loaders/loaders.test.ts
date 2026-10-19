@@ -15,7 +15,7 @@ import { INBOX_TASK_FIELDS } from './inbox';
 import { LOADER_OF } from './index';
 import { loadJobs } from './jobs';
 import { memorySource } from './memorySource';
-import { AGENT_MADE_TASK, badgeTraps, OFFICE_AGENT, officeWrites, readSweep, trapOffice, writeSweep } from './sweep';
+import { AGENT_MADE_TASK, badgeTraps, findSweep, findTraps, OFFICE_AGENT, officeWrites, readSweep, trapOffice, writeSweep } from './sweep';
 
 /**
  * Task C2: each loader gives the handler the same answer as the whole office (plan 4.6, "Safety net"). runBoth runs the call on
@@ -86,6 +86,66 @@ describe('the sweep: every read call on the sample office for every person and r
     const traps = trapOffice(seed);
     for (const [name, input, actor, prepared] of [...readSweep(traps), ...writeSweep(traps)]) await same(traps, name, input, actor, { prepared });
   }, 30_000);
+});
+
+describe('the reads of track find on the scoped load', () => {
+  it('gives the same answers as the whole office', async () => {
+    const traps = office(findTraps);
+    const calls = findSweep(traps);
+    expect(calls.length).toBeGreaterThan(15);
+    for (const [name, input, actor] of calls) await same(traps, name, input, actor);
+  }, 30_000);
+
+  it('finds the messages of the chats that the person may open, and only those (item 16)', async () => {
+    const traps = office(findTraps);
+    const ids = (run: Run) => (run.outcome.output as { messages: { id: string }[] }).messages.map((hit) => hit.id);
+    // The Admin opens the project chat, not the group and not the direct chat of two others. The deleted message is never found.
+    // The newest 5 of messages and comments together: the comment of the office task, three comments of the project task, one message.
+    expect(ids(await same(traps, 'search.query', { text: 'riser' }, ADMIN))).toEqual(['cmt_2007', 'cmt_2006', 'cmt_2005', 'cmt_2004', 'msg_2007']);
+    const group = Object.values(traps.conversations).find((c) => c.name === 'Find group')!;
+    const member = ids(await same(traps, 'search.query', { text: 'riser' }, group.memberIds[0]));
+    // The two newest comments of the project task come first, then the direct message and the group message.
+    expect(member).toEqual(expect.arrayContaining(['cmt_2006', 'cmt_2005', 'msg_2010', 'msg_2009']));
+    expect(member).not.toContain('msg_2008');
+    // A comment of a deleted task and a comment on a post are never found.
+    for (const id of ['cmt_2008', 'cmt_2009', 'cmt_2010']) expect(member).not.toContain(id);
+    expect(ids(await same(traps, 'search.query', { text: 'اسعار' }, ADMIN))).toEqual(['msg_2011']);
+    expect(ids(await same(traps, 'search.query', { text: 'ri' }, ADMIN))).toEqual([]);
+  });
+
+  it('finds a comment of an office task only for the people of the task and the Admin (item 16)', async () => {
+    const traps = office(findTraps);
+    const ids = (run: Run) => (run.outcome.output as { messages: { id: string }[] }).messages.map((hit) => hit.id);
+    for (const person of ['usr_004', 'usr_005', 'usr_006', ADMIN]) expect(ids(await same(traps, 'search.query', { text: 'riser parts' }, person)), person).toEqual(['cmt_2007']);
+    for (const person of ['usr_002', 'usr_003']) expect(ids(await same(traps, 'search.query', { text: 'riser parts' }, person)), person).toEqual([]);
+  });
+
+  it('shows an empty direct chat only for the person who opened it, on the scoped load too (item 18)', async () => {
+    const traps = office(findTraps);
+    const empty = Object.values(traps.conversations).find((c) => c.kind === 'direct' && c.createdAt === '2026-10-03T08:00:00.000+03:00' && !Object.values(traps.messages).some((m) => m.conversationId === c.id))!;
+    const [a, b] = empty.memberIds;
+    const listed = (run: Run) => (run.outcome.output as { id: string }[]).some((row) => row.id === empty.id);
+    expect(listed(await same(traps, 'chats.list', {}, a))).toBe(false);
+    const opened = await same(traps, 'chats.openDirect', { userId: b }, a);
+    expect(inserted(opened, 'chat_reads')).toHaveLength(1);
+    apply(traps, 'chats.openDirect', { userId: b }, a);
+    expect(listed(await same(traps, 'chats.list', {}, a))).toBe(true);
+    expect(listed(await same(traps, 'chats.list', {}, b))).toBe(false);
+    expect(inserted(await same(traps, 'chats.openDirect', { userId: a }, b), 'chat_reads')).toHaveLength(1);
+    // The second open of the first person changes nothing.
+    expect(inserted(await same(traps, 'chats.openDirect', { userId: b }, a), 'chat_reads')).toHaveLength(0);
+  });
+
+  it('opens the group at an old message with the 20 before it and the 500 in all, and says that newer ones exist', async () => {
+    const traps = office(findTraps);
+    const group = Object.values(traps.conversations).find((c) => c.name === 'Find group')!;
+    const run = await same(traps, 'chats.messages', { conversationId: group.id, around: 'msg_1030' }, group.memberIds[0]);
+    const out = run.outcome.output as { messages: { message: { id: string } }[]; newer: boolean };
+    // 540 messages, two deleted, so 538 are live. The 30th is the 29th live message: the page starts 20 before it.
+    expect(out.messages[0].message.id).toBe('msg_1010');
+    expect(out.messages).toHaveLength(500);
+    expect(out.newer).toBe(true);
+  });
 });
 
 describe('the 18 places of AM 6', () => {

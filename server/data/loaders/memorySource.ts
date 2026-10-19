@@ -1,7 +1,7 @@
 import { valuesAt } from '../../../src/api/references';
 import type { State } from '../../../src/api/store';
 import { tableOf, type TableCollection } from '../tables';
-import { columnOf, matchesNothing, type Cond, type Row, type Select } from './query';
+import { assertOrder, columnOf, isAscending, matchesNothing, type Cond, type Row, type Select } from './query';
 import type { Source } from './source';
 
 /**
@@ -53,6 +53,10 @@ export function memorySource(state: State): Source {
       const at = String(doc.createdAt);
       return at < cond.before.at || (at === cond.before.at && key < cond.before.id);
     }
+    if ('after' in cond) {
+      const at = String(doc.createdAt);
+      return at > cond.after.at || (at === cond.after.at && key > cond.after.id);
+    }
     if ('bounds' in cond) {
       const bound = cond.bounds.by[String(col(cond.bounds.col))];
       if (!bound) return false;
@@ -88,6 +92,7 @@ export function memorySource(state: State): Source {
 
   return {
     async select(s: Select): Promise<Row[]> {
+      assertOrder(s);
       if (matchesNothing(s)) return [];
       const spec = tableOf(s.c);
       let rows = all(s.c).filter((row) => s.where.every((cond) => holds(s.c, row.doc, row.key, cond)));
@@ -96,12 +101,14 @@ export function memorySource(state: State): Source {
         const sortValue = (row: Row) => (order ? columnOf(s.c, order.col).value(row.doc, state, spec) : null);
         const compare = (a: Row & { key: string }, b: Row & { key: string }) => {
           if (order) {
-            const x = sortValue(a);
-            const y = sortValue(b);
-            const byCol = typeof x === 'number' && typeof y === 'number' ? y - x : before(String(y ?? ''), String(x ?? ''));
+            // Newest first compares b with a; oldest first compares a with b.
+            const [first, second] = isAscending(order) ? [a, b] : [b, a];
+            const x = sortValue(first);
+            const y = sortValue(second);
+            const byCol = typeof x === 'number' && typeof y === 'number' ? x - y : before(String(x ?? ''), String(y ?? ''));
             if (byCol !== 0) return byCol;
-            if (order.id) return before(b.key, a.key);
-            return s.ties ? 0 : b.ord - a.ord;
+            if (order.id) return before(first.key, second.key);
+            return s.ties ? 0 : first.ord - second.ord;
           }
           return a.ord - b.ord;
         };

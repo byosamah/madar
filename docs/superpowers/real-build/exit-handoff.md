@@ -99,6 +99,8 @@ the words of Workers Paid for the office host; `Office.drop` leaves an object wi
 result; an import carries no agent links or sessions (people sign in again, AI apps connect again); the replace mode deletes
 `job_runs` and `mail_log`; `tests/e2e-deploy` is outside the type check; `wrangler dev` gives no client address, so local sign-ins
 share one limit count; `server-time.sh` has no member sign-in for the office path.
+Chat search on the office path scans `messages` and `comments` (`instr`). At the restart, give both an FTS5 table with the trigram
+tokenizer, fed by the save, and lower the `search.query` pins (`server/office/test/pins.ts`; the numbers are in `proof.md`, "Chat search").
 
 ## 8. References
 - Spec: `docs/superpowers/specs/2026-10-16-madar-cloudflare-exit-design.md` (wave 0 results and six changes at the top; section 7

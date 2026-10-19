@@ -154,6 +154,26 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   quiet lines (added, removed, left, renamed); `chats.messages` returns them as `lines` for a group. They are no messages, so no
   unread count, preview or push reads them. `chats.updateGroup` sends the trigger `added_to_group` (in-app only) to each added person.
   `NotificationView.chatKind` and `target` (the group name while the viewer is a member) let a group notice name the group.
+- `search.query` has a `messages` group (chat design 2026-10-19, item 16): `messageHits` (`messageSearch.ts`) gives the newest 5 of the
+  live chat messages of the chats the person may open (`canSeeConversation`) and the comments of the tasks the person may read
+  (`can(viewer, 'comment.read', taskResource)`: every project task, an office task for its people and the Admin; the quiet reason lines
+  count, the comments on posts do not), whose folded text (`bodySearchText`) holds every word of the query (`searchWords`), when one
+  word has 3 letters or more. Each hit has `chatId` (the task id for a comment), `kind` (`project`, `direct`, `group`, `task`), `title`,
+  `project`, `person`, `author`, `mine`, `line` (`hitLine`) and `at`. A comment of a deleted task is dropped. The loader reads the newest
+  5 matching rows of each kind, so the cut of the handler gives the same rows. An agent gets the hits of its person. Chat files stay out.
+- A direct chat with no live message shows in `chats.list` only for the person who has a read mark on it (chat design 2026-10-19, item 18).
+  `chats.openDirect` writes that mark when the chat has no live message and the actor is a human; an agent writes none, so its person sees
+  the chat after the first message. The loader `chatsOpenDirect` (`loaders/chatOpen.ts`) loads the newest live message and the mark.
+- A notice with `messageId` links to `/inbox/<chat or task>?at=<id>` (`chatLink`, `lib/params.ts`): a chat notice opens the chat at the
+  message, and a task notice whose `messageId` starts with `cmt_` opens the Inbox task thread at that comment. A notice with no
+  `messageId` (saved before) keeps its old link; an office task that the viewer no longer sees still gives no link.
+- A chat that the person may not open answers `not_found` ("Conversation <id> does not exist."), whatever its kind (chat design
+  2026-10-19, item 17): `requireConversation` serves `chats.messages`, `chats.send`, `chats.markRead`, `chats.archive` and the group
+  writes. The answer equals the one for an id that was never made, so an outsider learns nothing, the Admin included for a direct chat.
+- `chats.messages` with `around` (chat design 2026-10-19, item 17) opens the page at one message: `messagePageAround` (`chatAround.ts`)
+  gives the newest page when the message is in it, else 20 live messages before it and every newer one, up to 500 in all, and
+  `ChatThread.newer` is true when more follow. `around` with `before` fails `invalid`. A message that is no live message of this
+  chat (deleted, another chat, unknown) gives the newest page and no error. The loader reads the window next to the newest page.
 - Files of a direct chat or a group (owner, 2026-10-19): `files.upload` and `files.uploadStart` take `conversationId` in place of a
   project or an office task. `FileRec.conversationId` (optional, so older files load) names the chat; `projectId`, `stageId` and `taskId`
   are null. `mayViewFile` is `canSeeConversation` of that chat: exactly the people who read its messages, never the Admin who is not a

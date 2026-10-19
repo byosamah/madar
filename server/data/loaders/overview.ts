@@ -1,12 +1,15 @@
-import type { Event, Task } from '../../../src/api/contract/entities';
+import type { Comment, Event, Task } from '../../../src/api/contract/entities';
 import { peopleFilter, teamFilter } from '../../../src/api/pause';
 import { can, projectRoleOf } from '../../../src/api/permissions';
 import { commentCountKey, fileCountKey } from '../../../src/api/store';
 import { stagesOf } from '../../../src/api/views';
+import { canSeeConversation } from '../../../src/api/chatState';
+import { MESSAGE_HITS } from '../../../src/api/messageSearch';
+import { searchesMessages, searchWords } from '../../../src/lib/searchMatch';
 import { normalizeForSearch } from '../../../src/lib/text';
 import type { Cond } from './query';
 import type { Load } from './build';
-import { covers, eventTargets, feed, officeState, officeTasks, tasksOf } from './steps';
+import { covers, eventTargets, feed, LIVE, officeState, officeTasks, tasksOf } from './steps';
 
 /**
  * The overview loader (plan 4.6): the calls that read across projects. The project filters of each call read only the office,
@@ -126,12 +129,46 @@ export async function searchQuery(L: Load, input: Input): Promise<void> {
   // Every file of a project, and the files of the office tasks that the person sees. A file with a project names one that exists.
   const projects = Object.keys(L.office.projects);
   await L.select({ c: 'files', where: [{ col: 'project_id', in: projects }, { col: 'search_text', contains: query }], limit: 5 });
-  const seen = (await officeTasks(L, [], { pick: OFFICE_TASK_PEOPLE })).map((task) => task.id);
+  const seen = (await officeTasks(L, [], { pick: OFFICE_TASK_HIT })).map((task) => task.id);
   await L.select({ c: 'files', where: [{ col: 'project_id', eq: null }, { col: 'task_id', in: seen }, { col: 'search_text', contains: query }], limit: 5 });
+  await messageHits(L, input, seen);
+}
+
+/**
+ * The Messages group (chat design 2026-10-19, item 16): the newest MESSAGE_HITS live messages of the chats that the person may open,
+ * and the newest MESSAGE_HITS comments of the tasks that the person may read, whose folded text holds every word of the query. A query
+ * with no word of 3 letters reads none. The handler keeps the newest 5 of all the rows, so the cut gives the same rows on the scoped
+ * load as on the whole office. "seen" holds the office tasks that the person sees.
+ */
+async function messageHits(L: Load, input: Input, seen: readonly string[]): Promise<void> {
+  const words = searchWords(String(input.text ?? ''));
+  if (!L.authority || !searchesMessages(words)) return;
+  const office = officeState(L);
+  const chats = Object.values(L.office.conversations).filter((c) => canSeeConversation(office, c, L.authority!)).map((c) => c.id);
+  const holds = words.map((word): Cond => ({ col: 'search_text', contains: word }));
+  const newest = { order: { col: 'created_at', desc: true, id: true } as const, limit: MESSAGE_HITS };
+  await L.select({ c: 'messages', where: [{ col: 'conversation_id', in: chats }, LIVE, ...holds], ...newest });
+  // The comments of project tasks. Postgres keeps the project of a comment after its task goes, so a read can name a task that the load
+  // does not hold. The handler drops such a comment, so the read goes again without that task, until no read names one.
+  const projects = Object.keys(L.office.projects);
+  const gone: string[] = [];
+  for (;;) {
+    const rows = (await L.select({
+      c: 'comments', where: [{ col: 'target_type', in: ['task'] }, { col: 'project_id', in: projects }, ...holds, ...(gone.length > 0 ? [{ col: 'target_id', notIn: gone }] : [])], ...newest,
+    })) as Comment[];
+    await L.byKey('tasks', rows.map((comment) => comment.targetId));
+    const missing = [...new Set(rows.map((comment) => comment.targetId))].filter((id) => !L.get('tasks', id));
+    if (missing.length === 0) break;
+    gone.push(...missing);
+  }
+  // The comments of the office tasks that the person sees (comment.read follows the view rule of the task).
+  await L.select({ c: 'comments', where: [{ col: 'target_type', in: ['task'] }, { col: 'project_id', eq: null }, { col: 'target_id', in: seen }, ...holds], ...newest });
 }
 
 /** The fields of an office task that its view rule reads (taskResource). */
 const OFFICE_TASK_PEOPLE = ['id', 'projectId', 'ownerId', 'helperIds', 'createdBy'] as const;
+/** The same, and the title: a comment hit of an office task names it (chat design 2026-10-19, item 16). */
+const OFFICE_TASK_HIT = [...OFFICE_TASK_PEOPLE, 'title'] as const;
 
 /** events.list: the newest "limit" events that pass the filter and that the person may read, with the rows their labels name. */
 export async function eventsList(L: Load, input: Input): Promise<void> {

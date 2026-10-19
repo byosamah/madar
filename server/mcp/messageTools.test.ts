@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { Message } from '../../src/api/contract/entities';
+import { emptyReactions, type Message } from '../../src/api/contract/entities';
 import type { ChatRow } from '../../src/api/contract/views';
 import { addDirectConversation, addGroupConversation } from '../../src/api/chatState';
 import { nextId, type State } from '../../src/api/store';
@@ -144,6 +144,22 @@ describe('the message tools over MCP (owner, 2026-10-12)', () => {
     expect(Object.keys(w.mem.tables.state.conversations)).toHaveLength(before + 1);
   });
 
+  it('opens a direct chat that shows in chats.list after the first message', async () => {
+    const w = world();
+    const made = await call(w, 'chats.openDirect', { userId: 'usr_005' });
+    const id = made.result.structuredContent.output.id as string;
+    const before = await call(w, 'chats.list', {});
+    expect((before.result.structuredContent.output as ChatRow[]).some((row) => row.id === id)).toBe(false);
+    expect(w.mem.tables.state.chatReads[`${id}:usr_001`]).toBeUndefined();
+    const sent = await call(w, 'chats.send', { conversationId: id, body: 'A first line.' });
+    expect(sent.result.isError, JSON.stringify(sent.result)).toBeUndefined();
+    const after = await call(w, 'chats.list', {});
+    expect((after.result.structuredContent.output as ChatRow[]).find((row) => row.id === id)).toMatchObject({ preview: 'A first line.' });
+    const { TOOL_DOCS } = await import('./docs');
+    expect(TOOL_DOCS['chats.list'].description).toContain('shows only for the person who opened it');
+    expect(TOOL_DOCS['chats.openDirect'].description).toContain('after the first message');
+  });
+
   it('sends a direct message as the person, with the agent named beside it', async () => {
     const w = world();
     const { result } = await call(w, 'chats.send', { conversationId: hala3, body: 'The new task list is live.' });
@@ -174,7 +190,7 @@ describe('the message tools over MCP (owner, 2026-10-12)', () => {
     const w = world();
     const { result } = await call(w, 'chats.send', { conversationId: faisalAndTurki, body: 'Hello.' });
     expect(result.isError).toBe(true);
-    expect(result.structuredContent.error.code).toBe('forbidden');
+    expect(result.structuredContent.error).toMatchObject({ code: 'not_found', message: `Conversation ${faisalAndTurki} does not exist.` });
     expect(Object.values(w.mem.tables.state.messages).some((m) => m.body === 'Hello.')).toBe(false);
   });
 
@@ -209,6 +225,64 @@ describe('the message tools over MCP (owner, 2026-10-12)', () => {
     expect(text).toContain(SECRET);
     const messages = result.structuredContent.output.messages as { message: Message; author: { id: string } }[];
     expect(messages.find((m) => m.message.body === SECRET)).toMatchObject({ author: { id: 'usr_003' } });
+  });
+
+  it('reads the page of a chat at one message with around', async () => {
+    const w = world();
+    const first = await call(w, 'chats.messages', { conversationId: hala3 });
+    const secret = (first.result.structuredContent.output.messages as { message: Message }[]).find((m) => m.message.body === SECRET)!.message.id;
+    const { text, result } = await call(w, 'chats.messages', { conversationId: hala3, around: secret });
+    expect(result.isError, JSON.stringify(result)).toBeUndefined();
+    expect(text).toContain(SECRET);
+    expect(result.structuredContent.output.newer).toBe(false);
+    const { TOOL_DOCS } = await import('./docs');
+    expect(TOOL_DOCS['chats.messages'].description).toContain('around');
+    expect(TOOL_DOCS['chats.messages'].description.length).toBeLessThanOrEqual(600);
+  });
+
+  it('finds the messages of its person with search.query, and none of a chat its person may not open', async () => {
+    const w = world();
+    const found = await call(w, 'search.query', { text: 'private offer' });
+    expect(found.result.isError, JSON.stringify(found.result)).toBeUndefined();
+    const hits = found.result.structuredContent.output.messages as { chatId: string; kind: string; line: string }[];
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ chatId: hala3, kind: 'direct', line: SECRET });
+    // A direct chat of two other people and a group that the person is not in: no hit, no text, no id.
+    for (const text of ['Admin may not open', 'other team text']) {
+      const none = await call(w, 'search.query', { text });
+      expect(none.result.isError, text).toBeUndefined();
+      expect(none.result.structuredContent.output.messages, text).toEqual([]);
+      expect(none.text, text).not.toContain(faisalAndTurki);
+      expect(none.text, text).not.toContain(outsiderRoom);
+    }
+  });
+
+  it('finds a comment of a project task with search.query, as a hit of kind task', async () => {
+    const w = world();
+    const task = Object.values(seed.tasks).find((t) => t.projectId !== null)!;
+    w.mem.tables.state.comments.cmt_991 = {
+      id: 'cmt_991', targetType: 'task', targetId: task.id, authorId: 'usr_003', body: 'The tower crane permit arrives on Sunday.', reactions: emptyReactions(), fileIds: [],
+      createdAt: '2026-10-04T05:20:00.000Z', editedAt: null,
+    };
+    w.mem.tables.version += 1;
+    const found = await call(w, 'search.query', { text: 'crane permit' });
+    expect(found.result.isError, JSON.stringify(found.result)).toBeUndefined();
+    const hits = found.result.structuredContent.output.messages as { id: string; chatId: string; kind: string; title: string }[];
+    expect(hits).toEqual([expect.objectContaining({ id: 'cmt_991', chatId: task.id, kind: 'task', title: task.title })]);
+    const { TOOL_DOCS } = await import('./docs');
+    expect(TOOL_DOCS['search.query'].description).toContain('task comments');
+    expect(TOOL_DOCS['search.query'].description.length).toBeLessThanOrEqual(600);
+  });
+
+  it('gives the project chat id of a project in projects.get, for the person of the agent', async () => {
+    const w = world();
+    const project = Object.values(seed.conversations).find((c) => c.kind === 'project')!;
+    const got = await call(w, 'projects.get', { id: project.projectId! });
+    expect(got.result.isError, JSON.stringify(got.result)).toBeUndefined();
+    expect(got.result.structuredContent.output.chatId).toBe(project.id);
+    const { TOOL_DOCS } = await import('./docs');
+    expect(TOOL_DOCS['projects.get'].description).toContain('chatId');
+    expect(TOOL_DOCS['projects.get'].description.length).toBeLessThanOrEqual(600);
   });
 
   it('reads a group of its person with chats.messages', async () => {
@@ -380,8 +454,8 @@ describe('the new view fields in the texts of the message tools (base B5)', () =
     const { TOOL_DOCS } = await import('./docs');
     const read = TOOL_DOCS['chats.messages'].description;
     for (const word of ['reactions', 'editedAt', 'replyTo', 'namesMe', 'readUpTo', 'Deleted messages are left out', 'direct or group chat', 'quiet lines']) expect(read, word).toContain(word);
-    // 540 leaves 60 characters for the "around" input of track find.
-    expect(read.length).toBeLessThanOrEqual(540);
+    // 540 left 60 characters for the "around" input of track find; the tool limit is 600.
+    expect(read.length).toBeLessThanOrEqual(600);
     for (const word of ['replyTo', 'namesMe']) expect(TOOL_DOCS['comments.list'].description, word).toContain(word);
     expect(TOOL_DOCS['comments.list'].description.length).toBeLessThanOrEqual(600);
   });

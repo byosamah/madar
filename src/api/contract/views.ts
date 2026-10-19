@@ -118,6 +118,8 @@ export const ProjectDetail = ProjectSummary.extend({
     active: z.boolean(),
   })),
   deadlines: z.array(Deadline),
+  /** The project chat when the viewer may open it, else null (chat design 2026-10-19, item 18): the Project chat button needs it. */
+  chatId: ConversationId.nullable().default(null),
 });
 export type ProjectDetail = z.infer<typeof ProjectDetail>;
 
@@ -284,6 +286,8 @@ export const ChatThread = z.object({
   readUpTo: Stamp.nullable().default(null),
   /** The "Notify me" level of the reader for this chat (item 21). */
   notify: z.enum(NOTIFY_LEVELS).default('all'),
+  /** True when newer messages exist after this page: a page that opens at one message (item 17) may end before the newest. */
+  newer: z.boolean().default(false),
 });
 export type ChatThread = z.infer<typeof ChatThread>;
 

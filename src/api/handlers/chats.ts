@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import { ConversationId, FileId, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, TaskId, UserId, emptyReactions, type Comment, type Conversation, type GroupLogEntry, type Message, type Project, type Reaction, type Task, type User } from '../contract/entities';
 import { ChatRow, ChatThread, MessageView, WaitingRow, type GroupLine } from '../contract/views';
+import { messagePageAround } from '../chatAround';
 import { addDirectConversation, addGroupConversation, canSeeConversation, closedChatError, isArchived, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, personLeft, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
 import { isLiveMessage, namesPerson, notifyLevelOf, replyRefOf } from '../chatNaming';
@@ -25,16 +26,13 @@ const previewOf = (body: string): string => {
 };
 
 /**
- * The chat the person may open. A group that the person may not open answers as a missing chat, so an outsider learns nothing
- * of it (Review Focus 1, owner rule of 2026-10-18). A project or direct chat keeps its answer.
+ * The chat the person may open. A chat that the person may not open answers as a missing chat, whatever its kind: a direct chat, a
+ * group and a project chat alike, so an outsider learns nothing of it, not even that the id exists (owner rule of 2026-10-18 for a
+ * group, chat design 2026-10-19, item 17, for the others). The answer equals the one for an id that was never made.
  */
 function requireConversation(ctx: Ctx, id: string): Conversation {
   const conversation = ctx.state.conversations[id];
-  if (!conversation) throw notFound('Conversation', id);
-  if (!canSeeConversation(ctx.state, conversation, ctx.authority)) {
-    if (conversation.kind === 'group') throw notFound('Conversation', id);
-    throw forbidden('You cannot open this chat.', { conversationId: id });
-  }
+  if (!conversation || !canSeeConversation(ctx.state, conversation, ctx.authority)) throw notFound('Conversation', id);
   return conversation;
 }
 
@@ -209,7 +207,11 @@ export const chatsList = defineCall({
   output: z.array(ChatRow),
   readOnly: true,
   run(_input, ctx) {
-    const rows = [...visibleConversations(ctx.state, ctx.authority).map((c) => rowOf(ctx.state, c, ctx.authority)), ...taskRows(ctx.state, ctx.authority)];
+    // A direct chat with no message shows only for the person who has a read mark on it, who opened it (chat design 2026-10-19, item 18).
+    const shown = visibleConversations(ctx.state, ctx.authority)
+      .map((c) => rowOf(ctx.state, c, ctx.authority))
+      .filter((row) => row.kind !== 'direct' || row.previewAuthor !== null || ctx.state.chatReads[chatReadKey(row.id, ctx.authority.id)] !== undefined);
+    const rows = [...shown, ...taskRows(ctx.state, ctx.authority)];
     return rows.sort((a, b) => b.lastAt.localeCompare(a.lastAt) || b.id.localeCompare(a.id));
   },
 });
@@ -236,17 +238,22 @@ export const chatsMessages = defineCall({
   /**
    * One page of messages (plan 4.13, A5): the newest "limit" messages before the message "before", oldest first.
    * The screen asks for the next page with the id of the oldest message it shows. A page shorter than "limit" is the last one.
+   * "around" (chat design 2026-10-19, item 17) opens the page at one message: 20 messages before it and every newer one, up to 500 in
+   * all; "newer" says that more follow. A message that is no live message of this chat gives the newest page, with no error.
    */
   input: z.object({
     conversationId: ConversationId,
     before: MessageId.optional(),
+    around: MessageId.optional(),
     limit: z.number().int().min(1).max(MESSAGE_PAGE_MAX).default(MESSAGE_PAGE),
   }),
   output: ChatThread,
   readOnly: true,
   run(input, ctx) {
     const conversation = requireConversation(ctx, input.conversationId);
-    const page = messagePage(ctx.state, conversation.id, input.limit, input.before);
+    if (input.around !== undefined && input.before !== undefined) throw invalid('around', 'Give around or before, not both.');
+    const around = input.around === undefined ? null : messagePageAround(ctx.state, conversation.id, input.limit, input.around);
+    const page = around?.page ?? messagePage(ctx.state, conversation.id, input.limit, input.before);
     if (!page) throw invalid('before', 'This message is not in this chat.');
     const people = Object.values(ctx.state.users)
       .filter((u) => u.kind === 'human' && u.id !== ctx.authority.id && canSeeConversation(ctx.state, conversation, u))
@@ -259,6 +266,7 @@ export const chatsMessages = defineCall({
       // The read time before this read (the read itself marks nothing, but the open of the screen does), for the "New" line.
       readUpTo: ctx.state.chatReads[chatReadKey(conversation.id, ctx.authority.id)]?.lastReadAt ?? null,
       notify: notifyLevelOf(ctx.state, conversation, ctx.authority.id),
+      newer: around?.newer ?? false,
     };
   },
 });
@@ -403,7 +411,13 @@ export const chatsOpenDirect = defineCall({
   input: z.object({ userId: UserId }),
   output: z.object({ id: ConversationId }),
   run(input, ctx) {
-    return { id: directWith(ctx, requireDirectPartner(ctx, input.userId)).id };
+    const chat = directWith(ctx, requireDirectPartner(ctx, input.userId));
+    // A chat with no message shows only for the person who opened it, who gets a read mark (chat design 2026-10-19, item 18). An agent
+    // writes no mark: its person sees the chat after the first message. A chat with messages, or with a mark, changes nothing.
+    if (ctx.actor.kind === 'human' && messagesOf(ctx.state, chat.id).length === 0 && ctx.state.chatReads[chatReadKey(chat.id, ctx.authority.id)] === undefined) {
+      writeReadMark(ctx, chat.id, undefined);
+    }
+    return { id: chat.id };
   },
 });
 

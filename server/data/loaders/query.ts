@@ -36,7 +36,10 @@ const COLUMNS: Partial<Record<TableCollection, Record<string, Column>>> = {
     search_text: server('search_text'),
   },
   updates: { project_id: text('projectId'), created_at: text('createdAt') },
-  comments: { target_type: text('targetType'), target_id: text('targetId'), created_at: text('createdAt'), project_id: server('project_id') },
+  comments: {
+    target_type: text('targetType'), target_id: text('targetId'), created_at: text('createdAt'), project_id: server('project_id'),
+    search_text: server('search_text'),
+  },
   files: { project_id: text('projectId'), task_id: text('taskId'), stage_id: text('stageId'), search_text: server('search_text') },
   tracker: {
     project_id: text('projectId'), reply_task_id: text('replyTaskId'),
@@ -48,7 +51,7 @@ const COLUMNS: Partial<Record<TableCollection, Record<string, Column>>> = {
     user_id: text('userId'), read: { type: 'bool', value: (rec) => rec.read === true }, created_at: text('createdAt'), correlation_id: text('correlationId'),
     target_type: text('targetType'), target_id: text('targetId'), dedupe_key: text('dedupeKey'),
   },
-  messages: { conversation_id: text('conversationId'), created_at: text('createdAt') },
+  messages: { conversation_id: text('conversationId'), created_at: text('createdAt'), search_text: server('search_text') },
   chatReads: { conversation_id: text('conversationId'), user_id: text('userId') },
   events: {
     seq: { type: 'int', value: (rec) => rec.seq as number }, project_id: text('projectId'), target_type: text('targetType'), target_id: text('targetId'),
@@ -85,7 +88,8 @@ export function fieldName(name: string): string {
  *   in            the column has one of the values
  *   notIn         the column is null or has none of the values
  *   eq            the column equals the value (null: the column is null)
- *   contains      the column holds the text (strpos), for search_text
+ *   contains      the column holds the text, for search_text. Postgres sends an escaped LIKE (a trigram index serves it);
+ *                 memory and SQLite keep the plain substring test, so the three forms give the same rows
  *   atOrAfter     the stamp of the column is at or after this time (compared as times, as events.list does)
  *   atBefore      the stamp of the column is before this time (compared as times). With atOrAfter it bounds a period (reports.office)
  *   field / in    a doc field without a column has one of the values (doc->>'field')
@@ -95,6 +99,7 @@ export function fieldName(name: string): string {
  *   has           a doc list field holds the value (doc->'field' ? value)
  *   notUndone     an event that no undo event names (events only)
  *   before        (created_at, id) comes before this pair in text order
+ *   after         (created_at, id) comes after this pair in text order (the mirror of before; open at one message)
  *   bounds        per key of a column: created_at after "gt"; when "ge" is set, at or after "ge"; when "after" is set,
  *                 (created_at, id) after that pair in text order (the rows after one row, plan 4.13 A9)
  *   or            any of the conditions holds
@@ -113,6 +118,7 @@ export type Cond =
   | { has: string; value: string }
   | { notUndone: true }
   | { before: { at: string; id: string } }
+  | { after: { at: string; id: string } }
   | { bounds: { col: string; by: Readonly<Record<string, Bound>> } }
   | { or: readonly Cond[] };
 
@@ -121,7 +127,8 @@ export type Bound = { gt: string; ge?: string; after?: { at: string; id: string 
 
 /**
  * One read of one table.
- *   order   newest first by a column, then by insertion order. Without it the rows come in insertion order.
+ *   order   newest first by a column (desc), or oldest first (asc), then by insertion order. Without it the rows come in
+ *           insertion order. An ascending read takes no ties.
  *   limit   the first rows in that order; with "ties", every row that shares the value of the last one too.
  *   per     the limit counts inside each value of this column (the newest posts of each project).
  *   pick    only these doc fields, for a read that never saves (AM 9). A field that is absent stays absent.
@@ -129,12 +136,22 @@ export type Bound = { gt: string; ge?: string; after?: { at: string; id: string 
 export type Select = {
   c: TableCollection;
   where: readonly Cond[];
-  order?: { col: string; desc: true; id?: true };
+  order?: { col: string; desc: true; id?: true } | { col: string; asc: true; id?: true };
   limit?: number;
   ties?: boolean;
   per?: string;
   pick?: readonly string[];
 };
+
+/** True for an oldest-first order. */
+export function isAscending(order: NonNullable<Select['order']>): boolean {
+  return 'asc' in order;
+}
+
+/** An ascending read takes no ties: the cut of "with ties" is defined for the newest rows only. All three sources call it. */
+export function assertOrder(s: Select): void {
+  if (s.order && isAscending(s.order) && s.ties) throw new Error('An ascending read takes no ties.');
+}
 
 /** A count of one table (plan 4.13, A9): the rows that every condition matches, counted for each value of the column "per". */
 export type CountSelect = { c: TableCollection; where: readonly Cond[]; per: string };

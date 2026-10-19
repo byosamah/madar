@@ -52,3 +52,16 @@ export function taskLink(projectId: string | null, taskId: string, thread = fals
   if (projectId === null) return `/work?task=${taskId}${thread ? '&thread=1' : ''}`;
   return `/projects/${projectId}?tab=tasks&task=${taskId}${thread ? '&thread=1' : ''}`;
 }
+
+/**
+ * The link of a chat or of a task thread in the Inbox, and one message in it (chat design 2026-10-19, item 17). A notice, a search
+ * hit and a reply strip use it.
+ */
+export function chatLink(chatId: string, messageId?: string): string {
+  return messageId ? `/inbox/${chatId}?at=${messageId}` : `/inbox/${chatId}`;
+}
+
+/** A message or a comment from the link, when it has the form of an id. A person can type anything into a link. */
+export function messageParam(value: string | null): string | undefined {
+  return value && /^(msg|cmt)_\d{3,}$/.test(value) ? value : undefined;
+}

@@ -18,6 +18,8 @@ import { PersonSheet } from './PersonSheet';
 import { useQueryInLink } from './useQueryInLink';
 import { LoadFailed } from '../../components/LoadFailed';
 import { taskLink } from '../../lib/params';
+import { searchWords } from '../../lib/searchMatch';
+import { MessageHits } from './MessageHits';
 import { projectKey } from '../../lib/projectCode';
 
 const GROUP = 'flex flex-col [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-footnote [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-label-2';
@@ -41,7 +43,8 @@ function Results({ query, onPerson }: { query: string; onPerson: (person: UserCa
   if (!results.data) return null;
   const { projects, tasks, people, files } = results.data;
   const subCompanies = results.data.subCompanies ?? [];
-  if (projects.length + tasks.length + people.length + files.length + subCompanies.length === 0) {
+  const messages = results.data.messages ?? [];
+  if (projects.length + tasks.length + people.length + files.length + subCompanies.length + messages.length === 0) {
     // An empty search says what to try next (audit PER-18).
     return (
       <div className="flex flex-col gap-1 px-3 py-2">
@@ -110,11 +113,13 @@ function Results({ query, onPerson }: { query: string; onPerson: (person: UserCa
           ))}
         </Command.Group>
       )}
+      {/* The Messages group is last: the newest messages and task comments that hold every word (chat design 2026-10-19, item 16). */}
+      <MessageHits hits={messages} words={searchWords(query)} />
     </>
   );
 }
 
-/** Search for projects, tasks, people and files, and commands (spec 7.3). The arrow keys move, Enter opens. */
+/** Search for projects, tasks, people, files and messages, and commands (spec 7.3). The arrow keys move, Enter opens. */
 export function SearchScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -139,7 +144,7 @@ export function SearchScreen() {
           autoFocus
           value={text}
           onValueChange={setText}
-          placeholder={t('search.placeholder')}
+          placeholder={t('search.placeholderAll')}
           className="panel min-h-14 w-full !rounded-2xl px-5 text-[calc(18px*var(--boost))] text-ink placeholder:text-ink-2 focus-visible:outline-2 focus-visible:outline-[var(--c-link)]"
         />
         {/* The list gets its own name: the library default is the English word "Suggestions" (audit 2026-10-03, F-4). */}

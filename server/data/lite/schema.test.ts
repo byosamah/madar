@@ -8,7 +8,7 @@ import { DEFAULT_SETTINGS, LITE_SCHEMA_VERSION, SIGNIN_TABLES, applyLiteSchema, 
 import { freshLite } from './testDb';
 
 /** The sha256 of the schema text of LITE_SCHEMA_VERSION. A change of the schema needs a new version and a new value here. */
-const PINNED_SHA256 = '77bb4e5609fac88fd2021ca83596c7c9dd62bf684ca43c5ea8cecd5d81e2b6ec';
+const PINNED_SHA256 = '41d4409cc02400d05538b1b8454fe9ec63d7cc2e3499612c37f8603a903e1679';
 
 const tablesOf = (raw: DatabaseSync) =>
   (raw.prepare("select name from sqlite_master where type = 'table' and name not like 'sqlite_%' order by name").all() as { name: string }[]).map((r) => r.name);
@@ -34,8 +34,10 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     const { raw } = await freshLite();
     raw.exec('drop table usage_day');
     raw.exec('drop table sub_companies');
+    raw.exec('alter table messages drop column search_text');
+    raw.exec('alter table comments drop column search_text');
     raw.exec('update schema_version set version = 2');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [3, 4] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [3, 4, 5] });
     expect(columnsOf(raw, 'usage_day')).toEqual(['day', 'rows_read', 'rows_written', 'requests', 'calls', 'worker_requests']);
     expect(columnsOf(raw, 'sub_companies')).toEqual(['id', 'doc']);
     expect(raw.prepare('select version from schema_version').get()).toEqual({ version: LITE_SCHEMA_VERSION });
@@ -46,8 +48,23 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     const fresh = raw.prepare("select sql from sqlite_master where name = 'sub_companies'").get();
     raw.exec('drop table sub_companies');
     raw.exec('update schema_version set version = 3');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [4] });
+    raw.exec('alter table messages drop column search_text');
+    raw.exec('alter table comments drop column search_text');
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [4, 5] });
     expect(raw.prepare("select sql from sqlite_master where name = 'sub_companies'").get()).toEqual(fresh);
+  });
+
+  it('steps a version 4 office to the same messages and comments table texts as a new office', async () => {
+    const { raw } = await freshLite();
+    const text = (table: string) => raw.prepare('select sql from sqlite_master where name = ?').get(table);
+    const fresh = [text('messages'), text('comments')];
+    raw.exec('alter table messages drop column search_text');
+    raw.exec('alter table comments drop column search_text');
+    raw.exec('update schema_version set version = 4');
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [5] });
+    expect([text('messages'), text('comments')]).toEqual(fresh);
+    expect(columnsOf(raw, 'messages')).toEqual(['id', 'doc', 'conversation_id', 'created_at', 'search_text']);
+    expect(columnsOf(raw, 'comments')).toEqual(['id', 'doc', 'target_type', 'target_id', 'created_at', 'project_id', 'search_text']);
   });
 
   it('refuses an office whose version has no step to the next one, and changes nothing', async () => {
@@ -122,6 +139,6 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
 
   it('pins the schema text to its version', () => {
     const sha256 = createHash('sha256').update(liteSchemaSql().join('\n')).digest('hex');
-    expect({ version: LITE_SCHEMA_VERSION, sha256 }).toEqual({ version: 4, sha256: PINNED_SHA256 });
+    expect({ version: LITE_SCHEMA_VERSION, sha256 }).toEqual({ version: 5, sha256: PINNED_SHA256 });
   });
 });

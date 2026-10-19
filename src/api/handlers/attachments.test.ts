@@ -118,8 +118,8 @@ describe('files in chat messages', () => {
     const orphan = addProjectConversation(t.store.state, 'prj_001', STAMP);
     t.store.state.conversations[orphan.id].projectId = null;
     t.store.state.conversations[orphan.id].kind = 'project';
-    // The Admin cannot open a project chat without a project, so the chat refuses first.
-    await expect(t.api.call('chats.send', { conversationId: orphan.id, body: 'Hi', fileIds: ['fil_001'] })).rejects.toMatchObject({ code: 'forbidden' });
+    // The Admin cannot open a project chat without a project, so the chat refuses first, as a chat that does not exist.
+    await expect(t.api.call('chats.send', { conversationId: orphan.id, body: 'Hi', fileIds: ['fil_001'] })).rejects.toMatchObject({ code: 'not_found' });
     expect(Object.values(t.store.state.messages)).toHaveLength(0);
   });
 

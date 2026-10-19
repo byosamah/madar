@@ -3,6 +3,7 @@ import type { SharedCallName, SharedCalls } from '../../../src/api/sharedCalls';
 import type { State } from '../../../src/api/store';
 import { Load, type LoadCtx } from './build';
 import { chatMessageCall, chatMessageRows, chatsAll, chatsArchive, chatsMarkRead, chatsMessages, chatsUnread, chatsWaiting } from './chat';
+import { chatsOpenDirect } from './chatOpen';
 import { inboxCount, inboxList } from './inbox';
 import { dashboardGet, eventsList, projectsList, searchQuery, tasksList, templateSyncTasks } from './overview';
 import {
@@ -22,7 +23,7 @@ import {
  * The loader of each call that the server runs (plan 4.6; task C2). runCall (C3) calls loadFor() inside the call's transaction,
  * after the office lock for a write, and runs the handler on the State it returns. The table of plan 4.6 names the loaders:
  *
- *   office         the office lists only (people, clients, settings, teams, templates, deadlines.list, session.get, chats.openDirect).
+ *   office         the office lists only (people, clients, settings, teams, templates, deadlines.list, session.get).
  *                  projects.create reads its project template from them too. The group calls (chats.createGroup,
  *                  chats.updateGroup, chats.leaveGroup) read the chat rooms there too.
  *   feedback       the office and every feedback row
@@ -157,7 +158,7 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'chats.deleteMessage': chat(chatMessageCall),
   'chats.markRead': chat(chatsMarkRead),
   'chats.archive': chat(chatsArchive),
-  'chats.openDirect': office,
+  'chats.openDirect': chat(chatsOpenDirect),
   'chats.createGroup': office,
   'chats.updateGroup': office,
   'chats.leaveGroup': office,

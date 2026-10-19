@@ -44,10 +44,10 @@ describe('the bell and the notifications list (audit 2026-10-03)', () => {
     const t = testApi({ ...notificationCalls, ...chatCalls });
     t.as('usr_002');
     const { id } = await t.api.call('chats.openDirect', { userId: 'usr_003' });
-    await t.api.call('chats.send', { conversationId: id, body: 'Can you check this, @[Sara Team](usr_003)?' });
+    const sent = await t.api.call('chats.send', { conversationId: id, body: 'Can you check this, @[Sara Team](usr_003)?' });
     t.as('usr_003');
     const [view] = await t.api.call('notifications.list', {});
-    expect(view).toMatchObject({ target: '', project: null, link: `/inbox/${id}` });
+    expect(view).toMatchObject({ target: '', project: null, link: `/inbox/${id}?at=${sent.message.id}` });
     expect(view.notification).toMatchObject({ trigger: 'mention', targetType: 'chat' });
   });
 

@@ -1768,3 +1768,37 @@ Open for the owner (Task 11, Steps 3 to 5):
   limit on Settings; the Arabic phone walk passed in the same run. A rerun of the walk alone passed in 3.1 minutes.
 - The free map on the test copy (as the Admin, Dashboard Map tab): the map canvas drew, 5 pins, tiles 5 of 5 and glyphs 3 of 3 from
   tiles.openfreemap.org, no CSP violation (the Arabic plugin runs under `'wasm-unsafe-eval'`), at 1440 px and 390 px.
+
+### Chat search: the trigram index and the SQLite scan (track find, 2026-10-19)
+
+Method (chat design 2026-10-19, item 16). One fold serves the body and the query: `normalizeForSearch(plainText(body))`. The save writes it into
+`messages.search_text` and `comments.search_text` (a deleted message keeps null). Postgres has one GIN trigram index on each column
+(`pg_trgm` in the schema `extensions`). The loader sends `contains` as an escaped LIKE, so the index serves it. A query matches when the
+folded text holds every word. A query with no word of 3 letters finds no message, because a 2-letter pattern has no trigram. The group has
+at most 5 hits.
+
+Facts checked on a throwaway Postgres 17.11 (Homebrew, locale en_US.UTF-8, a socket only, no Docker), with the migration
+`20261020000100_message_search.sql`:
+- The migration applies. The backfill gives `ask @reem about the riser` for a message with a mention, null for a deleted message, and
+  `اسعار المواد` for an Arabic comment.
+- `search_fold` gives the text of `bodySearchText` for 13 sample bodies (NBSP and the other white space, tashkeel, tatweel, the alef
+  forms, taa marbuta, alef maqsura, Arabic-Indic digits, mentions, emoji, full-width letters, a 4,000-character body). One known
+  difference: `İ` (U+0130) folds to `i` in SQL and to `i` plus a dot in JavaScript.
+- Arabic text has trigrams in this locale: `show_trgm('اسعار المواد')` gives 12.
+- With 30,000 messages and 30,000 comments (1 in 1,000 holds "riser"), the loader read of a message search uses `messages_search`, and the
+  comment read uses `comments_search`, with no sequential scan. With 6,000 comments Postgres chose to read every row, so
+  `server/it/messageSearch.it.test.ts` uses 30,000 rows for each table.
+- To check on madar-test after the test deploy (not run by the builder): `select current_setting('lc_ctype'), extensions.show_trgm('اسعار المواد')`.
+
+The office path (SQLite, the paused Supabase exit) keeps `contains` as `instr`, a scan of `search_text`. Rows read on the year office
+(`test:office`, `server/office/pins.wd.test.ts`, as usr_005), measured:
+
+| Read | Before | After the messages | After the task comments |
+| --- | --- | --- | --- |
+| `search.query` `plan` | 1,038 | 4,127 | 16,200 |
+| `search.query` `zqxv` | 7,034 | 19,505 | 31,578 |
+
+The ceilings in `server/office/test/pins.ts` are the measured rows plus 10%. The office path scans `messages` and `comments` with `instr`
+until the restart. The new ceilings are 17,820 and 34,736. The comment read costs most: no index of `comments` gives the order of `created_at`, so
+the read takes every comment of the 50 projects and tests `instr` on each row. `exit-handoff.md`, section 7, names the FTS5 index for the restart.
+
