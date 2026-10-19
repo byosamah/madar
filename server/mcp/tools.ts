@@ -6,10 +6,11 @@ import { sharedCalls, type SharedCallName } from '../../src/api/sharedCalls';
 import { TOOL_DOCS } from './docs';
 
 /**
- * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). A fixed allowlist of 44 tools for every agent: the
- * reads and writes an agent can use for an office project, with the three message tools (owner, 2026-10-12). The Admin list adds 3
- * tools for an agent whose person is an Admin (requests and bugs, owner 2026-10-07), so that agent gets 47. The right list adds
- * reports.office for an agent whose person holds the report right (owner, 2026-10-18, fbk_016), so an Admin's agent gets 48. Every
+ * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). A fixed allowlist of 45 tools for every agent: the
+ * reads and writes an agent can use for an office project, with the three message tools (owner, 2026-10-12) and the stage dates
+ * (fbk_023). The Admin list adds 3
+ * tools for an agent whose person is an Admin (requests and bugs, owner 2026-10-07), so that agent gets 48. The right list adds
+ * reports.office for an agent whose person holds the report right (owner, 2026-10-18, fbk_016), so an Admin's agent gets 49. Every
  * other call stays on the deny list: screen work (uploads, read marks, counts, archives, group changes), the prototype controls, and the
  * other Admin calls. VS Code allows at most 128 tools in one request across all
  * servers, and each tool definition uses model context, so the lists stay short. tools.test.ts fails when a call is in no list.
@@ -24,12 +25,12 @@ export const MCP_ALLOW = [
   READ_FIRST, 'projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'tracker.list',
   'payments.list', 'deadlines.list', 'files.list', 'users.list', 'dashboard.get', 'search.query', 'events.list', 'chats.list', 'subCompanies.list',
   'chats.messages', 'chats.waiting',
-  // Writes (25). chats.openDirect and chats.send message the team: a direct chat, a group or a project chat (task comments and
-  // project posts are comments.create and updates.create).
+  // Writes (26). chats.openDirect and chats.send message the team: a direct chat, a group or a project chat (task comments and
+  // project posts are comments.create and updates.create). stages.setDates sets the dates of one stage, as the Schedule tab does.
   'story.start', 'tasks.create', 'tasks.update', 'tasks.take', 'tasks.arrange', 'tasks.move', 'tasks.complete', 'tasks.approve', 'tasks.sendBack', 'comments.create',
   'updates.create', 'tracker.log', 'tracker.update', 'tracker.close', 'payments.create', 'payments.update', 'payments.markReceived',
   'deadlines.create', 'deadlines.update', 'projects.update', 'projects.setStatus', 'events.undo', 'events.undoStory',
-  'chats.openDirect', 'chats.send',
+  'chats.openDirect', 'chats.send', 'stages.setDates',
 ] as const satisfies readonly (typeof READ_FIRST | SharedCallName | ServerCallName)[];
 
 /**
@@ -64,11 +65,11 @@ export const MCP_DENY = [
   'settings.get', 'settings.update',
   // Office roles and their rights: only the Admin makes or changes a role, in the screens (owner, 2026-10-18, fbk_014).
   'roles.create', 'roles.update', 'roles.delete',
-  // Project set-up, members, stages, links, health and deletes.
+  // Project set-up, members, stages (the dates of a stage are a tool, fbk_023), links, health and deletes.
   'projects.create', 'projects.setLeader', 'projects.pause', 'projects.resume', 'projects.addLink', 'projects.updateLink',
   'projects.removeLink', 'projects.setHealthOverride', 'projects.clearHealthOverride', 'projects.delete',
   'members.add', 'members.addTeam', 'members.remove', 'members.update',
-  'stages.replace', 'stages.setDates', 'stages.setPrerequisites', 'deadlines.delete',
+  'stages.replace', 'stages.setPrerequisites', 'deadlines.delete',
   // Task work that needs a person's eye: templates, versions, deletes.
   'tasks.createFromTemplate', 'tasks.newVersion', 'tasks.delete',
   'updates.update', 'updates.delete', 'comments.update', 'comments.delete', 'reactions.toggle',
@@ -180,7 +181,7 @@ function build(name: McpToolName): ToolDef {
 let cache: ToolDef[] | null = null;
 
 /**
- * The tools in their fixed order. The list has the 44 tools of the allowlist; an agent of an Admin gets the Admin tools too, and
+ * The tools in their fixed order. The list has the 45 tools of the allowlist; an agent of an Admin gets the Admin tools too, and
  * every right tool. Each right tool joins the list when its right is in rights (an Admin holds all of them). It reads sharedCalls and
  * the server contracts, never the server code of a call.
  */

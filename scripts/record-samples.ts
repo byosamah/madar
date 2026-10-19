@@ -147,6 +147,9 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     await write('deadlines.create', { projectId: project.id, name: 'Municipality submission', date: addDays(TODAY, 21), stageId });
     const deadline = added(before, s(), 'deadlines');
     await write('deadlines.update', { id: deadline, patch: { date: addDays(TODAY, 28) } });
+    // The dates of the current stage (fbk_023): both dates go in, the end a week later. A stage date needs no reason.
+    const currentStage = s().stages[stageId];
+    await write('stages.setDates', { stageId, startDate: currentStage.startDate ?? TODAY, endDate: addDays(currentStage.endDate ?? addDays(TODAY, 30), 7) });
     await write('projects.update', { id: project.id, patch: { description: 'A four-storey office building with a basement car park.' } });
     await write('feedback.setStatus', { id: report.id, status: 'done' });
 

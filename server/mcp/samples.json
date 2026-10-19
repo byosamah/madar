@@ -50,7 +50,7 @@
     "limit": 10
   },
   "events.undo": {
-    "eventId": "evt_365"
+    "eventId": "evt_366"
   },
   "events.undoStory": {
     "correlationId": "cor_sample_022"
@@ -114,6 +114,12 @@
   },
   "search.query": {
     "text": "Corniche"
+  },
+  "stages.setDates": {
+    "stageId": "stg_004",
+    "startDate": "2026-08-01",
+    "endDate": "2026-10-04",
+    "storyId": "cor_sample_022"
   },
   "story.start": {},
   "subCompanies.list": {},
