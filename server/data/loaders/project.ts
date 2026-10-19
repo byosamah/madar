@@ -58,8 +58,12 @@ export async function filesList(L: Load, input: Input): Promise<void> {
   await L.select({ c: 'files', where: [{ col: 'project_id', in: [str(input.projectId) ?? ''] }] });
 }
 
-/** files.upload: every file of P, because a file of the same name gets the next version (AM 6, row 12), and the task it names. */
+/**
+ * files.upload: every file of P, because a file of the same name gets the next version (AM 6, row 12), and the task it names. A file of
+ * a direct chat or a group (owner, 2026-10-19) reads nothing: the chat is in the office, and a second file with the same name is a new file.
+ */
 export async function filesUpload(L: Load, input: Input): Promise<void> {
+  if (str(input.conversationId)) return;
   if (!str(input.projectId)) return officeFiles(L, str(input.taskId));
   const projectId = str(input.projectId) ?? '';
   await L.select({ c: 'files', where: [{ col: 'project_id', in: [projectId] }] });

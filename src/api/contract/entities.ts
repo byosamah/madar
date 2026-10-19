@@ -753,6 +753,11 @@ export const FileRec = z.object({
   projectId: ProjectId.nullable(),
   stageId: StageId.nullable(),
   taskId: TaskId.nullable(),
+  /**
+   * A file of a direct chat or a group (owner, 2026-10-19): the chat that holds it. Then projectId, stageId and taskId are null. The
+   * people who read the messages of that chat open the file, and nobody else. Optional, so older files load.
+   */
+  conversationId: ConversationId.optional(),
   name: z.string().trim().min(1).max(200),
   versions: z.array(FileVersion).min(1),
 });

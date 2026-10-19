@@ -1,4 +1,5 @@
 import type { ChatRead, Conversation, Message, User } from './contract/entities';
+import { forbidden, invalid, notFound } from './errors';
 import { can, principalOf, projectRoleOf } from './permissions';
 import { chatReadKey, nextId, unreadCountKey, type State } from './store';
 
@@ -47,6 +48,38 @@ export function canSeeConversation(state: State, conversation: Conversation, use
   const projectId = conversation.projectId;
   if (!projectId || !state.projects[projectId]) return false;
   return can(user, 'chat.project', { projectRole: projectRoleOf(state, projectId, user.id) });
+}
+
+/**
+ * True for a chat that takes no new messages: a direct chat whose other person is no longer active (audit 2026-10-03, SHL-15), or
+ * a group with no other active person (UX audit 2026-10-19, chats-11). The history stays readable.
+ */
+export function personLeft(state: State, conversation: Conversation, viewer: User): boolean {
+  const others = conversation.memberIds.filter((id) => id !== viewer.id);
+  if (conversation.kind === 'group') return !others.some((id) => state.users[id]?.active === true);
+  if (conversation.kind !== 'direct') return false;
+  return others.some((id) => state.users[id]?.active === false);
+}
+
+/** The refusal of a message or a file for a chat that is closed (personLeft). One text for chats.send and for the upload of a file. */
+export function closedChatError(conversation: Conversation) {
+  return forbidden(
+    conversation.kind === 'group' ? 'Everyone else left this group. This chat takes no new messages.' : 'This person is inactive. This chat takes no new messages.',
+    { conversationId: conversation.id, reason: 'person_left' },
+  );
+}
+
+/**
+ * The chat that a person may put a file into (owner, 2026-10-19): a direct chat or a group that the person may open, and that is not
+ * closed. A chat that the person may not open reads as a missing chat, for a direct chat and for a group alike, and so does every
+ * agent: an agent never uploads. A project chat uses the files of its project. The browser and the server both use this rule.
+ */
+export function chatForUpload(state: State, conversationId: string, person: User, actor: User): Conversation {
+  const conversation = state.conversations[conversationId];
+  if (!conversation || actor.kind === 'agent' || !canSeeConversation(state, conversation, person)) throw notFound('Conversation', conversationId);
+  if (conversation.kind === 'project') throw invalid('conversationId', 'A project chat uses the files of its project. Name the project.', 'file_chat');
+  if (personLeft(state, conversation, person)) throw closedChatError(conversation);
+  return conversation;
 }
 
 /** The messages of one page of a chat when the screen names no limit, and the most it may ask for (plan 4.13, A5; AM 7.5). */

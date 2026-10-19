@@ -9,10 +9,10 @@ import type { ServerCall } from '../core/types';
 import { confirmThumb, confirmUpload, fileTooLarge } from '../files/confirm';
 import { projectBlobKeys, removeNowOrLater, stashProjectKeys } from '../files/effects';
 import { checkIntent, declaredType, insertIntents, intentExpiry, newUploadId, readIntents, useIntents } from '../files/intents';
-import { officeUploadKey, officeUploadThumbKey, stagingKey, stagingThumbKey, uploadKey, uploadThumbKey } from '../files/keys';
+import { chatUploadKey, chatUploadThumbKey, officeUploadKey, officeUploadThumbKey, stagingKey, stagingThumbKey, uploadKey, uploadThumbKey } from '../files/keys';
 import { isPictureType } from '../files/links';
 import { projectOfTask, readFile, readTask } from '../files/records';
-import { assertMayPost, assertMayView, assertMayViewOfficeFile, authorityOf, mayViewOfficeTask } from '../files/rights';
+import { assertMayPost, assertMayUploadToChat, assertMayView, assertMayViewChatFile, assertMayViewOfficeFile, authorityOf, mayViewOfficeTask } from '../files/rights';
 
 /**
  * The file calls of the server (plan 5.2; plan 2b, points 1 and 7; proof.md, Z0a item 6; task F2), on the active store
@@ -38,7 +38,13 @@ export const filesUploadStart: ServerCall<'files.uploadStart'> = async (input, c
   authorityOf((id) => office.lists.users[id], userId);
   // The place of the upload: a project, or one office task (owner, 2026-10-06). It names the final key.
   let place: { projectId: string | null; key: (intent: string) => string; thumb: (intent: string) => string };
-  if (input.projectId === undefined) {
+  if (input.conversationId !== undefined) {
+    // A file of a direct chat or a group (owner, 2026-10-19): a member who may send in that chat, and no project, stage or task.
+    if (input.projectId !== undefined) throw invalid('conversationId', 'Name the project, or the chat of the file, not both.', 'file_chat');
+    const chat = assertMayUploadToChat(office, userId, input.conversationId);
+    if (input.stageId || input.taskId) throw invalid(input.stageId ? 'stageId' : 'taskId', 'A file of a chat belongs to no stage and no task. It stays in its chat.', 'file_chat');
+    place = { projectId: null, key: (intent) => chatUploadKey(chat.id, intent), thumb: (intent) => chatUploadThumbKey(chat.id, intent) };
+  } else if (input.projectId === undefined) {
     const task = await officeTaskOfUpload(ctx, input.taskId ?? undefined);
     if (input.stageId) throw invalid('stageId', 'An office task belongs to no project, so it has no stage.', 'office_no_stage');
     place = { projectId: null, key: (intent) => officeUploadKey(task.id, intent), thumb: (intent) => officeUploadThumbKey(task.id, intent) };
@@ -89,8 +95,10 @@ export const filesLink: ServerCall<'files.link'> = async (input, ctx) => {
   authorityOf((id) => office.lists.users[id], userId);
   const file = await readFile(deps.db, input.id);
   if (!file) throw notFound('File', input.id);
+  // A file of a direct chat or a group: the people who read its messages, right before the signing (owner, 2026-10-19).
+  if (file.conversationId !== undefined) assertMayViewChatFile(office, userId, file.conversationId, file.id);
   // A file of an office task: the view right on that task, right before the signing (owner, 2026-10-06).
-  if (file.projectId === null) assertMayViewOfficeFile(office, userId, file.taskId ? await readTask(deps.db, file.taskId) : undefined, file.id);
+  else if (file.projectId === null) assertMayViewOfficeFile(office, userId, file.taskId ? await readTask(deps.db, file.taskId) : undefined, file.id);
   else {
     if (!office.lists.projects[file.projectId]) throw notFound('Project', file.projectId);
     assertMayView(office, userId, file.projectId);
@@ -104,8 +112,8 @@ export const filesLink: ServerCall<'files.link'> = async (input, ctx) => {
   return { output: { url: link.url, expiresAt: link.expiresAt, name: file.name, mimeType: version.mimeType, size: version.size }, changed: false };
 };
 
-/** No projectId: an upload of the office task taskId (owner, 2026-10-06). */
-type UploadInput = { projectId?: string; uploadId: string; taskId?: string | null };
+/** No projectId: an upload of the office task taskId (owner, 2026-10-06), or of the chat conversationId (owner, 2026-10-19). */
+type UploadInput = { projectId?: string; uploadId: string; taskId?: string | null; conversationId?: string };
 
 /**
  * files.upload on the server. The preflight (before the lock) checks the intent, then the object and its copy on the final key
@@ -114,9 +122,10 @@ type UploadInput = { projectId?: string; uploadId: string; taskId?: string | nul
  */
 export const filesUploadHooks: ServerHooks<unknown, UploadPrepared, Deps> = {
   async preflight(input, { actorId, now, deps }): Promise<UploadPrepared> {
-    const { projectId, uploadId, taskId } = input as UploadInput;
-    // No project: the intent must be one of the office task the call names (owner, 2026-10-06).
-    const place = projectId !== undefined ? { projectId } : { projectId: null, officeTaskId: taskId ?? '' };
+    const { projectId, uploadId, taskId, conversationId } = input as UploadInput;
+    // No project: the intent must be one of the chat the call names (owner, 2026-10-19), or of the office task it names (owner, 2026-10-06).
+    const place = conversationId !== undefined ? { projectId: projectId ?? null, conversationId }
+      : projectId !== undefined ? { projectId } : { projectId: null, officeTaskId: taskId ?? '' };
     const intent = checkIntent((await readIntents(deps.db, [uploadId])).get(uploadId), { id: uploadId, actorId, now, field: 'uploadId', ...place, allowUsed: true });
     // A used intent: a retry of a call that committed. No store call, because a late second PUT may sit on the staging key; runCall
     // replays the stored answer of the key, and without one prepare refuses with conflict.

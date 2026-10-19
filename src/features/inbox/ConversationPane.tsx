@@ -152,7 +152,8 @@ export function ChatPane({ id }: { id: string }) {
           id={id}
           people={data.people}
           pending={send.isPending}
-          upload={chat.kind === 'project' && chat.project ? { projectId: chat.project.id } : undefined}
+          // A project chat joins the files of its project. A direct chat or a group keeps its files in the chat (owner, 2026-10-19).
+          upload={chat.kind === 'project' ? (chat.project ? { projectId: chat.project.id } : undefined) : { projectId: null, conversationId: id }}
           onSend={(body, fileIds, clear) => send.mutate({ conversationId: id, body, fileIds }, { onSuccess: clear })}
         />
       )}

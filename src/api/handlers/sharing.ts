@@ -25,6 +25,8 @@ export const filesShare = defineCall({
     const file = ctx.state.files[input.fileId];
     // A file of an office task that the person does not see reads as missing (owner, 2026-10-06).
     if (!file || !mayViewFile(ctx.state, ctx.authority, file)) throw notFound('File', input.fileId);
+    // A file of a direct chat or a group stays in its chat (owner, 2026-10-19).
+    if (file.conversationId !== undefined) throw invalid('target', 'A file of a chat stays in its chat.', 'file_chat');
     const body = input.message || file.name;
     const { target } = input;
     if (target.kind === 'task') {

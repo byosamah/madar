@@ -59,4 +59,38 @@ describe('the signals of chats.send in a group, with a file', () => {
     expect(everyone.projects).toEqual([]);
     expect(everyone.kinds).toEqual(['chatReads', 'messages']);
   });
+
+  // Owner, 2026-10-19: a chat file is private like a message. The send of a message that carries it tells no browser which file.
+  it('carry no file id, no file name and no member for a message that holds a file of the group', async () => {
+    const office = structuredClone(seed);
+    const people = Object.values(office.users).filter((u) => u.kind === 'human' && u.active && u.id !== ADMIN).slice(0, 2).map((u) => u.id);
+    const mem = memoryData(office);
+    const deps = fakeDeps({ db: mem.db });
+    deps.clock.set(NOW);
+    const run = createRunCall({ data: () => mem.data() });
+    const batch = () => ({ storyRefs: new Map<string, string>(), overviewCalls: 0 });
+    const made = await run(deps, { principal: { userId: ADMIN }, name: 'chats.createGroup', input: { name: 'Plan team', memberIds: people }, batch: batch() });
+    if (!made.ok) throw new Error(`createGroup failed: ${made.error.message}`);
+    const group = (made.output as { id: string }).id;
+    // The file is planted: the upload itself is a server call with its own tests (server/calls/chatFiles.test.ts).
+    mem.tables.state.files.fil_960 = {
+      id: 'fil_960', projectId: null, stageId: null, taskId: null, conversationId: group, name: 'Hidden-chat-photo-8812.jpg',
+      versions: [{ letter: 'A', blobKey: 'chat/x/y/file', mimeType: 'image/jpeg', size: 4, uploadedBy: ADMIN, uploadedAt: '2026-10-04T09:00:00.000+03:00' }],
+    };
+    const sent = await run(deps, {
+      principal: { userId: ADMIN }, name: 'chats.send', input: { conversationId: group, body: 'SIGNAL-BODY-6642', fileIds: ['fil_960'] }, batch: batch(),
+    });
+    if (!sent.ok) throw new Error(`send failed: ${sent.error.message}`);
+    expect(sent.signals?.length ?? 0).toBeGreaterThan(0);
+    for (const signal of sent.signals ?? []) {
+      const text = JSON.stringify(signal);
+      for (const hidden of ['fil_960', 'Hidden-chat-photo', group, ...people, 'SIGNAL-BODY-6642']) expect(text).not.toContain(hidden);
+      for (const key of Object.keys(signal)) expect(SIGNAL_KEYS.has(key), key).toBe(true);
+    }
+    const everyone = (sent.signals ?? []).find((signal) => signal.channel === 'office')!;
+    expect(everyone).not.toHaveProperty('actorId');
+    expect(everyone).not.toHaveProperty('storyId');
+    expect(everyone.people).toEqual([]);
+    expect(everyone.projects).toEqual([]);
+  });
 });

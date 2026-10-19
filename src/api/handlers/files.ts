@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { FileId, FileVersion, MAX_FILE_BYTES, ProjectId, StageId, TaskId, type FileRec, type FileVersion as Version, type Task } from '../contract/entities';
+import { ConversationId, FileId, FileVersion, MAX_FILE_BYTES, ProjectId, StageId, TaskId, type FileRec, type FileVersion as Version, type Task } from '../contract/entities';
 import { FileView, TrackerRow } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { nextId } from '../store';
-import { fileViewOf, mayDeleteFile, mayViewFile, trackerRowOf } from '../views';
+import { chatForUpload } from '../chatState';
+import { fileViewOf, mayDeleteFile, mayOpenFile, mayViewFile, trackerRowOf } from '../views';
 import { assertCan, requireProject, requireStage, requireTask, roleIn, taskRole, touch } from './shared';
 import { addTrackerEntry } from './tracker';
 
@@ -65,15 +66,18 @@ export const filesGet = defineCall({
   },
   run(input, ctx, prepared) {
     const file = ctx.state.files[input.id];
-    if (!file || !mayViewFile(ctx.state, ctx.authority, file)) throw notFound('File', input.id);
+    // An agent never opens a file of a direct chat or a group (owner, 2026-10-19).
+    if (!file || !mayOpenFile(ctx.state, ctx.authority, ctx.actor, file)) throw notFound('File', input.id);
     return { file: fileViewOf(ctx.state, file, ctx.authority), version: prepared.version, blob: prepared.blob };
   },
 });
 
 /** The fields of an upload that both forms share. */
 const UploadFields = z.object({
-  /** None: a file of the office task taskId (owner, 2026-10-06). */
+  /** None: a file of the office task taskId (owner, 2026-10-06), or of the direct chat or group conversationId (owner, 2026-10-19). */
   projectId: ProjectId.optional(),
+  /** A direct chat or a group. The file stays in that chat: no project, no stage, no task, no cover. */
+  conversationId: ConversationId.optional(),
   name: z.string().trim().min(1).max(200),
   stageId: StageId.nullable().default(null),
   taskId: TaskId.nullable().default(null),
@@ -117,6 +121,27 @@ function uploadOfficeFile(ctx: Ctx, input: { name: string; stageId: string | nul
 }
 
 /**
+ * A file of a direct chat or a group (owner, 2026-10-19): a member who may send in that chat adds it (chatForUpload). It has no stage,
+ * no cover and no Tracker entry, and it writes no History event, because it shows only in the messages of its chat. A second file with
+ * the same name is a new file, not a new version: an old message keeps the file that it carried.
+ */
+function uploadChatFile(ctx: Ctx, input: { name: string; stageId: string | null; taskId: string | null; asCover: boolean; receivedFromClient: boolean; conversationId?: string }, prepared: UploadPrepared): FileView {
+  const conversation = chatForUpload(ctx.state, input.conversationId ?? '', ctx.authority, ctx.actor);
+  const misuse = input.stageId ? 'stageId' : input.taskId ? 'taskId' : input.asCover ? 'asCover' : input.receivedFromClient ? 'receivedFromClient' : null;
+  if (misuse) throw invalid(misuse, 'A file of a chat belongs to no stage, no task and no cover. It stays in its chat.', 'file_chat');
+  const id = nextId(ctx.state, 'fil');
+  const file: FileRec = {
+    id, projectId: null, stageId: null, taskId: null, conversationId: conversation.id, name: input.name,
+    versions: [{
+      letter: 'A', blobKey: prepared.blobKey, mimeType: prepared.mimeType, size: prepared.size,
+      uploadedBy: ctx.actor.id, uploadedAt: ctx.stamp, ...(prepared.thumbKey ? { thumbKey: prepared.thumbKey } : {}),
+    }],
+  };
+  ctx.state.files[id] = file;
+  return fileViewOf(ctx.state, file, ctx.authority);
+}
+
+/**
  * What run() needs from the stored data. The prototype makes it from the blob in "prepare"; the real build makes it from the upload intent
  * in its server prepare hook (plan 5.2).
  */
@@ -140,6 +165,10 @@ export const filesUpload = defineCall({
     return { blobKey, size: input.blob.size, mimeType: input.blob.type || 'application/octet-stream' };
   },
   run(input, ctx, prepared) {
+    if (input.conversationId !== undefined) {
+      if (input.projectId !== undefined) throw invalid('conversationId', 'Name the project, or the chat of the file, not both.', 'file_chat');
+      return uploadChatFile(ctx, input, prepared);
+    }
     if (input.projectId === undefined) return uploadOfficeFile(ctx, input, prepared);
     const project = requireProject(ctx, input.projectId);
     const role = roleIn(ctx, project.id);
@@ -173,6 +202,7 @@ export const filesMarkDelivered = defineCall({
   run(input, ctx) {
     const file = ctx.state.files[input.id];
     if (!file || !mayViewFile(ctx.state, ctx.authority, file)) throw notFound('File', input.id);
+    if (file.conversationId !== undefined) throw invalid('id', 'A file of a chat stays in its chat.', 'file_chat');
     // An office task has no client, so its files are never delivered (owner, 2026-10-06).
     if (file.projectId === null) throw invalid('id', 'A file of an office task stays on its task.', 'file_office_task');
     assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, file.projectId) });
@@ -190,6 +220,7 @@ export const filesDelete = defineCall({
   run(input, ctx) {
     const file = ctx.state.files[input.id];
     if (!file || !mayViewFile(ctx.state, ctx.authority, file)) throw notFound('File', input.id);
+    if (file.conversationId !== undefined) throw invalid('id', 'A file of a chat stays in its chat.', 'file_chat');
     if (!mayDeleteFile(ctx.state, ctx.authority, file)) throw forbidden('Only the uploader or the project leader can delete this file.');
     const project = file.projectId === null ? undefined : ctx.state.projects[file.projectId];
     if (project?.coverFileId === file.id) {

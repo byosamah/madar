@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import { ConversationId, FileId, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, TaskId, UserId, type Comment, type Conversation, type GroupLogEntry, type Message, type Project, type Task, type User } from '../contract/entities';
 import { ChatRow, ChatThread, MessageView, WaitingRow, type GroupLine } from '../contract/views';
-import { addDirectConversation, addGroupConversation, canSeeConversation, isArchived, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
+import { addDirectConversation, addGroupConversation, canSeeConversation, closedChatError, isArchived, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, personLeft, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
 import { notifyIn } from '../notify';
 import { can, mayViewTask, principalOf } from '../permissions';
@@ -59,17 +59,6 @@ export function actingMaker(state: State, group: Conversation): string | null {
   const active = (id: string) => state.users[id]?.active === true;
   if (group.makerId && group.memberIds.includes(group.makerId) && active(group.makerId)) return group.makerId;
   return group.memberIds.find(active) ?? null;
-}
-
-/**
- * True for a chat that takes no new messages: a direct chat whose other person is no longer active (audit 2026-10-03, SHL-15), or
- * a group with no other active person (UX audit 2026-10-19, chats-11). The history stays readable.
- */
-function personLeft(state: State, conversation: Conversation, viewer: User): boolean {
-  const others = conversation.memberIds.filter((id) => id !== viewer.id);
-  if (conversation.kind === 'group') return !others.some((id) => state.users[id]?.active === true);
-  if (conversation.kind !== 'direct') return false;
-  return others.some((id) => state.users[id]?.active === false);
 }
 
 function rowOf(state: State, conversation: Conversation, viewer: User): ChatRow {
@@ -271,7 +260,7 @@ export function postMessage(ctx: Ctx, conversation: Conversation, body: string, 
     } else {
       const others = conversation.memberIds.filter((id) => id !== ctx.authority.id);
       if (others.length === 0) throw invalid('fileIds', 'This chat has no other person.', 'file_not_visible');
-      assertFilesForDirect(ctx, fileIds, others);
+      assertFilesForDirect(ctx, fileIds, others, conversation.id);
     }
   }
   const mentions = mentionedUserIds(body).filter((id) => {
@@ -298,12 +287,7 @@ export const chatsSend = defineCall({
   output: MessageView,
   run(input, ctx) {
     const conversation = requireConversation(ctx, input.conversationId);
-    if (personLeft(ctx.state, conversation, ctx.authority)) {
-      throw forbidden(
-        conversation.kind === 'group' ? 'Everyone else left this group. This chat takes no new messages.' : 'This person is inactive. This chat takes no new messages.',
-        { conversationId: conversation.id, reason: 'person_left' },
-      );
-    }
+    if (personLeft(ctx.state, conversation, ctx.authority)) throw closedChatError(conversation);
     return postMessage(ctx, conversation, input.body, input.fileIds);
   },
 });

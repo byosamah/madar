@@ -24,12 +24,18 @@ function officeFileStays(): never {
   throw invalid('fileIds', 'A file of an office task stays on its task.', 'file_office_task');
 }
 
+/** A file of a direct chat or a group stays in its chat: no other chat, task, post or Tracker entry carries it (owner, 2026-10-19). */
+function chatFileStays(): never {
+  throw invalid('fileIds', 'A file of a chat stays in its chat.', 'file_chat');
+}
+
 /**
  * A comment or a project chat message carries only files of its own project. A comment on an office task (projectId null, with
  * officeTaskId) carries only files of that task.
  */
 export function assertFilesInProject(ctx: Ctx, fileIds: string[], projectId: string | null, officeTaskId?: string): void {
   for (const file of requireFiles(ctx, fileIds)) {
+    if (file.conversationId !== undefined) chatFileStays();
     if (projectId === null) {
       if (file.projectId !== null || file.taskId !== officeTaskId) officeFileStays();
     } else if (file.projectId !== projectId) {
@@ -39,9 +45,16 @@ export function assertFilesInProject(ctx: Ctx, fileIds: string[], projectId: str
   }
 }
 
-/** A direct message may carry a file when the sender and every other person of the chat both belong to the project of the file. */
-export function assertFilesForDirect(ctx: Ctx, fileIds: string[], recipientIds: string[]): void {
+/**
+ * A direct or group message may carry a file of a project when the sender and every other person of the chat both belong to the
+ * project of the file. It may carry a file of its own chat (conversationId), and a file of no other chat (owner, 2026-10-19).
+ */
+export function assertFilesForDirect(ctx: Ctx, fileIds: string[], recipientIds: string[], conversationId?: string): void {
   for (const file of requireFiles(ctx, fileIds)) {
+    if (file.conversationId !== undefined) {
+      if (file.conversationId !== conversationId) chatFileStays();
+      continue;
+    }
     if (file.projectId === null) officeFileStays();
     if (!mayShareProjectFile(ctx, file.projectId, ctx.authority.id)) {
       throw invalid('fileIds', 'You cannot see the project of this file.', 'file_not_visible');

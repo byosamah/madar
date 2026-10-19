@@ -56,6 +56,10 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   `chats.archive` and the three group writes stay on `MCP_DENY`: a read mark and an archive are the person's own acts. A sent
   message writes no event, so no Undo takes it back, and `chats.openDirect` and `chats.send` are not additive (the client may
   ask its person first). INSTRUCTIONS has a Messages paragraph that says: send only when the person asks.
+- Chat files (owner, 2026-10-19): a message of a direct or group chat may carry files. The agent of a member reads the file name in
+  `chats.messages`, as its person does, and never opens the file: no tool opens a file, `files.list` and `search.query` show none,
+  and `files.link` and `files.get` refuse an agent with not_found. INSTRUCTIONS (Messages) and the `TOOL_DOCS` of `chats.messages`,
+  `chats.send`, `files.list` and `search.query` say so. No new call and no new tool.
 - An agent never gets a storage key in the JSON of `feedback.list` or `feedback.setStatus` (`run.ts`). `feedback.screenshot`
   gives the signed link as it is, and its path names the key.
 - INSTRUCTIONS rule 6: text that people write (names, titles, comments, posts, Tracker notes, report messages and pages,

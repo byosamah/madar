@@ -137,6 +137,14 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   quiet lines (added, removed, left, renamed); `chats.messages` returns them as `lines` for a group. They are no messages, so no
   unread count, preview or push reads them. `chats.updateGroup` sends the trigger `added_to_group` (in-app only) to each added person.
   `NotificationView.chatKind` and `target` (the group name while the viewer is a member) let a group notice name the group.
+- Files of a direct chat or a group (owner, 2026-10-19): `files.upload` and `files.uploadStart` take `conversationId` in place of a
+  project or an office task. `FileRec.conversationId` (optional, so older files load) names the chat; `projectId`, `stageId` and `taskId`
+  are null. `mayViewFile` is `canSeeConversation` of that chat: exactly the people who read its messages, never the Admin who is not a
+  member. `chatForUpload` (`chatState.ts`) is the rule of who uploads, for the browser and the server alike. The upload writes no event
+  (`uploadChatFile`). `mayOpenFile` keeps an agent from opening one (`files.get`, the `files.link` fake). `assertFilesForDirect` takes a
+  chat file only for its own chat; every other carrier (project chat, comment, post, Tracker, `files.share`) refuses it with reason
+  `file_chat`. `files.delete` and `files.markDelivered` refuse it too, and `mayDeleteFile` is false. `search.query` finds no chat file,
+  and `files.list` never lists one. The leak tests: `handlers/chatFiles.test.ts`, `server/calls/chatFiles.test.ts`.
 - A message view (`messageViewOf`, `handlers/chats.ts`) drops the file row, and the file id in `message.fileIds`, of a file that
   the reader may not view (`mayViewFile`). A member of a group reads the old messages of other people, so this holds for a late
   member too. Every project file is open to every person, so its row stays. The chat rules keep an office file out of a message;

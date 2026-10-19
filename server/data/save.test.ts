@@ -695,3 +695,81 @@ describe('the office signal of a private chat message', () => {
   });
 });
 
+
+// Owner, 2026-10-19: a file of a direct chat or a group is private like a message. Its save sends the anonymous office signal of a
+// private chat: the kind "files" and nothing else. No actor, no story, no file, no chat and no person is in it, and no person
+// signal goes to anyone.
+describe('the signals of a chat file (owner, 2026-10-19)', () => {
+  const chatFile = (state: State, id = 'fil_950', conversationId = 'cnv_901'): State => {
+    state.conversations[conversationId] = {
+      id: conversationId, kind: 'group', projectId: null, memberIds: ['usr_002', 'usr_003', 'usr_004'], name: 'Tower team', makerId: 'usr_002',
+      createdAt: '2026-10-04T10:00:00.000+03:00',
+    } as State['conversations'][string];
+    state.files[id] = {
+      id, projectId: null, stageId: null, taskId: null, conversationId, name: 'Hidden-site-photo.jpg',
+      versions: [{ letter: 'A', blobKey: 'chat/cnv-901/upl-a/file', mimeType: 'image/jpeg', size: 10, uploadedBy: 'usr_003', uploadedAt: '2026-10-04T10:00:00.000+03:00' }],
+    };
+    return state;
+  };
+
+  it('sends one anonymous office signal with the kind files, and no person signal', async () => {
+    const before = chatFile(copy());
+    const after = structuredClone(before);
+    after.files.fil_951 = { ...after.files.fil_950, id: 'fil_951', name: 'Second-Hidden-photo.jpg' };
+    const diff = diffState(before, after);
+    expect(diff.projects.size).toBe(0);
+    expect(diff.office).toBe(true);
+    expect(diff.officeRows).toBe(false);
+    expect(diff.privateChange).toBe(false);
+    expect(diff.anonymous).toBe(true);
+    expect(table(diff, 'files')?.inserted).toEqual(['fil_951']);
+    const { q, sql } = recorder({ officeSeq: 4 });
+    const result = await writeDiff(q, diff, { story: { storyId: 'sty_chat', actorId: 'usr_003' } });
+    expect(result.changed).toBe(true);
+    expect(result.signals).toHaveLength(1);
+    const [office] = result.signals;
+    expect(office).toMatchObject({ channel: 'office', kinds: ['files'], people: [], projects: [], office: true });
+    expect(office).not.toHaveProperty('actorId');
+    expect(office).not.toHaveProperty('storyId');
+    const text = JSON.stringify(result.signals);
+    for (const hidden of ['fil_951', 'Second-Hidden-photo', 'cnv_901', 'usr_002', 'usr_003', 'usr_004', 'sty_chat']) expect(text).not.toContain(hidden);
+    // Nobody gets a person signal: no person seq is used.
+    expect(sql.some((s) => s.text.includes('insert into person_seq'))).toBe(false);
+  });
+
+  it('keeps a project file as a signal of its project, as before', async () => {
+    const after = copy();
+    const [first] = Object.values(after.files);
+    after.files.fil_952 = { ...first, id: 'fil_952', name: 'Plan v2.pdf' };
+    const diff = diffState(seed, after);
+    expect(diff.projects.size).toBe(1);
+    expect(diff.kinds.has('files')).toBe(true);
+    const { q } = recorder();
+    const result = await writeDiff(q, diff, { story: { storyId: 'sty_p', actorId: 'usr_003' } });
+    expect(result.signals.find((signal) => signal.channel === 'office')).toMatchObject({ kinds: ['files'], actorId: 'usr_003' });
+  });
+
+  it('sends the message that carries the file as an anonymous office signal, with no file id, no file name and no member', async () => {
+    const before = chatFile(copy());
+    const after = structuredClone(before);
+    after.messages.msg_951 = { ...Object.values(after.messages)[0], id: 'msg_951', conversationId: 'cnv_901', authorId: 'usr_003', actingForId: 'usr_003', fileIds: ['fil_950'] };
+    const diff = diffState(before, after);
+    expect(diff.anonymous).toBe(true);
+    const { q } = recorder({ officeSeq: 4 });
+    const result = await writeDiff(q, diff, { story: { storyId: 'sty_g', actorId: 'usr_003' } });
+    const text = JSON.stringify(result.signals);
+    for (const hidden of ['fil_950', 'Hidden-site-photo', 'cnv_901', 'usr_003', 'usr_002', 'usr_004', 'sty_g']) expect(text).not.toContain(hidden);
+    expect(result.signals.find((signal) => signal.channel === 'office')).toMatchObject({ kinds: ['messages'], people: [], projects: [] });
+  });
+
+  it('keeps the actor and the story when a project file and a chat file change in one save', async () => {
+    const after = chatFile(copy());
+    const [first] = Object.values(seed.files);
+    after.files.fil_953 = { ...first, id: 'fil_953', name: 'Plan v3.pdf' };
+    const diff = diffState(seed, after);
+    expect(diff.anonymous).toBe(false);
+    const { q } = recorder({ officeSeq: 4 });
+    const result = await writeDiff(q, diff, { story: { storyId: 'sty_m', actorId: 'usr_003' } });
+    expect(result.signals.find((signal) => signal.channel === 'office')).toMatchObject({ actorId: 'usr_003', storyId: 'sty_m' });
+  });
+});

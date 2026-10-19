@@ -286,6 +286,72 @@ describe('the agent of a member of a group and the file rows of a message', () =
   });
 });
 
+/**
+ * The files of a group chat over MCP (owner, 2026-10-19). A chat file belongs to its chat. An agent acts with the rights of its
+ * person, so it reads the name of the file in a message, as its person does. No tool opens a file, files.list never lists a chat file,
+ * and a search never finds one. The agent of a person outside the chat reads nothing of the chat, so it learns nothing of the file.
+ */
+const CHAT_FILE_NAME = 'Hidden-chat-photo-5521.jpg';
+
+describe('a file of a group chat over MCP (owner, 2026-10-19)', () => {
+  function plantChatFile(w: World): void {
+    const state = w.mem.tables.state;
+    const version = { letter: 'A', blobKey: 'chat/x/y/file', mimeType: 'image/jpeg', size: 10, uploadedBy: 'usr_003', uploadedAt: STAMP };
+    state.files.fil_991 = { id: 'fil_991', projectId: null, stageId: null, taskId: null, conversationId: groupRoom, name: CHAT_FILE_NAME, versions: [version] };
+    state.messages.msg_991 = { id: 'msg_991', conversationId: groupRoom, authorId: 'usr_003', actingForId: 'usr_003', body: 'The photo.', mentions: [], fileIds: ['fil_991'], createdAt: STAMP, editedAt: null };
+    w.mem.tables.version += 1;
+  }
+
+  it('shows the file name in the message to the agent of a member, and the agent opens nothing', async () => {
+    const w = world();
+    plantChatFile(w);
+    const { result } = await call(w, 'chats.messages', { conversationId: groupRoom });
+    expect(result.isError, JSON.stringify(result)).toBeUndefined();
+    const messages = result.structuredContent.output.messages as { message: Message; files: { id: string; name: string | null }[] }[];
+    expect(messages.find((m) => m.message.id === 'msg_991')?.files).toEqual([{ id: 'fil_991', name: CHAT_FILE_NAME }]);
+    const { MCP_ALLOW } = await import('./tools');
+    for (const name of ['files.link', 'files.upload', 'files.uploadStart', 'files.share', 'files.delete']) expect(MCP_ALLOW as readonly string[], name).not.toContain(name);
+  });
+
+  it('lists the file in no files.list and finds it in no search, for the agent of a member', async () => {
+    const w = world();
+    plantChatFile(w);
+    const project = Object.values(w.mem.tables.state.projects)[0].id;
+    const listed = await call(w, 'files.list', { projectId: project });
+    expect(listed.text).not.toContain(CHAT_FILE_NAME);
+    expect(listed.text).not.toContain('fil_991');
+    const found = await call(w, 'search.query', { text: 'Hidden-chat' });
+    expect(found.result.isError, JSON.stringify(found.result)).toBeUndefined();
+    expect(found.text).not.toContain(CHAT_FILE_NAME);
+    expect(found.text).not.toContain('fil_991');
+  });
+
+  it('gives the agent of a person outside the chat no row and no name', async () => {
+    const w = world({ agentId: 'usr_098', personId: 'usr_002' });
+    plantChatFile(w);
+    const read = await call(w, 'chats.messages', { conversationId: groupRoom });
+    expect(read.result.isError).toBe(true);
+    expect(read.result.structuredContent.error).toMatchObject({ code: 'not_found', message: `Conversation ${groupRoom} does not exist.` });
+    for (const [name, args] of [['chats.list', {}], ['chats.waiting', {}], ['search.query', { text: 'Hidden-chat' }], ['events.list', {}]] as const) {
+      const answer = await call(w, name, args);
+      expect(answer.text, name).not.toContain(CHAT_FILE_NAME);
+      expect(answer.text, name).not.toContain('fil_991');
+    }
+  });
+
+  it('keeps the texts true: the model reads that it never opens a file of a direct or group chat', async () => {
+    const { INSTRUCTIONS, TOOL_DOCS } = await import('./docs');
+    expect(INSTRUCTIONS).toContain('You never open a file of a direct or group chat');
+    for (const name of ['chats.messages', 'chats.send', 'files.list', 'search.query']) {
+      const text = TOOL_DOCS[name].description;
+      expect(text.length, name).toBeGreaterThanOrEqual(40);
+      expect(text.length, name).toBeLessThanOrEqual(600);
+    }
+    expect(TOOL_DOCS['chats.messages'].description).toContain('direct or group chat');
+    expect(TOOL_DOCS['files.list'].description).toContain('direct or group chat');
+  });
+});
+
 // UX audit 2026-10-19, INT-18 and chats-10: the tool texts that the model reads at the call must say how to read and answer a task
 // thread, and that a group gives quiet lines that are no messages.
 describe('the texts of the message tools', () => {

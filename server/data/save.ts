@@ -97,8 +97,11 @@ export type SaveResult = {
 export type SaveOptions = { story?: SignalMeta; signals?: boolean };
 
 const PERSONAL_KINDS = new Set<Kind>(['chatReads', 'notifications', 'preferences']);
-/** The kinds that a direct chat or a group writes (UX audit 2026-10-19, INT-16): a save of these kinds alone names no actor in its signal. */
-const PRIVATE_CHAT_KINDS = new Set<Kind>(['messages', 'conversations', 'chatReads', 'notifications']);
+/**
+ * The kinds that a direct chat or a group writes (UX audit 2026-10-19, INT-16): a save of these kinds alone names no actor in its
+ * signal. A file of such a chat is one of them (owner, 2026-10-19); a file of a project has a project, so it never counts here.
+ */
+const PRIVATE_CHAT_KINDS = new Set<Kind>(['messages', 'conversations', 'chatReads', 'notifications', 'files']);
 /** The collections whose records belong to no project. A change of one of them is an office change. */
 const OFFICE_SCOPE = new Set<string>(['clients', 'teams', 'settings', 'stageTemplates', 'taskTemplates', 'projectTemplates', 'feedback']);
 
@@ -291,6 +294,12 @@ export function diffState(before: State, after: State): Diff {
             } else if (spec.collection === 'files' && side.projectId === null && typeof side.taskId === 'string') {
               priv(spec.collection);
               officeTasks.add(side.taskId);
+            } else if (spec.collection === 'files' && side.projectId === null && typeof side.conversationId === 'string') {
+              // A file of a direct chat or a group (owner, 2026-10-19) is private like a message (PRIVATE_CHAT_KINDS): it belongs to no
+              // project and no task, so the save touches the office, and its office signal names no actor and no story. The signal
+              // holds the kind "files" and nothing else: no file id, no file name, no chat and no person.
+              pub(spec.collection);
+              office = true;
             } else {
               pub(spec.collection);
               addProject(side.projectId);

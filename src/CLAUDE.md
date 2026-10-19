@@ -263,6 +263,10 @@ any screen work.
   sheet with Cancel in focus). The group menu holds Rename and Archive only. A group of one person left reads a closed chat.
 - New group (`InboxScreen.tsx`): the title says "New group", a line counts the people, the name field shows from the start and is
   optional (an empty name takes the first names), and one full-width button makes the group.
+- Every chat takes files (owner, 2026-10-19). The box of a project chat uploads into the files of its project. The box of a direct chat
+  and of a group uploads into the chat itself (`UploadTarget.conversationId`, `ConversationPane.tsx`), with the same attach button and
+  the same limits. A picture or a file shows in the bubble as a file chip that saves it; no preview picture. A chat file shows in no
+  Files tab and no search.
 - The quiet lines of a group (`Conversation.log`, `ChatThread.lines`) draw as one grey centered line between the messages
   (`GroupLineItem` in `Thread.tsx`), in the screen language. They are no messages: never unread, no push.
 - The mention list of the Inbox box opens above the box (`MentionField placement="above"`) and ranks the names that start with

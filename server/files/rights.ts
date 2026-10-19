@@ -1,4 +1,5 @@
-import type { Task, User } from '../../src/api/contract/entities';
+import type { Conversation, Task, User } from '../../src/api/contract/entities';
+import { canSeeConversation, chatForUpload } from '../../src/api/chatState';
 import { ApiError, forbidden, notFound } from '../../src/api/errors';
 import { can, projectRoleOf, taskResource } from '../../src/api/permissions';
 import type { State } from '../../src/api/store';
@@ -71,6 +72,26 @@ export function assertMayViewOfficeFile(office: OfficeSnapshot, userId: string, 
   const { authority, sees } = mayViewOfficeTask(office, userId, task);
   if (!sees) throw notFound('File', fileId);
   return authority;
+}
+
+/**
+ * The view right on a file of a direct chat or a group, right before a link is signed (owner, 2026-10-19): the people who read the
+ * messages of that chat, and nobody else. The Admin who is not a member, a person who left, an agent and everyone, when the chat is
+ * gone, get the answer of a missing file, with no file name. An agent never opens a chat file, though it acts with its person's rights.
+ */
+export function assertMayViewChatFile(office: OfficeSnapshot, userId: string, conversationId: string, fileId: string): User {
+  const authority = authorityOf(officeUsers(office), userId);
+  const conversation = office.lists.conversations[conversationId];
+  const actor = office.lists.users[userId];
+  if (!conversation || actor?.kind === 'agent' || !canSeeConversation(office.lists as unknown as State, conversation, authority)) throw notFound('File', fileId);
+  return authority;
+}
+
+/** The chat that a person may start an upload for: chatForUpload on the office snapshot, after the person check. */
+export function assertMayUploadToChat(office: OfficeSnapshot, userId: string, conversationId: string): Conversation {
+  const authority = authorityOf(officeUsers(office), userId);
+  const actor = office.lists.users[userId];
+  return chatForUpload(office.lists as unknown as State, conversationId, authority, actor ?? authority);
 }
 
 export function assertAdmin(authority: User): void {

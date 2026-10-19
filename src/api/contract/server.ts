@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FileId, ProjectId, StageId, TaskId, UserId } from './entities';
+import { ConversationId, FileId, ProjectId, StageId, TaskId, UserId } from './entities';
 import { MAX_SHOT_BYTES, PASSWORD_SET_MARK } from './limits';
 
 // The plain limits live in limits.ts, with no zod, for the screens of the first load (performance audit BND-6).
@@ -62,8 +62,10 @@ const storyStart = {
 
 const filesUploadStart = {
   input: z.object({
-    /** None: a file of the office task taskId (owner, 2026-10-06). */
+    /** None: a file of the office task taskId (owner, 2026-10-06), or of the direct chat or group conversationId (owner, 2026-10-19). */
     projectId: ProjectId.optional(),
+    /** A direct chat or a group. The file stays in that chat: no project, no stage, no task. */
+    conversationId: ConversationId.optional(),
     name: z.string().trim().min(1).max(200),
     /** The size is checked against the limit of the active file store, with the reason file_too_large and the limit in details. */
     size: z.number().int().min(0),
