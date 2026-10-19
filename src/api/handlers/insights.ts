@@ -26,7 +26,8 @@ const MoneyRows = z.object({
   total: z.number().nonnegative(),
   payments: z.array(z.object({ id: PaymentId, projectId: ProjectId, projectCode: z.string(), name: z.string(), amount: z.number().positive(), dueDate: Day })),
 });
-const Ref = z.object({ id: ProjectId, code: z.string(), name: z.string(), mark: z.number().int().nonnegative() });
+/** subCompanyId: the badge of the project's sub-company, wherever a Dashboard list shows the project picture (PRJ-15). Optional, so an older answer parses. */
+const Ref = z.object({ id: ProjectId, code: z.string(), name: z.string(), mark: z.number().int().nonnegative(), subCompanyId: SubCompanyId.nullable().optional() });
 
 export const DashboardView = z.object({
   tiles: z.object({
@@ -163,7 +164,7 @@ export const dashboardGet = defineCall({
 
     const weekStart = weekStartOf(today);
     const humans = Object.values(state.users).filter((u) => u.kind === 'human' && u.active).sort((a, b) => a.name.localeCompare(b.name));
-    const refOf = (p: Project) => ({ id: p.id, code: p.code, name: p.name, mark: markOf(p) });
+    const refOf = (p: Project) => ({ id: p.id, code: p.code, name: p.name, mark: markOf(p), subCompanyId: p.subCompanyId ?? null });
 
     const order = state.settings.defaultStages;
     const rank = (name: string) => (order.includes(name) ? order.indexOf(name) : order.length);

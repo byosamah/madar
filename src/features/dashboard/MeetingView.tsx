@@ -19,7 +19,7 @@ import { StatusSign } from '../../components/StatusSign';
 import { formatDay, formatMonth, formatMonthYear, todayISO } from '../../lib/dates';
 import { clipSpan, MEETING_ZOOMS, meetingStep, meetingWindow, midPct, offsetPct, widthPct, type MeetingZoom } from '../../lib/schedule';
 import { stageOverlaps } from '../../lib/stageFlow';
-import { oneOf, teamParam } from '../../lib/params';
+import { oneOf, subCompanyParam, teamParam } from '../../lib/params';
 import { agendaOrder } from '../../lib/agenda';
 import { MeetingProject, meetingWork, PrefetchNextProject } from './MeetingProjects';
 import { AgendaBar, AgendaButton } from './meeting/AgendaBar';
@@ -33,6 +33,7 @@ import { clientName } from '../../lib/clientName';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 import { useHatchOn } from './hatch';
 import { PicturesProvider } from '../../app/pictures';
+import { SubCompaniesProvider } from '../../app/subCompanies';
 import { usePersonName } from '../../app/personName';
 import { currentTone, DeadlineMarks, stageKind } from './scheduleMarks';
 
@@ -210,7 +211,7 @@ function MeetingTaskSheet({ taskId, rows, onClose }: { taskId: string; rows: Tas
  */
 /** The meeting view sits outside the app frame, so it reads the profile pictures itself (owner item 10, 2026-10-05). */
 export function MeetingView() {
-  return <PicturesProvider><MeetingScreen /></PicturesProvider>;
+  return <PicturesProvider><SubCompaniesProvider><MeetingScreen /></SubCompaniesProvider></PicturesProvider>;
 }
 
 function MeetingScreen() {
@@ -234,6 +235,7 @@ function MeetingScreen() {
     leaderId: USER_ID.test(leader) ? leader : undefined,
     clientId: CLIENT_ID.test(client) ? client : undefined,
     teamId: teamParam(team),
+    subCompanyId: subCompanyParam(params.get('subCompany')),
   });
   // Every open task of the office, once, for the counts on the timeline and the project screens.
   const tasks = useCall('tasks.list', { includeDone: false, activeProjectsOnly: false });
@@ -534,7 +536,7 @@ function MeetingScreen() {
                         onClick={() => toggle(row.project.id)}
                         className="pressable flex w-full min-w-0 items-center gap-3 rounded-2xl text-start"
                       >
-                        <ProjectTile id={row.project.id} mark={row.project.mark} size={48} />
+                        <ProjectTile id={row.project.id} mark={row.project.mark} size={48} subCompanyId={row.project.subCompanyId} />
                         <span className="min-w-0 flex-1">
                           <span className="flex min-w-0 items-center gap-2">
                             <bdi className="min-w-0 truncate text-[22px] font-semibold text-ink">{row.project.name}</bdi>

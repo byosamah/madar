@@ -24,9 +24,11 @@ import { ProjectListRow } from './ProjectListRow';
 const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
 const FILTERS = ['all', 'mine', 'at_risk'] as const;
 /** The data gaps that the Dashboard opens for the Admin (owner, 2026-10-06). Only a link sets them, like the health. */
-const GAPS = ['no_area', 'stage_no_end'] as const;
+const GAPS = ['no_area', 'stage_no_end', 'no_sub_company'] as const;
 const HEALTH = ['on_track', 'at_risk', 'late'] as const;
 const SORTS = ['updated', 'deadline', 'name'] as const;
+/** The value of the "No sub-company" choice in the Sub-company select. */
+const NO_SUB_COMPANY = 'none';
 const SELECT = 'field mt-1.5 font-normal';
 const LEGEND = 'pb-1 text-footnote font-semibold text-ink-2';
 
@@ -89,6 +91,13 @@ export function ProjectsScreen() {
     next.delete('filter');
     next.delete('health');
     if (value !== 'all') next.set('filter', value);
+  });
+  // "No sub-company" is the gap filter no_sub_company. Any other choice leaves that filter.
+  const setSubCompany = (value: string) => update((next) => {
+    next.delete('subCompany');
+    if (next.get('filter') === 'no_sub_company') next.delete('filter');
+    if (value === NO_SUB_COMPANY) next.set('filter', 'no_sub_company');
+    else if (value) next.set('subCompany', value);
   });
   const setStage = (name: string) => update((next) => (name ? next.set('stage', name) : next.delete('stage')));
   const setStatus = (value: (typeof STATUSES)[number]) => update((next) => {
@@ -171,9 +180,11 @@ export function ProjectsScreen() {
           {(subCompanies.data ?? []).length > 0 && (
             <label className={LEGEND}>
               {t('subCompanies.label')}
-              <select value={subCompanyId ?? ''} onChange={(event) => setParam('subCompany', event.target.value)} className={SELECT}>
+              <select value={gap === 'no_sub_company' ? NO_SUB_COMPANY : subCompanyId ?? ''} onChange={(event) => setSubCompany(event.target.value)} className={SELECT}>
                 <option value="">{t('subCompanies.any')}</option>
                 {(subCompanies.data ?? []).map((sub) => <option key={sub.id} value={sub.id}>{lang === 'ar' ? sub.nameAr : sub.name}</option>)}
+                {/* The old projects that no one has placed yet: the Admin fills them in (INT-10). */}
+                <option value={NO_SUB_COMPANY}>{t('subCompanies.none')}</option>
               </select>
             </label>
           )}

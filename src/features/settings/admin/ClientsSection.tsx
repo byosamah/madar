@@ -59,7 +59,7 @@ function ClientSheet({ client, clients, projects, onClose }: { client: Client; c
               {projects.map((summary) => (
                 <li key={summary.project.id}>
                   <Link to={`/projects/${summary.project.id}`} className="pressable flex min-h-12 items-center gap-3 py-2 text-link">
-                    <ProjectTile id={summary.project.id} mark={summary.project.mark} size={28} />
+                    <ProjectTile id={summary.project.id} mark={summary.project.mark} size={28} subCompanyId={summary.subCompanyId} />
                     <bdi className="min-w-0 flex-1 truncate font-semibold">{summary.project.name}</bdi>
                     <span dir="ltr" className="tabular text-footnote text-ink-2">{projectKey(summary.project.code)}</span>
                   </Link>

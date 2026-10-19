@@ -13,7 +13,7 @@ import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { formatDay, todayISO } from '../../lib/dates';
 import { clientName } from '../../lib/clientName';
-import { clientParam, dayParam, oneOf, teamParam, userParam } from '../../lib/params';
+import { clientParam, dayParam, oneOf, subCompanyParam, teamParam, userParam } from '../../lib/params';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 import { openTask } from '../../lib/params';
 import { TaskRowItem } from '../project/tasks/TaskRowItem';
@@ -27,7 +27,7 @@ const FILTERS = ['all', 'overdue', 'flagged', 'no_lead', 'no_date'] as const;
  * The Dashboard filters in the link: the office team, the leader and the client. The Dashboard sends them, so the list holds the
  * tasks it counted, and the subtitle names each one (audit 2026-10-03, V-37a; owner, 2026-10-06, item 3).
  */
-function useScope(): { teamId?: string; leaderId?: string; clientId?: string; scopeText: string } {
+function useScope(): { teamId?: string; leaderId?: string; clientId?: string; subCompanyId?: string; scopeText: string } {
   const { t } = useTranslation();
   const lang = useLang();
   const nameOf = usePersonName();
@@ -35,18 +35,22 @@ function useScope(): { teamId?: string; leaderId?: string; clientId?: string; sc
   const teamId = teamParam(params.get('team'));
   const leaderId = userParam(params.get('leader'));
   const clientId = clientParam(params.get('client'));
+  const subCompanyId = subCompanyParam(params.get('subCompany'));
+  const subCompanies = useCall('subCompanies.list', {}, { enabled: subCompanyId !== undefined });
   const teams = useCall('teams.list', {}, { enabled: teamId !== undefined });
   const users = useCall('users.list', { includeInactive: true }, { enabled: leaderId !== undefined });
   const clients = useCall('clients.list', {}, { enabled: clientId !== undefined });
   const team = teams.data?.find((item) => item.id === teamId);
   const leader = users.data?.find((user) => user.id === leaderId);
   const client = clients.data?.find((item) => item.id === clientId);
+  const subCompany = subCompanies.data?.find((item) => item.id === subCompanyId);
   const scopeText = [
     team ? t('taskList.team', { name: team.name }) : '',
     leader ? t('taskList.leader', { name: nameOf(leader) }) : '',
     client ? t('taskList.client', { name: clientName(client, lang) }) : '',
+    subCompany ? t('taskList.subCompany', { name: lang === 'ar' ? subCompany.nameAr : subCompany.name }) : '',
   ].filter(Boolean).join(' · ');
-  return { teamId, leaderId, clientId, scopeText };
+  return { teamId, leaderId, clientId, subCompanyId, scopeText };
 }
 
 function Subtitle({ text }: { text: string }) {
@@ -62,8 +66,8 @@ function BackToDashboard() {
 function DeadlineList({ from, to }: { from?: string; to?: string }) {
   const { t } = useTranslation();
   const lang = useLang();
-  const { teamId, leaderId, clientId, scopeText } = useScope();
-  const deadlines = useCall('deadlines.list', { from, to, teamId, leaderId, clientId });
+  const { teamId, leaderId, clientId, subCompanyId, scopeText } = useScope();
+  const deadlines = useCall('deadlines.list', { from, to, teamId, leaderId, clientId, subCompanyId });
   const rows = deadlines.data ?? [];
   const range = from && to ? t('taskList.dateRange', { from: formatDay(from, lang), to: formatDay(to, lang) }) : '';
   return (
@@ -134,12 +138,12 @@ function TaskResults() {
   const createdTo = dayParam(params.get('createdTo'));
   const doneFrom = dayParam(params.get('doneFrom'));
   const doneTo = dayParam(params.get('doneTo'));
-  const { teamId, leaderId, clientId, scopeText } = useScope();
+  const { teamId, leaderId, clientId, subCompanyId, scopeText } = useScope();
   const users = useCall('users.list', { includeInactive: true });
   // One session.get for the whole list. Each row takes the person from here.
   const me = useCall('session.get', {}).data?.authority;
   const tasks = useCall('tasks.list', {
-    filter, ownerId, workOf, teamId, leaderId, clientId, dueFrom: from, dueTo: to, createdFrom, createdTo, doneFrom, doneTo, // A created or done range counts finished tasks too, the same as the dashboard number that opens it.
+    filter, ownerId, workOf, teamId, leaderId, clientId, subCompanyId, dueFrom: from, dueTo: to, createdFrom, createdTo, doneFrom, doneTo, // A created or done range counts finished tasks too, the same as the dashboard number that opens it.
     includeDone: Boolean(doneFrom || doneTo || createdFrom || createdTo),
   });
   // An office task has no project, so its link names the task alone (owner, 2026-10-06).

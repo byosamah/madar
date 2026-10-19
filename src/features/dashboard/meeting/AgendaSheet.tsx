@@ -72,7 +72,7 @@ export function AgendaSheet({ rows, session, bigScreen, onBigScreen, onPick, onS
                   className="pressable flex w-full items-center gap-3 rounded-2xl py-2.5 text-start"
                 >
                   <span className="tabular w-6 shrink-0 text-[15px] text-ink-2">{index + 1}</span>
-                  <ProjectTile id={row.project.id} mark={row.project.mark} size={36} />
+                  <ProjectTile id={row.project.id} mark={row.project.mark} size={36} subCompanyId={row.project.subCompanyId} />
                   {/* A discussed project fades and carries the check, so the eye goes to what is left. */}
                   <bdi className={`min-w-0 flex-1 truncate text-[17px] ${now ? 'font-bold text-ink' : discussed ? 'font-medium text-ink-2' : 'font-semibold text-ink'}`}>{row.project.name}</bdi>
                   {discussed && <StatusSign state="completed">{t('dashboard.meeting.discussed')}</StatusSign>}

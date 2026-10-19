@@ -51,5 +51,8 @@
       "sub_company_in_use_one": "A project uses this sub-company. Change the project first.",
       "sub_company_in_use_other": "{{count}} projects use this sub-company. Change the projects first."
     }
+  },
+  "search": {
+    "subCompanies": "Sub-companies"
   }
 }
