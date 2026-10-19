@@ -15,6 +15,9 @@ type Props = {
   disabled?: boolean;
   /** The label is for screen readers only, because a column name above the field says it (the stage dates). */
   hideLabel?: boolean;
+  /** The first and the last day that the calendar offers (a stage end after its start). A day outside is greyed out. */
+  min?: string;
+  max?: string;
 };
 
 /** A full date in a year from 2000. While a person types a year, the browser reports years like 0002. */
@@ -31,7 +34,7 @@ const savable = (day: string) => /^\d{4}-\d{2}-\d{2}$/.test(day) && Number(day.s
  *
  * A date in a form that saves with its own button is `DateField`. Both take the quiet look from `DateField.tsx`.
  */
-export function DateDraftField({ id, label, error, hint, className = '', value, onCommit, disabled, hideLabel = false }: Props) {
+export function DateDraftField({ id, label, error, hint, className = '', value, onCommit, disabled, hideLabel = false, min, max }: Props) {
   const lang = useLang();
   const input = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState(value);
@@ -126,6 +129,8 @@ export function DateDraftField({ id, label, error, hint, className = '', value, 
           id={id}
           type="date"
           value={draft}
+          min={min}
+          max={max}
           disabled={disabled}
           aria-invalid={error ? true : undefined}
           aria-describedby={described}
@@ -135,7 +140,8 @@ export function DateDraftField({ id, label, error, hint, className = '', value, 
           }}
           onFocus={() => {
             sent.current = null;
-            if (!pressed.current) setTyping(true);
+            // A focus that comes back while Madar's calendar is open is no typing (UX audit 2026-10-19, chats-02).
+            if (!pressed.current && !calendarAnchor) setTyping(true);
             pressed.current = false;
           }}
           onClick={() => {
@@ -172,7 +178,7 @@ export function DateDraftField({ id, label, error, hint, className = '', value, 
           />
         )}
       </div>
-      {calendarAnchor && <CalendarPopover anchor={calendarAnchor} value={draft} onPick={pickDay} onClose={closeCalendar} />}
+      {calendarAnchor && <CalendarPopover anchor={calendarAnchor} value={draft} min={min} max={max} onPick={pickDay} onClose={closeCalendar} />}
       {hint && <p id={`${id}-hint`} className="text-caption text-ink-2">{hint}</p>}
       {error && <p id={`${id}-error`} className="text-footnote text-late">{error}</p>}
     </div>

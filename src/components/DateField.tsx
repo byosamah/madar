@@ -159,7 +159,8 @@ export function DateField({
             pressed.current = true;
           }}
           onFocus={() => {
-            if (!pressed.current) setTyping(true);
+            // A focus that comes back while Madar's calendar is open is no typing (UX audit 2026-10-19, chats-02).
+            if (!pressed.current && !calendarAnchor) setTyping(true);
             pressed.current = false;
           }}
           onClick={() => {

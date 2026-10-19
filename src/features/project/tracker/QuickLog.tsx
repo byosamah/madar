@@ -7,8 +7,10 @@ import { useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { useIsPhone } from '../../../app/useIsPhone';
 import { Button } from '../../../components/Button';
+import { CalendarPopover } from '../../../components/CalendarPopover';
 import { SegmentedControl } from '../../../components/SegmentedControl';
 import { Switch } from '../../../components/Switch';
+import { isFinePointer } from '../../../lib/calendar';
 import { todayISO } from '../../../lib/dates';
 import { sideForType, sidesOf, waitingFor } from '../../../lib/tracker';
 import { addWorkingDays } from '../../../lib/workdays';
@@ -28,6 +30,10 @@ export function QuickLog({ projectId, members }: { projectId: string; members: U
   const toast = useToast();
   const attachments = useAttachments();
   const field = useRef<HTMLInputElement>(null);
+  // The date keeps its full field look (it is never empty). On a computer a press opens Madar's calendar under it (UX audit 2026-10-19, INT-22).
+  const dateInput = useRef<HTMLInputElement>(null);
+  const dateBox = useRef<HTMLSpanElement>(null);
+  const [calendarAnchor, setCalendarAnchor] = useState<HTMLElement | null>(null);
   const [text, setText] = useState('');
   const [type, setType] = useState<TrackerType>('message');
   const [direction, setDirection] = useState<TrackerDirection>('in');
@@ -149,7 +155,23 @@ export function QuickLog({ projectId, members }: { projectId: string; members: U
             }}
           />
         )}
-        <input type="date" aria-label={t('tracker.date')} value={date} onChange={(event) => setDate(event.target.value)} className="field min-h-11 !w-auto" />
+        <span ref={dateBox} className="inline-flex">
+          <input
+            ref={dateInput}
+            type="date"
+            autoComplete="off"
+            aria-label={t('tracker.date')}
+            value={date}
+            onChange={(event) => setDate(event.target.value)}
+            onClick={(event) => {
+              // A phone keeps its own picker. A computer shows the calendar of Madar, and the browser picker stays shut.
+              if (!isFinePointer() || !dateBox.current) return;
+              event.preventDefault();
+              setCalendarAnchor(dateBox.current);
+            }}
+            className="field min-h-11 !w-auto"
+          />
+        </span>
         <AttachButton onPick={attachments.add} disabled={attachments.full} />
         <Switch id="tracker-wait" label={t(waitingFor(direction) === 'us' ? 'tracker.needsReply' : 'tracker.waitingToggle')} checked={wait} onChange={setWait} />
       </div>
@@ -157,6 +179,21 @@ export function QuickLog({ projectId, members }: { projectId: string; members: U
         <ReplyFields id="tracker-reply" members={members} userId={who} dueDate={replyDate || addWorkingDays(todayISO(), 2)} onUser={setReplier} onDueDate={setReplyDate} />
       )}
       <PickedFiles files={attachments.files} onRemove={attachments.remove} />
+      {calendarAnchor && (
+        <CalendarPopover
+          anchor={calendarAnchor}
+          value={date}
+          onPick={(day) => {
+            setCalendarAnchor(null);
+            setDate(day);
+            dateInput.current?.focus();
+          }}
+          onClose={() => {
+            setCalendarAnchor(null);
+            dateInput.current?.focus();
+          }}
+        />
+      )}
     </form>
   );
 }

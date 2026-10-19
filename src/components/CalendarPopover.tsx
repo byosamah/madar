@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLang } from '../app/lang';
 import { WHEEL_START, addMonths, monthGrid, shiftMonth, wheelStep, type WheelState } from '../lib/calendar';
-import { addDays, formatDay, formatMonthYear, formatNumber, formatWeekdayHead, todayISO } from '../lib/dates';
+import { addDays, formatDay, formatMonth, formatMonthYear, formatNumber, formatWeekdayHead, todayISO } from '../lib/dates';
 import { AnimatedIcon } from './icons/AnimatedIcon';
 import { ChevronLeftIcon } from './icons/animated/chevron-left';
 import { ChevronRightIcon } from './icons/animated/chevron-right';
@@ -32,17 +32,25 @@ type CalendarPopoverProps = {
  * the week row and the 6-week grid. One day has the focus (the cursor). The arrow keys move the cursor by a day and the up and
  * down keys by a week; in Arabic the sides swap. The page keys and a wheel step move a month. Enter picks the focused day, and
  * Escape closes the calendar only, not the sheet around it. A day outside the range is disabled, and the cursor stops at the range edge.
+ * A press on the month title opens a grid of 12 months with year arrows, and a pick goes back to the days. "Today" moves the view
+ * to this month. The chosen day is a solid ink circle (UX audit 2026-10-19, chats-18).
  */
 export function CalendarPopover({ anchor, value, min, max, onPick, onClose }: CalendarPopoverProps) {
   const { t } = useTranslation();
   const lang = useLang();
   const [cursor, setCursor] = useState(() => startDay(value, min, max));
+  // 'days' shows the month. 'months' shows the 12 months of the cursor year, for a far jump.
+  const [mode, setMode] = useState<'days' | 'months'>('days');
   const view = cursor.slice(0, 7);
+  const year = view.slice(0, 4);
   const today = todayISO();
   const days = monthGrid(view);
   const weekRow = days.slice(0, 7);
   const canPrevious = !min || addMonths(view, -1) >= min.slice(0, 7);
   const canNext = !max || addMonths(view, 1) <= max.slice(0, 7);
+  const canPreviousYear = !min || `${Number(year) - 1}-12` >= min.slice(0, 7);
+  const canNextYear = !max || `${Number(year) + 1}-01` <= max.slice(0, 7);
+  const monthOk = (month: string) => (!min || month >= min.slice(0, 7)) && (!max || month <= max.slice(0, 7));
 
   const root = useRef<HTMLDivElement>(null);
   const cursorButton = useRef<HTMLButtonElement>(null);
@@ -60,7 +68,16 @@ export function CalendarPopover({ anchor, value, min, max, onPick, onClose }: Ca
     if (!followFocus.current) return;
     followFocus.current = false;
     cursorButton.current?.focus();
-  }, [cursor]);
+  }, [cursor, mode]);
+
+  const chooseMonth = (month: string) => {
+    move((day) => shiftMonth(day, (Number(month.slice(0, 4)) - Number(year)) * 12 + Number(month.slice(5, 7)) - Number(view.slice(5, 7))));
+    setMode('days');
+  };
+  const goToday = () => {
+    move(() => todayISO());
+    setMode('days');
+  };
 
   // The wheel listener is not passive, so the page does not scroll under the calendar.
   useEffect(() => {
@@ -96,6 +113,8 @@ export function CalendarPopover({ anchor, value, min, max, onPick, onClose }: Ca
   }, [onClose]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    // The month grid is a plain group of buttons: Tab moves, Enter picks.
+    if (mode === 'months') return;
     // In Arabic the days run from the right, so the left arrow gives the next day.
     const forward = lang === 'ar' ? -1 : 1;
     let next: (day: string) => string;
@@ -140,7 +159,7 @@ export function CalendarPopover({ anchor, value, min, max, onPick, onClose }: Ca
         aria-pressed={chosen}
         aria-current={day === today ? 'date' : undefined}
         onClick={() => onPick(day)}
-        className={`pressable tabular grid size-10 place-items-center rounded-full text-subheadline hover:bg-fill disabled:cursor-default disabled:opacity-40 ${outsideView ? 'text-ink-2' : 'text-ink'} ${chosen ? 'bg-fill-strong font-medium' : ''} ${day === today ? 'ring-1 ring-accent' : ''}`}
+        className={`pressable tabular grid size-10 place-items-center rounded-full text-subheadline disabled:cursor-default disabled:opacity-40 ${chosen ? 'bg-ink font-medium text-bg' : `hover:bg-fill ${outsideView ? 'text-ink-2' : 'text-ink'}`} ${day === today ? 'ring-1 ring-accent' : ''}`}
       >
         {formatNumber(Number(day.slice(8, 10)), lang)}
       </button>
@@ -150,35 +169,73 @@ export function CalendarPopover({ anchor, value, min, max, onPick, onClose }: Ca
   return (
     <Popover anchor={anchor} label={t('calendar.label')} onClose={onClose}>
       <div ref={root} onKeyDown={onKeyDown} className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1">
           <button
             type="button"
-            aria-label={t('calendar.previous')}
-            disabled={!canPrevious}
-            onClick={() => move((day) => shiftMonth(day, -1))}
-            className="pressable grid size-10 place-items-center rounded-full text-ink hover:bg-fill disabled:opacity-40"
+            aria-label={t(mode === 'days' ? 'calendar.chooseMonth' : 'calendar.showDays')}
+            aria-expanded={mode === 'months'}
+            onClick={() => setMode((on) => (on === 'days' ? 'months' : 'days'))}
+            className="pressable min-h-10 min-w-0 flex-1 truncate rounded-full px-2 text-start text-headline text-ink hover:bg-fill"
+          >
+            <span aria-live="polite">{mode === 'days' ? formatMonthYear(`${view}-01`, lang) : year}</span>
+          </button>
+          <button
+            type="button"
+            onClick={goToday}
+            className="pressable min-h-10 shrink-0 rounded-full px-2.5 text-footnote font-medium text-ink-2 hover:bg-fill hover:text-ink"
+          >
+            {t('calendar.today')}
+          </button>
+          <button
+            type="button"
+            aria-label={t(mode === 'days' ? 'calendar.previous' : 'calendar.previousYear')}
+            disabled={mode === 'days' ? !canPrevious : !canPreviousYear}
+            onClick={() => (mode === 'days' ? move((day) => shiftMonth(day, -1)) : move((day) => shiftMonth(day, -12)))}
+            className="pressable grid size-10 shrink-0 place-items-center rounded-full text-ink hover:bg-fill disabled:opacity-40"
           >
             <AnimatedIcon icon={ChevronLeftIcon} size={18} className="rtl:-scale-x-100" aria-hidden />
           </button>
-          <p aria-live="polite" className="text-headline text-ink">{formatMonthYear(`${view}-01`, lang)}</p>
           <button
             type="button"
-            aria-label={t('calendar.next')}
-            disabled={!canNext}
-            onClick={() => move((day) => shiftMonth(day, 1))}
-            className="pressable grid size-10 place-items-center rounded-full text-ink hover:bg-fill disabled:opacity-40"
+            aria-label={t(mode === 'days' ? 'calendar.next' : 'calendar.nextYear')}
+            disabled={mode === 'days' ? !canNext : !canNextYear}
+            onClick={() => (mode === 'days' ? move((day) => shiftMonth(day, 1)) : move((day) => shiftMonth(day, 12)))}
+            className="pressable grid size-10 shrink-0 place-items-center rounded-full text-ink hover:bg-fill disabled:opacity-40"
           >
             <AnimatedIcon icon={ChevronRightIcon} size={18} className="rtl:-scale-x-100" aria-hidden />
           </button>
         </div>
-        <div aria-hidden className="grid grid-cols-7 gap-1">
-          {weekRow.map((day) => (
-            <span key={day} className="grid h-6 place-items-center text-footnote text-ink-2">
-              {formatWeekdayHead(day, lang)}
-            </span>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-1">{days.map(dayButton)}</div>
+        {mode === 'days' ? (
+          <>
+            <div aria-hidden className="grid grid-cols-7 gap-1">
+              {weekRow.map((day) => (
+                <span key={day} className="grid h-6 place-items-center text-footnote text-ink-2">
+                  {formatWeekdayHead(day, lang)}
+                </span>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1">{days.map(dayButton)}</div>
+          </>
+        ) : (
+          <div className="grid grid-cols-3 gap-1">
+            {Array.from({ length: 12 }, (_, index) => {
+              const month = `${year}-${String(index + 1).padStart(2, '0')}`;
+              const current = month === view;
+              return (
+                <button
+                  key={month}
+                  type="button"
+                  disabled={!monthOk(month)}
+                  aria-pressed={current}
+                  onClick={() => chooseMonth(month)}
+                  className={`pressable min-h-11 rounded-xl text-subheadline disabled:cursor-default disabled:opacity-40 ${current ? 'bg-ink font-medium text-bg' : 'text-ink hover:bg-fill'}`}
+                >
+                  {formatMonth(`${month}-01`, lang)}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </Popover>
   );

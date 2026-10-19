@@ -149,3 +149,21 @@ describe('DateDraftField on a computer: Madar\'s calendar (fbk_009)', () => {
     }
   });
 });
+
+// chats-19 (UX audit 2026-10-19): a stage end cannot come before its start, so the calendar greys those days out.
+describe('DateDraftField with a range', () => {
+  it('greys out the days outside min and max in the calendar, and gives the range to the date field', async () => {
+    const spy = vi.spyOn(window, 'matchMedia').mockImplementation(
+      (query: string) => ({ matches: query === '(pointer: fine)', media: query }) as MediaQueryList,
+    );
+    render(<DateDraftField id="end" label="End of Concept" value="2026-10-20" min="2026-10-16" max="2026-10-25" onCommit={() => undefined} />);
+    expect(screen.getByLabelText('End of Concept')).toHaveAttribute('min', '2026-10-16');
+    expect(screen.getByLabelText('End of Concept')).toHaveAttribute('max', '2026-10-25');
+    await userEvent.click(screen.getByLabelText('End of Concept'));
+    expect(screen.getByRole('button', { name: formatDay('2026-10-15', 'en', 'long') })).toBeDisabled();
+    expect(screen.getByRole('button', { name: formatDay('2026-10-16', 'en', 'long') })).toBeEnabled();
+    expect(screen.getByRole('button', { name: formatDay('2026-10-26', 'en', 'long') })).toBeDisabled();
+    spy.mockRestore();
+  });
+});
+

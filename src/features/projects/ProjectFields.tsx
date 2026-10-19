@@ -306,6 +306,7 @@ export function ProjectFields({
           // The plan line (TemplateDetails) says why the locked tasks do not fit. The field only carries the mark, so the focus comes here.
           {...(errors.template ? { 'aria-invalid': true, 'aria-describedby': 'project-end-hint template-plan-line' } : {})}
           value={values.targetEndDate}
+          min={values.startDate || undefined}
           onChange={(day) => set('targetEndDate', day)}
           onBlur={() => touch('targetEndDate')}
           error={error('targetEndDate')}

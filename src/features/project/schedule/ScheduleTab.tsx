@@ -243,7 +243,7 @@ function StageDates({ detail }: TabProps) {
                 <span className="col-span-2 min-w-0 sm:col-span-1">{name(stage)}</span>
                 <DateDraftField key={`start-${failures}`} id={`start-${stage.id}`} label={t('schedule.startOf', { stage: stage.name })} hideLabel value={stage.startDate ?? ''}
                   onCommit={(startDate) => setDates.mutate({ stageId: stage.id, startDate, endDate: stage.endDate }, rollback)} />
-                <DateDraftField key={`end-${failures}`} id={`end-${stage.id}`} label={t('schedule.endOf', { stage: stage.name })} hideLabel value={stage.endDate ?? ''}
+                <DateDraftField key={`end-${failures}`} id={`end-${stage.id}`} label={t('schedule.endOf', { stage: stage.name })} hideLabel min={stage.startDate ?? undefined} value={stage.endDate ?? ''}
                   onCommit={(endDate) => setDates.mutate({ stageId: stage.id, startDate: stage.startDate, endDate }, rollback)} />
               </li>
             ))}

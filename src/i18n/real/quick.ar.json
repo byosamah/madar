@@ -5,6 +5,11 @@
   "calendar": {
     "label": "اختر التاريخ",
     "previous": "الشهر السابق",
-    "next": "الشهر التالي"
+    "next": "الشهر التالي",
+    "chooseMonth": "اختر الشهر",
+    "showDays": "عرض الأيام",
+    "today": "اليوم",
+    "previousYear": "السنة السابقة",
+    "nextYear": "السنة التالية"
   }
 }

@@ -117,7 +117,7 @@ export function PaymentSheet({ projectId, row, onClose, drafts }: { projectId: s
         {/* The due date is needed, so it changes but never goes empty: no clear control. The received date is empty until the money comes. */}
         <div className="grid grid-cols-2 gap-4">
           <DateField id="payment-due" label={t('payments.dueDate')} clearable={false} value={dueDate} error={problem('dueDate', t('payments.errors.dueDate'))} onChange={(day) => set({ dueDate: day })} />
-          <DateField id="payment-received" label={t('payments.receivedOn')} value={receivedOn} error={problem('receivedOn', t('payments.errors.futureReceived'))} onChange={(day) => set({ receivedOn: day })} />
+          <DateField id="payment-received" label={t('payments.receivedOn')} max={todayISO()} value={receivedOn} error={problem('receivedOn', t('payments.errors.futureReceived'))} onChange={(day) => set({ receivedOn: day })} />
         </div>
         <TextArea id="payment-note" label={t('payments.note')} dir="auto" maxLength={500} value={note} onChange={(event) => set({ note: event.target.value })} />
       </form>

@@ -45,3 +45,18 @@ describe('the sub-company in the edit form (fbk_007)', () => {
     await waitFor(() => expect(store.state.projects.prj_001.subCompanyId).toBe('sub_001'));
   });
 });
+
+// chats-19 (UX audit 2026-10-19): the end date of a project cannot come before its start date.
+describe('the edit project form: the paired dates', () => {
+  it('gives the start date to the end date as its first day', async () => {
+    await renderApp('/projects/prj_001');
+    await userEvent.click(await screen.findByRole('button', { name: 'More actions' }, LOAD));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Edit project' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Edit project' });
+    const start = (await within(sheet).findByLabelText('Start date')) as HTMLInputElement;
+    expect(start.value).not.toBe('');
+    const end = within(sheet).getByLabelText('Target end date');
+    expect(end).toHaveAttribute('min', start.value);
+  });
+});
+

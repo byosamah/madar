@@ -5,6 +5,11 @@
   "calendar": {
     "label": "Pick a date",
     "previous": "Previous month",
-    "next": "Next month"
+    "next": "Next month",
+    "chooseMonth": "Choose a month",
+    "showDays": "Show the days",
+    "today": "Today",
+    "previousYear": "Previous year",
+    "nextYear": "Next year"
   }
 }

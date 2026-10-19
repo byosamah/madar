@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
@@ -221,5 +221,40 @@ describe('the Tracker tab', () => {
     await renderApp(TRACKER, as('usr_002'));
     const tabs = (await screen.findAllByRole('tab')).map((tab) => tab.textContent);
     expect(tabs.indexOf('Tracker')).toBe(tabs.indexOf('Activity') + 1);
+  });
+});
+
+// chats-20 and INT-22 (UX audit 2026-10-19): on a computer the date of the quick log opens Madar's calendar, not the browser's.
+describe('the quick log date on a computer', () => {
+  it('opens Madar\'s calendar on a press, and a picked day goes into the date field', async () => {
+    const spy = vi.spyOn(window, 'matchMedia').mockImplementation(
+      (query: string) => ({
+        matches: query === '(pointer: fine)', media: query, addEventListener: () => undefined, removeEventListener: () => undefined,
+        addListener: () => undefined, removeListener: () => undefined,
+      }) as unknown as MediaQueryList,
+    );
+    await renderApp(TRACKER, as('usr_002'));
+    await historyReady();
+    const date = screen.getByLabelText('Date') as HTMLInputElement;
+    const today = date.value;
+    expect(today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    // The field keeps its full look: its date is never empty.
+    expect(date).toHaveClass('field');
+    await userEvent.click(date);
+    const calendar = await screen.findByRole('dialog', { name: 'Pick a date' });
+    const day = within(calendar).getAllByRole('button').find((button) => button.getAttribute('aria-pressed') === 'false' && !button.hasAttribute('disabled') && /\d/.test(button.getAttribute('aria-label') ?? '') && !button.getAttribute('aria-label')?.includes('month'));
+    expect(day).toBeDefined();
+    await userEvent.click(day!);
+    expect(screen.queryByRole('dialog', { name: 'Pick a date' })).toBeNull();
+    expect(date.value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(date.value).not.toBe(today);
+    spy.mockRestore();
+  });
+
+  it('keeps the browser date field where the pointer is coarse (a phone)', async () => {
+    await renderApp(TRACKER, as('usr_002'));
+    await historyReady();
+    await userEvent.click(screen.getByLabelText('Date'));
+    expect(screen.queryByRole('dialog', { name: 'Pick a date' })).toBeNull();
   });
 });

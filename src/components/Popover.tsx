@@ -2,10 +2,12 @@ import { motion } from 'motion/react';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { spring } from '../design/motion';
-import { measure, popoverPlace } from './placement';
+import { fixedFrame, inFrame, measure, popoverPlace } from './placement';
 
 /**
  * A small floating panel next to its control, for a short choice. Escape, a press outside or the focus moving out closes it.
+ * Inside an open sheet or panel the panel draws inside that dialog, as a Menu does: a blocking sheet holds the focus, so a panel
+ * outside it lost the focus at once and a date field under it turned into the browser box (UX audit 2026-10-19, chats-02).
  * `fit` is for a panel with a long list: it takes the side with room, and its height stops 8 px inside the screen (`popoverPlace`).
  * A child that must stay in view (a heading, a last row) is `shrink-0`; the list is `min-h-0 flex-1 overflow-y-auto`.
  */
@@ -39,7 +41,10 @@ export function Popover({ anchor, label, onClose, fit = false, children }: { anc
   }, [anchor, onClose]);
   // The measures come in the units of the panel, so the panel opens next to its control also under Big screen.
   const { box, screen } = measure(anchor);
-  const { maxHeight, ...place } = popoverPlace(box, screen, { fit, expected: 480 });
+  const { maxHeight, ...onScreen } = popoverPlace(box, screen, { fit, expected: 480 });
+  // A sheet that moves (a transform) is the frame of a fixed panel inside it, so the place turns into the units of the sheet.
+  const layer = anchor.closest<HTMLElement>('[role="dialog"]');
+  const place = layer ? inFrame(onScreen, fixedFrame(layer), screen) : onScreen;
   return createPortal(
     <motion.div
       ref={ref}
@@ -63,6 +68,6 @@ export function Popover({ anchor, label, onClose, fit = false, children }: { anc
     >
       {children}
     </motion.div>,
-    document.body,
+    layer ?? document.body,
   );
 }

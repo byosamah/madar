@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { initI18n } from '../i18n';
-import { formatDay, formatMonthYear, setNow } from '../lib/dates';
+import { formatDay, formatMonth, formatMonthYear, setNow } from '../lib/dates';
 import { CalendarPopover } from './CalendarPopover';
 
 beforeEach(() => {
@@ -129,5 +129,69 @@ describe('CalendarPopover', () => {
     setup({ max: '2026-10-25' });
     expect(dayButton('2026-10-26')).toBeDisabled();
     expect(dayButton('2026-10-25')).toBeEnabled();
+  });
+});
+
+// chats-18 (UX audit 2026-10-19): the chosen day is easy to see, a far month is one jump away, and Today is one press.
+describe('CalendarPopover: the chosen day, the month grid and Today', () => {
+  it('draws the chosen day as a solid ink circle, not a light fill', () => {
+    setup({ value: '2026-10-12' });
+    expect(dayButton('2026-10-12')).toHaveClass('bg-ink', 'text-bg');
+    expect(dayButton('2026-10-12')).not.toHaveClass('bg-fill-strong');
+    expect(dayButton('2026-10-13')).not.toHaveClass('bg-ink');
+  });
+
+  it('opens a grid of 12 months on the month title, and a pick goes back to the days', async () => {
+    setup({ value: '2026-10-12' });
+    await userEvent.click(screen.getByRole('button', { name: 'Choose a month' }));
+    expect(screen.getByText('2026')).toBeInTheDocument();
+    for (let month = 1; month <= 12; month += 1) {
+      expect(screen.getByRole('button', { name: formatMonth(`2026-${String(month).padStart(2, '0')}-01`, 'en') })).toBeInTheDocument();
+    }
+    await userEvent.click(screen.getByRole('button', { name: 'Next year' }));
+    expect(screen.getByText('2027')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: formatMonth('2027-03-01', 'en') }));
+    expect(screen.getByText(formatMonthYear('2027-03-01', 'en'))).toBeInTheDocument();
+    // The day number stays, and the focus follows the cursor.
+    expect(dayButton('2027-03-12')).toHaveFocus();
+    expect(screen.queryByRole('button', { name: 'Next year' })).toBeNull();
+  });
+
+  it('greys out the months outside the range in the month grid', async () => {
+    setup({ value: '2026-10-12', min: '2026-08-15', max: '2026-12-20' });
+    await userEvent.click(screen.getByRole('button', { name: 'Choose a month' }));
+    expect(screen.getByRole('button', { name: formatMonth('2026-07-01', 'en') })).toBeDisabled();
+    expect(screen.getByRole('button', { name: formatMonth('2026-08-01', 'en') })).toBeEnabled();
+    expect(screen.getByRole('button', { name: formatMonth('2026-12-01', 'en') })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Next year' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Previous year' })).toBeDisabled();
+  });
+
+  it('moves the view to this month with the Today button', async () => {
+    setNow(new Date('2026-10-18T09:00:00+03:00'));
+    setup({ value: '2028-02-03' });
+    expect(screen.getByText(formatMonthYear('2028-02-01', 'en'))).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Today' }));
+    expect(screen.getByText(formatMonthYear('2026-10-01', 'en'))).toBeInTheDocument();
+    expect(dayButton('2026-10-18')).toHaveFocus();
+  });
+
+  it('Today goes back to the days from the month grid, and stops inside the range', async () => {
+    setNow(new Date('2026-10-18T09:00:00+03:00'));
+    setup({ value: '2026-12-03', min: '2026-11-01' });
+    await userEvent.click(screen.getByRole('button', { name: 'Choose a month' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Today' }));
+    expect(screen.queryByRole('button', { name: 'Next year' })).toBeNull();
+    // Today is before the first day, so the view stops at the first day.
+    expect(screen.getByText(formatMonthYear('2026-11-01', 'en'))).toBeInTheDocument();
+  });
+
+  it('has the Arabic words for the month title, the years and Today', async () => {
+    initI18n('ar');
+    setup({ value: '2026-10-12' });
+    expect(screen.getByRole('button', { name: 'اليوم' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'اختر الشهر' }));
+    expect(screen.getByRole('button', { name: 'السنة التالية' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'السنة السابقة' })).toBeInTheDocument();
   });
 });

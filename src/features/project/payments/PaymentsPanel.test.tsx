@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
 import { initI18n } from '../../../i18n';
+import { addDays, formatDay, todayISO } from '../../../lib/dates';
 import { renderApp } from '../../../test/render';
 import { amountText } from './PaymentsPanel';
 
@@ -251,3 +252,25 @@ describe('the payment sheet keeps what the person typed (audit 2026-10-03, F-17)
     expect(within(await reopenNew()).getByLabelText('Name')).toHaveValue('');
   });
 });
+
+// chats-19 (UX audit 2026-10-19): money cannot be received in the future, so the calendar of "Received on" greys those days out.
+describe('the payment sheet: the received date', () => {
+  it('does not offer a day after today in the calendar of Received on', async () => {
+    const spy = vi.spyOn(window, 'matchMedia').mockImplementation(
+      (query: string) => ({
+        matches: query === '(pointer: fine)', media: query, addEventListener: () => undefined, removeEventListener: () => undefined,
+        addListener: () => undefined, removeListener: () => undefined,
+      }) as unknown as MediaQueryList,
+    );
+    await renderApp(PROJECT, as('usr_011'));
+    await userEvent.click(within(await panel()).getByRole('button', { name: 'Add payment' }));
+    const sheet = await sheetOf('Add payment');
+    expect(within(sheet).getByLabelText('Received on')).toHaveAttribute('max', todayISO());
+    await userEvent.click(within(sheet).getByLabelText('Received on'));
+    const calendar = await screen.findByRole('dialog', { name: 'Pick a date' });
+    expect(within(calendar).getByRole('button', { name: formatDay(addDays(todayISO(), 1), 'en', 'long') })).toBeDisabled();
+    expect(within(calendar).getByRole('button', { name: formatDay(todayISO(), 'en', 'long') })).toBeEnabled();
+    spy.mockRestore();
+  });
+});
+
