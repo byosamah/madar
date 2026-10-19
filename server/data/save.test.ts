@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { calls } from '../../src/api/calls';
 import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
+import { bodySearchText } from '../../src/lib/searchMatch';
 import { testApi } from '../../src/test/factories';
 import type { Query } from '../core/ports';
 import { deepFreeze } from './officeCache';
@@ -88,7 +89,7 @@ describe('diffState', () => {
     comment.body = 'Edited';
     const diff = diffState(seed, after);
     expect(table(diff, 'tasks')!.upserts[0].columns).toEqual({ search_text: 'floor plans' });
-    expect(table(diff, 'comments')!.upserts[0].columns).toEqual({ project_id: after.tasks[comment.targetId].projectId });
+    expect(table(diff, 'comments')!.upserts[0].columns).toEqual({ project_id: after.tasks[comment.targetId].projectId, search_text: 'edited' });
     expect(diff.projects.has(after.tasks[comment.targetId].projectId!)).toBe(true);
     expect(diff.unresolvedComments).toEqual([]);
   });
@@ -98,7 +99,7 @@ describe('diffState', () => {
     after.comments.cmt_900 = { ...Object.values(after.comments)[0], id: 'cmt_900', targetType: 'task', targetId: 'tsk_not_loaded' };
     const diff = diffState(seed, after);
     expect(diff.unresolvedComments).toEqual([{ id: 'cmt_900', targetType: 'task', targetId: 'tsk_not_loaded' }]);
-    expect(table(diff, 'comments')!.upserts[0].columns).toEqual({ project_id: null });
+    expect(table(diff, 'comments')!.upserts[0].columns).toEqual({ project_id: null, search_text: bodySearchText(after.comments.cmt_900.body) });
   });
 
   it('upserts only the changed counters', () => {

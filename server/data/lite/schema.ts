@@ -15,8 +15,11 @@ import type { SqlHost } from './host';
  * step: no office object below version 3 exists outside the tests (the first real office comes in wave 5).
  *
  * Version 4 (fbk_007): the office list sub_companies. Its step is in LITE_STEPS.
+ *
+ * Version 5 (chat search, chat design 2026-10-19, item 16): the column search_text of messages and comments, the folded body.
+ * Its step is in LITE_STEPS. The office path keeps no index on it (the search scans it until the restart, exit-handoff.md).
  */
-export const LITE_SCHEMA_VERSION = 4;
+export const LITE_SCHEMA_VERSION = 5;
 
 export type LiteIndex = { table: string; name: string; columns: string; unique?: true; where?: string };
 
@@ -112,10 +115,14 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
  * of a step must leave the same schema as liteSchemaSql of that version, so a stepped office and a new office are equal.
  * Version 3 adds the day meters. It has no text for the sign-in tables of wave 2 (see the top of this file).
  * Version 4 adds the table sub_companies (fbk_007). It is an office list, so it has only id and doc, as in liteSchemaSql.
+ * Version 5 adds search_text to messages and comments. It is the last column of each, as COLUMNS of query.ts holds it, so the table
+ * text of a stepped office equals the table text of a new office. No real office exists below version 5 (the import of exit wave 4
+ * computes the column with rowOf), so the step writes no value.
  */
 export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   3: [USAGE_DAY_SQL],
   4: ['create table sub_companies (id text primary key, doc text not null)'],
+  5: ['alter table messages add column search_text text', 'alter table comments add column search_text text'],
 };
 
 /** The sign-in tables of wave 2: the import of wave 4 and the restore check copy them with the office. */

@@ -36,7 +36,10 @@ const COLUMNS: Partial<Record<TableCollection, Record<string, Column>>> = {
     search_text: server('search_text'),
   },
   updates: { project_id: text('projectId'), created_at: text('createdAt') },
-  comments: { target_type: text('targetType'), target_id: text('targetId'), created_at: text('createdAt'), project_id: server('project_id') },
+  comments: {
+    target_type: text('targetType'), target_id: text('targetId'), created_at: text('createdAt'), project_id: server('project_id'),
+    search_text: server('search_text'),
+  },
   files: { project_id: text('projectId'), task_id: text('taskId'), stage_id: text('stageId'), search_text: server('search_text') },
   tracker: {
     project_id: text('projectId'), reply_task_id: text('replyTaskId'),
@@ -48,7 +51,7 @@ const COLUMNS: Partial<Record<TableCollection, Record<string, Column>>> = {
     user_id: text('userId'), read: { type: 'bool', value: (rec) => rec.read === true }, created_at: text('createdAt'), correlation_id: text('correlationId'),
     target_type: text('targetType'), target_id: text('targetId'), dedupe_key: text('dedupeKey'),
   },
-  messages: { conversation_id: text('conversationId'), created_at: text('createdAt') },
+  messages: { conversation_id: text('conversationId'), created_at: text('createdAt'), search_text: server('search_text') },
   chatReads: { conversation_id: text('conversationId'), user_id: text('userId') },
   events: {
     seq: { type: 'int', value: (rec) => rec.seq as number }, project_id: text('projectId'), target_type: text('targetType'), target_id: text('targetId'),

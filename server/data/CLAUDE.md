@@ -26,6 +26,12 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - A file of a direct chat or a group (owner, 2026-10-19) keeps `conversationId` in its `files` doc: no column and no migration, because
   no read selects by it. Its row has `project_id` and `task_id` null, so the search loader and `files.list` never load it. `diffState`
   counts `files` as a kind of `PRIVATE_CHAT_KINDS`: its save sends the anonymous office signal of a private chat (`save.ts`).
+- Chat search (`20261020000100_message_search.sql`, chat design 2026-10-19, item 16): `messages.search_text` and `comments.search_text`
+  hold `bodySearchText(body)` (`src/lib/searchMatch.ts`), written by the save from `tables.ts`. A deleted message keeps null; the
+  Undo writes it again. The GIN trigram indexes `messages_search` and `comments_search` use `extensions.gin_trgm_ops`, and the loader
+  `contains` sends an escaped LIKE, so a key press never reads every message. `search_fold(text)` is the fold in SQL (backfill and the
+  parity test); it must stay in step with `bodySearchText`. One known difference: `İ` (U+0130) folds to `i` in SQL and to `i` plus a dot
+  in JavaScript; no other tested letter differs. The index needs a table of some size: with 6,000 comments Postgres read every row.
 - `events` only grows: a trigger refuses update and delete, and madar_server has only select and insert. Undo is a new
   event (`undoes`). The save never writes `undoneBy`.
 
@@ -131,6 +137,9 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   `usage/warn.ts` and may import no value from `server/office/` (`workerGraph.test.ts`); `server/office/meter.ts` exports it again.
 - Schema version 4 (fbk_007) adds the office list `sub_companies`, with only `id` and `doc`. `LITE_STEPS` is
   `{ 3: [USAGE_DAY_SQL], 4: [the create table of sub_companies] }`; the SQL text is in `lite/schema.ts`.
+- Schema version 5 (chat search) adds `search_text text` to `messages` and `comments`, the last column of each. `LITE_STEPS[5]` is two
+  `alter table ... add column`. The office path keeps no index on it: `contains` is `instr`, a scan (`exit-handoff.md`, section 7,
+  names the FTS5 index for the restart). No step writes a value: no real office exists below version 5.
 - Each event index costs 1 row written for each event, and a read needs each of the 8. Task 18 dropped four of them, one at a
   time: a read then took 12,815 to 183,416 rows in place of 4 to 4,189 (proof.md "Wave 1: the rows pins"). Drop one only with
   a rows pin that shows that no read needs it.
