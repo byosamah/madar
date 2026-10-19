@@ -18,6 +18,7 @@ export type ProjectFormValues = CodeValues & TemplateChoice & {
   /** The sub-company (fbk_007). Empty is no sub-company. */
   subCompanyId: string;
   leader: string;
+  /** The address of the pin (owner, 2026-10-19). The pin sheet sets it with the pin. It is no free-text field. */
   location: string;
   /** The pin on the map (owner, 2026-10-18, fbk_017): null for no pin. */
   geo: GeoPoint | null;

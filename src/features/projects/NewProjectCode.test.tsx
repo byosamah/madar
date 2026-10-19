@@ -31,7 +31,7 @@ describe('the Project code group (item 6b)', () => {
     for (const label of ['Name', 'Client initials', 'Classification', 'Building type']) {
       expect(within(sheet).getByLabelText(label)).toHaveAccessibleDescription(expect.stringMatching(/^required/));
     }
-    expect(within(sheet).getByLabelText('Location')).not.toHaveAccessibleDescription(expect.stringMatching(/required/));
+    expect(within(sheet).getByRole('group', { name: 'Location' })).not.toHaveAccessibleDescription(expect.stringMatching(/required/));
   });
 
   it('shows a message under each empty code part after a press on Create, and creates nothing', async () => {

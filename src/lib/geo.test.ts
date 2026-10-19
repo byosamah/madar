@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { googleMapsUrl, inSaudi, parseMapLink, parseMapPoint, pinFromLinks, pointText, swapPoint } from './geo';
+import { googleMapsUrl, inSaudi, parseMapLink, parseMapPoint, pinFromLinks, pointText, samePoint, swapPoint } from './geo';
 
 describe('parseMapLink (fbk_017)', () => {
   it('reads a plain pair of coordinates, latitude first', () => {
@@ -89,5 +89,20 @@ describe('pinFromLinks (PRJ-04)', () => {
     expect(pinFromLinks(undefined)).toBeNull();
     expect(pinFromLinks([])).toBeNull();
     expect(pinFromLinks([{ kind: 'location', url: 'https://maps.google.com/?q=Al+Khobar' }])).toBeNull();
+  });
+});
+
+describe('samePoint (the Location is the address of the pin, 2026-10-19)', () => {
+  it('is true for the same two numbers, and false when one number differs', () => {
+    expect(samePoint({ lat: 26.28, lng: 50.21 }, { lat: 26.28, lng: 50.21 })).toBe(true);
+    expect(samePoint({ lat: 26.28, lng: 50.21 }, { lat: 26.28, lng: 50.2100001 })).toBe(false);
+    expect(samePoint({ lat: 26.28, lng: 50.21 }, { lat: 26.29, lng: 50.21 })).toBe(false);
+  });
+
+  it('counts null and undefined as no pin, and a pin is never the same as no pin', () => {
+    expect(samePoint(null, undefined)).toBe(true);
+    expect(samePoint(null, null)).toBe(true);
+    expect(samePoint({ lat: 26.28, lng: 50.21 }, null)).toBe(false);
+    expect(samePoint(undefined, { lat: 26.28, lng: 50.21 })).toBe(false);
   });
 });

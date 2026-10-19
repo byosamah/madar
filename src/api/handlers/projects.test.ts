@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { nextProjectCode, projectCalls } from './projects';
+import { historyCalls } from './history';
 import { taskCalls } from './tasks';
 import type { Store } from '../store';
 import { makeTask, makeWorld, NOW, STAMP, testApi } from '../../test/factories';
@@ -587,5 +588,208 @@ describe('the pin and the location link (audit 2026-10-19, PRJ-04)', () => {
     // A removed pin stays removed: the link does not bring it back.
     await t.api.call('projects.update', { id: 'prj_001', patch: { geo: null } });
     expect((await t.api.call('projects.get', { id: 'prj_001' })).geo).toBeNull();
+  });
+});
+
+describe('the Location is the address of the pin (owner, 2026-10-19)', () => {
+  const PIN = { lat: 26.28, lng: 50.21 };
+  const OTHER = { lat: 26.4, lng: 50.0 };
+  // Faisal (usr_002) leads prj_001. Its location is "Al Khobar" and it has no pin.
+  const office = () => {
+    const t = testApi({ ...projectCalls, ...historyCalls });
+    t.as('usr_002');
+    return t;
+  };
+  const locationOf = (t: ReturnType<typeof office>) => t.store.state.projects.prj_001.location;
+
+  it('clears the old location when a write gives a new pin and no location', async () => {
+    const t = office();
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: PIN } });
+    expect(locationOf(t)).toBe('');
+    expect((await t.api.call('projects.get', { id: 'prj_001' })).project.location).toBe('');
+  });
+
+  it('keeps the location that the same write gives with the new pin', async () => {
+    const t = office();
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: PIN, location: 'King Fahd Road, Dammam' } });
+    expect(locationOf(t)).toBe('King Fahd Road, Dammam');
+    // A second move that gives no location clears the address again: no old text stays beside a new pin.
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: OTHER } });
+    expect(locationOf(t)).toBe('');
+  });
+
+  it('clears the location when a write removes the pin, even when it sends a text with the null', async () => {
+    const t = office();
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: PIN, location: 'Corniche, Al Khobar' } });
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: null } });
+    expect(locationOf(t)).toBe('');
+    expect(t.store.state.projects.prj_001.geo).toBeNull();
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: PIN, location: 'Corniche, Al Khobar' } });
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: null, location: 'Kept by mistake' } });
+    expect(locationOf(t)).toBe('');
+  });
+
+  it('keeps the location when the pin does not move', async () => {
+    const t = office();
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: PIN, location: 'Corniche, Al Khobar' } });
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: { ...PIN }, name: 'Renamed' } });
+    expect(locationOf(t)).toBe('Corniche, Al Khobar');
+    // A write of the form: the pin, the location and a new name.
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: PIN, location: 'Corniche, Al Khobar', name: 'Again' } });
+    expect(locationOf(t)).toBe('Corniche, Al Khobar');
+  });
+
+  it('refuses a location alone while the project has a pin, and says why', async () => {
+    const t = office();
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: PIN, location: 'Corniche, Al Khobar' } });
+    await expect(t.api.call('projects.update', { id: 'prj_001', patch: { location: 'Somewhere else' } }))
+      .rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'location_needs_pin' } });
+    expect(locationOf(t)).toBe('Corniche, Al Khobar');
+  });
+
+  it('accepts the same location alone, because it changes nothing', async () => {
+    const t = office();
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: PIN, location: 'Corniche, Al Khobar' } });
+    await t.api.call('projects.update', { id: 'prj_001', patch: { location: 'Corniche, Al Khobar', name: 'Renamed' } });
+    expect(locationOf(t)).toBe('Corniche, Al Khobar');
+    expect(t.store.state.projects.prj_001.name).toBe('Renamed');
+  });
+
+  it('accepts a location alone while the project has no pin (old data)', async () => {
+    const t = office();
+    expect('geo' in t.store.state.projects.prj_001).toBe(false);
+    await t.api.call('projects.update', { id: 'prj_001', patch: { location: 'Dammam, King Fahd Road' } });
+    expect(locationOf(t)).toBe('Dammam, King Fahd Road');
+    // A pin that was removed is a project with no pin too.
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: PIN, location: 'A' } });
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: null } });
+    await t.api.call('projects.update', { id: 'prj_001', patch: { location: 'Typed again' } });
+    expect(locationOf(t)).toBe('Typed again');
+  });
+
+  it('keeps the typed text of an old project when its form sends no pin (geo null, the same location)', async () => {
+    const t = office();
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: null, location: 'Al Khobar', name: 'Renamed' } });
+    expect(locationOf(t)).toBe('Al Khobar');
+    // The same write with no location keeps it too: a null pin that was no pin is no change.
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: null } });
+    expect(locationOf(t)).toBe('Al Khobar');
+  });
+
+  it('counts the place of a location link as the pin of an old project: the same point changes nothing', async () => {
+    const t = office();
+    const project = t.store.state.projects.prj_001;
+    project.links = [{ id: 'lnk_900', kind: 'location', label: 'Google Maps', url: 'https://maps.google.com/?q=26.2928,50.2172' }];
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: { lat: 26.2928, lng: 50.2172 } } });
+    expect(locationOf(t)).toBe('Al Khobar');
+    // A location alone is refused: the project shows a pin.
+    await expect(t.api.call('projects.update', { id: 'prj_001', patch: { location: 'Other' } })).rejects.toMatchObject({ details: { reason: 'location_needs_pin' } });
+  });
+
+  it('takes both back with one Undo', async () => {
+    const t = office();
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: PIN, location: 'Corniche, Al Khobar' } });
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: OTHER, location: 'King Fahd Road, Dammam' } }, { correlationId: 'cor_pin' });
+    expect(locationOf(t)).toBe('King Fahd Road, Dammam');
+    await t.api.call('events.undoStory', { correlationId: 'cor_pin' });
+    expect(t.store.state.projects.prj_001.geo).toEqual(PIN);
+    expect(locationOf(t)).toBe('Corniche, Al Khobar');
+  });
+
+  it('takes the old location back with one Undo of a pin that cleared it', async () => {
+    const t = office();
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: PIN } }, { correlationId: 'cor_clear' });
+    expect(locationOf(t)).toBe('');
+    await t.api.call('events.undoStory', { correlationId: 'cor_clear' });
+    expect(locationOf(t)).toBe('Al Khobar');
+    expect('geo' in t.store.state.projects.prj_001 && t.store.state.projects.prj_001.geo !== undefined).toBe(false);
+  });
+
+  it('takes the location of a new project from the pin form: the text with the pin, or an empty text with a pin alone', async () => {
+    const t = office();
+    const withText = await t.api.call('projects.create', { name: 'Harbour Kiosk', geo: PIN, location: 'Corniche, Al Khobar' });
+    expect(withText.project.location).toBe('Corniche, Al Khobar');
+    const pinAlone = await t.api.call('projects.create', { name: 'Pier Cafe', geo: PIN });
+    expect(pinAlone.project.location).toBe('');
+    const textAlone = await t.api.call('projects.create', { name: 'Old style', location: 'Dammam' });
+    expect(textAlone.project.location).toBe('Dammam');
+  });
+
+  it('cannot hold a location that a write sends with a team member who may not edit', async () => {
+    const t = office();
+    t.as('usr_003');
+    await expect(t.api.call('projects.update', { id: 'prj_001', patch: { geo: PIN, location: 'Mine' } })).rejects.toMatchObject({ code: 'forbidden' });
+    expect(locationOf(t)).toBe('Al Khobar');
+  });
+});
+
+describe('a location link and the address of the pin (owner, 2026-10-19)', () => {
+  const LINK = 'https://maps.google.com/?q=26.2928,50.2172';
+  const office = () => {
+    const t = testApi({ ...projectCalls, ...historyCalls });
+    t.as('usr_002');
+    return t;
+  };
+
+  it('clears the old location when a location link moves the pin', async () => {
+    const t = office();
+    const detail = await t.api.call('projects.addLink', { projectId: 'prj_001', kind: 'location', label: '', url: LINK });
+    expect(detail.geo).toEqual({ lat: 26.2928, lng: 50.2172 });
+    expect(detail.project.location).toBe('');
+  });
+
+  it('sets the address that the screen sends with the link, in the same save and under one Undo', async () => {
+    const t = office();
+    const detail = await t.api.call('projects.addLink', { projectId: 'prj_001', kind: 'location', label: '', url: LINK, location: 'King Fahd Road, Dammam' }, { correlationId: 'cor_link' });
+    expect(detail.project.location).toBe('King Fahd Road, Dammam');
+    await t.api.call('events.undoStory', { correlationId: 'cor_link' });
+    const project = t.store.state.projects.prj_001;
+    expect(project.location).toBe('Al Khobar');
+    expect(project.links ?? []).toEqual([]);
+    expect(project.geo ?? null).toBeNull();
+  });
+
+  it('sets the address for a changed link, and clears it when the screen sends none', async () => {
+    const t = office();
+    const added = await t.api.call('projects.addLink', { projectId: 'prj_001', kind: 'location', label: '', url: LINK, location: 'First road, Dammam' });
+    const link = added.project.links!.at(-1)!;
+    const moved = await t.api.call('projects.updateLink', { projectId: 'prj_001', linkId: link.id, url: 'https://www.google.com/maps/@26.3,50.1,17z', location: 'Second road, Khobar' });
+    expect(moved.project.location).toBe('Second road, Khobar');
+    const again = await t.api.call('projects.updateLink', { projectId: 'prj_001', linkId: link.id, url: 'https://www.google.com/maps/@26.4,50.2,17z' });
+    expect(again.project.location).toBe('');
+  });
+
+  it('keeps the location when the link does not move the pin, and ignores an address that came with it', async () => {
+    const t = office();
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: { lat: 26.28, lng: 50.21 }, location: 'Corniche, Al Khobar' } });
+    for (const url of ['https://maps.google.com/?q=Al+Khobar', 'https://maps.app.goo.gl/AbC123', 'https://maps.google.com/?q=50.2,26.3']) {
+      const detail = await t.api.call('projects.addLink', { projectId: 'prj_001', kind: 'location', label: '', url, location: 'Ignored' });
+      expect(detail.project.location, url).toBe('Corniche, Al Khobar');
+    }
+    const other = await t.api.call('projects.addLink', { projectId: 'prj_001', kind: 'moodboard', label: '', url: 'https://pinterest.com/x?q=26.9,50.9', location: 'Ignored' });
+    expect(other.project.location).toBe('Corniche, Al Khobar');
+  });
+
+  it('keeps the location when the link holds the point that the pin already has', async () => {
+    const t = office();
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: { lat: 26.2928, lng: 50.2172 }, location: 'Corniche, Al Khobar' } });
+    const detail = await t.api.call('projects.addLink', { projectId: 'prj_001', kind: 'location', label: '', url: LINK });
+    expect(detail.project.location).toBe('Corniche, Al Khobar');
+  });
+
+  it('keeps the typed text of an old project when its location link already gave the place', async () => {
+    const t = office();
+    t.store.state.projects.prj_001.links = [{ id: 'lnk_900', kind: 'location', label: 'Google Maps', url: LINK }];
+    const detail = await t.api.call('projects.updateLink', { projectId: 'prj_001', linkId: 'lnk_900', label: 'Renamed' });
+    expect(detail.project.location).toBe('Al Khobar');
+  });
+
+  it('leaves the pin and the location of a team member who may not edit', async () => {
+    const t = office();
+    await t.api.call('projects.update', { id: 'prj_001', patch: { geo: { lat: 26.28, lng: 50.21 }, location: 'Corniche, Al Khobar' } });
+    t.as('usr_003');
+    const detail = await t.api.call('projects.addLink', { projectId: 'prj_001', kind: 'location', label: '', url: LINK, location: 'Not allowed' });
+    expect(detail.geo).toEqual({ lat: 26.28, lng: 50.21 });
+    expect(detail.project.location).toBe('Corniche, Al Khobar');
   });
 });

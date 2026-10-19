@@ -4,6 +4,7 @@ import { isNetworkPath, LinkKind, linkUrlOk, type ProjectLink } from '../../../a
 import type { ProjectDetail } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
 import { fieldError } from '../../../app/errors';
+import { useLang } from '../../../app/lang';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { SelectField, TextField } from '../../../components/Fields';
@@ -18,6 +19,8 @@ import { PlusIcon } from '../../../components/icons/animated/plus';
 import { SendIcon } from '../../../components/icons/animated/send';
 import { SquarePenIcon } from '../../../components/icons/animated/square-pen';
 import { Sheet } from '../../../components/Sheet';
+import { pinFromLinks, samePoint } from '../../../lib/geo';
+import { addressOf } from '../../../lib/placeAddress';
 
 const KINDS = LinkKind.options;
 const ICON: Record<LinkKind, AnimatedIconComponent> = { moodboard: PaletteIcon, folder: FolderOpenIcon, location: MapPinIcon, delivery: SendIcon, other: LinkIcon };
@@ -49,7 +52,13 @@ function LinkSheet({ detail, link, open, onOpenChange }: { detail: ProjectDetail
   const [kind, setKind] = useState<LinkKind>('moodboard');
   const [label, setLabel] = useState('');
   const [url, setUrl] = useState('');
+  const lang = useLang();
+  const [looking, setLooking] = useState(false);
+  // The number of the last press or opening: the answer of a lookup that comes after a close is dropped.
+  const turn = useRef(0);
   useEffect(() => {
+    turn.current += 1;
+    setLooking(false);
     if (!open) return;
     setKind(link?.kind ?? 'moodboard');
     setLabel(link?.label ?? '');
@@ -59,12 +68,25 @@ function LinkSheet({ detail, link, open, onOpenChange }: { detail: ProjectDetail
   const add = useUndoable('projects.addLink', { message: () => t('links.added'), onSuccess: close });
   const save = useUndoable('projects.updateLink', { message: () => t('links.saved'), onSuccess: close });
   const remove = useUndoable('projects.removeLink', { message: () => t('links.removed'), onSuccess: close });
-  const busy = add.isPending || save.isPending || remove.isPending;
+  const busy = add.isPending || save.isPending || remove.isPending || looking;
   const error = fieldError(link ? save.error : add.error, 'url', t, t(kind === 'folder' ? 'links.badFolder' : 'links.badWeb', { scheme: 'https://', path: '\\\\SERVER\\folder' }));
-  const submit = () => {
+  const submit = async () => {
     const fields = { projectId: detail.project.id, kind, label: label.trim(), url: url.trim() };
-    if (link) save.mutate({ ...fields, linkId: link.id });
-    else add.mutate(fields);
+    // A location link that holds a point moves the pin, and the Location is the address of the pin (owner, 2026-10-19). The screen
+    // looks up the address of the new place first and sends it with the link, so the link, the pin and the address are one write
+    // and one Undo. A link that moves nothing sends no address, and a person who may not move the pin asks for no lookup.
+    const place = kind === 'location' && detail.viewerCan.edit ? pinFromLinks([{ kind, url: fields.url }]) : null;
+    let address: { location?: string } = {};
+    if (place && !samePoint(place, detail.geo)) {
+      const mine = ++turn.current;
+      setLooking(true);
+      const location = await addressOf(place, lang);
+      if (mine !== turn.current) return;
+      setLooking(false);
+      address = { location };
+    }
+    if (link) save.mutate({ ...fields, ...address, linkId: link.id });
+    else add.mutate({ ...fields, ...address });
   };
   return (
     <Sheet
@@ -76,11 +98,11 @@ function LinkSheet({ detail, link, open, onOpenChange }: { detail: ProjectDetail
         <>
           {link && <Button variant="destructive" className="me-auto" disabled={busy} onClick={() => remove.mutate({ projectId: detail.project.id, linkId: link.id })}>{t('links.remove')}</Button>}
           <Button onClick={close}>{t('common.cancel')}</Button>
-          <Button variant="primary" disabled={!url.trim() || busy} onClick={submit}>{link ? t('links.save') : t('links.add')}</Button>
+          <Button variant="primary" disabled={!url.trim() || busy} onClick={() => void submit()}>{link ? t('links.save') : t('links.add')}</Button>
         </>
       )}
     >
-      <form className="flex flex-col gap-4 pt-1" autoComplete="off" onSubmit={(event) => { event.preventDefault(); if (url.trim()) submit(); }}>
+      <form className="flex flex-col gap-4 pt-1" autoComplete="off" onSubmit={(event) => { event.preventDefault(); if (url.trim() && !busy) void submit(); }}>
         <SelectField id="link-kind" label={t('links.kind')} value={kind} onChange={(event) => setKind(event.target.value as LinkKind)}>
           {KINDS.map((value) => <option key={value} value={value}>{t(`links.kinds.${value}`)}</option>)}
         </SelectField>

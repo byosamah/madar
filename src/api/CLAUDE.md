@@ -242,6 +242,17 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - `Project.geo` is an optional `GeoPoint` (`lat` -90 to 90, `lng` -180 to 180). `ProjectSummary.geo` is that point or null (`summaryOf`).
 - `projects.create` takes `geo` (default null). `projects.update` takes `patch.geo` (null removes the pin). Both refuse a value out of range.
 - MCP: `TOOL_DOCS` of `projects.update`, `projects.get` and `projects.list` name `geo`. `samples.json` holds inputs only, so it did not change.
+- **The Location is the address of the pin (owner, 2026-10-19).** `Project.location` stays a string. `placeRule` and `saveLinks` in
+  `handlers/projects.ts` keep the pin and the text together in one patch, so one Undo takes both back:
+  - A write that moves the pin and gives no `location` sets `location` to ''. A write that removes the pin (geo null) sets it to '', even
+    when the write sends a text. A pin that does not move leaves the text. "Moves" is a check against the pin that the project shows
+    (`pinOf`: the own pin, else the place of the location link).
+  - A `location` alone, with no `geo`, fails with reason `location_needs_pin` while the project has a pin, unless it is the same text.
+    A project with no pin (old data) still takes a text alone.
+  - `projects.addLink` and `projects.updateLink` take an optional `location`: the address of the pin that the link sets. The server uses it
+    only when the link moves the pin. Without it, the text is cleared. Both calls stay on the MCP deny list.
+  - `search.query` does not read `location`.
+  - MCP: `TOOL_DOCS` of `projects.update` (600 characters, at the limit) and `projects.get`, and the `Place:` line of `INSTRUCTIONS`.
 
 ## Office rights and roles (owner, 2026-10-18, fbk_014)
 - The seven office rights are in `OfficeRight` (`contract/entities.ts`). The Admin holds all seven.

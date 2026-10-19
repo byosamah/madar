@@ -21,7 +21,7 @@ import {
 } from '../../lib/projectCode';
 import { planProject, type ProjectPlan } from '../../lib/projectPlan';
 import { workingDaysInclusive } from '../../lib/templatePlan';
-import { pinFromLinks } from '../../lib/geo';
+import { pinFromLinks, samePoint } from '../../lib/geo';
 import { baseOf } from '../templateSync';
 import { markOf, pickMark } from '../../lib/projectMark';
 import { involves } from '../../lib/taskPeople';
@@ -31,6 +31,30 @@ import { addTrackerEntry } from './tracker';
 const ProjectName = z.string().trim().min(1).max(120);
 const StageName = z.string().trim().min(1).max(60);
 const Location = z.string().trim().max(120);
+
+/** The pin that a project shows: its own (a point, or null for a removed pin), else the place of its location link (old data, PRJ-04). */
+function pinOf(project: Project): GeoPoint | null {
+  return project.geo === undefined ? pinFromLinks(project.links) : project.geo;
+}
+
+/**
+ * The Location is the address of the pin (owner, 2026-10-19): a project has one place, so the text never stays beside a pin that
+ * it does not describe. This rule keeps the two together in one patch, so one Undo takes both back.
+ * - A pin that moves with no location in the same write clears the location (the old text described the old pin).
+ * - A pin that is removed clears the location, whatever the write sends with it.
+ * - A pin that does not move leaves the location as it is.
+ * - A location alone is refused while the project has a pin, unless it is the same text: send the pin and the location together.
+ *   A project with no pin (old data) still takes a location alone.
+ */
+function placeRule<P extends { geo?: GeoPoint | null; location?: string }>(project: Project, patch: P): P {
+  const before = pinOf(project);
+  if (patch.geo === null && before !== null) return { ...patch, location: '' };
+  if (patch.geo !== undefined && !samePoint(patch.geo, before)) return { ...patch, location: patch.location ?? '' };
+  if (patch.geo === undefined && patch.location !== undefined && patch.location !== project.location && before !== null) {
+    throw invalid('location', 'The location is the address of the pin. Send the pin (geo) and the location together.', 'location_needs_pin');
+  }
+  return patch;
+}
 const Area = z.number().nonnegative().max(10_000_000);
 const FolderPath = z.string().trim().max(260);
 const Description = z.string().max(5000);
@@ -427,7 +451,9 @@ export const projectsUpdate = defineCall({
   output: ProjectDetail,
   run(input, ctx) {
     const project = requireEditable(ctx, input.id);
-    const { code, ...patch } = input.patch;
+    const { code, ...asked } = input.patch;
+    // The rule of the place comes before any change, so a refused write changes nothing.
+    const patch = placeRule(project, asked);
     if (patch.subCompanyId !== undefined) assertSubCompany(ctx, patch.subCompanyId);
     const newCode = code !== undefined && code !== project.code ? code : undefined;
     if (newCode !== undefined) {
@@ -549,20 +575,27 @@ function requireLink(project: Project, linkId: string) {
 
 /**
  * Saves the links. A location link that holds coordinates inside Saudi Arabia sets the pin in the same save, so the place is one
- * record, and one Undo takes both back (audit 2026-10-19, PRJ-04). Any other link leaves the pin as it is. Only a person who may
+ * record, and one Undo takes both back (audit 2026-10-19, PRJ-04). A pin that moves also sets the location: the address that the
+ * screen sends with the link, else an empty text (owner, 2026-10-19). Any other link leaves the pin as it is. Only a person who may
  * edit the project moves the pin: a team member who may only post adds the link alone (security review 2026-10-19).
  */
-function saveLinks(ctx: Ctx, project: Project, links: Project['links'], saved?: { kind: string; url: string }) {
+function saveLinks(ctx: Ctx, project: Project, links: Project['links'], saved?: { kind: string; url: string }, address?: string) {
   const mayPin = can(ctx.authority, 'project.edit', { projectRole: roleIn(ctx, project.id) });
   const place = saved && mayPin ? pinFromLinks([saved]) : null;
-  applyPatch(ctx, project, { links, ...(place ? { geo: place } : {}) }, { projectId: project.id, verb: 'project.updated', targetType: 'project', targetId: project.id });
+  // A pin that moves takes the address that the screen sends with the link, else it clears the old text (owner, 2026-10-19).
+  const moves = place !== null && !samePoint(place, pinOf(project));
+  applyPatch(ctx, project, { links, ...(place ? { geo: place } : {}), ...(moves ? { location: address ?? '' } : {}) }, { projectId: project.id, verb: 'project.updated', targetType: 'project', targetId: project.id });
   touch(ctx, project.id);
   return detail(ctx, project);
 }
 
 /** The leader and the team add a link to a place outside Madar; everyone who opens the project can use it (colleague comment 5). */
 export const projectsAddLink = defineCall({
-  input: z.object({ projectId: ProjectId, kind: LinkKind, label: LinkLabel.default(''), url: LinkUrl }),
+  input: z.object({
+    projectId: ProjectId, kind: LinkKind, label: LinkLabel.default(''), url: LinkUrl,
+    /** The address of the pin that a location link sets (owner, 2026-10-19). Used only when the link moves the pin. */
+    location: Location.optional(),
+  }),
   output: ProjectDetail,
   run(input, ctx) {
     const project = requireProject(ctx, input.projectId);
@@ -570,12 +603,16 @@ export const projectsAddLink = defineCall({
     assertLink(input.kind, input.url);
     const links = project.links ?? [];
     if (links.length >= 20) throw invalid('url', 'A project holds up to 20 links.');
-    return saveLinks(ctx, project, [...links, { id: nextId(ctx.state, 'lnk'), kind: input.kind, label: input.label, url: input.url }], input);
+    return saveLinks(ctx, project, [...links, { id: nextId(ctx.state, 'lnk'), kind: input.kind, label: input.label, url: input.url }], input, input.location);
   },
 });
 
 export const projectsUpdateLink = defineCall({
-  input: z.object({ projectId: ProjectId, linkId: z.string(), kind: LinkKind.optional(), label: LinkLabel.optional(), url: LinkUrl.optional() }),
+  input: z.object({
+    projectId: ProjectId, linkId: z.string(), kind: LinkKind.optional(), label: LinkLabel.optional(), url: LinkUrl.optional(),
+    /** The address of the pin that a location link sets (owner, 2026-10-19). Used only when the link moves the pin. */
+    location: Location.optional(),
+  }),
   output: ProjectDetail,
   run(input, ctx) {
     const project = requireProject(ctx, input.projectId);
@@ -583,7 +620,7 @@ export const projectsUpdateLink = defineCall({
     const link = requireLink(project, input.linkId);
     const next = { ...link, ...(input.kind ? { kind: input.kind } : {}), ...(input.label !== undefined ? { label: input.label } : {}), ...(input.url ? { url: input.url } : {}) };
     assertLink(next.kind, next.url);
-    return saveLinks(ctx, project, (project.links ?? []).map((item) => (item.id === link.id ? next : item)), next);
+    return saveLinks(ctx, project, (project.links ?? []).map((item) => (item.id === link.id ? next : item)), next, input.location);
   },
 });
 

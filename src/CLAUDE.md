@@ -70,7 +70,7 @@ any screen work.
 ## The project pin and the map (owner, 2026-10-18, fbk_017; the free map since 2026-10-19)
 - `src/features/map/`: `MapCanvas.tsx` is the one MapLibre wrapper, `PinPicker.tsx` the one field of the pin, `PinSheet.tsx` the sheet
   around it (Cancel and "Use this place"), `ProjectPin.tsx` the pin of a project, `mapStyle.ts` the Madar style.
-  `src/lib/geo.ts` reads a pasted link or a pair of coordinates. The form line "Pin on the map" is in `ProjectFields.tsx`.
+  `src/lib/geo.ts` reads a pasted link or a pair of coordinates. The form field "Location" (`LocationField`) is in `ProjectFields.tsx`.
 - **Zero cost (owner, 2026-10-19): a map service has no account, no key and no bill.** OpenFreeMap (tiles and glyphs) and OpenStreetMap
   Nominatim (the place search) pass. `mapStyle.test.ts` pins the one host in the style. A paid or keyed service (Mapbox, Google Maps JS,
   MapTiler, Stadia) never goes in. The own map file (`functions/map`, `server/http/pagesMap.ts`, `scripts/map/build-basemap.sh`) stays in the
@@ -98,6 +98,21 @@ any screen work.
 - The place is one record: the pin. A saved location link that holds coordinates inside Saudi Arabia sets the pin in the same save
   (`saveLinks` in `src/api/handlers/projects.ts`). Old data with no pin (`geo` undefined, never null) shows the place of its location link
   (`pinFromLinks` in `src/api/views.ts`); a removed pin is null and stays removed. The About panel gives "Open in Google Maps" from the pin.
+- **The Location text is the address of the pin (owner, 2026-10-19).** A project has one place, so the form has one field, "Location"
+  (`LocationField` in `ProjectFields.tsx`), and no free-text Location. It shows the address, or "Pinned on the map." when the pin has no
+  address, or "No location yet". An old project with typed text and no pin shows its text until someone sets a pin ("Remove" clears it).
+  The pin sheet hands over the point and its address: `PinSheet` `onUse(point, address)`. The address is the name of a search hit, else
+  one lookup at OpenStreetMap Nominatim when the person presses "Use this place" (`addressOf` in `src/lib/placeAddress.ts`; never while the
+  pin moves). A pin that did not move keeps its address (`address` prop). A failed or slow lookup (5 s) gives '' and the pin still saves.
+  The prototype has no lookup: `addressOf` gives '' there, never raw numbers.
+- One write: the form, the Dashboard map and the link sheet send `geo` and `location` together in one `projects.update` (or one
+  `projects.addLink` / `updateLink` with `location`), so one Undo takes both back. The server clears the text of a pin that moves with no text
+  (`src/api/CLAUDE.md`). `ProjectLinks.tsx` looks up the address of a location link before the save, only when the link moves the pin and
+  the person may edit.
+- **One gate for Nominatim.** `src/lib/nominatimGate.ts` (`gated`) runs every request to Nominatim one at a time and at least 1 s after the
+  last start, for the place search and the address lookup together. No header and no referrer of our own (`Referrer-Policy: no-referrer`).
+  A test that sends a search calls `resetGate()` first. The About panel shows the address, then "Open in Google Maps"; with a pin and no
+  address it shows the link alone.
 - The Dashboard has a Map tab (`src/features/dashboard/DashboardMap.tsx`, `MapPinCard.tsx`). It reads `projects.list` with the Leader, Client and Team filters, and folds the flag itself as `PinPicker.tsx` does. In the prototype it shows the pinned list and the note "The map works in the real Madar.", and no map. A person who may not edit an unpinned project sees its leader.
 - The credit of the free map is the small MapLibre button inside the map (`AttributionControl`, `compact`, `MAP_CREDIT` in
   `MapCanvas.tsx`), never a line under it (owner, 2026-10-19). It starts folded to the "i" (`foldCredit`); a tap opens it. Never
