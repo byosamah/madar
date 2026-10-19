@@ -1,8 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
 import { renderApp } from '../../test/render';
+
+// Each test renders the whole project page several times; under the load of the full run that takes more than 5 s.
+vi.setConfig({ testTimeout: 20_000 });
 
 const LOAD = { timeout: 10_000 };
 
