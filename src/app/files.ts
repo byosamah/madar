@@ -25,7 +25,7 @@ export function isRemote(runtime: Pick<Runtime, 'mode'>): boolean {
 type Source = { url: string } | { blob: Blob };
 
 /** A picture URL for an img tag, with the one new link after an error, and "broken" when the picture cannot show. */
-type PictureLink = { url: string | null; onError: () => void; broken: boolean };
+export type PictureLink = { url: string | null; onError: () => void; broken: boolean };
 
 /**
  * The shared body of the picture hooks. The query key sits outside the "api" keys, so a change elsewhere in the office does not
@@ -83,13 +83,14 @@ function usePictureSource(o: { queryKey: readonly unknown[]; load: () => Promise
 
 /**
  * A URL for a stored file version, for img and iframe tags. The real build asks files.link for a signed inline link ("thumb"
- * gives the small picture when the version has one). The prototype reads the data with files.get (usePictureSource).
+ * gives the small picture when the version has one). The prototype reads the data with files.get (usePictureSource). "broken" is
+ * true when the link fails or the new link breaks too, so a screen can fall back to a file chip.
  */
-export function useFileLink(fileId: string | null, letter?: string, variant: 'full' | 'thumb' = 'full'): { url: string | null; onError: () => void } {
+export function useFileLink(fileId: string | null, letter?: string, variant: 'full' | 'thumb' = 'full'): PictureLink {
   const runtime = useRuntime();
   const remote = isRemote(runtime);
   const { api } = runtime;
-  const { url, onError } = usePictureSource({
+  return usePictureSource({
     queryKey: remote ? ['file-link', fileId, letter ?? 'latest', variant] : ['file-blob', fileId, letter ?? 'latest'],
     load: async () => {
       const id = fileId as string;
@@ -100,7 +101,6 @@ export function useFileLink(fileId: string | null, letter?: string, variant: 'fu
     remote,
     picture: `${fileId}|${letter ?? ''}|${variant}`,
   });
-  return { url, onError };
 }
 
 /** The answer of feedback.screenshot in the real build: its wire.output, a signed inline link. */

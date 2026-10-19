@@ -345,9 +345,12 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
   };
 }
 
-/** The files of a comment or a message. A deleted file keeps its place with no name. */
+/** The files of a comment or a message. A deleted file keeps its place with no name and no type. */
 export function attachmentsOf(state: State, fileIds: string[] | undefined): Attachment[] {
-  return (fileIds ?? []).map((id) => ({ id, name: state.files[id]?.name ?? null }));
+  return (fileIds ?? []).map((id) => {
+    const file = state.files[id];
+    return file ? { id, name: file.name, mimeType: file.versions[file.versions.length - 1].mimeType } : { id, name: null };
+  });
 }
 
 /**

@@ -1,0 +1,10 @@
+{
+  "picture": {
+    "view": "View {{name}}",
+    "group": "Pictures",
+    "previous": "Previous picture",
+    "next": "Next picture",
+    "position": "{{index}} of {{count}}",
+    "failed": "The picture did not load. You can still download it."
+  }
+}

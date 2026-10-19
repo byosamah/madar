@@ -68,12 +68,12 @@ describe('a member uploads a file in a direct chat and in a group', () => {
     for (const reader of [SARA, FAISAL, NOUR]) {
       const thread = await as(w, reader, () => w.t.api.call('chats.messages', { conversationId: w.group }));
       const message = thread.messages.find((m) => m.message.body === 'The site photo.');
-      expect(message?.files, reader).toEqual([{ id: w.groupFile, name: GROUP_FILE }]);
+      expect(message?.files, reader).toEqual([{ id: w.groupFile, name: GROUP_FILE, mimeType: 'image/jpeg' }]);
       const opened = await as(w, reader, () => w.t.api.call('files.get', { id: w.groupFile }));
       expect(opened.file.file.name).toBe(GROUP_FILE);
     }
     const direct = await as(w, FAISAL, () => w.t.api.call('chats.messages', { conversationId: w.direct }));
-    expect(direct.messages.find((m) => m.message.body === 'The contract.')?.files).toEqual([{ id: w.directFile, name: DIRECT_FILE }]);
+    expect(direct.messages.find((m) => m.message.body === 'The contract.')?.files).toEqual([{ id: w.directFile, name: DIRECT_FILE, mimeType: 'application/pdf' }]);
   });
 
   it('gives the uploader no delete control, and a second file with the same name is a new file, not a new version', async () => {
@@ -90,7 +90,7 @@ describe('a member uploads a file in a direct chat and in a group', () => {
     w.t.as(FAISAL);
     const up = await w.t.api.call('files.upload', { name: 'Level 2.pdf', conversationId: w.group, blob: pdf() });
     const sent = await w.t.api.call('chats.send', { conversationId: w.group, body: 'Level 2.pdf', fileIds: [up.file.id] });
-    expect(sent.files).toEqual([{ id: up.file.id, name: 'Level 2.pdf' }]);
+    expect(sent.files).toEqual([{ id: up.file.id, name: 'Level 2.pdf', mimeType: 'application/pdf' }]);
   });
 });
 
@@ -225,7 +225,7 @@ describe('the agent of a member', () => {
   it('reads the file name in a message, as its person does, and never opens the file', async () => {
     const w = await world();
     const thread = await as(w, SARA_AGENT, () => w.t.api.call('chats.messages', { conversationId: w.group }));
-    expect(thread.messages.find((m) => m.message.body === 'The site photo.')?.files).toEqual([{ id: w.groupFile, name: GROUP_FILE }]);
+    expect(thread.messages.find((m) => m.message.body === 'The site photo.')?.files).toEqual([{ id: w.groupFile, name: GROUP_FILE, mimeType: 'image/jpeg' }]);
     for (const call of ['files.get', 'files.link'] as const) {
       const input = call === 'files.get' ? { id: w.groupFile } : { id: w.groupFile, variant: 'full' as const, disposition: 'inline' as const };
       const refused = await failureOf(w.t.api.call(call, input as never));
@@ -239,7 +239,7 @@ describe('a file stays in its chat', () => {
     const w = await world();
     w.t.as(FAISAL);
     const sent = await w.t.api.call('chats.send', { conversationId: w.group, body: 'Again', fileIds: [w.groupFile] });
-    expect(sent.files).toEqual([{ id: w.groupFile, name: GROUP_FILE }]);
+    expect(sent.files).toEqual([{ id: w.groupFile, name: GROUP_FILE, mimeType: 'image/jpeg' }]);
   });
 
   it('cannot go into another chat, a project chat, a task, a post or the Tracker', async () => {
@@ -280,7 +280,7 @@ describe('the members of a chat change', () => {
     const w = await world();
     await as(w, SARA, () => w.t.api.call('chats.updateGroup', { conversationId: w.group, add: [OMAR] }));
     const thread = await as(w, OMAR, () => w.t.api.call('chats.messages', { conversationId: w.group }));
-    expect(thread.messages.find((m) => m.message.body === 'The site photo.')?.files).toEqual([{ id: w.groupFile, name: GROUP_FILE }]);
+    expect(thread.messages.find((m) => m.message.body === 'The site photo.')?.files).toEqual([{ id: w.groupFile, name: GROUP_FILE, mimeType: 'image/jpeg' }]);
     await expect(as(w, OMAR, () => w.t.api.call('files.get', { id: w.groupFile }))).resolves.toBeDefined();
     await as(w, SARA, () => w.t.api.call('chats.updateGroup', { conversationId: w.group, remove: [OMAR] }));
     const closed = await as(w, OMAR, () => failureOf(w.t.api.call('files.get', { id: w.groupFile })));

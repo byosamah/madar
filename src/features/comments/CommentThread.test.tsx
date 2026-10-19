@@ -66,6 +66,31 @@ describe('comments', () => {
     expect((await api.call('chats.list', {})).find((row) => row.id === 'tsk_007')?.unread).toBe(0);
   });
 
+  it('shows a picture of a task comment as a preview, and a press opens the viewer with Close and Download (owner, 2026-10-19)', async () => {
+    const save = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    await renderApp(TASK('tsk_007'), as('usr_006'));
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    await userEvent.upload(
+      within(sheet).getByLabelText('Attach files'),
+      [new File(['x'], 'Stair site.jpg', { type: 'image/jpeg' }), new File(['y'], 'Stair detail.pdf', { type: 'application/pdf' })],
+    );
+    await userEvent.type(within(sheet).getByRole('textbox', { name: 'Add a comment' }), 'Photo and detail.');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Send' }));
+    const preview = await within(sheet).findByRole('button', { name: 'View Stair site.jpg' });
+    expect(within(sheet).getByRole('button', { name: 'Download Stair detail.pdf' })).toBeInTheDocument();
+    expect(within(sheet).queryByRole('button', { name: 'Download Stair site.jpg' })).toBeNull();
+    await userEvent.click(preview);
+    const viewer = await screen.findByRole('dialog', { name: 'Stair site.jpg' });
+    await userEvent.click(within(viewer).getByRole('button', { name: 'Download Stair site.jpg' }));
+    await waitFor(() => expect(save).toHaveBeenCalled());
+    // The viewer opens over the task panel: Close shuts the viewer only, and the focus goes back to the preview.
+    await userEvent.click(within(viewer).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Stair site.jpg' })).toBeNull());
+    expect(screen.getByRole('dialog', { name: 'Stair details' })).toBeInTheDocument();
+    await waitFor(() => expect(preview).toHaveFocus());
+    save.mockRestore();
+  });
+
   it('attaches a file to a task comment and shows it as a chip', async () => {
     const { store } = await renderApp(TASK('tsk_007'), as('usr_006'));
     const sheet = await screen.findByRole('dialog', { name: 'Stair details' });

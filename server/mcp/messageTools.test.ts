@@ -271,7 +271,7 @@ describe('the agent of a member of a group and the file rows of a message', () =
   it('shows the file row to the agent of the person who leads the task, and to the agent of the Admin', async () => {
     for (const acting of [{ agentId: 'usr_096', personId: 'usr_003' }, ADMIN_AGENT]) {
       const { view } = await rowOf(acting);
-      expect(view.files, acting.agentId).toEqual([{ id: 'fil_990', name: OFFICE_FILE_NAME }]);
+      expect(view.files, acting.agentId).toEqual([{ id: 'fil_990', name: OFFICE_FILE_NAME, mimeType: 'application/pdf' }]);
       expect(view.message.fileIds, acting.agentId).toEqual(['fil_990']);
     }
   });
@@ -308,7 +308,7 @@ describe('a file of a group chat over MCP (owner, 2026-10-19)', () => {
     const { result } = await call(w, 'chats.messages', { conversationId: groupRoom });
     expect(result.isError, JSON.stringify(result)).toBeUndefined();
     const messages = result.structuredContent.output.messages as { message: Message; files: { id: string; name: string | null }[] }[];
-    expect(messages.find((m) => m.message.id === 'msg_991')?.files).toEqual([{ id: 'fil_991', name: CHAT_FILE_NAME }]);
+    expect(messages.find((m) => m.message.id === 'msg_991')?.files).toEqual([{ id: 'fil_991', name: CHAT_FILE_NAME, mimeType: 'image/jpeg' }]);
     const { MCP_ALLOW } = await import('./tools');
     for (const name of ['files.link', 'files.upload', 'files.uploadStart', 'files.share', 'files.delete']) expect(MCP_ALLOW as readonly string[], name).not.toContain(name);
   });

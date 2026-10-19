@@ -162,6 +162,9 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   chat file only for its own chat; every other carrier (project chat, comment, post, Tracker, `files.share`) refuses it with reason
   `file_chat`. `files.delete` and `files.markDelivered` refuse it too, and `mayDeleteFile` is false. `search.query` finds no chat file,
   and `files.list` never lists one. The leak tests: `handlers/chatFiles.test.ts`, `server/calls/chatFiles.test.ts`.
+- `Attachment` (a file row of a comment, a message, a post or a Tracker row) carries `mimeType`, the type of the newest version
+  (owner, 2026-10-19; optional, so older answers load; a deleted file has none), so a screen can show a picture as a preview. `attachmentsOf`
+  sets it. It adds no right: the rows still pass `mayViewFile`.
 - A message view (`messageViewOf`, `handlers/chats.ts`) drops the file row, and the file id in `message.fileIds`, of a file that
   the reader may not view (`mayViewFile`). A member of a group reads the old messages of other people, so this holds for a late
   member too. Every project file is open to every person, so its row stays. The chat rules keep an office file out of a message;

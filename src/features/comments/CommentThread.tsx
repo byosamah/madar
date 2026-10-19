@@ -18,7 +18,8 @@ import { Menu } from '../../components/Menu';
 import { RichText } from '../../components/RichText';
 import { editedBody, plainText, withMentionMarkup } from '../../lib/text';
 import { LoadFailed } from '../../components/LoadFailed';
-import { AttachButton, FileChips, PickedFiles, useAttachments } from '../files/Attachments';
+import { AttachButton, PickedFiles, useAttachments } from '../files/Attachments';
+import { AttachmentList } from '../files/PictureAttachments';
 import { DateMoveLines } from '../project/tasks/DateReason';
 import { reasonLineText, type ReasonKind } from './ReasonLine';
 import { useMarkTaskRead } from './markRead';
@@ -105,7 +106,7 @@ const CommentItem = memo(function CommentItem({ view, people, canPost }: { view:
         ) : (
           <RichText body={comment.body} className="natural-side text-subheadline" />
         )}
-        <FileChips files={files} />
+        <AttachmentList files={files} />
         <div className="mt-1 flex flex-wrap items-center gap-1">
           {REACTIONS.map((emoji) => {
             const ids = comment.reactions[emoji];

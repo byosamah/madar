@@ -332,8 +332,8 @@ function uploadSuites(v: Variant): void {
       const file = okOf<FileView>(await call(first, 'files.upload', { name: 'site.pdf', conversationId: chat.id, uploadId: begin.uploadId }));
       expect(file.file).toMatchObject({ projectId: null, taskId: null, stageId: null, conversationId: chat.id });
       expect(await store.head(intent.key)).toEqual({ size: 14, mimeType: 'application/pdf' });
-      const sent = okOf<{ files: { id: string; name: string }[] }>(await call(first, 'chats.send', { conversationId: chat.id, body: 'The site sheet.', fileIds: [file.file.id] }));
-      expect(sent.files).toEqual([{ id: file.file.id, name: 'site.pdf' }]);
+      const sent = okOf<{ files: { id: string; name: string; mimeType: string }[] }>(await call(first, 'chats.send', { conversationId: chat.id, body: 'The site sheet.', fileIds: [file.file.id] }));
+      expect(sent.files).toEqual([{ id: file.file.id, name: 'site.pdf', mimeType: 'application/pdf' }]);
 
       signed.length = 0;
       for (const userId of [outsider, ADMIN]) {
