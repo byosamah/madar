@@ -12,7 +12,7 @@ import { nowStamp } from '../../lib/dates';
 import { assertCan, requireProject, requireStage, roleIn, taskRole } from './shared';
 
 /**
- * Fake versions of the 11 server calls (plan 4.11), so the prototype screens can use the same calls as the real build.
+ * Fake versions of the 15 server calls (plan 4.11), so the prototype screens can use the same calls as the real build.
  * The prototype keeps files in this browser: files.upload and feedback.send take the blob itself, so the upload links here go nowhere.
  */
 
@@ -219,6 +219,47 @@ const liveTicket = defineCall({
   run: (_input, ctx) => ({ ticket: '0'.repeat(64), expiresAt: later(ctx.now, 60_000) }),
 });
 
+/**
+ * The prototype has no Google (fbk_022): google.status says it is not ready, and the other three refuse with google_not_ready, so the
+ * Settings section shows its line for the prototype. An agent gets forbidden, as on the server.
+ */
+function googleForPerson(ctx: { actor: { kind: string } }): void {
+  if (ctx.actor.kind === 'agent') throw forbidden('An agent does not connect Google Calendar.', { action: 'google.connect' });
+}
+const googleNotReady = () => invalid('google', 'Google Calendar works in the real Madar only.', 'google_not_ready');
+
+const googleStatus = defineCall({
+  ...c['google.status'],
+  run(_input, ctx) {
+    googleForPerson(ctx);
+    return { ready: false, state: 'none' as const, connectedAt: null };
+  },
+});
+
+const googleConnectStart = defineCall({
+  ...c['google.connectStart'],
+  run(_input, ctx) {
+    googleForPerson(ctx);
+    throw googleNotReady();
+  },
+});
+
+const googleConnect = defineCall({
+  ...c['google.connect'],
+  run(_input, ctx) {
+    googleForPerson(ctx);
+    throw googleNotReady();
+  },
+});
+
+const googleDisconnect = defineCall({
+  ...c['google.disconnect'],
+  run(_input, ctx) {
+    googleForPerson(ctx);
+    throw googleNotReady();
+  },
+});
+
 export const serverFakes = {
   'story.start': storyStart,
   'files.uploadStart': filesUploadStart,
@@ -231,4 +272,8 @@ export const serverFakes = {
   'usage.get': usageGet,
   'usage.retryEffect': usageRetryEffect,
   'live.ticket': liveTicket,
+  'google.status': googleStatus,
+  'google.connectStart': googleConnectStart,
+  'google.connect': googleConnect,
+  'google.disconnect': googleDisconnect,
 };

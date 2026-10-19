@@ -254,6 +254,34 @@ describe('the VAPID keys of browser push (owner, 2026-10-08)', () => {
   });
 });
 
+describe('the Google Calendar values (fbk_022, owner 2026-10-19)', () => {
+  const GOOGLE = { GOOGLE_CLIENT_ID: 'id-made-up.apps.googleusercontent.com', GOOGLE_CLIENT_SECRET: 'cs-made-up', MADAR_GOOGLE_KEY: 'key-made-up' };
+
+  it('leaves Google off when none of the three is set: the server starts, config.google is missing', () => {
+    expect(configFromEnv(reader(FULL)).google).toBeUndefined();
+  });
+
+  it('reads the three values into config.google when all are set', () => {
+    expect(configFromEnv(reader({ ...FULL, ...GOOGLE })).google).toEqual({ clientId: 'id-made-up.apps.googleusercontent.com', clientSecret: 'cs-made-up', key: 'key-made-up' });
+  });
+
+  it('stops the start and names each missing variable when only some are set, and never a value', () => {
+    expect(missingOf({ ...FULL, GOOGLE_CLIENT_ID: GOOGLE.GOOGLE_CLIENT_ID })).toEqual(['GOOGLE_CLIENT_SECRET', 'MADAR_GOOGLE_KEY']);
+    expect(missingOf({ ...FULL, GOOGLE_CLIENT_SECRET: 'cs-made-up' })).toEqual(['GOOGLE_CLIENT_ID', 'MADAR_GOOGLE_KEY']);
+    expect(missingOf({ ...FULL, MADAR_GOOGLE_KEY: 'key-made-up' })).toEqual(['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET']);
+    try {
+      configFromEnv(reader({ ...FULL, GOOGLE_CLIENT_SECRET: 'cs-made-up' }));
+    } catch (error) {
+      expect((error as Error).message).not.toContain('cs-made-up');
+    }
+  });
+
+  it('names the three values in the list of its header comment', () => {
+    const header = readFileSync(new URL('./deps.ts', import.meta.url), 'utf8');
+    for (const name of ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'MADAR_GOOGLE_KEY']) expect(header).toMatch(new RegExp(`^ \\*   ${name} {2,}\\S`, 'm'));
+  });
+});
+
 describe('FILES_PUBLIC_URL (whole-product check after wave 4)', () => {
   afterEach(() => vi.restoreAllMocks());
 

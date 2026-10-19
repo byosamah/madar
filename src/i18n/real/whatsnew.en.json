@@ -3,6 +3,10 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-25": {
+        "title": "Your meetings in Google Calendar",
+        "body": "Connect Google Calendar once in Settings. Madar then puts each of your meetings there and keeps it up to date. Google gets only the title, the time and the place."
+      },
       "2026-10-23-24": {
         "title": "Minutes after each meeting",
         "body": "After a meeting, any attendee writes its minutes on the meeting. A project meeting also gets a line in the Tracker, and its minutes go there."

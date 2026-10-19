@@ -2,6 +2,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, readdirSync, statSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { LITE_SCHEMA_VERSION } from '../../server/data/lite/schema';
 import { nodeOffice } from '../../server/office/test/nodeOffice';
 import { rowDigest } from '../office/digest';
 import { opsOf, partsOps } from '../office/ops';
@@ -14,7 +15,7 @@ describe('the export client (scripts/backup/officeExport.ts)', () => {
     const t = await nodeOffice();
     const dir = folder();
     const manifest = await exportOffice(partsOps(t.parts), { copy: 'local', folder: dir, now: new Date('2026-10-04T23:07:00Z') });
-    expect(manifest).toMatchObject({ format: 2, kind: 'office', copy: 'local', schema: 6, madeAt: '2026-10-04T23:07:00.000Z' });
+    expect(manifest).toMatchObject({ format: 2, kind: 'office', copy: 'local', schema: LITE_SCHEMA_VERSION, madeAt: '2026-10-04T23:07:00.000Z' });
     const events = readFileSync(join(dir, 'tables', 'events.ndjson'), 'utf8').trim().split('\n').map((line) => JSON.parse(line) as Record<string, unknown>);
     expect(manifest.tables.events).toEqual(rowDigest(events));
     expect(events.length).toBe(Number((t.raw.prepare('select count(*) as n from events').get() as { n: number }).n));

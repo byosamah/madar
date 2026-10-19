@@ -120,6 +120,32 @@ describe('the page api on the Worker (owner, 2026-10-16)', () => {
   });
 });
 
+describe('the callback of Google Calendar (fbk_022)', () => {
+  const callback = (host: string) => new Request(`https://${host}/api/google/callback?code=4%2F0AbC&state=signed.state`);
+  const redirect = () => new Response(null, { status: 302, headers: { Location: 'https://madar.vado.sa/settings#google=finish&code=x', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } });
+
+  it('hands GET /api/google/callback to the Worker with its query, and gives the 302 and its Location back as they are', async () => {
+    const production = recorder(redirect);
+    const call = (request: Request) => proxyApi(request, { MADAR_SERVER_PRODUCTION: production.binding }, { setting: WORKERS });
+    const answer = await call(callback('madar.vado.sa'));
+    expect(answer.status).toBe(302);
+    expect(answer.headers.get('location')).toBe('https://madar.vado.sa/settings#google=finish&code=x');
+    expect(answer.headers.get('cache-control')).toBe('no-store');
+    expect(answer.headers.get('referrer-policy')).toBe('no-referrer');
+    expect(production.seen[0].url).toBe('https://madar-server.internal/api/google/callback?code=4%2F0AbC&state=signed.state');
+    expect(production.seen[0].method).toBe('GET');
+  });
+
+  it('hands it to the Supabase api function with its query and the region, and gives the 302 back, when the setting says supabase', async () => {
+    const supabase = recorder(redirect);
+    const answer = await proxyApi(callback('preview.madar-46r.pages.dev'), {}, { setting: SUPABASE, fetch: supabase.fetch, log: () => undefined });
+    expect(answer.status).toBe(302);
+    expect(answer.headers.get('location')).toContain('#google=finish');
+    expect(supabase.seen[0].url).toBe(`${TEST_API}/google/callback?code=4%2F0AbC&state=signed.state&forceFunctionRegion=eu-central-1`);
+    expect(supabase.seen[0].redirect).toBe('manual');
+  });
+});
+
 describe('the way back to the Supabase api function', () => {
   it('forwards to the api function of the copy in Frankfurt when the setting says supabase, and logs it', async () => {
     const h = setup({ setting: SUPABASE });

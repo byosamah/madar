@@ -52,6 +52,9 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   meeting with no project. `TOOL_DOCS` of `meetings.get` and `tracker.list` name the minutes. `meetings.settle` is on `MCP_DENY`: the job and the minutes
   call settle a meeting, and an agent never makes the Tracker line. For a meeting with no project that the person is not in, `meetings.saveMinutes` answers
   `not_found` as for an unknown id. The tools leave out `minutesById`. The meeting writes take `storyId` like any write.
+- Google Calendar (owner, 2026-10-19, fbk_022): the four `google.*` calls are on `MCP_DENY` (a person connects in the Settings screen; an agent cannot
+  connect, disconnect or read a connection). `INSTRUCTIONS` ends with a `Google Calendar:` paragraph: the meetings of its person reach their own
+  Google Calendar with the title, the time and the place only. No tool changed.
 - Sub-companies (review 2026-10-19): `dashboard.get`, `tasks.list`, `deadlines.list`, `projects.list` and `reports.office` take `subCompanyId`;
   `projects.list` filter `no_sub_company` lists the projects with none; `search.query` and `subCompanies.list` (`projectCount`) carry counts. An agent
   never undoes a sub-company event (`events.undo`, `events.undoStory`).

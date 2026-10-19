@@ -25,9 +25,9 @@ const office = { version: 0, lists: {} } as never;
 const ctx = { deps, principal: { userId: 'usr_001' }, office, batch: { storyRefs: new Map(), overviewCalls: 0 }, now: new Date() };
 
 describe('the registries', () => {
-  it('list the 11 server calls by name, and every stub refuses until its track builds it (story.start: server/core/runCall.test.ts; users.invites and users.resendInvite: server/calls/people.test.ts; the file calls: server/calls/{files,feedback}.test.ts; usage.get and usage.retryEffect: server/calls/usage.test.ts; agents.list and agents.remove: server/calls/agents.test.ts; live.ticket: server/calls/live.test.ts)', async () => {
+  it('list the 15 server calls by name, and every stub refuses until its track builds it (story.start: server/core/runCall.test.ts; users.invites and users.resendInvite: server/calls/people.test.ts; the file calls: server/calls/{files,feedback}.test.ts; usage.get and usage.retryEffect: server/calls/usage.test.ts; agents.list and agents.remove: server/calls/agents.test.ts; live.ticket: server/calls/live.test.ts; the four google calls: server/calls/google.test.ts)', async () => {
     expect(Object.keys(SERVER_CALLS).sort()).toEqual([...SERVER_CALL_NAMES].sort());
-    const built = ['story.start', 'users.invites', 'users.resendInvite', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'usage.get', 'usage.retryEffect', 'agents.list', 'agents.remove', 'live.ticket'];
+    const built = ['story.start', 'users.invites', 'users.resendInvite', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'usage.get', 'usage.retryEffect', 'agents.list', 'agents.remove', 'live.ticket', 'google.status', 'google.connectStart', 'google.connect', 'google.disconnect'];
     for (const name of SERVER_CALL_NAMES.filter((n) => !built.includes(n))) await refusesNotBuilt(() => SERVER_CALLS[name](undefined as never, ctx));
   });
 
@@ -43,8 +43,8 @@ describe('the registries', () => {
     });
   });
 
-  it('hold the extra HTTP routes of the api function: POST /auth/forgot, POST /auth/renew-invite and POST /agents/approve', async () => {
-    expect(ROUTES.map((r) => `${r.method} ${r.path}`)).toEqual(['POST /auth/forgot', 'POST /auth/renew-invite', 'POST /agents/approve']);
+  it('hold the extra HTTP routes of the api function: POST /auth/forgot, POST /auth/renew-invite, POST /agents/approve and GET /google/callback', async () => {
+    expect(ROUTES.map((r) => `${r.method} ${r.path}`)).toEqual(['POST /auth/forgot', 'POST /auth/renew-invite', 'POST /agents/approve', 'GET /google/callback']);
     // Track P built it (server/auth/forgot.test.ts): a request with no email gets 400 before any database work.
     expect((await ROUTES[0].handler(new Request('http://127.0.0.1/api/auth/forgot', { method: 'POST' }), deps)).status).toBe(400);
   });

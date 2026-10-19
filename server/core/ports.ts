@@ -146,6 +146,11 @@ export type Config = {
   servingHost: ServerHost;
   /** The VAPID keys of browser push (server/push/vapid.ts). Left out when push is off: the push effect then skips and logs it. */
   push?: { publicKey: string; privateKey: string; subject: string };
+  /**
+   * The Google Calendar values (fbk_022, server/google/keys.ts): the OAuth client and the 32 byte key that seals the refresh tokens and
+   * signs the state. Left out when the copy has none: Google is off, google.status answers ready false, and the sync does nothing.
+   */
+  google?: { clientId: string; clientSecret: string; key: string };
 };
 
 /** The live socket tickets of the office object (exit wave 3): live.ticket mints one, the socket open takes it (server/office/live.ts). */
@@ -168,6 +173,11 @@ export type Deps = {
    * Worker. Left out on every other host: sendPush then uses the global fetch.
    */
   pushFetch?: typeof globalThis.fetch;
+  /**
+   * The fetch of a Google call (server/google/api.ts). Tests pass a stub, so no test reaches Google. Left out on every host: the
+   * calls then use the global fetch. The office path has no Google yet (docs/superpowers/real-build/exit-handoff.md).
+   */
+  googleFetch?: typeof globalThis.fetch;
   /** The live socket tickets. Only the office object has them; live.ticket answers not_found without them. */
   live?: LivePort;
   /**

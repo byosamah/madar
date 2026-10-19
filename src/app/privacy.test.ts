@@ -18,6 +18,18 @@ describe('the privacy page', () => {
     expect(page).toContain('https://myaccount.google.com/permissions');
   });
 
+  it('says what happens at a disconnect, in both languages (fbk_022, the Google Calendar connect)', () => {
+    expect(page).toContain('Madar then deletes the key. After a disconnect at Google, Madar deletes it at its next write.');
+    expect(page).toContain('When you disconnect, the Madar calendar stays in your Google Calendar. You can delete it there.');
+    expect(page).toContain('يحذف مدار المفتاح عند أول كتابة له بعد ذلك');
+    expect(page).toContain('يبقى تقويم «مدار» في تقويم Google عندك');
+  });
+
+  it('holds the date of the last change in both languages', () => {
+    expect(page).toContain('Last change: 23 October 2026');
+    expect(page).toContain('آخر تعديل: 23 أكتوبر 2026');
+  });
+
   it('loads no script and no outside file', () => {
     expect(page).not.toMatch(/<script|<link|src="http/i);
   });

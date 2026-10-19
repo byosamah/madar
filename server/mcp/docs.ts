@@ -59,6 +59,8 @@ export const INSTRUCTIONS = [
   'Place: the location of a project is the address of its pin (geo). Send geo and location together in projects.update. A new geo without location clears the old address. A geo of null clears it too. A location alone fails with reason location_needs_pin while the project has a pin.',
   '',
   'Sub-companies are the companies of the office group, for example Vado and Bunah. subCompanies.list gives their names and project counts. projects.list, tasks.list, deadlines.list, dashboard.get and reports.office take subCompanyId, the sub-company of a project. projects.list filter no_sub_company lists the projects with none.',
+  '',
+  'Google Calendar: a person connects Google Calendar in the Madar Settings screen. You cannot connect, disconnect or read a connection. Madar then writes the meetings of that person to their own Google Calendar, with the title, the time and the place only.',
 ].join('\n');
 
 /** The role names that the Madar screens show. */

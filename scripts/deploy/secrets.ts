@@ -51,6 +51,7 @@ export const FUNCTION_SECRETS = [
   'MADAR_FILE_STORE', 'FILES_BUCKET', 'R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET',
   'MIN_CLIENT_BUILD', 'ALLOWED_ORIGINS', 'MCP_FORWARD_REGION', 'MADAR_LOCK_KEY', 'JOBS_SECRET', 'MADAR_SECRET_KEY', 'AUTH_ISSUER',
   'VAPID_PRIVATE_KEY', 'VAPID_PUBLIC_KEY', 'VAPID_SUBJECT',
+  'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'MADAR_GOOGLE_KEY',
 ] as const;
 /**
  * The secrets of an office copy (exit wave 4): the export route (GitHub) and the ops routes (the Mac). They go to the Worker only,
@@ -61,6 +62,8 @@ export const OFFICE_WORKER_SECRETS = ['MADAR_EXPORT_SECRET', 'MADAR_OPS_SECRET']
 export const KEPT_ON_WORKER = ['MADAR_AUTH_PRIVATE_JWK'] as const;
 /** Browser push (owner, 2026-10-08): all three or none (server/core/deps.ts). scripts/push/make-vapid.ts writes them. */
 const VAPID_NAMES = ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'] as const;
+/** Google Calendar (fbk_022, owner 2026-10-19): all three or none (server/core/deps.ts). scripts/google/setup-secrets.ts writes them. */
+const GOOGLE_NAMES = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'MADAR_GOOGLE_KEY'] as const;
 export const R2_NAMES = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'] as const;
 /** The R2 bucket of each copy (owner, 2026-10-16). Both are in the EU jurisdiction (server/files/r2.ts signs on the EU endpoint). */
 export const R2_BUCKETS: Record<Target, string> = { test: 'madar-files-test', production: 'madar-files' };
@@ -154,6 +157,14 @@ export function checkSecrets(values: Record<string, string>, ref: string): Check
     if (!/^B[A-Za-z0-9_-]{86}$/.test(values.VAPID_PUBLIC_KEY)) throw new Error('VAPID_PUBLIC_KEY must be the 65 byte public point as 87 base64url characters.');
     if (!/^[A-Za-z0-9_-]{43}$/.test(values.VAPID_PRIVATE_KEY)) throw new Error('VAPID_PRIVATE_KEY must be the 32 byte private value as 43 base64url characters.');
     if (!/^(mailto:[^\s@]+@[^\s@]+|https:\/\/\S+)$/.test(values.VAPID_SUBJECT)) throw new Error('VAPID_SUBJECT must be a mailto: or https: address.');
+  }
+
+  if (GOOGLE_NAMES.some((name) => values[name] !== undefined)) {
+    const absent = GOOGLE_NAMES.filter((name) => !values[name]);
+    if (absent.length > 0) throw new Error(`Google Calendar needs all of ${GOOGLE_NAMES.join(', ')}. The secrets file needs ${absent.join(', ')}.`);
+    if (!values.GOOGLE_CLIENT_ID.endsWith('.apps.googleusercontent.com')) throw new Error('GOOGLE_CLIENT_ID must end with .apps.googleusercontent.com.');
+    if (/\s/.test(values.GOOGLE_CLIENT_SECRET)) throw new Error('GOOGLE_CLIENT_SECRET must be one word with no space.');
+    if (!/^[A-Za-z0-9+/]{43}=$/.test(values.MADAR_GOOGLE_KEY)) throw new Error('MADAR_GOOGLE_KEY must be 32 bytes in base64 (44 characters).');
   }
 
   if (values.MADAR_LOCK_KEY !== undefined) {

@@ -110,9 +110,12 @@ export function parseManifest(text: string): Manifest {
 /**
  * The tables that get writes without the office lock: rate_limits (POST /api/auth/forgot, which anyone can call), upload_intents
  * (files.uploadStart), stories (story.start), outbox (the effects of a call, after its commit), mail_log (the mail lock) and
- * mail_outbox (the mail path). A row can land in one of them between the counts of dump.ts and the snapshot of the data dump.
+ * mail_outbox (the mail path), and google_connections and google_events (the effects gcal.sync and gcal.revoke, fbk_022). A row can land
+ * in one of them between the counts of dump.ts and the snapshot of the data dump.
  */
 export const OUTSIDE_OFFICE_LOCK: readonly string[] = [
+  'public.google_connections',
+  'public.google_events',
   'public.mail_log',
   'public.mail_outbox',
   'public.outbox',

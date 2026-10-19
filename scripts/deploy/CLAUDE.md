@@ -92,6 +92,12 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
 - Browser push keys (owner, 2026-10-08): `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_SUBJECT` in each file, all three or none
   (`secrets.ts` checks their size). `npx tsx scripts/push/make-vapid.ts <env>` makes them (see `server/push/CLAUDE.md`). The public
   key also sits in `config/remote.<env>.env` as `VITE_VAPID_PUBLIC_KEY`, and `pages.sh` warns when it is missing.
+- Google Calendar values (fbk_022, owner 2026-10-19): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MADAR_GOOGLE_KEY` in each file, all three or
+  none (`secrets.ts` checks the shape: the id ends with `.apps.googleusercontent.com`, the secret is one word, the key is 32 bytes in
+  base64). `npx tsx scripts/google/setup-secrets.ts <env>` reads the two client values from `.env.local`, makes a new key, and appends the
+  three lines to `secrets/<env>.env`; it refuses when one of the three lines is there already (a new key makes every sealed token useless).
+  Each copy has its own key. The three go to the functions and to the Worker (`WORKER_SECRETS` follows `FUNCTION_SECRETS`). With none, Google
+  is off (`google.status` says `ready: false`). See `server/google/` and `src/api/CLAUDE.md`, "Google Calendar".
 - R2 (owner, 2026-10-16): `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, all four or none. `secrets.ts`
   wants the 32 hex characters of the account, and the bucket of the copy: `madar-files-test` for test, `madar-files` for production.
 

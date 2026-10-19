@@ -143,8 +143,20 @@ describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
     await db.statement('write', "insert into stories (id, actor_id, created_at) values ('sty_old', 'usr_001', ?1), ('sty_new', 'usr_001', ?2)", [old, AT.toISOString()]);
     await db.statement('write', "insert into idempotency (actor_id, key, name, digest, result, created_at) values ('usr_001', 'k', 'n', 'd', '{}', ?1)", [old]);
     await db.statement('write', "insert into rate_limits (key, window_start, count) values ('forgot:x', ?1, 1)", [old]);
-    expect(await cleanup(deps, AT)).toEqual({ stories: 1, idempotency: 1, officeDeletes: 0, rateLimits: 1 });
+    expect(await cleanup(deps, AT)).toEqual({ stories: 1, idempotency: 1, officeDeletes: 0, rateLimits: 1, googleRevoking: 0 });
     expect(await db.statement('read', 'select id from stories')).toEqual([{ id: 'sty_new' }]);
+  });
+
+  it('removes a revoking Google row after 25 hours, and keeps one of 23 hours and the live rows (fbk_022)', async () => {
+    const { db, deps } = await office();
+    const hoursAgo = (hours: number) => new Date(AT.getTime() - hours * 3_600_000).toISOString();
+    const add = (id: string, user: string, state: string, changed: string) =>
+      db.statement('write', 'insert into google_connections (id, user_id, sealed_token, state, connected_at, changed_at) values (?1, ?2, ?3, ?4, ?5, ?5)', [id, user, 'v1.sealed.text', state, changed]);
+    await add('old', 'usr_003', 'revoking', hoursAgo(25));
+    await add('recent', 'usr_004', 'revoking', hoursAgo(23));
+    await add('live', 'usr_005', 'ok', hoursAgo(90));
+    expect(await cleanup(deps, AT)).toMatchObject({ googleRevoking: 1 });
+    expect(await db.statement('read', 'select id from google_connections order by id')).toEqual([{ id: 'live' }, { id: 'recent' }]);
   });
 
   it('removes the staging objects of old intents through the files port, and deletes the rows after a day', async () => {

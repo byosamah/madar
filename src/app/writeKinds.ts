@@ -130,4 +130,7 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'push.remove': [],
   // A story holds no record of its own: nothing to reload.
   'story.start': [],
+  // The Google Calendar connect (fbk_022) changes no record of the office and sends no signal.
+  'google.connect': [],
+  'google.disconnect': [],
 };

@@ -47,6 +47,18 @@ any screen work.
 - To see which source file pulled code into the first load: build with `--sourcemap` into `$TMPDIR` and read the
   `sources` of `assets/index-*.js.map`.
 
+## Google Calendar in Settings (owner, 2026-10-19, fbk_022)
+- `features/settings/GoogleCalendarSection.tsx`, after the push section: one section with the fewest controls. The state of `google.status` decides the one
+  control: `none` gives the main button "Connect Google Calendar", `ok` and `not_synced` give a quiet "Disconnect", `broken` gives the main button
+  "Connect again". `ready: false` gives one line and no control, and the prototype gives one line (`gcal.prototype`) and asks nothing.
+- Connect asks `google.connectStart` and leaves for the address (`leave`, a prop for the tests). The page leaves only for `https://accounts.google.com`. Google
+  sends the person back through `GET /api/google/callback` (`server/google/callback.ts`) to `/settings#google=<word>`. The section reads the fragment once,
+  removes it at once with `history.replaceState` (a reload never runs the step again, and the code never stays in the address bar), and for the word
+  `finish` calls `google.connect` once with the code and the state. The words `denied`, `failed`, `old` and `not_ready` show their sentence, and the Connect
+  button stays. A refusal of `google.connect` shows the words of its reason inline (no toast).
+- Disconnect asks first: Keep has the focus, and Disconnect sits at the start side (`me-auto`). It has no Undo: Connect is the way back. The calendar "Madar"
+  stays in Google. The words are in `src/i18n/real/gcal.*.json`. The privacy page (`public/privacy.html`, `src/app/privacy.test.ts`) says what a disconnect does.
+
 ## Browser push in the screens (owner, 2026-10-08)
 - Real build only. `app/remote/push.ts` (no React, no zod): the state of the switch (`statusOf`), `turnOn`, `turnOff`, the check at the
   start (`syncThisDevice`, run by `app/remote/PushSync.tsx` in the shell) and `removeThisDevice` (the sign-out step in

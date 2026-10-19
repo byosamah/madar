@@ -102,6 +102,9 @@ export const MCP_DENY = [
   'push.register', 'push.remove', 'push.mine',
   // Live updates (exit wave 3): the ticket opens a browser socket. An agent has no socket.
   'live.ticket',
+  // Google Calendar (fbk_022, owner 2026-10-19): a person connects it in the Settings screen. An agent cannot connect, disconnect or read
+  // a connection. The meetings of its person reach their Google Calendar by themselves, with the title, the time and the place only.
+  'google.status', 'google.connectStart', 'google.connect', 'google.disconnect',
 ] as const satisfies readonly (SharedCallName | ServerCallName)[];
 
 /**

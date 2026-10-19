@@ -2,6 +2,7 @@ import type { JSONWebKeySet } from 'jose';
 import { CLIENT_ADDRESS_HEADER, FORGOT_MIN_MS, FORGOT_PATH } from '../auth/forgot';
 import type { OpInput, OpOutput, OpResult, SigninOffice, SigninOpName } from '../auth/own/office';
 import { ownApiRoutes } from '../auth/own/routes';
+import { GOOGLE_CALLBACK_PATH, callbackRedirect } from '../google/callback';
 import { RENEW_MIN_MS, RENEW_PATH } from '../auth/renew';
 import type { TokenChecker } from '../auth/verify';
 import type { Deps } from '../core/ports';
@@ -76,7 +77,19 @@ export function officeSigninRoutes(o: OfficeSigninOptions): OfficeRoute[] {
     },
   });
 
+  // The office path has no Google yet (fbk_022; docs/superpowers/real-build/exit-handoff.md): the callback answers not_ready and calls no
+  // object. The log gets the word only, never the query.
+  const googleNotReady: OfficeRoute = {
+    method: 'GET',
+    path: GOOGLE_CALLBACK_PATH,
+    handler: async () => {
+      o.deps.log.info('The Google callback ended.', { word: 'not_ready' });
+      return callbackRedirect(o.deps.config.appUrl, 'google=not_ready');
+    },
+  };
+
   return routesOf(NO_OFFICE).map((route): OfficeRoute => {
+    if (route.method === 'GET' && route.path === GOOGLE_CALLBACK_PATH) return googleNotReady;
     if (route.method === 'POST' && route.path === FORGOT_PATH) return mailRoute('forgot', route.path, o.minMs?.forgot ?? FORGOT_MIN_MS);
     if (route.method === 'POST' && route.path === RENEW_PATH) return mailRoute('renew', route.path, o.minMs?.renew ?? RENEW_MIN_MS);
     // The routes of the own steps read no deps: each one sends its step to the office object of the request.

@@ -9,9 +9,12 @@ import '../mcp/revokeAll';
 import '../mail/effects';
 // Registers the push effect (push.notify) and the push producers in every entry (owner, 2026-10-08).
 import '../push/effects';
+// Registers the Google Calendar effects (gcal.sync, gcal.revoke) and their producers in every entry (fbk_022).
+import '../google/effects';
 import { pgDb } from '../data/sql';
 import { env } from '../env';
 import { r2FilesPort } from '../files/r2';
+import { GOOGLE_NAMES, googleConfigOf } from '../google/keys';
 import { supabaseStorageFilesPort } from '../files/supabaseStorage';
 import { outboxMailPort } from '../mail/outboxDriver';
 import { VAPID_NAMES, vapidConfigOf } from '../push/vapid';
@@ -39,6 +42,9 @@ import { copyOfSupabaseUrl, serverHostOf } from './serverHost';
  *   VAPID_PUBLIC_KEY       browser push: the public key of the VAPID pair, base64url (all three VAPID values or none)
  *   VAPID_PRIVATE_KEY      browser push: the raw 32 byte private value, base64url
  *   VAPID_SUBJECT          browser push: a mailto: or https: address of the sender, for example mailto:madar@vado.sa
+ *   GOOGLE_CLIENT_ID       Google Calendar: the OAuth client of the Google Cloud project (all three GOOGLE values or none)
+ *   GOOGLE_CLIENT_SECRET   Google Calendar: the secret of that client
+ *   MADAR_GOOGLE_KEY       Google Calendar: 32 random bytes in base64; it seals the refresh tokens and signs the connect state
  *   MADAR_FILE_STORE       supabase (default, bucket FILES_BUCKET or madar-files) or r2 (needs the four R2_ values). The store
  *                          does not follow the host: the Supabase functions and the Worker of one copy get the same values
  *   FILES_PUBLIC_URL       the address of the Supabase Storage links for the browser (default SUPABASE_URL), where the function
@@ -138,6 +144,10 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
   const vapidSet = VAPID_NAMES.filter((name) => read(name) !== undefined);
   if (vapidSet.length > 0 && vapidSet.length < VAPID_NAMES.length) missing.push(...VAPID_NAMES.filter((name) => read(name) === undefined));
 
+  // Google Calendar needs all three values or none. With none, Google is off: google.status says so and the sync does nothing.
+  const googleSet = GOOGLE_NAMES.filter((name) => read(name) !== undefined);
+  if (googleSet.length > 0 && googleSet.length < GOOGLE_NAMES.length) missing.push(...GOOGLE_NAMES.filter((name) => read(name) === undefined));
+
   const fileStore = fileStoreKind(read('MADAR_FILE_STORE'));
   const r2 = fileStore === 'r2'
     ? { accountId: need('R2_ACCOUNT_ID'), accessKeyId: need('R2_ACCESS_KEY_ID'), secretAccessKey: need('R2_SECRET_ACCESS_KEY'), bucket: need('R2_BUCKET') }
@@ -155,6 +165,7 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
   if (lockKey === HEALTH_LOCK_KEY) throw new Error('MADAR_LOCK_KEY must not be the health check key.');
 
   const push = vapidConfigOf(read);
+  const google = googleConfigOf(read);
   const functions = `${supabaseUrl.replace(/\/+$/, '')}/functions/v1`;
   const origins = read('ALLOWED_ORIGINS');
   const config: Config = {
@@ -172,6 +183,7 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
     limits: { maxFileBytes: FILE_STORE_LIMITS[fileStore].maxFileBytes, filesTotalBytes: FILE_STORE_LIMITS[fileStore].totalBytes },
     servingHost: servingHostOf(supabaseUrl),
     ...(push ? { push } : {}),
+    ...(google ? { google } : {}),
   };
 
   const jobsSecret = read('JOBS_SECRET');
