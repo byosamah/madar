@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ConversationId, FileId, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, TaskId, UserId, type Comment, type Conversation, type GroupLogEntry, type Message, type Project, type Task, type User } from '../contract/entities';
+import { ConversationId, FileId, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, TaskId, UserId, emptyReactions, type Comment, type Conversation, type GroupLogEntry, type Message, type Project, type Reaction, type Task, type User } from '../contract/entities';
 import { ChatRow, ChatThread, MessageView, WaitingRow, type GroupLine } from '../contract/views';
 import { addDirectConversation, addGroupConversation, canSeeConversation, closedChatError, isArchived, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, personLeft, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
@@ -645,6 +645,21 @@ function dropMessageNotices(ctx: Ctx, message: Message, userIds?: readonly strin
     if (notice.targetType !== 'chat' || notice.targetId !== message.conversationId || notice.messageId !== message.id) continue;
     if (userIds === undefined || userIds.includes(notice.userId)) delete ctx.state.notifications[key];
   }
+}
+
+/**
+ * Toggles the reaction of the person behind the call on a chat message (chat design item 12). Any person who may open the chat reacts, in
+ * a closed chat too. It writes no event and no notice and leaves "createdAt" alone, so it makes no unread mark and no push. A message
+ * with no reactions record starts from none.
+ */
+export function toggleMessageReaction(ctx: Ctx, messageId: string, emoji: Reaction): MessageView {
+  const { message } = requireMessage(ctx, messageId, { author: false, allowDeleted: false });
+  const now = { ...emptyReactions(), ...message.reactions };
+  const me = ctx.authority.id;
+  const next = now[emoji].includes(me) ? now[emoji].filter((id) => id !== me) : [...now[emoji], me];
+  const reacted: Message = { ...message, reactions: { ...now, [emoji]: next } };
+  ctx.state.messages[message.id] = reacted;
+  return messageViewOf(ctx.state, reacted, ctx.authority);
 }
 
 export const chatsEditMessage = defineCall({

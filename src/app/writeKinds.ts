@@ -73,7 +73,7 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'comments.create': ['comments', 'events', 'notifications'],
   'comments.update': ['comments', 'events'],
   'comments.delete': ['comments', 'events'],
-  'reactions.toggle': ['comments', 'events'],
+  'reactions.toggle': ['comments', 'events', 'messages'],
   'files.upload': ['events', 'files', 'projects', 'tasks'],
   'files.markDelivered': ['events', 'files', 'tracker'],
   'files.share': ['chatReads', 'comments', 'events', 'messages'],

@@ -1,13 +1,14 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { CommentId, FileId, MAX_ATTACHMENTS, ProjectId, Reaction, TaskId, UpdateId, type Comment, type Update } from '../contract/entities';
-import { CommentView, FeedItem } from '../contract/views';
+import { CommentId, FileId, MAX_ATTACHMENTS, MessageId, ProjectId, Reaction, TaskId, UpdateId, type Comment, type Update } from '../contract/entities';
+import { CommentView, FeedItem, MessageView } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, lastTaskCopy, recordCreate, recordDelete } from '../events';
 import { notifyIn } from '../notify';
 import { mayViewTask, principalOf, type Resource } from '../permissions';
 import { nextId } from '../store';
 import { commentViewOf, feedFor, updateItemOf } from '../views';
+import { toggleMessageReaction } from './chats';
 import { mayUndoAgentChange } from './history';
 import { activeMentions, assertCan, insertComment, requireProject, requireReplyComment, requireTask, roleIn, taskRole, touch } from './shared';
 import { mentionedUserIds } from '../../lib/text';
@@ -179,10 +180,16 @@ export const commentsDelete = defineCall({
 });
 
 export const reactionsToggle = defineCall({
-  input: z.object({ commentId: CommentId, emoji: Reaction }),
-  output: CommentView,
+  /**
+   * A reaction on a task comment (today's rule, with its History event), or on a chat message (chat design item 12, no event). Exactly
+   * one of commentId and messageId. An older input with commentId only stays valid.
+   */
+  input: z.object({ commentId: CommentId.optional(), messageId: MessageId.optional(), emoji: Reaction })
+    .refine((input) => (input.commentId === undefined) !== (input.messageId === undefined), { message: 'Give commentId or messageId.' }),
+  output: z.union([CommentView, MessageView]),
   run(input, ctx) {
-    const comment = requireComment(ctx, input.commentId);
+    if (input.messageId !== undefined) return toggleMessageReaction(ctx, input.messageId, input.emoji);
+    const comment = requireComment(ctx, input.commentId ?? '');
     const { projectId, resource } = targetOf(ctx, comment.targetType, comment.targetId);
     assertCan(ctx, 'content.post', resource);
     const list = comment.reactions[input.emoji];

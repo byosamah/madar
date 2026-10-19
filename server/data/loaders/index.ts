@@ -2,7 +2,7 @@ import type { z } from 'zod';
 import type { SharedCallName, SharedCalls } from '../../../src/api/sharedCalls';
 import type { State } from '../../../src/api/store';
 import { Load, type LoadCtx } from './build';
-import { chatMessageCall, chatsAll, chatsArchive, chatsMarkRead, chatsMessages, chatsUnread, chatsWaiting } from './chat';
+import { chatMessageCall, chatMessageRows, chatsAll, chatsArchive, chatsMarkRead, chatsMessages, chatsUnread, chatsWaiting } from './chat';
 import { inboxCount, inboxList } from './inbox';
 import { dashboardGet, eventsList, projectsList, searchQuery, tasksList, templateSyncTasks } from './overview';
 import {
@@ -130,7 +130,8 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'comments.create': content(commentsCreate),
   'comments.update': content(commentCall),
   'comments.delete': content(commentCall),
-  'reactions.toggle': content(commentCall),
+  // A reaction on a message reads the message with its files and its reply target, and no notice (chat design item 12).
+  'reactions.toggle': content((L, i) => (i.messageId === undefined ? commentCall(L, i) : chatMessageRows(L, i))),
 
   'files.list': project(filesList),
   'files.upload': project(filesUpload),

@@ -137,7 +137,7 @@ describe('chats.deleteMessage', () => {
   });
 
   it('refuses the message of another person with not_author, and answers not_found to an outsider', async () => {
-    const { t, state } = world();
+    const { t } = world();
     t.as('usr_003');
     expect(await failureOf(t.api.call('chats.deleteMessage', { id: DIRECT_SECRET_ID }))).toMatchObject({ code: 'forbidden', details: { reason: 'not_author', messageId: DIRECT_SECRET_ID } });
     t.as('usr_001');
@@ -149,7 +149,7 @@ describe('chats.deleteMessage', () => {
       expect(JSON.stringify(error), id).not.toContain(SECRET);
       expect(await failureOf(t.api.call('chats.deleteMessage', { id, deleted: false })), id).toMatchObject({ code: 'not_found' });
     }
-    expect(Object.values(state.messages).filter((m) => m.deletedAt !== undefined)).toEqual([]);
+    expect(Object.values(t.store.state.messages).filter((m) => m.deletedAt !== undefined)).toEqual([]);
   });
 
   it('pages before a message that was deleted, so Earlier messages still works', async () => {

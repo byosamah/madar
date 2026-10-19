@@ -341,7 +341,12 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   notices of the message. `deleted: false` is the Undo of the toast: it removes `deletedAt` and writes the notices again, already read, so a
   restore sends no push and no mail. The same value changes nothing. The files of the message stay. `messagePage` accepts a deleted `before`,
   so "Earlier messages" works when the oldest shown message was deleted meanwhile.
-- Both calls name only the kinds `messages` and `notifications`, so their signals stay nameless (INT-16). MCP: both are on the deny list.
+- `reactions.toggle { commentId | messageId, emoji }` takes exactly one id (older inputs with `commentId` stay valid). A message reaction toggles
+  the id of the person behind the call in `Message.reactions` (a missing record starts from `emptyReactions()`), for any person who may open
+  the chat, in a closed chat too. It writes no event and no notice and leaves `createdAt` alone, so it makes no unread mark and no push. The
+  output is a `CommentView` or a `MessageView`. The loader reads the message with `chatMessageRows`, and `WRITE_KINDS` adds `messages`.
+- The three calls name only the kinds `messages` and `notifications` (the reaction only `messages`), so their signals stay nameless (INT-16).
+  MCP: edit, delete and the reaction are on the deny list.
 
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.

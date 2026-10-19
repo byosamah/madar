@@ -716,6 +716,21 @@ describe('the office signal of a private chat message', () => {
     expect(office).not.toHaveProperty('storyId');
   });
 
+  it('names no actor and no story for a reaction on a group message', async () => {
+    const before = groupAfter();
+    const after = structuredClone(before);
+    after.messages.msg_901 = { ...after.messages.msg_901, reactions: { '👍': ['usr_003'], '✅': [], '👀': [] } };
+    const diff = diffState(before, after);
+    expect(diff.anonymous).toBe(true);
+    expect(sorted(diff.kinds)).toEqual(['messages']);
+    const { q } = recorder({ officeSeq: 4 });
+    const result = await writeDiff(q, diff, { story: { storyId: 'sty_g', actorId: 'usr_003' } });
+    const office = result.signals.find((signal) => signal.channel === 'office')!;
+    expect(office).not.toHaveProperty('actorId');
+    expect(office).not.toHaveProperty('storyId');
+    expect(JSON.stringify(result.signals)).not.toContain('usr_003');
+  });
+
   it('keeps the actor and the story for a project chat message and for a change of a project', async () => {
     const after = copy();
     const message = Object.values(after.messages)[0];

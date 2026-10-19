@@ -510,6 +510,33 @@ describe('the 18 places of AM 6', () => {
     expect(JSON.stringify(read.outcome.output)).not.toContain('8842');
   });
 
+  // Track msg B10 (chat design 2026-10-19, item 12): a reaction on a message reads the message and the message it answers, and writes no notice.
+  it('reactions.toggle on a message: the scoped load gives the view with its reply link, and writes the message only (B10)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const team = Object.values(state.members).filter((m) => m.projectId === 'prj_001').map((m) => m.userId).filter((id) => id !== ADMIN && state.users[id].kind === 'human');
+    const [person, other] = team;
+    if (!person || !other) throw new Error('The sample office needs two team members on prj_001.');
+    const idOf = (view: unknown) => (view as { message: { id: string } }).message.id;
+    const old = idOf(apply(state, 'chats.send', { conversationId: room.id, body: 'Old question 3318.' }, other, { now: new Date(NOW.getTime() + 60_000) }));
+    const last = idOf(apply(state, 'chats.send', { conversationId: room.id, body: 'The answer.' }, person, { now: new Date(NOW.getTime() + 120_000) }));
+    state.messages[last].replyToId = old;
+    for (const actor of [person, other, ADMIN]) {
+      const run = await same(state, 'reactions.toggle', { messageId: last, emoji: '👍' }, actor);
+      expect(run.outcome.error, actor).toBeUndefined();
+      expect(run.outcome.output, actor).toMatchObject({ message: { id: last, reactions: { '👍': [actor] } }, replyTo: { id: old, firstLine: 'Old question 3318.', deleted: false } });
+      expect(docs(run, 'messages').map((doc) => doc.id), actor).toEqual([last]);
+      expect(inserted(run, 'notifications'), actor).toHaveLength(0);
+      expect(inserted(run, 'events'), actor).toHaveLength(0);
+    }
+    // A comment still takes the old input.
+    const task = Object.values(state.tasks).find((t) => t.projectId !== null && t.ownerId !== null)!;
+    state.comments.cmt_901 = { id: 'cmt_901', targetType: 'task', targetId: task.id, authorId: person, body: 'A note', reactions: emptyReactions(), fileIds: [], createdAt: '2026-10-01T09:00:00.000+03:00', editedAt: null };
+    const comment = await same(state, 'reactions.toggle', { commentId: 'cmt_901', emoji: '✅' }, ADMIN);
+    expect(comment.outcome.error).toBeUndefined();
+    expect(inserted(comment, 'events').length).toBe(1);
+  });
+
   it('row 16: a task approved after review moves its dependents by the days it was late on the review day', async () => {
     const state = office();
     const leader = state.projects.prj_001.leaderId!;
