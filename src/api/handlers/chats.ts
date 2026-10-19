@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ConversationId, FileId, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, TaskId, UserId, type Comment, type Conversation, type GroupLogEntry, type Message, type Project, type Task, type User } from '../contract/entities';
+import { ConversationId, FileId, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, NotifyLevel, TaskId, UserId, type Comment, type Conversation, type GroupLogEntry, type Message, type Project, type Task, type User } from '../contract/entities';
 import { ChatRow, ChatThread, MessageView, WaitingRow, type GroupLine } from '../contract/views';
 import { addDirectConversation, addGroupConversation, canSeeConversation, closedChatError, isArchived, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, personLeft, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
@@ -394,6 +394,26 @@ export const chatsArchive = defineCall({
   },
 });
 
+export const chatsSetNotify = defineCall({
+  /**
+   * Keeps the "Notify me" choice of the person for one chat (chat design item 21): "all" pushes every message, "named" pushes only a
+   * message that names the person. A chat only: a task thread has no choice. Only the own read mark changes, every other field of it
+   * stays, and no event, notice or message is written. With no mark yet, the mark holds NEVER_READ, so the chat stays as unread as it
+   * was. The checks are those of chats.markRead, so a hidden chat answers the same way.
+   */
+  input: z.object({ conversationId: ConversationId, notify: NotifyLevel }),
+  output: z.object({ notify: NotifyLevel }),
+  run(input, ctx) {
+    requireConversation(ctx, input.conversationId);
+    const key = chatReadKey(input.conversationId, ctx.authority.id);
+    const read = ctx.state.chatReads[key];
+    ctx.state.chatReads[key] = {
+      ...read, conversationId: input.conversationId, userId: ctx.authority.id, lastReadAt: read?.lastReadAt ?? NEVER_READ, notify: input.notify,
+    };
+    return { notify: input.notify };
+  },
+});
+
 /** The direct chat of the sender with another person. It is made when it does not exist. */
 export function directWith(ctx: Ctx, other: User): Conversation {
   const existing = Object.values(ctx.state.conversations).find(
@@ -632,6 +652,7 @@ export const chatCalls = {
   'chats.send': chatsSend,
   'chats.markRead': chatsMarkRead,
   'chats.archive': chatsArchive,
+  'chats.setNotify': chatsSetNotify,
   'chats.openDirect': chatsOpenDirect,
   'chats.createGroup': chatsCreateGroup,
   'chats.updateGroup': chatsUpdateGroup,

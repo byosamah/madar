@@ -80,6 +80,8 @@ export const MCP_DENY = [
   // An archive mark is screen state too: an agent never archives a chat (owner, 2026-10-18).
   'notifications.list', 'notifications.count', 'notifications.markRead', 'notifications.markAllRead', 'notifications.markUnread',
   'notifications.updateSettings', 'chats.markRead', 'chats.unreadCount', 'chats.archive',
+  // A Notify me choice is screen state of one person, as an archive mark (design item 21).
+  'chats.setNotify',
   // Group chats are screen work (fbk_011): an agent may send to a group, but it does not make, rename or leave one.
   'chats.createGroup', 'chats.updateGroup', 'chats.leaveGroup',
   // Templates, tracker extras and payment deletes.

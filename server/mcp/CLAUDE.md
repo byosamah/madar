@@ -53,7 +53,8 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   `chats.waiting` (what waits for the reply of the person, from `waitingFor` in `handlers/chats.ts`) are on `MCP_ALLOW`, and
   `chats.list` keeps the preview of every chat (`run.ts` no longer blanks it). `chats.messages` of a group also gives `lines`, its quiet lines (added, removed, left, renamed); a line is no message
   (UX audit 2026-10-19). The texts of `chats.list` and `chats.waiting` say how to read and answer a row of kind task. `chats.markRead`, `chats.unreadCount`,
-  `chats.archive` and the three group writes stay on `MCP_DENY`: a read mark and an archive are the person's own acts. A sent
+  `chats.archive`, `chats.setNotify` (the Notify me choice, chat design item 21) and the three group writes stay on `MCP_DENY`: a read mark, an
+  archive and a Notify me choice are the person's own acts. A sent
   message writes no event, so no Undo takes it back, and `chats.openDirect` and `chats.send` are not additive (the client may
   ask its person first). INSTRUCTIONS has a Messages paragraph that says: send only when the person asks.
 - Chat files (owner, 2026-10-19): a message of a direct or group chat may carry files. The agent of a member reads the file name in

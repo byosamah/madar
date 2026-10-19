@@ -128,6 +128,13 @@ export async function chatsArchive(L: Load, input: Input): Promise<void> {
   if (input.archived === true) await mentionNoticesOf(L, id);
 }
 
+/** chats.setNotify: the own read mark of the chat (its office record is already loaded). The write keeps every other field of the mark. */
+export async function chatsSetNotify(L: Load, input: Input): Promise<void> {
+  const id = typeof input.conversationId === 'string' ? input.conversationId : '';
+  if (!L.authority || id === '') return;
+  await L.byKey('chatReads', [chatReadKey(id, L.authority.id)]);
+}
+
 /**
  * The unread notices of the person that point to one chat or task thread (the index notifications_inbox: user, read, created_at).
  * A read of the chat marks the mention and reply ones read (chat design item 20), so the write needs them in the State.

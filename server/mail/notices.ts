@@ -38,7 +38,7 @@ export const QUOTA_WARNING_EFFECT = 'mail.quotaWarning';
  * archive mark its mention notices read (chat design item 20), and the Notify me choice (chats.setNotify) touches no notice.
  */
 export const NOTICE_FREE_CALLS: ReadonlySet<string> = new Set([
-  'notifications.markRead', 'notifications.markAllRead', 'notifications.markUnread', 'chats.markRead', 'chats.archive',
+  'notifications.markRead', 'notifications.markAllRead', 'notifications.markUnread', 'chats.markRead', 'chats.archive', 'chats.setNotify',
 ]);
 
 /** $1 the people whose notices the save changed. The unread notices that the open transaction inserted, with their person. */

@@ -94,6 +94,7 @@ function rest(office: State): Record<string, [unknown, string?]> {
     'chats.updateGroup': [{ conversationId: 'cnv_001', name: 'Renamed' }],
     'chats.leaveGroup': [{ conversationId: 'cnv_001' }],
     'chats.archive': [{ conversationId: 'cnv_001', archived: true }],
+    'chats.setNotify': [{ conversationId: 'cnv_001', notify: 'all' }],
     'stageTemplates.list': [{}],
     'stageTemplates.save': [{ name: 'Short', stages: ['Concept', 'Design'] }],
     'stageTemplates.delete': [{ id: 'stt_002' }],
