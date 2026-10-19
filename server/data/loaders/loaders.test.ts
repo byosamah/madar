@@ -15,7 +15,7 @@ import { INBOX_TASK_FIELDS } from './inbox';
 import { LOADER_OF } from './index';
 import { loadJobs } from './jobs';
 import { memorySource } from './memorySource';
-import { AGENT_MADE_TASK, badgeTraps, OFFICE_AGENT, officeWrites, readSweep, trapOffice, writeSweep } from './sweep';
+import { AGENT_MADE_TASK, badgeTraps, findSweep, findTraps, OFFICE_AGENT, officeWrites, readSweep, trapOffice, writeSweep } from './sweep';
 
 /**
  * Task C2: each loader gives the handler the same answer as the whole office (plan 4.6, "Safety net"). runBoth runs the call on
@@ -86,6 +86,26 @@ describe('the sweep: every read call on the sample office for every person and r
     const traps = trapOffice(seed);
     for (const [name, input, actor, prepared] of [...readSweep(traps), ...writeSweep(traps)]) await same(traps, name, input, actor, { prepared });
   }, 30_000);
+});
+
+describe('the reads of track find on the scoped load', () => {
+  it('gives the same answers as the whole office', async () => {
+    const traps = office(findTraps);
+    const calls = findSweep(traps);
+    expect(calls.length).toBeGreaterThan(15);
+    for (const [name, input, actor] of calls) await same(traps, name, input, actor);
+  }, 30_000);
+
+  it('opens the group at an old message with the 20 before it and the 500 in all, and says that newer ones exist', async () => {
+    const traps = office(findTraps);
+    const group = Object.values(traps.conversations).find((c) => c.name === 'Find group')!;
+    const run = await same(traps, 'chats.messages', { conversationId: group.id, around: 'msg_1030' }, group.memberIds[0]);
+    const out = run.outcome.output as { messages: { message: { id: string } }[]; newer: boolean };
+    // 540 messages, two deleted, so 538 are live. The 30th is the 29th live message: the page starts 20 before it.
+    expect(out.messages[0].message.id).toBe('msg_1010');
+    expect(out.messages).toHaveLength(500);
+    expect(out.newer).toBe(true);
+  });
 });
 
 describe('the 18 places of AM 6', () => {

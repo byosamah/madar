@@ -154,6 +154,10 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   quiet lines (added, removed, left, renamed); `chats.messages` returns them as `lines` for a group. They are no messages, so no
   unread count, preview or push reads them. `chats.updateGroup` sends the trigger `added_to_group` (in-app only) to each added person.
   `NotificationView.chatKind` and `target` (the group name while the viewer is a member) let a group notice name the group.
+- `chats.messages` with `around` (chat design 2026-10-19, item 17) opens the page at one message: `messagePageAround` (`chatAround.ts`)
+  gives the newest page when the message is in it, else 20 live messages before it and every newer one, up to 500 in all, and
+  `ChatThread.newer` is true when more follow. `around` with `before` fails `invalid`. A message that is no live message of this
+  chat (deleted, another chat, unknown) gives the newest page and no error. The loader reads the window next to the newest page.
 - Files of a direct chat or a group (owner, 2026-10-19): `files.upload` and `files.uploadStart` take `conversationId` in place of a
   project or an office task. `FileRec.conversationId` (optional, so older files load) names the chat; `projectId`, `stageId` and `taskId`
   are null. `mayViewFile` is `canSeeConversation` of that chat: exactly the people who read its messages, never the Admin who is not a

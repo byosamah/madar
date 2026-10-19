@@ -1,4 +1,4 @@
-import { addDirectConversation } from '../../../src/api/chatState';
+import { addDirectConversation, addGroupConversation } from '../../../src/api/chatState';
 import { emptyReactions } from '../../../src/api/contract/entities';
 import { sharedCalls, type SharedCallName } from '../../../src/api/sharedCalls';
 import { chatReadKey, type State } from '../../../src/api/store';
@@ -359,4 +359,43 @@ export function trapOffice(seed: State): State {
   }
   state.chatReads[chatReadKey(thread.id, 'usr_006')] = { conversationId: thread.id, userId: 'usr_006', lastReadAt: '2026-10-03T10:00:00.000+03:00' };
   return state;
+}
+
+/** The name of the group of findTraps. */
+export const FIND_GROUP = 'Find group';
+
+/** The ids of the messages of the group of findTraps, oldest first: msg_1001 is the first, and the ones at 100 and 300 are deleted. */
+const findId = (n: number) => `msg_${1000 + n}`;
+
+/**
+ * The reads of track find (chat design 2026-10-19, items 16 and 17), on a copy of the sample office: a group of three people with 540
+ * messages, one minute apart, two of them deleted (the 100th and the 300th). The reads of chats.messages with "around" must give the
+ * same answers on the scoped load as on the whole office. Later tasks of the track add their records here.
+ */
+export function findTraps(state: State): void {
+  const people = Object.values(state.users).filter((u) => u.kind === 'human' && u.active && u.systemRole !== 'admin').map((u) => u.id).slice(0, 3);
+  const group = addGroupConversation(state, FIND_GROUP, people[0], people, '2026-10-02T08:00:00.000+03:00');
+  for (let n = 1; n <= 540; n++) {
+    const author = people[n % people.length];
+    state.messages[findId(n)] = {
+      id: findId(n), conversationId: group.id, authorId: author, actingForId: author, body: `Find line ${n}`, mentions: [], fileIds: [],
+      createdAt: new Date(Date.UTC(2026, 9, 2, 6) + n * 60_000).toISOString(), editedAt: null,
+      ...(n === 100 || n === 300 ? { deletedAt: '2026-10-03T06:00:00.000Z' } : {}),
+    };
+  }
+}
+
+/** The calls of track find: chats.messages with "around", for each member and for a person outside, on the group of findTraps. */
+export function findSweep(office: State): SweepCall[] {
+  const group = Object.values(office.conversations).find((c) => c.kind === 'group' && c.name === FIND_GROUP);
+  if (!group) return [];
+  const foreign = Object.values(office.messages).find((m) => m.conversationId !== group.id)!.id;
+  const outsider = Object.values(office.users).find((u) => u.kind === 'human' && u.active && !group.memberIds.includes(u.id))!.id;
+  const calls: SweepCall[] = [];
+  for (const actor of group.memberIds) {
+    for (const around of [findId(30), findId(300), findId(400), findId(530), foreign]) calls.push(['chats.messages', { conversationId: group.id, around }, actor]);
+    calls.push(['chats.messages', { conversationId: group.id, around: findId(30), limit: 50 }, actor]);
+  }
+  calls.push(['chats.messages', { conversationId: group.id, around: findId(30) }, outsider]);
+  return calls;
 }

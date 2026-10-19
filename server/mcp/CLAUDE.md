@@ -56,6 +56,8 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   `chats.archive` and the three group writes stay on `MCP_DENY`: a read mark and an archive are the person's own acts. A sent
   message writes no event, so no Undo takes it back, and `chats.openDirect` and `chats.send` are not additive (the client may
   ask its person first). INSTRUCTIONS has a Messages paragraph that says: send only when the person asks.
+- `chats.messages` takes `around` (a message id; chat design 2026-10-19, item 17): the page that holds the message, and `newer` says
+  that more follow. A search hit or a notice gives the agent the id to open. A message that the person may not read gives the newest page.
 - Chat files (owner, 2026-10-19): a message of a direct or group chat may carry files. The agent of a member reads the file name in
   `chats.messages`, as its person does, and never opens the file: no tool opens a file, `files.list` and `search.query` show none,
   and `files.link` and `files.get` refuse an agent with not_found. INSTRUCTIONS (Messages) and the `TOOL_DOCS` of `chats.messages`,

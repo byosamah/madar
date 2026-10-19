@@ -284,6 +284,8 @@ export const ChatThread = z.object({
   readUpTo: Stamp.nullable().default(null),
   /** The "Notify me" level of the reader for this chat (item 21). */
   notify: z.enum(NOTIFY_LEVELS).default('all'),
+  /** True when newer messages exist after this page: a page that opens at one message (item 17) may end before the newest. */
+  newer: z.boolean().default(false),
 });
 export type ChatThread = z.infer<typeof ChatThread>;
 

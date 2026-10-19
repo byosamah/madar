@@ -4,6 +4,9 @@ import { can } from '../../../src/api/permissions';
 import { chatReadKey, unreadCountKey } from '../../../src/api/store';
 import type { Load } from './build';
 import type { Bound } from './query';
+import { AROUND_BEFORE } from '../../../src/api/chatAround';
+import { isLiveMessage } from '../../../src/api/chatNaming';
+import { MESSAGE_PAGE_MAX } from '../../../src/api/chatState';
 import { attachedFiles, LIVE, newestMessages, officeState, pickedByKey } from './steps';
 
 /**
@@ -143,6 +146,10 @@ export async function chatsMarkRead(L: Load, input: Input): Promise<void> {
  * chats.messages: one chat. Its mark, newest message and unread count (the chat row), and one page: the newest "limit" messages
  * before the message "before", which comes too. The page is one unbroken run that ends at "before" (or at the newest message), so
  * the page that the handler cuts is the page of the whole chat.
+ * With "around" (and no "before"; chat design 2026-10-19, item 17) the loader also reads the window of the handler (messagePageAround):
+ * the AROUND_BEFORE live messages before the target, and the live messages after it up to MESSAGE_PAGE_MAX in all. The newest page
+ * stays in the load, so the handler finds the target in it, or cuts a window that starts at the target and ends where the whole chat
+ * would end (the newest message is in the load too, so "newer" is right). A target that is no live message of this chat adds nothing.
  */
 export async function chatsMessages(L: Load, input: Input): Promise<void> {
   const id = typeof input.conversationId === 'string' ? input.conversationId : '';
@@ -161,6 +168,7 @@ export async function chatsMessages(L: Load, input: Input): Promise<void> {
     where: [{ col: 'conversation_id', in: [id] }, LIVE, ...(before ? [{ before: { at: before.createdAt, id: before.id } }] : [])],
     order: { col: 'created_at', desc: true, id: true }, limit,
   })) as Message[];
+  if (typeof input.around === 'string' && typeof input.before !== 'string') await aroundWindow(L, id, input.around);
   // The old message of each reply on the page, by key: it may be older than the page. replyRefOf shows it only when it is live and in
   // this chat, and a deleted or foreign one reads as deleted, so no extra rule is needed here.
   await L.byKey('messages', page.map((message) => message.replyToId));
@@ -168,6 +176,21 @@ export async function chatsMessages(L: Load, input: Input): Promise<void> {
   // shows a file row only when the viewer may view the file (messageViewOf), and that rule reads the task of an office file.
   const shown = [...page, ...L.list<Message>('messages').filter((m) => m.conversationId === id)];
   await attachedFiles(L, shown.flatMap((message) => message.fileIds ?? []));
+}
+
+/** The window around one message: the live messages before it (newest first) and after it (oldest first), as messagePageAround reads them. */
+async function aroundWindow(L: Load, chatId: string, aroundId: string): Promise<void> {
+  await L.byKey('messages', [aroundId]);
+  const target = L.get<Message>('messages', aroundId);
+  if (!target || target.conversationId !== chatId || !isLiveMessage(target)) return;
+  const here = { at: target.createdAt, id: target.id };
+  await L.select({
+    c: 'messages', where: [{ col: 'conversation_id', in: [chatId] }, LIVE, { before: here }], order: { col: 'created_at', desc: true, id: true }, limit: AROUND_BEFORE,
+  });
+  await L.select({
+    c: 'messages', where: [{ col: 'conversation_id', in: [chatId] }, LIVE, { after: here }], order: { col: 'created_at', asc: true, id: true },
+    limit: MESSAGE_PAGE_MAX - AROUND_BEFORE - 1,
+  });
 }
 
 /**

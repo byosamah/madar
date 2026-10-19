@@ -211,6 +211,19 @@ describe('the message tools over MCP (owner, 2026-10-12)', () => {
     expect(messages.find((m) => m.message.body === SECRET)).toMatchObject({ author: { id: 'usr_003' } });
   });
 
+  it('reads the page of a chat at one message with around', async () => {
+    const w = world();
+    const first = await call(w, 'chats.messages', { conversationId: hala3 });
+    const secret = (first.result.structuredContent.output.messages as { message: Message }[]).find((m) => m.message.body === SECRET)!.message.id;
+    const { text, result } = await call(w, 'chats.messages', { conversationId: hala3, around: secret });
+    expect(result.isError, JSON.stringify(result)).toBeUndefined();
+    expect(text).toContain(SECRET);
+    expect(result.structuredContent.output.newer).toBe(false);
+    const { TOOL_DOCS } = await import('./docs');
+    expect(TOOL_DOCS['chats.messages'].description).toContain('around');
+    expect(TOOL_DOCS['chats.messages'].description.length).toBeLessThanOrEqual(600);
+  });
+
   it('reads a group of its person with chats.messages', async () => {
     const w = world();
     const { text, result } = await call(w, 'chats.messages', { conversationId: groupRoom });
@@ -380,8 +393,8 @@ describe('the new view fields in the texts of the message tools (base B5)', () =
     const { TOOL_DOCS } = await import('./docs');
     const read = TOOL_DOCS['chats.messages'].description;
     for (const word of ['reactions', 'editedAt', 'replyTo', 'namesMe', 'readUpTo', 'Deleted messages are left out', 'direct or group chat', 'quiet lines']) expect(read, word).toContain(word);
-    // 540 leaves 60 characters for the "around" input of track find.
-    expect(read.length).toBeLessThanOrEqual(540);
+    // 540 left 60 characters for the "around" input of track find; the tool limit is 600.
+    expect(read.length).toBeLessThanOrEqual(600);
     for (const word of ['replyTo', 'namesMe']) expect(TOOL_DOCS['comments.list'].description, word).toContain(word);
     expect(TOOL_DOCS['comments.list'].description.length).toBeLessThanOrEqual(600);
   });
