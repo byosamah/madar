@@ -315,6 +315,8 @@ any screen work.
   so a change signal that comes before the answer shows the message once. The saved bubble has `fromOutbox` and skips its rise. A send that fails (code
   `failed`) shows "Not sent" in the error color with "Send again" (`useAction` `retry`: the same input and the idempotency key of the failed attempt, so
   nothing goes twice) and no toast; a refusal still shows its toast, and a failure after the pane closed shows the toast with Retry as before.
+- The bell says "X replied to you" for a mention notice with `reply: true` (`NotificationsScreen.tsx`): `notices.repliedDirect` in a direct chat,
+  `notices.repliedGroupGone` in a group the reader left, `notices.repliedToYou` elsewhere. The link, the face and the row stay as for a mention.
 
 ## Inbox, groups and What's new (owner 2026-10-18; UX audit 2026-10-19)
 - Inbox list (`features/inbox/ChatList.tsx`): "Archived (n)" is one quiet row under the search field, only while a chat is archived

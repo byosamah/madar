@@ -54,6 +54,14 @@ describe("What's new entries", () => {
     expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-12')?.right).toBe('report.office');
   });
 
+  // Chat design 2026-10-19 (track msg, B17): the message menu, reply, edit, delete, reactions and instant send.
+  it('name the message menu of the chats in one entry that opens the Inbox', () => {
+    const entry = WHATS_NEW.find((item) => item.id === '2026-10-23-30');
+    expect(entry).toEqual({ id: '2026-10-23-30', day: '2026-10-23', to: '/inbox' });
+    expect(wordAt(en, ['whatsNew', 'items', '2026-10-23-30', 'title'])).toBe('Reply, react and edit in chats');
+    expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-30', 'body']))).toContain('أرسلها مجددًا');
+  });
+
   it('have a short "Open" link word and a "New" mark in both languages', () => {
     for (const tree of [en, ar]) {
       for (const key of ['newMark', 'seeNew', 'open', 'openItem']) expect(typeof wordAt(tree, ['whatsNew', key]), key).toBe('string');

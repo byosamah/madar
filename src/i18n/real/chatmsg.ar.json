@@ -18,5 +18,21 @@
     "messageDeleted": "حُذفت الرسالة.",
     "notSent": "لم تُرسَل",
     "sendAgain": "أرسلها مجددًا"
+  },
+  "notices": {
+    "repliedToYou": "{{actor}} ردّ عليك في {{target}}",
+    "repliedToYou_female": "{{actor}} ردّت عليك في {{target}}",
+    "repliedDirect": "{{actor}} ردّ عليك في رسالة مباشرة",
+    "repliedDirect_female": "{{actor}} ردّت عليك في رسالة مباشرة",
+    "repliedGroupGone": "{{actor}} ردّ عليك في مجموعة",
+    "repliedGroupGone_female": "{{actor}} ردّت عليك في مجموعة"
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-30": {
+        "title": "ردّ وتفاعل وعدّل في المحادثات",
+        "body": "لكل رسالة قائمة صغيرة: تفاعل معها، أو ردّ عليها، أو عدّل رسالتك واحذفها. الرد يصل إلى الشخص الذي ترد عليه. تظهر رسالتك فورًا، وإن لم تُرسَل تجد زر «أرسلها مجددًا»."
+      }
+    }
   }
 }
