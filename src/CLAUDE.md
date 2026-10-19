@@ -335,6 +335,7 @@ any screen work.
 - Read only while you look: `ChatPane` and `useMarkTaskRead` mark read only while `usePageVisible()` (`app/usePageVisible.ts`) is true. A task thread is marked once for each new count of comments. A hidden tab only marks the lists (`app/signals.ts`), so a message reaches an open chat in a hidden tab only when something else loads it; a test that needs that loads the chat itself with `queryClient.refetchQueries`.
 - Links (`segmentsOf`, `RichText`): an `http://` or `https://` address is a link with `dir="ltr"` and `break-all`; an outside address opens in a new tab with `noopener noreferrer`. The marks of the sentence at its end (`. , ; : ! ? ' "`, the Arabic comma, semicolon and question mark, `»`, `]`, `}`) and a closing bracket the address did not open stay out of the link.
 - Drafts (`app/drafts.ts`): the text of a draft lives in localStorage for each person, so it stays after the tab closes. A sign-out (`keepDraftsOf('')`) and a change of person clear both stores. A draft of the old session store moves to localStorage on its first read. Picked files stay in memory only.
+- On a phone (`useIsPhone`) Enter in the chat box adds a line; the Send button sends.
 
 ## Design rules (the short form of DESIGN.md)
 - Judge every choice from the view of the employees with ADHD: one next step, the fewest controls.
