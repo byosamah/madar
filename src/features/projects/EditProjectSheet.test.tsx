@@ -1,3 +1,4 @@
+import type { State } from '../../api/store';
 import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -26,22 +27,37 @@ describe('the edit project form: no browser memory (fbk_010)', () => {
   });
 });
 
-describe('the sub-company in the edit form (fbk_007)', () => {
-  it('saves the sub-company that the person picks, and offers "No sub-company" as the first choice', async () => {
-    const { store } = await renderApp('/projects/prj_001', (state) => {
-      const created = '2026-10-18T09:00:00.000+03:00';
-      state.subCompanies = {
-        sub_001: { id: 'sub_001', name: 'Vado', nameAr: 'فادو', logo: null, createdBy: 'usr_001', createdAt: created },
-        sub_002: { id: 'sub_002', name: 'Bunah', nameAr: 'بناة', logo: null, createdBy: 'usr_001', createdAt: created },
-      };
-    });
+describe('the sub-company in the edit form (fbk_007, PRJ-17)', () => {
+  const office = (named: boolean) => (state: State) => {
+    const created = '2026-10-18T09:00:00.000+03:00';
+    state.subCompanies = {
+      sub_001: { id: 'sub_001', name: 'Vado', nameAr: 'فادو', logo: null, createdBy: 'usr_001', createdAt: created },
+      sub_002: { id: 'sub_002', name: 'Bunah', nameAr: 'بناة', logo: null, createdBy: 'usr_001', createdAt: created },
+    };
+    for (const project of Object.values(state.projects)) delete project.subCompanyId;
+    if (named) state.projects.prj_001.subCompanyId = 'sub_002';
+  };
+  const openEdit = async () => {
     await userEvent.click(await screen.findByRole('button', { name: 'More actions' }, LOAD));
     await userEvent.click(screen.getByRole('menuitem', { name: 'Edit project' }));
-    const sheet = await screen.findByRole('dialog', { name: 'Edit project' });
-    const field = await within(sheet).findByLabelText('Sub-company');
-    expect(within(field).getByRole('option', { name: 'No sub-company' })).toBeInTheDocument();
-    await userEvent.selectOptions(field, 'Vado');
+    return screen.findByRole('dialog', { name: 'Edit project' });
+  };
+
+  it('saves the sub-company that the person taps on a project that has none', async () => {
+    const { store } = await renderApp('/projects/prj_001', office(false));
+    const sheet = await openEdit();
+    const group = await within(sheet).findByRole('radiogroup', { name: 'Sub-company' });
+    expect(within(group).getAllByRole('radio').every((radio) => radio.getAttribute('aria-checked') === 'false')).toBe(true);
+    await userEvent.click(within(group).getByRole('radio', { name: 'Vado' }));
     await userEvent.click(within(sheet).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(store.state.projects.prj_001.subCompanyId).toBe('sub_001'));
+  });
+
+  it('keeps the sub-company of a project that has one: the project can change it, never clear it', async () => {
+    await renderApp('/projects/prj_001', office(true));
+    const sheet = await openEdit();
+    const group = await within(sheet).findByRole('radiogroup', { name: 'Sub-company' });
+    expect(within(group).getByRole('radio', { name: 'Bunah' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(sheet).queryByRole('option', { name: 'No sub-company' })).toBeNull();
   });
 });
