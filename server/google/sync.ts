@@ -203,8 +203,8 @@ export async function revokeOne(deps: Deps, connectionId: string, o: { replaced?
       }
     }
   }
-  // A live row that goes (the person was removed) takes its Google events with it. A revoking row has none to take: disconnect and
-  // connect again have cleared them, and the events now belong to the new row.
+  // A live row that goes takes its Google events with it (a revoke row that a build before 2026-10-19 queued for a removed person). A
+  // revoking row has none to take: disconnect, connect again and users.remove have cleared them in their own transaction.
   if (connection.state !== 'revoking') await deleteEventsOfUser(q, connection.userId);
   await deleteConnection(q, connection.id);
 }

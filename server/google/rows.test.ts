@@ -98,13 +98,20 @@ describe('the rows of a call', () => {
 });
 
 describe('revokeRowsOf', () => {
-  it('writes one gcal.revoke row for the live connection of a person who was removed', async () => {
+  it('sets the live connection of a person who was removed to revoking, deletes the Google events, and writes one gcal.revoke row', async () => {
     const t = await googleOffice();
     ok(await t.connect('usr_003'));
+    await planMeeting(t, 'usr_003', { startsAt: START });
+    expect(await t.db.statement('read', 'select user_id from google_events')).toEqual([{ user_id: 'usr_003' }]);
     const [connection] = await t.db.statement('read', 'select id from google_connections') as { id: string }[];
-    const rows = await t.db.tx('read', (q) => revokeRowsOf(q, { id: 'usr_003' }));
+    const at = new Date('2026-10-21T07:00:00Z');
+    const rows = await t.db.tx('write', (q) => revokeRowsOf(q, { id: 'usr_003' }, at));
     expect(rows).toEqual([{ kind: 'gcal.revoke', payload: { connectionId: connection.id } }]);
-    expect(await t.db.tx('read', (q) => revokeRowsOf(q, { id: 'usr_004' }))).toEqual([]);
+    expect(await t.db.statement('read', 'select state, changed_at from google_connections')).toEqual([{ state: 'revoking', changed_at: at.toISOString() }]);
+    expect(await t.db.statement('read', 'select * from google_events')).toEqual([]);
+    // A second ask finds no live row: no second revoke row.
+    expect(await t.db.tx('write', (q) => revokeRowsOf(q, { id: 'usr_003' }, at))).toEqual([]);
+    expect(await t.db.tx('write', (q) => revokeRowsOf(q, { id: 'usr_004' }, at))).toEqual([]);
   });
 
   it('writes the row in the transaction of users.remove, once, and none for a person with no connection', async () => {

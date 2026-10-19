@@ -2,7 +2,7 @@ import type { User } from '../../src/api/contract/entities';
 import type { OutboxRow } from '../core/effects';
 import type { Query } from '../core/ports';
 import type { SaveResult } from '../data/save';
-import { eventPairsOf, liveConnection, meetingsOf, syncingPeople } from './store';
+import { deleteEventsOfUser, eventPairsOf, meetingsOf, startRevoking, syncingPeople } from './store';
 
 /**
  * The outbox rows of the Google Calendar sync (fbk_022): the producers that runCall asks after the save of GCAL_CALLS and of
@@ -32,8 +32,14 @@ export async function gcalRows(q: Query, saved: Pick<SaveResult, 'meetingIds'>):
   return [...pairs.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, payload]) => ({ kind: SYNC_EFFECT, payload }));
 }
 
-/** One gcal.revoke for the live connection of a person who was removed (the output of users.remove is the User). */
-export async function revokeRowsOf(q: Query, removed: Pick<User, 'id'>): Promise<OutboxRow[]> {
-  const connection = await liveConnection(q, removed.id);
-  return connection ? [{ kind: REVOKE_EFFECT, payload: { connectionId: connection.id } }] : [];
+/**
+ * The producer of users.remove (the output is the User): in the transaction of the call, the live connection of the person becomes
+ * revoking (at the time of the call) and the Google events of the person are deleted, then one gcal.revoke row goes out for it. So a
+ * revoke that fails, or a Google that never answers, leaves no live token of a removed person: the cleanup step deletes a revoking row
+ * after one day (security fix, 2026-10-19). A person who is only turned off keeps the connection (decision 11 of the plan).
+ */
+export async function revokeRowsOf(q: Query, removed: Pick<User, 'id'>, at: Date): Promise<OutboxRow[]> {
+  const ids = await startRevoking(q, removed.id, at);
+  await deleteEventsOfUser(q, removed.id);
+  return ids.map((connectionId) => ({ kind: REVOKE_EFFECT, payload: { connectionId } }));
 }

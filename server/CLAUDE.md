@@ -120,8 +120,11 @@ The other host stays deployed as the way back. Each area below has its own guide
   limit, `keys.ts` the seal, `state.ts` the signed state with the PKCE verifier, `store.ts` the two tables, `sync.ts`, `rows.ts`, `register.ts`).
 - The producers (`rows.ts`): after the save of `meetings.create`, `meetings.update`, `meetings.cancel`, `events.undo`, `events.undoStory` and
   `projects.delete` (`GCAL_CALLS`), `gcalRows` writes one `gcal.sync { userId, meetingId }` for each connected organizer or attendee (state ok or
-  not_synced) and each person who has a Google event for a touched meeting (`SaveResult.meetingIds`, set by `data/save.ts`). `users.remove` writes
-  one `gcal.revoke { connectionId }` for the live connection. They run in the transaction of the call, and only when the save touched a meeting.
+  not_synced) and each person who has a Google event for a touched meeting (`SaveResult.meetingIds`, set by `data/save.ts`); it asks the database only
+  when the save touched a meeting. The producer of `users.remove` (`revokeRowsOf`) sets the live connection of the person to `revoking` (`startRevoking`,
+  at the time of the call), deletes the `google_events` rows of the person, and writes one `gcal.revoke { connectionId }` (security fix, 2026-10-19): so a
+  revoke that fails leaves no live token of a removed person, and the cleanup step deletes the row after one day. A person who is only turned off keeps
+  the connection (plan decision 11). The producers run in the transaction of the call; `runCall` gives each producer the time of the call (`at`).
 - The effects (`sync.ts`) run after the answer (`AFTER_ANSWER_KINDS`) and write only `google_connections` and `google_events`, server-only rows (as the
   mail effects write `mail_log`): no event, no signal, no State table. `gcal.sync` reads again when it runs: the live connection, the person, the meeting
   and the event row. The event id is the hex of `madar:<meeting id>` (`eventIdOf`); the body has exactly the title, the place, the start, the end and the

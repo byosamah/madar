@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { runCall } from '../core/runCall';
 import type { RunResult } from '../core/types';
-import { cleanup } from '../jobs/steps/cleanup';
+import { cleanup, GOOGLE_REVOKING_KEEP_MS } from '../jobs/steps/cleanup';
 // It registers the Google effects and their producers, as server/core/deps.ts does for the entries.
 import '../google/effects';
 import { fakeGoogle, type FakeGoogle } from '../google/fakeGoogle';
@@ -130,6 +130,33 @@ describe('Google Calendar on the local database, as madar_server', () => {
     okOf(await call(admin, 'users.remove', { id: other }));
     expect(await office.sql('select * from google_connections')).toEqual([]);
     expect(google.requests.filter((request) => request.path === '/revoke')).toHaveLength(1);
+  });
+
+  it('sets the row of a removed person to revoking in the transaction of users.remove when Google fails, and the cleanup deletes it after one day (security fix)', async () => {
+    await office.sql('truncate google_connections, google_events, outbox');
+    resetAccessCache();
+    const humans = Object.values(office.seed.users).filter((user) => user.kind === 'human' && user.active && user.systemRole !== 'admin');
+    const third = humans.find((user) => user.id !== person && user.id !== other)!.id;
+    const admin = Object.values(office.seed.users).find((user) => user.systemRole === 'admin' && user.kind === 'human')!.id;
+    okOf(await connect(third));
+    okOf(await call(third, 'meetings.create', { kind: 'meeting', title: 'Kickoff', startsAt: '2026-10-07T10:00:00.000+03:00' }));
+    expect((await office.sql<{ user_id: string }>('select distinct user_id from google_events')).map((row) => row.user_id)).toEqual([third]);
+    google.failAll((request) => request.path === '/revoke', 503);
+    try {
+      // Turned off only: the connection stays (decision 11 of the plan).
+      okOf(await call(admin, 'users.deactivate', { id: third }));
+      expect(await office.sql('select state from google_connections')).toEqual([{ state: 'ok' }]);
+      okOf(await call(admin, 'users.remove', { id: third }));
+    } finally {
+      google.clearRules();
+    }
+    const [row] = await office.sql<{ state: string; changed_at: Date | string }>('select state, changed_at from google_connections');
+    expect(row.state).toBe('revoking');
+    expect(await office.sql('select * from google_events')).toEqual([]);
+    const changed = new Date(row.changed_at).getTime();
+    expect(await cleanup(deps, new Date(changed + GOOGLE_REVOKING_KEEP_MS - 60_000))).toMatchObject({ googleRevoking: 0 });
+    expect(await cleanup(deps, new Date(changed + GOOGLE_REVOKING_KEEP_MS + 60_000))).toMatchObject({ googleRevoking: 1 });
+    expect(await office.sql('select * from google_connections')).toEqual([]);
   });
 
   it('deletes a revoking row after one day and keeps a younger one and a live one (the cleanup step)', async () => {

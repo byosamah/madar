@@ -191,7 +191,7 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
       const { authority } = resolveAuthority(state, actorId, entry.def);
       const output = executeParsed(entry.def, entry.name, parsed, state, baseOf(deps, actorId, authority.id, story.storyId, now), prepared);
       const saved = await t.save(before, state, { story: { storyId: story.storyId, actorId } });
-      const rows = await outboxRowsOf(entry.name, output, saved, t.q);
+      const rows = await outboxRowsOf(entry.name, output, saved, t.q, now);
       // The ids come back in the order of the rows (writeOutbox), so each id keeps the kind of its row.
       const effects = (await t.outbox(rows)).map((id, i) => ({ id, kind: rows[i].kind }));
       const result: StoredResult = { output, storyId: story.storyId, changed: wroteEvents(before, state, story.storyId) };

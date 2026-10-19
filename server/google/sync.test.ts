@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { processOutbox } from '../core/effects';
+import { cleanup, GOOGLE_REVOKING_KEEP_MS } from '../jobs/steps/cleanup';
 import { openToken } from './keys';
 import { googleKeysOf } from './keys';
 import { eventBodyOf, eventIdOf, resetAccessCache, revokeOne, syncOne } from './sync';
@@ -337,6 +338,29 @@ describe('gcal.revoke', () => {
     expect(await rowsOf(t, 'select * from google_connections')).toEqual([]);
     expect(await rowsOf(t, 'select * from google_events')).toEqual([]);
     expect(t.google.requests.filter((request) => request.path === '/revoke')).toHaveLength(1);
+  });
+
+  it('sets the row of a removed person to revoking in the transaction of users.remove, so the cleanup deletes it when Google never answers', async () => {
+    const t = await connectedWith('usr_003');
+    const id = await planMeeting(t, 'usr_003', { startsAt: START });
+    expect(await rowsOf(t, 'select meeting_id from google_events')).toEqual([{ meeting_id: id }]);
+    t.google.failAll((request) => request.path === '/revoke', 503);
+    // Turned off only: the connection and its events stay (decision 11 of the plan).
+    ok(await t.call('usr_001', 'users.deactivate', { id: 'usr_003' }));
+    expect(await rowsOf(t, 'select state from google_connections')).toEqual([{ state: 'ok' }]);
+    expect(await rowsOf(t, 'select meeting_id from google_events')).toEqual([{ meeting_id: id }]);
+    ok(await t.call('usr_001', 'users.remove', { id: 'usr_003' }));
+    // Removed: the row is revoking at once, and the Google events of the person are gone, whatever Google answers.
+    expect(await rowsOf(t, 'select state from google_connections')).toEqual([{ state: 'revoking' }]);
+    expect(await rowsOf(t, 'select * from google_events')).toEqual([]);
+    const [revoke] = await outboxRows(t, 'gcal.revoke');
+    expect(revoke).toMatchObject({ done: false, error: 'server' });
+    // Google never answers. The cleanup step keeps the row for one day, then deletes it with its sealed token.
+    const removedAt = t.deps.clock.now().getTime();
+    expect(await cleanup(t.deps, new Date(removedAt + GOOGLE_REVOKING_KEEP_MS - 60_000))).toMatchObject({ googleRevoking: 0 });
+    expect(await rowsOf(t, 'select state from google_connections')).toEqual([{ state: 'revoking' }]);
+    expect(await cleanup(t.deps, new Date(removedAt + GOOGLE_REVOKING_KEEP_MS + 60_000))).toMatchObject({ googleRevoking: 1 });
+    expect(await rowsOf(t, 'select * from google_connections')).toEqual([]);
   });
 
   it('does nothing for a row that is gone', async () => {

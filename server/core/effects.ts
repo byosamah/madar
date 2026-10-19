@@ -33,7 +33,11 @@ export type OutboxRow = { kind: string; payload: Record<string, unknown> };
  * (tests, scripts), every kind runs before the answer. A test keeps these names equal to the kinds of mail/ and usage/.
  */
 export const AFTER_ANSWER_KINDS: ReadonlySet<string> = new Set(['mail.notice', 'mail.quotaWarning', 'usage.limitWarning', 'push.notify', 'gcal.sync', 'gcal.revoke']);
-export type OutboxProducer = (output: unknown, saved: SaveResult, q: Query) => Promise<OutboxRow[]>;
+/**
+ * `at` is the time of the call, taken under the office lock (the stamp that the save wrote), for a producer that writes a time. runCall
+ * always gives it. It is optional only so that a test can call a producer that writes no time with three arguments.
+ */
+export type OutboxProducer = (output: unknown, saved: SaveResult, q: Query, at?: Date) => Promise<OutboxRow[]>;
 export type EffectHandler = (payload: Record<string, unknown>, deps: Deps) => Promise<void>;
 /** Only shared calls: runCall asks their producers. A server call writes its own rows (see above). */
 export type OutboxCallName = SharedCallName;
@@ -65,9 +69,9 @@ export function registerEffect(kind: string, handler: EffectHandler): () => void
 }
 
 /** The outbox rows of one call, from every producer of that call in the order they registered. */
-export async function outboxRowsOf(name: string, output: unknown, saved: SaveResult, q: Query): Promise<OutboxRow[]> {
+export async function outboxRowsOf(name: string, output: unknown, saved: SaveResult, q: Query, at: Date): Promise<OutboxRow[]> {
   const rows: OutboxRow[] = [];
-  for (const producer of EFFECTS_OF[name as OutboxCallName] ?? []) rows.push(...(await producer(output, saved, q)));
+  for (const producer of EFFECTS_OF[name as OutboxCallName] ?? []) rows.push(...(await producer(output, saved, q, at)));
   return rows;
 }
 

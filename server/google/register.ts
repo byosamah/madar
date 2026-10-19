@@ -18,7 +18,7 @@ export function registerGoogleEffects(): () => void {
     undo.push(registerEffect(SYNC_EFFECT, async (payload, deps) => void (await syncOne(deps, String(payload.userId ?? ''), String(payload.meetingId ?? '')))));
     undo.push(registerEffect(REVOKE_EFFECT, (payload, deps) => revokeOne(deps, String(payload.connectionId ?? ''), { replaced: payload.replaced === true })));
     for (const name of GCAL_CALLS) undo.push(registerOutbox(name, (_output, saved, q) => gcalRows(q, saved)));
-    undo.push(registerOutbox('users.remove', (output, _saved, q) => revokeRowsOf(q, output as { id: string })));
+    undo.push(registerOutbox('users.remove', (output, _saved, q, at) => revokeRowsOf(q, output as { id: string }, at ?? new Date())));
   } catch (error) {
     removeAll();
     throw error;

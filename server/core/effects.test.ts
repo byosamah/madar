@@ -42,10 +42,10 @@ describe('effects after the commit (plan 4.12)', () => {
 
   it('collects the outbox rows that each registered producer gives for a call, in the order they registered', async () => {
     const q = (async () => []) as Query;
-    expect(await outboxRowsOf('users.create', { id: 'usr_012' }, saved, q)).toEqual([]);
+    expect(await outboxRowsOf('users.create', { id: 'usr_012' }, saved, q, new Date('2026-10-01T06:00:00Z'))).toEqual([]);
     undo.push(registerOutbox('users.create', async (output) => [{ kind: 'auth.invite', payload: { userId: (output as { id: string }).id } }]));
     undo.push(registerOutbox('users.create', async () => [{ kind: 'mail.notice', payload: {} }]));
-    expect(await outboxRowsOf('users.create', { id: 'usr_012' }, saved, q)).toEqual([
+    expect(await outboxRowsOf('users.create', { id: 'usr_012' }, saved, q, new Date('2026-10-01T06:00:00Z'))).toEqual([
       { kind: 'auth.invite', payload: { userId: 'usr_012' } },
       { kind: 'mail.notice', payload: {} },
     ]);
