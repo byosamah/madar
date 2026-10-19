@@ -8,6 +8,10 @@
       "2026-10-23-27": {
         "title": "Quiet notices and Mark as unread",
         "body": "In Chrome and Edge, a desktop notice no longer shows while you look at Madar. The line \"Waits for your reply\" is gone. Now you can mark a chat as unread. Point at the chat, press the three dots, then press Mark as unread. On a phone, use the menu at the top of the chat. The chat stays bold until you open it again."
+      },
+      "2026-10-23-28": {
+        "title": "Frame your profile picture",
+        "body": "Now you can move and zoom a new profile picture before you save it. Choose a picture in Settings. Drag it inside the circle, move the slider to zoom, and see how it looks. Then press Save."
       }
     }
   },
@@ -17,5 +21,11 @@
   "chat": {
     "markUnread": "Mark as unread",
     "markedUnreadToast": "Marked as unread."
+  },
+  "profile": {
+    "frame": "Frame your picture",
+    "frameHint": "Drag the picture to move it. Use the slider to zoom.",
+    "zoom": "Zoom",
+    "preview": "How it looks in Madar"
   }
 }

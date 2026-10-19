@@ -48,6 +48,17 @@ export function cropPlace(width: number, height: number, crop: PictureCrop) {
   return { sx, sy, sw, sh, dx: (sx - left) / side, dy: (sy - top) / side, dw: sw / side, dh: sh / side };
 }
 
+/**
+ * The first frame of a profile picture (fbk_029): the window that holds the centre square, so the picture fills the circle, as the
+ * profile picture always did before it had a frame step. A very wide picture stops at the largest zoom (it leaves some see-through space
+ * at the sides); a square picture is the whole picture. The person moves and zooms from here.
+ */
+export function fillCrop(width: number, height: number): PictureCrop {
+  const short = Math.min(width, height);
+  if (short <= 0) return { ...DEFAULT_CROP };
+  return { zoom: clamp(Math.max(width, height) / short, 1, MAX_ZOOM), cx: 0.5, cy: 0.5 };
+}
+
 /** The size and the place of the whole picture inside a preview circle of one size, in pixels (CSS). It shows what the crop saves. */
 export function cropPreview(width: number, height: number, crop: PictureCrop, circle: number) {
   const zoom = clamp(crop.zoom, 1, MAX_ZOOM);

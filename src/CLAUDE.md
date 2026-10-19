@@ -194,7 +194,14 @@ any screen work.
   least and has a `title` with the name. The badge shows wherever a project picture shows and the data has `subCompanyId`: the lists
   of `projects.list`, the Dashboard cards (`dashboard.get` refs carry `subCompanyId`), the meeting, the map list, the Open space.
 - A new logo gets a frame step (`LogoFrame.tsx`): drag, zoom, and a preview at 18, 22 and 28 px. The crop (`PictureCrop`, `cropPlace`,
-  `cropPreview` in `lib/picture.ts`) feeds both the canvas and the CSS preview. `buildSeed` has no sub-company: the prototype adds two
+  `cropPreview` in `lib/picture.ts`) feeds both the canvas and the CSS preview. The frame itself is the shared `components/PictureFrame.tsx`
+  (drag, arrow keys, the zoom slider, `CropCircle`); the logo and the profile picture each give it their plate, words and preview row.
+- A new profile picture gets the same frame step (owner, 2026-10-23, fbk_029). Choosing a file in Settings opens `AvatarFrameSheet.tsx` (title "Frame
+  your picture", Cancel and Save), no longer a save at once. It starts as the centre square (`fillCrop`, `start="fill"`: the picture fills the circle, as
+  before the frame existed), so a person who presses Save gets what they got before. Previews are round at 72, 40 and 24 px (Settings, the chat
+  header, the bubbles) on the glow of the person (`glowOf`). Save makes the 128 px picture once from the frame (`pictureOf(file, { crop })`), then
+  `me.updateProfile` saves it with the Undo toast as before. A picture the browser cannot load closes the step and shows the old line; a picture that
+  does not fit 16 KB keeps the step open with the old line. The welcome step and the Admin forms have no picture upload. `buildSeed` has no sub-company: the prototype adds two
   (`data/sampleSubCompanies.ts`, called by `bootstrap` and `sampleOffice`). A saved prototype office keeps its data until "Reset sample data".
 - The project form shows 2 to 5 sub-companies as one row of logo choices (`SegmentedControl` with `icon`), more than 5 as a select. A
   new project starts with the only sub-company, or the one of the last project of the same client, until the person taps.
