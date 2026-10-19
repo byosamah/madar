@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MAX_ATTACHMENTS } from '../../api/contract/limits';
 import type { Attachment } from '../../api/contract/views';
@@ -19,6 +19,21 @@ import { AttachFileIcon } from '../../components/icons/animated/attach-file';
 export type UploadTarget = { projectId: string | null; stageId?: string | null; taskId?: string | null; conversationId?: string; meetingId?: string };
 
 /**
+ * The files on the clipboard of a paste (fbk_032, owner 2026-10-23), or an empty list when the paste is a text paste. A screenshot,
+ * a picture copied from a page and a file copied in the Finder or the Explorer each give files. The Finder and the Explorer also put
+ * the name of the file on the clipboard as text: that text is no real text, so the file wins. Real text beside a picture (a range of
+ * cells of a sheet) pastes as text, so the paste never loses words.
+ */
+export function pastedFiles(data: Pick<DataTransfer, 'files' | 'getData'> | null): File[] {
+  const files = [...(data?.files ?? [])];
+  if (!data || files.length === 0) return [];
+  const words = data.getData('text/plain').trim();
+  if (words === '') return files;
+  const lines = words.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  return lines.every((line) => files.some((file) => file.name === line)) ? files : [];
+}
+
+/**
  * The files a person picked for a post, a comment or a message. The files upload when the person sends,
  * and a file that went up before a failed send is not sent a second time.
  */
@@ -31,7 +46,7 @@ export function useAttachments(max: number = MAX_ATTACHMENTS, initial: File[] = 
   const [files, setFiles] = useState<File[]>(initial);
   const uploaded = useRef(new Map<File, string>());
 
-  const add = (list: FileList | null) => {
+  const add = (list: Iterable<File> | null) => {
     const chosen = [...(list ?? [])];
     // The limit of the active store, checked when the person picks the file, so nothing starts that the store refuses.
     for (const file of chosen.filter((f) => f.size > limit)) toast.show({ tone: 'error', message: tooLargeText(file.name, limit, t, lang) });
@@ -71,6 +86,104 @@ export function useAttachments(max: number = MAX_ATTACHMENTS, initial: File[] = 
   };
 
   return { files, add, upload, clear, remove: (index: number) => setFiles((list) => list.filter((_, i) => i !== index)), full: files.length >= max };
+}
+
+/** True when a drag carries files. A drag of selected text or of a link carries none, and the page leaves it alone. */
+const dragHasFiles = (event: { dataTransfer: DataTransfer | null }): boolean => [...(event.dataTransfer?.types ?? [])].includes('Files');
+
+/**
+ * A file dropped on a page opens in the browser tab and the person loses the page and the draft. While this runs, a drag of files
+ * over any part of the page is not left to the browser (fbk_030). The cursor says "not here" outside a drop zone.
+ */
+export function useBlockFileDrop(): void {
+  useEffect(() => {
+    const keep = (event: DragEvent) => {
+      if (!dragHasFiles(event)) return;
+      event.preventDefault();
+      if (event.type === 'dragover' && event.dataTransfer && !(event.target as Element | null)?.closest?.('[data-drop-zone]')) event.dataTransfer.dropEffect = 'none';
+    };
+    window.addEventListener('dragover', keep);
+    window.addEventListener('drop', keep);
+    return () => {
+      window.removeEventListener('dragover', keep);
+      window.removeEventListener('drop', keep);
+    };
+  }, []);
+}
+
+type DropHandler = (files: File[]) => void;
+const Registry = createContext<{ current: DropHandler | null } | null>(null);
+
+/**
+ * A box inside a DropZone tells the zone what to do with the files that are dropped on the zone. Without a handler (a closed chat, no
+ * right to post) the zone takes nothing and shows no overlay.
+ */
+export function useDropHandler(handler: DropHandler | null): void {
+  const registry = useContext(Registry);
+  useLayoutEffect(() => {
+    if (!registry) return undefined;
+    registry.current = handler;
+    return () => {
+      if (registry.current === handler) registry.current = null;
+    };
+  });
+}
+
+/**
+ * The drop zone of a conversation or a comment box (fbk_030, owner 2026-10-23). Files dropped on the zone go to the handler: the
+ * `onFiles` prop, or the handler that the box inside registered (useDropHandler). While files are over the zone, one quiet overlay
+ * says "Drop to attach". A drag of text shows nothing. The zone stops the browser from opening a file that is dropped anywhere.
+ */
+export function DropZone({ onFiles, className = '', children }: { onFiles?: DropHandler | null; className?: string; children: ReactNode }) {
+  const { t } = useTranslation();
+  const registry = useRef<DropHandler | null>(null);
+  // A drag fires enter and leave for every child it crosses, so the zone counts them: it is over while the count is above zero.
+  const depth = useRef(0);
+  const [over, setOver] = useState(false);
+  useBlockFileDrop();
+  const handler = () => onFiles ?? registry.current;
+  return (
+    <Registry.Provider value={registry}>
+      <div
+        data-drop-zone
+        className={`relative ${className}`}
+        onDragEnter={(event) => {
+          if (!dragHasFiles(event) || !handler()) return;
+          event.preventDefault();
+          depth.current += 1;
+          setOver(true);
+        }}
+        onDragOver={(event) => {
+          if (!dragHasFiles(event) || !handler()) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'copy';
+        }}
+        onDragLeave={(event) => {
+          if (!dragHasFiles(event) || !handler()) return;
+          depth.current = Math.max(0, depth.current - 1);
+          if (depth.current === 0) setOver(false);
+        }}
+        onDrop={(event) => {
+          if (!dragHasFiles(event)) return;
+          event.preventDefault();
+          depth.current = 0;
+          setOver(false);
+          const files = [...event.dataTransfer.files];
+          const take = handler();
+          if (take && files.length > 0) take(files);
+        }}
+      >
+        {children}
+        {over && (
+          <div aria-hidden className="pointer-events-none absolute inset-0 z-10 grid place-items-center bg-panel/90 p-3">
+            <div className="grid size-full place-items-center rounded-card border-2 border-dashed border-ink/20">
+              <span className="text-headline text-ink-2">{t('attachments.drop')}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </Registry.Provider>
+  );
 }
 
 /** The "Attach files" control. The compact form is a round icon button, for the chat box. */

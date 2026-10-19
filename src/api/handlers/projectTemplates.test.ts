@@ -57,6 +57,28 @@ describe('project templates', () => {
     await expect(t.api.call('projectTemplates.save', draft({ stages: twice, tasks: [] }))).rejects.toMatchObject({ details: { reason: 'duplicate_stage' } });
   });
 
+  it('lets a task move to another stage of the template, keeps its id and days, and records one change that Undo takes back (fbk_031)', async () => {
+    const t = world();
+    const saved = await t.api.call('projectTemplates.save', draft());
+    const moved = draft({ tasks: draft().tasks.map((task) => (task.id === 't1' ? { ...task, stageId: 's2' } : task)) });
+    const row = await t.api.call('projectTemplates.save', { ...moved, id: saved.id });
+    expect(row.tasks.map((task) => [task.id, task.stageId, task.startOffset, task.durationDays])).toEqual([['t1', 's2', 0, 10], ['t2', 's2', 10, 5]]);
+    expect(row.stages.map((stage) => stage.id)).toEqual(['s1', 's2']);
+    const events = Object.values(t.store.state.events).filter((e) => e.verb === 'projectTemplate.updated');
+    expect(events).toHaveLength(1);
+    await t.api.call('events.undo', { eventId: events[0].id });
+    expect(t.store.state.projectTemplates![saved.id].tasks.map((task) => [task.id, task.stageId])).toEqual([['t1', 's1'], ['t2', 's2']]);
+  });
+
+  it('lets the last task leave a stage: a stage with no task is still a stage', async () => {
+    const t = world();
+    const saved = await t.api.call('projectTemplates.save', draft());
+    const moved = draft({ tasks: draft().tasks.map((task) => ({ ...task, stageId: 's2' })) });
+    const row = await t.api.call('projectTemplates.save', { ...moved, id: saved.id });
+    expect(row.tasks.every((task) => task.stageId === 's2')).toBe(true);
+    expect(row.stages).toHaveLength(2);
+  });
+
   it('refuses an id twice in one template, a task of a missing stage, and a task of a missing role', async () => {
     const t = world();
     // The role took the id first, so the stage with the same id is the one refused.

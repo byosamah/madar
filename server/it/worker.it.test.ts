@@ -107,13 +107,13 @@ describe.each(HOSTS)('the server on $name', (host) => {
     for (let n = 0; n < 3; n += 1) {
       const response = await fetch(`${host.base}/api/health`, { headers: { 'x-madar-jobs-secret': JOBS_SECRET } });
       expect(response.status).toBe(200);
-      expect(await response.json()).toEqual({ ok: true, region: host.region, calls: 142, host: host.name, fileStore: 'supabase', checks: { database: 'ok', lock: 'ok', asyncContext: 'ok' } });
+      expect(await response.json()).toEqual({ ok: true, region: host.region, calls: 143, host: host.name, fileStore: 'supabase', checks: { database: 'ok', lock: 'ok', asyncContext: 'ok' } });
     }
   });
 
   it('answers GET /api/health without the secret from memory, and refuses a wrong secret', async () => {
     const open = await fetch(`${host.base}/api/health`);
-    expect([open.status, await open.json()]).toEqual([200, { ok: true, region: host.region, calls: 142, host: host.name, fileStore: 'supabase' }]);
+    expect([open.status, await open.json()]).toEqual([200, { ok: true, region: host.region, calls: 143, host: host.name, fileStore: 'supabase' }]);
     const wrong = await fetch(`${host.base}/api/health`, { headers: { 'x-madar-jobs-secret': 'guess' } });
     expect(wrong.status).toBe(401);
   });

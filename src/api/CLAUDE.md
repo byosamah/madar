@@ -73,6 +73,10 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - Template tasks and stages can wait for other parts of their own template (`prerequisiteIds`, fbk_008). `projectTemplates.save`
   refuses a wait on a missing part (`prerequisite_not_in_template`), a repeated wait and a loop (`dependency_cycle`, `hasCycle`
   in `flow.ts`). A new project links the waits to its new ids. A task with waits is `dynamic` there, with its planned working days.
+- A task may move to another stage of its template (fbk_031, owner 2026-10-23): `projectTemplates.save` only checks that `stageId` names a stage of the same
+  template (`assertParts`), so a move is a plain save of the same task id with a new `stageId` (one `projectTemplate.updated` event; Undo takes it back).
+  The update of linked projects (`syncDiff`) has no kind for it: the project task keeps its stage, and its dates follow the offsets as before. A task
+  that is new to a project still comes under the stage that the template names.
 - Stage templates merged into project templates. Their calls stay in the contract, their screens are gone. Version 9 and the
   migration `20261005000100_project_templates.sql` made one project template from each stage template, once.
 - Link an older project (fbk_008 item 4): `projectTemplates.matchPlan` reads the matches by name (`matchByNames`,
@@ -154,6 +158,14 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   quiet lines (added, removed, left, renamed); `chats.messages` returns them as `lines` for a group. They are no messages, so no
   unread count, preview or push reads them. `chats.updateGroup` sends the trigger `added_to_group` (in-app only) to each added person.
   `NotificationView.chatKind` and `target` (the group name while the viewer is a member) let a group notice name the group.
+- Mark as unread (owner, 2026-10-19, fbk_028): `chats.markUnread { conversationId }` (a chat or a task thread) answers `{ unread: true }`. It sets
+  `ChatRead.markedUnread` (optional, so there is no `STATE_VERSION` step and no migration: the table keeps the whole record in `doc`). `unreadIn` and
+  `taskUnread` count at least 1 for a marked chat, and the mark never adds to a real count (3 new messages stay 3). A read mark ends it: `writeReadMark`
+  (`chats.markRead`, `chats.send`, an archive) drops the field. An archived chat comes back to the Inbox, so the badge never counts a chat that is out of
+  the list. It writes no event, no notice and no push, and its only signal is the kind `chatReads` to the person. The checks are those of
+  `chats.markRead` and `chats.archive`, so a hidden chat answers the same way. Its loader is that of `chats.archive`; `WRITE_KINDS`: `['chatReads']`.
+  MCP: deny list, as `chats.markRead` (an unread mark is the own reminder of the person; `INSTRUCTIONS` says so). `chats.waiting` stays in the contract
+  and on the MCP allow list, but no screen reads it any more.
 - Files of a direct chat or a group (owner, 2026-10-19): `files.upload` and `files.uploadStart` take `conversationId` in place of a
   project or an office task. `FileRec.conversationId` (optional, so older files load) names the chat; `projectId`, `stageId` and `taskId`
   are null. `mayViewFile` is `canSeeConversation` of that chat: exactly the people who read its messages, never the Admin who is not a

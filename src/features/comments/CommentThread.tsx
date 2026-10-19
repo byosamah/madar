@@ -18,7 +18,7 @@ import { Menu } from '../../components/Menu';
 import { RichText } from '../../components/RichText';
 import { editedBody, plainText, withMentionMarkup } from '../../lib/text';
 import { LoadFailed } from '../../components/LoadFailed';
-import { AttachButton, PickedFiles, useAttachments } from '../files/Attachments';
+import { AttachButton, DropZone, PickedFiles, pastedFiles, useAttachments } from '../files/Attachments';
 import { AttachmentList } from '../files/PictureAttachments';
 import { DateMoveLines } from '../project/tasks/DateReason';
 import { reasonLineText, type ReasonKind } from './ReasonLine';
@@ -191,34 +191,44 @@ function CommentThreadFor({
   // A new object on each render: the ages of the comments read the clock on each key, as before the memo (RND-3).
   const refresh = {};
   return (
-    <section aria-label={t('comments.title')} className="flex flex-col gap-3">
-      <h3 className="text-headline">{t('comments.title')}</h3>
-      {comments.error && <LoadFailed error={comments.error} onRetry={() => void comments.refetch()} />}
-      {comments.data && list.length === 0 && <p className="text-footnote text-label-2">{t('comments.empty')}</p>}
-      {list.length > 0 && (
-        <AgeRefresh.Provider value={refresh}>
-          <ol className="flex flex-col gap-3">
-            {list.map((view) => <CommentItem key={view.comment.id} view={view} people={people} canPost={canPost} />)}
-          </ol>
-        </AgeRefresh.Provider>
-      )}
-      {canPost ? (
-        <form
-          className="flex flex-col gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const text = withMentionMarkup(body.trim(), people);
-            if (text && !uploading) void send(text);
-          }}
-        >
-          <MentionField id={`comment-${targetId}`} label={t('comments.add')} value={body} onChange={setBody} people={people} placeholder={t('comments.placeholder')} rows={2} />
-          <PickedFiles files={attachments.files} onRemove={attachments.remove} />
-          <div className="flex items-center justify-between gap-2">
-            <AttachButton onPick={attachments.add} />
-            <Button variant={body.trim() ? 'primary' : 'secondary'} type="submit" disabled={!body.trim() || create.isPending || uploading}>{t('comments.send')}</Button>
-          </div>
-        </form>
-      ) : <p className="text-footnote text-label-2">{t('comments.cannot')}</p>}
-    </section>
+    // Files dropped on the comments go into the same list as the attach button (fbk_030), where the person may post.
+    <DropZone onFiles={canPost ? attachments.add : null}>
+      <section aria-label={t('comments.title')} className="flex flex-col gap-3">
+        <h3 className="text-headline">{t('comments.title')}</h3>
+        {comments.error && <LoadFailed error={comments.error} onRetry={() => void comments.refetch()} />}
+        {comments.data && list.length === 0 && <p className="text-footnote text-label-2">{t('comments.empty')}</p>}
+        {list.length > 0 && (
+          <AgeRefresh.Provider value={refresh}>
+            <ol className="flex flex-col gap-3">
+              {list.map((view) => <CommentItem key={view.comment.id} view={view} people={people} canPost={canPost} />)}
+            </ol>
+          </AgeRefresh.Provider>
+        )}
+        {canPost ? (
+          <form
+            className="flex flex-col gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const text = withMentionMarkup(body.trim(), people);
+              if (text && !uploading) void send(text);
+            }}
+            // A picture or a file on the clipboard goes into the same list as the attach button (fbk_032). A text paste stays as it was.
+            onPaste={(event) => {
+              const pasted = pastedFiles(event.clipboardData);
+              if (pasted.length === 0) return;
+              event.preventDefault();
+              attachments.add(pasted);
+            }}
+          >
+            <MentionField id={`comment-${targetId}`} label={t('comments.add')} value={body} onChange={setBody} people={people} placeholder={t('comments.placeholder')} rows={2} />
+            <PickedFiles files={attachments.files} onRemove={attachments.remove} />
+            <div className="flex items-center justify-between gap-2">
+              <AttachButton onPick={attachments.add} />
+              <Button variant={body.trim() ? 'primary' : 'secondary'} type="submit" disabled={!body.trim() || create.isPending || uploading}>{t('comments.send')}</Button>
+            </div>
+          </form>
+        ) : <p className="text-footnote text-label-2">{t('comments.cannot')}</p>}
+      </section>
+    </DropZone>
   );
 }

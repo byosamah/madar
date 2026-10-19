@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ProjectTemplate } from '../../../api/contract/entities';
 import {
   addRole, addStage, addTask, addWait, draftError, draftInput, draftProblem, draftOf, draftPlanTemplate, duplicateDraft, emptyDraft, moveStage, moveStageStart, removeRole,
-  importStages, removeStage, removeTask, startsBeforeStageAbove, tasksEndDay, type TemplateDraft,
+  importStages, moveTaskToStage, removeStage, removeTask, startsBeforeStageAbove, tasksEndDay, touchTask, type TemplateDraft,
 } from './templateDraft';
 
 const SAVED: ProjectTemplate = {
@@ -448,5 +448,93 @@ describe('addWait: a link that points back moves the waiting part (ADM-08)', () 
     const draft = two();
     expect(addWait(draft, 'task', 't3', 't1')).toEqual({ draft, moved: [] });
     expect(addWait(draft, 'task', 't1', 'tX')).toEqual({ draft, moved: [] });
+  });
+});
+
+describe('moveTaskToStage: a task goes to another stage (fbk_031)', () => {
+  // s1 Concept: t1 (day 0, 10 days), t2 (day 10, 2 days). s2 Permits: own days 20 to 30, t3 (day 20, 10 days).
+  const base = (): TemplateDraft => {
+    const draft = draftOf(SAVED);
+    return { ...draft, tasks: [...draft.tasks, { ...draft.tasks[0], id: 't3', stageId: 's2', title: 'Balady pack', start: '20', days: '10' }], partSeq: 3 };
+  };
+
+  it('changes only the stage of a saved task: its days stay where they are', () => {
+    const moved = moveTaskToStage(base(), 't1', 's2');
+    expect(moved.tasks.find((task) => task.id === 't1')).toMatchObject({ stageId: 's2', start: '0', days: '10' });
+    // Nothing else changed: the other tasks, the stages and the waits are the same.
+    expect(moved.tasks.find((task) => task.id === 't2')).toEqual(base().tasks[1]);
+    expect(moved.stages).toEqual(base().stages);
+  });
+
+  it('keeps the list grouped by stage: the task goes after the last task of its new stage', () => {
+    const moved = moveTaskToStage(base(), 't1', 's2');
+    expect(moved.tasks.map((task) => task.id)).toEqual(['t2', 't3', 't1']);
+    // A stage with no task yet takes the task at the end of the list.
+    const lonely = moveTaskToStage(addStage(base()), 't2', 's4');
+    expect(lonely.tasks.map((task) => task.id)).toEqual(['t1', 't3', 't2']);
+    expect(lonely.tasks.at(-1)?.stageId).toBe('s4');
+  });
+
+  it('gives the draft back for the same stage, a stage that is not there, and a task that is not there', () => {
+    const draft = base();
+    expect(moveTaskToStage(draft, 't1', 's1')).toBe(draft);
+    expect(moveTaskToStage(draft, 't1', 's9')).toBe(draft);
+    expect(moveTaskToStage(draft, 't9', 's2')).toBe(draft);
+  });
+
+  it('puts a task that was just added, and not touched, where Add task would put it in the new stage', () => {
+    // The person adds a task to Concept (it starts at day 12, where t2 ends), then picks Permits for it: it starts after t3, at day 30.
+    const added = addTask(base(), 's1');
+    const fresh = added.tasks.find((task) => task.id === 't4')!;
+    expect(fresh).toMatchObject({ stageId: 's1', start: '12', days: '5' });
+    const moved = moveTaskToStage(added, 't4', 's2');
+    expect(moved.tasks.find((task) => task.id === 't4')).toMatchObject({ stageId: 's2', start: '30', days: '5' });
+    // Into an empty stage with its own start day: the task starts at that day.
+    const stage = addStage(added);
+    const own = { ...stage, stages: stage.stages.map((part) => (part.id === 's4' ? { ...part, start: '40', days: '8' } : part)) };
+    expect(moveTaskToStage(own, 't4', 's4').tasks.find((task) => task.id === 't4')).toMatchObject({ stageId: 's4', start: '40' });
+  });
+
+  it('keeps the days of a new task that the person already set (touchTask): the days are the choice of the person', () => {
+    const added = addTask(base(), 's1');
+    const touched = { ...added, tasks: added.tasks.map((task) => (task.id === 't4' ? touchTask({ ...task, start: '15' }) : task)) };
+    expect(touched.tasks.find((task) => task.id === 't4')).not.toHaveProperty('fresh');
+    expect(moveTaskToStage(touched, 't4', 's2').tasks.find((task) => task.id === 't4')).toMatchObject({ stageId: 's2', start: '15' });
+  });
+
+  it('keeps the days of a new task that waits for another task: the wait set its place', () => {
+    const added = addWait(addTask(base(), 's1'), 'task', 't4', 't3').draft;
+    const waiting = added.tasks.find((task) => task.id === 't4')!;
+    expect(waiting.start).toBe('30');
+    expect(moveTaskToStage(added, 't4', 's2').tasks.find((task) => task.id === 't4')).toMatchObject({ stageId: 's2', start: '30' });
+  });
+
+  it('writes nothing about a new task into the saved parts, and a saved task is never new', () => {
+    const added = addTask(base(), 's1');
+    expect(added.tasks.find((task) => task.id === 't4')).toMatchObject({ fresh: true });
+    expect(draftInput(added).tasks.find((task) => task.id === 't4')).not.toHaveProperty('fresh');
+    expect(draftOf(SAVED).tasks.some((task) => 'fresh' in task)).toBe(false);
+    expect(draftOf(SAVED).tasks).toEqual(draftOf(SAVED).tasks.map((task) => ({ ...task })));
+  });
+
+  it('shows the note that the tasks of the new stage end after its own days, when the move makes them so', () => {
+    // Permits has own days 20 to 30. Moving t1 (day 0, 10 days) there keeps day 0 to 10: it ends before the stage, so the span starts early.
+    const moved = moveTaskToStage(base(), 't2', 's2');
+    expect(tasksEndDay(moved, 's2')).toBeNull();
+    const late = moveTaskToStage({ ...base(), tasks: base().tasks.map((task) => (task.id === 't1' ? { ...task, start: '28', days: '9' } : task)) }, 't1', 's2');
+    expect(tasksEndDay(late, 's2')).toBe(36);
+  });
+
+  it('keeps a task that waits for others, and the tasks that wait for it, linked after the move', () => {
+    const linked = addWait(base(), 'task', 't3', 't1').draft;
+    const moved = moveTaskToStage(linked, 't1', 's2');
+    expect(moved.tasks.find((task) => task.id === 't3')?.prerequisiteIds).toEqual(['t1']);
+    expect(moved.tasks.find((task) => task.id === 't1')).toMatchObject({ stageId: 's2' });
+  });
+
+  it('is accepted by the save: the input holds the task under its new stage', () => {
+    const moved = moveTaskToStage(base(), 't1', 's2');
+    expect(draftError(moved)).toBeNull();
+    expect(draftInput(moved).tasks.find((task) => task.id === 't1')).toMatchObject({ stageId: 's2', startOffset: 0, durationDays: 10 });
   });
 });

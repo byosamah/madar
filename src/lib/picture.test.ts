@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bytesOfDataUrl, centreSquare, containSquare, cropPlace, cropPreview, DEFAULT_CROP, MAX_ZOOM, encodePngSmallest, encodeSmallest, hasSeeThrough, PICTURE_MAX_BYTES, pictureType, safePicture } from './picture';
+import { bytesOfDataUrl, centreSquare, containSquare, cropPlace, cropPreview, DEFAULT_CROP, fillCrop, MAX_ZOOM, encodePngSmallest, encodeSmallest, hasSeeThrough, PICTURE_MAX_BYTES, pictureType, safePicture } from './picture';
 
 describe('the profile picture helpers (owner item 10, 2026-10-05)', () => {
   it('shows only picture data and https addresses', () => {
@@ -121,5 +121,25 @@ describe('the crop of a logo', () => {
     // A 400 by 200 picture at zoom 2, centred, in a 100 px circle: the picture is 200 by 100 px, shifted so its middle is the middle.
     expect(cropPreview(400, 200, { zoom: 2, cx: 0.5, cy: 0.5 }, 100)).toEqual({ width: 200, height: 100, left: -50, top: 0 });
     expect(cropPreview(400, 200, DEFAULT_CROP, 100)).toEqual({ width: 100, height: 50, left: 0, top: 25 });
+  });
+});
+
+describe('the first frame of a profile picture (fbk_029)', () => {
+  it('starts as the centre square that the profile picture always had: the window fills the circle, with no empty space', () => {
+    // A 400 by 200 picture: the window is 200 by 200, in the middle. It is the cut of centreSquare.
+    expect(fillCrop(400, 200)).toEqual({ zoom: 2, cx: 0.5, cy: 0.5 });
+    expect(cropPlace(400, 200, fillCrop(400, 200))).toEqual({ sx: 100, sy: 0, sw: 200, sh: 200, dx: 0, dy: 0, dw: 1, dh: 1 });
+    expect(cropPlace(200, 600, fillCrop(200, 600))).toEqual({ sx: 0, sy: 200, sw: 200, sh: 200, dx: 0, dy: 0, dw: 1, dh: 1 });
+    const { sx, sy, side } = centreSquare(400, 200);
+    expect(cropPlace(400, 200, fillCrop(400, 200))).toMatchObject({ sx, sy, sw: side, sh: side });
+  });
+
+  it('starts at zoom 1 for a square picture, and never above the largest zoom for a very wide one', () => {
+    expect(fillCrop(300, 300)).toEqual(DEFAULT_CROP);
+    expect(fillCrop(2000, 100).zoom).toBe(MAX_ZOOM);
+  });
+
+  it('gives the whole picture for a picture of no size', () => {
+    expect(fillCrop(0, 0)).toEqual(DEFAULT_CROP);
   });
 });

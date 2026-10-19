@@ -158,6 +158,7 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'chats.send': chat(chatsSend),
   'chats.markRead': chat(chatsMarkRead),
   'chats.archive': chat(chatsArchive),
+  'chats.markUnread': chat(chatsArchive),
   'chats.openDirect': office,
   'chats.createGroup': office,
   'chats.updateGroup': office,

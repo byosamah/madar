@@ -13,7 +13,7 @@ import { LoadFailed } from '../../components/LoadFailed';
 import { Menu } from '../../components/Menu';
 import { ProjectTile } from '../../components/ProjectTile';
 import { Composer, MessageLog, type Bubble } from './Thread';
-import { ArchiveMenu } from './ChatList';
+import { ChatMenu, chatMenuItems } from './ChatList';
 import { GroupPicture } from './GroupPicture';
 import { GroupSheets, type GroupMode } from './GroupSheets';
 import { useArchive } from './archive';
@@ -21,6 +21,7 @@ import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-ch
 import { actorContext } from '../../lib/grammar';
 import { taskLink } from '../../lib/params';
 import { useMarkTaskRead } from '../comments/markRead';
+import { DropZone } from '../files/Attachments';
 import { useEarlierMessages } from './earlier';
 
 function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: ReactNode; subtitle: ReactNode; action?: ReactNode }) {
@@ -71,26 +72,24 @@ function bubbleOfLine(line: GroupLine): Bubble {
 }
 
 /**
- * The menu of a group (UX audit 2026-10-19, chats-07): Rename and Archive. The people, adding people and leaving moved to the People
- * sheet, which one press on the count or on the picture opens. The archive item is the same as in the list (ArchiveMenu).
+ * The menu of a group (UX audit 2026-10-19, chats-07): Rename, Mark as unread and Archive. The people, adding people and leaving moved to
+ * the People sheet, which one press on the count or on the picture opens. The other items are the same as in the list (chatMenuItems).
  */
-function GroupMenu({ id, archived, title, onPick, onArchive }: {
-  id: string; archived: boolean; title: string; onPick: (mode: GroupMode) => void; onArchive: (id: string, archived: boolean) => void;
+function GroupMenu({ id, archived, unread, title, onPick, onArchive, onMarkUnread }: {
+  id: string; archived: boolean; unread: number; title: string; onPick: (mode: GroupMode) => void; onArchive: (id: string, archived: boolean) => void;
+  onMarkUnread: (id: string) => void;
 }) {
   const { t } = useTranslation();
   return (
     <Menu
       label={t('chat.optionsFor', { title })}
-      items={[
-        { label: t('chat.rename'), onSelect: () => onPick('rename') },
-        { label: archived ? t('chat.moveBack') : t('chat.archive'), onSelect: () => onArchive(id, !archived) },
-      ]}
+      items={[{ label: t('chat.rename'), onSelect: () => onPick('rename') }, ...chatMenuItems(t, { id, archived, unread, onArchive, onMarkUnread })]}
     />
   );
 }
 
 /** A project chat, a direct chat or a group. Opening it marks it read. */
-export function ChatPane({ id }: { id: string }) {
+export function ChatPane({ id, onMarkUnread }: { id: string; onMarkUnread: (id: string) => void }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const session = useCall('session.get', {});
@@ -108,10 +107,15 @@ export function ChatPane({ id }: { id: string }) {
     ? messageBubbles
     : [...messageBubbles, ...lineBubbles].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || (a.line ? 1 : 0) - (b.line ? 1 : 0));
   const unread = data?.chat.unread ?? 0;
+  // Opening the chat marks it read, and so does a new message while it is open. The newest message and the load are the triggers, not the
+  // number: a person who marks the open chat as unread (fbk_028) gets 1 with no new message, and the open chat must not end that mark.
+  const newest = messages.at(-1)?.message.id;
+  const loaded = data !== undefined;
   useEffect(() => {
     if (unread > 0) markRead.mutate({ conversationId: id });
-    // The mutation object changes on every render. Only a new count of unread messages matters here.
-  }, [id, unread]);
+    // The mutation object changes on every render, and the number is read when the chat loads or a message arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, loaded, newest]);
   if (thread.error) return <div className="p-4"><LoadFailed error={thread.error} onRetry={() => void thread.refetch()} /></div>;
   if (!data) return <div className="flex-1" aria-busy="true" />;
   const { chat } = data;
@@ -137,14 +141,14 @@ export function ChatPane({ id }: { id: string }) {
     : chat.kind === 'project' ? t('chat.projectChat') : chat.personLeft ? t('chat.inactive', { context }) : t('chat.directChat');
   const title = chat.kind === 'direct' && chat.person ? nameOf(chat.person) : chat.title;
   return (
-    <>
+    <DropZone className="flex min-h-0 flex-1 flex-col">
       <Header
         lead={lead}
         title={<bdi>{title}</bdi>}
         subtitle={subtitle}
         action={isGroup
-          ? <GroupMenu id={id} archived={chat.archived} title={title} onPick={setSheet} onArchive={archive} />
-          : <ArchiveMenu id={id} archived={chat.archived} title={title} onArchive={archive} />}
+          ? <GroupMenu id={id} archived={chat.archived} unread={chat.unread} title={title} onPick={setSheet} onArchive={archive} onMarkUnread={onMarkUnread} />
+          : <ChatMenu id={id} archived={chat.archived} unread={chat.unread} title={title} onArchive={archive} onMarkUnread={onMarkUnread} />}
       />
       <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} />
       {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{isGroup ? t('chat.groupAlone') : t('chat.closed')}</p> : (
@@ -158,7 +162,7 @@ export function ChatPane({ id }: { id: string }) {
         />
       )}
       {isGroup && <GroupSheets id={id} mode={sheet} onMode={setSheet} name={chat.title} people={data.people} me={session.data?.authority} makerId={chat.makerId} />}
-    </>
+    </DropZone>
   );
 }
 
@@ -166,7 +170,7 @@ const NO_COMMENTS: CommentView[] = [];
 const NO_LINES: GroupLine[] = [];
 
 /** The comments of one task as a chat. A message posts a task comment. */
-export function TaskPane({ id }: { id: string }) {
+export function TaskPane({ id, onMarkUnread }: { id: string; onMarkUnread: (id: string) => void }) {
   const { t } = useTranslation();
   const task = useCall('tasks.get', { id });
   // An office task has no project (owner, 2026-10-06): its people are its maker, its lead and its helpers.
@@ -205,7 +209,7 @@ export function TaskPane({ id }: { id: string }) {
   const people = (where ? (project.data?.members ?? []).map((member) => member.user) : officePeople)
     .filter((user, index, list) => user.id !== me && list.findIndex((other) => other.id === user.id) === index);
   return (
-    <>
+    <DropZone className="flex min-h-0 flex-1 flex-col">
       <Header
         lead={<span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><AnimatedIcon icon={ClipboardCheckIcon} size={18} aria-hidden /></span>}
         title={<bdi>{task.data.task.title}</bdi>}
@@ -218,7 +222,7 @@ export function TaskPane({ id }: { id: string }) {
             >
               {t('chat.openTask')}
             </Link>
-            <ArchiveMenu id={id} archived={row?.archived ?? false} title={task.data.task.title} onArchive={archive} />
+            <ChatMenu id={id} archived={row?.archived ?? false} unread={row?.unread ?? 0} title={task.data.task.title} onArchive={archive} onMarkUnread={onMarkUnread} />
           </>
         )}
       />
@@ -232,14 +236,14 @@ export function TaskPane({ id }: { id: string }) {
           onSend={(body, fileIds, clear) => create.mutate({ targetType: 'task', targetId: id, body, fileIds }, { onSuccess: clear })}
         />
       ) : <p className="border-t border-hairline p-3 text-footnote text-ink-2">{t('comments.cannot')}</p>}
-    </>
+    </DropZone>
   );
 }
 
 /** What shows beside the list. A task thread has a task id. Anything else is a chat. */
-export function ConversationPane({ id }: { id: string }) {
+export function ConversationPane({ id, onMarkUnread }: { id: string; onMarkUnread: (id: string) => void }) {
   const { t } = useTranslation();
-  if (id.startsWith('tsk_')) return <TaskPane key={id} id={id} />;
-  if (id.startsWith('cnv_')) return <ChatPane key={id} id={id} />;
+  if (id.startsWith('tsk_')) return <TaskPane key={id} id={id} onMarkUnread={onMarkUnread} />;
+  if (id.startsWith('cnv_')) return <ChatPane key={id} id={id} onMarkUnread={onMarkUnread} />;
   return <div className="p-4"><EmptyState title={t('common.loadFailed')} body={t('errors.not_found')} /></div>;
 }

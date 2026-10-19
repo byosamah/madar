@@ -70,6 +70,9 @@ any screen work.
   (`vite.config.ts`) drops the file from its dist; `check-bundles.ts` fails a prototype with it and a remote build without it.
 - The public VAPID key comes from `VITE_VAPID_PUBLIC_KEY` (`config/remote.<env>.env`). Without it the section says push is not set up.
 - A sign-out unsubscribes the browser, so the person who stays signed out gets no push.
+- No notice while Madar is in front (owner, 2026-10-23, fbk_028): `public/sw.js` shows no line when a window of Madar is visible and has the focus, in
+  Chromium only. Firefox and an engine that is not known show it. WebKit (Safari, and every browser on an iPhone) revokes the subscription of a site that gets a push and shows no notice, so
+  there the line always shows, as the first thing the worker does. An engine that is not known shows it too. Record and reasons: `server/push/CLAUDE.md`.
 - Push is on by default (owner, 2026-10-09). A browser lets a page turn push on only after a tap on Allow, so each new device gets
   one ask: `features/home/PushAskCard.tsx`, a small card under Today on Home with one short line and one button (not the main
   button; `canAsk` in `push.ts`). Any answer ends the ask; a closed question leaves it. The permission then stays in the browser, so
@@ -203,7 +206,14 @@ any screen work.
   least and has a `title` with the name. The badge shows wherever a project picture shows and the data has `subCompanyId`: the lists
   of `projects.list`, the Dashboard cards (`dashboard.get` refs carry `subCompanyId`), the meeting, the map list, the Open space.
 - A new logo gets a frame step (`LogoFrame.tsx`): drag, zoom, and a preview at 18, 22 and 28 px. The crop (`PictureCrop`, `cropPlace`,
-  `cropPreview` in `lib/picture.ts`) feeds both the canvas and the CSS preview. `buildSeed` has no sub-company: the prototype adds two
+  `cropPreview` in `lib/picture.ts`) feeds both the canvas and the CSS preview. The frame itself is the shared `components/PictureFrame.tsx`
+  (drag, arrow keys, the zoom slider, `CropCircle`); the logo and the profile picture each give it their plate, words and preview row.
+- A new profile picture gets the same frame step (owner, 2026-10-23, fbk_029). Choosing a file in Settings opens `AvatarFrameSheet.tsx` (title "Frame
+  your picture", Cancel and Save), no longer a save at once. It starts as the centre square (`fillCrop`, `start="fill"`: the picture fills the circle, as
+  before the frame existed), so a person who presses Save gets what they got before. Previews are round at 72, 40 and 24 px (Settings, the chat
+  header, the bubbles) on the glow of the person (`glowOf`). Save makes the 128 px picture once from the frame (`pictureOf(file, { crop })`), then
+  `me.updateProfile` saves it with the Undo toast as before. A picture the browser cannot load closes the step and shows the old line; a picture that
+  does not fit 16 KB keeps the step open with the old line. The welcome step and the Admin forms have no picture upload. `buildSeed` has no sub-company: the prototype adds two
   (`data/sampleSubCompanies.ts`, called by `bootstrap` and `sampleOffice`). A saved prototype office keeps its data until "Reset sample data".
 - The project form shows 2 to 5 sub-companies as one row of logo choices (`SegmentedControl` with `icon`), more than 5 as a select. A
   new project starts with the only sub-company, or the one of the last project of the same client, until the person taps.
@@ -235,6 +245,13 @@ any screen work.
   a stage start moves its tasks by the same days (`moveStageStart`, on blur), a new wait that points back moves the waiting part
   (`addWait`, with an Undo toast), a save problem names its part and field (`draftProblem`), and Cancel, Escape and the close button ask
   "Discard the changes?" when the draft changed (a control with `data-autofocus` takes the focus in a sheet).
+  The details of a task have a **Stage** field under the title (fbk_031, owner 2026-10-23: a person could not pick the stage of a task, new or old).
+  `moveTaskToStage` (`templateDraft.ts`) has one rule: the move changes the stage and nothing else, so the days of a task stay where they are and the
+  waits stay true; a note under the field says when the days are outside the own days of the new stage (`taskOutsideStage`; the stage panel keeps
+  its notes `tasksEndDay` and `startsBeforeStageAbove`). The one exception is a task that Add task just made and the person has not touched
+  (`DraftTask.fresh`, set by `addTask`, cleared by `touchTask` when the person or a bar of the chart sets its days; a task with a wait is never
+  placed again): it goes where Add task would put it in the new stage. The list stays grouped by stage: the moved task goes after the last task of
+  its new stage. `fresh` lives in the draft only; `draftInput` and `draftOf` never carry it.
 - Apply a template (owner, 2026-10-19, fbk_020): "Apply a template" in the "More actions" menu of the project header
   (`features/project/ApplyTemplateSheet.tsx`), for `viewerCan.edit` (the leader and the Admin) on an active or paused project. Step 1 is a
   list of the office templates (name, stages, tasks); one press opens step 2, `LinkProjectSheet` in `mode="apply"` over it (same matching,
@@ -309,7 +326,13 @@ any screen work.
   have its row). An archive and a move back show a toast with Undo (`archive.ts`, `useArchive`; `chats.archive` writes no event, so
   the Undo calls it again with the other value). The menu button of a row shows on hover or focus only (`pointer-coarse:hidden`,
   `max-sm:hidden`); on a phone or a finger a swipe on the row archives it. The menu button names its chat ("Options for <title>").
-- A chat that was read and waits for a reply shows "Waits for your reply" on its row (`chats.waiting` in `InboxScreen`).
+- No "Waits for your reply" line (owner, 2026-10-19, fbk_028): the Inbox does not call `chats.waiting` any more (the call stays for agents). In its
+  place the menu of a chat has "Mark as unread" (`chatMenuItems` in `ChatList.tsx`: the row menu, and the menu in the header of the open chat, which is
+  the way on a phone). It shows only for a chat with nothing unread that is not archived. The call is `chats.markUnread`; the toast "Marked as unread."
+  has Undo, which calls `chats.markRead` (`inbox/markUnread.ts`, kept in `InboxScreen` so the toast stays when the open chat closes). The open chat
+  goes back to the list. The chat is bold again, the badge counts it, until the person opens it again. `ChatPane` marks a chat read when it loads and
+  when a new message comes (the triggers are the load and the newest message, not the number), so a mark set on the open chat stays; `useMarkTaskRead`
+  also sends the mark for a thread that the cached list shows as unread, so a thread whose newest comment is the own comment of the person ends it too.
 - A group has one picture, `GroupPicture` (the glow of its id and a people icon), never a stack of faces. The header shows the
   count of people ("4 people") as a button; it and the picture open the People sheet (`GroupSheets.tsx`): names with "You" and
   "Group maker", Add people at the top, Remove on each other row for the maker (toast with Undo), Leave group at the end (a confirm
@@ -319,6 +342,17 @@ any screen work.
 - Every chat takes files (owner, 2026-10-19). The box of a project chat uploads into the files of its project. The box of a direct chat
   and of a group uploads into the chat itself (`UploadTarget.conversationId`, `ConversationPane.tsx`), with the same attach button and
   the same limits. A chat file shows in no Files tab and no search.
+- A paste into the box takes a picture or a file from the clipboard (owner, 2026-10-23, fbk_032): `pastedFiles` (`features/files/Attachments.tsx`)
+  gives the files of a paste, and they go into the same `useAttachments` list as the attach button, with the same limits and the same
+  upload target. Text stays a text paste: a clipboard with real text beside a picture (a range of cells) gives no file. The Finder and the
+  Explorer put the file name on the clipboard as text; that text does not count, and the paste of a file stops, so the name is not typed too.
+  The Inbox box (`Composer` in `Thread.tsx`: project chat, direct chat, group and task thread) and the comment box of the task panel
+  (`CommentThread.tsx`) both do it.
+- A drop of files on the open conversation goes into the same list (owner, 2026-10-23, fbk_030). `DropZone` (`features/files/Attachments.tsx`)
+  wraps the whole pane (`ChatPane`, `TaskPane`) and the comments of the task panel. The box inside tells the zone what to do with the files
+  (`useDropHandler`; a closed chat registers none, so the zone shows nothing and takes nothing). While files are over the zone one quiet overlay
+  says "Drop to attach" (`attachments.drop`); a drag of text shows nothing. `useBlockFileDrop` (the zone and `InboxScreen`) stops the browser from
+  opening a file that is dropped anywhere else, with or without an open chat, and sets the cursor to "not here" outside the zone.
 - A picture in a chat bubble or a task comment shows as a preview (owner, 2026-10-19). `AttachmentList` (`features/files/PictureAttachments.tsx`)
   replaces `FileChips` in `Thread.tsx` and `CommentThread.tsx`: a picture (`Attachment.mimeType` and `usePictureTest`) is a small rounded
   picture, at most 240 px wide, from the thumb link (`useFileLink(..., 'thumb')`); two or more sit in a grid; every other file stays a chip.

@@ -8,13 +8,15 @@ import { useToast } from '../../app/toasts';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
 import { TextField } from '../../components/Fields';
-import { PictureError, pictureOf, safePicture } from '../../lib/picture';
+import { safePicture } from '../../lib/picture';
 import { FormError } from '../auth/AuthPage';
+import { AvatarFrameSheet } from './AvatarFrameSheet';
 
 
 /**
  * The profile area at the top of Settings (owner items 10 and 12, 2026-10-05): the picture, and the names in English and in
- * Arabic. A new picture saves at once, with Undo in the toast. The browser cuts it to a small square first (lib/picture.ts).
+ * Arabic. A new picture first gets a frame step (fbk_029): the person drags and zooms it inside a round frame, then Save makes the small picture
+ * from that frame (lib/picture.ts) and saves it, with Undo in the toast.
  */
 export function ProfileSection({ user }: { user: User }) {
   const { t } = useTranslation();
@@ -22,9 +24,11 @@ export function ProfileSection({ user }: { user: User }) {
   const profile = useAction('me.updateProfile', { onSuccess: () => toast.show({ message: t('settings.saved') }) });
   const picture = useUndoable('me.updateProfile', {
     message: (saved) => t(saved.avatarUrl ? 'profile.pictureSaved' : 'profile.pictureRemoved'),
+    onSuccess: () => setFraming(null),
   });
   const fileRef = useRef<HTMLInputElement>(null);
-  const [making, setMaking] = useState(false);
+  // The file just chosen, while the frame step is open.
+  const [framing, setFraming] = useState<File | null>(null);
   const [pictureProblem, setPictureProblem] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [nameAr, setNameAr] = useState('');
@@ -37,21 +41,14 @@ export function ProfileSection({ user }: { user: User }) {
   }, [user.id, user.name, user.nameAr, user.discipline]);
 
   const hasPicture = safePicture(user.avatarUrl) !== null;
-  const busy = making || picture.isPending;
+  const busy = picture.isPending;
 
-  const choose = async (file: File | undefined) => {
+  const choose = (file: File | undefined) => {
+    // The same file can be chosen again after a Cancel.
+    if (fileRef.current) fileRef.current.value = '';
     if (!file) return;
     setPictureProblem(null);
-    setMaking(true);
-    try {
-      picture.mutate({ avatarUrl: await pictureOf(file) });
-    } catch (error) {
-      setPictureProblem(t(error instanceof PictureError && error.reason === 'too_big' ? 'profile.pictureTooBig' : 'profile.pictureUnreadable'));
-    } finally {
-      setMaking(false);
-      // The same file can be chosen again after a failure.
-      if (fileRef.current) fileRef.current.value = '';
-    }
+    setFraming(file);
   };
 
   return (
@@ -80,10 +77,23 @@ export function ProfileSection({ user }: { user: User }) {
           aria-label={t('profile.choosePicture')}
           tabIndex={-1}
           className="sr-only"
-          onChange={(event) => void choose(event.target.files?.[0])}
+          onChange={(event) => choose(event.target.files?.[0])}
         />
       </div>
       <FormError text={pictureProblem} />
+      {framing && (
+        <AvatarFrameSheet
+          file={framing}
+          user={user}
+          saving={picture.isPending}
+          onCancel={() => setFraming(null)}
+          onSave={(avatarUrl) => picture.mutate({ avatarUrl })}
+          onUnreadable={() => {
+            setFraming(null);
+            setPictureProblem(t('profile.pictureUnreadable'));
+          }}
+        />
+      )}
       <form
         className="grid gap-3 sm:grid-cols-2 sm:items-end"
         onSubmit={(event) => {

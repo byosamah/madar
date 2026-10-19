@@ -98,14 +98,22 @@ export function messagesOf(state: State, conversationId: string): Message[] {
 /**
  * Messages that other people wrote after the person last read the room. A person's own agent counts as the person.
  * A count that a server loader put in the state comes first (plan 4.13, A9); without it, a scan of the messages in the state.
+ * A chat that the person marked unread (chats.markUnread, fbk_028) counts at least 1 until the person opens it again. The mark never
+ * adds one: a chat with 3 new messages that is marked unread still has 3.
  */
 export function unreadIn(state: State, conversationId: string, userId: string): number {
+  const key = chatReadKey(conversationId, userId);
   const counted = state.counts?.[unreadCountKey(conversationId, userId)];
-  if (counted !== undefined) return counted;
-  const lastRead = state.chatReads[chatReadKey(conversationId, userId)]?.lastReadAt ?? '';
-  return Object.values(state.messages).filter(
+  const lastRead = state.chatReads[key]?.lastReadAt ?? '';
+  const count = counted ?? Object.values(state.messages).filter(
     (m) => m.conversationId === conversationId && m.createdAt > lastRead && principalOf(state, m.authorId) !== userId && m.actingForId !== userId,
   ).length;
+  return markedUnread(state, key) ? Math.max(count, 1) : count;
+}
+
+/** True when the person marked the chat or the task thread unread and has not opened it since. */
+export function markedUnread(state: State, readKey: string): boolean {
+  return state.chatReads[readKey]?.markedUnread === true;
 }
 
 /**

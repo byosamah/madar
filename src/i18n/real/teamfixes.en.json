@@ -1,0 +1,39 @@
+{
+  "whatsNew": {
+    "items": {
+      "2026-10-23-26": {
+        "title": "Paste and drop files in chats",
+        "body": "Now you can paste a picture or a file into a chat box. Copy it, click the box, and press Ctrl+V or Cmd+V. You can also drag files onto a chat. The files go the same way as with the Attach files button."
+      },
+      "2026-10-23-27": {
+        "title": "Quiet notices and Mark as unread",
+        "body": "In Chrome and Edge, a desktop notice no longer shows while you look at Madar. The line \"Waits for your reply\" is gone. Now you can mark a chat as unread. Point at the chat, press the three dots, then press Mark as unread. On a phone, use the menu at the top of the chat. The chat stays bold until you open it again."
+      },
+      "2026-10-23-28": {
+        "title": "Frame your profile picture",
+        "body": "Now you can move and zoom a new profile picture before you save it. Choose a picture in Settings. Drag it inside the circle. Move the slider to zoom. Then press Save."
+      },
+      "2026-10-23-29": {
+        "title": "Change the stage of a task in a template",
+        "body": "Now you can pick the stage of a task in a project template. Open the task and use the Stage field. This works for a new task and for an old task. The days of an old task stay as they are. A note tells you when they no longer fit the stage."
+      }
+    }
+  },
+  "attachments": {
+    "drop": "Drop to attach"
+  },
+  "chat": {
+    "markUnread": "Mark as unread",
+    "markedUnreadToast": "Marked as unread."
+  },
+  "profile": {
+    "frame": "Frame your picture",
+    "frameHint": "Drag the picture to move it. Use the slider to zoom.",
+    "zoom": "Zoom",
+    "preview": "How it looks in Madar"
+  },
+  "projectTemplates": {
+    "taskStage": "Stage",
+    "taskOutside": "The days of this task are outside the days of its stage. Change the start day, or the days of the stage."
+  }
+}
