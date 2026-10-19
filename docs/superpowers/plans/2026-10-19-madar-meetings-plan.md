@@ -51,7 +51,11 @@ Each question has a recommended answer. The plan follows the recommended answer 
 - Q3: inside Tasks, as a second view.
 - Q4: **only its people**, NOT the Admin (this differs from the office task rule). Task 3 keeps the leak tests with the Admin as an outsider.
 - Q5: all project meetings except team meetings write a Tracker line.
-- Q6: one minutes task, the organizer by default, due the next working day; no minutes task for a team meeting.
+- Q6 (changed by the owner, 2026-10-19): **no minutes task.** The minutes are a text (with files) that ANY attendee of the meeting, or the
+  organizer, writes and edits. A project meeting (not a team meeting) keeps them on its Tracker line: the line has a Minutes part that each
+  attendee may fill and change. A meeting with no project, and a team meeting, keep them on the meeting itself. After the end, each attendee
+  sees one quiet "Add the minutes" on the meeting until someone writes them: no task, no notice. Task 7 changes the same way (settle makes the
+  Tracker line with empty minutes; no minutes task; the fields minutesTaskId and minutesById of Task 1 stay unused or go).
 - Q7: "every day" is Sunday to Thursday.
 
 ## Global Constraints
