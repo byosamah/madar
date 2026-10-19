@@ -320,6 +320,37 @@ function uploadSuites(v: Variant): void {
     });
   });
 
+  describe(`the files of a direct chat on ${v.title} (owner, 2026-10-19)`, () => {
+    it('a file goes up under chat/<chat>, the message carries it, and only the two people of the chat get a link or an upload', async () => {
+      const [first, second, outsider] = Object.values(office.seed.users)
+        .filter((u) => u.kind === 'human' && u.active && u.systemRole === 'member' && u.id !== PERSON_OFF).map((u) => u.id);
+      const chat = okOf<{ id: string }>(await call(first, 'chats.openDirect', { userId: second }));
+      const begin = okOf<Start>(await call(first, 'files.uploadStart', { name: 'site.pdf', size: 14, mimeType: 'application/pdf', conversationId: chat.id }));
+      expect((await put(begin.put.url, begin.put.headers, '%PDF-1.4 licen')).status).toBe(200);
+      const intent = await intentOf(begin.uploadId);
+      expect(intent.key).toBe(`chat/${chat.id.replace('_', '-')}/${begin.uploadId.replace('_', '-')}/file`);
+      const file = okOf<FileView>(await call(first, 'files.upload', { name: 'site.pdf', conversationId: chat.id, uploadId: begin.uploadId }));
+      expect(file.file).toMatchObject({ projectId: null, taskId: null, stageId: null, conversationId: chat.id });
+      expect(await store.head(intent.key)).toEqual({ size: 14, mimeType: 'application/pdf' });
+      const sent = okOf<{ files: { id: string; name: string }[] }>(await call(first, 'chats.send', { conversationId: chat.id, body: 'The site sheet.', fileIds: [file.file.id] }));
+      expect(sent.files).toEqual([{ id: file.file.id, name: 'site.pdf' }]);
+
+      signed.length = 0;
+      for (const userId of [outsider, ADMIN]) {
+        const link = await call(userId, 'files.link', { id: file.file.id, variant: 'full', disposition: 'inline' });
+        expect(link.ok ? 'signed' : link.error.code, userId).toBe('not_found');
+        const other = await call(userId, 'files.uploadStart', { name: 'x.pdf', size: 1, mimeType: 'application/pdf', conversationId: chat.id });
+        expect(other.ok ? 'signed' : other.error.code, userId).toBe('not_found');
+        const read = await call(userId, 'chats.messages', { conversationId: chat.id });
+        expect(read.ok ? 'read' : read.error.code, userId).not.toBe('read');
+      }
+      expect(signed).toEqual([]);
+      expect(okOf<{ name: string }>(await call(second, 'files.link', { id: file.file.id, variant: 'full', disposition: 'attachment' })).name).toBe('site.pdf');
+      const found = okOf<{ files: { id: string }[] }>(await call(first, 'search.query', { text: 'site' }));
+      expect(found.files.map((hit) => hit.id)).not.toContain(file.file.id);
+    });
+  });
+
   describe(`no link for a person who may not see the file, on ${v.title} (plan 2b, point 7)`, () => {
     let fileId = '';
 

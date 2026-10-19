@@ -42,6 +42,17 @@ server checks the final object, then saves the record.
   and, for a picture, `thumb`.
 - A file of an office task (no project, owner 2026-10-06) sits under `office/<task>/<intent>/`. Its intent has no project, and
   the preflight takes it only for the task that the call names (`checkIntent`, `officeTaskId`).
+- A file of a direct chat or a group (owner, 2026-10-19) sits under `chat/<conversation>/<intent>/` (`chatUploadKey`). Its intent has
+  no project, and the preflight takes it only for the conversation that the call names (`checkIntent`, `conversationId`). The file
+  record names its chat (`FileRec.conversationId`, in the jsonb doc: no migration) and has no project, stage or task. Who may start
+  an upload: a member of that chat, active, in a chat that is not closed (`chatForUpload`, `assertMayUploadToChat`); a project chat
+  uses the files of its project. Who gets a link: exactly the people who read the messages of that chat (`assertMayViewChatFile`,
+  `canSeeConversation`). The Admin who is not a member, a person who left, an agent, and everyone when the chat is gone get
+  not_found, as for a missing file. An agent never opens a chat file, and no search, `files.list`, project page or History line
+  shows one. The file writes no History event. Its save sends the anonymous office signal of a private chat (`diffState`, kind
+  `files` in `PRIVATE_CHAT_KINDS`): no actor, no story, no person, no file and no chat in it, and no person signal. It cannot go into
+  another chat, a task, a post or the Tracker (`file_chat`), and it is never deleted or shared. A second upload with the same name
+  is a new file, not a new version.
 - Inline only for pictures, PDF, plain text, video and audio (`INLINE_SAFE`). Every other type is stored as
   `application/octet-stream`.
 - Check `project.view`, and that the person is active, right before you sign any link (`rights.ts`). For a file of an

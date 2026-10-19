@@ -4,7 +4,8 @@ import { FREE_PLAN_LIMITS, UPLOAD_LIFE_MS, serverContracts as c, type SignedPut 
 import { ApiError, forbidden, invalid, notFound } from '../errors';
 import { applyPatch } from '../events';
 import { principalOf } from '../permissions';
-import { mayViewFile } from '../views';
+import { chatForUpload } from '../chatState';
+import { mayOpenFile } from '../views';
 import { officeTaskOfCall } from './files';
 import { nowStamp } from '../../lib/dates';
 import { assertCan, requireProject, requireStage, roleIn, taskRole } from './shared';
@@ -56,7 +57,12 @@ const storyStart = defineCall({
 const filesUploadStart = defineCall({
   ...c['files.uploadStart'],
   run(input, ctx) {
-    if (input.projectId === undefined) {
+    if (input.conversationId !== undefined) {
+      // A file of a direct chat or a group: a member who may send in that chat adds it (owner, 2026-10-19).
+      if (input.projectId !== undefined) throw invalid('conversationId', 'Name the project, or the chat of the file, not both.', 'file_chat');
+      chatForUpload(ctx.state, input.conversationId, ctx.authority, ctx.actor);
+      if (input.stageId || input.taskId) throw invalid(input.stageId ? 'stageId' : 'taskId', 'A file of a chat belongs to no stage and no task. It stays in its chat.', 'file_chat');
+    } else if (input.projectId === undefined) {
       // A file of an office task: a person who sees the task adds it (owner, 2026-10-06).
       const task = officeTaskOfCall(ctx, input.taskId);
       assertCan(ctx, 'content.post', taskRole(ctx, task));
@@ -87,8 +93,9 @@ const filesLink = defineCall({
     // The same check as the real server (plan 2b.7), before any data is read. Every person views every project (spec 2.3). A file of
     // an office task shows only to the people of that task (owner, 2026-10-06).
     const viewer = p.state.users[principalOf(p.state, p.actor.id)] ?? p.actor;
-    // A file of an office task that the person does not see reads as missing (review 2026-10-06).
-    if (!mayViewFile(p.state, viewer, file)) throw file.projectId === null ? notFound('File', input.id) : forbidden('You cannot do this.', { action: 'project.view' });
+    // A file of an office task that the person does not see reads as missing (review 2026-10-06). So does a file of a chat, and for an
+    // agent, which never opens one (owner, 2026-10-19).
+    if (!mayOpenFile(p.state, viewer, p.actor, file)) throw file.projectId === null ? notFound('File', input.id) : forbidden('You cannot do this.', { action: 'project.view' });
     const version = input.letter ? file.versions.find((v) => v.letter === input.letter) : file.versions[file.versions.length - 1];
     if (!version) throw notFound('Version', input.letter ?? '');
     const key = input.variant === 'thumb' && version.thumbKey ? version.thumbKey : version.blobKey;
@@ -106,7 +113,7 @@ const filesLink = defineCall({
     const file = ctx.state.files[input.id];
     if (!file) throw notFound('File', input.id);
     if (file.projectId === null) {
-      if (!mayViewFile(ctx.state, ctx.authority, file)) throw notFound('File', input.id);
+      if (!mayOpenFile(ctx.state, ctx.authority, ctx.actor, file)) throw notFound('File', input.id);
     } else assertCan(ctx, 'project.view', { projectRole: roleIn(ctx, requireProject(ctx, file.projectId).id) });
     const { version } = prepared;
     return { url: prepared.url, expiresAt: later(ctx.now, UPLOAD_LIFE_MS), name: file.name, mimeType: version.mimeType, size: version.size };

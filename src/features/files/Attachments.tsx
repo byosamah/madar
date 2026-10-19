@@ -11,8 +11,11 @@ import { XIcon } from '../../components/icons/animated/x';
 import { IconButton } from '../../components/IconButton';
 import { AttachFileIcon } from '../../components/icons/animated/attach-file';
 
-/** Where the new files go. A task comment also links the file to its task. An office task has no project (projectId null). */
-export type UploadTarget = { projectId: string | null; stageId?: string | null; taskId?: string | null };
+/**
+ * Where the new files go. A task comment also links the file to its task. An office task has no project (projectId null). A direct chat
+ * or a group has no project either, and names its chat (conversationId): its files stay in that chat (owner, 2026-10-19).
+ */
+export type UploadTarget = { projectId: string | null; stageId?: string | null; taskId?: string | null; conversationId?: string };
 
 /**
  * The files a person picked for a post, a comment or a message. The files upload when the person sends,
@@ -45,7 +48,11 @@ export function useAttachments(max: number = MAX_ATTACHMENTS, initial: File[] = 
       if (!id) {
         const view = await api.call(
           'files.upload',
-          { ...(target.projectId ? { projectId: target.projectId } : {}), name: file.name, blob: file, stageId: target.stageId ?? null, taskId: target.taskId ?? null },
+          {
+            ...(target.projectId ? { projectId: target.projectId } : {}),
+            ...(target.conversationId ? { conversationId: target.conversationId } : {}),
+            name: file.name, blob: file, stageId: target.stageId ?? null, taskId: target.taskId ?? null,
+          },
           meta,
         );
         id = view.file.id;

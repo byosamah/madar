@@ -2,6 +2,7 @@ import { PICTURE_DATA, type Comment, type Deadline, type Event, type FileRec, ty
 import type {
   Attachment, CommentView, EventView, FeedItem, FileView, ProjectDetail, ProjectSummary, PaymentRow, TaskDetail, TaskRow, TrackerRow, UserCard,
 } from './contract/views';
+import { canSeeConversation } from './chatState';
 import { computeHealth, isOverdue } from './health';
 import { can, principalOf, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
 import { commentCountKey, fileCountKey, projectTemplatesOf, type State } from './store';
@@ -366,15 +367,33 @@ export function commentViewOf(state: State, comment: Comment, viewer: User): Com
  * a file of an office task: its uploader while on the task, the maker of the task or the Admin (owner, 2026-10-06).
  */
 export function mayDeleteFile(state: State, viewer: User, file: FileRec): boolean {
+  // A file of a direct chat or a group stays with its messages: nobody deletes it (owner, 2026-10-19).
+  if (file.conversationId !== undefined) return false;
   const resource = file.projectId === null ? officeResource(state, file.taskId, viewer.id) : { projectRole: projectRoleOf(state, file.projectId, viewer.id) };
   return can(viewer, 'task.delete', resource)
     || can(viewer, 'content.editOwn', { ...resource, authorId: principalOf(state, file.versions[0].uploadedBy) });
 }
 
-/** True when the person may see a file: every file of a project, and a file of an office task only for the people of that task. */
+/**
+ * True when the person may see a file: every file of a project, a file of an office task only for the people of that task, and a file
+ * of a direct chat or a group only for the people who read the messages of that chat (owner, 2026-10-19). The Admin who is not in the
+ * chat does not read it, and a chat that is gone leaves its files to nobody.
+ */
 export function mayViewFile(state: State, viewer: User, file: FileRec): boolean {
+  if (file.conversationId !== undefined) {
+    const conversation = state.conversations[file.conversationId];
+    return conversation !== undefined && canSeeConversation(state, conversation, viewer);
+  }
   if (file.projectId !== null) return can(viewer, 'project.view', { projectRole: projectRoleOf(state, file.projectId, viewer.id) });
   return can(viewer, 'task.view', officeResource(state, file.taskId, viewer.id));
+}
+
+/**
+ * True when the actor may open the data of a file: the person who may view it. An agent acts with the rights of its person, but it never
+ * opens a file of a direct chat or a group: it reads the name in the message, and nothing more (owner, 2026-10-19).
+ */
+export function mayOpenFile(state: State, viewer: User, actor: User, file: FileRec): boolean {
+  return mayViewFile(state, viewer, file) && !(file.conversationId !== undefined && actor.kind === 'agent');
 }
 
 export function fileViewOf(state: State, file: FileRec, viewer: User): FileView {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertObjectKey, isObjectKey, isStagingKey, objectKey, officeUploadKey, officeUploadPrefix, officeUploadThumbKey, screenshotKey, stagingKey, stagingThumbKey, thumbKey, uploadKey, uploadThumbKey } from './keys';
+import { assertObjectKey, chatUploadKey, chatUploadPrefix, chatUploadThumbKey, isObjectKey, isStagingKey, objectKey, officeUploadKey, officeUploadPrefix, officeUploadThumbKey, screenshotKey, stagingKey, stagingThumbKey, thumbKey, uploadKey, uploadThumbKey } from './keys';
 
 const KEY_FORM = /^[a-z0-9-]+(\/[a-z0-9-]+)*$/;
 
@@ -62,6 +62,17 @@ describe('the object keys (plan 5.2)', () => {
     expect(isStagingKey(officeUploadKey('tsk_014', 'upl_9f3a'))).toBe(false);
     expect(officeUploadKey('tsk_014', 'upl_9f3a')).toMatch(KEY_FORM);
     expect(() => officeUploadKey('../x', 'upl_9f3a')).toThrow(/not a valid id/);
+  });
+
+  it('keep the uploads of a direct chat or a group under chat/<chat>/<intent>, a place that no project id and no task id can take (owner, 2026-10-19)', () => {
+    expect(chatUploadKey('cnv_014', 'upl_9f3a')).toBe('chat/cnv-014/upl-9f3a/file');
+    expect(chatUploadThumbKey('cnv_014', 'upl_9f3a')).toBe('chat/cnv-014/upl-9f3a/thumb');
+    expect(chatUploadKey('cnv_014', 'upl_9f3a').startsWith(chatUploadPrefix('cnv_014'))).toBe(true);
+    expect(chatUploadKey('cnv_0140', 'upl_9f3a').startsWith(chatUploadPrefix('cnv_014'))).toBe(false);
+    expect(isStagingKey(chatUploadKey('cnv_014', 'upl_9f3a'))).toBe(false);
+    expect(chatUploadKey('cnv_014', 'upl_9f3a')).toMatch(KEY_FORM);
+    expect(chatUploadKey('cnv_014', 'upl_9f3a').startsWith(officeUploadPrefix('cnv_014'))).toBe(false);
+    expect(() => chatUploadKey('../x', 'upl_9f3a')).toThrow(/not a valid id/);
   });
 
   it('tell a key of the key form from any other value, without a throw', () => {

@@ -7,6 +7,7 @@
  *   up/<intent>/file              a staging upload        up/<intent>/thumb             its staging picture
  *   feedback/<intent>/file        a feedback screenshot
  *   office/<task>/<intent>/file   a confirmed upload of an office task (owner, 2026-10-06), with office/<task>/<intent>/thumb
+ *   chat/<chat>/<intent>/file     a confirmed upload of a direct chat or a group (owner, 2026-10-19), with chat/<chat>/<intent>/thumb
  *
  * The server names a confirmed upload by its intent (task F2): the preflight copies the object before the lock, and the file id
  * and the version letter come later, from run() inside the lock. An intent id is unique, so the key is too.
@@ -77,6 +78,22 @@ export function officeUploadKey(taskId: string, intentId: string): string {
 
 export function officeUploadThumbKey(taskId: string, intentId: string): string {
   return `${officeUploadPrefix(taskId)}${part(intentId)}/thumb`;
+}
+
+/**
+ * The folder of the uploads of one direct chat or group. A chat file belongs to no project and no task, so its files sit under "chat",
+ * which is never the key part of a project id (prj-...) and never "office". The chat part keeps the files of two chats apart.
+ */
+export function chatUploadPrefix(conversationId: string): string {
+  return `chat/${part(conversationId)}/`;
+}
+
+export function chatUploadKey(conversationId: string, intentId: string): string {
+  return `${chatUploadPrefix(conversationId)}${part(intentId)}/file`;
+}
+
+export function chatUploadThumbKey(conversationId: string, intentId: string): string {
+  return `${chatUploadPrefix(conversationId)}${part(intentId)}/thumb`;
 }
 
 export function screenshotKey(intentId: string): string {

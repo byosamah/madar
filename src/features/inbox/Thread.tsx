@@ -177,7 +177,7 @@ type ComposerProps = {
   pending: boolean;
   /** "clear" empties the box. Call it when the send worked. */
   onSend: (body: string, fileIds: string[], clear: () => void) => void;
-  /** Where picked files go. A chat with no project of its own has none, so it shows no attach control. */
+  /** Where picked files go: a project, an office task or a chat of its own. Without it, the box shows no attach control. */
   upload?: UploadTarget;
 };
 

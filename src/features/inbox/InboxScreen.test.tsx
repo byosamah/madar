@@ -69,8 +69,10 @@ describe('the Inbox chat', () => {
       .toBeDefined();
   });
 
-  it('attaches a file in a project chat, and a direct chat has no attach control', async () => {
-    const { store } = await renderApp('/inbox');
+  it('attaches a file in a project chat (it joins the files of the project), in a direct chat and in a group (it stays in its chat)', async () => {
+    const { store } = await renderApp('/inbox', (state) => {
+      addGroupConversation(state, 'Tower team', 'usr_001', ['usr_001', 'usr_002', 'usr_003'], '2026-09-30T09:00:00.000+03:00');
+    });
     await userEvent.click(await rowLink(/Corniche Office Tower/));
     await userEvent.upload(await screen.findByLabelText('Attach files'), new File(['x'], 'Beam B14.pdf', { type: 'application/pdf' }));
     await userEvent.type(await screen.findByRole('textbox', { name: 'Message' }), 'The beam sheet.');
@@ -78,9 +80,25 @@ describe('the Inbox chat', () => {
     expect(await screen.findByRole('button', { name: 'Download Beam B14.pdf' })).toBeInTheDocument();
     const file = Object.values(store.state.files).find((f) => f.name === 'Beam B14.pdf');
     expect(file?.projectId).toBe('prj_001');
+    expect(file?.conversationId).toBeUndefined();
+    // A direct chat takes a file and a picture (owner, 2026-10-19). The file stays in that chat: no project, no task.
     await userEvent.click(await rowLink(/Faisal Al-Harbi/));
-    await screen.findByRole('textbox', { name: 'Message' });
-    expect(screen.queryByLabelText('Attach files')).toBeNull();
+    await userEvent.upload(await screen.findByLabelText('Attach files'), new File(['x'], 'Level 2.pdf', { type: 'application/pdf' }));
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Message' }), 'The level plan.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByRole('button', { name: 'Download Level 2.pdf' })).toBeInTheDocument();
+    const direct = Object.values(store.state.files).find((f) => f.name === 'Level 2.pdf');
+    expect(direct).toMatchObject({ projectId: null, taskId: null, stageId: null });
+    expect(store.state.conversations[direct!.conversationId!].kind).toBe('direct');
+    // A group takes the same, and a picture shows in its bubble as a file chip.
+    await userEvent.click(await rowLink(/Tower team/));
+    await userEvent.upload(await screen.findByLabelText('Attach files'), new File(['x'], 'Site photo.jpg', { type: 'image/jpeg' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByRole('button', { name: 'Download Site photo.jpg' })).toBeInTheDocument();
+    const photo = Object.values(store.state.files).find((f) => f.name === 'Site photo.jpg');
+    expect(photo).toMatchObject({ projectId: null, taskId: null, stageId: null });
+    expect(store.state.conversations[photo!.conversationId!]).toMatchObject({ kind: 'group', name: 'Tower team' });
+    expect(Object.values(store.state.messages).find((m) => m.fileIds?.includes(photo!.id))?.body).toBe('Site photo.jpg');
   });
 
   it('sends a message with the Send button and with Enter, and keeps a new line for Shift+Enter', async () => {

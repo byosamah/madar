@@ -1,3 +1,4 @@
+import { addDirectConversation } from '../../../src/api/chatState';
 import { emptyReactions } from '../../../src/api/contract/entities';
 import { sharedCalls, type SharedCallName } from '../../../src/api/sharedCalls';
 import { chatReadKey, type State } from '../../../src/api/store';
@@ -86,7 +87,8 @@ export function readSweep(office: State): SweepCall[] {
     }
   }
   const agents = Object.values(office.users).filter((u) => u.kind === 'agent' && u.active).map((u) => u.id);
-  for (const actor of [...humans, ...agents]) calls.push(['search.query', { text: 'licence' }, actor]);
+  // The text 'chat-photo' names the file of a direct chat in trapOffice (owner, 2026-10-19): no search finds it, for its members too.
+  for (const actor of [...humans, ...agents]) calls.push(['search.query', { text: 'licence' }, actor], ['search.query', { text: 'chat-photo' }, actor]);
   for (const actor of agents) {
     calls.push(
       ['tasks.list', { filter: 'mine' }, actor], ['tasks.list', {}, actor], ['events.list', { limit: 20 }, actor], ['chats.list', {}, actor],
@@ -165,6 +167,7 @@ export function writeSweep(office: State): SweepCall[] {
     // An office task (owner, 2026-10-06), on any office.
     ['tasks.create', { title: 'Office errand', ownerId: 'usr_005', helperIds: ['usr_006'], dueDate: '2026-10-08' }, 'usr_004'],
     ...officeWrites(office),
+    ...chatFileWrites(office),
   ];
 }
 
@@ -192,6 +195,51 @@ export function officeWrites(office: State): SweepCall[] {
     ['events.undoStory', { correlationId: 'cor_trap_office_review' }, 'usr_005'],
     ['events.undoStory', { correlationId: 'cor_trap_office_review' }, 'usr_003'],
     ['chats.markRead', { conversationId: led.id }, 'usr_005'],
+  ];
+}
+
+/** The id of the chat file of chatFileTrap. */
+export const CHAT_FILE_ID = 'fil_910';
+
+/**
+ * A file of a direct chat (owner, 2026-10-19): two people with no direct chat yet, the chat, a file of that chat, and the message that
+ * carries it. The reads of chats.messages, files.list and search.query must give the same answers on the scoped load as on the whole
+ * office, for the two members, for every other person and for the agents.
+ */
+function chatFileTrap(state: State): void {
+  const people = Object.values(state.users).filter((u) => u.kind === 'human' && u.active && u.systemRole !== 'admin').map((u) => u.id);
+  const talk = (a: string, b: string) => Object.values(state.conversations).some((c) => c.kind === 'direct' && c.memberIds.includes(a) && c.memberIds.includes(b));
+  const [first, second] = people.flatMap((a) => people.filter((b) => b > a).map((b): [string, string] => [a, b])).find(([a, b]) => !talk(a, b))!;
+  const chat = addDirectConversation(state, first, second, '2026-10-03T12:00:00.000+03:00');
+  state.files[CHAT_FILE_ID] = {
+    id: CHAT_FILE_ID, projectId: null, stageId: null, taskId: null, conversationId: chat.id, name: 'Hidden-chat-photo.jpg',
+    versions: [{ letter: 'A', blobKey: 'blob_trap_chat', mimeType: 'image/jpeg', size: 9, uploadedBy: first, uploadedAt: '2026-10-03T12:00:00.000+03:00' }],
+  };
+  state.messages.msg_910 = {
+    id: 'msg_910', conversationId: chat.id, authorId: first, actingForId: first, body: 'The photo', mentions: [], fileIds: [CHAT_FILE_ID],
+    createdAt: '2026-10-03T12:00:00.000+03:00', editedAt: null,
+  };
+}
+
+/**
+ * The writes on the chat file of chatFileTrap, by the two people of its chat and by a person outside it: an upload, a message that
+ * carries the file, a share, a delete and a "delivered" mark. None on an office without the trap.
+ */
+export function chatFileWrites(office: State): SweepCall[] {
+  const file = office.files[CHAT_FILE_ID];
+  const chat = file?.conversationId ? office.conversations[file.conversationId] : undefined;
+  if (!file || !chat) return [];
+  const [a, b] = chat.memberIds;
+  const outside = Object.values(office.users).find((u) => u.kind === 'human' && u.active && u.id !== ADMIN && !chat.memberIds.includes(u.id))!.id;
+  const prepared = { blobKey: 'blob_sweep_chat', mimeType: 'image/jpeg', size: 5 };
+  return [
+    ['files.upload', { name: 'Second.jpg', conversationId: chat.id, uploadId: 'upl_chat_a' }, a, prepared],
+    ['files.upload', { name: 'Second.jpg', conversationId: chat.id, uploadId: 'upl_chat_b' }, outside, prepared],
+    ['chats.send', { conversationId: chat.id, body: 'Again', fileIds: [file.id] }, b],
+    ['chats.send', { conversationId: chat.id, body: 'Again', fileIds: [file.id] }, outside],
+    ['files.share', { fileId: file.id, target: { kind: 'person', userId: outside } }, a],
+    ['files.delete', { id: file.id }, a],
+    ['files.markDelivered', { id: file.id }, outside],
   ];
 }
 
@@ -282,6 +330,7 @@ export function badgeTraps(traps: State): State {
 export function trapOffice(seed: State): State {
   const state = structuredClone(seed);
   officeTraps(state);
+  chatFileTrap(state);
   newestTies(state);
   const leader = state.projects.prj_001.leaderId!;
   const task = Object.values(state.tasks).find((t) => t.projectId === 'prj_001' && t.status !== 'done')!;

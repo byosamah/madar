@@ -80,6 +80,23 @@ describe('an upload intent', () => {
     expect(codeOf(() => checkIntent(intent({ usedAt: NOW, expiresAt: NOW }), file))).toBe('invalid_input');
   });
 
+  it('passes a chat intent only for the chat that the call names, with no project (owner, 2026-10-19)', () => {
+    const chat = intent({ projectId: null, key: 'chat/cnv-001/upl-aaaaaaaaaaaaaaaaaaaaaa/file' });
+    const call = { id: 'upl_aaaaaaaaaaaaaaaaaaaaaa', actorId: 'usr_002', now: NOW, field: 'uploadId', projectId: null as string | null, conversationId: 'cnv_001' };
+    expect(codeOf(() => checkIntent(chat, call))).toBe('ok');
+    expect(codeOf(() => checkIntent(chat, { ...call, conversationId: 'cnv_002' }))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent(chat, { ...call, conversationId: 'cnv_0010' }))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent(chat, { ...call, conversationId: undefined }))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent(chat, { ...call, conversationId: undefined, officeTaskId: 'tsk_001' }))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent(chat, { ...call, conversationId: undefined, projectId: 'prj_001' }))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent(chat, { ...call, projectId: 'prj_001' }))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent(intent({ projectId: 'prj_001' }), call))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent(intent({ projectId: null, key: 'office/tsk-001/upl-a/file' }), call))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent(intent({ projectId: null, key: 'feedback/upl-a/file' }), call))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent({ ...chat, usedAt: NOW }, { ...call, allowUsed: true }))).toBe('ok');
+    expect(codeOf(() => checkIntent({ ...chat, usedAt: NOW }, call))).toBe('conflict');
+  });
+
   it('is marked used once, inside the lock: a second use, an expired intent or another actor gives conflict', async () => {
     const db = fakeFilesDb();
     await insertIntents(db, [intent(), intent({ id: 'upl_old', expiresAt: NOW }), intent({ id: 'upl_other', actorId: 'usr_005' })]);

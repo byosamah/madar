@@ -23,6 +23,9 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   list. `loaders/push.ts` reads the own rows of the person of the call and nothing more (`push.register` also reads the row of
   its endpoint). `diffState` adds no kind for it, so a save of a device sends no signal. `endpoint` has a unique index.
   `SaveResult.messageIds` lists the messages a save inserted, for the push producer.
+- A file of a direct chat or a group (owner, 2026-10-19) keeps `conversationId` in its `files` doc: no column and no migration, because
+  no read selects by it. Its row has `project_id` and `task_id` null, so the search loader and `files.list` never load it. `diffState`
+  counts `files` as a kind of `PRIVATE_CHAT_KINDS`: its save sends the anonymous office signal of a private chat (`save.ts`).
 - `events` only grows: a trigger refuses update and delete, and madar_server has only select and insert. Undo is a new
   event (`undoes`). The save never writes `undoneBy`.
 
