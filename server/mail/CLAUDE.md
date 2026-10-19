@@ -25,6 +25,8 @@ after the commit of the call that asked for it.
 - On the hosted functions, the notice mail of a save leaves right after the answer, not before it (`runCall`,
   `AFTER_ANSWER_KINDS`). The same idempotency key and quota apply. If the worker stops first, the 15-minute job sends the
   claimed row later. The deploy suite's `waitForMail` polls `mail_outbox`, so it is not affected.
+- The mention or reply mail of a chat message or a task comment (`mail.chatNotice`) waits 10 s after the answer, and sends nothing
+  when its notice is read by then (a read of the chat marks it read). Every other notice mail goes at once.
 - The browser push of a save (`push.notify`, `server/push/CLAUDE.md`) runs on the same chain, right after the answer. It carries
   no client data either.
 

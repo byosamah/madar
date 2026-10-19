@@ -109,6 +109,20 @@ describe('the mail and push producers on SQLite (server/mail/notices.ts, server/
     expect(log.filter((text) => /\$\d|::[a-z]/i.test(text))).toEqual([]);
   });
 
+  it('writes a mail.chatNotice row on SQLite for a mention notice that points to a chat message', async () => {
+    const { db, seed } = await office();
+    const after = withDirectMessage(seed, { authorId: 'usr_003', actingForId: null, mentions: ['usr_002'] });
+    chatNotice(after, 'usr_002', 'chat', 'cnv_901', 'msg_901');
+    after.notifications.ntf_902 = {
+      id: 'ntf_902', userId: 'usr_002', trigger: 'task_assigned', actorId: 'usr_001', targetType: 'task', targetId: 'tsk_001', read: false, createdAt: STAMP, dedupeKey: null,
+    } as State['notifications'][string];
+    const rows = await db.tx('write', async (q) => noticeRows(q, await liteSave(q, seed, after)));
+    expect(rows).toEqual([
+      { kind: 'mail.chatNotice', payload: { notificationId: 'ntf_msg_901' } },
+      { kind: 'mail.notice', payload: { notificationId: 'ntf_902' } },
+    ]);
+  });
+
   it('writes no mail row and reads no notice for a save with no new notice', async () => {
     const { db, seed, log } = await office();
     const after = structuredClone(seed);

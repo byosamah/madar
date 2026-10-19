@@ -2,11 +2,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Project, Task, User } from '../../src/api/contract/entities';
 import { morningSummaryOn, reviewersOf, reviewersOfTask } from '../../src/api/notify';
 import type { State } from '../../src/api/store';
+import { mentionMarkup } from '../../src/lib/text';
 import { peopleOfTask } from '../../src/lib/taskPeople';
 import { processOutbox } from '../core/effects';
-import { runCall } from '../core/runCall';
+import { createRunCall, runCall } from '../core/runCall';
 import type { RunResult } from '../core/types';
-import { NOTICE_EFFECT, QUOTA_WARNING_EFFECT, sendNoticeMail } from '../mail/notices';
+import { CHAT_NOTICE_EFFECT, NOTICE_EFFECT, QUOTA_WARNING_EFFECT, sendNoticeMail } from '../mail/notices';
 import { release } from '../mail/quota';
 // It registers the mail effects (the mail.notice producers and handlers), as server/core/deps.ts does for the entries.
 import '../mail/effects';
@@ -107,6 +108,27 @@ describe('suite 9: the notice mail on the local database, as madar_server', () =
     await sendNoticeMail(row.payload, live());
     expect(await mails()).toHaveLength(1);
     expect(await office.sql("select count(*)::integer as n from mail_log where kind = 'notice'")).toEqual([{ n: 1 }]);
+  });
+
+  it('sends no mention mail when the person reads the chat before the mail runs (chat design item 20)', async () => {
+    const [sara, omar] = members;
+    const chat = Object.values(office.seed.conversations).find((c) => c.kind === 'project' && c.projectId === project.id)!;
+    // The rows are held, as on a host with after: the mail runs 10 seconds later, here after the read.
+    const held: string[] = [];
+    const sendHeld = createRunCall({ afterCommit: async (_deps, ids) => void held.push(...ids) });
+    const mention = (who: User) => sendHeld(deps, {
+      principal: { userId: leader }, name: 'chats.send', input: { conversationId: chat.id, body: `${mentionMarkup(who.name, who.id)} look at this` }, batch: newBatch(),
+    });
+    okOf(await mention(sara));
+    expect(await outboxOf(CHAT_NOTICE_EFFECT)).toHaveLength(1);
+    okOf(await call(sara.id, 'chats.markRead', { conversationId: chat.id }));
+    await processOutbox(deps, held);
+    expect(await mails()).toEqual([]);
+    // A mention that the person did not read still sends its mail after the wait.
+    held.length = 0;
+    okOf(await mention(omar));
+    await processOutbox(deps, held);
+    expect((await mails()).map((m) => [m.to_email, m.tag])).toEqual([[omar.email, 'notice']]);
   });
 
   it('writes no mail row for a switch that is off, an in-app switch that is off, or a notice marked unread again', async () => {
