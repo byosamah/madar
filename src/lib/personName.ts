@@ -33,3 +33,30 @@ export function matchesPerson(person: Named, query: string): boolean {
 export function localName(detail: Record<string, string | undefined>, key: string, lang: Lang): string {
   return personName({ name: detail[key] ?? '', nameAr: detail[`${key}Ar`] }, lang);
 }
+
+/**
+ * How well a person matches the letters typed after "@": 0 when a name starts with them, 1 when a later word of a name starts with
+ * them ("Al-Harbi"), 2 when they sit inside a word, and -1 for no match. The best of the English and the Arabic name counts.
+ */
+export function matchRank(person: Named, query: string): number {
+  const needle = normalizeForSearch(query);
+  if (!needle) return 0;
+  let best = -1;
+  for (const name of [person.name, person.nameAr ?? '']) {
+    const text = normalizeForSearch(name);
+    if (!text.includes(needle)) continue;
+    const words = text.split(/[\s-]+/);
+    const rank = text.startsWith(needle) ? 0 : words.some((word) => word.startsWith(needle)) ? 1 : 2;
+    best = best < 0 ? rank : Math.min(best, rank);
+  }
+  return best;
+}
+
+/** The people that match the letters, the names that start with them first. Equal ranks keep their order (the sort is stable). */
+export function rankedMatches<T extends Named>(people: T[], query: string): T[] {
+  return people
+    .map((person) => ({ person, rank: matchRank(person, query) }))
+    .filter((entry) => entry.rank >= 0)
+    .sort((a, b) => a.rank - b.rank)
+    .map((entry) => entry.person);
+}

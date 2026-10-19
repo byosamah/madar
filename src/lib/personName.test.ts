@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { byPersonName, localName, matchesPerson, personName } from './personName';
+import { byPersonName, localName, matchesPerson, matchRank, personName, rankedMatches } from './personName';
 
 describe('personName (owner item 12, 2026-10-05)', () => {
   const both = { name: 'Faisal Al-Otaibi', nameAr: 'فيصل العتيبي' };
@@ -44,3 +44,19 @@ describe('personName (owner item 12, 2026-10-05)', () => {
     expect(localName({}, 'lead', 'en')).toBe('');
   });
 });
+
+describe('matchRank and rankedMatches (chats-01)', () => {
+  it('ranks a name that starts with the letters, then a later word that starts with them, then the letters inside a word', () => {
+    expect(matchRank({ name: 'Sara Al-Qahtani' }, 'sa')).toBe(0);
+    expect(matchRank({ name: 'Faisal Al-Harbi' }, 'al')).toBe(1);
+    expect(matchRank({ name: 'Faisal Al-Harbi' }, 'sa')).toBe(2);
+    expect(matchRank({ name: 'Faisal Al-Harbi' }, 'zz')).toBe(-1);
+    expect(matchRank({ name: 'Faisal', nameAr: 'فيصل' }, 'في')).toBe(0);
+  });
+
+  it('puts the best match first and keeps the order of equal ranks', () => {
+    const people = [{ name: 'Faisal Al-Harbi' }, { name: 'Omar Sabbagh' }, { name: 'Sara Al-Qahtani' }, { name: 'Sami Noor' }];
+    expect(rankedMatches(people, 'sa').map((p) => p.name)).toEqual(['Sara Al-Qahtani', 'Sami Noor', 'Omar Sabbagh', 'Faisal Al-Harbi']);
+  });
+});
+

@@ -58,3 +58,60 @@ describe('the mention box', () => {
     expect(box).toHaveValue('Hi @Lina Mansour ok now');
   });
 });
+
+// chats-01 (UX audit 2026-10-19): the list of names hid under the edge of the chat panel, and "@Sa" then Enter picked Faisal.
+describe('the mention list: place and order', () => {
+  const people = [person('usr_002', 'Faisal Al-Harbi'), person('usr_008', 'Omar Sabbagh'), person('usr_005', 'Sara Al-Qahtani'), person('usr_007', 'Lina Mansour')];
+  function Rank({ placement }: { placement?: 'above' | 'below' }) {
+    const [value, setValue] = useState('');
+    return <MentionField id="box" label="Box" value={value} onChange={setValue} people={people} placement={placement} />;
+  }
+
+  it('lists the names that start with the letters first, so "@Sa" then Enter picks Sara, not Faisal', async () => {
+    render(<Rank />);
+    const box = screen.getByRole('textbox', { name: 'Box' });
+    await userEvent.type(box, '@Sa');
+    const names = screen.getAllByRole('option').map((option) => option.querySelector('bdi')?.textContent);
+    // Sara starts with "sa" (first name). Faisal only holds "sa" inside the name, so he comes after Sara and the names that start with it.
+    expect(names[0]).toBe('Sara Al-Qahtani');
+    expect(names[1]).toBe('Omar Sabbagh');
+    expect(names.at(-1)).toBe('Faisal Al-Harbi');
+    await userEvent.keyboard('{Enter}');
+    expect(box).toHaveValue('@Sara Al-Qahtani ');
+  });
+
+  it('ranks a name whose last name starts with the letters before a name that holds them inside', async () => {
+    function Last() {
+      const [value, setValue] = useState('');
+      return <MentionField id="box" label="Box" value={value} onChange={setValue} people={[person('usr_030', 'Halal Nasser'), person('usr_002', 'Faisal Al-Harbi'), person('usr_031', 'Al Mansour')]} />;
+    }
+    render(<Last />);
+    await userEvent.type(screen.getByRole('textbox', { name: 'Box' }), '@Al');
+    const names = screen.getAllByRole('option').map((option) => option.querySelector('bdi')?.textContent);
+    // The first name starts with it, then the last name starts with it, then the name that holds it inside.
+    expect(names).toEqual(['Al Mansour', 'Faisal Al-Harbi', 'Halal Nasser']);
+  });
+
+  it('opens above the box when asked, and below it by default', async () => {
+    const { unmount } = render(<Rank placement="above" />);
+    await userEvent.type(screen.getByRole('textbox', { name: 'Box' }), '@');
+    expect(screen.getByRole('listbox')).toHaveClass('bottom-full');
+    expect(screen.getByRole('listbox')).not.toHaveClass('top-full');
+    unmount();
+    render(<Rank />);
+    await userEvent.type(screen.getByRole('textbox', { name: 'Box' }), '@');
+    expect(screen.getByRole('listbox')).toHaveClass('top-full');
+  });
+
+  it('shows at most five names', async () => {
+    const many = Array.from({ length: 8 }, (_, i) => person(`usr_0${20 + i}`, `Sami Person${i}`));
+    function Many() {
+      const [value, setValue] = useState('');
+      return <MentionField id="box" label="Box" value={value} onChange={setValue} people={many} />;
+    }
+    render(<Many />);
+    await userEvent.type(screen.getByRole('textbox', { name: 'Box' }), '@Sam');
+    expect(screen.getAllByRole('option')).toHaveLength(5);
+  });
+});
+

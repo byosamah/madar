@@ -2,13 +2,17 @@ import { useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { UserCard } from '../api/contract/views';
 import { usePersonName } from '../app/personName';
-import { matchesPerson } from '../lib/personName';
+import { rankedMatches } from '../lib/personName';
 import { activeMention } from '../lib/text';
 import { Avatar } from './Avatar';
 
-/** A text box with an @mention picker (spec 5.2 and 7.2). The arrow keys move through the names, Enter picks one, Escape closes the list. */
+/**
+ * A text box with an @mention picker (spec 5.2 and 7.2). The arrow keys move through the names, Enter picks one, Escape closes the list.
+ * The names that start with the typed letters come first (UX audit 2026-10-19, chats-01). A box at the bottom of a panel opens the
+ * list above itself (`placement="above"`), so the panel does not cut it.
+ */
 export function MentionField({
-  id, label, value, onChange, people, onPick, placeholder, rows = 3, inputRef, className = '',
+  id, label, value, onChange, people, onPick, placeholder, rows = 3, inputRef, className = '', placement = 'below',
 }: {
   id: string;
   label: string;
@@ -20,6 +24,7 @@ export function MentionField({
   rows?: number;
   inputRef?: RefObject<HTMLTextAreaElement | null>;
   className?: string;
+  placement?: 'below' | 'above';
 }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
@@ -30,7 +35,7 @@ export function MentionField({
   const [dismissedAt, setDismissedAt] = useState<number | null>(null);
   const mention = activeMention(value, caret);
   // Both names match (owner item 12). The list and the inserted text use the name of the screen language.
-  const matches = mention ? people.filter((person) => matchesPerson(person, mention.query)).slice(0, 5) : [];
+  const matches = mention ? rankedMatches(people, mention.query).slice(0, 5) : [];
   const open = matches.length > 0 && dismissedAt !== mention?.start;
   const listId = `${id}-mentions`;
 
@@ -95,7 +100,7 @@ export function MentionField({
         className="field resize-y"
       />
       {open && (
-        <ul id={listId} role="listbox" aria-label={t('overview.mentionList')} className="float absolute inset-x-0 top-full z-30 mt-1 flex flex-col rounded-2xl p-1.5">
+        <ul id={listId} role="listbox" aria-label={t('overview.mentionList')} className={`float absolute inset-x-0 z-30 flex flex-col rounded-2xl p-1.5 ${placement === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
           {matches.map((person, i) => (
             <li
               key={person.id}

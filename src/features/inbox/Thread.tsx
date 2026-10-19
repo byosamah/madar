@@ -235,6 +235,7 @@ function ComposerBox({ id, people, pending, onSend, upload, owner }: ComposerPro
           people={people}
           rows={1}
           inputRef={field}
+          placement="above"
           placeholder={t('chat.placeholder')}
           className="[&_textarea]:max-h-40 [&_textarea]:min-h-11 [&_textarea]:resize-none [&_textarea]:[field-sizing:content]"
         />
