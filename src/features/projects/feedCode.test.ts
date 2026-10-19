@@ -44,3 +44,23 @@ describe('the feed line of a template update (INT-13)', () => {
     initI18n('en');
   });
 });
+
+describe('the feed line of an applied template (fbk_020)', () => {
+  const applied: FeedItem = { ...changed, id: 'evt_003', verb: 'project.template_applied', detail: { template: 'Villa, full design', stages: '1', tasks: '2' } };
+
+  it('shows in the project feed, with the template and what came in', () => {
+    expect(FEED_VERBS.has('project.template_applied')).toBe(true);
+    expect(FEED_EVENT_VERBS.has('project.template_applied')).toBe(true);
+    initI18n('en');
+    expect(feedText(applied, i18n.t.bind(i18n))).toBe('applied the template Villa, full design: added 1 stage and 2 tasks');
+    expect(feedText({ ...applied, detail: { ...applied.detail, stages: '0', tasks: '5' } }, i18n.t.bind(i18n))).toBe('applied the template Villa, full design: added 5 tasks');
+    expect(feedText({ ...applied, detail: { ...applied.detail, stages: '3', tasks: '0' } }, i18n.t.bind(i18n))).toBe('applied the template Villa, full design: added 3 stages');
+    expect(feedText({ ...applied, detail: { template: '', stages: '0', tasks: '0' } }, i18n.t.bind(i18n))).toBe('applied a template: added nothing');
+  });
+
+  it('uses the feminine verb in Arabic after a woman\'s name', () => {
+    initI18n('ar');
+    expect(feedText(applied, i18n.t.bind(i18n))).toBe('طبّقت القالب Villa, full design. المضاف: مرحلة واحدة ومهمتان');
+    initI18n('en');
+  });
+});

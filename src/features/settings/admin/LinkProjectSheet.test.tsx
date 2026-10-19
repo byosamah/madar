@@ -93,6 +93,41 @@ describe('Link an older project', () => {
     expect(mine('t2')).toBe(false);
   });
 
+  it('says the lead rule and the dates of the new parts only after the Admin picks "Add them" (fbk_020)', async () => {
+    const ctx = await setUp();
+    ctx.store.state.projects[ctx.projectId].startDate = '2026-10-04';
+    await openSheet(ctx);
+    expect(screen.queryByText(/^Each new task gets the default person of its role as lead/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('radio', { name: /^Add them to the project/ }));
+    expect(screen.getByText(/^Each new task gets the default person of its role as lead/)).toBeInTheDocument();
+    // The project starts after today, so the dates of the template stay and nothing moves forward.
+    expect(screen.getByText(/^The new parts run from .+ to .+\./)).toBeInTheDocument();
+    expect(screen.queryByText(/the new parts move forward/)).not.toBeInTheDocument();
+  });
+
+  it('says that the new parts get no dates when the project has no start date', async () => {
+    const ctx = await setUp();
+    await openSheet(ctx);
+    await userEvent.click(screen.getByRole('radio', { name: /^Add them to the project/ }));
+    expect(screen.getByText('The project has no start date, so the new parts get no dates.')).toBeInTheDocument();
+  });
+
+  it('adds the parts from today, never before: the Admin link follows the same rule as the apply (fbk_020)', async () => {
+    const ctx = await setUp();
+    // The project started long before today (2026-09-30), so the template dates are past.
+    ctx.store.state.projects[ctx.projectId].startDate = '2026-05-03';
+    await openSheet(ctx);
+    await userEvent.click(screen.getByRole('radio', { name: /^Add them to the project/ }));
+    expect(screen.getByText(/the new parts move forward/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Save link' }));
+    expect(await screen.findByText('The project is linked to the template.')).toBeInTheDocument();
+    const starts = Object.values(ctx.store.state.tasks)
+      .filter((task) => task.projectId === ctx.projectId && task.templatePartId !== undefined && task.id !== ctx.surveyId && task.id !== ctx.packId)
+      .map((task) => task.startDate ?? '');
+    expect(starts.length).toBeGreaterThan(0);
+    expect(starts.filter((day) => day !== '').sort()[0]).toBe('2026-09-30');
+  });
+
   it('fills each pick with the item of the project that has the same name', async () => {
     const ctx = await setUp();
     await openSheet(ctx);

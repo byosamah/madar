@@ -204,7 +204,24 @@
     "aboutLabel": "Template",
     "savedFollowed": "Template saved. {{count}} projects follow it.",
     "followers": "{{count}} projects follow it",
-    "deletedKept": "Template deleted. {{count}} projects keep their tasks."
+    "deletedKept": "Template deleted. {{count}} projects keep their tasks.",
+    "apply": {
+      "menu": "Apply a template",
+      "title": "Apply a template",
+      "intro": "Choose a template for {{project}}. Madar matches its stages and tasks to the project by name.",
+      "follows": "This project follows the template {{template}}.",
+      "followsPlain": "This project follows a template.",
+      "another": "I want to apply another template. The project follows the new one instead.",
+      "noTemplates": "No project templates are saved yet.",
+      "matchTitle": "Apply {{template}} to {{project}}",
+      "save": "Apply template",
+      "done": "The template is applied.",
+      "leads": "Each new task gets the default person of its role as lead. A role with no active person leaves the task with no lead.",
+      "dates": "The new parts run from {{from}} to {{to}}.",
+      "datesMoved": "The dates of the template are past, so the new parts move forward.",
+      "noStart": "The project has no start date, so the new parts get no dates.",
+      "addedNothing": "nothing"
+    }
   },
   "templateUse": {
     "startFrom": "Start from a template",
@@ -231,13 +248,16 @@
       "duplicate_match": "One project item matches two parts of the template. Choose each item once.",
       "not_linked": "This project is not linked to a template. Link it first.",
       "other_template": "This project is linked to another template.",
-      "date_reason_needed": "Write why the dates change."
+      "date_reason_needed": "Write why the dates change.",
+      "project_closed": "This project is closed. A template goes only to an open project."
     }
   },
   "feed": {
     "project": {
       "template_synced": "updated this project from the template {{template}}",
-      "template_synced_plain": "updated this project from its template"
+      "template_synced_plain": "updated this project from its template",
+      "template_applied": "applied the template {{template}}: added {{added}}",
+      "template_applied_plain": "applied a template: added {{added}}"
     }
   },
   "adminPage": {

@@ -202,6 +202,13 @@ any screen work.
   a stage start moves its tasks by the same days (`moveStageStart`, on blur), a new wait that points back moves the waiting part
   (`addWait`, with an Undo toast), a save problem names its part and field (`draftProblem`), and Cancel, Escape and the close button ask
   "Discard the changes?" when the draft changed (a control with `data-autofocus` takes the focus in a sheet).
+- Apply a template (owner, 2026-10-19, fbk_020): "Apply a template" in the "More actions" menu of the project header
+  (`features/project/ApplyTemplateSheet.tsx`), for `viewerCan.edit` (the leader and the Admin) on an active or paused project. Step 1 is a
+  list of the office templates (name, stages, tasks); one press opens step 2, `LinkProjectSheet` in `mode="apply"` over it (same matching,
+  "Add them to the project" chosen, main button "Apply template", Undo toast). A project that follows a template shows one line and a confirm
+  tick before the list works; the new template then replaces the link (`replace`). The sheet says the lead rule and the dates of the new
+  parts in two short lines, from `shiftAdded` (the server uses it too). The Admin's Link in Project templates uses the same sheet in
+  `mode="link"` (start choice "Leave them out") and the same dates and lead rules.
 - The update of linked projects (`TemplateProjectsSheet.tsx`, `SyncSteps.tsx`): pick the projects, then one review screen with one tick
   for each kind of change and a line for each task (old value, new value). The main button runs only the projects that change and the
   sheet closes with the toast "Updated 2 projects. Undo". After a save of a followed template the toast offers "Update them"
