@@ -11,7 +11,15 @@ export type CallMap = Record<string, AnyCall>;
  * One story ID for several calls, so one agent request reads as one story in the log.
  * "key" is the idempotency key of a write in the real build: only a Retry sends the same key again (plan 4.10). The fake API ignores it.
  */
-export type CallMeta = { correlationId?: string; key?: string };
+export type CallMeta = {
+  correlationId?: string;
+  key?: string;
+  /**
+   * Screen only, never on the wire (chat design 2026-10-19, item 14): the file upload reports how many bytes went up, and how many there
+   * are in all. The fake client drops it with the other unknown keys of its Meta parse.
+   */
+  onProgress?: (sent: number, total: number) => void;
+};
 
 /** The output, plus the story ID that the call used and whether it changed a record. Only useUndoable needs it. */
 export type CallResult<O> = { output: O; storyId: string; changed: boolean };

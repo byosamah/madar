@@ -29,8 +29,17 @@ export function useAttachments(max: number = MAX_ATTACHMENTS, initial: File[] = 
   const limit = useFileLimit();
   const [files, setFiles] = useState<File[]>(initial);
   const uploaded = useRef(new Map<File, string>());
+  // The whole percent of each file that is on its way (0 to 100). A file with no entry shows no bar.
+  const [progress, setProgress] = useState<ReadonlyMap<File, number>>(() => new Map());
+  const [uploading, setUploading] = useState(false);
+  const setPercent = (file: File, percent: number | null) => setProgress((current) => {
+    const next = new Map(current);
+    if (percent === null) next.delete(file);
+    else next.set(file, percent);
+    return next;
+  });
 
-  const add = (list: FileList | null) => {
+  const add = (list: FileList | readonly File[] | null) => {
     const chosen = [...(list ?? [])];
     // The limit of the active store, checked when the person picks the file, so nothing starts that the store refuses.
     for (const file of chosen.filter((f) => f.size > limit)) toast.show({ tone: 'error', message: tooLargeText(file.name, limit, t, lang) });
@@ -43,32 +52,55 @@ export function useAttachments(max: number = MAX_ATTACHMENTS, initial: File[] = 
   /** Uploads every picked file and returns the file ids. It throws when an upload fails. */
   const upload = async (target: UploadTarget, meta?: { correlationId: string }): Promise<string[]> => {
     const ids: string[] = [];
-    for (const file of files) {
-      let id = uploaded.current.get(file);
-      if (!id) {
-        const view = await api.call(
-          'files.upload',
-          {
-            ...(target.projectId ? { projectId: target.projectId } : {}),
-            ...(target.conversationId ? { conversationId: target.conversationId } : {}),
-            name: file.name, blob: file, stageId: target.stageId ?? null, taskId: target.taskId ?? null,
-          },
-          meta,
-        );
-        id = view.file.id;
-        uploaded.current.set(file, id);
+    setUploading(true);
+    // Each file that still has to go up shows its bar at 0 from the start, so the person sees all of them.
+    for (const file of files) if (!uploaded.current.has(file)) setPercent(file, 0);
+    try {
+      for (const file of files) {
+        let id = uploaded.current.get(file);
+        if (!id) {
+          try {
+            const view = await api.call(
+              'files.upload',
+              {
+                ...(target.projectId ? { projectId: target.projectId } : {}),
+                ...(target.conversationId ? { conversationId: target.conversationId } : {}),
+                name: file.name, blob: file, stageId: target.stageId ?? null, taskId: target.taskId ?? null,
+              },
+              { ...meta, onProgress: (sent, total) => setPercent(file, total > 0 ? Math.min(100, Math.round((sent / total) * 100)) : 0) },
+            );
+            id = view.file.id;
+            uploaded.current.set(file, id);
+            setPercent(file, 100);
+          } catch (error) {
+            // A file that failed shows no bar, so the chip is as it was before the send.
+            setPercent(file, null);
+            throw error;
+          }
+        }
+        ids.push(id);
       }
-      ids.push(id);
+      return ids;
+    } finally {
+      setUploading(false);
+      // A file that was not tried (an earlier file failed) shows no bar either.
+      for (const file of files) if (!uploaded.current.has(file)) setPercent(file, null);
     }
-    return ids;
   };
 
   const clear = () => {
     setFiles([]);
     uploaded.current.clear();
+    setProgress(new Map());
   };
 
-  return { files, add, upload, clear, remove: (index: number) => setFiles((list) => list.filter((_, i) => i !== index)), full: files.length >= max };
+  const remove = (index: number) => {
+    const gone = files[index];
+    if (gone) setPercent(gone, null);
+    setFiles((list) => list.filter((_, i) => i !== index));
+  };
+
+  return { files, add, upload, clear, remove, progress, uploading, full: files.length >= max };
 }
 
 /** The "Attach files" control. The compact form is a round icon button, for the chat box. */
@@ -93,21 +125,45 @@ export function AttachButton({ onPick, compact = false, disabled = false }: { on
   );
 }
 
-/** The picked files, each with a button that takes it out again. */
-export function PickedFiles({ files, onRemove }: { files: File[]; onRemove: (index: number) => void }) {
+/**
+ * The picked files, each with a button that takes it out again. A file on its way shows a thin grey bar under its name (chat design
+ * 2026-10-19, item 14), still and in no colour of attention. While `busy` is true the Remove buttons are locked, so a file that is going up
+ * cannot be taken out.
+ */
+export function PickedFiles({ files, onRemove, progress, busy = false }: { files: File[]; onRemove: (index: number) => void; progress?: ReadonlyMap<File, number>; busy?: boolean }) {
   const { t } = useTranslation();
   if (files.length === 0) return null;
   return (
     <ul aria-label={t('attachments.picked')} className="flex flex-wrap gap-2">
       {files.map((file, i) => (
         <li key={`${file.name}-${i}`} className="inline-flex min-h-11 items-center gap-1 rounded-full bg-fill ps-3">
-          <bdi className="text-footnote">{file.name}</bdi>
-          <IconButton label={t('attachments.remove', { name: file.name })} onClick={() => onRemove(i)}>
+          <span className="flex min-w-0 flex-col gap-1">
+            <bdi className="text-footnote">{file.name}</bdi>
+            {progress?.has(file) && <UploadBar name={file.name} percent={progress.get(file) ?? 0} />}
+          </span>
+          <IconButton label={t('attachments.remove', { name: file.name })} disabled={busy} onClick={() => onRemove(i)}>
             <AnimatedIcon icon={XIcon} size={14} aria-hidden />
           </IconButton>
         </li>
       ))}
     </ul>
+  );
+}
+
+/** The thin grey bar of a file that goes up: the whole percent, in words for a screen reader. */
+function UploadBar({ name, percent }: { name: string; percent: number }) {
+  const { t } = useTranslation();
+  return (
+    <span
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={percent}
+      aria-label={t('chat.uploading', { name, percent })}
+      className="block h-[3px] w-full min-w-30 overflow-hidden rounded-full bg-fill-strong"
+    >
+      <span className="block h-full rounded-full bg-ink-2" style={{ width: `${percent}%` }} />
+    </span>
   );
 }
 

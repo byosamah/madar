@@ -83,7 +83,7 @@ function ComposerBox({ id, people, pending, onSend, upload, owner }: ComposerPro
         void submit();
       }}
     >
-      {upload && <PickedFiles files={attachments.files} onRemove={attachments.remove} />}
+      {upload && <PickedFiles files={attachments.files} onRemove={attachments.remove} progress={attachments.progress} busy={uploading} />}
       <div className="flex items-end gap-2">
       {upload && <AttachButton compact onPick={attachments.add} />}
       <div

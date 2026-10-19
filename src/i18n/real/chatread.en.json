@@ -2,6 +2,7 @@
   "chat": {
     "namesYou": "This message names you.",
     "newest": "Go to the newest message",
-    "newLine": "New"
+    "newLine": "New",
+    "uploading": "{{name}}: {{percent}}% uploaded"
   }
 }

@@ -2,6 +2,7 @@
   "chat": {
     "namesYou": "هذه الرسالة تذكرك.",
     "newest": "انتقل إلى أحدث رسالة",
-    "newLine": "جديد"
+    "newLine": "جديد",
+    "uploading": "{{name}}: رُفع {{percent}}%"
   }
 }
