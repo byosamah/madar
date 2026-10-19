@@ -73,7 +73,7 @@ export function insertComment(
   };
   ctx.state.comments[id] = comment;
   recordCreate(ctx, { projectId, verb: 'comment.created', targetType: 'comment', targetId: id, entity: comment });
-  notifyIn(ctx, { userIds: activeMentions(ctx.state, body), trigger: 'mention', targetType, targetId });
+  notifyIn(ctx, { userIds: activeMentions(ctx.state, body), trigger: 'mention', targetType, targetId, messageId: id });
   return comment;
 }
 

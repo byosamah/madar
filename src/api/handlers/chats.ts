@@ -282,7 +282,7 @@ export function postMessage(ctx: Ctx, conversation: Conversation, body: string, 
     createdAt: ctx.stamp, editedAt: null,
   };
   ctx.state.messages[id] = message;
-  notifyIn(ctx, { userIds: mentions, trigger: 'mention', targetType: 'chat', targetId: conversation.id });
+  notifyIn(ctx, { userIds: mentions, trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: id });
   markReadNow(ctx, conversation);
   return messageViewOf(ctx.state, message, ctx.authority);
 }

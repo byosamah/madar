@@ -153,7 +153,7 @@ export const commentsUpdate = defineCall({
     if (comment.dates?.byTaskId) throw forbidden('Madar wrote this message.', { commentId: comment.id });
     const added = newMentions(ctx, comment.body, input.body);
     applyPatch(ctx, comment, { body: input.body, editedAt: ctx.stamp }, { projectId, verb: 'comment.edited', targetType: 'comment', targetId: comment.id });
-    notifyIn(ctx, { userIds: added, trigger: 'mention', targetType: comment.targetType, targetId: comment.targetId });
+    notifyIn(ctx, { userIds: added, trigger: 'mention', targetType: comment.targetType, targetId: comment.targetId, messageId: comment.id });
     return commentViewOf(ctx.state, comment, ctx.authority);
   },
 });

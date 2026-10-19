@@ -40,6 +40,19 @@ describe('notify', () => {
     expect(projectPeople(state, 'prj_001').sort()).toEqual(['usr_002', 'usr_003']);
   });
 
+  it('keeps the message and the reply mark on the notice', () => {
+    const faisal = state.users.usr_002;
+    const [n] = notify(state, faisal, STAMP, { userIds: ['usr_003'], trigger: 'mention', targetType: 'chat', targetId: 'cnv_001', messageId: 'msg_009', reply: true });
+    expect(n).toMatchObject({ messageId: 'msg_009', reply: true });
+    const [plain] = notify(state, faisal, STAMP, { userIds: ['usr_003'], trigger: 'mention', targetType: 'chat', targetId: 'cnv_001' });
+    expect(plain).not.toHaveProperty('messageId');
+    expect(plain).not.toHaveProperty('reply');
+    // A message mark with no reply mark gives a notice with no reply key.
+    const [named] = notify(state, faisal, STAMP, { userIds: ['usr_003'], trigger: 'mention', targetType: 'chat', targetId: 'cnv_001', messageId: 'msg_010' });
+    expect(named).toMatchObject({ messageId: 'msg_010' });
+    expect(named).not.toHaveProperty('reply');
+  });
+
   it('does not tell a person about their own agent', () => {
     const made = notify(state, state.users.usr_005, STAMP, { userIds: ['usr_002', 'usr_003'], trigger: 'mention', targetType: 'task', targetId: 'tsk_001' });
     expect(made.map((n) => n.userId)).toEqual(['usr_002']);
