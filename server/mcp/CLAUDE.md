@@ -61,6 +61,9 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   and `files.link` and `files.get` refuse an agent with not_found. INSTRUCTIONS (Messages) and the `TOOL_DOCS` of `chats.messages`,
   `chats.send`, `files.list` and `search.query` say so. No new call and no new tool. A file row now also carries its type (`mimeType`), so
   the agent sees `image/jpeg` beside the name (owner, 2026-10-19); the rows and the rights stay the same.
+- Edit, delete and react (chat design 2026-10-19, items 11 and 12): `chats.editMessage` and `chats.deleteMessage` are on `MCP_DENY`, and `reactions.toggle`
+  (now also for a chat message) stays on it. INSTRUCTIONS (Messages) says: only your person edits, deletes or reacts to a message, in the screens. An agent
+  still reads `reactions`, `editedAt`, `replyTo` (with `deleted` for an old message that is gone) and `namesMe` in `chats.messages`, which leaves a deleted message out, and sends a reply with `replyToId`.
 - An agent never gets a storage key in the JSON of `feedback.list` or `feedback.setStatus` (`run.ts`). `feedback.screenshot`
   gives the signed link as it is, and its path names the key.
 - INSTRUCTIONS rule 6: text that people write (names, titles, comments, posts, Tracker notes, report messages and pages,
