@@ -383,6 +383,33 @@ export function findTraps(state: State): void {
       ...(n === 100 || n === 300 ? { deletedAt: '2026-10-03T06:00:00.000Z' } : {}),
     };
   }
+  searchTraps(state, group.id, people);
+}
+
+/** The id of a message of the search records of findTraps. */
+const searchId = (n: number) => `msg_${2000 + n}`;
+
+/**
+ * The records of the message search (item 16): 7 messages with "riser" in the project chat of prj_001 and one deleted message with
+ * "riser" newer than them, the word in the group and in a direct chat of two people, and an Arabic message with "أسعار".
+ */
+function searchTraps(state: State, groupId: string, people: string[]): void {
+  const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+  const leader = state.projects.prj_001.leaderId!;
+  const [first, second] = people;
+  const talk = Object.values(state.conversations).find((c) => c.kind === 'direct' && c.memberIds.includes(first) && c.memberIds.includes(second))
+    ?? addDirectConversation(state, first, second, '2026-10-02T08:00:00.000+03:00');
+  const put = (n: number, conversationId: string, authorId: string, body: string, extra: Record<string, unknown> = {}) => {
+    state.messages[searchId(n)] = {
+      id: searchId(n), conversationId, authorId, actingForId: authorId, body, mentions: [], fileIds: [],
+      createdAt: `2026-10-04T08:${String(10 + n).padStart(2, '0')}:00.000+03:00`, editedAt: null, ...extra,
+    };
+  };
+  for (let n = 1; n <= 7; n++) put(n, room.id, leader, `Riser size ${n}`);
+  put(8, room.id, leader, 'Riser deleted offer', { deletedAt: '2026-10-03T12:00:00.000Z' });
+  put(9, groupId, first, 'The riser of the group');
+  put(10, talk.id, second, 'The riser of two people');
+  put(11, room.id, leader, 'أسعار المواد ارتفعت');
 }
 
 /** The calls of track find: chats.messages with "around", for each member and for a person outside, on the group of findTraps. */
@@ -397,5 +424,8 @@ export function findSweep(office: State): SweepCall[] {
     calls.push(['chats.messages', { conversationId: group.id, around: findId(30), limit: 50 }, actor]);
   }
   calls.push(['chats.messages', { conversationId: group.id, around: findId(30) }, outsider]);
+  // The message search, for every active human and agent: a word, an Arabic word in another letter form, and a query with no word of 3 letters.
+  const searchers = Object.values(office.users).filter((u) => u.active).map((u) => u.id);
+  for (const actor of searchers) for (const text of ['riser', 'اسعار', 'ri', 'riser size']) calls.push(['search.query', { text }, actor]);
   return calls;
 }

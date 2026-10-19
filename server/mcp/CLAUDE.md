@@ -56,6 +56,8 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   `chats.archive` and the three group writes stay on `MCP_DENY`: a read mark and an archive are the person's own acts. A sent
   message writes no event, so no Undo takes it back, and `chats.openDirect` and `chats.send` are not additive (the client may
   ask its person first). INSTRUCTIONS has a Messages paragraph that says: send only when the person asks.
+- `search.query` finds the messages of the chats that the person may open (`messages`, the newest 5; chat design 2026-10-19, item 16).
+  The `TOOL_DOCS` of `search.query` and the Messages paragraph of INSTRUCTIONS say so. Chat files stay closed to agents.
 - A chat that the person may not open answers `not_found` for the agent too, for every kind (chat design 2026-10-19, item 17): it was
   `forbidden` for a direct or project chat. `TOOL_DOCS` of `chats.send` says so.
 - `chats.messages` takes `around` (a message id; chat design 2026-10-19, item 17): the page that holds the message, and `newer` says

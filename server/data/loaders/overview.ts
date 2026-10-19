@@ -3,10 +3,13 @@ import { peopleFilter, teamFilter } from '../../../src/api/pause';
 import { can, projectRoleOf } from '../../../src/api/permissions';
 import { commentCountKey, fileCountKey } from '../../../src/api/store';
 import { stagesOf } from '../../../src/api/views';
+import { canSeeConversation } from '../../../src/api/chatState';
+import { MESSAGE_HITS } from '../../../src/api/messageSearch';
+import { searchesMessages, searchWords } from '../../../src/lib/searchMatch';
 import { normalizeForSearch } from '../../../src/lib/text';
 import type { Cond } from './query';
 import type { Load } from './build';
-import { covers, eventTargets, feed, officeState, officeTasks, tasksOf } from './steps';
+import { covers, eventTargets, feed, LIVE, officeState, officeTasks, tasksOf } from './steps';
 
 /**
  * The overview loader (plan 4.6): the calls that read across projects. The project filters of each call read only the office,
@@ -128,6 +131,23 @@ export async function searchQuery(L: Load, input: Input): Promise<void> {
   await L.select({ c: 'files', where: [{ col: 'project_id', in: projects }, { col: 'search_text', contains: query }], limit: 5 });
   const seen = (await officeTasks(L, [], { pick: OFFICE_TASK_PEOPLE })).map((task) => task.id);
   await L.select({ c: 'files', where: [{ col: 'project_id', eq: null }, { col: 'task_id', in: seen }, { col: 'search_text', contains: query }], limit: 5 });
+  await messageHits(L, input);
+}
+
+/**
+ * The chat messages of the Messages group (chat design 2026-10-19, item 16): the newest MESSAGE_HITS live messages of the chats that
+ * the person may open, whose folded text holds every word of the query. A query with no word of 3 letters reads none. The handler
+ * keeps the newest 5 of the rows, so the cut gives the same rows on the scoped load as on the whole office.
+ */
+async function messageHits(L: Load, input: Input): Promise<void> {
+  const words = searchWords(String(input.text ?? ''));
+  if (!L.authority || !searchesMessages(words)) return;
+  const office = officeState(L);
+  const chats = Object.values(L.office.conversations).filter((c) => canSeeConversation(office, c, L.authority!)).map((c) => c.id);
+  await L.select({
+    c: 'messages', where: [{ col: 'conversation_id', in: chats }, LIVE, ...words.map((word) => ({ col: 'search_text', contains: word }))],
+    order: { col: 'created_at', desc: true, id: true }, limit: MESSAGE_HITS,
+  });
 }
 
 /** The fields of an office task that its view rule reads (taskResource). */

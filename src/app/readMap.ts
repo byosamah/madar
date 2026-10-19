@@ -61,7 +61,8 @@ const RULES: Record<string, ReadRule> = {
   'dashboard.get': rule('office', ['deadlines', 'events', 'members', 'payments', 'projects', 'settings', 'stages', 'subCompanies', 'tasks', 'teams', 'tracker', 'users']),
   'reports.office': rule('office', ['deadlines', 'events', 'members', 'payments', 'projects', 'settings', 'stages', 'subCompanies', 'tasks', 'tracker', 'users']),
   'deadlines.list': rule('office', ['deadlines', 'projects', 'users']),
-  'search.query': rule('office', ['clients', 'files', 'projects', 'subCompanies', 'tasks', 'users']),
+  // Messages: the Messages group reads the chats that the person may open, and the messages in them (chat design 2026-10-19, item 16).
+  'search.query': rule('office', ['clients', 'comments', 'conversations', 'files', 'members', 'messages', 'projects', 'subCompanies', 'tasks', 'users']),
   'users.list': rule('office', ['users', 'preferences']),
   'users.get': rule('office', ['users', 'preferences']),
   'users.invites': rule('office', ['users']),

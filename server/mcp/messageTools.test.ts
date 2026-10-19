@@ -224,6 +224,23 @@ describe('the message tools over MCP (owner, 2026-10-12)', () => {
     expect(TOOL_DOCS['chats.messages'].description.length).toBeLessThanOrEqual(600);
   });
 
+  it('finds the messages of its person with search.query, and none of a chat its person may not open', async () => {
+    const w = world();
+    const found = await call(w, 'search.query', { text: 'private offer' });
+    expect(found.result.isError, JSON.stringify(found.result)).toBeUndefined();
+    const hits = found.result.structuredContent.output.messages as { chatId: string; kind: string; line: string }[];
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ chatId: hala3, kind: 'direct', line: SECRET });
+    // A direct chat of two other people and a group that the person is not in: no hit, no text, no id.
+    for (const text of ['Admin may not open', 'other team text']) {
+      const none = await call(w, 'search.query', { text });
+      expect(none.result.isError, text).toBeUndefined();
+      expect(none.result.structuredContent.output.messages, text).toEqual([]);
+      expect(none.text, text).not.toContain(faisalAndTurki);
+      expect(none.text, text).not.toContain(outsiderRoom);
+    }
+  });
+
   it('reads a group of its person with chats.messages', async () => {
     const w = world();
     const { text, result } = await call(w, 'chats.messages', { conversationId: groupRoom });

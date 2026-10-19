@@ -96,6 +96,19 @@ describe('the reads of track find on the scoped load', () => {
     for (const [name, input, actor] of calls) await same(traps, name, input, actor);
   }, 30_000);
 
+  it('finds the messages of the chats that the person may open, and only those (item 16)', async () => {
+    const traps = office(findTraps);
+    const ids = (run: Run) => (run.outcome.output as { messages: { id: string }[] }).messages.map((hit) => hit.id);
+    // The Admin opens the project chat, not the group and not the direct chat of two others. The deleted message is never found.
+    expect(ids(await same(traps, 'search.query', { text: 'riser' }, ADMIN))).toEqual(['msg_2007', 'msg_2006', 'msg_2005', 'msg_2004', 'msg_2003']);
+    const group = Object.values(traps.conversations).find((c) => c.name === 'Find group')!;
+    const member = ids(await same(traps, 'search.query', { text: 'riser' }, group.memberIds[0]));
+    expect(member.slice(0, 2)).toEqual(['msg_2010', 'msg_2009']);
+    expect(member).not.toContain('msg_2008');
+    expect(ids(await same(traps, 'search.query', { text: 'اسعار' }, ADMIN))).toEqual(['msg_2011']);
+    expect(ids(await same(traps, 'search.query', { text: 'ri' }, ADMIN))).toEqual([]);
+  });
+
   it('opens the group at an old message with the 20 before it and the 500 in all, and says that newer ones exist', async () => {
     const traps = office(findTraps);
     const group = Object.values(traps.conversations).find((c) => c.name === 'Find group')!;

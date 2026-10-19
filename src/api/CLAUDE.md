@@ -154,6 +154,11 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   quiet lines (added, removed, left, renamed); `chats.messages` returns them as `lines` for a group. They are no messages, so no
   unread count, preview or push reads them. `chats.updateGroup` sends the trigger `added_to_group` (in-app only) to each added person.
   `NotificationView.chatKind` and `target` (the group name while the viewer is a member) let a group notice name the group.
+- `search.query` has a `messages` group (chat design 2026-10-19, item 16): `messageHits` (`messageSearch.ts`) gives the newest 5 live chat
+  messages of the chats the person may open (`canSeeConversation`) whose folded text (`bodySearchText`) holds every word of the query
+  (`searchWords`), when one word has 3 letters or more. Each hit has `chatId`, `kind`, `title`, `project`, `person`, `author`, `mine`,
+  `line` (`hitLine`) and `at`. The loader reads the newest 5 matching rows of the visible chats, so the cut of the handler gives the
+  same rows. An agent gets the hits of its person. Chat files stay out of search.
 - A chat that the person may not open answers `not_found` ("Conversation <id> does not exist."), whatever its kind (chat design
   2026-10-19, item 17): `requireConversation` serves `chats.messages`, `chats.send`, `chats.markRead`, `chats.archive` and the group
   writes. The answer equals the one for an id that was never made, so an outsider learns nothing, the Admin included for a direct chat.
