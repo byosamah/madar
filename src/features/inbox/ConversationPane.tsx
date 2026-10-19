@@ -25,7 +25,12 @@ import { useMarkTaskRead } from '../comments/markRead';
 import { useEarlierMessages } from './earlier';
 import { useOpenMark } from './newLine';
 
-function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: ReactNode; subtitle: ReactNode; action?: ReactNode }) {
+/**
+ * The head of a pane. The title is a plain string: the `<bdi>` inside the heading is the element that cuts (`block truncate`), never the
+ * heading itself, so a title in the other language cuts at its end and not at its start (chat design 2026-10-19, item 8). A `<bdi>`
+ * takes the direction of its own text, and its side from the page (tokens.css).
+ */
+function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: string; subtitle: ReactNode; action?: ReactNode }) {
   const { t } = useTranslation();
   return (
     <header className="flex items-center gap-3 border-b border-hairline px-3 py-2.5 sm:px-5">
@@ -34,7 +39,7 @@ function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: Rea
       </Link>
       {lead}
       <div className="min-w-0 flex-1">
-        <h2 className="truncate text-headline text-ink">{title}</h2>
+        <h2 className="min-w-0 text-headline text-ink"><bdi className="block truncate">{title}</bdi></h2>
         <div className="truncate text-footnote text-ink-2">{subtitle}</div>
       </div>
       {action}
@@ -148,7 +153,7 @@ export function ChatPane({ id }: { id: string }) {
     <>
       <Header
         lead={lead}
-        title={<bdi>{title}</bdi>}
+        title={title}
         subtitle={subtitle}
         action={isGroup
           ? <GroupMenu id={id} archived={chat.archived} title={title} onPick={setSheet} onArchive={archive} />
@@ -219,7 +224,7 @@ export function TaskPane({ id }: { id: string }) {
     <>
       <Header
         lead={<span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><AnimatedIcon icon={ClipboardCheckIcon} size={18} aria-hidden /></span>}
-        title={<bdi>{task.data.task.title}</bdi>}
+        title={task.data.task.title}
         subtitle={`${t('chat.taskThread')} · ${where ? where.name : t('office.word')}`}
         action={(
           <>
