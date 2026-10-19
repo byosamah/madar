@@ -239,10 +239,25 @@ describe('the view of the map (PRJ-05)', () => {
     await screen.findByRole('button', { name: /Corniche Office Tower/ });
     expect(flow.props).toMatchObject({ fitViewOptions: { minZoom: 0.7 }, panOnScroll: true, zoomOnScroll: false });
     expect(flow.props?.zoomActivationKeyCode).toEqual(expect.arrayContaining(['Control', 'Meta']));
-    // The first view shows the office and the first five projects, from the top, not the whole tree.
+    // The first view shows the office and the first four projects, from the top, not the whole tree.
     const shown = flow.props!.fitViewOptions!.nodes!.map((node) => node.id);
     expect(shown[0]).toBe('office');
-    expect(shown).toHaveLength(6);
+    expect(shown).toHaveLength(5);
+  });
+
+  it('shows the first three projects alone on a phone, so the cards stay readable', async () => {
+    const width = window.innerWidth;
+    window.innerWidth = 390;
+    try {
+      await renderApp('/dashboard/space');
+      await screen.findByRole('button', { name: /Corniche Office Tower/ });
+      const shown = flow.props!.fitViewOptions!.nodes!.map((node) => node.id);
+      expect(shown).toHaveLength(3);
+      expect(shown).not.toContain('office');
+      expect(flow.props!.fitViewOptions!.minZoom).toBe(0.45);
+    } finally {
+      window.innerWidth = width;
+    }
   });
 
   it('moves the view to the project and its stages when a project opens', async () => {
@@ -371,7 +386,7 @@ describe('keyboard focus on the map', () => {
     expect(flow.setCenter).toHaveBeenCalledTimes(1);
     const [x, y, options] = flow.setCenter.mock.calls[0]!;
     // The map centers on a card: its start corner plus half of its size.
-    expect(flow.props?.nodes.some((node) => node.position.x + 120 === x && node.position.y + 40 === y)).toBe(true);
+    expect(flow.props?.nodes.some((node) => node.position.x + 144 === x && node.position.y + 30 === y)).toBe(true);
     expect(options).toEqual({ zoom: 1, duration: 0 });
   });
 

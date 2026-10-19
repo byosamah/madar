@@ -16,7 +16,7 @@ import { StatusSign, signOfProject, type SignState } from '../../components/Stat
 import { formatDay, todayISO, type Lang } from '../../lib/dates';
 import { counted } from '../../lib/grammar';
 import { dueText, dueWord } from '../../lib/due';
-import type { SpaceNode as Placed } from './spaceTree';
+import { CARD_HEIGHT, type SpaceNode as Placed } from './spaceTree';
 
 /** What one card shows. The screen fills it from the lists it reads. A card with no next level has `expandable` false. */
 export type SpaceCardData = {
@@ -41,9 +41,9 @@ export type SpaceFlowNode = Node<SpaceCardData, 'space'>;
 // The handles are not drawn: the lines of the tree join the cards at their edges.
 const HIDDEN_HANDLE = { opacity: 0 } as const;
 // React Flow gives a node of a read-only map no pointer events, so a card asks for them again: a mouse press or a tap must open it.
-const CARD = 'pointer-events-auto surface rounded-card w-60 p-3 text-start transition-opacity duration-200 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-link';
-// A card is 240 px wide (w-60). Its middle sits 120 px along and about 40 px down from its start corner.
-const CARD_CENTER = { x: 120, y: 40 } as const;
+const CARD = 'pointer-events-auto surface rounded-card w-72 p-3 text-start transition-opacity duration-200 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-link';
+// A card is 288 px wide (w-72). Its middle sits 144 px along from its start corner, and half its height down.
+const CARD_CENTER_X = 144;
 
 /** The two parts of the map that a card uses to move the view. */
 type MapView = Pick<ReturnType<typeof useReactFlow>, 'setCenter' | 'getZoom'>;
@@ -85,7 +85,7 @@ function clickToggles(data: SpaceCardData) {
 /**
  * A keyboard user focuses a card outside the map. The map then moves to show the card. A mouse click does not move the map.
  */
-function revealFocused(event: FocusEvent<HTMLDivElement>, card: { x: number; y: number }, view: MapView) {
+function revealFocused(event: FocusEvent<HTMLDivElement>, card: { x: number; y: number; height: number }, view: MapView) {
   const target = event.target as HTMLElement;
   if (!target.matches(':focus-visible')) return;
   const map = event.currentTarget.closest('.react-flow');
@@ -94,7 +94,7 @@ function revealFocused(event: FocusEvent<HTMLDivElement>, card: { x: number; y: 
   const box = target.getBoundingClientRect();
   const inside = box.left >= mapBox.left && box.right <= mapBox.right && box.top >= mapBox.top && box.bottom <= mapBox.bottom;
   if (inside) return;
-  void view.setCenter(card.x + CARD_CENTER.x, card.y + CARD_CENTER.y, { zoom: view.getZoom(), duration: 0 });
+  void view.setCenter(card.x + CARD_CENTER_X, card.y + card.height / 2, { zoom: view.getZoom(), duration: 0 });
 }
 
 /** The attributes that make a stage or a task a button when it has a next level, and that carry its state. */
@@ -116,7 +116,7 @@ function levelProps(data: SpaceCardData) {
 function Facts({ facts }: { facts: NonNullable<SpaceCardData['facts']> }) {
   const { t } = useTranslation();
   return (
-    <span className="mt-1.5 flex flex-wrap items-center gap-x-1.5 text-caption text-ink-2" data-facts>
+    <span className="mt-1.5 flex items-center gap-x-1.5 whitespace-nowrap text-caption text-ink-2" data-facts>
       <span>{counted(t, 'space.stagesCount', facts.stages)}</span>
       <span aria-hidden>·</span>
       <span>{counted(t, 'space.tasksCount', facts.tasks)}</span>
@@ -137,38 +137,36 @@ function ProjectCard({ data }: { data: SpaceCardData }) {
   if (!summary) return null;
   const state = signOfProject({ project: summary.project, health: summary.health, staleDays: summary.staleDays });
   const word = signWord(state, summary.staleDays, t);
-  // The card is not a button: the "Open project" button sits beside the header, and a button cannot hold a button. The header is
-  // the button that opens and closes the card, and it takes the whole width that the icon leaves. A press on the card margin
-  // reaches the card, which does the same (PRJ-08).
+  // The card is not a button: the "Open project" button sits at its end corner, and a button cannot hold a button. The body is the
+  // button that opens and closes the card. A press on the card margin reaches the card, which does the same (PRJ-08).
   return (
-    <div data-kind={data.kind} data-open={data.open} data-faded={data.faded} onClick={clickToggles(data)} className={cardClass(data)}>
-      <div className="flex items-start gap-1">
-        <button type="button" aria-expanded={data.expandable ? data.open : undefined} className="block min-w-0 flex-1 text-start">
-          <span className="flex items-center gap-2.5">
-            <ProjectTile id={summary.project.id} mark={summary.project.mark} size={32} subCompanyId={summary.subCompanyId} />
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <bdi dir="auto" className="truncate text-subheadline font-semibold text-ink">{summary.project.name}</bdi>
-              {/* On track is the normal state, so its word stays for a screen reader only. */}
-              <StatusSign state={state}>{state === 'on_track' ? <span className="sr-only">{word}</span> : word}</StatusSign>
-            </span>
+    <div data-kind={data.kind} data-open={data.open} data-faded={data.faded} onClick={clickToggles(data)} className={`${cardClass(data)} relative`}>
+      <button type="button" aria-expanded={data.expandable ? data.open : undefined} className="block w-full min-w-0 text-start">
+        {/* The first row leaves room for the Open project button at the end of the card. */}
+        <span className="flex items-center gap-2.5 pe-9">
+          <ProjectTile id={summary.project.id} mark={summary.project.mark} size={32} subCompanyId={summary.subCompanyId} />
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <bdi dir="auto" className="truncate text-subheadline font-semibold text-ink">{summary.project.name}</bdi>
+            {/* On track is the normal state, so its word stays for a screen reader only. */}
+            <StatusSign state={state}>{state === 'on_track' ? <span className="sr-only">{word}</span> : word}</StatusSign>
           </span>
-          <span className="mt-2.5 flex min-w-0 flex-col">
-            <span className="text-caption text-ink-2">{t('space.currentStage')}</span>
-            <bdi dir="auto" className="truncate text-footnote text-ink">{summary.currentStage.name}</bdi>
-          </span>
-          {data.facts && <Facts facts={data.facts} />}
-        </button>
-        <IconButton
-          label={t('space.openProject')}
-          className="-me-2 -mt-1.5 text-link"
-          onClick={(event) => {
-            event.stopPropagation();
-            navigate({ pathname: `/projects/${summary.project.id}` });
-          }}
-        >
-          <AnimatedIcon icon={ArrowUpRightIcon} size={18} aria-hidden className="rtl:-scale-x-100" />
-        </IconButton>
-      </div>
+        </span>
+        <span className="mt-2.5 flex min-w-0 flex-col">
+          <span className="text-caption text-ink-2">{t('space.currentStage')}</span>
+          <bdi dir="auto" className="truncate text-footnote text-ink">{summary.currentStage.name}</bdi>
+        </span>
+        {data.facts && <Facts facts={data.facts} />}
+      </button>
+      <IconButton
+        label={t('space.openProject')}
+        className="absolute end-1 top-1 text-link"
+        onClick={(event) => {
+          event.stopPropagation();
+          navigate({ pathname: `/projects/${summary.project.id}` });
+        }}
+      >
+        <AnimatedIcon icon={ArrowUpRightIcon} size={18} aria-hidden className="rtl:-scale-x-100" />
+      </IconButton>
     </div>
   );
 }
@@ -180,8 +178,11 @@ function StageCard({ data }: { data: SpaceCardData }) {
   if (!stage) return null;
   return (
     <div {...levelProps(data)}>
-      {data.current && <span className="text-caption font-semibold text-ink">{t('space.currentStage')}</span>}
-      <bdi dir="auto" className="block truncate text-subheadline font-semibold text-ink">{stage.name}</bdi>
+      {/* The current stage carries its mark on the title row, so every stage card has the same height. */}
+      <span className="flex items-center justify-between gap-2">
+        <bdi dir="auto" className="block min-w-0 truncate text-subheadline font-semibold text-ink">{stage.name}</bdi>
+        {data.current && <span className="shrink-0 rounded-full bg-fill px-2 py-0.5 text-caption font-semibold text-ink">{t('space.currentStage')}</span>}
+      </span>
       <span className="block text-footnote text-ink-2">{datesOf(stage, t, lang)}</span>
     </div>
   );
@@ -245,7 +246,7 @@ export function SpaceCard({ data, sourcePosition, targetPosition, positionAbsolu
     <>
       <Handle type="target" position={targetPosition ?? Position.Left} isConnectable={false} style={HIDDEN_HANDLE} />
       {/* React Flow sets the map to left to right, so the card sets its own direction from the language. */}
-      <div dir={lang === 'ar' ? 'rtl' : 'ltr'} onFocus={(event) => revealFocused(event, { x: positionAbsoluteX, y: positionAbsoluteY }, view)}>{body}</div>
+      <div dir={lang === 'ar' ? 'rtl' : 'ltr'} onFocus={(event) => revealFocused(event, { x: positionAbsoluteX, y: positionAbsoluteY, height: CARD_HEIGHT[data.kind] }, view)}>{body}</div>
       <Handle type="source" position={sourcePosition ?? Position.Right} isConnectable={false} style={HIDDEN_HANDLE} />
     </>
   );

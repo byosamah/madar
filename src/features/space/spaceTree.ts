@@ -39,12 +39,12 @@ export function isOpenProject(summary: ProjectSummary): boolean {
 }
 
 // The distance between two levels (across the map), in pixels.
-const LEVEL_GAP = 300;
+const LEVEL_GAP = 340;
 /**
  * The height of each kind of card, in pixels, as the browser draws it (PRJ-07, 2026-10-19). A row is as tall as its card plus ROW_AIR,
  * so a card never covers the next one. A project card holds a name, a sign, the stage and the summary line, so it is the tallest.
  */
-export const CARD_HEIGHT = { office: 64, project: 148, stage: 68, task: 80 } as const;
+export const CARD_HEIGHT = { office: 60, project: 133, stage: 62, task: 74 } as const;
 export const ROW_AIR = 16;
 // A row of cousins (cards of one level under two parents) gets more air, so the two families read apart.
 const COUSIN_AIR = 1.4;
@@ -148,13 +148,17 @@ export function buildSpaceTree(input: SpaceTreeInput): SpaceTree {
     .separation((a, b) => (Math.max(rowOf(a.data.kind), rowOf(b.data.kind)) / unit) * (a.parent === b.parent ? 1 : COUSIN_AIR))(hierarchy(root, (item) => item.children));
   const placed = laid.descendants();
 
+  // The office sits level with the first project, so the first view shows the office and the first projects together. The layout
+  // would put it in the middle of the whole list.
+  const firstProject = placed.find((node) => node.depth === 1);
+  const officeTop = firstProject ? firstProject.x - CARD_HEIGHT.office / 2 : undefined;
   const nodes = placed.map((node): SpaceNode => ({
     id: node.data.id,
     kind: node.data.kind,
     depth: node.depth,
     x: (dir === 'rtl' ? -node.depth : node.depth) * LEVEL_GAP,
     // The layout gives the middle of the card, and the map wants its top.
-    y: node.x - CARD_HEIGHT[node.data.kind] / 2,
+    y: node.depth === 0 && officeTop !== undefined ? officeTop : node.x - CARD_HEIGHT[node.data.kind] / 2,
     open: node.data.kind === 'office' || (node.data.kind !== 'task' && opened.has(node.data.id)),
     faded: node.data.faded,
   }));

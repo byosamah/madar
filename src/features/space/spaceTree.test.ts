@@ -192,5 +192,11 @@ describe('the rows of the map', () => {
     const stages = open.filter((item) => item.kind === 'stage').map(middle);
     expect(middle(node(open, 'prj_a')!)).toBeCloseTo((Math.min(...stages) + Math.max(...stages)) / 2, 5);
   });
-});
 
+  it('puts the office level with the first project, so the first view shows both', () => {
+    const { nodes } = build(['prj_a', 'stg_a1', 'stg_a2']);
+    const middle = (item: SpaceNode) => item.y + CARD_HEIGHT[item.kind] / 2;
+    const first = nodes.filter((item) => item.kind === 'project').sort((a, b) => a.y - b.y)[0]!;
+    expect(middle(node(nodes, 'office')!)).toBeCloseTo(middle(first), 5);
+  });
+});

@@ -41,27 +41,28 @@ type FlowHandle = {
 
 // The first view and the Overview keep the cards readable. They show the office and the first projects from the top of the map, and
 // the person moves down with the wheel or a drag. A project that opens, or a person in focus, moves the view to what it shows.
-const FIRST_PROJECTS = 5;
+const FIRST_PROJECTS = 4;
+// A phone is narrow: it shows the first projects alone, with no office card, so the cards keep a readable size.
+const FIRST_PROJECTS_PHONE = 3;
 // The keys that zoom the map with the wheel. The plain wheel only moves the map (PRJ-05).
 const ZOOM_KEYS = ['Control', 'Meta'];
 
 /** The least and the most zoom of a fit that keeps the cards readable. A phone is narrow, so it may zoom out further. */
 function readableLimits() {
   const narrow = typeof window !== 'undefined' && window.innerWidth < 640;
-  return { padding: 0.15, minZoom: narrow ? 0.45 : 0.7, maxZoom: 1 };
+  return { padding: 0.1, minZoom: narrow ? 0.45 : 0.7, maxZoom: 1 };
 }
 
 /**
- * The view that keeps the cards readable. A phone is narrow, so it may zoom out further than a computer. With every project closed it
- * shows the first five projects. When the first project is open it shows that project and its stages, as the open projects spread the tree.
+ * The view that keeps the cards readable: the office and the first four projects, as the tree starts. A phone shows the first three
+ * projects alone. With a project open, the tree spreads, so the view follows what opens instead (see toggle).
  */
 function readableView(tree: SpaceTree) {
+  const limits = readableLimits();
   const projects = tree.nodes.filter((node) => node.kind === 'project').sort((a, b) => a.y - b.y);
-  const first = projects[0];
-  const shown = first?.open
-    ? [first, ...tree.edges.filter((edge) => edge.from === first.id).map((edge) => ({ id: edge.to }))]
-    : projects.slice(0, FIRST_PROJECTS);
-  return { ...readableLimits(), nodes: [{ id: OFFICE_ID }, ...shown.map((node) => ({ id: node.id }))] };
+  const phone = limits.minZoom < 0.7;
+  const shown = projects.slice(0, phone ? FIRST_PROJECTS_PHONE : FIRST_PROJECTS).map((node) => ({ id: node.id }));
+  return { ...limits, nodes: phone ? shown : [{ id: OFFICE_ID }, ...shown] };
 }
 
 /**
@@ -274,7 +275,8 @@ function SpaceScreen() {
           </div>
         )}
       >
-        {t('space.intro')}
+        {/* A phone has no room for the hint: it stays for a screen reader. */}
+        <span className="sr-only sm:not-sr-only">{t('space.intro')}</span>
       </ScreenTitle>
       {scopeText && <p className="pb-3 text-subheadline text-ink-2">{t('space.scope', { scope: scopeText })}</p>}
       {focused && plan && (
@@ -286,7 +288,7 @@ function SpaceScreen() {
         <EmptyState title={t('space.title')} body={errorMessage(projects.error, t)} action={<Button onClick={() => void projects.refetch()}>{t('common.retry')}</Button>} />
       )}
       {projects.data && kept.length === 0 && <p className="pb-4 text-subheadline text-ink-2">{t('space.noProjects')}</p>}
-      <div className="relative h-[70dvh] min-h-[28rem] overflow-hidden rounded-card">
+      <div className="relative h-[calc(100dvh-12rem)] min-h-[26rem] overflow-hidden rounded-card">
         {/* The map waits for the projects: fitView sets the first view once, so every card must exist at that first draw. */}
         {projects.data ? (
           <ReactFlow

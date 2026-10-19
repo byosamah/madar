@@ -136,6 +136,23 @@ any screen work.
   `LINK_STALE_MS` (8 minutes) after the screen closes. The row pictures (Files rows, the meeting drawings, the report
   thumbnails) have `loading="lazy" decoding="async"`. A sheet or preview picture does not.
 
+## Sub-companies, the Open space and the people stack (review 2026-10-19)
+- A sub-company logo sits on a white plate (`LOGO_PLATE`, `SubCompanyLogo.tsx`) in both themes. The badge of `ProjectTile` is 18 px at
+  least and has a `title` with the name. The badge shows wherever a project picture shows and the data has `subCompanyId`: the lists
+  of `projects.list`, the Dashboard cards (`dashboard.get` refs carry `subCompanyId`), the meeting, the map list, the Open space.
+- A new logo gets a frame step (`LogoFrame.tsx`): drag, zoom, and a preview at 18, 22 and 28 px. The crop (`PictureCrop`, `cropPlace`,
+  `cropPreview` in `lib/picture.ts`) feeds both the canvas and the CSS preview. `buildSeed` has no sub-company: the prototype adds two
+  (`data/sampleSubCompanies.ts`, called by `bootstrap` and `sampleOffice`). A saved prototype office keeps its data until "Reset sample data".
+- The project form shows 2 to 5 sub-companies as one row of logo choices (`SegmentedControl` with `icon`), more than 5 as a select. A
+  new project starts with the only sub-company, or the one of the last project of the same client, until the person taps.
+- The Dashboard filter, the Projects filter, the task lists, the meeting and the Open space read `subCompany` in the link (`useScope`,
+  `app/useScope.ts`, names it in a subtitle). The Projects filter has "No sub-company" (`filter=no_sub_company`, a data gap).
+- Open space (`features/space/`): one project open at a time, and the view follows the open (fitView with `nodes`). A person in focus
+  opens every project and stage where the person works (`focusPlan`). A task card opens the task panel over the map (`?task=&project=`).
+  `CARD_HEIGHT` in `spaceTree.ts` is the measured height of each card kind (offsetHeight in a browser): measure again after a card change.
+  The first view fits the office and 4 projects (a phone: 3 projects, no office). The name stays "Open space" (the team's own word).
+- `AvatarStack`: one hidden person shows as a picture, never as "+1". "+N" names the hidden people on hover and in `aria-label`.
+
 ## Routes and shell
 - Routes (`app/routes.tsx`): `/` Home, `/projects`, `/projects/:id` (tabs overview, tasks, activity, tracker, schedule,
   files, team), `/work` (Tasks), `/dashboard`, `/dashboard/meeting` (full screen), `/dashboard/space` (Open space, full screen, read only), `/inbox`, `/notifications`, `/search`,

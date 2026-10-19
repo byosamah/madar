@@ -86,6 +86,8 @@ test('a person creates a project and lands on it', async ({ page }) => {
   await sheet.getByLabel('Client initials').fill('HGO');
   await sheet.getByLabel('Classification').selectOption('COM');
   await sheet.getByLabel('Building type').fill('Offices');
+  // The sample office has two sub-companies, and a new project names one: one tap on a logo choice (PRJ-17).
+  await sheet.getByRole('radiogroup', { name: 'Sub-company' }).getByRole('radio').first().click();
   await sheet.getByRole('button', { name: 'Create project' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Harbour Gate Offices' })).toBeVisible();
 });
