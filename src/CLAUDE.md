@@ -84,6 +84,8 @@ any screen work.
   (as `main.tsx` does): `REMOTE` from mode.ts does not fold, and the prototype would keep the map code and its stylesheet.
 - The worker, the plugin and the stylesheets come from the lazy loader in `MapCanvas.tsx`. The worker is a `?worker&url` import (it needs its own
   imports bundled). `check-bundles.ts` fails a prototype dist or a first load that holds the `maplibregl-` marker.
+- The worker obeys the policy header of its own file, and a browser keeps an assets file for a year. `releaseUrl` adds the release
+  (`VITE_MADAR_BUILD`) to the worker address, so a policy change reaches the worker at the next release (2026-10-19).
 - The map box is `dir="ltr"`: MapLibre places pins, cards and controls left to right, and an Arabic page (`dir="rtl"`) put them far away.
   The card of a pin sets the language direction again.
 - A pin is a React tree in a MapLibre marker (a portal): `ProjectPin` is the project tile with a ring, and the status shape on Late and At risk

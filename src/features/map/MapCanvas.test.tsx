@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import type { GeoPoint } from '../../api/contract/entities';
 import { renderWithRuntime } from '../../test/render';
-import MapCanvas from './MapCanvas';
+import MapCanvas, { releaseUrl } from './MapCanvas';
 
 // MapLibre runs in a browser, so these tests replace it with a double.
 type Handler = (event?: unknown) => void;
@@ -104,6 +104,15 @@ function Host() {
     </>
   );
 }
+
+// A browser keeps an assets file for a year with the policy header of its first fetch. The worker obeys its own header, so each
+// release asks for the worker by a new address (the owner's map showed no tiles under the old policy, 2026-10-19).
+describe('the worker address', () => {
+  it('carries the release, so a browser fetches the worker again with the policy of this release', () => {
+    expect(releaseUrl('/assets/maplibre-gl-worker-a.js', '2026.10.19')).toBe('/assets/maplibre-gl-worker-a.js?release=2026.10.19');
+    expect(releaseUrl('/assets/w.js', undefined)).toBe('/assets/w.js?release=0');
+  });
+});
 
 describe('MapCanvas (fbk_017)', () => {
   beforeEach(() => {

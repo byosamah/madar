@@ -40,6 +40,15 @@ let loading: Promise<typeof MapLib> | undefined;
  * policy. The Arabic text plugin is a file of this build as well, never from a third party (owner, 2026-10-19). The tiles and the
  * glyphs come from OpenFreeMap (mapStyle.ts).
  */
+/**
+ * The address of a file with the release in it. A browser keeps an assets file for a year with the policy header of its first
+ * fetch, and the map worker obeys its own header, not the page's. A new address each release makes the browser fetch the worker
+ * again with the policy of this release (the owner's map showed no tiles under the old policy, 2026-10-19).
+ */
+export function releaseUrl(url: string, release: string | undefined): string {
+  return `${url}?release=${encodeURIComponent(release ?? '0')}`;
+}
+
 function loadMapLib(): Promise<typeof MapLib> {
   loading ??= (async () => {
     const [lib, worker, rtl] = await Promise.all([
@@ -50,7 +59,7 @@ function loadMapLib(): Promise<typeof MapLib> {
       import('maplibre-gl/dist/maplibre-gl.css'),
       import('./mapPopup.css'),
     ]);
-    lib.setWorkerUrl(worker.default);
+    lib.setWorkerUrl(releaseUrl(worker.default, import.meta.env.VITE_MADAR_BUILD));
     lib.setRTLTextPlugin(new URL(rtl.default, window.location.href).href, true).catch(() => undefined);
     return lib;
   })();
