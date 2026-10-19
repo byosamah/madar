@@ -110,7 +110,8 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014)', () => {
     const sheet = await screen.findByRole('dialog', { name: 'Cashier' });
     await userEvent.click(within(sheet).getByRole('button', { name: 'Delete role' }));
     const question = await screen.findByRole('dialog', { name: 'Delete Cashier?' });
-    expect(within(question).getByText(/Omar Haddad holds this role/)).toBeInTheDocument();
+    expect(within(question).getByText('Omar Haddad')).toBeInTheDocument();
+    expect(within(question).getByText(/This person holds this role/)).toBeInTheDocument();
     expect(within(question).getByLabelText('New role of these people')).toHaveValue('member');
     expect(store.state.settings.roles?.custom).toHaveLength(2);
     await userEvent.click(within(question).getByRole('button', { name: 'Delete and move' }));

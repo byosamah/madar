@@ -188,7 +188,7 @@ export function ProjectTemplateEditor({ template, copy, onClose, onSaved }: {
       )}
     >
       <div className="flex flex-col gap-5 pt-1">
-        <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
           <TextField
             id="template-name"
             label={t('projectTemplates.name')}
@@ -204,6 +204,17 @@ export function ProjectTemplateEditor({ template, copy, onClose, onSaved }: {
           <Button variant="plain" aria-expanded={rolesOpen} aria-controls="template-roles" onClick={() => setRolesOpen(!rolesOpen)}>
             {t('projectTemplates.rolesToggle', { count: draft.roles.length })}
           </Button>
+          <div className="flex flex-wrap items-center gap-2 sm:ms-auto">
+            <Button onClick={newStage}>
+              <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
+              {t('projectTemplates.addStage')}
+            </Button>
+            <Button variant="plain" onClick={newTask}>
+              <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
+              {t('projectTemplates.addTask')}
+            </Button>
+            <Button variant="plain" onClick={() => setAdding(true)}>{t('projectTemplates.addStagesFrom')}</Button>
+          </div>
         </div>
 
         {rolesOpen && (
@@ -232,18 +243,6 @@ export function ProjectTemplateEditor({ template, copy, onClose, onSaved }: {
           </section>
         )}
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={newStage}>
-            <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
-            {t('projectTemplates.addStage')}
-          </Button>
-          <Button variant="plain" onClick={newTask}>
-            <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
-            {t('projectTemplates.addTask')}
-          </Button>
-          <Button variant="plain" onClick={() => setAdding(true)}>{t('projectTemplates.addStagesFrom')}</Button>
-        </div>
-
         {phone ? (
           <section aria-label={t('projectTemplates.stages')} className="flex flex-col gap-2">
             <TemplateList draft={draft} onSelect={setPicked} />
@@ -253,7 +252,7 @@ export function ProjectTemplateEditor({ template, copy, onClose, onSaved }: {
             <section aria-label={t('projectTemplates.timeline')} className="min-w-0">
               <TemplateGantt draft={draft} onChange={setDraft} onLink={link} selected={pickedNow} onSelect={setPicked} />
             </section>
-            <aside aria-label={t('projectTemplates.details')} className="surface flex flex-col gap-3 rounded-card p-4">
+            <aside aria-label={t('projectTemplates.details')} className="surface flex flex-col gap-3 rounded-card p-4 lg:sticky lg:top-0">
               {details || <p className="text-subheadline text-ink-2">{t('projectTemplates.pickPart')}</p>}
             </aside>
           </div>

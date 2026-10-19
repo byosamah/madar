@@ -125,7 +125,8 @@ export function RoleSheet({ open, onOpenChange, target, holders, moveChoices }: 
         )}
       >
         <div className="flex flex-col gap-4 pt-1">
-          <p dir="auto" className="text-subheadline text-ink-2">{t('roles.sheet.moveBody', { count: holders.length, names })}</p>
+          <p dir="auto" className="text-subheadline font-semibold text-ink">{names}</p>
+          <p className="text-subheadline text-ink-2">{t('roles.sheet.moveBody', { count: holders.length })}</p>
           <SelectField id="role-move-to" label={t('roles.sheet.moveTo')} value={moveTo} onChange={(event) => setMoveTo(event.target.value)}>
             {moveChoices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
           </SelectField>

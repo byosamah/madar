@@ -201,7 +201,10 @@
     "deletedKept_one": "Template deleted. 1 project keeps its tasks.",
     "deletedKept_other": "Template deleted. {{count}} projects keep their tasks.",
     "keepTheirDays": "Keep their days from the other template",
-    "aboutLabel": "Template"
+    "aboutLabel": "Template",
+    "savedFollowed": "Template saved. {{count}} projects follow it.",
+    "followers": "{{count}} projects follow it",
+    "deletedKept": "Template deleted. {{count}} projects keep their tasks."
   },
   "templateUse": {
     "startFrom": "Start from a template",

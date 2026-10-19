@@ -6,8 +6,6 @@
     "everything": "Everything",
     "saved": "Role saved.",
     "deleted": "Role deleted.",
-    "inUse_one": "1 person holds this role. Move the person to another role first.",
-    "inUse_other": "{{count}} people hold this role. Move them to another role first.",
     "sheet": {
       "newTitle": "New role",
       "name": "Name in English",
@@ -18,11 +16,12 @@
       "holders": "People with this role",
       "nobody": "No one has this role yet.",
       "moveTitle": "Delete {{name}}?",
-      "moveBody_one": "{{names}} holds this role. Delete the role and give the person this role instead:",
-      "moveBody_other": "{{names}} hold this role. Delete the role and give them this role instead:",
+      "moveBody_one": "This person holds this role. Delete the role and give the person this role instead:",
+      "moveBody_other": "These people hold this role. Delete the role and give them this role instead:",
       "moveTo": "New role of these people",
       "deleteMove": "Delete and move",
-      "back": "Back"
+      "back": "Back",
+      "moveBody": "These people hold this role. Delete the role and give them this role instead:"
     },
     "rights": {
       "peopleManage": {
@@ -67,7 +66,9 @@
       "plus": "{{name}}: Member rights plus {{rights}}.",
       "only": "{{name}}: Member rights only."
     },
-    "officeRoles": "Office roles"
+    "officeRoles": "Office roles",
+    "deletedMoved": "Role deleted. {{count}} people moved.",
+    "peopleCount": "{{count}} people"
   },
   "errors": {
     "reasons": {

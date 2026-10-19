@@ -235,7 +235,10 @@
     "deletedKept_many": "تم حذف القالب. {{count}} مشروعًا تحتفظ بمهامها.",
     "deletedKept_other": "تم حذف القالب. {{count}} مشروعًا تحتفظ بمهامها.",
     "keepTheirDays": "أبقِ أيامها من القالب الآخر",
-    "aboutLabel": "القالب"
+    "aboutLabel": "القالب",
+    "savedFollowed": "تم حفظ القالب. {{count}} مشروعًا تتبعه.",
+    "followers": "{{count}} مشروعًا تتبعه",
+    "deletedKept": "تم حذف القالب. {{count}} مشروعًا تحتفظ بمهامها."
   },
   "templateUse": {
     "startFrom": "ابدأ من قالب",

@@ -6,6 +6,8 @@ import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
 import { useCall } from '../../../app/runtime';
 import { Button } from '../../../components/Button';
+import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
+import { ChevronRightIcon } from '../../../components/icons/animated/chevron-right';
 import { RoleSheet, type RoleChoice, type RoleHolder, type RoleTarget } from './RoleSheet';
 
 const BUILT_IN = ['management', 'accounting', 'member'] as const;
@@ -66,12 +68,15 @@ export function RolesSection() {
             <button
               type="button"
               onClick={() => setShown(row.target)}
-              className="pressable flex min-h-14 w-full flex-col justify-center rounded-xl px-2 py-2 text-start hover:bg-fill"
+              className="pressable flex min-h-14 w-full items-center gap-3 rounded-xl px-2 py-2 text-start hover:bg-fill"
             >
-              <bdi className="font-semibold text-ink">{row.name}</bdi>
-              <span className="text-footnote text-ink-2">
-                {t('roles.rowMeta', { people: peopleText(row.holders), rights: t('roles.rightsCount', { count: row.rights, total: OFFICE_RIGHTS.length }) })}
+              <span className="flex min-w-0 flex-1 flex-col">
+                <bdi className="font-semibold text-ink">{row.name}</bdi>
+                <span className="text-footnote text-ink-2">
+                  {t('roles.rowMeta', { people: peopleText(row.holders), rights: t('roles.rightsCount', { count: row.rights, total: OFFICE_RIGHTS.length }) })}
+                </span>
               </span>
+              <AnimatedIcon icon={ChevronRightIcon} size={18} className="text-ink-2 rtl:-scale-x-100" aria-hidden />
             </button>
           </li>
         ))}
