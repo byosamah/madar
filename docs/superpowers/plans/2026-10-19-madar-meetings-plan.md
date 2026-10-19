@@ -47,6 +47,9 @@ Each question has a recommended answer. The plan follows the recommended answer 
   marks the OAuth client as trusted (Admin console, API controls, App access control), so people connect with no warning screen. An
   unverified app takes up to 100 users. Google review stays optional. Zero cost. The owner creates the Google Cloud project and the
   OAuth client; the build reads GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET from the secrets files, never from code.
+  Fixed values (the owner sets them in Google Cloud): one Web OAuth client for both copies; redirect URIs
+  https://madar.vado.sa/api/google/callback and https://preview.madar-46r.pages.dev/api/google/callback; the one scope
+  https://www.googleapis.com/auth/calendar.app.created (Madar makes its own "Madar" calendar in the person's account and writes only there).
 - Q2: yes, only the title, the time and the place go to Google. Never the notes, the guests, the people or the project name.
 - Q3: inside Tasks, as a second view.
 - Q4: **only its people**, NOT the Admin (this differs from the office task rule). Task 3 keeps the leak tests with the Admin as an outsider.
