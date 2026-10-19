@@ -1831,3 +1831,13 @@ fbk_022). Each suite ran once; a suite ran again only for the files of a fix.
   of the phone sheet keeps the direction of its own language; the grey mark of a search hit leaves the punctuation of a word outside.
 - Seen and not changed (on main before this batch): in a task thread at 390 px the "Open task" button cuts the title to a few letters,
   and the empty box shows its placeholder on three lines.
+
+### Chat batch: the test copy and the deploy suite (merge lead, 2026-10-19 to 2026-10-20, main 924eb2c)
+- `all.sh test` put 924eb2c on the test copy (https://preview.madar-46r.pages.dev). The health check answered with 143 shared calls
+  and the R2 file store. The trigram probe on madar-test passed: the search of messages and comments uses the two GIN indexes.
+- The deploy suite ran one spec file at a time, after a seed of the sample office: 161 passed, 0 failed, 3 skipped by design
+  (acceptance 1, menus 2). No rerun was necessary. The walk passed in its 4 variants (English and Arabic, 1,440 px and 390 px).
+- The longest file was `full.spec.ts` (15 tests, 12 minutes). A second seed after the suite removed the test Auth users that the
+  suite made. The folder stayed clean: no `.playwright-mcp` folder, and `test-results/` is ignored by git.
+- The runner loads only the `R2_` lines of `secrets/test.env`, line by line: the bash of macOS (3.2) cannot source a process
+  substitution, and a full source of that file stopped with a syntax error on its line 5.

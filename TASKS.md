@@ -697,6 +697,6 @@ separate checker. No production change before Friday 2026-10-23. Answers fbk_028
 - [x] Join: read, msg, find, notify into `rb/chat-campfire` (2026-10-19; one scroll fix for the saved copy of a sent message, the search reread capped at 3 after the security review, the count pins at 138 shared calls)
 - [x] Wave 3: B15, B16, D13 (one builder on `rb/chat-campfire`)
 - [x] Gate (2026-10-19, after the join with main and meetings): typecheck, npm test 7,281, builds, test:lite 1,840, test:office 37, test:db 1,840, test:it 305, test:mcp 242 and conformance 5 of 32, prototype smoke 87 of 87, 32 phone shots and the checks in Chrome. Record: proof.md, "Chat batch: the merge gate"
-- [ ] Main and the test copy (`all.sh test`), then the deploy suite on the test copy
+- [x] Main and the test copy (`all.sh test`, 924eb2c), then the deploy suite on the test copy (2026-10-20): 161 passed, 0 failed, 3 skipped by design, the walk in 4 variants. Record: proof.md, "Chat batch: the test copy and the deploy suite"
 - [ ] Release: production from Friday 2026-10-23 by the owner; then `feedback.setStatus` done for fbk_028 and fbk_030 after the owner says live
 - [ ] Proposed for later (not approved): the task thread title at 390 px (the Open task button takes the width), the box placeholder on three lines at 390 px, and the items of "Not in this batch" in the design
