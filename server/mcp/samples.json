@@ -50,7 +50,7 @@
     "limit": 10
   },
   "events.undo": {
-    "eventId": "evt_369"
+    "eventId": "evt_373"
   },
   "events.undoStory": {
     "correlationId": "cor_sample_022"
@@ -91,6 +91,12 @@
     "from": "2026-09-30",
     "to": "2026-10-30",
     "projectId": "prj_001"
+  },
+  "meetings.saveMinutes": {
+    "id": "mtg_002",
+    "text": "The client accepted the three facade options. We send the drawings on Sunday.",
+    "fileIds": [],
+    "since": null
   },
   "meetings.update": {
     "id": "mtg_001",
@@ -205,7 +211,7 @@
     "storyId": "cor_sample_022"
   },
   "tracker.close": {
-    "id": "trk_022",
+    "id": "trk_023",
     "storyId": "cor_sample_022"
   },
   "tracker.list": {
@@ -222,7 +228,7 @@
     "storyId": "cor_sample_022"
   },
   "tracker.update": {
-    "id": "trk_022",
+    "id": "trk_023",
     "note": "The client asked for one week to reply.",
     "storyId": "cor_sample_022"
   },

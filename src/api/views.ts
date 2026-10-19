@@ -1,10 +1,10 @@
-import { PICTURE_DATA, type Comment, type Deadline, type Event, type FileRec, type Payment, type Project, type Stage, type Task, type TrackerEntry, type Update, type User } from './contract/entities';
+import { PICTURE_DATA, type Comment, type Deadline, type Event, type FileRec, type MeetingMinutes, type Payment, type Project, type Stage, type Task, type TrackerEntry, type Update, type User } from './contract/entities';
 import type {
-  Attachment, CommentView, EventView, FeedItem, FileView, ProjectDetail, ProjectSummary, PaymentRow, TaskDetail, TaskRow, TrackerRow, UserCard,
+  Attachment, CommentView, EventView, FeedItem, FileView, MinutesView, ProjectDetail, ProjectSummary, PaymentRow, TaskDetail, TaskRow, TrackerRow, UserCard,
 } from './contract/views';
 import { canSeeConversation } from './chatState';
 import { computeHealth, isOverdue } from './health';
-import { can, mayViewMeeting, principalOf, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
+import { can, mayViewMeeting, meetingResource, principalOf, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
 import { commentCountKey, fileCountKey, projectTemplatesOf, type State } from './store';
 import { lineKindOf } from '../lib/commentLine';
 import { diffDays } from '../lib/dates';
@@ -73,6 +73,8 @@ export const FEED_VERBS = new Set([
   'project.created', 'project.stage_changed', 'project.leader_changed', 'project.code_changed', 'task.created', 'task.status_changed',
   'task.approved', 'task.sent_back', 'task.version_opened', 'task.reopened', 'task.dates_shifted', 'file.added', 'file.version_added', 'member.added',
   'project.template_synced', 'project.template_applied', 'meeting.created', 'meeting.updated', 'meeting.cancelled',
+  // The minutes of a meeting (wave 2): on the Tracker line of a project meeting, or on the meeting itself. The mark "meeting.settled" stays out.
+  'tracker.minutes_saved', 'meeting.minutes_saved',
 ]);
 
 function lastLetter(value: unknown): string {
@@ -99,6 +101,8 @@ export function eventLabel(state: State, event: Event): { label: string; detail:
       const title = entry?.title ?? (typeof after.title === 'string' ? after.title : typeof before.title === 'string' ? before.title : '');
       const detail: Record<string, string> = {};
       if (entry?.waiting) detail.waiting = entry.waiting;
+      // The minutes of a meeting (wave 2): the kind of the meeting, so the feed says "site visit" for a site visit.
+      if (event.verb === 'tracker.minutes_saved' && entry?.meetingId) detail.kind = state.meetings?.[entry.meetingId]?.kind ?? 'meeting';
       if (typeof after.replyTaskId === 'string') {
         const reply = state.tasks[after.replyTaskId];
         if (reply?.ownerId) Object.assign(detail, namesUnder('person', state.users[reply.ownerId]));
@@ -440,8 +444,27 @@ export function replyTaskOf(state: State, entry: TrackerEntry): TrackerRow['repl
   return task ? { id: task.id, title: task.title, status: task.status, dueDate: task.dueDate, owner: task.ownerId === null ? null : cardOf(state, task.ownerId) } : null;
 }
 
+/**
+ * The minutes as a screen reads them (wave 2): the text, the files that the viewer may see, and who wrote them last. A file that was
+ * deleted shows with no name; a file that the viewer may not see is left out.
+ */
+export function minutesViewOf(state: State, minutes: MeetingMinutes, viewer: User): MinutesView {
+  const visible = minutes.fileIds.filter((id) => {
+    const file = state.files[id];
+    return file === undefined || mayViewFile(state, viewer, file);
+  });
+  return { text: minutes.text, files: attachmentsOf(state, visible), updatedBy: cardOf(state, minutes.updatedBy), updatedAt: minutes.updatedAt };
+}
+
 export function trackerRowOf(state: State, entry: TrackerEntry, viewer: User): TrackerRow {
   const mayPost = can(viewer, 'content.post', { projectRole: projectRoleOf(state, entry.projectId, viewer.id) });
+  // The line that Madar made for a meeting that ended (wave 2) also gives the meeting, the minutes and the right to write them.
+  const meeting = entry.auto === 'meeting' && entry.meetingId ? state.meetings?.[entry.meetingId] : undefined;
+  const minutesPart = entry.auto === 'meeting' ? {
+    meeting: entry.meetingId ? { id: entry.meetingId, title: meeting?.title ?? entry.title } : null,
+    minutes: entry.minutes ? minutesViewOf(state, entry.minutes, viewer) : null,
+    canEditMinutes: meeting !== undefined && meeting.status === 'scheduled' && can(viewer, 'meeting.minutes', meetingResource(state, meeting, viewer.id)),
+  } : {};
   return {
     entry,
     createdBy: cardOf(state, entry.createdBy),
@@ -452,6 +475,7 @@ export function trackerRowOf(state: State, entry: TrackerEntry, viewer: User): T
     canClose: mayPost && entry.waiting !== null && entry.closedAt === null,
     canEdit: mayPost,
     canDelete: mayDeleteTracker(state, viewer, entry),
+    ...minutesPart,
   };
 }
 

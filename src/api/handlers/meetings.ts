@@ -1,19 +1,20 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { Day, MEETING_LIMITS, Meeting, MeetingId, MeetingKind, ProjectId, Stamp, TrackerId, UserId } from '../contract/entities';
+import { Day, FileId, MAX_ATTACHMENTS, MEETING_LIMITS, Meeting, MeetingId, MeetingKind, ProjectId, Stamp, TrackerId, UserId, type MeetingMinutes, type TrackerEntry } from '../contract/entities';
 import { MeetingDetail, MeetingRow } from '../contract/views';
 import { ApiError, forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate } from '../events';
 import { can, mayViewMeeting, meetingResource, type Actor } from '../permissions';
 import { notifyIn } from '../notify';
 import { meetingsOf, nextId, type State } from '../store';
-import { cardOf } from '../views';
+import { cardOf, minutesViewOf } from '../views';
 import { addDays, diffDays } from '../../lib/dates';
 import { addMinutes, dayOf, earliestStart, hasTrackerLine, kindDefaults, minutesBetween, officeStamp, onFiveMinutes, phaseOf, SETTLE_BACK_DAYS } from '../../lib/meetings';
 import { markOf } from '../../lib/projectMark';
 import { visibleTextPattern } from '../../lib/projectCode';
+import { assertFilesForMeeting, assertFilesInProject } from './attach';
 import { addTrackerEntry } from './tracker';
-import { assertActive, assertCan, requireProject, requireUser, roleIn } from './shared';
+import { assertActive, assertCan, requireProject, requireUser, roleIn, touch } from './shared';
 
 const L = MEETING_LIMITS;
 const TITLE_PATTERN = visibleTextPattern(L.titleMax);
@@ -95,6 +96,7 @@ export function meetingRowOf(state: State, meeting: Meeting, viewer: Actor): Mee
 export function meetingDetailOf(state: State, meeting: Meeting, viewer: Actor, at: Date): MeetingDetail {
   const entry = meeting.trackerEntryId ? state.tracker?.[meeting.trackerEntryId] : undefined;
   const open = meeting.status === 'scheduled' && viewerMayEdit(state, viewer, meeting);
+  const held = minutesOf(state, meeting);
   return {
     ...meetingRowOf(state, meeting, viewer),
     guests: meeting.guests,
@@ -104,8 +106,21 @@ export function meetingDetailOf(state: State, meeting: Meeting, viewer: Actor, a
     settledAt: meeting.settledAt ?? null,
     minutesTask: null,
     trackerEntry: entry ? { id: entry.id, title: entry.title } : null,
-    viewerCan: { edit: open, cancel: open && phaseOf(meeting, at) !== 'done' },
+    viewerCan: { edit: open, cancel: open && phaseOf(meeting, at) !== 'done', minutes: minutesRefusal(state, meeting, viewer, at) === null },
+    minutes: held.minutes ? minutesViewOf(state, held.minutes, viewer) : null,
+    minutesPlace: held.place,
   };
+}
+
+/**
+ * Where the minutes of a meeting live and what they hold now (wave 2): on the Tracker line of a project meeting that is not a team meeting,
+ * else on the meeting itself. A cancelled meeting has none. Before the line exists, or when it is gone, the minutes read as empty.
+ */
+export function minutesOf(state: State, meeting: Meeting): { place: 'tracker' | 'meeting' | null; minutes: MeetingMinutes | null; entry?: TrackerEntry } {
+  if (meeting.status === 'cancelled') return { place: null, minutes: null };
+  if (!hasTrackerLine(meeting)) return { place: 'meeting', minutes: meeting.minutes ?? null };
+  const entry = meeting.trackerEntryId ? state.tracker?.[meeting.trackerEntryId] : undefined;
+  return { place: 'tracker', minutes: entry?.minutes ?? null, ...(entry ? { entry } : {}) };
 }
 
 /**
@@ -271,15 +286,18 @@ const meetingsCancel = defineCall({
  * Madar made it because the meeting ended. No notice, no push and no mail. The caller checks that the meeting is scheduled, over and
  * not settled yet.
  */
-export function settleMeeting(ctx: Ctx, meeting: Meeting): void {
+export function settleMeeting(ctx: Ctx, meeting: Meeting, o: { ownStory?: boolean } = {}): void {
+  // A call that settles on the way (the minutes) gives the mark and the line a story of their own. An Undo of that call then takes back
+  // the minutes only: the mark has no Undo, and it would refuse the whole story.
+  const sc: Ctx = o.ownStory ? { ...ctx, correlationId: `cor_settle_${meeting.id}` } : ctx;
   // The id of the line comes first, so the mark can hold it and the line can name the mark.
-  const lineId = hasTrackerLine(meeting) ? nextId(ctx.state, 'trk') : null;
+  const lineId = hasTrackerLine(meeting) ? nextId(sc.state, 'trk') : null;
   const mark = applyPatch(
-    ctx, meeting, { settledAt: ctx.stamp, ...(lineId ? { trackerEntryId: lineId } : {}) },
+    sc, meeting, { settledAt: sc.stamp, ...(lineId ? { trackerEntryId: lineId } : {}) },
     { projectId: meeting.projectId, verb: 'meeting.settled', targetType: 'meeting', targetId: meeting.id },
   );
   if (lineId === null || meeting.projectId === null) return;
-  addTrackerEntry(ctx, {
+  addTrackerEntry(sc, {
     id: lineId, projectId: meeting.projectId, type: 'meeting', direction: 'both', title: meeting.title, note: meeting.notes, date: dayOf(meeting),
     peopleIds: [meeting.organizerId, ...meeting.attendeeIds].slice(0, 20), auto: 'meeting', meetingId: meeting.id,
     ...(mark ? { causeEventId: mark.id } : {}),
@@ -303,6 +321,57 @@ const meetingsSettle = defineCall({
     // Before the end, for a cancelled meeting and after the first settle, the call writes nothing and gives the stored values.
     if (meeting.status === 'scheduled' && !meeting.settledAt && phaseOf(meeting, ctx.now) === 'done') settleMeeting(ctx, meeting);
     return { settledAt: meeting.settledAt ?? null, trackerEntryId: meeting.trackerEntryId ?? null };
+  },
+});
+
+const Minutes = {
+  id: MeetingId,
+  /** Trimmed, with the line breaks inside kept. Empty text with no files clears the minutes. */
+  text: z.string().trim().max(L.minutesMax),
+  fileIds: z.array(FileId).max(MAX_ATTACHMENTS).default([]),
+  /**
+   * The value of updatedAt that the screen opened, or null for no minutes yet. A save with another value is refused (minutes_changed), so a
+   * person never replaces what another attendee wrote since. Left out: no check.
+   */
+  since: Stamp.nullable().optional(),
+};
+
+const sameMinutes = (a: MeetingMinutes | null, b: MeetingMinutes | null): boolean =>
+  (a === null && b === null) || (a !== null && b !== null && a.text === b.text && JSON.stringify(a.fileIds) === JSON.stringify(b.fileIds));
+
+/**
+ * Any attendee writes the minutes (fbk_022, wave 2, owner 2026-10-19). One text with files, replaced as a whole. A project meeting that is
+ * not a team meeting keeps them on its Tracker line; every other meeting keeps them on the meeting. The rights and the phase come from
+ * minutesRefusal. A meeting with a Tracker line that the job did not settle yet is settled in this call, so the person never waits for the job.
+ * One event (tracker.minutes_saved, or meeting.minutes_saved), and no notice, no push and no badge. The same text and files write nothing.
+ */
+const meetingsSaveMinutes = defineCall({
+  input: z.object(Minutes),
+  output: MeetingDetail,
+  run(input, ctx) {
+    const meeting = requireMeeting(ctx, input.id);
+    const refusal = minutesRefusal(ctx.state, meeting, ctx.authority, ctx.now);
+    if (refusal) throw refusal;
+    if (meeting.projectId === null) assertFilesForMeeting(ctx, input.fileIds, meeting.id);
+    else assertFilesInProject(ctx, input.fileIds, meeting.projectId);
+    if (hasTrackerLine(meeting) && !meeting.settledAt) settleMeeting(ctx, meeting, { ownStory: true });
+    const held = minutesOf(ctx.state, meeting);
+    if (held.place === null) throw conflict('This meeting is cancelled. It has no minutes.', 'meeting_cancelled');
+    if (input.since !== undefined && input.since !== (held.minutes?.updatedAt ?? null)) {
+      throw conflict('Someone saved the minutes after you opened them. Copy your text, then open them again.', 'minutes_changed');
+    }
+    const next: MeetingMinutes | null = input.text === '' && input.fileIds.length === 0
+      ? null
+      : { text: input.text, fileIds: input.fileIds, updatedBy: ctx.authority.id, updatedAt: ctx.stamp };
+    if (!sameMinutes(held.minutes, next)) {
+      if (held.entry) {
+        applyPatch(ctx, held.entry, { minutes: next }, { projectId: held.entry.projectId, verb: 'tracker.minutes_saved', targetType: 'tracker', targetId: held.entry.id });
+        touch(ctx, held.entry.projectId);
+      } else {
+        applyPatch(ctx, meeting, { minutes: next }, { projectId: meeting.projectId, verb: 'meeting.minutes_saved', targetType: 'meeting', targetId: meeting.id });
+      }
+    }
+    return meetingDetailOf(ctx.state, meeting, ctx.authority, ctx.now);
   },
 });
 
@@ -347,4 +416,5 @@ export const meetingCalls = {
   'meetings.update': meetingsUpdate,
   'meetings.cancel': meetingsCancel,
   'meetings.settle': meetingsSettle,
+  'meetings.saveMinutes': meetingsSaveMinutes,
 };

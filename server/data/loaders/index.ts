@@ -4,7 +4,7 @@ import type { State } from '../../../src/api/store';
 import { Load, type LoadCtx } from './build';
 import { chatsAll, chatsArchive, chatsMarkRead, chatsMessages, chatsUnread, chatsWaiting } from './chat';
 import { inboxCount, inboxList } from './inbox';
-import { meetingCall, meetingsList } from './meetings';
+import { meetingCall, meetingMinutes, meetingsList } from './meetings';
 import { dashboardGet, eventsList, projectsList, searchQuery, tasksList, templateSyncTasks } from './overview';
 import {
   fileCall, filesList, filesUpload, paymentCall, paymentsOfProject, projectCall, projectsCreate, stagesReplace, trackerCall, trackerExport,
@@ -230,6 +230,8 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'meetings.cancel': meetings(meetingCall),
   // The settle reads the meeting by id (it writes the mark and the Tracker line, which needs no other row). A project is in the office.
   'meetings.settle': meetings(meetingCall),
+  // The minutes read the meeting and its line (and their files), and the files that the new minutes carry (wave 2).
+  'meetings.saveMinutes': meetings(meetingMinutes),
 };
 
 /**

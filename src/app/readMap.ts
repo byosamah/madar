@@ -53,7 +53,7 @@ const RULES: Record<string, ReadRule> = {
   'comments.list': rule('project', ['comments', 'files', 'members', 'projects', 'tasks', 'updates', 'users']),
   'files.list': rule('project', ['files', 'members', 'projects', 'tasks', 'users'], byProjectId),
   'payments.list': rule('project', ['payments', 'projects', 'users'], byProjectId),
-  'tracker.list': rule('project', ['files', 'members', 'projects', 'tracker', 'users'], byProjectId),
+  'tracker.list': rule('project', ['files', 'meetings', 'members', 'projects', 'tracker', 'users'], byProjectId),
   'tracker.export': rule('project', ['events', 'files', 'projects', 'tracker', 'users'], byProjectId),
   'events.list': rule('project', ['events', 'files', 'projects', 'stages', 'tasks', 'tracker', 'users'], byProjectId),
   'projects.list': rule('office', [...PROJECT_DETAIL, 'projectTouched', 'settings', 'teams']),
@@ -73,7 +73,7 @@ const RULES: Record<string, ReadRule> = {
   // The meetings (fbk_022): a list of my meetings spans projects, and a meeting with no project reaches only its people on their person
   // channels, so both reads are office reads. members: the leader and the team change who may edit a project meeting.
   'meetings.list': rule('office', ['meetings', 'members', 'projects', 'tasks', 'tracker', 'users']),
-  'meetings.get': rule('office', ['meetings', 'members', 'projects', 'tasks', 'tracker', 'users']),
+  'meetings.get': rule('office', ['files', 'meetings', 'members', 'projects', 'tasks', 'tracker', 'users']),
   'stageTemplates.list': rule('office', ['stageTemplates', 'users']),
   'taskTemplates.list': rule('office', ['taskTemplates', 'users']),
   'projectTemplates.list': rule('office', ['projectTemplates', 'projects', 'users']),

@@ -396,6 +396,22 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   comment, a project chat or a direct chat, the Tracker, `files.share`) refuses a meeting file with reason `file_meeting` (a post gives its plain
   refusal for any file that is not a file of its project). `files.delete` and `files.markDelivered` refuse it too, and `mayDeleteFile` is false.
   `search.query` finds no meeting file, and `files.list` never lists one. The leak tests: `handlers/meetingFiles.test.ts`, `server/calls/meetingFiles.test.ts`.
+- The minutes (wave 2, owner 2026-10-19; `meetings.saveMinutes { id, text, fileIds, since? }` in `handlers/meetings.ts`): any attendee of a meeting that
+  ended writes them, as one text of at most 10,000 letters (`MEETING_LIMITS.minutesMax`) with files (`MAX_ATTACHMENTS`), replaced as a whole. The right is
+  `meeting.minutes` (`permissions.ts`): the organizer and the attendees; for a project meeting the leader and the Admin too (the minutes join the project
+  record that the leader answers for); a team member who did not attend only reads them. For a meeting with no project the Admin writes only when invited.
+  `minutesRefusal` checks the phase and the right (see the files above). Where they live (`minutesOf`): a project meeting that is not a team meeting
+  (`hasTrackerLine`) keeps them on its Tracker line (`TrackerEntry.minutes`, event verb `tracker.minutes_saved`); a team meeting and a meeting with no project
+  keep them on the meeting (`Meeting.minutes`, verb `meeting.minutes_saved`; `officeMeetingId` for a meeting with no project). Both verbs are feed verbs
+  (`FEED_VERBS`), `meeting.settled` is not. A meeting that has a Tracker line and no mark is settled in the same call, so the person never waits for the
+  job; the mark and the line then get a story of their own (`cor_settle_<meeting>`), so the Undo toast of the save (`events.undoStory`) takes back the
+  minutes only and never meets the mark that has no Undo. `files` of a project meeting are files of its project (`assertFilesInProject`); a meeting with no
+  project takes only its own files (`assertFilesForMeeting`). `since` is the `updatedAt` that the screen opened (null for no minutes yet): another value gives
+  `conflict`, reason `minutes_changed`, so a late save never replaces what another attendee wrote. An empty text with no files writes `minutes: null`. The
+  same text and files write nothing. No notice, no push, no badge and no task. The Undo of either verb needs `meeting.minutes` on its meeting
+  (`assertMayUndo`, `handlers/history.ts`), and the change stays the person's own (`assertUndoRight`). `MeetingDetail` gives `minutes`, `minutesPlace` and
+  `viewerCan.minutes`; `TrackerRow` of an auto meeting line gives `meeting`, `minutes` and `canEditMinutes` (other rows leave the three out).
+  `tracker.log` and `tracker.update` never take `minutes` or `meetingId`: zod strips the keys. MCP: `meetings.saveMinutes` is on the allow list, not additive.
 - The person for the minutes is gone (owner, 2026-10-19). `Meeting.minutesById` is optional and nothing writes or reads it. The inputs of
   `meetings.create` and `meetings.update` lost `minutesById`: zod strips the key, so an old tab or an old agent still works. `MeetingDetail.minutesBy`
   and `minutesTask` stay in the shape, always null. A stored row with `minutesById` still parses. No migration and no backfill.

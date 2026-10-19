@@ -1,6 +1,6 @@
 import type { Payment, TrackerEntry } from '../../../src/api/contract/entities';
 import type { Load } from './build';
-import { attachedFiles, covers, feed, fileById, namedFiles, projectView, tasksOf, trackerScope, type FeedFilter } from './steps';
+import { attachedFiles, covers, feed, fileById, lineMinutes, namedFiles, projectView, tasksOf, trackerScope, type FeedFilter } from './steps';
 
 /**
  * The project loader (plan 4.6): the calls that work on one project P. Each loads the project view of P when the call returns it
@@ -97,6 +97,8 @@ export async function trackerList(L: Load, input: Input): Promise<void> {
   const entries = (await L.select({ c: 'tracker', where: [{ col: 'project_id', in: [str(input.projectId) ?? ''] }] })) as TrackerEntry[];
   await L.byKey('tasks', entries.map((entry) => entry.replyTaskId));
   await namedFiles(L, entries);
+  // A line that Madar made for a meeting names the meeting and the files of its minutes (wave 2).
+  await lineMinutes(L, entries);
 }
 
 /** tracker.log: the tasks of P (a reply task joins the stage tag) and the files the entry names. */

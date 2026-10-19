@@ -68,6 +68,15 @@ export async function namedFiles(L: Load, records: readonly { fileIds?: string[]
   await L.byKey('files', [...records.flatMap((record) => record.fileIds ?? []), ...more]);
 }
 
+/**
+ * What the Tracker line of a meeting that ended names (wave 2): the meeting, for the right to write its minutes, and the files of its
+ * minutes. A line of any other kind names neither.
+ */
+export async function lineMinutes(L: Load, entries: readonly TrackerEntry[], o: { files?: boolean } = {}): Promise<void> {
+  await L.byKey('meetings', entries.map((entry) => entry.meetingId));
+  if (o.files !== false) await L.byKey('files', entries.flatMap((entry) => entry.minutes?.fileIds ?? []));
+}
+
 /** The comments on these targets: the rows for a write, the number for a read (plan 4.13, A4). */
 export async function commentsOn(L: Load, targetType: 'task' | 'update', ids: readonly string[]): Promise<Comment[]> {
   if (ids.length === 0) return [];
@@ -102,6 +111,9 @@ export async function eventTargets(L: Load, events: readonly Event[]): Promise<v
     return event.targetType === 'tracker' && typeof after.replyTaskId === 'string' ? [after.replyTaskId] : [];
   });
   await L.byKey('tasks', replyTasks);
+  // The minutes of a meeting (wave 2): the Undo right and the feed word of a Tracker event read the meeting of its line.
+  const lines = events.filter((event) => event.targetType === 'tracker').map((event) => L.get<TrackerEntry>('tracker', event.targetId));
+  await lineMinutes(L, lines.filter((entry): entry is TrackerEntry => entry !== undefined), { files: false });
   const covers = events.filter((event) => typeof ((event.before ?? {}) as { coverFileId?: unknown }).coverFileId === 'string');
   if (covers.length > 0) await L.select({ c: 'events', where: [{ col: 'correlation_id', in: covers.map((event) => event.correlationId) }] });
 }
@@ -185,6 +197,7 @@ export async function trackerScope(L: Load, entryId: string, moreFiles: readonly
   const entry = L.get<TrackerEntry>('tracker', entryId);
   if (!entry) return undefined;
   await namedFiles(L, [entry], moreFiles);
+  await lineMinutes(L, [entry]);
   await tasksOf(L, [entry.projectId]);
   await L.byKey('tasks', [entry.replyTaskId]);
   await taskTail(L, [entry.replyTaskId]);

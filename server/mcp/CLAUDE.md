@@ -32,10 +32,10 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 
 ## Tools
 - MCP spec 2026-07-28, stateless. A 2025-era client gets the stateless legacy answer.
-- 50 tools for every agent in `MCP_ALLOW`, plus 3 for an agent of an Admin in `MCP_ADMIN` (`feedback.list`,
-  `feedback.screenshot`, `feedback.setStatus`): 53, with 23 reads and 30 writes. The reads include `subCompanies.list`, which
+- 51 tools for every agent in `MCP_ALLOW`, plus 3 for an agent of an Admin in `MCP_ADMIN` (`feedback.list`,
+  `feedback.screenshot`, `feedback.setStatus`): 54, with 23 reads and 31 writes. The reads include `subCompanies.list`, which
   leaves the logo data out (`run.ts`). `MCP_BY_RIGHT` adds `reports.office` (the office
-  report, fbk_016) for an agent whose person holds the report right (Admin and Management by default), so an Admin's agent gets 54.
+  report, fbk_016) for an agent whose person holds the report right (Admin and Management by default), so an Admin's agent gets 55.
   The factory in `app.ts` picks the list for each request from the office rights of the owner, never the agent user. A 2026-07-28 client can keep tools/list for 5 minutes, and a
   2025-era client keeps it until it connects again (the server says listChanged but never sends that notice). So a role change
   shows late in a client, and tools/call always checks.
@@ -45,9 +45,13 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   private to its organizer and its attendees: for anyone else, also an agent of an Admin who is not invited, every call answers `not_found`.
   An agent gets no notice and sends none of its own: the attendees get `meeting_invited` as for any person, and the person of the agent none
   (`notify` skips the actor and the person of an agent actor).
-  `INSTRUCTIONS` says nothing of the minutes until wave 2 (`meetings.settle`) is live: any attendee writes them, no minutes task (owner,
-  2026-10-19). The tools leave out `minutesById`. The three meeting writes take `storyId` like any write.
-  Wave 2: `meetings.settle` is on `MCP_DENY` (the job and the minutes call settle a meeting; an agent never makes the Tracker line).
+  Wave 2 (owner, 2026-10-19): any attendee writes the minutes, and there is no minutes task and no person for the minutes. `meetings.saveMinutes`
+  is on `MCP_ALLOW` (a write that replaces the old minutes, so it is not additive). The `Meetings:` paragraph of `INSTRUCTIONS` says who writes them
+  (the organizer and the attendees; for a project meeting the leader and the Admin), to write only what the person gives, that Madar makes the Tracker line
+  of a project meeting that is not a team meeting and keeps the minutes there (do not log it with `tracker.log`), and that an agent never opens a file of a
+  meeting with no project. `TOOL_DOCS` of `meetings.get` and `tracker.list` name the minutes. `meetings.settle` is on `MCP_DENY`: the job and the minutes
+  call settle a meeting, and an agent never makes the Tracker line. For a meeting with no project that the person is not in, `meetings.saveMinutes` answers
+  `not_found` as for an unknown id. The tools leave out `minutesById`. The meeting writes take `storyId` like any write.
 - Sub-companies (review 2026-10-19): `dashboard.get`, `tasks.list`, `deadlines.list`, `projects.list` and `reports.office` take `subCompanyId`;
   `projects.list` filter `no_sub_company` lists the projects with none; `search.query` and `subCompanies.list` (`projectCount`) carry counts. An agent
   never undoes a sub-company event (`events.undo`, `events.undoStory`).

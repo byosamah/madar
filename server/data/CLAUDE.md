@@ -30,6 +30,11 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   null, so the search loader and `files.list` never load it. `diffState` counts `files` with a `meetingId` as a private change of that meeting
   (`officeMeetings`). `files.upload` with a `meetingId` loads the meeting by id; `attachedFiles` and the loaders of `files.delete`, `files.markDelivered`
   and `files.share` load the meeting of a meeting file, because the view rule reads it.
+- The minutes (wave 2): `meetings.get`, `settle` and `saveMinutes` load the meeting (`meetingCall`), its Tracker line, and the files of the minutes (on the
+  meeting and on the line); `saveMinutes` also loads the files that the new minutes carry (`attachedFiles`, with the meeting of a meeting file). The rows of
+  `meetings.list` hold no minutes, so the list reads the meeting rows only. `tracker.list`, `trackerScope` (close, update, delete, assignReply) and the event
+  targets (`eventTargets`: the feed and the Undo) load the meeting of a line that names one and the files of its minutes (`lineMinutes`), because the row
+  gives `meeting`, `minutes` and `canEditMinutes` and the Undo reads the right to write the minutes.
 - `meetings` (`20261020000100_meetings.sql`, fbk_022): not an office list. Generated columns `project_id`, `organizer_id`, `starts_at`, `ends_at`,
   `status`, `settled_at`; text indexes on `starts_at collate "C"` and `(project_id, starts_at)`, and a GIN index on `doc->'attendeeIds'`.
   `loaders/meetings.ts`: `meetings.list` reads one window (`atOrAfter` and `atBefore` on `starts_at`), `meetingConds` is the view rule in SQL

@@ -25,11 +25,15 @@ const TOKEN: AgentToken = {
   token: 'agent-token', authUserId: '6f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f', clientId: '907ef9d7-7bfc-4e2b-ac19-e027f13226fa', sessionId: '1b2c3d4e-5f60-4718-9a0b-1c2d3e4f5a6b',
 };
 const SECRET_TITLE = 'Salary talk with Nour';
-const TOOLS = ['meetings.list', 'meetings.get', 'meetings.create', 'meetings.update', 'meetings.cancel'] as const;
+const TOOLS = ['meetings.list', 'meetings.get', 'meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.saveMinutes'] as const;
+const MINUTES = 'We agreed on the raise SECRET-MINUTES-4417.';
 
 let seed: State;
 let hidden: string;
 let shared: string;
+/** A meeting with no project that ended (Omar and Nour), and a client meeting of prj_001 that ended (the leader and Sara). */
+let endedHidden: string;
+let endedShared: string;
 
 beforeAll(async () => {
   seed = await buildSeed('2026-10-04', async () => undefined);
@@ -42,6 +46,9 @@ beforeAll(async () => {
   hidden = plan({ kind: 'meeting', title: SECRET_TITLE, startsAt: '2026-10-06T10:00:00+03:00', attendeeIds: ['usr_006'] }, 'usr_004');
   // The leader of prj_001 plans a client meeting of the project. Everyone reads it.
   shared = plan({ kind: 'client', title: 'Review the facade', projectId: 'prj_001', startsAt: '2026-10-06T12:00:00+03:00' }, seed.projects.prj_001.leaderId!);
+  // Two meetings that ended two days ago (the minutes open after the end). The Admin is on neither.
+  endedHidden = plan({ kind: 'meeting', title: SECRET_TITLE, startsAt: '2026-10-02T09:00:00+03:00', attendeeIds: ['usr_006'] }, 'usr_004');
+  endedShared = plan({ kind: 'client', title: 'Kick-off', projectId: 'prj_001', startsAt: '2026-10-02T10:00:00+03:00', attendeeIds: ['usr_003'] }, seed.projects.prj_001.leaderId!);
 });
 
 type World = { app: ReturnType<typeof mcpApp>; deps: FakeDeps; mem: MemoryData };
@@ -102,14 +109,25 @@ describe('the written instructions for the meeting tools', () => {
     }
   });
 
-  it('say in the paragraph of the instructions what the agent must know: the attendees are people, the start form, the private meeting, and no word on the minutes before wave 2', () => {
+  it('say in the paragraph of the instructions what the agent must know: the attendees are people, the start form, the private meeting, and the minutes', () => {
     const line = INSTRUCTIONS.split('\n').find((text) => text.startsWith('Meetings:'));
     expect(line).toBeDefined();
     for (const word of ['meetings.list', 'projectId', 'real people', 'ask your person', 'YYYY-MM-DDTHH:MM:00+03:00', 'private', 'not_found', 'rule 6']) {
       expect(line, word).toContain(word);
     }
+    // Wave 2 (owner, 2026-10-19): any attendee writes the minutes with meetings.saveMinutes, and there is no minutes task.
+    for (const word of ['meetings.saveMinutes', 'organizer and its attendees', 'leader and the Admin', 'what your person gives you', 'Tracker line', 'do not log that meeting with tracker.log', 'never open a file of a meeting']) {
+      expect(line, word).toContain(word);
+    }
     expect(line).not.toContain('minutes task');
     expect(line).not.toMatch(/[–—]/);
+  });
+
+  it('tell the agent in meetings.saveMinutes who writes, the limit, the replace rule, the empty clear, the files, since and to ask the person', () => {
+    const description = TOOL_DOCS['meetings.saveMinutes'].description;
+    for (const word of ['10,000', 'replaces', 'clears', 'fileIds', 'since', 'organizer and the attendees', 'leader and the Admin', 'ask your person', 'Nobody gets a notice']) expect(description, word).toContain(word);
+    expect(TOOL_DOCS['meetings.get'].description).toContain('minutes');
+    expect(TOOL_DOCS['tracker.list'].description).toContain('meetings.saveMinutes');
   });
 
   it('tell the agent in meetings.create to ask the person before it adds attendees', () => {
@@ -119,7 +137,7 @@ describe('the written instructions for the meeting tools', () => {
 });
 
 describe('the lists of the meeting tools', () => {
-  it('put the five calls on the allow list, none on the deny list, and in the list of every agent', () => {
+  it('put the six calls on the allow list, none on the deny list, and in the list of every agent', () => {
     for (const name of TOOLS) {
       expect(MCP_ALLOW as readonly string[], name).toContain(name);
       expect(MCP_DENY as readonly string[], name).not.toContain(name);
@@ -138,8 +156,9 @@ describe('the lists of the meeting tools', () => {
     expect(tool('meetings.list').readOnly).toBe(true);
     expect(tool('meetings.get').readOnly).toBe(true);
     expect(tool('meetings.create').annotations.destructiveHint).toBe(false);
-    for (const name of ['meetings.update', 'meetings.cancel']) expect(tool(name).annotations.destructiveHint, name).toBe(true);
-    for (const name of ['meetings.create', 'meetings.update', 'meetings.cancel']) expect(tool(name).takesStory, name).toBe(true);
+    // The minutes replace what stands, so the client may ask its person first: not additive (wave 2).
+    for (const name of ['meetings.update', 'meetings.cancel', 'meetings.saveMinutes']) expect(tool(name).annotations.destructiveHint, name).toBe(true);
+    for (const name of ['meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.saveMinutes']) expect(tool(name).takesStory, name).toBe(true);
     for (const name of ['meetings.list', 'meetings.get']) expect(tool(name).takesStory, name).toBe(false);
   });
 });
@@ -210,5 +229,74 @@ describe('a meeting with no project over MCP (owner, 2026-10-19)', () => {
     expect(got.result.structuredContent.output).toMatchObject({ title: SECRET_TITLE, organizer: { id: 'usr_004' }, viewerCan: { edit: true, cancel: true } });
     const events = await call(w, 'events.list', { targetType: 'meeting', targetId: hidden });
     expect(events.text).toContain('meeting.created');
+  });
+});
+
+describe('the minutes over MCP (wave 2, owner 2026-10-19)', () => {
+  const failed = async (w: World, name: string, args: Record<string, unknown>) => {
+    const { text, result } = await call(w, name, args);
+    return { text, isError: result.isError, error: result.structuredContent?.error as { code: string; message: string; details?: { reason?: string } } | undefined };
+  };
+
+  it('lets the agent of an attendee write the minutes as its person, and names the agent in the History', async () => {
+    const w = world(OMAR_AGENT);
+    const saved = await call(w, 'meetings.saveMinutes', { id: endedHidden, text: MINUTES, fileIds: [], since: null });
+    expect(saved.result.isError, JSON.stringify(saved.result)).toBeUndefined();
+    expect(saved.result.structuredContent.output).toMatchObject({ minutesPlace: 'meeting', minutes: { text: MINUTES, updatedBy: { id: 'usr_004' } }, viewerCan: { minutes: true } });
+    const event = Object.values(w.mem.tables.state.events).find((e) => e.verb === 'meeting.minutes_saved' && e.targetId === endedHidden)!;
+    expect(event).toMatchObject({ actorId: 'usr_096', actingForId: 'usr_004', actorKind: 'agent', officeMeetingId: endedHidden });
+    const got = await call(w, 'meetings.get', { id: endedHidden });
+    expect(got.result.structuredContent.output).toMatchObject({ minutes: { text: MINUTES } });
+  });
+
+  it('settles a project meeting on the way and keeps the minutes on its Tracker line, which tracker.list shows', async () => {
+    const w = world();
+    const saved = await call(w, 'meetings.saveMinutes', { id: endedShared, text: MINUTES, fileIds: [] });
+    expect(saved.result.isError, JSON.stringify(saved.result)).toBeUndefined();
+    expect(saved.result.structuredContent.output).toMatchObject({ minutesPlace: 'tracker', minutes: { text: MINUTES } });
+    const rows = await call(w, 'tracker.list', { projectId: 'prj_001' });
+    const line = (rows.result.structuredContent.output as { entry: { auto: string | null; meetingId?: string }; minutes?: { text: string }; canEditMinutes?: boolean }[]).find((row) => row.entry.auto === 'meeting' && row.entry.meetingId === endedShared)!;
+    expect(line).toMatchObject({ minutes: { text: MINUTES }, canEditMinutes: true });
+  });
+
+  it('answers the agent of the Admin who is not invited exactly as for a meeting that does not exist, and writes nothing', async () => {
+    const w = world();
+    const real = await failed(w, 'meetings.saveMinutes', { id: endedHidden, text: MINUTES, fileIds: [] });
+    const none = await failed(w, 'meetings.saveMinutes', { id: 'mtg_999', text: MINUTES, fileIds: [] });
+    expect(real.isError).toBe(true);
+    expect(JSON.stringify(real.error)).toBe(JSON.stringify(none.error).replaceAll('mtg_999', endedHidden));
+    expect(real.error).toMatchObject({ code: 'not_found', message: `Meeting ${endedHidden} does not exist.` });
+    expect(w.mem.tables.state.meetings![endedHidden].minutes ?? null).toBeNull();
+  });
+
+  it('shows the minutes of a meeting with no project to nobody outside it: not in the meeting, the lists, the History or the search', async () => {
+    const people: Acting[] = [{ agentId: 'usr_096', personId: 'usr_004' }];
+    const writer = world(people[0]);
+    await call(writer, 'meetings.saveMinutes', { id: endedHidden, text: MINUTES, fileIds: [] });
+    // The agent of the Admin reads the same office: copy the memory office of the writer into the world of the Admin's agent.
+    const w = world();
+    w.mem.tables.state.meetings![endedHidden] = structuredClone(writer.mem.tables.state.meetings![endedHidden]);
+    w.mem.tables.state.events = structuredClone(writer.mem.tables.state.events);
+    w.mem.tables.version += 1;
+    for (const [name, args] of [
+      ['meetings.get', { id: endedHidden }], ['meetings.list', { from: '2026-09-01', to: '2026-12-31' }], ['meetings.list', { from: '2026-09-01', to: '2026-12-31', projectId: 'prj_001', mine: false }],
+      ['events.list', { limit: 500 }], ['events.list', { targetType: 'meeting', limit: 500 }], ['events.list', { targetId: endedHidden }],
+      ['search.query', { text: 'SECRET-MINUTES' }], ['search.query', { text: 'salary' }], ['dashboard.get', {}], ['tracker.list', { projectId: 'prj_001' }],
+    ] as const) {
+      const { text } = await call(w, name, args as Record<string, unknown>);
+      expect(text, name).not.toContain('SECRET-MINUTES');
+      // The answer to the read of the id repeats the id that was asked, as for an id that does not exist.
+      if (name !== 'meetings.get') expect(text, name).not.toContain(endedHidden);
+    }
+    const undo = await failed(w, 'events.undo', { eventId: Object.values(w.mem.tables.state.events).find((e) => e.verb === 'meeting.minutes_saved')!.id });
+    expect(undo.error).toMatchObject({ code: 'not_found' });
+  });
+
+  it('refuses the minutes before the end, and the file of a meeting with no project in the minutes of another place', async () => {
+    const w = world();
+    const early = await failed(w, 'meetings.saveMinutes', { id: shared, text: MINUTES, fileIds: [] });
+    expect(early.error).toMatchObject({ code: 'conflict', details: { reason: 'minutes_not_yet' } });
+    const missing = await failed(w, 'meetings.saveMinutes', { id: endedShared, text: MINUTES, fileIds: ['fil_404'] });
+    expect(missing.error).toMatchObject({ code: 'invalid_input', details: { reason: 'file_missing' } });
   });
 });

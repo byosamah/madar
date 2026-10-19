@@ -15,7 +15,7 @@ import { INBOX_TASK_FIELDS } from './inbox';
 import { LOADER_OF } from './index';
 import { loadJobs } from './jobs';
 import { memorySource } from './memorySource';
-import { AGENT_MADE_TASK, badgeTraps, ENDED_MEETING_TITLE, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, trapOffice, writeSweep } from './sweep';
+import { AGENT_MADE_TASK, badgeTraps, ENDED_MEETING_TITLE, ENDED_PROJECT_MEETING_TITLE, ENDED_TEAM_MEETING_TITLE, MEETING_FILE_ID, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, trapOffice, writeSweep } from './sweep';
 
 /**
  * Task C2: each loader gives the handler the same answer as the whole office (plan 4.6, "Safety net"). runBoth runs the call on
@@ -800,12 +800,46 @@ describe('meetings (fbk_022, owner 2026-10-19)', () => {
     }
   });
 
+  it('meetings.saveMinutes gives the same answer on both loads for a Tracker line and for a meeting with no project, and loads only the meeting, its line and its files', async () => {
+    const traps = trapOffice(seed);
+    const find = (title: string) => Object.values(traps.meetings!).find((m) => m.title === title)!;
+    const line = find(ENDED_PROJECT_MEETING_TITLE);
+    const solo = find(ENDED_MEETING_TITLE);
+    const team = find(ENDED_TEAM_MEETING_TITLE);
+    const loadedFor = async (id: string, actor: string, text: string, fileIds: string[] = []) => {
+      const { whole, scoped, loaded } = await runBoth(traps, 'meetings.saveMinutes', { id, text, fileIds }, actor, { now: NOW, correlationId: 'cor_test' });
+      expect(scoped).toEqual(whole);
+      expect(whole.outcome.error).toBeUndefined();
+      return { whole, loaded };
+    };
+    // A project meeting: the minutes change on the Tracker line, and nothing of the meeting row changes.
+    const lined = await loadedFor(line.id, line.organizerId, 'Changed on the line');
+    expect(docs(lined.whole, 'tracker').map((doc) => (doc.minutes as { text: string }).text)).toEqual(['Changed on the line']);
+    expect(Object.keys(lined.loaded.meetings ?? {})).toEqual([line.id]);
+    expect(Object.keys(lined.loaded.tracker ?? {})).toEqual([line.trackerEntryId]);
+    expect(deleted(lined.whole, 'tracker')).toEqual([]);
+    // A team meeting of a project and a meeting with no project: the minutes change on the meeting.
+    for (const [meeting, actor] of [[team, 'usr_003'], [solo, solo.attendeeIds[0]]] as const) {
+      const done = await loadedFor(meeting.id, actor, 'Changed on the meeting', meeting === solo ? [MEETING_FILE_ID] : []);
+      expect(docs(done.whole, 'meetings').map((doc) => (doc.minutes as { text: string }).text)).toEqual(['Changed on the meeting']);
+      expect(Object.keys(done.loaded.meetings ?? {})).toEqual([meeting.id]);
+      expect(inserted(done.whole, 'tracker')).toEqual([]);
+    }
+    // The meeting file reaches the scoped load with its meeting, and an outsider and the Admin who is not invited read the meeting as missing.
+    for (const outsider of [ADMIN, 'usr_002']) {
+      const run = await same(traps, 'meetings.saveMinutes', { id: solo.id, text: 'Try', fileIds: [] }, outsider);
+      expect(run.outcome.error, outsider).toEqual({ code: 'not_found', message: `Meeting ${solo.id} does not exist.` });
+    }
+  });
+
   it('projects.delete takes the meetings of the project and their notices, and leaves a meeting with no project', async () => {
     const traps = trapOffice(seed);
     const run = await same(traps, 'projects.delete', { id: 'prj_001', confirm: true }, ADMIN);
     expect(run.outcome.error).toBeUndefined();
-    const project = Object.values(traps.meetings!).find((m) => m.projectId === 'prj_001')!;
-    expect(deleted(run, 'meetings')).toEqual([project.id]);
+    // The client meeting of the traps, and the two that ended with minutes (wave 2): all go with the project, and the private ones stay.
+    const ofProject = Object.values(traps.meetings!).filter((m) => m.projectId === 'prj_001').map((m) => m.id);
+    expect(ofProject.length).toBeGreaterThan(1);
+    expect(deleted(run, 'meetings').sort()).toEqual(ofProject.sort());
   });
 });
 
