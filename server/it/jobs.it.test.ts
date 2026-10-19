@@ -216,8 +216,12 @@ describe('suite 10: the 15-minute job on the local database, as madar_server', (
     }
   });
 
-  it('deletes stories after 7 days, idempotency keys after 24 hours, office_deletes after 7 days and rate limit windows after 1 day', async () => {
+  it('deletes stories after 7 days, idempotency keys after 24 hours, office_deletes after 7 days, rate limit windows after 1 day and revoking Google rows after 1 day', async () => {
     const t = (ms: number) => new Date(NOW.getTime() - ms);
+    await office.sql(
+      "insert into google_connections (id, user_id, state, connected_at, changed_at) values ('gc-old-n3', 'usr_001', 'revoking', $1, $1), ('gc-new-n3', 'usr_002', 'revoking', $2, $2), ('gc-live-n3', 'usr_003', 'ok', $1, $1)",
+      [t(DAY + HOUR), t(DAY - HOUR)],
+    );
     await office.sql('insert into stories (id, actor_id, created_at) values ($1, $3, $4), ($2, $3, $5)', ['sty_old_n3', 'sty_new_n3', 'usr_001', t(7 * DAY + HOUR), t(7 * DAY - HOUR)]);
     await office.sql(
       "insert into idempotency (actor_id, key, name, digest, result, created_at) values ('usr_001', 'old-n3', 'x', 'd', '{}', $1), ('usr_001', 'new-n3', 'x', 'd', '{}', $2)",
@@ -232,6 +236,7 @@ describe('suite 10: the 15-minute job on the local database, as madar_server', (
     expect(await office.sql("select key from idempotency where key like '%-n3'")).toEqual([{ key: 'new-n3' }]);
     expect(await office.sql("select id from office_deletes where id like '%-n3'")).toEqual([{ id: 'new-n3' }]);
     expect(await office.sql("select key from rate_limits where key like '%-n3'")).toEqual([{ key: 'new-n3' }]);
+    expect(await office.sql("select id from google_connections where id like '%-n3' order by id")).toEqual([{ id: 'gc-live-n3' }, { id: 'gc-new-n3' }]);
   });
 
   it('answers POST /jobs/run with the secret: 200, every step passed, the heartbeat moved, and one request counted', async () => {

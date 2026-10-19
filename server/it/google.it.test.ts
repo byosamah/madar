@@ -87,9 +87,17 @@ describe('Google Calendar on the local database, as madar_server', () => {
     expect(okOf(await connect(person))).toEqual({ state: 'ok', meetings: 2 });
     const rows = await office.sql<{ payload: { userId: string; meetingId: string } }>("select payload from outbox where kind = 'gcal.sync' order by id");
     expect(rows.map((row) => row.payload.meetingId).sort()).toEqual([mine, attending].sort());
+    const [first] = await office.sql<{ id: string }>('select id from google_connections');
+    google.requests.length = 0;
     expect(okOf(await connect(person))).toMatchObject({ state: 'ok' });
-    expect((await office.sql<{ state: string }>('select state from google_connections order by connected_at')).map((row) => row.state)).toEqual(['revoking', 'ok']);
-    expect(await office.sql("select payload from outbox where kind = 'gcal.revoke'")).toHaveLength(1);
+    // The connect makes the old row revoking in its own transaction. Here no request host keeps work after the answer, so gcal.revoke
+    // runs right after the commit: it skips Google for a replaced row and deletes it. Only the new live row stays.
+    const live = await office.sql<{ id: string; state: string }>('select id, state from google_connections');
+    expect(live.map((row) => row.state)).toEqual(['ok']);
+    expect(live[0].id).not.toBe(first.id);
+    const revokes = await office.sql<{ payload: unknown; done: boolean }>("select payload, done_at is not null as done from outbox where kind = 'gcal.revoke'");
+    expect(revokes).toEqual([{ payload: { connectionId: first.id, replaced: true }, done: true }]);
+    expect(google.requests.some((request) => request.path === '/revoke')).toBe(false);
   });
 
   it('disconnects: the row becomes revoking, the Google events of the person go, and the status says none', async () => {
