@@ -58,3 +58,32 @@ describe('Arabic feed sentences', () => {
     expect(feedText(item(sara), t)).toBe('created the project');
   });
 });
+
+describe('the feed words of the minutes (wave 2)', () => {
+  const author = { id: 'usr_002', name: 'Faisal', nameAr: 'فيصل', avatarUrl: null, kind: 'human' as const, discipline: 'Architect', gender: 'male' as const };
+  const item = (verb: string, kind: string, who: typeof author | (Omit<typeof author, 'gender'> & { gender: 'female' }) = author): FeedItem => ({
+    kind: 'event', id: 'evt_003', at: STAMP, author: who, verb, targetType: verb.startsWith('tracker') ? 'tracker' : 'meeting', targetId: 'trk_900', label: 'Review the facade', detail: { kind }, canUndo: false,
+  });
+
+  it('writes one sentence for the minutes of a meeting and one for a site visit, for both verbs', () => {
+    for (const verb of ['tracker.minutes_saved', 'meeting.minutes_saved']) {
+      expect(feedText(item(verb, 'client'), t), verb).toBe('wrote the minutes of “Review the facade”');
+      expect(feedText(item(verb, 'team'), t), verb).toBe('wrote the minutes of “Review the facade”');
+      expect(feedText(item(verb, 'site_visit'), t), verb).toBe('wrote the minutes of the site visit “Review the facade”');
+      expect(FEED_EVENT_VERBS.has(verb), verb).toBe(true);
+    }
+  });
+
+  it('writes the Arabic verb to match a woman or a man', () => {
+    initI18n('ar');
+    const ar = i18n.t.bind(i18n);
+    const sara = { ...author, id: 'usr_003', name: 'Sara', nameAr: 'سارة', gender: 'female' as const };
+    for (const verb of ['tracker.minutes_saved', 'meeting.minutes_saved']) {
+      expect(feedText(item(verb, 'client', sara), ar), verb).toBe('كتبت محضر «Review the facade»');
+      expect(feedText(item(verb, 'client'), ar), verb).toBe('كتب محضر «Review the facade»');
+      expect(feedText(item(verb, 'site_visit', sara), ar), verb).toBe('كتبت محضر الزيارة «Review the facade»');
+      expect(feedText(item(verb, 'site_visit'), ar), verb).toBe('كتب محضر الزيارة «Review the facade»');
+    }
+    initI18n('en');
+  });
+});

@@ -5,7 +5,7 @@ import type { Meeting } from '../../api/contract/entities';
 import type { State } from '../../api/store';
 import { formatDay } from '../../lib/dates';
 import { renderApp } from '../../test/render';
-import { as, withMeeting } from './testMeetings';
+import { as, ENDED, SOME_MINUTES, withLine, withMeeting } from './testMeetings';
 
 /**
  * The sheet of one meeting (fbk_022). "Now" is Wednesday 2026-09-30 09:00 in Riyadh. usr_002 (Faisal) leads prj_001, usr_005 (Sara)
@@ -139,3 +139,121 @@ describe('the meeting sheet', () => {
     expect(screen.queryByText('Review the facade')).toBeNull();
   });
 });
+
+/**
+ * The minutes on the meeting sheet (wave 2, owner 2026-10-19). After the end, one quiet "Add the minutes" button on the meeting until
+ * someone writes them: no task, no notice, no main button. Sara (usr_005) attends; Yousef (usr_006) is on the team and did not attend.
+ */
+describe('the minutes on the meeting sheet', () => {
+  const ended = (state: State, over: Partial<Meeting> = {}) => client(state, { ...ENDED, attendeeIds: ['usr_005'], ...over });
+  const add = (box: HTMLElement) => within(box).queryByRole('button', { name: 'Add the minutes' });
+
+  it('shows one quiet Add the minutes button to an attendee after the end, and it is no main button', async () => {
+    await renderApp('/meetings?meeting=mtg_001', (state) => {
+      ended(state);
+      as('usr_005')(state);
+    });
+    const box = await sheet();
+    const button = await within(box).findByRole('button', { name: 'Add the minutes' });
+    expect(button.className).not.toContain('signature');
+    expect(box.querySelectorAll('.signature')).toHaveLength(0);
+  });
+
+  it('shows it to the organizer and to the leader of a project meeting who did not attend, and to the Admin', async () => {
+    for (const person of ['usr_002', 'usr_001']) {
+      const { unmount } = await renderApp('/meetings?meeting=mtg_001', (state) => {
+        ended(state, { organizerId: 'usr_005', attendeeIds: [] });
+        as(person)(state);
+      });
+      expect(await within(await sheet()).findByRole('button', { name: 'Add the minutes' }), person).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it('shows it not before the end, not for a cancelled meeting, and not to a team member who did not attend', async () => {
+    const before = await renderApp('/meetings?meeting=mtg_001', (state) => {
+      client(state, { attendeeIds: ['usr_005'] });
+      as('usr_005')(state);
+    });
+    const early = await sheet();
+    await within(early).findByText('Bring the studies.');
+    expect(add(early)).toBeNull();
+    before.unmount();
+    const cancelled = await renderApp('/meetings?meeting=mtg_001', (state) => {
+      ended(state, { status: 'cancelled' });
+      as('usr_005')(state);
+    });
+    const box = await sheet();
+    await within(box).findByText(/Cancelled/);
+    expect(add(box)).toBeNull();
+    cancelled.unmount();
+    await renderApp('/meetings?meeting=mtg_001', (state) => {
+      ended(state);
+      as('usr_006')(state);
+    });
+    const other = await sheet();
+    await within(other).findByText('Bring the studies.');
+    expect(add(other)).toBeNull();
+    expect(within(other).queryByRole('button', { name: 'Edit the minutes' })).toBeNull();
+  });
+
+  it('shows the minutes with the writer and the day, a quiet Edit for the people who may, and no Add button', async () => {
+    await renderApp('/meetings?meeting=mtg_001', (state) => {
+      ended(state, { kind: 'team', minutes: SOME_MINUTES });
+      as('usr_005')(state);
+    });
+    const box = await sheet();
+    const text = await within(box).findByText(/We agreed on the facade/);
+    expect(text).toHaveAttribute('dir', 'auto');
+    expect(text.className).toContain('whitespace-pre-wrap');
+    expect(within(box).getByText('Minutes')).toBeInTheDocument();
+    expect(within(box).getByText(/By Faisal Al-Harbi, /)).toBeInTheDocument();
+    expect(within(box).getByRole('button', { name: 'Edit the minutes' })).toBeInTheDocument();
+    expect(add(box)).toBeNull();
+    expect(box.querySelectorAll('.signature')).toHaveLength(0);
+  });
+
+  it('shows the minutes to a team member who did not attend, without a button', async () => {
+    await renderApp('/meetings?meeting=mtg_001', (state) => {
+      ended(state, { kind: 'team', minutes: SOME_MINUTES });
+      as('usr_006')(state);
+    });
+    const box = await sheet();
+    await within(box).findByText(/We agreed on the facade/);
+    expect(within(box).queryByRole('button', { name: 'Edit the minutes' })).toBeNull();
+    expect(add(box)).toBeNull();
+  });
+
+  it('shows the Open in the Tracker link for a project meeting whose minutes stand on its line', async () => {
+    await renderApp('/meetings?meeting=mtg_001', (state) => {
+      ended(state);
+      withLine(state, { minutes: SOME_MINUTES });
+      as('usr_005')(state);
+    });
+    const box = await sheet();
+    const link = await within(box).findByRole('link', { name: 'Open in the Tracker' });
+    expect(link).toHaveAttribute('href', '#/projects/prj_001?tab=tracker&entry=trk_900');
+    expect(link.className).not.toContain('signature');
+    expect(box.querySelectorAll('.signature')).toHaveLength(0);
+  });
+
+  it('shows no Tracker link for a team meeting or a meeting with no project, whose minutes stand on the meeting', async () => {
+    await renderApp('/meetings?meeting=mtg_001', (state) => {
+      ended(state, { projectId: null, minutes: SOME_MINUTES });
+      as('usr_005')(state);
+    });
+    const box = await sheet();
+    await within(box).findByText(/We agreed on the facade/);
+    expect(within(box).queryByRole('link', { name: 'Open in the Tracker' })).toBeNull();
+  });
+
+  it('opens the Minutes sheet from the button, and a person who cannot see a private meeting reads it as gone', async () => {
+    await renderApp('/meetings?meeting=mtg_001', (state) => {
+      ended(state);
+      as('usr_005')(state);
+    });
+    await userEvent.click(await within(await sheet()).findByRole('button', { name: 'Add the minutes' }));
+    expect(await screen.findByRole('dialog', { name: 'Minutes of “Review the facade”' })).toBeInTheDocument();
+  });
+});
+

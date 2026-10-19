@@ -53,6 +53,11 @@ export function taskLink(projectId: string | null, taskId: string, thread = fals
   return `/projects/${projectId}?tab=tasks&task=${taskId}${thread ? '&thread=1' : ''}`;
 }
 
+/** The link of one Tracker entry: the Tracker tab of its project, with the sheet of the entry open (the minutes of a meeting, wave 2). */
+export function trackerEntryLink(projectId: string, entryId: string): string {
+  return `/projects/${projectId}?tab=tracker&entry=${entryId}`;
+}
+
 /** A meeting from the link, when it has the form of a meeting id (fbk_022). Anything else opens no sheet. */
 export function meetingParam(value: string | null): string | undefined {
   return value && /^mtg_\d{3,}$/.test(value) ? value : undefined;

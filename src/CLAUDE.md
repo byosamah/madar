@@ -345,6 +345,18 @@ any screen work.
   starts with the address of the project. The edit form has no Project (`project_fixed`), sends only the fields that changed, writes nothing when
   nothing changed, and after the end opens only the Notes. A refusal of the server shows in the form (`role="alert"`). `TimeField.tsx` is a select of
   15-minute steps from 06:00 to 22:00; `formModel.ts` holds the pure rules (slots, lengths, `defaultSlot`, `stampOf`).
+- The minutes on the screens (wave 2, owner 2026-10-19; `meetings/MinutesPart.tsx`, `MinutesSheet.tsx`). After the end, the meeting sheet shows one quiet
+  text button "Add the minutes" under the people, until someone writes them (`viewerCan.minutes`): no task, no notice, no badge, no main button. With
+  minutes it shows a fact "Minutes": the text (`dir="auto"`, line breaks kept), the file chips, "By <name>, <day>", a quiet "Edit the minutes" for the
+  people who may, and for `minutesPlace: 'tracker'` a quiet link "Open in the Tracker" (`trackerEntryLink`, `lib/params.ts`). Every quiet control uses
+  `QUIET` (a text link in the link colour). `MinutesSheet` has one text area (`dir="auto"`, 8 rows, 10,000 letters), the attach button with the files that
+  stand (each with a remove button) and the files picked, and one main button "Save the minutes". A project meeting uploads to its project
+  (`{ projectId }`); a meeting with no project to the meeting (`{ projectId: null, meetingId }`). The save sends `since`, the `updatedAt` that the
+  sheet opened (kept in state, so a newer read behind the sheet never changes it); `minutes_changed` keeps the text in the field and shows its word
+  (`role="alert"`). After the save a toast "Minutes saved." offers Undo (`useUndoable`, the story of the call holds the minutes only). The Tracker entry
+  sheet of an auto meeting line shows the same part (`TrackerRow.meeting`, `minutes`, `canEditMinutes`), the quiet link "Open the meeting", and the auto
+  word `tracker.autoMeeting`; a Tracker row with minutes shows the small word "Minutes". The feed words are `feed.meeting.minutes_saved_<meeting|visit>`
+  for `meeting.minutes_saved` and `tracker.minutes_saved`. Screen tests: `meetings/testMeetings.ts` (`ENDED`, `SOME_MINUTES`, `withLine`).
 - Home: `home/MeetingsCard.tsx` ("Meetings today", only my meetings that are on or still to come, three rows). Project Overview:
   `project/overview/ProjectMeetings.tsx` (the next two meetings; the button "Plan a meeting" for `viewerCan.post` on an open project). Both read
   through `meetings/readInputs.ts`, and `tabReads` (`project/tabs.tsx`, now with `today`) prefetches the panel read with the same input.

@@ -3,6 +3,10 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-24": {
+        "title": "Minutes after each meeting",
+        "body": "After a meeting, any attendee writes its minutes on the meeting. A project meeting also gets a line in the Tracker, and its minutes go there."
+      },
       "2026-10-23-23": {
         "title": "Meetings on Home and in a project",
         "body": "Home shows your meetings of today. A project shows its next two meetings, and you can plan a meeting there."

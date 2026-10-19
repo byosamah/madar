@@ -25,6 +25,9 @@ import { FileChips } from '../../files/Attachments';
 import { ReplyFields } from './ReplyFields';
 import { DirectionMark, TypeIcon } from './marks';
 import { taskLink } from '../../../lib/params';
+import { meetingLink } from '../../../lib/meetings';
+import { AddMinutes, MinutesBody, QUIET } from '../../meetings/MinutesPart';
+import { MinutesSheet } from '../../meetings/MinutesSheet';
 
 /** A reply task whose lead was taken off (owner, 2026-10-05): the dashed mark and the words, where the person goes. */
 function NoLead() {
@@ -151,12 +154,22 @@ function AssignReply({ row, members }: { row: TrackerRow; members: UserCard[] })
   );
 }
 
-/** One entry in full: the note, the people, the files, who logged it and when, with close, edit and delete. */
+/** The quiet link from the line of a meeting to the meeting itself (wave 2). */
+function OpenMeeting({ id }: { id: string }) {
+  const { t } = useTranslation();
+  return <Link to={meetingLink(id)} className={QUIET}>{t('minutes.openMeeting')}</Link>;
+}
+
+/**
+ * One entry in full: the note, the people, the files, who logged it and when, with close, edit and delete. The line that Madar made for a
+ * meeting that ended also holds the minutes of that meeting (wave 2): any attendee writes them here, with one quiet button.
+ */
 export function EntrySheet({ row, detail, onClose }: { row: TrackerRow; detail: ProjectDetail; onClose: () => void }) {
   const { t } = useTranslation();
   const lang = useLang();
   const nameOf = usePersonName();
   const [editing, setEditing] = useState(false);
+  const [writing, setWriting] = useState(false);
   const close = useUndoable('tracker.close', { message: () => t(row.entry.waiting === 'us' ? 'tracker.answeredToast' : 'tracker.receivedToast') });
   const remove = useUndoable('tracker.delete', { message: () => t('tracker.deleted'), onSuccess: onClose });
   const { entry } = row;
@@ -207,6 +220,14 @@ export function EntrySheet({ row, detail, onClose }: { row: TrackerRow; detail: 
           {entry.note && <Block title={t('tracker.note')}><p dir="auto" className="whitespace-pre-wrap text-body">{entry.note}</p></Block>}
           {row.people.length > 0 && <Block title={t('tracker.people')}><ul className="flex flex-wrap gap-x-4">{row.people.map((user) => <li key={user.id}><Person user={user} /></li>)}</ul></Block>}
           {row.files.length > 0 && <Block title={t('tracker.files')}><FileChips files={row.files} /></Block>}
+          {row.meeting && (row.minutes || row.canEditMinutes) && (
+            <Block title={t('minutes.title')}>
+              {row.minutes
+                ? <MinutesBody minutes={row.minutes} canEdit={row.canEditMinutes ?? false} onEdit={() => setWriting(true)} className="text-body"><OpenMeeting id={row.meeting.id} /></MinutesBody>
+                : <div className="flex flex-wrap items-center gap-x-5"><AddMinutes onClick={() => setWriting(true)} /><OpenMeeting id={row.meeting.id} /></div>}
+            </Block>
+          )}
+          {row.meeting && !row.minutes && !row.canEditMinutes && <div className="pt-3"><OpenMeeting id={row.meeting.id} /></div>}
           <div className="flex flex-col gap-1 pt-5 text-footnote text-ink-2">
             <p>
               {t('tracker.loggedBy', { name: nameOf(row.createdBy), date: formatDay(stampDay(entry.createdAt), lang), context: actorContext(row.createdBy) })}
@@ -215,6 +236,9 @@ export function EntrySheet({ row, detail, onClose }: { row: TrackerRow; detail: 
             {entry.auto && AUTO_KEY[entry.auto] && <p>{t(AUTO_KEY[entry.auto] as string)}</p>}
           </div>
         </div>
+      )}
+      {writing && row.meeting && (
+        <MinutesSheet meeting={{ id: row.meeting.id, title: row.meeting.title, projectId: entry.projectId }} minutes={row.minutes ?? null} onClose={() => setWriting(false)} />
       )}
     </Sheet>
   );
