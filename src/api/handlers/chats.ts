@@ -348,8 +348,9 @@ export const chatsArchive = defineCall({
     if (input.archived) writeReadMark(ctx, id, undefined);
     const key = chatReadKey(id, ctx.authority.id);
     const read = ctx.state.chatReads[key];
+    // Every other field of the mark stays, the "Notify me" choice too (chat design item 21).
     ctx.state.chatReads[key] = {
-      conversationId: id, userId: ctx.authority.id, lastReadAt: read?.lastReadAt ?? NEVER_READ, archivedAt: input.archived ? ctx.stamp : null,
+      ...read, conversationId: id, userId: ctx.authority.id, lastReadAt: read?.lastReadAt ?? NEVER_READ, archivedAt: input.archived ? ctx.stamp : null,
     };
     return { archived: input.archived };
   },

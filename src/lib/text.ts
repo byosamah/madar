@@ -45,6 +45,16 @@ export function excerptOf(message: string, max = 80): string {
   return `${kept.join('').trimEnd()}\u2026`;
 }
 
+/**
+ * The first line of a message or a comment for a reply strip or a search hit (chat design 2026-10-19, items 10 and 16): the first
+ * line of the plain text (a mention reads "@Name"), each run of white space as one space, at most 100 code points, then "…" when
+ * it is cut. 100 code points stay under the 200 characters of ReplyRef.firstLine, also with emoji.
+ */
+export function firstLineOf(body: string): string {
+  const first = plainText(body).split(/\r\n|[\n\r\u2028\u2029]/).find((line) => line.trim() !== '') ?? '';
+  return excerptOf(first, 100);
+}
+
 export type Segment =
   | { kind: 'text'; text: string }
   | { kind: 'mention'; name: string; userId: string }
