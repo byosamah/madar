@@ -1,5 +1,5 @@
 import { planDates, templateLength, warpItems, workingDaysInclusive, type PlanItem } from './templatePlan';
-import { firstWorkingDay } from './workdays';
+import { addWorkingDays, firstWorkingDay } from './workdays';
 
 /**
  * The dates of a project made from a project template (owner, 2026-10-05, item 6a). The new-project form and projects.create
@@ -112,4 +112,44 @@ export function planProject(template: PlanTemplate, choice: PlanChoice): Project
   }
   const endDate = [...dated.values()].reduce((last, item) => (item.dueDate > last ? item.dueDate : last), '');
   return { ok: true, templateDays: length, days: warped.length, endDate: endDate || null, tasks, stages };
+}
+
+export type AddedPlan = {
+  /** The working days that the added parts moved forward. 0: they keep the dates of the template. */
+  shiftDays: number;
+  /** The dates of the added tasks only. */
+  tasks: Record<string, DatedTask>;
+  /** The dates of the added stages only. Null: a stage with no dates. */
+  stages: Record<string, DatedStage | null>;
+  /** The first start and the last end of the added parts. Null when no added part has dates. */
+  startDate: string | null;
+  endDate: string | null;
+};
+
+/**
+ * The dates of the template parts that join an ongoing project (owner, 2026-10-19, fbk_020). The plan counts day 0 from the project
+ * start, so a project that started long ago would get dates in the past. When the earliest added part starts before today, all added
+ * parts move forward by the same number of working days, so the earliest one starts today (the next working day when today is a
+ * Friday or a Saturday). The order, the lengths and the waits between the added parts stay, because all dates are working days.
+ * A part that is not added never counts and never moves. The server and the apply sheet both use this function.
+ */
+export function shiftAdded(
+  plan: Extract<ProjectPlan, { ok: true }>,
+  added: { taskIds: Iterable<string>; stageIds: Iterable<string> },
+  today: string,
+): AddedPlan {
+  const tasks: Record<string, DatedTask> = {};
+  const stages: Record<string, DatedStage | null> = {};
+  for (const id of added.taskIds) if (plan.tasks[id]) tasks[id] = plan.tasks[id];
+  for (const id of added.stageIds) if (id in plan.stages) stages[id] = plan.stages[id];
+  const first = (days: string[]) => days.reduce((best, day) => (day < best ? day : best));
+  const last = (days: string[]) => days.reduce((best, day) => (day > best ? day : best));
+  const startsOf = () => [...Object.values(tasks).map((task) => task.startDate), ...Object.values(stages).flatMap((stage) => (stage ? [stage.startDate] : []))];
+  const endsOf = () => [...Object.values(tasks).map((task) => task.dueDate), ...Object.values(stages).flatMap((stage) => (stage ? [stage.endDate] : []))];
+  if (startsOf().length === 0) return { shiftDays: 0, tasks, stages, startDate: null, endDate: null };
+  const shiftDays = first(startsOf()) < today ? workingDaysInclusive(first(startsOf()), firstWorkingDay(today)) - 1 : 0;
+  const move = (day: string) => (shiftDays > 0 ? addWorkingDays(day, shiftDays) : day);
+  for (const [id, task] of Object.entries(tasks)) tasks[id] = { startDate: move(task.startDate), dueDate: move(task.dueDate) };
+  for (const [id, stage] of Object.entries(stages)) stages[id] = stage ? { startDate: move(stage.startDate), endDate: move(stage.endDate) } : null;
+  return { shiftDays, tasks, stages, startDate: first(startsOf()), endDate: last(endsOf()) };
 }
