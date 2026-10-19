@@ -174,7 +174,7 @@ describe('a group shows the file rows of a file only to a reader who may view th
     const { t, group } = await fileWorld();
     for (const reader of ['usr_003', 'usr_001']) {
       const { licence } = await readThread(t, reader, group);
-      expect(licence?.files, reader).toEqual([{ id: 'fil_900', name: OFFICE_FILE }]);
+      expect(licence?.files, reader).toEqual([{ id: 'fil_900', name: OFFICE_FILE, mimeType: 'application/pdf' }]);
       expect(licence?.message.fileIds, reader).toEqual(['fil_900']);
     }
   });
@@ -196,7 +196,7 @@ describe('a group shows the file rows of a file only to a reader who may view th
     expect(text).not.toContain('fil_900');
     expect(text).not.toContain(OFFICE_FILE);
     // Every project file is open to every person, so the row of the plan stays for a late member.
-    expect(plan?.files).toEqual([{ id: 'fil_901', name: PROJECT_FILE }]);
+    expect(plan?.files).toEqual([{ id: 'fil_901', name: PROJECT_FILE, mimeType: 'application/pdf' }]);
     expect(plan?.message.fileIds).toEqual(['fil_901']);
   });
 

@@ -28,8 +28,11 @@ export const HealthResult = z.object({
   setBy: UserId.nullable(),
 });
 
-/** A file that a comment, a post or a message carries. A null name means the file was deleted. */
-export const Attachment = z.object({ id: FileId, name: z.string().nullable() });
+/**
+ * A file that a comment, a post or a message carries. A null name means the file was deleted. "mimeType" is the type of the newest
+ * version, so a screen can show a picture as a preview (owner, 2026-10-19). A deleted file has none. Optional, so older answers load.
+ */
+export const Attachment = z.object({ id: FileId, name: z.string().nullable(), mimeType: z.string().optional() });
 export type Attachment = z.infer<typeof Attachment>;
 
 export const FeedItem = z.discriminatedUnion('kind', [

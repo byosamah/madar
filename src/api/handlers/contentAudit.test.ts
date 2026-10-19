@@ -63,7 +63,7 @@ describe('A post carries its files as attachments (audit 2026-10-03, PRJ-6)', ()
     t.as('usr_002');
     const notes = await t.api.call('files.upload', { projectId: 'prj_001', name: 'Brief notes.txt', blob: new Blob(['n'], { type: 'text/plain' }) });
     const post = await t.api.call('updates.create', { projectId: 'prj_001', body: 'Notes from the client', fileIds: [notes.file.id] });
-    expect(post.kind === 'update' && post.attachments).toEqual([{ id: notes.file.id, name: 'Brief notes.txt' }]);
+    expect(post.kind === 'update' && post.attachments).toEqual([{ id: notes.file.id, name: 'Brief notes.txt', mimeType: 'text/plain' }]);
     await t.api.call('files.delete', { id: notes.file.id });
     const [item] = await t.api.call('updates.list', { projectId: 'prj_001', filter: 'posts' });
     expect(item.kind === 'update' && item.attachments).toEqual([{ id: notes.file.id, name: null }]);

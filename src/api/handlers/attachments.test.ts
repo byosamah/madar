@@ -30,9 +30,25 @@ describe('files in comments', () => {
     t.as('usr_003');
     const made = await t.api.call('comments.create', { targetType: 'task', targetId: 'tsk_001', body: 'See the plan.', fileIds: ['fil_001'] });
     expect(made.comment.fileIds).toEqual(['fil_001']);
-    expect(made.files).toEqual([{ id: 'fil_001', name: 'Plan.pdf' }]);
+    expect(made.files).toEqual([{ id: 'fil_001', name: 'Plan.pdf', mimeType: 'application/pdf' }]);
     const listed = await t.api.call('comments.list', { targetType: 'task', targetId: 'tsk_001' });
-    expect(listed[0].files).toEqual([{ id: 'fil_001', name: 'Plan.pdf' }]);
+    expect(listed[0].files).toEqual([{ id: 'fil_001', name: 'Plan.pdf', mimeType: 'application/pdf' }]);
+  });
+
+  it('gives each file the type of its newest version, so a screen can show a picture as a preview (owner, 2026-10-19)', async () => {
+    const t = world();
+    t.as('usr_003');
+    const state = t.store.state;
+    const first = state.files.fil_001.versions[0];
+    state.files.fil_003 = {
+      id: 'fil_003', projectId: 'prj_001', stageId: null, taskId: null, name: 'Site.jpg',
+      versions: [{ ...first, mimeType: 'application/pdf' }, { ...first, letter: 'B', mimeType: 'image/jpeg' }],
+    };
+    const made = await t.api.call('comments.create', { targetType: 'task', targetId: 'tsk_001', body: 'Photo.', fileIds: ['fil_003', 'fil_001'] });
+    expect(made.files).toEqual([
+      { id: 'fil_003', name: 'Site.jpg', mimeType: 'image/jpeg' },
+      { id: 'fil_001', name: 'Plan.pdf', mimeType: 'application/pdf' },
+    ]);
   });
 
   it('takes a comment with no files and an old saved comment without the list', async () => {
@@ -71,7 +87,7 @@ describe('files in chat messages', () => {
     t.as('usr_003');
     const sent = await t.api.call('chats.send', { conversationId: t.room, body: 'The plan.', fileIds: ['fil_001'] });
     expect(sent.message.fileIds).toEqual(['fil_001']);
-    expect(sent.files).toEqual([{ id: 'fil_001', name: 'Plan.pdf' }]);
+    expect(sent.files).toEqual([{ id: 'fil_001', name: 'Plan.pdf', mimeType: 'application/pdf' }]);
     expect((await t.api.call('chats.messages', { conversationId: t.room })).messages[0].files[0].name).toBe('Plan.pdf');
   });
 
@@ -127,7 +143,7 @@ describe('files in chat messages', () => {
     t.as('usr_003');
     const { id } = await t.api.call('chats.openDirect', { userId: 'usr_002' });
     const sent = await t.api.call('chats.send', { conversationId: id, body: 'Look', fileIds: ['fil_001'] });
-    expect(sent.files).toEqual([{ id: 'fil_001', name: 'Plan.pdf' }]);
+    expect(sent.files).toEqual([{ id: 'fil_001', name: 'Plan.pdf', mimeType: 'application/pdf' }]);
   });
 
   it('shows a deleted file as removed', async () => {

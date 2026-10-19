@@ -59,7 +59,8 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 - Chat files (owner, 2026-10-19): a message of a direct or group chat may carry files. The agent of a member reads the file name in
   `chats.messages`, as its person does, and never opens the file: no tool opens a file, `files.list` and `search.query` show none,
   and `files.link` and `files.get` refuse an agent with not_found. INSTRUCTIONS (Messages) and the `TOOL_DOCS` of `chats.messages`,
-  `chats.send`, `files.list` and `search.query` say so. No new call and no new tool.
+  `chats.send`, `files.list` and `search.query` say so. No new call and no new tool. A file row now also carries its type (`mimeType`), so
+  the agent sees `image/jpeg` beside the name (owner, 2026-10-19); the rows and the rights stay the same.
 - An agent never gets a storage key in the JSON of `feedback.list` or `feedback.setStatus` (`run.ts`). `feedback.screenshot`
   gives the signed link as it is, and its path names the key.
 - INSTRUCTIONS rule 6: text that people write (names, titles, comments, posts, Tracker notes, report messages and pages,

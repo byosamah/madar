@@ -648,7 +648,7 @@ describe('the file rows of a group message (fbk_011, security review 2026-10-18)
       const run = await same(traps, 'chats.messages', { conversationId: group.id }, actor);
       return (run.outcome.output as { messages: { message: { id: string; fileIds: string[] }; files: unknown[] }[] }).messages.find((m) => m.message.id === 'msg_990')!;
     };
-    for (const actor of [lead, ADMIN]) expect((await rows(actor)).files, actor).toEqual([{ id: 'fil_990', name: 'Licence-scan.pdf' }]);
+    for (const actor of [lead, ADMIN]) expect((await rows(actor)).files, actor).toEqual([{ id: 'fil_990', name: 'Licence-scan.pdf', mimeType: 'application/pdf' }]);
     const hidden = await rows('usr_003');
     expect(hidden.files).toEqual([]);
     expect(hidden.message.fileIds).toEqual([]);

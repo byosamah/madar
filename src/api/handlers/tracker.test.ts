@@ -43,7 +43,7 @@ describe('tracker.log', () => {
       ...BASE, type: 'file', date: '2026-09-20', note: 'On a USB stick.', waiting: 'us', fileIds: ['fil_001'], peopleIds: ['usr_003'],
     });
     expect(row.entry).toMatchObject({ date: '2026-09-20', note: 'On a USB stick.', waiting: 'us', fileIds: ['fil_001'], peopleIds: ['usr_003'] });
-    expect(row.files).toEqual([{ id: 'fil_001', name: 'Survey.pdf' }]);
+    expect(row.files).toEqual([{ id: 'fil_001', name: 'Survey.pdf', mimeType: 'application/pdf' }]);
     expect(row.people.map((p) => p.name)).toEqual(['Sara Team']);
     expect(row.canClose).toBe(true);
   });
