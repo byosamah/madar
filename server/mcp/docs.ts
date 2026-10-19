@@ -106,7 +106,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'chats.send': {
     title: 'Send a message',
-    description: 'Sends one message into a chat (conversationId from chats.list or chats.openDirect): a body of up to 4,000 characters, optionally files (fileIds; a file of another chat fails) and replyToId (a message of the same chat; its author is named). It goes out as your person, with your name beside it, and the people in the chat see it at once. Undo cannot take it back. Send only when your person asks, in words your person approves. A chat that your person may not open fails: forbidden for a direct or project chat, not_found for a group.',
+    description: 'Sends one message into a chat (conversationId from chats.list or chats.openDirect): a body of up to 4,000 characters, optionally files (fileIds; a file of another chat fails) and replyToId (a message of the same chat; its author is named). It goes out as your person, with your name beside it, and the people in the chat see it at once. Undo cannot take it back. Send only when your person asks, in words your person approves. A chat that your person may not open fails with not_found.',
   },
   'dashboard.get': {
     title: 'Office dashboard',

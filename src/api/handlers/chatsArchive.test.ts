@@ -94,7 +94,7 @@ describe('chats.archive', () => {
     const t = world();
     t.as('usr_004');
     const marked = await codeOf(t.api.call('chats.markRead', { conversationId: t.room }));
-    expect(marked).toBe('forbidden');
+    expect(marked).toBe('not_found');
     expect(await codeOf(t.api.call('chats.archive', { conversationId: t.room, archived: true }))).toBe(marked);
     expect(t.store.state.chatReads[chatReadKey(t.room, 'usr_004')]).toBeUndefined();
   });

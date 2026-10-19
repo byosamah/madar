@@ -49,13 +49,15 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   there is none), `chats.list` (the chats the person may open, to find a project chat) and `chats.send` (one message as the
   person; the author is the agent and `actingForId` the person, so the Inbox shows both names). For one task it uses
   `comments.create`, and for the feed of a project `updates.create`. Owner, 2026-10-18 (fbk_011): an agent also reads the chats of
-  its person. `chats.messages` (one page of a chat the person may open, with `not_found` for a group the person is not in) and
+  its person. `chats.messages` (one page of a chat the person may open, with `not_found` for a chat the person may not open) and
   `chats.waiting` (what waits for the reply of the person, from `waitingFor` in `handlers/chats.ts`) are on `MCP_ALLOW`, and
   `chats.list` keeps the preview of every chat (`run.ts` no longer blanks it). `chats.messages` of a group also gives `lines`, its quiet lines (added, removed, left, renamed); a line is no message
   (UX audit 2026-10-19). The texts of `chats.list` and `chats.waiting` say how to read and answer a row of kind task. `chats.markRead`, `chats.unreadCount`,
   `chats.archive` and the three group writes stay on `MCP_DENY`: a read mark and an archive are the person's own acts. A sent
   message writes no event, so no Undo takes it back, and `chats.openDirect` and `chats.send` are not additive (the client may
   ask its person first). INSTRUCTIONS has a Messages paragraph that says: send only when the person asks.
+- A chat that the person may not open answers `not_found` for the agent too, for every kind (chat design 2026-10-19, item 17): it was
+  `forbidden` for a direct or project chat. `TOOL_DOCS` of `chats.send` says so.
 - `chats.messages` takes `around` (a message id; chat design 2026-10-19, item 17): the page that holds the message, and `newer` says
   that more follow. A search hit or a notice gives the agent the id to open. A message that the person may not read gives the newest page.
 - Chat files (owner, 2026-10-19): a message of a direct or group chat may carry files. The agent of a member reads the file name in

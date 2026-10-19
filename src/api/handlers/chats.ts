@@ -26,16 +26,13 @@ const previewOf = (body: string): string => {
 };
 
 /**
- * The chat the person may open. A group that the person may not open answers as a missing chat, so an outsider learns nothing
- * of it (Review Focus 1, owner rule of 2026-10-18). A project or direct chat keeps its answer.
+ * The chat the person may open. A chat that the person may not open answers as a missing chat, whatever its kind: a direct chat, a
+ * group and a project chat alike, so an outsider learns nothing of it, not even that the id exists (owner rule of 2026-10-18 for a
+ * group, chat design 2026-10-19, item 17, for the others). The answer equals the one for an id that was never made.
  */
 function requireConversation(ctx: Ctx, id: string): Conversation {
   const conversation = ctx.state.conversations[id];
-  if (!conversation) throw notFound('Conversation', id);
-  if (!canSeeConversation(ctx.state, conversation, ctx.authority)) {
-    if (conversation.kind === 'group') throw notFound('Conversation', id);
-    throw forbidden('You cannot open this chat.', { conversationId: id });
-  }
+  if (!conversation || !canSeeConversation(ctx.state, conversation, ctx.authority)) throw notFound('Conversation', id);
   return conversation;
 }
 

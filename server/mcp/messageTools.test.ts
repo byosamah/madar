@@ -174,7 +174,7 @@ describe('the message tools over MCP (owner, 2026-10-12)', () => {
     const w = world();
     const { result } = await call(w, 'chats.send', { conversationId: faisalAndTurki, body: 'Hello.' });
     expect(result.isError).toBe(true);
-    expect(result.structuredContent.error.code).toBe('forbidden');
+    expect(result.structuredContent.error).toMatchObject({ code: 'not_found', message: `Conversation ${faisalAndTurki} does not exist.` });
     expect(Object.values(w.mem.tables.state.messages).some((m) => m.body === 'Hello.')).toBe(false);
   });
 

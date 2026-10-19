@@ -154,6 +154,9 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   quiet lines (added, removed, left, renamed); `chats.messages` returns them as `lines` for a group. They are no messages, so no
   unread count, preview or push reads them. `chats.updateGroup` sends the trigger `added_to_group` (in-app only) to each added person.
   `NotificationView.chatKind` and `target` (the group name while the viewer is a member) let a group notice name the group.
+- A chat that the person may not open answers `not_found` ("Conversation <id> does not exist."), whatever its kind (chat design
+  2026-10-19, item 17): `requireConversation` serves `chats.messages`, `chats.send`, `chats.markRead`, `chats.archive` and the group
+  writes. The answer equals the one for an id that was never made, so an outsider learns nothing, the Admin included for a direct chat.
 - `chats.messages` with `around` (chat design 2026-10-19, item 17) opens the page at one message: `messagePageAround` (`chatAround.ts`)
   gives the newest page when the message is in it, else 20 live messages before it and every newer one, up to 500 in all, and
   `ChatThread.newer` is true when more follow. `around` with `before` fails `invalid`. A message that is no live message of this
