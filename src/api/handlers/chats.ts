@@ -207,7 +207,11 @@ export const chatsList = defineCall({
   output: z.array(ChatRow),
   readOnly: true,
   run(_input, ctx) {
-    const rows = [...visibleConversations(ctx.state, ctx.authority).map((c) => rowOf(ctx.state, c, ctx.authority)), ...taskRows(ctx.state, ctx.authority)];
+    // A direct chat with no message shows only for the person who has a read mark on it, who opened it (chat design 2026-10-19, item 18).
+    const shown = visibleConversations(ctx.state, ctx.authority)
+      .map((c) => rowOf(ctx.state, c, ctx.authority))
+      .filter((row) => row.kind !== 'direct' || row.previewAuthor !== null || ctx.state.chatReads[chatReadKey(row.id, ctx.authority.id)] !== undefined);
+    const rows = [...shown, ...taskRows(ctx.state, ctx.authority)];
     return rows.sort((a, b) => b.lastAt.localeCompare(a.lastAt) || b.id.localeCompare(a.id));
   },
 });
@@ -399,7 +403,13 @@ export const chatsOpenDirect = defineCall({
   input: z.object({ userId: UserId }),
   output: z.object({ id: ConversationId }),
   run(input, ctx) {
-    return { id: directWith(ctx, requireDirectPartner(ctx, input.userId)).id };
+    const chat = directWith(ctx, requireDirectPartner(ctx, input.userId));
+    // A chat with no message shows only for the person who opened it, who gets a read mark (chat design 2026-10-19, item 18). An agent
+    // writes no mark: its person sees the chat after the first message. A chat with messages, or with a mark, changes nothing.
+    if (ctx.actor.kind === 'human' && messagesOf(ctx.state, chat.id).length === 0 && ctx.state.chatReads[chatReadKey(chat.id, ctx.authority.id)] === undefined) {
+      writeReadMark(ctx, chat.id, undefined);
+    }
+    return { id: chat.id };
   },
 });
 

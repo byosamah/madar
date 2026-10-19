@@ -90,7 +90,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'chats.list': {
     title: 'List chats',
-    description: 'Lists the chats that your person may open, newest first: the project chats, the direct chats, the group chats and the task threads. Each row has its unread count and its newest message (preview, with its author). Each row has archived: true when your person archived the chat; a new message clears it. Use the id (conversationId) with chats.messages and chats.send. A row of kind task has a task id: read it with comments.list (targetType task) and answer with comments.create. previewKind names a quiet line (a reason) in place of a message.',
+    description: 'Lists the chats that your person may open, newest first: project, direct and group chats, and task threads. A row has its unread count, its newest message (preview and author) and archived: true when your person archived it (a new message clears that). Use the id (conversationId) with chats.messages and chats.send. A row of kind task has a task id: read it with comments.list (targetType task) and answer with comments.create. previewKind names a quiet line (a reason). A direct chat with no message shows only for the person who opened it.',
   },
   'chats.messages': {
     title: 'Read a chat',
@@ -102,7 +102,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'chats.openDirect': {
     title: 'Open a direct chat',
-    description: 'Gives the id of the direct chat between your person and one active person (userId). It makes the chat when there is none, and it sends nothing. Use that id as conversationId in chats.send. You cannot open a chat with your own person, or with an agent.',
+    description: 'Gives the id of the direct chat between your person and one active person (userId). It makes the chat when there is none, and it sends nothing. It shows in chats.list after the first message. Use that id as conversationId in chats.send. You cannot open a chat with your own person, or with an agent.',
   },
   'chats.send': {
     title: 'Send a message',

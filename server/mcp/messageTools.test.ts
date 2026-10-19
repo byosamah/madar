@@ -144,6 +144,22 @@ describe('the message tools over MCP (owner, 2026-10-12)', () => {
     expect(Object.keys(w.mem.tables.state.conversations)).toHaveLength(before + 1);
   });
 
+  it('opens a direct chat that shows in chats.list after the first message', async () => {
+    const w = world();
+    const made = await call(w, 'chats.openDirect', { userId: 'usr_005' });
+    const id = made.result.structuredContent.output.id as string;
+    const before = await call(w, 'chats.list', {});
+    expect((before.result.structuredContent.output as ChatRow[]).some((row) => row.id === id)).toBe(false);
+    expect(w.mem.tables.state.chatReads[`${id}:usr_001`]).toBeUndefined();
+    const sent = await call(w, 'chats.send', { conversationId: id, body: 'A first line.' });
+    expect(sent.result.isError, JSON.stringify(sent.result)).toBeUndefined();
+    const after = await call(w, 'chats.list', {});
+    expect((after.result.structuredContent.output as ChatRow[]).find((row) => row.id === id)).toMatchObject({ preview: 'A first line.' });
+    const { TOOL_DOCS } = await import('./docs');
+    expect(TOOL_DOCS['chats.list'].description).toContain('shows only for the person who opened it');
+    expect(TOOL_DOCS['chats.openDirect'].description).toContain('after the first message');
+  });
+
   it('sends a direct message as the person, with the agent named beside it', async () => {
     const w = world();
     const { result } = await call(w, 'chats.send', { conversationId: hala3, body: 'The new task list is live.' });

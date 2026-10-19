@@ -161,6 +161,9 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   word has 3 letters or more. Each hit has `chatId` (the task id for a comment), `kind` (`project`, `direct`, `group`, `task`), `title`,
   `project`, `person`, `author`, `mine`, `line` (`hitLine`) and `at`. A comment of a deleted task is dropped. The loader reads the newest
   5 matching rows of each kind, so the cut of the handler gives the same rows. An agent gets the hits of its person. Chat files stay out.
+- A direct chat with no live message shows in `chats.list` only for the person who has a read mark on it (chat design 2026-10-19, item 18).
+  `chats.openDirect` writes that mark when the chat has no live message and the actor is a human; an agent writes none, so its person sees
+  the chat after the first message. The loader `chatsOpenDirect` (`loaders/chatOpen.ts`) loads the newest live message and the mark.
 - A notice with `messageId` links to `/inbox/<chat or task>?at=<id>` (`chatLink`, `lib/params.ts`): a chat notice opens the chat at the
   message, and a task notice whose `messageId` starts with `cmt_` opens the Inbox task thread at that comment. A notice with no
   `messageId` (saved before) keeps its old link; an office task that the viewer no longer sees still gives no link.

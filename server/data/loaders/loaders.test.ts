@@ -120,6 +120,22 @@ describe('the reads of track find on the scoped load', () => {
     for (const person of ['usr_002', 'usr_003']) expect(ids(await same(traps, 'search.query', { text: 'riser parts' }, person)), person).toEqual([]);
   });
 
+  it('shows an empty direct chat only for the person who opened it, on the scoped load too (item 18)', async () => {
+    const traps = office(findTraps);
+    const empty = Object.values(traps.conversations).find((c) => c.kind === 'direct' && c.createdAt === '2026-10-03T08:00:00.000+03:00' && !Object.values(traps.messages).some((m) => m.conversationId === c.id))!;
+    const [a, b] = empty.memberIds;
+    const listed = (run: Run) => (run.outcome.output as { id: string }[]).some((row) => row.id === empty.id);
+    expect(listed(await same(traps, 'chats.list', {}, a))).toBe(false);
+    const opened = await same(traps, 'chats.openDirect', { userId: b }, a);
+    expect(inserted(opened, 'chat_reads')).toHaveLength(1);
+    apply(traps, 'chats.openDirect', { userId: b }, a);
+    expect(listed(await same(traps, 'chats.list', {}, a))).toBe(true);
+    expect(listed(await same(traps, 'chats.list', {}, b))).toBe(false);
+    expect(inserted(await same(traps, 'chats.openDirect', { userId: a }, b), 'chat_reads')).toHaveLength(1);
+    // The second open of the first person changes nothing.
+    expect(inserted(await same(traps, 'chats.openDirect', { userId: b }, a), 'chat_reads')).toHaveLength(0);
+  });
+
   it('opens the group at an old message with the 20 before it and the 500 in all, and says that newer ones exist', async () => {
     const traps = office(findTraps);
     const group = Object.values(traps.conversations).find((c) => c.name === 'Find group')!;

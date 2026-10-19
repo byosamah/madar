@@ -384,6 +384,19 @@ export function findTraps(state: State): void {
     };
   }
   searchTraps(state, group.id, people);
+  emptyDirectTrap(state);
+}
+
+/** The non-Admin active people of an office, in id order. */
+const crew = (state: State): string[] => Object.values(state.users).filter((u) => u.kind === 'human' && u.active && u.systemRole !== 'admin').map((u) => u.id).sort();
+const talks = (state: State, a: string, b: string) =>
+  Object.values(state.conversations).find((c) => c.kind === 'direct' && c.memberIds.includes(a) && c.memberIds.includes(b));
+const pairsOf = (people: string[]): [string, string][] => people.flatMap((a) => people.filter((b) => b > a).map((b): [string, string] => [a, b]));
+
+/** An empty direct chat of two people who had none (item 18): it shows only for the person who opens it. */
+function emptyDirectTrap(state: State): void {
+  const pair = pairsOf(crew(state)).find(([a, b]) => !talks(state, a, b));
+  if (pair) addDirectConversation(state, pair[0], pair[1], '2026-10-03T08:00:00.000+03:00');
 }
 
 /** The id of a message of the search records of findTraps. */
@@ -452,5 +465,27 @@ export function findSweep(office: State): SweepCall[] {
   // The message search, for every active human and agent: a word, an Arabic word in another letter form, and a query with no word of 3 letters.
   const searchers = Object.values(office.users).filter((u) => u.active).map((u) => u.id);
   for (const actor of searchers) for (const text of ['riser', 'اسعار', 'ri', 'riser size']) calls.push(['search.query', { text }, actor]);
+  calls.push(...directOpenSweep(office));
   return calls;
 }
+
+/**
+ * chats.openDirect and chats.list for the direct chats of item 18 (an empty direct chat shows only for the person who opened it): a
+ * pair with no chat, a pair with an empty chat (each of the two opens it), and a pair with messages, as writes. The chat list of every
+ * person follows, as reads.
+ */
+function directOpenSweep(office: State): SweepCall[] {
+  const people = crew(office);
+  const live = (chatId: string) => Object.values(office.messages).some((m) => m.conversationId === chatId && m.deletedAt === undefined);
+  const direct = Object.values(office.conversations).filter((c) => c.kind === 'direct' && c.memberIds.every((id) => people.includes(id)));
+  const empty = direct.find((c) => !live(c.id));
+  const full = direct.find((c) => live(c.id));
+  const none = pairsOf(people).find(([a, b]) => !talks(office, a, b));
+  const calls: SweepCall[] = [];
+  if (empty) calls.push(['chats.openDirect', { userId: empty.memberIds[1] }, empty.memberIds[0]], ['chats.openDirect', { userId: empty.memberIds[0] }, empty.memberIds[1]]);
+  if (full) calls.push(['chats.openDirect', { userId: full.memberIds[1] }, full.memberIds[0]]);
+  if (none) calls.push(['chats.openDirect', { userId: none[1] }, none[0]]);
+  for (const actor of Object.values(office.users).filter((u) => u.active).map((u) => u.id)) calls.push(['chats.list', {}, actor]);
+  return calls;
+}
+
