@@ -80,7 +80,7 @@ export function PersonMenu({ id }: { id: string }) {
             {admin && (
               <Link to="/admin" onClick={close} className={row}>
                 <AnimatedIcon icon={ShieldCheckIcon} size={18} className="text-ink-2" aria-hidden />
-                {t('nav.admin')}
+                {session?.authority.systemRole === 'admin' ? t('nav.admin') : t('adminPage.officeTitle')}
               </Link>
             )}
             <Link to="/settings" onClick={close} className={row}>

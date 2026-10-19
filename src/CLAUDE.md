@@ -143,13 +143,23 @@ any screen work.
 - Admin: a grouped side list, one section at a time. The sections, their groups and roles are in one registry,
   `features/settings/admin/sections.ts`; a new section is one line there. A section with `right` opens for each person who holds
   that right (owner, 2026-10-18, fbk_014): `sectionsFor` reads the viewer, and `opensAdminPage` (`api/rights.ts`) decides the person
-  menu. The Roles section (`RolesSection.tsx`, `RoleSheet.tsx`) is the Admin's only. A desk opens the first section at `/admin`; a
+  menu. The Roles section is the Admin's only: `RolesSection.tsx` is one row for each role (people and rights), `RoleSheet.tsx` is the sheet of one role (people, names, switches, Save role, Delete with a move). A desk opens the first section at `/admin`; a
   phone shows the list there. An unknown or forbidden section goes back to `/admin`.
-- Project templates: the Admin section (`ProjectTemplatesSection.tsx`, the editor works on a text draft, `templateDraft.ts`)
-  and "Start from a template" in the new-project form (`features/projects/TemplateUse.tsx`, `templateForm.ts`). A chosen
-  template takes the place of the stage list and makes the start date required. The ticks "Can stretch" stay folded, and show
-  only when the end date gives another length. The dates come from `lib/projectPlan.ts`, as on the server. The Admin editor moves stages by a grip (`SortableStages.tsx`). The row menu has Duplicate (`duplicateDraft`).
-  Each task and stage has a Waits for picker (`WaitsFor` in `ProjectTemplateEditor.tsx`).
+- Project templates: the Admin section (`ProjectTemplatesSection.tsx`) and "Start from a template" in the new-project form
+  (`features/projects/TemplateUse.tsx`, `templateForm.ts`; the picker sits right under the Name, and the people of the roles are ticked
+  and locked in the Team list). A chosen template takes the place of the stage list and makes the start date required. The ticks "Can
+  stretch" stay folded. The dates come from `lib/projectPlan.ts`, as on the server. The row menu has Duplicate (`duplicateDraft`); the
+  update item and the follower count are the Admin's only (the calls ask `admin.manage`).
+- The template editor (`ProjectTemplateEditor.tsx`, ADM-06): a full-screen sheet (`Sheet full`) on a desk. The timeline (`TemplateGantt.tsx`)
+  is the main view, with one row for each stage and task; a press on a row or a bar picks it, and `TemplateDetails.tsx` shows its fields
+  beside the chart (a Sheet on a phone, with `TemplateList.tsx` as the rows). The editor works on a text draft (`templateDraft.ts`):
+  a stage start moves its tasks by the same days (`moveStageStart`, on blur), a new wait that points back moves the waiting part
+  (`addWait`, with an Undo toast), a save problem names its part and field (`draftProblem`), and Cancel, Escape and the close button ask
+  "Discard the changes?" when the draft changed (a control with `data-autofocus` takes the focus in a sheet).
+- The update of linked projects (`TemplateProjectsSheet.tsx`, `SyncSteps.tsx`): pick the projects, then one review screen with one tick
+  for each kind of change and a line for each task (old value, new value). The main button runs only the projects that change and the
+  sheet closes with the toast "Updated 2 projects. Undo". After a save of a followed template the toast offers "Update them"
+  (`reviewAll`). A person who is not the Admin sees "Office" (not "Admin") as the title of the page.
 - Shell (`app/AppShell.tsx`): a floating tab pill (Home, Projects, Tasks, Dashboard, Inbox, plus Search and the bell; top
   on desktop, bottom on a phone; on a phone the tabs show icons only, and the word of each tab stays `sr-only` below
   640 px, owner 2026-10-08), the Madar mark at the top start (a press opens Home), the person menu. No sidebar.

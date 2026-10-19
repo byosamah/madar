@@ -47,6 +47,21 @@ describe('the project Overview', () => {
   });
 });
 
+describe('the template of a project (ADM-05)', () => {
+  it('names the template that the project follows in the About panel', async () => {
+    await renderApp('/projects/prj_007');
+    const about = await screen.findByRole('region', { name: 'About' });
+    expect(await within(about).findByText('Villa, full design')).toBeInTheDocument();
+    expect(within(about).getByText('Template')).toBeInTheDocument();
+  });
+
+  it('shows no template line for a project that follows none', async () => {
+    await renderApp('/projects/prj_001');
+    const about = await screen.findByRole('region', { name: 'About' });
+    expect(within(about).queryByText('Template')).toBeNull();
+  });
+});
+
 describe('project links (colleague comment 5)', () => {
   it('lists the links: a web link opens in a new tab, the office folder gets a Copy button', async () => {
     await renderApp('/projects/prj_001');

@@ -473,14 +473,28 @@ describe('the Admin page for Management and Accounting', () => {
     }
   });
 
-  it('links Management to the Admin page, and Accounting not', async () => {
+  it('links Management to the Office page, which is not called Admin, and Accounting not', async () => {
     const first = await renderApp('/', as('usr_010'));
     await userEvent.click((await screen.findAllByRole('button', { name: 'Turki Al-Otaibi' }))[0]);
-    expect(screen.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '#/admin');
+    expect(screen.getByRole('link', { name: 'Office' })).toHaveAttribute('href', '#/admin');
+    expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
     first.unmount();
     await renderApp('/', as('usr_011'));
     await userEvent.click((await screen.findAllByRole('button', { name: 'Noura Al-Shammari' }))[0]);
+    expect(screen.queryByRole('link', { name: 'Office' })).toBeNull();
     expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
+  });
+
+  it('calls the page Office for a person who is not the Admin, and lists only what the person opens there (ADM-22)', async () => {
+    await renderApp('/admin', as('usr_010'));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Office' })).toBeInTheDocument();
+    expect(screen.getByText('People and Teams.')).toBeInTheDocument();
+  });
+
+  it('gives a person with no right on the page a way back to Home (ADM-22)', async () => {
+    await renderApp('/admin', as('usr_011'));
+    expect(await screen.findByText('You have no right that opens a part of this page.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Go to Home' })).toHaveAttribute('href', '#/');
   });
 
   it('lets the owner preview as a Management person and an Accounting person', async () => {

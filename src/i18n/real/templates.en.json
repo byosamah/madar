@@ -216,7 +216,8 @@
     "stretchHint": "Ticked tasks stretch or shrink to the end date. Untick a task to keep its length.",
     "errors": {
       "startRequired": "A template needs a start date."
-    }
+    },
+    "roleNote": "{{roles}} in the template"
   },
   "errors": {
     "reasons": {
@@ -235,5 +236,10 @@
       "template_synced": "updated this project from the template {{template}}",
       "template_synced_plain": "updated this project from its template"
     }
+  },
+  "adminPage": {
+    "officeTitle": "Office",
+    "sections": "{{list}}.",
+    "goHome": "Go to Home"
   }
 }

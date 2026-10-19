@@ -250,7 +250,8 @@
     "stretchHint": "المهام المحددة تمتد أو تقصر حتى تاريخ الانتهاء. ألغِ تحديد مهمة لتحتفظ بمدتها.",
     "errors": {
       "startRequired": "يحتاج القالب إلى تاريخ بداية."
-    }
+    },
+    "roleNote": "{{roles}} في القالب"
   },
   "errors": {
     "reasons": {
@@ -271,5 +272,10 @@
       "template_synced_plain": "حدّث المشروع من قالبه",
       "template_synced_plain_female": "حدّثت المشروع من قالبه"
     }
+  },
+  "adminPage": {
+    "officeTitle": "المكتب",
+    "sections": "{{list}}.",
+    "goHome": "اذهب إلى الرئيسية"
   }
 }

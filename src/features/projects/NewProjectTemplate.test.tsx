@@ -37,6 +37,31 @@ async function openSheet() {
 const date = (sheet: HTMLElement, label: string, value: string) => fireEvent.change(within(sheet).getByLabelText(label), { target: { value } });
 
 describe('the New Project sheet with a project template', () => {
+  it('asks for the template right after the name, because the template decides the whole plan (ADM-20)', async () => {
+    const { sheet } = await openSheet();
+    const name = within(sheet).getByLabelText('Name');
+    const template = within(sheet).getByLabelText('Start from a template');
+    const client = within(sheet).getByLabelText(/^Client$/);
+    expect(name.compareDocumentPosition(template) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(template.compareDocumentPosition(client) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('ticks the people of the roles in the team list and locks their tick with the role name (ADM-20)', async () => {
+    const { sheet } = await openSheet();
+    await userEvent.selectOptions(within(sheet).getByLabelText('Start from a template'), TEMPLATE);
+    const team = within(sheet).getByRole('group', { name: 'Team' });
+    const faisal = within(team).getByRole('checkbox', { name: /Faisal Al-Harbi/ });
+    expect(faisal).toBeChecked();
+    expect(faisal).toBeDisabled();
+    expect(within(team).getByText('Architect in the template')).toBeInTheDocument();
+    // A person of no role keeps the free tick. A role changed to another person moves the lock.
+    expect(within(team).getByRole('checkbox', { name: /Reem Al-Ghamdi/ })).not.toBeChecked();
+    expect(within(team).getByRole('checkbox', { name: /Reem Al-Ghamdi/ })).toBeEnabled();
+    await userEvent.selectOptions(within(sheet).getByLabelText('Architect'), 'Reem Al-Ghamdi');
+    expect(within(team).getByRole('checkbox', { name: /Reem Al-Ghamdi/ })).toBeDisabled();
+    expect(within(team).getByRole('checkbox', { name: /Faisal Al-Harbi/ })).toBeEnabled();
+  });
+
   it('puts the template part in place of the stage list, and the stage list back with No template', async () => {
     const { sheet } = await openSheet();
     expect(within(sheet).getAllByLabelText(/^Stage \d+$/)).toHaveLength(7);
