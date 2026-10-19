@@ -21,19 +21,19 @@ export function addSampleMeetings(state: State, today: string): void {
   const created = `${addDays(today, -2)}T09:00:00.000+03:00`;
   const firstDay = firstWorkingDay(addDays(today, 1));
   const secondDay = firstWorkingDay(addDays(firstDay, 1));
-  const make = (fields: Omit<Meeting, 'id' | 'status' | 'rev' | 'createdBy' | 'createdAt' | 'endsAt'> & { minutes: number }) => {
+  const make = (fields: Omit<Meeting, 'id' | 'status' | 'rev' | 'createdBy' | 'createdAt' | 'endsAt'> & { lengthMin: number }) => {
     const id = nextId(state, 'mtg');
-    const { minutes, ...rest } = fields;
-    meetingsOf(state)[id] = { ...rest, id, endsAt: addMinutes(rest.startsAt, minutes), status: 'scheduled', rev: 1, createdBy: rest.organizerId, createdAt: created };
+    const { lengthMin, ...rest } = fields;
+    meetingsOf(state)[id] = { ...rest, id, endsAt: addMinutes(rest.startsAt, lengthMin), status: 'scheduled', rev: 1, createdBy: rest.organizerId, createdAt: created };
   };
   make({
-    kind: 'client', title: 'Review the facade options with the client', projectId: project.id, startsAt: `${firstDay}T10:00:00.000+03:00`, minutes: 60,
+    kind: 'client', title: 'Review the facade options with the client', projectId: project.id, startsAt: `${firstDay}T10:00:00.000+03:00`, lengthMin: 60,
     where: 'Client office, Al Khobar', guests: 'The owner of the building', notes: 'Bring the three facade studies.',
-    organizerId: leaderId, attendeeIds: team.slice(0, 2), minutesById: leaderId,
+    organizerId: leaderId, attendeeIds: team.slice(0, 2),
   });
   make({
-    kind: 'meeting', title: 'Meet a new client about a villa in Dhahran', projectId: null, startsAt: `${secondDay}T13:00:00.000+03:00`, minutes: 60,
+    kind: 'meeting', title: 'Meet a new client about a villa in Dhahran', projectId: null, startsAt: `${secondDay}T13:00:00.000+03:00`, lengthMin: 60,
     where: 'Meeting room', guests: '', notes: '',
-    organizerId: admin.id, attendeeIds: leaderId === admin.id ? [] : [leaderId], minutesById: admin.id,
+    organizerId: admin.id, attendeeIds: leaderId === admin.id ? [] : [leaderId],
   });
 }

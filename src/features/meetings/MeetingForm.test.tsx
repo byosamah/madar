@@ -92,7 +92,7 @@ describe('the New meeting sheet', () => {
     await waitFor(() => expect(Object.keys(store.state.meetings ?? {})).toHaveLength(1));
     const made = Object.values(store.state.meetings!)[0];
     expect(made).toMatchObject({
-      kind: 'meeting', title: 'Review the facade', projectId: 'prj_001', organizerId: 'usr_002', attendeeIds: ['usr_005'], minutesById: 'usr_002',
+      kind: 'meeting', title: 'Review the facade', projectId: 'prj_001', organizerId: 'usr_002', attendeeIds: ['usr_005'],
       startsAt: '2026-09-30T10:00:00.000+03:00', endsAt: '2026-09-30T11:00:00.000+03:00', status: 'scheduled',
     });
     expect(await screen.findByText('Meeting planned.')).toBeInTheDocument();

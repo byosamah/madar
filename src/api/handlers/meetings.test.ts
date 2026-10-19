@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { calls } from '../calls';
 import { makeUser, NOW, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
+import { Meeting } from '../contract/entities';
 
 beforeEach(() => setNow(NOW));
 
@@ -33,7 +34,7 @@ const refusal = async (run: () => Promise<unknown>) => {
 };
 
 describe('meetings.create', () => {
-  it('makes a project meeting for a team member, with the organizer as the person for the minutes', async () => {
+  it('makes a project meeting for a team member', async () => {
     const t = world();
     t.as('usr_003');
     const made = await t.api.call('meetings.create', project({ attendeeIds: ['usr_002'], where: 'Site office', guests: 'The owner', notes: 'Bring the plans' }));
@@ -41,12 +42,13 @@ describe('meetings.create', () => {
       id: 'mtg_001', kind: 'client', title: 'Review the facade', status: 'scheduled', rev: 1, where: 'Site office', guests: 'The owner', notes: 'Bring the plans',
       startsAt: '2026-10-01T10:00:00.000+03:00', endsAt: '2026-10-01T11:00:00.000+03:00', attendeeCount: 1, mine: true,
       project: { id: 'prj_001', code: 'KH-26-001', name: 'Test Tower' }, organizer: { id: 'usr_003' },
-      minutesBy: { id: 'usr_003' }, attendees: [{ id: 'usr_002' }], viewerCan: { edit: true, cancel: true },
+      minutesBy: null, attendees: [{ id: 'usr_002' }], viewerCan: { edit: true, cancel: true },
       settledAt: null, minutesTask: null, trackerEntry: null,
     });
     expect(t.store.state.meetings!.mtg_001).toMatchObject({
-      organizerId: 'usr_003', attendeeIds: ['usr_002'], minutesById: 'usr_003', projectId: 'prj_001', createdBy: 'usr_003', createdAt: '2026-09-30T09:00:00.000+03:00',
+      organizerId: 'usr_003', attendeeIds: ['usr_002'], projectId: 'prj_001', createdBy: 'usr_003', createdAt: '2026-09-30T09:00:00.000+03:00',
     });
+    expect(t.store.state.meetings!.mtg_001).not.toHaveProperty('minutesById');
     const event = Object.values(t.store.state.events).find((e) => e.verb === 'meeting.created')!;
     expect(event).toMatchObject({ targetType: 'meeting', targetId: 'mtg_001', projectId: 'prj_001', before: null });
   });
@@ -59,27 +61,29 @@ describe('meetings.create', () => {
     expect(Object.values(t.store.state.events).find((e) => e.verb === 'meeting.created')).toMatchObject({ projectId: null, targetId: 'mtg_001' });
   });
 
-  it('sets the length and the person for the minutes by the kind', async () => {
+  it('sets the length by the kind', async () => {
     const t = world();
     t.as('usr_003');
-    const cases = [
-      ['meeting', 60, 'usr_003'], ['client', 60, 'usr_003'], ['team', 30, null], ['site_visit', 120, 'usr_003'],
-    ] as const;
-    for (const [kind, minutes, minutesBy] of cases) {
+    const cases = [['meeting', 60], ['client', 60], ['team', 30], ['site_visit', 120]] as const;
+    for (const [kind, minutes] of cases) {
       const made = await t.api.call('meetings.create', office({ kind, title: `A ${kind}` }));
       expect(Date.parse(made.endsAt) - Date.parse(made.startsAt), kind).toBe(minutes * 60_000);
-      expect(made.minutesBy?.id ?? null, kind).toBe(minutesBy);
+      // The person for the minutes is gone (owner, 2026-10-19): any attendee writes the minutes.
+      expect(made.minutesBy, kind).toBeNull();
+      expect(t.store.state.meetings![made.id], kind).not.toHaveProperty('minutesById');
     }
   });
 
-  it('takes a length, nobody for the minutes, or an attendee for the minutes', async () => {
+  it('takes a length, and ignores the old key minutesById that an old tab or an old agent still sends', async () => {
     const t = world();
     t.as('usr_003');
     const long = await t.api.call('meetings.create', office({ durationMin: 90, attendeeIds: ['usr_004'], minutesById: 'usr_004' }));
     expect(long.endsAt).toBe('2026-10-01T11:30:00.000+03:00');
-    expect(long.minutesBy?.id).toBe('usr_004');
-    const nobody = await t.api.call('meetings.create', office({ minutesById: null }));
-    expect(nobody.minutesBy).toBeNull();
+    expect(long.minutesBy).toBeNull();
+    expect(t.store.state.meetings![long.id]).not.toHaveProperty('minutesById');
+    // A person who does not attend was a refusal before. The key is stripped now, so nothing refuses it.
+    const stripped = await t.api.call('meetings.create', office({ minutesById: 'usr_004' }));
+    expect(stripped.id).toMatch(/^mtg_/);
   });
 
   it('stores every stamp in office time and reads a stamp in UTC', async () => {
@@ -123,13 +127,6 @@ describe('meetings.create', () => {
     expect((await refusal(() => t.api.call('meetings.create', project())))?.reason).toBe('project_closed');
     t.store.state.projects.prj_001.status = 'on_hold';
     expect((await t.api.call('meetings.create', project())).project?.id).toBe('prj_001');
-  });
-
-  it('refuses a person for the minutes who does not attend', async () => {
-    const t = world();
-    t.as('usr_003');
-    expect(await refusal(() => t.api.call('meetings.create', office({ minutesById: 'usr_004' })))).toEqual({ code: 'invalid_input', reason: 'minutes_not_attending', fields: ['minutesById'] });
-    expect((await t.api.call('meetings.create', office({ attendeeIds: ['usr_004'], minutesById: 'usr_004' }))).minutesBy?.id).toBe('usr_004');
   });
 
   it('refuses a start that is not on a multiple of 5 minutes', async () => {
@@ -294,14 +291,14 @@ describe('meetings.update and meetings.cancel', () => {
     expect((await t.api.call('meetings.update', { id: made.id, projectId: 'prj_001', notes: 'Same project' })).notes).toBe('Same project');
   });
 
-  it('checks the people and the person for the minutes on a change', async () => {
+  it('checks the people on a change, and ignores the old key minutesById', async () => {
     const t = world();
     t.as('usr_003');
-    const made = await t.api.call('meetings.create', office({ attendeeIds: ['usr_004'], minutesById: 'usr_004' }));
-    expect(await refusal(() => t.api.call('meetings.update', { id: made.id, attendeeIds: ['usr_002'] }))).toMatchObject({ reason: 'minutes_not_attending' });
-    const changed = await t.api.call('meetings.update', { id: made.id, attendeeIds: ['usr_002'], minutesById: null });
+    const made = await t.api.call('meetings.create', office({ attendeeIds: ['usr_004'] }));
+    const changed = await t.api.call('meetings.update', { id: made.id, attendeeIds: ['usr_002'], minutesById: null } as never);
     expect(changed.attendees.map((p) => p.id)).toEqual(['usr_002']);
     expect(changed.minutesBy).toBeNull();
+    expect(t.store.state.meetings![made.id]).not.toHaveProperty('minutesById');
   });
 
   it('refuses a start more than 14 days ago on a change, and checks the multiple of 5', async () => {
@@ -433,7 +430,7 @@ describe('meetings.list', () => {
       state.meetings[id] = {
         id, kind: 'meeting', title: `Meeting ${i}`, projectId: null, startsAt: `2026-10-02T10:${String(minute).padStart(2, '0')}:00.000+03:00`,
         endsAt: `2026-10-02T11:${String(minute).padStart(2, '0')}:00.000+03:00`, where: '', guests: '', notes: '', organizerId: 'usr_003', attendeeIds: [],
-        minutesById: null, status: 'scheduled', rev: 1, createdBy: 'usr_003', createdAt: '2026-09-30T09:00:00.000+03:00',
+        status: 'scheduled', rev: 1, createdBy: 'usr_003', createdAt: '2026-09-30T09:00:00.000+03:00',
       };
     }
     state.counters.mtg = 205;
@@ -467,5 +464,25 @@ describe('meetings and the rest of the office', () => {
       t.as(person);
       expect(JSON.stringify(await t.api.call('search.query', { text: 'zebra' })), person).not.toContain('Zebra');
     }
+  });
+});
+
+describe('the rows of wave 1', () => {
+  const row = {
+    id: 'mtg_001', kind: 'client', title: 'Review the facade', projectId: 'prj_001', startsAt: '2026-10-01T10:00:00.000+03:00',
+    endsAt: '2026-10-01T11:00:00.000+03:00', where: '', guests: '', notes: '', organizerId: 'usr_003', attendeeIds: [], status: 'scheduled', rev: 1,
+    createdBy: 'usr_003', createdAt: '2026-09-30T09:00:00.000+03:00',
+  };
+
+  it('parses a stored row with minutesById, and a row with no minutesById', () => {
+    expect(Meeting.parse({ ...row, minutesById: 'usr_003' }).minutesById).toBe('usr_003');
+    expect('minutesById' in Meeting.parse(row)).toBe(false);
+  });
+
+  it('parses the minutes of a meeting with no project', () => {
+    const minutes = { text: 'We agreed on the facade.', fileIds: ['fil_001'], updatedBy: 'usr_003', updatedAt: '2026-10-01T12:00:00.000+03:00' };
+    expect(Meeting.parse({ ...row, projectId: null, minutes }).minutes).toEqual(minutes);
+    expect(Meeting.parse({ ...row, minutes: null }).minutes).toBeNull();
+    expect(() => Meeting.parse({ ...row, minutes: { ...minutes, text: 'x'.repeat(10_001) } })).toThrow();
   });
 });

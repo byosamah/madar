@@ -72,7 +72,7 @@ const REPORT_CALLS = ['reports.office'];
 // live.ticket from the exit, wave 3).
 const SERVER_CALLS = ['story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove', 'usage.get', 'usage.retryEffect', 'live.ticket'];
 // Meetings, client meetings and site visits (fbk_022, owner 2026-10-19).
-const MEETING_CALLS = ['meetings.list', 'meetings.get', 'meetings.create', 'meetings.update', 'meetings.cancel'];
+const MEETING_CALLS = ['meetings.list', 'meetings.get', 'meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.settle'];
 const MAP_CALLS = [...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS, ...FEEDBACK_CALLS, ...TEAM_CALLS, ...SUB_COMPANY_CALLS, ...AUDIT_CALLS, ...LEAD_CALLS, ...ORDER_CALLS, ...PROJECT_TEMPLATE_CALLS, ...PUSH_CALLS, ...ROLE_CALLS, ...REPORT_CALLS, ...MEETING_CALLS];
 const CHAT_READS =new Set(['chats.list', 'chats.messages', 'chats.unreadCount', 'chats.waiting', 'push.mine']);
 // Server reads named one by one, so the name rule does not decide them by accident.
@@ -82,7 +82,7 @@ describe('the call map', () => {
   it('has every call from the spec plus the documented extras, and the 11 server calls', () => {
     expect(Object.keys(mapCalls).sort()).toEqual([...MAP_CALLS].sort());
     expect(Object.keys(calls).sort()).toEqual([...MAP_CALLS, ...SERVER_CALLS].sort());
-    expect(Object.keys(calls)).toHaveLength(155);
+    expect(Object.keys(calls)).toHaveLength(156);
   });
 
   it('marks exactly the read calls as read-only', () => {
@@ -118,17 +118,17 @@ describe('the call map', () => {
     expect(marked).toEqual(Object.keys(calls).filter((name) => name.startsWith('session.')).sort());
   });
 
-  it('has 144 calls in the map', () => {
-    expect(MAP_CALLS).toHaveLength(144);
-    expect(Object.keys(mapCalls)).toHaveLength(144);
+  it('has 145 calls in the map', () => {
+    expect(MAP_CALLS).toHaveLength(145);
+    expect(Object.keys(mapCalls)).toHaveLength(145);
   });
 });
 
 describe('the calls the server runs', () => {
-  it('are the 140 calls of the map without the prototype controls and the blob read', () => {
+  it('are the 141 calls of the map without the prototype controls and the blob read', () => {
     expect([...SERVER_EXCLUDED].sort()).toEqual(['files.get', 'session.previewAs', 'session.resetSampleData', 'session.setSimulateErrors']);
     const names = Object.keys(sharedCalls);
-    expect(names).toHaveLength(140);
+    expect(names).toHaveLength(141);
     for (const name of SERVER_EXCLUDED) expect(names).not.toContain(name);
     for (const name of names) expect(Object.keys(mapCalls)).toContain(name);
     for (const name of SERVER_CALLS) expect(names).not.toContain(name);

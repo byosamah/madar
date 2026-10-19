@@ -47,6 +47,7 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   (`notify` skips the actor and the person of an agent actor).
   `INSTRUCTIONS` says nothing of the minutes until wave 2 (`meetings.settle`) is live: any attendee writes them, no minutes task (owner,
   2026-10-19). The tools leave out `minutesById`. The three meeting writes take `storyId` like any write.
+  Wave 2: `meetings.settle` is on `MCP_DENY` (the job and the minutes call settle a meeting; an agent never makes the Tracker line).
 - Sub-companies (review 2026-10-19): `dashboard.get`, `tasks.list`, `deadlines.list`, `projects.list` and `reports.office` take `subCompanyId`;
   `projects.list` filter `no_sub_company` lists the projects with none; `search.query` and `subCompanies.list` (`projectCount`) carry counts. An agent
   never undoes a sub-company event (`events.undo`, `events.undoStory`).

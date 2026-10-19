@@ -121,6 +121,8 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'meetings.create': ['events', 'meetings', 'notifications'],
   'meetings.update': ['events', 'meetings', 'notifications'],
   'meetings.cancel': ['events', 'meetings', 'notifications'],
+  // The settle writes the mark of the meeting, its event, and the Tracker line of a project meeting (fbk_022, wave 2). It sends no notice.
+  'meetings.settle': ['events', 'meetings', 'tracker'],
   // A push device is private and sends no change signal (server/data/save.ts), so no list reloads for it (owner, 2026-10-08).
   'push.register': [],
   'push.remove': [],

@@ -9,7 +9,7 @@ import { meetingsOf, type State } from '../../api/store';
 export function withMeeting(state: State, over: Partial<Meeting> & { id: string }): void {
   meetingsOf(state)[over.id] = {
     kind: 'client', title: 'Review the facade', projectId: 'prj_001', startsAt: '2026-09-30T14:00:00.000+03:00', endsAt: '2026-09-30T15:00:00.000+03:00',
-    where: '', guests: '', notes: '', organizerId: 'usr_002', attendeeIds: [], minutesById: 'usr_002', status: 'scheduled', rev: 1,
+    where: '', guests: '', notes: '', organizerId: 'usr_002', attendeeIds: [], status: 'scheduled', rev: 1,
     createdBy: 'usr_002', createdAt: '2026-09-29T09:00:00.000+03:00', ...over,
   };
   state.counters.mtg = Math.max(state.counters.mtg ?? 0, Number(over.id.slice(4)));

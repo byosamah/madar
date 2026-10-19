@@ -1,0 +1,10 @@
+{
+  "errors": {
+    "reasons": {
+      "settle_final": "Madar marked this meeting as over. This mark has no Undo."
+    }
+  },
+  "tracker": {
+    "autoMeeting": "Added automatically when the meeting ended."
+  }
+}

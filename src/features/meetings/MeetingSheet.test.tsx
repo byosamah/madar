@@ -69,7 +69,7 @@ describe('the meeting sheet', () => {
   });
 
   it('shows the quiet team meeting link for a team meeting', async () => {
-    await renderApp('/meetings?meeting=mtg_001', (state) => client(state, { kind: 'team', minutesById: null }));
+    await renderApp('/meetings?meeting=mtg_001', (state) => client(state, { kind: 'team' }));
     const link = await within(await sheet()).findByRole('link', { name: 'Open the team meeting view' });
     expect(link).toHaveAttribute('href', '#/dashboard/meeting');
   });

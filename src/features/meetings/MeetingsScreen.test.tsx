@@ -15,7 +15,7 @@ function office(state: State): void {
   withMeeting(state, { id: 'mtg_001', title: 'Review the facade', startsAt: '2026-09-30T14:00:00.000+03:00', endsAt: '2026-09-30T15:00:00.000+03:00' });
   withMeeting(state, {
     id: 'mtg_002', title: 'Weekly team meeting', kind: 'team', projectId: null, startsAt: '2026-10-01T10:00:00.000+03:00', endsAt: '2026-10-01T10:30:00.000+03:00',
-    attendeeIds: ['usr_005'], minutesById: null,
+    attendeeIds: ['usr_005'],
   });
   withMeeting(state, { id: 'mtg_003', title: 'Walk the plot', kind: 'site_visit', startsAt: '2026-10-08T09:00:00.000+03:00', endsAt: '2026-10-08T11:00:00.000+03:00' });
   withMeeting(state, { id: 'mtg_004', title: 'Kick-off', startsAt: '2026-09-28T10:00:00.000+03:00', endsAt: '2026-09-28T11:00:00.000+03:00' });

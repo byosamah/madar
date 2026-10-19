@@ -6,7 +6,7 @@ export type Action =
   | 'project.view' | 'project.create' | 'project.edit' | 'project.changeLeader' | 'project.archive'
   | 'project.delete' | 'project.healthOverride' | 'project.editCode'
   | 'task.view' | 'task.createForAnyone' | 'task.createForSelf' | 'task.updateOwn' | 'task.contribute' | 'task.updateAny' | 'task.review' | 'task.delete'
-  | 'task.take' | 'meeting.view' | 'meeting.create' | 'meeting.edit'
+  | 'task.take' | 'meeting.view' | 'meeting.create' | 'meeting.edit' | 'meeting.minutes'
   | 'content.post' | 'content.editOwn' | 'chat.project' | 'comment.read'
   | 'event.undoAgent' | 'admin.manage' | 'people.manage' | 'payment.manage' | 'clients.manage' | 'templates.manageAll' | 'report.office';
 
@@ -157,6 +157,8 @@ export function mayViewMeeting(state: State, viewer: User, meeting: MeetingPeopl
  * The rules of a meeting (fbk_022, owner 2026-10-19). A project meeting is read by everyone. The team, the leader and the Admin plan
  * one (the right to post). The organizer, the leader and the Admin change or cancel it. A meeting with no project is planned by
  * anyone, read by its organizer and its attendees, and changed by its organizer. The Admin has no extra right there.
+ * The minutes (wave 2): the organizer and the attendees write them. For a project meeting the leader and the Admin may too, because the
+ * minutes join the project record that the leader answers for. A team member who did not attend only reads them.
  */
 function canOnMeeting(actor: User, action: Action, resource: Resource): boolean {
   const people = resource.meeting!;
@@ -169,6 +171,8 @@ function canOnMeeting(actor: User, action: Action, resource: Resource): boolean 
         return true;
       case 'meeting.edit':
         return organizer;
+      case 'meeting.minutes':
+        return organizer || people.attendeeIds.includes(actor.id);
       default:
         return false;
     }
@@ -181,6 +185,8 @@ function canOnMeeting(actor: User, action: Action, resource: Resource): boolean 
       return leads || resource.projectRole === 'team';
     case 'meeting.edit':
       return leads || organizer;
+    case 'meeting.minutes':
+      return leads || organizer || people.attendeeIds.includes(actor.id);
     default:
       return false;
   }

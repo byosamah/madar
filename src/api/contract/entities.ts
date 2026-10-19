@@ -694,6 +694,19 @@ export const TrackerWaiting = z.enum(['us', 'client']);
 export type TrackerWaiting = z.infer<typeof TrackerWaiting>;
 
 /**
+ * The minutes of a meeting (fbk_022, wave 2): one text with files. Any attendee of the meeting writes and changes them. A project meeting
+ * that is not a team meeting keeps them on its Tracker line. A meeting with no project, and a team meeting, keep them on the meeting itself.
+ * "updatedBy" is the person; for an agent, the person it acts for.
+ */
+export const MeetingMinutes = z.object({
+  text: z.string().max(MEETING_LIMITS.minutesMax),
+  fileIds: z.array(FileId).max(MAX_ATTACHMENTS),
+  updatedBy: UserId,
+  updatedAt: Stamp,
+});
+export type MeetingMinutes = z.infer<typeof MeetingMinutes>;
+
+/**
  * One exchange with the client: a meeting, a message, a file or a government update, such as the Balady permit portal (owner, 2026-10-01).
  * An entry with "waiting" set and no "closedAt" is an open loop. "auto" says the office made the entry itself.
  */
@@ -718,6 +731,10 @@ export const TrackerEntry = z.object({
    * Null when the entry stopped waiting while its reply task could not finish yet (audit 2026-10-03, V-13).
    */
   replyTaskId: TaskId.nullable().optional(),
+  /** The meeting of an auto "meeting" line (fbk_022, wave 2). Optional, so older entries load. */
+  meetingId: MeetingId.nullable().optional(),
+  /** The minutes of that meeting. Any attendee writes them (meetings.saveMinutes). Null or missing: no minutes yet. */
+  minutes: MeetingMinutes.nullable().optional(),
 });
 export type TrackerEntry = z.infer<typeof TrackerEntry>;
 
@@ -779,6 +796,11 @@ export const FileRec = z.object({
    * people who read the messages of that chat open the file, and nobody else. Optional, so older files load.
    */
   conversationId: ConversationId.optional(),
+  /**
+   * A file of a meeting with no project (owner, 2026-10-19, wave 2): the meeting whose minutes hold it. Then projectId, stageId and
+   * taskId are null. The people who see that meeting open the file, and nobody else. Optional, so older files load.
+   */
+  meetingId: MeetingId.optional(),
   name: z.string().trim().min(1).max(200),
   versions: z.array(FileVersion).min(1),
 });
@@ -898,15 +920,20 @@ export const Meeting = z.object({
   organizerId: UserId,
   /** Active people, never the organizer. */
   attendeeIds: z.array(UserId).max(MEETING_LIMITS.attendeesMax),
-  /** The person who writes the minutes. The organizer or an attendee, or null for none. */
-  minutesById: UserId.nullable(),
+  /** The wave 1 form (a person for the minutes). Nothing writes or reads it since wave 2: any attendee writes the minutes (owner, 2026-10-19). */
+  minutesById: UserId.nullable().optional(),
   status: z.enum(['scheduled', 'cancelled']),
   rev: z.number().int().min(1),
   seriesId: MeetingId.nullable().optional(),
   repeat: MeetingRepeat.nullable().optional(),
+  /** The moment Madar marked the meeting as over (meetings.settle). Set once, and never taken back. */
   settledAt: Stamp.nullable().optional(),
+  /** Unused since the owner dropped the minutes task (2026-10-19). */
   minutesTaskId: TaskId.nullable().optional(),
+  /** The Tracker line that Madar made when the meeting ended (a project meeting that is not a team meeting). */
   trackerEntryId: TrackerId.nullable().optional(),
+  /** The minutes of a meeting with no project, or of a team meeting. Other meetings keep them on the Tracker line. */
+  minutes: MeetingMinutes.nullable().optional(),
   createdBy: UserId,
   createdAt: Stamp,
 });

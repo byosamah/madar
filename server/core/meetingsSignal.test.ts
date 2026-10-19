@@ -77,7 +77,7 @@ describe('the signals of a meeting with no project', () => {
     const { call } = runner();
     const made = await call(ORGANIZER, 'meetings.create', { kind: 'meeting', title: TITLE, startsAt: '2026-10-06T10:00:00+03:00', attendeeIds: [ATTENDEE, REMOVED] });
     const id = (made.output as { id: string }).id;
-    const changed = await call(ORGANIZER, 'meetings.update', { id, attendeeIds: [ATTENDEE], minutesById: null });
+    const changed = await call(ORGANIZER, 'meetings.update', { id, attendeeIds: [ATTENDEE] });
     const channels = changed.signals.map((signal) => signal.channel);
     expect(channels.sort()).toEqual([ATTENDEE, ORGANIZER, REMOVED].sort().map((user) => `person:${user}`));
     const cancelled = await call(ORGANIZER, 'meetings.cancel', { id });

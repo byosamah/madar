@@ -32,7 +32,10 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   (`project_id` in the office projects, or the person is the organizer or an attendee), and `meetingCall` reads one meeting by id with the
   minutes task and the Tracker line it names. The handler checks the view rule again on the rows. `meetings.create` reads the office only.
   `events.list` adds the test "no `officeMeetingId`, or one of the private meetings of the person" for every person (`privateMeetingsOf`), the
-  Admin too (owner, 2026-10-19, Q4), and the migration adds the statistics `events_office_meeting` for it. `notifications.count` reads the
+  Admin too (owner, 2026-10-19, Q4), and the migration adds the statistics `events_office_meeting` for it. Wave 2 adds the partial index
+  `meetings_to_settle` on `ends_at collate "C"` where `status = 'scheduled'` and `settled_at is null` (`20261021000100_meetings_settle.sql`), for the job
+  that settles ended meetings. The minutes (`doc->'minutes'`), the `meetingId` of a Tracker line and the `meetingId` of a file live in the jsonb docs
+  and need no column. `meetings.settle` loads the meeting by id (`meetingCall`) and nothing else: the line it makes needs no other row. `notifications.count` reads the
   meeting of a notice with `INBOX_MEETING_FIELDS`. `projectDelete` reads the meetings of the project and their notices.
 - `events` only grows: a trigger refuses update and delete, and madar_server has only select and insert. Undo is a new
   event (`undoes`). The save never writes `undoneBy`.
@@ -138,6 +141,8 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   `{ 3: [USAGE_DAY_SQL], 4: [the create table of sub_companies] }`; the SQL text is in `lite/schema.ts`.
 - Schema version 5 (fbk_022) adds the table `meetings` with its key columns and two read indexes (`meetings_starts`, `meetings_project_starts`).
   Its step is in `LITE_STEPS` and makes the same objects as a new office (`schema.test.ts` checks it).
+- Schema version 6 (fbk_022, wave 2) adds the partial index `meetings_to_settle` (`ends_at`, where `status = 'scheduled' and settled_at is null`), with no
+  `collate`. Its step makes the same object as a new office.
 - Each event index costs 1 row written for each event, and a read needs each of the 8. Task 18 dropped four of them, one at a
   time: a read then took 12,815 to 183,416 rows in place of 4 to 4,189 (proof.md "Wave 1: the rows pins"). Drop one only with
   a rows pin that shows that no read needs it.

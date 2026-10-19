@@ -138,6 +138,23 @@ describe('the rights of a meeting (fbk_022, owner 2026-10-19)', () => {
     expect(mayViewMeeting(state, admin, { projectId: null, organizerId: 'usr_003', attendeeIds: ['usr_001'] })).toBe(true);
   });
 
+  it('lets the organizer, the attendees, the leader and the Admin write the minutes of a project meeting, and not a team member who did not attend', () => {
+    const minutes = (projectId: string | null, actor: User) => can(actor, 'meeting.minutes', meetingResource(state, { projectId, ...mine }, actor.id));
+    // admin, leader, team (the organizer), other (an attendee).
+    expect(people.map((actor) => minutes('prj_001', actor))).toEqual([true, true, true, true]);
+    // A team member who did not attend: Sara leads nothing and is not on the meeting.
+    const sideline = { organizerId: 'usr_004', attendeeIds: [] as string[] };
+    expect(can(team, 'meeting.minutes', meetingResource(state, { projectId: 'prj_001', ...sideline }, team.id))).toBe(false);
+    expect(can(leader, 'meeting.minutes', meetingResource(state, { projectId: 'prj_001', ...sideline }, leader.id))).toBe(true);
+    expect(can(admin, 'meeting.minutes', meetingResource(state, { projectId: 'prj_001', ...sideline }, admin.id))).toBe(true);
+  });
+
+  it('lets only the organizer and the attendees write the minutes of a meeting with no project, the Admin only when invited', () => {
+    const minutes = (actor: User, attendeeIds: string[]) => can(actor, 'meeting.minutes', meetingResource(state, { projectId: null, organizerId: 'usr_003', attendeeIds }, actor.id));
+    expect(people.map((actor) => minutes(actor, ['usr_004']))).toEqual([false, false, true, true]);
+    expect(minutes(admin, ['usr_001'])).toBe(true);
+  });
+
   it('reads the organizer behind an agent, and gives nothing to a person who left', () => {
     const agent = makeUser('usr_005', { kind: 'agent', ownerId: 'usr_003', discipline: 'Agent' });
     state.users.usr_005 = agent;
@@ -147,6 +164,7 @@ describe('the rights of a meeting (fbk_022, owner 2026-10-19)', () => {
     const gone = makeUser('usr_003', { active: false });
     expect(can(gone, 'meeting.view', meetingResource(state, { projectId: 'prj_001', ...mine }, gone.id))).toBe(false);
     expect(can(gone, 'meeting.create', { meeting: { organizerId: gone.id, attendeeIds: [], noProject: true } })).toBe(false);
+    expect(can(gone, 'meeting.minutes', meetingResource(state, { projectId: 'prj_001', ...mine }, gone.id))).toBe(false);
   });
 
   it('answers false for a meeting action that has no meeting, and for a task action on a meeting', () => {

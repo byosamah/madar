@@ -37,7 +37,8 @@ import {
  *   projectDelete  every row of P and what points at it
  *   push           the push devices of the person of the call (push.register also reads the row of its endpoint)
  *   report         reports.office: the tasks, Tracker entries and payments of the projects, and the events of the period as counts
- *   meetings       the meetings of one window (meetings.list), or one meeting by id with the records it names (meetings.get, update, cancel)
+ *   meetings       the meetings of one window (meetings.list), or one meeting by id with the records it names (meetings.get, update, cancel,
+ *                  settle)
  *
  * The 9 server calls of plan 4.11 run their own code on the office snapshot and have no loader.
  */
@@ -227,6 +228,8 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'meetings.create': office,
   'meetings.update': meetings(meetingCall),
   'meetings.cancel': meetings(meetingCall),
+  // The settle reads the meeting by id (it writes the mark and the Tracker line, which needs no other row). A project is in the office.
+  'meetings.settle': meetings(meetingCall),
 };
 
 /**

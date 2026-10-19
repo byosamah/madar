@@ -26,8 +26,7 @@ const L = MEETING_LIMITS;
 /** Everything the form holds. The three "set" marks say that the person chose the value, so a change of kind no longer replaces it. */
 type Draft = {
   kind: MeetingKindName; title: string; projectId: string; day: string; time: string; durationMin: number; attendeeIds: string[]; where: string;
-  /** undefined: follow the kind. '' is nobody. Else the person for the minutes. */
-  minutes: string | undefined; guests: string; notes: string; more: boolean; lengthSet: boolean; whereSet: boolean;
+  guests: string; notes: string; more: boolean; lengthSet: boolean; whereSet: boolean;
 };
 
 function draftOf(meeting: MeetingDetail | undefined, projectId: string): Draft {
@@ -35,14 +34,14 @@ function draftOf(meeting: MeetingDetail | undefined, projectId: string): Draft {
     const { day, time } = splitStamp(meeting.startsAt);
     return {
       kind: meeting.kind, title: meeting.title, projectId: meeting.project?.id ?? '', day, time, durationMin: minutesBetween(meeting.startsAt, meeting.endsAt),
-      attendeeIds: meeting.attendees.map((person) => person.id), where: meeting.where, minutes: meeting.minutesBy?.id ?? '', guests: meeting.guests,
+      attendeeIds: meeting.attendees.map((person) => person.id), where: meeting.where, guests: meeting.guests,
       notes: meeting.notes, more: false, lengthSet: true, whereSet: true,
     };
   }
   const slot = defaultSlot(now());
   return {
     kind: 'meeting', title: '', projectId, day: slot.day, time: slot.time, durationMin: kindDefaults('meeting').durationMin, attendeeIds: [], where: '',
-    minutes: undefined, guests: '', notes: '', more: false, lengthSet: false, whereSet: false,
+    guests: '', notes: '', more: false, lengthSet: false, whereSet: false,
   };
 }
 
@@ -78,8 +77,8 @@ function PeoplePicker({ people, value, onChange, disabled }: { people: { id: str
 
 /**
  * The sheet that plans a meeting, and the same sheet that edits one (fbk_022, owner 2026-10-19). Eight controls: Kind, Title, Project,
- * Day, Time, Length, People, Where. The fold "More" holds Guests and Notes. One button. A kind sets the length and the
- * person for the minutes until the person chooses them; the place of a site visit starts with the address of the project pin.
+ * Day, Time, Length, People, Where. The fold "More" holds Guests and Notes. One button. A kind sets the length until the person
+ * chooses it; the place of a site visit starts with the address of the project pin.
  * The edit form has no Project: a meeting stays in its project. After the end only the notes change. A refusal of the server shows in
  * the form, in its own words.
  */
@@ -126,11 +125,6 @@ export function MeetingForm({ open, onOpenChange, meeting, project = null }: {
     return [...listed, ...extra].sort(byName);
   }, [users.data, meeting, organizerId, byName]);
 
-  // The person for the minutes: the one chosen, if still on the meeting; else the default of the kind.
-  const defaultMinutes = kindDefaults(draft.kind).minutesByOrganizer ? organizerId : '';
-  const minutesChoices = [organizerId, ...draft.attendeeIds];
-  const minutes = draft.minutes !== undefined && (draft.minutes === '' || minutesChoices.includes(draft.minutes)) ? draft.minutes : defaultMinutes;
-
   const onKind = (kind: MeetingKindName) => {
     const defaults = kindDefaults(kind);
     set({
@@ -163,7 +157,7 @@ export function MeetingForm({ open, onOpenChange, meeting, project = null }: {
     if (!meeting) {
       planned.mutate({
         kind: draft.kind, title, projectId: draft.projectId || null, startsAt, durationMin: draft.durationMin, ...text,
-        attendeeIds: draft.attendeeIds, minutesById: minutes || null,
+        attendeeIds: draft.attendeeIds,
       });
       return;
     }
@@ -178,7 +172,6 @@ export function MeetingForm({ open, onOpenChange, meeting, project = null }: {
       ...(text.guests !== meeting.guests ? { guests: text.guests } : {}),
       ...(text.notes !== meeting.notes ? { notes: text.notes } : {}),
       ...(!sameAs(draft.attendeeIds, meeting.attendees.map((person) => person.id)) ? { attendeeIds: draft.attendeeIds } : {}),
-      ...((minutes || null) !== (meeting.minutesBy?.id ?? null) ? { minutesById: minutes || null } : {}),
     };
     if (Object.keys(change).length === 0) onOpenChange(false);
     else saved.mutate({ id: meeting.id, ...change });

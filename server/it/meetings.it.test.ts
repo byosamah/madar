@@ -16,12 +16,12 @@ const schema = `madar_mtg_${process.pid}`;
 const STAMP = '2026-10-19T09:00:00.000+03:00';
 const OFFICE_MEETING: Meeting = {
   id: 'mtg_001', kind: 'meeting', title: 'Meet a new client', projectId: null, startsAt: '2026-10-21T10:00:00.000+03:00', endsAt: '2026-10-21T11:00:00.000+03:00',
-  where: 'Meeting room', guests: '', notes: '', organizerId: 'usr_004', attendeeIds: ['usr_006', 'usr_007'], minutesById: 'usr_004', status: 'scheduled', rev: 1,
+  where: 'Meeting room', guests: '', notes: '', organizerId: 'usr_004', attendeeIds: ['usr_006', 'usr_007'], status: 'scheduled', rev: 1,
   createdBy: 'usr_004', createdAt: STAMP,
 };
 const PROJECT_MEETING: Meeting = {
   ...OFFICE_MEETING, id: 'mtg_002', kind: 'client', projectId: 'prj_001', startsAt: '2026-10-22T09:00:00.000+03:00', endsAt: '2026-10-22T10:00:00.000+03:00',
-  organizerId: 'usr_002', attendeeIds: ['usr_003'], minutesById: null, settledAt: '2026-10-22T10:15:00.000+03:00',
+  organizerId: 'usr_002', attendeeIds: ['usr_003'], settledAt: '2026-10-22T10:15:00.000+03:00',
 };
 
 async function apply(db: pg.Client, names: string[]): Promise<void> {
@@ -86,9 +86,11 @@ describe.runIf(process.env.MADAR_IT === '1')('the meetings migration, on the loc
     expect(window.rows).toEqual([{ id: 'mtg_002' }]);
   });
 
-  it('has the three read indexes', async () => {
+  it('has the read indexes and the partial index of the settle job (20261021000100_meetings_settle.sql)', async () => {
     const { rows } = await db.query("select indexname from pg_indexes where schemaname = $1 and tablename = 'meetings' order by indexname", [schema]);
-    expect(rows.map((row) => row.indexname)).toEqual(['meetings_attendees', 'meetings_pkey', 'meetings_project_starts', 'meetings_starts']);
+    expect(rows.map((row) => row.indexname)).toEqual(['meetings_attendees', 'meetings_pkey', 'meetings_project_starts', 'meetings_starts', 'meetings_to_settle']);
+    const [partial] = (await db.query("select indexdef from pg_indexes where schemaname = $1 and indexname = 'meetings_to_settle'", [schema])).rows;
+    expect(partial.indexdef).toContain("WHERE ((status = 'scheduled'::text) AND (settled_at IS NULL))");
   });
 
   it('turns on Row Level Security for the table', async () => {
@@ -173,7 +175,7 @@ describe.runIf(process.env.MADAR_IT === '1')('a meeting with no project, on the 
 
   it('keeps hiding it from a person who was taken off, and still tells that person by signal', async () => {
     const sent = deps.signal.sent.length;
-    const changed = await call(ORGANIZER, 'meetings.update', { id, attendeeIds: [ATTENDEE], minutesById: null });
+    const changed = await call(ORGANIZER, 'meetings.update', { id, attendeeIds: [ATTENDEE] });
     expect(changed.ok).toBe(true);
     expect(deps.signal.sent.slice(sent).map((signal) => signal.channel).sort()).toEqual([ATTENDEE, ORGANIZER, REMOVED].map((user) => `person:${user}`));
     const got = await call(REMOVED, 'meetings.get', { id });

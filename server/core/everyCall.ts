@@ -142,6 +142,8 @@ function rest(office: State): Record<string, [unknown, string?]> {
     'meetings.get': [{ id: meeting }],
     'meetings.update': [{ id: meeting, where: 'Meeting room' }],
     'meetings.cancel': [{ id: meeting }],
+    // The settle writes nothing before the end of the meeting, and the sweep runs at the time of the sample office.
+    'meetings.settle': [{ id: meeting }],
   };
 }
 

@@ -127,6 +127,12 @@ describe('the lists of the meeting tools', () => {
     }
   });
 
+  it('put meetings.settle on the deny list only: Madar makes the Tracker line of a meeting that ended, an agent does not (wave 2)', () => {
+    expect(MCP_DENY as readonly string[]).toContain('meetings.settle');
+    expect(MCP_ALLOW as readonly string[]).not.toContain('meetings.settle');
+    expect(mcpTools().map((tool) => tool.name)).not.toContain('meetings.settle');
+  });
+
   it('mark the two reads as read-only, meetings.create as additive, and the change and the cancel as not', () => {
     const tool = (name: string) => mcpTools().find((one) => one.name === name)!;
     expect(tool('meetings.list').readOnly).toBe(true);

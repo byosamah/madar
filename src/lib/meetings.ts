@@ -24,17 +24,29 @@ export function phaseOf(meeting: Timed & { status: 'scheduled' | 'cancelled' }, 
   return 'upcoming';
 }
 
-/** The length of a new meeting, and whether its organizer writes the minutes by default. A team meeting has no minutes by default. */
-export function kindDefaults(kind: MeetingKindName): { durationMin: number; minutesByOrganizer: boolean } {
+/** The length of a new meeting in minutes, by its kind. */
+export function kindDefaults(kind: MeetingKindName): { durationMin: number } {
   switch (kind) {
     case 'team':
-      return { durationMin: 30, minutesByOrganizer: false };
+      return { durationMin: 30 };
     case 'site_visit':
-      return { durationMin: 120, minutesByOrganizer: true };
+      return { durationMin: 120 };
     default:
-      return { durationMin: 60, minutesByOrganizer: true };
+      return { durationMin: 60 };
   }
 }
+
+/**
+ * True when Madar makes a Tracker line for the meeting after its end, and keeps the minutes on that line (owner, 2026-10-19): a project
+ * meeting that is not a team meeting. A team meeting never writes to the Tracker (owner, 2026-10-02), and a meeting with no project has
+ * no Tracker. Those two keep their minutes on the meeting itself.
+ */
+export function hasTrackerLine(meeting: { projectId: string | null; kind: MeetingKindName }): boolean {
+  return meeting.projectId !== null && meeting.kind !== 'team';
+}
+
+/** The job settles a meeting that ended in the last SETTLE_BACK_DAYS days. An older meeting waits for a person to open it. */
+export const SETTLE_BACK_DAYS = 14;
 
 /** The same moment as a stamp in office time (+03:00). Every stored stamp of a meeting has this form. */
 export function officeStamp(stamp: string): string {

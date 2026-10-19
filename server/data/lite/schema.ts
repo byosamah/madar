@@ -17,8 +17,10 @@ import type { SqlHost } from './host';
  * Version 4 (fbk_007): the office list sub_companies. Its step is in LITE_STEPS.
  *
  * Version 5 (fbk_022): the table meetings, with key columns and two read indexes. Its step is in LITE_STEPS.
+ *
+ * Version 6 (fbk_022, wave 2): the partial index meetings_to_settle for the job that settles ended meetings. Its step is in LITE_STEPS.
  */
-export const LITE_SCHEMA_VERSION = 5;
+export const LITE_SCHEMA_VERSION = 6;
 
 export type LiteIndex = { table: string; name: string; columns: string; unique?: true; where?: string };
 
@@ -28,6 +30,7 @@ export const LITE_INDEXES: readonly LiteIndex[] = [
   { table: 'push_devices', name: 'push_devices_user', columns: 'user_id' },
   { table: 'meetings', name: 'meetings_starts', columns: 'starts_at' },
   { table: 'meetings', name: 'meetings_project_starts', columns: 'project_id, starts_at' },
+  { table: 'meetings', name: 'meetings_to_settle', columns: 'ends_at', where: "status = 'scheduled' and settled_at is null" },
   { table: 'tasks', name: 'tasks_project', columns: 'project_id' },
   { table: 'tasks', name: 'tasks_owner', columns: 'owner_id' },
   { table: 'updates', name: 'updates_project_created', columns: 'project_id, created_at' },
@@ -117,6 +120,7 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
  * Version 3 adds the day meters. It has no text for the sign-in tables of wave 2 (see the top of this file).
  * Version 4 adds the table sub_companies (fbk_007). It is an office list, so it has only id and doc, as in liteSchemaSql.
  * Version 5 adds the table meetings (fbk_022) with the key columns of query.ts and its two read indexes, as in liteSchemaSql.
+ * Version 6 adds the partial index meetings_to_settle (fbk_022, wave 2): the scheduled meetings with no settled_at, by ends_at.
  */
 export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   3: [USAGE_DAY_SQL],
@@ -126,6 +130,7 @@ export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
     'create index meetings_starts on meetings (starts_at)',
     'create index meetings_project_starts on meetings (project_id, starts_at)',
   ],
+  6: ["create index meetings_to_settle on meetings (ends_at) where status = 'scheduled' and settled_at is null"],
 };
 
 /** The sign-in tables of wave 2: the import of wave 4 and the restore check copy them with the office. */

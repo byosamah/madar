@@ -762,15 +762,40 @@ describe('meetings (fbk_022, owner 2026-10-19)', () => {
     expect(await day('2026-10-07')).toEqual(['Early call']);
   });
 
-  it('meetings.get brings the minutes task and the Tracker line that the meeting names, so the detail is the same on both loads', async () => {
+  it('meetings.get brings the Tracker line that the meeting names, so the detail is the same on both loads, and no minutes task is left', async () => {
     const state = office();
     const maker = 'usr_003';
     const made = apply(state, 'meetings.create', { kind: 'client', title: 'Review', projectId: 'prj_001', startsAt: '2026-10-06T10:00:00+03:00' }, state.projects.prj_001.leaderId!) as { id: string };
-    const task = todo(state, 'prj_001')[0];
     const entry = Object.values(state.tracker!)[0];
-    Object.assign(state.meetings![made.id], { minutesTaskId: task.id, trackerEntryId: entry.id });
+    Object.assign(state.meetings![made.id], { trackerEntryId: entry.id });
     const run = await same(state, 'meetings.get', { id: made.id }, maker);
-    expect(run.outcome.output).toMatchObject({ minutesTask: { id: task.id }, trackerEntry: { id: entry.id } });
+    expect(run.outcome.output).toMatchObject({ minutesTask: null, minutesBy: null, trackerEntry: { id: entry.id } });
+  });
+
+  it('meetings.settle makes the same Tracker line on both loads, writes nothing before the end, and reads a hidden meeting as missing', async () => {
+    const state = office();
+    const leader = state.projects.prj_001.leaderId!;
+    const made = apply(state, 'meetings.create', { kind: 'client', title: 'Review', projectId: 'prj_001', startsAt: '2026-10-06T10:00:00+03:00', attendeeIds: ['usr_003'] }, leader) as { id: string };
+    const hidden = apply(state, 'meetings.create', { kind: 'meeting', title: 'Private talk', startsAt: '2026-10-06T12:00:00+03:00', attendeeIds: ['usr_003'] }, 'usr_004') as { id: string };
+    // Before the end: the answer holds no mark and no row changes.
+    const early = await same(state, 'meetings.settle', { id: made.id }, leader, { now: new Date('2026-10-06T06:59:00Z') });
+    expect(early.outcome.output).toEqual({ settledAt: null, trackerEntryId: null });
+    expect(inserted(early, 'tracker')).toEqual([]);
+    // After the end: the mark and one Tracker line, with the same id on both loads.
+    const after = new Date('2026-10-06T08:00:00Z');
+    const run = await same(state, 'meetings.settle', { id: made.id }, leader, { now: after });
+    const result = run.outcome.output as { settledAt: string; trackerEntryId: string };
+    expect(result.settledAt).toBe('2026-10-06T11:00:00.000+03:00');
+    expect(inserted(run, 'tracker')).toEqual([result.trackerEntryId]);
+    expect(docs(run, 'tracker')[0]).toMatchObject({ type: 'meeting', auto: 'meeting', meetingId: made.id, minutes: null, peopleIds: [leader, 'usr_003'] });
+    // A meeting with no project gets the mark only, for its people. The Admin who is not invited and an outsider get not_found.
+    const mark = await same(state, 'meetings.settle', { id: hidden.id }, 'usr_003', { now: after });
+    expect(mark.outcome.output).toMatchObject({ trackerEntryId: null });
+    expect(inserted(mark, 'tracker')).toEqual([]);
+    for (const outsider of [ADMIN, 'usr_002']) {
+      const refused = await same(state, 'meetings.settle', { id: hidden.id }, outsider, { now: after });
+      expect(refused.outcome.error, outsider).toEqual({ code: 'not_found', message: `Meeting ${hidden.id} does not exist.` });
+    }
   });
 
   it('projects.delete takes the meetings of the project and their notices, and leaves a meeting with no project', async () => {

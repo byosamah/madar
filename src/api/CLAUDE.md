@@ -339,7 +339,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   `mine` true by default, `mine: false` needs `projectId`), `meetings.get`, `meetings.create`, `meetings.update`, `meetings.cancel`. `create` is
   the first key of `meetingCalls` on purpose: the call sweep (`server/core/everyCall.ts`) runs in that order and the others need a meeting.
 - Reasons (`invalid_input` unless said): `in_the_past` (a start more than 14 days ago), `start_not_on_five`, `project_closed` (the project is
-  not active or on hold), `minutes_not_attending`, `attendee_agent`, `person_inactive`, `title_hidden`, `project_fixed` (a meeting never
+  not active or on hold), `minutes_not_attending` (wave 1 only: no call raises it since wave 2, but an old answer can name it), `attendee_agent`, `person_inactive`, `title_hidden`, `project_fixed` (a meeting never
   changes its project), `window_too_long`, `window_reversed`, `project_needed`; `conflict`: `meeting_cancelled`, `meeting_over` (after the end
   only `notes` change, and a cancel is refused).
 - Rights (`permissions.ts`): `meeting.view`, `meeting.create`, `meeting.edit`, with `meetingResource` and `mayViewMeeting`. A project meeting is
@@ -370,8 +370,22 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   The server job loads the scheduled meetings that start within the hour (`loadJobs`, `now` of the run). The screen words are in
   `src/i18n/real/meetings.*.json` (`inbox.trigger.meeting_invited`, `_moved`, `_cancelled`, `meeting_soon`, `inbox.meetingGone`).
 - `projects.delete` deletes the meetings of the project and their notices. A person who is an attendee and leaves keeps the record.
-- `Task.meetingId`, `TrackerEntry.auto: 'meeting'` and `Meeting.settledAt`, `minutesTaskId`, `trackerEntryId`, `seriesId`, `repeat` are in the
-  contract for the later waves (minutes, series). Nothing sets them in wave 1.
+- `Task.meetingId`, `Meeting.minutesTaskId`, `seriesId` and `repeat` are in the contract for the later waves. Nothing sets the first two since the
+  owner dropped the minutes task (2026-10-19), and wave 3 sets the others.
+- Settle (wave 2, owner 2026-10-19; `meetings.settle { id }`, `settleMeeting`, `dueToSettle` in `handlers/meetings.ts`): after `endsAt` Madar marks the
+  meeting as over (`settledAt`, event verb `meeting.settled`) and, when `hasTrackerLine` (`lib/meetings.ts`: a project meeting that is not a team
+  meeting), makes its Tracker line: type `meeting`, side `both`, the title and notes of the meeting, the day of the start, the organizer and the
+  first 19 attendees, `auto: 'meeting'`, `meetingId`, `minutes: null`. The line event (`tracker.logged`) carries `causeEventId` of the mark, so the
+  History shows that Madar made the line because the meeting ended. A team meeting and a meeting with no project get the mark only. There is no
+  minutes task, no notice, no push and no mail. The call needs only the view of the meeting (`requireMeeting`). Before the end, for a cancelled
+  meeting and after the first settle it writes nothing and gives the stored `{ settledAt, trackerEntryId }`. The job (`server/jobs/steps/meetings.ts`)
+  and the prototype minute timer call it for each meeting of `dueToSettle` (scheduled, not settled, ended in the last `SETTLE_BACK_DAYS` days).
+  The mark has no Undo: `events.undo` answers `conflict`, reason `settle_final` (`meeting.settled` is in `NOT_UNDOABLE`, and `undoOne` raises the
+  reason first), because the next job run would settle the meeting again. The Undo of `tracker.logged` deletes the line, as for any line; the
+  meeting then keeps `trackerEntryId`, which `REFERENCE_FIELDS` leaves out on purpose, so the delete is not refused. MCP: deny list.
+- The person for the minutes is gone (owner, 2026-10-19). `Meeting.minutesById` is optional and nothing writes or reads it. The inputs of
+  `meetings.create` and `meetings.update` lost `minutesById`: zod strips the key, so an old tab or an old agent still works. `MeetingDetail.minutesBy`
+  and `minutesTask` stay in the shape, always null. A stored row with `minutesById` still parses. No migration and no backfill.
 - The sample office (`data/sampleMeetings.ts`, only the prototype and `sampleOffice`, as the sample sub-companies): one client meeting of an open
   project and one meeting with no project for the Admin and a leader. The prototype day shift moves `startsAt` and `endsAt` (`PLANNED_FIELDS`,
   `data/shift.ts`) and never pulls them back before now.

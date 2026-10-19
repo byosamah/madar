@@ -339,6 +339,11 @@ function takeBackTemplatePart(ctx: Ctx, taskId: string, projectId: string | null
 function undoOne(ctx: Ctx, event: Event, guard: boolean, followOn = false): EventView {
   // A change that the person does not see reads as missing, before any other rule (owner, 2026-10-06).
   if (!seesEvent(ctx, event, true)) throw notFound('Event', event.id);
+  // The mark of a settled meeting is final: the next job run would settle the meeting again (fbk_022, wave 2). Every person who
+  // sees the change gets the same answer.
+  if (event.verb === 'meeting.settled') {
+    throw new ApiError('conflict', 'Madar marked this meeting as over. This mark has no Undo.', { reason: 'settle_final' });
+  }
   assertUndoRight(ctx, event);
   if (!followOn) assertMayUndo(ctx, event);
   const task = event.targetType === 'task' ? ctx.state.tasks[event.targetId] : undefined;

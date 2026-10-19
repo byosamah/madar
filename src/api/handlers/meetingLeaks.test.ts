@@ -52,7 +52,7 @@ const error = async (run: () => Promise<unknown>) => {
 };
 /** Takes Nour off the meeting. */
 async function removeNour(w: World) {
-  await as(w, ORGANIZER, () => w.t.api.call('meetings.update', { id: w.id, attendeeIds: [ATTENDEE], minutesById: null }));
+  await as(w, ORGANIZER, () => w.t.api.call('meetings.update', { id: w.id, attendeeIds: [ATTENDEE] }));
 }
 
 describe('meetings.list, meetings.get, meetings.update and meetings.cancel', () => {
