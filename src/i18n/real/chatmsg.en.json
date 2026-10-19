@@ -4,5 +4,12 @@
       "reply_not_here": "You can reply only to a message in the same chat or task.",
       "not_author": "You can change only your own messages."
     }
+  },
+  "chat": {
+    "messageActions": "Actions for this message",
+    "reactions": "Reactions",
+    "yourMessage": "Your message",
+    "copyText": "Copy text",
+    "copied": "Text copied."
   }
 }

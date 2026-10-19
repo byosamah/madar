@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { DateMove } from '../../api/contract/entities';
+import type { DateMove, Reaction } from '../../api/contract/entities';
 import type { Attachment, GroupLine, UserCard } from '../../api/contract/views';
 import { usePictureTest } from '../../app/files';
 import { useLang } from '../../app/lang';
@@ -15,6 +15,10 @@ import { actorContext } from '../../lib/grammar';
 import { reasonLineText, type ReasonKind } from '../comments/ReasonLine';
 import { AttachmentList, photoOnlyBody } from '../files/PictureAttachments';
 import { DateMoveLines } from '../project/tasks/DateReason';
+import { useBubbleActions } from './bubbleActions';
+import { useLongPress } from './longPress';
+import { MessageSheet, MessageTools } from './MessageMenu';
+import { ReactionPills } from './ReactionPills';
 
 /** One bubble. A chat message and a task comment both turn into this. */
 export type Bubble = {
@@ -27,6 +31,8 @@ export type Bubble = {
   createdAt: string;
   mine: boolean;
   edited: boolean;
+  /** The people behind each reaction (chat design item 12). Missing means none. */
+  reactions?: Record<Reaction, string[]>;
   /** A quiet line of a group (a person joined or left, a new name). It is no message: the log draws it as one grey line. */
   line?: GroupLine;
   /** A quiet line of a task thread (fbk_027): the reason of a date move or of a reopening, or a Madar shift. The log draws one grey line. */
@@ -84,39 +90,53 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh }: { bu
   const nameOf = usePersonName();
   const lang = useLang();
   const isPicture = usePictureTest();
+  const actions = useBubbleActions();
+  // A long press of a finger opens the sheet of the message (item 9). The sheet is a sibling of the row, so its events never reach the row.
+  const [sheet, setSheet] = useState(false);
+  const press = useLongPress(() => setSheet(true));
   const { author, mine } = bubble;
   if (bubble.line) return <GroupLineItem line={bubble.line} />;
   if (bubble.reason) return <ReasonLineItem bubble={bubble} reason={bubble.reason} />;
   // A photo sent with no words has its file name as its words. Beside the preview that name is noise, so the bubble leaves it out.
   const photoOnly = photoOnlyBody(bubble.body, bubble.files, isPicture);
+  // The side spot holds the "..." button: at the start of your own message and at the end of another message.
+  const side = <div data-part="side" className="flex items-center gap-1.5 self-center"><MessageTools bubble={bubble} /></div>;
   return (
-    <motion.li
-      initial={fresh ? { opacity: 0, y: 12 } : false}
-      animate={{ opacity: 1, y: 0 }}
-      transition={spring.standard}
-      className={`flex max-w-[88%] items-end gap-2 sm:max-w-[75%] ${mine ? 'self-end' : 'self-start'}`}
-    >
-      {!mine && <Avatar user={author} size={28} />}
-      <div className="flex min-w-0 flex-col gap-0.5">
-        {(!mine || author.kind === 'agent') && (
-          <p className="flex flex-wrap items-center gap-x-2 px-1 text-footnote text-ink-2">
-            {!mine && <bdi className="font-semibold text-ink">{nameOf(author)}</bdi>}
-            {author.kind === 'agent' && <AgentLabel />}
-            {bubble.actingFor && <span>{t('chat.actingFor', { name: nameOf(bubble.actingFor) })}</span>}
-          </p>
-        )}
-        <div
-          style={mine ? { background: 'var(--p-blue-bg)' } : undefined}
-          className={`rounded-2xl px-3 py-2 text-ink ${mine ? 'rounded-ee-md' : 'rounded-es-md bg-fill'}`}
-        >
-          {!photoOnly && <RichText body={bubble.body} className="natural-side text-subheadline" />}
-          <AttachmentList files={bubble.files} />
-          <p className="tabular pt-0.5 text-end text-caption text-ink-2">
-            <time dateTime={bubble.createdAt}>{clockTime(bubble.createdAt, lang)}</time>
-            {bubble.edited && ` · ${t('comments.edited')}`}
-          </p>
+    <>
+      <motion.li
+        data-message-id={bubble.id}
+        {...(actions ? press : {})}
+        initial={fresh ? { opacity: 0, y: 12 } : false}
+        animate={{ opacity: 1, y: 0 }}
+        transition={spring.standard}
+        className={`group flex max-w-[88%] items-end gap-2 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none] sm:max-w-[75%] ${mine ? 'self-end' : 'self-start'}`}
+      >
+        {mine && side}
+        {!mine && <Avatar user={author} size={28} />}
+        <div className="flex min-w-0 flex-col gap-0.5">
+          {(!mine || author.kind === 'agent') && (
+            <p className="flex flex-wrap items-center gap-x-2 px-1 text-footnote text-ink-2">
+              {!mine && <bdi className="font-semibold text-ink">{nameOf(author)}</bdi>}
+              {author.kind === 'agent' && <AgentLabel />}
+              {bubble.actingFor && <span>{t('chat.actingFor', { name: nameOf(bubble.actingFor) })}</span>}
+            </p>
+          )}
+          <div
+            style={mine ? { background: 'var(--p-blue-bg)' } : undefined}
+            className={`rounded-2xl px-3 py-2 text-ink ${mine ? 'rounded-ee-md' : 'rounded-es-md bg-fill'}`}
+          >
+            {!photoOnly && <RichText body={bubble.body} className="natural-side text-subheadline" />}
+            <AttachmentList files={bubble.files} />
+            <p className="tabular pt-0.5 text-end text-caption text-ink-2">
+              <time dateTime={bubble.createdAt}>{clockTime(bubble.createdAt, lang)}</time>
+              {bubble.edited && ` · ${t('comments.edited')}`}
+            </p>
+          </div>
+          <ReactionPills bubble={bubble} />
         </div>
-      </div>
-    </motion.li>
+        {!mine && side}
+      </motion.li>
+      {sheet && actions && <MessageSheet bubble={bubble} open onOpenChange={setSheet} />}
+    </>
   );
 });

@@ -11,9 +11,16 @@ import { fixedFrame, inFrame, measure, menuPlace } from './placement';
 
 export type MenuItem = { label: string; onSelect: () => void; destructive?: boolean; hidden?: boolean };
 
-/** The list of a menu. It takes the focus, moves with the arrow keys, and closes on Escape, Tab or a press outside. */
+/** What a key press moves between: the items, and the tick items of a head (a row of choices above the items). */
+const STOPS = '[role="menuitem"],[role="menuitemcheckbox"]';
+
+/**
+ * The list of a menu. It takes the focus, moves with the arrow keys, and closes on Escape, Tab or a press outside. A `head` sits above
+ * the items with one hairline under it: a row of round buttons with `role="menuitemcheckbox"` (the three reactions of a message). A
+ * press on one of them closes the menu after the button has done its work.
+ */
 export function MenuList({
-  label, items, onClose, boundary, className = '', style,
+  label, items, onClose, boundary, className = '', style, head,
 }: {
   label: string;
   items: MenuItem[];
@@ -21,10 +28,11 @@ export function MenuList({
   boundary?: RefObject<HTMLElement | null>;
   className?: string;
   style?: CSSProperties;
+  head?: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    ref.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    ref.current?.querySelector<HTMLElement>(STOPS)?.focus();
   }, []);
   useEffect(() => {
     const onDown = (event: PointerEvent) => {
@@ -36,7 +44,7 @@ export function MenuList({
     return () => document.removeEventListener('pointerdown', onDown);
   }, [onClose, boundary]);
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const all = [...(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+    const all = [...(ref.current?.querySelectorAll<HTMLElement>(STOPS) ?? [])];
     const index = all.indexOf(document.activeElement as HTMLElement);
     if (event.key === 'ArrowDown') {
       event.preventDefault();
@@ -65,6 +73,16 @@ export function MenuList({
       style={style}
       className={`float z-50 flex min-w-52 flex-col rounded-2xl p-1.5 ${className}`}
     >
+      {head && (
+        <div
+          className="mb-1 border-b border-hairline px-1 pb-1.5"
+          onClick={(event) => {
+            if ((event.target as Element).closest('[role="menuitemcheckbox"]')) onClose(true);
+          }}
+        >
+          {head}
+        </div>
+      )}
       {items.filter((item) => !item.hidden).map((item) => (
         <button
           key={item.label}
@@ -93,8 +111,8 @@ export function MenuList({
  * the start edge of the button (`align: 'start'`), so it opens under the word and not over the side menu.
  */
 export function Menu({
-  label, items, triggerClassName = '', icon, text, align = 'end',
-}: { label: string; items: MenuItem[]; triggerClassName?: string; icon?: ReactNode; text?: string; align?: 'start' | 'end' }) {
+  label, items, triggerClassName = '', icon, text, align = 'end', head,
+}: { label: string; items: MenuItem[]; triggerClassName?: string; icon?: ReactNode; text?: string; align?: 'start' | 'end'; head?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [place, setPlace] = useState<CSSProperties>({});
   const [layer, setLayer] = useState<HTMLElement | null>(null);
@@ -114,13 +132,15 @@ export function Menu({
       window.removeEventListener('resize', onMove);
     };
   }, [open, close]);
-  if (items.every((item) => item.hidden)) return null;
+  // A menu with a head shows also when no item is left to use: the head holds the choices.
+  if (!head && items.every((item) => item.hidden)) return null;
   const openMenu = () => {
     if (!trigger.current) return;
     // The measures come in the units of the menu, so the menu opens next to its button also under Big screen.
     const { box, screen } = measure(trigger.current);
     const dialog = trigger.current.closest<HTMLElement>('[role="dialog"]');
-    const onScreen = menuPlace(box, screen, { itemCount: items.filter((item) => !item.hidden).length, rtl: document.documentElement.dir === 'rtl', align });
+    // The head counts as one item: it is as high as a row of the list.
+    const onScreen = menuPlace(box, screen, { itemCount: items.filter((item) => !item.hidden).length + (head ? 1 : 0), rtl: document.documentElement.dir === 'rtl', align });
     // A sheet that moves (a transform) is the frame of a fixed list inside it, so the place turns into the sheet's units.
     setPlace(dialog ? inFrame(onScreen, fixedFrame(dialog), screen) : onScreen);
     setLayer(dialog);
@@ -142,7 +162,7 @@ export function Menu({
         {text}
       </button>
       {createPortal(
-        <AnimatePresence>{open && <MenuList label={label} items={items} onClose={close} boundary={trigger} style={place} />}</AnimatePresence>,
+        <AnimatePresence>{open && <MenuList label={label} items={items} onClose={close} boundary={trigger} style={place} head={head} />}</AnimatePresence>,
         layer ?? document.body,
       )}
     </>

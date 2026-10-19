@@ -1,10 +1,10 @@
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import type { ChatRow, CommentView, GroupLine, MessageView } from '../../api/contract/views';
+import type { ChatRow, CommentView, GroupLine, MessageView, UserCard } from '../../api/contract/views';
 import { usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
 import { Avatar } from '../../components/Avatar';
@@ -13,6 +13,7 @@ import { LoadFailed } from '../../components/LoadFailed';
 import { Menu } from '../../components/Menu';
 import { ProjectTile } from '../../components/ProjectTile';
 import { Composer, MessageLog, type Bubble } from './Thread';
+import { BubbleActionsContext, type BubbleActions } from './bubbleActions';
 import { ArchiveMenu } from './ChatList';
 import { GroupPicture } from './GroupPicture';
 import { GroupSheets, type GroupMode } from './GroupSheets';
@@ -61,7 +62,7 @@ function useBubbles<V extends object>(views: V[], toBubble: (view: V) => Bubble,
 function bubbleOfMessage(view: MessageView): Bubble {
   return {
     id: view.message.id, author: view.author, actingFor: view.actingFor, body: view.message.body, files: view.files,
-    createdAt: view.message.createdAt, mine: view.mine, edited: view.message.editedAt !== null,
+    createdAt: view.message.createdAt, mine: view.mine, edited: view.message.editedAt !== null, reactions: view.message.reactions,
   };
 }
 
@@ -98,8 +99,16 @@ export function ChatPane({ id }: { id: string }) {
   const thread = useCall('chats.messages', { conversationId: id });
   const markRead = useAction('chats.markRead');
   const send = useAction('chats.send');
+  const react = useAction('reactions.toggle');
   const archive = useArchive();
   const data = thread.data;
+  const people = data?.people ?? NO_PEOPLE;
+  const meId = session.data?.authority.id ?? '';
+  // One stable object for all the bubbles (chat design 2026-10-19, item 9): a bubble renders again only when its own Bubble changes.
+  const actions = useMemo<BubbleActions>(() => ({
+    menuLabel: t('chat.messageActions'), canReact: true, meId, people,
+    react: (bubble, emoji) => react.mutate({ messageId: bubble.id, emoji }),
+  }), [t, meId, people, react.mutate]);
   const { messages, earlier } = useEarlierMessages(id, data?.messages);
   const messageBubbles = useBubbles(messages, bubbleOfMessage);
   const lineBubbles = useBubbles(data?.lines ?? NO_LINES, bubbleOfLine);
@@ -146,7 +155,9 @@ export function ChatPane({ id }: { id: string }) {
           ? <GroupMenu id={id} archived={chat.archived} title={title} onPick={setSheet} onArchive={archive} />
           : <ArchiveMenu id={id} archived={chat.archived} title={title} onArchive={archive} />}
       />
-      <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} />
+      <BubbleActionsContext.Provider value={actions}>
+        <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} />
+      </BubbleActionsContext.Provider>
       {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{isGroup ? t('chat.groupAlone') : t('chat.closed')}</p> : (
         <Composer
           id={id}
@@ -164,6 +175,7 @@ export function ChatPane({ id }: { id: string }) {
 
 const NO_COMMENTS: CommentView[] = [];
 const NO_LINES: GroupLine[] = [];
+const NO_PEOPLE: UserCard[] = [];
 
 /** The comments of one task as a chat. A message posts a task comment. */
 export function TaskPane({ id }: { id: string }) {
@@ -181,21 +193,26 @@ export function TaskPane({ id }: { id: string }) {
   const comments = useCall('comments.list', { targetType: 'task', targetId: id });
   const session = useCall('session.get', {});
   const create = useAction('comments.create');
+  const react = useAction('reactions.toggle');
   const archive = useArchive();
   useMarkTaskRead(id, comments.data, session.data?.authority.id);
   const me = session.data?.authority.id;
+  const where = task.data?.project ?? null;
+  const canPost = task.data ? (where ? project.data?.viewerCan.post ?? false : task.data.viewerCan.contribute) : false;
+  const actions = useMemo<BubbleActions>(() => ({
+    menuLabel: t('comments.actions'), canReact: canPost, meId: me ?? '', people: NO_PEOPLE,
+    react: (bubble, emoji) => react.mutate({ commentId: bubble.id, emoji }),
+  }), [t, canPost, me, react.mutate]);
   // "mine" depends on the person, so the kept bubbles start again when the person changes.
   const bubbles = useBubbles(comments.data ?? NO_COMMENTS, (view: CommentView): Bubble => ({
     id: view.comment.id, author: view.author, actingFor: null, body: view.comment.body, files: view.files, createdAt: view.comment.createdAt,
-    mine: view.author.id === me, edited: view.comment.editedAt !== null,
+    mine: view.author.id === me, edited: view.comment.editedAt !== null, reactions: view.comment.reactions,
     // The reason of a date move or of a reopening is a quiet line, not a message of a person (fbk_027).
     ...(view.kind === 'message' ? {} : { reason: { kind: view.kind, dates: view.comment.dates } }),
   }), me);
   const failed = task.error ?? comments.error;
   if (failed) return <div className="p-4"><LoadFailed error={failed} onRetry={() => { void task.refetch(); void comments.refetch(); }} /></div>;
   if (!task.data || !comments.data) return <div className="flex-1" aria-busy="true" />;
-  const where = task.data.project;
-  const canPost = where ? project.data?.viewerCan.post ?? false : task.data.viewerCan.contribute;
   const maker = users.data?.find((user) => user.id === task.data?.task.createdBy);
   const makerId = maker?.kind === 'agent' && maker.ownerId ? maker.ownerId : task.data.task.createdBy;
   const officePeople = [
@@ -222,7 +239,9 @@ export function TaskPane({ id }: { id: string }) {
           </>
         )}
       />
-      <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} />
+      <BubbleActionsContext.Provider value={actions}>
+        <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} />
+      </BubbleActionsContext.Provider>
       {canPost ? (
         <Composer
           id={id}

@@ -290,6 +290,16 @@ any screen work.
   an Edit menu for the author of a date reason only. In the Inbox thread it is one centered grey line (`Bubble.reason`, `ReasonLineItem`), as
   a group line is. The sentence keeps the name and the reason between FSI and PDI (`\u2068`, `\u2069`).
 
+## Chat messages (track msg, 2026-10-19)
+- One small menu for each message (`features/inbox/MessageMenu.tsx`). On a computer a "..." button (`MessageTools`, a `Menu` with a `head`) sits in the
+  side spot (`data-part="side"`) of the row and shows on hover or focus, never on a touch screen. The `head` of `Menu` is the row of the three
+  reactions (`role="menuitemcheckbox"`); a press on one closes the menu. On a phone a long press of a finger (`longPress.ts`, 500 ms, 10 px) opens
+  `MessageSheet` (a `Sheet`: the preview, the reactions, the items, "Copy text"; no Copy item where the browser has no clipboard).
+- The handlers of a bubble reach `MessageBubble` through `BubbleActionsContext` (`bubbleActions.ts`), never through a `MessageLog` prop. The ChatPane
+  and the TaskPane each give one stable object (`useMemo`). A task thread names its menu "Actions for this comment"; a person who may not post sees
+  plain pills and no menu. Reaction pills (`ReactionPills.tsx`) are 28 px high with a 44 px press area; the names come in `title` and, after a long
+  press, in a `role="tooltip"`; the pill of the reader has the ring; no faces.
+
 ## Inbox, groups and What's new (owner 2026-10-18; UX audit 2026-10-19)
 - Inbox list (`features/inbox/ChatList.tsx`): "Archived (n)" is one quiet row under the search field, only while a chat is archived
   and nothing is typed. The archived view has a back arrow, the title "Archived chats" and its own search words. A search in the
