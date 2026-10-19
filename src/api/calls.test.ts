@@ -41,6 +41,8 @@ const CHAT_CALLS = [
   'chats.createGroup', 'chats.updateGroup', 'chats.leaveGroup',
   // What waits for the reply of the person (fbk_011, owner 2026-10-18): a read.
   'chats.waiting',
+  // The author edits and deletes a chat message (chat design 2026-10-19, item 11).
+  'chats.editMessage', 'chats.deleteMessage',
 ];
 // Share an existing file into a chat or a task conversation (owner request, 2026-10-01).
 const SHARE_CALLS = ['files.share'];
@@ -80,7 +82,7 @@ describe('the call map', () => {
   it('has every call from the spec plus the documented extras, and the 11 server calls', () => {
     expect(Object.keys(mapCalls).sort()).toEqual([...MAP_CALLS].sort());
     expect(Object.keys(calls).sort()).toEqual([...MAP_CALLS, ...SERVER_CALLS].sort());
-    expect(Object.keys(calls)).toHaveLength(150);
+    expect(Object.keys(calls)).toHaveLength(152);
   });
 
   it('marks exactly the read calls as read-only', () => {
@@ -116,17 +118,17 @@ describe('the call map', () => {
     expect(marked).toEqual(Object.keys(calls).filter((name) => name.startsWith('session.')).sort());
   });
 
-  it('has 139 calls in the map', () => {
-    expect(MAP_CALLS).toHaveLength(139);
-    expect(Object.keys(mapCalls)).toHaveLength(139);
+  it('has 141 calls in the map', () => {
+    expect(MAP_CALLS).toHaveLength(141);
+    expect(Object.keys(mapCalls)).toHaveLength(141);
   });
 });
 
 describe('the calls the server runs', () => {
-  it('are the 135 calls of the map without the prototype controls and the blob read', () => {
+  it('are the 137 calls of the map without the prototype controls and the blob read', () => {
     expect([...SERVER_EXCLUDED].sort()).toEqual(['files.get', 'session.previewAs', 'session.resetSampleData', 'session.setSimulateErrors']);
     const names = Object.keys(sharedCalls);
-    expect(names).toHaveLength(135);
+    expect(names).toHaveLength(137);
     for (const name of SERVER_EXCLUDED) expect(names).not.toContain(name);
     for (const name of names) expect(Object.keys(mapCalls)).toContain(name);
     for (const name of SERVER_CALLS) expect(names).not.toContain(name);

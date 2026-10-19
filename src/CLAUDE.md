@@ -290,6 +290,34 @@ any screen work.
   an Edit menu for the author of a date reason only. In the Inbox thread it is one centered grey line (`Bubble.reason`, `ReasonLineItem`), as
   a group line is. The sentence keeps the name and the reason between FSI and PDI (`\u2068`, `\u2069`).
 
+## Chat messages (track msg, 2026-10-19)
+- One small menu for each message (`features/inbox/MessageMenu.tsx`). On a computer a "..." button (`MessageTools`, a `Menu` with a `head`) sits in the
+  side spot (`data-part="side"`) of the row and shows on hover or focus, never on a touch screen. The `head` of `Menu` is the row of the three
+  reactions (`role="menuitemcheckbox"`); a press on one closes the menu. On a phone a long press of a finger (`longPress.ts`, 500 ms, 10 px) opens
+  `MessageSheet` (a `Sheet`: the preview, the reactions, the items, "Copy text"; no Copy item where the browser has no clipboard).
+- The handlers of a bubble reach `MessageBubble` through `BubbleActionsContext` (`bubbleActions.ts`), never through a `MessageLog` prop. The ChatPane
+  and the TaskPane each give one stable object (`useMemo`). A task thread names its menu "Actions for this comment"; a person who may not post sees
+  plain pills and no menu. Reaction pills (`ReactionPills.tsx`) are 28 px high with a 44 px press area; the names come in `title` and, after a long
+  press, in a `role="tooltip"`; the pill of the reader has the ring; no faces.
+- Reply: the menu item "Reply" (first in the list, also in the phone sheet) puts `ComposerReplyStrip` above the field of the box (the name, the first line
+  and an X; Escape in the field with no open mention list drops it too) and moves the focus into the field. The next send passes `replyToId` (`chats.send`
+  or `comments.create`) and clears the strip. The sent bubble shows `BubbleReplyQuote` above its words (the name and the first line, or only "Deleted message").
+  A closed chat has no Reply (`canReply`). The server names the author of the old message (`api/CLAUDE.md`).
+- Edit and delete (own messages only, `Bubble.canEdit`): the menu shows Edit and Delete (red) after Reply (after "Copy text" on the phone sheet). Edit
+  puts `MessageEditForm` in place of the words (`EditingContext` holds the id; Enter saves, Escape cancels; Save is a secondary button) and the box
+  gets the focus back at the end. The Up key in an empty box with no picked file opens the edit of the newest own bubble (`Composer` `onEditLast`).
+  Delete asks nothing: `useDeleteMessage` (`deleteMessage.ts`) calls `chats.deleteMessage` and shows the toast "Message deleted." with Undo (the same
+  call with `deleted: false`); a task comment keeps `comments.update` and `useUndoable('comments.delete')`. `useEarlierMessages` keeps a message that
+  left the newest page only when it is older than the oldest message of the new page, so a deleted message does not stay after "Earlier messages".
+- Instant send (`features/inbox/outbox.ts`, a chat and a task thread in the Inbox): a send adds an entry to the outbox and clears the box at once; the log
+  draws it as a faded bubble (`Bubble.status` "pending", `aria-busy`) with no menu. The saved message takes its place: `matchOutbox` pairs an entry with the
+  saved message of the person that has the same words and was not in the log at the send (or with the message of the answer id), one to one, oldest first,
+  so a change signal that comes before the answer shows the message once. The saved bubble has `fromOutbox` and skips its rise. A send that fails (code
+  `failed`) shows "Not sent" in the error color with "Send again" (`useAction` `retry`: the same input and the idempotency key of the failed attempt, so
+  nothing goes twice) and no toast; a refusal still shows its toast, and a failure after the pane closed shows the toast with Retry as before.
+- The bell says "X replied to you" for a mention notice with `reply: true` (`NotificationsScreen.tsx`): `notices.repliedDirect` in a direct chat,
+  `notices.repliedGroupGone` in a group the reader left, `notices.repliedToYou` elsewhere. The link, the face and the row stay as for a mention.
+
 ## Inbox, groups and What's new (owner 2026-10-18; UX audit 2026-10-19)
 - Inbox list (`features/inbox/ChatList.tsx`): "Archived (n)" is one quiet row under the search field, only while a chat is archived
   and nothing is typed. The archived view has a back arrow, the title "Archived chats" and its own search words. A search in the

@@ -131,7 +131,12 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier, readUpTo, un
   useLayoutEffect(() => {
     const last = bubbles.at(-1);
     const at = last ? Date.parse(last.createdAt) : Number.NaN;
-    if (!(at > seenNewest.current)) return;
+    if (!(at > seenNewest.current)) {
+      // The saved copy of the person's own message takes the place of its faded copy (item 13). It can be taller (its menu and its
+      // pills), so a reader at the bottom stays at the bottom.
+      if (last?.fromOutbox && atBottom.current && region.current) toBottom(region.current);
+      return;
+    }
     seenNewest.current = at;
     if (region.current && (atBottom.current || newestMine)) toBottom(region.current);
   }, [lastId]);

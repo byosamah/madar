@@ -680,6 +680,57 @@ describe('the office signal of a private chat message', () => {
     expect(result.signals.every((signal) => !('actorId' in signal) && !('storyId' in signal))).toBe(true);
   });
 
+  // Chat design 2026-10-19, items 11 and 12: an edit, a delete and a reaction on a message are private chat kinds (messages, and the
+  // notices of the message), so their office signal stays nameless. A message and its notices change together.
+  it('names no actor and no story for an edit of a group message', async () => {
+    const before = groupAfter();
+    const after = structuredClone(before);
+    after.messages.msg_901 = { ...after.messages.msg_901, body: 'A corrected line', editedAt: '2026-10-04T11:00:00.000+03:00' };
+    const diff = diffState(before, after);
+    expect(diff.anonymous).toBe(true);
+    expect(sorted(diff.kinds)).toEqual(['messages']);
+    const { q } = recorder({ officeSeq: 4 });
+    const result = await writeDiff(q, diff, { story: { storyId: 'sty_g', actorId: 'usr_003' } });
+    const office = result.signals.find((signal) => signal.channel === 'office')!;
+    expect(office).not.toHaveProperty('actorId');
+    expect(office).not.toHaveProperty('storyId');
+    expect(JSON.stringify(result.signals)).not.toContain('usr_003');
+  });
+
+  it('names no actor and no story for a delete of a group message, with the notices that go with it', async () => {
+    const before = groupAfter();
+    before.notifications.ntf_901 = {
+      id: 'ntf_901', userId: 'usr_004', trigger: 'mention', actorId: 'usr_002', targetType: 'chat', targetId: 'cnv_901', read: false,
+      createdAt: '2026-10-04T10:00:00.000+03:00', dedupeKey: null, messageId: 'msg_901',
+    };
+    const after = structuredClone(before);
+    after.messages.msg_901 = { ...after.messages.msg_901, deletedAt: '2026-10-04T11:00:00.000+03:00' };
+    delete after.notifications.ntf_901;
+    const diff = diffState(before, after);
+    expect(diff.anonymous).toBe(true);
+    expect(sorted(diff.kinds)).toEqual(['messages', 'notifications']);
+    const { q } = recorder({ officeSeq: 4 });
+    const result = await writeDiff(q, diff, { story: { storyId: 'sty_g', actorId: 'usr_003' } });
+    const office = result.signals.find((signal) => signal.channel === 'office')!;
+    expect(office).not.toHaveProperty('actorId');
+    expect(office).not.toHaveProperty('storyId');
+  });
+
+  it('names no actor and no story for a reaction on a group message', async () => {
+    const before = groupAfter();
+    const after = structuredClone(before);
+    after.messages.msg_901 = { ...after.messages.msg_901, reactions: { '👍': ['usr_003'], '✅': [], '👀': [] } };
+    const diff = diffState(before, after);
+    expect(diff.anonymous).toBe(true);
+    expect(sorted(diff.kinds)).toEqual(['messages']);
+    const { q } = recorder({ officeSeq: 4 });
+    const result = await writeDiff(q, diff, { story: { storyId: 'sty_g', actorId: 'usr_003' } });
+    const office = result.signals.find((signal) => signal.channel === 'office')!;
+    expect(office).not.toHaveProperty('actorId');
+    expect(office).not.toHaveProperty('storyId');
+    expect(JSON.stringify(result.signals)).not.toContain('usr_003');
+  });
+
   it('keeps the actor and the story for a project chat message and for a change of a project', async () => {
     const after = copy();
     const message = Object.values(after.messages)[0];

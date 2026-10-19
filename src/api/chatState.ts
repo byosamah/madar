@@ -122,13 +122,17 @@ export function isArchived(read: ChatRead | undefined, lastAt: string | null): b
 }
 
 /**
- * One page of a conversation: the newest "limit" messages that come before the message "before", oldest first.
- * "before" is a message id, not a stamp, so messages with the same stamp never fall between two pages.
- * Null when "before" is not a message of this conversation.
+ * One page of a conversation: the newest "limit" live messages that come before the message "before", oldest first.
+ * "before" is a message id, not a stamp, so messages with the same stamp never fall between two pages. A "before" that is a deleted
+ * message of the conversation works too (chat design item 11): the screen asks with the oldest message it shows, and that message may
+ * have been deleted since. Null when "before" is not a message of this conversation.
  */
 export function messagePage(state: State, conversationId: string, limit: number, before?: string): Message[] | null {
   const all = messagesOf(state, conversationId);
-  const end = before === undefined ? all.length : all.findIndex((m) => m.id === before);
-  if (end < 0) return null;
+  if (before === undefined) return all.slice(Math.max(0, all.length - limit));
+  const cut = state.messages[before];
+  if (!cut || cut.conversationId !== conversationId) return null;
+  // The live messages that come before the cut in the order of messagesOf: the stamp, then the id.
+  const end = all.filter((m) => (m.createdAt.localeCompare(cut.createdAt) || m.id.localeCompare(cut.id)) < 0).length;
   return all.slice(Math.max(0, end - limit), end);
 }

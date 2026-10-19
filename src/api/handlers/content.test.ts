@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { contentCalls } from './content';
 import { taskCalls } from './tasks';
 import { projectCalls } from './projects';
+import type { CommentView } from '../contract/views';
 import type { Store } from '../store';
 import { makeTask, NOW, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
@@ -104,8 +105,10 @@ describe('comments', () => {
     await t.api.call('comments.create', { targetType: 'task', targetId: 'tsk_001', body: 'Thanks.' });
     const list = await t.api.call('comments.list', { targetType: 'task', targetId: 'tsk_001' });
     expect(list.map((c) => c.comment.body)).toEqual(['Started.', 'Thanks.']);
-    expect((await t.api.call('reactions.toggle', { commentId: first.comment.id, emoji: '👍' })).comment.reactions['👍']).toEqual(['usr_002']);
-    expect((await t.api.call('reactions.toggle', { commentId: first.comment.id, emoji: '👍' })).comment.reactions['👍']).toEqual([]);
+    // The output is a comment view for a commentId (and a message view for a messageId, chat design item 12).
+    const toggled = async () => (await t.api.call('reactions.toggle', { commentId: first.comment.id, emoji: '👍' })) as CommentView;
+    expect((await toggled()).comment.reactions['👍']).toEqual(['usr_002']);
+    expect((await toggled()).comment.reactions['👍']).toEqual([]);
     await expect(t.api.call('comments.update', { id: first.comment.id, body: 'Edited' })).rejects.toMatchObject({ code: 'forbidden' });
   });
 

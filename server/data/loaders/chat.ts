@@ -171,6 +171,36 @@ export async function chatsMessages(L: Load, input: Input): Promise<void> {
 }
 
 /**
+ * The rows that a call on one message reads (chat design items 11 and 12): the message by key (input.id, or input.messageId for a
+ * reaction), the files its view names, and the message it answers. The chat and its people come from the office. Returns the message.
+ */
+export async function chatMessageRows(L: Load, input: Input): Promise<Message | undefined> {
+  const key = (value: unknown) => (typeof value === 'string' && value !== '' ? value : undefined);
+  const id = key(input.id) ?? key(input.messageId);
+  await L.byKey('messages', [id]);
+  const message = L.get<Message>('messages', id);
+  if (!message) return undefined;
+  await L.byKey('messages', [message.replyToId]);
+  await attachedFiles(L, message.fileIds ?? []);
+  return message;
+}
+
+/**
+ * chats.editMessage and chats.deleteMessage: the rows of the message, the read mark of the person for its chat, and the notices that
+ * point to it. An edit that removes a name, and a delete, take those notices away, and a restore reads them again, so they must be
+ * loaded for the diff to see them go. A notice of a message is a chat notice with its "messageId".
+ */
+export async function chatMessageCall(L: Load, input: Input): Promise<void> {
+  const message = await chatMessageRows(L, input);
+  if (!message || !L.authority) return;
+  await L.byKey('chatReads', [chatReadKey(message.conversationId, L.authority.id)]);
+  await L.select({
+    c: 'notifications',
+    where: [{ col: 'target_type', eq: 'chat' }, { col: 'target_id', in: [message.conversationId] }, { field: 'messageId', in: [message.id] }],
+  });
+}
+
+/**
  * chats.waiting (fbk_011, owner 2026-10-18): the rows that waitingFor (chats.ts) compares. Per visible chat: the archive mark and
  * the newest message (the direct and group rule). Per project chat: the newest message of the person, with its agents, and the
  * newest message that names the person. Per task thread: see threadsWaitingOf.

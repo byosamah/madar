@@ -73,6 +73,8 @@ export const MCP_DENY = [
   // Task work that needs a person's eye: templates, versions, deletes.
   'tasks.createFromTemplate', 'tasks.newVersion', 'tasks.delete',
   'updates.update', 'updates.delete', 'comments.update', 'comments.delete', 'reactions.toggle',
+  // Only the person edits, deletes or reacts to a chat message, in the screens (chat design 2026-10-19, items 11 and 12).
+  'chats.editMessage', 'chats.deleteMessage',
   // Files: uploads and links happen in the Madar screens.
   'files.upload', 'files.uploadStart', 'files.link', 'files.delete', 'files.markDelivered', 'files.share',
   // Notifications and read marks: screen state of one person. An agent reads the chats of its person (fbk_011, owner 2026-10-18), but

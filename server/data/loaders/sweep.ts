@@ -114,6 +114,7 @@ export function writeSweep(office: State): SweepCall[] {
   const notice = Object.values(office.notifications)[0];
   const file = Object.values(office.files)[0];
   const plan = Object.values(office.projectTemplates ?? {}).find((t) => t.tasks.length > 0)!;
+  const roomMessage = Object.values(office.messages).filter((m) => m.conversationId === 'cnv_001').at(-1);
   return [
     ['projects.update', { id: 'prj_001', patch: { name: 'Renamed', coverFileId: file.projectId === 'prj_001' ? file.id : null } }, ADMIN],
     // The project code (owner, 2026-10-05): a code from its parts writes the initials onto a client that has none, the same
@@ -146,6 +147,8 @@ export function writeSweep(office: State): SweepCall[] {
     ['comments.update', { id: comment.id, body: 'Edited' }, comment.authorId],
     ['comments.delete', { id: comment.id }, comment.authorId],
     ['reactions.toggle', { commentId: comment.id, emoji: '👍' }, ADMIN],
+    // The reaction on a chat message (chat design item 12): the newest message of the project chat cnv_001, by a member of its team.
+    ...(roomMessage ? [['reactions.toggle', { messageId: roomMessage.id, emoji: '👍' }, leader] as SweepCall] : []),
     ['files.upload', { projectId: file.projectId, name: file.name, uploadId: 'upl_1' }, ADMIN, { blobKey: 'blob_sweep', mimeType: 'application/pdf', size: 3 }],
     ['files.delete', { id: file.id }, ADMIN],
     ['files.markDelivered', { id: file.id }, ADMIN],

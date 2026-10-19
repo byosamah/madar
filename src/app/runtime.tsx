@@ -284,5 +284,6 @@ export function useAction<N extends CallName>(
   });
   const steps = useRetryableMutate(mutation.mutate, attempts);
   retry.current = steps.retry;
-  return { ...mutation, mutate: steps.mutate };
+  // retry(input) sends the same input again with the options and the idempotency key of its failed attempt (the "Send again" of a message).
+  return { ...mutation, mutate: steps.mutate, retry: steps.retry };
 }
