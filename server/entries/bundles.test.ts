@@ -149,7 +149,8 @@ describe('the minified function bundles (performance audit SRV-11)', () => {
   it('builds the api bundle minified, and it still answers a preflight', async () => {
     const file = await build('api', 'server/entries/deno-api.ts', join(OUT, 'api'));
     const text = readFileSync(file, 'utf8');
-    expect(text.length).toBeLessThan(700_000);
+    // 687,737 before the Google Calendar sync (fbk_022); the sync and its client added about 26,000 (713,337).
+    expect(text.length).toBeLessThan(750_000);
     expect(text.includes('JWTExpired')).toBe(true);
     expect(text.includes('@param {import(')).toBe(false);
     expect(checkBundles('server', dirname(file)).ok).toBe(true);

@@ -36,7 +36,7 @@ The other host stays deployed as the way back. Each area below has its own guide
 - After the commit, `processOutbox` runs the effects once. The 15-minute job retries the rest. `core/after.ts` keeps work
   alive after the answer on both hosts: on Supabase within the 150 s of the function, on the Worker through waitUntil for
   about 30 s after the answer. A long mail or push chain can stop part way there; the 15-minute job retries the outbox.
-- The kinds in `AFTER_ANSWER_KINDS` (`core/effects.ts`: `mail.notice`, `mail.quotaWarning`, `usage.limitWarning`, `push.notify`) run after
+- The kinds in `AFTER_ANSWER_KINDS` (`core/effects.ts`: `mail.notice`, `mail.quotaWarning`, `usage.limitWarning`, `push.notify`, `gcal.sync`, `gcal.revoke`) run after
   the answer when the host has `after`, on one chain per batch (`BatchScope.mail`), so the mails keep the order of the
   entries. Every other kind runs before the answer. With no `after` (tests, scripts), every kind runs before the answer. A
   new mail or push kind goes into `AFTER_ANSWER_KINDS`; `effects.test.ts` pins the names (performance audit 2026-10-07).
@@ -112,6 +112,31 @@ The other host stays deployed as the way back. Each area below has its own guide
 - The client address is `cf-connecting-ip` on Supabase, and `x-madar-client-address` on the Worker (`clientAddress`,
   `auth/forgot.ts`): the Worker has no public address, and the Pages Function always writes that header. Never read
   `x-forwarded-for` or `true-client-ip`.
+
+## Google Calendar (fbk_022, owner 2026-10-19)
+- One way: Madar writes each meeting to the calendar "Madar" of each connected person who is its organizer or an attendee. A change in Google never comes
+  back. Each person connects once in Settings (`google.connectStart`, the Google screen, the callback, `google.connect`; see `src/api/CLAUDE.md`). The
+  scope is only `calendar.app.created`: Madar makes its own calendar and writes only there. Code: `server/google/` (`api.ts` the Google calls with a 3 s
+  limit, `keys.ts` the seal, `state.ts` the signed state with the PKCE verifier, `store.ts` the two tables, `sync.ts`, `rows.ts`, `register.ts`).
+- The producers (`rows.ts`): after the save of `meetings.create`, `meetings.update`, `meetings.cancel`, `events.undo`, `events.undoStory` and
+  `projects.delete` (`GCAL_CALLS`), `gcalRows` writes one `gcal.sync { userId, meetingId }` for each connected organizer or attendee (state ok or
+  not_synced) and each person who has a Google event for a touched meeting (`SaveResult.meetingIds`, set by `data/save.ts`). `users.remove` writes
+  one `gcal.revoke { connectionId }` for the live connection. They run in the transaction of the call, and only when the save touched a meeting.
+- The effects (`sync.ts`) run after the answer (`AFTER_ANSWER_KINDS`) and write only `google_connections` and `google_events`, server-only rows (as the
+  mail effects write `mail_log`): no event, no signal, no State table. `gcal.sync` reads again when it runs: the live connection, the person, the meeting
+  and the event row. The event id is the hex of `madar:<meeting id>` (`eventIdOf`); the body has exactly the title, the place, the start, the end and the
+  status (`eventBodyOf`, owner Q2). The access token lives in memory only, for the life of the isolate, until 60 seconds before it ends; a 401 drops it
+  and tries once more.
+- Errors: `grant_gone`, a seal that does not open, or a deleted calendar (404 on an insert) ends the connection (state `broken`, the token is deleted at
+  once, the event rows go) and the row is done. A timeout, a network error, a 5xx or a rate limit sets `not_synced` and throws, so the outbox tries again
+  (5 times, then the Admin sees the row in Usage). Any other refusal sets `not_synced` with `last_error` `refused` and does not retry. An error text, a
+  log line and an outbox error hold the code and the ids, never a token, a code, a title or a Google answer (`leaks.test.ts` proves it).
+- `gcal.revoke` takes the refresh token back at Google (a 400 counts as done) and deletes the row. A row that a new connect replaced (`replaced: true`)
+  makes no call to Google: its grant is the grant of the new row, and a revoke could take that grant back. The cleanup step deletes every `revoking` row
+  older than one day, so a sealed token never stays long in the database. The connect backfills the meetings of the next 60 days, at most 200; a long
+  chain can stop part way on the Worker (about 30 s after the answer), and the 15-minute job retries the rest.
+- Tests use `google/fakeGoogle.ts` (a stand-in for the token address, the revoke address and the Calendar API) behind `Deps.googleFetch`, and
+  `google/testOffice.ts` (the sample office on node:sqlite). `server/it/google.it.test.ts` runs the SQL on Postgres.
 
 ## Realtime, jobs, usage
 - Change signals go out inside the save transaction (`signal/realtime.ts`: `realtime.send`, topics `office` and

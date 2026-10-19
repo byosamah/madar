@@ -1,7 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { runCall } from '../core/runCall';
 import type { RunResult } from '../core/types';
+import { cleanup } from '../jobs/steps/cleanup';
+// It registers the Google effects and their producers, as server/core/deps.ts does for the entries.
+import '../google/effects';
 import { fakeGoogle, type FakeGoogle } from '../google/fakeGoogle';
+import { eventIdOf, resetAccessCache } from '../google/sync';
 import { googleKeysOf, openToken } from '../google/keys';
 import { newBatch, startOffice, type ItOffice } from './runCallOffice';
 
@@ -95,6 +99,48 @@ describe('Google Calendar on the local database, as madar_server', () => {
     expect(okOf(await call(person, 'google.disconnect', {}))).toEqual({ state: 'none' });
     expect((await office.sql<{ user_id: string }>('select user_id from google_events')).map((row) => row.user_id)).toEqual([other]);
     expect(okOf(await call(person, 'google.status', {}))).toMatchObject({ state: 'none' });
+  });
+
+  it('syncs a meeting to the calendar of the connected organizer and attendee: insert, patch, take off, cancel', async () => {
+    await office.sql('truncate google_connections, google_events, outbox, meetings');
+    resetAccessCache();
+    google.requests.length = 0;
+    okOf(await connect(person));
+    okOf(await connect(other));
+    google.requests.length = 0;
+    const id = okOf<{ id: string }>(await call(person, 'meetings.create', { kind: 'meeting', title: 'Kickoff', where: 'Room 4', startsAt: '2026-10-06T10:00:00.000+03:00', attendeeIds: [other] })).id;
+    expect(google.eventRequests().map((request) => request.method)).toEqual(['POST', 'POST']);
+    expect(await office.sql('select user_id, meeting_id, event_id, synced_rev from google_events order by user_id')).toHaveLength(2);
+    okOf(await call(person, 'meetings.update', { id, title: 'Kickoff 2', attendeeIds: [] }));
+    const events = await office.sql<{ user_id: string }>('select user_id from google_events');
+    expect(events.map((row) => row.user_id)).toEqual([person]);
+    expect([...google.events.values()].some((calendar) => calendar.get(eventIdOf(id))?.summary === 'Kickoff 2')).toBe(true);
+    okOf(await call(person, 'meetings.cancel', { id }));
+    expect(await office.sql('select * from google_events')).toEqual([]);
+    const rows = await office.sql<{ done: boolean; error: string | null }>("select done_at is not null as done, error from outbox where kind = 'gcal.sync' order by id");
+    expect(rows.every((row) => row.done && row.error === null)).toBe(true);
+  });
+
+  it('deletes the live row of a person who was removed, with a revoke at Google', async () => {
+    await office.sql('truncate google_connections, google_events, outbox');
+    google.requests.length = 0;
+    okOf(await connect(other));
+    const admin = Object.values(office.seed.users).find((user) => user.systemRole === 'admin' && user.kind === 'human')!.id;
+    okOf(await call(admin, 'users.deactivate', { id: other }));
+    okOf(await call(admin, 'users.remove', { id: other }));
+    expect(await office.sql('select * from google_connections')).toEqual([]);
+    expect(google.requests.filter((request) => request.path === '/revoke')).toHaveLength(1);
+  });
+
+  it('deletes a revoking row after one day and keeps a younger one and a live one (the cleanup step)', async () => {
+    await office.sql('truncate google_connections');
+    const insert = (id: string, user: string, state: string, hours: number) =>
+      office.sql("insert into google_connections (id, user_id, state, connected_at, changed_at) values ($1, $2, $3, $4::timestamptz, $4::timestamptz)", [id, user, state, new Date(Date.parse('2026-10-04T06:00:00Z') - hours * 3_600_000).toISOString()]);
+    await insert('old', person, 'revoking', 25);
+    await insert('recent', other, 'revoking', 23);
+    await insert('live', person, 'ok', 90);
+    expect(await cleanup(deps, new Date('2026-10-04T06:00:00Z'))).toMatchObject({ googleRevoking: 1 });
+    expect((await office.sql<{ id: string }>('select id from google_connections order by id')).map((row) => row.id)).toEqual(['live', 'recent']);
   });
 
   it('gives madar_server the rights and the browser roles none, with Row Level Security on', async () => {

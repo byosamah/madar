@@ -3,6 +3,8 @@ import { createRunCall } from '../core/runCall';
 import type { RunResult } from '../core/types';
 import { liteData } from '../data/lite/callData';
 import { signinOffice, type TestOffice } from '../auth/own/testOffice';
+// Registers the Google effects and their producers, as server/core/deps.ts does for the entries.
+import './effects';
 import { fakeGoogle, type FakeGoogle } from './fakeGoogle';
 import { googleKeysOf } from './keys';
 import { readState } from './state';

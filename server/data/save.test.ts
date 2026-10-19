@@ -532,6 +532,28 @@ describe('the new messages of a save (the push producer reads them)', () => {
   });
 });
 
+describe('the meetings of a save (the Google Calendar sync reads them, fbk_022)', () => {
+  const meeting = (id: string) => ({
+    id, kind: 'meeting' as const, title: 'Kickoff', projectId: null, startsAt: '2026-10-06T10:00:00.000+03:00', endsAt: '2026-10-06T11:00:00.000+03:00', where: '', guests: '', notes: '',
+    organizerId: 'usr_002', attendeeIds: [], minutesById: null, status: 'scheduled' as const, rev: 1, createdBy: 'usr_002', createdAt: '2026-10-04T09:00:00.000+03:00',
+  });
+
+  it('lists the ids of the meetings that the save inserted, changed and deleted, and leaves the list out when there are none', async () => {
+    const before = copy();
+    before.meetings = { mtg_901: meeting('mtg_901'), mtg_902: meeting('mtg_902') };
+    const after = structuredClone(before);
+    after.meetings!.mtg_903 = meeting('mtg_903');
+    after.meetings!.mtg_901.title = 'A new title';
+    delete after.meetings!.mtg_902;
+    expect((await save(recorder().q, before, after)).meetingIds?.sort()).toEqual(['mtg_901', 'mtg_902', 'mtg_903']);
+    expect((await save(recorder().q, before, structuredClone(before))).meetingIds).toBeUndefined();
+    const other = structuredClone(before);
+    Object.values(other.tasks)[0].title = 'Another title';
+    expect((await save(recorder().q, before, other)).meetingIds).toBeUndefined();
+    expect(diffState(before, other).meetingIds).toEqual([]);
+  });
+});
+
 describe('the new notices of a save (the mail and push producers on SQLite read them)', () => {
   it('lists the ids of the notices that the save inserted, and leaves the list out when there are none', async () => {
     const after = copy();

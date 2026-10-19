@@ -140,25 +140,33 @@ describe('google.connect', () => {
     await t.db.tx('write', async (q) => {
       for (let i = 0; i < 230; i += 1) {
         const at = nowStamp(new Date(start.getTime() + i * 3_600_000));
-        const doc = { id: `mtg_9${String(i).padStart(3, '0')}`, status: 'scheduled', organizerId: 'usr_003', attendeeIds: [], startsAt: at, endsAt: at, projectId: null };
+        const doc = {
+          id: `mtg_9${String(i).padStart(3, '0')}`, kind: 'meeting', title: `Meeting ${i}`, projectId: null, startsAt: at, endsAt: at, where: '', guests: '', notes: '', organizerId: 'usr_003',
+          attendeeIds: [], minutesById: null, status: 'scheduled', rev: 1, createdBy: 'usr_003', createdAt: at,
+        };
         await q('insert into meetings (id, doc, project_id, organizer_id, starts_at, ends_at, status) values (?1, ?2, null, ?3, ?4, ?4, ?5)', [doc.id, doc, 'usr_003', at, 'scheduled']);
       }
     });
     expect(ok(await t.connect('usr_003'))).toEqual({ state: 'ok', meetings: 200 });
   });
 
-  it('makes the old row revoking with one gcal.revoke row at a second connect, and keeps one live row', async () => {
+  it('replaces the old row at a second connect: one live row, one revoke row that says replaced, no call to revoke at Google, and no old Google events', async () => {
     const t = await googleOffice();
     ok(await t.connect('usr_003'));
     const [first] = await rowsOf(t, 'select id from google_connections');
+    await t.db.statement('write', "insert into google_events (user_id, meeting_id, event_id, synced_rev, synced_at) values ('usr_003', 'mtg_001', 'ev1', 1, '2026-10-21T06:00:00.000Z')");
     t.deps.clock.advance(60_000);
-    ok(await t.connect('usr_003'));
-    const rows = await rowsOf(t, 'select id, state, calendar_id from google_connections order by connected_at');
-    expect(rows.map((row) => row.state)).toEqual(['revoking', 'ok']);
-    expect(rows[0].id).toBe(first.id);
-    expect(rows[1].calendar_id).toBe('cal-2@group.calendar.google.com');
-    const revokes = await outboxRows(t, 'gcal.revoke');
-    expect(revokes.map((row) => row.payload)).toEqual([{ connectionId: first.id, replaced: true }]);
+    // The unique index allows one live row for each person, so the second connect works only when the same transaction made the old row revoking.
+    expect(ok(await t.connect('usr_003'))).toMatchObject({ state: 'ok' });
+    const rows = await rowsOf(t, 'select id, state, calendar_id from google_connections');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ state: 'ok', calendar_id: 'cal-2@group.calendar.google.com' });
+    expect(rows[0].id).not.toBe(first.id);
+    // The revoke row says replaced: the grant at Google is the grant of the new row, so the effect only deletes the old row.
+    expect((await outboxRows(t, 'gcal.revoke')).map((row) => [row.payload, row.done])).toEqual([[{ connectionId: first.id, replaced: true }, true]]);
+    expect(t.google.requests.filter((request) => request.path === '/revoke')).toEqual([]);
+    // The Google events belong to the old calendar, so the new connection starts with none.
+    expect(await rowsOf(t, 'select * from google_events')).toEqual([]);
   });
 
   it('gives forbidden google_link_person for the state of another person, and does not use the code', async () => {
@@ -239,16 +247,25 @@ describe('google.connect', () => {
 });
 
 describe('google.disconnect', () => {
-  it('gives none, removes the Google event rows of the person, and writes one revoke row', async () => {
+  it('gives none, removes the Google event rows of the person, and writes one revoke row; the row stays revoking while Google is down', async () => {
     const t = await googleOffice();
     ok(await t.connect('usr_003'));
     await t.db.statement('write', "insert into google_events (user_id, meeting_id, event_id, synced_rev, synced_at) values ('usr_003', 'mtg_001', 'ev1', 1, '2026-10-21T06:00:00.000Z'), ('usr_004', 'mtg_001', 'ev2', 1, '2026-10-21T06:00:00.000Z')");
     const [connection] = await rowsOf(t, 'select id from google_connections');
+    t.google.failAll((request) => request.path === '/revoke', 503);
     expect(ok(await t.call('usr_003', 'google.disconnect', {}))).toEqual({ state: 'none' });
     expect(await rowsOf(t, 'select user_id from google_events')).toEqual([{ user_id: 'usr_004' }]);
     expect(await rowsOf(t, 'select state from google_connections')).toEqual([{ state: 'revoking' }]);
-    expect((await outboxRows(t, 'gcal.revoke')).map((row) => row.payload)).toEqual([{ connectionId: connection.id }]);
+    expect((await outboxRows(t, 'gcal.revoke')).map((row) => [row.payload, row.done])).toEqual([[{ connectionId: connection.id }, false]]);
     expect(ok(await t.call('usr_003', 'google.status', {}))).toMatchObject({ state: 'none' });
+  });
+
+  it('takes the grant back at Google and deletes the row when Google answers', async () => {
+    const t = await googleOffice();
+    ok(await t.connect('usr_003'));
+    expect(ok(await t.call('usr_003', 'google.disconnect', {}))).toEqual({ state: 'none' });
+    expect(await rowsOf(t, 'select * from google_connections')).toEqual([]);
+    expect(t.google.requests.filter((request) => request.path === '/revoke').map((request) => request.body)).toEqual([{ token: 'rt-SECRET' }]);
   });
 
   it('gives the same answer to a person with no row, and changes nothing', async () => {
@@ -261,7 +278,9 @@ describe('google.disconnect', () => {
     const t = await googleOffice();
     ok(await t.connect('usr_003'));
     ok(await t.connect('usr_004'));
+    await t.db.statement('write', "insert into google_events (user_id, meeting_id, event_id, synced_rev, synced_at) values ('usr_004', 'mtg_001', 'ev2', 1, '2026-10-21T06:00:00.000Z')");
     ok(await t.call('usr_003', 'google.disconnect', {}));
-    expect(await rowsOf(t, "select user_id, state from google_connections order by user_id")).toEqual([{ user_id: 'usr_003', state: 'revoking' }, { user_id: 'usr_004', state: 'ok' }]);
+    expect(await rowsOf(t, 'select user_id, state from google_connections order by user_id')).toEqual([{ user_id: 'usr_004', state: 'ok' }]);
+    expect(await rowsOf(t, 'select user_id from google_events')).toEqual([{ user_id: 'usr_004' }]);
   });
 });

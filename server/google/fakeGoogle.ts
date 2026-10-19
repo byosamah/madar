@@ -149,6 +149,10 @@ export function fakeGoogle(o: FakeGoogleOptions = {}) {
     failAll(when: (request: SeenRequest) => boolean, status: number, body: unknown = {}) {
       rules.unshift({ when, answer: () => reply(body, status), times: Number.POSITIVE_INFINITY });
     },
+    /** Forgets every rule made with on() and failAll(). */
+    clearRules() {
+      rules.length = 0;
+    },
     /** The access token that Google accepts changes: a call with the old one gets 401. */
     rotateAccessToken() {
       state.accessToken = `at-SECRET-${(nextAccess += 1)}`;

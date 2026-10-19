@@ -49,6 +49,8 @@ export type Diff = {
   messageIds: string[];
   /** The notices that the save inserted, in State order: the mail and push producers on SQLite (exit wave 3) read them. */
   noticeIds: string[];
+  /** The meetings that the save inserted, changed or deleted: the Google Calendar sync reads them (server/google/rows.ts, fbk_022). */
+  meetingIds: string[];
   /** True when a row of an office table changed: the office cache must load again (plan 4.7). */
   officeRows: boolean;
   /** True when every kind is personal (chatReads, notifications, preferences): no office signal. */
@@ -91,6 +93,8 @@ export type SaveResult = {
   messageIds?: string[];
   /** The notices that the save inserted. Left out when there are none. */
   noticeIds?: string[];
+  /** The meetings that the save inserted, changed or deleted (fbk_022). Left out when there are none. */
+  meetingIds?: string[];
   bytesWritten: number;
   signals: ChangeSignal[];
   /** The new office_meta.version when the save raised it. runCall then drops BatchScope.office (plan 4.7). */
@@ -422,8 +426,10 @@ export function diffState(before: State, after: State): Diff {
   const anonymous = publicKinds.size > 0 && projects.size === 0 && officeTasks.size === 0 && officeMeetings.size === 0 && [...publicKinds].every((kind) => PRIVATE_CHAT_KINDS.has(kind));
   const messageIds = tables.find((change) => change.spec.collection === 'messages')?.inserted ?? [];
   const noticeIds = tables.find((change) => change.spec.collection === 'notifications')?.inserted ?? [];
+  const meetingChange = tables.find((change) => change.spec.collection === 'meetings');
+  const meetingIds = meetingChange ? [...meetingChange.inserted, ...meetingChange.updated, ...meetingChange.deleted] : [];
   return {
-    tables, counters, kinds, projects, office: personal ? false : office, people, messageIds, noticeIds, officeRows, personal, unresolvedComments,
+    tables, counters, kinds, projects, office: personal ? false : office, people, messageIds, noticeIds, meetingIds, officeRows, personal, unresolvedComments,
     meta: meta ?? { storyId: '', actorId: '' },
     privateChange: officeTasks.size > 0 || officeMeetings.size > 0,
     privatePeople,
@@ -461,6 +467,7 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
     changed, kinds: new Set(diff.kinds), projects, office, people: new Set(diff.people), bytesWritten: 0, signals: [],
     ...(diff.messageIds.length > 0 ? { messageIds: diff.messageIds } : {}),
     ...(diff.noticeIds.length > 0 ? { noticeIds: diff.noticeIds } : {}),
+    ...(diff.meetingIds.length > 0 ? { meetingIds: diff.meetingIds } : {}),
     ...fields,
   });
   if (!changed) return result();

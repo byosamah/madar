@@ -146,6 +146,8 @@ export const googleConnect: ServerCall<'google.connect'> = async (input, ctx) =>
     // The old live row of the person goes out. Its grant is the same grant at Google, so the revoke row only deletes the sealed
     // token here (replaced): a revoke at Google would take back the grant that the new row uses.
     for (const id of await startRevoking(q, actorId, now)) rows.push({ kind: 'gcal.revoke', payload: { connectionId: id, replaced: true } });
+    // The Google events of the old connection are in the old calendar. The new calendar starts with none, and the backfill fills it.
+    await deleteEventsOfUser(q, actorId);
     await insertConnection(q, { id: crypto.randomUUID(), userId: actorId, sealedToken: sealed, calendarId, at: now });
     const from = nowStamp(now);
     const to = nowStamp(new Date(now.getTime() + BACKFILL_DAYS * DAY_MS));
