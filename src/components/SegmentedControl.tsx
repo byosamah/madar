@@ -1,4 +1,4 @@
-import { useRef, type KeyboardEvent } from 'react';
+import { useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { arrowStep } from '../lib/keys';
 
 /**
@@ -7,7 +7,7 @@ import { arrowStep } from '../lib/keys';
  */
 export function SegmentedControl<T extends string>({
   label, value, options, onChange,
-}: { label: string; value: T; options: { value: T; label: string }[]; onChange: (value: T) => void }) {
+}: { label: string; value: T; options: { value: T; label: string; icon?: ReactNode }[]; onChange: (value: T) => void }) {
   const group = useRef<HTMLDivElement>(null);
   const selected = options.findIndex((option) => option.value === value);
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -28,8 +28,10 @@ export function SegmentedControl<T extends string>({
           aria-checked={option.value === value}
           tabIndex={index === (selected < 0 ? 0 : selected) ? 0 : -1}
           onClick={() => onChange(option.value)}
-          className={`pressable min-h-11 rounded-full px-4 text-subheadline font-medium ${option.value === value ? 'bg-card text-ink shadow-card' : 'text-ink-2 transition-colors hover:text-ink'}`}
+          className={`pressable inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-subheadline font-medium ${option.value === value ? 'bg-card text-ink shadow-card' : 'text-ink-2 transition-colors hover:text-ink'}`}
         >
+          {/* A picture beside the word is decoration: the word names the choice. */}
+          {option.icon && <span aria-hidden="true" className="inline-flex shrink-0">{option.icon}</span>}
           {option.label}
         </button>
       ))}

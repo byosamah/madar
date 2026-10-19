@@ -26,19 +26,37 @@ describe('the display kit', () => {
   });
 
   it('shows the leader first and counts the rest', () => {
-    const team = [person('usr_005', 'Sara A'), person('usr_006', 'Yousef S'), person('usr_007', 'Lina M'), person('usr_008', 'Khalid M')];
+    const team = [person('usr_005', 'Sara A'), person('usr_006', 'Yousef S'), person('usr_007', 'Lina M'), person('usr_008', 'Khalid M'), person('usr_009', 'Noor K')];
     render(<AvatarStack leader={person('usr_002', 'Faisal Al-Harbi')} team={team} />);
     const avatars = screen.getAllByRole('img');
     expect(avatars[0]).toHaveAccessibleName('Faisal Al-Harbi');
-    expect(avatars).toHaveLength(4);
-    expect(screen.getByText('+1')).toBeInTheDocument();
+    // The leader, three of the team, and the "+2" circle, which names the two people it hides.
+    expect(avatars).toHaveLength(5);
+    expect(screen.getByText('+2')).toBeInTheDocument();
+    expect(screen.getByLabelText('More: Khalid M, Noor K')).toBeInTheDocument();
+  });
+
+  // One hidden person takes the width of "+1" anyway, so the picture shows instead (PRJ-18).
+  it('shows the picture of the one hidden person, never a "+1"', () => {
+    const team = [person('usr_005', 'Sara A'), person('usr_006', 'Yousef S'), person('usr_007', 'Lina M'), person('usr_008', 'Khalid M')];
+    render(<AvatarStack leader={person('usr_002', 'Faisal Al-Harbi')} team={team} />);
+    expect(screen.getAllByRole('img')).toHaveLength(5);
+    expect(screen.getByLabelText('Khalid M')).toBeInTheDocument();
+    expect(screen.queryByText('+1')).toBeNull();
+  });
+
+  it('names the hidden people when the pointer rests on "+N"', async () => {
+    const team = ['A', 'B', 'C', 'D', 'E'].map((letter, i) => person(`usr_00${i + 5}`, `Person ${letter}`));
+    render(<AvatarStack leader={null} team={team} />);
+    await userEvent.hover(screen.getByText('+2'));
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Person D, Person E');
   });
 
   // In Arabic "+1" read "1+", and a 6 px overlap hid part of the initials of the picture under it (2026-10-05).
   it('keeps "+1" in that order in Arabic, and overlaps the pictures by 4 px only, so no initials hide', () => {
-    const team = [person('usr_005', 'Sara A'), person('usr_006', 'Yousef S'), person('usr_007', 'Lina M'), person('usr_008', 'Khalid M')];
+    const team = [person('usr_005', 'Sara A'), person('usr_006', 'Yousef S'), person('usr_007', 'Lina M'), person('usr_008', 'Khalid M'), person('usr_009', 'Noor K')];
     render(<div dir="rtl"><AvatarStack leader={person('usr_002', 'Faisal Al-Harbi')} team={team} /></div>);
-    const more = screen.getByText('+1');
+    const more = screen.getByText('+2');
     expect(more.tagName).toBe('BDI');
     expect(more).toHaveAttribute('dir', 'ltr');
     const [, second] = screen.getAllByRole('img');

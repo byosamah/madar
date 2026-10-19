@@ -90,4 +90,18 @@ describe('search', () => {
     expect(await screen.findByRole('listbox', { name: 'الاقتراحات' })).toBeInTheDocument();
     expect(screen.queryByRole('listbox', { name: 'Suggestions' })).toBeNull();
   });
+
+  // INT-25: a sub-company name finds one row, not its projects one by one. The row opens the filtered Projects list.
+  it('finds a sub-company by its name and opens the list of its projects', async () => {
+    await renderApp('/search', (state) => {
+      state.subCompanies = { sub_001: { id: 'sub_001', name: 'Vado', nameAr: 'فادو', logo: null, createdBy: 'usr_001', createdAt: '2026-10-18T09:00:00.000+03:00' } };
+      for (const id of ['prj_001', 'prj_002']) Object.assign(state.projects[id], { subCompanyId: 'sub_001' });
+    });
+    await userEvent.type(await box(), 'vado');
+    const group = await screen.findByRole('group', { name: 'Sub-companies' });
+    const row = within(group).getByRole('option', { name: /Vado/ });
+    expect(row).toHaveTextContent('2 projects');
+    await userEvent.click(row);
+    await waitFor(() => expect(window.location.hash).toContain('/projects?subCompany=sub_001'));
+  });
 });

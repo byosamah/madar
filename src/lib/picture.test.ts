@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bytesOfDataUrl, centreSquare, containSquare, encodePngSmallest, encodeSmallest, hasSeeThrough, PICTURE_MAX_BYTES, pictureType, safePicture } from './picture';
+import { bytesOfDataUrl, centreSquare, containSquare, cropPlace, cropPreview, DEFAULT_CROP, MAX_ZOOM, encodePngSmallest, encodeSmallest, hasSeeThrough, PICTURE_MAX_BYTES, pictureType, safePicture } from './picture';
 
 describe('the profile picture helpers (owner item 10, 2026-10-05)', () => {
   it('shows only picture data and https addresses', () => {
@@ -89,5 +89,37 @@ describe('the profile picture helpers (owner item 10, 2026-10-05)', () => {
     expect(containSquare(64, 256)).toEqual({ dx: 48, dy: 0, w: 32, h: 128 });
     expect(containSquare(128, 128)).toEqual({ dx: 0, dy: 0, w: 128, h: 128 });
     expect(containSquare(0, 0)).toEqual({ dx: 0, dy: 0, w: 0, h: 0 });
+  });
+});
+
+// PRJ-11 (2026-10-19): the Admin frames a logo by a zoom and a centre, so the mark reads at the badge size.
+describe('the crop of a logo', () => {
+  it('shows the whole picture at zoom 1, as "contain" does', () => {
+    expect(cropPlace(400, 200, DEFAULT_CROP)).toEqual({ sx: 0, sy: 0, sw: 400, sh: 200, dx: 0, dy: 0.25, dw: 1, dh: 0.5 });
+  });
+
+  it('zooms in on the centre: the window is a smaller square of the picture, and it fills the output', () => {
+    expect(cropPlace(400, 200, { zoom: 2, cx: 0.5, cy: 0.5 })).toEqual({ sx: 100, sy: 0, sw: 200, sh: 200, dx: 0, dy: 0, dw: 1, dh: 1 });
+  });
+
+  it('moves the window to the centre that the Admin picked, and keeps it inside the picture', () => {
+    const left = cropPlace(400, 200, { zoom: 2, cx: 0, cy: 0.5 });
+    expect(left.sx).toBe(0);
+    expect(left.sw).toBe(100);
+    const clamped = cropPlace(400, 200, { zoom: 4, cx: 5, cy: -3 });
+    expect(clamped.sx).toBeGreaterThanOrEqual(0);
+    expect(clamped.sx + clamped.sw).toBeLessThanOrEqual(400);
+    expect(clamped.sy).toBeGreaterThanOrEqual(0);
+  });
+
+  it('keeps the zoom between 1 and the largest zoom', () => {
+    expect(cropPlace(100, 100, { zoom: 0.2, cx: 0.5, cy: 0.5 })).toEqual(cropPlace(100, 100, DEFAULT_CROP));
+    expect(cropPlace(100, 100, { zoom: 99, cx: 0.5, cy: 0.5 }).sw).toBe(100 / MAX_ZOOM);
+  });
+
+  it('gives the CSS place of the picture in a preview circle of one size, from the same window', () => {
+    // A 400 by 200 picture at zoom 2, centred, in a 100 px circle: the picture is 200 by 100 px, shifted so its middle is the middle.
+    expect(cropPreview(400, 200, { zoom: 2, cx: 0.5, cy: 0.5 }, 100)).toEqual({ width: 200, height: 100, left: -50, top: 0 });
+    expect(cropPreview(400, 200, DEFAULT_CROP, 100)).toEqual({ width: 100, height: 50, left: 0, top: 25 });
   });
 });

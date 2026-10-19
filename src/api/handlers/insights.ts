@@ -2,7 +2,7 @@ import { involves } from '../../lib/taskPeople';
 import { z } from 'zod';
 import { defineCall } from '../registry';
 import {
-  ClientId, Day, Deadline, FileId, HealthValue, PauseKind, PaymentId, ProjectId, ProjectStatus, Stage, StageId, TaskId, TeamId, UserId, type Payment, type Project, type Task,
+  ClientId, Day, Deadline, FileId, HealthValue, PauseKind, PaymentId, ProjectId, ProjectStatus, Stage, StageId, SubCompanyId, TaskId, TeamId, UserId, type Payment, type Project, type Task,
 } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { computeHealth, isOverdue } from '../health';
@@ -10,7 +10,7 @@ import { pauseKindOf, peopleFilter, staleDaysOf } from '../pause';
 import { reviewersOfTask } from '../notify';
 import { can, mayViewTask } from '../permissions';
 import { sentToReviewOn } from '../review';
-import { paymentsOf, trackerOf, type State } from '../store';
+import { paymentsOf, subCompaniesOf, trackerOf, type State } from '../store';
 import { stageTag } from '../flow';
 import { cardOf, deadlinesOf, mayViewFile, stagesInTime, stagesOf, userCard } from '../views';
 import { addDays, diffDays, maxDay, stampDay, weekStartOf } from '../../lib/dates';
@@ -26,7 +26,8 @@ const MoneyRows = z.object({
   total: z.number().nonnegative(),
   payments: z.array(z.object({ id: PaymentId, projectId: ProjectId, projectCode: z.string(), name: z.string(), amount: z.number().positive(), dueDate: Day })),
 });
-const Ref = z.object({ id: ProjectId, code: z.string(), name: z.string(), mark: z.number().int().nonnegative() });
+/** subCompanyId: the badge of the project's sub-company, wherever a Dashboard list shows the project picture (PRJ-15). Optional, so an older answer parses. */
+const Ref = z.object({ id: ProjectId, code: z.string(), name: z.string(), mark: z.number().int().nonnegative(), subCompanyId: SubCompanyId.nullable().optional() });
 
 export const DashboardView = z.object({
   tiles: z.object({
@@ -78,7 +79,7 @@ export const DashboardView = z.object({
    * lead, projects with a stage that has no end date, and projects with no area. Each count equals the list it opens. Null for
    * anyone else, and for an agent that acts for anyone else (owner, 2026-10-06).
    */
-  gaps: z.object({ noDueDate: Count, noLead: Count, projectsStageNoEnd: Count, noArea: Count }).nullable(),
+  gaps: z.object({ noDueDate: Count, noLead: Count, projectsStageNoEnd: Count, noArea: Count, noSubCompany: Count.optional() }).nullable(),
   /**
    * The payments not yet received, past due and due in the next 30 days, for the projects of the leader, client and team filters,
    * whatever their status: a paused or finished project still owes its money. Only for the people who may handle payments (can
@@ -108,6 +109,8 @@ function gapsOf(state: State, active: Project[], activeTasks: Task[]) {
     // Projects, not stages: the number equals the projects.list filter stage_no_end that it opens (review, 2026-10-06).
     projectsStageNoEnd: active.filter((p) => stagesOf(state, p.id).some((stage) => stage.endDate === null)).length,
     noArea: active.filter((p) => p.areaM2 === null).length,
+    // Counted only when the office has a sub-company: an office with none has nothing to fill in (INT-10).
+    noSubCompany: Object.keys(subCompaniesOf(state)).length > 0 ? active.filter((p) => !p.subCompanyId).length : 0,
   };
 }
 
@@ -133,6 +136,8 @@ export const dashboardGet = defineCall({
     leaderId: UserId.optional(),
     clientId: ClientId.optional(),
     teamId: TeamId.optional(),
+    /** Only the projects of one sub-company, like the Leader, Client and Team filters (INT-09). */
+    subCompanyId: SubCompanyId.optional(),
   }),
   output: DashboardView,
   readOnly: true,
@@ -148,7 +153,7 @@ export const dashboardGet = defineCall({
     const tasks = Object.values(state.tasks);
     // The office tasks that the person sees count in the numbers of people: the past-due tiles, the workload, the reviews and the
     // gaps. They have no leader, client or team, so a people filter leaves them out, as in the lists the numbers open.
-    const officeIn = !input.leaderId && !input.clientId && !input.teamId;
+    const officeIn = !input.leaderId && !input.clientId && !input.teamId && !input.subCompanyId;
     const officeTasks = officeIn ? tasks.filter((t) => t.projectId === null && mayViewTask(state, actor, t)) : [];
     const healths = active.map((p) => computeHealth({ project: p, stages: stagesOf(state, p.id), tasks: tasks.filter((t) => t.projectId === p.id) }, today));
     // The stage of a project follows its tasks (owner, 2026-10-02), so it is computed here and never read from the saved value.
@@ -159,7 +164,7 @@ export const dashboardGet = defineCall({
 
     const weekStart = weekStartOf(today);
     const humans = Object.values(state.users).filter((u) => u.kind === 'human' && u.active).sort((a, b) => a.name.localeCompare(b.name));
-    const refOf = (p: Project) => ({ id: p.id, code: p.code, name: p.name, mark: markOf(p) });
+    const refOf = (p: Project) => ({ id: p.id, code: p.code, name: p.name, mark: markOf(p), subCompanyId: p.subCompanyId ?? null });
 
     const order = state.settings.defaultStages;
     const rank = (name: string) => (order.includes(name) ? order.indexOf(name) : order.length);
@@ -283,6 +288,11 @@ export const SearchView = z.object({
   projects: z.array(Ref).max(5),
   tasks: z.array(z.object({ id: TaskId, title: z.string(), projectId: ProjectId.nullable(), projectCode: z.string() })).max(5),
   people: z.array(UserCard).max(5),
+  /**
+   * The sub-companies whose name holds the text, each with the number of its projects (INT-25). A row opens the Projects list of
+   * that sub-company, so Search never lists the projects one by one. Optional, so an older answer still parses.
+   */
+  subCompanies: z.array(z.object({ id: SubCompanyId, name: z.string(), nameAr: z.string(), projects: Count })).max(5).optional(),
   /** taskId: the task of the file. A file of an office task (projectId null) opens on its task (owner, 2026-10-06). */
   files: z.array(z.object({ id: FileId, name: z.string(), projectId: ProjectId.nullable(), projectCode: z.string(), taskId: TaskId.nullable() })).max(5),
 });
@@ -295,7 +305,7 @@ export const searchQuery = defineCall({
     const { state } = ctx;
     // A project link in a post reads "#KH-26-001" and a mention "@Name", so Search drops that first mark (audit PER-3).
     const query = normalizeForSearch(input.text.replace(/^[#@]+/, ''));
-    if (!query) return { projects: [], tasks: [], people: [], files: [] };
+    if (!query) return { projects: [], tasks: [], people: [], subCompanies: [], files: [] };
     const hit = (...parts: (string | undefined)[]) => normalizeForSearch(parts.filter(Boolean).join(' ')).includes(query);
     const codeOf = (projectId: string | null) => (projectId === null ? '' : state.projects[projectId]?.code ?? '');
     return {
@@ -314,6 +324,12 @@ export const searchQuery = defineCall({
         .sort((a, b) => a.name.localeCompare(b.name))
         .slice(0, 5)
         .map((u) => userCard(u)),
+      // Sub-companies are open to every person, like their projects, so this row shows no one anything new (INT-25).
+      subCompanies: Object.values(subCompaniesOf(state))
+        .filter((sub) => hit(sub.name, sub.nameAr))
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .slice(0, 5)
+        .map((sub) => ({ id: sub.id, name: sub.name, nameAr: sub.nameAr, projects: Object.values(state.projects).filter((p) => p.subCompanyId === sub.id).length })),
       files: Object.values(state.files)
         .filter((f) => (f.projectId !== null || mayViewFile(state, ctx.authority, f)) && hit(f.name))
         .slice(0, 5)

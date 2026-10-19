@@ -11,7 +11,7 @@ import { ScreenTitle } from '../../components/ScreenTitle';
 import { TabPanel, Tabs } from '../../components/Tabs';
 import { addDays, formatNumber, todayISO } from '../../lib/dates';
 import { counted } from '../../lib/grammar';
-import { oneOf, teamParam } from '../../lib/params';
+import { oneOf, subCompanyParam, teamParam } from '../../lib/params';
 import { PerStage, Submissions } from './Charts';
 import { DashboardMap } from './DashboardMap';
 import { DataGaps } from './DataGaps';
@@ -50,7 +50,9 @@ export function DashboardScreen() {
   const client = params.get('client') ?? '';
   const team = params.get('team') ?? '';
   const teamId = teamParam(team);
-  const filters = { leaderId: USER_ID.test(leader) ? leader : undefined, clientId: CLIENT_ID.test(client) ? client : undefined, teamId };
+  const subCompany = params.get('subCompany') ?? '';
+  const subCompanyId = subCompanyParam(subCompany);
+  const filters = { leaderId: USER_ID.test(leader) ? leader : undefined, clientId: CLIENT_ID.test(client) ? client : undefined, teamId, subCompanyId };
   // Status changes only the rows of the schedule: every number, chart and workload counts active projects, so a Paused there
   // read 0 everywhere. The choice shows in the Schedule section only, and elsewhere a status in the link reads as Active
   // (audit 2026-10-03, V-12). With Active, both calls are one.
@@ -61,6 +63,7 @@ export function DashboardScreen() {
   const users = useCall('users.list', {});
   const clients = useCall('clients.list', {});
   const teams = useCall('teams.list', {});
+  const subCompanies = useCall('subCompanies.list', {});
   const set = (key: string, value: string, fallback: string) => setParams((current) => {
     const next = new URLSearchParams(current);
     if (value === fallback) next.delete(key);
@@ -68,8 +71,8 @@ export function DashboardScreen() {
     return next;
   }, { replace: true });
   // The meeting view takes the filters, not the section, and the status only where the person sees it.
-  const meetingSearch = new URLSearchParams([...params].filter(([key]) => [...(statusApplies ? ['status'] : []), 'leader', 'client', 'team'].includes(key))).toString();
-  const active = [statusApplies && status !== 'active', leader !== '', client !== '', team !== ''].filter(Boolean).length;
+  const meetingSearch = new URLSearchParams([...params].filter(([key]) => [...(statusApplies ? ['status'] : []), 'leader', 'client', 'team', 'subCompany'].includes(key))).toString();
+  const active = [statusApplies && status !== 'active', leader !== '', client !== '', team !== '', subCompany !== ''].filter(Boolean).length;
   const view = dashboard.data;
   const today = todayISO();
   // A person who leads no project in the status gave an empty Dashboard. The Leader list offers only the people who lead a
@@ -111,9 +114,18 @@ export function DashboardScreen() {
               {(clients.data ?? []).map((c) => <option key={c.id} value={c.id}>{clientName(c, lang)}</option>)}
             </select>
           </label>
+          {/* The Sub-company choice shows only when the office has sub-companies (INT-09). */}
+          {(subCompanies.data ?? []).length > 0 && (
+            <label className={LABEL}>{t('subCompanies.label')}
+              <select value={subCompany} onChange={(event) => set('subCompany', event.target.value, '')} className={SELECT}>
+                <option value="">{t('subCompanies.any')}</option>
+                {(subCompanies.data ?? []).map((item) => <option key={item.id} value={item.id}>{lang === 'ar' ? item.nameAr : item.name}</option>)}
+              </select>
+            </label>
+          )}
         </FilterButton>
         <Button variant="primary" onClick={() => navigate({ pathname: '/dashboard/meeting', search: meetingSearch })}>{t('dashboard.meetingButton')}</Button>
-        <Button onClick={() => navigate({ pathname: '/dashboard/space' })}>{t('space.openButton')}</Button>
+        <Button onClick={() => navigate({ pathname: '/dashboard/space', search: meetingSearch })}>{t('space.openButton')}</Button>
       </div>
       {dashboard.error && (
         <EmptyState title={t('screens.dashboard')} body={errorMessage(dashboard.error, t)} action={<Button onClick={() => void dashboard.refetch()}>{t('common.retry')}</Button>} />

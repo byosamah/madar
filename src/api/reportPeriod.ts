@@ -79,6 +79,8 @@ export const REPORT_REVIEW_VERBS = ['task.approved', 'task.sent_back'] as const;
 
 export const REPORT_KEYS = {
   stageMoves: 'report:stageMoves',
+  /** The stage moves of one project: counted only when the report names a sub-company (INT-09). */
+  stageMovesOf: (projectId: string) => `report:stageMoves:${projectId}`,
   completed: (projectId: string) => `report:completed:${projectId}`,
   paused: (projectId: string) => `report:paused:${projectId}`,
 };

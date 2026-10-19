@@ -1,7 +1,7 @@
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../components/icons/animated/plus';
 import { XIcon } from '../../components/icons/animated/x';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Client, GeoPoint, ProjectTemplate, SubCompany, User } from '../../api/contract/entities';
 import { useLang } from '../../app/lang';
@@ -12,6 +12,8 @@ import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
 import { DateField } from '../../components/DateField';
 import { SelectField, TextArea, TextField } from '../../components/Fields';
+import { SegmentedControl } from '../../components/SegmentedControl';
+import { SubCompanyLogo } from '../../components/SubCompanyLogo';
 import { IconButton } from '../../components/IconButton';
 import { clientName } from '../../lib/clientName';
 import { ClientForm, useClientForm } from './ClientForm';
@@ -109,27 +111,42 @@ function ClientPicker({ value, onChange, clients }: { value: string; onChange: (
   );
 }
 
+/** With this many sub-companies or fewer, the choice is one row of logos. A longer list keeps a select. */
+const MAX_LOGO_CHOICES = 5;
+
 /**
- * The sub-company select (fbk_007). It shows only when the office has sub-companies. A new project needs one, so its first choice
- * names the step; an edit may leave the project with none.
+ * The sub-company choice (fbk_007, PRJ-17). It shows only when the office has sub-companies. A few of them show as one row, each with
+ * its logo and its name, so one tap picks. A long list keeps the select. A new project needs one. An edit may leave a project with none,
+ * but a project that has one can change it, never clear it.
  */
 function SubCompanyPicker({ value, onChange, subCompanies, required, error }: {
   value: string; onChange: (id: string) => void; subCompanies: SubCompany[]; required: boolean; error?: string;
 }) {
   const { t } = useTranslation();
   const lang = useLang();
+  const nameOf = (sub: SubCompany) => (lang === 'ar' ? sub.nameAr : sub.name);
+  if (subCompanies.length > MAX_LOGO_CHOICES) {
+    return (
+      <SelectField id="project-sub-company" label={t('subCompanies.label')} required={required} error={error} value={value} onChange={(event) => onChange(event.target.value)}>
+        {(!required || value === '') && <option value="">{required ? t('subCompanies.choose') : t('subCompanies.none')}</option>}
+        {subCompanies.map((sub) => <option key={sub.id} value={sub.id}>{nameOf(sub)}</option>)}
+      </SelectField>
+    );
+  }
   return (
-    <SelectField
-      id="project-sub-company"
-      label={t('subCompanies.label')}
-      required={required}
-      error={error}
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      <option value="">{required ? t('subCompanies.choose') : t('subCompanies.none')}</option>
-      {subCompanies.map((sub) => <option key={sub.id} value={sub.id}>{lang === 'ar' ? sub.nameAr : sub.name}</option>)}
-    </SelectField>
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <div className="flex items-baseline gap-0.5">
+        <span className="field-label">{t('subCompanies.label')}</span>
+        {required && <span aria-hidden="true" className="field-label">*</span>}
+      </div>
+      <SegmentedControl
+        label={t('subCompanies.label')}
+        value={value}
+        onChange={onChange}
+        options={subCompanies.map((sub) => ({ value: sub.id, label: nameOf(sub), icon: <SubCompanyLogo subCompanyId={sub.id} size={22} /> }))}
+      />
+      {error && <p role="alert" className="text-footnote text-late">{error}</p>}
+    </div>
   );
 }
 
@@ -212,6 +229,27 @@ export function ProjectFields({
   const humans = (users.data ?? []).filter((user) => user.kind === 'human');
   const people = humans.filter((user) => user.id !== meId).sort(byName);
   const { values, errors, set, touch } = form;
+  // The sub-company of a new project starts filled when the answer is clear (PRJ-17): the only one of the office, or the one of the
+  // last project of the same client. A tap of the person ends this for good.
+  const picked = useRef(false);
+  const subs = subCompanies.data ?? [];
+  const ofClient = useCall(
+    'projects.list',
+    { status: 'all', clientId: values.clientId || undefined },
+    { enabled: mode === 'create' && values.clientId !== '' && subs.length > 1 },
+  );
+  useEffect(() => {
+    if (mode !== 'create' || picked.current) return;
+    if (subs.length === 1) {
+      if (values.subCompanyId !== subs[0].id) set('subCompanyId', subs[0].id);
+      return;
+    }
+    if (values.clientId === '' || !ofClient.data) return;
+    const last = ofClient.data
+      .filter((row) => row.subCompanyId && subs.some((item) => item.id === row.subCompanyId))
+      .sort((a, b) => b.project.createdAt.localeCompare(a.project.createdAt))[0];
+    if (last?.subCompanyId && values.subCompanyId !== last.subCompanyId) set('subCompanyId', last.subCompanyId);
+  }, [mode, subs, values.clientId, values.subCompanyId, ofClient.data, set]);
   const template = mode === 'create' && values.templateId ? templates.find((t) => t.id === values.templateId) : undefined;
   const error = (field: keyof ProjectFormErrors) => (errors[field] ? t(errors[field] as string, { example: '260902AZT-RES-Villa' }) : undefined);
   return (
@@ -254,9 +292,12 @@ export function ProjectFields({
       {(subCompanies.data ?? []).length > 0 && (
         <SubCompanyPicker
           value={values.subCompanyId}
-          onChange={(id) => set('subCompanyId', id)}
+          onChange={(id) => {
+            picked.current = true;
+            set('subCompanyId', id);
+          }}
           subCompanies={subCompanies.data ?? []}
-          required={mode === 'create'}
+          required={mode === 'create' || values.subCompanyId !== ''}
           error={error('subCompanyId')}
         />
       )}

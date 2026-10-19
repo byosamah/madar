@@ -5,6 +5,7 @@ import { memoryPersister, openPersister, type Persister } from '../api/persist';
 import { STATE_VERSION, Store } from '../api/store';
 import { migrateState } from '../data/migrate';
 import { buildSeed } from '../data/seed';
+import { addSampleSubCompanies } from '../data/sampleSubCompanies';
 import { sampleOffice } from '../data/sampleOffice';
 import { settleFuture, shiftState } from '../data/shift';
 import { diffDays, now, todayISO } from '../lib/dates';
@@ -34,6 +35,7 @@ export async function bootstrap(options: { persister?: Persister; latencyMs?: nu
   if (!state) {
     await persister.clear().catch(() => undefined);
     state = await buildSeed(today, (key, blob) => persister.putBlob(key, blob));
+    addSampleSubCompanies(state, today);
   } else if (state.seededOn !== today) {
     state = shiftState(state, diffDays(state.seededOn, today));
     state.seededOn = today;

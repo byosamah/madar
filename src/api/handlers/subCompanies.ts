@@ -4,7 +4,7 @@ import { SubCompany, SubCompanyId } from '../contract/entities';
 import { ApiError, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
 import { nextId, subCompaniesOf } from '../store';
-import { assertCan } from './shared';
+import { assertCan, touch } from './shared';
 
 const SubCompanyText = z.string().trim().min(1).max(80);
 const Logo = SubCompany.shape.logo;
@@ -29,10 +29,17 @@ function assertNamesFree(ctx: Ctx, names: { name: string; nameAr: string }, exce
 /** Everyone reads the sub-companies: the project form, the project tiles and the logo of a project need the names and logos. */
 const subCompaniesList = defineCall({
   input: z.object({}),
-  output: z.array(SubCompany),
+  // projectCount: the projects of any status that name the sub-company, for the Admin list (PRJ-12). Optional, so an older answer parses.
+  output: z.array(SubCompany.extend({ projectCount: z.number().int().min(0).optional() })),
   readOnly: true,
   run(_input, ctx) {
-    return Object.values(subCompaniesOf(ctx.state)).sort((a, b) => a.name.localeCompare(b.name));
+    const counts = new Map<string, number>();
+    for (const project of Object.values(ctx.state.projects)) {
+      if (project.subCompanyId) counts.set(project.subCompanyId, (counts.get(project.subCompanyId) ?? 0) + 1);
+    }
+    return Object.values(subCompaniesOf(ctx.state))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((sub) => ({ ...sub, projectCount: counts.get(sub.id) ?? 0 }));
   },
 });
 
@@ -57,15 +64,29 @@ const subCompaniesSave = defineCall({
   },
 });
 
-/** The delete refuses a sub-company that a project names. The Undo toast brings a deleted one back. */
+/**
+ * The delete refuses a sub-company that a project names, unless the call says where the projects go (moveToId: another
+ * sub-company, or null for none). Then the projects move first and the sub-company goes, all in one story, so one Undo brings
+ * everything back (PRJ-12). The Undo toast brings a deleted one back.
+ */
 const subCompaniesDelete = defineCall({
-  input: z.object({ id: SubCompanyId }),
+  input: z.object({ id: SubCompanyId, moveToId: SubCompanyId.nullable().optional() }),
   output: z.object({}),
   run(input, ctx) {
     assertCan(ctx, 'admin.manage');
     const sub = requireSubCompany(ctx, input.id);
-    const naming = Object.values(ctx.state.projects).filter((project) => project.subCompanyId === sub.id).length;
-    if (naming > 0) throw new ApiError('conflict', 'A project uses this sub-company. Change the project first.', { reason: 'sub_company_in_use', count: naming });
+    const naming = Object.values(ctx.state.projects).filter((project) => project.subCompanyId === sub.id);
+    if (input.moveToId === sub.id) throw invalid('moveToId', 'Choose another sub-company to move the projects to.');
+    if (naming.length > 0 && input.moveToId === undefined) {
+      throw new ApiError('conflict', 'A project uses this sub-company. Change the project first.', { reason: 'sub_company_in_use', count: naming.length });
+    }
+    if (input.moveToId !== undefined) {
+      if (input.moveToId !== null) requireSubCompany(ctx, input.moveToId);
+      for (const project of naming) {
+        applyPatch(ctx, project, { subCompanyId: input.moveToId }, { projectId: project.id, verb: 'project.updated', targetType: 'project', targetId: project.id });
+        touch(ctx, project.id);
+      }
+    }
     delete subCompaniesOf(ctx.state)[sub.id];
     recordDelete(ctx, { projectId: null, verb: 'subCompany.deleted', targetType: 'subCompany', targetId: sub.id, entity: sub });
     return {};

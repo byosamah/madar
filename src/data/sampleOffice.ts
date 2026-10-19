@@ -1,5 +1,6 @@
 import type { State } from '../api/store';
 import { todayISO } from '../lib/dates';
+import { addSampleSubCompanies } from './sampleSubCompanies';
 import { buildSeed, type PutBlob } from './seed';
 import { settleFuture } from './shift';
 
@@ -9,5 +10,7 @@ import { settleFuture } from './shift';
  * real office (server/workerGraph.test.ts, cleanup 2026-10-06).
  */
 export async function sampleOffice(now: Date, putBlob: PutBlob): Promise<State> {
-  return settleFuture(await buildSeed(todayISO(now), putBlob), now);
+  const state = await buildSeed(todayISO(now), putBlob);
+  addSampleSubCompanies(state, todayISO(now));
+  return settleFuture(state, now);
 }

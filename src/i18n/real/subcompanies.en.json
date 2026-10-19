@@ -9,7 +9,7 @@
     "logo": "Logo",
     "chooseLogo": "Choose a logo",
     "changeLogo": "Change logo",
-    "logoHint": "A square picture fits best. The whole picture shows inside the circle.",
+    "logoHint": "A square picture fits best. Choose a picture, then frame it.",
     "logoTooBig": "This picture is too big. Choose a smaller picture.",
     "logoUnreadable": "Madar cannot read this file. Choose a WebP, JPEG or PNG picture.",
     "duplicate": "A sub-company with this name exists. Use another name.",
@@ -23,12 +23,36 @@
     "none": "No sub-company",
     "choose": "Choose a sub-company",
     "any": "Any sub-company",
-    "required": "Choose a sub-company for this project."
+    "required": "Choose a sub-company for this project.",
+    "projectCount": "{{n}} projects",
+    "projectCount_one": "1 project",
+    "projectCount_other": "{{count}} projects",
+    "noProjects": "No projects",
+    "showProjects": "Show the projects",
+    "deleteTitle": "Delete {{name}}",
+    "moveBody": "{{n}} projects use this sub-company.",
+    "moveBody_one": "1 project uses this sub-company.",
+    "moveBody_other": "{{count}} projects use this sub-company.",
+    "moveBodyHint": "Choose where the projects go. One Undo brings everything back.",
+    "moveTo": "Move the projects to",
+    "moveAndDelete": "Move and delete",
+    "movedAndDeleted": "Projects moved. Sub-company deleted.",
+    "nameEnRequired": "Write the English name.",
+    "nameArRequired": "Write the Arabic name.",
+    "frame": "Frame the logo",
+    "frameHint": "Drag the picture to move it. Use the slider to zoom.",
+    "zoom": "Zoom",
+    "preview": "How it looks in the lists"
   },
   "errors": {
     "reasons": {
-      "sub_company_in_use": "A project uses this sub-company. Change the project first.",
-      "sub_company_required": "Choose a sub-company for this project."
+      "sub_company_required": "Choose a sub-company for this project.",
+      "sub_company_in_use": "Projects use this sub-company. Change the projects first.",
+      "sub_company_in_use_one": "A project uses this sub-company. Change the project first.",
+      "sub_company_in_use_other": "{{count}} projects use this sub-company. Change the projects first."
     }
+  },
+  "search": {
+    "subCompanies": "Sub-companies"
   }
 }

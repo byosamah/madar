@@ -114,7 +114,7 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'teams.update': ['events', 'teams'],
   'teams.delete': ['events', 'teams'],
   'subCompanies.save': ['events', 'subCompanies'],
-  'subCompanies.delete': ['events', 'subCompanies'],
+  'subCompanies.delete': ['events', 'subCompanies', 'projects'],
   // A push device is private and sends no change signal (server/data/save.ts), so no list reloads for it (owner, 2026-10-08).
   'push.register': [],
   'push.remove': [],

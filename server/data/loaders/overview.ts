@@ -26,7 +26,7 @@ export const PROJECT_LIST_TASK_FIELDS = ['id', 'projectId', 'stageId', 'status',
 export const DASHBOARD_TASK_FIELDS = ['id', 'projectId', 'stageId', 'status', 'dueDate', 'ownerId', 'helperIds', 'createdAt', 'completedAt', 'title', 'createdBy'] as const;
 
 /** True when a call names no project filter, so the office tasks that the person sees join its list (owner, 2026-10-06). */
-const officeIn = (input: Input): boolean => !str(input.projectId) && !str(input.leaderId) && !str(input.clientId) && !str(input.teamId);
+const officeIn = (input: Input): boolean => !str(input.projectId) && !str(input.leaderId) && !str(input.clientId) && !str(input.teamId) && !str(input.subCompanyId);
 
 /** projects.list: the projects that pass the filters on the project, each with its tasks, its newest 2 posts and events, and its cover. */
 export async function projectsList(L: Load, input: Input): Promise<void> {
@@ -38,6 +38,7 @@ export async function projectsList(L: Load, input: Input): Promise<void> {
     .filter((p) => input.filter !== 'mine' || (L.authority !== undefined && projectRoleOf(office, p.id, L.authority.id) !== 'other'))
     .filter((p) => input.filter !== 'no_area' || p.areaM2 === null)
     .filter((p) => input.filter !== 'stage_no_end' || stagesOf(office, p.id).some((stage) => stage.endDate === null))
+    .filter((p) => input.filter !== 'no_sub_company' || !p.subCompanyId)
     .filter((p) => !input.leaderId || p.leaderId === input.leaderId)
     .filter((p) => !input.clientId || p.clientId === input.clientId)
     .filter((p) => !str(input.subCompanyId) || p.subCompanyId === str(input.subCompanyId))
@@ -54,7 +55,7 @@ export async function projectsList(L: Load, input: Input): Promise<void> {
  * the payments not yet received (owner, 2026-10-06).
  */
 export async function dashboardGet(L: Load, input: Input): Promise<void> {
-  const inFilters = peopleFilter(officeState(L), { leaderId: str(input.leaderId), clientId: str(input.clientId), teamId: str(input.teamId) });
+  const inFilters = peopleFilter(officeState(L), { leaderId: str(input.leaderId), clientId: str(input.clientId), teamId: str(input.teamId), subCompanyId: str(input.subCompanyId) });
   const status = str(input.status) ?? 'active';
   const inPeople = Object.values(L.office.projects).filter(inFilters);
   const ids = inPeople.filter((p) => status === 'all' || p.status === status).map((p) => p.id);
@@ -86,7 +87,7 @@ export async function dashboardGet(L: Load, input: Input): Promise<void> {
  */
 export async function tasksList(L: Load, input: Input): Promise<void> {
   const office = officeState(L);
-  const inFilters = peopleFilter(office, { leaderId: str(input.leaderId), clientId: str(input.clientId), teamId: str(input.teamId) });
+  const inFilters = peopleFilter(office, { leaderId: str(input.leaderId), clientId: str(input.clientId), teamId: str(input.teamId), subCompanyId: str(input.subCompanyId) });
   const ids = Object.values(L.office.projects)
     .filter((p) => (input.activeProjectsOnly === false || p.status === 'active') && inFilters(p) && (!input.projectId || p.id === input.projectId))
     .map((p) => p.id);

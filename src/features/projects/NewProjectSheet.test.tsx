@@ -10,7 +10,7 @@ import { RouterProvider, createMemoryRouter } from 'react-router';
 import { calls, type MadarApi } from '../../api/calls';
 import { createApi } from '../../api/client';
 import { memoryPersister } from '../../api/persist';
-import { Store } from '../../api/store';
+import { Store, type State } from '../../api/store';
 import { RuntimeProvider, createQueryClient } from '../../app/runtime';
 import { ToastProvider } from '../../app/toasts';
 import { buildSeed } from '../../data/seed';
@@ -312,32 +312,77 @@ describe("the New Project sheet: Madar's calendar on a computer (fbk_009)", () =
   });
 });
 
-describe('the sub-company of a new project (fbk_007)', () => {
+describe('the sub-company of a new project (fbk_007, PRJ-17)', () => {
   const sub = (id: string, name: string) => ({ id, name, nameAr: `${name} ar`, logo: null, createdBy: 'usr_001', createdAt: '2026-10-18T09:00:00.000+03:00' });
+  const two = (state: State) => {
+    state.subCompanies = { sub_001: sub('sub_001', 'Vado'), sub_002: sub('sub_002', 'Bunah') };
+    // The seed office names no sub-company, so the new project has no smart default.
+    for (const project of Object.values(state.projects)) delete project.subCompanyId;
+  };
 
-  it('needs a sub-company when the office has some, and sends the one that the person picks', async () => {
+  it('shows one row of choices, needs one, and sends the one that the person taps', async () => {
+    const { store } = await renderWithRuntime(<Harness />, two, { path: '/' });
+    await userEvent.click(screen.getByText('Start'));
+    const sheet = await screen.findByRole('dialog', { name: 'New Project' });
+    await userEvent.type(within(sheet).getByLabelText('Name'), 'Kiosk');
+    await fillCode(sheet);
+    const group = await within(sheet).findByRole('radiogroup', { name: 'Sub-company' });
+    expect(within(group).getAllByRole('radio').map((radio) => radio.textContent)).toEqual(['Bunah', 'Vado']);
+    expect(within(group).getAllByRole('radio').every((radio) => radio.getAttribute('aria-checked') === 'false')).toBe(true);
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
+    expect(await within(sheet).findByText('Choose a sub-company for this project.')).toBeInTheDocument();
+    expect(Object.values(store.state.projects).some((project) => project.name === 'Kiosk')).toBe(false);
+    await userEvent.click(within(group).getByRole('radio', { name: 'Bunah' }));
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
+    await waitFor(() => expect(Object.values(store.state.projects).find((project) => project.name === 'Kiosk')?.subCompanyId).toBe('sub_002'));
+  });
+
+  it('picks the only sub-company of the office, so a new project needs no tap', async () => {
     const { store } = await renderWithRuntime(<Harness />, (state) => {
-      state.subCompanies = { sub_001: sub('sub_001', 'Vado'), sub_002: sub('sub_002', 'Bunah') };
+      state.subCompanies = { sub_001: sub('sub_001', 'Vado') };
     }, { path: '/' });
     await userEvent.click(screen.getByText('Start'));
     const sheet = await screen.findByRole('dialog', { name: 'New Project' });
     await userEvent.type(within(sheet).getByLabelText('Name'), 'Kiosk');
     await fillCode(sheet);
-    // The select comes after Client, and its first choice names the step.
-    expect(await within(sheet).findByRole('option', { name: 'Choose a sub-company' })).toBeInTheDocument();
+    expect(await within(sheet).findByRole('radio', { name: 'Vado' })).toHaveAttribute('aria-checked', 'true');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
-    expect(await within(sheet).findByText('Choose a sub-company for this project.')).toBeInTheDocument();
-    expect(Object.values(store.state.projects).some((project) => project.name === 'Kiosk')).toBe(false);
-    await userEvent.selectOptions(within(sheet).getByLabelText('Sub-company'), 'Bunah');
-    await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
-    await waitFor(() => expect(Object.values(store.state.projects).find((project) => project.name === 'Kiosk')?.subCompanyId).toBe('sub_002'));
+    await waitFor(() => expect(Object.values(store.state.projects).find((project) => project.name === 'Kiosk')?.subCompanyId).toBe('sub_001'));
   });
 
-  it('shows no sub-company select when the office has none', async () => {
+  it('picks the sub-company of the last project of the client, and never changes a choice the person made', async () => {
+    await renderWithRuntime(<Harness />, (state) => {
+      two(state);
+      state.clients.cli_900 = { id: 'cli_900', name: 'Azmeel Holding', contactName: '', phone: '', email: '' };
+      Object.assign(state.projects.prj_001, { clientId: 'cli_900', subCompanyId: 'sub_001', createdAt: '2026-01-01T09:00:00.000+03:00' });
+      Object.assign(state.projects.prj_002, { clientId: 'cli_900', subCompanyId: 'sub_002', createdAt: '2026-06-01T09:00:00.000+03:00' });
+    }, { path: '/' });
+    await userEvent.click(screen.getByText('Start'));
+    const sheet = await screen.findByRole('dialog', { name: 'New Project' });
+    await userEvent.selectOptions(await within(sheet).findByLabelText('Client'), 'Azmeel Holding');
+    expect(await within(sheet).findByRole('radio', { name: 'Bunah' })).toHaveAttribute('aria-checked', 'true');
+    await userEvent.click(within(sheet).getByRole('radio', { name: 'Vado' }));
+    await userEvent.selectOptions(within(sheet).getByLabelText('Client'), '');
+    await userEvent.selectOptions(within(sheet).getByLabelText('Client'), 'Azmeel Holding');
+    expect(within(sheet).getByRole('radio', { name: 'Vado' })).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('keeps a select when the office has more than five sub-companies', async () => {
+    await renderWithRuntime(<Harness />, (state) => {
+      state.subCompanies = Object.fromEntries(['a', 'b', 'c', 'd', 'e', 'f'].map((id, n) => [`sub_00${n + 1}`, sub(`sub_00${n + 1}`, `Co ${id}`)]));
+    }, { path: '/' });
+    await userEvent.click(screen.getByText('Start'));
+    const sheet = await screen.findByRole('dialog', { name: 'New Project' });
+    expect(await within(sheet).findByRole('option', { name: 'Choose a sub-company' })).toBeInTheDocument();
+    expect(within(sheet).queryByRole('radiogroup', { name: 'Sub-company' })).toBeNull();
+  });
+
+  it('shows no sub-company choice when the office has none', async () => {
     await renderWithRuntime(<Harness />, undefined, { path: '/' });
     await userEvent.click(screen.getByText('Start'));
     const sheet = await screen.findByRole('dialog', { name: 'New Project' });
     await waitFor(() => expect(within(sheet).getByLabelText('Client')).toBeInTheDocument());
     expect(within(sheet).queryByLabelText('Sub-company')).toBeNull();
+    expect(within(sheet).queryByRole('radiogroup', { name: 'Sub-company' })).toBeNull();
   });
 });

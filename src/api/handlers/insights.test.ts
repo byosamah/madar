@@ -204,6 +204,6 @@ describe('search.query', () => {
   it('finds a project code written with a leading #, and treats a lone # as no search', async () => {
     const { api } = testApi(insightCalls, world());
     expect((await api.call('search.query', { text: '#KH-26-001' })).projects.map((p) => p.code)).toEqual(['KH-26-001']);
-    expect(await api.call('search.query', { text: '#' })).toEqual({ projects: [], tasks: [], people: [], files: [] });
+    expect(await api.call('search.query', { text: '#' })).toEqual({ projects: [], tasks: [], people: [], subCompanies: [], files: [] });
   });
 });

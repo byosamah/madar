@@ -6,7 +6,8 @@
     "anyClient": "Any client",
     "gap": {
       "no_area": "Projects with no area",
-      "stage_no_end": "Projects with a stage with no end date"
+      "stage_no_end": "Projects with a stage with no end date",
+      "no_sub_company": "Projects with no sub-company"
     }
   },
   "taskList": {
@@ -15,7 +16,8 @@
     "overdueOf": "Past-due tasks of {{name}}",
     "withReviews": "With the tasks to review",
     "noLead": "Tasks with no lead",
-    "noDate": "Tasks with no due date"
+    "noDate": "Tasks with no due date",
+    "subCompany": "Sub-company: {{name}}"
   },
   "dashboard": {
     "overdueColumn": "Past due",
@@ -55,7 +57,8 @@
       "noDueDate": "Open tasks with no due date",
       "noLead": "Open tasks with no lead",
       "projectsStageNoEnd": "Active projects with a stage with no end date",
-      "noArea": "Active projects with no area"
+      "noArea": "Active projects with no area",
+      "noSubCompany": "Active projects with no sub-company"
     },
     "money": {
       "title": "Payments to receive",

@@ -97,6 +97,17 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   `projectsStageNoEnd` counts projects, never stages: it equals the `stage_no_end` list.
 - `review.ts`: the day a task last went to review, from its events (the review wait and `finishedOn`).
 
+## Sub-company filter (fbk_007 review, 2026-10-19)
+- `subCompanyId` joins `leaderId`, `clientId` and `teamId` in `peopleFilter` (`pause.ts`). `dashboard.get`, `tasks.list`, `deadlines.list`
+  and `projects.list` take it, with the same loader code (`overview.ts`). A filter by sub-company leaves the office tasks out, as the others do.
+- `reports.office` takes `subCompanyId`: rows, totals, people, money and the Tracker count that sub-company only, and `office.name` is its
+  name. The stage moves count by project (`REPORT_KEYS.stageMovesOf`) only with the filter.
+- `projects.list` filter `no_sub_company` lists the projects with none. `dashboard.get` `gaps.noSubCompany` counts them for the Admin, and the
+  report gap line does too, both only when the office has a sub-company.
+- `search.query` gives `subCompanies` (id, names, project count): one row opens the filtered Projects list. It lists no project one by one.
+- `subCompanies.list` gives `projectCount`. `subCompanies.delete` takes `moveToId`: it moves the projects first, then deletes, in one story.
+- An agent never undoes a sub-company event (`assertMayUndo`), as it never makes one.
+
 ## Office tasks (owner, 2026-10-06)
 - A task with `projectId` and `stageId` null is an office task. `tasks.create` without `projectId` makes one. It has no stage,
   no prerequisites, no Tracker entry and no stage move. `FileRec.projectId` is null for its files (`taskId` names the task).

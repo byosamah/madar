@@ -15,8 +15,49 @@ const PNG_SIDES = [128, 112, 96, 80, 64] as const;
 /** "cover" cuts the centre square (the default). "contain" fits the whole picture inside the square. */
 export type PictureFit = 'cover' | 'contain';
 
+/**
+ * The frame that the Admin picks for a logo (PRJ-11, 2026-10-19). The window is a square. At zoom 1 it holds the whole picture, as
+ * "contain" does. At a larger zoom it is smaller, so a mark inside the picture grows. (cx, cy) is the middle of the window, as a share
+ * of the picture (0 to 1). A window may reach past the picture, and that space stays see-through.
+ */
+export type PictureCrop = { zoom: number; cx: number; cy: number };
+export const DEFAULT_CROP: PictureCrop = { zoom: 1, cx: 0.5, cy: 0.5 };
+export const MAX_ZOOM = 4;
+
 export interface PictureOptions {
   fit?: PictureFit;
+  /** A frame for a logo. It replaces the fit. */
+  crop?: PictureCrop;
+}
+
+const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value));
+
+/**
+ * Where a crop sits: the part of the picture to copy (sx, sy, sw, sh, in picture pixels, inside the picture), and where it lands in
+ * the output square (dx, dy, dw, dh, as shares of the square side). The same window feeds the canvas and the preview.
+ */
+export function cropPlace(width: number, height: number, crop: PictureCrop) {
+  const zoom = clamp(crop.zoom, 1, MAX_ZOOM);
+  const side = Math.max(width, height) / zoom;
+  const left = clamp(crop.cx, 0, 1) * width - side / 2;
+  const top = clamp(crop.cy, 0, 1) * height - side / 2;
+  const sx = Math.max(0, left);
+  const sy = Math.max(0, top);
+  const sw = Math.max(0, Math.min(width, left + side) - sx);
+  const sh = Math.max(0, Math.min(height, top + side) - sy);
+  return { sx, sy, sw, sh, dx: (sx - left) / side, dy: (sy - top) / side, dw: sw / side, dh: sh / side };
+}
+
+/** The size and the place of the whole picture inside a preview circle of one size, in pixels (CSS). It shows what the crop saves. */
+export function cropPreview(width: number, height: number, crop: PictureCrop, circle: number) {
+  const zoom = clamp(crop.zoom, 1, MAX_ZOOM);
+  const scale = (circle * zoom) / Math.max(width, height);
+  return {
+    width: width * scale,
+    height: height * scale,
+    left: circle / 2 - clamp(crop.cx, 0, 1) * width * scale,
+    top: circle / 2 - clamp(crop.cy, 0, 1) * height * scale,
+  };
 }
 
 /** The picture when it is safe to show: picture data or an https address. Every other value gives null. */
@@ -135,7 +176,9 @@ function contextOf(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
 }
 
 /** A square canvas of one side, with the picture on it. The code paints a white ground first only when asked. */
-function squareOf(source: CanvasImageSource, width: number, height: number, side: number, fit: PictureFit, whiteGround: boolean): HTMLCanvasElement {
+function squareOf(
+  source: CanvasImageSource, width: number, height: number, side: number, fit: PictureFit, whiteGround: boolean, crop?: PictureCrop,
+): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = side;
   canvas.height = side;
@@ -146,7 +189,10 @@ function squareOf(source: CanvasImageSource, width: number, height: number, side
     context.fillRect(0, 0, side, side);
   }
   const scale = side / PICTURE_SIDE;
-  if (fit === 'contain') {
+  if (crop) {
+    const place = cropPlace(width, height, crop);
+    if (place.sw > 0 && place.sh > 0) context.drawImage(source, place.sx, place.sy, place.sw, place.sh, place.dx * side, place.dy * side, place.dw * side, place.dh * side);
+  } else if (fit === 'contain') {
     const { dx, dy, w, h } = containSquare(width, height);
     context.drawImage(source, 0, 0, width, height, dx * scale, dy * scale, w * scale, h * scale);
   } else {
@@ -172,14 +218,15 @@ export async function pictureOf(file: File, options: PictureOptions = {}): Promi
     if (image.width === 0 || image.height === 0) throw new PictureError('unreadable');
     const { source, width, height } = image;
     // The code draws the picture on a clear canvas first. Its alpha values show the see-through parts. "contain" adds see-through space.
-    const clear = squareOf(source, width, height, PICTURE_SIDE, fit, false);
+    const crop = options.crop;
+    const clear = squareOf(source, width, height, PICTURE_SIDE, fit, false, crop);
     const seeThrough = hasSeeThrough(contextOf(clear).getImageData(0, 0, PICTURE_SIDE, PICTURE_SIDE).data);
     // A picture with no see-through parts gets a white ground, so it can become JPEG.
-    const canvas = seeThrough ? clear : squareOf(source, width, height, PICTURE_SIDE, fit, true);
+    const canvas = seeThrough ? clear : squareOf(source, width, height, PICTURE_SIDE, fit, true, crop);
     const canWebp = canvas.toDataURL('image/webp').startsWith('data:image/webp;');
     const url =
       pictureType(canWebp, seeThrough) === 'png'
-        ? encodePngSmallest((side) => squareOf(source, width, height, side, fit, false).toDataURL('image/png'))
+        ? encodePngSmallest((side) => squareOf(source, width, height, side, fit, false, crop).toDataURL('image/png'))
         : encodeSmallest((type, quality) => canvas.toDataURL(type, quality));
     if (!url) throw new PictureError('too_big');
     return url;

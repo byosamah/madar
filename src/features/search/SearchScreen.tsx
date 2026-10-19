@@ -3,7 +3,10 @@ import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import type { UserCard } from '../../api/contract/views';
+import { useLang } from '../../app/lang';
 import { usePersonName } from '../../app/personName';
+import { SubCompanyLogo } from '../../components/SubCompanyLogo';
+import { counted } from '../../lib/grammar';
 import { useCall } from '../../app/runtime';
 import { useDebounced } from '../../app/useDebounced';
 import { Avatar } from '../../components/Avatar';
@@ -30,13 +33,15 @@ function Item({ value, onSelect, children }: { value: string; onSelect: () => vo
 function Results({ query, onPerson }: { query: string; onPerson: (person: UserCard) => void }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
+  const lang = useLang();
   const navigate = useNavigate();
   // The last results stay while the next ones load, so the list never flashes empty between key presses (audit PER-14).
   const results = useCall('search.query', { text: query }, { keepPrevious: true });
   if (results.error) return <LoadFailed error={results.error} onRetry={() => void results.refetch()} />;
   if (!results.data) return null;
   const { projects, tasks, people, files } = results.data;
-  if (projects.length + tasks.length + people.length + files.length === 0) {
+  const subCompanies = results.data.subCompanies ?? [];
+  if (projects.length + tasks.length + people.length + files.length + subCompanies.length === 0) {
     // An empty search says what to try next (audit PER-18).
     return (
       <div className="flex flex-col gap-1 px-3 py-2">
@@ -53,6 +58,17 @@ function Results({ query, onPerson }: { query: string; onPerson: (person: UserCa
             <Item key={p.id} value={`project-${p.id}`} onSelect={() => navigate(`/projects/${p.id}`)}>
               <span className="tabular text-footnote text-label-2">{projectKey(p.code)}</span>
               <bdi>{p.name}</bdi>
+            </Item>
+          ))}
+        </Command.Group>
+      )}
+      {subCompanies.length > 0 && (
+        <Command.Group heading={t('search.subCompanies')} className={GROUP}>
+          {subCompanies.map((sub) => (
+            <Item key={sub.id} value={`sub-company-${sub.id}`} onSelect={() => navigate(`/projects?subCompany=${sub.id}`)}>
+              <span aria-hidden><SubCompanyLogo subCompanyId={sub.id} size={24} /></span>
+              <bdi className="min-w-0 flex-1 truncate">{lang === 'ar' ? sub.nameAr : sub.name}</bdi>
+              <span className="text-footnote text-label-2">{counted(t, 'subCompanies.projectCount', sub.projects)}</span>
             </Item>
           ))}
         </Command.Group>

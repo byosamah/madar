@@ -11,6 +11,7 @@ import { Sheet } from '../../components/Sheet';
 import { projectKey } from '../../lib/projectCode';
 import { PinSheet } from '../map/PinSheet';
 import { ProjectPin } from '../map/ProjectPin';
+import { isLive } from '../../lib/overview';
 import { MapPinCard } from './MapPinCard';
 import type { DashboardFilters } from './Tiles';
 
@@ -33,12 +34,13 @@ export function DashboardMap({ filters }: { filters: DashboardFilters }) {
   const [unpinnedOpen, setUnpinnedOpen] = useState(false);
   const [editing, setEditing] = useState<ProjectSummary | null>(null);
   const [mapFailed, setMapFailed] = useState(false);
-  const projects = useCall('projects.list', { status: 'active', sort: 'name', ...filters });
+  // The open projects are the active and the paused ones: the same rule as the Open space (INT-11).
+  const projects = useCall('projects.list', { status: 'all', sort: 'name', ...filters });
   const save = useUndoable('projects.update', {
     message: () => t('map.pinSheet.saved'),
     onSuccess: () => setEditing(null),
   });
-  const rows = projects.data ?? [];
+  const rows = (projects.data ?? []).filter((row) => isLive(row.project.status));
   const pinned = rows.flatMap((row) => (row.geo ? [{ row, point: row.geo }] : []));
   const unpinned = rows.filter((row) => row.geo === null);
   const current = pinned.find((item) => item.row.project.id === selected);

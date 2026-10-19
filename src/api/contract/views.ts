@@ -372,7 +372,7 @@ export const OfficeReport = z.object({
   tracker: z.object({ opened: ReportCount, closed: ReportCount, waitingOnClientAtEnd: ReportCount }),
   money: ReportMoney.nullable(),
   /** The data gaps for the Admin, one short line each (English). Empty when the office has none. */
-  gaps: z.array(z.string().max(120)).max(4).nullable(),
+  gaps: z.array(z.string().max(120)).max(5).nullable(),
   /** The design guide for the agent that builds the document (reportDesign.ts). The same for every person who may ask. */
   design: ReportDesign,
 });

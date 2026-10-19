@@ -39,6 +39,9 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   The factory in `app.ts` picks the list for each request from the office rights of the owner, never the agent user. A 2026-07-28 client can keep tools/list for 5 minutes, and a
   2025-era client keeps it until it connects again (the server says listChanged but never sends that notice). So a role change
   shows late in a client, and tools/call always checks.
+- Sub-companies (review 2026-10-19): `dashboard.get`, `tasks.list`, `deadlines.list`, `projects.list` and `reports.office` take `subCompanyId`;
+  `projects.list` filter `no_sub_company` lists the projects with none; `search.query` and `subCompanies.list` (`projectCount`) carry counts. An agent
+  never undoes a sub-company event (`events.undo`, `events.undoStory`).
 - Every other call is in `MCP_DENY` (`tools.ts`). A test fails for a call in no list or in two, so every new shared call goes
   into exactly one of them. The three `push.*` calls (browser push devices) are on it: an agent has no device (owner, 2026-10-08).
   `live.ticket` (exit wave 3) is on it too: an agent opens no socket.

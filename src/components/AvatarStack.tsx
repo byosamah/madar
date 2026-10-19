@@ -11,6 +11,8 @@ type Tip = { name: string; x: number; y: number };
 /**
  * The leader first (bigger when `leaderSize` is set), then up to three team members, then "+N" (spec 4.1). The pictures
  * overlap by 4 px only, so the ring of the next one never hides initials, and "+N" keeps its order in Arabic.
+ * One hidden person takes the width of "+1" anyway, so that person's picture shows instead (PRJ-18). "+N" names the hidden people on
+ * hover and to a screen reader.
  * On hover the pictures slide apart and each one names its person (owner, 2026-10-01, after shadcn studio avatar-18).
  * The name label sits in the page layer, so a list with rounded, clipped corners never cuts it.
  */
@@ -20,8 +22,11 @@ export function AvatarStack({
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const [tip, setTip] = useState<Tip | null>(null);
-  const shown = [...(leader ? [leader] : []), ...team.slice(0, max)];
-  const extra = team.length - Math.min(team.length, max);
+  const fits = team.length - max === 1 ? team.length : Math.min(team.length, max);
+  const shown = [...(leader ? [leader] : []), ...team.slice(0, fits)];
+  const hidden = team.slice(fits);
+  const extra = hidden.length;
+  const hiddenNames = hidden.map((person) => nameOf(person)).join(', ');
   const slide = 'transition-[margin] duration-300 ease-in-out motion-reduce:transition-none';
   const show = (name: string) => (event: React.MouseEvent<HTMLElement>) => {
     const box = event.currentTarget.getBoundingClientRect();
@@ -40,7 +45,14 @@ export function AvatarStack({
         </span>
       ))}
       {extra > 0 && (
-        <span style={{ width: size, height: size }} className={`-ms-1 inline-flex items-center justify-center rounded-full bg-fill-strong text-caption font-semibold text-label ring-2 ring-card group-hover/stack:ms-1 ${slide}`}>
+        <span
+          role="img"
+          aria-label={t('people.moreNames', { names: hiddenNames })}
+          onMouseEnter={show(hiddenNames)}
+          onMouseLeave={() => setTip(null)}
+          style={{ width: size, height: size }}
+          className={`-ms-1 inline-flex items-center justify-center rounded-full bg-fill-strong text-caption font-semibold text-label ring-2 ring-card group-hover/stack:ms-1 ${slide}`}
+        >
           <bdi dir="ltr">{t('projects.morePeople', { n: extra })}</bdi>
         </span>
       )}

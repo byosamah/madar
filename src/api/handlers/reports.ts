@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { stampDay } from '../../lib/dates';
 import { markOf } from '../../lib/projectMark';
-import { Day, type Event, type Payment, type Project, type Task, type TrackerEntry } from '../contract/entities';
+import { Day, SubCompanyId, type Event, type Payment, type Project, type Task, type TrackerEntry } from '../contract/entities';
 import { OfficeReport, type ReportPerson, type ReportProject } from '../contract/views';
 import { computeHealth } from '../health';
 import { can } from '../permissions';
@@ -46,17 +46,21 @@ function statusAfter(event: Event): unknown {
 }
 
 /** The report of one period, from the State of the call. */
-function buildReport(ctx: Ctx, input: { period: ReportPeriodKind; start?: string }) {
+function buildReport(ctx: Ctx, input: { period: ReportPeriodKind; start?: string; subCompanyId?: string }) {
   const { state, today, authority: actor } = ctx;
   const range: DayRange = periodRange(input.period, input.start, today);
   const inDays = (day: string | null | undefined): boolean => typeof day === 'string' && day >= range.from && day <= range.to;
   const dayOf = (stamp: string | null): string | null => (stamp === null ? null : stampDay(stamp));
 
-  const projects = Object.values(state.projects).sort((a, b) => a.code.localeCompare(b.code) || a.id.localeCompare(b.id));
-  const tasks = Object.values(state.tasks).filter((task) => task.projectId !== null && state.projects[task.projectId] !== undefined);
-  const deadlines = Object.values(state.deadlines).filter((deadline) => state.projects[deadline.projectId] !== undefined);
-  const trackerRows = Object.values(trackerOf(state)).filter((entry) => state.projects[entry.projectId] !== undefined);
-  const payments = Object.values(paymentsOf(state)).filter((payment) => state.projects[payment.projectId] !== undefined);
+  // A sub-company filter keeps only its projects. Every count below reads these projects, so the totals, the people, the money
+  // and the Tracker count that sub-company alone (INT-09). A sub-company that does not exist matches nothing.
+  const inScope = (project: Project) => !input.subCompanyId || project.subCompanyId === input.subCompanyId;
+  const projects = Object.values(state.projects).filter(inScope).sort((a, b) => a.code.localeCompare(b.code) || a.id.localeCompare(b.id));
+  const scope = new Set(projects.map((project) => project.id));
+  const tasks = Object.values(state.tasks).filter((task) => task.projectId !== null && scope.has(task.projectId));
+  const deadlines = Object.values(state.deadlines).filter((deadline) => scope.has(deadline.projectId));
+  const trackerRows = Object.values(trackerOf(state)).filter((entry) => scope.has(entry.projectId));
+  const payments = Object.values(paymentsOf(state)).filter((payment) => scope.has(payment.projectId));
   const events = Object.values(state.events);
 
   const madeIn = (task: Task) => inDays(stampDay(task.createdAt));
@@ -70,14 +74,17 @@ function buildReport(ctx: Ctx, input: { period: ReportPeriodKind; start?: string
   /** A count from State.counts when a loader put one there, else a scan of the events of the state. */
   const count = (key: string, scan: () => number): number => state.counts?.[key] ?? scan();
   const eventsOf = (verb: string): Event[] => events.filter((event) => event.verb === verb && inDays(dayOf(event.createdAt)));
-  const stageMoves = count(REPORT_KEYS.stageMoves, () => eventsOf(REPORT_STAGE_VERB).length);
+  // With a sub-company filter the stage moves count project by project (the loader counts them by project).
+  const stageMoves = input.subCompanyId
+    ? projects.reduce((sum, project) => sum + count(REPORT_KEYS.stageMovesOf(project.id), () => eventsOf(REPORT_STAGE_VERB).filter((event) => event.projectId === project.id).length), 0)
+    : count(REPORT_KEYS.stageMoves, () => eventsOf(REPORT_STAGE_VERB).length);
   const completedIn = (projectId: string) => count(REPORT_KEYS.completed(projectId), () => eventsOf(REPORT_COMPLETED_VERB)
     .filter((event) => event.projectId === projectId && statusAfter(event) === 'completed').length);
   const pausedIn = (projectId: string) => count(REPORT_KEYS.paused(projectId), () => eventsOf(REPORT_PAUSED_VERB)
     .filter((event) => event.projectId === projectId).length);
   const reviewVerbs: readonly string[] = REPORT_REVIEW_VERBS;
   const reviewEvents = events.filter((event) => reviewVerbs.includes(event.verb) && inDays(dayOf(event.createdAt))
-    && event.projectId !== null && state.projects[event.projectId] !== undefined);
+    && event.projectId !== null && scope.has(event.projectId));
   const reviewsOf = (userId: string) => reviewEvents.filter((event) => event.actingForId === userId).length;
 
   /** The deadlines of a project that are due in the period and no later than today, each met or missed. */
@@ -135,13 +142,14 @@ function buildReport(ctx: Ctx, input: { period: ReportPeriodKind; start?: string
       reviewsDone: reviewsOf(user.id),
     }));
 
+  const officeName = input.subCompanyId ? subCompanies[input.subCompanyId]?.name ?? OFFICE_NAME : OFFICE_NAME;
   const money = can(actor, 'payment.manage') ? moneyOf(payments, range) : null;
   const gaps = can(actor, 'admin.manage') ? gapsOf(state, tasks, projects) : null;
 
   return {
     period: { kind: input.period, from: range.from, to: range.to },
     generatedAt: ctx.stamp,
-    office: { name: OFFICE_NAME },
+    office: { name: officeName },
     totals: {
       projects: {
         active: projects.filter((project) => project.status === 'active').length,
@@ -202,12 +210,14 @@ function gapsOf(state: State, tasks: Task[], projects: Project[]): string[] {
     ['Open tasks with no lead', open.filter((task) => task.ownerId === null).length],
     ['Active projects with a stage that has no end date', noStageEnd],
     ['Active projects with no area', active.filter((project) => project.areaM2 === null).length],
+    // Counted only when the office has a sub-company (INT-10).
+    ['Active projects with no sub-company', Object.keys(subCompaniesOf(state)).length > 0 ? active.filter((project) => !project.subCompanyId).length : 0],
   ];
   return counts.filter(([, n]) => n > 0).map(([label, n]) => `${label}: ${n}`);
 }
 
 export const reportsOffice = defineCall({
-  input: z.object({ period: ReportPeriodKind, start: Day.optional() }),
+  input: z.object({ period: ReportPeriodKind, start: Day.optional(), subCompanyId: SubCompanyId.optional() }),
   output: OfficeReport,
   readOnly: true,
   run(input, ctx) {

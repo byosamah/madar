@@ -167,8 +167,8 @@ describe('gaps of dashboard.get, for the Admin only (owner, 2026-10-06, item 10)
   it('counts the open tasks with no due date or no lead, the projects with a stage with no end date and the projects with no area', async () => {
     const t = testApi(calls, gapWorld());
     t.as('usr_001');
-    expect((await t.api.call('dashboard.get', {})).gaps).toEqual({ noDueDate: 2, noLead: 2, projectsStageNoEnd: 1, noArea: 1 });
-    expect((await t.api.call('dashboard.get', { leaderId: 'usr_002' })).gaps).toEqual({ noDueDate: 2, noLead: 2, projectsStageNoEnd: 0, noArea: 0 });
+    expect((await t.api.call('dashboard.get', {})).gaps).toEqual({ noDueDate: 2, noLead: 2, projectsStageNoEnd: 1, noArea: 1, noSubCompany: 0 });
+    expect((await t.api.call('dashboard.get', { leaderId: 'usr_002' })).gaps).toEqual({ noDueDate: 2, noLead: 2, projectsStageNoEnd: 0, noArea: 0, noSubCompany: 0 });
     // Each count opens a list that holds the same records.
     expect(await t.api.call('tasks.list', { filter: 'no_date', includeDone: false })).toHaveLength(2);
     expect(await t.api.call('tasks.list', { filter: 'no_lead', includeDone: false })).toHaveLength(2);
