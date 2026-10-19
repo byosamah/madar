@@ -326,6 +326,9 @@ any screen work.
   "New" after the item, and Home ends its date line with the link "See what's new", until the person opens the page. There is no dot
   and no bold item.
 
+## Chat reading (track read, 2026-10-19)
+- Runs (`features/inbox/runs.ts`): the messages of one person within 5 minutes of the one before form a run; a new day, a quiet line, another person, an agent message or the New line starts a run. A next message shows no face and no name; its time sits in the side spot (`data-part="side"`) at opacity 0 until hover or focus.
+
 ## Design rules (the short form of DESIGN.md)
 - Judge every choice from the view of the employees with ADHD: one next step, the fewest controls.
 - Start from the LIVE app's design system (glow tiles, the tokens), never from the spec alone.

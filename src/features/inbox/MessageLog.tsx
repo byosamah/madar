@@ -1,10 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLang } from '../../app/lang';
 import { Button } from '../../components/Button';
 import { addDays, formatDay, stampDay, todayISO } from '../../lib/dates';
 import { groupByDay } from '../../lib/group';
 import { MessageBubble, type Bubble } from './MessageBubble';
+import { runStarts } from './runs';
 
 /**
  * The label of a day in a log: Today, Yesterday, or the long day in the screen language. The message log and the task panel both use it.
@@ -24,12 +25,14 @@ export type EarlierControl = {
   pending: boolean;
 };
 
+export type MessageLogProps = { bubbles: Bubble[]; resetKey: string; emptyText: string; earlier?: EarlierControl };
+
 /**
  * The messages by day. The region scrolls to the bottom when a message arrives. New messages rise in. With `earlier`, the top of
  * the log has an "Earlier messages" control; its page goes above the shown messages, and the scroll keeps its distance from the
  * bottom, so the message the person reads stays in place.
  */
-export function MessageLog({ bubbles, resetKey, emptyText, earlier }: { bubbles: Bubble[]; resetKey: string; emptyText: string; earlier?: EarlierControl }) {
+export function MessageLog({ bubbles, resetKey, emptyText, earlier }: MessageLogProps) {
   const { t } = useTranslation();
   const dayLabel = useDayLabel();
   const region = useRef<HTMLDivElement>(null);
@@ -45,6 +48,8 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier }: { bubbles:
   const [newestAtFirst] = useState(() => Math.max(-Infinity, ...bubbles.map((b) => Date.parse(b.createdAt))));
   const firstId = bubbles[0]?.id;
   const lastId = bubbles.at(-1)?.id;
+  // The messages of one person within 5 minutes form a run (design item 2): only the first shows the face and the name.
+  const starts = useMemo(() => runStarts(bubbles), [bubbles]);
   useLayoutEffect(() => {
     if (region.current) region.current.scrollTop = region.current.scrollHeight;
     atBottom.current = true;
@@ -99,10 +104,10 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier }: { bubbles:
         </div>
       )}
       {bubbles.length === 0 && <p className="text-subheadline text-ink-2">{emptyText}</p>}
-      <ol ref={items} className="flex flex-col gap-2">
+      <ol ref={items} className="flex flex-col gap-0.5">
         {groupByDay(bubbles, (b) => stampDay(b.createdAt)).flatMap((group) => [
           <li key={`day-${group.day}`} className="self-center py-2 text-footnote font-semibold text-ink-2">{dayLabel(group.day)}</li>,
-          ...group.items.map((bubble) => <MessageBubble key={bubble.id} bubble={bubble} fresh={!first.has(bubble.id) && Date.parse(bubble.createdAt) > newestAtFirst} />),
+          ...group.items.map((bubble) => <MessageBubble key={bubble.id} bubble={bubble} runStart={starts.has(bubble.id)} fresh={!first.has(bubble.id) && Date.parse(bubble.createdAt) > newestAtFirst} />),
         ])}
       </ol>
     </div>
