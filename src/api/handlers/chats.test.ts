@@ -192,10 +192,11 @@ describe('chat mentions', () => {
   it('opens the chat from the notice of the mentioned person', async () => {
     const t = world();
     t.as('usr_003');
-    await t.api.call('chats.send', { conversationId: t.room, body: 'Look @[Faisal Leader](usr_002).' });
+    const sent = await t.api.call('chats.send', { conversationId: t.room, body: 'Look @[Faisal Leader](usr_002).' });
     t.as('usr_002');
     const [view] = await (async () => testApiNotices(t))();
-    expect(view).toMatchObject({ link: `/inbox/${t.room}`, target: 'Test Tower', gone: false });
+    // The link names the message (chat design 2026-10-19, item 17), so the chat opens at it.
+    expect(view).toMatchObject({ link: `/inbox/${t.room}?at=${sent.message.id}`, target: 'Test Tower', gone: false });
   });
 });
 
