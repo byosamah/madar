@@ -3,6 +3,14 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-51": {
+        "title": "Project chats for the Admin",
+        "body": "As the Admin, you see the unread count and get pushes of the project chats of your own projects. In other project chats, you see only the messages that name you. Pick All messages in the menu of a chat to see all of it."
+      },
+      "2026-10-23-50": {
+        "title": "Fewer pushes",
+        "body": "A project chat now sends you a push only when a message names you. In the menu of each chat, Notify me sets All messages or Only when I am named. Madar sends no push for a chat that you already read. A 👍 or ✅ on a message answers it."
+      },
       "2026-10-23-21": {
         "title": "Files & Links",
         "body": "Now the links of a project are in the Files & Links tab, above the files. You add a file or a link from one button, Add. The About panel does not show the links."

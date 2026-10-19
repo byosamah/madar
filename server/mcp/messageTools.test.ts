@@ -451,6 +451,13 @@ describe('the texts of the message tools', () => {
     expect(TOOL_DOCS['chats.messages'].description.length).toBeLessThanOrEqual(600);
   });
 
+  it('says what unread means for an Admin in chats.list', async () => {
+    const { TOOL_DOCS } = await import('./docs');
+    const text = TOOL_DOCS['chats.list'].description;
+    expect(text).toContain('counts only the unread messages that name the Admin');
+    expect(text.length).toBeLessThanOrEqual(600);
+  });
+
   it('says the wait rules of item 22 in chats.waiting', async () => {
     const { TOOL_DOCS } = await import('./docs');
     const text = TOOL_DOCS['chats.waiting'].description;

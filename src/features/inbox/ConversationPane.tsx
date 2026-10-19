@@ -113,10 +113,14 @@ export function ChatPane({ id }: { id: string }) {
     ? messageBubbles
     : [...messageBubbles, ...lineBubbles].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || (a.line ? 1 : 0) - (b.line ? 1 : 0));
   const unread = data?.chat.unread ?? 0;
+  // The newest message is newer than the read time. An Admin's project chat outside the Admin's projects counts only the messages that
+  // name the Admin (design item 23), so its count can be 0 while plain messages are new: the open must still move the read mark, so the
+  // "New" line of a later message sits right (it reads readUpTo). A read mark moves to the newest message or later, so this ends at once.
+  const behind = (data?.messages.at(-1)?.message.createdAt ?? '') > (data?.readUpTo ?? '');
   useEffect(() => {
-    if (unread > 0) markRead.mutate({ conversationId: id });
-    // The mutation object changes on every render. Only a new count of unread messages matters here.
-  }, [id, unread]);
+    if (unread > 0 || behind) markRead.mutate({ conversationId: id });
+    // The mutation object changes on every render. Only a new count of unread messages, or a newer message than the read time, matters here.
+  }, [id, unread, behind]);
   if (thread.error) return <div className="p-4"><LoadFailed error={thread.error} onRetry={() => void thread.refetch()} /></div>;
   if (!data) return <div className="flex-1" aria-busy="true" />;
   const { chat } = data;

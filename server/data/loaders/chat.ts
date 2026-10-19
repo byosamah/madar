@@ -1,6 +1,6 @@
 import type { ChatRead, Comment, Conversation, Message, Task } from '../../../src/api/contract/entities';
-import { canSeeConversation, TASK_THREAD_LIMIT } from '../../../src/api/chatState';
-import { can } from '../../../src/api/permissions';
+import { canSeeConversation, countsNamedOnly, levelFromRead, TASK_THREAD_LIMIT } from '../../../src/api/chatState';
+import { can, projectRoleOf } from '../../../src/api/permissions';
 import { chatReadKey, unreadCountKey } from '../../../src/api/store';
 import type { Load } from './build';
 import type { Bound } from './query';
@@ -54,11 +54,22 @@ async function chatsOf(L: Load, userId: string, conversations: readonly Conversa
   await L.byKey('chatReads', ids.map((id) => chatReadKey(id, userId)));
   // unreadIn (chatState.ts) takes the count first, so the badge never reads the newest message.
   if (!mode.badge) await newestMessages(L, ids);
-  const by = Object.fromEntries(ids.map((id): [string, Bound] => [id, { gt: markOf(L, id, userId) }]));
-  await L.countWhere({
-    c: 'messages', per: 'conversation_id',
-    where: [{ bounds: { col: 'conversation_id', by } }, LIVE, { field: 'authorId', notIn: meOf(L, userId) }, { field: 'actingForId', notIn: [userId] }],
-  }, ids, (id) => unreadCountKey(id, userId), mode);
+  // The Admin's other project chats count only the messages that name the Admin (design item 23): a second grouped count, with the
+  // extra condition on "mentions". Every other chat counts as before. A count with no chat is skipped.
+  const office = officeState(L);
+  const namedOnly = new Set(conversations
+    .filter((c) => countsNamedOnly(projectRoleOf(office, c.projectId, userId), c, levelFromRead(L.get<ChatRead>('chatReads', chatReadKey(c.id, userId)), c.kind)))
+    .map((c) => c.id));
+  const countOf = (own: string[], extra: readonly { has: string; value: string }[]) => {
+    if (own.length === 0) return Promise.resolve();
+    const by = Object.fromEntries(own.map((id): [string, Bound] => [id, { gt: markOf(L, id, userId) }]));
+    return L.countWhere({
+      c: 'messages', per: 'conversation_id',
+      where: [{ bounds: { col: 'conversation_id', by } }, LIVE, { field: 'authorId', notIn: meOf(L, userId) }, { field: 'actingForId', notIn: [userId] }, ...extra],
+    }, own, (id) => unreadCountKey(id, userId), mode);
+  };
+  await countOf(ids.filter((id) => !namedOnly.has(id)), []);
+  await countOf(ids.filter((id) => namedOnly.has(id)), [{ has: 'mentions', value: userId }]);
 }
 
 /** The task threads of U, with the comments that their preview and order read, and their unread counts. */

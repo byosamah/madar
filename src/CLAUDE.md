@@ -306,6 +306,11 @@ any screen work.
   radio items (`useNotifyItems`, `NotifyChoice.tsx`), saved by `chats.setNotify`. A `MenuItem` takes `checked`, `heading` and `note`
   (`components/Menu.tsx`): a checked item is `role="menuitemradio"` with a check mark at its end. The row menu of the list and a task
   thread have no Notify me.
+- The Admin's count (design item 23): the Inbox count and the badge of an Admin cover the project chats of the projects that the Admin leads
+  or works on (the leader or a team member), plus every message that names the Admin. The other project chats stay in the list and open
+  as before, and their row counts only the unread messages that name the Admin, unless the Admin picked All messages in the chat menu
+  (`countsNamedOnly`, `chatState.ts`). Because such a row can count 0 while plain messages are new, `ChatPane` marks the chat read on
+  open when its newest message is newer than `readUpTo` (`behind`), not only when the count is above 0.
 - New group (`InboxScreen.tsx`): the title says "New group", a line counts the people, the name field shows from the start and is
   optional (an empty name takes the first names), and one full-width button makes the group.
 - Every chat takes files (owner, 2026-10-19). The box of a project chat uploads into the files of its project. The box of a direct chat

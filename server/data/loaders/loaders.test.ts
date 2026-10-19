@@ -4,7 +4,7 @@ import { addGroupConversation } from '../../../src/api/chatState';
 import { runScheduledTriggers } from '../../../src/api/notify';
 import { isReferenced } from '../../../src/api/references';
 import { sharedCalls, type SharedCallName } from '../../../src/api/sharedCalls';
-import { chatReadKey, type State } from '../../../src/api/store';
+import { chatReadKey, memberKey, type State } from '../../../src/api/store';
 import { buildSeed } from '../../../src/data/seed';
 import { mentionMarkup } from '../../../src/lib/text';
 import { snapshotOf } from '../officeCache';
@@ -367,6 +367,28 @@ describe('the 18 places of AM 6', () => {
     expect(rows.find((row) => row.id === task.id)).toBeDefined();
   });
 
+  // Design item 23: the Admin's other project chats count only the messages that name the Admin, in the grouped count too.
+  it('chats.list, chats.unreadCount and chats.markRead: the scoped count of an Admin outside the project holds only the named messages (item 23)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    // Hala (the Admin) is not on prj_001. Two plain messages are unread for her already (the sample), and one more names her.
+    apply(state, 'chats.send', { conversationId: room.id, body: `${mentionMarkup(state.users[ADMIN].name, ADMIN)} please approve 5513.` }, 'usr_002', { now: at(5) });
+    const unreadOf = (run: Run) => (run.outcome.output as { id: string; unread: number }[]).find((row) => row.id === room.id)?.unread;
+    expect(unreadOf(await same(state, 'chats.list', {}, ADMIN))).toBe(1);
+    expect((await same(state, 'chats.unreadCount', {}, ADMIN)).outcome.output).toMatchObject({ unread: expect.any(Number) });
+    // A person on the team keeps the count of every unread message.
+    const sara = Object.values(state.members).find((m) => m.projectId === 'prj_001' && m.userId !== 'usr_002' && state.users[m.userId].kind === 'human')!.userId;
+    state.chatReads[chatReadKey(room.id, sara)] = { conversationId: room.id, userId: sara, lastReadAt: '2026-10-03T11:00:00.000+03:00', notify: 'named' };
+    expect(unreadOf(await same(state, 'chats.list', {}, sara))).toBe(3);
+    // The Admin picks All messages: the count comes back.
+    state.chatReads[chatReadKey(room.id, ADMIN)] = { ...state.chatReads[chatReadKey(room.id, ADMIN)], notify: 'all' };
+    expect(unreadOf(await same(state, 'chats.list', {}, ADMIN))).toBe(3);
+    state.chatReads[chatReadKey(room.id, ADMIN)] = { ...state.chatReads[chatReadKey(room.id, ADMIN)], notify: 'named' };
+    const read = await same(state, 'chats.markRead', { conversationId: room.id }, ADMIN);
+    expect(read.outcome.error).toBeUndefined();
+  });
+
   // Design item 22: a group waits only for a message that names the person, a reply to a comment names its author, and a 👍 answers.
   it('chats.waiting: the scoped load gives the same answer for a group that names the person, a reply to a comment and a 👍 (item 22)', async () => {
     const state = office();
@@ -624,6 +646,8 @@ describe('unread counts (plan 4.13, A9)', () => {
     const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
     const leader = state.projects.prj_001.leaderId!;
     const agent = Object.values(state.users).find((u) => u.kind === 'agent' && u.ownerId === leader);
+    // Item 23: the Admin counts every message of a chat only of a project that the Admin works on, so the Admin joins the team here.
+    state.members[memberKey('prj_001', ADMIN)] = { projectId: 'prj_001', userId: ADMIN, discipline: 'Architect' };
     for (const key of Object.keys(state.chatReads)) if (state.chatReads[key].userId === ADMIN) delete state.chatReads[key];
     for (let i = 0; i < LONG; i += 1) {
       const id = `msg_${String(10_000 + i)}`;

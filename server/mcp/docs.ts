@@ -90,7 +90,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'chats.list': {
     title: 'List chats',
-    description: 'Lists the chats that your person may open, newest first: the project chats, the direct chats, the group chats and the task threads. Each row has its unread count and its newest message (preview, with its author). Each row has archived: true when your person archived the chat; a new message clears it. Use the id (conversationId) with chats.messages and chats.send. A row of kind task has a task id: read it with comments.list (targetType task) and answer with comments.create. previewKind names a quiet line (a reason) in place of a message.',
+    description: 'Lists the chats that your person may open, newest first: project, direct and group chats and task threads. A row has its unread count, its newest message and author, and archived: true when your person archived it; a new message clears that. For an Admin, the project chat of a project that the Admin neither leads nor works on counts only the unread messages that name the Admin, unless your person picked All messages. Use the id with chats.messages and chats.send. A row of kind task has a task id: read it with comments.list and answer with comments.create. previewKind names a quiet line.',
   },
   'chats.messages': {
     title: 'Read a chat',

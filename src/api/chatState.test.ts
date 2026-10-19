@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { notifyLevelOf } from './chatNaming';
-import { addDirectConversation, addGroupConversation, addProjectConversation, levelFromRead } from './chatState';
+import { addDirectConversation, addGroupConversation, addProjectConversation, countsNamedOnly, levelFromRead } from './chatState';
 import { NOTIFY_LEVELS, type Conversation } from './contract/entities';
 import { STAMP, makeWorld } from '../test/factories';
 
@@ -19,5 +19,18 @@ describe('levelFromRead: the Notify me level without a State (chat design item 2
     expect(levelFromRead(undefined, 'project')).toBe('named');
     expect(levelFromRead(undefined, 'group')).toBe('all');
     expect(levelFromRead({}, 'direct')).toBe('all');
+  });
+});
+
+describe('countsNamedOnly: the Admin count of a project chat (chat design item 23)', () => {
+  it('counts only named messages for an Admin outside the project who did not pick All messages', () => {
+    const state = makeWorld();
+    const project = addProjectConversation(state, 'prj_001', STAMP);
+    const group = addGroupConversation(state, 'A group', 'usr_002', ['usr_002', 'usr_003'], STAMP);
+    expect(countsNamedOnly('other', project, 'named')).toBe(true);
+    expect(countsNamedOnly('team', project, 'named')).toBe(false);
+    expect(countsNamedOnly('leader', project, 'named')).toBe(false);
+    expect(countsNamedOnly('other', project, 'all')).toBe(false);
+    expect(countsNamedOnly('other', group, 'named')).toBe(false);
   });
 });
