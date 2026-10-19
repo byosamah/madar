@@ -193,6 +193,17 @@ function viewerCanOf(viewer: User, projectRole: ProjectRole): ProjectSummary['vi
   };
 }
 
+/**
+ * The project as a screen reads it, without the copy of the template parts that its link keeps (ADM-01). Only the template update
+ * reads that copy, on the server, so a project list does not carry up to 200 descriptions for each project.
+ */
+function withoutBase(project: Project): Project {
+  const link = project.templateLink;
+  if (!link?.base) return project;
+  const { base: _base, ...rest } = link;
+  return { ...project, templateLink: rest };
+}
+
 /** "viewer" is the person whose rights apply: the user, or the person an agent acts for. */
 export function summaryOf(state: State, project: Project, today: string, viewer: User): ProjectSummary {
   const stages = stagesInTime(state, project.id);
@@ -208,7 +219,7 @@ export function summaryOf(state: State, project: Project, today: string, viewer:
   const currentStage = stages.length > 0 ? stageTagOf(stages, tasks) : state.stages[project.currentStageId];
   const stageEndDate = project.status === 'active' ? currentStage?.endDate : null;
   return {
-    project,
+    project: withoutBase(project),
     client: project.clientId ? (state.clients[project.clientId] ?? null) : null,
     health,
     healthSetBy: health?.overridden && health.setBy ? cardOf(state, health.setBy) : null,

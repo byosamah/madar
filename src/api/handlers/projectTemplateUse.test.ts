@@ -192,6 +192,15 @@ describe('projects.create from a project template', () => {
     });
   });
 
+  it('keeps the copy of the template parts in the store, and leaves it out of what a screen reads (ADM-01)', async () => {
+    const { t, templateId } = await withTemplate();
+    const { project } = await t.api.call('projects.create', { name: 'Villa Noor', template: { templateId, startDate: '2026-10-04', roles: {}, fixedTaskIds: [] } });
+    expect(t.store.state.projects[project.id].templateLink?.base).toBeDefined();
+    const read = await t.api.call('projects.get', { id: project.id });
+    expect(read.project.templateLink).toMatchObject({ templateId });
+    expect(read.project.templateLink).not.toHaveProperty('base');
+  });
+
   it('gives each new stage and task the part id of its template part', async () => {
     const { t, templateId } = await withTemplate();
     const { project } = await t.api.call('projects.create', { name: 'Villa Noor', template: { templateId, startDate: '2026-10-04', roles: {}, fixedTaskIds: [] } });
