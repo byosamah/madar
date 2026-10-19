@@ -6,11 +6,11 @@ import { sharedCalls, type SharedCallName } from '../../src/api/sharedCalls';
 import { TOOL_DOCS } from './docs';
 
 /**
- * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). A fixed allowlist of 45 tools for every agent: the
- * reads and writes an agent can use for an office project, with the three message tools (owner, 2026-10-12) and the stage dates
- * (fbk_023). The Admin list adds 3
- * tools for an agent whose person is an Admin (requests and bugs, owner 2026-10-07), so that agent gets 48. The right list adds
- * reports.office for an agent whose person holds the report right (owner, 2026-10-18, fbk_016), so an Admin's agent gets 49. Every
+ * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). A fixed allowlist of 50 tools for every agent: the
+ * reads and writes an agent can use for an office project, with the three message tools (owner, 2026-10-12), the stage dates
+ * (fbk_023) and the five meeting tools (fbk_022). The Admin list adds 3
+ * tools for an agent whose person is an Admin (requests and bugs, owner 2026-10-07), so that agent gets 53. The right list adds
+ * reports.office for an agent whose person holds the report right (owner, 2026-10-18, fbk_016), so an Admin's agent gets 54. Every
  * other call stays on the deny list: screen work (uploads, read marks, counts, archives, group changes), the prototype controls, and the
  * other Admin calls. VS Code allows at most 128 tools in one request across all
  * servers, and each tool definition uses model context, so the lists stay short. tools.test.ts fails when a call is in no list.
@@ -20,17 +20,19 @@ import { TOOL_DOCS } from './docs';
 export const READ_FIRST = 'madar.readFirst';
 
 export const MCP_ALLOW = [
-  // Reads (19). chats.list finds a chat, chats.messages reads one page of it, and chats.waiting lists what waits for the reply of
-  // the person (fbk_011, owner 2026-10-18). subCompanies.list gives no logos.
+  // Reads (21). chats.list finds a chat, chats.messages reads one page of it, and chats.waiting lists what waits for the reply of
+  // the person (fbk_011, owner 2026-10-18). subCompanies.list gives no logos. meetings.list and meetings.get read the meetings of the
+  // person and of a project (fbk_022, owner 2026-10-19).
   READ_FIRST, 'projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'tracker.list',
   'payments.list', 'deadlines.list', 'files.list', 'users.list', 'dashboard.get', 'search.query', 'events.list', 'chats.list', 'subCompanies.list',
-  'chats.messages', 'chats.waiting',
-  // Writes (26). chats.openDirect and chats.send message the team: a direct chat, a group or a project chat (task comments and
+  'chats.messages', 'chats.waiting', 'meetings.list', 'meetings.get',
+  // Writes (29). chats.openDirect and chats.send message the team: a direct chat, a group or a project chat (task comments and
   // project posts are comments.create and updates.create). stages.setDates sets the dates of one stage, as the Schedule tab does.
+  // meetings.create, meetings.update and meetings.cancel tell the attendees, who are real people.
   'story.start', 'tasks.create', 'tasks.update', 'tasks.take', 'tasks.arrange', 'tasks.move', 'tasks.complete', 'tasks.approve', 'tasks.sendBack', 'comments.create',
   'updates.create', 'tracker.log', 'tracker.update', 'tracker.close', 'payments.create', 'payments.update', 'payments.markReceived',
   'deadlines.create', 'deadlines.update', 'projects.update', 'projects.setStatus', 'events.undo', 'events.undoStory',
-  'chats.openDirect', 'chats.send', 'stages.setDates',
+  'chats.openDirect', 'chats.send', 'stages.setDates', 'meetings.create', 'meetings.update', 'meetings.cancel',
 ] as const satisfies readonly (typeof READ_FIRST | SharedCallName | ServerCallName)[];
 
 /**
@@ -97,15 +99,15 @@ export const MCP_DENY = [
   'push.register', 'push.remove', 'push.mine',
   // Live updates (exit wave 3): the ticket opens a browser socket. An agent has no socket.
   'live.ticket',
-  // Meetings (fbk_022): the next commit opens these five calls to the agent, with their written instructions.
-  'meetings.list', 'meetings.get', 'meetings.create', 'meetings.update', 'meetings.cancel',
 ] as const satisfies readonly (SharedCallName | ServerCallName)[];
 
 /**
  * The writes that only add a record. MCP reads destructiveHint false as "the tool performs only additive updates", so every
  * other write (a change, a status change, an undo) is destructive, and the client may ask its person before it runs one.
  */
-const ADDITIVE = new Set<string>(['story.start', 'tasks.create', 'comments.create', 'updates.create', 'tracker.log', 'payments.create', 'deadlines.create']);
+const ADDITIVE = new Set<string>([
+  'story.start', 'tasks.create', 'comments.create', 'updates.create', 'tracker.log', 'payments.create', 'deadlines.create', 'meetings.create',
+]);
 
 /** A story ID from story.start (plan 4.9): the changes that share it undo together. */
 const StoryId = z.string().min(1).max(80).describe('The story ID from story.start. Changes with the same story ID undo together. Leave it out for a change on its own.');
@@ -183,7 +185,7 @@ function build(name: McpToolName): ToolDef {
 let cache: ToolDef[] | null = null;
 
 /**
- * The tools in their fixed order. The list has the 45 tools of the allowlist; an agent of an Admin gets the Admin tools too, and
+ * The tools in their fixed order. The list has the 50 tools of the allowlist; an agent of an Admin gets the Admin tools too, and
  * every right tool. Each right tool joins the list when its right is in rights (an Admin holds all of them). It reads sharedCalls and
  * the server contracts, never the server code of a call.
  */

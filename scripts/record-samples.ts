@@ -33,7 +33,7 @@ function first<T>(items: T[], what: string): T {
 }
 
 /** The IDs that a call added to one collection of the office. */
-function added(before: State, after: State, collection: 'tasks' | 'tracker' | 'payments' | 'deadlines'): string {
+function added(before: State, after: State, collection: 'tasks' | 'tracker' | 'payments' | 'deadlines' | 'meetings'): string {
   const old = before[collection] ?? {};
   const ids = Object.keys(after[collection] ?? {}).filter((id) => !(id in old));
   if (ids.length !== 1) throw new Error(`Expected one new record in ${collection}, found ${ids.length}.`);
@@ -126,6 +126,18 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     const colleague = first(Object.values(s().users).filter((u) => u.kind === 'human' && u.active && u.id !== agent.ownerId), 'person to message');
     const chat = (await write('chats.openDirect', { userId: colleague.id })) as { id: string };
     await write('chats.send', { conversationId: chat.id, body: 'The drainage check is done. I posted the result on the project.' });
+
+    // A client meeting of the project with one colleague (fbk_022): the list and the read come right after it, then a change and the cancel.
+    before = snapshot();
+    await write('meetings.create', {
+      kind: 'client', title: 'Review the drainage report with the client', projectId: project.id, startsAt: `${addDays(TODAY, 4)}T10:00:00+03:00`,
+      where: 'Client office, Al Khobar', attendeeIds: [colleague.id],
+    });
+    const meeting = added(before, s(), 'meetings');
+    await run('meetings.list', { from: TODAY, to: addDays(TODAY, 30), projectId: project.id });
+    await run('meetings.get', { id: meeting });
+    await write('meetings.update', { id: meeting, where: 'Site office' });
+    await write('meetings.cancel', { id: meeting });
 
     const inReview = Object.values(s().tasks).filter((t) => t.status === 'in_review' && s().projects[t.projectId!]?.status === 'active');
     await write('tasks.approve', { id: first(inReview, 'task in review').id });

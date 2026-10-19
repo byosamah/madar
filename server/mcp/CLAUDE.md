@@ -32,13 +32,19 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 
 ## Tools
 - MCP spec 2026-07-28, stateless. A 2025-era client gets the stateless legacy answer.
-- 45 tools for every agent in `MCP_ALLOW`, plus 3 for an agent of an Admin in `MCP_ADMIN` (`feedback.list`,
-  `feedback.screenshot`, `feedback.setStatus`): 48, with 21 reads and 27 writes. The reads include `subCompanies.list`, which
+- 50 tools for every agent in `MCP_ALLOW`, plus 3 for an agent of an Admin in `MCP_ADMIN` (`feedback.list`,
+  `feedback.screenshot`, `feedback.setStatus`): 53, with 23 reads and 30 writes. The reads include `subCompanies.list`, which
   leaves the logo data out (`run.ts`). `MCP_BY_RIGHT` adds `reports.office` (the office
-  report, fbk_016) for an agent whose person holds the report right (Admin and Management by default), so an Admin's agent gets 49.
+  report, fbk_016) for an agent whose person holds the report right (Admin and Management by default), so an Admin's agent gets 54.
   The factory in `app.ts` picks the list for each request from the office rights of the owner, never the agent user. A 2026-07-28 client can keep tools/list for 5 minutes, and a
   2025-era client keeps it until it connects again (the server says listChanged but never sends that notice). So a role change
   shows late in a client, and tools/call always checks.
+- Meetings (owner, 2026-10-19, fbk_022): `meetings.list` and `meetings.get` (reads) and `meetings.create`, `meetings.update` and `meetings.cancel`
+  (writes) are on `MCP_ALLOW`. `meetings.create` is additive; the other two writes are not. They tell the attendees, who are real people, so
+  `TOOL_DOCS` and the `Meetings:` paragraph of `INSTRUCTIONS` say: ask your person before you add attendees. A meeting with no project is
+  private to its organizer and its attendees: for anyone else, also an agent of an Admin who is not invited, every call answers `not_found`.
+  The `INSTRUCTIONS` sentence that says Madar makes the minutes task and the Tracker line after a project meeting is true when wave 2
+  (`meetings.settle`) is live. The three meeting writes take `storyId` like any write.
 - Sub-companies (review 2026-10-19): `dashboard.get`, `tasks.list`, `deadlines.list`, `projects.list` and `reports.office` take `subCompanyId`;
   `projects.list` filter `no_sub_company` lists the projects with none; `search.query` and `subCompanies.list` (`projectCount`) carry counts. An agent
   never undoes a sub-company event (`events.undo`, `events.undoStory`).
