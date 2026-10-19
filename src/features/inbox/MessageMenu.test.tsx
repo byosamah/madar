@@ -106,7 +106,7 @@ describe('the phone sheet', () => {
     await openTower();
     await longPress('msg_901');
     const sheet = await screen.findByRole('dialog', { name: /Faisal Al-Harbi · / });
-    expect(within(sheet).getByText(FAISAL)).toBeInTheDocument();
+    expect(within(sheet).getByText(FAISAL, { normalizer: (text) => text.replace(/[\u2068\u2069]/g, '').trim() })).toBeInTheDocument();
     expect(within(sheet).getAllByRole('button', { name: /React with/ })).toHaveLength(3);
     await userEvent.click(within(sheet).getByRole('button', { name: 'Copy text' }));
     expect(writeText).toHaveBeenCalledWith(FAISAL);
@@ -215,5 +215,10 @@ describe('Arabic, right to left', () => {
     await longPress('msg_902');
     const sheet = await screen.findByRole('dialog', { name: /^رسالتك · / });
     expect(within(sheet).getByRole('button', { name: 'انسخ النص' })).toBeInTheDocument();
+    // The preview keeps the direction of its own language: an English line in an Arabic sheet sits between FSI and PDI, so its full
+    // stop stays at its end.
+    const preview = document.getElementById(sheet.getAttribute('aria-describedby') ?? '');
+    expect(preview?.textContent?.startsWith('\u2068')).toBe(true);
+    expect(preview?.textContent?.endsWith('\u2069')).toBe(true);
   });
 });

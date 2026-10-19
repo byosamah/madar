@@ -119,7 +119,7 @@ export function MessageSheet({ bubble, open, onOpenChange }: { bubble: Bubble; o
     </button>
   );
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title={`${who} · ${clockFormat(lang).format(new Date(bubble.createdAt))}`} description={firstLineOf(bubble.body)}>
+    <Sheet open={open} onOpenChange={onOpenChange} title={`${who} · ${clockFormat(lang).format(new Date(bubble.createdAt))}`} description={`\u2068${firstLineOf(bubble.body)}\u2069`}>
       <div className="flex flex-col gap-2">
         {actions.canReact && (
           <div role="group" aria-label={t('chat.reactions')} className="flex gap-2 pb-1">
