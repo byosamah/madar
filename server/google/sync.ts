@@ -149,7 +149,8 @@ export async function syncOne(deps: Deps, userId: string, meetingId: string): Pr
       await deleteEventRow(q, userId, meetingId);
       outcome = 'deleted';
     }
-    await markOk(q, connection.id, deps.clock.now());
+    // One statement less for each sync of a healthy connection: a write only when the state or the last error changes.
+    if (connection.state !== 'ok' || connection.lastError !== null) await markOk(q, connection.id, deps.clock.now());
     return outcome;
   } catch (error) {
     if (error instanceof SealBroken) {

@@ -56,7 +56,10 @@ describe('sealToken and openToken', () => {
   it('throws SealBroken for another person, another key or a changed character, and the message holds no part of the token', async () => {
     const keys = await googleKeysOf(KEY);
     const sealed = await sealToken(keys, 'usr_003', TOKEN);
-    const changed = `${sealed.slice(0, -2)}${sealed.endsWith('A') ? 'B' : 'A'}${sealed.slice(-1)}`;
+    // One character in the middle of the cipher text (the last character of a base64 text can hold unused bits).
+    const at = sealed.length - 8;
+    const changed = `${sealed.slice(0, at)}${sealed[at] === 'A' ? 'B' : 'A'}${sealed.slice(at + 1)}`;
+    expect(changed).not.toBe(sealed);
     const otherKeys = await googleKeysOf(OTHER_KEY);
     const attempts = [
       () => openToken(keys, 'usr_004', sealed),
