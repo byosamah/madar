@@ -13,7 +13,8 @@ const CELL = 'pressable inline-flex min-h-11 min-w-14 flex-col items-center just
  * People and their work: the past-due tasks first, then the open tasks due in each of the next 4 weeks, from today, so a task
  * counts once. The first week also holds the tasks in review that the person reviews. Above the limit, a week cell says "Over"
  * in the attention colour (redesign spec 2.3; owner, 2026-10-06). A person with nothing in any column is left out, and one quiet
- * line says how many.
+ * line says how many. The row "No lead" comes first (fbk_024, owner 2026-10-19): the open tasks with no lead, in the same columns. It
+ * shows only when it holds a task, and each cell opens the Task list with the filter no_lead and the same due range.
  */
 export function Workload({ view, filters }: { view: DashboardData; filters: DashboardFilters }) {
   const { t } = useTranslation();
@@ -28,11 +29,13 @@ export function Workload({ view, filters }: { view: DashboardData; filters: Dash
   const all = [...view.workload.rows].sort((a, b) => byName(a.user, b.user));
   const rows = all.filter((row) => row.overdue > 0 || row.counts.some((count) => count > 0));
   const idle = all.length - rows.length;
+  const noLead = view.workload.unassigned && (view.workload.unassigned.overdue > 0 || view.workload.unassigned.counts.some((count) => count > 0)) ? view.workload.unassigned : null;
+  const noLeadName = t('lead.noLead');
   return (
     <section aria-labelledby="dash-workload" className="panel flex flex-col gap-2 p-5">
       <h2 id="dash-workload" className="text-headline text-ink">{t('dashboard.workload')}</h2>
       <p className="text-footnote text-ink-2">{t('dashboard.workloadHint', { n: limit })}</p>
-      {rows.length > 0 && (
+      {(rows.length > 0 || noLead) && (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[34rem] text-subheadline">
             <thead>
@@ -43,6 +46,37 @@ export function Workload({ view, filters }: { view: DashboardData; filters: Dash
               </tr>
             </thead>
             <tbody>
+              {noLead && (
+                <tr>
+                  <th scope="row" className="p-2 text-start font-normal">
+                    {/* The name opens every open task with no lead, also the ones with no due date, which no column counts. */}
+                    <Link to={withFilters('/tasks?filter=no_lead', filters)} aria-label={t('dashboard.noLeadAll')} className="pressable flex min-h-11 min-w-0 items-center gap-2 text-ink-2 hover:text-ink">
+                      <span data-testid="no-lead-mark" aria-hidden className="size-6 shrink-0 rounded-full border border-dashed border-ink-2/60" />
+                      <span className="truncate">{noLeadName}</span>
+                    </Link>
+                  </th>
+                  <td className="p-1 text-center">
+                    <Link
+                      to={withFilters(`/tasks?filter=no_lead&to=${addDays(today, -1)}`, filters)}
+                      aria-label={t('dashboard.overdueCell', { name: noLeadName, tasks: counted(t, 'dashboard.cellTasks', noLead.overdue) })}
+                      className={`${CELL} ${noLead.overdue > 0 ? 'bg-attn-bg font-semibold text-attn' : 'bg-fill text-ink'}`}
+                    >
+                      <span className="tabular">{formatNumber(noLead.overdue, lang)}</span>
+                    </Link>
+                  </td>
+                  {noLead.counts.map((count, i) => (
+                    <td key={weeks[i]} className="p-1 text-center">
+                      <Link
+                        to={withFilters(`/tasks?filter=no_lead&from=${starts[i]}&to=${addDays(weeks[i], 6)}`, filters)}
+                        aria-label={t('dashboard.cell', { name: noLeadName, week: formatDay(starts[i], lang), tasks: counted(t, 'dashboard.cellTasks', count) })}
+                        className={`${CELL} bg-fill text-ink`}
+                      >
+                        <span className="tabular">{formatNumber(count, lang)}</span>
+                      </Link>
+                    </td>
+                  ))}
+                </tr>
+              )}
               {rows.map((row) => {
                 const name = nameOf(row.user);
                 const late = row.overdue > 0;

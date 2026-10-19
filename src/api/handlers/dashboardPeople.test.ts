@@ -4,7 +4,7 @@ import { insightCalls } from './insights';
 import type { State } from '../store';
 import { buildSeed } from '../../data/seed';
 import { addDays, setNow } from '../../lib/dates';
-import { makeTask, makeWorld, NOW, testApi, TODAY } from '../../test/factories';
+import { makeTask, makeWorld, NOW, STAMP, testApi, TODAY } from '../../test/factories';
 
 beforeEach(() => setNow(NOW));
 
@@ -80,6 +80,86 @@ describe('the People tab of dashboard.get (owner, 2026-10-06)', () => {
     // The sample office has tasks in review, so the rule is checked on real rows.
     expect(reviews).toBeGreaterThan(0);
     expect(Object.values(store.state.tasks).some((t) => t.status === 'in_review')).toBe(true);
+  });
+});
+
+// fbk_024: the open tasks with no lead have their own row in the same columns, so nobody has to count them by hand.
+describe('the No lead row of dashboard.get (fbk_024)', () => {
+  function unledWorld(): State {
+    const state = world();
+    state.tasks.tsk_008 = makeTask({ id: 'tsk_008', ownerId: null, dueDate: '2026-09-28' }); // past due
+    state.tasks.tsk_009 = makeTask({ id: 'tsk_009', ownerId: null, dueDate: TODAY, status: 'in_progress' }); // week 1
+    state.tasks.tsk_010 = makeTask({ id: 'tsk_010', ownerId: null, dueDate: '2026-10-06' }); // week 2
+    state.tasks.tsk_011 = makeTask({ id: 'tsk_011', ownerId: null, dueDate: null }); // no date: in no column
+    state.tasks.tsk_012 = makeTask({ id: 'tsk_012', ownerId: null, dueDate: '2026-09-29', status: 'done', completedAt: STAMP }); // finished
+    state.counters.tsk = 12;
+    return state;
+  }
+
+  it('counts the open tasks with no lead: past due, and due in each week from today', async () => {
+    const d = await testApi(insightCalls, unledWorld()).api.call('dashboard.get', {});
+    expect(d.workload.unassigned).toEqual({ overdue: 1, counts: [1, 1, 0, 0] });
+    // The People rows stay as they were: a task with no lead is nobody's work.
+    expect(rowOf(d, 'usr_003').overdue).toBe(3);
+  });
+
+  it('gives zeros when every task has a lead', async () => {
+    const d = await testApi(insightCalls, world()).api.call('dashboard.get', {});
+    expect(d.workload.unassigned).toEqual({ overdue: 0, counts: [0, 0, 0, 0] });
+  });
+
+  it('counts only the active projects in the filters, and the office tasks that the viewer sees', async () => {
+    const state = unledWorld();
+    state.tasks.tsk_013 = makeTask({ id: 'tsk_013', projectId: null, stageId: null, ownerId: null, createdBy: 'usr_003', dueDate: TODAY });
+    state.counters.tsk = 13;
+    const maker = testApi(insightCalls, state);
+    maker.as('usr_003');
+    expect((await maker.api.call('dashboard.get', {})).workload.unassigned?.counts).toEqual([2, 1, 0, 0]);
+    // An outsider does not see the office task of another person, so it is not in the numbers.
+    const outsider = testApi(insightCalls, state);
+    outsider.as('usr_004');
+    expect((await outsider.api.call('dashboard.get', {})).workload.unassigned?.counts).toEqual([1, 1, 0, 0]);
+    // A people filter leaves the office tasks out, as it does in the lists.
+    const filtered = testApi(insightCalls, state);
+    filtered.as('usr_001');
+    expect((await filtered.api.call('dashboard.get', { leaderId: 'usr_002' })).workload.unassigned?.counts).toEqual([1, 1, 0, 0]);
+    const other = await filtered.api.call('dashboard.get', { leaderId: 'usr_001' });
+    expect(other.workload.unassigned).toEqual({ overdue: 0, counts: [0, 0, 0, 0] });
+    // A paused project is out of the numbers. The Admin still sees the office task.
+    state.projects.prj_001.status = 'on_hold';
+    const paused = testApi(insightCalls, state);
+    paused.as('usr_001');
+    expect((await paused.api.call('dashboard.get', {})).workload.unassigned).toEqual({ overdue: 0, counts: [1, 0, 0, 0] });
+  });
+
+  it('opens lists that hold what each cell counts', async () => {
+    const { api } = testApi(calls, unledWorld());
+    const d = await api.call('dashboard.get', {});
+    const unassigned = d.workload.unassigned!;
+    const yesterday = addDays(TODAY, -1);
+    expect((await api.call('tasks.list', { filter: 'no_lead', dueTo: yesterday, includeDone: false })).map((row) => row.task.id)).toEqual(['tsk_008']);
+    expect((await api.call('tasks.list', { filter: 'no_lead', dueTo: yesterday, includeDone: false })).length).toBe(unassigned.overdue);
+    for (const [i, week] of d.workload.weeks.entries()) {
+      const from = i === 0 ? TODAY : week;
+      const listed = await api.call('tasks.list', { filter: 'no_lead', dueFrom: from, dueTo: addDays(week, 6), includeDone: false });
+      expect(listed.length, `week ${i + 1}`).toBe(unassigned.counts[i]);
+    }
+  });
+
+  it('counts the same on the sample office as the lists the cells open', async () => {
+    const state = await buildSeed(TODAY, async () => undefined);
+    const open = Object.values(state.tasks).filter((t) => t.projectId !== null && t.status === 'todo' && t.dueDate !== null && t.dueDate >= TODAY);
+    open[0].ownerId = null;
+    open[1].ownerId = null;
+    const { api } = testApi(calls, state);
+    const d = await api.call('dashboard.get', {});
+    const unassigned = d.workload.unassigned!;
+    expect(unassigned.overdue + unassigned.counts.reduce((sum, n) => sum + n, 0)).toBeGreaterThan(0);
+    expect((await api.call('tasks.list', { filter: 'no_lead', dueTo: addDays(TODAY, -1), includeDone: false })).length).toBe(unassigned.overdue);
+    for (const [i, week] of d.workload.weeks.entries()) {
+      const listed = await api.call('tasks.list', { filter: 'no_lead', dueFrom: i === 0 ? TODAY : week, dueTo: addDays(week, 6), includeDone: false });
+      expect(listed.length, `week ${i + 1}`).toBe(unassigned.counts[i]);
+    }
   });
 });
 

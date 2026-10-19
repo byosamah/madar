@@ -1,0 +1,26 @@
+{
+  "project": {
+    "resumeOnHint": "Madar does not restart the project by itself. On this day, you and the project leader get a notice.",
+    "setNewDate": "Set a new date",
+    "restartMovedToast": "New restart date saved."
+  },
+  "inbox": {
+    "trigger": {
+      "resume_due_past": "{{target}}: the planned restart was {{day}}. Resume it or set a new date."
+    }
+  },
+  "dashboard": {
+    "noLeadAll": "No lead: all open tasks"
+  },
+  "taskList": {
+    "dueUntil": "Due until {{to}}",
+    "dueFrom": "Due from {{from}}"
+  },
+  "taskLine": {
+    "due_date": "{{name}} changed the due date: {{reason}}",
+    "start_date": "{{name}} changed the start date: {{reason}}",
+    "reopened": "{{name}} reopened the task: {{reason}}",
+    "shifted": "Madar moved the dates: {{task}} finished {{lateness}} late.",
+    "shiftedShort": "Madar moved the dates"
+  }
+}

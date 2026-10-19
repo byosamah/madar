@@ -20,6 +20,13 @@ describe('Home', () => {
     expect(screen.getByRole('progressbar', { name: '1 of 2 done today' })).toBeInTheDocument();
   });
 
+  // fbk_026: the ring explains itself. The words beside it say what the two numbers count.
+  it('says in words what the day ring counts', async () => {
+    await renderApp('/', as('usr_005'));
+    await screen.findByRole('progressbar', { name: '1 of 2 done today' });
+    expect(screen.getByText('1 of 2 done today')).toBeInTheDocument();
+  });
+
   // One count for today (audit PER-12): with the ring on screen, a second number that counts other things only confused.
   // Faisal has a review waiting and a task due today, so both counts could show; the header keeps only the ring (audit 2026-10-03, V-18).
   it('shows one count for today: the ring when it shows, never the reviews beside the date', async () => {

@@ -18,6 +18,8 @@ type Props = {
   /** The first and the last day that the calendar offers (a stage end after its start). A day outside is greyed out. */
   min?: string;
   max?: string;
+  /** The words of an empty field, in place of "Set date…" (the paused banner says "Set a new date"). */
+  emptyText?: string;
 };
 
 /** A full date in a year from 2000. While a person types a year, the browser reports years like 0002. */
@@ -34,7 +36,7 @@ const savable = (day: string) => /^\d{4}-\d{2}-\d{2}$/.test(day) && Number(day.s
  *
  * A date in a form that saves with its own button is `DateField`. Both take the quiet look from `DateField.tsx`.
  */
-export function DateDraftField({ id, label, error, hint, className = '', value, onCommit, disabled, hideLabel = false, min, max }: Props) {
+export function DateDraftField({ id, label, error, hint, className = '', value, onCommit, disabled, hideLabel = false, min, max, emptyText }: Props) {
   const lang = useLang();
   const input = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState(value);
@@ -167,7 +169,7 @@ export function DateDraftField({ id, label, error, hint, className = '', value, 
             if (!typing && !['Tab', 'Shift', 'Escape'].includes(event.key)) setTyping(true);
           }}
         />
-        {!typing && <DateFace shown={shown} roomForClear={canClear} invalid={Boolean(error)} />}
+        {!typing && <DateFace shown={shown} roomForClear={canClear} invalid={Boolean(error)} empty={emptyText} />}
         {!typing && canClear && (
           <ClearDate
             label={label}

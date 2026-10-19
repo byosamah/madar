@@ -268,9 +268,22 @@ any screen work.
   Everyone sees all projects. Payments only for the payment right (by default Admin, Management, Accounting; fbk_014). Agents never join a team. The person who adds a
   project task changes and deletes it like the leader while on the team; the review stays with the leader (owner, 2026-10-07).
   Only the Admin changes a role. Management reads the role of a person as text in the person sheet (owner, 2026-10-18, fbk_014).
-- Home (`features/home/`): the Today panel lists my tasks due today or past due. With none, it is "Coming up": my next 3 open
+- Home (`features/home/`): the day ring shows its words, "11 of 14 done today" (owner, 2026-10-19, fbk_026); the text wraps under the date on a
+  narrow phone. The Today panel lists my tasks due today or past due. With none, it is "Coming up": my next 3 open
   tasks with a due date (`comingUp`, `lib/home.ts`, owner 2026-10-07). With neither, it says that nothing is due today. Home
   follows the shared order of the Tasks screen (`api/CLAUDE.md`).
+
+## Reminders, No lead and quiet lines (owner, 2026-10-19; fbk_024, fbk_025, fbk_027)
+- The paused banner (`features/project/PausedBanner.tsx`) says "Restart reminder on <date>." before the day, and after it "Planned restart was
+  <date>. Resume the project or set a new date." in the Attention color, with Resume project and one quiet field "Set a new date"
+  (`DateDraftField` with `emptyText`, `min` tomorrow, `projects.setRestart`, a toast with Undo). Only a person who may resume sees it. The
+  pause sheet names the field "Remind me to restart on" with one hint line. Never write "Restarts": Madar restarts nothing (`api/CLAUDE.md`).
+- The Workload table has a "No lead" row first (`features/dashboard/Workload.tsx`) with a dashed empty mark in place of a face. It shows only
+  when it holds a task. The Task list says "Due until <day>" for a range with one end (`taskList.dueUntil`).
+- A reason of a date move, of a reopening and a Madar shift is a quiet line, never a bubble (`features/comments/ReasonLine.tsx`, one sentence
+  for the task panel, the Inbox thread and the Inbox preview). In the task panel it is a grey line with its age, the moved dates under it, and
+  an Edit menu for the author of a date reason only. In the Inbox thread it is one centered grey line (`Bubble.reason`, `ReasonLineItem`), as
+  a group line is. The sentence keeps the name and the reason between FSI and PDI (`\u2068`, `\u2069`).
 
 ## Inbox, groups and What's new (owner 2026-10-18; UX audit 2026-10-19)
 - Inbox list (`features/inbox/ChatList.tsx`): "Archived (n)" is one quiet row under the search field, only while a chat is archived

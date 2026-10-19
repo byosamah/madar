@@ -586,6 +586,8 @@ export const tasksNewVersion = defineCall({
       status: 'todo', completedAt: null, version: n, versions, checklist: task.checklist.map((item) => ({ ...item, done: false })), ...whenChanges(task, when),
     }, { projectId: task.projectId, verb: 'task.version_opened', targetType: 'task', targetId: task.id })!;
     reopenDependents(ctx, task, opened.id);
+    // The reason is one quiet line of the thread: "<Person> reopened the task: <reason>". It is no message of a person (fbk_027).
+    insertComment(ctx, 'task', task.id, task.projectId, input.reason, [], undefined, 'reopened');
     // The reason for the new version is also the reason the project moves back, when it does.
     watch.finish({ reason: input.reason, logInTracker: input.logInTracker });
     // An office task has no client, so it has no Tracker (owner, 2026-10-06).

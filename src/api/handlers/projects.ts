@@ -559,6 +559,28 @@ export const projectsPause = defineCall({
   },
 });
 
+/**
+ * The leader or the Admin sets a new restart date on a paused project (fbk_025, owner 2026-10-19). The date is a reminder: Madar
+ * never restarts a project by itself. Only the date changes. The reason, the kind, the person who paused and the day stay. The
+ * reminder notice goes out again on the new day, because its dedupe key holds the day (`runScheduledTriggers`). The date of a
+ * reminder is no plan date, so it asks no reason.
+ */
+export const projectsSetRestart = defineCall({
+  input: z.object({ id: ProjectId, resumeOn: Day }),
+  output: ProjectDetail,
+  run(input, ctx) {
+    const project = requireProject(ctx, input.id);
+    assertCan(ctx, 'project.archive', { projectRole: roleIn(ctx, project.id) });
+    if (project.status !== 'on_hold' || !project.pause) throw new ApiError('conflict', 'This project is not paused.');
+    if (input.resumeOn <= ctx.today) throw invalid('resumeOn', 'The restart date must be after today.');
+    if (input.resumeOn !== project.pause.resumeOn) {
+      applyPatch(ctx, project, { pause: { ...project.pause, resumeOn: input.resumeOn } }, { projectId: project.id, verb: 'project.restart_moved', targetType: 'project', targetId: project.id });
+      touch(ctx, project.id);
+    }
+    return detail(ctx, project);
+  },
+});
+
 const LinkLabel = z.string().trim().max(80);
 const LinkUrl = z.string().trim().min(1, 'Paste the link.').max(500);
 
@@ -1005,6 +1027,7 @@ export const projectCalls = {
   'projects.setLeader': projectsSetLeader,
   'projects.setStatus': projectsSetStatus,
   'projects.pause': projectsPause,
+  'projects.setRestart': projectsSetRestart,
   'projects.resume': projectsResume,
   'projects.addLink': projectsAddLink,
   'projects.updateLink': projectsUpdateLink,

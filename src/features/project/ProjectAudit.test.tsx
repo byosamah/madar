@@ -362,15 +362,44 @@ describe('the paused banner (audit 2026-10-03, PRJ-14 and PRJ-20)', () => {
   it('says the planned restart passed, in the Attention color', async () => {
     await renderApp('/projects/prj_001', paused('2026-09-28'));
     const banner = await screen.findByRole('region', { name: 'Paused' });
-    const late = within(banner).getByText('Planned restart was 28 September 2026.');
+    // fbk_025: after the day, the banner says what to do next.
+    const late = within(banner).getByText('Planned restart was 28 September 2026. Resume the project or set a new date.');
     expect(late).toHaveClass('text-attn');
     expect(within(banner).queryByText(/^Restarts/)).toBeNull();
   });
 
-  it('still says "Restarts" before the date', async () => {
+  // fbk_025: the date is a reminder. No word says that Madar restarts the project.
+  it('says "Restart reminder" before the date, never "Restarts"', async () => {
     await renderApp('/projects/prj_001', paused('2026-10-05'));
     const banner = await screen.findByRole('region', { name: 'Paused' });
-    expect(within(banner).getByText(/Restarts 5 October 2026\./)).toBeInTheDocument();
+    expect(within(banner).getByText(/Restart reminder on 5 October 2026\./)).toBeInTheDocument();
+    expect(within(banner).queryByText(/Restarts/)).toBeNull();
+    expect(within(banner).queryByLabelText('Set a new date')).toBeNull();
+  });
+
+  it('lets the leader set a new date after the day, and changes only the date', async () => {
+    const { store } = await renderApp('/projects/prj_001', paused('2026-09-28'));
+    const banner = await screen.findByRole('region', { name: 'Paused' });
+    const field = within(banner).getByLabelText('Set a new date');
+    expect(field).toHaveAttribute('min', '2026-10-01');
+    fireEvent.change(field, { target: { value: '2026-10-20' } });
+    await waitFor(() => expect(store.state.projects.prj_001.pause?.resumeOn).toBe('2026-10-20'));
+    expect(store.state.projects.prj_001).toMatchObject({ status: 'on_hold', pause: { reason: 'The office reviews the budget.', by: 'usr_002' } });
+    expect(await screen.findByText('New restart date saved.')).toBeInTheDocument();
+    // The new day is ahead, so the banner shows the reminder and offers no new date.
+    expect(await within(banner).findByText(/Restart reminder on 20 October 2026\./)).toBeInTheDocument();
+    expect(within(banner).queryByLabelText('Set a new date')).toBeNull();
+  });
+
+  it('offers no new date to a person who may not resume the project', async () => {
+    await renderApp('/projects/prj_001', (state) => {
+      paused('2026-09-28')(state);
+      state.session.currentUserId = 'usr_005';
+    });
+    const banner = await screen.findByRole('region', { name: 'Paused' });
+    expect(within(banner).getByText(/Planned restart was 28 September 2026\./)).toBeInTheDocument();
+    expect(within(banner).queryByLabelText('Set a new date')).toBeNull();
+    expect(within(banner).queryByRole('button', { name: 'Resume project' })).toBeNull();
   });
 
   it('offers Resume once: on the banner, not in the menu', async () => {

@@ -116,6 +116,11 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   review, plus the reviews of that person); filters `no_date` (tasks), `no_area` and `stage_no_end` (projects). So the gap
   `projectsStageNoEnd` counts projects, never stages: it equals the `stage_no_end` list.
 - `review.ts`: the day a task last went to review, from its events (the review wait and `finishedOn`).
+- `dashboard.get` `workload.unassigned { overdue, counts }` (fbk_024, owner 2026-10-19) is the No lead row of the People tab: the open
+  tasks with `ownerId` null, past due and due in each of the 4 weeks from today, in the same columns as a person and with no review part.
+  It counts the tasks of the active projects in the filters and the office tasks that the viewer sees (`activeTasks`). The field is
+  optional, so an older answer parses. A cell opens `tasks.list` with `filter: 'no_lead'` and `dueTo` yesterday (past due) or `dueFrom`
+  and `dueTo` of the week. A task with no due date sits in no cell: the row name opens every open task with no lead.
 
 ## Sub-company filter (fbk_007 review, 2026-10-19)
 - `subCompanyId` joins `leaderId`, `clientId` and `teamId` in `peopleFilter` (`pause.ts`). `dashboard.get`, `tasks.list`, `deadlines.list`
@@ -298,6 +303,28 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   gets it only when its person holds `report.office`.
 - The answer carries `design`: the design guide `REPORT_DESIGN` (`reportDesign.ts`). Its colors and sizes copy `tokens.css`, and
   `reportDesign.test.ts` checks them. The guide is the same for every person who may ask.
+
+## The restart reminder of a pause (owner, 2026-10-19, fbk_025)
+- The restart date of a pause (`pause.resumeOn`) is a reminder. Madar never restarts a project by itself: a person resumes it.
+- `runScheduledTriggers` (`notify.ts`) sends `resume_due` on the planned day, or in the first run after it. It goes to the leader
+  (`reviewersOf`: the Admins when the leader is off) and to the person who paused (`principalOf(pause.by)`), once for each person and each
+  date, because the dedupe key holds the day. The notice keeps the planned day in `dueDate`. `notifications.list` gives it, and for a notice
+  made before it holds the day it made. The screen says "is today" on that day and "was <day>" after it (`inbox.trigger.resume_due`
+  and `resume_due_past`).
+- `projects.setRestart { id, resumeOn }` changes only the date of a paused project. The date must be after today. It needs `project.archive`,
+  as Pause and Resume do. The reason, the kind, the person and the day of the pause stay. It writes the event verb `project.restart_moved`
+  and asks no reason, because the date of a reminder is no plan date. A new date gives a new notice. MCP: deny list.
+
+## Quiet lines of a task thread (owner, 2026-10-19, fbk_027)
+- A comment of a task is a message or a quiet line (`lineKindOf`, `lib/commentLine.ts`): `due_date` or `start_date` (the reason of a date
+  move: the comment has `dates`), `shifted` (a Madar shift: `dates.byTaskId`) or `reopened` (the reason of `tasks.newVersion`: the stored
+  field `Comment.kind`). A comment saved before reads the new way from its `dates`. A move-back reason of a stage goes to the Tracker, never to
+  the thread. The note of `tasks.sendBack` stays a message: a reviewer writes it to the lead.
+- `CommentView.kind` and `ChatRow.previewKind` give the kind (additive; MCP `comments.list` and `chats.list` name them).
+- A line is never unread and never waits for a reply. `taskUnread` and `waitingThread` (`handlers/chats.ts`) read the messages only, and a
+  line that a person wrote is no reply. The loader does the same (`MESSAGES_ONLY`, `server/data/loaders/chat.ts`). The newest item of a thread
+  still gives the preview and the order, so a line can be the preview. `tasks.newVersion` writes the `reopened` line, so `comments` is in its
+  `WRITE_KINDS` line.
 
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.

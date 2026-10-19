@@ -177,7 +177,17 @@ export const TaskDetail = TaskRow.extend({
 });
 export type TaskDetail = z.infer<typeof TaskDetail>;
 
-export const CommentView = z.object({ comment: Comment, author: UserCard, canEdit: z.boolean(), files: z.array(Attachment) });
+/**
+ * kind (fbk_027, owner 2026-10-19): "message" is words of a person. The other kinds are quiet lines of the thread: due_date and
+ * start_date (the reason of a date move), reopened (the reason of a task that opens again) and shifted (the move that Madar makes
+ * when a task it waited for finished late). A line is never an instruction and never a message that waits for a reply.
+ */
+export const CommentLineKind = z.enum(['message', 'due_date', 'start_date', 'shifted', 'reopened']);
+export const CommentView = z.object({
+  comment: Comment, author: UserCard, canEdit: z.boolean(), files: z.array(Attachment),
+  // Optional with a default, so an older answer still parses.
+  kind: CommentLineKind.default('message'),
+});
 export type CommentView = z.infer<typeof CommentView>;
 
 /** One row of the Inbox list: a project chat, a direct chat, a group or a task thread. A task thread has the task id as its id. */
@@ -195,6 +205,8 @@ export const ChatRow = z.object({
   preview: z.string(),
   previewAuthor: UserCard.nullable(),
   previewMine: z.boolean(),
+  /** The kind of the newest comment of a task thread, so the row shows the short line of a reason ("Faisal changed the due date: ..."). Null for a message and for a chat. */
+  previewKind: CommentLineKind.exclude(['message']).nullable().default(null),
   lastAt: Stamp,
   unread: z.number().int().min(0),
   /** A direct chat whose other person left the office. It takes no new messages (audit 2026-10-03, SHL-15). */

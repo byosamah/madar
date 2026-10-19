@@ -32,14 +32,15 @@ export function dateInputClass(typing: boolean): string {
  * It has the box of a field without the fill: the same height, corners, 1 px edge and 14 px side space. So its text lines up with
  * the text of the fields above and below it (owner, 2026-10-05: "and the alignment").
  */
-export function DateFace({ shown, roomForClear, invalid }: { shown: string; roomForClear: boolean; invalid?: boolean }) {
+export function DateFace({ shown, roomForClear, invalid, empty }: { shown: string; roomForClear: boolean; invalid?: boolean; empty?: string }) {
   const { t } = useTranslation();
   return (
     <span
       aria-hidden
       className={`pointer-events-none flex min-h-11 items-center rounded-xl border ps-3.5 text-subheadline peer-hover:bg-fill peer-focus-visible:outline-2 peer-focus-visible:outline-link ${roomForClear ? 'pe-10' : 'pe-3.5'} ${invalid ? 'border-late' : 'border-transparent'}`}
     >
-      {shown ? <span className="tabular truncate text-ink">{shown}</span> : <span className="truncate text-ink-2">{t('dateField.set')}</span>}
+      {shown ? <span className="tabular truncate text-ink">{shown}</span>
+        : empty !== undefined ? <span className="truncate font-semibold text-link">{empty}</span> : <span className="truncate text-ink-2">{t('dateField.set')}</span>}
     </span>
   );
 }

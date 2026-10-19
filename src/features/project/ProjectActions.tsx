@@ -129,7 +129,7 @@ function PauseSheet({ detail, open, onOpenChange }: SheetProps) {
           {kind === 'client' && <p className="text-caption text-ink-2">{t('project.pauseClientHint')}</p>}
         </div>
         <TextArea id="pause-reason" label={t('project.pauseReason')} value={reason} dir="auto" maxLength={280} error={fieldError(pause.error, 'reason', t, t('errors.invalid_input'))} onChange={(event) => setReason(event.target.value)} />
-        <DateField id="pause-resume" label={t('project.resumeOn')} min={addDays(todayISO(), 1)} value={resumeOn} error={fieldError(pause.error, 'resumeOn', t, t('errors.invalid_input'))} onChange={setResumeOn} />
+        <DateField id="pause-resume" label={t('project.resumeOn')} hint={t('project.resumeOnHint')} min={addDays(todayISO(), 1)} value={resumeOn} error={fieldError(pause.error, 'resumeOn', t, t('errors.invalid_input'))} onChange={setResumeOn} />
       </div>
     </Sheet>
   );
