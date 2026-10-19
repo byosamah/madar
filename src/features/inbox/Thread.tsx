@@ -2,7 +2,7 @@ import { motion } from 'motion/react';
 import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { MAX_ATTACHMENTS, MESSAGE_MAX } from '../../api/contract/entities';
 import { useTranslation } from 'react-i18next';
-import type { Attachment, UserCard } from '../../api/contract/views';
+import type { Attachment, GroupLine, UserCard } from '../../api/contract/views';
 import { newStoryId } from '../../app/actions';
 import { readDraftFiles, useDraftOwner, useDraftText, writeDraftFiles } from '../../app/drafts';
 import { useLang } from '../../app/lang';
@@ -14,7 +14,8 @@ import { Button } from '../../components/Button';
 import { MentionField } from '../../components/MentionField';
 import { RichText } from '../../components/RichText';
 import { spring } from '../../design/motion';
-import { addDays, clockFormat, formatDay, stampDay, todayISO, type Lang } from '../../lib/dates';
+import { addDays, clockFormat, formatDay, listFormat, stampDay, todayISO, type Lang } from '../../lib/dates';
+import { actorContext } from '../../lib/grammar';
 import { groupByDay } from '../../lib/group';
 import { withMentionMarkup } from '../../lib/text';
 import { AttachButton, FileChips, PickedFiles, useAttachments, type UploadTarget } from '../files/Attachments';
@@ -30,7 +31,30 @@ export type Bubble = {
   createdAt: string;
   mine: boolean;
   edited: boolean;
+  /** A quiet line of a group (a person joined or left, a new name). It is no message: the log draws it as one grey line. */
+  line?: GroupLine;
 };
+
+/** The word key of each kind of quiet line. */
+const LINE_KEY = { added: 'chat.lineAdded', removed: 'chat.lineRemoved', left: 'chat.lineLeft', renamed: 'chat.lineRenamed' } as const;
+
+/**
+ * One quiet line of a group, in the screen language: "Hala added Yousef". Each name sits between FSI and PDI, so an English name in an
+ * Arabic line keeps its own direction (UX audit 2026-10-19, chats-10).
+ */
+function GroupLineItem({ line }: { line: GroupLine }) {
+  const { t } = useTranslation();
+  const nameOf = usePersonName();
+  const lang = useLang();
+  const isolate = (name: string) => `\u2068${name}\u2069`;
+  const text = t(LINE_KEY[line.type], {
+    actor: isolate(nameOf(line.actor)),
+    people: listFormat(lang).format(line.people.map((person) => isolate(nameOf(person)))),
+    name: isolate(line.name ?? ''),
+    context: actorContext(line.actor),
+  });
+  return <li className="self-center px-3 py-0.5 text-center text-footnote text-ink-2">{text}</li>;
+}
 
 export function clockTime(stamp: string, lang: Lang): string {
   return clockFormat(lang).format(new Date(stamp));
@@ -45,6 +69,7 @@ const BubbleItem = memo(function BubbleItem({ bubble, fresh }: { bubble: Bubble;
   const nameOf = usePersonName();
   const lang = useLang();
   const { author, mine } = bubble;
+  if (bubble.line) return <GroupLineItem line={bubble.line} />;
   return (
     <motion.li
       initial={fresh ? { opacity: 0, y: 12 } : false}

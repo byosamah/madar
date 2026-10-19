@@ -5,12 +5,12 @@
     "backToInbox": "العودة إلى الوارد",
     "moveBack": "إعادة إلى الوارد",
     "options": "خيارات المحادثة",
-    "groupChat": "مجموعة محادثة",
+    "groupChat": "محادثة جماعية",
     "groupStart": "مجموعة جديدة",
     "groupOptions": "خيارات المجموعة",
     "groupName": "اسم المجموعة",
-    "makeGroup": "إنشاء مجموعة",
-    "pickHint": "اختر شخصين أو أكثر لإنشاء مجموعة.",
+    "makeGroup": "إنشاء المجموعة",
+    "pickHint": "اختر شخصين أو أكثر.",
     "rename": "تغيير الاسم",
     "renameTitle": "تغيير اسم المجموعة",
     "addPeople": "إضافة أشخاص",
@@ -19,14 +19,68 @@
     "removeTitle": "إزالة شخص من المجموعة",
     "leaveGroup": "مغادرة المجموعة",
     "leaveTitle": "هل تريد مغادرة هذه المجموعة؟",
-    "leaveBody": "لن تصلك رسائلها الجديدة بعد المغادرة.",
-    "leaveConfirm": "مغادرة المجموعة"
+    "leaveBody": "تغادر المحادثة ورسائلها بريدك الوارد. لا يمكنك قراءتها مجددًا ما لم يُعِدك أحد الأعضاء.",
+    "leaveConfirm": "مغادرة المجموعة",
+    "archived": "مؤرشفة",
+    "archivedTitle": "المحادثات المؤرشفة",
+    "searchArchived": "ابحث في المحادثات المؤرشفة",
+    "archivedToast": "تمت أرشفة المحادثة.",
+    "movedBackToast": "أُعيدت المحادثة إلى الوارد.",
+    "optionsFor": "خيارات {{title}}",
+    "waiting": "بانتظار ردّك",
+    "picked": "تم اختيار {{count}} شخص",
+    "picked_one": "تم اختيار شخص واحد",
+    "picked_two": "تم اختيار شخصين",
+    "picked_few": "تم اختيار {{count}} أشخاص",
+    "picked_many": "تم اختيار {{count}} شخصًا",
+    "picked_other": "تم اختيار {{count}} شخص",
+    "messageOne": "مراسلة شخص واحد",
+    "groupNameHint": "اتركه فارغًا لاستخدام الأسماء الأولى للأشخاص.",
+    "people": "{{count}} شخص",
+    "people_one": "شخص واحد",
+    "people_two": "شخصان",
+    "people_few": "{{count}} أشخاص",
+    "people_many": "{{count}} شخصًا",
+    "people_other": "{{count}} شخص",
+    "peopleTitle": "أشخاص المجموعة",
+    "maker": "منشئ المجموعة",
+    "remove": "إزالة",
+    "removeName": "إزالة {{name}}",
+    "removedToast": "تمت إزالة {{name}}.",
+    "addNote": "سيرون الرسائل السابقة أيضًا.",
+    "leaveToast": "غادرت {{name}}.",
+    "groupAlone": "غادر الجميع هذه المجموعة.",
+    "lineAdded": "{{actor}} أضاف {{people}}",
+    "lineAdded_female": "{{actor}} أضافت {{people}}",
+    "lineRemoved": "{{actor}} أزال {{people}}",
+    "lineRemoved_female": "{{actor}} أزالت {{people}}",
+    "lineLeft": "{{actor}} غادر",
+    "lineLeft_female": "{{actor}} غادرت",
+    "lineRenamed": "{{actor}} غيّر اسم المجموعة إلى {{name}}",
+    "lineRenamed_female": "{{actor}} غيّرت اسم المجموعة إلى {{name}}"
   },
   "errors": {
     "reasons": {
-      "group_too_small": "تحتاج المجموعة إلى شخصين على الأقل. أرشف المحادثة بدلاً من ذلك.",
+      "group_too_small": "تحتاج المجموعة إلى شخصين على الأقل.",
       "group_full": "تتسع المجموعة لخمسين شخصاً كحد أقصى.",
       "not_maker": "فقط من أنشأ المجموعة يمكنه إزالة الأشخاص الآخرين."
+    }
+  },
+  "inbox": {
+    "mentionGroup": "{{actor}} أشار إليك في المجموعة {{target}}",
+    "mentionGroup_female": "{{actor}} أشارت إليك في المجموعة {{target}}",
+    "mentionGroupGone": "{{actor}} أشار إليك في مجموعة",
+    "mentionGroupGone_female": "{{actor}} أشارت إليك في مجموعة",
+    "addedGroupGone": "{{actor}} أضافك إلى مجموعة",
+    "addedGroupGone_female": "{{actor}} أضافتك إلى مجموعة",
+    "trigger": {
+      "added_to_group": "{{actor}} أضافك إلى المجموعة {{target}}",
+      "added_to_group_female": "{{actor}} أضافتك إلى المجموعة {{target}}"
+    }
+  },
+  "settings": {
+    "triggers": {
+      "added_to_group": "إضافتي إلى مجموعة"
     }
   }
 }

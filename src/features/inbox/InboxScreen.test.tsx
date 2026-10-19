@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { addGroupConversation } from '../../api/chatState';
 import type { State } from '../../api/store';
@@ -336,37 +336,69 @@ describe('the Inbox renders (performance audit 2026-10-07, RND-5)', () => {
   }, 30_000);
 });
 
-describe('the Inbox archive (owner, 2026-10-18)', () => {
+describe('the Inbox archive (owner, 2026-10-18; UX audit 2026-10-19)', () => {
   const chatsList = () => screen.getByRole('list', { name: 'Chats' });
-  const menuOfRow = (link: HTMLElement) => within(link.closest('li') as HTMLElement).getByRole('button', { name: 'Chat options' });
-
-  it('archives a chat from its row menu, and the quiet row opens the archived list', async () => {
-    await renderApp('/inbox');
-    await userEvent.click(menuOfRow(await rowLink(/Corniche Office Tower/)));
+  // The menu button of a row names its chat. It shows on hover in the browser; the test finds it in the row.
+  const menuOfRow = (link: HTMLElement, title: string) => within(link.closest('li') as HTMLElement).getByRole('button', { name: `Options for ${title}` });
+  const archiveFromRow = async (link: HTMLElement, title: string) => {
+    await userEvent.click(menuOfRow(link, title));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Archive' }));
+  };
+  const quietRow = () => screen.getByRole('button', { name: 'Archived (1)' });
+
+  it('archives a chat from its row menu, shows a toast with Undo, and the quiet row above the list opens the archived chats', async () => {
+    await renderApp('/inbox');
+    await archiveFromRow(await rowLink(/Corniche Office Tower/), 'Corniche Office Tower');
     await waitFor(() => expect(within(chatsList()).queryByRole('link', { name: /Corniche Office Tower/ })).toBeNull());
-    await userEvent.click(within(chatsList()).getByRole('button', { name: 'Archived (1)' }));
+    expect(await screen.findByText('Chat archived.')).toBeInTheDocument();
+    // The quiet row sits under the search field, before the list, not at the end of it.
+    const search = screen.getByRole('searchbox', { name: 'Search chats' });
+    expect(search.compareDocumentPosition(quietRow()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(quietRow().compareDocumentPosition(chatsList()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.click(quietRow());
     expect(await rowLink(/Corniche Office Tower/)).toBeInTheDocument();
-    expect(within(chatsList()).getByRole('button', { name: 'Back to Inbox' })).toBeInTheDocument();
+    // The archived view has its own title, a back arrow and its own search words.
+    expect(screen.getByRole('heading', { level: 2, name: 'Archived chats' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to Inbox' })).toBeInTheDocument();
+    expect(screen.getByRole('searchbox', { name: 'Search archived chats' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Back to Inbox' }));
+    expect(screen.queryByRole('heading', { level: 2, name: 'Archived chats' })).toBeNull();
   });
 
-  it('moves a chat back to the Inbox from the archived list', async () => {
+  it('takes the archive back with the Undo of the toast, and shows no second toast for the Undo', async () => {
     await renderApp('/inbox');
-    await userEvent.click(menuOfRow(await rowLink(/Corniche Office Tower/)));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Archive' }));
-    await waitFor(() => expect(within(chatsList()).queryByRole('link', { name: /Corniche Office Tower/ })).toBeNull());
-    await userEvent.click(within(chatsList()).getByRole('button', { name: 'Archived (1)' }));
-    await userEvent.click(menuOfRow(await rowLink(/Corniche Office Tower/)));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Move back to Inbox' }));
-    await waitFor(() => expect(within(chatsList()).queryByRole('button', { name: /Archived/ })).toBeNull());
+    await archiveFromRow(await rowLink(/Corniche Office Tower/), 'Corniche Office Tower');
+    await userEvent.click(await screen.findByRole('button', { name: 'Undo' }));
     expect(await rowLink(/Corniche Office Tower/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Archived \(/ })).toBeNull();
+    expect(screen.queryByText('Moved back to Inbox.')).toBeNull();
+  });
+
+  it('drops the unread number of the Inbox badge when a chat with unread messages is archived', async () => {
+    await renderApp('/inbox');
+    const nav = await screen.findByRole('navigation', { name: 'Main navigation' });
+    await within(within(nav).getByRole('link', { name: /^Inbox/ })).findByText('Unread messages: 5');
+    await archiveFromRow(await rowLink(/Corniche Office Tower/), 'Corniche Office Tower');
+    expect(await within(within(nav).getByRole('link', { name: /^Inbox/ })).findByText('Unread messages: 3')).toBeInTheDocument();
+  });
+
+  it('moves a chat back to the Inbox from the archived list, with a toast', async () => {
+    await renderApp('/inbox');
+    await archiveFromRow(await rowLink(/Corniche Office Tower/), 'Corniche Office Tower');
+    await waitFor(() => expect(within(chatsList()).queryByRole('link', { name: /Corniche Office Tower/ })).toBeNull());
+    await userEvent.click(quietRow());
+    await userEvent.click(menuOfRow(await rowLink(/Corniche Office Tower/), 'Corniche Office Tower'));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Move back to Inbox' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: /^Archived \(/ })).toBeNull());
+    expect(await rowLink(/Corniche Office Tower/)).toBeInTheDocument();
+    expect(await screen.findByText('Moved back to Inbox.')).toBeInTheDocument();
   });
 
   it('archives the open chat from the header menu and keeps the chat open', async () => {
     await renderApp('/inbox');
     await userEvent.click(await rowLink(/Corniche Office Tower/));
     await screen.findByRole('log', { name: 'Messages' });
-    const headerMenus = screen.getAllByRole('button', { name: 'Chat options' });
+    const headerMenus = screen.getAllByRole('button', { name: 'Options for Corniche Office Tower' });
     await userEvent.click(headerMenus[headerMenus.length - 1]);
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Archive' }));
     await waitFor(() => expect(within(chatsList()).queryByRole('link', { name: /Corniche Office Tower/ })).toBeNull());
@@ -375,19 +407,60 @@ describe('the Inbox archive (owner, 2026-10-18)', () => {
 
   it('keeps the main list when a chat is archived after the archived list closed by itself', async () => {
     await renderApp('/inbox');
-    await userEvent.click(menuOfRow(await rowLink(/Corniche Office Tower/)));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Archive' }));
+    await archiveFromRow(await rowLink(/Corniche Office Tower/), 'Corniche Office Tower');
     await waitFor(() => expect(within(chatsList()).queryByRole('link', { name: /Corniche Office Tower/ })).toBeNull());
-    await userEvent.click(within(chatsList()).getByRole('button', { name: 'Archived (1)' }));
-    await userEvent.click(menuOfRow(await rowLink(/Corniche Office Tower/)));
+    await userEvent.click(quietRow());
+    await userEvent.click(menuOfRow(await rowLink(/Corniche Office Tower/), 'Corniche Office Tower'));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Move back to Inbox' }));
-    await waitFor(() => expect(within(chatsList()).queryByRole('button', { name: /Archived/ })).toBeNull());
-    await userEvent.click(menuOfRow(await rowLink(/Faisal Al-Harbi/)));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Archive' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: /^Archived \(/ })).toBeNull());
+    await archiveFromRow(await rowLink(/Faisal Al-Harbi/), 'Faisal Al-Harbi');
     await waitFor(() => expect(within(chatsList()).queryByRole('link', { name: /Faisal Al-Harbi/ })).toBeNull());
-    expect(within(chatsList()).getByRole('button', { name: 'Archived (1)' })).toBeInTheDocument();
+    expect(quietRow()).toBeInTheDocument();
     expect(within(chatsList()).getByRole('link', { name: /Corniche Office Tower/ })).toBeInTheDocument();
-    expect(within(chatsList()).queryByRole('button', { name: 'Back to Inbox' })).toBeNull();
+    expect(screen.queryByRole('heading', { level: 2, name: 'Archived chats' })).toBeNull();
+  });
+
+  it('finds an archived chat in the main search, with the word Archived, and finds nothing archived without a search', async () => {
+    await renderApp('/inbox');
+    await archiveFromRow(await rowLink(/Corniche Office Tower/), 'Corniche Office Tower');
+    await waitFor(() => expect(within(chatsList()).queryByRole('link', { name: /Corniche Office Tower/ })).toBeNull());
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search chats' }), 'corniche');
+    const found = await rowLink(/Corniche Office Tower/);
+    expect(within(found).getByText(/Archived/)).toBeInTheDocument();
+    expect(screen.queryByText('No chat matches.')).toBeNull();
+  });
+
+  it('gives each row menu the name of its chat, and not the same name sixteen times', async () => {
+    await renderApp('/inbox');
+    await rowLink(/Corniche Office Tower/);
+    expect(screen.queryByRole('button', { name: 'Chat options' })).toBeNull();
+    const names = within(chatsList()).getAllByRole('button').map((button) => button.getAttribute('aria-label'));
+    expect(new Set(names).size).toBe(names.length);
+    expect(names.every((name) => name?.startsWith('Options for '))).toBe(true);
+  });
+});
+
+describe('what waits for a reply in the Inbox (INT-26)', () => {
+  it('shows "Waits for your reply" on a chat whose newest message came from someone else, and takes it away after the answer', async () => {
+    await renderApp('/inbox');
+    const row = await rowLink(/Faisal Al-Harbi/);
+    await waitFor(() => expect(within(row).getByText('Waits for your reply')).toBeInTheDocument());
+    await userEvent.click(row);
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Message' }), 'On it.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(within(row).queryByText('Waits for your reply')).toBeNull());
+  });
+});
+
+describe('the mention list in the Inbox (chats-01)', () => {
+  it('opens above the message box and shows the names that start with the letters first', async () => {
+    await renderApp('/inbox');
+    await userEvent.click(await rowLink(/Corniche Office Tower/));
+    const box = await screen.findByRole('textbox', { name: 'Message' });
+    await userEvent.type(box, '@fa');
+    const list = await screen.findByRole('listbox');
+    expect(list).toHaveClass('bottom-full');
+    expect(within(list).getAllByRole('option')[0]).toHaveTextContent(/^FA?Faisal/);
   });
 });
 
@@ -396,18 +469,24 @@ const withGroup = (state: State) => {
   addGroupConversation(state, 'Tower team', 'usr_001', ['usr_001', 'usr_002', 'usr_003'], '2026-09-30T09:00:00.000+03:00');
 };
 
-/** Opens the group from the list and its menu of group options. */
-async function openGroupMenu() {
+/** Opens the group from the list. */
+async function openGroup() {
   await userEvent.click(await rowLink(/Tower team/));
   await screen.findByRole('heading', { level: 2, name: 'Tower team' });
-  await userEvent.click(screen.getByRole('button', { name: 'Group options' }));
+}
+
+/** Opens the People sheet with the count in the header. */
+async function openPeople() {
+  await openGroup();
+  await userEvent.click(await screen.findByRole('button', { name: '3 people' }));
+  return screen.findByRole('dialog', { name: 'People in the group' });
 }
 
 describe('group chats', () => {
   it('makes a group of the two people picked, with a name, and opens it', async () => {
     const { store } = await renderApp('/inbox');
     await userEvent.click(await screen.findByRole('button', { name: 'New message' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Make a group' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'New group' }));
     await userEvent.click(await screen.findByRole('button', { name: /Faisal Al-Harbi/ }));
     await userEvent.click(await screen.findByRole('button', { name: /Reem Al-Ghamdi/ }));
     await userEvent.type(await screen.findByRole('textbox', { name: 'Group name' }), 'Tower team');
@@ -417,10 +496,38 @@ describe('group chats', () => {
     expect(await screen.findByRole('heading', { level: 2, name: 'Tower team' })).toBeInTheDocument();
   });
 
+  it('needs no name: the title says New group, a line counts the people, the name field shows from the start, and the group takes the first names', async () => {
+    const { store } = await renderApp('/inbox');
+    await userEvent.click(await screen.findByRole('button', { name: 'New message' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'New group' }));
+    const sheet = await screen.findByRole('dialog', { name: 'New group' });
+    expect(within(sheet).getByText('Pick two people or more.')).toBeInTheDocument();
+    expect(within(sheet).getByRole('textbox', { name: 'Group name' })).toHaveAttribute('autocomplete', 'off');
+    const make = within(sheet).getByRole('button', { name: 'Make group' });
+    expect(make).toBeDisabled();
+    await userEvent.click(await within(sheet).findByRole('button', { name: /Faisal Al-Harbi/ }));
+    expect(make).toBeDisabled();
+    await userEvent.click(within(sheet).getByRole('button', { name: /Reem Al-Ghamdi/ }));
+    expect(within(sheet).getByText('2 people picked')).toBeInTheDocument();
+    expect(make).toBeEnabled();
+    await userEvent.click(make);
+    await waitFor(() => expect(Object.values(store.state.conversations).some((c) => c.kind === 'group')).toBe(true));
+    expect(Object.values(store.state.conversations).find((c) => c.kind === 'group')?.name).toMatch(/Faisal.*Reem/);
+  });
+
+  it('goes back to one person with the link Message one person', async () => {
+    await renderApp('/inbox');
+    await userEvent.click(await screen.findByRole('button', { name: 'New message' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'New group' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Message one person' }));
+    expect(await screen.findByRole('dialog', { name: 'Pick a person' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Group name' })).toBeNull();
+  });
+
   it('marks each picked person with a check mark, so the choice shows without colour', async () => {
     await renderApp('/inbox');
     await userEvent.click(await screen.findByRole('button', { name: 'New message' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Make a group' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'New group' }));
     const faisal = await screen.findByRole('button', { name: /Faisal Al-Harbi/ });
     const before = faisal.querySelectorAll('svg').length;
     await userEvent.click(faisal);
@@ -430,44 +537,106 @@ describe('group chats', () => {
     expect(faisal.querySelectorAll('svg').length).toBe(before);
   });
 
-  it('shows a group in the list by its name', async () => {
+  it('shows a group in the list by its name, with one picture and no faces, and the Inbox search finds it by name', async () => {
     await renderApp('/inbox', withGroup);
-    expect(await rowLink(/Tower team/)).toBeInTheDocument();
+    const row = await rowLink(/Tower team/);
+    expect(within(row).getByRole('img', { name: 'Group chat' })).toBeInTheDocument();
+    // The picture of the group holds no face, so no stack of initials covers the title.
+    expect(within(row).queryByRole('img', { name: /Faisal|Hala|Reem|Sara/ })).toBeNull();
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search chats' }), 'tower te');
+    expect(within(screen.getByRole('list', { name: 'Chats' })).getByRole('link', { name: /Tower team/ })).toBeInTheDocument();
   });
 
-  it('lets the maker rename the group', async () => {
+  it('shows the count of people in the header to every member, and opens the People sheet with the names, "You" and the maker', async () => {
+    await renderApp('/inbox', (state) => {
+      withGroup(state);
+      state.session.currentUserId = 'usr_002';
+    });
+    const sheet = await openPeople();
+    expect(within(sheet).getByText('3 people')).toBeInTheDocument();
+    const rows = within(sheet).getAllByRole('listitem');
+    expect(rows).toHaveLength(3);
+    expect(within(rows[0]).getByText('You')).toBeInTheDocument();
+    expect(within(sheet).getByText('Group maker')).toBeInTheDocument();
+    expect(within(sheet).getByRole('button', { name: 'Add people' })).toBeInTheDocument();
+    expect(within(sheet).getByRole('button', { name: 'Leave group' })).toBeInTheDocument();
+    // A member who is not the maker has no Remove.
+    expect(within(sheet).queryByRole('button', { name: /^Remove/ })).toBeNull();
+  });
+
+  it('keeps Rename and Archive in the group menu, and nothing else', async () => {
     await renderApp('/inbox', withGroup);
-    await openGroupMenu();
+    await openGroup();
+    const menus = screen.getAllByRole('button', { name: 'Options for Tower team' });
+    await userEvent.click(menus[menus.length - 1]);
+    expect(await screen.findByRole('menuitem', { name: 'Rename' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
+    expect(screen.getAllByRole('menuitem')).toHaveLength(2);
+  });
+
+  it('lets the maker rename the group, and writes one quiet line about it', async () => {
+    await renderApp('/inbox', withGroup);
+    await openGroup();
+    const menus = screen.getAllByRole('button', { name: 'Options for Tower team' });
+    await userEvent.click(menus[menus.length - 1]);
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));
     const field = await screen.findByRole('textbox', { name: 'Group name' });
     await userEvent.clear(field);
     await userEvent.type(field, 'Tower design team');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByRole('heading', { level: 2, name: 'Tower design team' })).toBeInTheDocument();
+    const line = await within(await screen.findByRole('log', { name: 'Messages' })).findByText(/renamed the group to/);
+    // Each name sits between FSI and PDI marks, so the test drops them before it compares.
+    expect(line.textContent?.replace(/[\u2068\u2069]/g, '')).toBe('Hala Nasser renamed the group to Tower design team');
   });
 
-  it('shows Remove a person to the maker', async () => {
+  it('shows Remove on each other person to the maker, removes one with a toast and Undo, and writes a quiet line', async () => {
+    const { store } = await renderApp('/inbox', withGroup);
+    const sheet = await openPeople();
+    await userEvent.click(within(sheet).getAllByRole('button', { name: /^Remove / })[0]);
+    await waitFor(() => expect(Object.values(store.state.conversations).find((c) => c.kind === 'group')?.memberIds).toHaveLength(2));
+    expect(await screen.findByText(/ removed\.$/)).toBeInTheDocument();
+    // The open sheet blocks the page, and the unit tests load no Tailwind classes, so the toast button takes a plain click.
+    fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(Object.values(store.state.conversations).find((c) => c.kind === 'group')?.memberIds).toHaveLength(3));
+  });
+
+  it('adds people with a line that says they read the earlier messages, and writes a quiet line in the chat', async () => {
+    const { store } = await renderApp('/inbox', withGroup);
+    const sheet = await openPeople();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Add people' }));
+    const add = await screen.findByRole('dialog', { name: 'Add people to the group' });
+    expect(within(add).getByText('They see the earlier messages too.')).toBeInTheDocument();
+    // The first person who is not in the group yet.
+    const candidate = (await within(add).findAllByRole('button')).find((button) => button.hasAttribute('aria-pressed'))!;
+    const name = candidate.querySelector('bdi')!.textContent!;
+    await userEvent.click(candidate);
+    await userEvent.click(within(add).getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(Object.values(store.state.conversations).find((c) => c.kind === 'group')?.memberIds).toHaveLength(4));
+    const line = await within(await screen.findByRole('log', { name: 'Messages' })).findByText(/ added /);
+    expect(line.textContent?.replace(/[\u2068\u2069]/g, '')).toBe(`Hala Nasser added ${name}`);
+  });
+
+  it('asks before a leave, with Cancel in focus, and names the group in the toast after it', async () => {
     await renderApp('/inbox', withGroup);
-    await openGroupMenu();
-    expect(await screen.findByRole('menuitem', { name: 'Remove a person' })).toBeInTheDocument();
+    const sheet = await openPeople();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Leave group' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Leave this group?' });
+    expect(within(confirm).getByText(/The chat and its messages leave your Inbox/)).toBeInTheDocument();
+    await waitFor(() => expect(within(confirm).getByRole('button', { name: 'Cancel' })).toHaveFocus());
+    await userEvent.click(within(confirm).getByRole('button', { name: 'Leave the group' }));
+    await waitFor(() => expect(screen.getByRole('list', { name: 'Chats' })).not.toHaveTextContent('Tower team'));
+    expect(await screen.findByText(/You left/)).toHaveTextContent('Tower team');
   });
 
-  it('hides Remove a person from a member who is not the maker', async () => {
+  it('lets the last person stay in a closed chat that takes no new messages', async () => {
     await renderApp('/inbox', (state) => {
       withGroup(state);
-      state.session.currentUserId = 'usr_002';
+      const group = Object.values(state.conversations).find((c) => c.kind === 'group')!;
+      state.conversations[group.id] = { ...group, memberIds: ['usr_001'] };
     });
-    await openGroupMenu();
-    await screen.findByRole('menuitem', { name: 'Rename' });
-    expect(screen.queryByRole('menuitem', { name: 'Remove a person' })).toBeNull();
-  });
-
-  it('lets a person leave the group after a confirm step', async () => {
-    await renderApp('/inbox', withGroup);
-    await openGroupMenu();
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Leave group' }));
-    expect(await screen.findByRole('heading', { name: 'Leave this group?' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Leave the group' }));
-    await waitFor(() => expect(screen.getByRole('list', { name: 'Chats' })).not.toHaveTextContent('Tower team'));
+    await openGroup();
+    expect(await screen.findByText('Everyone else left this group.')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Message' })).toBeNull();
   });
 });

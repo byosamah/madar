@@ -6,11 +6,10 @@
     "moveBack": "Move back to Inbox",
     "options": "Chat options",
     "groupChat": "Group chat",
-    "groupStart": "Make a group",
+    "groupStart": "New group",
     "groupOptions": "Group options",
     "groupName": "Group name",
     "makeGroup": "Make group",
-    "pickHint": "Pick two people or more to make a group.",
     "rename": "Rename",
     "renameTitle": "Rename the group",
     "addPeople": "Add people",
@@ -19,14 +18,55 @@
     "removeTitle": "Remove a person from the group",
     "leaveGroup": "Leave group",
     "leaveTitle": "Leave this group?",
-    "leaveBody": "You do not see its new messages after you leave.",
-    "leaveConfirm": "Leave the group"
+    "leaveBody": "The chat and its messages leave your Inbox. You cannot read them again unless a member adds you back.",
+    "leaveConfirm": "Leave the group",
+    "archived": "Archived",
+    "archivedTitle": "Archived chats",
+    "searchArchived": "Search archived chats",
+    "archivedToast": "Chat archived.",
+    "movedBackToast": "Moved back to Inbox.",
+    "optionsFor": "Options for {{title}}",
+    "waiting": "Waits for your reply",
+    "picked": "{{count}} people picked",
+    "picked_one": "1 person picked",
+    "picked_other": "{{count}} people picked",
+    "messageOne": "Message one person",
+    "groupNameHint": "Leave it empty to use the first names of the people.",
+    "people": "{{count}} people",
+    "people_one": "1 person",
+    "people_other": "{{count}} people",
+    "peopleTitle": "People in the group",
+    "maker": "Group maker",
+    "remove": "Remove",
+    "removeName": "Remove {{name}}",
+    "removedToast": "{{name}} removed.",
+    "addNote": "They see the earlier messages too.",
+    "leaveToast": "You left {{name}}.",
+    "groupAlone": "Everyone else left this group.",
+    "lineAdded": "{{actor}} added {{people}}",
+    "lineRemoved": "{{actor}} removed {{people}}",
+    "lineLeft": "{{actor}} left",
+    "lineRenamed": "{{actor}} renamed the group to {{name}}",
+    "pickHint": "Pick two people or more."
   },
   "errors": {
     "reasons": {
-      "group_too_small": "A group keeps at least two people. Archive the chat instead.",
+      "group_too_small": "A group keeps at least two people.",
       "group_full": "A group holds 50 people at most.",
       "not_maker": "Only the person who made the group can remove other people."
+    }
+  },
+  "inbox": {
+    "mentionGroup": "{{actor}} mentioned you in the group {{target}}",
+    "mentionGroupGone": "{{actor}} mentioned you in a group",
+    "addedGroupGone": "{{actor}} added you to a group",
+    "trigger": {
+      "added_to_group": "{{actor}} added you to the group {{target}}"
+    }
+  },
+  "settings": {
+    "triggers": {
+      "added_to_group": "I am added to a group"
     }
   }
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router';
 import { useByPersonName, usePersonName } from '../../app/personName';
@@ -16,8 +16,10 @@ import { ChatList } from './ChatList';
 import { ConversationPane } from './ConversationPane';
 
 /**
- * Starts a direct chat: a person is picked, and the chat opens with one tap. "Make a group" lets the person pick two people or
- * more: then a name field and "Make group" show (owner, 2026-10-18).
+ * Starts a direct chat: a person is picked, and the chat opens with one tap. "New group" lets the person pick two people or more
+ * (owner, 2026-10-18). In group mode the title says "New group", a line counts the people picked, the name field shows from the
+ * start and is optional (an empty name takes the first names of the people), and one button makes the group (UX audit 2026-10-19,
+ * chats-09). "Message one person" goes back to the direct mode.
  */
 function NewMessage({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation();
@@ -43,28 +45,53 @@ function NewMessage({ open, onOpenChange }: { open: boolean; onOpenChange: (open
       navigate(`/inbox/${id}`);
     },
   });
+  const resetGroup = () => {
+    setGrouping(false);
+    setPicked([]);
+    setGroupName('');
+  };
   // A closed sheet starts again in one tap: no group is half picked when it opens next time.
   const close = (next: boolean) => {
-    if (!next) {
-      setGrouping(false);
-      setPicked([]);
-      setGroupName('');
-    }
+    if (!next) resetGroup();
     onOpenChange(next);
   };
   const toggle = (id: string) => setPicked((list) => (list.includes(id) ? list.filter((item) => item !== id) : [...list, id]));
-  const footer = !grouping ? undefined : picked.length < 2 ? <p className="text-footnote text-ink-2">{t('chat.pickHint')}</p> : (
-    <div className="flex flex-col gap-3">
-      <TextField id="new-group-name" label={t('chat.groupName')} value={groupName} onChange={(event) => setGroupName(event.target.value)} />
-      <Button variant="primary" disabled={groupName.trim() === '' || makeGroup.isPending} onClick={() => makeGroup.mutate({ name: groupName.trim(), memberIds: picked })}>
+  const ready = picked.length >= 2;
+  const footer = !grouping ? undefined : (
+    <div className="flex w-full flex-col gap-3">
+      <TextField
+        id="new-group-name"
+        label={t('chat.groupName')}
+        hint={t('chat.groupNameHint')}
+        autoComplete="off"
+        maxLength={60}
+        value={groupName}
+        onChange={(event) => setGroupName(event.target.value)}
+      />
+      <Button
+        variant="primary"
+        className="w-full"
+        disabled={!ready || makeGroup.isPending}
+        onClick={() => makeGroup.mutate({ ...(groupName.trim() === '' ? {} : { name: groupName.trim() }), memberIds: picked })}
+      >
         {t('chat.makeGroup')}
       </Button>
     </div>
   );
   return (
-    <Sheet open={open} onOpenChange={close} title={t('chat.pickPerson')} footer={footer}>
+    <Sheet
+      open={open}
+      onOpenChange={close}
+      title={grouping ? t('chat.groupStart') : t('chat.pickPerson')}
+      description={grouping ? (ready ? t('chat.picked', { count: picked.length }) : t('chat.pickHint')) : undefined}
+      footer={footer}
+    >
       {users.data && people.length === 0 && <p className="text-subheadline text-ink-2">{t('chat.noPeople')}</p>}
-      {!grouping && people.length > 0 && <Button variant="plain" onClick={() => setGrouping(true)}>{t('chat.groupStart')}</Button>}
+      {people.length > 0 && (
+        <Button variant="plain" onClick={() => (grouping ? resetGroup() : setGrouping(true))}>
+          {grouping ? t('chat.messageOne') : t('chat.groupStart')}
+        </Button>
+      )}
       <ul className="flex flex-col">
         {people.map((person) => (
           <li key={person.id}>
@@ -98,6 +125,9 @@ export function InboxScreen() {
   const { conversationId } = useParams();
   const [picking, setPicking] = useState(false);
   const list = useCall('chats.list', {});
+  // The chats that were read and wait for a reply of the person (UX audit 2026-10-19, INT-26). The list shows a word on each.
+  const waitingRows = useCall('chats.waiting', {});
+  const waiting = useMemo(() => new Set((waitingRows.data ?? []).map((row) => row.id)), [waitingRows.data]);
   const rows = list.data ?? [];
   const open = conversationId !== undefined;
   return (
@@ -112,7 +142,7 @@ export function InboxScreen() {
         <aside className={`panel hairline flex w-full min-w-0 flex-col overflow-hidden sm:w-[340px] sm:shrink-0 ${open ? 'max-sm:hidden' : ''}`}>
           {list.error && <div className="p-3"><LoadFailed error={list.error} onRetry={() => void list.refetch()} /></div>}
           {list.data && rows.length === 0 && <div className="p-3"><EmptyState title={t('chat.emptyTitle')} body={t('chat.empty')} /></div>}
-          {list.data && rows.length > 0 && <ChatList rows={rows} selectedId={conversationId} />}
+          {list.data && rows.length > 0 && <ChatList rows={rows} selectedId={conversationId} waiting={waiting} />}
         </aside>
         <section className={`panel hairline flex min-w-0 flex-1 flex-col overflow-hidden ${open ? '' : 'max-sm:hidden'}`}>
           {conversationId

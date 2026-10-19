@@ -1,31 +1,29 @@
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
-import { CheckIcon } from '../../components/icons/animated/check';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router';
-import type { ChatRow, CommentView, MessageView, UserCard } from '../../api/contract/views';
-import { useByPersonName, usePersonName } from '../../app/personName';
+import { Link } from 'react-router';
+import type { ChatRow, CommentView, GroupLine, MessageView } from '../../api/contract/views';
+import { usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
 import { Avatar } from '../../components/Avatar';
-import { AvatarStack } from '../../components/AvatarStack';
-import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
-import { TextField } from '../../components/Fields';
 import { LoadFailed } from '../../components/LoadFailed';
 import { Menu } from '../../components/Menu';
 import { ProjectTile } from '../../components/ProjectTile';
-import { Sheet } from '../../components/Sheet';
 import { Composer, MessageLog, type Bubble } from './Thread';
 import { ArchiveMenu } from './ChatList';
+import { GroupPicture } from './GroupPicture';
+import { GroupSheets, type GroupMode } from './GroupSheets';
+import { useArchive } from './archive';
 import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-check';
 import { actorContext } from '../../lib/grammar';
 import { taskLink } from '../../lib/params';
 import { useMarkTaskRead } from '../comments/markRead';
 import { useEarlierMessages } from './earlier';
 
-function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: ReactNode; subtitle: string; action?: ReactNode }) {
+function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: ReactNode; subtitle: ReactNode; action?: ReactNode }) {
   const { t } = useTranslation();
   return (
     <header className="flex items-center gap-3 border-b border-hairline px-3 py-2.5 sm:px-5">
@@ -35,7 +33,7 @@ function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: Rea
       {lead}
       <div className="min-w-0 flex-1">
         <h2 className="truncate text-headline text-ink">{title}</h2>
-        <p className="truncate text-footnote text-ink-2">{subtitle}</p>
+        <div className="truncate text-footnote text-ink-2">{subtitle}</div>
       </div>
       {action}
     </header>
@@ -67,79 +65,27 @@ function bubbleOfMessage(view: MessageView): Bubble {
   };
 }
 
-/** The sheets of a group: the name, the people, and leaving it. */
-type GroupMode = 'rename' | 'add' | 'remove' | 'leave';
-
-/**
- * The menu of a group (owner, 2026-10-18): rename, add people, leave, and archive. "Remove a person" shows to the maker only.
- * The archive item is the same as in the list (ArchiveMenu).
- */
-function GroupMenu({ id, archived, isMaker, onPick }: { id: string; archived: boolean; isMaker: boolean; onPick: (mode: GroupMode) => void }) {
-  const { t } = useTranslation();
-  const archive = useAction('chats.archive');
-  return (
-    <Menu
-      label={t('chat.groupOptions')}
-      items={[
-        { label: t('chat.rename'), onSelect: () => onPick('rename') },
-        { label: t('chat.addPeople'), onSelect: () => onPick('add') },
-        { label: t('chat.removePerson'), onSelect: () => onPick('remove'), hidden: !isMaker },
-        { label: t('chat.leaveGroup'), onSelect: () => onPick('leave'), destructive: true },
-        { label: archived ? t('chat.moveBack') : t('chat.archive'), onSelect: () => archive.mutate({ conversationId: id, archived: !archived }) },
-      ]}
-    />
-  );
+/** A quiet line of a group as a bubble: the log draws it as one grey line between the messages (UX audit 2026-10-19, chats-10). */
+function bubbleOfLine(line: GroupLine): Bubble {
+  return { id: `line-${line.id}`, author: line.actor, actingFor: null, body: '', files: [], createdAt: line.at, mine: false, edited: false, line };
 }
 
-/** One sheet of a group. The maker removes one person; any member renames, adds people or leaves. */
-function GroupSheet({ id, mode, name, people, meId, onClose }: {
-  id: string; mode: GroupMode; name: string; people: UserCard[]; meId: string | undefined; onClose: () => void;
+/**
+ * The menu of a group (UX audit 2026-10-19, chats-07): Rename and Archive. The people, adding people and leaving moved to the People
+ * sheet, which one press on the count or on the picture opens. The archive item is the same as in the list (ArchiveMenu).
+ */
+function GroupMenu({ id, archived, title, onPick, onArchive }: {
+  id: string; archived: boolean; title: string; onPick: (mode: GroupMode) => void; onArchive: (id: string, archived: boolean) => void;
 }) {
   const { t } = useTranslation();
-  const nameOf = usePersonName();
-  const byName = useByPersonName();
-  const navigate = useNavigate();
-  const users = useCall('users.list', {}, { enabled: mode === 'add' });
-  const update = useAction('chats.updateGroup', { onSuccess: () => onClose() });
-  const leave = useAction('chats.leaveGroup', { onSuccess: () => { onClose(); navigate('/inbox'); } });
-  const [field, setField] = useState(name);
-  const [picked, setPicked] = useState<string[]>([]);
-  const toggle = (userId: string) => setPicked((list) => (list.includes(userId) ? list.filter((item) => item !== userId) : [...list, userId]));
-  const members = new Set([...people.map((person) => person.id), ...(meId ? [meId] : [])]);
-  const candidates = (users.data ?? []).filter((user) => user.kind === 'human' && user.active && !members.has(user.id)).sort(byName);
-  const titles: Record<GroupMode, string> = {
-    rename: t('chat.renameTitle'), add: t('chat.addTitle'), remove: t('chat.removeTitle'), leave: t('chat.leaveTitle'),
-  };
-  const footer = {
-    rename: <Button variant="primary" disabled={field.trim() === '' || update.isPending} onClick={() => update.mutate({ conversationId: id, name: field.trim() })}>{t('common.save')}</Button>,
-    add: <Button variant="primary" disabled={picked.length === 0 || update.isPending} onClick={() => update.mutate({ conversationId: id, add: picked })}>{t('common.add')}</Button>,
-    remove: <Button variant="destructive" disabled={picked.length === 0 || update.isPending} onClick={() => update.mutate({ conversationId: id, remove: picked })}>{t('chat.removePerson')}</Button>,
-    leave: <Button variant="destructive" disabled={leave.isPending} onClick={() => leave.mutate({ conversationId: id })}>{t('chat.leaveConfirm')}</Button>,
-  }[mode];
-  const pickable = mode === 'add' ? candidates : people;
   return (
-    <Sheet open onOpenChange={(open) => { if (!open) onClose(); }} title={titles[mode]} footer={footer}>
-      {mode === 'rename' && <TextField id="group-rename" label={t('chat.groupName')} value={field} onChange={(event) => setField(event.target.value)} />}
-      {mode === 'leave' && <p className="text-subheadline text-ink-2">{t('chat.leaveBody')}</p>}
-      {(mode === 'add' || mode === 'remove') && (
-        <ul className="flex flex-col">
-          {pickable.map((person) => (
-            <li key={person.id}>
-              <button
-                type="button"
-                aria-pressed={picked.includes(person.id)}
-                onClick={() => toggle(person.id)}
-                className={`pressable flex min-h-11 w-full items-center gap-3 rounded-xl px-2 py-1.5 text-start hover:bg-fill/50 ${picked.includes(person.id) ? 'bg-fill' : ''}`}
-              >
-                <Avatar user={person} size={36} />
-                <bdi className="truncate text-subheadline font-medium text-ink">{nameOf(person)}</bdi>
-                {picked.includes(person.id) && <AnimatedIcon icon={CheckIcon} size={20} aria-hidden className="ms-auto size-5 shrink-0 text-accent" />}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Sheet>
+    <Menu
+      label={t('chat.optionsFor', { title })}
+      items={[
+        { label: t('chat.rename'), onSelect: () => onPick('rename') },
+        { label: archived ? t('chat.moveBack') : t('chat.archive'), onSelect: () => onArchive(id, !archived) },
+      ]}
+    />
   );
 }
 
@@ -148,14 +94,19 @@ export function ChatPane({ id }: { id: string }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const session = useCall('session.get', {});
-  const meId = session.data?.authority.id;
   const [sheet, setSheet] = useState<GroupMode | null>(null);
   const thread = useCall('chats.messages', { conversationId: id });
   const markRead = useAction('chats.markRead');
   const send = useAction('chats.send');
+  const archive = useArchive();
   const data = thread.data;
   const { messages, earlier } = useEarlierMessages(id, data?.messages);
-  const bubbles = useBubbles(messages, bubbleOfMessage);
+  const messageBubbles = useBubbles(messages, bubbleOfMessage);
+  const lineBubbles = useBubbles(data?.lines ?? NO_LINES, bubbleOfLine);
+  // The quiet lines of a group go between the messages by time. A message comes before a line of the same moment.
+  const bubbles = lineBubbles.length === 0
+    ? messageBubbles
+    : [...messageBubbles, ...lineBubbles].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || (a.line ? 1 : 0) - (b.line ? 1 : 0));
   const unread = data?.chat.unread ?? 0;
   useEffect(() => {
     if (unread > 0) markRead.mutate({ conversationId: id });
@@ -165,26 +116,38 @@ export function ChatPane({ id }: { id: string }) {
   if (!data) return <div className="flex-1" aria-busy="true" />;
   const { chat } = data;
   const isGroup = chat.kind === 'group';
+  // A group shows one picture. One press on it, or on the count of people, opens the People sheet (UX audit 2026-10-19, chats-07 and 08).
   const lead = chat.kind === 'project' && chat.project
     ? <ProjectTile id={chat.project.id} mark={chat.project.mark} size={40} />
-    : isGroup ? <span className="grid size-10 shrink-0 place-items-center rounded-full bg-fill"><AvatarStack leader={null} team={data.people} max={3} size={22} /></span>
+    : isGroup ? (
+      <button type="button" aria-label={t('chat.peopleTitle')} onClick={() => setSheet('people')} className="pressable shrink-0 rounded-full">
+        <GroupPicture id={chat.id} size={40} />
+      </button>
+    )
     : chat.person ? <Avatar user={chat.person} size={40} /> : null;
   // A direct chat with an inactive person says so and takes no new messages (audit 2026-10-03, SHL-15).
   // "Inactive" is the word Admin uses for the same state (audit 2026-10-03, V-25).
   const context = actorContext(chat.person);
-  const subtitle = isGroup ? t('chat.groupChat') : chat.kind === 'project' ? t('chat.projectChat') : chat.personLeft ? t('chat.inactive', { context }) : t('chat.directChat');
+  const subtitle = isGroup
+    ? (
+      <button type="button" onClick={() => setSheet('people')} className="pressable -my-3 block max-w-full truncate py-3 text-start hover:text-ink hover:underline">
+        {t('chat.people', { count: data.people.length + 1 })}
+      </button>
+    )
+    : chat.kind === 'project' ? t('chat.projectChat') : chat.personLeft ? t('chat.inactive', { context }) : t('chat.directChat');
+  const title = chat.kind === 'direct' && chat.person ? nameOf(chat.person) : chat.title;
   return (
     <>
       <Header
         lead={lead}
-        title={<bdi>{chat.kind === 'direct' && chat.person ? nameOf(chat.person) : chat.title}</bdi>}
+        title={<bdi>{title}</bdi>}
         subtitle={subtitle}
         action={isGroup
-          ? <GroupMenu id={id} archived={chat.archived} isMaker={chat.makerId !== null && chat.makerId === meId} onPick={setSheet} />
-          : <ArchiveMenu id={id} archived={chat.archived} />}
+          ? <GroupMenu id={id} archived={chat.archived} title={title} onPick={setSheet} onArchive={archive} />
+          : <ArchiveMenu id={id} archived={chat.archived} title={title} onArchive={archive} />}
       />
       <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} />
-      {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{t('chat.closed')}</p> : (
+      {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{isGroup ? t('chat.groupAlone') : t('chat.closed')}</p> : (
         <Composer
           id={id}
           people={data.people}
@@ -193,12 +156,13 @@ export function ChatPane({ id }: { id: string }) {
           onSend={(body, fileIds, clear) => send.mutate({ conversationId: id, body, fileIds }, { onSuccess: clear })}
         />
       )}
-      {sheet && <GroupSheet id={id} mode={sheet} name={chat.title} people={data.people} meId={meId} onClose={() => setSheet(null)} />}
+      {isGroup && <GroupSheets id={id} mode={sheet} onMode={setSheet} name={chat.title} people={data.people} me={session.data?.authority} makerId={chat.makerId} />}
     </>
   );
 }
 
 const NO_COMMENTS: CommentView[] = [];
+const NO_LINES: GroupLine[] = [];
 
 /** The comments of one task as a chat. A message posts a task comment. */
 export function TaskPane({ id }: { id: string }) {
@@ -216,6 +180,7 @@ export function TaskPane({ id }: { id: string }) {
   const comments = useCall('comments.list', { targetType: 'task', targetId: id });
   const session = useCall('session.get', {});
   const create = useAction('comments.create');
+  const archive = useArchive();
   useMarkTaskRead(id, comments.data, session.data?.authority.id);
   const me = session.data?.authority.id;
   // "mine" depends on the person, so the kept bubbles start again when the person changes.
@@ -250,7 +215,7 @@ export function TaskPane({ id }: { id: string }) {
             >
               {t('chat.openTask')}
             </Link>
-            <ArchiveMenu id={id} archived={row?.archived ?? false} />
+            <ArchiveMenu id={id} archived={row?.archived ?? false} title={task.data.task.title} onArchive={archive} />
           </>
         )}
       />

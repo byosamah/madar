@@ -1,74 +1,110 @@
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { SearchIcon } from '../../components/icons/animated/search';
-import { memo, useEffect, useState } from 'react';
+import { motion } from 'motion/react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { CallOutput } from '../../api/calls';
 import { Age, AgeRefresh } from '../../components/Age';
 import { Avatar } from '../../components/Avatar';
-import { AvatarStack } from '../../components/AvatarStack';
 import { ProjectTile } from '../../components/ProjectTile';
 import { normalizeForSearch } from '../../lib/text';
+import { isFinePointer } from '../../lib/calendar';
 import { usePersonName } from '../../app/personName';
-import { useAction } from '../../app/runtime';
+import { useStableHandler } from '../../app/useStableHandler';
+import { useIsPhone } from '../../app/useIsPhone';
 import { Menu } from '../../components/Menu';
+import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
+import { ChevronRightIcon } from '../../components/icons/animated/chevron-right';
 import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-check';
+import { useArchive } from './archive';
+import { GroupPicture } from './GroupPicture';
 
 type Row = CallOutput<'chats.list'>[number];
 
 function Lead({ row }: { row: Row }) {
   if (row.kind === 'project' && row.project) return <ProjectTile id={row.project.id} mark={row.project.mark} size={40} />;
   if (row.kind === 'direct' && row.person) return <Avatar user={row.person} size={40} />;
-  // A group shows up to three small pictures of its people (owner, 2026-10-18).
-  if (row.kind === 'group') return <span className="grid size-10 shrink-0 place-items-center rounded-full bg-fill"><AvatarStack leader={null} team={row.members} max={3} size={20} /></span>;
+  // A group has one picture of its own, never a stack of faces (UX audit 2026-10-19, chats-08).
+  if (row.kind === 'group') return <GroupPicture id={row.id} size={40} />;
   return <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><AnimatedIcon icon={ClipboardCheckIcon} size={18} aria-hidden /></span>;
 }
 
 /** The title of a row: a direct chat shows the other person's name in the screen language (owner item 12). */
-function useTitleOf(): (row: Row) => string {
+export function useTitleOf(): (row: Row) => string {
   const nameOf = usePersonName();
   return (row) => (row.kind === 'direct' && row.person ? nameOf(row.person) : row.title);
 }
 
 /**
  * The menu of a chat, in its row and in its header: Archive, or Move back to Inbox in the archived list (owner, 2026-10-18).
- * Only the person sees it: an agent never archives a chat (the MCP deny list).
+ * Only the person sees it: an agent never archives a chat (the MCP deny list). The button names its chat, so a screen reader
+ * does not hear "Chat options" for every row (UX audit 2026-10-19, chats-06).
  */
-export function ArchiveMenu({ id, archived }: { id: string; archived: boolean }) {
+export function ArchiveMenu({ id, archived, title, onArchive }: { id: string; archived: boolean; title: string; onArchive: (id: string, archived: boolean) => void }) {
   const { t } = useTranslation();
-  const archive = useAction('chats.archive');
   return (
     <Menu
-      label={t('chat.options')}
-      items={[{ label: archived ? t('chat.moveBack') : t('chat.archive'), onSelect: () => archive.mutate({ conversationId: id, archived: !archived }) }]}
+      label={t('chat.optionsFor', { title })}
+      items={[{ label: archived ? t('chat.moveBack') : t('chat.archive'), onSelect: () => onArchive(id, !archived) }]}
     />
   );
 }
+
+/** How far a swipe goes before the row archives. The same as the swipe of the Notifications rows. */
+const SWIPE_PX = 80;
 
 /**
  * Memoized, so a chat switch, a send or a key in the search renders again only the rows whose data or selection changed
  * (performance audit 2026-10-07, RND-5). A row keeps its object across reloads (structural sharing), and its age refreshes
  * through AgeRefresh.
+ *
+ * The menu button of a row shows only while the pointer is on the row or the keyboard is in it (UX audit 2026-10-19, chats-06).
+ * On a phone, or where the pointer is a finger, the button is gone and a swipe archives the row, with the toast and its Undo.
  */
-const ChatRowItem = memo(function ChatRowItem({ row, selected }: { row: Row; selected: boolean }) {
+const ChatRowItem = memo(function ChatRowItem({ row, selected, waiting, swipe, showArchived, onArchive }: {
+  row: Row; selected: boolean; waiting: boolean; swipe: boolean; showArchived: boolean; onArchive: (id: string, archived: boolean) => void;
+}) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const titleOf = useTitleOf();
+  const title = titleOf(row);
   const by = row.previewMine ? t('chat.you') : row.previewAuthor ? nameOf(row.previewAuthor).split(' ')[0] : '';
   // A direct chat shows the other person's words without a name, unless the words are mine.
   const showBy = row.preview !== '' && by !== '' && (row.kind !== 'direct' || row.previewMine);
+  // A swipe on a phone must not also open the chat.
+  const swiped = useRef(false);
   return (
-    <li className={`flex items-center transition-colors hover:bg-fill/50 ${selected ? 'bg-fill' : ''}`}>
+    <motion.li
+      drag={swipe ? 'x' : false}
+      dragSnapToOrigin
+      onDragStart={() => {
+        swiped.current = true;
+      }}
+      onDragEnd={(_event, info) => {
+        if (Math.abs(info.offset.x) > SWIPE_PX) onArchive(row.id, !row.archived);
+        window.setTimeout(() => {
+          swiped.current = false;
+        }, 0);
+      }}
+      className={`group flex items-center transition-colors hover:bg-fill/50 ${selected ? 'bg-fill' : 'bg-panel'}`}
+    >
       <Link
         to={`/inbox/${row.id}`}
         aria-current={selected ? 'page' : undefined}
+        onClick={(event) => {
+          if (swiped.current) event.preventDefault();
+        }}
         className="pressable flex min-h-[4.25rem] min-w-0 flex-1 items-center gap-3 px-3 py-2.5"
       >
         <Lead row={row} />
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="flex items-baseline justify-between gap-2">
-            <bdi className={`min-w-0 truncate text-subheadline ${row.unread > 0 ? 'font-semibold text-ink' : 'font-medium text-ink'}`}>{titleOf(row)}</bdi>
-            <span className="shrink-0 text-footnote text-ink-2"><Age stamp={row.lastAt} /></span>
+            <bdi className={`min-w-0 truncate text-subheadline ${row.unread > 0 ? 'font-semibold text-ink' : 'font-medium text-ink'}`}>{title}</bdi>
+            <span className="shrink-0 text-footnote text-ink-2">
+              {showArchived && row.archived && <>{t('chat.archived')}<span aria-hidden> · </span></>}
+              <Age stamp={row.lastAt} />
+            </span>
           </span>
           <span className="flex items-center justify-between gap-2">
             {/* The preview keeps its own direction and its own cut-off, so an English line in an Arabic list keeps its full stop
@@ -86,21 +122,28 @@ const ChatRowItem = memo(function ChatRowItem({ row, selected }: { row: Row; sel
               </span>
             )}
           </span>
+          {/* The one next step of a chat that was read and not answered (UX audit 2026-10-19, INT-26). */}
+          {waiting && <span className="text-footnote font-medium text-ink">{t('chat.waiting')}</span>}
         </span>
       </Link>
-      <span className="shrink-0 pe-1">
-        <ArchiveMenu id={row.id} archived={row.archived} />
+      <span className="shrink-0 pe-1 pointer-coarse:hidden max-sm:hidden sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100 sm:has-[[aria-expanded=true]]:opacity-100">
+        <ArchiveMenu id={row.id} archived={row.archived} title={title} onArchive={onArchive} />
       </span>
-    </li>
+    </motion.li>
   );
 });
 
 /**
- * The chats on the start side: a search field and one link for each project chat, direct chat and task thread. The last line is
- * the quiet row of the archive: "Archived (n)" opens the archived chats, and "Back to Inbox" closes them (owner, 2026-10-18).
+ * The chats on the start side: a search field and one link for each project chat, direct chat, group and task thread.
+ * "Archived (n)" is one quiet row under the search field while some chat is archived; it opens the archived chats, which have a
+ * title and a back arrow of their own (UX audit 2026-10-19, chats-04 and chats-05). A search in the main list looks in every
+ * chat, and an archived match carries the word "Archived". A chat that was read and waits for a reply shows that (INT-26).
  */
-export function ChatList({ rows, selectedId }: { rows: Row[]; selectedId: string | undefined }) {
+export function ChatList({ rows, selectedId, waiting }: { rows: Row[]; selectedId: string | undefined; waiting: ReadonlySet<string> }) {
   const { t } = useTranslation();
+  const phone = useIsPhone();
+  const archive = useArchive();
+  const onArchive = useStableHandler(archive);
   const [query, setQuery] = useState('');
   // The archived chats leave the main list. The archived list closes by itself when its last chat moves back (owner, 2026-10-18).
   const [wantArchived, setWantArchived] = useState(false);
@@ -110,42 +153,72 @@ export function ChatList({ rows, selectedId }: { rows: Row[]; selectedId: string
     if (archivedRows.length === 0) setWantArchived(false);
   }, [archivedRows.length]);
   const archivedOpen = wantArchived && archivedRows.length > 0;
-  const listed = archivedOpen ? archivedRows : rows.filter((row) => !row.archived);
   const needle = normalizeForSearch(query);
-  // A direct chat matches both names of the person (owner item 12).
+  // The main list holds the chats that are not archived; a search looks in all of them. The archived list holds the archived chats.
+  const listed = archivedOpen ? archivedRows : needle === '' ? rows.filter((row) => !row.archived) : rows;
+  // A direct chat matches both names of the person (owner item 12). A group matches its name, and only its members have its row.
   const shown = needle === '' ? listed : listed.filter((row) => normalizeForSearch(`${row.title} ${row.person?.nameAr ?? ''} ${row.project?.name ?? ''}`).includes(needle));
+  // A finger swipes. A mouse or a trackpad uses the button that shows on hover.
+  const swipe = phone || !isFinePointer();
   // A new object on each render: the row ages read the clock on each switch and each search key, as before the memo (RND-5).
   const refresh = {};
+  const searchLabel = archivedOpen ? t('chat.searchArchived') : t('chat.search');
   return (
     <>
+      {archivedOpen && (
+        <div className="flex items-center gap-1 px-2 pt-2">
+          <button
+            type="button"
+            aria-label={t('chat.backToInbox')}
+            onClick={() => {
+              setWantArchived(false);
+              setQuery('');
+            }}
+            className="pressable grid size-11 shrink-0 place-items-center rounded-full text-ink-2 hover:text-ink"
+          >
+            <AnimatedIcon icon={ChevronLeftIcon} size={20} className="rtl:-scale-x-100" aria-hidden />
+          </button>
+          <h2 className="min-w-0 truncate text-headline text-ink">{t('chat.archivedTitle')}</h2>
+        </div>
+      )}
       <div className="relative p-3">
-        <label htmlFor="chat-search" className="sr-only">{t('chat.search')}</label>
+        <label htmlFor="chat-search" className="sr-only">{searchLabel}</label>
         <AnimatedIcon icon={SearchIcon} size={16} aria-hidden className="pointer-events-none absolute start-6 top-1/2 -translate-y-1/2 text-ink-2" />
         <input
           id="chat-search"
           type="search"
           dir="auto"
+          autoComplete="off"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder={t('chat.search')}
+          placeholder={searchLabel}
           className="min-h-11 w-full rounded-full bg-fill ps-9 pe-4 text-subheadline text-ink placeholder:text-ink-2"
         />
       </div>
+      {!archivedOpen && needle === '' && archivedRows.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setWantArchived(true)}
+          className="pressable flex min-h-11 w-full shrink-0 items-center justify-between gap-2 px-4 py-2 text-start text-footnote text-ink-2 hover:text-ink"
+        >
+          <span>{t('chat.archivedCount', { count: archivedRows.length })}</span>
+          <AnimatedIcon icon={ChevronRightIcon} size={16} className="rtl:-scale-x-100" aria-hidden />
+        </button>
+      )}
       {shown.length === 0 && needle !== '' && <p className="px-4 pb-4 text-subheadline text-ink-2">{t('chat.noMatch')}</p>}
       <AgeRefresh.Provider value={refresh}>
         <ul aria-label={t('chat.list')} className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
-          {shown.map((row) => <ChatRowItem key={row.id} row={row} selected={row.id === selectedId} />)}
-          {archivedRows.length > 0 && (
-            <li>
-              <button
-                type="button"
-                onClick={() => setWantArchived((on) => !on)}
-                className="pressable flex min-h-11 w-full items-center px-4 py-2 text-start text-footnote text-ink-2 hover:text-ink"
-              >
-                {archivedOpen ? t('chat.backToInbox') : t('chat.archivedCount', { count: archivedRows.length })}
-              </button>
-            </li>
-          )}
+          {shown.map((row) => (
+            <ChatRowItem
+              key={row.id}
+              row={row}
+              selected={row.id === selectedId}
+              waiting={waiting.has(row.id)}
+              swipe={swipe}
+              showArchived={!archivedOpen}
+              onArchive={onArchive}
+            />
+          ))}
         </ul>
       </AgeRefresh.Provider>
     </>

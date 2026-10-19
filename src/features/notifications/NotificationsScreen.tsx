@@ -21,6 +21,7 @@ import { actorContext, counted } from '../../lib/grammar';
 import { groupByDay } from '../../lib/group';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ProjectTile } from '../../components/ProjectTile';
+import { GroupPicture } from '../inbox/GroupPicture';
 
 type NoticeView = CallOutput<'notifications.list'>[number];
 
@@ -30,6 +31,12 @@ function reportKey(n: NoticeView['notification']): string {
   const bug = n.feedback.kind === 'bug';
   if (n.trigger === 'feedback_sent') return bug ? 'inbox.feedback.sentBug' : 'inbox.feedback.sentFeature';
   return bug ? 'inbox.feedback.doneBug' : 'inbox.feedback.doneFeature';
+}
+
+/** The sentence of a group notice: a mention or an add, with the name of the group, or with "a group" when the person has left it. */
+function groupKey(trigger: string, named: boolean): string {
+  if (trigger === 'mention') return named ? 'inbox.mentionGroup' : 'inbox.mentionGroupGone';
+  return named ? `inbox.trigger.${trigger}` : 'inbox.addedGroupGone';
 }
 
 function InboxItem({ view }: { view: NoticeView }) {
@@ -56,23 +63,27 @@ function InboxItem({ view }: { view: NoticeView }) {
   });
   // A swipe on a phone must not also open the item.
   const swiped = useRef(false);
-  // A chat with no project is a direct chat: its sentence names no place (audit 2026-10-03, SHL-14).
-  const direct = n.trigger === 'mention' && n.targetType === 'chat' && !project;
   const report = n.targetType === 'feedback';
-  // A done report names no person, so its row shows the bell and not the Admin who marked it.
+  // A group notice names the group, so it never reads as a direct message (UX audit 2026-10-19, INT-03). A group the person has left
+  // has no name here, and its sentence says "a group".
+  const group = n.targetType === 'chat' && view.chatKind === 'group';
+  // A chat with no project and no group is a direct chat: its sentence names no place (audit 2026-10-03, SHL-14).
+  const direct = n.trigger === 'mention' && n.targetType === 'chat' && !project && !group;
+  const sentenceKey = report ? reportKey(n) : direct ? 'inbox.mentionDirect' : group ? groupKey(n.trigger, target !== '') : `inbox.trigger.${n.trigger}`;
+  // A done report names no person, so its row shows the bell and not the Admin who marked it. A group notice shows the group.
   const face = report && n.trigger === 'feedback_done' ? null : actor;
-  const sentence = t(report ? reportKey(n) : direct ? 'inbox.mentionDirect' : `inbox.trigger.${n.trigger}`, {
+  const sentence = t(sentenceKey, {
     actor: actor ? nameOf(actor) : t('inbox.someone'),
     context: actorContext(actor),
-    // The excerpt of a report keeps its own direction (FSI and PDI), so an English "…" or "?" stays at its end in Arabic.
-    target: report ? `\u2068${target}\u2069` : target,
+    // The excerpt of a report and the name of a group keep their own direction (FSI and PDI), so an English "…" or "?" stays at its end in Arabic.
+    target: report || group ? `\u2068${target}\u2069` : target,
     // A reminder names its due day, which can be days away after a weekend (audit 2026-10-03, API-11).
     day: dueDate ? formatDay(dueDate, lang, 'weekday') : '',
   });
   const body = (
     <>
       <span aria-hidden className={`mt-3 size-2.5 shrink-0 rounded-full ${n.read ? '' : 'bg-link'}`} />
-      {face
+      {group ? <GroupPicture id={n.targetId} size={36} /> : face
         ? <Avatar user={face} size={36} />
         : <span className="grid size-9 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><AnimatedIcon icon={BellIcon} size={16} aria-hidden /></span>}
       <span className="flex min-w-0 flex-1 flex-col">
