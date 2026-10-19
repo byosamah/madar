@@ -10,10 +10,10 @@ import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../components/icons/animated/plus';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenTitle } from '../../components/ScreenTitle';
-import { addDays, todayISO } from '../../lib/dates';
+import { addDays, todayISO, type DayStyle } from '../../lib/dates';
 import { closeMeeting, meetingParam, openMeeting } from '../../lib/params';
 import { WorkSwitch } from '../work/WorkSwitch';
-import { groupMeetings } from './groups';
+import { groupMeetings, type MeetingGroup } from './groups';
 import { MeetingForm } from './MeetingForm';
 import { MeetingListRow } from './MeetingRow';
 import { MeetingSheet } from './MeetingSheet';
@@ -21,6 +21,9 @@ import { MeetingSheet } from './MeetingSheet';
 /** The Meetings view looks 7 days back and 60 days ahead (fbk_022). */
 const DAYS_BACK = 7;
 const DAYS_AHEAD = 60;
+
+/** The day above the time of a row, by group. The Today group shows the time alone. */
+const DAY_STYLE: Record<MeetingGroup, DayStyle | undefined> = { today: undefined, week: 'weekdayDay', later: 'short' };
 
 const SECTION = 'surface overflow-hidden rounded-card pb-2';
 const HEADING = 'px-4 pb-1 pt-3 text-headline';
@@ -40,7 +43,7 @@ const MeetingsBody = memo(function MeetingsBody({ rows, today, onOpen }: { rows:
         <section key={group} aria-labelledby={`meetings-${group}`} className={SECTION}>
           <h2 id={`meetings-${group}`} className={HEADING}>{t(`meetings.group.${group}`)}</h2>
           <ul className="hairline">
-            {inGroup.map((row) => <MeetingListRow key={row.id} row={row} withDay={group !== 'today'} onOpen={onOpen} />)}
+            {inGroup.map((row) => <MeetingListRow key={row.id} row={row} dayStyle={DAY_STYLE[group]} onOpen={onOpen} />)}
           </ul>
         </section>
       ))}
@@ -57,7 +60,7 @@ const MeetingsBody = memo(function MeetingsBody({ rows, today, onOpen }: { rows:
           {showEarlier && (
             <div className={SECTION}>
               <ul className="hairline pt-2">
-                {earlier.map((row) => <MeetingListRow key={row.id} row={row} withDay onOpen={onOpen} />)}
+                {earlier.map((row) => <MeetingListRow key={row.id} row={row} dayStyle="short" onOpen={onOpen} />)}
               </ul>
             </div>
           )}

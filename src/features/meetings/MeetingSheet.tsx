@@ -135,7 +135,7 @@ export function MeetingSheet({ meetingId, onClose }: { meetingId: string; onClos
           )}
           <Fact label={t('meetings.sheet.project')}>
             {meeting.project ? (
-              <Link to={`/projects/${meeting.project.id}`} className="inline-flex min-h-11 items-center gap-2 text-link">
+              <Link to={`/projects/${meeting.project.id}`} className="-my-1.5 inline-flex min-h-11 items-center gap-2 text-link">
                 <ProjectTile id={meeting.project.id} mark={meeting.project.mark} size={24} />
                 <bdi>{meeting.project.name}</bdi>
               </Link>
@@ -158,7 +158,7 @@ export function MeetingSheet({ meetingId, onClose }: { meetingId: string; onClos
             <Fact label={t('meetings.sheet.minutesBy')}>
               <PersonLine person={meeting.minutesBy} />
               {meeting.minutesTask && (
-                <Link to={taskLink(meeting.project?.id ?? null, meeting.minutesTask.id)} className="flex min-h-11 items-center text-link underline underline-offset-2">
+                <Link to={taskLink(meeting.project?.id ?? null, meeting.minutesTask.id)} className="-my-1.5 flex min-h-11 items-center text-link underline underline-offset-2">
                   {t('meetings.sheet.minutesTask')}
                 </Link>
               )}

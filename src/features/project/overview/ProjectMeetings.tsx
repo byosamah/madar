@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { useLang } from '../../../app/lang';
 import { useCall } from '../../../app/runtime';
-import { Button } from '../../../components/Button';
 import { clockFormat, formatDay, now, stampDay, todayISO } from '../../../lib/dates';
 import { meetingLink, phaseOf } from '../../../lib/meetings';
 import { isLive } from '../../../lib/overview';
@@ -50,7 +49,11 @@ export function ProjectMeetings({ detail }: TabProps) {
           ))}
         </ul>
       )}
-      {mayPlan && <Button variant="plain" className="self-start px-0" onClick={() => setPlanning(true)}>{t('meetings.project.plan')}</Button>}
+      {mayPlan && (
+        <button type="button" onClick={() => setPlanning(true)} className="pressable flex min-h-11 items-center self-start text-subheadline font-semibold text-link">
+          {t('meetings.project.plan')}
+        </button>
+      )}
       {mayPlan && <MeetingForm open={planning} onOpenChange={setPlanning} project={{ id: project.id, name: project.name }} />}
     </section>
   );
