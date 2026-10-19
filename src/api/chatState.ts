@@ -1,5 +1,5 @@
 import { isLiveMessage } from './chatNaming';
-import type { ChatRead, Conversation, Message, User } from './contract/entities';
+import type { ChatRead, Conversation, Message, NotifyLevel, User } from './contract/entities';
 import { forbidden, invalid, notFound } from './errors';
 import { can, principalOf, projectRoleOf } from './permissions';
 import { chatReadKey, nextId, unreadCountKey, type State } from './store';
@@ -81,6 +81,15 @@ export function chatForUpload(state: State, conversationId: string, person: User
   if (conversation.kind === 'project') throw invalid('conversationId', 'A project chat uses the files of its project. Name the project.', 'file_chat');
   if (personLeft(state, conversation, person)) throw closedChatError(conversation);
   return conversation;
+}
+
+/**
+ * The "Notify me" level from a stored read mark and the kind of the chat (design item 21): the stored level, else "named" for a project
+ * chat and "all" for a direct chat or a group. A loader and the push facts hold no State, so they use this. notifyLevelOf
+ * (chatNaming.ts) reads the same rule from a State, and a test keeps the two equal.
+ */
+export function levelFromRead(read: Pick<ChatRead, 'notify'> | undefined, kind: Conversation['kind']): NotifyLevel {
+  return read?.notify ?? (kind === 'project' ? 'named' : 'all');
 }
 
 /** The messages of one page of a chat when the screen names no limit, and the most it may ask for (plan 4.13, A5; AM 7.5). */
