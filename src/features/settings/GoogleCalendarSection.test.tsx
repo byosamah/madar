@@ -306,8 +306,11 @@ describe('the Arabic screen', () => {
 });
 
 describe('What\'s new (fbk_022)', () => {
-  it('has the entry 2026-10-23-25 at the top, with the Settings link, and its words in both languages', () => {
-    expect(WHATS_NEW[0]).toEqual({ id: '2026-10-23-25', day: '2026-10-23', to: '/settings' });
+  it('has the entry 2026-10-23-25 above the minutes entry, with the Settings link, and its words in both languages', () => {
+    // Newer entries of the same day (the team fixes, 26 to 29) sit above it after the merge.
+    const index = WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-25');
+    expect(WHATS_NEW[index]).toEqual({ id: '2026-10-23-25', day: '2026-10-23', to: '/settings' });
+    expect(WHATS_NEW[index + 1]?.id).toBe('2026-10-23-24');
     expect(pick(en, 'whatsNew.items.2026-10-23-25.title')).toBe('Your meetings in Google Calendar');
     expect(pick(en, 'whatsNew.items.2026-10-23-25.body')).toBe(
       'Connect Google Calendar once in Settings. Madar then puts each of your meetings there and keeps it up to date. Google gets only the title, the time and the place.',
