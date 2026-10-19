@@ -1,5 +1,7 @@
 {
   "files": {
+    "add": "إضافة",
+    "uploadOne": "رفع ملف",
     "tooLarge": "حجم {{name}} أكبر من {{limit}}.",
     "limitMb": "{{n}} ميغابايت"
   },

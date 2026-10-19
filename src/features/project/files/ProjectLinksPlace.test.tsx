@@ -5,7 +5,7 @@ import type { State } from '../../../api/store';
 import { useCall } from '../../../app/runtime';
 import { resetGate } from '../../../lib/nominatimGate';
 import { renderWithRuntime } from '../../../test/render';
-import { ProjectLinks } from './ProjectLinks';
+import { FilesTab } from './FilesTab';
 
 // A location link that holds a point moves the pin. The screen looks up the address of that point first and sends it with the link,
 // so the link, the pin and the address are one write and one Undo (the Location is the address of the pin, owner, 2026-10-19).
@@ -34,7 +34,7 @@ afterAll(() => {
 
 function Harness() {
   const detail = useCall('projects.get', { id: 'prj_001' });
-  return detail.data ? <ProjectLinks detail={detail.data} /> : null;
+  return detail.data ? <FilesTab detail={detail.data} /> : null;
 }
 
 const asLeader = (state: State) => {
@@ -42,8 +42,9 @@ const asLeader = (state: State) => {
 };
 
 async function addLink(kind: string, url: string, prepare = asLeader) {
-  const view = await renderWithRuntime(<Harness />, prepare);
-  await userEvent.click(await screen.findByRole('button', { name: 'Add link' }));
+  const view = await renderWithRuntime(<Harness />, prepare, { path: '/projects/prj_001?tab=files' });
+  await userEvent.click(await screen.findByRole('button', { name: 'Add' }));
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Add a link' }));
   const sheet = await screen.findByRole('dialog', { name: 'Add a link' });
   await userEvent.selectOptions(within(sheet).getByLabelText('Kind'), kind);
   fireEvent.change(within(sheet).getByLabelText('Link'), { target: { value: url } });

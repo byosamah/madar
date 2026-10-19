@@ -3,6 +3,10 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-21": {
+        "title": "Files & Links",
+        "body": "Now the links of a project are in the Files & Links tab, above the files. You add a file or a link from one button, Add. The About panel does not show the links."
+      },
       "2026-10-23-20": {
         "title": "The ring on Home",
         "body": "The ring next to the date on Home now says what it counts: how many of your tasks for today are done."

@@ -156,9 +156,11 @@ describe('the Files tab', () => {
     expect(Object.values(store.state.messages).some((m) => m.fileIds?.includes('fil_004'))).toBe(false);
   });
 
-  it('shows a focus ring on Upload files', async () => {
+  // The file input is hidden. The Add button opens it from the menu item Upload a file, so a keyboard user reaches the upload by the button.
+  it('keeps the hidden file input out of the tab order, so the Add button is the one stop', async () => {
     await renderApp(FILES, as('usr_005'));
-    expect((await screen.findByText('Upload files')).closest('label')).toHaveClass('has-[:focus-visible]:outline-2');
+    expect(await screen.findByLabelText('Upload files')).toHaveAttribute('tabindex', '-1');
+    expect(await screen.findByRole('button', { name: 'Add' })).toBeInTheDocument();
   });
 });
 

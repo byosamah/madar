@@ -28,6 +28,8 @@ export const INSTRUCTIONS = [
   '',
   'Files: you can list files and refer to them by ID. To upload a file, the person uses the Madar screens.',
   '',
+  'Links: the links of a project (the moodboard, the office folder, the map and the client delivery folder) come in projects.get. The screens show them in the Files & Links tab, above the files. You cannot add or change a link: your person does that in the screens.',
+  '',
   'Leads: a task can have no lead (ownerId null). A new task has no lead unless you name one. A task with no lead cannot be completed or sent to review: the call fails with reason needs_lead. tasks.take makes your person the lead of a task with no lead. On a project task, the person who added it (its maker) changes it like the project leader while on the team: title, dates, lead, helpers, prerequisites and the delete. A maker names only people on the team. Only the leader or the Admin reviews a task, changes its review need, or names a person outside the team.',
   '',
   'Order: inside each date group (Past due, Today, This week, Later, No date), the Tasks screen and Home show the tasks in one shared order: the tasks with a place (rank) first, lowest first, then the others by date. tasks.arrange sets that order. It changes no date, status or lead.',

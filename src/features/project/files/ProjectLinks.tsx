@@ -15,7 +15,6 @@ import { FolderOpenIcon } from '../../../components/icons/animated/folder-open';
 import { LinkIcon } from '../../../components/icons/animated/link';
 import { MapPinIcon } from '../../../components/icons/animated/map-pin';
 import { PaletteIcon } from '../../../components/icons/animated/palette';
-import { PlusIcon } from '../../../components/icons/animated/plus';
 import { SendIcon } from '../../../components/icons/animated/send';
 import { SquarePenIcon } from '../../../components/icons/animated/square-pen';
 import { Sheet } from '../../../components/Sheet';
@@ -47,7 +46,7 @@ function PathField({ path, onDone }: { path: string; onDone: () => void }) {
   return <input ref={ref} readOnly dir="ltr" aria-label={t('links.pathLabel')} value={path} onBlur={onDone} className="field min-h-11 basis-full" />;
 }
 
-function LinkSheet({ detail, link, open, onOpenChange }: { detail: ProjectDetail; link: ProjectLink | null; open: boolean; onOpenChange: (open: boolean) => void }) {
+export function LinkSheet({ detail, link, open, onOpenChange }: { detail: ProjectDetail; link: ProjectLink | null; open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation();
   const [kind, setKind] = useState<LinkKind>('moodboard');
   const [label, setLabel] = useState('');
@@ -123,23 +122,27 @@ function LinkSheet({ detail, link, open, onOpenChange }: { detail: ProjectDetail
   );
 }
 
+/** The links of a project as the list shows them: the model folder of the project form first, then the saved links. */
+export function projectLinkRows(project: ProjectDetail['project'], modelFolderLabel: string): ProjectLink[] {
+  return [
+    ...(project.modelFolderPath ? [{ id: MODEL_FOLDER, kind: 'folder' as const, label: modelFolderLabel, url: project.modelFolderPath }] : []),
+    ...(project.links ?? []),
+  ];
+}
+
 /**
  * The places outside Madar that a project uses: the moodboard, the office folder, the map pin, the client's delivery
- * folder (colleague comment 5, owner approved 2026-10-01). Only links that exist show; one button adds another.
+ * folder (colleague comment 5, owner approved 2026-10-01). It sits at the top of the Files & Links tab, above the files
+ * (owner, 2026-10-19). Only links that exist show. The Add button of the tab adds another; this list only edits.
  * A web link opens in a new tab. An office network path cannot open in a browser, so it gets a Copy button.
  */
-export function ProjectLinks({ detail }: { detail: ProjectDetail }) {
+export function ProjectLinks({ detail, onEdit }: { detail: ProjectDetail; onEdit: (link: ProjectLink) => void }) {
   const { t } = useTranslation();
   const toast = useToast();
   const { project, viewerCan } = detail;
-  const [editing, setEditing] = useState<ProjectLink | null>(null);
-  const [open, setOpen] = useState(false);
   const [byHand, setByHand] = useState<string | null>(null);
-  const rows: ProjectLink[] = [
-    ...(project.modelFolderPath ? [{ id: MODEL_FOLDER, kind: 'folder' as const, label: t('links.modelFolder'), url: project.modelFolderPath }] : []),
-    ...(project.links ?? []),
-  ];
-  if (rows.length === 0 && !viewerCan.post) return null;
+  const rows = projectLinkRows(project, t('links.modelFolder'));
+  if (rows.length === 0) return null;
   // A plain http:// office server has no clipboard, and a browser may refuse it. The person then gets the path selected,
   // to copy it with the keyboard, and a toast says so (audit 2026-10-03, PRJ-15).
   const copy = (link: ProjectLink) => {
@@ -153,62 +156,49 @@ export function ProjectLinks({ detail }: { detail: ProjectDetail }) {
     }
     navigator.clipboard.writeText(link.url).then(() => toast.show({ message: t('links.copied') }), manual);
   };
-  const openSheet = (link: ProjectLink | null) => {
-    setEditing(link);
-    setOpen(true);
-  };
   return (
-    <div className="flex flex-col gap-1.5">
-      <h3 className="text-footnote font-semibold uppercase tracking-[0.06em] text-ink-2">{t('links.title')}</h3>
-      {rows.length > 0 && (
-        <ul className="-mx-2 flex flex-col">
-          {rows.map((link) => {
-            const name = link.label || (isNetworkPath(link.url) ? link.url : hostOf(link.url));
-            const body = (
-              <>
-                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-fill text-ink-2"><AnimatedIcon icon={ICON[link.kind]} size={18} aria-hidden /></span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-caption text-ink-2">{t(`links.kinds.${link.kind}`)}</span>
-                  <bdi dir={isNetworkPath(link.url) ? 'ltr' : 'auto'} className="block truncate text-subheadline text-ink">{name}</bdi>
-                </span>
-              </>
-            );
-            return (
-              <li key={link.id} className="flex min-h-11 flex-wrap items-center gap-1">
-                {/* The server refuses other links, but stored data is checked again here: only a web link ever gets an href. */}
-                {!linkUrlOk('other', link.url) && !isNetworkPath(link.url) ? (
-                  <span className="flex min-w-0 flex-1 items-center gap-3 px-2 py-1.5">{body}</span>
-                ) : isNetworkPath(link.url) ? (
-                  <span className="flex min-w-0 flex-1 items-center gap-3 px-2 py-1.5">
-                    {body}
-                    <button type="button" onClick={() => copy(link)} aria-label={t('links.copy', { name })} className="pressable grid size-9 shrink-0 place-items-center rounded-full text-ink-2 hover:bg-fill hover:text-ink">
-                      <AnimatedIcon icon={CopyIcon} size={16} aria-hidden />
-                    </button>
-                  </span>
-                ) : (
-                  <a href={link.url} target="_blank" rel="noopener noreferrer" className="pressable flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-fill">
-                    {body}
-                    <AnimatedIcon icon={ExternalLinkIcon} size={16} className="shrink-0 text-ink-2 rtl:-scale-x-100" aria-hidden />
-                  </a>
-                )}
-                {viewerCan.post && link.id !== MODEL_FOLDER && (
-                  <button type="button" onClick={() => openSheet(link)} aria-label={t('links.edit', { name })} className="pressable grid size-9 shrink-0 place-items-center rounded-full text-ink-2 hover:bg-fill hover:text-ink">
-                    <AnimatedIcon icon={SquarePenIcon} size={16} aria-hidden />
+    <section aria-labelledby="links-title" className="surface rounded-card p-2">
+      <h3 id="links-title" className="px-2 pt-1 text-headline">{t('links.title')}</h3>
+      <ul>
+        {rows.map((link) => {
+          const name = link.label || (isNetworkPath(link.url) ? link.url : hostOf(link.url));
+          const body = (
+            <>
+              <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-fill text-label-2"><AnimatedIcon icon={ICON[link.kind]} size={20} aria-hidden /></span>
+              <span className="min-w-0 flex-1">
+                <bdi dir={isNetworkPath(link.url) ? 'ltr' : 'auto'} className="block truncate text-body">{name}</bdi>
+                <span className="block truncate text-footnote text-label-2">{t(`links.kinds.${link.kind}`)}</span>
+              </span>
+            </>
+          );
+          return (
+            <li key={link.id} className="flex min-h-14 flex-wrap items-center gap-1 px-2">
+              {/* The server refuses other links, but stored data is checked again here: only a web link ever gets an href. */}
+              {!linkUrlOk('other', link.url) && !isNetworkPath(link.url) ? (
+                <span className="flex min-w-0 flex-1 items-center gap-3">{body}</span>
+              ) : isNetworkPath(link.url) ? (
+                <span className="flex min-w-0 flex-1 items-center gap-3">
+                  {body}
+                  <button type="button" onClick={() => copy(link)} aria-label={t('links.copy', { name })} className="pressable grid size-11 shrink-0 place-items-center rounded-full text-label-2 hover:bg-fill hover:text-ink">
+                    <AnimatedIcon icon={CopyIcon} size={18} aria-hidden />
                   </button>
-                )}
-                {byHand === link.id && <PathField path={link.url} onDone={() => setByHand(null)} />}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {viewerCan.post && (
-        <Button variant="plain" className="-ms-3 self-start" onClick={() => openSheet(null)}>
-          <AnimatedIcon icon={PlusIcon} size={18} aria-hidden />
-          {t('links.addLink')}
-        </Button>
-      )}
-      <LinkSheet detail={detail} link={editing} open={open} onOpenChange={setOpen} />
-    </div>
+                </span>
+              ) : (
+                <a href={link.url} target="_blank" rel="noopener noreferrer" className="pressable flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-xl hover:bg-fill">
+                  {body}
+                  <AnimatedIcon icon={ExternalLinkIcon} size={16} className="shrink-0 text-label-2 rtl:-scale-x-100" aria-hidden />
+                </a>
+              )}
+              {viewerCan.post && link.id !== MODEL_FOLDER && (
+                <button type="button" onClick={() => onEdit(link)} aria-label={t('links.edit', { name })} className="pressable grid size-11 shrink-0 place-items-center rounded-full text-label-2 hover:bg-fill hover:text-ink">
+                  <AnimatedIcon icon={SquarePenIcon} size={18} aria-hidden />
+                </button>
+              )}
+              {byHand === link.id && <PathField path={link.url} onDone={() => setByHand(null)} />}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

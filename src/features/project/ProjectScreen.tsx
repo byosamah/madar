@@ -18,7 +18,7 @@ import { PausedBanner } from './PausedBanner';
 import { prefetchReads, sessionSeesPayments } from './reads';
 import { FILTER_PARAMS, PROJECT_TABS, TAB_BODY, tabReads, type ProjectTab } from './tabs';
 
-/** One project with the tabs Overview, Tasks, Schedule, Files and Team (spec 5). The tab lives in the link. */
+/** One project with the tabs Overview, Tasks, Schedule, Files & Links and Team (spec 5). The tab lives in the link. */
 export function ProjectScreen() {
   const { t } = useTranslation();
   const { projectId = '' } = useParams();

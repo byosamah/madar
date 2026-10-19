@@ -490,7 +490,7 @@ const SAMPLE_PINS: Record<string, GeoPoint> = {
 };
 
 /** Builds the sample office. Every date comes from "today", so the data is fresh on any day. */
-/** A few links to places outside Madar, so the About panel shows what the list looks like (colleague comment 5). */
+/** A few links to places outside Madar, so the Files & Links tab shows what the list looks like (colleague comment 5). */
 function addSampleLinks(state: State) {
   const links: Record<string, [LinkKind, string, string][]> = {
     prj_001: [

@@ -1,9 +1,10 @@
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { FileTextIcon } from '../../../components/icons/animated/file-text';
-import { UploadIcon } from '../../../components/icons/animated/upload';
-import { useEffect, useState } from 'react';
+import { PlusIcon } from '../../../components/icons/animated/plus';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import type { ProjectLink } from '../../../api/contract/entities';
 import type { FileView, ProjectDetail } from '../../../api/contract/views';
 import { newStoryId, useUndoable } from '../../../app/actions';
 import { downloadFile, isRemote, tooLargeText, uploadErrorMessage, useFileLimit, useFileLink, usePictureTest } from '../../../app/files';
@@ -19,6 +20,7 @@ import { Menu, type MenuItem } from '../../../components/Menu';
 import { formatDay, formatNumber, stampDay } from '../../../lib/dates';
 import type { TabProps } from '../tabs';
 import { canPreview, PreviewSheet } from './PreviewSheet';
+import { LinkSheet, ProjectLinks, projectLinkRows } from './ProjectLinks';
 import { ShareFileSheet } from './ShareFileSheet';
 
 function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail: ProjectDetail; onPreview: () => void; onShare: () => void }) {
@@ -93,7 +95,11 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
   );
 }
 
-/** Files grouped by stage, with versions A, B, C (spec 5.7). Drop files anywhere on the tab to upload them. */
+/**
+ * The Files & Links tab (owner, 2026-10-19): the links of the project first, then the files grouped by stage, with versions A, B, C
+ * (spec 5.7). One Add button offers "Upload a file" and "Add a link". It is a menu from one button because one button is one next step,
+ * and it keeps the row calm on a phone. Drop files anywhere on the tab to upload them.
+ */
 export function FilesTab({ detail }: TabProps) {
   const { t } = useTranslation();
   const lang = useLang();
@@ -107,6 +113,10 @@ export function FilesTab({ detail }: TabProps) {
   const [received, setReceived] = useState(false);
   const [preview, setPreview] = useState<FileView | null>(null);
   const [sharing, setSharing] = useState<FileView | null>(null);
+  // The link sheet is the one of the old About panel. A link opens it to edit, the Add menu opens it with no link.
+  const [editing, setEditing] = useState<ProjectLink | null>(null);
+  const [linkOpen, setLinkOpen] = useState(false);
+  const picker = useRef<HTMLInputElement>(null);
   const canUpload = detail.viewerCan.post;
   // A link with "file" (from Search) opens that file's preview once. The link part goes, so Back does not open it again.
   const [params, setParams] = useSearchParams();
@@ -149,9 +159,31 @@ export function FilesTab({ detail }: TabProps) {
     if (accepted.length > 0) await uploadQueue(accepted, { correlationId: newStoryId() });
   };
 
+  const openLink = (link: ProjectLink | null) => {
+    setEditing(link);
+    setLinkOpen(true);
+  };
+  const hasLinks = projectLinkRows(detail.project, '').length > 0;
+
   const groups = [...detail.stages.map((stage) => ({ id: stage.id as string | null, name: stage.name })), { id: null, name: t('files.noStage') }]
     .map((group) => ({ ...group, files: (files.data ?? []).filter((view) => view.file.stageId === group.id) }))
     .filter((group) => group.files.length > 0);
+
+  // A tab with no files and no links shows one empty state, and the one Add button moves into it (it shows once, never twice).
+  const empty = Boolean(files.data) && groups.length === 0 && !hasLinks;
+  const add = canUpload && (
+    <Menu
+      label={t('files.add')}
+      text={t('files.add')}
+      icon={<AnimatedIcon icon={PlusIcon} size={18} aria-hidden />}
+      align="start"
+      triggerClassName="bg-fill text-ink hover:bg-fill-strong"
+      items={[
+        { label: t('files.uploadOne'), onSelect: () => picker.current?.click(), hidden: uploading },
+        { label: t('links.addTitle'), onSelect: () => openLink(null) },
+      ]}
+    />
+  );
 
   return (
     <div
@@ -173,20 +205,7 @@ export function FilesTab({ detail }: TabProps) {
     >
       {canUpload && (
         <div className="flex flex-wrap items-end gap-3">
-          <label className="pressable inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full bg-fill px-5 text-subheadline font-semibold text-ink hover:bg-fill-strong has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent">
-            <AnimatedIcon icon={UploadIcon} size={18} aria-hidden />
-            {t('files.upload')}
-            <input
-              type="file"
-              multiple
-              disabled={uploading}
-              className="sr-only"
-              onChange={(event) => {
-                void upload(event.target.files);
-                event.target.value = '';
-              }}
-            />
-          </label>
+          {!empty && add}
           <SelectField id="upload-stage" label={t('files.uploadStage')} value={stageId} onChange={(event) => setStageId(event.target.value)}>
             {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
             <option value="">{t('files.noStage')}</option>
@@ -198,9 +217,27 @@ export function FilesTab({ detail }: TabProps) {
           <p className="pb-3 text-footnote text-label-2">{t('files.drop')}</p>
         </div>
       )}
+      {/* The file chooser opens from the menu item "Upload a file". The input stays here, out of the tab order, so a file that is dropped
+          on the tab and a file that is chosen go the same way. */}
+      {canUpload && (
+        <input
+          ref={picker}
+          type="file"
+          multiple
+          tabIndex={-1}
+          aria-label={t('files.upload')}
+          disabled={uploading}
+          className="sr-only"
+          onChange={(event) => {
+            void upload(event.target.files);
+            event.target.value = '';
+          }}
+        />
+      )}
       {/* A list that did not load says so and offers Retry (audit 2026-10-03, PRJ-4). */}
       <LoadFailed query={files} />
-      {files.data && groups.length === 0 && <EmptyState title={t('files.emptyTitle')} body={t('files.empty')} />}
+      {empty && <EmptyState title={t('files.emptyTitle')} body={t('files.empty')} action={add} />}
+      <ProjectLinks detail={detail} onEdit={openLink} />
       {groups.map((group) => {
         const id = `files-${group.id ?? 'none'}`;
         return (
@@ -210,6 +247,7 @@ export function FilesTab({ detail }: TabProps) {
           </section>
         );
       })}
+      <LinkSheet detail={detail} link={editing} open={linkOpen} onOpenChange={setLinkOpen} />
       {preview && <PreviewSheet views={[preview]} index={0} onIndex={() => undefined} onClose={() => setPreview(null)} />}
       {sharing && <ShareFileSheet view={sharing} projectId={detail.project.id} projectName={detail.project.name} onClose={() => setSharing(null)} />}
     </div>
