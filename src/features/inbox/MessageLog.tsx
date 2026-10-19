@@ -7,7 +7,8 @@ import { ChevronDownIcon } from '../../components/icons/animated/chevron-down';
 import { addDays, formatDay, stampDay, todayISO } from '../../lib/dates';
 import { groupByDay } from '../../lib/group';
 import { MessageBubble, type Bubble } from './MessageBubble';
-import { isNearBottom } from './logScroll';
+import { isNearBottom, scrollTopFor } from './logScroll';
+import { firstUnreadId } from './newLine';
 import { runStarts } from './runs';
 
 /**
@@ -28,14 +29,23 @@ export type EarlierControl = {
   pending: boolean;
 };
 
-export type MessageLogProps = { bubbles: Bubble[]; resetKey: string; emptyText: string; earlier?: EarlierControl };
+export type MessageLogProps = {
+  bubbles: Bubble[];
+  resetKey: string;
+  emptyText: string;
+  earlier?: EarlierControl;
+  /** The read time of the reader from before the open (a chat). With `unreadAtOpen` it places the New line. A task thread leaves it out. */
+  readUpTo?: string | null;
+  /** How many messages were unread at the open. 0 or missing: no New line. */
+  unreadAtOpen?: number;
+};
 
 /**
  * The messages by day. The region scrolls to the bottom when a message arrives. New messages rise in. With `earlier`, the top of
  * the log has an "Earlier messages" control; its page goes above the shown messages, and the scroll keeps its distance from the
  * bottom, so the message the person reads stays in place.
  */
-export function MessageLog({ bubbles, resetKey, emptyText, earlier }: MessageLogProps) {
+export function MessageLog({ bubbles, resetKey, emptyText, earlier, readUpTo, unreadAtOpen }: MessageLogProps) {
   const { t } = useTranslation();
   const dayLabel = useDayLabel();
   const region = useRef<HTMLDivElement>(null);
@@ -57,8 +67,17 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier }: MessageLog
   const [newestAtFirst] = useState(() => Math.max(-Infinity, ...bubbles.map((b) => Date.parse(b.createdAt))));
   const firstId = bubbles[0]?.id;
   const lastId = bubbles.at(-1)?.id;
+  // The New line (item 3) stays until the reader sends a message: a message of the reader that is newer than all that were here at the
+  // open drops it. It leaves with the chat too, because the log is keyed by the chat. A task thread has no read time, so its count
+  // walks back over the comments that were here at the open: a comment that comes later does not move the line.
+  const sentSinceOpen = useMemo(() => bubbles.some((b) => b.mine && Date.parse(b.createdAt) > newestAtFirst), [bubbles, newestAtFirst]);
+  const newLineId = useMemo(() => {
+    if (sentSinceOpen || !unreadAtOpen) return null;
+    const counted = readUpTo === undefined ? bubbles.filter((b) => !(Date.parse(b.createdAt) > newestAtFirst)) : bubbles;
+    return firstUnreadId(counted, { unread: unreadAtOpen, readUpTo });
+  }, [bubbles, sentSinceOpen, unreadAtOpen, readUpTo, newestAtFirst]);
   // The messages of one person within 5 minutes form a run (design item 2): only the first shows the face and the name.
-  const starts = useMemo(() => runStarts(bubbles), [bubbles]);
+  const starts = useMemo(() => runStarts(bubbles, newLineId), [bubbles, newLineId]);
   const toBottom = (log: HTMLElement) => {
     log.scrollTop = log.scrollHeight;
     atBottom.current = true;
@@ -66,8 +85,16 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier }: MessageLog
   };
   // The open: the log starts at its bottom. A new message moves the log only for a reader at the bottom, or for the sender (item 1).
   useLayoutEffect(() => {
-    if (region.current) toBottom(region.current);
+    const log = region.current;
     seenNewest.current = newestAtFirst;
+    if (!log) return;
+    // With a New line the log opens with the line 16 px under its top. Else it opens at the bottom.
+    const line = newLineId ? log.querySelector('[data-new-line]') : null;
+    if (line) {
+      log.scrollTop = scrollTopFor(log.scrollTop, log.getBoundingClientRect(), line.getBoundingClientRect(), 'start');
+      atBottom.current = isNearBottom(log);
+      setAway(!atBottom.current);
+    } else toBottom(log);
   }, [resetKey]);
   const newestMine = bubbles.at(-1)?.mine ?? false;
   useLayoutEffect(() => {
@@ -132,7 +159,17 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier }: MessageLog
       <ol ref={items} className="flex flex-col gap-0.5">
         {groupByDay(bubbles, (b) => stampDay(b.createdAt)).flatMap((group) => [
           <li key={`day-${group.day}`} className="self-center py-2 text-footnote font-semibold text-ink-2">{dayLabel(group.day)}</li>,
-          ...group.items.map((bubble) => <MessageBubble key={bubble.id} bubble={bubble} runStart={starts.has(bubble.id)} namesMe={bubble.namesMe ?? false} fresh={!first.has(bubble.id) && Date.parse(bubble.createdAt) > newestAtFirst} />),
+          ...group.items.flatMap((bubble) => [
+            ...(bubble.id === newLineId
+              ? [(
+                <li key="new-line" data-new-line className="flex items-center gap-2.5 pt-3 text-footnote font-semibold text-link">
+                  <span aria-hidden className="h-px flex-1 bg-link/55" />
+                  <span>{t('chat.newLine')}</span>
+                </li>
+              )]
+              : []),
+            <MessageBubble key={bubble.id} bubble={bubble} runStart={starts.has(bubble.id)} namesMe={bubble.namesMe ?? false} fresh={!first.has(bubble.id) && Date.parse(bubble.createdAt) > newestAtFirst} />,
+          ]),
         ])}
       </ol>
       {/* The Newest button sits inside the scroll region, so the pane stays the parent of the log. Still, with no count and no motion. */}

@@ -22,6 +22,7 @@ import { actorContext } from '../../lib/grammar';
 import { taskLink } from '../../lib/params';
 import { useMarkTaskRead } from '../comments/markRead';
 import { useEarlierMessages } from './earlier';
+import { useOpenMark } from './newLine';
 
 function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: ReactNode; subtitle: ReactNode; action?: ReactNode }) {
   const { t } = useTranslation();
@@ -108,12 +109,16 @@ export function ChatPane({ id }: { id: string }) {
     ? messageBubbles
     : [...messageBubbles, ...lineBubbles].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || (a.line ? 1 : 0) - (b.line ? 1 : 0));
   const unread = data?.chat.unread ?? 0;
+  // The read state from before the open (item 3). The open marks the chat read, so the first fresh answer is kept. The mark goes only
+  // after it, so a stale cached answer never marks the chat read before the fresh one has told what was unread.
+  const mark = useOpenMark(thread, (d) => ({ unread: d.chat.unread, readUpTo: d.readUpTo }));
+  const opened = mark !== null;
   useEffect(() => {
-    if (unread > 0) markRead.mutate({ conversationId: id });
+    if (opened && unread > 0) markRead.mutate({ conversationId: id });
     // The mutation object changes on every render. Only a new count of unread messages matters here.
-  }, [id, unread]);
+  }, [id, unread, opened]);
   if (thread.error) return <div className="p-4"><LoadFailed error={thread.error} onRetry={() => void thread.refetch()} /></div>;
-  if (!data) return <div className="flex-1" aria-busy="true" />;
+  if (!data || !mark) return <div className="flex-1" aria-busy="true" />;
   const { chat } = data;
   const isGroup = chat.kind === 'group';
   // A group shows one picture. One press on it, or on the count of people, opens the People sheet (UX audit 2026-10-19, chats-07 and 08).
@@ -146,7 +151,7 @@ export function ChatPane({ id }: { id: string }) {
           ? <GroupMenu id={id} archived={chat.archived} title={title} onPick={setSheet} onArchive={archive} />
           : <ArchiveMenu id={id} archived={chat.archived} title={title} onArchive={archive} />}
       />
-      <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} />
+      <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} readUpTo={mark.readUpTo} unreadAtOpen={mark.unread} />
       {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{isGroup ? t('chat.groupAlone') : t('chat.closed')}</p> : (
         <Composer
           id={id}
@@ -182,7 +187,10 @@ export function TaskPane({ id }: { id: string }) {
   const session = useCall('session.get', {});
   const create = useAction('comments.create');
   const archive = useArchive();
-  useMarkTaskRead(id, comments.data, session.data?.authority.id);
+  // The Inbox row of the thread tells how many comments were unread at the open (`comments.list` gives no read time). The first fresh
+  // answer keeps it, and the mark read goes only after that (item 3).
+  const mark = useOpenMark(comments, () => ({ unread: row?.unread ?? 0 }));
+  useMarkTaskRead(id, mark ? comments.data : undefined, session.data?.authority.id);
   const me = session.data?.authority.id;
   // "mine" depends on the person, so the kept bubbles start again when the person changes.
   const bubbles = useBubbles(comments.data ?? NO_COMMENTS, (view: CommentView): Bubble => ({
@@ -193,7 +201,7 @@ export function TaskPane({ id }: { id: string }) {
   }), me);
   const failed = task.error ?? comments.error;
   if (failed) return <div className="p-4"><LoadFailed error={failed} onRetry={() => { void task.refetch(); void comments.refetch(); }} /></div>;
-  if (!task.data || !comments.data) return <div className="flex-1" aria-busy="true" />;
+  if (!task.data || !comments.data || !mark) return <div className="flex-1" aria-busy="true" />;
   const where = task.data.project;
   const canPost = where ? project.data?.viewerCan.post ?? false : task.data.viewerCan.contribute;
   const maker = users.data?.find((user) => user.id === task.data?.task.createdBy);
@@ -222,7 +230,7 @@ export function TaskPane({ id }: { id: string }) {
           </>
         )}
       />
-      <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} />
+      <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} unreadAtOpen={mark.unread} />
       {canPost ? (
         <Composer
           id={id}
