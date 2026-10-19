@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { SaveResult } from '../data/save';
-import { NOTICE_EFFECT, QUOTA_WARNING_EFFECT } from '../mail/notices';
-import { PUSH_EFFECT } from '../push/notify';
+import { CHAT_NOTICE_EFFECT, NOTICE_EFFECT, QUOTA_WARNING_EFFECT } from '../mail/notices';
+import { PUSH_CHAT_EFFECT, PUSH_EFFECT } from '../push/notify';
 import { fakeDeps } from '../test/fakes/deps';
 import { LIMIT_WARNING_EFFECT } from '../usage/warn';
 import type { Db, Query } from './ports';
 import {
-  AFTER_ANSWER_KINDS, CLAIM_SQL, DONE_SQL, FAIL_SQL, OUTBOX_INSERT_SQL, outboxRowsOf, processOutbox, registerEffect, registerOutbox, WAIT_SQL, writeOutbox,
+  AFTER_ANSWER_KINDS, CHAT_WAIT_MS, CLAIM_SQL, DONE_SQL, FAIL_SQL, OUTBOX_INSERT_SQL, outboxRowsOf, processOutbox, registerEffect, registerOutbox, WAIT_SQL, WAITED_KINDS, writeOutbox,
 } from './effects';
 
 const undo: (() => void)[] = [];
@@ -36,7 +36,13 @@ function scriptedDb(rows: Record<string, { kind: string; payload: unknown }>) {
 
 describe('effects after the commit (plan 4.12)', () => {
   it('runs after the answer only the mail kinds and the push kind, by the names that mail/, push/ and usage/ register (performance audit SRV-1; owner, 2026-10-08)', () => {
-    expect([...AFTER_ANSWER_KINDS].sort()).toEqual([LIMIT_WARNING_EFFECT, NOTICE_EFFECT, PUSH_EFFECT, QUOTA_WARNING_EFFECT].sort());
+    expect([...AFTER_ANSWER_KINDS].sort()).toEqual([LIMIT_WARNING_EFFECT, NOTICE_EFFECT, PUSH_EFFECT, QUOTA_WARNING_EFFECT, PUSH_CHAT_EFFECT, CHAT_NOTICE_EFFECT].sort());
+  });
+
+  it('waits 10 seconds only for the chat push and the chat mention mail', () => {
+    expect([...WAITED_KINDS].sort()).toEqual([CHAT_NOTICE_EFFECT, PUSH_CHAT_EFFECT].sort());
+    expect(CHAT_WAIT_MS).toBe(10_000);
+    for (const kind of WAITED_KINDS) expect(AFTER_ANSWER_KINDS.has(kind)).toBe(true);
   });
 
   it('collects the outbox rows that each registered producer gives for a call, in the order they registered', async () => {

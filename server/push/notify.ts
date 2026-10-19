@@ -29,6 +29,8 @@ import { PushConfigError } from './vapid';
  */
 
 export const PUSH_EFFECT = 'push.notify';
+/** The push of a chat message or a task comment: it waits 10 seconds after the answer and checks again (chat design item 20). */
+export const PUSH_CHAT_EFFECT = 'push.chat';
 
 /**
  * $1 the people whose notices the save changed. The people with a new unread notice from this transaction who may get a push.

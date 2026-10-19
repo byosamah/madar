@@ -28,6 +28,8 @@ import { renderMail, type RenderedMail } from './templates';
  */
 
 export const NOTICE_EFFECT = 'mail.notice';
+/** The mention or reply mail of a chat message or a task comment: it waits 10 seconds after the answer and checks again (chat design item 20). */
+export const CHAT_NOTICE_EFFECT = 'mail.chatNotice';
 export const QUOTA_WARNING_EFFECT = 'mail.quotaWarning';
 
 /** The calls that change old notices and never make one: no notice producer runs for them. */
