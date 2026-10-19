@@ -1,35 +1,37 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MAX_PREREQUISITES } from '../../../api/contract/limits';
-import { Button } from '../../../components/Button';
-import { Sheet } from '../../../components/Sheet';
-import { stageSpan } from '../../../lib/projectPlan';
+import { SegmentedControl } from '../../../components/SegmentedControl';
+import { counted } from '../../../lib/grammar';
+import { stageSpan, templateDays } from '../../../lib/projectPlan';
 import { barOf, chartDays, dayAt, waitsThrough, weekStarts } from './ganttMath';
 import { draftPlanTemplate, moveStageStart, wholeNumber, type DraftTask, type TemplateDraft } from './templateDraft';
 
-/** One working day is this many pixels wide on the chart. */
+/** One working day is this many pixels wide on the chart at least. "Fit" widens the chart to its box, "Zoom in" doubles it and more. */
 const DAY_PX = 12;
+const ZOOM_PX = 28;
 /** One row is this many pixels high. Its bar sits in the middle. */
-const ROW_PX = 36;
+const ROW_PX = 40;
 /** The height of the week numbers above the rows. */
 const HEAD_PX = 24;
 /** The longest task length, in working days. The server refuses a longer one. */
 const MAX_DAYS = 365;
 
-type Kind = 'stage' | 'task';
+export type Kind = 'stage' | 'task';
 /** One bar: `start` and `length` are whole working days from day 0. `base` is the own start of a stage, or the start of a task. */
-type Bar = { kind: Kind; id: string; start: number; length: number; base: number; flexible: boolean };
-type Row = { kind: Kind; id: string; label: string; bar: Bar | null };
+export type Bar = { kind: Kind; id: string; start: number; length: number; base: number; flexible: boolean };
+export type Row = { kind: Kind; id: string; label: string; bar: Bar | null };
+/** The part that the person picked in the editor: a stage or a task. */
+export type Picked = { kind: Kind; id: string };
 type Mode = 'move' | 'end';
 type Place = { start: number; length: number };
 /** A press on a bar. `day0` is the working day under the pointer at the press. */
 type Gesture = { mode: Mode; bar: Bar; day0: number };
-type Picked = { from: string; to: string; kind: Kind };
 
 const clamp = (n: number, low: number, high: number) => Math.min(high, Math.max(low, n));
 
 /** The rows of the chart: one row for each stage, then its tasks. A part with no valid numbers has a row and no bar. */
-function rowsOf(draft: TemplateDraft): Row[] {
+export function rowsOf(draft: TemplateDraft): Row[] {
   const plan = draftPlanTemplate(draft);
   const rows: Row[] = [];
   draft.stages.forEach((stage, stageIndex) => {
@@ -59,22 +61,20 @@ function linksOf(draft: TemplateDraft): { from: string; to: string; kind: Kind }
   return links;
 }
 
-/** A part with its waits set to `ids`. The key goes when no wait is left, as the draft keeps it. */
-function withWaits<T extends { prerequisiteIds?: string[] }>(part: T, ids: string[]): T {
-  const next: { prerequisiteIds?: string[] } = { ...part };
-  delete next.prerequisiteIds;
-  if (ids.length > 0) next.prerequisiteIds = ids;
-  return next as T;
-}
-
 /**
- * The template timeline (fbk_008 item 6): one row for each stage, with its tasks under it. A task bar moves when the person drags
- * it, and its end handle changes its length. When the person drags a dot at the end of a bar onto another bar of the same kind,
- * that bar waits. A click on a link and "Remove link" takes it away. The sheet edits the draft of the editor, so Save stays in
- * one place.
+ * The template timeline (fbk_008 item 6; ADM-06 and ADM-07): the main view of the editor. One row for each stage, with its tasks
+ * under it. A press on a name or a bar picks the part, and the editor shows its details beside the chart. A task bar moves when the
+ * person drags it, and its end grip changes its length. The link dot and the grip show when a bar has the pointer, the focus, or the
+ * pick (ADM-09). When the person drags a dot onto another bar of the same kind, that bar waits: the editor makes the link. A press on
+ * a link picks the part that waits. The chart edits the draft of the editor, so Save stays in one place.
  */
-export function TemplateGantt({ draft, onChange, onClose }: {
-  draft: TemplateDraft; onChange: (draft: TemplateDraft) => void; onClose: () => void;
+export function TemplateGantt({ draft, onChange, onLink, selected, onSelect }: {
+  draft: TemplateDraft;
+  onChange: (draft: TemplateDraft) => void;
+  /** A new wait from a drag: the editor links the parts, moves the waiting part when it starts too early, and offers Undo (ADM-08). */
+  onLink: (kind: Kind, waitingId: string, neededId: string) => void;
+  selected: Picked | null;
+  onSelect: (part: Picked) => void;
 }) {
   const { t } = useTranslation();
   const rtl = document.documentElement.dir === 'rtl';
@@ -83,16 +83,16 @@ export function TemplateGantt({ draft, onChange, onClose }: {
   const dropLink = useRef<(() => void) | null>(null);
   const [preview, setPreview] = useState<(Place & { kind: Kind; id: string }) | null>(null);
   const [drawing, setDrawing] = useState<{ from: string; x: number; y: number } | null>(null);
-  const [picked, setPicked] = useState<Picked | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  // The link listeners go away when the sheet closes.
+  const [zoom, setZoom] = useState<'fit' | 'in'>('fit');
+  // The link listeners go away when the chart goes away.
   useEffect(() => () => dropLink.current?.(), []);
 
   const rows = rowsOf(draft);
   const bars = rows.flatMap((row) => (row.bar ? [row.bar] : []));
   const days = chartDays(Math.max(0, ...bars.map((bar) => bar.start + bar.length)));
-  const labels = new Map(rows.map((row) => [row.id, row.label]));
   const links = linksOf(draft);
+  const isPicked = (kind: Kind, id: string) => selected?.kind === kind && selected.id === id;
   const shown = (bar: Bar): Bar => (preview && preview.id === bar.id && preview.kind === bar.kind ? { ...bar, start: preview.start, length: preview.length } : bar);
 
   // The chart in pixels from its start side. In Arabic the start side is on the right.
@@ -107,10 +107,6 @@ export function TemplateGantt({ draft, onChange, onClose }: {
 
   const patchTask = (id: string, patch: Partial<DraftTask>) => {
     onChange({ ...draft, tasks: draft.tasks.map((part) => (part.id === id ? { ...part, ...patch } : part)) });
-  };
-  const setWaits = (kind: Kind, id: string, ids: string[]) => {
-    if (kind === 'task') onChange({ ...draft, tasks: draft.tasks.map((part) => (part.id === id ? withWaits(part, ids) : part)) });
-    else onChange({ ...draft, stages: draft.stages.map((part) => (part.id === id ? withWaits(part, ids) : part)) });
   };
 
   /** The place that a gesture gives at this pointer x. A stage moves as a whole, and a task keeps its days inside the chart. */
@@ -175,6 +171,11 @@ export function TemplateGantt({ draft, onChange, onClose }: {
     onPointerUp: release,
     onPointerCancel: cancel,
     onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        onSelect({ kind: bar.kind, id: bar.id });
+        return;
+      }
       const step = stepOf(event);
       if (step === 0) return;
       event.preventDefault();
@@ -227,15 +228,8 @@ export function TemplateGantt({ draft, onChange, onClose }: {
       setProblem(t('projectTemplates.loopLink'));
       return;
     }
-    setWaits(from.kind, to, [...waits, from.id]);
+    onLink(from.kind, to, from.id);
   };
-  const removePicked = () => {
-    if (!picked) return;
-    const current = (picked.kind === 'task' ? draft.tasks : draft.stages).find((item) => item.id === picked.to);
-    if (current) setWaits(picked.kind, picked.to, (current.prerequisiteIds ?? []).filter((id) => id !== picked.from));
-    setPicked(null);
-  };
-  const pickedLive = picked !== null && links.some((link) => link.from === picked.from && link.to === picked.to);
 
   // The geometry of each bar in the chart: its row center, and its start and end in percent.
   const geometry = new Map<string, { y: number; left: number; end: number }>();
@@ -250,8 +244,11 @@ export function TemplateGantt({ draft, onChange, onClose }: {
   const renderBar = (row: Row, bar: Bar) => {
     const at = barOf(shown(bar).start, shown(bar).length, days);
     const color = row.kind === 'stage' ? 'bg-chart-muted opacity-40' : bar.flexible ? 'bg-chart-muted' : 'bg-ink';
+    const picked = isPicked(row.kind, row.id);
+    // The grip and the dot show for the pointer, the focus and the pick. A stage bar has no grip: its tasks set its length.
+    const reveal = `transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 ${picked ? 'opacity-100' : 'opacity-0'}`;
     return (
-      <div data-part={row.id} data-kind={row.kind} className="absolute inset-y-2" style={{ insetInlineStart: `${at.left}%`, width: `${at.width}%` }}>
+      <div data-part={row.id} data-kind={row.kind} className="group absolute inset-y-2" style={{ insetInlineStart: `${at.left}%`, width: `${at.width}%` }}>
         <span
           role="slider"
           tabIndex={0}
@@ -259,8 +256,9 @@ export function TemplateGantt({ draft, onChange, onClose }: {
           aria-label={t('projectTemplates.startOfPart', { name: row.label })}
           aria-valuenow={shown(bar).start}
           aria-valuemin={0}
+          onClick={() => onSelect({ kind: row.kind, id: row.id })}
           {...handlers('move', bar)}
-          className={`absolute inset-0 touch-none cursor-grab rounded-full ${color}`}
+          className={`absolute inset-0 touch-none cursor-grab rounded-full ${color} ${picked ? 'ring-2 ring-ink ring-offset-1 ring-offset-bg' : ''}`}
         />
         {row.kind === 'task' && (
           <span
@@ -270,107 +268,27 @@ export function TemplateGantt({ draft, onChange, onClose }: {
             aria-valuenow={shown(bar).length}
             aria-valuemin={0}
             {...handlers('end', bar)}
-            className="absolute inset-y-0 end-0 w-2 touch-none cursor-ew-resize rounded-full"
+            className={`absolute inset-y-0 end-0 w-2 touch-none cursor-ew-resize rounded-full bg-ink/70 ${reveal}`}
           />
         )}
         <span
           data-link-from={row.id}
           aria-hidden
           onPointerDown={(event) => startLink(event, bar)}
-          className="absolute inset-y-0 -end-2.5 my-auto size-3 cursor-crosshair rounded-full bg-ink"
+          className={`absolute inset-y-0 -end-3 my-auto size-3 cursor-crosshair rounded-full bg-ink ${reveal}`}
         />
       </div>
     );
   };
 
+  const length = templateDays(draftPlanTemplate(draft));
   return (
-    <Sheet
-      open
-      wide
-      onOpenChange={(open) => { if (!open) onClose(); }}
-      title={t('projectTemplates.timeline')}
-      footer={<Button variant="primary" onClick={onClose}>{t('common.done')}</Button>}
-    >
-      <div className="flex flex-col gap-3 pt-1">
-        <p className="text-footnote text-ink-2">{t('projectTemplates.timelineHint')}</p>
-        {bars.length === 0 && <p role="status" className="text-footnote text-ink-2">{t('projectTemplates.timelineEmpty')}</p>}
-        {problem && <p role="alert" className="text-footnote text-late">{problem}</p>}
-        {pickedLive && picked && (
-          <div className="flex flex-wrap items-center gap-2 rounded-xl bg-fill p-2">
-            <span dir="auto" className="min-w-0 text-footnote">
-              {t('projectTemplates.waitingLink', { waiting: labels.get(picked.to) ?? '', needed: labels.get(picked.from) ?? '' })}
-            </span>
-            <Button onClick={removePicked}>{t('projectTemplates.removeLink')}</Button>
-          </div>
-        )}
-        <div className="flex items-start gap-3">
-          <div className="w-36 shrink-0 pt-6">
-            {rows.map((row) => (
-              <div key={row.id} className="flex h-9 items-center">
-                <bdi className={`truncate text-footnote ${row.kind === 'stage' ? 'font-semibold' : 'ps-4 text-ink-2'}`}>{row.label}</bdi>
-              </div>
-            ))}
-          </div>
-          <div className="min-w-0 flex-1 overflow-x-auto pb-2">
-            <div ref={track} className="relative" style={{ width: days * DAY_PX }}>
-              <div className="relative h-6">
-                {weekStarts(days).map((day) => (
-                  <span key={day} aria-hidden style={{ insetInlineStart: `${(day / days) * 100}%` }} className="tabular absolute top-0 text-caption text-ink-2">{day}</span>
-                ))}
-              </div>
-              <div className="relative" style={{ height: rows.length * ROW_PX }}>
-                {weekStarts(days).map((day) => (
-                  <span key={day} aria-hidden style={{ insetInlineStart: `${(day / days) * 100}%` }} className="absolute inset-y-0 w-px bg-separator" />
-                ))}
-                {rows.map((row) => (
-                  <div key={row.id} data-row={row.kind} className="relative h-9">
-                    {row.bar && renderBar(row, row.bar)}
-                  </div>
-                ))}
-                <svg
-                  aria-hidden
-                  viewBox={`0 0 100 ${rows.length * ROW_PX}`}
-                  preserveAspectRatio="none"
-                  className="pointer-events-none absolute inset-0 h-full w-full overflow-visible text-ink-2"
-                >
-                  {links.map((link) => {
-                    const from = geometry.get(link.from);
-                    const to = geometry.get(link.to);
-                    if (!from || !to) return null;
-                    const d = linkPath(from.end, from.y, to.left, to.y);
-                    const name = `${link.from}>${link.to}`;
-                    return (
-                      <g key={name}>
-                        <path d={d} fill="none" stroke="currentColor" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-                        <path
-                          data-link={name}
-                          d={d}
-                          fill="none"
-                          stroke="transparent"
-                          strokeWidth={12}
-                          vectorEffect="non-scaling-stroke"
-                          className="pointer-events-auto cursor-pointer"
-                          onClick={() => setPicked({ from: link.from, to: link.to, kind: link.kind })}
-                        />
-                      </g>
-                    );
-                  })}
-                  {drawing && drawingFrom && (
-                    <path
-                      d={`M ${X(drawingFrom.end)} ${drawingFrom.y} L ${X(drawing.x)} ${drawing.y}`}
-                      fill="none"
-                      stroke="currentColor"
-                      strokeDasharray="4 3"
-                      strokeWidth={1.5}
-                      vectorEffect="non-scaling-stroke"
-                    />
-                  )}
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-footnote text-ink-2">
+    <div className="flex min-w-0 flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <p className="min-w-0 max-w-prose text-footnote text-ink-2">{t('projectTemplates.timelineHint')}</p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-footnote text-ink-2">
+          {length > 0 && <span className="font-semibold text-ink">{t('projectTemplates.length', { days: counted(t, 'projectTemplates.dayCount', length) })}</span>}
+          {/* The legend shows a swatch of each bar, with no colour word: the colours change with the theme. */}
           <span className="inline-flex items-center gap-1.5">
             <span aria-hidden className="h-2.5 w-5 rounded-full bg-chart-muted" />
             {t('projectTemplates.canStretch')}
@@ -379,8 +297,92 @@ export function TemplateGantt({ draft, onChange, onClose }: {
             <span aria-hidden className="h-2.5 w-5 rounded-full bg-ink" />
             {t('projectTemplates.keepsLength')}
           </span>
+          <SegmentedControl
+            label={t('projectTemplates.zoomLabel')}
+            value={zoom}
+            options={[{ value: 'fit', label: t('projectTemplates.fit') }, { value: 'in', label: t('projectTemplates.zoomIn') }]}
+            onChange={setZoom}
+          />
         </div>
       </div>
-    </Sheet>
+      {bars.length === 0 && <p role="status" className="text-footnote text-ink-2">{t('projectTemplates.timelineEmpty')}</p>}
+      {problem && <p role="alert" className="text-footnote text-late">{problem}</p>}
+      <div className="flex items-start gap-3">
+        <div className="w-[13.75rem] shrink-0 pt-6">
+          {rows.map((row) => (
+            <button
+              key={row.id}
+              type="button"
+              title={row.label}
+              aria-pressed={isPicked(row.kind, row.id)}
+              onClick={() => onSelect({ kind: row.kind, id: row.id })}
+              className={`pressable flex h-10 w-full items-center rounded-lg pe-2 text-start hover:bg-fill ${isPicked(row.kind, row.id) ? 'bg-fill' : ''} ${row.kind === 'stage' ? 'ps-2' : 'ps-6'}`}
+            >
+              <bdi className={`truncate text-footnote ${row.kind === 'stage' ? 'font-semibold text-ink' : 'text-ink-2'}`}>{row.label}</bdi>
+            </button>
+          ))}
+        </div>
+        <div className="min-w-0 flex-1 overflow-x-auto pb-2">
+          <div ref={track} className="relative" style={{ width: '100%', minWidth: days * (zoom === 'in' ? ZOOM_PX : DAY_PX) }}>
+            <div className="relative h-6">
+              {weekStarts(days).map((day) => (
+                <span key={day} aria-hidden style={{ insetInlineStart: `${(day / days) * 100}%` }} className="tabular absolute top-0 text-caption text-ink-2">{day}</span>
+              ))}
+            </div>
+            <div className="relative" style={{ height: rows.length * ROW_PX }}>
+              {weekStarts(days).map((day) => (
+                <span key={day} aria-hidden style={{ insetInlineStart: `${(day / days) * 100}%` }} className="absolute inset-y-0 w-px bg-separator" />
+              ))}
+              {rows.map((row) => (
+                <div key={row.id} data-row={row.kind} className={`relative h-10 ${isPicked(row.kind, row.id) ? 'bg-fill' : ''}`}>
+                  {row.bar && renderBar(row, row.bar)}
+                </div>
+              ))}
+              <svg
+                aria-hidden
+                viewBox={`0 0 100 ${rows.length * ROW_PX}`}
+                preserveAspectRatio="none"
+                className="pointer-events-none absolute inset-0 h-full w-full overflow-visible text-ink-2"
+              >
+                {links.map((link) => {
+                  const from = geometry.get(link.from);
+                  const to = geometry.get(link.to);
+                  if (!from || !to) return null;
+                  const d = linkPath(from.end, from.y, to.left, to.y);
+                  const name = `${link.from}>${link.to}`;
+                  // The links of the picked part are darker, so the person sees what it waits for and what waits for it.
+                  const dark = selected !== null && (selected.id === link.to || selected.id === link.from);
+                  return (
+                    <g key={name} className={dark ? 'text-ink' : undefined}>
+                      <path d={d} fill="none" stroke="currentColor" strokeWidth={dark ? 2.5 : 1.5} vectorEffect="non-scaling-stroke" />
+                      <path
+                        data-link={name}
+                        d={d}
+                        fill="none"
+                        stroke="transparent"
+                        strokeWidth={14}
+                        vectorEffect="non-scaling-stroke"
+                        className="pointer-events-auto cursor-pointer"
+                        onClick={() => onSelect({ kind: link.kind, id: link.to })}
+                      />
+                    </g>
+                  );
+                })}
+                {drawing && drawingFrom && (
+                  <path
+                    d={`M ${X(drawingFrom.end)} ${drawingFrom.y} L ${X(drawing.x)} ${drawing.y}`}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeDasharray="4 3"
+                    strokeWidth={1.5}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                )}
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

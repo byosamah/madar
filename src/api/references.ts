@@ -28,6 +28,9 @@ export const REFERENCE_FIELDS: readonly ReferenceField[] = [
   { collection: 'projects', path: 'stageBack.by', targets: ['user'] },
   { collection: 'projects', path: 'createdBy', targets: ['user'] },
   { collection: 'projects', path: 'subCompanyId', targets: ['subCompany'] },
+  // The template of a link, and the person of each role (fbk_008 item 4). A seeded project made from a template showed that these were missing.
+  { collection: 'projects', path: 'templateLink.templateId', targets: ['projectTemplate'] },
+  { collection: 'projects', path: 'templateLink.rolePeople.*', targets: ['user'] },
 
   { collection: 'members', path: 'projectId', targets: ['project'] },
   { collection: 'members', path: 'userId', targets: ['user'] },

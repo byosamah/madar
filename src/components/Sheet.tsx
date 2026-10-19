@@ -17,6 +17,8 @@ type SheetProps = {
   description?: string;
   blocking?: boolean;
   wide?: boolean;
+  /** On a desk the sheet fills the screen, 12 px from each edge. A work area such as the template editor uses it. A phone is unchanged. */
+  full?: boolean;
   footer?: ReactNode;
   /** One quiet action next to the title, for example Focus on the task panel. */
   headerAction?: ReactNode;
@@ -37,6 +39,10 @@ const FIELD = 'input:not([type="hidden"]):not([type="checkbox"]):not([type="radi
  */
 function focusInto(sheet: HTMLElement | null, phone: boolean): void {
   if (!sheet) return;
+  // A control marked data-autofocus takes the focus first: the safe choice of a question, which has no field to type in.
+  const wanted = sheet.querySelector<HTMLElement>('[data-autofocus]');
+  wanted?.focus();
+  if (wanted && document.activeElement === wanted) return;
   const field = phone ? null : sheet.querySelector<HTMLElement>(FIELD);
   field?.focus();
   if (!field || document.activeElement !== field) sheet.querySelector<HTMLElement>('[data-sheet-title]')?.focus();
@@ -105,7 +111,7 @@ export function escapeIsInner(event: Event, sheet: Element | null): boolean {
 }
 
 const isRtl = () => typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
-const widthOf = (wide: boolean) => (wide ? 'w-[min(40rem,calc(100vw-1.5rem))]' : 'w-[min(30rem,calc(100vw-1.5rem))]');
+const widthOf = (wide: boolean, full = false) => (full ? 'w-[calc(100vw-1.5rem)]' : wide ? 'w-[min(40rem,calc(100vw-1.5rem))]' : 'w-[min(30rem,calc(100vw-1.5rem))]');
 /**
  * The place of a sheet on a desk: 12 px from the end, the top and the bottom of the screen. On a screen with the tab pill
  * (16 px from the top, 58 px high) the sheet starts 84 px from the top, 10 px below the pill. Before, a panel covered the
@@ -148,7 +154,7 @@ function Frame({ heading, onClose, headerAction, footer, children }: { heading: 
  * readers, so a person can keep working on the page next to it (spec 5.4). Vaul always runs its dialog as modal, so this
  * panel does not use it (audit 2026-10-03, SHL-2). Escape closes it; the focus goes back to where it was before it opened.
  */
-function SidePanel({ open, onOpenChange, title, description, wide = false, footer, headerAction, children }: SheetProps) {
+function SidePanel({ open, onOpenChange, title, description, wide = false, full = false, footer, headerAction, children }: SheetProps) {
   const id = useId();
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef(onOpenChange);
@@ -181,7 +187,7 @@ function SidePanel({ open, onOpenChange, title, description, wide = false, foote
           animate={{ x: 0 }}
           exit={{ x: away }}
           transition={spring.standard}
-          className={`float fixed ${DESK_EDGE} z-50 flex flex-col rounded-sheet outline-none ${widthOf(wide)}`}
+          className={`float fixed ${DESK_EDGE} z-50 flex flex-col rounded-sheet outline-none ${widthOf(wide, full)}`}
         >
           <Frame
             heading={(
@@ -208,7 +214,7 @@ function SidePanel({ open, onOpenChange, title, description, wide = false, foote
  * A blocking sheet dims the page and holds the focus. A non-blocking panel (the task panel) leaves the page usable.
  */
 export function Sheet(props: SheetProps) {
-  const { open, onOpenChange, title, description, blocking = true, wide = false, footer, headerAction, keepOnOutsidePress = false, children } = props;
+  const { open, onOpenChange, title, description, blocking = true, wide = false, full = false, footer, headerAction, keepOnOutsidePress = false, children } = props;
   const phone = useIsPhone();
   const direction = phone ? 'bottom' : isRtl() ? 'left' : 'right'; // rtl-ok: Vaul names the screen edge
   const modal = phone || blocking;
@@ -224,7 +230,7 @@ export function Sheet(props: SheetProps) {
   // corners (owner, 2026-10-05, item 5).
   const shape = phone
     ? `inset-x-0 bottom-0 ${PHONE_HEIGHT} rounded-t-sheet pb-[env(safe-area-inset-bottom)]`
-    : `${DESK_EDGE} rounded-sheet after:hidden ${widthOf(wide)}`;
+    : `${DESK_EDGE} rounded-sheet after:hidden ${widthOf(wide, full)}`;
   const described = description ? {} : { 'aria-describedby': undefined };
   return (
     <Drawer.Root open={open} onOpenChange={onOpenChange} direction={direction} modal handleOnly={!phone}>

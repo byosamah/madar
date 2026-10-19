@@ -72,7 +72,7 @@ const RULES: Record<string, ReadRule> = {
   'subCompanies.list': rule('office', ['subCompanies', 'users']),
   'stageTemplates.list': rule('office', ['stageTemplates', 'users']),
   'taskTemplates.list': rule('office', ['taskTemplates', 'users']),
-  'projectTemplates.list': rule('office', ['projectTemplates', 'users']),
+  'projectTemplates.list': rule('office', ['projectTemplates', 'projects', 'users']),
   'projectTemplates.matchPlan': rule('project', ['projectTemplates', 'projects', 'stages', 'tasks', 'users'], byProjectId),
   // The update of a template (fbk_008 item 4): the list reads the open projects, the plan reads the tasks of the listed projects too.
   'projectTemplates.usage': rule('office', ['projectTemplates', 'projects', 'settings', 'users']),

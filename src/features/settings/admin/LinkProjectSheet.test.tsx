@@ -17,7 +17,7 @@ import { NOW, TODAY } from '../../../test/factories';
 import { LinkProjectSheet } from './LinkProjectSheet';
 
 /**
- * "Link an older project" (fbk_008 item 4). The sample office holds "Villa, full design": stages Concept, Schematic Design,
+ * "Link <project> to <template>" (fbk_008 item 4; ADM-11). The sample office holds "Villa, full design": stages Concept, Schematic Design,
  * Design Development, Construction Documents and Permits, and tasks t1 "Site visit and survey" (Concept) to t11. The test project
  * has the stages Concept, Schematic Design and Permits, and two tasks: "Site visit and survey" and "Balady submission pack".
  */
@@ -51,12 +51,48 @@ async function openSheet(ctx: Awaited<ReturnType<typeof setUp>>, onClose = vi.fn
       </ToastProvider>
     </RuntimeProvider>,
   );
-  // The sheet shows the matches once the names are read: the Concept stage is the first pick.
+  // The sheet shows the matches once the names are read. The matched parts sit under a fold: open it, then read the first pick.
+  await userEvent.click(await screen.findByText(/^Matched · /));
   await waitFor(() => expect(screen.getByRole('combobox', { name: 'Project item for Concept' })).toHaveValue(ctx.stageNamed('Concept')));
   return { onClose };
 }
 
 describe('Link an older project', () => {
+  it('names the project and the template, says how many parts match, and shows the parts with no match first (ADM-11)', async () => {
+    const ctx = await setUp();
+    await openSheet(ctx);
+    expect(screen.getByRole('dialog', { name: 'Link Harbour Offices to Villa, full design' })).toBeInTheDocument();
+    expect(screen.getByText('3 of 5 stages and 2 of 11 tasks match.')).toBeInTheDocument();
+    const none = screen.getByRole('region', { name: 'No match yet · 11' });
+    expect(within(none).getByRole('combobox', { name: 'Project item for Design Development' })).toBeInTheDocument();
+    expect(within(none).queryByRole('combobox', { name: 'Project item for Concept' })).not.toBeInTheDocument();
+    // "Leave them out" is the start choice: an older project keeps its own plan.
+    expect(within(none).getByRole('radio', { name: /^Leave them out/ })).toBeChecked();
+  });
+
+  it('groups the tasks of the project by their stage, so two tasks of one name look different', async () => {
+    const ctx = await setUp();
+    await openSheet(ctx);
+    const pick = screen.getByRole('combobox', { name: 'Project item for Balady submission pack' });
+    const groups = Array.from(pick.querySelectorAll('optgroup')).map((group) => group.label);
+    expect(groups).toEqual(['Concept', 'Permits']);
+    expect(within(pick.querySelector('optgroup[label="Permits"]') as HTMLElement).getByRole('option', { name: 'Balady submission pack' })).toBeInTheDocument();
+  });
+
+  it('adds the parts with no match to the project at once when the Admin picks "Add them", and one Undo takes it all back', async () => {
+    const ctx = await setUp();
+    await openSheet(ctx);
+    await userEvent.click(screen.getByRole('radio', { name: /^Add them to the project/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save link' }));
+    expect(await screen.findByText('The project is linked to the template.')).toBeInTheDocument();
+    const mine = (partId: string) => Object.values(ctx.store.state.tasks).some((task) => task.projectId === ctx.projectId && task.templatePartId === partId);
+    await waitFor(() => expect(mine('t2')).toBe(true));
+    expect(ctx.store.state.projects[ctx.projectId].templateLink!.droppedPartIds).toEqual([]);
+    await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(ctx.store.state.projects[ctx.projectId].templateLink).toBeFalsy());
+    expect(mine('t2')).toBe(false);
+  });
+
   it('fills each pick with the item of the project that has the same name', async () => {
     const ctx = await setUp();
     await openSheet(ctx);
@@ -86,7 +122,7 @@ describe('Link an older project', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save link' }));
     expect(await screen.findByText('The project is linked to the template.')).toBeInTheDocument();
     expect(onClose).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('dialog', { name: 'Link an older project' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /^Link Harbour Offices/ })).not.toBeInTheDocument();
     const link = ctx.store.state.projects[ctx.projectId].templateLink!;
     expect(link.templateId).toBe(ctx.plan.id);
     expect(link.droppedPartIds).toEqual(expect.arrayContaining(['s3', 's4', 't2']));
@@ -108,7 +144,7 @@ describe('Link an older project', () => {
     await openSheet(ctx);
     await userEvent.click(screen.getByRole('button', { name: 'Save link' }));
     expect(await screen.findByText('This project is already linked to a template.')).toBeInTheDocument();
-    expect(screen.getByRole('dialog', { name: 'Link an older project' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /^Link Harbour Offices/ })).toBeInTheDocument();
   });
 
   it('links a role with no person when its default person is no longer active, and does not refuse the link', async () => {

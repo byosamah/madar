@@ -147,7 +147,7 @@ const keptWaits = (ids: readonly string[] | undefined, newIds: ReadonlyMap<strin
  * to a part that was not copied is dropped. A copied task takes the role of the draft with the same name. Case does not count.
  * When the draft has no such role, the task gets a copy of the role with no default person. A stage name in use gets " 2", or the next number.
  */
-export function importStages(draft: TemplateDraft, source: ProjectTemplate, stageIds: readonly string[], withTasks: boolean): TemplateDraft {
+export function importStages(draft: TemplateDraft, source: ProjectTemplate, stageIds: readonly string[], withTasks: boolean, keepDays = false): TemplateDraft {
   const from = draftOf(source);
   const picked = from.stages.filter((stage) => stageIds.includes(stage.id));
   const pickedIds = new Set(picked.map((stage) => stage.id));
@@ -173,13 +173,21 @@ export function importStages(draft: TemplateDraft, source: ProjectTemplate, stag
     return added.id;
   };
   const names = draft.stages.map((stage) => stage.name);
+  // The copies go right after the last stage of the draft (ADM-17): every copied day moves by one number, so the gaps between the
+  // copies stay. With `keepDays`, the copies keep the days of the other template.
+  const copiedStarts = [...picked.map((stage) => wholeNumber(stage.start)), ...tasks.map((task) => wholeNumber(task.start))].filter((n): n is number => n !== null);
+  const shift = keepDays || copiedStarts.length === 0 ? 0 : templateDays(draftPlanTemplate(draft)) - Math.min(...copiedStarts);
+  const moved = (value: string): string => {
+    const n = wholeNumber(value);
+    return n === null ? value : String(clampOffset(n + shift));
+  };
   const stages: DraftStage[] = picked.map((stage) => {
     const name = copyName(stage.name, names);
     names.push(name);
-    return { id: stageNew.get(stage.id)!, name, start: stage.start, days: stage.days, ...waitsOf(keptWaits(stage.prerequisiteIds, stageNew)) };
+    return { id: stageNew.get(stage.id)!, name, start: moved(stage.start), days: stage.days, ...waitsOf(keptWaits(stage.prerequisiteIds, stageNew)) };
   });
   const copies: DraftTask[] = tasks.map((task) => ({
-    id: taskNew.get(task.id)!, stageId: stageNew.get(task.stageId)!, title: task.title, roleId: roleOf(task.roleId), start: task.start, days: task.days,
+    id: taskNew.get(task.id)!, stageId: stageNew.get(task.stageId)!, title: task.title, roleId: roleOf(task.roleId), start: moved(task.start), days: task.days,
     flexible: task.flexible, description: task.description, checklist: [...task.checklist], needsReview: task.needsReview,
     ...waitsOf(keptWaits(task.prerequisiteIds, taskNew)),
   }));
@@ -194,12 +202,16 @@ export function addStage(draft: TemplateDraft): TemplateDraft {
   return { ...draft, stages: [...draft.stages, { id: freeId(draft, 's'), name: '', start: '', days: '' }] };
 }
 
-/** A new task starts where the last task of its stage ends, or where the template ends when the stage has no task yet. */
+/**
+ * A new task starts where the last task of its stage ends. The first task of a stage starts at the own start day of the stage
+ * when the stage has one (ADM-18), else where the template ends.
+ */
 export function addTask(draft: TemplateDraft, stageId: string): TemplateDraft {
   const own = draftPlanTemplate({ ...draft, tasks: draft.tasks.filter((task) => task.stageId === stageId) });
+  const stageStart = wholeNumber(draft.stages.find((stage) => stage.id === stageId)?.start ?? '');
   const start = own.tasks.length > 0
     ? Math.max(...own.tasks.map((task) => task.startOffset + task.durationDays))
-    : templateDays(draftPlanTemplate(draft));
+    : stageStart ?? templateDays(draftPlanTemplate(draft));
   const task: DraftTask = {
     id: freeId(draft, 't'), stageId, title: '', roleId: '', start: String(start), days: String(NEW_TASK_DAYS), flexible: true,
     description: '', checklist: [], needsReview: true,
@@ -248,19 +260,6 @@ export function moveStage(draft: TemplateDraft, stageId: string, delta: -1 | 1):
   return { ...draft, stages };
 }
 
-/**
- * Moves the stage at place `from` to place `to`. The other stages keep their order, and each stage keeps its tasks. The same
- * place, or a place outside the list, gives the draft back.
- */
-export function reorderStages(draft: TemplateDraft, from: number, to: number): TemplateDraft {
-  const count = draft.stages.length;
-  if (from === to || from < 0 || to < 0 || from >= count || to >= count) return draft;
-  const stages = [...draft.stages];
-  const [moved] = stages.splice(from, 1);
-  stages.splice(to, 0, moved);
-  return { ...draft, stages };
-}
-
 const clampOffset = (n: number) => Math.min(OFFSET_MAX, Math.max(0, Math.round(n)));
 
 /**
@@ -279,10 +278,17 @@ export function moveStageStart(draft: TemplateDraft, stageId: string, start: num
   const from = own ?? (taskStarts.length > 0 ? Math.min(...taskStarts) : null);
   if (from === null) return draft;
   const to = clampOffset(start);
-  const shift = to - from;
+  return shiftStage(draft, stageId, to - from, own === null ? null : to);
+}
+
+/**
+ * Moves a stage and its tasks by `shift` working days (a task never goes before day 0). `ownStart` is the new own start of the
+ * stage, or null when the stage has none.
+ */
+function shiftStage(draft: TemplateDraft, stageId: string, shift: number, ownStart: number | null): TemplateDraft {
   return {
     ...draft,
-    stages: draft.stages.map((part) => (part.id === stageId && own !== null ? { ...part, start: String(to) } : part)),
+    stages: draft.stages.map((part) => (part.id === stageId && ownStart !== null ? { ...part, start: String(ownStart) } : part)),
     tasks: draft.tasks.map((task) => {
       const n = task.stageId === stageId ? wholeNumber(task.start) : null;
       return n === null ? task : { ...task, start: String(clampOffset(n + shift)) };
@@ -320,32 +326,66 @@ export function startsBeforeStageAbove(draft: TemplateDraft, index: number): boo
   return here !== null && above !== null && here < above;
 }
 
-function twice(names: string[]): boolean {
+/** The place of the first name that an earlier name repeated, ignoring case and outer spaces. -1 when no name repeats. */
+function firstTwice(names: string[]): number {
   const seen = new Set<string>();
-  for (const name of names.map((n) => n.trim().toLowerCase())) {
-    if (seen.has(name)) return true;
+  const list = names.map((n) => n.trim().toLowerCase());
+  for (const [index, name] of list.entries()) {
+    if (seen.has(name)) return index;
     seen.add(name);
   }
-  return false;
+  return -1;
 }
 
-/** The first problem of a draft as a word key, or null. The same rules as projectTemplates.save, in the order of the editor. */
-export function draftError(draft: TemplateDraft): string | null {
-  if (!draft.name.trim()) return 'projectTemplates.errors.name';
-  if (draft.roles.some((role) => !role.name.trim())) return 'projectTemplates.errors.roleName';
-  if (twice(draft.roles.map((role) => role.name))) return 'projectTemplates.errors.roleTwice';
-  if (draft.stages.length === 0) return 'projectTemplates.errors.noStage';
-  if (draft.stages.some((stage) => !stage.name.trim())) return 'projectTemplates.errors.stageName';
-  if (twice(draft.stages.map((stage) => stage.name))) return 'projectTemplates.errors.stageTwice';
-  for (const stage of draft.stages) {
+/**
+ * The first problem of a draft (ADM-10). `key` is the word key of the message and `vars` are its values. `part` names the part that
+ * holds the problem, so the editor can open it, mark the field and show the message under it. `field` is the field of that part.
+ * A problem of the whole template, or of a role, has no part.
+ */
+export type DraftProblem = {
+  key: string;
+  vars: Record<string, string | number>;
+  part: { kind: 'stage' | 'task' | 'role'; id: string } | null;
+  field: 'name' | 'start' | 'days' | 'title' | null;
+};
+
+/** The first problem of a draft, or null. The same rules as projectTemplates.save, in the order of the editor. */
+export function draftProblem(draft: TemplateDraft): DraftProblem | null {
+  const E = 'projectTemplates.errors.';
+  if (!draft.name.trim()) return { key: `${E}name`, vars: {}, part: null, field: 'name' };
+  const unnamedRole = draft.roles.findIndex((role) => !role.name.trim());
+  if (unnamedRole !== -1) return { key: `${E}roleName`, vars: { n: unnamedRole + 1 }, part: { kind: 'role', id: draft.roles[unnamedRole].id }, field: 'name' };
+  const roleTwice = firstTwice(draft.roles.map((role) => role.name));
+  if (roleTwice !== -1) return { key: `${E}roleTwice`, vars: { n: roleTwice + 1 }, part: { kind: 'role', id: draft.roles[roleTwice].id }, field: 'name' };
+  if (draft.stages.length === 0) return { key: `${E}noStage`, vars: {}, part: null, field: null };
+  const unnamedStage = draft.stages.findIndex((stage) => !stage.name.trim());
+  if (unnamedStage !== -1) return { key: `${E}stageName`, vars: { n: unnamedStage + 1 }, part: { kind: 'stage', id: draft.stages[unnamedStage].id }, field: 'name' };
+  const stageTwice = firstTwice(draft.stages.map((stage) => stage.name));
+  if (stageTwice !== -1) return { key: `${E}stageTwice`, vars: { name: draft.stages[stageTwice].name.trim() }, part: { kind: 'stage', id: draft.stages[stageTwice].id }, field: 'name' };
+  for (const [index, stage] of draft.stages.entries()) {
+    const name = stage.name.trim() || String(index + 1);
     const hasStart = stage.start.trim() !== '';
     const hasDays = stage.days.trim() !== '';
-    if (hasStart !== hasDays) return 'projectTemplates.errors.stageNumbers';
-    if (hasStart && (!offsetOk(stage.start) || !daysOk(stage.days))) return 'projectTemplates.errors.numbers';
+    const part = { kind: 'stage' as const, id: stage.id };
+    if (hasStart && !hasDays) return { key: 'projectTemplates.problem.stageDays', vars: { name }, part, field: 'days' };
+    if (hasDays && !hasStart) return { key: 'projectTemplates.problem.stageStart', vars: { name }, part, field: 'start' };
+    if (hasStart && !offsetOk(stage.start)) return { key: 'projectTemplates.problem.numbers', vars: { name }, part, field: 'start' };
+    if (hasDays && !daysOk(stage.days)) return { key: 'projectTemplates.problem.numbers', vars: { name }, part, field: 'days' };
   }
-  if (draft.tasks.some((task) => !task.title.trim())) return 'projectTemplates.errors.taskTitle';
-  if (draft.tasks.some((task) => !offsetOk(task.start) || !daysOk(task.days))) return 'projectTemplates.errors.numbers';
+  const untitled = draft.tasks.findIndex((task) => !task.title.trim());
+  if (untitled !== -1) return { key: `${E}taskTitle`, vars: { n: untitled + 1 }, part: { kind: 'task', id: draft.tasks[untitled].id }, field: 'title' };
+  for (const [index, task] of draft.tasks.entries()) {
+    const part = { kind: 'task' as const, id: task.id };
+    const name = task.title.trim() || String(index + 1);
+    if (!offsetOk(task.start)) return { key: 'projectTemplates.problem.numbers', vars: { name }, part, field: 'start' };
+    if (!daysOk(task.days)) return { key: 'projectTemplates.problem.numbers', vars: { name }, part, field: 'days' };
+  }
   return null;
+}
+
+/** The first problem of a draft as a word key, or null. */
+export function draftError(draft: TemplateDraft): string | null {
+  return draftProblem(draft)?.key ?? null;
 }
 
 /**
@@ -383,4 +423,62 @@ export function draftPlanTemplate(draft: TemplateDraft): PlanTemplate {
       .filter((task) => offsetOk(task.start) && daysOk(task.days))
       .map((task) => ({ id: task.id, stageId: task.stageId, startOffset: wholeNumber(task.start)!, durationDays: wholeNumber(task.days)!, flexible: task.flexible })),
   };
+}
+
+/** A part that moved later because of a new wait (ADM-08): its kind, id and name, and the day it starts on now. */
+export type MovedPart = { kind: 'stage' | 'task'; id: string; name: string; start: number };
+
+/**
+ * The first working day on which a part may start, and its start now, from the numbers of the draft. A stage uses its span (its
+ * own days and its tasks). A part with no valid numbers has no place, so it gives null.
+ */
+function placeOf(draft: TemplateDraft, kind: 'stage' | 'task', id: string): { start: number; end: number } | null {
+  const plan = draftPlanTemplate(draft);
+  if (kind === 'task') {
+    const task = plan.tasks.find((part) => part.id === id);
+    return task ? { start: task.startOffset, end: task.startOffset + task.durationDays } : null;
+  }
+  const stage = plan.stages.find((part) => part.id === id);
+  return stage ? stageSpan(stage, plan.tasks.filter((task) => task.stageId === id)) : null;
+}
+
+/**
+ * Makes `waitingId` wait for `neededId` (ADM-08). The waiting part then starts on the working day after the needed part ends, when
+ * it started earlier, and the parts that wait for it move the same way. Each moved part is in `moved`, so the screen can say so
+ * and offer Undo. A wait that exists already, or a part that does not exist, gives the draft back. The caller checks the limit
+ * and the loops (waitsThrough).
+ */
+export function addWait(draft: TemplateDraft, kind: 'stage' | 'task', waitingId: string, neededId: string): { draft: TemplateDraft; moved: MovedPart[] } {
+  const list = kind === 'task' ? draft.tasks : draft.stages;
+  const waiting = list.find((part) => part.id === waitingId);
+  if (!waiting || !list.some((part) => part.id === neededId) || (waiting.prerequisiteIds ?? []).includes(neededId)) return { draft, moved: [] };
+  const linkPart = <T extends { id: string; prerequisiteIds?: string[] }>(part: T): T => (
+    part.id === waitingId ? { ...part, prerequisiteIds: [...(part.prerequisiteIds ?? []), neededId] } : part
+  );
+  let next: TemplateDraft = kind === 'task' ? { ...draft, tasks: draft.tasks.map(linkPart) } : { ...draft, stages: draft.stages.map(linkPart) };
+  const moved: MovedPart[] = [];
+  // The queue holds the parts to check. A part that moves adds the parts that wait for it. No chain loops (the caller refused it).
+  const queue = [waitingId];
+  for (let guard = 0; queue.length > 0 && guard < 500; guard += 1) {
+    const id = queue.shift()!;
+    const part = (kind === 'task' ? next.tasks : next.stages).find((item) => item.id === id);
+    if (!part) continue;
+    const here = placeOf(next, kind, id);
+    const needs = Math.max(-1, ...(part.prerequisiteIds ?? []).map((otherId) => placeOf(next, kind, otherId)?.end ?? -1));
+    if (here && needs > here.start) {
+      if (kind === 'task') {
+        next = { ...next, tasks: next.tasks.map((task) => (task.id === id ? { ...task, start: String(clampOffset(needs)) } : task)) };
+      } else {
+        const shift = needs - here.start;
+        const own = wholeNumber(next.stages.find((stage) => stage.id === id)?.start ?? '');
+        next = shiftStage(next, id, shift, own === null ? null : clampOffset(own + shift));
+      }
+      const name = kind === 'task' ? next.tasks.find((task) => task.id === id)?.title : next.stages.find((stage) => stage.id === id)?.name;
+      moved.push({ kind, id, name: (name ?? '').trim(), start: placeOf(next, kind, id)?.start ?? needs });
+    }
+    for (const other of kind === 'task' ? next.tasks : next.stages) {
+      if ((other.prerequisiteIds ?? []).includes(id)) queue.push(other.id);
+    }
+  }
+  return { draft: next, moved };
 }
