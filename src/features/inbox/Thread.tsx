@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import type { Attachment, GroupLine, UserCard } from '../../api/contract/views';
 import { newStoryId } from '../../app/actions';
 import { readDraftFiles, useDraftOwner, useDraftText, writeDraftFiles } from '../../app/drafts';
+import { usePictureTest } from '../../app/files';
 import { useLang } from '../../app/lang';
 import { usePersonName } from '../../app/personName';
 import { useToast } from '../../app/toasts';
@@ -18,7 +19,8 @@ import { addDays, clockFormat, formatDay, listFormat, stampDay, todayISO, type L
 import { actorContext } from '../../lib/grammar';
 import { groupByDay } from '../../lib/group';
 import { withMentionMarkup } from '../../lib/text';
-import { AttachButton, FileChips, PickedFiles, useAttachments, type UploadTarget } from '../files/Attachments';
+import { AttachButton, PickedFiles, useAttachments, type UploadTarget } from '../files/Attachments';
+import { AttachmentList, photoOnlyBody } from '../files/PictureAttachments';
 
 /** One bubble. A chat message and a task comment both turn into this. */
 export type Bubble = {
@@ -68,8 +70,11 @@ const BubbleItem = memo(function BubbleItem({ bubble, fresh }: { bubble: Bubble;
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const lang = useLang();
+  const isPicture = usePictureTest();
   const { author, mine } = bubble;
   if (bubble.line) return <GroupLineItem line={bubble.line} />;
+  // A photo sent with no words has its file name as its words. Beside the preview that name is noise, so the bubble leaves it out.
+  const photoOnly = photoOnlyBody(bubble.body, bubble.files, isPicture);
   return (
     <motion.li
       initial={fresh ? { opacity: 0, y: 12 } : false}
@@ -90,8 +95,8 @@ const BubbleItem = memo(function BubbleItem({ bubble, fresh }: { bubble: Bubble;
           style={mine ? { background: 'var(--p-blue-bg)' } : undefined}
           className={`rounded-2xl px-3 py-2 text-ink ${mine ? 'rounded-ee-md' : 'rounded-es-md bg-fill'}`}
         >
-          <RichText body={bubble.body} className="natural-side text-subheadline" />
-          <FileChips files={bubble.files} />
+          {!photoOnly && <RichText body={bubble.body} className="natural-side text-subheadline" />}
+          <AttachmentList files={bubble.files} />
           <p className="tabular pt-0.5 text-end text-caption text-ink-2">
             <time dateTime={bubble.createdAt}>{clockTime(bubble.createdAt, lang)}</time>
             {bubble.edited && ` · ${t('comments.edited')}`}
@@ -118,6 +123,10 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier }: { bubbles:
   const { t } = useTranslation();
   const lang = useLang();
   const region = useRef<HTMLDivElement>(null);
+  const items = useRef<HTMLOListElement>(null);
+  // True while the person reads the newest messages (the log is at its bottom, within 80 px). A picture grows its box when it has loaded,
+  // and the log then keeps the bottom in view. A person who reads old messages is not moved.
+  const atBottom = useRef(true);
   // The distance from the bottom when the person asked for earlier messages, and whether the focus was on that control.
   const anchor = useRef<{ fromBottom: number; focused: boolean; firstId: string | undefined } | null>(null);
   // The messages that are here when the log first shows do not animate. A message newer than all of them does. An earlier page
@@ -128,7 +137,18 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier }: { bubbles:
   const lastId = bubbles.at(-1)?.id;
   useLayoutEffect(() => {
     if (region.current) region.current.scrollTop = region.current.scrollHeight;
+    atBottom.current = true;
   }, [lastId, resetKey]);
+  useEffect(() => {
+    const log = region.current;
+    const list = items.current;
+    if (!log || !list || typeof ResizeObserver === 'undefined') return undefined;
+    const watcher = new ResizeObserver(() => {
+      if (atBottom.current && !anchor.current) log.scrollTop = log.scrollHeight;
+    });
+    watcher.observe(list);
+    return () => watcher.disconnect();
+  }, []);
   const hasEarlier = earlier !== undefined;
   useLayoutEffect(() => {
     const log = region.current;
@@ -151,7 +171,17 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier }: { bubbles:
   const today = todayISO();
   const dayLabel = (day: string) => (day === today ? t('inbox.today') : day === addDays(today, -1) ? t('inbox.yesterday') : formatDay(day, lang, 'long'));
   return (
-    <div ref={region} role="log" tabIndex={-1} aria-label={t('chat.messages')} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 outline-none [overflow-anchor:none] sm:px-5">
+    <div
+      ref={region}
+      role="log"
+      tabIndex={-1}
+      aria-label={t('chat.messages')}
+      onScroll={(event) => {
+        const log = event.currentTarget;
+        atBottom.current = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+      }}
+      className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 outline-none [overflow-anchor:none] sm:px-5"
+    >
       {earlier && (
         <div className="flex justify-center pb-2">
           {/* aria-disabled, not disabled: a disabled button drops the focus while the page loads. */}
@@ -161,7 +191,7 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier }: { bubbles:
         </div>
       )}
       {bubbles.length === 0 && <p className="text-subheadline text-ink-2">{emptyText}</p>}
-      <ol className="flex flex-col gap-2">
+      <ol ref={items} className="flex flex-col gap-2">
         {groupByDay(bubbles, (b) => stampDay(b.createdAt)).flatMap((group) => [
           <li key={`day-${group.day}`} className="self-center py-2 text-footnote font-semibold text-ink-2">{dayLabel(group.day)}</li>,
           ...group.items.map((bubble) => <BubbleItem key={bubble.id} bubble={bubble} fresh={!first.has(bubble.id) && Date.parse(bubble.createdAt) > newestAtFirst} />),

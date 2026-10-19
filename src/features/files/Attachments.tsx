@@ -111,33 +111,42 @@ export function PickedFiles({ files, onRemove }: { files: File[]; onRemove: (ind
   );
 }
 
-/** The files of a comment or a message. A chip saves the file. A deleted file shows as removed. */
-export function FileChips({ files }: { files: Attachment[] }) {
+/** One file as a chip. A press saves the file. A deleted file shows as removed. */
+export function FileChip({ file }: { file: Attachment }) {
   const { t } = useTranslation();
   const runtime = useRuntime();
   const { api } = runtime;
   const toast = useToast();
+  if (file.name === null) {
+    return (
+      <span className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-fill px-3 text-footnote text-label-2">
+        <AnimatedIcon icon={AttachFileIcon} size={14} aria-hidden />
+        {t('attachments.removed')}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      aria-label={t('attachments.download', { name: file.name })}
+      onClick={() => downloadFile(api, file.id, undefined, { remote: isRemote(runtime) }).catch((error: unknown) => toast.failed(error))}
+      className="pressable inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full bg-fill px-3 text-footnote text-ink hover:bg-fill-strong"
+    >
+      <AnimatedIcon icon={AttachFileIcon} size={14} aria-hidden className="shrink-0" />
+      <bdi className="truncate">{file.name}</bdi>
+    </button>
+  );
+}
+
+/** The files of a comment or a message, each as a chip. */
+export function FileChips({ files }: { files: Attachment[] }) {
+  const { t } = useTranslation();
   if (files.length === 0) return null;
   return (
     <ul aria-label={t('attachments.files')} className="flex flex-wrap gap-2">
       {files.map((file) => (
         <li key={file.id}>
-          {file.name === null ? (
-            <span className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-fill px-3 text-footnote text-label-2">
-              <AnimatedIcon icon={AttachFileIcon} size={14} aria-hidden />
-              {t('attachments.removed')}
-            </span>
-          ) : (
-            <button
-              type="button"
-              aria-label={t('attachments.download', { name: file.name })}
-              onClick={() => downloadFile(api, file.id, undefined, { remote: isRemote(runtime) }).catch((error: unknown) => toast.failed(error))}
-              className="pressable inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full bg-fill px-3 text-footnote text-ink hover:bg-fill-strong"
-            >
-              <AnimatedIcon icon={AttachFileIcon} size={14} aria-hidden className="shrink-0" />
-              <bdi className="truncate">{file.name}</bdi>
-            </button>
-          )}
+          <FileChip file={file} />
         </li>
       ))}
     </ul>

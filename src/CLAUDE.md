@@ -288,8 +288,17 @@ any screen work.
   optional (an empty name takes the first names), and one full-width button makes the group.
 - Every chat takes files (owner, 2026-10-19). The box of a project chat uploads into the files of its project. The box of a direct chat
   and of a group uploads into the chat itself (`UploadTarget.conversationId`, `ConversationPane.tsx`), with the same attach button and
-  the same limits. A picture or a file shows in the bubble as a file chip that saves it; no preview picture. A chat file shows in no
-  Files tab and no search.
+  the same limits. A chat file shows in no Files tab and no search.
+- A picture in a chat bubble or a task comment shows as a preview (owner, 2026-10-19). `AttachmentList` (`features/files/PictureAttachments.tsx`)
+  replaces `FileChips` in `Thread.tsx` and `CommentThread.tsx`: a picture (`Attachment.mimeType` and `usePictureTest`) is a small rounded
+  picture, at most 240 px wide, from the thumb link (`useFileLink(..., 'thumb')`); two or more sit in a grid; every other file stays a chip.
+  The box holds its place while the picture loads (the last known shape in `SHAPES`, else 4 to 3), the picture has
+  `loading="lazy" decoding="async"` and asks for its link only within 400 px of the screen. A picture that breaks, or that the store keeps
+  as a download (an SVG in the real build), shows as a chip. A press opens `ImageViewer` (`components/ImageViewer.tsx`): the picture on a
+  dark backdrop, the file name, an X, a Download button, Escape and a press on the dark space close it, the arrow keys follow the page
+  direction between the pictures of one message, and the focus returns to the preview. A message of only pictures leaves out the file names
+  that the box put there as its words (`photoOnlyBody`). `MessageLog` keeps the newest message in view while a picture grows its box.
+  Posts and the Tracker keep `FileChips`.
 - The quiet lines of a group (`Conversation.log`, `ChatThread.lines`) draw as one grey centered line between the messages
   (`GroupLineItem` in `Thread.tsx`), in the screen language. They are no messages: never unread, no push.
 - The mention list of the Inbox box opens above the box (`MentionField placement="above"`) and ranks the names that start with

@@ -90,15 +90,67 @@ describe('the Inbox chat', () => {
     const direct = Object.values(store.state.files).find((f) => f.name === 'Level 2.pdf');
     expect(direct).toMatchObject({ projectId: null, taskId: null, stageId: null });
     expect(store.state.conversations[direct!.conversationId!].kind).toBe('direct');
-    // A group takes the same, and a picture shows in its bubble as a file chip.
+    // A group takes the same, and a picture shows in its bubble as a preview (owner, 2026-10-19).
     await userEvent.click(await rowLink(/Tower team/));
     await userEvent.upload(await screen.findByLabelText('Attach files'), new File(['x'], 'Site photo.jpg', { type: 'image/jpeg' }));
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
-    expect(await screen.findByRole('button', { name: 'Download Site photo.jpg' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'View Site photo.jpg' })).toBeInTheDocument();
     const photo = Object.values(store.state.files).find((f) => f.name === 'Site photo.jpg');
     expect(photo).toMatchObject({ projectId: null, taskId: null, stageId: null });
     expect(store.state.conversations[photo!.conversationId!]).toMatchObject({ kind: 'group', name: 'Tower team' });
     expect(Object.values(store.state.messages).find((m) => m.fileIds?.includes(photo!.id))?.body).toBe('Site photo.jpg');
+  });
+
+  it('shows a picture of a chat as a preview in its bubble; a press opens the viewer with Close and Download (owner, 2026-10-19)', async () => {
+    const save = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    await renderApp('/inbox');
+    await userEvent.click(await rowLink(/Faisal Al-Harbi/));
+    await userEvent.upload(
+      await screen.findByLabelText('Attach files'),
+      [new File(['x'], 'Site photo.jpg', { type: 'image/jpeg' }), new File(['y'], 'Brief.pdf', { type: 'application/pdf' })],
+    );
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Message' }), 'Photo and brief.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    const log = within(await screen.findByRole('log', { name: 'Messages' }));
+    const preview = await log.findByRole('button', { name: 'View Site photo.jpg' });
+    await waitFor(() => expect(preview.querySelector('img')).toHaveAttribute('src', 'blob:madar-test'));
+    // The picture is no chip. The PDF stays one.
+    expect(log.queryByRole('button', { name: 'Download Site photo.jpg' })).toBeNull();
+    expect(log.getByRole('button', { name: 'Download Brief.pdf' })).toBeInTheDocument();
+    await userEvent.click(preview);
+    const viewer = await screen.findByRole('dialog', { name: 'Site photo.jpg' });
+    await userEvent.click(within(viewer).getByRole('button', { name: 'Download Site photo.jpg' }));
+    await waitFor(() => expect(save).toHaveBeenCalled());
+    await userEvent.click(within(viewer).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Site photo.jpg' })).toBeNull());
+    save.mockRestore();
+  });
+
+  it('shows a picture of a task thread as a preview, like a chat (owner, 2026-10-19)', async () => {
+    await renderApp('/inbox', withTaskTalk);
+    await userEvent.click(await rowLink(/Room finish schedule/));
+    await userEvent.upload(await screen.findByLabelText('Attach files'), new File(['x'], 'Finish board.png', { type: 'image/png' }));
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Message' }), 'The finish board.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    const log = within(await screen.findByRole('log', { name: 'Messages' }));
+    const preview = await log.findByRole('button', { name: 'View Finish board.png' });
+    await userEvent.click(preview);
+    expect(await screen.findByRole('dialog', { name: 'Finish board.png' })).toBeInTheDocument();
+  });
+
+  it('leaves out the file name that a photo with no words gets as its words, and keeps words that a person wrote', async () => {
+    await renderApp('/inbox');
+    await userEvent.click(await rowLink(/Faisal Al-Harbi/));
+    await userEvent.upload(await screen.findByLabelText('Attach files'), new File(['x'], 'Only photo.jpg', { type: 'image/jpeg' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    const log = within(await screen.findByRole('log', { name: 'Messages' }));
+    await log.findByRole('button', { name: 'View Only photo.jpg' });
+    expect(log.queryByText('Only photo.jpg')).toBeNull();
+    await userEvent.upload(await screen.findByLabelText('Attach files'), new File(['x'], 'Second photo.jpg', { type: 'image/jpeg' }));
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Message' }), 'The east side.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await log.findByRole('button', { name: 'View Second photo.jpg' });
+    expect(log.getByText('The east side.')).toBeInTheDocument();
   });
 
   it('sends a message with the Send button and with Enter, and keeps a new line for Shift+Enter', async () => {
