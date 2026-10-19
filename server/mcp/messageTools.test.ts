@@ -233,8 +233,18 @@ describe('the message tools over MCP (owner, 2026-10-12)', () => {
     expect(text).not.toContain(OUTSIDER_SECRET);
     const rows = result.structuredContent.output as { kind: string; id: string; from: { id: string }; body: string }[];
     expect(rows.find((row) => row.id === hala3)).toMatchObject({ kind: 'direct', from: { id: 'usr_003' }, body: SECRET });
-    expect(rows.find((row) => row.id === groupRoom)).toMatchObject({ kind: 'group', from: { id: 'usr_010' }, body: GROUP_SECRET });
+    // A group waits only when a newer message names the person (item 22): the plain group text does not.
+    expect(rows.some((row) => row.id === groupRoom)).toBe(false);
     expect(rows.some((row) => row.id === outsiderRoom)).toBe(false);
+    const state = w.mem.tables.state;
+    const id = nextId(state, 'msg');
+    state.messages[id] = {
+      id, conversationId: groupRoom, authorId: 'usr_010', actingForId: 'usr_010', body: 'Please look at the group text.', mentions: ['usr_001'],
+      createdAt: '2026-10-04T05:05:00.000Z', editedAt: null,
+    };
+    w.mem.tables.version += 1;
+    const later = (await call(w, 'chats.waiting', {})).result.structuredContent.output as { kind: string; id: string; from: { id: string }; body: string }[];
+    expect(later.find((row) => row.id === groupRoom)).toMatchObject({ kind: 'group', from: { id: 'usr_010' }, body: 'Please look at the group text.' });
   });
 });
 
@@ -439,5 +449,13 @@ describe('the texts of the message tools', () => {
     expect(TOOL_DOCS['chats.list'].description).toContain('comments.list');
     expect(TOOL_DOCS['chats.messages'].description).toContain('quiet lines');
     expect(TOOL_DOCS['chats.messages'].description.length).toBeLessThanOrEqual(600);
+  });
+
+  it('says the wait rules of item 22 in chats.waiting', async () => {
+    const { TOOL_DOCS } = await import('./docs');
+    const text = TOOL_DOCS['chats.waiting'].description;
+    expect(text).toContain('A group or a project chat waits when a newer message names your person');
+    expect(text).toContain('👍 or ✅');
+    expect(text.length).toBeLessThanOrEqual(600);
   });
 });

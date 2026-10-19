@@ -192,8 +192,8 @@ export async function chatsMessages(L: Load, input: Input): Promise<void> {
 
 /**
  * chats.waiting (fbk_011, owner 2026-10-18): the rows that waitingFor (chats.ts) compares. Per visible chat: the archive mark and
- * the newest message (the direct and group rule). Per project chat: the newest message of the person, with its agents, and the
- * newest message that names the person. Per task thread: see threadsWaitingOf.
+ * the newest message (the direct rule). Per project chat and per group (design item 22): the newest message of the person, with its
+ * agents, and the newest message that names the person. Per task thread: see threadsWaitingOf.
  */
 export async function chatsWaiting(L: Load): Promise<void> {
   if (!L.authority) return;
@@ -203,11 +203,12 @@ export async function chatsWaiting(L: Load): Promise<void> {
   const ids = conversations.map((c) => c.id);
   await L.byKey('chatReads', ids.map((id) => chatReadKey(id, me)));
   await newestMessages(L, ids);
-  const projectIds = conversations.filter((c) => c.kind === 'project').map((c) => c.id);
-  if (projectIds.length > 0) {
+  // A group waits like a project chat: only for a newer message that names the person (design item 22).
+  const namedIds = conversations.filter((c) => c.kind === 'project' || c.kind === 'group').map((c) => c.id);
+  if (namedIds.length > 0) {
     const newest = { order: { col: 'created_at', desc: true, id: true } as const, per: 'conversation_id', limit: 1 };
-    await L.select({ c: 'messages', where: [{ col: 'conversation_id', in: projectIds }, LIVE, { or: [{ field: 'actingForId', in: [me] }, { field: 'authorId', in: meSet }] }], ...newest });
-    await L.select({ c: 'messages', where: [{ col: 'conversation_id', in: projectIds }, LIVE, { has: 'mentions', value: me }], ...newest });
+    await L.select({ c: 'messages', where: [{ col: 'conversation_id', in: namedIds }, LIVE, { or: [{ field: 'actingForId', in: [me] }, { field: 'authorId', in: meSet }] }], ...newest });
+    await L.select({ c: 'messages', where: [{ col: 'conversation_id', in: namedIds }, LIVE, { has: 'mentions', value: me }], ...newest });
   }
   await threadsWaitingOf(L, me, meSet);
 }
@@ -215,8 +216,8 @@ export async function chatsWaiting(L: Load): Promise<void> {
 /**
  * The task threads of the person for chats.waiting: the task (its lead), the newest comment, and the newest comment of the person.
  * A thread that the person does not lead also gets the comments of other people after the person's last comment.
- * Comments keep no mention list, so the body names the person (mentionedUserIds). A thread the person leads needs
- * only its newest comment.
+ * Comments keep no mention list, so the body names the person (mentionedUserIds), or the comment replies to a comment of the person
+ * (namesPerson reads the old comment, so its key loads too). A thread the person leads needs only its newest comment.
  */
 async function threadsWaitingOf(L: Load, me: string, meSet: string[]): Promise<void> {
   if (!L.authority || !can(L.authority, 'comment.read')) return;
@@ -242,6 +243,10 @@ async function threadsWaitingOf(L: Load, me: string, meSet: string[]): Promise<v
     const after = lastOwn.get(id);
     return [id, { gt: '', ...(after ? { after } : {}) }];
   }));
-  await L.select({ c: 'comments', where: [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: named }, { bounds: { col: 'target_id', by } }, { field: 'authorId', notIn: meSet }, ...MESSAGES_ONLY] });
+  const others = (await L.select({
+    c: 'comments', where: [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: named }, { bounds: { col: 'target_id', by } }, { field: 'authorId', notIn: meSet }, ...MESSAGES_ONLY],
+  })) as Comment[];
+  // The old comment of each reply, by key: a reply to a comment of the person names the person (design item 22).
+  await L.byKey('comments', others.map((comment) => comment.replyToId));
 }
 

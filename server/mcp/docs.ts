@@ -98,7 +98,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'chats.waiting': {
     title: 'List what waits for a reply',
-    description: 'Lists the chats and task threads that wait for the reply of your person, oldest first. A direct or group chat waits when its newest message came from someone else. A project chat waits when a newer message names your person. A task thread waits when its newest comment came from someone else, and your person leads the task or is named in a newer comment. Each row has the id, the sender (from), the first 280 characters in plain text (body) and the days it waited. A row of kind task has a task id: answer it with comments.create (targetType task). Archived chats are left out. Read only.',
+    description: 'Lists the chats and task threads that wait for the reply of your person, oldest first. A direct chat waits when its newest message came from someone else. A group or a project chat waits when a newer message names your person (an @mention or a reply). A task thread waits when its newest comment came from someone else and your person leads the task, or a newer comment names your person. A 👍 or ✅ of your person on that message counts as a reply. A row has id, from, body (plain text) and days. A row of kind task: answer it with comments.create. Archived chats are left out. Read only.',
   },
   'chats.openDirect': {
     title: 'Open a direct chat',

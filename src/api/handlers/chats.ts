@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ConversationId, FileId, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, NotifyLevel, TaskId, UserId, type Comment, type Conversation, type GroupLogEntry, type Message, type Project, type Task, type User } from '../contract/entities';
+import { ConversationId, FileId, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, NotifyLevel, TaskId, UserId, type Reaction, type Comment, type Conversation, type GroupLogEntry, type Message, type Project, type Task, type User } from '../contract/entities';
 import { ChatRow, ChatThread, MessageView, WaitingRow, type GroupLine } from '../contract/views';
 import { addDirectConversation, addGroupConversation, canSeeConversation, closedChatError, isArchived, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, personLeft, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
@@ -562,6 +562,14 @@ const laterThan = (a: { createdAt: string; id: string }, b: { createdAt: string;
 /** The whole days from a stamp to now. */
 const daysSince = (at: string, now: Date): number => Math.max(0, Math.floor((now.getTime() - Date.parse(at)) / DAY_MS));
 
+/**
+ * True when the viewer put a 👍 or a ✅ on the message or comment that waits (chat design item 22): that counts as the answer. A reaction
+ * of an agent of the viewer counts as the viewer's own. A 👀 is no answer: it says "seen", not "done".
+ */
+export function answeredByReaction(state: State, reactions: Partial<Record<Reaction, string[]>> | undefined, viewerId: string): boolean {
+  return (['👍', '✅'] as const).some((emoji) => (reactions?.[emoji] ?? []).some((id) => principalOf(state, id) === viewerId));
+}
+
 /** A chat that waits for the reply of the viewer, with the message that waits. Null when nothing waits. */
 function waitingChat(state: State, conversation: Conversation, viewer: User, now: Date): WaitingRow | null {
   const messages = messagesOf(state, conversation.id);
@@ -571,16 +579,18 @@ function waitingChat(state: State, conversation: Conversation, viewer: User, now
   // A group with nobody else in it takes no reply (UX audit 2026-10-19, chats-11).
   if (conversation.kind === 'group' && personLeft(state, conversation, viewer)) return null;
   let waiting: Message | undefined;
-  if (conversation.kind === 'project') {
-    // A project chat: a message that names the viewer, and is newer than the viewer's newest message.
+  if (conversation.kind === 'direct') {
+    // A direct chat: its newest message came from another person.
+    if (last && !isMine(state, last, viewer.id)) waiting = last;
+  } else {
+    // A group or a project chat: the newest message of another person that names the viewer (an @mention, or a reply to a message of the
+    // viewer, which joined "mentions" when it was sent), and is newer than the viewer's newest message (chat design item 22).
     const own = messages.findLast((m) => isMine(state, m, viewer.id));
-    const named = messages.findLast((m) => m.mentions.includes(viewer.id));
+    const named = messages.findLast((m) => namesPerson(state, m, viewer.id));
     if (named && (!own || laterThan(named, own))) waiting = named;
-  } else if (last && !isMine(state, last, viewer.id)) {
-    // A direct or group chat: its newest message came from another person.
-    waiting = last;
   }
-  if (!waiting) return null;
+  // A 👍 or a ✅ of the viewer on the message that waits is the answer.
+  if (!waiting || answeredByReaction(state, waiting.reactions, viewer.id)) return null;
   const row = rowOf(state, conversation, viewer);
   return {
     kind: conversation.kind, id: conversation.id, title: row.title, project: row.project, from: cardOf(state, waiting.authorId),
@@ -590,9 +600,9 @@ function waitingChat(state: State, conversation: Conversation, viewer: User, now
 
 /**
  * A task thread that waits for the reply of the viewer. Its newest comment came from another person.
- * The viewer leads the task, or a newer comment of another person names the viewer with @. Comments keep
- * no mention list, so the body holds the mention markup. The row shows the newest comment for the lead,
- * and the named comment otherwise.
+ * The viewer leads the task, or a newer comment of another person names the viewer: an @ in the body, or a reply to a comment of the
+ * viewer (namesPerson). Comments keep no mention list, so the body holds the mention markup. The row shows the newest comment for the
+ * lead, and the named comment otherwise. A 👍 or ✅ of the viewer on that comment is the answer (chat design item 22).
  */
 function waitingThread(state: State, thread: TaskThread, viewer: User, now: Date): WaitingRow | null {
   const { task, project } = thread;
@@ -603,8 +613,8 @@ function waitingThread(state: State, thread: TaskThread, viewer: User, now: Date
   if (isArchived(state.chatReads[chatReadKey(task.id, viewer.id)], last.createdAt)) return null;
   const own = comments.findLast((c) => principalOf(state, c.authorId) === viewer.id);
   const others = comments.filter((c) => principalOf(state, c.authorId) !== viewer.id && (!own || laterThan(c, own)));
-  const waiting = task.ownerId === viewer.id ? others.at(-1) : others.findLast((c) => mentionedUserIds(c.body).includes(viewer.id));
-  if (!waiting) return null;
+  const waiting = task.ownerId === viewer.id ? others.at(-1) : others.findLast((c) => namesPerson(state, c, viewer.id));
+  if (!waiting || answeredByReaction(state, waiting.reactions, viewer.id)) return null;
   return {
     kind: 'task', id: task.id, title: task.title, project: project ? { id: project.id, code: project.code, name: project.name, mark: markOf(project) } : null,
     from: cardOf(state, waiting.authorId), body: Array.from(plainText(waiting.body)).slice(0, WAITING_BODY_MAX).join(''),
@@ -614,9 +624,11 @@ function waitingThread(state: State, thread: TaskThread, viewer: User, now: Date
 
 /**
  * The chats and task threads that wait for the reply of the person (fbk_011, owner 2026-10-18), oldest first.
- * - A direct or group chat waits when its newest message came from another person.
- * - A project chat waits when a message that names the person is newer than the person's newest message.
+ * - A direct chat waits when its newest message came from another person.
+ * - A group or a project chat waits when a message that names the person (an @mention or a reply to the person) is newer than the
+ *   person's newest message (design item 22; a group no longer waits for each member).
  * - A task thread waits when its newest comment came from another person, and the person leads the task or is named (see waitingThread).
+ * - In every kind, a 👍 or ✅ of the person on the message that waits is the answer (answeredByReaction).
  * A message or comment of an agent of the person counts as the person's own. An archived chat does not count. A chat or task that
  * the person may not open is never in the list: the chats come from canSeeConversation, the threads from taskThreads.
  */

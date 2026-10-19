@@ -367,6 +367,39 @@ describe('the 18 places of AM 6', () => {
     expect(rows.find((row) => row.id === task.id)).toBeDefined();
   });
 
+  // Design item 22: a group waits only for a message that names the person, a reply to a comment names its author, and a 👍 answers.
+  it('chats.waiting: the scoped load gives the same answer for a group that names the person, a reply to a comment and a 👍 (item 22)', async () => {
+    const state = office();
+    const team = Object.values(state.members).filter((m) => m.projectId === 'prj_001').map((m) => m.userId).filter((id) => id !== ADMIN && state.users[id].kind === 'human');
+    const [person, other] = team;
+    if (!person || !other) throw new Error('The sample office needs two team members on prj_001.');
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    const idOf = (view: unknown) => (view as { message: { id: string } }).message.id;
+    const { id: group } = apply(state, 'chats.createGroup', { name: 'Item 22 team', memberIds: [person, ADMIN] }, other) as { id: string };
+    apply(state, 'chats.send', { conversationId: group, body: 'Plain group note 6641.' }, other, { now: at(1) });
+    const { id: direct } = apply(state, 'chats.openDirect', { userId: person }, other) as { id: string };
+    const question = idOf(apply(state, 'chats.send', { conversationId: direct, body: 'Direct question 2231.' }, other, { now: at(2) }));
+    const task = tasksOfProject(state, 'prj_001').find((t) => t.ownerId !== null && t.ownerId !== person)!;
+    // The reply answers the first comment of the person, which is older than the newest comment of the person: only a load by key sees it.
+    const first = apply(state, 'comments.create', { targetType: 'task', targetId: task.id, body: 'I will check the wall.' }, person, { now: at(3) }) as { comment: { id: string } };
+    apply(state, 'comments.create', { targetType: 'task', targetId: task.id, body: 'Second note.' }, person, { now: at(4) });
+    apply(state, 'comments.create', { targetType: 'task', targetId: task.id, body: 'Thanks.', replyToId: first.comment.id }, other, { now: at(5) });
+    // The plain group note names nobody, so the group does not wait yet.
+    const before = (await same(state, 'chats.waiting', {}, person)).outcome.output as { kind: string; id: string }[];
+    expect(before.map((row) => row.id)).not.toContain(group);
+    expect(before.map((row) => row.id)).toEqual(expect.arrayContaining([direct, task.id]));
+    // The naming message is older than the newest message of the group: only the select of the newest naming message sees it.
+    apply(state, 'chats.send', { conversationId: group, body: `${mentionMarkup(state.users[person].name, person)} Please look at 6641.` }, other, { now: at(6) });
+    apply(state, 'chats.send', { conversationId: group, body: 'And a plain word after it.' }, other, { now: at(7) });
+    const named = (await same(state, 'chats.waiting', {}, person)).outcome.output as { kind: string; id: string }[];
+    expect(named.map((row) => row.id)).toContain(group);
+    // A 👍 of the person on the question and on the comment that waits answers them.
+    state.messages[question].reactions = { ...emptyReactions(), '👍': [person] };
+    const answered = (await same(state, 'chats.waiting', {}, person)).outcome.output as { kind: string; id: string }[];
+    expect(answered.map((row) => row.id)).not.toContain(direct);
+    expect(answered.map((row) => row.id)).toContain(group);
+  });
+
   // Base B3 (chat design 2026-10-19): a deleted message leaves every read path, also in the scoped load.
   it('chats reads: the scoped load leaves a deleted message out, as the handler does (base B3)', async () => {
     const state = office();
