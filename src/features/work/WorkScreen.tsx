@@ -5,6 +5,7 @@ import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../components/icons/animated/plus';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { NewOfficeTaskSheet } from './NewOfficeTaskSheet';
+import { WorkSwitch } from './WorkSwitch';
 import { WorkTasks } from './WorkTasks';
 
 /**
@@ -24,7 +25,9 @@ export function WorkScreen() {
             {t('office.new')}
           </Button>
         )}
-      />
+      >
+        <WorkSwitch />
+      </ScreenTitle>
       <WorkTasks />
       <NewOfficeTaskSheet open={adding} onOpenChange={setAdding} />
     </div>

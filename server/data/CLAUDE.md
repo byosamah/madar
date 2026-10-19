@@ -26,12 +26,20 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - A file of a direct chat or a group (owner, 2026-10-19) keeps `conversationId` in its `files` doc: no column and no migration, because
   no read selects by it. Its row has `project_id` and `task_id` null, so the search loader and `files.list` never load it. `diffState`
   counts `files` as a kind of `PRIVATE_CHAT_KINDS`: its save sends the anonymous office signal of a private chat (`save.ts`).
-- Chat search (`20261020000100_message_search.sql`, chat design 2026-10-19, item 16): `messages.search_text` and `comments.search_text`
+- Chat search (`20261020000200_message_search.sql`, chat design 2026-10-19, item 16): `messages.search_text` and `comments.search_text`
   hold `bodySearchText(body)` (`src/lib/searchMatch.ts`), written by the save from `tables.ts`. A deleted message keeps null; the
   Undo writes it again. The GIN trigram indexes `messages_search` and `comments_search` use `extensions.gin_trgm_ops`, and the loader
   `contains` sends an escaped LIKE, so a key press never reads every message. `search_fold(text)` is the fold in SQL (backfill and the
   parity test); it must stay in step with `bodySearchText`. One known difference: `İ` (U+0130) folds to `i` in SQL and to `i` plus a dot
   in JavaScript; no other tested letter differs. The index needs a table of some size: with 6,000 comments Postgres read every row.
+- `meetings` (`20261020000100_meetings.sql`, fbk_022): not an office list. Generated columns `project_id`, `organizer_id`, `starts_at`, `ends_at`,
+  `status`, `settled_at`; text indexes on `starts_at collate "C"` and `(project_id, starts_at)`, and a GIN index on `doc->'attendeeIds'`.
+  `loaders/meetings.ts`: `meetings.list` reads one window (`atOrAfter` and `atBefore` on `starts_at`), `meetingConds` is the view rule in SQL
+  (`project_id` in the office projects, or the person is the organizer or an attendee), and `meetingCall` reads one meeting by id with the
+  minutes task and the Tracker line it names. The handler checks the view rule again on the rows. `meetings.create` reads the office only.
+  `events.list` adds the test "no `officeMeetingId`, or one of the private meetings of the person" for every person (`privateMeetingsOf`), the
+  Admin too (owner, 2026-10-19, Q4), and the migration adds the statistics `events_office_meeting` for it. `notifications.count` reads the
+  meeting of a notice with `INBOX_MEETING_FIELDS`. `projectDelete` reads the meetings of the project and their notices.
 - `events` only grows: a trigger refuses update and delete, and madar_server has only select and insert. Undo is a new
   event (`undoes`). The save never writes `undoneBy`.
 
@@ -145,9 +153,11 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   `usage/warn.ts` and may import no value from `server/office/` (`workerGraph.test.ts`); `server/office/meter.ts` exports it again.
 - Schema version 4 (fbk_007) adds the office list `sub_companies`, with only `id` and `doc`. `LITE_STEPS` is
   `{ 3: [USAGE_DAY_SQL], 4: [the create table of sub_companies] }`; the SQL text is in `lite/schema.ts`.
-- Schema version 5 (chat search) adds `search_text text` to `messages` and `comments`, the last column of each. `LITE_STEPS[5]` is two
+- Schema version 5 (fbk_022) adds the table `meetings` with its key columns and two read indexes (`meetings_starts`, `meetings_project_starts`).
+  Its step is in `LITE_STEPS` and makes the same objects as a new office (`schema.test.ts` checks it).
+- Schema version 6 (chat search) adds `search_text text` to `messages` and `comments`, the last column of each. `LITE_STEPS[6]` is two
   `alter table ... add column`. The office path keeps no index on it: `contains` is `instr`, a scan (`exit-handoff.md`, section 7,
-  names the FTS5 index for the restart). No step writes a value: no real office exists below version 5.
+  names the FTS5 index for the restart). No step writes a value: no real office exists below version 6.
 - Each event index costs 1 row written for each event, and a read needs each of the 8. Task 18 dropped four of them, one at a
   time: a read then took 12,815 to 183,416 rows in place of 4 to 4,189 (proof.md "Wave 1: the rows pins"). Drop one only with
   a rows pin that shows that no read needs it.

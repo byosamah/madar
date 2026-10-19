@@ -18,6 +18,7 @@ import { useFocusLink } from '../focus/focusLink';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 import { ProjectListRow } from '../projects/ProjectListRow';
 import { DayRing } from './DayRing';
+import { MeetingsCard } from './MeetingsCard';
 import { NextCard } from './NextCard';
 import { PushAskCard } from './PushAskCard';
 import { TodayPanel } from './TodayPanel';
@@ -67,6 +68,8 @@ const HomeBody = memo(function HomeBody({ session, mine, review, listed, listedE
         </ScreenTitle>
         <NextCard item={next} onOpen={onOpen} onFocus={onFocus} left={showLeft && ring.total - ring.done > 0 ? ring.total - ring.done : null} />
         <TodayPanel rows={todayRows} later={laterRows} me={session.authority} onOpen={(row, thread) => onOpen(row.project?.id ?? null, row.task.id, thread)} />
+        {/* The meetings of today, only when there is one (fbk_022). It reads its own list. */}
+        <MeetingsCard />
         {/* The one ask for browser push (owner, 2026-10-09). It sits after Today, so the next step of the day stays first. It has
             its own state and draws nothing for a device that was asked, so it never renders the rows again. */}
         <PushAskCard />

@@ -16,7 +16,7 @@ import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { ScreenTitle } from '../../components/ScreenTitle';
-import { addDays, formatDay, stampDay, todayISO } from '../../lib/dates';
+import { addDays, clockFormat, formatDay, stampDay, todayISO } from '../../lib/dates';
 import { actorContext, counted } from '../../lib/grammar';
 import { groupByDay } from '../../lib/group';
 import { LoadFailed } from '../../components/LoadFailed';
@@ -39,12 +39,24 @@ function groupKey(trigger: string, named: boolean): string {
   return named ? `inbox.trigger.${trigger}` : 'inbox.addedGroupGone';
 }
 
+/**
+ * The sentence of a meeting notice (fbk_022): new, moved or cancelled for meeting_invited, and the reminder. A meeting that the person
+ * no longer sees has no title and no time, so its sentence names neither.
+ */
+function meetingKey(n: NoticeView['notification'], gone: boolean): string {
+  if (gone) return 'inbox.meetingGone';
+  if (n.trigger === 'meeting_soon') return 'inbox.trigger.meeting_soon';
+  if (n.meeting?.change === 'moved') return 'inbox.trigger.meeting_invited_moved';
+  if (n.meeting?.change === 'cancelled') return 'inbox.trigger.meeting_invited_cancelled';
+  return 'inbox.trigger.meeting_invited';
+}
+
 function InboxItem({ view }: { view: NoticeView }) {
   const { t } = useTranslation();
   const lang = useLang();
   const nameOf = usePersonName();
   const phone = useIsPhone();
-  const { notification: n, actor, target, project, link, canApprove, gone, dueDate } = view;
+  const { notification: n, actor, target, project, link, canApprove, gone, dueDate, startsAt } = view;
   const markRead = useAction('notifications.markRead');
   const read = () => {
     if (!n.read) markRead.mutate({ ids: [n.id] });
@@ -72,9 +84,10 @@ function InboxItem({ view }: { view: NoticeView }) {
   // A restart reminder says "is today" on its day and "was <day>" after it (fbk_025). Its project name keeps its own direction.
   const restart = n.trigger === 'resume_due';
   const restartPast = restart && dueDate !== null && dueDate < todayISO();
+  const meeting = n.targetType === 'meeting';
   // A reply to a message of the person says "replied to you" (chat design 2026-10-19, item 10). The place is named as for a mention.
   const reply = n.trigger === 'mention' && n.reply === true;
-  const sentenceKey = report ? reportKey(n)
+  const sentenceKey = meeting ? meetingKey(n, gone) : report ? reportKey(n)
     : reply ? (direct ? 'notices.repliedDirect' : group && target === '' ? 'notices.repliedGroupGone' : 'notices.repliedToYou')
       : direct ? 'inbox.mentionDirect' : group ? groupKey(n.trigger, target !== '') : restartPast ? 'inbox.trigger.resume_due_past' : `inbox.trigger.${n.trigger}`;
   // A done report names no person, so its row shows the bell and not the Admin who marked it. A group notice shows the group.
@@ -82,10 +95,11 @@ function InboxItem({ view }: { view: NoticeView }) {
   const sentence = t(sentenceKey, {
     actor: actor ? nameOf(actor) : t('inbox.someone'),
     context: actorContext(actor),
-    // The excerpt of a report and the name of a group keep their own direction (FSI and PDI), so an English "…" or "?" stays at its end in Arabic.
-    target: report || group || restart ? `\u2068${target}\u2069` : target,
-    // A reminder names its due day, which can be days away after a weekend (audit 2026-10-03, API-11).
-    day: dueDate ? formatDay(dueDate, lang, 'weekday') : '',
+    // The excerpt of a report, the name of a group and the title of a meeting keep their own direction (FSI and PDI), so an English "…" or "?" stays at its end in Arabic.
+    target: report || group || restart || meeting ? `\u2068${target}\u2069` : target,
+    // A reminder names its due day, which can be days away after a weekend (audit 2026-10-03, API-11). A meeting notice names the day and the time of the start (fbk_022).
+    day: startsAt ? formatDay(stampDay(startsAt), lang, 'withWeekday') : dueDate ? formatDay(dueDate, lang, 'weekday') : '',
+    time: startsAt ? clockFormat(lang).format(new Date(startsAt)) : '',
   });
   const body = (
     <>

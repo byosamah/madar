@@ -20,7 +20,7 @@ Madar window, or opens `/`.
 
 ## Who gets a push
 - A new unread notice that does not point to a chat message or a task comment (`isChatItemNotice`) gives a `push.notify` row at
-  once. A new chat message, a new task comment, and a mention or reply notice of one give a `push.chat` row, after the 10-second wait.
+  once (the notices of requests, bugs and meetings too, fbk_022). A new chat message, a new task comment, and a mention or reply notice of one give a `push.chat` row, after the 10-second wait.
   `planPushes` (`chatRule.ts`) decides: a direct chat or a group pushes its members; a project chat pushes the people its message
   names (an @mention or a reply); a person who picked All messages (`ChatRead.notify`) gets every message; a task comment pushes the
   task lead and the maker of an office task, and other people only when named. Never the author or the person an agent writes for;

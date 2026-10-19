@@ -55,6 +55,33 @@ describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
     expect(await db.statement('read', 'select count(*) as n from notifications')).toEqual(notices);
   });
 
+  // The reminder of a meeting (fbk_022, owner 2026-10-19): 30 minutes before the start, once for each person and each start.
+  it('reminds the people of a meeting that starts within 30 minutes once, and the people of a later meeting in a later run', async () => {
+    const meeting = (id: string, startsAt: string, endsAt: string, extra: Record<string, unknown> = {}) => ({
+      id, kind: 'meeting' as const, title: `Meeting ${id}`, projectId: null, startsAt, endsAt, where: '', guests: '', notes: '', organizerId: 'usr_003', attendeeIds: ['usr_004'],
+      minutesById: null, status: 'scheduled' as const, rev: 1, createdBy: 'usr_003', createdAt: '2026-10-03T09:00:00.000+03:00', ...extra,
+    });
+    const { db, deps } = await office((seed) => {
+      seed.meetings = {
+        mtg_001: meeting('mtg_001', '2026-10-04T08:20:00.000+03:00', '2026-10-04T09:20:00.000+03:00'),
+        mtg_002: meeting('mtg_002', '2026-10-04T08:45:00.000+03:00', '2026-10-04T09:45:00.000+03:00'),
+        mtg_003: meeting('mtg_003', '2026-10-04T08:25:00.000+03:00', '2026-10-04T09:25:00.000+03:00', { status: 'cancelled' }),
+      };
+    });
+    const soon = async () => db.statement<{ target_id: string; user_id: string }>('read', "select json_extract(doc, '$.targetId') as target_id, user_id from notifications where json_extract(doc, '$.trigger') = 'meeting_soon' order by id");
+    const first = await triggers(deps, AT);
+    expect(first.notices).toBe(5 + 2);
+    expect(await soon()).toEqual([{ target_id: 'mtg_001', user_id: 'usr_003' }, { target_id: 'mtg_001', user_id: 'usr_004' }]);
+    expect(await triggers(deps, AT)).toEqual({ notices: 0, mails: 0 });
+    // At 08:20 the second meeting is 25 minutes away, so its people hear it now. Nothing of the first one comes again.
+    deps.clock.set(new Date(AT.getTime() + 20 * 60_000));
+    const later = await triggers(deps, new Date(AT.getTime() + 20 * 60_000));
+    expect(later.notices).toBe(2);
+    expect((await soon()).map((row) => row.target_id)).toEqual(['mtg_001', 'mtg_001', 'mtg_002', 'mtg_002']);
+    // The reminders send no mail: the email default of both triggers is off, and the producers know the triggers stay in the app.
+    expect(deps.mail.sent.filter((m) => /meeting/i.test(JSON.stringify(m)))).toEqual([]);
+  });
+
   it('sends the morning summary to each person with something to say, marks the day, and sends nothing in a second run', async () => {
     const { seed, deps } = await office();
     // The rule of buildMorning on the State: an open task, past due or due today, that the person leads or helps with, or a review that waits.

@@ -50,6 +50,10 @@ const visibleText = (max: number) => `[^ ${HIDDEN}](?:[^${HIDDEN}]{0,${max - 2}}
 export const FREE_CODE_PATTERN = new RegExp(`^${visibleText(FREE_CODE_MAX)}$`);
 /** The building type of a new code from its parts: visible text of 1 to 40 characters. */
 export const TYPE_PATTERN = new RegExp(`^${visibleText(TYPE_MAX)}$`);
+/** The pattern of any free text on one line of visible characters, 1 to "max" long (the title of a meeting). */
+export function visibleTextPattern(max: number): RegExp {
+  return new RegExp(`^${visibleText(max)}$`);
+}
 
 /**
  * Every code that a record may hold: a code of the office pattern (also one saved before 2026-10-12, whose type may hold a

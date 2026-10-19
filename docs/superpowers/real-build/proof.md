@@ -1778,7 +1778,7 @@ folded text holds every word. A query with no word of 3 letters finds no message
 at most 5 hits.
 
 Facts checked on a throwaway Postgres 17.11 (Homebrew, locale en_US.UTF-8, a socket only, no Docker), with the migration
-`20261020000100_message_search.sql`:
+`20261020000200_message_search.sql`:
 - The migration applies. The backfill gives `ask @reem about the riser` for a message with a mention, null for a deleted message, and
   `اسعار المواد` for an Arabic comment.
 - `search_fold` gives the text of `bodySearchText` for 13 sample bodies (NBSP and the other white space, tashkeel, tatweel, the alef

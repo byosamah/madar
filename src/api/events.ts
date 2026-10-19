@@ -9,7 +9,7 @@ export type EventMeta = { projectId: string | null; verb: string; targetType: Ev
 export const COLLECTION: Record<EventTarget, keyof State | null> = {
   project: 'projects', member: 'members', stage: 'stages', deadline: 'deadlines', task: 'tasks', update: 'updates',
   comment: 'comments', file: 'files', client: 'clients', user: 'users', settings: null, stageTemplate: 'stageTemplates', taskTemplate: 'taskTemplates', tracker: 'tracker', payment: 'payments', feedback: 'feedback', team: 'teams',
-  projectTemplate: 'projectTemplates', subCompany: 'subCompanies',
+  projectTemplate: 'projectTemplates', subCompany: 'subCompanies', meeting: 'meetings',
 };
 
 /** Changes that follow from other changes. The project's stage tag follows its tasks, so it has no Undo of its own: it moves again with them. */
@@ -54,6 +54,16 @@ function officeTaskOf(state: State, input: { targetType: EventTarget; targetId: 
   return undefined;
 }
 
+/**
+ * The meeting of a change of a meeting that has no project (fbk_022, owner 2026-10-19): the target itself. The live meeting tells, else
+ * the whole record that a create or a remove event keeps. Only the people of that meeting read the event.
+ */
+function officeMeetingOf(state: State, input: { targetType: EventTarget; targetId: string; before: unknown; after: unknown }): string | undefined {
+  if (input.targetType !== 'meeting') return undefined;
+  const record = fieldsOf(state.meetings?.[input.targetId]) ?? fieldsOf(input.after) ?? fieldsOf(input.before);
+  return record && record.projectId === null ? input.targetId : undefined;
+}
+
 /** The last copy of a deleted task, from its newest delete event that stands. Undefined when no such event is in the state. */
 export function lastTaskCopy(state: State, taskId: string): Task | undefined {
   let found: Event | undefined;
@@ -65,10 +75,13 @@ export function lastTaskCopy(state: State, taskId: string): Task | undefined {
 
 /**
  * Writes one event. An event about an office record names its office task: the one the caller gives (an undo takes the office
- * task of the event it undoes), else the one its record shows.
+ * task of the event it undoes), else the one its record shows. The same for a meeting with no project (officeMeetingId).
  */
-export function writeEvent(ec: EventContext, input: EventMeta & { before: unknown; after: unknown; undoes?: string; officeTaskId?: string }): Event {
+export function writeEvent(
+  ec: EventContext, input: EventMeta & { before: unknown; after: unknown; undoes?: string; officeTaskId?: string; officeMeetingId?: string },
+): Event {
   const officeTaskId = input.officeTaskId ?? officeTaskOf(ec.state, input);
+  const officeMeetingId = input.officeMeetingId ?? officeMeetingOf(ec.state, input);
   const id = nextId(ec.state, 'evt');
   const event: Event = {
     id, seq: ec.state.counters.evt, projectId: input.projectId, actorId: ec.actor.id, actorKind: ec.actor.kind,
@@ -80,6 +93,7 @@ export function writeEvent(ec: EventContext, input: EventMeta & { before: unknow
     ...(input.causeEventId ? { causeEventId: input.causeEventId } : {}),
     ...(input.undoes ? { undoes: input.undoes } : {}),
     ...(officeTaskId ? { officeTaskId } : {}),
+    ...(officeMeetingId ? { officeMeetingId } : {}),
   };
   ec.state.events[id] = event;
   return event;
@@ -151,6 +165,7 @@ export function undoEvent(ec: EventContext, eventId: string, options: { derived?
   const meta = {
     projectId: event.projectId, verb: 'undo', targetType: event.targetType, targetId: event.targetId, undoes: event.id,
     ...(event.officeTaskId ? { officeTaskId: event.officeTaskId } : {}),
+    ...(event.officeMeetingId ? { officeMeetingId: event.officeMeetingId } : {}),
   };
   let undo: Event;
   if (event.before === null) {

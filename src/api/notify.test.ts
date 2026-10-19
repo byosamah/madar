@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { activeAdmins, emailOn, feedbackNoticeHidden, inAppOn, notify, projectPeople, reviewersOf, runScheduledTriggers, visibleTriggers } from './notify';
 import { TRIGGERS, defaultPreferences } from './contract/entities';
 import type { State } from './store';
+import type { Meeting } from './contract/entities';
 import { makeTask, makeUser, makeWorld, NOW, STAMP } from '../test/factories';
 
 let state: State;
@@ -116,6 +117,80 @@ describe('the dedupe lookup (plan 4.13, A3; AM 7.3)', () => {
 
 });
 
+// The reminder of a meeting (fbk_022, owner 2026-10-19): one notice from 30 minutes before the start until the start.
+describe('the reminder of a meeting', () => {
+  // NOW is 2026-09-30 09:00 in Riyadh (06:00 UTC). A meeting at 09:20 starts in 20 minutes.
+  const meeting = (extra: Partial<Meeting> = {}): Meeting => ({
+    id: 'mtg_001', kind: 'client', title: 'Review the facade', projectId: 'prj_001', startsAt: '2026-09-30T09:20:00.000+03:00', endsAt: '2026-09-30T10:20:00.000+03:00',
+    where: '', guests: '', notes: '', organizerId: 'usr_003', attendeeIds: ['usr_004'], minutesById: 'usr_003', status: 'scheduled', rev: 1,
+    createdBy: 'usr_003', createdAt: STAMP, ...extra,
+  });
+  const put = (extra: Partial<Meeting> = {}) => {
+    state.meetings = { mtg_001: meeting(extra) };
+  };
+  const soon = () => Object.values(state.notifications).filter((n) => n.trigger === 'meeting_soon');
+  const at = (stamp: string) => new Date(stamp);
+
+  it('tells the organizer and the attendees once, from 30 minutes before the start, with the dedupe key of the id and the start', () => {
+    put();
+    expect(runScheduledTriggers(state, NOW)).toBe(2);
+    expect(soon().map((n) => [n.userId, n.targetType, n.targetId, n.dedupeKey, n.actorId])).toEqual([
+      ['usr_003', 'meeting', 'mtg_001', 'meeting_soon:mtg_001:2026-09-30T09:20:00.000+03:00:usr_003', null],
+      ['usr_004', 'meeting', 'mtg_001', 'meeting_soon:mtg_001:2026-09-30T09:20:00.000+03:00:usr_004', null],
+    ]);
+    expect(runScheduledTriggers(state, NOW)).toBe(0);
+    expect(runScheduledTriggers(state, at('2026-09-30T09:10:00+03:00'))).toBe(0);
+  });
+
+  it('starts exactly 30 minutes before the start, and stops at the start', () => {
+    put();
+    expect(runScheduledTriggers(state, at('2026-09-30T08:49:59.999+03:00'))).toBe(0);
+    expect(runScheduledTriggers(state, at('2026-09-30T08:50:00.000+03:00'))).toBe(2);
+    state.notifications = {};
+    expect(runScheduledTriggers(state, at('2026-09-30T09:19:59.999+03:00'))).toBe(2);
+    state.notifications = {};
+    expect(runScheduledTriggers(state, at('2026-09-30T09:20:00.000+03:00'))).toBe(0);
+    expect(runScheduledTriggers(state, at('2026-09-30T11:00:00+03:00'))).toBe(0);
+  });
+
+  it('sends none for a cancelled meeting, and a new one when the start moves', () => {
+    put({ status: 'cancelled' });
+    expect(runScheduledTriggers(state, NOW)).toBe(0);
+    put();
+    runScheduledTriggers(state, NOW);
+    state.meetings!.mtg_001.startsAt = '2026-09-30T09:25:00.000+03:00';
+    expect(runScheduledTriggers(state, NOW)).toBe(2);
+    expect(soon()).toHaveLength(4);
+  });
+
+  it('sends none to a person who turned the switch off, who left, or who is an agent', () => {
+    put({ attendeeIds: ['usr_004', 'usr_005'] });
+    state.users.usr_004.preferences.notifications.meeting_soon = false;
+    expect(runScheduledTriggers(state, NOW)).toBe(1);
+    expect(soon().map((n) => n.userId)).toEqual(['usr_003']);
+  });
+
+  it('keeps a meeting with no project to its people, and the Admin who is not invited hears nothing', () => {
+    put({ projectId: null });
+    runScheduledTriggers(state, NOW);
+    expect(soon().map((n) => n.userId).sort()).toEqual(['usr_003', 'usr_004']);
+    expect(soon().some((n) => n.userId === 'usr_001')).toBe(false);
+  });
+
+  it('gives the same notices with the dedupe lookup of the server job', () => {
+    put();
+    const other = structuredClone(state);
+    const lookupOf = (s: State) => ({ dedupeUsed: (key: string) => Object.values(s.notifications).some((n) => n.dedupeKey === key) });
+    expect(runScheduledTriggers(state, NOW)).toBe(runScheduledTriggers(other, NOW, lookupOf(other)));
+    expect(runScheduledTriggers(other, NOW, lookupOf(other))).toBe(0);
+  });
+
+  it('runs on a state that has no meetings at all', () => {
+    delete state.meetings;
+    expect(() => runScheduledTriggers(state, NOW)).not.toThrow();
+  });
+});
+
 // The in-app switches read a missing key as on, and the two notices of requests and bugs stay in the app (owner, 2026-10-07).
 describe('the switches and the notices of requests and bugs', () => {
   it('sends a notice for a switch that the stored person does not have yet', () => {
@@ -155,7 +230,7 @@ describe('the switches and the notices of requests and bugs', () => {
     expect(visibleTriggers(state.users.usr_003)).toContain('feedback_done');
     expect(visibleTriggers(state.users.usr_003)).toHaveLength(TRIGGERS.length - 1);
     expect(visibleTriggers(state.users.usr_001)).toEqual([...TRIGGERS]);
-    expect(visibleTriggers(state.users.usr_001)).toHaveLength(13);
+    expect(visibleTriggers(state.users.usr_001)).toHaveLength(15);
   });
 
   it('lists every active human Admin, never an agent or a person who left', () => {

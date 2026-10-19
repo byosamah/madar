@@ -118,6 +118,10 @@ The other host stays deployed as the way back. Each area below has its own guide
   helpers, before and after) and each active Admin. The office signal tells only the project part (`Diff.publicKinds`),
   with its names, and a save of office tasks alone sends none (review 2026-10-06). The Realtime rules need no change: the
   server sends on any `person:` topic, and each person reads only their own.
+- A save that changes a meeting with no project, its notices or its events (fbk_022, owner 2026-10-19; `officeMeetings` in `data/save.ts`) is
+  private in the same way: its signals are person signals with no names, to the organizer (the person behind an agent) and the attendees,
+  before and after the change. The Admin gets one only as one of those people. A save that touches office tasks and a private meeting
+  sends the union of the two groups (the signal tells only kinds). `server/core/meetingsSignal.test.ts` proves it.
 - A save that touches only chats with no project (a direct chat or a group: kinds `messages`, `conversations`, `chatReads`,
   `notifications`; `Diff.anonymous`) sends its office signal with no `actorId` and no `storyId`, so another browser learns that
   somebody wrote, and not who (UX audit 2026-10-19, INT-16). A save that also touches a project keeps the names.

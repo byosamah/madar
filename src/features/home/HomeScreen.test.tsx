@@ -6,6 +6,7 @@ import { initI18n } from '../../i18n';
 import { renderApp } from '../../test/render';
 import { TODAY } from '../../test/factories';
 import { addDays } from '../../lib/dates';
+import { withMeeting } from '../meetings/testMeetings';
 
 const as = (userId: string) => (state: State) => {
   state.session.currentUserId = userId;
@@ -168,5 +169,19 @@ describe("Home and What's new", () => {
     window.location.hash = '#/';
     await screen.findByRole('heading', { level: 1, name: /^Good morning/ });
     expect(screen.queryByRole('link', { name: "See what's new" })).toBeNull();
+  });
+});
+
+// fbk_022: the card "Meetings today" sits under Today, only on a day with a meeting.
+describe('Home and meetings', () => {
+  it('shows the card Meetings today under Today, and no card on a day with no meeting', async () => {
+    await renderApp('/', (state) => {
+      as('usr_002')(state);
+      withMeeting(state, { id: 'mtg_001', title: 'Review the facade', startsAt: `${TODAY}T14:00:00.000+03:00`, endsAt: `${TODAY}T15:00:00.000+03:00` });
+    });
+    const card = await screen.findByRole('region', { name: 'Meetings today' });
+    expect(within(card).getByText('Review the facade')).toBeInTheDocument();
+    const today = screen.getByRole('link', { name: 'See all my tasks' }).closest('section')!;
+    expect(today.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

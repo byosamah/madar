@@ -14,8 +14,8 @@ const NOT_TABLES = ['version', 'seededOn', 'session', 'counters'];
 
 describe('the table registry (server/data/tables.ts)', () => {
   it('has one table for each State collection', () => {
-    // feedback and subCompanies are optional in State and emptyState leaves them out, so they are named here.
-    const collections = new Set([...Object.keys(emptyState(TODAY)), 'feedback', 'subCompanies'].filter((key) => !NOT_TABLES.includes(key)));
+    // feedback, subCompanies and meetings are optional in State and emptyState leaves them out, so they are named here.
+    const collections = new Set([...Object.keys(emptyState(TODAY)), 'feedback', 'subCompanies', 'meetings'].filter((key) => !NOT_TABLES.includes(key)));
     expect(new Set(TABLES.map((spec) => spec.collection))).toEqual(collections);
     expect(TABLES.length).toBe(collections.size);
   });

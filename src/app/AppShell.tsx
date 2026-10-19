@@ -73,6 +73,8 @@ function HomeMark({ className }: { className?: string }) {
 const screenKey = (pathname: string): string => {
   if (pathname.startsWith('/inbox/')) return '/inbox';
   if (pathname.startsWith('/admin/')) return '/admin';
+  // The switch between Tasks and Meetings keeps the screen, so the entrance does not play again.
+  if (pathname === '/meetings') return '/work';
   return pathname;
 };
 

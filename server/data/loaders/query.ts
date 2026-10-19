@@ -47,6 +47,10 @@ const COLUMNS: Partial<Record<TableCollection, Record<string, Column>>> = {
   },
   payments: { project_id: text('projectId') },
   pushDevices: { user_id: text('userId'), endpoint: text('endpoint') },
+  meetings: {
+    project_id: text('projectId'), organizer_id: text('organizerId'), starts_at: text('startsAt'), ends_at: text('endsAt'), status: text('status'),
+    settled_at: text('settledAt'),
+  },
   notifications: {
     user_id: text('userId'), read: { type: 'bool', value: (rec) => rec.read === true }, created_at: text('createdAt'), correlation_id: text('correlationId'),
     target_type: text('targetType'), target_id: text('targetId'), dedupe_key: text('dedupeKey'),

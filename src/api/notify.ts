@@ -2,7 +2,7 @@ import {
   ADMIN_ONLY_TRIGGERS, TRIGGERS, isEmailTrigger, type NoticeFeedback, type Notification, type NotificationTarget, type Preferences, type Task, type Trigger,
   type User,
 } from './contract/entities';
-import { can, mayViewTask, principalOf } from './permissions';
+import { can, mayViewMeeting, mayViewTask, principalOf } from './permissions';
 import { nextId, type State } from './store';
 import { addDays, nowStamp, officeClock, weekStartOf } from '../lib/dates';
 import { peopleOfTask } from '../lib/taskPeople';
@@ -25,6 +25,8 @@ export type NotifyInput = {
   messageId?: string;
   /** True on the notice of a reply: the person wrote the message that this one answers (chat design item 10). */
   reply?: true;
+  /** What happened to the meeting of a meeting_invited notice (fbk_022). */
+  meeting?: Notification['meeting'];
 };
 
 /** True when the person gets the in-app notice of this trigger. A switch the person never set means on (owner, 2026-10-07). */
@@ -75,16 +77,20 @@ export type NotifyOptions = { dedupeUsed?(key: string): boolean };
 
 /**
  * Skips the actor and the person an agent actor works for, agents, inactive people, people who turned the trigger off, repeats of
- * a dedupe key, and a person who does not see the office task of the notice (owner, 2026-10-06).
+ * a dedupe key, a person who does not see the office task of the notice (owner, 2026-10-06), and a person who does not see the
+ * meeting of the notice (fbk_022).
  */
 export function notify(state: State, actor: User | null, stamp: string, input: NotifyInput, options: NotifyOptions = {}): Notification[] {
   const used = options.dedupeUsed ?? ((key: string) => Object.values(state.notifications).some((n) => n.dedupeKey === key));
   const created: Notification[] = [];
   const task = input.targetType === 'task' ? state.tasks[input.targetId] : undefined;
+  const meeting = input.targetType === 'meeting' ? state.meetings?.[input.targetId] : undefined;
   for (const userId of new Set(input.userIds)) {
     const user = state.users[userId];
     if (!user || !user.active || user.kind === 'agent') continue;
     if (task && task.projectId === null && !mayViewTask(state, user, task)) continue;
+    // A meeting with no project tells only the people who may see it (owner, 2026-10-19).
+    if (meeting && !mayViewMeeting(state, user, meeting)) continue;
     if (actor && (user.id === actor.id || user.id === actor.ownerId)) continue;
     if (!inAppOn(user.preferences, input.trigger)) continue;
     const dedupeKey = input.dedupeKey ? `${input.dedupeKey}:${userId}` : null;
@@ -98,6 +104,7 @@ export function notify(state: State, actor: User | null, stamp: string, input: N
       ...(input.feedback ? { feedback: { ...input.feedback } } : {}),
       ...(input.messageId ? { messageId: input.messageId } : {}),
       ...(input.reply ? { reply: true as const } : {}),
+      ...(input.meeting ? { meeting: { ...input.meeting } } : {}),
     };
     state.notifications[id] = notification;
     created.push(notification);
@@ -134,6 +141,9 @@ export function projectPeople(state: State, projectId: string): string[] {
   if (leaderId) ids.push(leaderId);
   return [...new Set(ids)];
 }
+
+/** The reminder of a meeting starts this long before its start (fbk_022, owner 2026-10-19). The 15-minute job has one run in the window. */
+export const MEETING_SOON_MS = 30 * 60_000;
 
 /** The last working day before a day. The "due" reminder goes out on it, so a task due on Sunday is named on Thursday. */
 function lastWorkingDayBefore(day: string): string {
@@ -174,6 +184,17 @@ export function runScheduledTriggers(state: State, at: Date, options: NotifyOpti
     count += notify(state, null, stamp, {
       userIds: [...reviewersOf(state, project.id), principalOf(state, project.pause.by)], trigger: 'resume_due', targetType: 'project', targetId: project.id,
       dedupeKey: `resume_due:${project.id}:${day}`, dueDate: day,
+    }, options).length;
+  }
+  // A meeting that starts within 30 minutes: its organizer and its attendees get one reminder. The key holds the start, so a meeting
+  // that moves reminds again for its new start. A cancelled meeting sends none (fbk_022, owner 2026-10-19).
+  for (const meeting of Object.values(state.meetings ?? {})) {
+    if (meeting.status !== 'scheduled') continue;
+    const start = Date.parse(meeting.startsAt);
+    if (at.getTime() >= start || at.getTime() < start - MEETING_SOON_MS) continue;
+    count += notify(state, null, stamp, {
+      userIds: [meeting.organizerId, ...meeting.attendeeIds], trigger: 'meeting_soon', targetType: 'meeting', targetId: meeting.id,
+      dedupeKey: `meeting_soon:${meeting.id}:${meeting.startsAt}`,
     }, options).length;
   }
   return count;

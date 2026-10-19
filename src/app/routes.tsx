@@ -34,6 +34,8 @@ function routeTable(remote: boolean): Entry[] {
         { path: 'projects/code/:code', screen: 'projectByCode' },
         { path: 'projects/:projectId', screen: 'project' },
         { path: 'work', screen: 'work' },
+        // Meetings are the second view of the Tasks tab (fbk_022).
+        { path: 'meetings', screen: 'meetings' },
         { path: 'dashboard', screen: 'dashboard' },
         { path: 'inbox/:conversationId?', screen: 'inbox' },
         { path: 'notifications', screen: 'notifications' },

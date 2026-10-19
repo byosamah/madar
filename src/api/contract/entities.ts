@@ -1,10 +1,16 @@
 import { z } from 'zod';
-import { INITIALS_PATTERN, RECORD_CODE_PATTERN } from '../../lib/projectCode';
-import { DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, NOTIFY_LEVELS, PICTURE_DATA, REACTIONS } from './limits';
+import { INITIALS_PATTERN, RECORD_CODE_PATTERN, visibleTextPattern } from '../../lib/projectCode';
+import {
+  DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, MEETING_KINDS, MEETING_LIMITS,
+  NOTIFY_LEVELS, PICTURE_DATA, REACTIONS,
+} from './limits';
 import { PUSH_ENDPOINT_MAX, PUSH_LABEL_MAX, isPushEndpoint } from './push';
 
 // The plain limits live in limits.ts, with no zod, for the screens of the first load (performance audit BND-6).
-export { DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, NOTIFY_LEVELS, PICTURE_DATA, REACTIONS };
+export {
+  DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, MEETING_KINDS, MEETING_LIMITS,
+  NOTIFY_LEVELS, PICTURE_DATA, REACTIONS,
+};
 
 const id = (prefix: string) =>
   z.string().regex(new RegExp(`^${prefix}_\\d{3,}$`), `Expected an id like ${prefix}_001.`);
@@ -29,6 +35,7 @@ export const TrackerId = id('trk');
 export const PaymentId = id('pay');
 export const TeamId = id('tm');
 export const SubCompanyId = id('sub');
+export const MeetingId = id('mtg');
 export const PushDeviceId = id('pdv');
 export const RoleId = id('rol');
 
@@ -53,13 +60,15 @@ export type Glass = z.infer<typeof Glass>;
 export const TRIGGERS = [
   'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested',
   'task_approved', 'task_sent_back', 'stage_changed', 'added_to_project', 'resume_due',
-  'feedback_sent', 'feedback_done', 'added_to_group',
+  'feedback_sent', 'feedback_done', 'added_to_group', 'meeting_invited', 'meeting_soon',
 ] as const;
 export const Trigger = z.enum(TRIGGERS);
 export type Trigger = z.infer<typeof Trigger>;
 /** The notices that stay in the app: no email and no email switch (owner, 2026-10-07). */
 // "added_to_group": a person is added to a group chat (UX audit 2026-10-19, INT-15). It stays in the app too.
-export const IN_APP_ONLY_TRIGGERS = ['feedback_sent', 'feedback_done', 'added_to_group'] as const satisfies readonly Trigger[];
+// "meeting_invited" (a new, moved or cancelled meeting) and "meeting_soon" (30 minutes before the start): the mail quota is small, and
+// calendar apps remind by themselves (fbk_022, owner 2026-10-19). Both stay in the app and in push, never in email.
+export const IN_APP_ONLY_TRIGGERS = ['feedback_sent', 'feedback_done', 'added_to_group', 'meeting_invited', 'meeting_soon'] as const satisfies readonly Trigger[];
 export type EmailTrigger = Exclude<Trigger, (typeof IN_APP_ONLY_TRIGGERS)[number]>;
 export function isEmailTrigger(trigger: Trigger): trigger is EmailTrigger {
   return !(IN_APP_ONLY_TRIGGERS as readonly Trigger[]).includes(trigger);
@@ -77,10 +86,10 @@ export type NotifyLevel = z.infer<typeof NotifyLevel>;
 
 export const EventTarget = z.enum([
   'project', 'member', 'stage', 'deadline', 'task', 'update', 'comment', 'file', 'client', 'user', 'settings', 'stageTemplate', 'taskTemplate', 'tracker', 'payment', 'feedback', 'team',
-  'projectTemplate', 'subCompany',
+  'projectTemplate', 'subCompany', 'meeting',
 ]);
 export type EventTarget = z.infer<typeof EventTarget>;
-export const NotificationTarget = z.enum(['project', 'task', 'update', 'chat', 'feedback']);
+export const NotificationTarget = z.enum(['project', 'task', 'update', 'chat', 'feedback', 'meeting']);
 export type NotificationTarget = z.infer<typeof NotificationTarget>;
 
 export const Preferences = z.object({
@@ -440,6 +449,8 @@ export const Task = z.object({
   completedAt: Stamp.nullable(),
   /** The Tracker entry this task answers (a reply task). Null after that entry is deleted. */
   trackerEntryId: TrackerId.nullable().optional(),
+  /** The meeting this task is the minutes of (fbk_022). Null or missing: not a minutes task. Wave 2 sets it. */
+  meetingId: MeetingId.nullable().optional(),
   /**
    * The place of the task in the shared order of a date group on the Tasks screen and Home: a lower number sits higher. Null or
    * missing: no place yet, so the task sits under the placed ones (owner, 2026-10-07, `lib/arrange.ts`).
@@ -728,7 +739,7 @@ export const TrackerEntry = z.object({
   closedBy: UserId.nullable(),
   fileIds: z.array(FileId).max(MAX_ATTACHMENTS),
   peopleIds: z.array(UserId).max(20),
-  auto: z.enum(['upload', 'delivered', 'version', 'reply', 'shift']).nullable(),
+  auto: z.enum(['upload', 'delivered', 'version', 'reply', 'shift', 'meeting']).nullable(),
   createdBy: UserId,
   createdAt: Stamp,
   /**
@@ -829,6 +840,8 @@ export const Notification = z.object({
   messageId: z.string().min(1).max(40).optional(),
   /** True on a notice of a reply: the person wrote the message that this one answers (item 10). Optional, so older notices load. */
   reply: z.literal(true).optional(),
+  /** What happened to the meeting of a meeting_invited notice: it is new for this person, it moved, or it was cancelled (fbk_022). Optional, so older notices load. */
+  meeting: z.object({ change: z.enum(['new', 'moved', 'cancelled']) }).optional(),
 });
 export type Notification = z.infer<typeof Notification>;
 
@@ -860,6 +873,11 @@ export const Event = z.object({
    * that task reads the event. Absent on every other event.
    */
   officeTaskId: TaskId.optional(),
+  /**
+   * The meeting of a change of a meeting that has no project (fbk_022, owner 2026-10-19). Only the organizer and the attendees of
+   * that meeting read the event, the Admin too only when invited. Absent on every other event.
+   */
+  officeMeetingId: MeetingId.optional(),
 });
 export type Event = z.infer<typeof Event>;
 
@@ -885,6 +903,50 @@ export const SubCompany = z.object({
   createdAt: Stamp,
 });
 export type SubCompany = z.infer<typeof SubCompany>;
+
+/** The kind of a meeting (fbk_022). Kind and project are two separate choices. */
+export const MeetingKind = z.enum(MEETING_KINDS);
+export type MeetingKind = z.infer<typeof MeetingKind>;
+/** A repeat rule (wave 3). The rows of a series share it. "until" is the last day, or null for no end. */
+export const MeetingRepeat = z.object({ every: z.enum(['day', 'week', 'two_weeks']), until: Day.nullable() });
+export type MeetingRepeat = z.infer<typeof MeetingRepeat>;
+
+/**
+ * A meeting, a client meeting, a team meeting or a site visit (fbk_022, owner 2026-10-19). The project is optional. A meeting with
+ * no project is private: only its organizer and its attendees read it, the Admin too only when invited (Q4). Stamps are in office
+ * time (+03:00). A meeting starts on a multiple of 5 minutes and lasts 15 to 720 minutes. "rev" starts at 1 and grows with each
+ * change of the time, the place or the status, so a calendar can tell a new copy. The fields after "rev" are set by later waves
+ * (a repeat series, and the settle of a finished meeting), and stay optional so older rows load.
+ */
+export const Meeting = z.object({
+  id: MeetingId,
+  kind: MeetingKind,
+  title: z.string().regex(visibleTextPattern(MEETING_LIMITS.titleMax), 'Write the title on one line, with visible characters.'),
+  projectId: ProjectId.nullable(),
+  startsAt: Stamp,
+  endsAt: Stamp,
+  /** A place, or a link that starts with https:// (the screens show a Join button). */
+  where: z.string().max(MEETING_LIMITS.whereMax),
+  /** People from outside, as one line of text. They get no notice. */
+  guests: z.string().max(MEETING_LIMITS.guestsMax),
+  notes: z.string().max(MEETING_LIMITS.notesMax),
+  /** The person who made the meeting. For an agent, the person it acts for. */
+  organizerId: UserId,
+  /** Active people, never the organizer. */
+  attendeeIds: z.array(UserId).max(MEETING_LIMITS.attendeesMax),
+  /** The person who writes the minutes. The organizer or an attendee, or null for none. */
+  minutesById: UserId.nullable(),
+  status: z.enum(['scheduled', 'cancelled']),
+  rev: z.number().int().min(1),
+  seriesId: MeetingId.nullable().optional(),
+  repeat: MeetingRepeat.nullable().optional(),
+  settledAt: Stamp.nullable().optional(),
+  minutesTaskId: TaskId.nullable().optional(),
+  trackerEntryId: TrackerId.nullable().optional(),
+  createdBy: UserId,
+  createdAt: Stamp,
+});
+export type Meeting = z.infer<typeof Meeting>;
 
 export const Settings = z.object({
   defaultStages: z.array(z.string().trim().min(1).max(60)).min(1).max(20),

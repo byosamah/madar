@@ -65,3 +65,22 @@ export function chatLink(chatId: string, messageId?: string): string {
 export function messageParam(value: string | null): string | undefined {
   return value && /^(msg|cmt)_\d{3,}$/.test(value) ? value : undefined;
 }
+
+/** A meeting from the link, when it has the form of a meeting id (fbk_022). Anything else opens no sheet. */
+export function meetingParam(value: string | null): string | undefined {
+  return value && /^mtg_\d{3,}$/.test(value) ? value : undefined;
+}
+
+/** The link of the Meetings view with the sheet of one meeting open over it (fbk_022). */
+export function openMeeting(current: URLSearchParams, meetingId: string): URLSearchParams {
+  const next = new URLSearchParams(current);
+  next.set('meeting', meetingId);
+  return next;
+}
+
+/** The link of the Meetings view without the sheet. */
+export function closeMeeting(current: URLSearchParams): URLSearchParams {
+  const next = new URLSearchParams(current);
+  next.delete('meeting');
+  return next;
+}

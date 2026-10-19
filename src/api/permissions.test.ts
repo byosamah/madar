@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { can, principalOf, projectRoleOf, type Action, type ProjectRole } from './permissions';
+import { can, mayViewMeeting, meetingResource, principalOf, projectRoleOf, type Action, type ProjectRole } from './permissions';
 import { withOfficeRights } from './rights';
 import type { User } from './contract/entities';
 import { makeUser, makeWorld } from '../test/factories';
@@ -113,5 +113,44 @@ describe('permission details', () => {
     const state = makeWorld();
     expect(principalOf(state, 'usr_005')).toBe('usr_003');
     expect(principalOf(state, 'usr_002')).toBe('usr_002');
+  });
+});
+
+describe('the rights of a meeting (fbk_022, owner 2026-10-19)', () => {
+  const state = makeWorld();
+  const people = [admin, leader, team, other] as const;
+  const mine = { organizerId: 'usr_003', attendeeIds: ['usr_004'] };
+  const rights = (projectId: string | null, actor: User) => (['meeting.view', 'meeting.create', 'meeting.edit'] as const).map((action) => can(actor, action, meetingResource(state, { projectId, ...mine }, actor.id)));
+
+  it('lets everyone read a project meeting, the team plan one, and the organizer, the leader and the Admin change it', () => {
+    // Order of the people: admin, leader, team (the organizer), other (an attendee).
+    expect(people.map((actor) => rights('prj_001', actor))).toEqual([
+      [true, true, true], [true, true, true], [true, true, true], [true, false, false],
+    ]);
+  });
+
+  it('lets only the organizer and the attendees read a meeting with no project, anyone plan one, and only the organizer change it', () => {
+    // The Admin is not invited, so the Admin reads and changes nothing (owner, 2026-10-19, Q4).
+    expect(people.map((actor) => rights(null, actor))).toEqual([
+      [false, true, false], [false, true, false], [true, true, true], [true, true, false],
+    ]);
+    expect(mayViewMeeting(state, admin, { projectId: null, ...mine })).toBe(false);
+    expect(mayViewMeeting(state, admin, { projectId: null, organizerId: 'usr_003', attendeeIds: ['usr_001'] })).toBe(true);
+  });
+
+  it('reads the organizer behind an agent, and gives nothing to a person who left', () => {
+    const agent = makeUser('usr_005', { kind: 'agent', ownerId: 'usr_003', discipline: 'Agent' });
+    state.users.usr_005 = agent;
+    const viaAgent = { projectId: null, organizerId: 'usr_005', attendeeIds: [] as string[] };
+    expect(can(team, 'meeting.edit', meetingResource(state, viaAgent, team.id))).toBe(true);
+    expect(can(other, 'meeting.view', meetingResource(state, viaAgent, other.id))).toBe(false);
+    const gone = makeUser('usr_003', { active: false });
+    expect(can(gone, 'meeting.view', meetingResource(state, { projectId: 'prj_001', ...mine }, gone.id))).toBe(false);
+    expect(can(gone, 'meeting.create', { meeting: { organizerId: gone.id, attendeeIds: [], noProject: true } })).toBe(false);
+  });
+
+  it('answers false for a meeting action that has no meeting, and for a task action on a meeting', () => {
+    expect(can(admin, 'meeting.view', {})).toBe(false);
+    expect(can(admin, 'task.view', meetingResource(state, { projectId: null, ...mine }, admin.id))).toBe(false);
   });
 });

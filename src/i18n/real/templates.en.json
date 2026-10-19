@@ -249,7 +249,7 @@
       "not_linked": "This project is not linked to a template. Link it first.",
       "other_template": "This project is linked to another template.",
       "date_reason_needed": "Write why the dates change.",
-      "project_closed": "This project is closed. A template goes only to an open project."
+      "project_closed": "This project is closed. Choose an open project."
     }
   },
   "feed": {

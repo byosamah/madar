@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { act, waitFor } from '@testing-library/react';
 import type { QueryClient } from '@tanstack/react-query';
 import type { State } from '../../api/store';
+import { TODAY } from '../../test/factories';
 import { renderHeldRemoteApp, type Asked } from '../../test/heldRemoteApp';
 import { PROJECT_TABS, tabReads, type ProjectTab } from './tabs';
 
@@ -27,7 +28,7 @@ function linkOf(path: string): { tab: ProjectTab; params: URLSearchParams } {
  */
 async function expectOneTrip(path: string, prepare?: (state: State) => void) {
   const { tab, params } = linkOf(path);
-  const reads = tabReads(tab, 'prj_001', params, { payments: false });
+  const reads = tabReads(tab, 'prj_001', params, { payments: false, today: TODAY });
   expect(reads.length).toBeGreaterThan(0);
   const { asked, queryClient, release } = await renderHeldRemoteApp(path, prepare, { hold: true });
   await flush();

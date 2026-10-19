@@ -29,9 +29,9 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
   const rightTools = Object.keys(MCP_BY_RIGHT);
   const allowAndAdmin = [...MCP_ALLOW, ...MCP_ADMIN, ...rightTools];
 
-  it('has the 45 tools of the allowlist, each once', () => {
-    expect(MCP_ALLOW).toHaveLength(45);
-    expect(new Set(MCP_ALLOW).size).toBe(45);
+  it('has the 50 tools of the allowlist, each once', () => {
+    expect(MCP_ALLOW).toHaveLength(50);
+    expect(new Set(MCP_ALLOW).size).toBe(50);
     // An agent takes a task with no lead for its person (owner, 2026-10-05).
     expect(MCP_ALLOW).toContain('tasks.take');
     expect(tools.map((tool) => tool.name).sort()).toEqual([...MCP_ALLOW].sort());
@@ -63,11 +63,11 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     for (const name of ['chats.openDirect', 'chats.send']) expect(tools.find((tool) => tool.name === name)!.annotations.destructiveHint, name).toBe(true);
   });
 
-  it('adds the 3 Admin tools of requests and bugs only to the list of an agent of an Admin: 49 tools (owner, 2026-10-07, fbk_016)', () => {
+  it('adds the 3 Admin tools of requests and bugs only to the list of an agent of an Admin: 54 tools (owner, 2026-10-07, fbk_016)', () => {
     expect([...MCP_ADMIN]).toEqual(['feedback.list', 'feedback.screenshot', 'feedback.setStatus']);
-    expect(tools).toHaveLength(45);
+    expect(tools).toHaveLength(50);
     expect(tools.filter((tool) => tool.name.startsWith('feedback.'))).toEqual([]);
-    expect(adminTools).toHaveLength(49);
+    expect(adminTools).toHaveLength(54);
     expect(adminTools.map((tool) => tool.name).sort()).toEqual([...allowAndAdmin].sort());
     // The default list is the Admin list without the 3 Admin tools and the right tools, in the same order.
     const rest = adminTools.map((tool) => tool.name).filter((name) => !(MCP_ADMIN as readonly string[]).includes(name) && !rightTools.includes(name));
@@ -85,9 +85,9 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     expect(tools.map((tool) => tool.name)).not.toContain('reports.office');
     // Accounting holds only the payment right, so its agent gets the default list.
     expect(mcpTools({ rights: ['payment.manage'] }).map((tool) => tool.name)).toEqual(tools.map((tool) => tool.name));
-    // Management, with its default rights, gets one more tool: 46 in all.
+    // Management, with its default rights, gets one more tool: 51 in all.
     const management = mcpTools({ rights: ['people.manage', 'payment.manage', 'report.office'] });
-    expect(management).toHaveLength(46);
+    expect(management).toHaveLength(51);
     expect(management.map((tool) => tool.name)).toContain('reports.office');
     expect(management.map((tool) => tool.name)).toEqual(adminTools.map((tool) => tool.name).filter((name) => !(MCP_ADMIN as readonly string[]).includes(name)));
     expect(adminTools.map((tool) => tool.name)).toContain('reports.office');
@@ -180,9 +180,9 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
       expect(tool.annotations.openWorldHint, tool.name).toBe(false);
       if (!readOnly) expect(typeof tool.annotations.destructiveHint, tool.name).toBe('boolean');
     }
-    expect(tools.filter((tool) => tool.readOnly)).toHaveLength(19);
+    expect(tools.filter((tool) => tool.readOnly)).toHaveLength(21);
     // feedback.list and feedback.screenshot are reads of an agent of an Admin, and reports.office is a read of the report right.
-    expect(adminTools.filter((tool) => tool.readOnly)).toHaveLength(22);
+    expect(adminTools.filter((tool) => tool.readOnly)).toHaveLength(24);
     for (const name of ['feedback.list', 'feedback.screenshot']) expect(adminTools.find((tool) => tool.name === name)!.annotations.readOnlyHint, name).toBe(true);
     // An undo can remove a record, so the client may ask its person first.
     expect(tools.find((tool) => tool.name === 'events.undo')!.annotations.destructiveHint).toBe(true);
@@ -190,15 +190,15 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
   });
 
   it('marks every write that changes or removes a record as destructive, and only the pure adds as not (MCP: false means additive only)', () => {
-    const additive = ['story.start', 'tasks.create', 'comments.create', 'updates.create', 'tracker.log', 'payments.create', 'deadlines.create'];
+    const additive = ['story.start', 'tasks.create', 'comments.create', 'updates.create', 'tracker.log', 'payments.create', 'deadlines.create', 'meetings.create'];
     for (const tool of adminTools.filter((t) => !t.readOnly)) {
       expect(tool.annotations.destructiveHint, tool.name).toBe(!additive.includes(tool.name));
     }
     for (const name of ['payments.update', 'projects.setStatus', 'tasks.update', 'tracker.close']) {
       expect(tools.find((tool) => tool.name === name)!.annotations.destructiveHint, name).toBe(true);
     }
-    expect(tools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(19);
-    expect(adminTools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(20);
+    expect(tools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(21);
+    expect(adminTools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(22);
     expect(tools.find((tool) => tool.name === 'tasks.take')!.annotations.destructiveHint).toBe(true);
     // A done change sends the sender a notice, so the client may ask its person first.
     expect(adminTools.find((tool) => tool.name === 'feedback.setStatus')!.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false });

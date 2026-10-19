@@ -44,10 +44,15 @@ describe('The daily date shift moves every time field (audit 2026-10-03, API-10)
 
 describe('Nothing in the office happened later than the load time (audit 2026-10-03, BRW-4)', () => {
   const STAMP_TEXT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
-  /** Every stamp in the state, under any key, so a time field that the shift does not know also counts. */
+  /**
+   * Every stamp in the state, under any key, so a time field that the shift does not know also counts. The start and the end of a
+   * meeting are planned for later (fbk_022): they move with the days, and they are the one pair of fields that may be in the future.
+   */
   function stamps(value: unknown, out: string[] = []): string[] {
     if (typeof value === 'string' && STAMP_TEXT.test(value)) out.push(value);
-    else if (value !== null && typeof value === 'object') for (const item of Object.values(value)) stamps(item, out);
+    else if (value !== null && typeof value === 'object') {
+      for (const [key, item] of Object.entries(value)) if (key !== 'startsAt' && key !== 'endsAt') stamps(item, out);
+    }
     return out;
   }
   const latest = (state: unknown) => Math.max(...stamps(state).map((stamp) => Date.parse(stamp)));

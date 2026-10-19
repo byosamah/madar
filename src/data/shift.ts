@@ -15,19 +15,28 @@ const DAY_MS = 86_400_000;
  */
 const DAY_FIELDS = new Set(['seededOn', 'startDate', 'targetEndDate', 'contractStartDate', 'endDate', 'date', 'dueDate', 'receivedOn', 'resumeOn', 'forDueDate']);
 const STAMP_FIELDS = new Set([
-  'createdAt', 'updatedAt', 'completedAt', 'editedAt', 'uploadedAt', 'setAt', 'closedAt', 'lastReadAt', 'at', 'openedAt', 'finishedAt', 'doneAt',
+  'createdAt', 'updatedAt', 'completedAt', 'editedAt', 'uploadedAt', 'setAt', 'closedAt', 'lastReadAt', 'at', 'openedAt', 'finishedAt', 'doneAt', 'settledAt',
 ]);
+/**
+ * The start and the end of a meeting (fbk_022). A meeting is planned for later, so these stamps move with the days, but settleFuture
+ * never pulls them back to before now.
+ */
+const PLANNED_FIELDS = new Set(['startsAt', 'endsAt']);
 
 const isDay = (key: string, item: unknown): item is string => DAY_FIELDS.has(key) && typeof item === 'string' && DAY.test(item);
 const isStamp = (key: string, item: unknown): item is string => STAMP_FIELDS.has(key) && typeof item === 'string' && STAMP.test(item);
+const isPlanned = (key: string, item: unknown): item is string => PLANNED_FIELDS.has(key) && typeof item === 'string' && STAMP.test(item);
 
 /** Builds a copy of a value. Each day field goes through "day" and each stamp field through "stamp", when that function is given. */
-function mapDateFields<T>(value: T, fns: { day?: (day: string) => string; stamp?: (stamp: string) => string }): T {
+function mapDateFields<T>(value: T, fns: { day?: (day: string) => string; stamp?: (stamp: string) => string; planned?: (stamp: string) => string }): T {
   if (Array.isArray(value)) return value.map((item) => mapDateFields(item, fns)) as T;
   if (value === null || typeof value !== 'object') return value;
   return Object.fromEntries(Object.entries(value).map(([key, item]) => [
     key,
-    fns.day && isDay(key, item) ? fns.day(item) : fns.stamp && isStamp(key, item) ? fns.stamp(item) : mapDateFields(item, fns),
+    fns.day && isDay(key, item) ? fns.day(item)
+      : fns.stamp && isStamp(key, item) ? fns.stamp(item)
+        : fns.planned && isPlanned(key, item) ? fns.planned(item)
+          : mapDateFields(item, fns),
   ])) as T;
 }
 
@@ -44,10 +53,8 @@ function eachStamp(value: unknown, visit: (stamp: string) => void): void {
 }
 
 function shiftFields<T>(value: T, days: number): T {
-  return mapDateFields(value, {
-    day: (day) => addDays(day, days),
-    stamp: (stamp) => nowStamp(new Date(new Date(stamp).getTime() + days * DAY_MS)),
-  });
+  const moved = (stamp: string) => nowStamp(new Date(new Date(stamp).getTime() + days * DAY_MS));
+  return mapDateFields(value, { day: (day) => addDays(day, days), stamp: moved, planned: moved });
 }
 
 /**

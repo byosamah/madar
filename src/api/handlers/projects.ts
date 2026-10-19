@@ -12,7 +12,7 @@ import { assertStagePrerequisites, watchStage } from '../flow';
 import { notify, projectPeople } from '../notify';
 import { peopleFilter, teamFilter } from '../pause';
 import { can, projectRoleOf } from '../permissions';
-import { memberKey, nextId, paymentsOf, projectTemplatesOf, subCompaniesOf, teamsOf, trackerOf, type State } from '../store';
+import { meetingsOf, memberKey, nextId, paymentsOf, projectTemplatesOf, subCompaniesOf, teamsOf, trackerOf, type State } from '../store';
 import { detailOf, stagesOf, summaryOf } from '../views';
 import { diffDays } from '../../lib/dates';
 import {
@@ -755,8 +755,10 @@ export const projectsDelete = defineCall({
     drop(state.files);
     drop(state.members);
     drop(paymentsOf(state));
-    // A Tracker entry has no meaning without its project (audit 2026-10-03, API-17).
+    // A Tracker entry has no meaning without its project (audit 2026-10-03, API-17). A meeting of the project goes with it (fbk_022).
     drop(trackerOf(state));
+    const meetingIds = new Set(Object.values(meetingsOf(state)).filter((meeting) => meeting.projectId === pid).map((meeting) => meeting.id));
+    drop(meetingsOf(state));
     for (const [key, comment] of Object.entries(state.comments)) {
       const ofProject = comment.targetType === 'task' ? taskIds.has(comment.targetId) : updateIds.has(comment.targetId);
       if (ofProject) delete state.comments[key];
@@ -764,7 +766,8 @@ export const projectsDelete = defineCall({
     for (const [key, n] of Object.entries(state.notifications)) {
       const gone = (n.targetType === 'project' && n.targetId === pid)
         || (n.targetType === 'task' && taskIds.has(n.targetId))
-        || (n.targetType === 'update' && updateIds.has(n.targetId));
+        || (n.targetType === 'update' && updateIds.has(n.targetId))
+        || (n.targetType === 'meeting' && meetingIds.has(n.targetId));
       if (gone) delete state.notifications[key];
     }
     dropProjectConversation(state, pid);

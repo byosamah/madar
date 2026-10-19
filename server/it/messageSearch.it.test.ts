@@ -7,7 +7,7 @@ import { grantServerRole } from '../test/global-setup';
 import { applyMigrations, dropSchema, localClient } from './migrate';
 
 /**
- * The folded search columns of messages and comments (chat design 2026-10-19, item 16; migration 20261020000100_message_search.sql).
+ * The folded search columns of messages and comments (chat design 2026-10-19, item 16; migration 20261020000200_message_search.sql).
  * This suite writes growth data into its own schema, and asks Postgres for the plan of the loader reads of the message search, as
  * madar_server under RLS. A plan that stops using its trigram index fails here, and so does a fold in SQL that differs from the fold
  * in TypeScript. It needs the local stack and the Docker lock.

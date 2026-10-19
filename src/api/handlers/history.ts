@@ -1,12 +1,12 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { EventId, EventTarget, ProjectId, Stamp, type ChecklistItem, type Event, type FileRec, type Notification, type Task, type TrackerEntry, type User } from '../contract/entities';
+import { EventId, EventTarget, ProjectId, Stamp, type ChecklistItem, type Event, type FileRec, type Meeting, type Notification, type Task, type TrackerEntry, type User } from '../contract/entities';
 import { EventLineView, EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
 import { DERIVED, FOLLOW_ON, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../events';
 import { assertHasLead, assertMayFinish, reopenDependents, resyncStage, stageTag } from '../flow';
 import { feedbackNoticeHidden } from '../notify';
-import { can, holdsAdminRights, mayViewTask, principalOf, taskResource, type Action, type Resource } from '../permissions';
+import { can, holdsAdminRights, mayViewMeeting, mayViewTask, meetingResource, principalOf, taskResource, type Action, type Resource } from '../permissions';
 import { eventLabel, eventViewOf, mayDeleteTracker, officeResource } from '../views';
 import { involves, onlyTicks } from '../../lib/taskPeople';
 import { isRoleEvent, undoRoleChange } from './roles';
@@ -48,6 +48,12 @@ function officeOf(ctx: Ctx, event: Event, undo: boolean, viewer: User = ctx.auth
  * person than the one of the call, for example the owner of a notice.
  */
 export function seesEvent(ctx: Ctx, event: Event, undo = false, viewer: User = ctx.authority): boolean {
+  // A change of a meeting with no project shows to the people of that meeting only. The Admin has no extra view (owner, 2026-10-19).
+  // A meeting that is gone shows its changes to nobody, so the History tells nothing of it.
+  if (event.officeMeetingId) {
+    const meeting = ctx.state.meetings?.[event.officeMeetingId];
+    return meeting !== undefined && mayViewMeeting(ctx.state, viewer, meeting);
+  }
   return !event.officeTaskId || can(viewer, 'task.view', officeOf(ctx, event, undo, viewer));
 }
 
@@ -263,6 +269,13 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
         throw forbidden('Only the Admin changes a role, in the Madar screens.', { action: 'admin.manage', reason: 'admin_only' });
       }
       return need('admin.manage');
+    case 'meeting': {
+      // A change of a meeting is taken back by the people who may change that meeting now (fbk_022). The record is the live meeting,
+      // or the whole meeting that a create event keeps.
+      const meeting = ctx.state.meetings?.[event.targetId] ?? (event.after as Meeting | null) ?? (event.before as Meeting | null);
+      if (!meeting) return need('admin.manage');
+      return need('meeting.edit', meetingResource(ctx.state, meeting, ctx.authority.id));
+    }
     case 'subCompany':
       // An agent never makes, changes or deletes a sub-company (MCP deny list), so it never takes such a change back either:
       // an undo of a making deletes the sub-company, and an undo of a change brings an old logo back (INT-27).
@@ -336,6 +349,9 @@ function undoOne(ctx: Ctx, event: Event, guard: boolean, followOn = false): Even
   }
   // A role change lives in the office settings, not in a collection, so its own Undo takes it back (handlers/roles.ts).
   const undo = isRoleEvent(event) ? undoRoleChange(ctx, event) : undoEvent(ctx, event.id);
+  // rev is not in the event of a meeting. A change that comes back is a new copy for a calendar, so rev grows again (fbk_022).
+  const meeting = event.targetType === 'meeting' ? ctx.state.meetings?.[event.targetId] : undefined;
+  if (meeting && undo.after !== null) meeting.rev += 1;
   const now = event.targetType === 'task' ? ctx.state.tasks[event.targetId] : undefined;
   // The cause of these reopens is the Undo itself, which is never in a story, so a story Undo never relieves them (audit 2026-10-03, V-2).
   if (was === 'done' && now && now.status !== 'done') reopenDependents(ctx, now, undo.id);
@@ -386,6 +402,13 @@ function noticeTaskHidden(ctx: Ctx, targetType: string, targetId: string, person
   return task !== undefined && task.projectId === null && !mayViewTask(ctx.state, person, task);
 }
 
+/** True for a notice of a meeting with no project that the person may not see: the rule of a gone notice (notifications.ts). */
+function noticeMeetingHidden(ctx: Ctx, targetType: string, targetId: string, person: User): boolean {
+  if (targetType !== 'meeting') return false;
+  const meeting = ctx.state.meetings?.[targetId];
+  return meeting !== undefined && !mayViewMeeting(ctx.state, person, meeting);
+}
+
 /** The number of standing changes that moved this report from open to done. Each one sent the one done notice (owner, 2026-10-07). */
 function movesToDone(standing: Event[], reportId: string): number {
   return standing.filter((e) => e.targetType === 'feedback' && e.targetId === reportId
@@ -409,6 +432,8 @@ function dropNotices(ctx: Ctx, correlationId: string): void {
     // A notice of an office task that its owner no longer sees already reads as gone and names nothing. It stays, so an Undo never
     // changes the list or the count of a person who left the task (final check 3, review 2026-10-06).
     if (owner !== undefined && noticeTaskHidden(ctx, notice.targetType, notice.targetId, owner)) continue;
+    // The same for the notice of a meeting that its owner no longer sees (a person taken off the attendees, fbk_022).
+    if (owner !== undefined && noticeMeetingHidden(ctx, notice.targetType, notice.targetId, owner)) continue;
     // The same for the notice of a new report that a former Admin holds (owner, 2026-10-07).
     if (owner !== undefined && feedbackNoticeHidden(notice, owner)) continue;
     let kept: boolean;
@@ -423,7 +448,7 @@ function dropNotices(ctx: Ctx, correlationId: string): void {
       // takes back only the notice of that report (owner, 2026-10-07).
       kept = standing.some((e) => e.targetType === 'feedback' && e.targetId === notice.targetId);
     } else {
-      kept = standing.some((e) => !e.officeTaskId || (owner !== undefined && seesEvent(ctx, e, true, owner)));
+      kept = standing.some((e) => (!e.officeTaskId && !e.officeMeetingId) || (owner !== undefined && seesEvent(ctx, e, true, owner)));
     }
     if (!kept) delete ctx.state.notifications[id];
   }

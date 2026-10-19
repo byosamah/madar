@@ -53,3 +53,13 @@ export const DEFAULT_STALE_DAYS = 30;
 
 /** The most quiet lines a group keeps (a person joined, left, was removed, or the group got a new name). The newest stay. */
 export const GROUP_LOG_MAX = 100;
+
+/** The kinds of a meeting (fbk_022, owner 2026-10-19). Kind and project are two separate choices. */
+export const MEETING_KINDS = ['meeting', 'client', 'team', 'site_visit'] as const;
+export type MeetingKindName = (typeof MEETING_KINDS)[number];
+
+/** The limits of a meeting. The length is in minutes. A start up to MEETING_PAST_DAYS days ago is allowed. */
+export const MEETING_LIMITS = {
+  titleMax: 120, whereMax: 200, guestsMax: 200, notesMax: 2000, attendeesMax: 30,
+  minMinutes: 15, maxMinutes: 720, pastDays: 14, windowDaysMax: 400, listMax: 200, listDefaultDays: 60,
+} as const;

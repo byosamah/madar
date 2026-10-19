@@ -50,7 +50,7 @@
     "limit": 10
   },
   "events.undo": {
-    "eventId": "evt_366"
+    "eventId": "evt_369"
   },
   "events.undoStory": {
     "correlationId": "cor_sample_022"
@@ -69,6 +69,34 @@
     "projectId": "prj_001"
   },
   "madar.readFirst": {},
+  "meetings.cancel": {
+    "id": "mtg_001",
+    "storyId": "cor_sample_022"
+  },
+  "meetings.create": {
+    "kind": "client",
+    "title": "Review the drainage report with the client",
+    "projectId": "prj_001",
+    "startsAt": "2026-10-04T10:00:00+03:00",
+    "where": "Client office, Al Khobar",
+    "attendeeIds": [
+      "usr_002"
+    ],
+    "storyId": "cor_sample_022"
+  },
+  "meetings.get": {
+    "id": "mtg_001"
+  },
+  "meetings.list": {
+    "from": "2026-09-30",
+    "to": "2026-10-30",
+    "projectId": "prj_001"
+  },
+  "meetings.update": {
+    "id": "mtg_001",
+    "where": "Site office",
+    "storyId": "cor_sample_022"
+  },
   "payments.create": {
     "projectId": "prj_001",
     "name": "Design development fee",

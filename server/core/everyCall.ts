@@ -50,6 +50,8 @@ function rest(office: State): Record<string, [unknown, string?]> {
   // Two messages of a person (not of an agent) for the author-only calls. The reaction of the sweep sits on the newest message of the
   // project chat cnv_001, so these two (the oldest of the office) are never the one that a reaction needs live.
   const [talk, gone] = Object.values(office.messages).filter((m) => m.authorId === m.actingForId && office.users[m.actingForId]?.active);
+  // The meeting that the three calls change: the first of the office, else the one that meetings.create makes first.
+  const meeting = Object.values(office.meetings ?? {})[0]?.id ?? 'mtg_001';
   return {
     'users.list': [{}],
     'users.get': [{ id: 'usr_002' }],
@@ -139,6 +141,13 @@ function rest(office: State): Record<string, [unknown, string?]> {
     'subCompanies.list': [{}],
     'subCompanies.save': [{ name: 'Sample company', nameAr: 'شركة تجريبية', logo: null }],
     'subCompanies.delete': [{ id: 'sub_001' }],
+    // A meeting (fbk_022): meetings.create runs first (it is the first meeting call of the map), so the others change the meeting it made.
+    // The Admin plans a client meeting of prj_001 with usr_002. A meeting of the office, if it has one, gives the id.
+    'meetings.list': [{}],
+    'meetings.create': [{ kind: 'client', title: 'Sweep meeting', projectId: 'prj_001', startsAt: '2026-10-05T10:00:00+03:00', attendeeIds: ['usr_002'] }],
+    'meetings.get': [{ id: meeting }],
+    'meetings.update': [{ id: meeting, where: 'Meeting room' }],
+    'meetings.cancel': [{ id: meeting }],
   };
 }
 

@@ -11,6 +11,7 @@ export const LOADERS = {
   projects: () => import('../features/projects/ProjectsScreen').then((m) => m.ProjectsScreen),
   project: () => import('../features/project/ProjectScreen').then((m) => m.ProjectScreen),
   work: () => import('../features/work/WorkScreen').then((m) => m.WorkScreen),
+  meetings: () => import('../features/meetings/MeetingsScreen').then((m) => m.MeetingsScreen),
   inbox: () => import('../features/inbox/InboxScreen').then((m) => m.InboxScreen),
   notifications: () => import('../features/notifications/NotificationsScreen').then((m) => m.NotificationsScreen),
   search: () => import('../features/search/SearchScreen').then((m) => m.SearchScreen),

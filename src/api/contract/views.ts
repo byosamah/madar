@@ -2,8 +2,8 @@ import { z } from 'zod';
 import { NOTIFY_LEVELS } from './limits';
 import {
   Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, Gender, GeoPoint, HealthValue,
-  Message, Payment, Project, ProjectTemplateId, Team,
-  ProjectId, ProjectStatus, Stage, StageId, Stamp, SubCompanyId, Task, TaskId, TaskStatus, TrackerDirection, TrackerEntry, TrackerType, TrackerWaiting, UpdateId, UserId,
+  MeetingId, MeetingKind, MeetingRepeat, Message, Payment, Project, ProjectTemplateId, Team,
+  ProjectId, ProjectStatus, Stage, StageId, Stamp, SubCompanyId, Task, TaskId, TaskStatus, TrackerDirection, TrackerEntry, TrackerId, TrackerType, TrackerWaiting, UpdateId, UserId,
 } from './entities';
 import { ReportPeriodKind } from '../reportPeriod';
 
@@ -309,6 +309,41 @@ export const TrackerRow = z.object({
   canDelete: z.boolean(),
 });
 export type TrackerRow = z.infer<typeof TrackerRow>;
+
+/**
+ * One meeting in a list (fbk_022). "mine" is true when the viewer is the organizer or an attendee. A meeting with no project has
+ * "project" null: the screens write "Office". The attendees are only counted here, and named in MeetingDetail.
+ */
+export const MeetingRow = z.object({
+  id: MeetingId,
+  kind: MeetingKind,
+  title: z.string(),
+  status: z.enum(['scheduled', 'cancelled']),
+  startsAt: Stamp,
+  endsAt: Stamp,
+  where: z.string(),
+  rev: z.number().int().min(1),
+  project: ProjectRef.nullable(),
+  organizer: UserCard,
+  attendeeCount: z.number().int().min(0),
+  mine: z.boolean(),
+  seriesId: MeetingId.nullable().optional(),
+  repeat: MeetingRepeat.nullable().optional(),
+});
+export type MeetingRow = z.infer<typeof MeetingRow>;
+
+/** One meeting with its people, its notes, its rights for the viewer, and the records that Madar made after it ended (wave 2). */
+export const MeetingDetail = MeetingRow.extend({
+  guests: z.string(),
+  notes: z.string(),
+  attendees: z.array(UserCard),
+  minutesBy: UserCard.nullable(),
+  settledAt: Stamp.nullable(),
+  minutesTask: z.object({ id: TaskId, title: z.string(), status: TaskStatus, dueDate: Day.nullable() }).nullable(),
+  trackerEntry: z.object({ id: TrackerId, title: z.string() }).nullable(),
+  viewerCan: z.object({ edit: z.boolean(), cancel: z.boolean() }),
+});
+export type MeetingDetail = z.infer<typeof MeetingDetail>;
 
 /** The kinds of line in the Tracker export. "closed" reads "Answered" or "Received" by the "waiting" value of the entry. */
 export const TRACKER_EXPORT_EVENTS = ['logged', 'edited', 'closed', 'reopened', 'deleted', 'reply_task', 'reply_logged'] as const;

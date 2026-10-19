@@ -43,7 +43,7 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'projects.setHealthOverride': ['events', 'projects'],
   'projects.clearHealthOverride': ['events', 'projects'],
   'projects.delete': [
-    'chatReads', 'comments', 'conversations', 'deadlines', 'events', 'files', 'members', 'messages', 'notifications', 'payments',
+    'chatReads', 'comments', 'conversations', 'deadlines', 'events', 'files', 'meetings', 'members', 'messages', 'notifications', 'payments',
     'projects', 'stages', 'tasks', 'tracker', 'updates',
   ],
   'members.add': ['events', 'members'],
@@ -119,6 +119,11 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'teams.delete': ['events', 'teams'],
   'subCompanies.save': ['events', 'subCompanies'],
   'subCompanies.delete': ['events', 'subCompanies', 'projects'],
+  // A meeting writes its event, its row and the notices of its attendees. The person signal of a meeting with no project carries every kind
+  // of the save, so the screen of the organizer also reloads the notices (fbk_022).
+  'meetings.create': ['events', 'meetings', 'notifications'],
+  'meetings.update': ['events', 'meetings', 'notifications'],
+  'meetings.cancel': ['events', 'meetings', 'notifications'],
   // A push device is private and sends no change signal (server/data/save.ts), so no list reloads for it (owner, 2026-10-08).
   'push.register': [],
   'push.remove': [],

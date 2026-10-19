@@ -1,0 +1,130 @@
+{
+  "errors": {
+    "reasons": {
+      "in_the_past": "A meeting cannot start more than 14 days ago.",
+      "start_not_on_five": "A meeting starts on a multiple of 5 minutes, for example 10:00 or 10:05.",
+      "minutes_not_attending": "The person for the minutes must be the organizer or an attendee.",
+      "attendee_agent": "An agent cannot attend a meeting. Choose a person.",
+      "title_hidden": "Write the title on one line, with visible characters only.",
+      "project_fixed": "A meeting stays in its project. Cancel it and plan a new one.",
+      "window_too_long": "A list of meetings covers at most 400 days.",
+      "window_reversed": "The end of the period comes before its start.",
+      "project_needed": "A list of meetings that are not yours needs a project.",
+      "meeting_cancelled": "This meeting is cancelled. It cannot change.",
+      "meeting_over": "This meeting is over. Only its notes change."
+    }
+  },
+  "inbox": {
+    "trigger": {
+      "meeting_invited": "{{actor}} invited you to {{target}}, {{day}} at {{time}}",
+      "meeting_invited_moved": "{{actor}} moved {{target}} to {{day}} at {{time}}",
+      "meeting_invited_cancelled": "{{actor}} cancelled {{target}}, which was planned for {{day}} at {{time}}",
+      "meeting_soon": "{{target}} starts soon, at {{time}}"
+    },
+    "meetingGone": "A meeting that you can no longer see"
+  },
+  "settings": {
+    "triggers": {
+      "meeting_invited": "A meeting is planned, moved or cancelled for me",
+      "meeting_soon": "A meeting starts soon"
+    }
+  },
+  "meetings": {
+    "switch": {
+      "label": "Show",
+      "meetings": "Meetings"
+    },
+    "new": "New meeting",
+    "empty": "You have no meeting in the next 60 days.",
+    "list": "Your meetings",
+    "group": {
+      "today": "Today",
+      "week": "This week",
+      "later": "Later"
+    },
+    "earlier": "Earlier ({{n}})",
+    "kind": {
+      "meeting": "Meeting",
+      "client": "Client meeting",
+      "team": "Team meeting",
+      "site_visit": "Site visit"
+    },
+    "state": {
+      "now": "Now",
+      "cancelled": "Cancelled",
+      "done": "Done"
+    },
+    "range": "{{from}} to {{to}}",
+    "sheet": {
+      "gone": "This meeting is not available.",
+      "menu": "Meeting actions",
+      "edit": "Edit",
+      "cancel": "Cancel meeting",
+      "join": "Join",
+      "teamView": "Open the team meeting view",
+      "when": "When",
+      "where": "Where",
+      "project": "Project",
+      "officeNote": "Office meeting. Only its people see it.",
+      "organizer": "Organizer",
+      "people": "People",
+      "guests": "Guests",
+      "notes": "Notes",
+      "cancelTitle": "Cancel this meeting?",
+      "cancelBody": "The people of the meeting get a notice.",
+      "cancelConfirm": "Cancel meeting",
+      "keep": "Keep meeting",
+      "cancelled": "Meeting cancelled."
+    },
+    "form": {
+      "newTitle": "Plan a meeting",
+      "editTitle": "Edit meeting",
+      "kind": "Kind",
+      "title": "Title",
+      "project": "Project",
+      "noProject": "No project (office meeting)",
+      "day": "Day",
+      "time": "Time",
+      "length": "Length",
+      "people": "People",
+      "where": "Where",
+      "more": "More",
+      "guests": "Guests",
+      "notes": "Notes",
+      "officeHint": "Only you and the people you choose see a meeting with no project.",
+      "peopleHint": "They get a notice.",
+      "chosen": "{{n}} people chosen",
+      "chosen_one": "1 person chosen",
+      "chosen_other": "{{count}} people chosen",
+      "guestsHint": "People from outside. They get no notice.",
+      "whereHint": "A place, or a link to join.",
+      "moved": "The attendees get a notice.",
+      "plan": "Plan meeting",
+      "save": "Save changes",
+      "planned": "Meeting planned.",
+      "saved": "Meeting saved.",
+      "min": "{{n}} min",
+      "hour": "{{n}} h",
+      "hourMin": "{{h}} h {{m}} min"
+    },
+    "home": {
+      "title": "Meetings today",
+      "all": "All meetings"
+    },
+    "project": {
+      "title": "Meetings",
+      "plan": "Plan a meeting",
+      "none": "No meeting is planned."
+    }
+  },
+  "feed": {
+    "meeting": {
+      "created_meeting": "planned the meeting “{{label}}”",
+      "created_visit": "planned the site visit “{{label}}”",
+      "updated_meeting": "changed the meeting “{{label}}”",
+      "updated_visit": "changed the site visit “{{label}}”",
+      "cancelled_meeting": "cancelled the meeting “{{label}}”",
+      "cancelled_visit": "cancelled the site visit “{{label}}”"
+    }
+  }
+}

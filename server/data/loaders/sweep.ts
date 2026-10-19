@@ -95,6 +95,17 @@ export function readSweep(office: State): SweepCall[] {
       ['dashboard.get', {}, actor], ['notifications.list', {}, actor],
     );
   }
+  // Meetings (fbk_022, owner 2026-10-19): every person and every agent reads the lists and each meeting, so a meeting with no project
+  // must read as missing for everyone but its people, on the scoped load as on the whole office. None on an office without meetings.
+  if (Object.keys(office.meetings ?? {}).length > 0) {
+    for (const actor of [...humans, ...agents]) {
+      calls.push(
+        ['meetings.list', {}, actor], ['meetings.list', { mine: false, projectId: 'prj_001' }, actor], ['meetings.list', { from: '2026-09-01', to: '2026-12-31' }, actor],
+        ['meetings.list', { from: '2026-10-05', to: '2026-10-05', mine: false, projectId: 'prj_001' }, actor],
+      );
+      for (const meeting of Object.values(office.meetings ?? {})) calls.push(['meetings.get', { id: meeting.id }, actor]);
+    }
+  }
   for (const comment of Object.values(office.comments)) calls.push(['comments.list', { targetType: comment.targetType, targetId: comment.targetId }, ADMIN]);
   for (const conversation of Object.values(office.conversations)) {
     for (const actor of humans) calls.push(['chats.messages', { conversationId: conversation.id, limit: 2 }, actor]);
@@ -172,6 +183,33 @@ export function writeSweep(office: State): SweepCall[] {
     ['tasks.create', { title: 'Office errand', ownerId: 'usr_005', helperIds: ['usr_006'], dueDate: '2026-10-08' }, 'usr_004'],
     ...officeWrites(office),
     ...chatFileWrites(office),
+    ...meetingWrites(office),
+  ];
+}
+
+/**
+ * The writes on the meetings of trapOffice (fbk_022): the organizer, an attendee, an outsider and the Admin who is not invited try
+ * the private meeting. A person who does not see it gets the same refusal on the scoped load and on the whole office. None on an
+ * office without the traps.
+ */
+export function meetingWrites(office: State): SweepCall[] {
+  const meetings = Object.values(office.meetings ?? {});
+  const hidden = meetings.find((m) => m.projectId === null && m.attendeeIds.length > 0 && m.createdBy === m.organizerId);
+  const open = meetings.find((m) => m.projectId !== null);
+  if (!hidden || !open) return [];
+  const outsider = Object.values(office.users).find((u) => u.kind === 'human' && u.active && u.systemRole === 'member' && u.id !== hidden.organizerId && !hidden.attendeeIds.includes(u.id))!.id;
+  return [
+    ['meetings.create', { kind: 'site_visit', title: 'Visit the plot', startsAt: '2026-10-07T09:00:00+03:00', attendeeIds: [outsider] }, hidden.organizerId],
+    ['meetings.update', { id: hidden.id, notes: 'Admin try' }, ADMIN],
+    ['meetings.update', { id: hidden.id, notes: 'Outsider try' }, outsider],
+    ['meetings.cancel', { id: hidden.id }, outsider],
+    ['meetings.update', { id: hidden.id, notes: 'Attendee try' }, hidden.attendeeIds[0]],
+    ['meetings.update', { id: hidden.id, where: 'Room 2', attendeeIds: [...hidden.attendeeIds, outsider] }, hidden.organizerId],
+    ['meetings.update', { id: open.id, title: 'Renamed meeting' }, ADMIN],
+    ['meetings.cancel', { id: hidden.id }, hidden.organizerId],
+    ['meetings.cancel', { id: open.id }, open.organizerId],
+    ['events.undoStory', { correlationId: 'cor_trap_meeting_office' }, ADMIN],
+    ['events.undoStory', { correlationId: 'cor_trap_meeting_office' }, hidden.organizerId],
   ];
 }
 
@@ -273,6 +311,18 @@ function officeTraps(state: State): void {
   apply(state, 'tasks.create', { title: 'Order paper for the licence', dueDate: '2026-10-02' }, 'usr_006', 'cor_trap_office_paper');
 }
 
+/**
+ * Meetings (fbk_022, owner 2026-10-19): usr_004 plans a meeting with no project for usr_006; the agent of usr_005 plans one for its
+ * person with usr_007; the leader of prj_001 plans a client meeting of the project with usr_003. usr_001 (the Admin) and the rest
+ * are on none of the private ones.
+ */
+function meetingTraps(state: State): void {
+  const leader = state.projects.prj_001.leaderId!;
+  apply(state, 'meetings.create', { kind: 'meeting', title: 'Meet the new client', startsAt: '2026-10-05T10:00:00+03:00', attendeeIds: ['usr_006'] }, 'usr_004', 'cor_trap_meeting_office');
+  apply(state, 'meetings.create', { kind: 'team', title: 'Plan the site visits', startsAt: '2026-10-06T08:30:00+03:00', attendeeIds: ['usr_007'] }, OFFICE_AGENT, 'cor_trap_meeting_agent');
+  apply(state, 'meetings.create', { kind: 'client', title: 'Review the facade', projectId: 'prj_001', startsAt: '2026-10-05T12:00:00+03:00', attendeeIds: ['usr_003'] }, leader, 'cor_trap_meeting_project');
+}
+
 /** The project of the ties of newestTies. */
 export const TIE_PROJECT = 'prj_004';
 
@@ -334,6 +384,7 @@ export function badgeTraps(traps: State): State {
 export function trapOffice(seed: State): State {
   const state = structuredClone(seed);
   officeTraps(state);
+  meetingTraps(state);
   chatFileTrap(state);
   newestTies(state);
   const leader = state.projects.prj_001.leaderId!;

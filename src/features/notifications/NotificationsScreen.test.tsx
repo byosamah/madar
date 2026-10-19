@@ -245,3 +245,74 @@ describe('the notifications screen', () => {
     void api;
   });
 });
+
+// The notices of a meeting (fbk_022, owner 2026-10-19): a new, moved or cancelled meeting, and the reminder. The title sits between the
+// isolate marks, and the notice names the day and the time. A meeting that the person no longer sees reads as gone and names nothing.
+describe('the notices of a meeting', () => {
+  const START = '2026-10-01T10:00:00.000+03:00';
+  const meetingNotice = (id: string, trigger: 'meeting_invited' | 'meeting_soon', change: 'new' | 'moved' | 'cancelled' | undefined, actorId: string | null = 'usr_002'): Notice => ({
+    ...notice(id, trigger, 'meeting', 'mtg_901', TODAY_8, actorId), ...(change ? { meeting: { change } } : {}),
+  });
+  /** Sara (usr_005) is an attendee of "Review the facade", planned by Faisal (usr_002) in prj_001. */
+  const world = (list: Notice[], more: (state: State) => void = () => undefined) => (state: State) => {
+    state.meetings = {
+      mtg_901: {
+        id: 'mtg_901', kind: 'client', title: 'Review the facade', projectId: 'prj_001', startsAt: START, endsAt: '2026-10-01T11:00:00.000+03:00', where: '', guests: '',
+        notes: '', organizerId: 'usr_002', attendeeIds: ['usr_005'], minutesById: 'usr_002', status: 'scheduled', rev: 1, createdBy: 'usr_002', createdAt: TODAY_7,
+      },
+    };
+    withNotices('usr_005', list)(state);
+    more(state);
+  };
+  const plain = (element: HTMLElement) => element.textContent?.replace(/[\u2068\u2069]/g, '').replace(/^Unread: /, '');
+
+  it('writes the sentence of a new, a moved and a cancelled meeting with the day and the time, and the reminder', async () => {
+    await renderApp('/notifications', world([
+      meetingNotice('ntf_911', 'meeting_invited', 'new'), meetingNotice('ntf_912', 'meeting_invited', 'moved'), meetingNotice('ntf_913', 'meeting_invited', 'cancelled'),
+      meetingNotice('ntf_914', 'meeting_soon', undefined, null),
+    ]));
+    expect(plain(await screen.findByText(/invited you to/))).toBe('Faisal Al-Harbi invited you to Review the facade, Thu 1 Oct at 10:00');
+    expect(plain(screen.getByText(/moved .Review/))).toBe('Faisal Al-Harbi moved Review the facade to Thu 1 Oct at 10:00');
+    expect(plain(screen.getByText(/cancelled .Review/))).toBe('Faisal Al-Harbi cancelled Review the facade, which was planned for Thu 1 Oct at 10:00');
+    expect(plain(screen.getByText(/starts soon/))).toBe('Review the facade starts soon, at 10:00');
+  });
+
+  it('puts the title between the isolate marks, so a title in another direction keeps its own end', async () => {
+    await renderApp('/notifications', world([meetingNotice('ntf_911', 'meeting_invited', 'new')], (state) => {
+      state.meetings!.mtg_901.title = 'Review (facade)?';
+    }));
+    expect((await screen.findByText(/invited you to/)).textContent).toContain('\u2068Review (facade)?\u2069');
+  });
+
+  it('opens the meeting from the row, names the project, and marks the notice read', async () => {
+    const { store } = await renderApp('/notifications', world([meetingNotice('ntf_911', 'meeting_invited', 'new')]));
+    await screen.findByText(/invited you to/);
+    const item = itemWith(/invited you to/);
+    expect(within(item).getByText('Corniche Office Tower')).toBeInTheDocument();
+    await userEvent.click(within(item).getByRole('link', { name: /invited you to/ }));
+    await waitFor(() => expect(store.state.notifications.ntf_911.read).toBe(true));
+    expect(window.location.hash).toContain('/meetings?meeting=mtg_901');
+  });
+
+  it('reads a meeting that the person no longer sees as gone: no title, no day, no link', async () => {
+    await renderApp('/notifications', world([meetingNotice('ntf_911', 'meeting_invited', 'new')], (state) => {
+      state.meetings!.mtg_901.projectId = null;
+      state.meetings!.mtg_901.attendeeIds = [];
+    }));
+    expect(await screen.findByText('A meeting that you can no longer see')).toBeInTheDocument();
+    const item = itemWith(/no longer see/);
+    expect(within(item).getByText('This item does not exist anymore.')).toBeInTheDocument();
+    expect(within(item).queryByRole('link')).toBeNull();
+    expect(document.body.textContent).not.toContain('Review the facade');
+  });
+
+  it('has the Arabic sentences, with the verb of a woman after her name', async () => {
+    await renderApp('/notifications', world([meetingNotice('ntf_911', 'meeting_invited', 'new', 'usr_001'), meetingNotice('ntf_912', 'meeting_invited', 'moved'), meetingNotice('ntf_914', 'meeting_soon', undefined, null)], (state) => {
+      state.users.usr_005.preferences.language = 'ar';
+    }));
+    expect(await screen.findByText(/دعتك إلى/)).toBeInTheDocument();
+    expect(screen.getByText(/نقل .* إلى/)).toBeInTheDocument();
+    expect(screen.getByText(/يبدأ قريبًا/)).toBeInTheDocument();
+  });
+});
+

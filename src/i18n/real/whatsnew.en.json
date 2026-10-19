@@ -15,13 +15,21 @@
         "title": "Search messages",
         "body": "Search now finds the messages of your chats and the comments of tasks. Press a result to open the chat at that message. A person card has a Message button, and a project page has a Project chat button."
       },
-      "2026-10-23-23": {
+      "2026-10-23-25": {
         "title": "Drop files into a chat",
         "body": "Drag files from your computer and drop them on an open chat, or paste a picture into the message box. Each file shows how much of it went up. Nothing goes until you press Send."
       },
-      "2026-10-23-22": {
+      "2026-10-23-24": {
         "title": "A calmer chat",
         "body": "The chat keeps your place now. It opens at the first new message, under a thin New line. New messages do not move the chat while you read older ones; the round Newest button takes you down. The messages of one person in 5 minutes sit together. A message that names you has a soft color. A chat counts as read only while you look at it. Web addresses are links, and a half-written message stays after you close the tab."
+      },
+      "2026-10-23-23": {
+        "title": "Meetings on Home and in a project",
+        "body": "Home shows your meetings of today. A project shows its next two meetings, and you can plan a meeting there."
+      },
+      "2026-10-23-22": {
+        "title": "Meetings",
+        "body": "Now you can plan a meeting, a client meeting or a site visit, and see it in Tasks. The people you invite get a notice, and a reminder 30 minutes before the start. A meeting with no project is private to its people."
       },
       "2026-10-23-21": {
         "title": "Files & Links",
