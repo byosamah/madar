@@ -30,18 +30,26 @@ export function measure(element: HTMLElement): { box: Box; screen: Screen } {
 }
 
 /**
- * The place of a menu: under its button, or above it when the screen ends first. It grows from its button toward the start side;
- * near the screen edge it stays 8 px inside the screen.
+ * The place of a menu: under its button, or above it when the screen ends first. It grows from its button toward the start side
+ * (`align: 'end'`, for a "..." button at the end of a row). A button with a word at the start of a row asks for `align: 'start'`:
+ * the menu then grows from the start edge of the button toward the end side. Near the screen edge it stays 8 px inside the screen.
  */
-export function menuPlace(box: Box, screen: Screen, { itemCount, rtl }: { itemCount: number; rtl: boolean }): CSSProperties {
+export function menuPlace(
+  box: Box,
+  screen: Screen,
+  { itemCount, rtl, align = 'end' }: { itemCount: number; rtl: boolean; align?: 'start' | 'end' },
+): CSSProperties {
   const height = itemCount * 44 + 12;
   const below = box.bottom + 4 + height <= screen.height;
   const vertical = below ? { top: box.bottom + 4 } : { bottom: screen.height - box.top + 4 };
   const width = 224;
-  const side = rtl
+  // fromLeft: the menu keeps the left edge of its button and grows toward the right of the screen. That is the end side in English
+  // (align start) and the start side in Arabic (align end).
+  const fromLeft = rtl === (align === 'end');
+  const side = fromLeft
     ? (box.left + width <= screen.width - 8 ? { left: box.left } : { right: 8 }) // rtl-ok: screen coordinates from the button
     : (box.right - width >= 8 ? { right: screen.width - box.right } : { left: 8 }); // rtl-ok: screen coordinates from the button
-  const origin = `${below ? 'top' : 'bottom'} ${rtl ? 'left' : 'right'}`; // rtl-ok: the menu grows from the corner of its button
+  const origin = `${below ? 'top' : 'bottom'} ${fromLeft ? 'left' : 'right'}`; // rtl-ok: the menu grows from the corner of its button
   return { position: 'fixed', ...vertical, ...side, transformOrigin: origin };
 }
 

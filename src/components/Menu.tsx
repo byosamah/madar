@@ -89,8 +89,12 @@ export function MenuList({
  * The list draws at the page level with a fixed place, so a clipping box (a cover, a scrolling board) never cuts it off.
  * Inside an open sheet or panel the list draws inside that dialog instead: a blocking sheet holds the focus and the pointer,
  * so a list outside it could not be used (audit 2026-10-03, SHL-1).
+ * `text` turns the round icon button into a pill with a word, for the one Add button of a tab (owner, 2026-10-19). Its menu grows from
+ * the start edge of the button (`align: 'start'`), so it opens under the word and not over the side menu.
  */
-export function Menu({ label, items, triggerClassName = '', icon }: { label: string; items: MenuItem[]; triggerClassName?: string; icon?: ReactNode }) {
+export function Menu({
+  label, items, triggerClassName = '', icon, text, align = 'end',
+}: { label: string; items: MenuItem[]; triggerClassName?: string; icon?: ReactNode; text?: string; align?: 'start' | 'end' }) {
   const [open, setOpen] = useState(false);
   const [place, setPlace] = useState<CSSProperties>({});
   const [layer, setLayer] = useState<HTMLElement | null>(null);
@@ -116,7 +120,7 @@ export function Menu({ label, items, triggerClassName = '', icon }: { label: str
     // The measures come in the units of the menu, so the menu opens next to its button also under Big screen.
     const { box, screen } = measure(trigger.current);
     const dialog = trigger.current.closest<HTMLElement>('[role="dialog"]');
-    const onScreen = menuPlace(box, screen, { itemCount: items.filter((item) => !item.hidden).length, rtl: document.documentElement.dir === 'rtl' });
+    const onScreen = menuPlace(box, screen, { itemCount: items.filter((item) => !item.hidden).length, rtl: document.documentElement.dir === 'rtl', align });
     // A sheet that moves (a transform) is the frame of a fixed list inside it, so the place turns into the sheet's units.
     setPlace(dialog ? inFrame(onScreen, fixedFrame(dialog), screen) : onScreen);
     setLayer(dialog);
@@ -128,13 +132,14 @@ export function Menu({ label, items, triggerClassName = '', icon }: { label: str
         ref={trigger}
         type="button"
         aria-label={label}
-        title={label}
+        title={text ? undefined : label}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => (open ? close(false) : openMenu())}
-        className={`pressable grid size-11 place-items-center rounded-full ${triggerClassName || 'text-label-2 hover:bg-fill'}`}
+        className={`pressable ${text ? 'inline-flex min-h-11 items-center gap-2 px-5 text-subheadline font-semibold' : 'grid size-11 place-items-center'} rounded-full ${triggerClassName || 'text-label-2 hover:bg-fill'}`}
       >
         {icon ?? <AnimatedIcon icon={EllipsisIcon} size={20} aria-hidden />}
+        {text}
       </button>
       {createPortal(
         <AnimatePresence>{open && <MenuList label={label} items={items} onClose={close} boundary={trigger} style={place} />}</AnimatePresence>,

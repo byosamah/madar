@@ -47,6 +47,19 @@ describe('the place of a panel next to its control (final review, 2026-10-02)', 
       expect(onScreen(place.left, zoom)).toBeCloseTo(start.left);
     });
 
+    it(`opens a menu from the start edge of a button that sits at the start of a row, at zoom ${zoom}`, () => {
+      // A button with a word at the start of a tab: the menu must not hang to the side of the button (owner, 2026-10-19, Files & Links).
+      const pill: Box = { top: 300, right: 420, bottom: 344, left: 320, width: 100 };
+      const ltr = inPanelUnits(pill, SCREEN, zoom);
+      const place = menuPlace(ltr.box, ltr.screen, { itemCount: 2, rtl: false, align: 'start' });
+      expect(onScreen(place.left, zoom)).toBeCloseTo(pill.left);
+      expect(place.right).toBeUndefined();
+      // In Arabic the start edge is the right edge of the button.
+      const rtl = menuPlace(ltr.box, ltr.screen, { itemCount: 2, rtl: true, align: 'start' });
+      expect(SCREEN.width - onScreen(rtl.right, zoom)).toBeCloseTo(pill.right);
+      expect(rtl.left).toBeUndefined();
+    });
+
     it(`centres a popover under its control, at zoom ${zoom}`, () => {
       // A control in the middle of the screen, so the edge of the screen does not push the popover.
       const middle: Box = { top: 400, right: 982, bottom: 444, left: 938, width: 44 };
