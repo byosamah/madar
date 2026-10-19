@@ -330,14 +330,18 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   `WRITE_KINDS` line.
 
 ## Edit, delete and react to a chat message (chat design 2026-10-19, items 11 and 12)
-- `requireMessage(ctx, id, { author, allowDeleted })` (`handlers/chats.ts`) is the one door of the calls below. A missing message, a message of
+- `requireMessage(ctx, id, { author, allowDeleted })` (`handlers/chats.ts`) is the one door of the calls below (the reaction of B10 too). A missing message, a message of
   a chat the person may not open, and (without `allowDeleted`) a deleted message all answer `not_found` Message, the answer for an id that was
   never made, for a direct chat, a project chat and a group alike. With `author`, a person who can open the chat but is not the author (or the
   person behind the agent that wrote it, `isMine`) gets `forbidden` with reason `not_author`.
 - `chats.editMessage { id, body }`: the author only, at any time, in a closed chat too. The same body changes nothing. A new body sets `editedAt`
   and finds the names again (`namesIn`, the rule of `postMessage`): a person named for the first time gets the mention notice with `messageId`,
   a person whose name goes loses the notices of that message, and the reply author stays named while active and in the chat. No History event.
-- The call names only the kinds `messages` and `notifications`, so its signals stay nameless (INT-16). MCP: it is on the deny list.
+- `chats.deleteMessage { id, deleted = true }`: sets `deletedAt` (a deleted message leaves every read path, `isLiveMessage`) and takes away the
+  notices of the message. `deleted: false` is the Undo of the toast: it removes `deletedAt` and writes the notices again, already read, so a
+  restore sends no push and no mail. The same value changes nothing. The files of the message stay. `messagePage` accepts a deleted `before`,
+  so "Earlier messages" works when the oldest shown message was deleted meanwhile.
+- Both calls name only the kinds `messages` and `notifications`, so their signals stay nameless (INT-16). MCP: both are on the deny list.
 
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.

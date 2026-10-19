@@ -448,7 +448,7 @@ describe('edit, delete and reaction of a message are for the person only', () =>
     const { INSTRUCTIONS } = await import('./docs');
     const { MCP_ADMIN, MCP_ALLOW, MCP_DENY, mcpTools } = await import('./tools');
     const listed = new Set(mcpTools({ admin: true }).map((tool) => tool.name as string));
-    for (const name of ['chats.editMessage']) {
+    for (const name of ['chats.editMessage', 'chats.deleteMessage']) {
       expect(MCP_DENY, name).toContain(name);
       expect([...MCP_ALLOW, ...MCP_ADMIN], name).not.toContain(name);
       expect(listed.has(name), name).toBe(false);

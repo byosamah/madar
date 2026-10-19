@@ -672,11 +672,42 @@ export const chatsEditMessage = defineCall({
   },
 });
 
+export const chatsDeleteMessage = defineCall({
+  /**
+   * The author deletes a chat message for everyone, with no question (design item 11). The message leaves every read path and its notices
+   * go. A file of the message stays. The Undo of the toast calls this again with "deleted: false": the message comes back and the people it
+   * names get their notices again, already read, so a restore sends no second push and no second mention mail. The same value changes
+   * nothing. It works in a closed chat. It writes no History event, as chats.archive does not.
+   */
+  input: z.object({ id: MessageId, deleted: z.boolean().default(true) }),
+  output: z.object({ deleted: z.boolean() }),
+  run(input, ctx) {
+    const { message, conversation } = requireMessage(ctx, input.id, { author: true, allowDeleted: true });
+    const gone = !isLiveMessage(message);
+    if (input.deleted === gone) return { deleted: gone };
+    if (input.deleted) {
+      ctx.state.messages[message.id] = { ...message, deletedAt: ctx.stamp };
+      dropMessageNotices(ctx, message);
+      return { deleted: true };
+    }
+    const { deletedAt: _deletedAt, ...live } = message;
+    ctx.state.messages[message.id] = live;
+    const { named, replyOnly } = namesIn(ctx, conversation, message.body, replyTargetOf(ctx, message));
+    const again = notifyIn(ctx, { userIds: named, trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: message.id });
+    if (replyOnly !== undefined) {
+      again.push(...notifyIn(ctx, { userIds: [replyOnly], trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: message.id, reply: true }));
+    }
+    for (const notice of again) notice.read = true;
+    return { deleted: false };
+  },
+});
+
 export const chatCalls = {
   'chats.list': chatsList,
   'chats.messages': chatsMessages,
   'chats.send': chatsSend,
   'chats.editMessage': chatsEditMessage,
+  'chats.deleteMessage': chatsDeleteMessage,
   'chats.markRead': chatsMarkRead,
   'chats.archive': chatsArchive,
   'chats.openDirect': chatsOpenDirect,

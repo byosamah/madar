@@ -485,6 +485,31 @@ describe('the 18 places of AM 6', () => {
     expect(other.outcome.error).toMatchObject({ code: 'forbidden' });
   });
 
+  // Track msg B9 (chat design 2026-10-19, item 11): a delete takes the notices of the message away, and a restore writes them again, read.
+  it('chats.deleteMessage: the scoped load takes the notices away, and the restore brings them back read (B9)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const team = Object.values(state.members).filter((m) => m.projectId === 'prj_001').map((m) => m.userId).filter((id) => id !== ADMIN && state.users[id].kind === 'human');
+    const [author, first] = team;
+    if (!author || !first) throw new Error('The sample office needs two team members on prj_001.');
+    const idOf = (view: unknown) => (view as { message: { id: string } }).message.id;
+    const sent = idOf(apply(state, 'chats.send', { conversationId: room.id, body: `${mentionMarkup(state.users[first].name, first)} Secret offer 8842.` }, author, { now: new Date(NOW.getTime() + 60_000) }));
+    const gone = await same(state, 'chats.deleteMessage', { id: sent }, author);
+    expect(gone.outcome.output).toEqual({ deleted: true });
+    expect(deleted(gone, 'notifications')).toHaveLength(1);
+    expect(docs(gone, 'messages')[0]).toMatchObject({ id: sent, deletedAt: expect.any(String) });
+    apply(state, 'chats.deleteMessage', { id: sent }, author);
+    expect(Object.values(state.notifications).filter((n) => n.messageId === sent)).toHaveLength(0);
+    const back = await same(state, 'chats.deleteMessage', { id: sent, deleted: false }, author);
+    expect(back.outcome.output).toEqual({ deleted: false });
+    expect(docs(back, 'notifications')).toEqual([expect.objectContaining({ messageId: sent, userId: first, read: true })]);
+    expect(docs(back, 'messages')[0]).not.toHaveProperty('deletedAt');
+    // The page before the deleted message works on the scoped load too.
+    const read = await same(state, 'chats.messages', { conversationId: room.id, before: sent, limit: 3 }, author);
+    expect(read.outcome.error).toBeUndefined();
+    expect(JSON.stringify(read.outcome.output)).not.toContain('8842');
+  });
+
   it('row 16: a task approved after review moves its dependents by the days it was late on the review day', async () => {
     const state = office();
     const leader = state.projects.prj_001.leaderId!;
