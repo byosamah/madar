@@ -1,4 +1,26 @@
 {
+  "gcal": {
+    "title": "Google Calendar",
+    "prototype": "Google Calendar works in the real Madar only.",
+    "notReady": "Google Calendar is not set up for this office yet.",
+    "intro": "Madar puts your meetings in your Google Calendar, and keeps them up to date.",
+    "onlyThree": "Google gets only the title, the time and the place of each meeting.",
+    "connect": "Connect Google Calendar",
+    "connected": "Connected. Your meetings go to the calendar “Madar” in Google.",
+    "notSynced": "Some meetings did not reach Google yet. Madar tries again by itself.",
+    "broken": "Google Calendar stopped. Connect it again.",
+    "connectAgain": "Connect again",
+    "done": "Connected. {{count}} meetings are on their way to Google.",
+    "done_one": "Connected. 1 meeting is on its way to Google.",
+    "done_other": "Connected. {{count}} meetings are on their way to Google.",
+    "disconnect": "Disconnect",
+    "disconnectTitle": "Disconnect Google Calendar?",
+    "disconnectBody": "New changes stop. Your Madar calendar stays in Google, and you can delete it there.",
+    "keep": "Keep it",
+    "disconnected": "Disconnected. Your Madar calendar stays in Google.",
+    "denied": "Google did not give Madar the calendar permission. Press Connect Google Calendar to try again.",
+    "failed": "The Google step did not finish. Press Connect Google Calendar again."
+  },
   "errors": {
     "reasons": {
       "google_not_ready": "Google Calendar is not set up for this office yet.",
