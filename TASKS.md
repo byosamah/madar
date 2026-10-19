@@ -695,7 +695,8 @@ separate checker. No production change before Friday 2026-10-23. Answers fbk_028
 - [x] Wave 2: track find D1 to D12 (`rb/chat-find`)
 - [x] Wave 2: track notify E1 to E10 (`rb/chat-notify`)
 - [x] Join: read, msg, find, notify into `rb/chat-campfire` (2026-10-19; one scroll fix for the saved copy of a sent message, the search reread capped at 3 after the security review, the count pins at 138 shared calls)
-- [ ] Wave 3: B15, B16, D13
-- [ ] Gate: typecheck, npm test, builds, test:db, test:it, test:mcp, test:lite, test:office, prototype smoke, screenshots
-- [ ] The test copy, then main
+- [x] Wave 3: B15, B16, D13 (one builder on `rb/chat-campfire`)
+- [x] Gate (2026-10-19, after the join with main and meetings): typecheck, npm test 7,281, builds, test:lite 1,840, test:office 37, test:db 1,840, test:it 305, test:mcp 242 and conformance 5 of 32, prototype smoke 87 of 87, 32 phone shots and the checks in Chrome. Record: proof.md, "Chat batch: the merge gate"
+- [ ] Main and the test copy (`all.sh test`), then the deploy suite on the test copy
 - [ ] Release: production from Friday 2026-10-23 by the owner; then `feedback.setStatus` done for fbk_028 and fbk_030 after the owner says live
+- [ ] Proposed for later (not approved): the task thread title at 390 px (the Open task button takes the width), the box placeholder on three lines at 390 px, and the items of "Not in this batch" in the design

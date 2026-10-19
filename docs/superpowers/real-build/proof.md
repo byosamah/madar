@@ -1809,3 +1809,25 @@ the read takes every comment of the 50 projects and tests `instr` on each row. `
   the newer messages. Before: a ceiling of 21,488 (the measured rows of 2026-10-18 plus 10%). The new ceiling is 24,837 (22,579 plus 10%).
   The Admin form (usr_001, 48,725) stays under its ceiling.
 - The other chat reads on the year office stay under their ceilings (`npm run test:office`: 36 of 37 passed before this change).
+
+### Chat batch: the merge gate (merge lead, 2026-10-19, branch rb/chat-campfire)
+The 52 tasks of the chat plan (`docs/superpowers/plans/2026-10-19-madar-chat-campfire-plan.md`), joined with main 5e1e5371 (meetings
+fbk_022). Each suite ran once; a suite ran again only for the files of a fix.
+- `npm run typecheck`: green. `npm test`: 689 files, 7,277 passed, 4 failed, 6 skipped. The 4: two backup tests pinned schema version 5
+  (now 6), the api bundle bound of 700,000 characters (711,111 now: about 23 KB of chat code; the bound is 760,000, it still proves the
+  minify), and one deploy-script test that timed out under load and passed alone. All 4 files pass after the fixes.
+- `npm run build`, `build:server`, `build:remote -- test`: green, with every bundle check.
+- `test:lite`: 126 files, 1,840 passed, 26 skipped. `test:office`: 37 of 37 after the waits pin (section above).
+- `test:db`: 1,839 passed, 1 failed, 26 skipped; the failed one (a 30 s timeout in `chatsUx.test.ts`) passed alone (20 of 20).
+- `test:it`: 303 passed, 2 failed, both in `push.it.test.ts` and both faults of the test (the task id of `tasks.create`, and the still
+  office clock that gave the unread message the stamp of the read mark). 11 of 11 after the fix.
+- `test:mcp`: 242 passed; conformance 5 of 32 scenarios pass, 27 expected failures.
+- Prototype smoke: 85 of 87, then 87 of 87. The 2 (`toastUndo.spec.ts`) found a real fault: a long press in the task panel opened no
+  sheet on a phone, because Vaul cannot open a bottom sheet inside the bottom sheet of the task. The task panel keeps the "..." button
+  for a finger (`BubbleActions.inSheet`). The spec now waits for the menu of its own comment, which shows after the save (instant send).
+- Screens: 32 phone shots (390 px; English and Arabic, light and dark; the Inbox, a direct chat with the New line, the long-press sheet,
+  Notify me, search, a task thread, the task panel) and checks in Chrome on a computer (New line, menu, ✅ that answers a wait, Reply,
+  edit with the Up key, a search hit that opens the chat at the message with its frame, Notify me). Fixes from them: the preview line
+  of the phone sheet keeps the direction of its own language; the grey mark of a search hit leaves the punctuation of a word outside.
+- Seen and not changed (on main before this batch): in a task thread at 390 px the "Open task" button cuts the title to a few letters,
+  and the empty box shows its placeholder on three lines.
