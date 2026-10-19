@@ -18,6 +18,21 @@ import { AttachFileIcon } from '../../components/icons/animated/attach-file';
 export type UploadTarget = { projectId: string | null; stageId?: string | null; taskId?: string | null; conversationId?: string };
 
 /**
+ * The files on the clipboard of a paste (fbk_032, owner 2026-10-23), or an empty list when the paste is a text paste. A screenshot,
+ * a picture copied from a page and a file copied in the Finder or the Explorer each give files. The Finder and the Explorer also put
+ * the name of the file on the clipboard as text: that text is no real text, so the file wins. Real text beside a picture (a range of
+ * cells of a sheet) pastes as text, so the paste never loses words.
+ */
+export function pastedFiles(data: Pick<DataTransfer, 'files' | 'getData'> | null): File[] {
+  const files = [...(data?.files ?? [])];
+  if (!data || files.length === 0) return [];
+  const words = data.getData('text/plain').trim();
+  if (words === '') return files;
+  const lines = words.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  return lines.every((line) => files.some((file) => file.name === line)) ? files : [];
+}
+
+/**
  * The files a person picked for a post, a comment or a message. The files upload when the person sends,
  * and a file that went up before a failed send is not sent a second time.
  */
@@ -30,7 +45,7 @@ export function useAttachments(max: number = MAX_ATTACHMENTS, initial: File[] = 
   const [files, setFiles] = useState<File[]>(initial);
   const uploaded = useRef(new Map<File, string>());
 
-  const add = (list: FileList | null) => {
+  const add = (list: Iterable<File> | null) => {
     const chosen = [...(list ?? [])];
     // The limit of the active store, checked when the person picks the file, so nothing starts that the store refuses.
     for (const file of chosen.filter((f) => f.size > limit)) toast.show({ tone: 'error', message: tooLargeText(file.name, limit, t, lang) });

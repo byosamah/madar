@@ -20,7 +20,7 @@ import { actorContext } from '../../lib/grammar';
 import { groupByDay } from '../../lib/group';
 import { withMentionMarkup } from '../../lib/text';
 import { reasonLineText, type ReasonKind } from '../comments/ReasonLine';
-import { AttachButton, PickedFiles, useAttachments, type UploadTarget } from '../files/Attachments';
+import { AttachButton, PickedFiles, pastedFiles, useAttachments, type UploadTarget } from '../files/Attachments';
 import { AttachmentList, photoOnlyBody } from '../files/PictureAttachments';
 import { DateMoveLines } from '../project/tasks/DateReason';
 
@@ -290,6 +290,14 @@ function ComposerBox({ id, people, pending, onSend, upload, owner }: ComposerPro
       onSubmit={(event) => {
         event.preventDefault();
         void submit();
+      }}
+      // A picture or a file on the clipboard goes into the same list as the attach button (fbk_032). A text paste stays as it was.
+      onPaste={(event) => {
+        if (!upload) return;
+        const pasted = pastedFiles(event.clipboardData);
+        if (pasted.length === 0) return;
+        event.preventDefault();
+        attachments.add(pasted);
       }}
     >
       {upload && <PickedFiles files={attachments.files} onRemove={attachments.remove} />}

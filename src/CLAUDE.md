@@ -307,6 +307,12 @@ any screen work.
 - Every chat takes files (owner, 2026-10-19). The box of a project chat uploads into the files of its project. The box of a direct chat
   and of a group uploads into the chat itself (`UploadTarget.conversationId`, `ConversationPane.tsx`), with the same attach button and
   the same limits. A chat file shows in no Files tab and no search.
+- A paste into the box takes a picture or a file from the clipboard (owner, 2026-10-23, fbk_032): `pastedFiles` (`features/files/Attachments.tsx`)
+  gives the files of a paste, and they go into the same `useAttachments` list as the attach button, with the same limits and the same
+  upload target. Text stays a text paste: a clipboard with real text beside a picture (a range of cells) gives no file. The Finder and the
+  Explorer put the file name on the clipboard as text; that text does not count, and the paste of a file stops, so the name is not typed too.
+  The Inbox box (`Composer` in `Thread.tsx`: project chat, direct chat, group and task thread) and the comment box of the task panel
+  (`CommentThread.tsx`) both do it.
 - A picture in a chat bubble or a task comment shows as a preview (owner, 2026-10-19). `AttachmentList` (`features/files/PictureAttachments.tsx`)
   replaces `FileChips` in `Thread.tsx` and `CommentThread.tsx`: a picture (`Attachment.mimeType` and `usePictureTest`) is a small rounded
   picture, at most 240 px wide, from the thumb link (`useFileLink(..., 'thumb')`); two or more sit in a grid; every other file stays a chip.

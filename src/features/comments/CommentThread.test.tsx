@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { act, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
 import { renderApp } from '../../test/render';
@@ -103,6 +103,21 @@ describe('comments', () => {
     const file = Object.values(store.state.files).find((f) => f.name === 'Stair detail.pdf');
     expect(file).toMatchObject({ projectId: 'prj_001', taskId: 'tsk_007' });
     expect(Object.values(store.state.comments).find((c) => c.body === 'Detail attached.')?.fileIds).toEqual([file?.id]);
+  });
+
+  it('takes a picture from the clipboard like the attach button, and leaves a text paste alone (fbk_032)', async () => {
+    const { store } = await renderApp(TASK('tsk_007'), as('usr_006'));
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    const box = within(sheet).getByRole('textbox', { name: 'Add a comment' });
+    const clip = (files: File[], text: string) => ({ files, types: files.length > 0 ? ['Files'] : ['text/plain'], getData: (type: string) => (type === 'text/plain' ? text : '') });
+    expect(fireEvent.paste(box, { clipboardData: clip([], 'Some words') })).toBe(true);
+    expect(within(sheet).queryByRole('list', { name: 'Files to send' })).toBeNull();
+    expect(fireEvent.paste(box, { clipboardData: clip([new File(['x'], 'Landing.png', { type: 'image/png' })], '') })).toBe(false);
+    expect(within(within(sheet).getByRole('list', { name: 'Files to send' })).getByText('Landing.png')).toBeInTheDocument();
+    await userEvent.type(box, 'The landing.');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Send' }));
+    await within(sheet).findByRole('button', { name: 'View Landing.png' });
+    expect(Object.values(store.state.files).find((f) => f.name === 'Landing.png')).toMatchObject({ projectId: 'prj_001', taskId: 'tsk_007' });
   });
 
   it('shows a deleted file in a comment as removed', async () => {

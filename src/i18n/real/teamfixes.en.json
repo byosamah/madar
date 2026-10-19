@@ -1,0 +1,10 @@
+{
+  "whatsNew": {
+    "items": {
+      "2026-10-23-26": {
+        "title": "Paste files in chats",
+        "body": "Now you can paste a picture or a file into a chat box. Copy it, click the box, and press Ctrl+V or Cmd+V. The file goes the same way as with the Attach files button."
+      }
+    }
+  }
+}

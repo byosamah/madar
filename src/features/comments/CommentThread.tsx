@@ -18,7 +18,7 @@ import { Menu } from '../../components/Menu';
 import { RichText } from '../../components/RichText';
 import { editedBody, plainText, withMentionMarkup } from '../../lib/text';
 import { LoadFailed } from '../../components/LoadFailed';
-import { AttachButton, PickedFiles, useAttachments } from '../files/Attachments';
+import { AttachButton, PickedFiles, pastedFiles, useAttachments } from '../files/Attachments';
 import { AttachmentList } from '../files/PictureAttachments';
 import { DateMoveLines } from '../project/tasks/DateReason';
 import { reasonLineText, type ReasonKind } from './ReasonLine';
@@ -209,6 +209,13 @@ function CommentThreadFor({
             event.preventDefault();
             const text = withMentionMarkup(body.trim(), people);
             if (text && !uploading) void send(text);
+          }}
+          // A picture or a file on the clipboard goes into the same list as the attach button (fbk_032). A text paste stays as it was.
+          onPaste={(event) => {
+            const pasted = pastedFiles(event.clipboardData);
+            if (pasted.length === 0) return;
+            event.preventDefault();
+            attachments.add(pasted);
           }}
         >
           <MentionField id={`comment-${targetId}`} label={t('comments.add')} value={body} onChange={setBody} people={people} placeholder={t('comments.placeholder')} rows={2} />
