@@ -3,25 +3,31 @@ import { Link } from 'react-router';
 import type { ProjectSummary } from '../../api/contract/views';
 import { usePersonName } from '../../app/personName';
 import { ProjectTile } from '../../components/ProjectTile';
+import { StatusSign } from '../../components/StatusSign';
 import { projectKey } from '../../lib/projectCode';
 
 /**
- * The card of one pin on the Dashboard map (owner, 2026-10-18, fbk_017). It shows the tile, the name, the code, the stage, the leader,
- * the health word and the way to the project. The stage and leader lines reuse the words of the meeting view.
+ * The card of one pin on the Dashboard map (owner, 2026-10-18, fbk_017). It shows the tile with its sub-company badge, the name,
+ * the code, the stage, the leader, the health sign and the way to the project. The stage and leader lines reuse the words of the
+ * meeting view. The health shows as the status shape with its word, and only for At risk and Late: On track shows nothing, as in
+ * every list of Madar (audit 2026-10-19, PRJ-14). "panel" is the card on the map; "plain" sits inside a sheet, which is a panel already.
  */
-export function MapPinCard({ summary }: { summary: ProjectSummary }) {
+export function MapPinCard({ summary, variant = 'panel' }: { summary: ProjectSummary; variant?: 'panel' | 'plain' }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const { project, currentStage, leader, health } = summary;
+  const sign = health && health.value !== 'on_track' ? health.value : null;
   return (
-    <section aria-label={project.name} className="panel flex flex-wrap items-center gap-4 p-5">
-      <ProjectTile id={project.id} mark={project.mark} size={34} subCompanyId={summary.subCompanyId} />
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <bdi dir="auto" className="break-words text-headline text-ink">{project.name}</bdi>
-        <span dir="ltr" className="tabular text-footnote text-ink-2">{projectKey(project.code)}</span>
-        <span dir="auto" className="text-footnote text-ink-2">{t('map.card.stage', { name: currentStage.name })}</span>
-        {leader && <span dir="auto" className="text-footnote text-ink-2">{t('dashboard.meeting.leader', { name: nameOf(leader) })}</span>}
-        {health && <span className="text-footnote font-semibold text-ink">{t(`health.${health.value}`)}</span>}
+    <section aria-label={project.name} className={`flex flex-col gap-4 ${variant === 'panel' ? 'panel w-72 max-w-[calc(100vw-3rem)] p-4 shadow-xl' : ''}`}>
+      <div className="flex items-start gap-3">
+        <ProjectTile id={project.id} mark={project.mark} size={34} subCompanyId={summary.subCompanyId} />
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <bdi dir="auto" className="break-words text-headline text-ink">{project.name}</bdi>
+          <span dir="ltr" className="tabular text-footnote text-ink-2 [text-align:start]">{projectKey(project.code)}</span>
+          <span dir="auto" className="text-footnote text-ink-2">{t('map.card.stage', { name: currentStage.name })}</span>
+          {leader && <span dir="auto" className="text-footnote text-ink-2">{t('dashboard.meeting.leader', { name: nameOf(leader) })}</span>}
+          {sign && <span className="pt-1"><StatusSign state={sign}>{t(`health.${sign}`)}</StatusSign></span>}
+        </div>
       </div>
       <Link
         to={`/projects/${project.id}`}

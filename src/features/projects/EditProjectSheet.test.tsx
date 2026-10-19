@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { textFieldsOf } from '../../test/browserMemory';
 import { renderApp } from '../../test/render';
@@ -43,5 +43,48 @@ describe('the sub-company in the edit form (fbk_007)', () => {
     await userEvent.selectOptions(field, 'Vado');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(store.state.projects.prj_001.subCompanyId).toBe('sub_001'));
+  });
+});
+
+describe('the pin in the edit form (audit 2026-10-19, PRJ-13, PRJ-21)', () => {
+  async function openEdit() {
+    const app = await renderApp('/projects/prj_001');
+    await userEvent.click(await screen.findByRole('button', { name: 'More actions' }, LOAD));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Edit project' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Edit project' });
+    return { ...app, sheet };
+  }
+
+  it('shows Set with a link to check the place, and no raw numbers', async () => {
+    const { sheet } = await openEdit();
+    expect(within(sheet).getByText('Pin on the map')).toBeInTheDocument();
+    expect(within(sheet).getByText('Set')).toBeInTheDocument();
+    expect(within(sheet).getByRole('link', { name: 'Open in Google Maps' })).toHaveAttribute('href', 'https://www.google.com/maps?q=26.2928,50.2172');
+    expect(within(sheet).queryByText(/26\.2928/)).toBeNull();
+    expect(within(sheet).queryByText('Not saved yet')).toBeNull();
+  });
+
+  it('keeps a new place in the form until Save changes, and says so', async () => {
+    const { sheet, store } = await openEdit();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Change' }));
+    const pinSheet = await screen.findByRole('dialog', { name: 'Pin on the map' });
+    fireEvent.change(within(pinSheet).getByLabelText(/^Paste a Google Maps link/), { target: { value: '26.3, 50.1' } });
+    await userEvent.click(within(pinSheet).getByRole('button', { name: 'Use this place' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Pin on the map' })).toBeNull());
+    expect(within(sheet).getByText('Not saved yet')).toBeInTheDocument();
+    expect(store.state.projects.prj_001.geo).toEqual({ lat: 26.2928, lng: 50.2172 });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(store.state.projects.prj_001.geo).toEqual({ lat: 26.3, lng: 50.1 }));
+  });
+
+  it('drops the draft when the person presses Cancel in the pin sheet', async () => {
+    const { sheet, store } = await openEdit();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Change' }));
+    const pinSheet = await screen.findByRole('dialog', { name: 'Pin on the map' });
+    fireEvent.change(within(pinSheet).getByLabelText(/^Paste a Google Maps link/), { target: { value: '26.3, 50.1' } });
+    await userEvent.click(within(pinSheet).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Pin on the map' })).toBeNull());
+    expect(within(sheet).queryByText('Not saved yet')).toBeNull();
+    expect(store.state.projects.prj_001.geo).toEqual({ lat: 26.2928, lng: 50.2172 });
   });
 });

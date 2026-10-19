@@ -1,13 +1,16 @@
 import { lazy, Suspense, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { GeoPoint } from '../../api/contract/entities';
 import type { ProjectSummary } from '../../api/contract/views';
-import { useAction, useCall } from '../../app/runtime';
+import { useUndoable } from '../../app/actions';
+import { usePersonName } from '../../app/personName';
+import { useCall } from '../../app/runtime';
+import { useIsPhone } from '../../app/useIsPhone';
 import { Button } from '../../components/Button';
 import { ProjectTile } from '../../components/ProjectTile';
 import { Sheet } from '../../components/Sheet';
 import { projectKey } from '../../lib/projectCode';
-import { PinPicker } from '../map/PinPicker';
+import { PinSheet } from '../map/PinSheet';
+import { ProjectPin } from '../map/ProjectPin';
 import { MapPinCard } from './MapPinCard';
 import type { DashboardFilters } from './Tiles';
 
@@ -15,29 +18,34 @@ import type { DashboardFilters } from './Tiles';
 const MapCanvas = import.meta.env.VITE_MADAR_API === 'remote' ? lazy(() => import('../map/MapCanvas')) : null;
 
 /**
- * The Map section of the Dashboard (owner, 2026-10-18, fbk_017). Each active project with a pin shows on the map. The list beside
- * the map (under it on a phone) reaches each pin by keyboard. The projects with no pin wait in a list, and a person who may edit
- * a project sets its pin in a sheet. The Leader, Client and Team filters apply, as to every number of the Dashboard.
+ * The Map section of the Dashboard (owner, 2026-10-18, fbk_017). Each active project with a pin shows on the map as its own
+ * picture tile; a late or at-risk project carries the status shape (PRJ-14). A press on a pin opens its card next to it on a computer,
+ * and in a short sheet on a phone, or when the map did not load. The list beside the map (under it on a phone) reaches each pin by
+ * keyboard. The projects with no pin wait in a list; a person who may edit a project sets its pin in a sheet, and a person who may
+ * not sees the leader to ask (PRJ-20). The Leader, Client and Team filters apply, as to every number of the Dashboard.
  */
 export function DashboardMap({ filters }: { filters: DashboardFilters }) {
   const { t } = useTranslation();
+  const nameOf = usePersonName();
+  const phone = useIsPhone();
   const headingId = useId();
   const [selected, setSelected] = useState<string | null>(null);
   const [unpinnedOpen, setUnpinnedOpen] = useState(false);
   const [editing, setEditing] = useState<ProjectSummary | null>(null);
-  const [draft, setDraft] = useState<GeoPoint | null>(null);
+  const [mapFailed, setMapFailed] = useState(false);
   const projects = useCall('projects.list', { status: 'active', sort: 'name', ...filters });
-  const save = useAction('projects.update', {
-    onSuccess: () => {
-      setEditing(null);
-      setDraft(null);
-    },
+  const save = useUndoable('projects.update', {
+    message: () => t('map.pinSheet.saved'),
+    onSuccess: () => setEditing(null),
   });
   const rows = projects.data ?? [];
   const pinned = rows.flatMap((row) => (row.geo ? [{ row, point: row.geo }] : []));
   const unpinned = rows.filter((row) => row.geo === null);
   const current = pinned.find((item) => item.row.project.id === selected);
   const pins = pinned.map(({ row, point }) => ({ id: row.project.id, point, label: row.project.name }));
+  const canEditSome = unpinned.some((row) => row.viewerCan.edit);
+  // The card sits in a sheet on a phone, and when the map cannot show it next to the pin.
+  const cardInSheet = phone || mapFailed;
 
   return (
     <div className="flex flex-col gap-4">
@@ -47,11 +55,38 @@ export function DashboardMap({ filters }: { filters: DashboardFilters }) {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
           <div className="flex min-w-0 flex-col gap-4">
             {MapCanvas && (
-              <Suspense fallback={<div className="h-80" />}>
-                <MapCanvas pins={pins} onPinClick={setSelected} fitTo="pins" />
+              <Suspense fallback={<div className="h-96" />}>
+                <MapCanvas
+                  pins={pins}
+                  fitTo="pins"
+                  onPinClick={setSelected}
+                  onFailedChange={setMapFailed}
+                  selectedId={selected}
+                  renderPin={(pin, isSelected) => {
+                    const item = pinned.find(({ row }) => row.project.id === pin.id);
+                    if (!item) return null;
+                    const { row } = item;
+                    const health = row.health?.value;
+                    return (
+                      <ProjectPin
+                        id={row.project.id}
+                        mark={row.project.mark}
+                        subCompanyId={row.subCompanyId}
+                        sign={health === 'late' || health === 'at_risk' ? health : null}
+                        selected={isSelected}
+                      />
+                    );
+                  }}
+                  renderPopup={cardInSheet ? undefined : (id) => {
+                    const item = pinned.find(({ row }) => row.project.id === id);
+                    return item ? <MapPinCard summary={item.row} /> : null;
+                  }}
+                  onPopupClose={() => setSelected(null)}
+                />
               </Suspense>
             )}
-            {current && <MapPinCard summary={current.row} />}
+            {/* Without the map, the card shows under the list: the person still reaches the project. */}
+            {current && !MapCanvas && <MapPinCard summary={current.row} />}
           </div>
           <div className="flex min-w-0 flex-col gap-1">
             <h2 id={headingId} className="pb-1 text-footnote font-semibold uppercase tracking-[0.06em] text-ink-2">{t('map.dashboard.pinned')}</h2>
@@ -67,10 +102,10 @@ export function DashboardMap({ filters }: { filters: DashboardFilters }) {
                       onClick={() => setSelected(row.project.id)}
                       className="pressable flex min-h-14 w-full items-center gap-3 py-2 text-start hover:bg-fill/50"
                     >
-                      <ProjectTile id={row.project.id} mark={row.project.mark} size={28} />
+                      <ProjectTile id={row.project.id} mark={row.project.mark} size={28} subCompanyId={row.subCompanyId} />
                       <span className="flex min-w-0 flex-1 flex-col">
                         <bdi dir="auto" className="break-words text-subheadline font-semibold text-ink">{row.project.name}</bdi>
-                        <span dir="ltr" className="tabular text-footnote text-ink-2">{projectKey(row.project.code)}</span>
+                        <span dir="ltr" className="tabular text-footnote text-ink-2 [text-align:start]">{projectKey(row.project.code)}</span>
                       </span>
                     </button>
                   </li>
@@ -86,55 +121,48 @@ export function DashboardMap({ filters }: { filters: DashboardFilters }) {
             {t('map.dashboard.noPin', { n: unpinned.length })}
           </Button>
           {unpinnedOpen && (
-            <ul className="hairline flex flex-col">
-              {unpinned.map((row) => (
-                <li key={row.project.id} className="flex min-h-14 items-center gap-3 py-2">
-                  <ProjectTile id={row.project.id} mark={row.project.mark} size={28} />
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <bdi dir="auto" className="break-words text-subheadline font-semibold text-ink">{row.project.name}</bdi>
-                    <span dir="ltr" className="tabular text-footnote text-ink-2">{projectKey(row.project.code)}</span>
-                  </span>
-                  {row.viewerCan.edit && (
-                    <Button
-                      aria-label={t('map.dashboard.setPinFor', { name: row.project.name })}
-                      onClick={() => {
-                        setDraft(null);
-                        setEditing(row);
-                      }}
-                    >
-                      {t('map.pin.set')}
-                    </Button>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <>
+              {!canEditSome && <p className="text-subheadline text-ink-2">{t('map.dashboard.askLeader')}</p>}
+              <ul className="hairline flex flex-col">
+                {unpinned.map((row) => (
+                  <li key={row.project.id} className="flex min-h-14 items-center gap-3 py-2">
+                    <ProjectTile id={row.project.id} mark={row.project.mark} size={28} subCompanyId={row.subCompanyId} />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <bdi dir="auto" className="break-words text-subheadline font-semibold text-ink">{row.project.name}</bdi>
+                      <span dir="ltr" className="tabular text-footnote text-ink-2 [text-align:start]">{projectKey(row.project.code)}</span>
+                      {!row.viewerCan.edit && row.leader && (
+                        <span dir="auto" className="text-footnote text-ink-2">{t('dashboard.meeting.leader', { name: nameOf(row.leader) })}</span>
+                      )}
+                    </span>
+                    {row.viewerCan.edit && (
+                      <Button aria-label={t('map.dashboard.setPinFor', { name: row.project.name })} onClick={() => setEditing(row)}>
+                        {t('map.pin.set')}
+                      </Button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </div>
       )}
-      <Sheet
+      <PinSheet
         open={editing !== null}
         onOpenChange={(open) => {
           if (!open) setEditing(null);
         }}
-        title={t('map.pinSheet.title')}
+        initial={null}
         description={editing?.project.name}
-        footer={(
-          <>
-            <Button onClick={() => setEditing(null)}>{t('common.cancel')}</Button>
-            <Button
-              variant="primary"
-              disabled={draft === null || save.isPending}
-              onClick={() => {
-                if (editing && draft) save.mutate({ id: editing.project.id, patch: { geo: draft } });
-              }}
-            >
-              {t('map.dashboard.save')}
-            </Button>
-          </>
-        )}
-      >
-        {editing && <PinPicker value={draft} onChange={setDraft} />}
-      </Sheet>
+        busy={save.isPending}
+        onUse={(point) => {
+          if (editing) save.mutate({ id: editing.project.id, patch: { geo: point } });
+        }}
+      />
+      {cardInSheet && MapCanvas && (
+        <Sheet open={current !== undefined} onOpenChange={(open) => !open && setSelected(null)} title={current?.row.project.name ?? ''}>
+          {current && <MapPinCard summary={current.row} variant="plain" />}
+        </Sheet>
+      )}
     </div>
   );
 }
