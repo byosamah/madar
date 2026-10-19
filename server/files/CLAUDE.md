@@ -53,6 +53,15 @@ server checks the final object, then saves the record.
   `files` in `PRIVATE_CHAT_KINDS`): no actor, no story, no person, no file and no chat in it, and no person signal. It cannot go into
   another chat, a task, a post or the Tracker (`file_chat`), and it is never deleted or shared. A second upload with the same name
   is a new file, not a new version.
+- A file of a meeting with no project (wave 2, owner 2026-10-19) sits under `meeting/<meeting>/<intent>/` (`meetingUploadKey`). Its intent has no
+  project, and the preflight takes it only for the meeting that the call names (`checkIntent`, `meetingId`). The file record names its meeting
+  (`FileRec.meetingId`, in the jsonb doc: no migration) and has no project, stage or task. A meeting is not an office list, so the rights read the row of
+  the meeting with one statement (`readMeeting`, `MEETING_DOC_SQL`). Who may start an upload (`assertMayUploadToMeeting`): a person who sees the meeting
+  and may write its minutes now (`minutesRefusal`: after the end, not cancelled), for a meeting with no project only. Who gets a link
+  (`assertMayViewMeetingFile`): the people who see the meeting, the Admin only when invited. A person who does not see it, an agent, and everyone when the
+  meeting is gone get not_found, as for a missing file. No search, `files.list`, project page or History line shows the file. The upload writes no event;
+  its save is a private change of the meeting (`officeMeetings` in `data/save.ts`): person signals to the people of the meeting only, with the kind
+  `files` and no name. It cannot go into another place (`file_meeting`), and it is never deleted or shared.
 - Inline only for pictures, PDF, plain text, video and audio (`INLINE_SAFE`). Every other type is stored as
   `application/octet-stream`.
 - Check `project.view`, and that the person is active, right before you sign any link (`rights.ts`). For a file of an

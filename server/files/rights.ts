@@ -1,7 +1,8 @@
-import type { Conversation, Task, User } from '../../src/api/contract/entities';
+import type { Conversation, Meeting, Task, User } from '../../src/api/contract/entities';
 import { canSeeConversation, chatForUpload } from '../../src/api/chatState';
-import { ApiError, forbidden, notFound } from '../../src/api/errors';
-import { can, projectRoleOf, taskResource } from '../../src/api/permissions';
+import { ApiError, forbidden, invalid, notFound } from '../../src/api/errors';
+import { minutesRefusal } from '../../src/api/handlers/meetings';
+import { can, mayViewMeeting, projectRoleOf, taskResource } from '../../src/api/permissions';
 import type { State } from '../../src/api/store';
 import type { Db } from '../core/ports';
 import type { OfficeSnapshot } from '../core/types';
@@ -92,6 +93,37 @@ export function assertMayUploadToChat(office: OfficeSnapshot, userId: string, co
   const authority = authorityOf(officeUsers(office), userId);
   const actor = office.lists.users[userId];
   return chatForUpload(office.lists as unknown as State, conversationId, authority, actor ?? authority);
+}
+
+/** The State that the meeting rules read: the office lists, and the one meeting (a meeting is not an office list). */
+const withMeeting = (office: OfficeSnapshot, meeting: Meeting): State => ({ ...(office.lists as unknown as State), meetings: { [meeting.id]: meeting } });
+
+/**
+ * The view right on a file of a meeting with no project, right before a link is signed (fbk_022, wave 2): the people who see that
+ * meeting, the Admin only when invited. A person who does not see it, an agent, and everyone when the meeting is gone get the answer
+ * of a missing file, with no file name. An agent never opens a meeting file, though it acts with its person's rights.
+ */
+export function assertMayViewMeetingFile(office: OfficeSnapshot, userId: string, meeting: Meeting | undefined, fileId: string): User {
+  const authority = authorityOf(officeUsers(office), userId);
+  const actor = office.lists.users[userId];
+  if (!meeting || actor?.kind === 'agent' || !mayViewMeeting(withMeeting(office, meeting), authority, meeting)) throw notFound('File', fileId);
+  return authority;
+}
+
+/**
+ * The meeting that a person may start an upload for: the meeting must exist and be seen by the person (else the answer of a missing
+ * meeting), it must have no project, and the person must be allowed to write its minutes now (minutesRefusal). The same rule as
+ * files.upload on the State (src/api/handlers/files.ts), checked before any link is signed.
+ */
+export function assertMayUploadToMeeting(office: OfficeSnapshot, userId: string, meeting: Meeting | undefined, meetingId: string, at: Date): Meeting {
+  const authority = authorityOf(officeUsers(office), userId);
+  if (!meeting) throw notFound('Meeting', meetingId);
+  const state = withMeeting(office, meeting);
+  if (!mayViewMeeting(state, authority, meeting)) throw notFound('Meeting', meetingId);
+  if (meeting.projectId !== null) throw invalid('meetingId', 'A meeting with a project uses the files of its project. Name the project.', 'file_meeting');
+  const refusal = minutesRefusal(state, meeting, authority, at);
+  if (refusal) throw refusal;
+  return meeting;
 }
 
 export function assertAdmin(authority: User): void {

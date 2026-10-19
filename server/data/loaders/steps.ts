@@ -58,6 +58,9 @@ export async function attachedFiles(L: Load, fileIds: readonly (string | null | 
   await L.byKey('files', fileIds);
   const office = fileIds.map((id) => L.get<FileRec>('files', id)).filter((file) => file?.projectId === null);
   await L.byKey('tasks', office.map((file) => file!.taskId));
+  // The view rule of a file of a meeting with no project reads that meeting (a meeting is not an office list), so a call that carries
+  // such a file brings the meeting too, and answers file_meeting or file_missing as the whole office does (wave 2).
+  await L.byKey('meetings', office.map((file) => file!.meetingId));
 }
 
 /** The files that these records name by id: attachments of posts, comments, messages and Tracker entries. */

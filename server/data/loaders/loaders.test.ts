@@ -15,7 +15,7 @@ import { INBOX_TASK_FIELDS } from './inbox';
 import { LOADER_OF } from './index';
 import { loadJobs } from './jobs';
 import { memorySource } from './memorySource';
-import { AGENT_MADE_TASK, badgeTraps, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, trapOffice, writeSweep } from './sweep';
+import { AGENT_MADE_TASK, badgeTraps, ENDED_MEETING_TITLE, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, trapOffice, writeSweep } from './sweep';
 
 /**
  * Task C2: each loader gives the handler the same answer as the whole office (plan 4.6, "Safety net"). runBoth runs the call on
@@ -698,7 +698,9 @@ describe('meetings (fbk_022, owner 2026-10-19)', () => {
     const traps = trapOffice(seed);
     const [privateOne, privateTwo] = Object.values(traps.meetings!);
     const events = Object.values(traps.events).filter((e) => e.officeMeetingId !== undefined);
-    expect(events.map((e) => e.officeMeetingId).sort()).toEqual([privateOne.id, privateTwo.id]);
+    // The third private meeting is the ended one of the meeting file trap (wave 2): usr_004 and usr_006, no one else.
+    const ended = Object.values(traps.meetings!).find((m) => m.title === ENDED_MEETING_TITLE)!;
+    expect([...new Set(events.map((e) => e.officeMeetingId))].sort()).toEqual([privateOne.id, privateTwo.id, ended.id].sort());
     const ids = async (actor: string) => ((await same(traps, 'events.list', { limit: 500 }, actor)).outcome.output as { event: { id: string } }[]).map((row) => row.event.id);
     const mine = events.find((e) => e.officeMeetingId === privateOne.id)!.id;
     expect(await ids(privateOne.organizerId)).toContain(mine);

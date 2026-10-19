@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ConversationId, FileId, FileVersion, MAX_FILE_BYTES, ProjectId, StageId, TaskId, type FileRec, type FileVersion as Version, type Task } from '../contract/entities';
+import { ConversationId, FileId, FileVersion, MAX_FILE_BYTES, MeetingId, ProjectId, StageId, TaskId, type FileRec, type FileVersion as Version, type Task } from '../contract/entities';
 import { FileView, TrackerRow } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { nextId } from '../store';
 import { chatForUpload } from '../chatState';
+import { minutesRefusal, requireMeeting } from './meetings';
 import { fileViewOf, mayDeleteFile, mayOpenFile, mayViewFile, trackerRowOf } from '../views';
 import { assertCan, requireProject, requireStage, requireTask, roleIn, taskRole, touch } from './shared';
 import { addTrackerEntry } from './tracker';
@@ -45,7 +46,8 @@ export const filesList = defineCall({
     if (projectId === null) officeTaskOfCall(ctx, input.taskId);
     else requireProject(ctx, projectId);
     return Object.values(ctx.state.files)
-      .filter((f) => f.projectId === projectId && (!input.stageId || f.stageId === input.stageId) && (!input.taskId || f.taskId === input.taskId))
+      .filter((f) => f.meetingId === undefined && f.conversationId === undefined && f.projectId === projectId
+        && (!input.stageId || f.stageId === input.stageId) && (!input.taskId || f.taskId === input.taskId))
       .map((f) => fileViewOf(ctx.state, f, ctx.authority))
       .sort((a, b) => b.latest.uploadedAt.localeCompare(a.latest.uploadedAt));
   },
@@ -78,6 +80,8 @@ const UploadFields = z.object({
   projectId: ProjectId.optional(),
   /** A direct chat or a group. The file stays in that chat: no project, no stage, no task, no cover. */
   conversationId: ConversationId.optional(),
+  /** A meeting with no project (fbk_022, wave 2). The file stays with that meeting: no project, no stage, no task, no cover. */
+  meetingId: MeetingId.optional(),
   name: z.string().trim().min(1).max(200),
   stageId: StageId.nullable().default(null),
   taskId: TaskId.nullable().default(null),
@@ -142,6 +146,31 @@ function uploadChatFile(ctx: Ctx, input: { name: string; stageId: string | null;
 }
 
 /**
+ * A file of a meeting with no project (fbk_022, wave 2, owner 2026-10-19): a person who may write the minutes adds it, after the end
+ * (minutesRefusal). It has no stage, no cover and no Tracker entry, and it writes no History event: it shows only in the minutes of its
+ * meeting, which write the event (meetings.saveMinutes). A second file with the same name is a new file, not a new version.
+ */
+function uploadMeetingFile(ctx: Ctx, input: { name: string; stageId: string | null; taskId: string | null; asCover: boolean; receivedFromClient: boolean; meetingId?: string }, prepared: UploadPrepared): FileView {
+  const meeting = requireMeeting(ctx, input.meetingId ?? '');
+  // A project meeting, also a team meeting, uses the files of its project.
+  if (meeting.projectId !== null) throw invalid('meetingId', 'A meeting with a project uses the files of its project. Name the project.', 'file_meeting');
+  const refusal = minutesRefusal(ctx.state, meeting, ctx.authority, ctx.now);
+  if (refusal) throw refusal;
+  const misuse = input.stageId ? 'stageId' : input.taskId ? 'taskId' : input.asCover ? 'asCover' : input.receivedFromClient ? 'receivedFromClient' : null;
+  if (misuse) throw invalid(misuse, 'A file of a meeting belongs to no stage, no task and no cover. It stays with its meeting.', 'file_meeting');
+  const id = nextId(ctx.state, 'fil');
+  const file: FileRec = {
+    id, projectId: null, stageId: null, taskId: null, meetingId: meeting.id, name: input.name,
+    versions: [{
+      letter: 'A', blobKey: prepared.blobKey, mimeType: prepared.mimeType, size: prepared.size,
+      uploadedBy: ctx.actor.id, uploadedAt: ctx.stamp, ...(prepared.thumbKey ? { thumbKey: prepared.thumbKey } : {}),
+    }],
+  };
+  ctx.state.files[id] = file;
+  return fileViewOf(ctx.state, file, ctx.authority);
+}
+
+/**
  * What run() needs from the stored data. The prototype makes it from the blob in "prepare"; the real build makes it from the upload intent
  * in its server prepare hook (plan 5.2).
  */
@@ -165,6 +194,10 @@ export const filesUpload = defineCall({
     return { blobKey, size: input.blob.size, mimeType: input.blob.type || 'application/octet-stream' };
   },
   run(input, ctx, prepared) {
+    if (input.meetingId !== undefined) {
+      if (input.projectId !== undefined || input.conversationId !== undefined) throw invalid('meetingId', 'Name the project, the chat or the meeting of the file, only one.', 'file_meeting');
+      return uploadMeetingFile(ctx, input, prepared);
+    }
     if (input.conversationId !== undefined) {
       if (input.projectId !== undefined) throw invalid('conversationId', 'Name the project, or the chat of the file, not both.', 'file_chat');
       return uploadChatFile(ctx, input, prepared);
@@ -203,6 +236,7 @@ export const filesMarkDelivered = defineCall({
     const file = ctx.state.files[input.id];
     if (!file || !mayViewFile(ctx.state, ctx.authority, file)) throw notFound('File', input.id);
     if (file.conversationId !== undefined) throw invalid('id', 'A file of a chat stays in its chat.', 'file_chat');
+    if (file.meetingId !== undefined) throw invalid('id', 'A file of a meeting stays with its meeting.', 'file_meeting');
     // An office task has no client, so its files are never delivered (owner, 2026-10-06).
     if (file.projectId === null) throw invalid('id', 'A file of an office task stays on its task.', 'file_office_task');
     assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, file.projectId) });
@@ -221,6 +255,7 @@ export const filesDelete = defineCall({
     const file = ctx.state.files[input.id];
     if (!file || !mayViewFile(ctx.state, ctx.authority, file)) throw notFound('File', input.id);
     if (file.conversationId !== undefined) throw invalid('id', 'A file of a chat stays in its chat.', 'file_chat');
+    if (file.meetingId !== undefined) throw invalid('id', 'A file of a meeting stays with its meeting.', 'file_meeting');
     if (!mayDeleteFile(ctx.state, ctx.authority, file)) throw forbidden('Only the uploader or the project leader can delete this file.');
     const project = file.projectId === null ? undefined : ctx.state.projects[file.projectId];
     if (project?.coverFileId === file.id) {

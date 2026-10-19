@@ -348,8 +348,9 @@ export const searchQuery = defineCall({
         .slice(0, 5)
         .map((sub) => ({ id: sub.id, name: sub.name, nameAr: sub.nameAr, projects: Object.values(state.projects).filter((p) => p.subCompanyId === sub.id).length })),
       // A file of a direct chat or a group is found by no search, even by its members: it shows only in its messages (owner, 2026-10-19).
+      // The same for a file of a meeting: it shows only in the minutes of its meeting (wave 2).
       files: Object.values(state.files)
-        .filter((f) => f.conversationId === undefined && (f.projectId !== null || mayViewFile(state, ctx.authority, f)) && hit(f.name))
+        .filter((f) => f.conversationId === undefined && f.meetingId === undefined && (f.projectId !== null || mayViewFile(state, ctx.authority, f)) && hit(f.name))
         .slice(0, 5)
         .map((f) => ({ id: f.id, name: f.name, projectId: f.projectId, projectCode: codeOf(f.projectId), taskId: f.taskId })),
     };

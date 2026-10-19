@@ -7,6 +7,7 @@ import { principalOf } from '../permissions';
 import { chatForUpload } from '../chatState';
 import { mayOpenFile } from '../views';
 import { officeTaskOfCall } from './files';
+import { minutesRefusal, requireMeeting } from './meetings';
 import { nowStamp } from '../../lib/dates';
 import { assertCan, requireProject, requireStage, roleIn, taskRole } from './shared';
 
@@ -57,7 +58,15 @@ const storyStart = defineCall({
 const filesUploadStart = defineCall({
   ...c['files.uploadStart'],
   run(input, ctx) {
-    if (input.conversationId !== undefined) {
+    if (input.meetingId !== undefined) {
+      // A file of a meeting with no project: a person who may write its minutes adds it, after the end (wave 2).
+      if (input.projectId !== undefined || input.conversationId !== undefined) throw invalid('meetingId', 'Name the project, the chat or the meeting of the file, only one.', 'file_meeting');
+      const meeting = requireMeeting(ctx, input.meetingId);
+      if (meeting.projectId !== null) throw invalid('meetingId', 'A meeting with a project uses the files of its project. Name the project.', 'file_meeting');
+      const refusal = minutesRefusal(ctx.state, meeting, ctx.authority, ctx.now);
+      if (refusal) throw refusal;
+      if (input.stageId || input.taskId) throw invalid(input.stageId ? 'stageId' : 'taskId', 'A file of a meeting belongs to no stage and no task. It stays with its meeting.', 'file_meeting');
+    } else if (input.conversationId !== undefined) {
       // A file of a direct chat or a group: a member who may send in that chat adds it (owner, 2026-10-19).
       if (input.projectId !== undefined) throw invalid('conversationId', 'Name the project, or the chat of the file, not both.', 'file_chat');
       chatForUpload(ctx.state, input.conversationId, ctx.authority, ctx.actor);

@@ -383,6 +383,19 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   The mark has no Undo: `events.undo` answers `conflict`, reason `settle_final` (`meeting.settled` is in `NOT_UNDOABLE`, and `undoOne` raises the
   reason first), because the next job run would settle the meeting again. The Undo of `tracker.logged` deletes the line, as for any line; the
   meeting then keeps `trackerEntryId`, which `REFERENCE_FIELDS` leaves out on purpose, so the delete is not refused. MCP: deny list.
+- Files of a meeting with no project (wave 2, owner 2026-10-19; the pattern of the chat files): `files.upload` and `files.uploadStart` take `meetingId`
+  in place of a project, an office task or a chat. `FileRec.meetingId` (optional) names the meeting; `projectId`, `stageId` and `taskId` are null. Only a
+  meeting with no project takes one: a project meeting, also a team meeting, uses the files of its project, and an upload with its id fails with
+  `invalid_input`, reason `file_meeting` (so does a `meetingId` next to a project, a chat, a stage, a task, a cover or a client mark). Who uploads:
+  `minutesRefusal(state, meeting, viewer, at)` (`handlers/meetings.ts`) must be null. In this order: `not_found` Meeting (the viewer does not see it; the
+  text of an unknown id), `conflict` `meeting_cancelled`, `conflict` `minutes_not_yet` (before `endsAt`), `forbidden` (no `meeting.minutes`: the
+  organizer and the attendees; for a project meeting the leader and the Admin too), and `conflict` `minutes_line_gone` (a Tracker line meeting whose
+  settled line is gone). `mayViewFile` is `mayViewMeeting` of the meeting: the people who see it, the Admin only when invited, and nobody once the
+  meeting is gone. `mayOpenFile` keeps an agent from opening one (`files.get`, the `files.link` fake). The upload writes no event (`uploadMeetingFile`).
+  `assertFilesForMeeting` (`attach.ts`) takes only a file of the meeting itself, and reads any other file as `file_missing`. Every other carrier (a task
+  comment, a project chat or a direct chat, the Tracker, `files.share`) refuses a meeting file with reason `file_meeting` (a post gives its plain
+  refusal for any file that is not a file of its project). `files.delete` and `files.markDelivered` refuse it too, and `mayDeleteFile` is false.
+  `search.query` finds no meeting file, and `files.list` never lists one. The leak tests: `handlers/meetingFiles.test.ts`, `server/calls/meetingFiles.test.ts`.
 - The person for the minutes is gone (owner, 2026-10-19). `Meeting.minutesById` is optional and nothing writes or reads it. The inputs of
   `meetings.create` and `meetings.update` lost `minutesById`: zod strips the key, so an old tab or an old agent still works. `MeetingDetail.minutesBy`
   and `minutesTask` stay in the shape, always null. A stored row with `minutesById` still parses. No migration and no backfill.

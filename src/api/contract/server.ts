@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ConversationId, FileId, ProjectId, StageId, TaskId, UserId } from './entities';
+import { ConversationId, FileId, MeetingId, ProjectId, StageId, TaskId, UserId } from './entities';
 import { MAX_SHOT_BYTES, PASSWORD_SET_MARK } from './limits';
 
 // The plain limits live in limits.ts, with no zod, for the screens of the first load (performance audit BND-6).
@@ -66,6 +66,8 @@ const filesUploadStart = {
     projectId: ProjectId.optional(),
     /** A direct chat or a group. The file stays in that chat: no project, no stage, no task. */
     conversationId: ConversationId.optional(),
+    /** A meeting with no project (fbk_022, wave 2). The file stays with that meeting: no project, no stage, no task. */
+    meetingId: MeetingId.optional(),
     name: z.string().trim().min(1).max(200),
     /** The size is checked against the limit of the active file store, with the reason file_too_large and the limit in details. */
     size: z.number().int().min(0),

@@ -1,7 +1,11 @@
 {
   "errors": {
     "reasons": {
-      "settle_final": "Madar marked this meeting as over. This mark has no Undo."
+      "settle_final": "Madar marked this meeting as over. This mark has no Undo.",
+      "minutes_not_yet": "You can write the minutes after the meeting ends.",
+      "minutes_changed": "Someone saved the minutes after you opened them. Copy your text, then open them again.",
+      "minutes_line_gone": "Someone deleted the Tracker line of this meeting. Undo the delete in the History first.",
+      "file_meeting": "A file of this meeting stays with this meeting."
     }
   },
   "tracker": {

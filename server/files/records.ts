@@ -1,4 +1,4 @@
-import type { Feedback, FileRec, Task, User } from '../../src/api/contract/entities';
+import type { Feedback, FileRec, Meeting, Task, User } from '../../src/api/contract/entities';
 import type { Db } from '../core/ports';
 import { sqlFor } from '../data/dialect';
 
@@ -12,6 +12,7 @@ export const FILE_DOC_SQL = 'select doc from files where id = $1';
 export const TASK_PROJECT_SQL = 'select project_id from tasks where id = $1';
 export const TASK_DOC_SQL = 'select doc from tasks where id = $1';
 export const FEEDBACK_DOC_SQL = 'select doc from feedback where id = $1';
+export const MEETING_DOC_SQL = 'select doc from meetings where id = $1';
 
 // The SQLite forms (Supabase exit, wave 1). The users table is an office table of fewer than 100 rows: json_each is cheap here,
 // and wave 3 reads the users from the office snapshot.
@@ -20,6 +21,7 @@ export const FILE_DOC_LITE = 'select doc from files where id = ?1';
 export const TASK_PROJECT_LITE = 'select project_id from tasks where id = ?1';
 export const TASK_DOC_LITE = 'select doc from tasks where id = ?1';
 export const FEEDBACK_DOC_LITE = 'select doc from feedback where id = ?1';
+export const MEETING_DOC_LITE = 'select doc from meetings where id = ?1';
 
 export async function readUsers(db: Db, ids: string[]): Promise<Map<string, User>> {
   const rows = await db.statement<{ doc: User }>('read', sqlFor(db, USERS_SQL, USERS_LITE), [ids]);
@@ -40,6 +42,12 @@ export async function projectOfTask(db: Db, id: string): Promise<string | undefi
 /** A task by id, for the rights on the files of an office task (owner, 2026-10-06). */
 export async function readTask(db: Db, id: string): Promise<Task | undefined> {
   const [row] = await db.statement<{ doc: Task }>('read', sqlFor(db, TASK_DOC_SQL, TASK_DOC_LITE), [id]);
+  return row?.doc;
+}
+
+/** A meeting by id, for the rights on the files of a meeting with no project (fbk_022, wave 2). */
+export async function readMeeting(db: Db, id: string): Promise<Meeting | undefined> {
+  const [row] = await db.statement<{ doc: Meeting }>('read', sqlFor(db, MEETING_DOC_SQL, MEETING_DOC_LITE), [id]);
   return row?.doc;
 }
 

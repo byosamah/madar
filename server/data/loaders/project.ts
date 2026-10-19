@@ -63,6 +63,8 @@ export async function filesList(L: Load, input: Input): Promise<void> {
  * a direct chat or a group (owner, 2026-10-19) reads nothing: the chat is in the office, and a second file with the same name is a new file.
  */
 export async function filesUpload(L: Load, input: Input): Promise<void> {
+  // A file of a meeting with no project (wave 2) reads the meeting by id (a meeting is not an office list), and no other file.
+  if (str(input.meetingId)) return L.byKey('meetings', [str(input.meetingId)]);
   if (str(input.conversationId)) return;
   if (!str(input.projectId)) return officeFiles(L, str(input.taskId));
   const projectId = str(input.projectId) ?? '';
@@ -75,6 +77,8 @@ export async function filesUpload(L: Load, input: Input): Promise<void> {
 export async function fileCall(L: Load, input: Input): Promise<void> {
   const file = await fileById(L, str(input.id) ?? '');
   if (file?.projectId === null) await L.byKey('tasks', [file.taskId]);
+  // The view rule of a file of a meeting reads the meeting (wave 2).
+  if (file?.meetingId !== undefined) await L.byKey('meetings', [file.meetingId]);
 }
 
 /** payments.list and payments.create: the payments of P. */

@@ -8,6 +8,7 @@
  *   feedback/<intent>/file        a feedback screenshot
  *   office/<task>/<intent>/file   a confirmed upload of an office task (owner, 2026-10-06), with office/<task>/<intent>/thumb
  *   chat/<chat>/<intent>/file     a confirmed upload of a direct chat or a group (owner, 2026-10-19), with chat/<chat>/<intent>/thumb
+ *   meeting/<meeting>/<intent>/file  a confirmed upload of a meeting with no project (wave 2), with meeting/<meeting>/<intent>/thumb
  *
  * The server names a confirmed upload by its intent (task F2): the preflight copies the object before the lock, and the file id
  * and the version letter come later, from run() inside the lock. An intent id is unique, so the key is too.
@@ -94,6 +95,23 @@ export function chatUploadKey(conversationId: string, intentId: string): string 
 
 export function chatUploadThumbKey(conversationId: string, intentId: string): string {
   return `${chatUploadPrefix(conversationId)}${part(intentId)}/thumb`;
+}
+
+/**
+ * The folder of the uploads of one meeting with no project (fbk_022, wave 2). Such a file belongs to no project, no task and no chat, so
+ * its files sit under "meeting", which is never the key part of a project id (prj-...), "office" or "chat". The meeting part keeps the
+ * files of two meetings apart.
+ */
+export function meetingUploadPrefix(meetingId: string): string {
+  return `meeting/${part(meetingId)}/`;
+}
+
+export function meetingUploadKey(meetingId: string, intentId: string): string {
+  return `${meetingUploadPrefix(meetingId)}${part(intentId)}/file`;
+}
+
+export function meetingUploadThumbKey(meetingId: string, intentId: string): string {
+  return `${meetingUploadPrefix(meetingId)}${part(intentId)}/thumb`;
 }
 
 export function screenshotKey(intentId: string): string {

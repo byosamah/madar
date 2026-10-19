@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import { Day, MEETING_LIMITS, Meeting, MeetingId, MeetingKind, ProjectId, Stamp, TrackerId, UserId } from '../contract/entities';
 import { MeetingDetail, MeetingRow } from '../contract/views';
-import { ApiError, invalid, notFound } from '../errors';
+import { ApiError, forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate } from '../events';
 import { can, mayViewMeeting, meetingResource, type Actor } from '../permissions';
 import { notifyIn } from '../notify';
@@ -46,6 +46,23 @@ export function requireMeeting(ctx: Ctx, id: string): Meeting {
 }
 
 const conflict = (message: string, reason: string) => new ApiError('conflict', message, { reason });
+
+/**
+ * What stops a person from writing the minutes of a meeting now, or null when nothing does (fbk_022, wave 2). The same rule serves
+ * the upload of a meeting file and the save of the minutes. In this order: a meeting that the person does not see reads as missing;
+ * a cancelled meeting has none; none before the end; the person must be one who writes them (meeting.minutes); and a project meeting
+ * whose Tracker line is gone waits until someone brings the line back, because its minutes live on that line.
+ */
+export function minutesRefusal(state: State, meeting: Meeting, viewer: Actor, at: Date): ApiError | null {
+  if (!mayViewMeeting(state, viewer, meeting)) return notFound('Meeting', meeting.id);
+  if (meeting.status === 'cancelled') return conflict('This meeting is cancelled. It has no minutes.', 'meeting_cancelled');
+  if (phaseOf(meeting, at) !== 'done') return conflict('You can write the minutes after the meeting ends.', 'minutes_not_yet');
+  if (!can(viewer, 'meeting.minutes', meetingResource(state, meeting, viewer.id))) return forbidden('You cannot do this.', { action: 'meeting.minutes' });
+  if (hasTrackerLine(meeting) && meeting.settledAt && !(meeting.trackerEntryId && state.tracker?.[meeting.trackerEntryId])) {
+    return conflict('Someone deleted the Tracker line of this meeting. Undo the delete in the History first.', 'minutes_line_gone');
+  }
+  return null;
+}
 
 /** True when the person is the organizer or an attendee. An agent counts as the person it acts for. */
 const takesPart = (meeting: Pick<Meeting, 'organizerId' | 'attendeeIds'>, personId: string): boolean =>

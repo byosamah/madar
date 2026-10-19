@@ -351,6 +351,34 @@ function uploadSuites(v: Variant): void {
     });
   });
 
+  describe(`the files of a meeting with no project on ${v.title} (wave 2, owner 2026-10-19)`, () => {
+    it('a file goes up under meeting/<meeting> after the end, and only the two people of the meeting get a link or an upload', async () => {
+      const [organizer, attendee, outsider] = Object.values(office.seed.users)
+        .filter((u) => u.kind === 'human' && u.active && u.systemRole === 'member' && u.id !== PERSON_OFF).map((u) => u.id);
+      // The clock of the suite is 2026-10-04 09:00 in Riyadh, so this meeting ended two days ago.
+      const meeting = okOf<{ id: string }>(await call(organizer, 'meetings.create', { kind: 'meeting', title: 'Salary talk', startsAt: '2026-10-02T09:00:00+03:00', attendeeIds: [attendee] }));
+      const begin = okOf<Start>(await call(attendee, 'files.uploadStart', { name: 'minutes.pdf', size: 14, mimeType: 'application/pdf', meetingId: meeting.id }));
+      expect((await put(begin.put.url, begin.put.headers, '%PDF-1.4 minut')).status).toBe(200);
+      const intent = await intentOf(begin.uploadId);
+      expect(intent.key).toBe(`meeting/${meeting.id.replace('_', '-')}/${begin.uploadId.replace('_', '-')}/file`);
+      const file = okOf<FileView>(await call(attendee, 'files.upload', { name: 'minutes.pdf', meetingId: meeting.id, uploadId: begin.uploadId }));
+      expect(file.file).toMatchObject({ projectId: null, taskId: null, stageId: null, meetingId: meeting.id });
+      expect(await store.head(intent.key)).toEqual({ size: 14, mimeType: 'application/pdf' });
+
+      signed.length = 0;
+      for (const userId of [outsider, ADMIN]) {
+        const link = await call(userId, 'files.link', { id: file.file.id, variant: 'full', disposition: 'inline' });
+        expect(link.ok ? 'signed' : link.error.code, userId).toBe('not_found');
+        const other = await call(userId, 'files.uploadStart', { name: 'x.pdf', size: 1, mimeType: 'application/pdf', meetingId: meeting.id });
+        expect(other.ok ? 'signed' : other.error.code, userId).toBe('not_found');
+      }
+      expect(signed).toEqual([]);
+      expect(okOf<{ name: string }>(await call(organizer, 'files.link', { id: file.file.id, variant: 'full', disposition: 'attachment' })).name).toBe('minutes.pdf');
+      const found = okOf<{ files: { id: string }[] }>(await call(attendee, 'search.query', { text: 'minutes' }));
+      expect(found.files.map((hit) => hit.id)).not.toContain(file.file.id);
+    });
+  });
+
   describe(`no link for a person who may not see the file, on ${v.title} (plan 2b, point 7)`, () => {
     let fileId = '';
 

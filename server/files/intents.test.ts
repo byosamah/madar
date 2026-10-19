@@ -97,6 +97,25 @@ describe('an upload intent', () => {
     expect(codeOf(() => checkIntent({ ...chat, usedAt: NOW }, call))).toBe('conflict');
   });
 
+  it('passes a meeting intent only for the meeting that the call names, with no project (wave 2)', () => {
+    const meeting = intent({ projectId: null, key: 'meeting/mtg-001/upl-aaaaaaaaaaaaaaaaaaaaaa/file' });
+    const call = { id: 'upl_aaaaaaaaaaaaaaaaaaaaaa', actorId: 'usr_002', now: NOW, field: 'uploadId', projectId: null as string | null, meetingId: 'mtg_001' };
+    expect(codeOf(() => checkIntent(meeting, call))).toBe('ok');
+    expect(codeOf(() => checkIntent(meeting, { ...call, meetingId: 'mtg_002' }))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent(meeting, { ...call, meetingId: 'mtg_0010' }))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent(meeting, { ...call, meetingId: undefined }))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent(meeting, { ...call, meetingId: undefined, conversationId: 'cnv_001' }))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent(meeting, { ...call, meetingId: undefined, officeTaskId: 'tsk_001' }))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent(meeting, { ...call, projectId: 'prj_001' }))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent(meeting, { ...call, conversationId: 'cnv_001' }))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent(intent({ projectId: 'prj_001' }), call))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent(intent({ projectId: null, key: 'chat/cnv-001/upl-a/file' }), call))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent(intent({ projectId: null, key: 'office/tsk-001/upl-a/file' }), call))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent(intent({ projectId: null, key: 'feedback/upl-a/file' }), call))).toBe('invalid_input');
+    expect(codeOf(() => checkIntent({ ...meeting, usedAt: NOW }, { ...call, allowUsed: true }))).toBe('ok');
+    expect(codeOf(() => checkIntent({ ...meeting, usedAt: NOW }, call))).toBe('conflict');
+  });
+
   it('is marked used once, inside the lock: a second use, an expired intent or another actor gives conflict', async () => {
     const db = fakeFilesDb();
     await insertIntents(db, [intent(), intent({ id: 'upl_old', expiresAt: NOW }), intent({ id: 'upl_other', actorId: 'usr_005' })]);

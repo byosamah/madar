@@ -320,6 +320,11 @@ export function diffState(before: State, after: State): Diff {
             } else if (spec.collection === 'files' && side.projectId === null && typeof side.taskId === 'string') {
               priv(spec.collection);
               officeTasks.add(side.taskId);
+            } else if (spec.collection === 'files' && side.projectId === null && typeof side.meetingId === 'string') {
+              // A file of a meeting with no project (wave 2) belongs to that private meeting: only its people hear the change, as for the
+              // meeting itself, the Admin too only when invited. No project and no office signal.
+              priv(spec.collection);
+              officeMeetings.add(side.meetingId);
             } else if (spec.collection === 'files' && side.projectId === null && typeof side.conversationId === 'string') {
               // A file of a direct chat or a group (owner, 2026-10-19) is private like a message (PRIVATE_CHAT_KINDS): it belongs to no
               // project and no task, so the save touches the office, and its office signal names no actor and no story. The signal

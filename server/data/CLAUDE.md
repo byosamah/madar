@@ -26,6 +26,10 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - A file of a direct chat or a group (owner, 2026-10-19) keeps `conversationId` in its `files` doc: no column and no migration, because
   no read selects by it. Its row has `project_id` and `task_id` null, so the search loader and `files.list` never load it. `diffState`
   counts `files` as a kind of `PRIVATE_CHAT_KINDS`: its save sends the anonymous office signal of a private chat (`save.ts`).
+- A file of a meeting with no project (wave 2) keeps `meetingId` in its `files` doc: no column and no migration. Its row has `project_id` and `task_id`
+  null, so the search loader and `files.list` never load it. `diffState` counts `files` with a `meetingId` as a private change of that meeting
+  (`officeMeetings`). `files.upload` with a `meetingId` loads the meeting by id; `attachedFiles` and the loaders of `files.delete`, `files.markDelivered`
+  and `files.share` load the meeting of a meeting file, because the view rule reads it.
 - `meetings` (`20261020000100_meetings.sql`, fbk_022): not an office list. Generated columns `project_id`, `organizer_id`, `starts_at`, `ends_at`,
   `status`, `settled_at`; text indexes on `starts_at collate "C"` and `(project_id, starts_at)`, and a GIN index on `doc->'attendeeIds'`.
   `loaders/meetings.ts`: `meetings.list` reads one window (`atOrAfter` and `atBefore` on `starts_at`), `meetingConds` is the view rule in SQL

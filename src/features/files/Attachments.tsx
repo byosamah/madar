@@ -13,9 +13,10 @@ import { AttachFileIcon } from '../../components/icons/animated/attach-file';
 
 /**
  * Where the new files go. A task comment also links the file to its task. An office task has no project (projectId null). A direct chat
- * or a group has no project either, and names its chat (conversationId): its files stay in that chat (owner, 2026-10-19).
+ * or a group has no project either, and names its chat (conversationId): its files stay in that chat (owner, 2026-10-19). The minutes of
+ * a meeting with no project name their meeting (meetingId): the files stay with that meeting (wave 2).
  */
-export type UploadTarget = { projectId: string | null; stageId?: string | null; taskId?: string | null; conversationId?: string };
+export type UploadTarget = { projectId: string | null; stageId?: string | null; taskId?: string | null; conversationId?: string; meetingId?: string };
 
 /**
  * The files a person picked for a post, a comment or a message. The files upload when the person sends,
@@ -51,6 +52,7 @@ export function useAttachments(max: number = MAX_ATTACHMENTS, initial: File[] = 
           {
             ...(target.projectId ? { projectId: target.projectId } : {}),
             ...(target.conversationId ? { conversationId: target.conversationId } : {}),
+            ...(target.meetingId ? { meetingId: target.meetingId } : {}),
             name: file.name, blob: file, stageId: target.stageId ?? null, taskId: target.taskId ?? null,
           },
           meta,

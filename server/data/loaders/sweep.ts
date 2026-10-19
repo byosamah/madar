@@ -88,7 +88,10 @@ export function readSweep(office: State): SweepCall[] {
   }
   const agents = Object.values(office.users).filter((u) => u.kind === 'agent' && u.active).map((u) => u.id);
   // The text 'chat-photo' names the file of a direct chat in trapOffice (owner, 2026-10-19): no search finds it, for its members too.
-  for (const actor of [...humans, ...agents]) calls.push(['search.query', { text: 'licence' }, actor], ['search.query', { text: 'chat-photo' }, actor]);
+  // The text 'meeting-notes' names the file of a meeting with no project in trapOffice (wave 2): no search finds it either.
+  for (const actor of [...humans, ...agents]) {
+    calls.push(['search.query', { text: 'licence' }, actor], ['search.query', { text: 'chat-photo' }, actor], ['search.query', { text: 'meeting-notes' }, actor]);
+  }
   for (const actor of agents) {
     calls.push(
       ['tasks.list', { filter: 'mine' }, actor], ['tasks.list', {}, actor], ['events.list', { limit: 20 }, actor], ['chats.list', {}, actor],
@@ -181,6 +184,7 @@ export function writeSweep(office: State): SweepCall[] {
     ...officeWrites(office),
     ...chatFileWrites(office),
     ...meetingWrites(office),
+    ...meetingFileWrites(office),
   ];
 }
 
@@ -278,6 +282,56 @@ export function chatFileWrites(office: State): SweepCall[] {
     ['chats.send', { conversationId: chat.id, body: 'Again', fileIds: [file.id] }, outside],
     ['files.share', { fileId: file.id, target: { kind: 'person', userId: outside } }, a],
     ['files.delete', { id: file.id }, a],
+    ['files.markDelivered', { id: file.id }, outside],
+  ];
+}
+
+/** The id of the meeting file of meetingFileTrap. */
+export const MEETING_FILE_ID = 'fil_911';
+/** The title of the meeting with no project, ended, of meetingFileTrap. */
+export const ENDED_MEETING_TITLE = 'Salary review';
+
+/**
+ * A file of a meeting with no project (wave 2): usr_004 planned "Salary review" for usr_006 on 2026-10-02, and it ended. The file sits
+ * in its minutes folder. The reads of search.query, files.list and files.get, and the writes of the other places that could carry the
+ * file, must give the same answers on the scoped load as on the whole office, for the two people, for every other person and for the
+ * agents.
+ */
+function meetingFileTrap(state: State): void {
+  const made = apply(state, 'meetings.create', { kind: 'meeting', title: ENDED_MEETING_TITLE, startsAt: '2026-10-02T09:00:00+03:00', attendeeIds: ['usr_006'] }, 'usr_004', 'cor_trap_meeting_ended') as { id: string };
+  state.files[MEETING_FILE_ID] = {
+    id: MEETING_FILE_ID, projectId: null, stageId: null, taskId: null, meetingId: made.id, name: 'Hidden-meeting-notes.pdf',
+    versions: [{ letter: 'A', blobKey: 'blob_trap_meeting', mimeType: 'application/pdf', size: 9, uploadedBy: 'usr_006', uploadedAt: '2026-10-02T12:00:00.000+03:00' }],
+  };
+}
+
+/**
+ * The writes on the meeting file of meetingFileTrap, by the attendee, by a person outside the meeting and by the Admin who is not
+ * invited: an upload, a message and a Tracker entry that carry the file, a share, a delete and a "delivered" mark. None on an office
+ * without the trap.
+ */
+export function meetingFileWrites(office: State): SweepCall[] {
+  const file = office.files[MEETING_FILE_ID];
+  const meeting = file?.meetingId ? office.meetings?.[file.meetingId] : undefined;
+  if (!file || !meeting) return [];
+  const [attendee] = meeting.attendeeIds;
+  const outside = Object.values(office.users).find((u) => u.kind === 'human' && u.active && u.id !== ADMIN && u.id !== meeting.organizerId && !meeting.attendeeIds.includes(u.id))!.id;
+  const leader = office.projects.prj_001.leaderId!;
+  const prepared = { blobKey: 'blob_sweep_meeting', mimeType: 'application/pdf', size: 5 };
+  const chat = Object.values(office.conversations).find((c) => c.kind === 'direct' && c.memberIds.includes(attendee))?.id ?? 'cnv_001';
+  return [
+    ['files.upload', { name: 'Second.pdf', meetingId: meeting.id, uploadId: 'upl_mtg_a' }, attendee, prepared],
+    ['files.upload', { name: 'Second.pdf', meetingId: meeting.id, uploadId: 'upl_mtg_b' }, outside, prepared],
+    ['files.upload', { name: 'Third.pdf', meetingId: meeting.id, uploadId: 'upl_mtg_c' }, ADMIN, prepared],
+    ['chats.send', { conversationId: chat, body: 'Again', fileIds: [file.id] }, attendee],
+    ['chats.send', { conversationId: 'cnv_001', body: 'Again', fileIds: [file.id] }, outside],
+    ['tracker.log', { projectId: 'prj_001', type: 'file', direction: 'in', title: 'Carry', fileIds: [file.id] }, leader],
+    ['comments.create', { targetType: 'task', targetId: Object.values(office.tasks).find((t) => t.projectId === 'prj_001')!.id, body: 'Carry', fileIds: [file.id] }, leader],
+    ['files.share', { fileId: file.id, target: { kind: 'person', userId: outside } }, attendee],
+    ['files.share', { fileId: file.id, target: { kind: 'person', userId: attendee } }, outside],
+    ['files.delete', { id: file.id }, attendee],
+    ['files.delete', { id: file.id }, outside],
+    ['files.markDelivered', { id: file.id }, attendee],
     ['files.markDelivered', { id: file.id }, outside],
   ];
 }
@@ -383,6 +437,7 @@ export function trapOffice(seed: State): State {
   officeTraps(state);
   meetingTraps(state);
   chatFileTrap(state);
+  meetingFileTrap(state);
   newestTies(state);
   const leader = state.projects.prj_001.leaderId!;
   const task = Object.values(state.tasks).find((t) => t.projectId === 'prj_001' && t.status !== 'done')!;
