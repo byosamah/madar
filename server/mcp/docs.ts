@@ -84,7 +84,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'chats.list': {
     title: 'List chats',
-    description: 'Lists the chats that your person may open, newest first: the project chats, the direct chats, the group chats and the task threads. Each row has its unread count and its newest message (preview, with its author). Each row has archived: true when your person archived the chat; a new message clears it. Use the id (conversationId) with chats.messages and chats.send. A row of kind task has a task id: read it with comments.list (targetType task) and answer with comments.create.',
+    description: 'Lists the chats that your person may open, newest first: the project chats, the direct chats, the group chats and the task threads. Each row has its unread count and its newest message (preview, with its author). Each row has archived: true when your person archived the chat; a new message clears it. Use the id (conversationId) with chats.messages and chats.send. A row of kind task has a task id: read it with comments.list (targetType task) and answer with comments.create. previewKind names a quiet line (a reason) in place of a message.',
   },
   'chats.messages': {
     title: 'Read a chat',
@@ -265,6 +265,6 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'comments.list': {
     title: 'List comments',
-    description: 'Lists the comments on one task or one update (targetType and targetId), oldest first, with their authors and reactions.',
+    description: 'Lists the comments on one task or one update (targetType and targetId), oldest first, with their authors and reactions. Each comment has kind: message (words of a person), or a quiet line that Madar shows without a bubble: due_date and start_date (the reason of a date move), reopened (the reason of a task that opens again) or shifted (a move that Madar made). A line is no message: it never waits for a reply.',
   },
 };

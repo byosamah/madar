@@ -187,6 +187,8 @@ export function TaskPane({ id }: { id: string }) {
   const bubbles = useBubbles(comments.data ?? NO_COMMENTS, (view: CommentView): Bubble => ({
     id: view.comment.id, author: view.author, actingFor: null, body: view.comment.body, files: view.files, createdAt: view.comment.createdAt,
     mine: view.author.id === me, edited: view.comment.editedAt !== null,
+    // The reason of a date move or of a reopening is a quiet line, not a message of a person (fbk_027).
+    ...(view.kind === 'message' ? {} : { reason: { kind: view.kind, dates: view.comment.dates } }),
   }), me);
   const failed = task.error ?? comments.error;
   if (failed) return <div className="p-4"><LoadFailed error={failed} onRetry={() => { void task.refetch(); void comments.refetch(); }} /></div>;

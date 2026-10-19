@@ -9,6 +9,7 @@ import { can, mayViewTask, principalOf } from '../permissions';
 import { chatReadKey, nextId, unreadCountKey, type State } from '../store';
 import { attachmentsOf, cardOf, mayViewFile } from '../views';
 import { assertFilesForDirect, assertFilesInProject } from './attach';
+import { isLine, lineKindOf } from '../../lib/commentLine';
 import { mentionedUserIds, plainText } from '../../lib/text';
 import { listFormat } from '../../lib/dates';
 import { personName } from '../../lib/personName';
@@ -91,6 +92,7 @@ function rowOf(state: State, conversation: Conversation, viewer: User): ChatRow 
     preview: last ? previewOf(last.body) : '',
     previewAuthor: last ? cardOf(state, last.authorId) : null,
     previewMine: last ? isMine(state, last, viewer.id) : false,
+    previewKind: null,
     lastAt,
     unread: unreadIn(state, conversation.id, viewer.id),
     personLeft: personLeft(state, conversation, viewer),
@@ -107,8 +109,10 @@ function taskUnread(state: State, taskId: string, comments: Comment[], viewerId:
   const counted = state.counts?.[unreadCountKey(taskId, viewerId)];
   if (counted !== undefined) return counted;
   const lastRead = state.chatReads[chatReadKey(taskId, viewerId)]?.lastReadAt ?? '';
-  const mine = comments.findLastIndex((c) => principalOf(state, c.authorId) === viewerId);
-  return comments.filter((c, i) => i > mine && c.createdAt > lastRead && principalOf(state, c.authorId) !== viewerId).length;
+  // A quiet line of a reason is no message: it is never unread, and a line that the viewer wrote does not count as a reply (fbk_027).
+  const talk = comments.filter((c) => !isLine(c));
+  const mine = talk.findLastIndex((c) => principalOf(state, c.authorId) === viewerId);
+  return talk.filter((c, i) => i > mine && c.createdAt > lastRead && principalOf(state, c.authorId) !== viewerId).length;
 }
 
 /** project is null for an office task. */
@@ -151,10 +155,12 @@ function taskThreads(state: State, viewer: User): TaskThread[] {
 function taskRows(state: State, viewer: User): ChatRow[] {
   return taskThreads(state, viewer).map(({ task, project, comments }) => {
     const last = comments[comments.length - 1];
+    // The newest item may be a quiet line of a reason: the row then shows its short line, from the kind and the reason (fbk_027).
+    const kind = lineKindOf(last);
     return {
       kind: 'task', id: task.id, title: task.title, project: project ? { id: project.id, code: project.code, name: project.name, mark: markOf(project) } : null, person: null,
       makerId: null, members: [], taskId: task.id, preview: previewOf(last.body), previewAuthor: cardOf(state, last.authorId),
-      previewMine: principalOf(state, last.authorId) === viewer.id, lastAt: last.createdAt, unread: taskUnread(state, task.id, comments, viewer.id), personLeft: false,
+      previewMine: principalOf(state, last.authorId) === viewer.id, previewKind: kind === 'message' ? null : kind, lastAt: last.createdAt, unread: taskUnread(state, task.id, comments, viewer.id), personLeft: false,
       archived: isArchived(state.chatReads[chatReadKey(task.id, viewer.id)], last.createdAt),
     };
   });
@@ -543,7 +549,9 @@ function waitingChat(state: State, conversation: Conversation, viewer: User, now
  * and the named comment otherwise.
  */
 function waitingThread(state: State, thread: TaskThread, viewer: User, now: Date): WaitingRow | null {
-  const { task, project, comments } = thread;
+  const { task, project } = thread;
+  // A quiet line of a reason waits for no reply (fbk_027): only the messages of the thread count.
+  const comments = thread.comments.filter((c) => !isLine(c));
   const last = comments.at(-1);
   if (!last || principalOf(state, last.authorId) === viewer.id) return null;
   if (isArchived(state.chatReads[chatReadKey(task.id, viewer.id)], last.createdAt)) return null;

@@ -288,6 +288,34 @@ describe('the 18 places of AM 6', () => {
     await same(state, 'chats.markRead', { conversationId: task.id }, 'usr_006');
   });
 
+  // fbk_027 (owner, 2026-10-19): the quiet lines of reasons are in the thread, but never unread and never waiting for a reply.
+  it('row 15: a quiet line of a reason is no unread message and no waiting reply, for the loader as for the whole office (fbk_027)', async () => {
+    const state = office();
+    const task = Object.values(state.tasks).find((t) => t.ownerId !== null && t.ownerId !== 'usr_006' && state.projects[t.projectId!].leaderId !== 'usr_006')!;
+    const lead = task.ownerId as string;
+    const move = { from: { startDate: null, dueDate: '2026-10-10' }, to: { startDate: null, dueDate: '2026-10-12' } };
+    const add = (id: string, authorId: string, at: string, extra: Partial<State['comments'][string]> = {}) => {
+      state.comments[id] = { id, targetType: 'task', targetId: task.id, authorId, body: `Note ${id}`, reactions: emptyReactions(), fileIds: [], createdAt: at, editedAt: null, ...extra };
+    };
+    add('cmt_901', lead, '2026-10-01T09:00:00.000+03:00');
+    add('cmt_902', 'usr_006', '2026-10-02T09:00:00.000+03:00', { dates: move });
+    add('cmt_903', lead, '2026-10-03T09:00:00.000+03:00');
+    add('cmt_904', lead, '2026-10-03T11:00:00.000+03:00', { kind: 'reopened' });
+    add('cmt_905', lead, '2026-10-03T12:00:00.000+03:00', { dates: { ...move, byTaskId: 'tsk_001', lateDays: 2 } });
+    state.chatReads[chatReadKey(task.id, 'usr_006')] = { conversationId: task.id, userId: 'usr_006', lastReadAt: '2026-10-01T12:00:00.000+03:00' };
+    for (const actor of ['usr_006', lead, ADMIN]) {
+      const list = await same(state, 'chats.list', {}, actor);
+      await same(state, 'chats.unreadCount', {}, actor);
+      await same(state, 'chats.waiting', {}, actor);
+      await same(state, 'chats.markRead', { conversationId: task.id }, actor);
+      if (actor === 'usr_006') {
+        // The only message after the mark is cmt_903. The lines before and after it count for nothing, also the line that the person wrote.
+        const row = (list.outcome.output as { id: string; unread: number; previewKind: string | null }[]).find((item) => item.id === task.id);
+        expect(row).toMatchObject({ unread: 1, previewKind: 'shifted' });
+      }
+    }
+  });
+
   it('chats.archive: the loader gives the handler the same answer, for a project chat and for a task thread (owner, 2026-10-18)', async () => {
     const state = office();
     const room = Object.values(state.conversations).find((c) => c.kind === 'project');

@@ -17,6 +17,7 @@ import { Menu } from '../../components/Menu';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { ChevronRightIcon } from '../../components/icons/animated/chevron-right';
 import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-check';
+import { reasonLineText } from '../comments/ReasonLine';
 import { useArchive } from './archive';
 import { GroupPicture } from './GroupPicture';
 
@@ -72,6 +73,11 @@ const ChatRowItem = memo(function ChatRowItem({ row, selected, waiting, swipe, s
   const by = row.previewMine ? t('chat.you') : row.previewAuthor ? nameOf(row.previewAuthor).split(' ')[0] : '';
   // A direct chat shows the other person's words without a name, unless the words are mine.
   const showBy = row.preview !== '' && by !== '' && (row.kind !== 'direct' || row.previewMine);
+  // The newest item of a task thread can be a quiet line of a reason: the row then shows its short line, "Faisal changed the due date: ..."
+  // (fbk_027). It names the person by the first name, also when the person is the viewer.
+  const reasonText = row.previewKind
+    ? reasonLineText(t, { kind: row.previewKind, body: row.preview }, row.previewAuthor ? { name: nameOf(row.previewAuthor).split(' ')[0], gender: row.previewAuthor.gender } : null, true)
+    : null;
   // A swipe on a phone must not also open the chat.
   const swiped = useRef(false);
   return (
@@ -112,8 +118,8 @@ const ChatRowItem = memo(function ChatRowItem({ row, selected, waiting, swipe, s
                 the side of the page (owner, 2026-10-05). */}
             <span className={`flex min-w-0 gap-1 text-footnote ${row.unread > 0 ? 'text-ink' : 'text-ink-2'}`}>
               {/* The name and its colon are one unit in the direction of the name: "Faisal:" also in an Arabic row. */}
-              {showBy && <bdi className="shrink-0">{by}:</bdi>}
-              <bdi dir="auto" className="min-w-0 truncate">{row.preview}</bdi>
+              {reasonText === null && showBy && <bdi className="shrink-0">{by}:</bdi>}
+              <bdi dir="auto" className="min-w-0 truncate">{reasonText ?? row.preview}</bdi>
             </span>
             {row.unread > 0 && (
               <span className="signature tabular inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-caption font-semibold">

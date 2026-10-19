@@ -582,6 +582,14 @@ export const DateMove = z.object({
 });
 export type DateMove = z.infer<typeof DateMove>;
 
+/**
+ * The kind of a comment that Madar writes as a quiet line of the thread (fbk_027, owner 2026-10-19). Only "reopened" is stored: the
+ * reason of a task that opens again. A reason of a date move has `dates`, and a Madar shift has `dates.byTaskId`; `lineKindOf`
+ * (`lib/commentLine.ts`) reads all three, so a comment saved before reads the new way too.
+ */
+export const CommentKind = z.enum(['reopened']);
+export type CommentKind = z.infer<typeof CommentKind>;
+
 export const Comment = z.object({
   id: CommentId,
   targetType: z.enum(['task', 'update']),
@@ -593,6 +601,8 @@ export const Comment = z.object({
   fileIds: z.array(FileId).max(MAX_ATTACHMENTS).optional(),
   // Only on the message Madar posts when the dates of a task move. Other comments have none.
   dates: DateMove.optional(),
+  // Only on the line that Madar writes when a task opens again. Other comments have none.
+  kind: CommentKind.optional(),
   createdAt: Stamp,
   editedAt: Stamp.nullable(),
 });

@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { MAX_ATTACHMENTS, MESSAGE_MAX } from '../../api/contract/entities';
+import { MAX_ATTACHMENTS, MESSAGE_MAX, type DateMove } from '../../api/contract/entities';
 import { useTranslation } from 'react-i18next';
 import type { Attachment, GroupLine, UserCard } from '../../api/contract/views';
 import { newStoryId } from '../../app/actions';
@@ -18,7 +18,9 @@ import { addDays, clockFormat, formatDay, listFormat, stampDay, todayISO, type L
 import { actorContext } from '../../lib/grammar';
 import { groupByDay } from '../../lib/group';
 import { withMentionMarkup } from '../../lib/text';
+import { reasonLineText, type ReasonKind } from '../comments/ReasonLine';
 import { AttachButton, FileChips, PickedFiles, useAttachments, type UploadTarget } from '../files/Attachments';
+import { DateMoveLines } from '../project/tasks/DateReason';
 
 /** One bubble. A chat message and a task comment both turn into this. */
 export type Bubble = {
@@ -33,6 +35,8 @@ export type Bubble = {
   edited: boolean;
   /** A quiet line of a group (a person joined or left, a new name). It is no message: the log draws it as one grey line. */
   line?: GroupLine;
+  /** A quiet line of a task thread (fbk_027): the reason of a date move or of a reopening, or a Madar shift. The log draws one grey line. */
+  reason?: { kind: ReasonKind; dates?: DateMove };
 };
 
 /** The word key of each kind of quiet line. */
@@ -56,6 +60,23 @@ function GroupLineItem({ line }: { line: GroupLine }) {
   return <li className="self-center px-3 py-0.5 text-center text-footnote text-ink-2">{text}</li>;
 }
 
+/**
+ * The reason of a date move or of a reopening in a task thread (fbk_027, owner 2026-10-19): "Faisal changed the due date: <reason>" as one
+ * grey line between the messages, as a group line is. It is no message: no bubble, no sender above it, no clock. The moved dates come
+ * under it in a smaller size.
+ */
+function ReasonLineItem({ bubble, reason }: { bubble: Bubble; reason: NonNullable<Bubble['reason']> }) {
+  const { t } = useTranslation();
+  const nameOf = usePersonName();
+  const text = reasonLineText(t, { kind: reason.kind, body: bubble.body, dates: reason.dates }, { name: nameOf(bubble.author), gender: bubble.author.gender });
+  return (
+    <li className="flex flex-col items-center self-center px-3 py-0.5 text-center text-footnote text-ink-2">
+      <span dir="auto">{text}</span>
+      {reason.dates && <DateMoveLines move={reason.dates} className="items-center text-caption text-label-2" />}
+    </li>
+  );
+}
+
 export function clockTime(stamp: string, lang: Lang): string {
   return clockFormat(lang).format(new Date(stamp));
 }
@@ -70,6 +91,7 @@ const BubbleItem = memo(function BubbleItem({ bubble, fresh }: { bubble: Bubble;
   const lang = useLang();
   const { author, mine } = bubble;
   if (bubble.line) return <GroupLineItem line={bubble.line} />;
+  if (bubble.reason) return <ReasonLineItem bubble={bubble} reason={bubble.reason} />;
   return (
     <motion.li
       initial={fresh ? { opacity: 0, y: 12 } : false}

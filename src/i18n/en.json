@@ -1416,7 +1416,7 @@
   "dateReason": {
     "title": "Why do the dates change?",
     "label": "Reason",
-    "hint": "Madar posts your reason in the task's Conversation.",
+    "hint": "Madar shows your reason in the task's Conversation as a quiet line.",
     "confirm": "Save dates",
     "keep": "Keep the old dates",
     "keep_one": "Keep the old date",

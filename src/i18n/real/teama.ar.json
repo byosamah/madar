@@ -15,5 +15,15 @@
   "taskList": {
     "dueUntil": "مستحقة حتى {{to}}",
     "dueFrom": "مستحقة من {{from}}"
+  },
+  "taskLine": {
+    "due_date": "غيّر {{name}} تاريخ الاستحقاق: {{reason}}",
+    "due_date_female": "غيّرت {{name}} تاريخ الاستحقاق: {{reason}}",
+    "start_date": "غيّر {{name}} تاريخ البدء: {{reason}}",
+    "start_date_female": "غيّرت {{name}} تاريخ البدء: {{reason}}",
+    "reopened": "أعاد {{name}} فتح المهمة: {{reason}}",
+    "reopened_female": "أعادت {{name}} فتح المهمة: {{reason}}",
+    "shifted": "نقل مدار المواعيد: تأخر إنجاز {{task}} بمقدار {{lateness}}.",
+    "shiftedShort": "نقل مدار المواعيد"
   }
 }

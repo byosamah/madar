@@ -15,5 +15,12 @@
   "taskList": {
     "dueUntil": "Due until {{to}}",
     "dueFrom": "Due from {{from}}"
+  },
+  "taskLine": {
+    "due_date": "{{name}} changed the due date: {{reason}}",
+    "start_date": "{{name}} changed the start date: {{reason}}",
+    "reopened": "{{name}} reopened the task: {{reason}}",
+    "shifted": "Madar moved the dates: {{task}} finished {{lateness}} late.",
+    "shiftedShort": "Madar moved the dates"
   }
 }

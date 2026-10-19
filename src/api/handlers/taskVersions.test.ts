@@ -49,7 +49,8 @@ describe('tasks.newVersion', () => {
     await t.api.call('tasks.newVersion', NEW);
     await t.api.call('comments.create', { targetType: 'task', targetId: 'tsk_001', body: 'Second round.' });
     const thread = await t.api.call('comments.list', { targetType: 'task', targetId: 'tsk_001' });
-    expect(thread.map((view) => view.comment.body)).toEqual(['First round done.', 'Second round.']);
+    // The reason of the new version is one quiet line between the messages (fbk_027).
+    expect(thread.map((view) => [view.kind, view.comment.body])).toEqual([['message', 'First round done.'], ['reopened', NEW.reason], ['message', 'Second round.']]);
   });
 
   it('gives a dynamic version its due date from the working days', async () => {

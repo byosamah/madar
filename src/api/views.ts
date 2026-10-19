@@ -5,6 +5,7 @@ import type {
 import { computeHealth, isOverdue } from './health';
 import { can, principalOf, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
 import { commentCountKey, fileCountKey, projectTemplatesOf, type State } from './store';
+import { lineKindOf } from '../lib/commentLine';
 import { diffDays } from '../lib/dates';
 import { pinFromLinks } from '../lib/geo';
 import { markOf } from '../lib/projectMark';
@@ -358,6 +359,7 @@ export function commentViewOf(state: State, comment: Comment, viewer: User): Com
       ? can(viewer, 'content.editOwn', { ...officeResource(state, target.id, viewer.id), authorId })
       : canEditContent(state, target.projectId, comment.authorId, viewer),
     files: attachmentsOf(state, comment.fileIds),
+    kind: lineKindOf(comment),
   };
 }
 

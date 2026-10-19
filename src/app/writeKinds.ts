@@ -61,7 +61,7 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'tasks.update': ['events', 'notifications', 'tasks'],
   'tasks.take': ['events', 'notifications', 'tasks'],
   'tasks.arrange': ['events', 'tasks'],
-  'tasks.newVersion': ['events', 'projects', 'tasks', 'tracker'],
+  'tasks.newVersion': ['comments', 'events', 'projects', 'tasks', 'tracker'],
   'tasks.complete': ['comments', 'events', 'notifications', 'tasks', 'tracker'],
   'tasks.move': ['events', 'tasks', 'tracker'],
   'tasks.approve': ['events', 'notifications', 'tasks', 'tracker'],

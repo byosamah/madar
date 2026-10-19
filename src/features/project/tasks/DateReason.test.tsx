@@ -24,7 +24,7 @@ describe('a reason for a date change (owner, 2026-10-02)', () => {
 
     const ask = await screen.findByRole('dialog', { name: 'Why do the dates change?' });
     expect(within(ask).getByText('Due date: from Tue 20 Oct to Mon 26 Oct')).toBeInTheDocument();
-    expect(within(ask).getByText("Madar posts your reason in the task's Conversation.")).toBeInTheDocument();
+    expect(within(ask).getByText("Madar shows your reason in the task's Conversation as a quiet line.")).toBeInTheDocument();
     const save = within(ask).getByRole('button', { name: 'Save dates' });
     expect(save).toBeDisabled();
     expect(store.state.tasks.tsk_007.dueDate).toBe('2026-10-20');
@@ -34,8 +34,11 @@ describe('a reason for a date change (owner, 2026-10-02)', () => {
     expect(messagesOf(store.state)).toHaveLength(before + 1);
 
     await userEvent.click(within(sheet).getByRole('tab', { name: /^Conversation/ }));
-    const message = (await within(sheet).findByText('The client sent the survey late')).closest('li') as HTMLElement;
+    // fbk_027: the reason is a quiet line of the thread, not a message of a person: no avatar, no reactions, the person in the words.
+    const message = (await within(sheet).findByText(/ changed the due date: .*The client sent the survey late/)).closest('li') as HTMLElement;
     expect(within(message).getByText('Due date: from Tue 20 Oct to Mon 26 Oct')).toBeInTheDocument();
+    expect(message.querySelector('bdi.font-semibold')).toBeNull();
+    expect(within(message).queryByRole('button', { name: /^React with/ })).toBeNull();
     await userEvent.click(within(message).getByRole('button', { name: 'Actions for this comment' }));
     expect(await screen.findByRole('menuitem', { name: 'Edit' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Delete' })).toBeNull();
@@ -74,11 +77,25 @@ describe('a reason for a date change (owner, 2026-10-02)', () => {
       };
     });
     const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
-    const message = (await within(sheet).findByText('Survey finished 4 working days late.')).closest('li') as HTMLElement;
-    expect(within(message).getByText('Madar')).toBeInTheDocument();
+    const message = (await within(sheet).findByText(/^Madar moved the dates: .*Survey.* finished 4 working days late\.$/)).closest('li') as HTMLElement;
     expect(within(message).getByText('Start date: from Thu 1 Oct to Wed 7 Oct')).toBeInTheDocument();
     expect(within(message).getByText('Due date: from Wed 7 Oct to Tue 13 Oct')).toBeInTheDocument();
     expect(within(message).queryByRole('button', { name: 'Actions for this comment' })).toBeNull();
+  });
+
+  // fbk_027: the reason of a task that opens again is a quiet line too, and nobody edits it from the thread.
+  it('shows the reason of a reopening as a quiet line, with no menu', async () => {
+    await renderApp(`${TASK}&thread=1`, (state) => {
+      staticTask(state);
+      state.comments.cmt_901 = {
+        id: 'cmt_901', targetType: 'task', targetId: 'tsk_007', authorId: state.tasks.tsk_007.ownerId!, body: 'Client comments, 12 Oct',
+        reactions: emptyReactions(), fileIds: [], createdAt: '2026-09-30T08:00:00.000Z', editedAt: null, kind: 'reopened',
+      };
+    });
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    const message = (await within(sheet).findByText(/ reopened the task: .*Client comments, 12 Oct/)).closest('li') as HTMLElement;
+    expect(within(message).queryByRole('button', { name: 'Actions for this comment' })).toBeNull();
+    expect(within(message).queryByRole('button', { name: /^React with/ })).toBeNull();
   });
 });
 

@@ -20,9 +20,7 @@ import { editedBody, plainText, withMentionMarkup } from '../../lib/text';
 import { LoadFailed } from '../../components/LoadFailed';
 import { AttachButton, FileChips, PickedFiles, useAttachments } from '../files/Attachments';
 import { DateMoveLines } from '../project/tasks/DateReason';
-import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
-import { CalendarDaysIcon } from '../../components/icons/animated/calendar-days';
-import { counted } from '../../lib/grammar';
+import { reasonLineText, type ReasonKind } from './ReasonLine';
 import { useMarkTaskRead } from './markRead';
 
 /**
@@ -33,7 +31,7 @@ const CommentItem = memo(function CommentItem({ view, people, canPost }: { view:
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const session = useCall('session.get', {});
-  const { comment, author, canEdit, files } = view;
+  const { comment, author, canEdit, files, kind } = view;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const focus = useEditFocus(editing);
@@ -41,57 +39,70 @@ const CommentItem = memo(function CommentItem({ view, people, canPost }: { view:
   const remove = useUndoable('comments.delete', { message: () => t('comments.deleted') });
   const react = useAction('reactions.toggle');
   const me = session.data?.user.id;
-  // A message about moved dates (owner, 2026-10-02). Madar writes its own when a task it waited for finished late.
-  const moved = comment.dates;
-  const byMadar = Boolean(moved?.byTaskId);
-  const actions = [
-    ...(byMadar ? [] : [{
-      label: t('comments.edit'),
-      onSelect: () => {
-        setDraft(plainText(comment.body));
-        setEditing(true);
-      },
-    }]),
-    ...(moved ? [] : [{ label: t('comments.delete'), onSelect: () => remove.mutate({ id: comment.id }), destructive: true }]),
-  ];
+  // A quiet line of a reason (fbk_027, owner 2026-10-19; the dates since owner 2026-10-02): no avatar, no bubble, no reactions. The
+  // person who gave a date reason may fix its words. A reopening and a Madar shift stay as they were written, and no line is deleted.
+  const line: ReasonKind | null = kind === 'message' ? null : kind;
+  const edit = {
+    label: t('comments.edit'),
+    onSelect: () => {
+      setDraft(plainText(comment.body));
+      setEditing(true);
+    },
+  };
+  const actions = line === null
+    ? [edit, { label: t('comments.delete'), onSelect: () => remove.mutate({ id: comment.id }), destructive: true }]
+    : line === 'due_date' || line === 'start_date' ? [edit] : [];
+  const editForm = (
+    <form
+      className="mt-1 flex flex-col gap-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const body = editedBody(draft.trim(), people, comment.body);
+        if (body) update.mutate({ id: comment.id, body });
+      }}
+    >
+      <MentionField id={`edit-${comment.id}`} label={t('comments.edit')} value={draft} onChange={setDraft} people={people} rows={2} inputRef={focus.field} />
+      <div className="flex justify-end gap-2">
+        <Button onClick={() => setEditing(false)}>{t('common.cancel')}</Button>
+        <Button variant="primary" type="submit" disabled={!draft.trim() || update.isPending}>{t('comments.save')}</Button>
+      </div>
+    </form>
+  );
+  if (line) {
+    return (
+      <li className="flex flex-col gap-0.5 text-footnote text-ink-2">
+        {editing ? editForm : (
+          <>
+            <p className="flex flex-wrap items-center gap-x-2">
+              <span dir="auto">{reasonLineText(t, { kind: line, body: comment.body, dates: comment.dates }, { name: nameOf(author), gender: author.gender })}</span>
+              <span className="text-label-2">
+                <Age stamp={comment.createdAt} />
+                {comment.editedAt && ` · ${t('comments.edited')}`}
+              </span>
+              {canEdit && actions.length > 0 && <span ref={focus.actions} className="contents"><Menu label={t('comments.actions')} items={actions} /></span>}
+            </p>
+            {comment.dates && <DateMoveLines move={comment.dates} className="text-caption text-label-2" />}
+          </>
+        )}
+      </li>
+    );
+  }
   return (
     <li className="flex gap-3">
-      {byMadar ? (
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-fill text-ink-2" aria-hidden>
-          <AnimatedIcon icon={CalendarDaysIcon} size={16} />
-        </span>
-      ) : <Avatar user={author} size={28} />}
+      <Avatar user={author} size={28} />
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-x-2 text-footnote">
-          <bdi className="font-semibold">{byMadar ? t('dateReason.madar') : nameOf(author)}</bdi>
-          {!byMadar && author.kind === 'agent' && <AgentLabel />}
+          <bdi className="font-semibold">{nameOf(author)}</bdi>
+          {author.kind === 'agent' && <AgentLabel />}
           <span className="text-label-2">
             <Age stamp={comment.createdAt} />
             {comment.editedAt && ` · ${t('comments.edited')}`}
           </span>
         </p>
         {editing ? (
-          <form
-            className="mt-1 flex flex-col gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const body = editedBody(draft.trim(), people, comment.body);
-              if (body) update.mutate({ id: comment.id, body });
-            }}
-          >
-            <MentionField id={`edit-${comment.id}`} label={t('comments.edit')} value={draft} onChange={setDraft} people={people} rows={2} inputRef={focus.field} />
-            <div className="flex justify-end gap-2">
-              <Button onClick={() => setEditing(false)}>{t('common.cancel')}</Button>
-              <Button variant="primary" type="submit" disabled={!draft.trim() || update.isPending}>{t('comments.save')}</Button>
-            </div>
-          </form>
+          editForm
         ) : (
-          <>
-            {moved && <DateMoveLines move={moved} className="mt-0.5 text-footnote font-semibold text-ink-2" />}
-            {byMadar && moved?.byTaskTitle && moved.lateDays
-              ? <p dir="auto" className="text-subheadline">{t('dateReason.auto', { task: moved.byTaskTitle, lateness: counted(t, 'taskSheet.durationValue', moved.lateDays) })}</p>
-              : <RichText body={comment.body} className="text-subheadline" />}
-          </>
+          <RichText body={comment.body} className="text-subheadline" />
         )}
         <FileChips files={files} />
         <div className="mt-1 flex flex-wrap items-center gap-1">

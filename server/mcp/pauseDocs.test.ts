@@ -20,3 +20,12 @@ describe('the agent docs of the restart date of a pause (fbk_025)', () => {
     for (const name of ['projects.pause', 'projects.resume', 'projects.setRestart']) expect(names).not.toContain(name);
   });
 });
+
+// fbk_027 (owner, 2026-10-19): a reason is a quiet line of the thread, and comments.list names its kind.
+describe('the agent docs of the quiet lines of a thread (fbk_027)', () => {
+  it('name the kind of a comment in comments.list, and previewKind in chats.list', () => {
+    const list = TOOL_DOCS['comments.list'].description;
+    for (const word of ['kind', 'message', 'due_date', 'start_date', 'reopened', 'shifted', 'never waits for a reply']) expect(list, word).toContain(word);
+    expect(TOOL_DOCS['chats.list'].description).toContain('previewKind');
+  });
+});

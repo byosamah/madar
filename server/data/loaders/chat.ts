@@ -29,6 +29,13 @@ export const THREAD_TASK_FIELDS = ['id', 'projectId', 'ownerId', 'helperIds', 'c
 /** The comment fields of a thread that the badge reads: taskThreads groups, sorts and finds the own comments with these. */
 export const THREAD_COMMENT_FIELDS = ['id', 'targetType', 'targetId', 'createdAt', 'authorId'] as const;
 
+/**
+ * The conditions that keep the quiet lines of reasons out of a read of comments (fbk_027, owner 2026-10-19): a line has `dates` (a date
+ * move, or a Madar shift) or `kind` (a reopening). The handlers read only the messages of a thread for the unread count and for the
+ * reply that waits (taskUnread, waitingThread), so the loader counts and loads the same.
+ */
+const MESSAGES_ONLY = [{ field: 'dates', null: true }, { field: 'kind', null: true }] as const;
+
 /** U and U's agents: a message or comment by one of them is U's own (principalOf). */
 function meOf(L: Load, userId: string): string[] {
   return [userId, ...Object.values(L.office.users).filter((user) => user.kind === 'agent' && user.ownerId === userId).map((user) => user.id)];
@@ -69,8 +76,11 @@ async function threadsOf(L: Load, userId: string, mode: Mode): Promise<void> {
   const newest = { order: { col: 'created_at', desc: true, id: true } as const, per: 'target_id', limit: 1, ...(mode.badge ? { pick: THREAD_COMMENT_FIELDS } : {}) };
   const onThreads = [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: ids }] as const;
   await L.select({ c: 'comments', where: onThreads, ...newest });
-  const own = (await L.select({ c: 'comments', where: [...onThreads, { field: 'authorId', in: me }], ...newest })) as Comment[];
-  // The unread comments come after U's own last comment in the order of the thread (stamp, then id), as taskUnread reads them.
+  // U's newest comment of any kind: a person who only wrote a line of a reason is part of the thread (taskThreads).
+  await L.select({ c: 'comments', where: [...onThreads, { field: 'authorId', in: me }], ...newest });
+  // The unread comments come after U's own last message in the order of the thread (stamp, then id), as taskUnread reads them.
+  // A line that U wrote is no reply, so the bound is the newest message of U (fbk_027).
+  const own = (await L.select({ c: 'comments', where: [...onThreads, { field: 'authorId', in: me }, ...MESSAGES_ONLY], ...newest })) as Comment[];
   const lastOwn = new Map(own.map((comment) => [comment.targetId, { at: comment.createdAt, id: comment.id }]));
   const by = Object.fromEntries(ids.map((id): [string, Bound] => {
     const after = lastOwn.get(id);
@@ -78,7 +88,7 @@ async function threadsOf(L: Load, userId: string, mode: Mode): Promise<void> {
   }));
   await L.countWhere({
     c: 'comments', per: 'target_id',
-    where: [{ col: 'target_type', eq: 'task' }, { bounds: { col: 'target_id', by } }, { field: 'authorId', notIn: me }],
+    where: [{ col: 'target_type', eq: 'task' }, { bounds: { col: 'target_id', by } }, { field: 'authorId', notIn: me }, ...MESSAGES_ONLY],
   }, ids, (id) => unreadCountKey(id, userId), mode);
 }
 
@@ -196,8 +206,12 @@ async function threadsWaitingOf(L: Load, me: string, meSet: string[]): Promise<v
   await L.byKey('chatReads', ids.map((id) => chatReadKey(id, me)));
   const newest = { order: { col: 'created_at', desc: true, id: true } as const, per: 'target_id', limit: 1 };
   const onThreads = [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: ids }] as const;
+  // The newest comment and U's newest comment of any kind give the thread its place and its people (taskThreads). The reply that waits
+  // reads the messages only (waitingThread), so the newest message, U's newest message and the messages after it come as well (fbk_027).
   await L.select({ c: 'comments', where: onThreads, ...newest });
-  const own = (await L.select({ c: 'comments', where: [...onThreads, { field: 'authorId', in: meSet }], ...newest })) as Comment[];
+  await L.select({ c: 'comments', where: [...onThreads, { field: 'authorId', in: meSet }], ...newest });
+  await L.select({ c: 'comments', where: [...onThreads, ...MESSAGES_ONLY], ...newest });
+  const own = (await L.select({ c: 'comments', where: [...onThreads, { field: 'authorId', in: meSet }, ...MESSAGES_ONLY], ...newest })) as Comment[];
   const named = ids.filter((id) => L.get<Task>('tasks', id)?.ownerId !== me);
   if (named.length === 0) return;
   const lastOwn = new Map(own.map((comment) => [comment.targetId, { at: comment.createdAt, id: comment.id }]));
@@ -205,6 +219,6 @@ async function threadsWaitingOf(L: Load, me: string, meSet: string[]): Promise<v
     const after = lastOwn.get(id);
     return [id, { gt: '', ...(after ? { after } : {}) }];
   }));
-  await L.select({ c: 'comments', where: [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: named }, { bounds: { col: 'target_id', by } }, { field: 'authorId', notIn: meSet }] });
+  await L.select({ c: 'comments', where: [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: named }, { bounds: { col: 'target_id', by } }, { field: 'authorId', notIn: meSet }, ...MESSAGES_ONLY] });
 }
 
