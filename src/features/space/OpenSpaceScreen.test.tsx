@@ -272,6 +272,21 @@ describe('the view of the map (PRJ-05)', () => {
     expect(ids.length).toBeGreaterThan(1);
   });
 
+  it('moves the view to the new level alone on a phone, so the cards stay readable', async () => {
+    const width = window.innerWidth;
+    window.innerWidth = 390;
+    try {
+      await renderApp('/dashboard/space');
+      await openFirstProject();
+      await waitFor(() => expect(flow.fitView).toHaveBeenCalledTimes(1));
+      const ids = (flow.fitView.mock.lastCall![0] as { nodes: { id: string }[] }).nodes.map((node) => node.id);
+      expect(ids.length).toBeGreaterThan(1);
+      expect(ids.every((id) => id.startsWith('stg_'))).toBe(true);
+    } finally {
+      window.innerWidth = width;
+    }
+  });
+
   it('moves the view to a stage and its tasks when a stage opens', async () => {
     await renderApp('/dashboard/space');
     await openFirstProject();
@@ -386,7 +401,7 @@ describe('keyboard focus on the map', () => {
     expect(flow.setCenter).toHaveBeenCalledTimes(1);
     const [x, y, options] = flow.setCenter.mock.calls[0]!;
     // The map centers on a card: its start corner plus half of its size.
-    expect(flow.props?.nodes.some((node) => node.position.x + 144 === x && node.position.y + 30 === y)).toBe(true);
+    expect(flow.props?.nodes.some((node) => node.position.x + 144 === x && node.position.y + 31 === y)).toBe(true);
     expect(options).toEqual({ zoom: 1, duration: 0 });
   });
 

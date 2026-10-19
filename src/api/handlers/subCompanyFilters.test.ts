@@ -142,10 +142,14 @@ describe('the count of projects and the move on delete (PRJ-12, INT-24)', () => 
 
   it('moves the projects to another sub-company, deletes the first, and one Undo takes it all back', async () => {
     const t = testApi(calls, office());
-    const run = await t.api.run('subCompanies.delete', { id: 'sub_001', moveToId: 'sub_002' });
+    await t.api.call('subCompanies.delete', { id: 'sub_001', moveToId: 'sub_002' });
     expect(t.store.state.projects.prj_001.subCompanyId).toBe('sub_002');
     expect(t.store.state.subCompanies?.sub_001).toBeUndefined();
-    await t.api.call('events.undoStory', { correlationId: run.storyId });
+    // The move and the delete share one story, so one undo of the story takes both back.
+    const removal = Object.values(t.store.state.events).find((event) => event.verb === 'subCompany.deleted')!;
+    const story = Object.values(t.store.state.events).filter((event) => event.correlationId === removal.correlationId);
+    expect(story.map((event) => event.verb).sort()).toEqual(['project.updated', 'subCompany.deleted']);
+    await t.api.call('events.undoStory', { correlationId: removal.correlationId });
     expect(t.store.state.projects.prj_001.subCompanyId).toBe('sub_001');
     expect(t.store.state.subCompanies?.sub_001).toBeDefined();
   });

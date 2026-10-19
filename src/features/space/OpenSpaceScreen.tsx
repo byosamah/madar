@@ -102,9 +102,10 @@ function SpaceScreen() {
   const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set());
   const [focusPersonId, setFocusPersonId] = useState<string | null>(null);
   const flow = useRef<FlowHandle | null>(null);
-  // Each change that moves the view counts one. "nodes" are what the view fits to; null means the overview.
-  const [fit, setFit] = useState<{ n: number; nodes: string[] | null }>({ n: 0, nodes: null });
-  const moveView = (nodes: string[] | null) => setFit((current) => ({ n: current.n + 1, nodes }));
+  // Each change that moves the view counts one. "nodes" are what the view fits to; null means the overview. A phone is narrow, so it
+  // fits "phone" instead: the new level alone, which keeps the cards readable.
+  const [fit, setFit] = useState<{ n: number; nodes: string[] | null; phone: string[] | null }>({ n: 0, nodes: null, phone: null });
+  const moveView = (nodes: string[] | null, phone: string[] | null = null) => setFit((current) => ({ n: current.n + 1, nodes, phone }));
 
   const summaries = useMemo(() => projects.data ?? [], [projects.data]);
   const rows = useMemo(() => tasks.data ?? [], [tasks.data]);
@@ -159,7 +160,7 @@ function SpaceScreen() {
         moveView(null);
       } else {
         setOpened(new Set([id]));
-        moveView([id, ...stageIds]);
+        moveView([id, ...stageIds], stageIds);
       }
       return;
     }
@@ -169,7 +170,8 @@ function SpaceScreen() {
       return;
     }
     setOpened(new Set([...opened, id]));
-    moveView([found?.summary.project.id ?? id, id, ...rows.filter((row) => row.task.stageId === id && row.task.status !== 'done').map((row) => row.task.id)]);
+    const taskIds = rows.filter((row) => row.task.stageId === id && row.task.status !== 'done').map((row) => row.task.id);
+    moveView([found?.summary.project.id ?? id, id, ...taskIds], taskIds);
   }, [opened, projectById, stageById, rows]);
 
   // A person in focus opens every project and stage where that person works, and the view fits what stays bright (PRJ-06).
@@ -182,7 +184,8 @@ function SpaceScreen() {
     }
     const plan = focusPlan({ projects: summaries, tasks: rows, personId });
     setOpened(plan.opened);
-    moveView(plan.bright.length > 0 ? plan.bright : null);
+    const brightTasks = rows.filter((row) => plan.bright.includes(row.task.id)).map((row) => row.task.id);
+    moveView(plan.bright.length > 0 ? plan.bright : null, brightTasks);
   };
   const overview = () => {
     setFocusPersonId(null);
@@ -245,7 +248,9 @@ function SpaceScreen() {
   useEffect(() => {
     if (fit.n === 0) return;
     const frame = requestAnimationFrame(() => {
-      const options = fit.nodes ? { ...readableLimits(), duration: 250, nodes: fit.nodes.map((id) => ({ id })) } : viewRef.current;
+      const limits = readableLimits();
+      const ids = limits.minZoom < 0.7 && fit.phone && fit.phone.length > 0 ? fit.phone : fit.nodes;
+      const options = ids ? { ...limits, duration: 250, nodes: ids.map((id) => ({ id })) } : viewRef.current;
       void flow.current?.fitView(options);
     });
     return () => cancelAnimationFrame(frame);
