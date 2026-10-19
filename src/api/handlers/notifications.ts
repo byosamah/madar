@@ -11,6 +11,7 @@ import { can, mayViewTask, taskResource } from '../permissions';
 import { cardOf } from '../views';
 import { markOf } from '../../lib/projectMark';
 import { taskLink } from '../../lib/params';
+import { stampDay } from '../../lib/dates';
 
 /**
  * The Inbox badge counts only unread items of these kinds (spec 3.2). A restart day asks the leader to act, as a due day does. The
@@ -32,7 +33,7 @@ export const NotificationView = z.object({
   canApprove: z.boolean(),
   /** The task, post or project is deleted. The sentence keeps its last name, and there is nothing to open. */
   gone: z.boolean(),
-  /** The due day a reminder names, so the screen writes the day, never "tomorrow" (audit 2026-10-03, API-11). Null for other notices. */
+  /** The due day (or the planned restart day) a reminder names, so the screen writes the day, never "tomorrow" (audit 2026-10-03, API-11). Null for other notices. */
   dueDate: Day.nullable(),
   /**
    * The kind of the chat of a chat notice, so a group notice does not read as a direct message (UX audit 2026-10-19, INT-03).
@@ -131,6 +132,9 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     projectCode = copy ? text(copy.code) || null : null;
     tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
     if (project) link = `/projects/${project.id}`;
+    // A restart reminder names its planned day, so the screen says "is today" or "was <day>" (fbk_025). A notice saved before it
+    // kept the day takes the day it was made: the job makes it on the planned day or the first run after it.
+    if (n.trigger === 'resume_due') dueDate = n.dueDate ?? stampDay(n.createdAt);
   } else if (n.targetType === 'feedback') {
     if (gone) {
       // A former Admin reads nothing of the report: no words, no sender and no link (owner, 2026-10-07). The same for a report

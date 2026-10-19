@@ -69,14 +69,17 @@ function InboxItem({ view }: { view: NoticeView }) {
   const group = n.targetType === 'chat' && view.chatKind === 'group';
   // A chat with no project and no group is a direct chat: its sentence names no place (audit 2026-10-03, SHL-14).
   const direct = n.trigger === 'mention' && n.targetType === 'chat' && !project && !group;
-  const sentenceKey = report ? reportKey(n) : direct ? 'inbox.mentionDirect' : group ? groupKey(n.trigger, target !== '') : `inbox.trigger.${n.trigger}`;
+  // A restart reminder says "is today" on its day and "was <day>" after it (fbk_025). Its project name keeps its own direction.
+  const restart = n.trigger === 'resume_due';
+  const restartPast = restart && dueDate !== null && dueDate < todayISO();
+  const sentenceKey = report ? reportKey(n) : direct ? 'inbox.mentionDirect' : group ? groupKey(n.trigger, target !== '') : restartPast ? 'inbox.trigger.resume_due_past' : `inbox.trigger.${n.trigger}`;
   // A done report names no person, so its row shows the bell and not the Admin who marked it. A group notice shows the group.
   const face = report && n.trigger === 'feedback_done' ? null : actor;
   const sentence = t(sentenceKey, {
     actor: actor ? nameOf(actor) : t('inbox.someone'),
     context: actorContext(actor),
     // The excerpt of a report and the name of a group keep their own direction (FSI and PDI), so an English "…" or "?" stays at its end in Arabic.
-    target: report || group ? `\u2068${target}\u2069` : target,
+    target: report || group || restart ? `\u2068${target}\u2069` : target,
     // A reminder names its due day, which can be days away after a weekend (audit 2026-10-03, API-11).
     day: dueDate ? formatDay(dueDate, lang, 'weekday') : '',
   });

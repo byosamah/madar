@@ -159,12 +159,15 @@ export function runScheduledTriggers(state: State, at: Date, options: NotifyOpti
       }, options).length;
     }
   }
-  // A paused project reaches its planned restart day: the person who may resume it gets one notice (audit 2026-10-03, API-18).
+  // A paused project reaches its planned restart day: the people who may resume it get one notice (audit 2026-10-03, API-18). The
+  // person who paused it gets it too (fbk_025, owner 2026-10-19). The date is a reminder: Madar never restarts a project by itself.
+  // The notice keeps the day, so a notice that a person reads later says which day it named. A new date gives a new key.
   for (const project of Object.values(state.projects)) {
     const day = project.status === 'on_hold' ? project.pause?.resumeOn : null;
-    if (!day || day > today) continue;
+    if (!day || day > today || !project.pause) continue;
     count += notify(state, null, stamp, {
-      userIds: reviewersOf(state, project.id), trigger: 'resume_due', targetType: 'project', targetId: project.id, dedupeKey: `resume_due:${project.id}:${day}`,
+      userIds: [...reviewersOf(state, project.id), principalOf(state, project.pause.by)], trigger: 'resume_due', targetType: 'project', targetId: project.id,
+      dedupeKey: `resume_due:${project.id}:${day}`, dueDate: day,
     }, options).length;
   }
   return count;

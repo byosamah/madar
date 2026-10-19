@@ -81,7 +81,7 @@
       "task_approved": "My task is approved",
       "task_sent_back": "My task is sent back",
       "stage_changed": "The stage changes on my project",
-      "resume_due": "A paused project reaches its restart date",
+      "resume_due": "The restart reminder day of a project I paused or lead comes",
       "added_to_project": "I am added to a project"
     },
     "prototype": "Prototype",
@@ -325,13 +325,13 @@
     "pauseTitle": "Pause this project?",
     "pauseHint": "The team sees the reason. Tasks and dates stay as they are.",
     "pauseReason": "Reason",
-    "resumeOn": "Restart date (optional)",
+    "resumeOn": "Remind me to restart on (optional)",
     "pausedToast": "Project paused.",
     "resumedToast": "Project resumed.",
     "pausedTitle": "Paused",
     "pausedBy": "{{name}} paused this project on {{date}}.",
-    "restarts": "Restarts {{date}}.",
-    "restartWas": "Planned restart was {{date}}.",
+    "restarts": "Restart reminder on {{date}}.",
+    "restartWas": "Planned restart was {{date}}. Resume the project or set a new date.",
     "pauseWhy": "Why?",
     "pauseKinds": {
       "internal": "Our side",
@@ -729,7 +729,7 @@
       "task_approved": "{{actor}} approved “{{target}}”",
       "task_sent_back": "{{actor}} sent back “{{target}}”",
       "stage_changed": "{{actor}} changed the stage of {{target}}",
-      "resume_due": "{{target}} reached its planned restart date",
+      "resume_due": "{{target}}: the planned restart is today. Resume it or set a new date.",
       "added_to_project": "{{actor}} added you to {{target}}"
     }
   },

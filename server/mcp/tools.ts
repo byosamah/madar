@@ -65,7 +65,7 @@ export const MCP_DENY = [
   // Office roles and their rights: only the Admin makes or changes a role, in the screens (owner, 2026-10-18, fbk_014).
   'roles.create', 'roles.update', 'roles.delete',
   // Project set-up, members, stages, links, health and deletes.
-  'projects.create', 'projects.setLeader', 'projects.pause', 'projects.resume', 'projects.addLink', 'projects.updateLink',
+  'projects.create', 'projects.setLeader', 'projects.pause', 'projects.resume', 'projects.setRestart', 'projects.addLink', 'projects.updateLink',
   'projects.removeLink', 'projects.setHealthOverride', 'projects.clearHealthOverride', 'projects.delete',
   'members.add', 'members.addTeam', 'members.remove', 'members.update',
   'stages.replace', 'stages.setDates', 'stages.setPrerequisites', 'deadlines.delete',

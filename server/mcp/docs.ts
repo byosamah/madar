@@ -40,6 +40,8 @@ export const INSTRUCTIONS = [
   '',
   'Reports: reports.office gives the data of one week, month, quarter or year, and the design guide of the report. Build the report from that guide: a white page, the Madar colors, and no money part unless the answer has one.',
   '',
+  'Pauses: a paused project may hold a restart date (project.pause.resumeOn). The date is a reminder only: on that day the person who paused the project and its leader get a notice, and Madar never restarts the project by itself. The person pauses, resumes and moves the date in the Madar screens.',
+  '',
   'Health: an active project is late when today is after the end date of its current stage. It is at risk when one of its open tasks is 3 or more days past due, or when the stage ends within 7 days and less than 70% of its tasks are done. A task 1 or 2 days past due still counts as past due (tasks.list filter overdue), but it does not put the project at risk.',
   '',
   'IDs have a prefix and a number, for example prj_001, tsk_014, usr_003. Dates are YYYY-MM-DD in Riyadh time. Read before you write: find IDs with the list and get tools.',
@@ -171,7 +173,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.setStatus': {
     title: 'Set the project status',
-    description: 'Sets the status of one project: active, completed or archived. The project leader and the Admin may do this. Ask your person before you complete or archive a project. A pause (on_hold) needs a reason: the person pauses a project in the Madar screens.',
+    description: 'Sets the status of one project: active, completed or archived. The project leader and the Admin may do this. Ask your person before you complete or archive a project. A pause (on_hold) needs a reason: the person pauses a project in the Madar screens. The restart date of a pause (pause.resumeOn) is a reminder only: Madar never restarts a project by itself, and a person resumes it.',
   },
   'projects.update': {
     title: 'Change project details',

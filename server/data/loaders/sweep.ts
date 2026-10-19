@@ -123,6 +123,7 @@ export function writeSweep(office: State): SweepCall[] {
     ['projects.update', { id: 'prj_001', patch: { code: '261000GCH-COM-Office Tower' } }, ADMIN],
     ['clients.update', { id: 'cli_001', patch: { initials: 'GCH' } }, ADMIN],
     ['projects.setStatus', { id: 'prj_009', status: 'active' }, ADMIN],
+    ['projects.setRestart', { id: 'prj_012', resumeOn: '2026-12-01' }, ADMIN],
     ['projects.resume', { id: 'prj_012' }, ADMIN],
     ['projects.pause', { id: 'prj_001', kind: 'client', reason: 'Waiting', resumeOn: null }, ADMIN],
     ['projects.setHealthOverride', { id: 'prj_001', value: 'late', reason: 'Late' }, ADMIN],

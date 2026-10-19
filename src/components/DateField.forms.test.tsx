@@ -75,8 +75,10 @@ describe('the dates of the forms show "Set date…" (owner, 2026-10-05)', () => 
     await userEvent.click(await screen.findByRole('button', { name: 'More actions' }));
     await userEvent.click(screen.getByRole('menuitem', { name: 'Pause project' }));
     const sheet = await screen.findByRole('dialog', { name: 'Pause this project?' });
-    const resume = quiet(sheet, 'Restart date (optional)');
+    // fbk_025: the date reads as a reminder, with one hint line that says Madar does not restart the project by itself.
+    const resume = quiet(sheet, 'Remind me to restart on (optional)');
     expect(shownFor(resume)).toBe('Set date…');
+    expect(within(sheet).getByText('Madar does not restart the project by itself. On this day, you and the project leader get a notice.')).toBeInTheDocument();
     // The picker still starts from tomorrow.
     expect(resume).toHaveAttribute('min', '2026-10-01');
   });

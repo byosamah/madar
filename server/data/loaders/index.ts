@@ -89,6 +89,7 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'projects.setStatus': project((L, i) => projectCall(L, i.id)),
   'projects.pause': project((L, i) => projectCall(L, i.id)),
   'projects.resume': project((L, i) => projectCall(L, i.id)),
+  'projects.setRestart': project((L, i) => projectCall(L, i.id)),
   'projects.addLink': project((L, i) => projectCall(L, i.projectId)),
   'projects.updateLink': project((L, i) => projectCall(L, i.projectId)),
   'projects.removeLink': project((L, i) => projectCall(L, i.projectId)),

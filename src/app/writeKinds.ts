@@ -33,6 +33,7 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'projects.setStatus': ['events', 'projects', 'tracker'],
   'projects.pause': ['events', 'projects', 'tracker'],
   'projects.resume': ['events', 'projects', 'tracker'],
+  'projects.setRestart': ['events', 'projects'],
   'roles.create': ['events', 'settings'],
   'roles.update': ['events', 'settings'],
   'roles.delete': ['events', 'settings', 'users'],

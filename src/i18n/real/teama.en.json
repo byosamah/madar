@@ -1,0 +1,12 @@
+{
+  "project": {
+    "resumeOnHint": "Madar does not restart the project by itself. On this day, you and the project leader get a notice.",
+    "setNewDate": "Set a new date",
+    "restartMovedToast": "New restart date saved."
+  },
+  "inbox": {
+    "trigger": {
+      "resume_due_past": "{{target}}: the planned restart was {{day}}. Resume it or set a new date."
+    }
+  }
+}

@@ -359,6 +359,46 @@ describe('pausing a project', () => {
   });
 });
 
+// fbk_025: the restart date of a pause is a reminder. A new date changes only the date.
+describe('the restart date of a pause (fbk_025)', () => {
+  it('lets the leader set a new date, and keeps the reason, the kind, the person and the day of the pause', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    const paused = await t.api.call('projects.pause', { id: 'prj_001', reason: 'The client reviews the budget.', resumeOn: '2026-10-05', kind: 'client' });
+    const moved = await t.api.call('projects.setRestart', { id: 'prj_001', resumeOn: '2026-10-20' });
+    expect(moved.project.status).toBe('on_hold');
+    expect(moved.project.pause).toEqual({ ...paused.project.pause, resumeOn: '2026-10-20' });
+    expect(Object.values(t.store.state.events).map((e) => e.verb)).toContain('project.restart_moved');
+  });
+
+  it('writes no event for the same date', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    await t.api.call('projects.pause', { id: 'prj_001', reason: 'Wait.', resumeOn: '2026-10-05' });
+    const before = Object.keys(t.store.state.events).length;
+    await t.api.call('projects.setRestart', { id: 'prj_001', resumeOn: '2026-10-05' });
+    expect(Object.keys(t.store.state.events)).toHaveLength(before);
+  });
+
+  it('refuses a team member, a project that is not paused and a date that is not after today', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    await expect(t.api.call('projects.setRestart', { id: 'prj_001', resumeOn: '2026-10-20' })).rejects.toMatchObject({ code: 'conflict' });
+    await t.api.call('projects.pause', { id: 'prj_001', reason: 'Wait.' });
+    await expect(t.api.call('projects.setRestart', { id: 'prj_001', resumeOn: '2026-09-30' })).rejects.toMatchObject({ code: 'invalid_input' });
+    t.as('usr_003');
+    await expect(t.api.call('projects.setRestart', { id: 'prj_001', resumeOn: '2026-10-20' })).rejects.toMatchObject({ code: 'forbidden' });
+  });
+
+  it('gives a pause with no date its first date', async () => {
+    const t = testApi(projectCalls);
+    t.as('usr_002');
+    await t.api.call('projects.pause', { id: 'prj_001', reason: 'Wait.' });
+    const moved = await t.api.call('projects.setRestart', { id: 'prj_001', resumeOn: '2026-10-20' });
+    expect(moved.project.pause?.resumeOn).toBe('2026-10-20');
+  });
+});
+
 describe('project links (colleague comment 5, 2026-10-01)', () => {
   it('lets the leader and the team add, change and remove links; others only read them', async () => {
     const t = testApi(projectCalls);
