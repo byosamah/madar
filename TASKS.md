@@ -638,7 +638,7 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
 - [ ] When Track R merges (`unread_counts`): the import carries the stored unread numbers too (`ServerRows.unreadCounts` in
       `pgSource`, `exportSource` and `importFinish`), with a test that a badge after an import equals the badge before it
       (wave 4 plan, Merge note 3)
-- [ ] Track R must also count group chats and leave out archived chats (fbk_011, plan 2026-10-18, wave 2 Task 7 of the group chat build)
+- [ ] Track R must also count group chats, and treat an archived chat as read: `chats.archive` marks the chat read, so no archived chat holds an unread number (fbk_011, UX audit 2026-10-19, INT-01)
 - [ ] Exit wave 6: production takes the word office (lift `OFFICE_COPIES_OPEN`), its binding, migration and Cron, `new-secret.ts`
       and `auth-key.ts` for production, `secrets.ts --office` for production, `office-backup.yml` on production, the restore
       reminder text for office backups
@@ -677,8 +677,8 @@ Builders: Haiku 5.5. Checkers: Sonnet 5.5 (owner, 2026-10-18, for these builds).
 - [ ] Waves 1 to 4 release: production from Friday 2026-10-23 by the owner (`! echo production | scripts/deploy/all.sh production` from deploy-test), then the owner says the release is live (then `feedback.setStatus` done for fbk_013, fbk_010, fbk_019, fbk_009, fbk_018, fbk_012, fbk_011, fbk_007, fbk_015, fbk_008, fbk_014, fbk_016; fbk_017 only after the map file is live)
 - [ ] Open for the owner (2026-10-18), none of them blocks the test deploy:
   - The map file (Task 11 steps 3 to 5): A) own file on R2, free, needs the owner OK for the upload and a bucket; or B) free OpenFreeMap tiles, no upload, less control. Until then the real map shows no street tiles.
-  - Group chats: "New message" keeps one tap for a direct chat, and a "Make a group" button starts a group. A group keeps at least 2 people besides the maker. Confirm both.
-  - A mention in a group chat reads "mentioned you in a direct message" (the notice has no group word). Build a group word?
+  - Group chats: "New message" keeps one tap for a direct chat, and a "Make a group" button starts a group. A group starts with at least 2 people besides the maker, and a person can always leave (the last person reads a closed chat). Confirm both.
+  - Done 2026-10-19: a mention in a group names the group (INT-03).
   - Project templates: the stage start field in the side panel changes only the date. The stage bar in the timeline moves the tasks too. Should the side panel move the tasks?
   - The Dashboard map pin is a round dot, not the project tile. Keep the dot?
   - The place search sends no referrer and waits 1 second between two searches (Nominatim policy). Accept?

@@ -193,6 +193,29 @@ any screen work.
   tasks with a due date (`comingUp`, `lib/home.ts`, owner 2026-10-07). With neither, it says that nothing is due today. Home
   follows the shared order of the Tasks screen (`api/CLAUDE.md`).
 
+## Inbox, groups and What's new (owner 2026-10-18; UX audit 2026-10-19)
+- Inbox list (`features/inbox/ChatList.tsx`): "Archived (n)" is one quiet row under the search field, only while a chat is archived
+  and nothing is typed. The archived view has a back arrow, the title "Archived chats" and its own search words. A search in the
+  main list looks in every chat, and an archived match carries the word "Archived". A group matches by its name (only its members
+  have its row). An archive and a move back show a toast with Undo (`archive.ts`, `useArchive`; `chats.archive` writes no event, so
+  the Undo calls it again with the other value). The menu button of a row shows on hover or focus only (`pointer-coarse:hidden`,
+  `max-sm:hidden`); on a phone or a finger a swipe on the row archives it. The menu button names its chat ("Options for <title>").
+- A chat that was read and waits for a reply shows "Waits for your reply" on its row (`chats.waiting` in `InboxScreen`).
+- A group has one picture, `GroupPicture` (the glow of its id and a people icon), never a stack of faces. The header shows the
+  count of people ("4 people") as a button; it and the picture open the People sheet (`GroupSheets.tsx`): names with "You" and
+  "Group maker", Add people at the top, Remove on each other row for the maker (toast with Undo), Leave group at the end (a confirm
+  sheet with Cancel in focus). The group menu holds Rename and Archive only. A group of one person left reads a closed chat.
+- New group (`InboxScreen.tsx`): the title says "New group", a line counts the people, the name field shows from the start and is
+  optional (an empty name takes the first names), and one full-width button makes the group.
+- The quiet lines of a group (`Conversation.log`, `ChatThread.lines`) draw as one grey centered line between the messages
+  (`GroupLineItem` in `Thread.tsx`), in the screen language. They are no messages: never unread, no push.
+- The mention list of the Inbox box opens above the box (`MentionField placement="above"`) and ranks the names that start with
+  the typed letters first (`rankedMatches`, `lib/personName.ts`).
+- What's new (`whatsNew/entries.ts`): an entry may have `right` (the page shows it only to a person who holds it, by `can()`) and
+  `to` (one quiet link "Open"). An entry newer than the last one the person saw has the word "New". The person menu shows the word
+  "New" after the item, and Home ends its date line with the link "See what's new", until the person opens the page. There is no dot
+  and no bold item.
+
 ## Design rules (the short form of DESIGN.md)
 - Judge every choice from the view of the employees with ADHD: one next step, the fewest controls.
 - Start from the LIVE app's design system (glow tiles, the tokens), never from the spec alone.
@@ -218,8 +241,14 @@ any screen work.
   `text-start`/`text-end`: `scripts/check-rtl.ts` fails on that. A name with a colon is one `<bdi>` ("Faisal:").
 - Every visible word comes from a word key (see `i18n/CLAUDE.md`).
 - Dates: a date that saves itself uses `DateDraftField`. A date in a form that saves with its own button uses `DateField`
-  (`components/DateField.tsx`). Both show "Set date…" when empty. Only the Tracker quick log keeps a raw date field (its
-  date is never empty and has no label).
+  (`components/DateField.tsx`). Both show "Set date…" when empty. Only the Tracker quick log keeps a full date field (its
+  date is never empty and has no label); on a computer a press on it opens the calendar of Madar under it (UX audit 2026-10-19).
+  A date that cannot come before or after another takes `min` and `max` (project end after start, stage end after start,
+  Received on not in the future): the calendar greys the days out. The calendar (`CalendarPopover.tsx`) has a solid ink
+  circle for the chosen day, a press on the month title for a grid of 12 months with year arrows, and a Today button.
+- `Popover` draws inside the closest `[role="dialog"]` of its anchor, as `Menu` does, and turns its place into the units of
+  that dialog (`fixedFrame`, `inFrame`). A blocking sheet traps the focus, so a panel outside it lost the focus at once and a date
+  field in a sheet turned into the browser box (UX audit 2026-10-19, chats-02).
 - A required field: `required` on `TextField`, `SelectField`, `TextArea` or `DateField` shows an asterisk after the label
   and a hidden "required" word in the description. The label text stays the field name, and the browser never checks
   the field.

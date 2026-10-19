@@ -109,6 +109,15 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   An undo event takes the `officeTaskId` of the event it undoes; a comment of a deleted office task reads `lastTaskCopy`.
 - A hidden office record answers exactly as a missing one: `not_found` Task, Comment, File or Story, and `file_missing` in
   the attach rules (`attach.ts`). Never a `forbidden` that tells that it exists.
+- Chats and groups (UX audit 2026-10-19): `chats.archive` also marks the chat read up to now when it archives (the Inbox badge never
+  counts a chat that is out of the list); moving back keeps the read mark. `chats.createGroup` takes an optional name; with none, the
+  group takes the first names of its people in the language of the maker (`autoGroupName`). A person can always leave
+  (`chats.leaveGroup`); a removal keeps at least two people. `actingMaker` is the maker while active, else the first active person;
+  `ChatRow.makerId` and the remove rule use it, and the record keeps the first maker. A group with no other active person is closed
+  (`ChatRow.personLeft`, `chats.send` refuses it, `chats.waiting` skips it). `Conversation.log` keeps the newest `GROUP_LOG_MAX` (100)
+  quiet lines (added, removed, left, renamed); `chats.messages` returns them as `lines` for a group. They are no messages, so no
+  unread count, preview or push reads them. `chats.updateGroup` sends the trigger `added_to_group` (in-app only) to each added person.
+  `NotificationView.chatKind` and `target` (the group name while the viewer is a member) let a group notice name the group.
 - A message view (`messageViewOf`, `handlers/chats.ts`) drops the file row, and the file id in `message.fileIds`, of a file that
   the reader may not view (`mayViewFile`). A member of a group reads the old messages of other people, so this holds for a late
   member too. Every project file is open to every person, so its row stays. The chat rules keep an office file out of a message;

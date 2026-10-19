@@ -262,4 +262,18 @@ describe('a removed member cannot send or read, with or without a file', () => {
     expect((await t.api.call('chats.list', {})).map((row) => row.id)).not.toContain(group);
     expect(JSON.stringify(await t.api.call('chats.waiting', {}))).not.toContain(LICENCE_BODY);
   });
+
+  // UX audit 2026-10-19, INT-25 (the group part): the Inbox search is a filter of chats.list, so a member finds the group by its name
+  // and nobody else has the name anywhere: not in the chats, not in the search, not in what waits for a reply.
+  it('lets a member find the group by its name in the list that the Inbox filters, and gives an outsider no trace of the name', async () => {
+    const { t, group } = await world();
+    t.as('usr_002');
+    const mine = await t.api.call('chats.list', {});
+    expect(mine.filter((row) => row.title.toLowerCase().includes(GROUP_NAME.toLowerCase().slice(0, 4))).map((row) => row.id)).toContain(group);
+    t.as('usr_004');
+    for (const answer of [await t.api.call('chats.list', {}), await t.api.call('search.query', { text: GROUP_NAME }), await t.api.call('chats.waiting', {})]) {
+      expect(JSON.stringify(answer)).not.toContain(GROUP_NAME);
+    }
+  });
 });
+
