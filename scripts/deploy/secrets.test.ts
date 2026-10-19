@@ -2,6 +2,7 @@ import { createHash, createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  FUNCTION_SECRETS,
   HEALTH_LOCK_KEY,
   HyperdriveCredentialsRefused,
   KEPT_ON_WORKER,
@@ -183,6 +184,57 @@ describe('the VAPID keys of browser push (owner, 2026-10-08)', () => {
       const message = refusal(() => check(file(TEST, lines)));
       expect(message).toMatch(name);
       for (const value of ['short-private-value', 'short-public-value', VAPID_PRIVATE, VAPID_PUBLIC]) expect(message).not.toContain(value);
+    }
+  });
+});
+
+// Made-up Google Calendar values of the right shape (fbk_022): the client id ends with .apps.googleusercontent.com, the key is
+// 32 bytes in base64.
+const GOOGLE_ID = '123456789012-madeupmadeupmadeup.apps.googleusercontent.com';
+const GOOGLE_SECRET = 'GOCSPX-made-up-secret-value';
+const GOOGLE_KEY = Buffer.alloc(32, 5).toString('base64');
+const GOOGLE_LINES = `GOOGLE_CLIENT_ID=${GOOGLE_ID}\nGOOGLE_CLIENT_SECRET=${GOOGLE_SECRET}\nMADAR_GOOGLE_KEY=${GOOGLE_KEY}`;
+
+describe('the Google Calendar values (fbk_022, owner 2026-10-19)', () => {
+  const check = (text: string) => checkSecrets(parseSecretsFile(text), TEST);
+
+  it('takes the three names in the secrets file, and sends them to the functions and to the Worker', async () => {
+    expect(Object.keys(parseSecretsFile(file(TEST, GOOGLE_LINES)))).toEqual(
+      ['DATABASE_URL', 'APP_URL', 'MAIL_FROM', 'RESEND_API_KEY', 'JOBS_SECRET', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'MADAR_GOOGLE_KEY'],
+    );
+    for (const name of ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'MADAR_GOOGLE_KEY']) {
+      expect(FUNCTION_SECRETS as readonly string[], name).toContain(name);
+      expect(WORKER_SECRETS, name).toContain(name);
+    }
+    const h = harness({ text: file(TEST, GOOGLE_LINES) });
+    await runSecrets(h.run);
+    const body = JSON.parse(String(h.requests[0].init.body)) as { name: string }[];
+    expect(body.map((secret) => secret.name)).toEqual(expect.arrayContaining(['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'MADAR_GOOGLE_KEY']));
+    expect(h.logs.join('\n')).toContain('GOOGLE_CLIENT_SECRET');
+    for (const value of [GOOGLE_SECRET, GOOGLE_KEY]) expect(h.logs.join('\n')).not.toContain(value);
+  });
+
+  it('needs no Google value: Google is off without them, and an old secrets file still passes', () => {
+    expect(() => check(file())).not.toThrow();
+  });
+
+  it('needs all three or none, and names each missing one', () => {
+    expect(() => check(file(TEST, `GOOGLE_CLIENT_ID=${GOOGLE_ID}`))).toThrow(/needs GOOGLE_CLIENT_SECRET, MADAR_GOOGLE_KEY/);
+    expect(() => check(file(TEST, `GOOGLE_CLIENT_SECRET=${GOOGLE_SECRET}\nMADAR_GOOGLE_KEY=${GOOGLE_KEY}`))).toThrow(/needs GOOGLE_CLIENT_ID/);
+    expect(() => check(file(TEST, GOOGLE_LINES))).not.toThrow();
+  });
+
+  it('checks the shape of each value, with an error that names the variable and never the value', () => {
+    const cases: [string, RegExp][] = [
+      [GOOGLE_LINES.replace(GOOGLE_ID, 'plain-client-id'), /GOOGLE_CLIENT_ID/],
+      [GOOGLE_LINES.replace(GOOGLE_SECRET, 'a secret with spaces'), /GOOGLE_CLIENT_SECRET/],
+      [GOOGLE_LINES.replace(GOOGLE_KEY, 'short-key-value'), /MADAR_GOOGLE_KEY/],
+      [GOOGLE_LINES.replace(GOOGLE_KEY, Buffer.alloc(31, 5).toString('base64')), /MADAR_GOOGLE_KEY/],
+    ];
+    for (const [lines, name] of cases) {
+      const message = refusal(() => check(file(TEST, lines)));
+      expect(message).toMatch(name);
+      for (const value of ['plain-client-id', 'a secret with spaces', 'short-key-value', GOOGLE_SECRET, GOOGLE_KEY]) expect(message).not.toContain(value);
     }
   });
 });
