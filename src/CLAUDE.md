@@ -340,8 +340,8 @@ any screen work.
   else none. A cancelled or finished meeting has none. The menu holds Edit and Cancel by `viewerCan`. Cancel asks first (Keep meeting has the focus),
   then a toast with Undo. A meeting that the person may not see reads "This meeting is not available.", as one that does not exist. Use `now()` from
   `lib/dates.ts`, never `new Date()`: the tests fix the clock.
-- `MeetingForm.tsx` plans and edits. Eight controls: Kind, Title, Project, Day, Time, Length, People, Where. The fold "More" holds Minutes by, Guests
-  and Notes. A kind sets the length and the person for the minutes until the person chooses them (`kindDefaults`), and the place of a site visit
+- `MeetingForm.tsx` plans and edits. Eight controls: Kind, Title, Project, Day, Time, Length, People, Where. The fold "More" holds Guests and Notes
+  (no Minutes by: any attendee writes the minutes, owner 2026-10-19). A kind sets the length until the person chooses it (`kindDefaults`), and the place of a site visit
   starts with the address of the project. The edit form has no Project (`project_fixed`), sends only the fields that changed, writes nothing when
   nothing changed, and after the end opens only the Notes. A refusal of the server shows in the form (`role="alert"`). `TimeField.tsx` is a select of
   15-minute steps from 06:00 to 22:00; `formModel.ts` holds the pure rules (slots, lengths, `defaultSlot`, `stampOf`).

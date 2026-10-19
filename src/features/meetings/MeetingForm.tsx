@@ -78,7 +78,7 @@ function PeoplePicker({ people, value, onChange, disabled }: { people: { id: str
 
 /**
  * The sheet that plans a meeting, and the same sheet that edits one (fbk_022, owner 2026-10-19). Eight controls: Kind, Title, Project,
- * Day, Time, Length, People, Where. The fold "More" holds Minutes by, Guests and Notes. One button. A kind sets the length and the
+ * Day, Time, Length, People, Where. The fold "More" holds Guests and Notes. One button. A kind sets the length and the
  * person for the minutes until the person chooses them; the place of a site visit starts with the address of the project pin.
  * The edit form has no Project: a meeting stays in its project. After the end only the notes change. A refusal of the server shows in
  * the form, in its own words.
@@ -130,7 +130,6 @@ export function MeetingForm({ open, onOpenChange, meeting, project = null }: {
   const defaultMinutes = kindDefaults(draft.kind).minutesByOrganizer ? organizerId : '';
   const minutesChoices = [organizerId, ...draft.attendeeIds];
   const minutes = draft.minutes !== undefined && (draft.minutes === '' || minutesChoices.includes(draft.minutes)) ? draft.minutes : defaultMinutes;
-  const minutesPeople = [...(meeting ? [meeting.organizer] : []), ...(session.data && !meeting ? [session.data.user] : []), ...people].filter((person) => minutesChoices.includes(person.id));
 
   const onKind = (kind: MeetingKindName) => {
     const defaults = kindDefaults(kind);
@@ -253,10 +252,6 @@ export function MeetingForm({ open, onOpenChange, meeting, project = null }: {
           </button>
           {draft.more && (
             <div id="meeting-more" className="flex flex-col gap-4">
-              <SelectField id="meeting-minutes" label={t('meetings.form.minutesBy')} disabled={locked} value={minutes} onChange={(event) => set({ minutes: event.target.value })}>
-                <option value="">{t('meetings.form.nobody')}</option>
-                {minutesPeople.map((person) => <option key={person.id} value={person.id}>{nameOf(person)}</option>)}
-              </SelectField>
               <TextField
                 id="meeting-guests" label={t('meetings.form.guests')} dir="auto" autoComplete="off" maxLength={L.guestsMax} disabled={locked}
                 hint={t('meetings.form.guestsHint')} value={draft.guests} onChange={(event) => set({ guests: event.target.value })}

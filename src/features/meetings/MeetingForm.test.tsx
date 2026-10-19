@@ -28,13 +28,14 @@ describe('the New meeting sheet', () => {
     expect(within(form).getByLabelText(/Day/)).toBeInTheDocument();
     expect(within(form).getByRole('group', { name: 'People' })).toBeInTheDocument();
     expect(within(form).getByRole('textbox', { name: 'Where' })).toBeInTheDocument();
+    // The minutes need no person: any attendee writes them (owner, 2026-10-19).
     expect(within(form).queryByRole('combobox', { name: 'Minutes by' })).toBeNull();
     expect(within(form).queryByRole('textbox', { name: 'Guests' })).toBeNull();
     const more = within(form).getByRole('button', { name: 'More' });
     expect(more).toHaveAttribute('aria-expanded', 'false');
     await userEvent.click(more);
     expect(more).toHaveAttribute('aria-expanded', 'true');
-    expect(field(form, 'Minutes by')).toBeInTheDocument();
+    expect(within(form).queryByRole('combobox', { name: 'Minutes by' })).toBeNull();
     expect(within(form).getByRole('textbox', { name: 'Guests' })).toBeInTheDocument();
     expect(within(form).getByRole('textbox', { name: 'Notes' })).toBeInTheDocument();
     // One button: the main one. The close button of the sheet is not a second action.
@@ -48,17 +49,13 @@ describe('the New meeting sheet', () => {
     for (const box of within(form).getAllByRole('textbox')) expect(box, box.id).toHaveAttribute('autocomplete', 'off');
   });
 
-  it('sets the length and the person for the minutes by the kind, until the person chooses', async () => {
+  it('sets the length by the kind, until the person chooses', async () => {
     const { form } = await openForm();
-    await userEvent.click(within(form).getByRole('button', { name: 'More' }));
     expect(field(form, 'Length')).toHaveDisplayValue('1 h');
-    expect(field(form, 'Minutes by')).toHaveDisplayValue('Faisal Al-Harbi');
     await userEvent.selectOptions(field(form, 'Kind'), 'team');
     expect(field(form, 'Length')).toHaveDisplayValue('30 min');
-    expect(field(form, 'Minutes by')).toHaveDisplayValue('Nobody');
     await userEvent.selectOptions(field(form, 'Kind'), 'site_visit');
     expect(field(form, 'Length')).toHaveDisplayValue('2 h');
-    expect(field(form, 'Minutes by')).toHaveDisplayValue('Faisal Al-Harbi');
     // A length that the person chose stays when the kind changes.
     await userEvent.selectOptions(field(form, 'Length'), '45');
     await userEvent.selectOptions(field(form, 'Kind'), 'client');

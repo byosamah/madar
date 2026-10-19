@@ -21,7 +21,7 @@ function client(state: State, over: Partial<Meeting> = {}): void {
 const sheet = () => screen.findByRole('dialog', { name: 'Review the facade' });
 
 describe('the meeting sheet', () => {
-  it('shows the kind, the day and time, the place, the project, the people, the minutes and the notes', async () => {
+  it('shows the kind, the day and time, the place, the project, the people and the notes, and no person for the minutes', async () => {
     await renderApp('/meetings?meeting=mtg_001', (state) => client(state));
     const box = await sheet();
     expect(within(box).getByText('Client meeting')).toBeInTheDocument();
@@ -29,11 +29,11 @@ describe('the meeting sheet', () => {
     expect(within(box).getByText('14:00 to 15:00')).toBeInTheDocument();
     expect(within(box).getByText('Client office, Al Khobar')).toBeInTheDocument();
     expect(within(box).getByRole('link', { name: /Corniche Office Tower/ })).toHaveAttribute('href', '#/projects/prj_001');
-    // Faisal is the organizer and writes the minutes, so his name shows in two facts.
-    expect(within(box).getAllByText('Faisal Al-Harbi')).toHaveLength(2);
+    // Faisal is the organizer: his name shows once. Any attendee writes the minutes (owner, 2026-10-19).
+    expect(within(box).getAllByText('Faisal Al-Harbi')).toHaveLength(1);
     expect(within(box).getByText('Sara Al-Qahtani')).toBeInTheDocument();
     expect(within(box).getByText('Yousef Saleh')).toBeInTheDocument();
-    expect(within(box).getByText('Minutes by')).toBeInTheDocument();
+    expect(within(box).queryByText('Minutes by')).toBeNull();
     expect(within(box).getByText('The owner')).toBeInTheDocument();
     expect(within(box).getByText('Bring the studies.')).toBeInTheDocument();
   });
@@ -137,17 +137,5 @@ describe('the meeting sheet', () => {
     });
     expect(await screen.findByText('This meeting is not available.')).toBeInTheDocument();
     expect(screen.queryByText('Review the facade')).toBeNull();
-  });
-
-  it('shows the minutes person and a link to the minutes task once Madar made it', async () => {
-    await renderApp('/meetings?meeting=mtg_001', (state) => {
-      client(state, { startsAt: '2026-09-29T10:00:00.000+03:00', endsAt: '2026-09-29T11:00:00.000+03:00', minutesTaskId: 'tsk_900' });
-      state.tasks.tsk_900 = {
-        id: 'tsk_900', projectId: 'prj_001', stageId: null, title: 'Minutes: Review the facade', description: '', ownerId: 'usr_002', status: 'todo', dueDate: '2026-10-01',
-        flagged: false, needsReview: false, checklist: [], createdBy: 'usr_002', createdAt: '2026-09-29T12:00:00.000+03:00', completedAt: null,
-      };
-    });
-    const link = await within(await sheet()).findByRole('link', { name: 'Open the minutes task' });
-    expect(link).toHaveAttribute('href', '#/projects/prj_001?tab=tasks&task=tsk_900');
   });
 });

@@ -102,12 +102,13 @@ describe('the written instructions for the meeting tools', () => {
     }
   });
 
-  it('say in the paragraph of the instructions what the agent must know: the attendees are people, the start form, the private meeting and the minutes', () => {
+  it('say in the paragraph of the instructions what the agent must know: the attendees are people, the start form, the private meeting, and no word on the minutes before wave 2', () => {
     const line = INSTRUCTIONS.split('\n').find((text) => text.startsWith('Meetings:'));
     expect(line).toBeDefined();
-    for (const word of ['meetings.list', 'projectId', 'real people', 'ask your person', 'YYYY-MM-DDTHH:MM:00+03:00', 'private', 'not_found', 'minutes task', 'Tracker line', 'rule 6']) {
+    for (const word of ['meetings.list', 'projectId', 'real people', 'ask your person', 'YYYY-MM-DDTHH:MM:00+03:00', 'private', 'not_found', 'rule 6']) {
       expect(line, word).toContain(word);
     }
+    expect(line).not.toContain('minutes task');
     expect(line).not.toMatch(/[–—]/);
   });
 

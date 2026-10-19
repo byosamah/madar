@@ -45,8 +45,8 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   private to its organizer and its attendees: for anyone else, also an agent of an Admin who is not invited, every call answers `not_found`.
   An agent gets no notice and sends none of its own: the attendees get `meeting_invited` as for any person, and the person of the agent none
   (`notify` skips the actor and the person of an agent actor).
-  The `INSTRUCTIONS` sentence that says Madar makes the minutes task and the Tracker line after a project meeting is true when wave 2
-  (`meetings.settle`) is live. The three meeting writes take `storyId` like any write.
+  `INSTRUCTIONS` says nothing of the minutes until wave 2 (`meetings.settle`) is live: any attendee writes them, no minutes task (owner,
+  2026-10-19). The tools leave out `minutesById`. The three meeting writes take `storyId` like any write.
 - Sub-companies (review 2026-10-19): `dashboard.get`, `tasks.list`, `deadlines.list`, `projects.list` and `reports.office` take `subCompanyId`;
   `projects.list` filter `no_sub_company` lists the projects with none; `search.query` and `subCompanies.list` (`projectCount`) carry counts. An agent
   never undoes a sub-company event (`events.undo`, `events.undoStory`).

@@ -15,7 +15,6 @@ import { ProjectTile } from '../../components/ProjectTile';
 import { Sheet } from '../../components/Sheet';
 import { clockFormat, formatDay, now, stampDay } from '../../lib/dates';
 import { phaseOf } from '../../lib/meetings';
-import { taskLink } from '../../lib/params';
 import { MeetingForm } from './MeetingForm';
 import { joinLink, mainAction } from './meetingLinks';
 
@@ -75,7 +74,7 @@ function Unavailable({ error, onRetry, onClose }: { error: unknown; onRetry: () 
 
 /**
  * The sheet of one meeting (fbk_022, owner 2026-10-19). The title, the kind and its state, the day and time, the place, the project,
- * the people, the minutes and the notes. At most one main button: "Join" (the place is a link and the start is near, or the meeting
+ * the people and the notes. At most one main button: "Join" (the place is a link and the start is near, or the meeting
  * is on), "Open in Google Maps" (a site visit of a project with a pin), else none. The menu holds Edit and Cancel, by `viewerCan`.
  */
 export function MeetingSheet({ meetingId, onClose }: { meetingId: string; onClose: () => void }) {
@@ -152,16 +151,6 @@ export function MeetingSheet({ meetingId, onClose }: { meetingId: string; onClos
               <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
                 {meeting.attendees.map((person) => <li key={person.id}><PersonLine person={person} /></li>)}
               </ul>
-            </Fact>
-          )}
-          {meeting.minutesBy && (
-            <Fact label={t('meetings.sheet.minutesBy')}>
-              <PersonLine person={meeting.minutesBy} />
-              {meeting.minutesTask && (
-                <Link to={taskLink(meeting.project?.id ?? null, meeting.minutesTask.id)} className="-my-1.5 flex min-h-11 items-center text-link underline underline-offset-2">
-                  {t('meetings.sheet.minutesTask')}
-                </Link>
-              )}
             </Fact>
           )}
           {meeting.guests && <Fact label={t('meetings.sheet.guests')}><span dir="auto" className="block whitespace-pre-wrap break-words">{meeting.guests}</span></Fact>}
