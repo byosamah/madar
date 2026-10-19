@@ -410,6 +410,31 @@ function searchTraps(state: State, groupId: string, people: string[]): void {
   put(9, groupId, first, 'The riser of the group');
   put(10, talk.id, second, 'The riser of two people');
   put(11, room.id, leader, 'أسعار المواد ارتفعت');
+  searchCommentTraps(state, leader);
+}
+
+/** The id of a comment of the search records of findTraps. */
+const noteId = (n: number) => `cmt_${2000 + n}`;
+
+/**
+ * The comment records of the message search (item 16): 6 comments with "riser" on one project task, between the messages in time; a
+ * comment with "riser" on a new office task (its lead and its helper see it); a project task that is deleted after 2 newer comments
+ * with "riser" (Postgres keeps their project, the memory form does not); and a comment with "riser" on a project post.
+ */
+function searchCommentTraps(state: State, leader: string): void {
+  const task = Object.values(state.tasks).find((t) => t.projectId === 'prj_001' && t.status !== 'done')!;
+  const put = (n: number, targetType: 'task' | 'update', targetId: string, authorId: string, body: string, createdAt: string) => {
+    state.comments[noteId(n)] = { id: noteId(n), targetType, targetId, authorId, body, reactions: emptyReactions(), fileIds: [], createdAt, editedAt: null };
+  };
+  for (let n = 1; n <= 6; n++) put(n, 'task', task.id, leader, `Riser comment ${n}`, `2026-10-04T08:${String(10 + 2 * n).padStart(2, '0')}:30.000+03:00`);
+  const office = apply(state, 'tasks.create', { title: 'Order the riser parts', ownerId: 'usr_005', helperIds: ['usr_006'], dueDate: '2026-10-08' }, 'usr_004', 'cor_find_office') as { task: { id: string } };
+  put(7, 'task', office.task.id, 'usr_005', 'Riser parts ordered', '2026-10-04T08:25:00.000+03:00');
+  const gone = apply(state, 'tasks.create', { projectId: 'prj_001', title: 'Short lived task', ownerId: leader }, leader, 'cor_find_gone') as { task: { id: string } };
+  put(8, 'task', gone.task.id, leader, 'Riser of a gone task one', '2026-10-04T08:30:00.000+03:00');
+  put(9, 'task', gone.task.id, leader, 'Riser of a gone task two', '2026-10-04T08:31:00.000+03:00');
+  apply(state, 'tasks.delete', { id: gone.task.id }, leader, 'cor_find_gone_delete');
+  const post = Object.values(state.updates).find((u) => u.projectId === 'prj_001')!;
+  put(10, 'update', post.id, leader, 'Riser on a project post', '2026-10-04T08:40:00.000+03:00');
 }
 
 /** The calls of track find: chats.messages with "around", for each member and for a person outside, on the group of findTraps. */

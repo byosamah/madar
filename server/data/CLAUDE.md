@@ -69,6 +69,11 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - `after` is the mirror of `before`, and `order.asc` reads oldest first (no ties); `chats.messages` with `around` uses both.
   `contains` sends an escaped LIKE on Postgres (`likeOf`, `sqlSource.ts`), so a trigram index serves it; memory and SQLite keep
   the substring test.
+- `search.query` reads the message hits after its other reads (`messageHits`, `loaders/overview.ts`): the newest 5 live messages of the
+  visible chats, the newest 5 comments of project tasks (the read goes again without a task that the load does not hold, because
+  Postgres keeps the project of the comment of a deleted task), and the newest 5 comments of the office tasks that the person sees.
+  `OFFICE_TASK_HIT` adds the title to the pick of those tasks. `source.sweep.test.ts` lets these three statements sort in a temporary
+  b-tree: they scan `search_text` on the office path until the restart.
 - `referencing` (the Undo check of a create) sends one equality on the text column when the reference path is one plain field
   with a text column in `query.ts` (`columnOfField`). A list or nested path keeps `jsonb_path_exists`.
 - Leak rule for picks: `chats.unreadCount` has its own loader (`chatsUnread`), with `THREAD_TASK_FIELDS` and

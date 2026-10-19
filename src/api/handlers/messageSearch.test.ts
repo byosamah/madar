@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { chatCalls } from './chats';
 import { contentCalls } from './content';
+import { historyCalls } from './history';
 import { insightCalls } from './insights';
+import { taskCalls } from './tasks';
 import { addProjectConversation } from '../chatState';
+import { emptyReactions } from '../contract/entities';
 import { nextId } from '../store';
-import { NOW, STAMP, testApi } from '../../test/factories';
+import { makeTask, NOW, STAMP, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
 
 beforeEach(() => setNow(NOW));
@@ -14,7 +17,9 @@ beforeEach(() => setNow(NOW));
  * ("Test Tower"), Sara (usr_003) is on its team, Omar (usr_004) is outside.
  */
 function world() {
-  const t = testApi({ ...insightCalls, ...chatCalls, ...contentCalls });
+  const t = testApi({ ...insightCalls, ...chatCalls, ...contentCalls, ...taskCalls, ...historyCalls });
+  t.store.state.tasks.tsk_001 = makeTask();
+  t.store.state.counters.tsk = 1;
   const room = addProjectConversation(t.store.state, 'prj_001', STAMP).id;
   /** Writes a message with the stamp 2026-09-30T10:<minute>:00 and gives its id. */
   function say(conversationId: string, authorId: string, body: string, minute: number): string {
@@ -23,7 +28,14 @@ function world() {
     t.store.state.messages[id] = { id, conversationId, authorId, actingForId: authorId, body, mentions: [], createdAt, editedAt: null };
     return id;
   }
-  return { ...t, room, say };
+  /** Writes a comment of a task with the stamp 2026-09-30T10:<minute>:00. A reason line has a date move. */
+  function note(taskId: string, authorId: string, body: string, minute: number, extra: Record<string, unknown> = {}): string {
+    const id = nextId(t.store.state, 'cmt');
+    const createdAt = `2026-09-30T10:${String(minute).padStart(2, '0')}:00.000+03:00`;
+    t.store.state.comments[id] = { id, targetType: 'task', targetId: taskId, authorId, body, reactions: emptyReactions(), fileIds: [], createdAt, editedAt: null, ...extra };
+    return id;
+  }
+  return { ...t, room, say, note };
 }
 
 describe('search.query finds chat messages', () => {
@@ -106,5 +118,38 @@ describe('search.query finds chat messages', () => {
     const answer = await t.api.call('search.query', { text: 'Test Tower' });
     expect(answer.messages).toEqual([]);
     expect(answer.projects.map((p) => p.id)).toEqual(['prj_001']);
+  });
+
+  it('finds the comments of a project task and its reason lines, for every active person', async () => {
+    const t = world();
+    t.as('usr_003');
+    await t.api.call('comments.create', { targetType: 'task', targetId: 'tsk_001', body: 'Riser moved' });
+    t.note('tsk_001', 'usr_003', 'Riser late', 30, { dates: { from: { startDate: null, dueDate: '2026-10-10' }, to: { startDate: null, dueDate: '2026-10-12' } } });
+    for (const person of ['usr_004', 'usr_001', 'usr_002']) {
+      t.as(person);
+      const { messages } = await t.api.call('search.query', { text: 'riser' });
+      expect(messages.map((h) => h.line), person).toEqual(['Riser late', 'Riser moved']);
+      expect(messages[0], person).toMatchObject({ kind: 'task', chatId: 'tsk_001', title: 'Ground floor plan', project: { id: 'prj_001' }, person: null, author: { id: 'usr_003' } });
+    }
+    t.as('usr_003');
+    expect((await t.api.call('search.query', { text: 'riser' })).messages[0].mine).toBe(true);
+  });
+
+  it('keeps the newest 5 of messages and comments together', async () => {
+    const t = world();
+    for (const minute of [1, 3, 5]) t.say(t.room, 'usr_002', `Riser message ${minute}`, minute);
+    for (const minute of [2, 4, 6]) t.note('tsk_001', 'usr_002', `Riser comment ${minute}`, minute);
+    t.as('usr_003');
+    const { messages } = await t.api.call('search.query', { text: 'riser' });
+    expect(messages.map((h) => `${h.kind} ${h.line}`)).toEqual([
+      'task Riser comment 6', 'project Riser message 5', 'task Riser comment 4', 'project Riser message 3', 'task Riser comment 2',
+    ]);
+  });
+
+  it('gives the comment id as the id of the hit and the task as its chat', async () => {
+    const t = world();
+    const id = t.note('tsk_001', 'usr_002', 'Riser size', 1);
+    t.as('usr_003');
+    expect((await t.api.call('search.query', { text: 'riser' })).messages[0]).toMatchObject({ id, chatId: 'tsk_001', at: '2026-09-30T10:01:00.000+03:00' });
   });
 });

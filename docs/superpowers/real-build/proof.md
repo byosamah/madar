@@ -1795,9 +1795,10 @@ The office path (SQLite, the paused Supabase exit) keeps `contains` as `instr`, 
 
 | Read | Before | After the messages | After the task comments |
 | --- | --- | --- | --- |
-| `search.query` `plan` | 1,038 | 4,127 | to be set |
-| `search.query` `zqxv` | 7,034 | 19,505 | to be set |
+| `search.query` `plan` | 1,038 | 4,127 | 16,200 |
+| `search.query` `zqxv` | 7,034 | 19,505 | 31,578 |
 
 The ceilings in `server/office/test/pins.ts` are the measured rows plus 10%. The office path scans `messages` and `comments` with `instr`
-until the restart. `exit-handoff.md`, section 7, names the FTS5 index for the restart.
+until the restart. The new ceilings are 17,820 and 34,736. The comment read costs most: no index of `comments` gives the order of `created_at`, so
+the read takes every comment of the 50 projects and tests `instr` on each row. `exit-handoff.md`, section 7, names the FTS5 index for the restart.
 

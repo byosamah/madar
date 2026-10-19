@@ -74,7 +74,11 @@ describe('every loader read on SQLite (the sweep of server/it/loaders.it.test.ts
     for (const [name, input, actor, prepared] of readSweep(office)) {
       await db.tx('read', (q) => runBoth(office, name, input, actor, { now: NOW, correlationId: 'cor_lite', prepared, source: liteSource(q) }));
     }
-    const cuts = [...new Set(log.filter((text) => /order by .* limit \?$/.test(text) && !text.includes('order by t.rowid')))];
+    // The reads of the message search are the one exception (chat design 2026-10-19, item 16): they scan search_text with instr until the
+    // restart (exit-handoff.md, section 7). The filter runs before the sort, so the temporary b-tree holds only the rows that match, and
+    // it adds no row read. The rows pins of search.query count the scan (server/office/test/pins.ts).
+    const searchScan = (text: string) => /instr\(t\.search_text, \?\) > 0 order by t\.created_at desc, t\.id desc limit \?$/.test(text);
+    const cuts = [...new Set(log.filter((text) => /order by .* limit \?$/.test(text) && !text.includes('order by t.rowid') && !searchScan(text)))];
     expect(cuts.length).toBeGreaterThan(5);
     const sorts = cuts.filter((text) => {
       const plan = db.host.exec(`explain query plan ${text}`, Array.from({ length: (text.match(/\?/g) ?? []).length }, () => null)).rows;

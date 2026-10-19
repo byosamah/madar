@@ -100,13 +100,24 @@ describe('the reads of track find on the scoped load', () => {
     const traps = office(findTraps);
     const ids = (run: Run) => (run.outcome.output as { messages: { id: string }[] }).messages.map((hit) => hit.id);
     // The Admin opens the project chat, not the group and not the direct chat of two others. The deleted message is never found.
-    expect(ids(await same(traps, 'search.query', { text: 'riser' }, ADMIN))).toEqual(['msg_2007', 'msg_2006', 'msg_2005', 'msg_2004', 'msg_2003']);
+    // The newest 5 of messages and comments together: the comment of the office task, three comments of the project task, one message.
+    expect(ids(await same(traps, 'search.query', { text: 'riser' }, ADMIN))).toEqual(['cmt_2007', 'cmt_2006', 'cmt_2005', 'cmt_2004', 'msg_2007']);
     const group = Object.values(traps.conversations).find((c) => c.name === 'Find group')!;
     const member = ids(await same(traps, 'search.query', { text: 'riser' }, group.memberIds[0]));
-    expect(member.slice(0, 2)).toEqual(['msg_2010', 'msg_2009']);
+    // The two newest comments of the project task come first, then the direct message and the group message.
+    expect(member).toEqual(expect.arrayContaining(['cmt_2006', 'cmt_2005', 'msg_2010', 'msg_2009']));
     expect(member).not.toContain('msg_2008');
+    // A comment of a deleted task and a comment on a post are never found.
+    for (const id of ['cmt_2008', 'cmt_2009', 'cmt_2010']) expect(member).not.toContain(id);
     expect(ids(await same(traps, 'search.query', { text: 'اسعار' }, ADMIN))).toEqual(['msg_2011']);
     expect(ids(await same(traps, 'search.query', { text: 'ri' }, ADMIN))).toEqual([]);
+  });
+
+  it('finds a comment of an office task only for the people of the task and the Admin (item 16)', async () => {
+    const traps = office(findTraps);
+    const ids = (run: Run) => (run.outcome.output as { messages: { id: string }[] }).messages.map((hit) => hit.id);
+    for (const person of ['usr_004', 'usr_005', 'usr_006', ADMIN]) expect(ids(await same(traps, 'search.query', { text: 'riser parts' }, person)), person).toEqual(['cmt_2007']);
+    for (const person of ['usr_002', 'usr_003']) expect(ids(await same(traps, 'search.query', { text: 'riser parts' }, person)), person).toEqual([]);
   });
 
   it('opens the group at an old message with the 20 before it and the 500 in all, and says that newer ones exist', async () => {

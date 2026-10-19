@@ -187,7 +187,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'search.query': {
     title: 'Search',
-    description: 'Searches projects, tasks of active projects, people, files and sub-companies by words in "text". Returns the matches of each kind, with their IDs. A sub-company match gives its project count: list its projects with projects.list and subCompanyId. Use it when you know a name but not the ID. It never finds a file of a direct or group chat. messages: the newest 5 chat messages that hold every word (one word of 3 letters or more), each with chatId, kind, title, author, line and at; open one with chats.messages and around.',
+    description: 'Searches projects, tasks of active projects, people, files and sub-companies by words in "text". Returns the matches of each kind, with their IDs. A sub-company match gives its project count: list its projects with projects.list and subCompanyId. Use it when you know a name but not the ID. It never finds a file of a direct or group chat. messages: the newest 5 chat messages and task comments that hold every word (one word of 3 letters or more), each with chatId, kind, title, author, line and at; open one with chats.messages and around, or comments.list for kind task.',
   },
   'stages.setDates': {
     title: 'Set stage dates',

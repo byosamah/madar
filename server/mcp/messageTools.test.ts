@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { Message } from '../../src/api/contract/entities';
+import { emptyReactions, type Message } from '../../src/api/contract/entities';
 import type { ChatRow } from '../../src/api/contract/views';
 import { addDirectConversation, addGroupConversation } from '../../src/api/chatState';
 import { nextId, type State } from '../../src/api/store';
@@ -239,6 +239,23 @@ describe('the message tools over MCP (owner, 2026-10-12)', () => {
       expect(none.text, text).not.toContain(faisalAndTurki);
       expect(none.text, text).not.toContain(outsiderRoom);
     }
+  });
+
+  it('finds a comment of a project task with search.query, as a hit of kind task', async () => {
+    const w = world();
+    const task = Object.values(seed.tasks).find((t) => t.projectId !== null)!;
+    w.mem.tables.state.comments.cmt_991 = {
+      id: 'cmt_991', targetType: 'task', targetId: task.id, authorId: 'usr_003', body: 'The tower crane permit arrives on Sunday.', reactions: emptyReactions(), fileIds: [],
+      createdAt: '2026-10-04T05:20:00.000Z', editedAt: null,
+    };
+    w.mem.tables.version += 1;
+    const found = await call(w, 'search.query', { text: 'crane permit' });
+    expect(found.result.isError, JSON.stringify(found.result)).toBeUndefined();
+    const hits = found.result.structuredContent.output.messages as { id: string; chatId: string; kind: string; title: string }[];
+    expect(hits).toEqual([expect.objectContaining({ id: 'cmt_991', chatId: task.id, kind: 'task', title: task.title })]);
+    const { TOOL_DOCS } = await import('./docs');
+    expect(TOOL_DOCS['search.query'].description).toContain('task comments');
+    expect(TOOL_DOCS['search.query'].description.length).toBeLessThanOrEqual(600);
   });
 
   it('reads a group of its person with chats.messages', async () => {
