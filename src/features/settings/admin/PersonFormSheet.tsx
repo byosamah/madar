@@ -10,6 +10,9 @@ import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { SelectField, TextField } from '../../../components/Fields';
 import { Sheet } from '../../../components/Sheet';
+import { listFormat } from '../../../lib/dates';
+import { DEFAULT_RIGHTS } from '../../../api/permissions';
+import { RIGHT_KEYS } from './RoleSheet';
 
 type Form = {
   name: string; nameAr: string; email: string; systemRole: SystemRole; kind: 'human' | 'agent'; ownerId: string; discipline: string;
@@ -36,13 +39,24 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
   const viewerIsAdmin = session?.authority.systemRole === 'admin';
   // The custom roles of the office. Only the Admin picks one; Management reads the role of the person as text (fbk_014).
   const lang = useLang();
-  const customRoles = useCall('settings.get', {}).data?.roles?.custom ?? [];
+  const roleSettings = useCall('settings.get', {}).data?.roles;
+  const customRoles = roleSettings?.custom ?? [];
   const roleName = (roleId: string, systemRole: SystemRole) => {
     const custom = customRoles.find((role) => role.id === roleId);
     if (custom) return lang === 'ar' ? custom.nameAr : custom.name;
     return t(`admin.roles.${systemRole}`);
   };
   const viewerLanguage = session?.user.preferences.language ?? 'en';
+  // One line under the Role field says what the chosen role gives (ADM-16): the rights it has on top of a Member.
+  const roleLine = (value: string): string => {
+    if (value === 'admin') return t('roles.line.admin');
+    if (value === 'member') return t('roles.line.member');
+    const custom = customRoles.find((role) => role.id === value);
+    const rights = custom ? custom.rights : roleSettings?.rights?.[value as 'management' | 'accounting'] ?? DEFAULT_RIGHTS[value as 'management' | 'accounting'] ?? [];
+    const name = custom ? roleName(custom.id, 'member') : t(`admin.roles.${value}`);
+    if (rights.length === 0) return t('roles.line.only', { name });
+    return t('roles.line.plus', { name, rights: listFormat(lang).format(rights.map((right) => t(`roles.rights.${RIGHT_KEYS[right]}.label`))) });
+  };
   const [form, setForm] = useState<Form>(EMPTY);
   const done = (message: string) => {
     toast.show({ message });
@@ -103,18 +117,18 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
     >
       <div className="flex flex-col gap-4 pt-1">
         <TextField
-          id="person-name" label={t('profile.nameEn')} required value={form.name} dir="auto"
+          id="person-name" label={t('profile.nameEn')} required value={form.name} dir="auto" autoComplete="off"
           error={errorFor('name', t('admin.errors.name'))} onChange={(event) => set('name', event.target.value)}
         />
         {!isAgent && (
           <TextField
             id="person-name-ar" label={t('profile.nameAr')} required={arabicNeeded}
-            value={form.nameAr} dir="auto" lang="ar" error={errorFor('nameAr', t('profile.errors.nameAr'))} onChange={(event) => set('nameAr', event.target.value)}
+            value={form.nameAr} dir="auto" lang="ar" autoComplete="off" error={errorFor('nameAr', t('profile.errors.nameAr'))} onChange={(event) => set('nameAr', event.target.value)}
           />
         )}
         {/* The sign-in email is the key to the account, so only an Admin changes it (security review of P2). The API refuses it too. */}
         <TextField
-          id="person-email" type="email" dir="ltr" label={t('admin.email')} value={form.email} readOnly={emailLocked}
+          id="person-email" type="email" dir="ltr" autoComplete="off" label={t('admin.email')} value={form.email} readOnly={emailLocked}
           hint={emailLocked ? t('admin.emailAdminOnly') : undefined} error={errorFor('email', t('admin.errors.email'))}
           onChange={(event) => set('email', event.target.value)}
         />
@@ -127,16 +141,20 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
         )}
         {!isAgent && viewerIsAdmin && (
           <SelectField
-            id="person-role" label={t('admin.role')} value={form.roleId || form.systemRole}
+            id="person-role" label={t('admin.role')} value={form.roleId || form.systemRole} hint={roleLine(form.roleId || form.systemRole)}
             error={errorFor('systemRole', t('errors.invalid_input')) ?? errorFor('roleId', t('errors.invalid_input'))}
             onChange={(event) => chooseRole(event.target.value)}
           >
             <option value="member">{t('admin.roles.member')}</option>
             <option value="management">{t('admin.roles.management')}</option>
             <option value="accounting">{t('admin.roles.accounting')}</option>
-            {/* Only an Admin makes an Admin. The API refuses it for Management too. */}
+            {customRoles.length > 0 && (
+              <optgroup label={t('roles.officeRoles')}>
+                {customRoles.map((role) => <option key={role.id} value={role.id}>{lang === 'ar' ? role.nameAr : role.name}</option>)}
+              </optgroup>
+            )}
+            {/* Only an Admin makes an Admin, so the Admin role comes last. The API refuses it for Management too. */}
             <option value="admin">{t('admin.roles.admin')}</option>
-            {customRoles.map((role) => <option key={role.id} value={role.id}>{lang === 'ar' ? role.nameAr : role.name}</option>)}
           </SelectField>
         )}
         {/* Only an Admin adds an agent, so the Kind field shows to the Admin only (audit 2026-10-03, SHL-9). */}
@@ -166,7 +184,7 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
             <option value="ar">{t('settings.languages.ar')}</option>
           </SelectField>
         )}
-        <TextField id="person-discipline" label={t('admin.discipline')} value={form.discipline} dir="auto" error={errorFor('discipline', t('admin.errors.discipline'))} onChange={(event) => set('discipline', event.target.value)} />
+        <TextField id="person-discipline" label={t('admin.discipline')} value={form.discipline} dir="auto" autoComplete="off" error={errorFor('discipline', t('admin.errors.discipline'))} onChange={(event) => set('discipline', event.target.value)} />
       </div>
     </Sheet>
   );

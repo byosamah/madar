@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Project, ProjectTemplate, Stage, Task } from './contract/entities';
 import { makeProject, makeStage, makeTask, STAMP } from '../test/factories';
 import { planProject } from '../lib/projectPlan';
-import { syncDiff, type SyncDiff } from './templateSync';
+import { baseOf, nextBase, syncDiff, type SyncChoices, type SyncDiff } from './templateSync';
 
 /** Two stages and two tasks. The role r1 has the person usr_002 by default. */
 const TEMPLATE: ProjectTemplate = {
@@ -25,7 +25,15 @@ if (!PLAN.ok) throw new Error('The test template must fit its own plan.');
 /** The planned start and due day of one template task, as the plan of the new project gives them. */
 const planned = (partId: string) => PLAN.tasks[partId];
 
-const LINK: NonNullable<Project['templateLink']> = { templateId: 'ptp_010', linkedAt: STAMP, syncedAt: null, rolePeople: { r1: 'usr_002' }, droppedPartIds: [] };
+/** The link of a project made from TEMPLATE: it keeps the copy of the template parts (ADM-01). */
+const LINK: NonNullable<Project['templateLink']> = {
+  templateId: 'ptp_010', linkedAt: STAMP, syncedAt: null, rolePeople: { r1: 'usr_002' }, droppedPartIds: [], base: baseOf(TEMPLATE, PLAN),
+};
+/** A link made before ADM-01: it has no copy. */
+const OLD_LINK: NonNullable<Project['templateLink']> = { ...LINK, base: undefined };
+
+/** TEMPLATE with the first task changed. */
+const withT1 = (changes: Partial<ProjectTemplate['tasks'][number]>): ProjectTemplate => ({ ...TEMPLATE, tasks: [{ ...TEMPLATE.tasks[0], ...changes }, TEMPLATE.tasks[1]] });
 
 /** A project linked to TEMPLATE, starting on a working day. */
 function linked(overrides: Partial<Project> = {}, link: Partial<typeof LINK> = {}): Project {
@@ -91,22 +99,23 @@ describe('syncDiff: the project items of the template', () => {
     expect(diff.removed).toEqual([{ itemId: 'tsk_9', partId: 't9', title: 'Old step' }]);
   });
 
-  it('sends an open task with a new title to text', () => {
-    const diff = syncDiff(TEMPLATE, linked(), STAGES, [taskT1({ title: 'Massing (old)' })]);
-    expect(diff.text).toEqual([{ itemId: 'tsk_1', partId: 't1', title: 'Massing (old)' }]);
+  it('sends an open task to text when the template changed the title and the team did not', () => {
+    const diff = syncDiff(withT1({ title: 'Massing study v2' }), linked(), STAGES, [taskT1()]);
+    expect(diff.text).toEqual([{ itemId: 'tsk_1', partId: 't1', title: 'Massing study', newTitle: 'Massing study v2' }]);
     expect(diff.closed).toEqual([]);
+    expect(diff.edited).toEqual([]);
   });
 
-  it('sends a done task with a new title to closed only', () => {
-    const diff = syncDiff(TEMPLATE, linked(), STAGES, [taskT1({ title: 'Massing (old)', status: 'done' })]);
-    expect(diff.closed).toEqual([{ itemId: 'tsk_1', partId: 't1', title: 'Massing (old)' }]);
+  it('sends a done task whose template title changed to closed only', () => {
+    const diff = syncDiff(withT1({ title: 'Massing study v2' }), linked(), STAGES, [taskT1({ status: 'done' })]);
+    expect(diff.closed).toEqual([{ itemId: 'tsk_1', partId: 't1', title: 'Massing study', newTitle: 'Massing study v2' }]);
     expect(diff.text).toEqual([]);
     expect(diff.dates).toEqual([]);
     expect(diff.leads).toEqual([]);
   });
 
-  it('sends an in-review task with a new title to closed only', () => {
-    const diff = syncDiff(TEMPLATE, linked(), STAGES, [taskT1({ title: 'Massing (old)', status: 'in_review' })]);
+  it('sends an in-review task whose template title changed to closed only', () => {
+    const diff = syncDiff(withT1({ title: 'Massing study v2' }), linked(), STAGES, [taskT1({ status: 'in_review' })]);
     expect(diff.closed.map((item) => item.itemId)).toEqual(['tsk_1']);
     expect(diff.text).toEqual([]);
   });
@@ -123,9 +132,11 @@ describe('syncDiff: the project items of the template', () => {
     expect(diff.dates).toEqual([]);
   });
 
-  it('sends an open task that has not started and has another date to dates', () => {
-    const diff = syncDiff(TEMPLATE, linked(), STAGES, [taskT1({ dueDate: '2030-01-01' })]);
+  it('sends an open task that has not started to dates when the template moved the dates and the team did not', () => {
+    const diff = syncDiff(withT1({ durationDays: 12 }), linked(), STAGES, [taskT1()]);
     expect(diff.dates.map((item) => item.itemId)).toEqual(['tsk_1']);
+    expect(diff.dates[0].dates).toMatchObject({ from: { start: planned('t1').startDate, due: planned('t1').dueDate } });
+    expect(diff.edited).toEqual([]);
   });
 
   it('moves the lead that still holds the old person of its role', () => {
@@ -156,9 +167,73 @@ describe('syncDiff: the project items of the template', () => {
   });
 });
 
+describe('syncDiff: the edits of the team (ADM-01)', () => {
+  it('offers nothing when the template did not change, whatever the team wrote', () => {
+    const task = taskT1({ title: 'Massing (team)', description: 'Client gate code 4471', startDate: '2030-01-01', dueDate: '2030-01-09' });
+    const diff = syncDiff(TEMPLATE, linked(), [{ ...STAGES[0], name: 'Concept (team)' }, STAGES[1]], [task]);
+    expect(namedIds(diff)).toEqual(['t2']);
+    expect(diff.edited).toEqual([]);
+  });
+
+  it('puts a title that both the template and the team changed in edited, and keeps it out of text', () => {
+    const diff = syncDiff(withT1({ title: 'Massing study v2' }), linked(), STAGES, [taskT1({ title: 'Massing (team)' })]);
+    expect(diff.text).toEqual([]);
+    expect(diff.edited).toEqual([{ itemId: 'tsk_1', partId: 't1', title: 'Massing (team)', newTitle: 'Massing study v2' }]);
+  });
+
+  it('puts dates that both the template and the team moved in edited', () => {
+    const diff = syncDiff(withT1({ durationDays: 12 }), linked(), STAGES, [taskT1({ dueDate: '2030-01-01' })]);
+    expect(diff.dates).toEqual([]);
+    expect(diff.edited.map((item) => item.itemId)).toEqual(['tsk_1']);
+    expect(diff.edited[0].dates?.from.due).toBe('2030-01-01');
+  });
+
+  it('never offers an empty description for a task that has text', () => {
+    const base = baseOf({ ...TEMPLATE, tasks: [{ ...TEMPLATE.tasks[0], description: 'Three options.' }, TEMPLATE.tasks[1]] }, PLAN);
+    const diff = syncDiff(TEMPLATE, linked({}, { base }), STAGES, [taskT1({ description: 'Three options.' })]);
+    expect(diff.text).toEqual([]);
+    expect(diff.edited).toEqual([]);
+  });
+
+  it('offers a new description of the template for a task that the team left alone', () => {
+    const diff = syncDiff(withT1({ description: 'Three options.' }), linked(), STAGES, [taskT1()]);
+    expect(diff.text).toEqual([{ itemId: 'tsk_1', partId: 't1', title: 'Massing study', description: true }]);
+  });
+
+  it('sends a stage name to stages when the team did not rename it, and to edited when it did', () => {
+    const template = { ...TEMPLATE, stages: [{ ...TEMPLATE.stages[0], name: 'Concept design' }, TEMPLATE.stages[1]] };
+    expect(syncDiff(template, linked(), STAGES, [taskT1()]).stages.map((item) => item.itemId)).toEqual(['stg_1']);
+    const team = syncDiff(template, linked(), [{ ...STAGES[0], name: 'Concept (team)' }, STAGES[1]], [taskT1()]);
+    expect(team.stages).toEqual([]);
+    expect(team.edited).toEqual([{ itemId: 'stg_1', partId: 's1', title: 'Concept (team)', newTitle: 'Concept design', stage: true }]);
+  });
+
+  it('shows every difference of a link with no copy as edited, never as a plain change', () => {
+    const diff = syncDiff(TEMPLATE, linked({}, OLD_LINK), STAGES, [taskT1({ title: 'Massing (old)', dueDate: '2030-01-01' })]);
+    expect(diff.text).toEqual([]);
+    expect(diff.dates).toEqual([]);
+    expect(diff.edited.map((item) => item.itemId)).toEqual(['tsk_1']);
+  });
+});
+
+describe('nextBase: the copy after an update', () => {
+  const ALL_ON: SyncChoices = { add: true, bringBack: false, removed: 'keep', text: true, dates: true, leads: true, closed: 'leave', stages: true, edited: 'keep' };
+  it('takes the template as it is now', () => {
+    const template = withT1({ title: 'Massing study v2' });
+    const diff = syncDiff(template, linked(), STAGES, [taskT1()]);
+    expect(nextBase(template, PLAN, LINK.base, diff, ALL_ON).tasks.t1.title).toBe('Massing study v2');
+  });
+
+  it('keeps the old copy of a kind that the Admin left out, so the next update offers it again', () => {
+    const template = withT1({ title: 'Massing study v2' });
+    const diff = syncDiff(template, linked(), STAGES, [taskT1()]);
+    expect(nextBase(template, PLAN, LINK.base, diff, { ...ALL_ON, text: false }).tasks.t1.title).toBe('Massing study');
+  });
+});
+
 describe('syncDiff: a project that is not linked to the template', () => {
   it('has no diff at all', () => {
     const diff = syncDiff(TEMPLATE, makeProject({ templateLink: null }), STAGES, [taskT1({ title: 'Other' })]);
-    expect(diff).toEqual({ add: [], dropped: [], removed: [], text: [], dates: [], leads: [], closed: [], stages: [], people: [] });
+    expect(diff).toEqual({ add: [], dropped: [], removed: [], text: [], dates: [], leads: [], closed: [], stages: [], edited: [], people: [] });
   });
 });

@@ -384,12 +384,18 @@ describe('the Admin page for Management and Accounting', () => {
     expect(hala).toHaveTextContent('· Admin ·');
   });
 
-  it('gives the Admin four roles in the form, and saves the Accounting role', async () => {
+  it('gives the Admin the roles in the form, the Admin last, and saves the Accounting role', async () => {
     const { store } = await renderApp('/admin');
     await userEvent.click(within(await region('People')).getByRole('button', { name: 'Add person' }));
     const sheet = await screen.findByRole('dialog', { name: 'Add person' });
     const role = within(sheet).getByLabelText('Role');
-    expect(within(role).getAllByRole('option').map((option) => option.textContent)).toEqual(['Member', 'Management', 'Accounting', 'Admin']);
+    expect(within(role).getAllByRole('option').map((option) => option.textContent)).toEqual(['Member', 'Management', 'Accounting', 'Cashier', 'Admin']);
+    expect(within(role).getByRole('option', { name: 'Cashier' }).closest('optgroup')).toHaveAttribute('label', 'Office roles');
+    // One line under the field says what the chosen role gives (ADM-16).
+    expect(within(sheet).getByText('Member: the standard rights.')).toBeInTheDocument();
+    await userEvent.selectOptions(role, 'management');
+    expect(within(sheet).getByText(/^Management: Member rights plus /)).toBeInTheDocument();
+    await userEvent.selectOptions(role, 'member');
     await userEvent.type(within(sheet).getByLabelText('Name in English'), 'Nora Salem');
     await userEvent.type(within(sheet).getByLabelText('Name in Arabic'), 'نورة سالم');
     await userEvent.type(within(sheet).getByLabelText('Email'), 'nora.salem@madar.test');
@@ -467,14 +473,28 @@ describe('the Admin page for Management and Accounting', () => {
     }
   });
 
-  it('links Management to the Admin page, and Accounting not', async () => {
+  it('links Management to the Office page, which is not called Admin, and Accounting not', async () => {
     const first = await renderApp('/', as('usr_010'));
     await userEvent.click((await screen.findAllByRole('button', { name: 'Turki Al-Otaibi' }))[0]);
-    expect(screen.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '#/admin');
+    expect(screen.getByRole('link', { name: 'Office' })).toHaveAttribute('href', '#/admin');
+    expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
     first.unmount();
     await renderApp('/', as('usr_011'));
     await userEvent.click((await screen.findAllByRole('button', { name: 'Noura Al-Shammari' }))[0]);
+    expect(screen.queryByRole('link', { name: 'Office' })).toBeNull();
     expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
+  });
+
+  it('calls the page Office for a person who is not the Admin, and lists only what the person opens there (ADM-22)', async () => {
+    await renderApp('/admin', as('usr_010'));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Office' })).toBeInTheDocument();
+    expect(screen.getByText('People and Teams.')).toBeInTheDocument();
+  });
+
+  it('gives a person with no right on the page a way back to Home (ADM-22)', async () => {
+    await renderApp('/admin', as('usr_011'));
+    expect(await screen.findByText('You have no right that opens a part of this page.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Go to Home' })).toHaveAttribute('href', '#/');
   });
 
   it('lets the owner preview as a Management person and an Accounting person', async () => {

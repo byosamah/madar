@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useParams } from 'react-router';
+import { useLang } from '../../../app/lang';
 import { useCall } from '../../../app/runtime';
 import { useIsPhone } from '../../../app/useIsPhone';
 import { EmptyState } from '../../../components/EmptyState';
@@ -9,6 +10,7 @@ import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { ChevronLeftIcon } from '../../../components/icons/animated/chevron-left';
 import { ChevronRightIcon } from '../../../components/icons/animated/chevron-right';
 import { spring } from '../../../design/motion';
+import { listFormat } from '../../../lib/dates';
 import { groupsFor, sectionsFor, type AdminSection } from './sections';
 
 const linkOf = (section: AdminSection) => `/admin/${section.id}`;
@@ -25,8 +27,13 @@ export function AdminScreen() {
   const { t } = useTranslation();
   const { section: openId } = useParams();
   const phone = useIsPhone();
+  const lang = useLang();
   const session = useCall('session.get', {});
   if (!session.data) return null;
+  // Only the Admin has a page called "Admin". A person with a right or two sees "Office", and the subtitle names only what the
+  // person can open there (ADM-22).
+  const isAdmin = session.data.authority.systemRole === 'admin';
+  const pageTitle = isAdmin ? t('admin.title') : t('adminPage.officeTitle');
   // The sections follow the role and the office rights of the person (owner, 2026-10-18, fbk_014).
   const sections = sectionsFor(session.data.authority);
   // An unknown section, or a section that the role may not see, goes back to /admin.
@@ -35,8 +42,12 @@ export function AdminScreen() {
   if (sections.length === 0) {
     return (
       <>
-        <ScreenTitle title={t('admin.title')} />
-        <EmptyState title={t('admin.title')} body={t('admin.onlyAdmin')} />
+        <ScreenTitle title={pageTitle} />
+        <EmptyState
+          title={pageTitle}
+          body={t('admin.onlyAdmin')}
+          action={<Link to="/" className="pressable mt-2 inline-flex min-h-11 items-center justify-center self-start rounded-full bg-fill px-5 text-subheadline font-semibold text-ink hover:bg-fill-strong">{t('adminPage.goHome')}</Link>}
+        />
       </>
     );
   }
@@ -47,7 +58,9 @@ export function AdminScreen() {
     <>
       {/* A phone section shows its own title once. The page title stays for screen readers. */}
       <div className={phone && open ? 'sr-only' : undefined}>
-        <ScreenTitle title={t('admin.title')}>{t('admin.subtitle')}</ScreenTitle>
+        <ScreenTitle title={pageTitle}>
+          {isAdmin ? t('admin.subtitle') : t('adminPage.sections', { list: listFormat(lang).format(sections.map((section) => t(section.titleKey))) })}
+        </ScreenTitle>
       </div>
       <div className={phone ? 'flex flex-col' : 'grid grid-cols-[13rem_minmax(0,1fr)] items-start gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8'}>
         {(!phone || !open) && <SectionList sections={sections} openId={phone ? undefined : open?.id} phone={phone} />}
@@ -56,7 +69,7 @@ export function AdminScreen() {
             {phone && (
               <Link to="/admin" className="pressable -ms-2 inline-flex min-h-11 items-center gap-0.5 self-start rounded-full pe-3 ps-1 text-subheadline font-semibold text-link">
                 <AnimatedIcon icon={ChevronLeftIcon} size={20} className="rtl:-scale-x-100" aria-hidden />
-                {t('admin.title')}
+                {pageTitle}
               </Link>
             )}
             <Open />

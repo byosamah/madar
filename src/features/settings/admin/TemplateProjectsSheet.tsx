@@ -1,8 +1,9 @@
-import { Fragment, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ProjectTemplate } from '../../../api/contract/entities';
 import type { SyncChoices } from '../../../api/templateSync';
 import { newStoryId } from '../../../app/actions';
+import { usePersonName } from '../../../app/personName';
 import { useCall, useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
@@ -11,10 +12,10 @@ import { LoadFailed } from '../../../components/LoadFailed';
 import { Sheet } from '../../../components/Sheet';
 import { counted } from '../../../lib/grammar';
 import { LinkProjectSheet } from './LinkProjectSheet';
-import { ChangeCard, ChangeSummary, DEFAULT_CHOICES, KINDS, changesOf, itemsOf, type SyncRow } from './SyncSteps';
+import { ChangeCard, DEFAULT_CHOICES, KINDS, changesOf, itemsOf, matchesTemplate, movesDates, type SyncRow } from './SyncSteps';
 
-/** The steps in order: pick the projects, ask, each change, check the summary, confirm, run, and the result. */
-type Step = 'pick' | 'ask' | 'changes' | 'summary' | 'confirm' | 'running' | 'done';
+/** The steps in order: pick the projects, review every change on one screen, and the run. */
+type Step = 'pick' | 'review' | 'running';
 
 /** The longest reason that the server keeps (contract limit). */
 const REASON_MAX = 280;
@@ -23,39 +24,44 @@ const REASON_MAX = 280;
 const MAX_PROJECTS = 50;
 
 /**
- * "Projects using this template" (fbk_008 item 4). The Admin ticks the linked projects. Then the Admin goes through one question,
- * one card for each kind of change, a summary with one reason for any date move, and a last confirm. Nothing is sent before that
- * last confirm. The projects go one after the other under one story, so one Undo all takes back every project of the update.
+ * "Projects using this template" (fbk_008 item 4; ADM-04). The Admin ticks the linked projects. One review screen then names every
+ * change with the old and the new value, and each kind has one tick. One reason covers any date move. The main button sends the
+ * update. The projects go one after the other under one story, and the toast "Updated 2 projects" has one Undo that takes back every
+ * project of the update. With `reviewAll` (the toast "Update them" after a save of the template), the sheet opens at the review
+ * with every linked project ticked.
  */
-export function TemplateProjectsSheet({ template, onClose }: { template: ProjectTemplate; onClose: () => void }) {
+export function TemplateProjectsSheet({ template, onClose, reviewAll = false }: { template: ProjectTemplate; onClose: () => void; reviewAll?: boolean }) {
   const { t } = useTranslation();
   const { api } = useRuntime();
   const toast = useToast();
+  const personName = usePersonName();
   const usage = useCall('projectTemplates.usage', { templateId: template.id });
+  const users = useCall('users.list', {});
   const [step, setStep] = useState<Step>('pick');
   const [ticked, setTicked] = useState<string[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
   const [linking, setLinking] = useState<string | null>(null);
-  const [index, setIndex] = useState(0);
   const [choices, setChoices] = useState<SyncChoices>(DEFAULT_CHOICES);
   const [reason, setReason] = useState('');
   const [total, setTotal] = useState(0);
   const [done, setDone] = useState(0);
-  const [failed, setFailed] = useState(false);
-  const [story, setStory] = useState<string | null>(null);
-  // The plan is read while the Admin chooses changes. A run takes the rows that it had at the confirm, so a read that changes
-  // during the run does not change the list of projects.
-  const reading = step === 'changes' || step === 'summary' || step === 'confirm';
-  const plan = useCall('projectTemplates.syncPlan', { templateId: template.id, projectIds: picked }, { enabled: reading });
+  // The plan is read while the Admin reviews. A run takes the rows that it had at the press of the main button, so a read that
+  // changes during the run does not change the list of projects.
+  const plan = useCall('projectTemplates.syncPlan', { templateId: template.id, projectIds: picked }, { enabled: step === 'review' });
   const rows: SyncRow[] = plan.data ?? [];
   const linked = usage.data?.linked ?? [];
   const notLinked = usage.data?.notLinked ?? [];
   const kinds = KINDS.filter((kind) => rows.some((row) => itemsOf(row.diff, kind) > 0));
-  const kind = kinds[index];
-  const needsReason = rows.some((row) => changesOf(row.diff, choices).includes('dates'));
+  const needsReason = rows.some((row) => movesDates(row.diff, choices));
+  // Only the projects that change are sent and counted (ADM-19).
   const changing = rows.filter((row) => changesOf(row.diff, choices).length > 0);
   const people = new Set(changing.flatMap((row) => row.diff.people)).size;
+  const matches = plan.data !== undefined && rows.every((row) => matchesTemplate(row.diff));
   const projectWord = (n: number) => counted(t, 'projectTemplates.update.projectCount', n);
+  const nameOf = (userId: string | null): string => {
+    const user = userId === null ? undefined : (users.data ?? []).find((person) => person.id === userId);
+    return user ? personName(user) : t('projectTemplates.update.line.noLead');
+  };
 
   const stateOf = (row: { status: string; staleDays: number | null }) => (
     row.staleDays !== null ? t('status.stale', { count: row.staleDays }) : t(`status.${row.status}`)
@@ -65,63 +71,64 @@ export function TemplateProjectsSheet({ template, onClose }: { template: Project
     if (list.includes(id)) return list.filter((item) => item !== id);
     return list.length >= MAX_PROJECTS ? list : [...list, id];
   });
-  const start = () => {
-    setPicked(ticked);
-    setStep('ask');
-  };
-  const begin = () => {
-    setIndex(0);
-    setStep('changes');
-  };
-  const backToChanges = () => {
-    setIndex(Math.max(kinds.length - 1, 0));
-    setStep(kinds.length > 0 ? 'changes' : 'ask');
+  const review = (ids: string[]) => {
+    setPicked(ids);
+    setStep('review');
   };
   const choose = (pick: Partial<SyncChoices>) => setChoices((current) => ({ ...current, ...pick }));
 
+  // The toast "Update them": every linked project is ticked and the sheet goes straight to the review, once.
+  const opened = useRef(false);
+  useEffect(() => {
+    if (!reviewAll || opened.current || usage.data === undefined) return;
+    opened.current = true;
+    const ids = usage.data.linked.slice(0, MAX_PROJECTS).map((row) => row.project.id);
+    if (ids.length === 0) return;
+    setTicked(ids);
+    setPicked(ids);
+    setStep('review');
+  }, [reviewAll, usage.data]);
+
   // One call for each project, one after the other, under one story. A failed project stops the run; the projects before it stay
-  // changed, and Undo all takes them back.
+  // changed, and the Undo of the toast takes them back.
   const run = async () => {
     let storyId = newStoryId();
-    setTotal(rows.length);
+    let count = 0;
+    setTotal(changing.length);
     setDone(0);
-    setFailed(false);
     setStep('running');
-    for (const row of rows) {
+    const undo = () => {
+      api.call('events.undoStory', { correlationId: storyId }).then(
+        () => toast.show({ message: t('projectTemplates.update.undone') }),
+        (error: unknown) => toast.failed(error),
+      );
+    };
+    for (const row of changing) {
       try {
         const result = await api.run('projectTemplates.syncApply', {
           templateId: template.id,
           projectId: row.project.id,
           choices,
-          ...(changesOf(row.diff, choices).includes('dates') ? { dateReason: reason.trim() } : {}),
+          ...(movesDates(row.diff, choices) ? { dateReason: reason.trim() } : {}),
         }, { correlationId: storyId });
         storyId = result.storyId;
-        setStory(storyId);
-        setDone((count) => count + 1);
+        count += 1;
+        setDone(count);
       } catch (error) {
         toast.failed(error);
-        setFailed(true);
-        break;
+        if (count > 0) toast.undo(t('projectTemplates.update.stoppedTitle'), undo);
+        onClose();
+        return;
       }
     }
-    setStep('done');
-  };
-  const undo = () => {
-    if (story === null) return;
-    api.call('events.undoStory', { correlationId: story }).then(() => {
-      toast.show({ message: t('projectTemplates.update.undone') });
-      onClose();
-    }, (error: unknown) => toast.failed(error));
+    toast.undo(t('projectTemplates.update.doneTitle', { projects: projectWord(count) }), undo);
+    onClose();
   };
 
   const title = {
     pick: t('projectTemplates.update.open'),
-    ask: t('projectTemplates.update.askTitle', { projects: projectWord(picked.length) }),
-    changes: t('projectTemplates.update.changesTitle'),
-    summary: t('projectTemplates.update.summaryTitle'),
-    confirm: t('projectTemplates.update.confirmTitle'),
+    review: t('projectTemplates.update.reviewTitle'),
     running: t('projectTemplates.update.runningTitle'),
-    done: failed ? t('projectTemplates.update.stoppedTitle') : t('projectTemplates.update.doneTitle', { projects: projectWord(done) }),
   }[step];
 
   const pickBody = (
@@ -180,24 +187,13 @@ export function TemplateProjectsSheet({ template, onClose }: { template: Project
     </>
   );
 
-  const changesBody = (
+  const reviewBody = (
     <>
       <LoadFailed query={plan} />
-      {plan.data !== undefined && kinds.length === 0 && <p className="text-subheadline text-ink-2">{t('projectTemplates.update.nothing')}</p>}
-      {plan.data !== undefined && kind !== undefined && (
-        <>
-          <p className="text-footnote text-ink-2">{t('projectTemplates.update.step', { n: index + 1, total: kinds.length })}</p>
-          <ChangeCard key={kind} kind={kind} rows={rows} choices={choices} onChoose={choose} />
-        </>
-      )}
-    </>
-  );
-
-  const summaryBody = (
-    <>
-      <ul className="hairline flex flex-col">
-        {rows.map((row) => <ChangeSummary key={row.project.id} row={row} choices={choices} />)}
-      </ul>
+      {matches && <p className="text-subheadline text-ink-2">{t(rows.length === 1 ? 'projectTemplates.update.matchesOne' : 'projectTemplates.update.matches')}</p>}
+      {plan.data !== undefined && !matches && kinds.map((kind) => (
+        <ChangeCard key={kind} kind={kind} rows={rows} choices={choices} onChoose={choose} nameOf={nameOf} />
+      ))}
       {people > 0 && (
         <p className="text-footnote text-ink-2">
           {t('projectTemplates.update.peopleLine', { people: counted(t, 'projectTemplates.update.peopleCount', people) })}
@@ -208,6 +204,7 @@ export function TemplateProjectsSheet({ template, onClose }: { template: Project
           id="update-reason"
           label={t('projectTemplates.update.reason')}
           required
+          autoComplete="off"
           maxLength={REASON_MAX}
           value={reason}
           onChange={(event) => setReason(event.target.value)}
@@ -218,69 +215,36 @@ export function TemplateProjectsSheet({ template, onClose }: { template: Project
 
   const body = {
     pick: pickBody,
-    ask: <p className="text-subheadline text-ink-2">{t('projectTemplates.update.askBody')}</p>,
-    changes: changesBody,
-    summary: summaryBody,
-    confirm: <p className="text-subheadline text-ink-2">{t('projectTemplates.update.confirmBody')}</p>,
-    running: <p className="text-subheadline text-ink-2">{t('projectTemplates.update.running', { n: done + 1, total })}</p>,
-    done: <p className="text-subheadline text-ink-2">{t(failed ? 'projectTemplates.update.stoppedBody' : 'projectTemplates.update.doneBody')}</p>,
+    review: reviewBody,
+    running: <p className="text-subheadline text-ink-2">{t('projectTemplates.update.running', { n: Math.min(done + 1, total), total })}</p>,
   }[step];
 
   // Each footer has a key of its step. A new step makes new buttons, so the focus never stays on the button of the step before.
-  // The last confirm starts with the focus on Back, so a stray Enter sends nothing.
   const footer = ((): ReactNode => {
     switch (step) {
       case 'pick': return (
         <Fragment key="pick">
           <Button variant="plain" onClick={onClose}>{t('common.cancel')}</Button>
-          <Button variant="primary" disabled={ticked.length === 0} onClick={start}>{t('projectTemplates.update.pickNext')}</Button>
+          <Button variant="primary" disabled={ticked.length === 0} onClick={() => review(ticked)}>{t('projectTemplates.update.pickNext')}</Button>
         </Fragment>
       );
-      case 'ask': return (
-        <Fragment key="ask">
-          <Button variant="plain" onClick={onClose}>{t('common.cancel')}</Button>
-          <Button onClick={() => setStep('pick')}>{t('projectTemplates.update.back')}</Button>
-          <Button variant="primary" onClick={begin}>{t('projectTemplates.update.continue')}</Button>
+      case 'review': return matches ? (
+        <Fragment key="matches">
+          <Button variant="primary" onClick={onClose}>{t('common.close')}</Button>
         </Fragment>
-      );
-      case 'changes': return (
-        <Fragment key="changes">
-          <Button variant="plain" onClick={onClose}>{t('common.cancel')}</Button>
-          <Button onClick={() => (index > 0 ? setIndex(index - 1) : setStep('ask'))}>{t('projectTemplates.update.back')}</Button>
+      ) : (
+        <Fragment key="review">
+          <Button variant="plain" onClick={() => setStep('pick')}>{t('projectTemplates.update.back')}</Button>
           <Button
             variant="primary"
-            disabled={plan.data === undefined}
-            onClick={() => (index < kinds.length - 1 ? setIndex(index + 1) : setStep('summary'))}
+            disabled={plan.data === undefined || changing.length === 0 || (needsReason && reason.trim() === '')}
+            onClick={() => { void run(); }}
           >
-            {t('projectTemplates.update.next')}
-          </Button>
-        </Fragment>
-      );
-      case 'summary': return (
-        <Fragment key="summary">
-          <Button variant="plain" onClick={onClose}>{t('common.cancel')}</Button>
-          <Button onClick={backToChanges}>{t('projectTemplates.update.back')}</Button>
-          <Button variant="primary" disabled={needsReason && reason.trim() === ''} onClick={() => setStep('confirm')}>
-            {t('projectTemplates.update.next')}
-          </Button>
-        </Fragment>
-      );
-      case 'confirm': return (
-        <Fragment key="confirm">
-          <Button variant="plain" onClick={onClose}>{t('common.cancel')}</Button>
-          <Button autoFocus onClick={() => setStep('summary')}>{t('projectTemplates.update.back')}</Button>
-          <Button variant="primary" onClick={() => { void run(); }}>
-            {t('projectTemplates.update.confirm', { projects: projectWord(rows.length) })}
+            {t('projectTemplates.update.confirm', { projects: projectWord(changing.length) })}
           </Button>
         </Fragment>
       );
       case 'running': return undefined;
-      case 'done': return (
-        <Fragment key="done">
-          {story !== null && <Button onClick={undo}>{t('projectTemplates.update.undoAll')}</Button>}
-          <Button variant="primary" onClick={onClose}>{t('common.done')}</Button>
-        </Fragment>
-      );
     }
   })();
 

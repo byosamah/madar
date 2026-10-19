@@ -30,7 +30,7 @@ const TEMPLATE = {
 const extra = (id: string, title: string, stageId: string, startOffset: number, roleId: string | null = null) =>
   ({ id, stageId, title, description: '', checklist: [], needsReview: false, roleId, startOffset, durationDays: 2, flexible: true });
 
-const NO_CHANGE: SyncChoices = { add: false, bringBack: false, removed: 'keep', text: false, dates: false, leads: false, closed: 'leave', stages: false };
+const NO_CHANGE: SyncChoices = { add: false, bringBack: false, removed: 'keep', text: false, dates: false, leads: false, closed: 'leave', stages: false, edited: 'keep' };
 const choose = (over: Partial<SyncChoices>) => ({ ...NO_CHANGE, ...over });
 
 /** Saves a template (a new one without an id), and returns its id. */
@@ -341,5 +341,120 @@ describe('projectTemplates.syncApply: each choice does what it says and nothing 
     await expect(t.api.call('events.undoStory', { correlationId: 'cor_final' })).resolves.toBeDefined();
     expect(Object.values(t.store.state.stages).some((stage) => stage.projectId === alpha && stage.templatePartId === 's3')).toBe(false);
     expect(t.store.state.projects[alpha].currentStageId).toBe(permits.id);
+  });
+});
+
+describe('projectTemplates.syncApply: the edits of the team stay (ADM-01)', () => {
+  const ALL_ON = { add: true, text: true, dates: true, leads: true, stages: true };
+
+  it('keeps a description that the team wrote when the template did not change, with every default on', async () => {
+    const t = world();
+    const templateId = await savedTemplate(t);
+    const alpha = await madeFrom(t, templateId, 'Alpha villa');
+    const massing = byPart(t, alpha, 't1')!;
+    t.store.state.tasks[massing.id].description = 'Client gate code 4471';
+    const counts = await t.api.call('projectTemplates.syncApply', { templateId, projectId: alpha, choices: choose(ALL_ON) });
+    expect(counts).toMatchObject({ text: 0, dates: 0, edited: 0 });
+    expect(byPart(t, alpha, 't1')).toMatchObject({ description: 'Client gate code 4471' });
+  });
+
+  it('keeps the title that the team wrote when the template changed it too, unless the Admin picks the template', async () => {
+    const t = world();
+    const templateId = await savedTemplate(t);
+    const alpha = await madeFrom(t, templateId, 'Alpha villa');
+    t.store.state.tasks[byPart(t, alpha, 't1')!.id].title = 'Massing (team)';
+    await t.api.call('projectTemplates.save', changed(templateId, { tasks: [{ ...TEMPLATE.tasks[0], title: 'Massing study v2' }, TEMPLATE.tasks[1]] }));
+    const plan = await t.api.call('projectTemplates.syncPlan', { templateId, projectIds: [alpha] });
+    expect(plan[0].diff.text).toEqual([]);
+    expect(plan[0].diff.edited).toEqual([expect.objectContaining({ title: 'Massing (team)', newTitle: 'Massing study v2' })]);
+    await t.api.call('projectTemplates.syncApply', { templateId, projectId: alpha, choices: choose(ALL_ON) });
+    expect(byPart(t, alpha, 't1')).toMatchObject({ title: 'Massing (team)' });
+    const counts = await t.api.call('projectTemplates.syncApply', { templateId, projectId: alpha, choices: choose({ edited: 'use_template' }) });
+    expect(counts).toMatchObject({ edited: 0 });
+  });
+
+  it('edited: use_template sets the template title and dates, and the date move asks a reason', async () => {
+    const t = world();
+    const templateId = await savedTemplate(t);
+    const alpha = await madeFrom(t, templateId, 'Alpha villa');
+    const massing = byPart(t, alpha, 't1')!;
+    t.store.state.tasks[massing.id].title = 'Massing (team)';
+    t.store.state.tasks[massing.id].dueDate = '2026-10-30';
+    await t.api.call('projectTemplates.save', changed(templateId, { tasks: [{ ...TEMPLATE.tasks[0], title: 'Massing study v2', durationDays: 12 }, TEMPLATE.tasks[1]] }));
+    await expect(t.api.call('projectTemplates.syncApply', { templateId, projectId: alpha, choices: choose({ edited: 'use_template' }) }))
+      .rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'date_reason_needed' } });
+    const counts = await t.api.call('projectTemplates.syncApply', { templateId, projectId: alpha, choices: choose({ edited: 'use_template' }), dateReason: 'The template changed' });
+    expect(counts).toMatchObject({ edited: 1 });
+    expect(byPart(t, alpha, 't1')).toMatchObject({ title: 'Massing study v2' });
+    expect(byPart(t, alpha, 't1')!.dueDate).not.toBe('2026-10-30');
+  });
+
+  it('never replaces a description that has text with an empty one', async () => {
+    const t = world();
+    const templateId = await savedTemplate(t, { ...TEMPLATE, tasks: [{ ...TEMPLATE.tasks[0], description: 'Three options.' }, TEMPLATE.tasks[1]] });
+    const alpha = await madeFrom(t, templateId, 'Alpha villa');
+    await t.api.call('projectTemplates.save', changed(templateId, { tasks: [{ ...TEMPLATE.tasks[0], description: '' }, TEMPLATE.tasks[1]] }));
+    await t.api.call('projectTemplates.syncApply', { templateId, projectId: alpha, choices: choose({ ...ALL_ON, edited: 'use_template' }) });
+    expect(byPart(t, alpha, 't1')).toMatchObject({ description: 'Three options.' });
+  });
+
+  it('moves the copy to the template after an update, so the same change is not offered twice', async () => {
+    const t = world();
+    const templateId = await savedTemplate(t);
+    const alpha = await madeFrom(t, templateId, 'Alpha villa');
+    await t.api.call('projectTemplates.save', changed(templateId, { tasks: [{ ...TEMPLATE.tasks[0], title: 'Massing study v2' }, TEMPLATE.tasks[1]] }));
+    await t.api.call('projectTemplates.syncApply', { templateId, projectId: alpha, choices: choose({ text: true }) });
+    expect(linkOf(t, alpha).base?.tasks.t1.title).toBe('Massing study v2');
+    const plan = await t.api.call('projectTemplates.syncPlan', { templateId, projectIds: [alpha] });
+    expect(plan[0].diff).toMatchObject({ text: [], edited: [], dates: [] });
+  });
+
+  it('keeps the old copy of a kind that the Admin left out', async () => {
+    const t = world();
+    const templateId = await savedTemplate(t);
+    const alpha = await madeFrom(t, templateId, 'Alpha villa');
+    await t.api.call('projectTemplates.save', changed(templateId, { tasks: [{ ...TEMPLATE.tasks[0], title: 'Massing study v2' }, TEMPLATE.tasks[1]] }));
+    await t.api.call('projectTemplates.syncApply', { templateId, projectId: alpha, choices: choose({ text: false, stages: true }) });
+    const plan = await t.api.call('projectTemplates.syncPlan', { templateId, projectIds: [alpha] });
+    expect(plan[0].diff.text).toHaveLength(1);
+  });
+
+  it('shows every difference of a link with no copy as edited, and the first update writes the copy', async () => {
+    const t = world();
+    const templateId = await savedTemplate(t);
+    const alpha = await madeFrom(t, templateId, 'Alpha villa');
+    const link = t.store.state.projects[alpha].templateLink!;
+    delete link.base;
+    t.store.state.tasks[byPart(t, alpha, 't1')!.id].title = 'Massing (team)';
+    const plan = await t.api.call('projectTemplates.syncPlan', { templateId, projectIds: [alpha] });
+    expect(plan[0].diff.text).toEqual([]);
+    expect(plan[0].diff.edited).toHaveLength(1);
+    await t.api.call('projectTemplates.syncApply', { templateId, projectId: alpha, choices: choose(ALL_ON) });
+    expect(byPart(t, alpha, 't1')).toMatchObject({ title: 'Massing (team)' });
+    expect(linkOf(t, alpha).base?.tasks.t1.title).toBe('Massing study');
+  });
+
+  it('a link made later keeps a copy too, and the first update of an unchanged template offers nothing', async () => {
+    const t = world();
+    const templateId = await savedTemplate(t);
+    const project = await t.api.call('projects.create', { name: 'Old villa', stages: ['Concept', 'Permits'] });
+    const stages = Object.values(t.store.state.stages).filter((stage) => stage.projectId === project.project.id);
+    await t.api.call('projectTemplates.link', {
+      projectId: project.project.id, templateId, stageMatches: { s1: stages[0].id, s2: stages[1].id }, taskMatches: {}, rolePeople: { r1: null },
+    });
+    expect(linkOf(t, project.project.id).base?.stages.s1.name).toBe('Concept');
+    const plan = await t.api.call('projectTemplates.syncPlan', { templateId, projectIds: [project.project.id] });
+    expect(plan[0].diff).toMatchObject({ text: [], dates: [], stages: [], edited: [] });
+  });
+
+  it('one Undo of the story brings back the copy of the link', async () => {
+    const t = world();
+    const templateId = await savedTemplate(t);
+    const alpha = await madeFrom(t, templateId, 'Alpha villa');
+    await t.api.call('projectTemplates.save', changed(templateId, { tasks: [{ ...TEMPLATE.tasks[0], title: 'Massing study v2' }, TEMPLATE.tasks[1]] }));
+    await t.api.call('projectTemplates.syncApply', { templateId, projectId: alpha, choices: choose({ text: true }) }, { correlationId: 'cor_base' });
+    await t.api.call('events.undoStory', { correlationId: 'cor_base' });
+    expect(linkOf(t, alpha).base?.tasks.t1.title).toBe('Massing study');
+    expect(byPart(t, alpha, 't1')).toMatchObject({ title: 'Massing study' });
   });
 });

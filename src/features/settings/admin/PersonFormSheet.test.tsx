@@ -7,6 +7,8 @@ import { renderApp } from '../../../test/render';
 /** A custom role, Cashier (rol_001), held by Omar Haddad, a Member. Turki Al-Otaibi (usr_010) is Management. */
 function withRoles(state: State) {
   state.settings.roles = { custom: [{ id: 'rol_001', name: 'Cashier', nameAr: 'أمين الصندوق', rights: ['payment.manage'] }] };
+  // The sample office has one holder of its own sample role. This test names its own holder.
+  for (const user of Object.values(state.users)) delete user.roleId;
   state.counters.rol = 1;
   state.users.usr_004.roleId = 'rol_001';
 }

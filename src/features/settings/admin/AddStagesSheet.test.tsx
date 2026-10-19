@@ -21,29 +21,49 @@ async function openAddStages(editor: HTMLElement) {
 }
 
 describe('Add stages from another template', () => {
-  it('adds the ticked stage with its tasks to the open editor', async () => {
+  it('adds the ticked stage with its tasks to the open editor, with "With their tasks" on at the start (ADM-17)', async () => {
     const editor = await openNewEditor();
     const sheet = await openAddStages(editor);
     await userEvent.selectOptions(within(sheet).getByLabelText('Template to take stages from'), 'Villa, full design');
-    await userEvent.click(within(sheet).getByRole('checkbox', { name: 'Concept' }));
-    await userEvent.click(within(sheet).getByRole('checkbox', { name: 'With their tasks' }));
+    expect(within(sheet).getByRole('checkbox', { name: 'With their tasks' })).toBeChecked();
+    await userEvent.click(within(sheet).getByRole('checkbox', { name: /^Concept/ }));
     await userEvent.click(within(sheet).getByRole('button', { name: 'Add the stages' }));
     expect(screen.queryByRole('dialog', { name: 'Add stages from another template' })).not.toBeInTheDocument();
     // The empty stage stays first. The copy of Concept comes second, with its three tasks.
-    expect(within(editor).getByLabelText('Name of stage 2')).toHaveValue('Concept');
-    expect(within(editor).getByDisplayValue('Site visit and survey')).toBeInTheDocument();
-    expect(within(editor).getByDisplayValue('Concept presentation')).toBeInTheDocument();
+    expect(editor.querySelectorAll('[data-row="stage"]')).toHaveLength(2);
+    expect(within(editor).getByRole('button', { name: 'Concept' })).toBeInTheDocument();
+    expect(within(editor).getByRole('button', { name: 'Site visit and survey' })).toBeInTheDocument();
+    expect(within(editor).getByRole('button', { name: 'Concept presentation' })).toBeInTheDocument();
   });
 
-  it('adds only the stage when "With their tasks" stays unticked', async () => {
+  it('names the tasks and the days of each stage, so the person knows what a stage brings (ADM-17)', async () => {
     const editor = await openNewEditor();
     const sheet = await openAddStages(editor);
     await userEvent.selectOptions(within(sheet).getByLabelText('Template to take stages from'), 'Villa, full design');
-    expect(within(sheet).getByRole('checkbox', { name: 'With their tasks' })).not.toBeChecked();
-    await userEvent.click(within(sheet).getByRole('checkbox', { name: 'Concept' }));
+    expect(within(sheet).getByRole('checkbox', { name: /^Concept.*3 tasks · 12 working days$/ })).toBeInTheDocument();
+  });
+
+  it('puts the copied stages right after the last stage, and keeps their days only when asked (ADM-17)', async () => {
+    await renderApp('/admin/project-templates');
+    await userEvent.click(await within(await region('Project templates')).findByRole('button', { name: /^Competition entry/ }));
+    const editor = await screen.findByRole('dialog', { name: /^Competition entry/ });
+    const sheet = await openAddStages(editor);
+    await userEvent.selectOptions(within(sheet).getByLabelText('Template to take stages from'), 'Villa, full design');
+    await userEvent.click(within(sheet).getByRole('checkbox', { name: /^Design Development/ }));
     await userEvent.click(within(sheet).getByRole('button', { name: 'Add the stages' }));
-    expect(within(editor).getByLabelText('Name of stage 2')).toHaveValue('Concept');
-    expect(within(editor).queryByDisplayValue('Site visit and survey')).not.toBeInTheDocument();
+    // The stage templates have no days, so the template ends on day 0 and the copy of Design Development (day 20 in the villa) starts on day 0.
+    expect(within(editor).getByRole('slider', { name: 'Start of Material board' })).toHaveAttribute('aria-valuenow', '0');
+  });
+
+  it('adds only the stage when "With their tasks" is unticked', async () => {
+    const editor = await openNewEditor();
+    const sheet = await openAddStages(editor);
+    await userEvent.selectOptions(within(sheet).getByLabelText('Template to take stages from'), 'Villa, full design');
+    await userEvent.click(within(sheet).getByRole('checkbox', { name: 'With their tasks' }));
+    await userEvent.click(within(sheet).getByRole('checkbox', { name: /^Concept/ }));
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Add the stages' }));
+    expect(within(editor).getByRole('button', { name: 'Concept' })).toBeInTheDocument();
+    expect(within(editor).queryByRole('button', { name: 'Site visit and survey' })).not.toBeInTheDocument();
   });
 
   it('keeps the add button off until a template and a stage are chosen', async () => {
@@ -53,7 +73,7 @@ describe('Add stages from another template', () => {
     expect(add).toBeDisabled();
     await userEvent.selectOptions(within(sheet).getByLabelText('Template to take stages from'), 'Villa, full design');
     expect(add).toBeDisabled();
-    await userEvent.click(within(sheet).getByRole('checkbox', { name: 'Concept' }));
+    await userEvent.click(within(sheet).getByRole('checkbox', { name: /^Concept/ }));
     expect(add).toBeEnabled();
   });
 

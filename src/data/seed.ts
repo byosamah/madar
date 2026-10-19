@@ -7,6 +7,8 @@ import {
 } from '../api/contract/entities';
 import { writeEvent, type EventContext } from '../api/events';
 import { projectTemplateFromStages } from '../api/projectTemplates';
+import { baseOf, planOf } from '../api/templateSync';
+import { matchByNames } from '../lib/templateMatch';
 import { notify, reviewersOf } from '../api/notify';
 import { addDays, dayOfWeek, diffDays, maxDay, minDay, weekStartOf } from '../lib/dates';
 import { mentionMarkup } from '../lib/text';
@@ -154,6 +156,39 @@ const FILES: { name: string; kind: 'svg' | 'pdf'; versions: number; daysAgo: num
 ];
 
 type SeedCtx = { state: State; today: string; humans: User[]; clientIds: string[]; saveBlob: (blob: Blob) => string; picture?: SeedPicture };
+
+/**
+ * One older project linked to the template "Villa, full design" (ADM-04, ADM-05), as the link sheet of an older project does: the
+ * stages and tasks that match the template by name take its part ids, and the template parts with no match are dropped from the
+ * project. The Admin pages then show a project that follows the template, the project page names the template, and the update
+ * review has a project to read. No project is added, so the counts of the sample office stay.
+ */
+function linkSampleProject(state: State, templateId: string, projectId: string): void {
+  const template = state.projectTemplates![templateId];
+  const project = state.projects[projectId];
+  const stages = Object.values(state.stages).filter((stage) => stage.projectId === projectId);
+  const tasks = Object.values(state.tasks).filter((task) => task.projectId === projectId);
+  const match = matchByNames(template, stages, tasks);
+  for (const [partId, stageId] of Object.entries(match.stages)) if (stageId) state.stages[stageId].templatePartId = partId;
+  for (const [partId, taskId] of Object.entries(match.tasks)) if (taskId) state.tasks[taskId].templatePartId = partId;
+  const dropped = [...Object.entries(match.stages), ...Object.entries(match.tasks)].filter(([, itemId]) => itemId === null).map(([partId]) => partId);
+  project.templateLink = {
+    templateId, linkedAt: project.updatedAt, syncedAt: null, droppedPartIds: dropped,
+    rolePeople: Object.fromEntries(template.roles.map((role) => [role.id, role.defaultUserId])),
+    base: baseOf(template, planOf(template, project)),
+  };
+}
+
+/** One custom role, Cashier, held by Khalid Al-Mutairi, a Member (ADM-12, ADM-14): the Roles page shows more than the three built-in roles. */
+function addSampleRole(state: State, humans: User[]): void {
+  const id = nextId(state, 'rol');
+  state.settings.roles = {
+    ...state.settings.roles,
+    custom: [{ id, name: 'Cashier', nameAr: 'أمين الصندوق', rights: ['payment.manage'] }],
+  };
+  const holder = humans.find((person) => person.name === 'Khalid Al-Mutairi');
+  if (holder) holder.roleId = id;
+}
 
 function addProject(seed: SeedCtx, plan: Plan, index: number): void {
   const { state, today, humans, clientIds, saveBlob, picture } = seed;
@@ -758,6 +793,8 @@ export async function buildSeed(today: string, putBlob: PutBlob, picture?: SeedP
 
   const seed: SeedCtx = { state, today, humans, clientIds, saveBlob, ...(picture ? { picture } : {}) };
   PLANS.forEach((plan, index) => addProject(seed, plan, index));
+  linkSampleProject(state, villaPlan, Object.values(state.projects).find((project) => project.code === 'KH-26-007')!.id);
+  addSampleRole(state, humans);
   addAgentSummaries(state, today, agentId);
   addChatTalk(state, today, humans);
   addSampleLinks(state);

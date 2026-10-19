@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ProjectTemplate } from '../../../api/contract/entities';
 import {
-  addRole, addStage, addTask, draftError, draftInput, draftOf, draftPlanTemplate, duplicateDraft, emptyDraft, moveStage, moveStageStart, removeRole,
-  importStages, removeStage, removeTask, reorderStages, startsBeforeStageAbove, tasksEndDay, type TemplateDraft,
+  addRole, addStage, addTask, addWait, draftError, draftInput, draftProblem, draftOf, draftPlanTemplate, duplicateDraft, emptyDraft, moveStage, moveStageStart, removeRole,
+  importStages, removeStage, removeTask, startsBeforeStageAbove, tasksEndDay, type TemplateDraft,
 } from './templateDraft';
 
 const SAVED: ProjectTemplate = {
@@ -47,6 +47,12 @@ describe('the template draft', () => {
     expect(draft.tasks.at(-1)).toMatchObject({ stageId: 's3', start: '30' });
   });
 
+  it('starts the first task of a stage at the own start day of the stage (ADM-18)', () => {
+    const base = addStage(draftOf(SAVED));
+    const draft = addTask({ ...base, stages: base.stages.map((stage) => (stage.id === 's3' ? { ...stage, start: '3', days: '8' } : stage)) }, 's3');
+    expect(draft.tasks.at(-1)).toMatchObject({ stageId: 's3', start: '3' });
+  });
+
   it('removes a stage with its tasks, and a role from its tasks', () => {
     const draft = draftOf(SAVED);
     expect(removeStage(draft, 's1').tasks).toEqual([]);
@@ -70,9 +76,25 @@ describe('the template draft', () => {
     expect(set({ roles: [{ ...ok.roles[0], name: '' }, ok.roles[1]] })).toBe('projectTemplates.errors.roleName');
     expect(set({ roles: [ok.roles[0], { ...ok.roles[1], name: 'architect' }] })).toBe('projectTemplates.errors.roleTwice');
     expect(set({ tasks: [{ ...ok.tasks[0], title: ' ' }] })).toBe('projectTemplates.errors.taskTitle');
-    expect(set({ tasks: [{ ...ok.tasks[0], days: '0' }] })).toBe('projectTemplates.errors.numbers');
-    expect(set({ tasks: [{ ...ok.tasks[0], start: '2.5' }] })).toBe('projectTemplates.errors.numbers');
-    expect(set({ stages: [ok.stages[0], { ...ok.stages[1], days: '' }] })).toBe('projectTemplates.errors.stageNumbers');
+    expect(set({ tasks: [{ ...ok.tasks[0], days: '0' }] })).toBe('projectTemplates.problem.numbers');
+    expect(set({ tasks: [{ ...ok.tasks[0], start: '2.5' }] })).toBe('projectTemplates.problem.numbers');
+    expect(set({ stages: [ok.stages[0], { ...ok.stages[1], days: '' }] })).toBe('projectTemplates.problem.stageDays');
+  });
+
+  it('names the part and the field of the first problem (ADM-10)', () => {
+    const ok = draftOf(SAVED);
+    expect(draftProblem(ok)).toBeNull();
+    expect(draftProblem({ ...ok, stages: [ok.stages[0], { ...ok.stages[1], days: '' }] })).toEqual({
+      key: 'projectTemplates.problem.stageDays', vars: { name: 'Permits' }, part: { kind: 'stage', id: 's2' }, field: 'days',
+    });
+    expect(draftProblem({ ...ok, stages: [ok.stages[0], { ...ok.stages[1], start: '' }] })).toMatchObject({
+      key: 'projectTemplates.problem.stageStart', part: { kind: 'stage', id: 's2' }, field: 'start',
+    });
+    expect(draftProblem({ ...ok, tasks: [ok.tasks[0], { ...ok.tasks[1], days: '0' }] })).toMatchObject({
+      key: 'projectTemplates.problem.numbers', vars: { name: 'Presentation' }, part: { kind: 'task', id: 't2' }, field: 'days',
+    });
+    expect(draftProblem({ ...ok, tasks: [{ ...ok.tasks[0], title: ' ' }, ok.tasks[1]] })).toMatchObject({ part: { kind: 'task', id: 't1' }, field: 'title' });
+    expect(draftProblem({ ...ok, name: '' })).toMatchObject({ part: null, field: 'name' });
   });
 
   it('reads Arabic digits as numbers', () => {
@@ -140,28 +162,6 @@ describe('the end of the tasks of a stage', () => {
   });
 });
 
-describe('reorderStages', () => {
-  it('moves a stage to a new place, and the other stages keep their order', () => {
-    const draft = draftOf(SAVED);
-    expect(reorderStages(draft, 0, 1).stages.map((stage) => stage.id)).toEqual(['s2', 's1']);
-    expect(reorderStages(draft, 1, 0).stages.map((stage) => stage.id)).toEqual(['s2', 's1']);
-    const three = addStage(draft);
-    expect(reorderStages(three, 0, 2).stages.map((stage) => stage.id)).toEqual(['s2', 's3', 's1']);
-    expect(reorderStages(three, 2, 0).stages.map((stage) => stage.id)).toEqual(['s3', 's1', 's2']);
-  });
-
-  it('gives the draft back for the same place or for a place outside the list', () => {
-    const draft = draftOf(SAVED);
-    expect(reorderStages(draft, 1, 1)).toBe(draft);
-    expect(reorderStages(draft, 0, 2)).toBe(draft);
-    expect(reorderStages(draft, -1, 0)).toBe(draft);
-  });
-
-  it('keeps the tasks of each stage as they are', () => {
-    expect(reorderStages(draftOf(SAVED), 0, 1).tasks).toEqual(draftOf(SAVED).tasks);
-  });
-});
-
 describe('startsBeforeStageAbove', () => {
   it('is false for the first stage and for a stage that starts after the stage above it', () => {
     const draft = draftOf(SAVED);
@@ -171,13 +171,13 @@ describe('startsBeforeStageAbove', () => {
   });
 
   it('is true when a stage that starts earlier comes after a stage that starts later', () => {
-    expect(startsBeforeStageAbove(reorderStages(draftOf(SAVED), 0, 1), 1)).toBe(true);
+    expect(startsBeforeStageAbove(moveStage(draftOf(SAVED), 's1', 1), 1)).toBe(true);
   });
 
   it('is false when the stage has no days and no task to compare', () => {
     const draft = draftOf(SAVED);
     const withoutConcept = { ...draft, tasks: draft.tasks.filter((task) => task.stageId !== 's1') };
-    expect(startsBeforeStageAbove(reorderStages(withoutConcept, 0, 1), 1)).toBe(false);
+    expect(startsBeforeStageAbove(moveStage(withoutConcept, 's1', 1), 1)).toBe(false);
   });
 });
 
@@ -303,13 +303,13 @@ describe('importStages', () => {
     const draft = importStages(draftOf(SAVED), OTHER, ['s1', 's2'], true);
     // "Concept" is in use, so the copy gets " 2". Design keeps its name and its wait on the copy of Concept.
     expect(draft.stages.slice(2)).toEqual([
-      { id: 's3', name: 'Concept 2', start: '0', days: '10' },
+      { id: 's3', name: 'Concept 2', start: '30', days: '10' },
       { id: 's4', name: 'Design', start: '', days: '', prerequisiteIds: ['s3'] },
     ]);
     // Architect matches the role Architect of the draft by name. Engineer is new, so it gets the next free role id.
     expect(draft.tasks.slice(2)).toEqual([
-      { id: 't3', stageId: 's3', title: 'Massing', roleId: 'r1', start: '0', days: '5', flexible: true, description: '', checklist: [], needsReview: false },
-      { id: 't4', stageId: 's4', title: 'Plans', roleId: 'r3', start: '5', days: '5', flexible: false, description: '', checklist: ['Ground floor'], needsReview: true, prerequisiteIds: ['t3'] },
+      { id: 't3', stageId: 's3', title: 'Massing', roleId: 'r1', start: '30', days: '5', flexible: true, description: '', checklist: [], needsReview: false },
+      { id: 't4', stageId: 's4', title: 'Plans', roleId: 'r3', start: '35', days: '5', flexible: false, description: '', checklist: ['Ground floor'], needsReview: true, prerequisiteIds: ['t3'] },
     ]);
     expect(draft.roles).toEqual([...draftOf(SAVED).roles, { id: 'r3', name: 'Engineer', defaultUserId: '' }]);
     expect(draftError(draft)).toBeNull();
@@ -321,9 +321,21 @@ describe('importStages', () => {
     expect(draft.tasks).toEqual(before.tasks);
     expect(draft.roles).toEqual(before.roles);
     expect(draft.stages.slice(2)).toEqual([
-      { id: 's3', name: 'Concept 2', start: '0', days: '10' },
+      { id: 's3', name: 'Concept 2', start: '30', days: '10' },
       { id: 's4', name: 'Design', start: '', days: '', prerequisiteIds: ['s3'] },
     ]);
+  });
+
+  it('puts the copies right after the last stage, with the gaps between them kept (ADM-17)', () => {
+    const draft = importStages(draftOf(SAVED), OTHER, ['s1', 's2'], true);
+    // SAVED ends on day 30. The first copied day, 0, becomes 30, so Massing starts on 30 and Plans on 35.
+    expect(draft.tasks.slice(2).map((task) => task.start)).toEqual(['30', '35']);
+  });
+
+  it('keeps the days of the other template when asked (ADM-17)', () => {
+    const draft = importStages(draftOf(SAVED), OTHER, ['s1', 's2'], true, true);
+    expect(draft.stages[2]).toMatchObject({ start: '0' });
+    expect(draft.tasks.slice(2).map((task) => task.start)).toEqual(['0', '5']);
   });
 
   it('drops a link to a stage or a task that was not copied', () => {
@@ -339,7 +351,7 @@ describe('importStages', () => {
   it('gives a name in use the next number when " 2" is in use too', () => {
     const before = draftOf(SAVED);
     const crowded = { ...before, stages: [...before.stages, { id: 's3', name: 'Concept 2', start: '', days: '' }] };
-    expect(importStages(crowded, OTHER, ['s1'], false).stages.at(-1)).toEqual({ id: 's4', name: 'Concept 3', start: '0', days: '10' });
+    expect(importStages(crowded, OTHER, ['s1'], false).stages.at(-1)).toEqual({ id: 's4', name: 'Concept 3', start: '30', days: '10' });
   });
 
   it('keeps the order of the source template, whatever the order of the ticks', () => {
@@ -383,5 +395,58 @@ describe('part ids are never given twice (partSeq)', () => {
     const draft = importStages(removeTask(removeStage(draftOf(SAVED), 's2'), 't2'), OTHER, ['s1'], true);
     expect(draft.stages.at(-1)?.id).toBe('s3');
     expect(draft.tasks.at(-1)?.id).toBe('t3');
+  });
+});
+
+describe('addWait: a link that points back moves the waiting part (ADM-08)', () => {
+  const two = (): TemplateDraft => ({
+    name: 'Two', roles: [], stages: [{ id: 's1', name: 'Concept', start: '', days: '' }],
+    tasks: [
+      { id: 't1', stageId: 's1', title: 'Concept presentation', roleId: '', start: '10', days: '1', flexible: true, description: '', checklist: [], needsReview: false },
+      { id: 't2', stageId: 's1', title: 'Massing options', roleId: '', start: '10', days: '5', flexible: true, description: '', checklist: [], needsReview: false },
+      { id: 't3', stageId: 's1', title: 'Review', roleId: '', start: '11', days: '2', flexible: true, description: '', checklist: [], needsReview: false, prerequisiteIds: ['t1'] },
+    ],
+  });
+
+  it('moves the waiting task to the day after the needed task ends, and says which task moved', () => {
+    const { draft, moved } = addWait(two(), 'task', 't1', 't2');
+    expect(draft.tasks.find((task) => task.id === 't1')).toMatchObject({ start: '15', prerequisiteIds: ['t2'] });
+    expect(moved[0]).toEqual({ kind: 'task', id: 't1', name: 'Concept presentation', start: 15 });
+  });
+
+  it('moves the tasks that wait for the moved task, one after the other', () => {
+    const { draft, moved } = addWait(two(), 'task', 't1', 't2');
+    // Review waits for the presentation, which now ends on day 16, so Review starts on day 16.
+    expect(draft.tasks.find((task) => task.id === 't3')).toMatchObject({ start: '16' });
+    expect(moved.map((part) => part.id)).toEqual(['t1', 't3']);
+  });
+
+  it('moves nothing when the waiting task starts late enough already', () => {
+    const late = two();
+    const { draft, moved } = addWait({ ...late, tasks: late.tasks.map((task) => (task.id === 't3' ? { ...task, start: '20' } : task)) }, 'task', 't3', 't2');
+    expect(moved).toEqual([]);
+    expect(draft.tasks.find((task) => task.id === 't3')).toMatchObject({ start: '20', prerequisiteIds: ['t1', 't2'] });
+  });
+
+  it('moves the tasks of a stage with the stage', () => {
+    const base = two();
+    const draft: TemplateDraft = {
+      ...base,
+      stages: [...base.stages, { id: 's2', name: 'Permits', start: '2', days: '4' }],
+      tasks: [...base.tasks, { id: 't4', stageId: 's2', title: 'Submit', roleId: '', start: '3', days: '2', flexible: true, description: '', checklist: [], needsReview: false }],
+    };
+    const result = addWait(draft, 'stage', 's2', 's1');
+    // Concept ends on day 16 (Review runs 11 to 13 and Massing 10 to 15, so the span ends on 15). Permits starts on 15: a shift of 13.
+    const permits = result.draft.stages.find((stage) => stage.id === 's2')!;
+    expect(permits.prerequisiteIds).toEqual(['s1']);
+    expect(Number(permits.start)).toBeGreaterThanOrEqual(15);
+    expect(Number(result.draft.tasks.find((task) => task.id === 't4')!.start)).toBe(Number(permits.start) + 1);
+    expect(result.moved[0]).toMatchObject({ kind: 'stage', id: 's2' });
+  });
+
+  it('gives the draft back when the wait exists or a part is missing', () => {
+    const draft = two();
+    expect(addWait(draft, 'task', 't3', 't1')).toEqual({ draft, moved: [] });
+    expect(addWait(draft, 'task', 't1', 'tX')).toEqual({ draft, moved: [] });
   });
 });

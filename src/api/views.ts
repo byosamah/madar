@@ -4,7 +4,7 @@ import type {
 } from './contract/views';
 import { computeHealth, isOverdue } from './health';
 import { can, principalOf, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
-import { commentCountKey, fileCountKey, type State } from './store';
+import { commentCountKey, fileCountKey, projectTemplatesOf, type State } from './store';
 import { diffDays } from '../lib/dates';
 import { pinFromLinks } from '../lib/geo';
 import { markOf } from '../lib/projectMark';
@@ -70,6 +70,7 @@ export function countFiles(state: State, taskId: string): number {
 export const FEED_VERBS = new Set([
   'project.created', 'project.stage_changed', 'project.leader_changed', 'project.code_changed', 'task.created', 'task.status_changed',
   'task.approved', 'task.sent_back', 'task.version_opened', 'task.reopened', 'task.dates_shifted', 'file.added', 'file.version_added', 'member.added',
+  'project.template_synced',
 ]);
 
 function lastLetter(value: unknown): string {
@@ -109,6 +110,11 @@ export function eventLabel(state: State, event: Event): { label: string; detail:
     case 'project': {
       const name = state.projects[event.targetId]?.name ?? '';
       if (event.verb === 'project.code_changed' && typeof after.code === 'string') return { label: name, detail: { code: after.code } };
+      // One cause line for the many changes of a template update (INT-13): the name of the template.
+      if (event.verb === 'project.template_synced') {
+        const templateId = (after.templateLink as { templateId?: string } | null | undefined)?.templateId;
+        return { label: name, detail: { template: (templateId && projectTemplatesOf(state)[templateId]?.name) || '' } };
+      }
       if (typeof after.currentStageId === 'string') return { label: name, detail: { stage: state.stages[after.currentStageId]?.name ?? '' } };
       if ('leaderId' in after) {
         return { label: name, detail: typeof after.leaderId === 'string' ? namesUnder('leader', state.users[after.leaderId]) : { leader: '' } };
@@ -188,6 +194,17 @@ function viewerCanOf(viewer: User, projectRole: ProjectRole): ProjectSummary['vi
   };
 }
 
+/**
+ * The project as a screen reads it, without the copy of the template parts that its link keeps (ADM-01). Only the template update
+ * reads that copy, on the server, so a project list does not carry up to 200 descriptions for each project.
+ */
+function withoutBase(project: Project): Project {
+  const link = project.templateLink;
+  if (!link?.base) return project;
+  const { base: _base, ...rest } = link;
+  return { ...project, templateLink: rest };
+}
+
 /** "viewer" is the person whose rights apply: the user, or the person an agent acts for. */
 export function summaryOf(state: State, project: Project, today: string, viewer: User): ProjectSummary {
   const stages = stagesInTime(state, project.id);
@@ -203,7 +220,7 @@ export function summaryOf(state: State, project: Project, today: string, viewer:
   const currentStage = stages.length > 0 ? stageTagOf(stages, tasks) : state.stages[project.currentStageId];
   const stageEndDate = project.status === 'active' ? currentStage?.endDate : null;
   return {
-    project,
+    project: withoutBase(project),
     client: project.clientId ? (state.clients[project.clientId] ?? null) : null,
     health,
     healthSetBy: health?.overridden && health.setBy ? cardOf(state, health.setBy) : null,

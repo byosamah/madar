@@ -135,6 +135,34 @@ describe('roles.delete', () => {
     expect(t.store.state.settings.roles?.custom).toHaveLength(1);
   });
 
+  it('moves the people of the role to the role that the Admin names, and one Undo of the story brings the role and the people back (ADM-14)', async () => {
+    const t = world();
+    const holder = Object.values(t.store.state.users).find((user) => user.roleId === 'rol_001')!;
+    await t.api.call('roles.delete', { id: 'rol_001', moveTo: 'member' }, { correlationId: 'cor_move' });
+    expect(t.store.state.settings.roles?.custom ?? []).toEqual([]);
+    expect(t.store.state.users[holder.id]).toMatchObject({ systemRole: 'member', roleId: null });
+    await t.api.call('events.undoStory', { correlationId: 'cor_move' });
+    expect(t.store.state.settings.roles?.custom?.map((role) => role.id)).toEqual(['rol_001']);
+    expect(t.store.state.users[holder.id].roleId).toBe('rol_001');
+  });
+
+  it('moves the people to another custom role, and refuses a role that is gone or the role itself', async () => {
+    const t = world();
+    await t.api.call('roles.create', { name: 'Site lead', nameAr: 'مسؤول الموقع', rights: [] });
+    const holder = Object.values(t.store.state.users).find((user) => user.roleId === 'rol_001')!;
+    await expect(t.api.call('roles.delete', { id: 'rol_001', moveTo: 'rol_001' })).rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'role_missing' } });
+    await expect(t.api.call('roles.delete', { id: 'rol_001', moveTo: 'rol_009' })).rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'role_missing' } });
+    await t.api.call('roles.delete', { id: 'rol_001', moveTo: 'rol_002' });
+    expect(t.store.state.users[holder.id]).toMatchObject({ systemRole: 'member', roleId: 'rol_002' });
+  });
+
+  it('moves the people to a built-in role such as Accounting', async () => {
+    const t = world();
+    const holder = Object.values(t.store.state.users).find((user) => user.roleId === 'rol_001')!;
+    await t.api.call('roles.delete', { id: 'rol_001', moveTo: 'accounting' });
+    expect(t.store.state.users[holder.id]).toMatchObject({ systemRole: 'accounting', roleId: null });
+  });
+
   it('deletes a role that a removed person once held, because no list shows that person to move', async () => {
     const t = world();
     await t.api.call('roles.create', { name: 'Site lead', nameAr: 'مسؤول الموقع', rights: [] });

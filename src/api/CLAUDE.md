@@ -82,6 +82,14 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   `projectTemplates.syncPlan` gives the diff (`syncDiff`, `src/api/templateSync.ts`) of each listed project linked to the template.
   `projectTemplates.syncApply` makes the picked changes of one project, in one story. A closed task keeps its dates and its lead.
   A dropped part comes back only with `bringBack`. The plan uses the template lengths from the project start. All three are on the MCP deny list.
+- The team's own edits stay (ADM-01, `src/api/templateSync.ts`): `templateLink.base` keeps a copy of each template part as it was when
+  the project was made, linked or last updated (`baseOf`; the dates are the dates the project got). A part counts as changed only when the
+  template differs from that copy. When the project item also differs from it, the diff puts the item in `edited`, and the update keeps the
+  team's version unless the Admin picks `edited: 'use_template'`. A description is never replaced with an empty one. A link made before
+  the copy existed shows every difference as `edited`, and its first update writes the copy (`nextBase`). A kind that the Admin left out
+  keeps its old copy, so the next update offers it again. The diff items carry the new title, the dates and the leads, so the review
+  screen names each change. `projectTemplates.list` gives the Admin `followers` (open projects that follow the template).
+- `project.template_synced` is a feed verb: the project feed says "updated this project from the template X" above the task changes.
 - Template links (fbk_008 item 4): a project made from a template keeps `Project.templateLink`. Each stage and task keeps its `templatePartId`.
   `ProjectTemplate.partSeq` is the highest part number ever given, so a part id is never given twice. `tasks.delete` and `stages.replace`
   add the removed part id to `droppedPartIds`. `projectTemplates.link` fills it for each part with no pick.
@@ -244,6 +252,9 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - `roles.create`, `roles.update` and `roles.delete` (`handlers/roles.ts`) need `admin.manage`. Each change writes one settings event:
   `role.created`, `role.updated` or `role.deleted`. Its target is the role id, or `management`, `accounting` or `member` for a built-in
   role. `handlers/history.ts` (`undoOne`) takes these back with `undoRoleChange`, not with `undoEvent`. MCP: deny list.
+- `roles.delete` takes `moveTo` (ADM-14): a built-in role (not Admin) or another custom role. The people of the deleted role move to it
+  (`user.updated` events) before the role goes, all in one story, so one Undo brings the role and the people back. Without `moveTo`,
+  a role that people hold is still refused (`role_in_use`).
 
 ## The office report (owner, 2026-10-18, fbk_016)
 - `reports.office { period, start? }` (`handlers/reports.ts`): a week (Sunday to Saturday), a month, a quarter or a year. `periodRange`
@@ -279,6 +290,10 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 
 ## Prototype data
 - `src/data/seed.ts` builds the sample office (Hala Nasser is Admin). `STATE_VERSION` is 9 (`store.ts`).
+- The sample office has one custom role, Cashier (`rol_001`, held by Khalid Al-Mutairi), and the project Seaside Villa Compound (KH-26-007)
+  is linked to the template "Villa, full design" (`linkSampleProject`, matched by name, as the link sheet does). No project was added, and
+  `STATE_VERSION` stays 9: the fresh seed has these records, a saved office keeps what it had. The call sweep (`server/core/everyCall.ts`)
+  makes `rol_002` and removes it.
 - The two feedback triggers needed no new `STATE_VERSION`: the switch record is partial, and `inAppOn` reads a missing key as on.
 - `src/api` never imports `src/data/`. `session.resetSampleData` takes the sample office from the runtime (`createApi` option
   `sampleOffice`, `src/data/sampleOffice.ts`), so the server bundles hold none. `settleFuture` runs only on sample data: the

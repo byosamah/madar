@@ -24,6 +24,7 @@ import { CodeAnywayTick, ProjectCodeFields } from './ProjectCodeFields';
 import { TemplateDetails, TemplatePicker } from './TemplateUse';
 import { PinSheet } from '../map/PinSheet';
 import { googleMapsUrl } from '../../lib/geo';
+import { roleChoice } from './templateForm';
 import { validateProjectForm, type ProjectFormErrors, type ProjectFormRules, type ProjectFormValues } from './projectForm';
 
 const CHECKED: (keyof ProjectFormErrors)[] = ['name', 'area', 'startDate', 'targetEndDate', 'stages', 'code', 'template', 'subCompanyId', ...CODE_FIELDS];
@@ -184,7 +185,11 @@ export function StageList({
   );
 }
 
-function TeamPicker({ people, value, onChange }: { people: User[]; value: string[]; onChange: (ids: string[]) => void }) {
+/**
+ * The team ticks. A person who takes a role of the chosen template is ticked and locked with a small note, "Architect in the template"
+ * (ADM-20): the server adds that person to the team, so the list says so.
+ */
+function TeamPicker({ people, value, onChange, locked }: { people: User[]; value: string[]; onChange: (ids: string[]) => void; locked: ReadonlyMap<string, string> }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   return (
@@ -196,12 +201,13 @@ function TeamPicker({ people, value, onChange }: { people: User[]; value: string
             <input
               type="checkbox"
               className="size-5 shrink-0 accent-[var(--c-accent-fill)]"
-              checked={value.includes(person.id)}
+              checked={locked.has(person.id) || value.includes(person.id)}
+              disabled={locked.has(person.id)}
               onChange={(event) => onChange(event.target.checked ? [...value, person.id] : value.filter((id) => id !== person.id))}
             />
             <Avatar user={person} size={28} />
             <span className="min-w-0 flex-1 truncate">{nameOf(person)}</span>
-            <span className="text-footnote text-label-2">{person.discipline}</span>
+            <span className="text-footnote text-label-2">{locked.has(person.id) ? t('templateUse.roleNote', { roles: locked.get(person.id) }) : person.discipline}</span>
           </label>
         ))}
       </div>
@@ -251,6 +257,12 @@ export function ProjectFields({
     if (last?.subCompanyId && values.subCompanyId !== last.subCompanyId) set('subCompanyId', last.subCompanyId);
   }, [mode, subs, values.clientId, values.subCompanyId, ofClient.data, set]);
   const template = mode === 'create' && values.templateId ? templates.find((t) => t.id === values.templateId) : undefined;
+  // The people of the roles of the chosen template, with their role names. They are on the team whatever the ticks say (ADM-20).
+  const rolePeople = new Map<string, string>();
+  for (const role of template?.roles ?? []) {
+    const personId = roleChoice(role, values, humans);
+    if (personId) rolePeople.set(personId, [rolePeople.get(personId), role.name].filter(Boolean).join(', '));
+  }
   const error = (field: keyof ProjectFormErrors) => (errors[field] ? t(errors[field] as string, { example: '260902AZT-RES-Villa' }) : undefined);
   return (
     <div className="flex flex-col gap-4">
@@ -265,6 +277,8 @@ export function ProjectFields({
         onBlur={() => touch('name')}
         error={error('name')}
       />
+      {/* The template decides the whole plan, so it is the first choice after the name (ADM-20). */}
+      {mode === 'create' && templates.length > 0 && <TemplatePicker form={form} templates={templates} />}
       {mode === 'edit' && editCode && (
         <div className="flex flex-col gap-1">
           <TextField
@@ -333,7 +347,6 @@ export function ProjectFields({
       <div className="grid grid-cols-2 gap-4">
         <DateField id="project-contract-start" label={t('projectForm.contractStartDate')} value={values.contractStartDate} onChange={(day) => set('contractStartDate', day)} />
       </div>
-      {mode === 'create' && templates.length > 0 && <TemplatePicker form={form} templates={templates} />}
       <div className="grid grid-cols-2 gap-4">
         <DateField
           id="project-start"
@@ -360,7 +373,7 @@ export function ProjectFields({
       {template
         ? <TemplateDetails form={form} template={template} people={humans} />
         : <StageList stages={values.stages} onChange={(stages) => set('stages', stages)} onBlur={() => touch('stages')} error={error('stages')} />}
-      {mode === 'create' && <TeamPicker people={people} value={values.teamIds} onChange={(ids) => set('teamIds', ids)} />}
+      {mode === 'create' && <TeamPicker people={people} value={values.teamIds} onChange={(ids) => set('teamIds', ids)} locked={rolePeople} />}
       <TextField
         id="project-folder"
         label={t('projectForm.modelFolder')}

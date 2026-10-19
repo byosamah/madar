@@ -35,7 +35,7 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'projects.resume': ['events', 'projects', 'tracker'],
   'roles.create': ['events', 'settings'],
   'roles.update': ['events', 'settings'],
-  'roles.delete': ['events', 'settings'],
+  'roles.delete': ['events', 'settings', 'users'],
   'projects.addLink': ['events', 'projects'],
   'projects.updateLink': ['events', 'projects'],
   'projects.removeLink': ['events', 'projects'],

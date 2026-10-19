@@ -15,7 +15,7 @@ import { nextId, projectTemplatesOf } from '../store';
 import { markOf } from '../../lib/projectMark';
 import { matchByNames } from '../../lib/templateMatch';
 import { workingDaysInclusive } from '../../lib/templatePlan';
-import { planOf, syncDiff, type ItemRef, type SyncDiff } from '../templateSync';
+import { baseOf, nextBase, planOf, syncDiff, textChanges, type ItemRef, type SyncDiff } from '../templateSync';
 import { namesUnder, stagesOf } from '../views';
 import { assertCan, byName, ensureOnTeam, insertComment, roleIn, touch } from './shared';
 import { dateMoveOf } from './tasks';
@@ -28,6 +28,8 @@ const TemplateName = z.string().trim().min(1).max(60);
  */
 export const ProjectTemplateRow = ProjectTemplate.extend({
   createdByName: z.string(), createdByNameAr: z.string().optional(), createdByGender: Gender.optional(), canEdit: z.boolean(),
+  /** The open projects that follow the template (ADM-05). Only the Admin, who sends the update, gets the number. */
+  followers: z.number().int().nonnegative().optional(),
 });
 export type ProjectTemplateRow = z.infer<typeof ProjectTemplateRow>;
 
@@ -38,7 +40,13 @@ function mayChange(ctx: Ctx, template: ProjectTemplate): boolean {
 
 function rowOf(ctx: Ctx, template: ProjectTemplate): ProjectTemplateRow {
   const author = ctx.state.users[template.createdBy];
-  return { ...structuredClone(template), ...namesUnder('createdByName', author), createdByGender: author?.gender, canEdit: mayChange(ctx, template) };
+  const followers = can(ctx.authority, 'admin.manage')
+    ? Object.values(ctx.state.projects).filter((project) => project.templateLink?.templateId === template.id && (project.status === 'active' || project.status === 'on_hold')).length
+    : undefined;
+  return {
+    ...structuredClone(template), ...namesUnder('createdByName', author), createdByGender: author?.gender, canEdit: mayChange(ctx, template),
+    ...(followers !== undefined ? { followers } : {}),
+  };
 }
 
 const Parts = z.object({
@@ -262,7 +270,7 @@ const projectTemplatesLink = defineCall({
     const rolePeople = Object.fromEntries(template.roles.map((role) => [role.id, input.rolePeople[role.id] ?? null]));
     const meta = { projectId: project.id };
     applyPatch(ctx, project, {
-      templateLink: { templateId: template.id, linkedAt: ctx.stamp, syncedAt: null, rolePeople, droppedPartIds: dropped },
+      templateLink: { templateId: template.id, linkedAt: ctx.stamp, syncedAt: null, rolePeople, droppedPartIds: dropped, base: baseOf(template, planOf(template, project)) },
     }, { ...meta, verb: 'project.template_linked', targetType: 'project', targetId: project.id });
     for (const part of stageParts) {
       if (part.itemId === null) continue;
@@ -290,20 +298,29 @@ const SyncChoicesInput = z.object({
   leads: z.boolean(),
   closed: z.enum(['leave', 'text_only']),
   stages: z.boolean(),
+  /** The tasks and stages that the team edited and the template changed too. keep: the team's version stays (ADM-01). */
+  edited: z.enum(['keep', 'use_template']).default('keep'),
 });
 
 const PartRefOut = z.object({ partId: TemplatePartId, title: z.string(), stagePartId: TemplatePartId.nullable() });
-const ItemRefOut = z.object({ itemId: z.string(), partId: TemplatePartId, title: z.string() });
+const SpanOut = z.object({ start: z.string().nullable(), due: z.string().nullable() });
+const ItemRefOut = z.object({
+  itemId: z.string(), partId: TemplatePartId, title: z.string(),
+  newTitle: z.string().optional(), description: z.boolean().optional(),
+  dates: z.object({ from: SpanOut, to: SpanOut }).optional(),
+  lead: z.object({ from: UserId.nullable(), to: UserId.nullable() }).optional(),
+  stage: z.boolean().optional(),
+});
 const SyncDiffOut = z.object({
   add: z.array(PartRefOut), dropped: z.array(PartRefOut), removed: z.array(ItemRefOut), text: z.array(ItemRefOut), dates: z.array(ItemRefOut),
-  leads: z.array(ItemRefOut), closed: z.array(ItemRefOut), stages: z.array(ItemRefOut), people: z.array(UserId),
+  leads: z.array(ItemRefOut), closed: z.array(ItemRefOut), stages: z.array(ItemRefOut), edited: z.array(ItemRefOut), people: z.array(UserId),
 });
 
 const UsageRow = z.object({ project: ProjectRef, status: ProjectStatus, staleDays: z.number().int().nullable() });
 export type UsageRow = z.infer<typeof UsageRow>;
 const SyncCounts = z.object({
   added: z.number().int(), broughtBack: z.number().int(), removed: z.number().int(), text: z.number().int(), dates: z.number().int(),
-  leads: z.number().int(), closed: z.number().int(), stages: z.number().int(),
+  leads: z.number().int(), closed: z.number().int(), stages: z.number().int(), edited: z.number().int(),
 });
 
 const refOf = (project: Project) => ({ id: project.id, code: project.code, name: project.name, mark: markOf(project) });
@@ -390,8 +407,12 @@ const projectTemplatesSyncApply = defineCall({
     const { stages, tasks } = itemsOf(ctx, project.id);
     const diff = syncDiff(template, project, stages, tasks, active);
     const plan = planOf(template, project);
+    // The team's own edits stay unless the Admin picks the template for them (ADM-01).
+    const useEdited = choices.edited === 'use_template';
+    const editedTasks = useEdited ? diff.edited.filter((item) => !item.stage) : [];
+    const dateItems = [...(choices.dates ? diff.dates : []), ...editedTasks.filter((item) => item.dates !== undefined)];
     // A date move asks one reason first, before any change (owner rule, 2026-10-01).
-    const movesDates = choices.dates && diff.dates.some((item) => {
+    const movesDates = dateItems.some((item) => {
       const task = ctx.state.tasks[item.itemId];
       const planned = plan?.tasks[item.partId];
       return planned !== undefined && dateMoveOf(task, plannedChanges(task, planned)) !== null;
@@ -399,7 +420,7 @@ const projectTemplatesSyncApply = defineCall({
     if (movesDates && !input.dateReason) throw invalid('dateReason', 'Write why the dates change.', 'date_reason_needed');
 
     const watch = watchStage(ctx, project.id);
-    const counts = { added: 0, broughtBack: 0, removed: 0, text: 0, dates: 0, leads: 0, closed: 0, stages: 0 };
+    const counts = { added: 0, broughtBack: 0, removed: 0, text: 0, dates: 0, leads: 0, closed: 0, stages: 0, edited: 0 };
     const restored = new Set<string>();
     const maySkipReview = can(ctx.authority, 'task.updateAny', { projectRole: roleIn(ctx, project.id) });
     const stagePart = new Map(template.stages.map((part) => [part.id, part]));
@@ -422,6 +443,15 @@ const projectTemplatesSyncApply = defineCall({
           { projectId: project.id, verb: 'stage.renamed', targetType: 'stage', targetId: item.itemId },
         );
         counts.stages += 1;
+      }
+    }
+    if (useEdited) {
+      for (const item of diff.edited.filter((edit) => edit.stage)) {
+        applyPatch(
+          ctx, ctx.state.stages[item.itemId], { name: stagePart.get(item.partId)!.name },
+          { projectId: project.id, verb: 'stage.renamed', targetType: 'stage', targetId: item.itemId },
+        );
+        counts.edited += 1;
       }
     }
     const stageParts = [
@@ -493,37 +523,42 @@ const projectTemplatesSyncApply = defineCall({
       if (back) restored.add(part.partId);
     }
 
-    // Text: the title and the description of the template, for open tasks (and for closed ones when the pick says so).
-    const retext = (item: ItemRef) => {
+    // Text: the title and the description that the template changed and the team left alone, for open tasks (and for closed ones when
+    // the pick says so). A description is never replaced with an empty one (textChanges).
+    const retext = (item: ItemRef, fields: 'apply' | 'edited'): void => {
       const task = ctx.state.tasks[item.itemId];
       const part = taskPart.get(item.partId)!;
-      applyPatch(ctx, task, { title: part.title, description: part.description }, { projectId: project.id, verb: 'task.updated', targetType: 'task', targetId: task.id });
+      const changes = textChanges(task, part, link.base?.tasks[part.id])[fields];
+      if (Object.keys(changes).length === 0) return;
+      applyPatch(ctx, task, changes, { projectId: project.id, verb: 'task.updated', targetType: 'task', targetId: task.id });
     };
     if (choices.text) {
       for (const item of diff.text) {
-        retext(item);
+        retext(item, 'apply');
         counts.text += 1;
       }
     }
     if (choices.closed === 'text_only') {
       for (const item of diff.closed) {
-        retext(item);
+        retext(item, 'apply');
         counts.closed += 1;
       }
     }
+    for (const item of editedTasks) {
+      retext(item, 'edited');
+      counts.edited += 1;
+    }
 
     // Dates: the planned dates, with the reason of each move in the task conversation.
-    if (choices.dates) {
-      for (const item of diff.dates) {
-        const task = ctx.state.tasks[item.itemId];
-        const planned = plan?.tasks[item.partId];
-        if (planned === undefined) continue;
-        const changes = plannedChanges(task, planned);
-        const move = dateMoveOf(task, changes);
-        applyPatch(ctx, task, changes, { projectId: project.id, verb: 'task.updated', targetType: 'task', targetId: task.id });
-        if (move && input.dateReason) insertComment(ctx, 'task', task.id, project.id, input.dateReason, [], move);
-        counts.dates += 1;
-      }
+    for (const item of dateItems) {
+      const task = ctx.state.tasks[item.itemId];
+      const planned = plan?.tasks[item.partId];
+      if (planned === undefined) continue;
+      const changes = plannedChanges(task, planned);
+      const move = dateMoveOf(task, changes);
+      applyPatch(ctx, task, changes, { projectId: project.id, verb: 'task.updated', targetType: 'task', targetId: task.id });
+      if (move && input.dateReason) insertComment(ctx, 'task', task.id, project.id, input.dateReason, [], move);
+      if (diff.dates.includes(item)) counts.dates += 1;
     }
 
     // Leads: the new person of the role. The person joins the team, and gets the assignment notice.
@@ -548,7 +583,10 @@ const projectTemplatesSyncApply = defineCall({
       ? Object.fromEntries(template.roles.map((role) => [role.id, role.defaultUserId !== null && active(role.defaultUserId) ? role.defaultUserId : null]))
       : { ...link.rolePeople };
     applyPatch(ctx, project, {
-      templateLink: { ...link, syncedAt: ctx.stamp, rolePeople, droppedPartIds: link.droppedPartIds.filter((id) => !restored.has(id)) },
+      templateLink: {
+        ...link, syncedAt: ctx.stamp, rolePeople, droppedPartIds: link.droppedPartIds.filter((id) => !restored.has(id)),
+        base: nextBase(template, plan, link.base, diff, choices),
+      },
     }, { projectId: project.id, verb: 'project.template_synced', targetType: 'project', targetId: project.id });
     watch.finish({ ask: false });
     touch(ctx, project.id);

@@ -22,6 +22,7 @@ import {
 import { planProject, type ProjectPlan } from '../../lib/projectPlan';
 import { workingDaysInclusive } from '../../lib/templatePlan';
 import { pinFromLinks } from '../../lib/geo';
+import { baseOf } from '../templateSync';
 import { markOf, pickMark } from '../../lib/projectMark';
 import { involves } from '../../lib/taskPeople';
 import { addMember, assertCan, requireProject, requireStage, requireUser, roleIn, touch } from './shared';
@@ -380,8 +381,8 @@ export const projectsCreate = defineCall({
       description: input.description, healthOverride: null, mark: pickMark(id, Object.values(state.projects)),
       ...(subCompanyId ? { subCompanyId } : {}),
       createdBy: actor.id, createdAt: stamp, updatedAt: stamp,
-      // The link keeps the template and the person of each role. No template part is dropped yet (fbk_008 item 4).
-      ...(made ? { templateLink: { templateId: made.template.id, linkedAt: stamp, syncedAt: null, rolePeople: { ...made.people }, droppedPartIds: [] } } : {}),
+      // The link keeps the template, the person of each role and a copy of the template parts. No part is dropped yet (fbk_008 item 4, ADM-01).
+      ...(made ? { templateLink: { templateId: made.template.id, linkedAt: stamp, syncedAt: null, rolePeople: { ...made.people }, droppedPartIds: [], base: baseOf(made.template, made.plan) } } : {}),
     };
     state.projects[id] = project;
     recordCreate(ctx, { projectId: id, verb: 'project.created', targetType: 'project', targetId: id, entity: project });

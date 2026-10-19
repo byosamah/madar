@@ -184,7 +184,21 @@ describe('projects.create from a project template', () => {
     const { project } = await t.api.call('projects.create', { name: 'Villa Noor', template: { templateId, startDate: '2026-10-04', roles: { r1: 'usr_004' }, fixedTaskIds: [] } });
     expect(t.store.state.projects[project.id].templateLink).toEqual({
       templateId, linkedAt: project.createdAt, syncedAt: null, rolePeople: { r1: 'usr_004' }, droppedPartIds: [],
+      base: expect.objectContaining({
+        // The copy holds the parts as the template says them, with the dates that the project got (ADM-01).
+        stages: expect.objectContaining({ s1: expect.objectContaining({ name: 'Concept' }) }),
+        tasks: expect.objectContaining({ t1: expect.objectContaining({ title: 'Massing study', startDate: '2026-10-04', dueDate: '2026-10-15' }) }),
+      }),
     });
+  });
+
+  it('keeps the copy of the template parts in the store, and leaves it out of what a screen reads (ADM-01)', async () => {
+    const { t, templateId } = await withTemplate();
+    const { project } = await t.api.call('projects.create', { name: 'Villa Noor', template: { templateId, startDate: '2026-10-04', roles: {}, fixedTaskIds: [] } });
+    expect(t.store.state.projects[project.id].templateLink?.base).toBeDefined();
+    const read = await t.api.call('projects.get', { id: project.id });
+    expect(read.project.templateLink).toMatchObject({ templateId });
+    expect(read.project.templateLink).not.toHaveProperty('base');
   });
 
   it('gives each new stage and task the part id of its template part', async () => {

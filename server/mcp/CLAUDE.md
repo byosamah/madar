@@ -72,7 +72,7 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 - claude.ai ignores both today (2026-10-06): its connector list shows Google's favicon of the main domain
   (`/s2/favicons?domain=vado.sa`), so the Madar connector shows the vado.sa icon. A new connector or a reconnect does not
   change it. Only a change of the vado.sa icon or an MCP address on another main domain would.
-- `users.list` gives both names (`name`, `nameAr`) and leaves picture data out of `avatarUrl` (`run.ts`).
+- `users.list` gives both names (`name`, `nameAr`), leaves picture data out of `avatarUrl`, and adds `roleName` to each row, the role name that the screens show (`run.ts`, INT-19).
 - 60 tool calls a minute for each person (`TOOL_CALLS_PER_MINUTE`, `app.ts`).
 - Two refusals need a reason from the person (`reasons.ts`): a move back to an earlier stage and a change of set dates. They
   answer with `input_required`. The agent must ask its person, never invent the reason.
