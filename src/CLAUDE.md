@@ -313,6 +313,11 @@ any screen work.
   Explorer put the file name on the clipboard as text; that text does not count, and the paste of a file stops, so the name is not typed too.
   The Inbox box (`Composer` in `Thread.tsx`: project chat, direct chat, group and task thread) and the comment box of the task panel
   (`CommentThread.tsx`) both do it.
+- A drop of files on the open conversation goes into the same list (owner, 2026-10-23, fbk_030). `DropZone` (`features/files/Attachments.tsx`)
+  wraps the whole pane (`ChatPane`, `TaskPane`) and the comments of the task panel. The box inside tells the zone what to do with the files
+  (`useDropHandler`; a closed chat registers none, so the zone shows nothing and takes nothing). While files are over the zone one quiet overlay
+  says "Drop to attach" (`attachments.drop`); a drag of text shows nothing. `useBlockFileDrop` (the zone and `InboxScreen`) stops the browser from
+  opening a file that is dropped anywhere else, with or without an open chat, and sets the cursor to "not here" outside the zone.
 - A picture in a chat bubble or a task comment shows as a preview (owner, 2026-10-19). `AttachmentList` (`features/files/PictureAttachments.tsx`)
   replaces `FileChips` in `Thread.tsx` and `CommentThread.tsx`: a picture (`Attachment.mimeType` and `usePictureTest`) is a small rounded
   picture, at most 240 px wide, from the thumb link (`useFileLink(..., 'thumb')`); two or more sit in a grid; every other file stays a chip.

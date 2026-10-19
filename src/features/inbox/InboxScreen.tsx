@@ -12,6 +12,7 @@ import { TextField } from '../../components/Fields';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { Sheet } from '../../components/Sheet';
+import { useBlockFileDrop } from '../files/Attachments';
 import { ChatList } from './ChatList';
 import { ConversationPane } from './ConversationPane';
 
@@ -123,6 +124,8 @@ function NewMessage({ open, onOpenChange }: { open: boolean; onOpenChange: (open
 export function InboxScreen() {
   const { t } = useTranslation();
   const { conversationId } = useParams();
+  // A file dropped outside the open conversation never opens in the browser tab, also when no conversation is open (fbk_030).
+  useBlockFileDrop();
   const [picking, setPicking] = useState(false);
   const list = useCall('chats.list', {});
   // The chats that were read and wait for a reply of the person (UX audit 2026-10-19, INT-26). The list shows a word on each.

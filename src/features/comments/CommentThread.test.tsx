@@ -120,6 +120,23 @@ describe('comments', () => {
     expect(Object.values(store.state.files).find((f) => f.name === 'Landing.png')).toMatchObject({ projectId: 'prj_001', taskId: 'tsk_007' });
   });
 
+  it('takes files dropped on the comments like the attach button, and shows the overlay while they are over (fbk_030)', async () => {
+    const { store } = await renderApp(TASK('tsk_007'), as('usr_006'));
+    const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
+    const zone = within(sheet).getByRole('region', { name: 'Comments' }).closest('[data-drop-zone]') as HTMLElement;
+    const drag = (files: File[]) => ({ dataTransfer: { types: ['Files'], files, dropEffect: 'none' } });
+    const detail = new File(['x'], 'Stair detail.pdf', { type: 'application/pdf' });
+    fireEvent.dragEnter(zone, drag([detail]));
+    expect(within(sheet).getByText('Drop to attach')).toBeInTheDocument();
+    fireEvent.drop(zone, drag([detail]));
+    expect(within(sheet).queryByText('Drop to attach')).toBeNull();
+    expect(within(within(sheet).getByRole('list', { name: 'Files to send' })).getByText('Stair detail.pdf')).toBeInTheDocument();
+    await userEvent.type(within(sheet).getByRole('textbox', { name: 'Add a comment' }), 'Dropped.');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Send' }));
+    await within(sheet).findByRole('button', { name: 'Download Stair detail.pdf' });
+    expect(Object.values(store.state.files).find((f) => f.name === 'Stair detail.pdf')).toMatchObject({ projectId: 'prj_001', taskId: 'tsk_007' });
+  });
+
   it('shows a deleted file in a comment as removed', async () => {
     await renderApp(TASK('tsk_007'), (state) => {
       state.session.currentUserId = 'usr_006';

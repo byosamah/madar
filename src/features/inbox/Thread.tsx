@@ -20,7 +20,7 @@ import { actorContext } from '../../lib/grammar';
 import { groupByDay } from '../../lib/group';
 import { withMentionMarkup } from '../../lib/text';
 import { reasonLineText, type ReasonKind } from '../comments/ReasonLine';
-import { AttachButton, PickedFiles, pastedFiles, useAttachments, type UploadTarget } from '../files/Attachments';
+import { AttachButton, PickedFiles, pastedFiles, useAttachments, useDropHandler, type UploadTarget } from '../files/Attachments';
 import { AttachmentList, photoOnlyBody } from '../files/PictureAttachments';
 import { DateMoveLines } from '../project/tasks/DateReason';
 
@@ -263,6 +263,8 @@ function ComposerBox({ id, people, pending, onSend, upload, owner }: ComposerPro
   }, [id]);
   // A file may go with no words: its name becomes the words, the same way Share does (audit 2026-10-03, SHL-21).
   const files = upload ? attachments.files : [];
+  // Files dropped on the conversation go into the same list as the attach button (fbk_030).
+  useDropHandler(upload ? attachments.add : null);
   const submit = async () => {
     const body = withMentionMarkup(text.trim(), people) || files.map((file) => file.name).join(', ').slice(0, MESSAGE_MAX);
     if (!body || pending || uploading) return;
