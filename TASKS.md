@@ -689,12 +689,12 @@ separate checker. No production change before Friday 2026-10-23. Answers fbk_028
 
 - [x] Study of Campfire against the Madar chat, the owner's 16 choices and 6 rule answers, the mockup, the design, the builder check
 - [x] The plan: 52 tasks in 4 tracks plus the base (msg B1 to B17, read A1 to A12, find D1 to D13, notify E1 to E10)
-- [ ] Wave 1: the base, B1 to B7 (one builder on `rb/chat-campfire`)
-- [ ] Wave 2: track read A1 to A12 (`rb/chat-read`)
-- [ ] Wave 2: track msg B8 to B14, B17 (`rb/chat-msg`)
-- [ ] Wave 2: track find D1 to D12 (`rb/chat-find`)
-- [ ] Wave 2: track notify E1 to E10 (`rb/chat-notify`)
-- [ ] Join: read, msg, find, notify into `rb/chat-campfire`
+- [x] Wave 1: the base, B1 to B7 (one builder on `rb/chat-campfire`)
+- [x] Wave 2: track read A1 to A12 (`rb/chat-read`)
+- [x] Wave 2: track msg B8 to B14, B17 (`rb/chat-msg`)
+- [x] Wave 2: track find D1 to D12 (`rb/chat-find`)
+- [x] Wave 2: track notify E1 to E10 (`rb/chat-notify`)
+- [x] Join: read, msg, find, notify into `rb/chat-campfire` (2026-10-19; one scroll fix for the saved copy of a sent message, the search reread capped at 3 after the security review, the count pins at 138 shared calls)
 - [ ] Wave 3: B15, B16, D13
 - [ ] Gate: typecheck, npm test, builds, test:db, test:it, test:mcp, test:lite, test:office, prototype smoke, screenshots
 - [ ] The test copy, then main
