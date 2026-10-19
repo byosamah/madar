@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import type { SetURLSearchParams } from 'react-router';
 import type { ProjectDetail } from '../../api/contract/views';
 import { oneOf } from '../../lib/params';
+import { projectMeetingsInput } from '../meetings/readInputs';
 import { FilesTab } from './files/FilesTab';
 import { ActivityTab, FEED_FILTERS, FEED_PAGE } from './overview/ActivityTab';
 import type { Read } from './reads';
@@ -46,17 +47,19 @@ const TASK_FILTERS = ['all', 'mine', 'overdue', 'flagged', 'no_lead'] as const;
 /**
  * The reads that a tab mounts first, with the exact keys of their useCall (performance audit 2026-10-07, FET-2 and LIV-1).
  * ProjectScreen starts them with projects.get, so the tab finds its answers in the cache and shows after one round trip, not
- * two or three. payments: the person may manage payments (the Overview shows them only then). A link with a task opens the
+ * two or three. payments: the person may manage payments (the Overview shows them only then). today: the office day, for the
+ * meetings panel of the Overview (fbk_022). A link with a task opens the
  * task panel on the Overview and on Tasks, so those two tabs also start the reads of the panel. A tab that is not here loads
  * as before. tabs.test.tsx compares each list with the keys that the tab mounts.
  */
-export function tabReads(tab: ProjectTab, projectId: string, params: URLSearchParams, o: { payments: boolean }): Read[] {
+export function tabReads(tab: ProjectTab, projectId: string, params: URLSearchParams, o: { payments: boolean; today: string }): Read[] {
   const reads: Read[] = [];
   if (tab === 'overview') {
     reads.push(
       { name: 'tasks.list', input: { projectId, activeProjectsOnly: false } },
       { name: 'updates.list', input: { projectId, filter: 'posts' } },
       { name: 'tracker.list', input: { projectId, openOnly: true } },
+      { name: 'meetings.list', input: projectMeetingsInput(projectId, o.today) },
     );
     if (o.payments) reads.push({ name: 'payments.list', input: { projectId } });
   } else if (tab === 'tasks') {

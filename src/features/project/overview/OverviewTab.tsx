@@ -22,6 +22,7 @@ import { TaskSheet } from '../tasks/TaskSheet';
 import { Loop } from '../tracker/OpenLoops';
 import { amountText, PaymentsPanel } from '../payments/PaymentsPanel';
 import { AboutPanel } from './AboutPanel';
+import { ProjectMeetings } from './ProjectMeetings';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { CornerUpLeftIcon } from '../../../components/icons/animated/corner-up-left';
 
@@ -297,6 +298,7 @@ export function OverviewTab({ detail }: TabProps) {
       </div>
       <aside className="flex min-w-0 flex-col gap-5">
         <ComingUp detail={detail} />
+        <ProjectMeetings detail={detail} />
         <LatestUpdate detail={detail} />
         <AboutPanel detail={detail} />
       </aside>

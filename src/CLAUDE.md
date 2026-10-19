@@ -205,7 +205,7 @@ any screen work.
 
 ## Routes and shell
 - Routes (`app/routes.tsx`): `/` Home, `/projects`, `/projects/:id` (tabs overview, tasks, activity, tracker, schedule,
-  files, team), `/work` (Tasks), `/dashboard`, `/dashboard/meeting` (full screen), `/dashboard/space` (Open space, full screen, read only), `/inbox`, `/notifications`, `/search`,
+  files, team), `/work` (Tasks), `/meetings` (the second view of Tasks), `/dashboard`, `/dashboard/meeting` (full screen), `/dashboard/space` (Open space, full screen, read only), `/inbox`, `/notifications`, `/search`,
   `/settings`, `/admin` and `/admin/:section`. Remote only: `/sign-in`, `/welcome`, `/forgot`, `/reset`, `/oauth/consent`.
 - Admin: a grouped side list, one section at a time. The sections, their groups and roles are in one registry,
   `features/settings/admin/sections.ts`; a new section is one line there. A section with `right` opens for each person who holds
@@ -325,6 +325,32 @@ any screen work.
   `to` (one quiet link "Open"). An entry newer than the last one the person saw has the word "New". The person menu shows the word
   "New" after the item, and Home ends its date line with the link "See what's new", until the person opens the page. There is no dot
   and no bold item.
+
+## Meetings screens (owner, 2026-10-19, fbk_022)
+- `/meetings` is the second view of the Tasks tab (`features/meetings/`, `MeetingsScreen.tsx`). The tab pill keeps 5 tabs: `isNavActive` keeps
+  Tasks open on `/meetings`, and `screenKey` (`AppShell.tsx`) gives both views one entrance. Under the title "Tasks" the switch `WorkSwitch`
+  (`features/work/`, a `SegmentedControl` over the address) picks Tasks or Meetings. The one main button follows the view: "New office task"
+  or "New meeting".
+- The view reads `meetings.list {from: today - 7 days, to: today + 60 days, mine: true}`. `groups.ts` makes Today, This week and Later (the week of
+  the Tasks screen: on a Friday or a Saturday it is the coming Sunday to Saturday). The days before today are one folded row, "Earlier (n)".
+  An empty list is one line. A press on a row opens the sheet with `?meeting=<id>` (`openMeeting`, `closeMeeting`, `meetingParam` in `lib/params.ts`).
+  A notice and the Home card link to `meetingLink(id)` (`/meetings?meeting=<id>`).
+- `MeetingSheet.tsx` has at most one main button, chosen by `mainAction` (`meetingLinks.ts`): "Join" (the place is one `https://` link, and the
+  meeting starts in 30 minutes or less or is on), else "Open in Google Maps" (a site visit of a project with a pin; the pin comes from `projects.get`),
+  else none. A cancelled or finished meeting has none. The menu holds Edit and Cancel by `viewerCan`. Cancel asks first (Keep meeting has the focus),
+  then a toast with Undo. A meeting that the person may not see reads "This meeting is not available.", as one that does not exist. Use `now()` from
+  `lib/dates.ts`, never `new Date()`: the tests fix the clock.
+- `MeetingForm.tsx` plans and edits. Eight controls: Kind, Title, Project, Day, Time, Length, People, Where. The fold "More" holds Minutes by, Guests
+  and Notes. A kind sets the length and the person for the minutes until the person chooses them (`kindDefaults`), and the place of a site visit
+  starts with the address of the project. The edit form has no Project (`project_fixed`), sends only the fields that changed, writes nothing when
+  nothing changed, and after the end opens only the Notes. A refusal of the server shows in the form (`role="alert"`). `TimeField.tsx` is a select of
+  15-minute steps from 06:00 to 22:00; `formModel.ts` holds the pure rules (slots, lengths, `defaultSlot`, `stampOf`).
+- Home: `home/MeetingsCard.tsx` ("Meetings today", only my meetings that are on or still to come, three rows). Project Overview:
+  `project/overview/ProjectMeetings.tsx` (the next two meetings; the button "Plan a meeting" for `viewerCan.post` on an open project). Both read
+  through `meetings/readInputs.ts`, and `tabReads` (`project/tabs.tsx`, now with `today`) prefetches the panel read with the same input.
+- The feed words: `feed.meeting.<created|updated|cancelled>_<meeting|visit>` (`projects/feed.ts`, with `_female` forms in Arabic).
+- Screen tests: `meetings/testMeetings.ts` (`withMeeting`, `as`). In the test office usr_002 (Faisal) leads prj_001, usr_005 and usr_006 are on its team,
+  and "now" is Wednesday 2026-09-30 09:00 in Riyadh.
 
 ## Design rules (the short form of DESIGN.md)
 - Judge every choice from the view of the employees with ADHD: one next step, the fewest controls.

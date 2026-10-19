@@ -13,6 +13,7 @@ import { ScreenTitle } from '../../components/ScreenTitle';
 import { TabPanel, Tabs } from '../../components/Tabs';
 import type { ProjectSummary } from '../../api/contract/views';
 import { sharedSource } from '../../app/sharedLayout';
+import { todayISO } from '../../lib/dates';
 import { HeaderShell, ProjectHeader } from './ProjectHeader';
 import { PausedBanner } from './PausedBanner';
 import { prefetchReads, sessionSeesPayments } from './reads';
@@ -30,7 +31,7 @@ export function ProjectScreen() {
   // The reads of the open tab start with projects.get, in an effect, so the tab and its panel show after one round trip
   // (performance audit 2026-10-07, FET-2 and LIV-1). Every gate below stays: only the start time of the reads changes.
   const prefetch = usePrefetchCall();
-  const reads = tabReads(tab, projectId, params, { payments: sessionSeesPayments(queryClient) });
+  const reads = tabReads(tab, projectId, params, { payments: sessionSeesPayments(queryClient), today: todayISO() });
   const readsKey = JSON.stringify(reads);
   useEffect(() => {
     prefetchReads(prefetch, reads);
