@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { ChatRow, CommentView, GroupLine, MessageView } from '../../api/contract/views';
+import { usePageVisible } from '../../app/usePageVisible';
 import { usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
 import { Avatar } from '../../components/Avatar';
@@ -113,10 +114,12 @@ export function ChatPane({ id }: { id: string }) {
   // after it, so a stale cached answer never marks the chat read before the fresh one has told what was unread.
   const mark = useOpenMark(thread, (d) => ({ unread: d.chat.unread, readUpTo: d.readUpTo }));
   const opened = mark !== null;
+  // Read only while the person looks (item 5): a hidden tab marks nothing, and the tab marks again when it shows.
+  const visible = usePageVisible();
   useEffect(() => {
-    if (opened && unread > 0) markRead.mutate({ conversationId: id });
-    // The mutation object changes on every render. Only a new count of unread messages matters here.
-  }, [id, unread, opened]);
+    if (opened && visible && unread > 0) markRead.mutate({ conversationId: id });
+    // The mutation object changes on every render. Only a new count of unread messages, or the tab that shows, matters here.
+  }, [id, unread, opened, visible]);
   if (thread.error) return <div className="p-4"><LoadFailed error={thread.error} onRetry={() => void thread.refetch()} /></div>;
   if (!data || !mark) return <div className="flex-1" aria-busy="true" />;
   const { chat } = data;
