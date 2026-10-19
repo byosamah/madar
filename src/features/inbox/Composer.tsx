@@ -23,6 +23,8 @@ type ComposerProps = {
   replyTo?: ReplyRef | null;
   /** The X of the strip, and Escape in the field, call this. */
   onCancelReply?: () => void;
+  /** The Up key in an empty box asks the pane to open the edit of the newest own message. True: the pane did, and the key is spent. */
+  onEditLast?: () => boolean;
 };
 
 /**
@@ -39,7 +41,7 @@ export function Composer(props: ComposerProps) {
  * Search unmounts the box; its draft waits until the person comes back or sends it (audit 2026-10-03, SHL-4). The text uses the
  * keys of the comment box (CommentThread), so a task thread and the comments of its task share one draft.
  */
-function ComposerBox({ id, people, pending, onSend, upload, owner, replyTo, onCancelReply }: ComposerProps & { owner: string }) {
+function ComposerBox({ id, people, pending, onSend, upload, owner, replyTo, onCancelReply, onEditLast }: ComposerProps & { owner: string }) {
   const { t } = useTranslation();
   const toast = useToast();
   const draftKey = id.startsWith('tsk_') ? `task:${id}` : `chat:${id}`;
@@ -100,6 +102,12 @@ function ComposerBox({ id, people, pending, onSend, upload, owner, replyTo, onCa
           if (event.key === 'Escape' && replyTo && !event.defaultPrevented) {
             event.preventDefault();
             onCancelReply?.();
+            return;
+          }
+          // The Up key in an empty box (no words, no picked file) edits the last own message, as in Campfire. A mention list takes it first.
+          if (event.key === 'ArrowUp' && !event.defaultPrevented && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey
+            && !text && files.length === 0 && onEditLast?.()) {
+            event.preventDefault();
             return;
           }
           // The mention list handles its own Enter and marks the event. Only a plain Enter sends.

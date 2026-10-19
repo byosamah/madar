@@ -19,7 +19,12 @@ import type { Bubble } from './MessageBubble';
 function itemGroups(bubble: Bubble, actions: BubbleActions, t: TFunction): { first: MenuItem[]; last: MenuItem[] } {
   return {
     first: actions.canReply ? [{ label: t('chat.reply'), onSelect: () => actions.reply(bubble) }] : [],
-    last: [],
+    last: bubble.canEdit
+      ? [
+        { label: t('comments.edit'), onSelect: () => actions.edit(bubble) },
+        { label: t('comments.delete'), onSelect: () => actions.remove(bubble), destructive: true },
+      ]
+      : [],
   };
 }
 

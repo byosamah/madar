@@ -144,6 +144,34 @@ describe('Earlier messages in a chat (plan 4.13, A5)', () => {
     expect(notes(log)).toHaveLength(2 * MESSAGE_PAGE - (all.length - OLD));
   });
 
+  // Chat design 2026-10-19, item 11: a deleted message leaves the newest page, and it is newer than the oldest message of the new page,
+  // so it must not stay in the earlier pages as a message that "fell out" of the page.
+  it('drops a deleted message also after an earlier page came', async () => {
+    let doomed = '';
+    const { store } = await renderApp('/inbox', (state) => {
+      longTalk(state);
+      const all = messagesOf(state, roomOf(state).id);
+      const target = all[all.length - 20];
+      target.authorId = 'usr_001';
+      target.actingForId = 'usr_001';
+      doomed = target.id;
+    });
+    const log = await openTower();
+    const body = store.state.messages[doomed].body;
+    await within(log).findByText(body);
+    await userEvent.click(within(log).getByRole('button', { name: 'Earlier messages' }));
+    const all = messagesOf(store.state, roomOf(store.state).id);
+    await within(log).findByText(all[all.length - 2 * MESSAGE_PAGE].body);
+    const row = document.querySelector<HTMLElement>(`[data-message-id="${doomed}"]`)!;
+    await userEvent.click(within(row).getByRole('button', { name: 'Actions for this message' }));
+    await userEvent.click(within(screen.getByRole('menu', { name: 'Actions for this message' })).getByRole('menuitem', { name: 'Delete' }));
+    await waitFor(() => expect(within(log).queryByText(body)).toBeNull());
+    // The page that went above stays whole. The new newest page reaches one message further back, and that message is the last of the
+    // earlier page, so 399 messages show: the two pages less the one that was deleted.
+    expect(within(log).getByText(all[all.length - 2 * MESSAGE_PAGE].body)).toBeInTheDocument();
+    expect(notes(log)).toHaveLength(2 * MESSAGE_PAGE - 1 - (all.length - OLD));
+  });
+
   it('keeps the log at the bottom for a new message after an earlier page failed to load', async () => {
     const { api } = await renderApp('/inbox', longTalk);
     const log = await openTower();

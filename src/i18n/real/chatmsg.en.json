@@ -14,6 +14,7 @@
     "reply": "Reply",
     "replyTo": "Reply to {{name}}",
     "cancelReply": "Cancel the reply",
-    "deletedMessage": "Deleted message"
+    "deletedMessage": "Deleted message",
+    "messageDeleted": "Message deleted."
   }
 }

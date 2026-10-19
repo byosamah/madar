@@ -14,6 +14,7 @@
     "reply": "رد",
     "replyTo": "رد على {{name}}",
     "cancelReply": "ألغِ الرد",
-    "deletedMessage": "رسالة محذوفة"
+    "deletedMessage": "رسالة محذوفة",
+    "messageDeleted": "حُذفت الرسالة."
   }
 }

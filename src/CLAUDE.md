@@ -303,6 +303,12 @@ any screen work.
   and an X; Escape in the field with no open mention list drops it too) and moves the focus into the field. The next send passes `replyToId` (`chats.send`
   or `comments.create`) and clears the strip. The sent bubble shows `BubbleReplyQuote` above its words (the name and the first line, or only "Deleted message").
   A closed chat has no Reply (`canReply`). The server names the author of the old message (`api/CLAUDE.md`).
+- Edit and delete (own messages only, `Bubble.canEdit`): the menu shows Edit and Delete (red) after Reply (after "Copy text" on the phone sheet). Edit
+  puts `MessageEditForm` in place of the words (`EditingContext` holds the id; Enter saves, Escape cancels; Save is a secondary button) and the box
+  gets the focus back at the end. The Up key in an empty box with no picked file opens the edit of the newest own bubble (`Composer` `onEditLast`).
+  Delete asks nothing: `useDeleteMessage` (`deleteMessage.ts`) calls `chats.deleteMessage` and shows the toast "Message deleted." with Undo (the same
+  call with `deleted: false`); a task comment keeps `comments.update` and `useUndoable('comments.delete')`. `useEarlierMessages` keeps a message that
+  left the newest page only when it is older than the oldest message of the new page, so a deleted message does not stay after "Earlier messages".
 
 ## Inbox, groups and What's new (owner 2026-10-18; UX audit 2026-10-19)
 - Inbox list (`features/inbox/ChatList.tsx`): "Archived (n)" is one quiet row under the search field, only while a chat is archived

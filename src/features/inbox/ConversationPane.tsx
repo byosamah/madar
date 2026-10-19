@@ -5,15 +5,18 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { ChatRow, CommentView, GroupLine, MessageView, ReplyRef, UserCard } from '../../api/contract/views';
+import { useUndoable } from '../../app/actions';
 import { usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
+import { useStableHandler } from '../../app/useStableHandler';
 import { Avatar } from '../../components/Avatar';
 import { EmptyState } from '../../components/EmptyState';
 import { LoadFailed } from '../../components/LoadFailed';
 import { Menu } from '../../components/Menu';
 import { ProjectTile } from '../../components/ProjectTile';
 import { Composer, MessageLog, type Bubble } from './Thread';
-import { BubbleActionsContext, type BubbleActions } from './bubbleActions';
+import { BubbleActionsContext, EditingContext, type BubbleActions } from './bubbleActions';
+import { useDeleteMessage } from './deleteMessage';
 import { replyRefOfBubble } from './ReplyStrip';
 import { ArchiveMenu } from './ChatList';
 import { GroupPicture } from './GroupPicture';
@@ -63,7 +66,7 @@ function useBubbles<V extends object>(views: V[], toBubble: (view: V) => Bubble,
 function bubbleOfMessage(view: MessageView): Bubble {
   return {
     id: view.message.id, author: view.author, actingFor: view.actingFor, body: view.message.body, files: view.files,
-    createdAt: view.message.createdAt, mine: view.mine, edited: view.message.editedAt !== null, reactions: view.message.reactions, replyTo: view.replyTo,
+    createdAt: view.message.createdAt, mine: view.mine, edited: view.message.editedAt !== null, reactions: view.message.reactions, replyTo: view.replyTo, canEdit: view.mine,
   };
 }
 
@@ -101,6 +104,8 @@ export function ChatPane({ id }: { id: string }) {
   const markRead = useAction('chats.markRead');
   const send = useAction('chats.send');
   const react = useAction('reactions.toggle');
+  const editMessage = useAction('chats.editMessage');
+  const deleteMessage = useStableHandler(useDeleteMessage());
   const archive = useArchive();
   const data = thread.data;
   const people = data?.people ?? NO_PEOPLE;
@@ -108,12 +113,22 @@ export function ChatPane({ id }: { id: string }) {
   // The message that the next send answers (chat design 2026-10-19, item 10). A closed chat takes no reply.
   const [replyTo, setReplyTo] = useState<ReplyRef | null>(null);
   const canReply = data !== undefined && !data.chat.personLeft;
+  // The message in edit (item 11). The box takes the focus back when the edit ends.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const endEdit = useStableHandler(() => {
+    setEditingId(null);
+    requestAnimationFrame(() => document.getElementById(`composer-${id}`)?.focus());
+  });
   // One stable object for all the bubbles (chat design 2026-10-19, item 9): a bubble renders again only when its own Bubble changes.
   const actions = useMemo<BubbleActions>(() => ({
     menuLabel: t('chat.messageActions'), canReact: true, meId, people,
     react: (bubble, emoji) => react.mutate({ messageId: bubble.id, emoji }),
     canReply, reply: (bubble) => setReplyTo(replyRefOfBubble(bubble)),
-  }), [t, meId, people, canReply, react.mutate]);
+    edit: (bubble) => setEditingId(bubble.id),
+    remove: (bubble) => deleteMessage(bubble.id),
+    saveEdit: (bubble, body) => editMessage.mutate({ id: bubble.id, body }, { onSuccess: endEdit }),
+    endEdit,
+  }), [t, meId, people, canReply, react.mutate, editMessage.mutate, deleteMessage, endEdit]);
   const { messages, earlier } = useEarlierMessages(id, data?.messages);
   const messageBubbles = useBubbles(messages, bubbleOfMessage);
   const lineBubbles = useBubbles(data?.lines ?? NO_LINES, bubbleOfLine);
@@ -121,6 +136,13 @@ export function ChatPane({ id }: { id: string }) {
   const bubbles = lineBubbles.length === 0
     ? messageBubbles
     : [...messageBubbles, ...lineBubbles].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || (a.line ? 1 : 0) - (b.line ? 1 : 0));
+  // The Up key in an empty box opens the edit of the newest message of the person (item 11).
+  const editLast = () => {
+    const last = bubbles.findLast((bubble) => bubble.canEdit);
+    if (!last) return false;
+    setEditingId(last.id);
+    return true;
+  };
   const unread = data?.chat.unread ?? 0;
   useEffect(() => {
     if (unread > 0) markRead.mutate({ conversationId: id });
@@ -161,7 +183,9 @@ export function ChatPane({ id }: { id: string }) {
           : <ArchiveMenu id={id} archived={chat.archived} title={title} onArchive={archive} />}
       />
       <BubbleActionsContext.Provider value={actions}>
-        <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} />
+        <EditingContext.Provider value={editingId}>
+          <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} />
+        </EditingContext.Provider>
       </BubbleActionsContext.Provider>
       {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{isGroup ? t('chat.groupAlone') : t('chat.closed')}</p> : (
         <Composer
@@ -172,6 +196,7 @@ export function ChatPane({ id }: { id: string }) {
           upload={chat.kind === 'project' ? (chat.project ? { projectId: chat.project.id } : undefined) : { projectId: null, conversationId: id }}
           replyTo={replyTo}
           onCancelReply={() => setReplyTo(null)}
+          onEditLast={editLast}
           onSend={(body, fileIds, clear) => send.mutate({ conversationId: id, body, fileIds, ...(replyTo ? { replyToId: replyTo.id } : {}) }, {
             onSuccess: () => {
               clear();
@@ -206,35 +231,57 @@ export function TaskPane({ id }: { id: string }) {
   const session = useCall('session.get', {});
   const create = useAction('comments.create');
   const react = useAction('reactions.toggle');
+  const updateComment = useAction('comments.update');
+  const removeComment = useUndoable('comments.delete', { message: () => t('comments.deleted') });
   const archive = useArchive();
   useMarkTaskRead(id, comments.data, session.data?.authority.id);
   const me = session.data?.authority.id;
   const [replyTo, setReplyTo] = useState<ReplyRef | null>(null);
   const where = task.data?.project ?? null;
   const canPost = task.data ? (where ? project.data?.viewerCan.post ?? false : task.data.viewerCan.contribute) : false;
+  // The people a name in a comment can point to: the team of the project, or the people of an office task (owner, 2026-10-06).
+  const people = useMemo(() => {
+    if (!task.data) return NO_PEOPLE;
+    const maker = users.data?.find((user) => user.id === task.data?.task.createdBy);
+    const makerId = maker?.kind === 'agent' && maker.ownerId ? maker.ownerId : task.data.task.createdBy;
+    const officePeople = [
+      ...(users.data ?? []).filter((user) => user.id === makerId && user.kind === 'human'),
+      ...(task.data.owner ? [task.data.owner] : []), ...task.data.helpers,
+    ];
+    return (where ? (project.data?.members ?? []).map((member) => member.user) : officePeople)
+      .filter((user, index, list) => user.id !== me && list.findIndex((other) => other.id === user.id) === index);
+  }, [task.data, users.data, project.data, where, me]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const endEdit = useStableHandler(() => {
+    setEditingId(null);
+    requestAnimationFrame(() => document.getElementById(`composer-${id}`)?.focus());
+  });
   const actions = useMemo<BubbleActions>(() => ({
-    menuLabel: t('comments.actions'), canReact: canPost, meId: me ?? '', people: NO_PEOPLE,
+    menuLabel: t('comments.actions'), canReact: canPost, meId: me ?? '', people,
     react: (bubble, emoji) => react.mutate({ commentId: bubble.id, emoji }),
     canReply: canPost, reply: (bubble) => setReplyTo(replyRefOfBubble(bubble)),
-  }), [t, canPost, me, react.mutate]);
+    edit: (bubble) => setEditingId(bubble.id),
+    remove: (bubble) => removeComment.mutate({ id: bubble.id }),
+    saveEdit: (bubble, body) => updateComment.mutate({ id: bubble.id, body }, { onSuccess: endEdit }),
+    endEdit,
+  }), [t, canPost, me, people, react.mutate, updateComment.mutate, removeComment.mutate, endEdit]);
   // "mine" depends on the person, so the kept bubbles start again when the person changes.
   const bubbles = useBubbles(comments.data ?? NO_COMMENTS, (view: CommentView): Bubble => ({
     id: view.comment.id, author: view.author, actingFor: null, body: view.comment.body, files: view.files, createdAt: view.comment.createdAt,
     mine: view.author.id === me, edited: view.comment.editedAt !== null, reactions: view.comment.reactions, replyTo: view.replyTo,
+    canEdit: view.canEdit && view.kind === 'message',
     // The reason of a date move or of a reopening is a quiet line, not a message of a person (fbk_027).
     ...(view.kind === 'message' ? {} : { reason: { kind: view.kind, dates: view.comment.dates } }),
   }), me);
   const failed = task.error ?? comments.error;
   if (failed) return <div className="p-4"><LoadFailed error={failed} onRetry={() => { void task.refetch(); void comments.refetch(); }} /></div>;
   if (!task.data || !comments.data) return <div className="flex-1" aria-busy="true" />;
-  const maker = users.data?.find((user) => user.id === task.data?.task.createdBy);
-  const makerId = maker?.kind === 'agent' && maker.ownerId ? maker.ownerId : task.data.task.createdBy;
-  const officePeople = [
-    ...(users.data ?? []).filter((user) => user.id === makerId && user.kind === 'human'),
-    ...(task.data.owner ? [task.data.owner] : []), ...task.data.helpers,
-  ];
-  const people = (where ? (project.data?.members ?? []).map((member) => member.user) : officePeople)
-    .filter((user, index, list) => user.id !== me && list.findIndex((other) => other.id === user.id) === index);
+  const editLast = () => {
+    const last = bubbles.findLast((bubble) => bubble.canEdit);
+    if (!last) return false;
+    setEditingId(last.id);
+    return true;
+  };
   return (
     <>
       <Header
@@ -254,7 +301,9 @@ export function TaskPane({ id }: { id: string }) {
         )}
       />
       <BubbleActionsContext.Provider value={actions}>
-        <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} />
+        <EditingContext.Provider value={editingId}>
+          <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} />
+        </EditingContext.Provider>
       </BubbleActionsContext.Provider>
       {canPost ? (
         <Composer
@@ -264,6 +313,7 @@ export function TaskPane({ id }: { id: string }) {
           upload={{ projectId: where?.id ?? null, stageId: task.data.task.stageId, taskId: id }}
           replyTo={replyTo}
           onCancelReply={() => setReplyTo(null)}
+          onEditLast={editLast}
           onSend={(body, fileIds, clear) => create.mutate({ targetType: 'task', targetId: id, body, fileIds, ...(replyTo ? { replyToId: replyTo.id } : {}) }, {
             onSuccess: () => {
               clear();

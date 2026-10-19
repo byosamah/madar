@@ -20,11 +20,25 @@ export type BubbleActions = {
   canReply: boolean;
   /** Starts a reply to this bubble: the strip shows in the box and the focus goes into the field. */
   reply(bubble: Bubble): void;
+  /** Opens the edit of an own bubble in place of its words. */
+  edit(bubble: Bubble): void;
+  /** Deletes an own bubble: a chat message goes with an Undo toast, a task comment as before. */
+  remove(bubble: Bubble): void;
+  /** Saves the edited words, then closes the edit. */
+  saveEdit(bubble: Bubble, body: string): void;
+  /** Closes the edit and puts the focus back into the box. */
+  endEdit(): void;
   /** The people that a name in the text can point to (the edit form of a message). */
   people: UserCard[];
 };
 
 export const BubbleActionsContext = createContext<BubbleActions | null>(null);
+
+/**
+ * The id of the bubble in edit, or null. A bubble reads it to draw its edit form. A start or an end of an edit renders the bubbles once,
+ * which is calm for an act this rare.
+ */
+export const EditingContext = createContext<string | null>(null);
 
 /** The actions of the pane around a bubble, or null where a bubble stands alone (a test, a preview). */
 export function useBubbleActions(): BubbleActions | null {

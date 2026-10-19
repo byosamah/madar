@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { memo, useState } from 'react';
+import { memo, useContext, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DateMove, Reaction } from '../../api/contract/entities';
 import type { Attachment, GroupLine, ReplyRef, UserCard } from '../../api/contract/views';
@@ -15,8 +15,9 @@ import { actorContext } from '../../lib/grammar';
 import { reasonLineText, type ReasonKind } from '../comments/ReasonLine';
 import { AttachmentList, photoOnlyBody } from '../files/PictureAttachments';
 import { DateMoveLines } from '../project/tasks/DateReason';
-import { useBubbleActions } from './bubbleActions';
+import { EditingContext, useBubbleActions } from './bubbleActions';
 import { useLongPress } from './longPress';
+import { MessageEditForm } from './MessageEditForm';
 import { MessageSheet, MessageTools } from './MessageMenu';
 import { ReactionPills } from './ReactionPills';
 import { BubbleReplyQuote } from './ReplyStrip';
@@ -34,6 +35,8 @@ export type Bubble = {
   edited: boolean;
   /** The people behind each reaction (chat design item 12). Missing means none. */
   reactions?: Record<Reaction, string[]>;
+  /** True when the reader may edit and delete this bubble: the author of a message or of a comment (item 11). */
+  canEdit?: boolean;
   /** The message or comment that this one answers (item 10). Null or missing: it answers nothing. */
   replyTo?: ReplyRef | null;
   /** A quiet line of a group (a person joined or left, a new name). It is no message: the log draws it as one grey line. */
@@ -94,6 +97,7 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh }: { bu
   const lang = useLang();
   const isPicture = usePictureTest();
   const actions = useBubbleActions();
+  const editing = useContext(EditingContext) === bubble.id;
   // A long press of a finger opens the sheet of the message (item 9). The sheet is a sibling of the row, so its events never reach the row.
   const [sheet, setSheet] = useState(false);
   const press = useLongPress(() => setSheet(true));
@@ -129,7 +133,7 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh }: { bu
             className={`rounded-2xl px-3 py-2 text-ink ${mine ? 'rounded-ee-md' : 'rounded-es-md bg-fill'}`}
           >
             {bubble.replyTo && <BubbleReplyQuote replyTo={bubble.replyTo} />}
-            {!photoOnly && <RichText body={bubble.body} className="natural-side text-subheadline" />}
+            {editing ? <MessageEditForm bubble={bubble} /> : !photoOnly && <RichText body={bubble.body} className="natural-side text-subheadline" />}
             <AttachmentList files={bubble.files} />
             <p className="tabular pt-0.5 text-end text-caption text-ink-2">
               <time dateTime={bubble.createdAt}>{clockTime(bubble.createdAt, lang)}</time>
