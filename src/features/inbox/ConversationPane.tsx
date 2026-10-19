@@ -137,6 +137,8 @@ export function ChatPane({ id, focusFromRoute }: { id: string; focusFromRoute: s
     setEditingId(null);
     requestAnimationFrame(() => document.getElementById(`composer-${id}`)?.focus());
   });
+  // The message that the log goes to and frames (items 10 and 17). A press on a reply strip sets it; the log clears it after the frame.
+  const [focusId, setFocusId] = useState<string | null>(null);
   // The "Notify me" items of the header menu. A hook, so it sits before the early returns. A task thread has none (TaskPane).
   const notifyItems = useNotifyItems(id, data?.notify ?? 'all');
   const { messages, earlier } = useEarlierMessages(id, data?.messages);
@@ -158,7 +160,7 @@ export function ChatPane({ id, focusFromRoute }: { id: string; focusFromRoute: s
     edit: (bubble) => setEditingId(bubble.id),
     remove: (bubble) => deleteMessage(bubble.id),
     saveEdit: (bubble, body) => editMessage.mutate({ id: bubble.id, body }, { onSuccess: endEdit }),
-    endEdit, retry: retrySend,
+    endEdit, retry: retrySend, focusMessage: setFocusId,
   }), [t, meId, people, canReply, react.mutate, editMessage.mutate, deleteMessage, endEdit, retrySend]);
   const me = session.data ? cardOfUser(session.data.authority) : undefined;
   const messageBubbles = useBubbles(messages, (view) => ({ ...bubbleOfMessage(view), ...(outbox.claimed.has(view.message.id) ? { fromOutbox: true as const } : {}) }));
@@ -234,7 +236,7 @@ export function ChatPane({ id, focusFromRoute }: { id: string; focusFromRoute: s
       />
       <BubbleActionsContext.Provider value={actions}>
         <EditingContext.Provider value={editingId}>
-          <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} readUpTo={mark.readUpTo} unreadAtOpen={mark.unread} />
+          <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} readUpTo={mark.readUpTo} unreadAtOpen={mark.unread} focusId={focusId} onFocused={() => setFocusId(null)} />
         </EditingContext.Provider>
       </BubbleActionsContext.Provider>
       {newer && <NewerMessages onShow={showNewest} />}
@@ -315,6 +317,8 @@ export function TaskPane({ id }: { id: string; focusFromRoute: string | null }) 
     setEditingId(null);
     requestAnimationFrame(() => document.getElementById(`composer-${id}`)?.focus());
   });
+  // The comment that the log goes to and frames (items 10 and 17), as in a chat.
+  const [focusId, setFocusId] = useState<string | null>(null);
   // Instant send, as in a chat (item 13).
   const outbox = useOutbox<CallInput<'comments.create'>>((comments.data ?? NO_COMMENTS).filter((view) => view.kind === 'message').map((view) => ({ id: view.comment.id, mine: view.author.id === me, body: view.comment.body })));
   const paneOpen = usePaneOpen();
@@ -332,7 +336,7 @@ export function TaskPane({ id }: { id: string; focusFromRoute: string | null }) 
     edit: (bubble) => setEditingId(bubble.id),
     remove: (bubble) => removeComment.mutate({ id: bubble.id }),
     saveEdit: (bubble, body) => updateComment.mutate({ id: bubble.id, body }, { onSuccess: endEdit }),
-    endEdit, retry: retrySend,
+    endEdit, retry: retrySend, focusMessage: setFocusId,
   }), [t, canPost, me, people, react.mutate, updateComment.mutate, removeComment.mutate, endEdit, retrySend]);
   const meCard = session.data ? cardOfUser(session.data.authority) : undefined;
   // "mine" depends on the person, so the kept bubbles start again when the person changes.
@@ -376,7 +380,7 @@ export function TaskPane({ id }: { id: string; focusFromRoute: string | null }) 
       />
       <BubbleActionsContext.Provider value={actions}>
         <EditingContext.Provider value={editingId}>
-          <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} unreadAtOpen={mark.unread} />
+          <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} unreadAtOpen={mark.unread} focusId={focusId} onFocused={() => setFocusId(null)} />
         </EditingContext.Provider>
       </BubbleActionsContext.Provider>
       {canPost ? (

@@ -119,6 +119,50 @@ describe('a reply in a chat', () => {
   });
 });
 
+describe('a press on a reply strip', () => {
+  /** msg_902 answers msg_901 (Faisal). Another person writes it, so its strip shows the name and the first line of the old message. */
+  function plantReply(state: State, deleted = false) {
+    plant(state);
+    state.messages.msg_902 = {
+      id: 'msg_902', conversationId: roomOf(state).id, authorId: 'usr_003', actingForId: 'usr_003', body: 'Approved.', mentions: ['usr_002'],
+      replyToId: 'msg_901', createdAt: '2026-09-30T08:10:00.000+03:00', editedAt: null,
+    };
+    if (deleted) state.messages.msg_901.deletedAt = '2026-09-30T08:20:00.000+03:00';
+  }
+
+  it('goes to the old message and frames it when the person presses the strip', async () => {
+    await renderApp('/inbox', (state) => plantReply(state));
+    await openTower();
+    await rowShows('msg_902');
+    expect(row('msg_901')).not.toHaveAttribute('data-framed');
+    await userEvent.click(within(row('msg_902')).getByRole('button', { name: /Faisal Al-Harbi/ }));
+    // The same frame as the focus test of the log: the soft outline on the bubble of the old message, for one second.
+    await waitFor(() => expect(row('msg_901')).toHaveAttribute('data-framed'));
+    expect(row('msg_902')).not.toHaveAttribute('data-framed');
+    await waitFor(() => expect(row('msg_901')).not.toHaveAttribute('data-framed'), { timeout: 3000 });
+  });
+
+  it('has no button on the strip of a deleted message', async () => {
+    await renderApp('/inbox', (state) => plantReply(state, true));
+    await userEvent.click(await within(await screen.findByRole('list', { name: 'Chats' })).findByRole('link', { name: /Corniche Office Tower/ }));
+    await rowShows('msg_902');
+    const reply = within(row('msg_902'));
+    expect(reply.getByText('Deleted message')).toBeInTheDocument();
+    expect(reply.queryByRole('button', { name: /Deleted message/ })).toBeNull();
+    // The only button of the row is the menu button.
+    expect(reply.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual(['Actions for this message']);
+  });
+
+  it('names the strip button after the name and the first line of the old message, with a press area of 44 px', async () => {
+    await renderApp('/inbox', (state) => plantReply(state));
+    await openTower();
+    await rowShows('msg_902');
+    const strip = within(row('msg_902')).getByRole('button', { name: /Faisal Al-Harbi/ });
+    expect(strip).toHaveTextContent(FAISAL);
+    expect(strip.className).toMatch(/min-h-11/);
+  });
+});
+
 describe('a reply to a task comment in the Inbox thread', () => {
   it('shows the strip with the name of the author, and sends the reply with its replyToId', async () => {
     const { store, router } = await renderApp('/inbox', plantComment);
@@ -133,6 +177,23 @@ describe('a reply to a task comment in the Inbox thread', () => {
     await rowShows(made.id);
     expect(within(row(made.id)).getByText(CODES)).toBeInTheDocument();
     expect(screen.queryByText(/^Reply to /)).toBeNull();
+  });
+});
+
+describe('a press on the strip of a task comment reply', () => {
+  it('goes to the old comment in the Inbox thread and frames it', async () => {
+    const { store, router } = await renderApp('/inbox', (state) => {
+      plantComment(state);
+      state.comments.cmt_902 = {
+        id: 'cmt_902', targetType: 'task', targetId: taskOf(state), authorId: 'usr_002', body: 'Checked.', replyToId: 'cmt_901',
+        reactions: { '👍': [], '✅': [], '👀': [] }, createdAt: '2026-09-30T07:30:00.000+03:00', editedAt: null,
+      };
+    });
+    await router.navigate(`/inbox/${taskOf(store.state)}`);
+    await rowShows('cmt_902');
+    await userEvent.click(within(row('cmt_902')).getByRole('button', { name: new RegExp(store.state.users.usr_006.name) }));
+    await waitFor(() => expect(row('cmt_901')).toHaveAttribute('data-framed'));
+    await waitFor(() => expect(row('cmt_901')).not.toHaveAttribute('data-framed'), { timeout: 3000 });
   });
 });
 

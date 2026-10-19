@@ -30,6 +30,11 @@ export type BubbleActions = {
   endEdit(): void;
   /** Sends a message that did not go once more, with the same key (instant send, item 13). */
   retry(bubble: Bubble): void;
+  /**
+   * Goes to an old message or comment that a reply strip points to: the log puts it in the middle and frames it for one second (items 10
+   * and 17). A strip of a deleted message has no press, so this never gets a deleted id.
+   */
+  focusMessage(id: string): void;
   /** The people that a name in the text can point to (the edit form of a message). */
   people: UserCard[];
 };

@@ -5,6 +5,7 @@ import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { CornerUpLeftIcon } from '../../components/icons/animated/corner-up-left';
 import { XIcon } from '../../components/icons/animated/x';
 import { firstLineOf } from '../../lib/text';
+import { useBubbleActions } from './bubbleActions';
 import type { Bubble } from './MessageBubble';
 
 /**
@@ -43,21 +44,27 @@ export function ComposerReplyStrip({ replyTo, onCancel }: { replyTo: ReplyRef; o
 
 /**
  * The quote above the words of a reply, inside its bubble: the name and the first line of the old message, with a bar on the start side.
- * An old message that is gone shows "Deleted message" and nothing of its words. Plain text here; a later task makes it a button.
+ * A live quote is a button: a press goes to the old message (item 10). An old message that is gone shows "Deleted message" and nothing of
+ * its words, as plain text with no press. A bubble with no pane around it (a test, a preview) has no place to go, so its quote is plain.
  */
 export function BubbleReplyQuote({ replyTo }: { replyTo: ReplyRef }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
+  const actions = useBubbleActions();
+  const look = 'mb-1.5 flex w-full flex-col rounded-lg border-s-[3px] border-label-3 bg-fill-strong px-2.5 py-1 text-start';
+  if (replyTo.deleted) {
+    return <div className={look}><span className="text-footnote text-ink-2">{t('chat.deletedMessage')}</span></div>;
+  }
+  const words = (
+    <>
+      <bdi className="truncate text-footnote font-medium text-ink">{nameOf(replyTo.author)}</bdi>
+      <span dir="auto" className="truncate text-footnote text-ink-2">{replyTo.firstLine}</span>
+    </>
+  );
+  if (!actions) return <div className={look}>{words}</div>;
   return (
-    <div className="mb-1.5 flex w-full flex-col rounded-lg border-s-[3px] border-label-3 bg-fill-strong px-2.5 py-1 text-start">
-      {replyTo.deleted ? (
-        <span className="text-footnote text-ink-2">{t('chat.deletedMessage')}</span>
-      ) : (
-        <>
-          <bdi className="truncate text-footnote font-medium text-ink">{nameOf(replyTo.author)}</bdi>
-          <span dir="auto" className="truncate text-footnote text-ink-2">{replyTo.firstLine}</span>
-        </>
-      )}
-    </div>
+    <button type="button" onClick={() => actions.focusMessage(replyTo.id)} className={`pressable min-h-11 justify-center ${look}`}>
+      {words}
+    </button>
   );
 }
