@@ -2,17 +2,28 @@
   "space": {
     "openButton": "Open space",
     "title": "Open space",
-    "intro": "Read only. Press a project or a stage to open the next level.",
+    "intro": "Press a project to open its stages, a stage to open its tasks, and a task to read it.",
     "office": "The office",
-    "openAll": "Open all",
-    "closeAll": "Close all",
-    "fit": "Fit to screen",
+    "overview": "Overview",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
     "focus": "Focus on a person",
     "focusAnyone": "Everyone",
+    "focusLine": "{{name}}: {{tasks}} in {{projects}}",
+    "scope": "Showing: {{scope}}",
     "openProject": "Open project",
     "currentStage": "Current stage",
+    "stagesCount": "{{n}} stages",
+    "stagesCount_one": "1 stage",
+    "stagesCount_other": "{{count}} stages",
+    "tasksCount": "{{n}} open tasks",
+    "tasksCount_one": "1 open task",
+    "tasksCount_other": "{{count}} open tasks",
     "dates": "From {{start}} to {{end}}",
     "noDate": "No date",
-    "noProjects": "No open projects."
+    "noProjects": "No open projects.",
+    "lateCount": "{{n}} past due",
+    "lateCount_one": "1 past due",
+    "lateCount_other": "{{count}} past due"
   }
 }

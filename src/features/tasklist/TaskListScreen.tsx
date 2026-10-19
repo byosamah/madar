@@ -7,13 +7,13 @@ import type { TaskRow } from '../../api/contract/views';
 import { useLang } from '../../app/lang';
 import { usePersonName } from '../../app/personName';
 import { useCall } from '../../app/runtime';
+import { useScope } from '../../app/useScope';
 import { useStableHandler } from '../../app/useStableHandler';
 import { EmptyState } from '../../components/EmptyState';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { formatDay, todayISO } from '../../lib/dates';
-import { clientName } from '../../lib/clientName';
-import { clientParam, dayParam, oneOf, subCompanyParam, teamParam, userParam } from '../../lib/params';
+import { dayParam, oneOf, userParam } from '../../lib/params';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 import { openTask } from '../../lib/params';
 import { TaskRowItem } from '../project/tasks/TaskRowItem';
@@ -22,36 +22,6 @@ import { projectKey } from '../../lib/projectCode';
 
 /** no_lead and no_date: the data gaps that the Dashboard opens for the Admin (owner, 2026-10-06). */
 const FILTERS = ['all', 'overdue', 'flagged', 'no_lead', 'no_date'] as const;
-
-/**
- * The Dashboard filters in the link: the office team, the leader and the client. The Dashboard sends them, so the list holds the
- * tasks it counted, and the subtitle names each one (audit 2026-10-03, V-37a; owner, 2026-10-06, item 3).
- */
-function useScope(): { teamId?: string; leaderId?: string; clientId?: string; subCompanyId?: string; scopeText: string } {
-  const { t } = useTranslation();
-  const lang = useLang();
-  const nameOf = usePersonName();
-  const [params] = useSearchParams();
-  const teamId = teamParam(params.get('team'));
-  const leaderId = userParam(params.get('leader'));
-  const clientId = clientParam(params.get('client'));
-  const subCompanyId = subCompanyParam(params.get('subCompany'));
-  const subCompanies = useCall('subCompanies.list', {}, { enabled: subCompanyId !== undefined });
-  const teams = useCall('teams.list', {}, { enabled: teamId !== undefined });
-  const users = useCall('users.list', { includeInactive: true }, { enabled: leaderId !== undefined });
-  const clients = useCall('clients.list', {}, { enabled: clientId !== undefined });
-  const team = teams.data?.find((item) => item.id === teamId);
-  const leader = users.data?.find((user) => user.id === leaderId);
-  const client = clients.data?.find((item) => item.id === clientId);
-  const subCompany = subCompanies.data?.find((item) => item.id === subCompanyId);
-  const scopeText = [
-    team ? t('taskList.team', { name: team.name }) : '',
-    leader ? t('taskList.leader', { name: nameOf(leader) }) : '',
-    client ? t('taskList.client', { name: clientName(client, lang) }) : '',
-    subCompany ? t('taskList.subCompany', { name: lang === 'ar' ? subCompany.nameAr : subCompany.name }) : '',
-  ].filter(Boolean).join(' · ');
-  return { teamId, leaderId, clientId, subCompanyId, scopeText };
-}
 
 function Subtitle({ text }: { text: string }) {
   return text ? <p className="-mt-3 pb-4 text-subheadline text-label-2">{text}</p> : null;

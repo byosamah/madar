@@ -7,10 +7,14 @@ import { useLang } from '../../app/lang';
 import type { Stage } from '../../api/contract/entities';
 import type { ProjectSummary, TaskRow } from '../../api/contract/views';
 import { AvatarStack } from '../../components/AvatarStack';
+import { IconButton } from '../../components/IconButton';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { ArrowUpRightIcon } from '../../components/icons/animated/arrow-up-right';
 import { MadarMark } from '../../components/MadarMark';
 import { ProjectTile } from '../../components/ProjectTile';
 import { StatusSign, signOfProject, type SignState } from '../../components/StatusSign';
 import { formatDay, todayISO, type Lang } from '../../lib/dates';
+import { counted } from '../../lib/grammar';
 import { dueText, dueWord } from '../../lib/due';
 import type { SpaceNode as Placed } from './spaceTree';
 
@@ -22,6 +26,10 @@ export type SpaceCardData = {
   faded: boolean;
   expandable: boolean;
   onToggle: (id: string) => void;
+  /** A press on a task card opens its panel over the map (PRJ-08). */
+  onOpenTask: (taskId: string, projectId: string | null) => void;
+  /** The three facts of a project card: its stages, its open tasks, and the open tasks past due. */
+  facts?: { stages: number; tasks: number; late: number };
   summary?: ProjectSummary;
   stage?: Stage;
   current?: boolean;
@@ -62,9 +70,9 @@ function toggleOnKey(event: KeyboardEvent<HTMLDivElement>, data: SpaceCardData) 
   data.onToggle(data.id);
 }
 
-/** The class of a card: the surface, a pointer when it has a next level, and a fade when the focus leaves it out. */
+/** The class of a card: the surface, a pointer when it has a next level or a panel, and a fade when the focus leaves it out. */
 function cardClass(data: SpaceCardData): string {
-  return `${CARD} ${data.expandable ? 'cursor-pointer' : ''} ${data.faded ? 'opacity-40' : ''}`;
+  return `${CARD} ${data.expandable || data.kind === 'task' ? 'cursor-pointer' : ''} ${data.faded ? 'opacity-40' : ''}`;
 }
 
 /** A mouse click on a card opens or closes it, when it has a next level. */
@@ -104,6 +112,24 @@ function levelProps(data: SpaceCardData) {
   };
 }
 
+/** The facts under the stage of a project card: "7 stages · 12 open tasks · 2 past due". The late count shows only above 0. */
+function Facts({ facts }: { facts: NonNullable<SpaceCardData['facts']> }) {
+  const { t } = useTranslation();
+  return (
+    <span className="mt-1.5 flex flex-wrap items-center gap-x-1.5 text-caption text-ink-2" data-facts>
+      <span>{counted(t, 'space.stagesCount', facts.stages)}</span>
+      <span aria-hidden>·</span>
+      <span>{counted(t, 'space.tasksCount', facts.tasks)}</span>
+      {facts.late > 0 && (
+        <>
+          <span aria-hidden>·</span>
+          <span className="font-semibold text-late">{counted(t, 'space.lateCount', facts.late)}</span>
+        </>
+      )}
+    </span>
+  );
+}
+
 function ProjectCard({ data }: { data: SpaceCardData }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -111,34 +137,38 @@ function ProjectCard({ data }: { data: SpaceCardData }) {
   if (!summary) return null;
   const state = signOfProject({ project: summary.project, health: summary.health, staleDays: summary.staleDays });
   const word = signWord(state, summary.staleDays, t);
-  // The card is not a button: the "Open project" button sits inside it, and a button cannot hold a button. The card's own
-  // button holds the picture, the name, the sign and the stage. Its click reaches the card, which opens or closes the card.
+  // The card is not a button: the "Open project" button sits beside the header, and a button cannot hold a button. The header is
+  // the button that opens and closes the card, and it takes the whole width that the icon leaves. A press on the card margin
+  // reaches the card, which does the same (PRJ-08).
   return (
     <div data-kind={data.kind} data-open={data.open} data-faded={data.faded} onClick={clickToggles(data)} className={cardClass(data)}>
-      <button type="button" aria-expanded={data.expandable ? data.open : undefined} className="block w-full text-start">
-        <span className="flex items-center gap-2.5">
-          <ProjectTile id={summary.project.id} mark={summary.project.mark} size={32} subCompanyId={summary.subCompanyId} />
-          <span className="flex min-w-0 flex-col gap-0.5">
-            <bdi dir="auto" className="truncate text-subheadline font-semibold text-ink">{summary.project.name}</bdi>
-            {/* On track is the normal state, so its word stays for a screen reader only. */}
-            <StatusSign state={state}>{state === 'on_track' ? <span className="sr-only">{word}</span> : word}</StatusSign>
+      <div className="flex items-start gap-1">
+        <button type="button" aria-expanded={data.expandable ? data.open : undefined} className="block min-w-0 flex-1 text-start">
+          <span className="flex items-center gap-2.5">
+            <ProjectTile id={summary.project.id} mark={summary.project.mark} size={32} subCompanyId={summary.subCompanyId} />
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <bdi dir="auto" className="truncate text-subheadline font-semibold text-ink">{summary.project.name}</bdi>
+              {/* On track is the normal state, so its word stays for a screen reader only. */}
+              <StatusSign state={state}>{state === 'on_track' ? <span className="sr-only">{word}</span> : word}</StatusSign>
+            </span>
           </span>
-        </span>
-        <span className="mt-2.5 flex min-w-0 flex-col">
-          <span className="text-caption text-ink-2">{t('space.currentStage')}</span>
-          <bdi dir="auto" className="truncate text-footnote text-ink">{summary.currentStage.name}</bdi>
-        </span>
-      </button>
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          navigate({ pathname: `/projects/${summary.project.id}` });
-        }}
-        className="mt-2 min-h-8 px-1 text-footnote font-semibold text-link enabled:hover:underline"
-      >
-        {t('space.openProject')}
-      </button>
+          <span className="mt-2.5 flex min-w-0 flex-col">
+            <span className="text-caption text-ink-2">{t('space.currentStage')}</span>
+            <bdi dir="auto" className="truncate text-footnote text-ink">{summary.currentStage.name}</bdi>
+          </span>
+          {data.facts && <Facts facts={data.facts} />}
+        </button>
+        <IconButton
+          label={t('space.openProject')}
+          className="-me-2 -mt-1.5 text-link"
+          onClick={(event) => {
+            event.stopPropagation();
+            navigate({ pathname: `/projects/${summary.project.id}` });
+          }}
+        >
+          <AnimatedIcon icon={ArrowUpRightIcon} size={18} aria-hidden className="rtl:-scale-x-100" />
+        </IconButton>
+      </div>
     </div>
   );
 }
@@ -165,8 +195,21 @@ function TaskCard({ data }: { data: SpaceCardData }) {
   const today = todayISO();
   const word = row.task.dueDate ? dueWord(row.task.dueDate, today, row.task.status) : null;
   const due = word && row.task.dueDate ? dueText(word, t, lang, row.task.dueDate) : t('space.noDate');
+  // A press opens the task panel over the map (PRJ-08). The card is a button for a keyboard user too.
+  const open = () => data.onOpenTask(row.task.id, row.task.projectId);
   return (
-    <div {...levelProps(data)}>
+    <div
+      {...levelProps(data)}
+      role="button"
+      tabIndex={0}
+      aria-haspopup="dialog"
+      onClick={open}
+      onKeyDown={(event) => {
+        if ((event.key !== 'Enter' && event.key !== ' ') || event.target !== event.currentTarget) return;
+        event.preventDefault();
+        open();
+      }}
+    >
       <bdi dir="auto" className="block truncate text-footnote font-semibold text-ink">{row.task.title}</bdi>
       <div className="mt-1.5 flex items-center justify-between gap-2">
         <span className="min-w-0 truncate text-caption text-ink-2">{due}</span>

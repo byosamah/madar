@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Project, Stage, Task } from '../../api/contract/entities';
 import type { ProjectSummary, TaskRow, UserCard } from '../../api/contract/views';
 import { makeProject, makeStage, makeTask, STAMP } from '../../test/factories';
-import { buildSpaceTree, type SpaceNode } from './spaceTree';
+import { buildSpaceTree, CARD_HEIGHT, focusPlan, peopleWithOpenTasks, ROW_AIR, type SpaceNode } from './spaceTree';
 
 const person = (id: string): UserCard => ({ id, name: id, avatarUrl: null, kind: 'human', discipline: 'Architect' });
 
@@ -134,3 +134,63 @@ describe('buildSpaceTree', () => {
     expect(edges.some((edge) => edge.to === 'tsk_a3')).toBe(false);
   });
 });
+
+// PRJ-06 (2026-10-19): the focus on a person acts on projects and stages too, so the closed first view already shows where the person works.
+describe('the focus on a person', () => {
+  it('fades a project and a stage that the person has no open task in', () => {
+    const { nodes } = build(['prj_a', 'stg_a1', 'stg_a2'], 'usr_3');
+    expect(node(nodes, 'prj_a')?.faded).toBe(false);
+    expect(node(nodes, 'stg_a2')?.faded).toBe(false);
+    expect(node(nodes, 'stg_a1')?.faded).toBe(true);
+    expect(node(nodes, 'prj_b')?.faded).toBe(true);
+  });
+
+  it('fades nothing without a focus', () => {
+    expect(build(['prj_a', 'stg_a1']).nodes.every((item) => !item.faded)).toBe(true);
+  });
+
+  it('opens the projects and the stages where the person leads or helps an open task, and counts them', () => {
+    const lead = focusPlan({ projects, tasks, personId: 'usr_1' });
+    // Faisal leads Plan (Alpha, Design). Old plan is done, Finished work sits in a completed project, and the errand is an office task.
+    expect([...lead.opened].sort()).toEqual(['prj_a', 'stg_a1']);
+    expect(lead).toMatchObject({ tasks: 1, projects: 1 });
+    expect(lead.bright).toEqual(['prj_a', 'stg_a1', 'tsk_a1']);
+    const helper = focusPlan({ projects, tasks, personId: 'usr_3' });
+    expect([...helper.opened].sort()).toEqual(['prj_a', 'stg_a2']);
+    const paused = focusPlan({ projects, tasks, personId: 'usr_9' });
+    expect([...paused.opened].sort()).toEqual(['prj_b', 'stg_b1']);
+  });
+
+  it('plans nothing for a person with no open task', () => {
+    expect(focusPlan({ projects, tasks, personId: 'usr_404' })).toEqual({ opened: new Set(), tasks: 0, projects: 0, bright: [] });
+  });
+
+  it('lists the people who lead or help an open task of an open project', () => {
+    expect([...peopleWithOpenTasks(projects, tasks)].sort()).toEqual(['usr_1', 'usr_2', 'usr_3', 'usr_9']);
+  });
+});
+
+// PRJ-07: a card never covers the next one. Each row is as tall as its card, with air between.
+describe('the rows of the map', () => {
+  it('keeps the tops of two project cards one card height plus air apart', () => {
+    const tops = build([]).nodes.filter((item) => item.kind === 'project').map((item) => item.y).sort((a, b) => a - b);
+    expect(tops.length).toBeGreaterThan(1);
+    expect(tops[1]! - tops[0]!).toBeGreaterThanOrEqual(CARD_HEIGHT.project + ROW_AIR);
+  });
+
+  it('keeps the tops of two stage cards, and of two task cards, one card height plus air apart', () => {
+    const open = build(['prj_a', 'stg_a1', 'stg_a2']).nodes;
+    const stages = open.filter((item) => item.kind === 'stage').map((item) => item.y).sort((a, b) => a - b);
+    expect(stages[1]! - stages[0]!).toBeGreaterThanOrEqual(CARD_HEIGHT.stage + ROW_AIR);
+    const tasksOfBoth = open.filter((item) => item.kind === 'task').map((item) => item.y).sort((a, b) => a - b);
+    expect(tasksOfBoth[1]! - tasksOfBoth[0]!).toBeGreaterThanOrEqual(CARD_HEIGHT.task + ROW_AIR);
+  });
+
+  it('puts the middle of a parent card level with the middle of its children, whatever the card heights', () => {
+    const open = build(['prj_a', 'stg_a1', 'stg_a2']).nodes;
+    const middle = (item: SpaceNode) => item.y + CARD_HEIGHT[item.kind] / 2;
+    const stages = open.filter((item) => item.kind === 'stage').map(middle);
+    expect(middle(node(open, 'prj_a')!)).toBeCloseTo((Math.min(...stages) + Math.max(...stages)) / 2, 5);
+  });
+});
+

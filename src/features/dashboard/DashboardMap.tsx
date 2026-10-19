@@ -7,6 +7,7 @@ import { Button } from '../../components/Button';
 import { ProjectTile } from '../../components/ProjectTile';
 import { Sheet } from '../../components/Sheet';
 import { projectKey } from '../../lib/projectCode';
+import { isLive } from '../../lib/overview';
 import { PinPicker } from '../map/PinPicker';
 import { MapPinCard } from './MapPinCard';
 import type { DashboardFilters } from './Tiles';
@@ -26,14 +27,15 @@ export function DashboardMap({ filters }: { filters: DashboardFilters }) {
   const [unpinnedOpen, setUnpinnedOpen] = useState(false);
   const [editing, setEditing] = useState<ProjectSummary | null>(null);
   const [draft, setDraft] = useState<GeoPoint | null>(null);
-  const projects = useCall('projects.list', { status: 'active', sort: 'name', ...filters });
+  // The open projects are the active and the paused ones: the same rule as the Open space (INT-11).
+  const projects = useCall('projects.list', { status: 'all', sort: 'name', ...filters });
   const save = useAction('projects.update', {
     onSuccess: () => {
       setEditing(null);
       setDraft(null);
     },
   });
-  const rows = projects.data ?? [];
+  const rows = (projects.data ?? []).filter((row) => isLive(row.project.status));
   const pinned = rows.flatMap((row) => (row.geo ? [{ row, point: row.geo }] : []));
   const unpinned = rows.filter((row) => row.geo === null);
   const current = pinned.find((item) => item.row.project.id === selected);

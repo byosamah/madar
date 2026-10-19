@@ -14,7 +14,7 @@ export type SpaceNode = {
   y: number;
   /** True while the node shows its next level. The office is always open. */
   open: boolean;
-  /** True for a task that the focused person neither leads nor helps. */
+  /** True for a task, a stage or a project that the focused person has no open task in. */
   faded: boolean;
 };
 
@@ -23,7 +23,7 @@ export type SpaceTreeInput = {
   tasks: TaskRow[];
   /** The ids of the projects and stages that show their next level. */
   opened: ReadonlySet<string>;
-  /** The person whose tasks stay bright. Null: every task stays bright. */
+  /** The person whose work stays bright. Null: everything stays bright. */
   focusPersonId: string | null;
   dir: 'ltr' | 'rtl';
 };
@@ -38,9 +38,51 @@ export function isOpenProject(summary: ProjectSummary): boolean {
   return summary.project.status === 'active' || summary.project.status === 'on_hold';
 }
 
-// The distance between two levels (across the map) and between two neighbours (down the map), in pixels.
+// The distance between two levels (across the map), in pixels.
 const LEVEL_GAP = 300;
-const NEIGHBOUR_GAP = 136;
+/**
+ * The height of each kind of card, in pixels, as the browser draws it (PRJ-07, 2026-10-19). A row is as tall as its card plus ROW_AIR,
+ * so a card never covers the next one. A project card holds a name, a sign, the stage and the summary line, so it is the tallest.
+ */
+export const CARD_HEIGHT = { office: 64, project: 148, stage: 68, task: 80 } as const;
+export const ROW_AIR = 16;
+// A row of cousins (cards of one level under two parents) gets more air, so the two families read apart.
+const COUSIN_AIR = 1.4;
+
+const rowOf = (kind: SpaceNode['kind']): number => CARD_HEIGHT[kind] + ROW_AIR;
+
+/** True when the person leads or helps the task. */
+function involves(row: TaskRow, personId: string): boolean {
+  return row.owner?.id === personId || row.helpers.some((helper) => helper.id === personId);
+}
+
+/** The open tasks that sit in a stage of a project that shows on the map. */
+function openStageTasks(projects: ProjectSummary[], tasks: TaskRow[]): TaskRow[] {
+  const shown = new Set(projects.filter(isOpenProject).map((summary) => summary.project.id));
+  return tasks.filter((row) => row.task.status !== 'done' && row.task.stageId !== null && row.task.projectId !== null && shown.has(row.task.projectId));
+}
+
+/** The people who lead or help an open task of a project on the map: the choices of "Focus on a person". */
+export function peopleWithOpenTasks(projects: ProjectSummary[], tasks: TaskRow[]): Set<string> {
+  const found = new Set<string>();
+  for (const row of openStageTasks(projects, tasks)) {
+    if (row.owner) found.add(row.owner.id);
+    for (const helper of row.helpers) found.add(helper.id);
+  }
+  return found;
+}
+
+/**
+ * What a focus on a person opens (PRJ-06, 2026-10-19): every project and every stage where the person leads or helps an open task.
+ * "bright" lists the nodes that stay bright, for the view to fit. "tasks" and "projects" are the two numbers of the line under the picker.
+ */
+export function focusPlan(input: { projects: ProjectSummary[]; tasks: TaskRow[]; personId: string }) {
+  const own = openStageTasks(input.projects, input.tasks).filter((row) => involves(row, input.personId));
+  const stageIds = new Set(own.map((row) => row.task.stageId as string));
+  const projectIds = new Set(own.map((row) => row.task.projectId as string));
+  const bright = [...projectIds, ...stageIds, ...own.map((row) => row.task.id)];
+  return { opened: new Set([...projectIds, ...stageIds]), tasks: own.length, projects: projectIds.size, bright };
+}
 
 type Item = { id: string; kind: SpaceNode['kind']; faded: boolean; children: Item[] };
 
@@ -80,25 +122,30 @@ export function buildSpaceTree(input: SpaceTreeInput): SpaceTree {
     tasksByStage.set(stageId, [...(tasksByStage.get(stageId) ?? []), row]);
   }
 
-  const taskItem = (row: TaskRow): Item => {
-    const involved = row.owner?.id === focusPersonId || row.helpers.some((helper) => helper.id === focusPersonId);
-    return { id: row.task.id, kind: 'task', faded: focusPersonId !== null && !involved, children: [] };
-  };
+  const involvedIn = (rows: TaskRow[]) => focusPersonId !== null && rows.some((row) => involves(row, focusPersonId));
+  const fadedBy = (rows: TaskRow[]) => focusPersonId !== null && !involvedIn(rows);
+
+  const taskItem = (row: TaskRow): Item => ({ id: row.task.id, kind: 'task', faded: fadedBy([row]), children: [] });
   const stageItem = (stage: Stage): Item => ({
     id: stage.id,
     kind: 'stage',
-    faded: false,
+    faded: fadedBy(tasksByStage.get(stage.id) ?? []),
     children: opened.has(stage.id) ? [...(tasksByStage.get(stage.id) ?? [])].sort(byTaskDue).map(taskItem) : [],
   });
   const projectItem = (summary: ProjectSummary): Item => ({
     id: summary.project.id,
     kind: 'project',
-    faded: false,
+    faded: fadedBy(summary.stages.flatMap((stage) => tasksByStage.get(stage.id) ?? [])),
     children: opened.has(summary.project.id) ? [...summary.stages].sort(byStageTime).map(stageItem) : [],
   });
 
   const root: Item = { id: OFFICE_ID, kind: 'office', faded: false, children: projects.map(projectItem) };
-  const laid = tree<Item>().nodeSize([NEIGHBOUR_GAP, LEVEL_GAP])(hierarchy(root, (item) => item.children));
+  // The breadth axis (down the map) holds the middle of each card. A row is as tall as its card plus air, and the unit of the
+  // layout is the smallest row, so a taller card takes more units. Two cards that share no parent get more air.
+  const unit = rowOf('task');
+  const laid = tree<Item>()
+    .nodeSize([unit, LEVEL_GAP])
+    .separation((a, b) => (Math.max(rowOf(a.data.kind), rowOf(b.data.kind)) / unit) * (a.parent === b.parent ? 1 : COUSIN_AIR))(hierarchy(root, (item) => item.children));
   const placed = laid.descendants();
 
   const nodes = placed.map((node): SpaceNode => ({
@@ -106,7 +153,8 @@ export function buildSpaceTree(input: SpaceTreeInput): SpaceTree {
     kind: node.data.kind,
     depth: node.depth,
     x: (dir === 'rtl' ? -node.depth : node.depth) * LEVEL_GAP,
-    y: node.x,
+    // The layout gives the middle of the card, and the map wants its top.
+    y: node.x - CARD_HEIGHT[node.data.kind] / 2,
     open: node.data.kind === 'office' || (node.data.kind !== 'task' && opened.has(node.data.id)),
     faded: node.data.faded,
   }));
