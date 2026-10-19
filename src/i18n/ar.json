@@ -1266,7 +1266,7 @@
       "evening": "مساء الخير يا {{name}}"
     },
     "ringLabel": "أُنجز {{done}} من {{total}} اليوم",
-    "ringText": "{{done}} من {{total}}",
+    "ringText": "أُنجز {{done}} من {{total}} اليوم",
     "reviewsWaiting": "{{n}} مراجعات بانتظارك",
     "reviewsWaiting_one": "مراجعة واحدة بانتظارك",
     "reviewsWaiting_two": "مراجعتان بانتظارك",

@@ -1116,7 +1116,7 @@
       "evening": "Good evening, {{name}}"
     },
     "ringLabel": "{{done}} of {{total}} done today",
-    "ringText": "{{done}} of {{total}}",
+    "ringText": "{{done}} of {{total}} done today",
     "reviewsWaiting": "{{n}} reviews waiting for you",
     "reviewsWaiting_one": "1 review waiting for you",
     "reviewsWaiting_other": "{{count}} reviews waiting for you",
