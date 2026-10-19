@@ -214,5 +214,13 @@
       "other_template": "هذا المشروع مربوط بقالب آخر.",
       "date_reason_needed": "اكتب سبب تغيير التواريخ."
     }
+  },
+  "feed": {
+    "project": {
+      "template_synced": "حدّث المشروع من القالب {{template}}",
+      "template_synced_female": "حدّثت المشروع من القالب {{template}}",
+      "template_synced_plain": "حدّث المشروع من قالبه",
+      "template_synced_plain_female": "حدّثت المشروع من قالبه"
+    }
   }
 }

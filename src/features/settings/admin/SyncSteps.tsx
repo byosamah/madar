@@ -19,7 +19,7 @@ export type SyncRow = { project: { id: string; name: string }; diff: SyncDiff };
  * and a done task keeps its place.
  */
 export const DEFAULT_CHOICES: SyncChoices = {
-  add: true, bringBack: false, removed: 'keep', text: true, dates: true, leads: true, closed: 'leave', stages: true,
+  add: true, bringBack: false, removed: 'keep', text: true, dates: true, leads: true, closed: 'leave', stages: true, edited: 'keep',
 };
 
 const TITLE_KEY: Record<Kind, string> = {

@@ -259,6 +259,24 @@ export type GeoPoint = z.infer<typeof GeoPoint>;
 export const TemplatePartId = z.string().regex(/^[a-z][a-z0-9]{0,23}$/, 'Expected a short id like s1 or t12.');
 
 /**
+ * A copy of what the template said about each part when the project last took it: made, linked or updated (ADM-01). A template
+ * update counts a part as changed only when the template differs from this copy. It counts a project item as edited by the team
+ * when the item differs from this copy. The dates are the dates that the template gave the project. The number limits repeat
+ * TemplateOffset and DurationDays, which come later in this file.
+ */
+export const TemplateBase = z.object({
+  stages: z.record(TemplatePartId, z.object({
+    name: z.string().max(60), startOffset: z.number().int().min(0).max(2000).nullable(), durationDays: z.number().int().min(1).max(365).nullable(),
+  })),
+  tasks: z.record(TemplatePartId, z.object({
+    title: z.string().max(200), description: z.string().max(5000), roleId: TemplatePartId.nullable(),
+    startOffset: z.number().int().min(0).max(2000), durationDays: z.number().int().min(1).max(365),
+    startDate: Day.nullable(), dueDate: Day.nullable(),
+  })),
+});
+export type TemplateBase = z.infer<typeof TemplateBase>;
+
+/**
  * The template that a project came from (fbk_008 item 4). It keeps the person of each role of the form, and the template parts
  * that the project dropped. A deleted task or a removed stage adds its part id there.
  */
@@ -271,6 +289,8 @@ export const TemplateLink = z.object({
   rolePeople: z.record(TemplatePartId, UserId.nullable()),
   /** The template parts that the project dropped. A template has at most 200 tasks and 20 stages. */
   droppedPartIds: z.array(TemplatePartId).max(220),
+  /** What the template said when the project last took it. Optional: a link made before ADM-01 has none, and its differences show as team edits. */
+  base: TemplateBase.optional(),
 });
 export type TemplateLink = z.infer<typeof TemplateLink>;
 

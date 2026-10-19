@@ -292,6 +292,21 @@ describe('suite 12: the MCP server in process', () => {
     }
   });
 
+  it('names the role of each person, so an agent can answer "who are the site supervisors?" (INT-19)', async () => {
+    const before = { roles: seed.settings.roles, member: seed.users.usr_003 };
+    seed.settings.roles = { custom: [{ id: 'rol_002', name: 'Site supervisor', nameAr: 'مشرف موقع', rights: [] }] };
+    seed.users.usr_003 = { ...before.member, systemRole: 'member', roleId: 'rol_002' };
+    try {
+      const { body } = await call(world(), 'users.list');
+      const rows = body.result.structuredContent.output as { id: string; roleName: string }[];
+      expect(rows.find((user) => user.id === 'usr_003')).toMatchObject({ roleName: 'Site supervisor' });
+      expect(rows.find((user) => user.id === 'usr_001')).toMatchObject({ roleName: 'Admin' });
+    } finally {
+      seed.settings.roles = before.roles;
+      seed.users.usr_003 = before.member;
+    }
+  });
+
   it('lists the sub-companies without their logo data, so the agent context stays small (fbk_007)', async () => {
     const before = seed.subCompanies;
     seed.subCompanies = {

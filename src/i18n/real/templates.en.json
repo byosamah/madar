@@ -192,5 +192,11 @@
       "other_template": "This project is linked to another template.",
       "date_reason_needed": "Write why the dates change."
     }
+  },
+  "feed": {
+    "project": {
+      "template_synced": "updated this project from the template {{template}}",
+      "template_synced_plain": "updated this project from its template"
+    }
   }
 }

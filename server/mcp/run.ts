@@ -2,7 +2,8 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Deps } from '../core/ports';
 import type { RunCall } from '../core/runCall';
 import type { OfficeSnapshot, Principal, RunError, RunResult } from '../core/types';
-import { readFirstAnswer } from './docs';
+import type { RoleSettings } from '../../src/api/contract/entities';
+import { readFirstAnswer, roleNameOf } from './docs';
 import { READ_FIRST, type ToolDef } from './tools';
 
 /**
@@ -35,7 +36,9 @@ export async function runTool(tool: ToolDef, args: Record<string, unknown>, ctx:
     ...(story ? { story } : {}),
     batch: { storyRefs: new Map(), office: ctx.office, overviewCalls: 0 },
   });
-  return result.ok ? { ...result, output: withoutStorageKeys(tool.name, withoutPictureData(tool.name, result.output)) } : result;
+  return result.ok
+    ? { ...result, output: withoutStorageKeys(tool.name, withoutPictureData(tool.name, withRoleNames(tool.name, result.output, ctx.office.lists.settings.roles))) }
+    : result;
 }
 
 /**
@@ -49,6 +52,15 @@ function withoutPictureData(name: string, output: unknown): unknown {
   }
   if (name !== 'users.list' || !Array.isArray(output)) return output;
   return output.map((user: { avatarUrl?: unknown }) => (typeof user.avatarUrl === 'string' && user.avatarUrl.startsWith('data:') ? { ...user, avatarUrl: null } : user));
+}
+
+/**
+ * users.list gives each person's roleId, which is an id such as rol_002. An agent that is asked "who are the site supervisors?" needs the
+ * name that the screens show, so each row also gets roleName (INT-19). roleNameOf is the same rule as the line of madar.readFirst.
+ */
+function withRoleNames(name: string, output: unknown, roles: RoleSettings | undefined): unknown {
+  if (name !== 'users.list' || !Array.isArray(output)) return output;
+  return output.map((user: { systemRole: Parameters<typeof roleNameOf>[0]['systemRole']; roleId?: string | null }) => ({ ...user, roleName: roleNameOf(user, roles) }));
 }
 
 type Report = { screenshots?: unknown };

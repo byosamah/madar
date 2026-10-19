@@ -251,7 +251,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'users.list': {
     title: 'List people',
-    description: 'Lists the people of the office: the English name (name), the Arabic name (nameAr, when the person has one), discipline, role, roleId (the custom role of a Member, null when none) and whether each is active. Use the name that fits the language of your person. Set includeInactive to see people who are turned off. Agents are in the list too, with their owner. Profile pictures are left out.',
+    description: 'Lists the people of the office: the English name (name), the Arabic name (nameAr, when the person has one), discipline, role, roleId (the custom role of a Member, null when none), roleName (the role name that the screens show, such as Member or Site supervisor) and whether each is active. Use the name that fits the language of your person. Set includeInactive to see people who are turned off. Agents are in the list too, with their owner. Profile pictures are left out.',
   },
   'subCompanies.list': {
     title: 'List sub-companies',

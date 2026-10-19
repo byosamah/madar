@@ -184,6 +184,11 @@ describe('projects.create from a project template', () => {
     const { project } = await t.api.call('projects.create', { name: 'Villa Noor', template: { templateId, startDate: '2026-10-04', roles: { r1: 'usr_004' }, fixedTaskIds: [] } });
     expect(t.store.state.projects[project.id].templateLink).toEqual({
       templateId, linkedAt: project.createdAt, syncedAt: null, rolePeople: { r1: 'usr_004' }, droppedPartIds: [],
+      base: expect.objectContaining({
+        // The copy holds the parts as the template says them, with the dates that the project got (ADM-01).
+        stages: expect.objectContaining({ s1: expect.objectContaining({ name: 'Concept' }) }),
+        tasks: expect.objectContaining({ t1: expect.objectContaining({ title: 'Massing study', startDate: '2026-10-04', dueDate: '2026-10-15' }) }),
+      }),
     });
   });
 
