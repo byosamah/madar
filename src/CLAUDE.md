@@ -107,8 +107,13 @@ any screen work.
   The prototype has no lookup: `addressOf` gives '' there, never raw numbers.
 - One write: the form, the Dashboard map and the link sheet send `geo` and `location` together in one `projects.update` (or one
   `projects.addLink` / `updateLink` with `location`), so one Undo takes both back. The server clears the text of a pin that moves with no text
-  (`src/api/CLAUDE.md`). `ProjectLinks.tsx` looks up the address of a location link before the save, only when the link moves the pin and
-  the person may edit.
+  (`src/api/CLAUDE.md`). `LinkSheet` in `src/features/project/files/ProjectLinks.tsx` looks up the address of a location link before the save,
+  only when the link moves the pin and the person may edit.
+- **The Files & Links tab (owner, 2026-10-19).** The project tab `?tab=files` keeps its key and shows "Files & Links". The links of the project
+  (`ProjectLinks`, with the model folder) sit above the files. The About panel does not show them. One "Add" menu button (`Menu` with
+  `text` and `align="start"`) offers "Upload a file" and "Add a link"; "Add a link" opens the same `LinkSheet` that edits a link. Who sees
+  the button is `viewerCan.post`, for both choices. With no file and no link the tab shows one empty state, and the Add button sits in it
+  (never twice). A link with the kind Location still sets the pin, as above.
 - **One gate for Nominatim.** `src/lib/nominatimGate.ts` (`gated`) runs every request to Nominatim one at a time and at least 1 s after the
   last start, for the place search and the address lookup together. No header and no referrer of our own (`Referrer-Policy: no-referrer`).
   A test that sends a search calls `resetGate()` first. The About panel shows the address, then "Open in Google Maps"; with a pin and no

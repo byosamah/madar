@@ -8,10 +8,12 @@ import { SubCompanyLogo } from '../../../components/SubCompanyLogo';
 import { formatDay, formatNumber } from '../../../lib/dates';
 import { googleMapsUrl } from '../../../lib/geo';
 import { parseProjectCode } from '../../../lib/projectCode';
-import { ProjectLinks } from './ProjectLinks';
 import { ProjectPlace } from './ProjectPlace';
 
-/** The project's facts in one quiet panel: the map of its pin (no cover picture, owner 2026-10-19), and the key facts (redesign spec 3.4). */
+/**
+ * The project's facts in one quiet panel: the map of its pin (no cover picture, owner 2026-10-19), and the key facts (redesign spec 3.4).
+ * The links of the project are not here: they sit in the Files & Links tab (owner, 2026-10-19).
+ */
 export function AboutPanel({ detail }: { detail: ProjectDetail }) {
   const { t } = useTranslation();
   const lang = useLang();
@@ -68,7 +70,6 @@ export function AboutPanel({ detail }: { detail: ProjectDetail }) {
     <section aria-labelledby="about-title" className="panel flex flex-col gap-5 p-5">
       <h2 id="about-title" className="text-section text-ink">{t('project.about')}</h2>
       <ProjectPlace detail={detail} />
-      <ProjectLinks detail={detail} />
       <dl className="flex flex-col gap-2.5">
         {facts.map(([label, value]) => (
           <div key={label}>

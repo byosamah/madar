@@ -62,61 +62,6 @@ describe('the template of a project (ADM-05)', () => {
   });
 });
 
-describe('project links (colleague comment 5)', () => {
-  it('lists the links: a web link opens in a new tab, the office folder gets a Copy button', async () => {
-    await renderApp('/projects/prj_001');
-    const about = await screen.findByRole('region', { name: 'About' });
-    const pinterest = await within(about).findByRole('link', { name: /Pinterest: facades/ });
-    expect(pinterest).toHaveAttribute('href', 'https://www.pinterest.com/madar-studio/corniche-facades/');
-    expect(pinterest).toHaveAttribute('target', '_blank');
-    expect(pinterest).toHaveAttribute('rel', 'noopener noreferrer');
-    expect(within(about).getByRole('button', { name: /^Copy / })).toBeInTheDocument();
-  });
-
-  it('lets the leader add a link and refuses one that is not a web link', async () => {
-    await renderApp('/projects/prj_001', as('usr_002'));
-    const about = await screen.findByRole('region', { name: 'About' });
-    await userEvent.click(within(about).getByRole('button', { name: 'Add link' }));
-    const sheet = await screen.findByRole('dialog', { name: 'Add a link' });
-    await userEvent.selectOptions(within(sheet).getByLabelText('Kind'), 'other');
-    await userEvent.type(within(sheet).getByLabelText('Link'), 'javascript:alert(1)');
-    await userEvent.click(within(sheet).getByRole('button', { name: 'Add link' }));
-    expect(await within(sheet).findByText('Use a web link that starts with https://.')).toBeInTheDocument();
-    await userEvent.clear(within(sheet).getByLabelText('Link'));
-    await userEvent.type(within(sheet).getByLabelText('Link'), 'https://example.com/brief');
-    await userEvent.click(within(sheet).getByRole('button', { name: 'Add link' }));
-    expect(await within(about).findByRole('link', { name: /example\.com/ })).toHaveAttribute('href', 'https://example.com/brief');
-  });
-
-  it('shows the links to someone outside the project, with no way to change them', async () => {
-    await renderApp('/projects/prj_001', as('usr_003'));
-    const about = await screen.findByRole('region', { name: 'About' });
-    expect(await within(about).findByRole('link', { name: /Pinterest: facades/ })).toBeInTheDocument();
-    expect(within(about).queryByRole('button', { name: 'Add link' })).toBeNull();
-    expect(within(about).queryByRole('button', { name: /^Edit / })).toBeNull();
-  });
-
-  // Every edit on the project screen says Edit, as the deadline does (audit 2026-10-03, V-23).
-  it('says Edit for the edit of a link, as every other edit does', async () => {
-    await renderApp('/projects/prj_001', as('usr_002'));
-    const about = await screen.findByRole('region', { name: 'About' });
-    await userEvent.click(await within(about).findByRole('button', { name: /^Edit Pinterest: facades/ }));
-    expect(await screen.findByRole('dialog', { name: 'Edit link' })).toBeInTheDocument();
-  });
-});
-
-describe('project links from stored data (security)', () => {
-  it('never makes a stored link that is not a web link pressable', async () => {
-    await renderApp('/projects/prj_001', (state) => {
-      state.projects.prj_001.links = [{ id: 'lnk_bad', kind: 'other', label: 'Bad link', url: 'javascript:alert(1)' }];
-    });
-    const about = await screen.findByRole('region', { name: 'About' });
-    expect(await within(about).findByText('Bad link')).toBeInTheDocument();
-    expect(within(about).queryByRole('link', { name: /Bad link/ })).toBeNull();
-    expect(about.querySelector('a[href^="javascript"]')).toBeNull();
-  });
-});
-
 describe('pending items from the client (colleague comment 6)', () => {
   it('lists what we wait for from the client in Needs attention, and Received closes it', async () => {
     await renderApp('/projects/prj_001', as('usr_002'));

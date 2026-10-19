@@ -411,8 +411,8 @@ describe('Copy for an office folder (audit 2026-10-03, PRJ-15)', () => {
     const saved = Object.getOwnPropertyDescriptor(window.navigator, 'clipboard');
     Object.defineProperty(window.navigator, 'clipboard', { value: undefined, configurable: true });
     try {
-      const { store } = await renderApp('/projects/prj_001', as('usr_002'));
-      const about = await screen.findByRole('region', { name: 'About' });
+      const { store } = await renderApp('/projects/prj_001?tab=files', as('usr_002'));
+      const about = await screen.findByRole('region', { name: 'Links' });
       fireEvent.click(within(about).getByRole('button', { name: /^Copy / }));
       expect(await screen.findByText('Copy did not work here. The path is selected: copy it with your keyboard.')).toBeInTheDocument();
       const field = within(about).getByRole('textbox', { name: /Path/ }) as HTMLInputElement;
@@ -430,8 +430,8 @@ describe('Copy for an office folder (audit 2026-10-03, PRJ-15)', () => {
     const saved = Object.getOwnPropertyDescriptor(window.navigator, 'clipboard');
     Object.defineProperty(window.navigator, 'clipboard', { value: { writeText }, configurable: true });
     try {
-      await renderApp('/projects/prj_001', as('usr_002'));
-      const about = await screen.findByRole('region', { name: 'About' });
+      await renderApp('/projects/prj_001?tab=files', as('usr_002'));
+      const about = await screen.findByRole('region', { name: 'Links' });
       fireEvent.click(within(about).getByRole('button', { name: /^Copy / }));
       expect(await screen.findByText('Path copied.')).toBeInTheDocument();
       expect(writeText).toHaveBeenCalled();
@@ -491,7 +491,7 @@ describe('Delete in the file menu (audit 2026-10-03, PRJ-16)', () => {
       const output = await (original as (n: string, i: unknown, m?: unknown) => Promise<unknown>)(name, input, meta);
       return name === 'files.list' ? (output as object[]).map((view) => ({ ...view, canDelete: false })) : output;
     }) as typeof api.call;
-    await userEvent.click(await screen.findByRole('tab', { name: 'Files' }));
+    await userEvent.click(await screen.findByRole('tab', { name: 'Files & Links' }));
     const name = store.state.files[fileId].name;
     await userEvent.click(await screen.findByRole('button', { name: `Actions for ${name}` }));
     expect(screen.getByRole('menuitem', { name: 'Download' })).toBeInTheDocument();
