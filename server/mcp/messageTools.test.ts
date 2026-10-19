@@ -387,6 +387,43 @@ describe('the new view fields in the texts of the message tools (base B5)', () =
   });
 });
 
+// Base B6 (chat design 2026-10-19): a reply names the author of the message it answers, and the texts say so.
+describe('the reply in the texts of the message tools (base B6)', () => {
+  it('names replyToId in chats.send and comments.create, and the notice rule in INSTRUCTIONS', async () => {
+    const { INSTRUCTIONS, TOOL_DOCS } = await import('./docs');
+    for (const name of ['chats.send', 'comments.create']) {
+      const text = TOOL_DOCS[name].description;
+      expect(text, name).toContain('replyToId');
+      expect(text.length, name).toBeGreaterThanOrEqual(40);
+      expect(text.length, name).toBeLessThanOrEqual(600);
+    }
+    expect(INSTRUCTIONS).toContain('A reply (replyToId) names the author of the message it answers');
+  });
+
+  it('sends a reply as the person, names the author of the old message, and refuses a reply to another chat', async () => {
+    const w = world();
+    const first = await call(w, 'chats.send', { conversationId: hala3, body: 'The first line.' });
+    const firstId = first.result.structuredContent.output.message.id as string;
+    // usr_003 (Reem) wrote SECRET in this chat: a reply to it names Reem for the Admin.
+    const reemMessage = Object.values(w.mem.tables.state.messages).find((m) => m.body === SECRET)!;
+    const reply = await call(w, 'chats.send', { conversationId: hala3, body: 'Understood.', replyToId: reemMessage.id });
+    expect(reply.result.isError, JSON.stringify(reply.result)).toBeUndefined();
+    expect(reply.result.structuredContent.output.message).toMatchObject({ replyToId: reemMessage.id, mentions: ['usr_003'] });
+    expect(reply.result.structuredContent.output.replyTo).toMatchObject({ id: reemMessage.id, deleted: false });
+    // A reply to an own message names nobody.
+    const own = await call(w, 'chats.send', { conversationId: hala3, body: 'And one more.', replyToId: firstId });
+    expect(own.result.structuredContent.output.message.mentions).toEqual([]);
+    // A reply into the group text of another chat is refused with the one text of a missing message.
+    const groupMessage = Object.values(w.mem.tables.state.messages).find((m) => m.body === GROUP_SECRET)!;
+    const wrong = await call(w, 'chats.send', { conversationId: hala3, body: 'x', replyToId: groupMessage.id });
+    const missing = await call(w, 'chats.send', { conversationId: hala3, body: 'x', replyToId: 'msg_9999' });
+    expect(wrong.result.isError).toBe(true);
+    expect(wrong.result.structuredContent.error).toMatchObject({ code: 'invalid_input', details: { reason: 'reply_not_here' } });
+    expect(wrong.result.structuredContent.error.message).toBe(missing.result.structuredContent.error.message);
+    expect(wrong.text).not.toContain(GROUP_SECRET);
+  });
+});
+
 // UX audit 2026-10-19, INT-18 and chats-10: the tool texts that the model reads at the call must say how to read and answer a task
 // thread, and that a group gives quiet lines that are no messages.
 describe('the texts of the message tools', () => {

@@ -62,6 +62,8 @@ export async function commentsList(L: Load, input: Input): Promise<void> {
 export async function commentsCreate(L: Load, input: Input): Promise<void> {
   await target(L, input.targetType, input.targetId);
   await attachedFiles(L, (input.fileIds as string[] | undefined) ?? []);
+  // The comment that the new one answers (chat design item 10): its rules and the view read it.
+  await L.byKey('comments', [str(input.replyToId)]);
 }
 
 /** comments.update, comments.delete and reactions.toggle: the comment, its target and its files. */
@@ -121,9 +123,11 @@ async function roomsForPost(L: Load, roomIds: readonly string[]): Promise<Messag
   return newestMessages(L, roomIds);
 }
 
-/** chats.send: the files the message names, and the newest message of the room (the read mark of the sender). */
+/** chats.send: the files the message names, the message it answers, and the newest message of the room (the read mark of the sender). */
 export async function chatsSend(L: Load, input: Input): Promise<Message[]> {
   await attachedFiles(L, (input.fileIds as string[] | undefined) ?? []);
+  // The message that the new one answers (chat design item 10): its rules and the view read it.
+  await L.byKey('messages', [str(input.replyToId)]);
   return roomsForPost(L, [str(input.conversationId) ?? '']);
 }
 

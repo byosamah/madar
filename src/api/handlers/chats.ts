@@ -4,12 +4,13 @@ import { ConversationId, FileId, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_A
 import { ChatRow, ChatThread, MessageView, WaitingRow, type GroupLine } from '../contract/views';
 import { addDirectConversation, addGroupConversation, canSeeConversation, closedChatError, isArchived, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, personLeft, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
-import { namesPerson, notifyLevelOf, replyRefOf } from '../chatNaming';
+import { isLiveMessage, namesPerson, notifyLevelOf, replyRefOf } from '../chatNaming';
 import { notifyIn } from '../notify';
 import { can, mayViewTask, principalOf } from '../permissions';
 import { chatReadKey, nextId, unreadCountKey, type State } from '../store';
 import { attachmentsOf, cardOf, mayViewFile } from '../views';
 import { assertFilesForDirect, assertFilesInProject } from './attach';
+import { replyNotHere } from './shared';
 import { isLine, lineKindOf } from '../../lib/commentLine';
 import { mentionedUserIds, plainText } from '../../lib/text';
 import { listFormat } from '../../lib/dates';
@@ -263,7 +264,10 @@ export const chatsMessages = defineCall({
 });
 
 /** Checks the files of a message against the room, then stores the message. A project room takes files of its project. A direct room takes files that both people may open. */
-export function postMessage(ctx: Ctx, conversation: Conversation, body: string, fileIds: string[]): MessageView {
+export function postMessage(ctx: Ctx, conversation: Conversation, body: string, fileIds: string[], replyToId?: string): MessageView {
+  // A reply answers a live message of the same chat. Every other case gives one refusal, so the answer never tells that an id exists elsewhere.
+  const old = replyToId === undefined ? undefined : ctx.state.messages[replyToId];
+  if (replyToId !== undefined && (!old || !isLiveMessage(old) || old.conversationId !== conversation.id)) throw replyNotHere();
   // Files are refused unless a rule below allows them.
   if (fileIds.length > 0) {
     if (conversation.kind === 'project') {
@@ -275,17 +279,27 @@ export function postMessage(ctx: Ctx, conversation: Conversation, body: string, 
       assertFilesForDirect(ctx, fileIds, others, conversation.id);
     }
   }
-  const mentions = mentionedUserIds(body).filter((id) => {
+  const named = mentionedUserIds(body).filter((id) => {
     const user = ctx.state.users[id];
     return user?.active === true && canSeeConversation(ctx.state, conversation, user);
   });
+  // A reply names the person behind the old message, unless that is the sender, or the person left, or cannot open the chat. A person
+  // named in the text too has the one plain notice.
+  const replyUser = old === undefined ? undefined : ctx.state.users[old.actingForId];
+  const replyAuthor = replyUser !== undefined && replyUser.id !== ctx.authority.id && replyUser.active && canSeeConversation(ctx.state, conversation, replyUser)
+    ? replyUser.id : undefined;
+  const replyOnly = replyAuthor !== undefined && !named.includes(replyAuthor) ? replyAuthor : undefined;
+  const mentions = replyOnly === undefined ? named : [...named, replyOnly];
   const id = nextId(ctx.state, 'msg');
   const message: Message = {
     id, conversationId: conversation.id, authorId: ctx.actor.id, actingForId: ctx.authority.id, body, mentions, fileIds,
-    createdAt: ctx.stamp, editedAt: null,
+    ...(replyToId ? { replyToId } : {}), createdAt: ctx.stamp, editedAt: null,
   };
   ctx.state.messages[id] = message;
-  notifyIn(ctx, { userIds: mentions, trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: id });
+  notifyIn(ctx, { userIds: named, trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: id });
+  if (replyOnly !== undefined) {
+    notifyIn(ctx, { userIds: [replyOnly], trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: id, reply: true });
+  }
   markReadNow(ctx, conversation);
   return messageViewOf(ctx.state, message, ctx.authority);
 }
@@ -295,12 +309,14 @@ export const chatsSend = defineCall({
     conversationId: ConversationId,
     body: z.string().trim().min(1).max(MESSAGE_MAX),
     fileIds: z.array(FileId).max(MAX_ATTACHMENTS).default([]),
+    // The message of the same chat that this one answers (chat design item 10). Its author is named.
+    replyToId: MessageId.optional(),
   }),
   output: MessageView,
   run(input, ctx) {
     const conversation = requireConversation(ctx, input.conversationId);
     if (personLeft(ctx.state, conversation, ctx.authority)) throw closedChatError(conversation);
-    return postMessage(ctx, conversation, input.body, input.fileIds);
+    return postMessage(ctx, conversation, input.body, input.fileIds, input.replyToId);
   },
 });
 

@@ -9,7 +9,7 @@ import { mayViewTask, principalOf, type Resource } from '../permissions';
 import { nextId } from '../store';
 import { commentViewOf, feedFor, updateItemOf } from '../views';
 import { mayUndoAgentChange } from './history';
-import { activeMentions, assertCan, insertComment, requireProject, requireTask, roleIn, taskRole, touch } from './shared';
+import { activeMentions, assertCan, insertComment, requireProject, requireReplyComment, requireTask, roleIn, taskRole, touch } from './shared';
 import { mentionedUserIds } from '../../lib/text';
 import { assertFilesInProject } from './attach';
 
@@ -130,13 +130,18 @@ export const commentsList = defineCall({
 });
 
 export const commentsCreate = defineCall({
-  input: Target.extend({ body: Body, fileIds: z.array(FileId).max(MAX_ATTACHMENTS).default([]) }),
+  input: Target.extend({
+    body: Body, fileIds: z.array(FileId).max(MAX_ATTACHMENTS).default([]),
+    // The comment of the same task that this one answers (chat design item 10). Its author is named.
+    replyToId: CommentId.optional(),
+  }),
   output: CommentView,
   run(input, ctx) {
     const { projectId, officeTaskId, resource } = targetOf(ctx, input.targetType, input.targetId);
     assertCan(ctx, 'content.post', resource);
     assertFilesInProject(ctx, input.fileIds, projectId, officeTaskId);
-    const comment = insertComment(ctx, input.targetType, input.targetId, projectId, input.body, input.fileIds);
+    if (input.replyToId !== undefined) requireReplyComment(ctx, input.targetType, input.targetId, input.replyToId);
+    const comment = insertComment(ctx, input.targetType, input.targetId, projectId, input.body, input.fileIds, undefined, undefined, input.replyToId);
     touch(ctx, projectId);
     return commentViewOf(ctx.state, comment, ctx.authority);
   },

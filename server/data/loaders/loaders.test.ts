@@ -429,6 +429,39 @@ describe('the 18 places of AM 6', () => {
     expect(view.namesMe).toBe(true);
   });
 
+  // Base B6 (chat design 2026-10-19): a reply reads the old message or comment by key, and names its author.
+  it('chats.send and comments.create with a reply: the scoped load gives the answer and the writes of the whole office (base B6)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const team = Object.values(state.members).filter((m) => m.projectId === 'prj_001').map((m) => m.userId).filter((id) => id !== ADMIN && state.users[id].kind === 'human');
+    const [person, other] = team;
+    if (!person || !other) throw new Error('The sample office needs two team members on prj_001.');
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    const idOf = (view: unknown) => (view as { message: { id: string } }).message.id;
+    const old = idOf(apply(state, 'chats.send', { conversationId: room.id, body: 'Old question 3318.' }, other, { now: at(1) }));
+    for (let i = 0; i < 3; i += 1) apply(state, 'chats.send', { conversationId: room.id, body: `Newer ${i}.` }, other, { now: at(2 + i) });
+    const sent = await same(state, 'chats.send', { conversationId: room.id, body: 'The answer.', replyToId: old }, person, { now: at(10) });
+    expect(sent.outcome.error).toBeUndefined();
+    expect(sent.outcome.output).toMatchObject({ message: { replyToId: old, mentions: [other] }, replyTo: { id: old, deleted: false } });
+    expect(inserted(sent, 'notifications').length).toBe(1);
+    const refused = await same(state, 'chats.send', { conversationId: room.id, body: 'The answer.', replyToId: 'msg_9999' }, person, { now: at(10) });
+    expect(refused.outcome.error).toMatchObject({ code: 'invalid_input' });
+
+    const task = Object.values(state.tasks).find((t) => t.projectId === 'prj_001' && t.ownerId !== null)!;
+    const another = Object.values(state.tasks).find((t) => t.projectId === 'prj_001' && t.id !== task.id)!;
+    const add = (id: string, targetId: string, authorId: string, at2: string) => {
+      state.comments[id] = { id, targetType: 'task', targetId, authorId, body: `Note ${id} 6641`, reactions: emptyReactions(), fileIds: [], createdAt: at2, editedAt: null };
+    };
+    add('cmt_901', task.id, other, '2026-10-01T09:00:00.000+03:00');
+    add('cmt_902', another.id, other, '2026-10-01T10:00:00.000+03:00');
+    for (const actor of [person, ADMIN]) {
+      const made = await same(state, 'comments.create', { targetType: 'task', targetId: task.id, body: 'A reply.', replyToId: 'cmt_901' }, actor);
+      expect(made.outcome.error, actor).toBeUndefined();
+      const foreign = await same(state, 'comments.create', { targetType: 'task', targetId: task.id, body: 'A reply.', replyToId: 'cmt_902' }, actor);
+      expect(foreign.outcome.error, actor).toMatchObject({ code: 'invalid_input' });
+    }
+  });
+
   it('row 16: a task approved after review moves its dependents by the days it was late on the review day', async () => {
     const state = office();
     const leader = state.projects.prj_001.leaderId!;

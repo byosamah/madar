@@ -1,0 +1,7 @@
+{
+  "errors": {
+    "reasons": {
+      "reply_not_here": "You can reply only to a message in the same chat or task."
+    }
+  }
+}
