@@ -17,8 +17,11 @@ import type { SqlHost } from './host';
  * Version 4 (fbk_007): the office list sub_companies. Its step is in LITE_STEPS.
  *
  * Version 5 (fbk_022): the table meetings, with key columns and two read indexes. Its step is in LITE_STEPS.
+ *
+ * Version 6 is the settle of meetings (the track minutes). Version 7 (fbk_022, the track gcal): the server tables google_connections and
+ * google_events of the Google Calendar connect, with their indexes. Its step is in LITE_STEPS.
  */
-export const LITE_SCHEMA_VERSION = 5;
+export const LITE_SCHEMA_VERSION = 7;
 
 export type LiteIndex = { table: string; name: string; columns: string; unique?: true; where?: string };
 
@@ -65,6 +68,20 @@ const USAGE_DAY_SQL =
   'create table usage_day (day text primary key, rows_read integer not null default 0, rows_written integer not null default 0, '
   + 'requests integer not null default 0, calls integer not null default 0, worker_requests integer not null default 0)';
 
+/**
+ * The server tables of the Google Calendar connect (version 7, fbk_022; supabase/migrations/20261021000200_google_calendar.sql). No
+ * State collection reads them. Their indexes are in GOOGLE_INDEXES.
+ */
+const GOOGLE_SQL: readonly string[] = [
+  'create table google_connections (id text primary key, user_id text not null, sealed_token text, calendar_id text, '
+  + "state text not null check (state in ('ok', 'not_synced', 'broken', 'revoking')), connected_at text not null, last_error text, last_error_at text, changed_at text not null)",
+  'create table google_events (user_id text not null, meeting_id text not null, event_id text not null, synced_rev integer not null, synced_at text not null, primary key (user_id, meeting_id))',
+];
+const GOOGLE_INDEXES: readonly LiteIndex[] = [
+  { table: 'google_connections', name: 'google_connections_person', columns: 'user_id', unique: true, where: "state <> 'revoking'" },
+  { table: 'google_events', name: 'google_events_meeting', columns: 'meeting_id' },
+];
+
 /** The server tables of 20261004000101_server_tables.sql, 20261004000600_usage_signals.sql and the agent approvals. */
 const SERVER_SQL: readonly string[] = [
   'create table counters (prefix text primary key, n integer not null check (n >= 0))',
@@ -84,6 +101,7 @@ const SERVER_SQL: readonly string[] = [
   'create table rate_limits (key text not null, window_start text not null, count integer not null default 0, primary key (key, window_start))',
   `create table job_runs (key text primary key, done_at text not null default (${NOW}))`,
   USAGE_DAY_SQL,
+  ...GOOGLE_SQL,
   // The sign-in rows (Supabase exit, wave 2). id is the auth.users id of Supabase for an imported person, else a new uuid.
   `create table auth_users (id text primary key, user_id text, email text not null, password_hash text, password_set integer not null default 0, email_confirmed integer not null default 0, banned integer not null default 0, created_at text not null default (${NOW}), updated_at text not null default (${NOW}))`,
   `create table auth_links (token_hash text primary key, auth_id text not null, type text not null check (type in ('invite', 'recovery')), expires_at text not null, used_at text, created_at text not null default (${NOW}))`,
@@ -109,6 +127,7 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
   { table: 'oauth_requests', name: 'oauth_requests_code', columns: 'code_hash', unique: true, where: 'code_hash is not null' },
   // The invitation texts of server/auth/invite.ts repeat this exact term, else SQLite scans the whole outbox (checked on node:sqlite).
   { table: 'outbox', name: 'outbox_signin', columns: 'kind', where: "kind in ('auth.invite', 'auth.email')" },
+  ...GOOGLE_INDEXES,
 ];
 
 /**
@@ -117,6 +136,8 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
  * Version 3 adds the day meters. It has no text for the sign-in tables of wave 2 (see the top of this file).
  * Version 4 adds the table sub_companies (fbk_007). It is an office list, so it has only id and doc, as in liteSchemaSql.
  * Version 5 adds the table meetings (fbk_022) with the key columns of query.ts and its two read indexes, as in liteSchemaSql.
+ * Version 6 is a place holder in this branch (the settle of meetings, the track minutes): the merge keeps its real step.
+ * Version 7 adds the two server tables of the Google Calendar connect and their indexes, as in liteSchemaSql.
  */
 export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   3: [USAGE_DAY_SQL],
@@ -125,6 +146,11 @@ export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
     'create table meetings (id text primary key, doc text not null, project_id text, organizer_id text, starts_at text, ends_at text, status text, settled_at text)',
     'create index meetings_starts on meetings (starts_at)',
     'create index meetings_project_starts on meetings (project_id, starts_at)',
+  ],
+  6: [],
+  7: [
+    ...GOOGLE_SQL,
+    ...GOOGLE_INDEXES.map(indexSql),
   ],
 };
 

@@ -12,9 +12,10 @@ const pdf = (text: string) => new Blob([text], { type: 'application/pdf' });
 const TEN_MINUTES_LATER = '2026-09-30T09:10:00.000+03:00';
 
 describe('the server call contracts', () => {
-  it('name the 11 server calls, and the fakes follow the same contracts', () => {
+  it('name the 15 server calls, and the fakes follow the same contracts', () => {
     expect([...SERVER_CALL_NAMES].sort()).toEqual([
-      'agents.list', 'agents.remove', 'feedback.uploadStart', 'files.link', 'files.uploadStart', 'live.ticket', 'story.start', 'usage.get', 'usage.retryEffect', 'users.invites', 'users.resendInvite',
+      'agents.list', 'agents.remove', 'feedback.uploadStart', 'files.link', 'files.uploadStart', 'google.connect', 'google.connectStart', 'google.disconnect', 'google.status',
+      'live.ticket', 'story.start', 'usage.get', 'usage.retryEffect', 'users.invites', 'users.resendInvite',
     ]);
     expect(Object.keys(serverFakes).sort()).toEqual([...SERVER_CALL_NAMES].sort());
     for (const name of SERVER_CALL_NAMES) {
@@ -195,5 +196,31 @@ describe('the fake server calls', () => {
     const t = testApi(CALLS);
     t.as('usr_005');
     expect(await t.api.call('live.ticket', {})).toEqual({ ticket: '0'.repeat(64), expiresAt: '2026-09-30T09:01:00.000+03:00' });
+  });
+
+  it('google.status says the prototype is not ready, and the other three google calls refuse with google_not_ready (fbk_022)', async () => {
+    const t = testApi(CALLS);
+    t.as('usr_003');
+    expect(await t.api.call('google.status', {})).toEqual({ ready: false, state: 'none', connectedAt: null });
+    for (const [name, input] of [['google.connectStart', {}], ['google.connect', { code: 'c', state: 's' }], ['google.disconnect', {}]] as const) {
+      await expect(t.api.call(name, input), name).rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'google_not_ready' } });
+    }
+  });
+
+  it('the google calls give an agent forbidden, as the server does (fbk_022)', async () => {
+    const t = testApi(CALLS);
+    t.as('usr_005');
+    for (const [name, input] of [['google.status', {}], ['google.connectStart', {}], ['google.connect', { code: 'c', state: 's' }], ['google.disconnect', {}]] as const) {
+      await expect(t.api.call(name, input), name).rejects.toMatchObject({ code: 'forbidden' });
+    }
+  });
+
+  it('google.connect takes a code with no space and a state, nothing else', async () => {
+    const t = testApi(CALLS);
+    t.as('usr_003');
+    await expect(t.api.call('google.connect', { code: 'has space', state: 's' })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('google.connect', { code: '', state: 's' })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('google.connect', { code: 'c', state: 'x'.repeat(1025) })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('google.connect', { code: 'c'.repeat(513), state: 's' })).rejects.toMatchObject({ code: 'invalid_input' });
   });
 });

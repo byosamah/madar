@@ -34,6 +34,11 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   `events.list` adds the test "no `officeMeetingId`, or one of the private meetings of the person" for every person (`privateMeetingsOf`), the
   Admin too (owner, 2026-10-19, Q4), and the migration adds the statistics `events_office_meeting` for it. `notifications.count` reads the
   meeting of a notice with `INBOX_MEETING_FIELDS`. `projectDelete` reads the meetings of the project and their notices.
+- `google_connections` and `google_events` (`20261021000200_google_calendar.sql`, fbk_022): server-only tables, in `SERVER_TABLES`, with no State
+  collection and no loader. `google_connections` has one live row for each person (a partial unique index on `user_id` where `state <> 'revoking'`);
+  its `sealed_token` is AES-256-GCM cipher text (`server/google/keys.ts`). `google_events` holds the Google event of a meeting for a person.
+  Only `server/google/store.ts` reads and writes them. The nightly backup holds them (cipher text only), and the backup check lists them in
+  `OUTSIDE_OFFICE_LOCK`, because the Google effects write them outside the office lock.
 - `events` only grows: a trigger refuses update and delete, and madar_server has only select and insert. Undo is a new
   event (`undoes`). The save never writes `undoneBy`.
 
@@ -138,6 +143,9 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   `{ 3: [USAGE_DAY_SQL], 4: [the create table of sub_companies] }`; the SQL text is in `lite/schema.ts`.
 - Schema version 5 (fbk_022) adds the table `meetings` with its key columns and two read indexes (`meetings_starts`, `meetings_project_starts`).
   Its step is in `LITE_STEPS` and makes the same objects as a new office (`schema.test.ts` checks it).
+- Schema version 6 is the settle of meetings (the track minutes). Schema version 7 (fbk_022) adds the two server tables `google_connections` and
+  `google_events` with their indexes (`google_connections_person`, `google_events_meeting`). Their step is in `LITE_STEPS`, and `schema.test.ts` checks that
+  it makes the same objects as a new office. The office object has no Google yet, so these tables stay empty there.
 - Each event index costs 1 row written for each event, and a read needs each of the 8. Task 18 dropped four of them, one at a
   time: a read then took 12,815 to 183,416 rows in place of 4 to 4,189 (proof.md "Wave 1: the rows pins"). Drop one only with
   a rows pin that shows that no read needs it.

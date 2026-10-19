@@ -55,6 +55,17 @@ describe('the own sign-in routes of the office path (server/entries/officeSignin
     expect(new Set(paths).size).toBe(paths.length);
   });
 
+  it('answers the Google callback with #google=not_ready and calls no object (the office path has no Google yet, fbk_022)', async () => {
+    const { seen, routes, net } = setup();
+    const answer = await routes.fetch(new Request('https://madar-server.internal/api/google/callback?code=code-SECRET&state=state-made-up'), {});
+    expect([answer.status, answer.headers.get('location'), answer.headers.get('cache-control'), answer.headers.get('referrer-policy')]).toEqual([
+      302, 'http://127.0.0.1:5173/settings#google=not_ready', 'no-store', 'no-referrer',
+    ]);
+    expect(seen.signins).toEqual([]);
+    expect(seen.mailRoutes).toEqual([]);
+    expect(net.calls ?? []).toEqual([]);
+  });
+
   it('answers a reset request from the limits of the office object, pads it to the minimum time, and sends the mail after the answer', async () => {
     const { seen, post, net } = setup();
     const waits: Promise<unknown>[] = [];

@@ -21,6 +21,8 @@ Supabase function of that copy, and the Pages log gets one JSON line (`reason` `
 the setting reaches the functions only with a new Pages deploy (`pages.sh`). `/api/office` and every path under it (the office
 ops of exit wave 4) go to the binding whatever the word says, and never to Supabase: with no binding they answer 404.
 
+- The api forwarder passes `GET /api/google/callback` (Google Calendar, fbk_022) with its query, and gives the 302 and its `Location` back as they are
+  (`redirect: 'manual'`). `pagesApiProxy.test.ts` checks it. The route itself is in `server/google/callback.ts`.
 - Keep each file a one-line wrapper that passes `request` and `env`. The logic and its tests live in `server/http/`
   (`pagesForward.ts` holds the shared parts).
 - The rules of the MCP forwarder (host list, 404 cases, dropped headers) are in `server/mcp/CLAUDE.md`. The api forwarder has

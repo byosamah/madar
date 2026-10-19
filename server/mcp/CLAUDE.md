@@ -47,6 +47,9 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   (`notify` skips the actor and the person of an agent actor).
   `INSTRUCTIONS` says nothing of the minutes until wave 2 (`meetings.settle`) is live: any attendee writes them, no minutes task (owner,
   2026-10-19). The tools leave out `minutesById`. The three meeting writes take `storyId` like any write.
+- Google Calendar (owner, 2026-10-19, fbk_022): the four `google.*` calls are on `MCP_DENY` (a person connects in the Settings screen; an agent cannot
+  connect, disconnect or read a connection). `INSTRUCTIONS` ends with a `Google Calendar:` paragraph: the meetings of its person reach their own
+  Google Calendar with the title, the time and the place only. No tool changed.
 - Sub-companies (review 2026-10-19): `dashboard.get`, `tasks.list`, `deadlines.list`, `projects.list` and `reports.office` take `subCompanyId`;
   `projects.list` filter `no_sub_company` lists the projects with none; `search.query` and `subCompanies.list` (`projectCount`) carry counts. An agent
   never undoes a sub-company event (`events.undo`, `events.undoStory`).

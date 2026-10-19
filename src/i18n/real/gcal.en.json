@@ -1,0 +1,11 @@
+{
+  "errors": {
+    "reasons": {
+      "google_not_ready": "Google Calendar is not set up for this office yet.",
+      "google_link_old": "The Google step took too long. Press Connect Google Calendar again.",
+      "google_link_person": "This Google step belongs to another Madar sign-in. Press Connect Google Calendar again.",
+      "google_denied": "Google did not give Madar the calendar permission.",
+      "google_unreachable": "Madar could not reach Google. Try again in a minute."
+    }
+  }
+}

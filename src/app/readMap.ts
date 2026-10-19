@@ -94,6 +94,10 @@ const RULES: Record<string, ReadRule> = {
   'usage.get': rule('none', []),
   // The ticket of the live socket (exit wave 3): src/api/remote/liveSocket.ts asks for it with api.call, never with useCall.
   'live.ticket': rule('none', []),
+  // The Google Calendar connect (fbk_022): the state of a connection is private to its person and changes with no signal. The Settings
+  // section reads it again after its own connect and disconnect.
+  'google.status': rule('none', []),
+  'google.connectStart': rule('none', []),
   // The own push devices: no change signal names a device, so no signal reloads this read. The Settings row reads it again itself.
   'push.mine': rule('none', []),
   'files.link': rule('none', []),

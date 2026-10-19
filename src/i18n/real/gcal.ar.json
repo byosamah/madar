@@ -1,0 +1,11 @@
+{
+  "errors": {
+    "reasons": {
+      "google_not_ready": "لم نجهّز ربط تقويم Google لمكتبك بعد.",
+      "google_link_old": "استغرقت خطوة Google وقتًا طويلًا. اضغط «اربط تقويم Google» من جديد.",
+      "google_link_person": "هذه الخطوة تخص حسابًا آخر في مدار. اضغط «اربط تقويم Google» من جديد.",
+      "google_denied": "لم يعطِ Google مدار إذن التقويم.",
+      "google_unreachable": "لم يصل مدار إلى Google. حاول بعد دقيقة."
+    }
+  }
+}

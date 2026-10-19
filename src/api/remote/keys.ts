@@ -5,7 +5,7 @@
  */
 export const READ_CALLS: ReadonlySet<string> = new Set([
   'agents.list', 'chats.list', 'chats.messages', 'chats.unreadCount', 'chats.waiting', 'clients.list', 'comments.list', 'dashboard.get',
-  'deadlines.list', 'events.list', 'feedback.list', 'feedback.screenshot', 'files.get', 'files.link', 'files.list', 'live.ticket', 'meetings.get', 'meetings.list',
+  'deadlines.list', 'events.list', 'feedback.list', 'feedback.screenshot', 'files.get', 'files.link', 'files.list', 'google.connectStart', 'google.status', 'live.ticket', 'meetings.get', 'meetings.list',
   'notifications.count', 'notifications.list', 'payments.list', 'projectTemplates.list', 'projectTemplates.matchPlan', 'projectTemplates.syncPlan', 'projectTemplates.usage', 'projects.get', 'projects.list', 'push.mine', 'reports.office', 'search.query', 'session.get',
   'settings.get', 'stageTemplates.list', 'subCompanies.list', 'taskTemplates.list', 'tasks.get', 'tasks.list', 'teams.list', 'tracker.export',
   'tracker.list', 'updates.list', 'usage.get', 'users.get', 'users.invites', 'users.list',

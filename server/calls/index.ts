@@ -6,13 +6,14 @@ import type { ServerCall } from '../core/types';
 import { agentsList, agentsRemove } from './agents';
 import { feedbackScreenshotHooks, feedbackSendHooks, feedbackUploadStart } from './feedback';
 import { filesLink, filesUploadHooks, filesUploadStart, projectsDeleteHooks } from './files';
+import { googleConnect, googleConnectStart, googleDisconnect, googleStatus } from './google';
 import { usersInvites, usersResendInvite } from './people';
 import { storyStart } from './story';
 import { usageGet, usageRetryEffect } from './usage';
 import { liveTicket } from './live';
 
 /**
- * The registry of the 11 server calls (plan 4.11). runCall (C3) finds a server call here; each owner track replaces its file's body,
+ * The registry of the 15 server calls (plan 4.11). runCall (C3) finds a server call here; each owner track replaces its file's body,
  * never this list. The contracts are in src/api/contract/server.ts.
  */
 export const SERVER_CALLS: { [N in ServerCallName]: ServerCall<N> } = {
@@ -27,6 +28,10 @@ export const SERVER_CALLS: { [N in ServerCallName]: ServerCall<N> } = {
   'usage.get': usageGet,
   'usage.retryEffect': usageRetryEffect,
   'live.ticket': liveTicket,
+  'google.status': googleStatus,
+  'google.connectStart': googleConnectStart,
+  'google.connect': googleConnect,
+  'google.disconnect': googleDisconnect,
 };
 
 /**

@@ -2,6 +2,7 @@ import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { LITE_SCHEMA_VERSION } from '../../server/data/lite/schema';
 import { nodeOffice } from '../../server/office/test/nodeOffice';
 import { partsOps } from '../office/ops';
 import { checkFileCopy } from '../restore-check';
@@ -89,7 +90,7 @@ describe('the restore of an office backup (scripts/backup/officeRestore.ts)', ()
     const { folder } = await exported();
     const path = join(folder, 'manifest.json');
     writeFileSync(path, JSON.stringify({ ...JSON.parse(readFileSync(path, 'utf8')), schema: 99 }));
-    expect((await restoreOffice(folder)).problems).toEqual(['The backup is of schema version 99, and this build knows version 5. Check it with a newer build.']);
+    expect((await restoreOffice(folder)).problems).toEqual([`The backup is of schema version 99, and this build knows version ${LITE_SCHEMA_VERSION}. Check it with a newer build.`]);
   });
 
   it('accepts the entries of one office backup and refuses any other entry', () => {

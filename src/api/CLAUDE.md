@@ -259,6 +259,21 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - The endpoint must be the https address of a known push service (`isPushEndpoint`): the server posts to it, so a free address
   would let a person aim the server at any host. See `server/push/CLAUDE.md`.
 
+## Google Calendar (owner, 2026-10-19, fbk_022)
+- Four server-only calls (`contract/server.ts`, `server/calls/google.ts`): `google.status` (read) gives `{ ready, state, connectedAt }` with `state` one of
+  `none`, `ok`, `not_synced`, `broken`. `google.connectStart` (read) gives the Google address with a signed state. `google.connect { code, state }`
+  swaps the code and makes the calendar "Madar" in the Google account of the person. `google.disconnect` stops the sync. Only a person, for the person:
+  an agent gets `forbidden`, and no call takes the id of another person. All four are on the MCP deny list.
+- They touch only the two server-only tables `google_connections` and `google_events` (`server/google/store.ts`). No State collection reads them, so the
+  calls write no event, no History row and no change signal, and `WRITE_KINDS` has `[]` for the two writes. The prototype fakes give `ready: false`
+  and refuse the other three with `google_not_ready`.
+- Reasons: `google_not_ready` (this copy has no Google values), `google_link_old` (the state is changed or past 10 minutes, or Google calls the code
+  gone), `google_link_person` (the state is of another person; `forbidden`), `google_denied` (no refresh token, or the calendar scope is absent),
+  `google_unreachable` (`failed`; Google timed out or answered 5xx). The reason `google_link_person` is not `google_link_other`: i18next reads a key
+  that ends with `_other` as a plural form.
+- The callback `GET /api/google/callback` has no sign-in. It checks the signed state and sends the code to the Settings screen in the address fragment
+  (`/settings#google=finish&code=...&state=...`); the signed-in screen then calls `google.connect`. See `server/CLAUDE.md`.
+
 ## The project pin (owner, 2026-10-18, fbk_017)
 - `Project.geo` is an optional `GeoPoint` (`lat` -90 to 90, `lng` -180 to 180). `ProjectSummary.geo` is that point or null (`summaryOf`).
 - `projects.create` takes `geo` (default null). `projects.update` takes `patch.geo` (null removes the pin). Both refuse a value out of range.
@@ -379,7 +394,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.
 2. If it is server-only: its contract in `contract/server.ts`, its fake in `handlers/serverFakes.ts`, its server body in
-   `server/calls/`. There are 11 server-only calls; the 11th is `live.ticket` (exit wave 3).
+   `server/calls/`. There are 15 server-only calls; `live.ticket` (exit wave 3) is the 11th, and the four `google.*` calls (fbk_022) follow it.
 3. A loader entry in `server/data/loaders/` (a test fails without it).
 4. The MCP allow list, Admin list (`MCP_ADMIN`, only an agent of an Admin sees it) or deny list in `server/mcp/tools.ts`
    (a test fails without it). An allowed or Admin tool needs `TOOL_DOCS`. It also needs a sample: add a call to
