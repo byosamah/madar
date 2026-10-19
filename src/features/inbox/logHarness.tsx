@@ -32,7 +32,8 @@ export function talk(n: number): Bubble[] {
   return Array.from({ length: n }, (_, i) => makeBubble({
     id: `msg_${i + 1}`,
     author: i % 2 === 0 ? FAISAL : OMAR,
-    createdAt: new Date(start + i * 600_000).toISOString().replace('Z', '+00:00'),
+    // The office stamp form of the sample office: the local time with the +03:00 offset.
+    createdAt: `${new Date(start + i * 600_000 + 3 * 3_600_000).toISOString().slice(0, 23)}+03:00`,
     body: `Note ${i + 1}`,
   }));
 }
