@@ -1,3 +1,4 @@
+import { isLiveMessage } from './chatNaming';
 import type { ChatRead, Conversation, Message, User } from './contract/entities';
 import { forbidden, invalid, notFound } from './errors';
 import { can, principalOf, projectRoleOf } from './permissions';
@@ -88,15 +89,18 @@ export const MESSAGE_PAGE_MAX = 500;
 /** The most task threads that chats.list shows. The Inbox keeps the newest; older threads stay on their task. */
 export const TASK_THREAD_LIMIT = 100;
 
-/** The messages of a conversation, oldest first: by stamp, then by id. The server reads them in the same order. */
+/**
+ * The live messages of a conversation, oldest first: by stamp, then by id. The server reads them in the same order. A deleted message
+ * (deletedAt set, chat design item 11) is not here, so no page, preview, count or wait reads it until an Undo.
+ */
 export function messagesOf(state: State, conversationId: string): Message[] {
   return Object.values(state.messages)
-    .filter((m) => m.conversationId === conversationId)
+    .filter((m) => m.conversationId === conversationId && isLiveMessage(m))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
 }
 
 /**
- * Messages that other people wrote after the person last read the room. A person's own agent counts as the person.
+ * Live messages that other people wrote after the person last read the room. A person's own agent counts as the person.
  * A count that a server loader put in the state comes first (plan 4.13, A9); without it, a scan of the messages in the state.
  */
 export function unreadIn(state: State, conversationId: string, userId: string): number {
@@ -104,7 +108,7 @@ export function unreadIn(state: State, conversationId: string, userId: string): 
   if (counted !== undefined) return counted;
   const lastRead = state.chatReads[chatReadKey(conversationId, userId)]?.lastReadAt ?? '';
   return Object.values(state.messages).filter(
-    (m) => m.conversationId === conversationId && m.createdAt > lastRead && principalOf(state, m.authorId) !== userId && m.actingForId !== userId,
+    (m) => m.conversationId === conversationId && isLiveMessage(m) && m.createdAt > lastRead && principalOf(state, m.authorId) !== userId && m.actingForId !== userId,
   ).length;
 }
 

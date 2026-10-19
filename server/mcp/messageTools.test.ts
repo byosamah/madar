@@ -108,6 +108,28 @@ async function call(w: World, name: string, args: Record<string, unknown>): Prom
   return { text, result: body.result };
 }
 
+describe('a deleted message and the agent (chat design 2026-10-19, base B3)', () => {
+  it('never gives an agent the text of a deleted message', async () => {
+    const w = world();
+    const gone = 'The deleted offer is 41000.';
+    w.mem.tables.state.messages.msg_991 = {
+      id: 'msg_991', conversationId: hala3, authorId: 'usr_003', actingForId: 'usr_003', body: gone, mentions: [],
+      createdAt: '2026-10-04T05:30:00.000Z', editedAt: null, deletedAt: '2026-10-04T05:40:00.000Z',
+    };
+    w.mem.tables.version += 1;
+    const read = await call(w, 'chats.messages', { conversationId: hala3 });
+    expect(read.result.isError, JSON.stringify(read.result)).toBeUndefined();
+    expect(read.text).toContain(SECRET);
+    expect(read.text).not.toContain(gone);
+    const list = await call(w, 'chats.list', {});
+    expect(list.text).not.toContain(gone);
+    expect((list.result.structuredContent.output as ChatRow[]).find((row) => row.id === hala3)).toMatchObject({ preview: SECRET });
+    const waiting = await call(w, 'chats.waiting', {});
+    expect(waiting.text).not.toContain(gone);
+    expect((waiting.result.structuredContent.output as { id: string; body: string }[]).find((row) => row.id === hala3)).toMatchObject({ body: SECRET });
+  });
+});
+
 describe('the message tools over MCP (owner, 2026-10-12)', () => {
   it('opens the direct chat that exists with a person, and makes one with a person who has none', async () => {
     const w = world();

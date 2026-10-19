@@ -346,6 +346,42 @@ describe('the 18 places of AM 6', () => {
     expect(rows.find((row) => row.id === task.id)).toBeDefined();
   });
 
+  // Base B3 (chat design 2026-10-19): a deleted message leaves every read path, also in the scoped load.
+  it('chats reads: the scoped load leaves a deleted message out, as the handler does (base B3)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const team = Object.values(state.members).filter((m) => m.projectId === 'prj_001').map((m) => m.userId).filter((id) => id !== ADMIN && state.users[id].kind === 'human');
+    const [person, other] = team;
+    if (!person || !other) throw new Error('The sample office needs two team members on prj_001.');
+    const named = mentionMarkup(state.users[person].name, person);
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    const idOf = (view: unknown) => (view as { message: { id: string } }).message.id;
+    // A live message that names the person, then a newer message that names the person too, and is deleted.
+    apply(state, 'chats.send', { conversationId: room.id, body: `${named} Live note 4417.` }, other, { now: at(1) });
+    const goneInRoom = idOf(apply(state, 'chats.send', { conversationId: room.id, body: `${named} Deleted note 7731.` }, ADMIN, { now: at(2) }));
+    // A direct chat whose newest message is deleted.
+    const { id: direct } = apply(state, 'chats.openDirect', { userId: person }, other) as { id: string };
+    apply(state, 'chats.send', { conversationId: direct, body: 'Direct live 5521.' }, other, { now: at(3) });
+    const goneInDirect = idOf(apply(state, 'chats.send', { conversationId: direct, body: 'Direct deleted 9921.' }, other, { now: at(4) }));
+    for (const id of [goneInRoom, goneInDirect]) state.messages[id].deletedAt = '2026-10-04T09:30:00.000+03:00';
+    for (const actor of [person, other, ADMIN]) {
+      await same(state, 'chats.list', {}, actor);
+      await same(state, 'chats.unreadCount', {}, actor);
+      await same(state, 'chats.waiting', {}, actor);
+      await same(state, 'chats.markRead', { conversationId: room.id }, actor);
+      await same(state, 'chats.messages', { conversationId: room.id }, actor);
+    }
+    const page = await same(state, 'chats.messages', { conversationId: direct }, person);
+    expect(JSON.stringify(page.outcome.output)).toContain('Direct live 5521.');
+    expect(JSON.stringify(page.outcome.output)).not.toContain('9921');
+    const list = (await same(state, 'chats.list', {}, person)).outcome.output as { id: string; preview: string; unread: number }[];
+    expect(list.find((row) => row.id === direct)).toMatchObject({ preview: 'Direct live 5521.', unread: 1 });
+    expect(JSON.stringify(list)).not.toContain('7731');
+    const waits = (await same(state, 'chats.waiting', {}, person)).outcome.output as { id: string; body: string }[];
+    expect(waits.find((row) => row.id === room.id)?.body).toContain('Live note 4417.');
+    expect(JSON.stringify(waits)).not.toMatch(/7731|9921/);
+  });
+
   it('row 16: a task approved after review moves its dependents by the days it was late on the review day', async () => {
     const state = office();
     const leader = state.projects.prj_001.leaderId!;

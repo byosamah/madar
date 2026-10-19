@@ -188,10 +188,17 @@ export async function trackerScope(L: Load, entryId: string, moreFiles: readonly
   return entry;
 }
 
-/** The newest message of each conversation, by stamp then id, as messagesOf (chatState.ts) orders them. */
+/**
+ * The loader condition of a live message: no "deletedAt" (chat design item 11). It is the loader form of isLiveMessage
+ * (`src/api/chatNaming.ts`). Every read of messages for a view, a count or a push check carries it, so a deleted message is never
+ * loaded, never counted, never found and never pushed. It compiles on Postgres and on SQLite (`server/data/loaders/query.ts`).
+ */
+export const LIVE = { field: 'deletedAt', null: true } as const;
+
+/** The newest live message of each conversation, by stamp then id, as messagesOf (chatState.ts) orders them. */
 export async function newestMessages(L: Load, conversationIds: readonly string[]): Promise<Message[]> {
   return (await L.select({
-    c: 'messages', where: [{ col: 'conversation_id', in: conversationIds }],
+    c: 'messages', where: [{ col: 'conversation_id', in: conversationIds }, LIVE],
     order: { col: 'created_at', desc: true, id: true }, per: 'conversation_id', limit: 1,
   })) as Message[];
 }

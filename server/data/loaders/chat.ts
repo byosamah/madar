@@ -4,7 +4,7 @@ import { can } from '../../../src/api/permissions';
 import { chatReadKey, unreadCountKey } from '../../../src/api/store';
 import type { Load } from './build';
 import type { Bound } from './query';
-import { attachedFiles, newestMessages, officeState, pickedByKey } from './steps';
+import { attachedFiles, LIVE, newestMessages, officeState, pickedByKey } from './steps';
 
 /**
  * The chat loader (plan 4.6): the chats and the task threads of the person U.
@@ -57,7 +57,7 @@ async function chatsOf(L: Load, userId: string, conversations: readonly Conversa
   const by = Object.fromEntries(ids.map((id): [string, Bound] => [id, { gt: markOf(L, id, userId) }]));
   await L.countWhere({
     c: 'messages', per: 'conversation_id',
-    where: [{ bounds: { col: 'conversation_id', by } }, { field: 'authorId', notIn: meOf(L, userId) }, { field: 'actingForId', notIn: [userId] }],
+    where: [{ bounds: { col: 'conversation_id', by } }, LIVE, { field: 'authorId', notIn: meOf(L, userId) }, { field: 'actingForId', notIn: [userId] }],
   }, ids, (id) => unreadCountKey(id, userId), mode);
 }
 
@@ -158,7 +158,7 @@ export async function chatsMessages(L: Load, input: Input): Promise<void> {
   }
   const page = (await L.select({
     c: 'messages',
-    where: [{ col: 'conversation_id', in: [id] }, ...(before ? [{ before: { at: before.createdAt, id: before.id } }] : [])],
+    where: [{ col: 'conversation_id', in: [id] }, LIVE, ...(before ? [{ before: { at: before.createdAt, id: before.id } }] : [])],
     order: { col: 'created_at', desc: true, id: true }, limit,
   })) as Message[];
   // The page and the newest message: the files that the message views name, and the office task of each office file. A message view
@@ -183,8 +183,8 @@ export async function chatsWaiting(L: Load): Promise<void> {
   const projectIds = conversations.filter((c) => c.kind === 'project').map((c) => c.id);
   if (projectIds.length > 0) {
     const newest = { order: { col: 'created_at', desc: true, id: true } as const, per: 'conversation_id', limit: 1 };
-    await L.select({ c: 'messages', where: [{ col: 'conversation_id', in: projectIds }, { or: [{ field: 'actingForId', in: [me] }, { field: 'authorId', in: meSet }] }], ...newest });
-    await L.select({ c: 'messages', where: [{ col: 'conversation_id', in: projectIds }, { has: 'mentions', value: me }], ...newest });
+    await L.select({ c: 'messages', where: [{ col: 'conversation_id', in: projectIds }, LIVE, { or: [{ field: 'actingForId', in: [me] }, { field: 'authorId', in: meSet }] }], ...newest });
+    await L.select({ c: 'messages', where: [{ col: 'conversation_id', in: projectIds }, LIVE, { has: 'mentions', value: me }], ...newest });
   }
   await threadsWaitingOf(L, me, meSet);
 }
