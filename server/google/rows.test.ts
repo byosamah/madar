@@ -114,6 +114,35 @@ describe('revokeRowsOf', () => {
     expect(await t.db.tx('write', (q) => revokeRowsOf(q, { id: 'usr_004' }, at))).toEqual([]);
   });
 
+  it('deletes the remembered calendar of the removed person only, in the same transaction (a disconnect keeps it)', async () => {
+    const t = await googleOffice();
+    ok(await t.connect('usr_003'));
+    ok(await t.connect('usr_004'));
+    const remembered = () => t.db.statement('read', 'select user_id from google_calendars order by user_id');
+    expect(await remembered()).toEqual([{ user_id: 'usr_003' }, { user_id: 'usr_004' }]);
+    ok(await t.call('usr_003', 'google.disconnect', {}));
+    expect(await remembered()).toEqual([{ user_id: 'usr_003' }, { user_id: 'usr_004' }]);
+    const at = new Date('2026-10-21T07:00:00Z');
+    await t.db.tx('write', (q) => revokeRowsOf(q, { id: 'usr_003' }, at));
+    expect(await remembered()).toEqual([{ user_id: 'usr_004' }]);
+    ok(await t.call('usr_001', 'users.deactivate', { id: 'usr_004' }));
+    expect(await remembered()).toEqual([{ user_id: 'usr_004' }]);
+    ok(await t.call('usr_001', 'users.remove', { id: 'usr_004' }));
+    expect(await remembered()).toEqual([]);
+  });
+
+  it('deletes the remembered calendar of a removed person who has no connection any more', async () => {
+    const t = await googleOffice();
+    ok(await t.connect('usr_003'));
+    ok(await t.call('usr_003', 'google.disconnect', {}));
+    expect(await t.db.statement('read', 'select user_id from google_calendars')).toEqual([{ user_id: 'usr_003' }]);
+    ok(await t.call('usr_001', 'users.deactivate', { id: 'usr_003' }));
+    ok(await t.call('usr_001', 'users.remove', { id: 'usr_003' }));
+    expect(await t.db.statement('read', 'select user_id from google_calendars')).toEqual([]);
+    // The disconnect wrote the one revoke row. The removal finds no live connection, so it writes no second one.
+    expect(await outboxRows(t, 'gcal.revoke')).toHaveLength(1);
+  });
+
   it('writes the row in the transaction of users.remove, once, and none for a person with no connection', async () => {
     const t = await googleOffice();
     ok(await t.connect('usr_003'));

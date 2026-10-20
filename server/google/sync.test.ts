@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { processOutbox } from '../core/effects';
+import { processOutbox, writeOutbox } from '../core/effects';
 import { cleanup, GOOGLE_REVOKING_KEEP_MS } from '../jobs/steps/cleanup';
 import { openToken } from './keys';
 import { googleKeysOf } from './keys';
-import { eventBodyOf, eventIdOf, resetAccessCache, revokeOne, syncOne } from './sync';
+import { GoogleError } from './api';
+import { eventBodyOf, eventIdOf, MADAR_EVENT_PREFIX, resetAccessCache, revokeOne, syncOne, tidyOne } from './sync';
 import { GOOGLE_KEY, googleOffice, outboxRows, planMeeting, type GoogleOffice } from './testOffice';
 
 /**
@@ -372,5 +373,184 @@ describe('gcal.revoke', () => {
     const t = await connectedWith('usr_003');
     const [row] = await rowsOf(t, 'select sealed_token from google_connections');
     expect(await openToken(await googleKeysOf(GOOGLE_KEY), 'usr_003', String(row.sealed_token))).toBe('rt-SECRET');
+  });
+});
+
+describe('gcal.tidy', () => {
+  const FAR = '2026-12-01T10:00:00.000+03:00';
+  const NOW = '2026-10-21T06:00:00.000Z';
+  const isList = (request: { method: string; path: string }) => request.method === 'GET' && request.path.endsWith('/events');
+  /** An event in the calendar, as Google keeps it. `end` decides whether the list shows it (the list gives the events that end after now). */
+  const addEvent = (t: GoogleOffice, calendar: string, id: string, end = FAR, status = 'confirmed') =>
+    void t.google.events.get(calendar)!.set(id, { id, status, summary: 'Old', start: { dateTime: end }, end: { dateTime: end } });
+  const statusOf = (t: GoogleOffice, calendar: string, id: string) => t.google.eventsOf(calendar).get(id)?.status;
+  const ledger = async (t: GoogleOffice) => ({
+    events: await rowsOf(t, 'select * from google_events order by user_id, meeting_id'),
+    connections: await rowsOf(t, 'select * from google_connections order by id'),
+    calendars: await rowsOf(t, 'select * from google_calendars order by user_id'),
+  });
+
+  it('keeps the events of the upcoming meetings of the person, as organizer and as attendee, and deletes a stale event of Madar', async () => {
+    const t = await connectedWith('usr_003');
+    const own = await planMeeting(t, 'usr_003', { startsAt: START });
+    const attending = await planMeeting(t, 'usr_004', { startsAt: '2026-10-24T10:00:00.000+03:00', attendeeIds: ['usr_003'] });
+    const calendar = await calendarOf(t, 'usr_003');
+    const stale = eventIdOf('mtg_900');
+    addEvent(t, calendar, stale);
+    const before = await ledger(t);
+    t.google.requests.length = 0;
+    expect(await tidyOne(t.deps as never, 'usr_003')).toBe(1);
+    expect(statusOf(t, calendar, eventIdOf(own))).toBe('confirmed');
+    expect(statusOf(t, calendar, eventIdOf(attending))).toBe('confirmed');
+    expect(statusOf(t, calendar, stale)).toBe('cancelled');
+    expect(eventCalls(t)).toEqual(['GET /', `DELETE /${stale}`]);
+    // The list starts at now, as single events, 250 in a page.
+    const list = t.google.requests.find(isList)!;
+    expect(Object.fromEntries(new URL(list.url).searchParams)).toEqual({ timeMin: NOW, singleEvents: 'true', maxResults: '250' });
+    // It writes no row of its own: the event rows and the connection are as they were.
+    expect(await ledger(t)).toEqual(before);
+  });
+
+  it('never deletes an event that Madar did not make: an event of the person, and an id that only starts like the Madar ids', async () => {
+    const t = await connectedWith('usr_003');
+    const calendar = await calendarOf(t, 'usr_003');
+    const mine = 'k3j2h1g0f9d8s7a6';
+    const near = Buffer.from('madar:other').toString('hex');
+    const shorter = Buffer.from('madar:mtg').toString('hex');
+    for (const id of [mine, near, shorter, 'mtg_900', Buffer.from('xmadar:mtg_900').toString('hex')]) addEvent(t, calendar, id);
+    const stale = eventIdOf('mtg_901');
+    addEvent(t, calendar, stale);
+    expect(MADAR_EVENT_PREFIX).toBe(Buffer.from('madar:mtg_').toString('hex'));
+    expect(await tidyOne(t.deps as never, 'usr_003')).toBe(1);
+    expect(eventCalls(t).filter((call) => call.startsWith('DELETE'))).toEqual([`DELETE /${stale}`]);
+    for (const id of [mine, near, shorter, 'mtg_900']) expect(statusOf(t, calendar, id), id).toBe('confirmed');
+  });
+
+  it('deletes the event of a cancelled meeting, of a meeting that the person is not on, of a meeting 61 days away, and of a meeting that does not exist', async () => {
+    const t = await connectedWith('usr_003');
+    const calendar = await calendarOf(t, 'usr_003');
+    const cancelled = await planMeeting(t, 'usr_003', { startsAt: START });
+    ok(await t.call('usr_003', 'meetings.cancel', { id: cancelled }));
+    const other = await planMeeting(t, 'usr_004', { startsAt: START });
+    const far = await planMeeting(t, 'usr_003', { startsAt: '2026-12-25T10:00:00.000+03:00' });
+    const kept = await planMeeting(t, 'usr_003', { startsAt: '2026-10-24T10:00:00.000+03:00' });
+    const ids = [cancelled, other, far, 'mtg_999'].map(eventIdOf);
+    for (const id of ids) addEvent(t, calendar, id);
+    t.google.requests.length = 0;
+    expect(await tidyOne(t.deps as never, 'usr_003')).toBe(4);
+    for (const id of ids) expect(statusOf(t, calendar, id), id).toBe('cancelled');
+    expect(statusOf(t, calendar, eventIdOf(kept))).toBe('confirmed');
+  });
+
+  it('leaves alone a Madar event that ended before now, because the list does not show it', async () => {
+    const t = await connectedWith('usr_003');
+    const calendar = await calendarOf(t, 'usr_003');
+    const past = eventIdOf('mtg_902');
+    addEvent(t, calendar, past, '2026-10-20T10:00:00.000+03:00');
+    expect(await tidyOne(t.deps as never, 'usr_003')).toBe(0);
+    expect(statusOf(t, calendar, past)).toBe('confirmed');
+    expect(eventCalls(t)).toEqual(['GET /']);
+  });
+
+  it('reads the next page and deletes all the stale events of more than one page', async () => {
+    const t = await connectedWith('usr_003');
+    const calendar = await calendarOf(t, 'usr_003');
+    const ids = Array.from({ length: 260 }, (_, n) => eventIdOf(`mtg_8${String(n).padStart(3, '0')}`));
+    for (const id of ids) addEvent(t, calendar, id);
+    expect(await tidyOne(t.deps as never, 'usr_003')).toBe(260);
+    expect(ids.every((id) => statusOf(t, calendar, id) === 'cancelled')).toBe(true);
+    expect(t.google.requests.filter(isList).map((request) => new URL(request.url).searchParams.get('pageToken'))).toEqual([null, '250']);
+  });
+
+  it('counts a 404 or a 410 of a delete as done and goes on with the next event', async () => {
+    const t = await connectedWith('usr_003');
+    const calendar = await calendarOf(t, 'usr_003');
+    const [one, two, three] = ['mtg_910', 'mtg_911', 'mtg_912'].map(eventIdOf);
+    for (const id of [one, two, three]) addEvent(t, calendar, id);
+    t.google.on((request) => request.method === 'DELETE' && request.path.endsWith(`/${one}`), () => t.google.reply({}, 404));
+    t.google.on((request) => request.method === 'DELETE' && request.path.endsWith(`/${two}`), () => t.google.reply({}, 410));
+    expect(await tidyOne(t.deps as never, 'usr_003')).toBe(3);
+    expect(statusOf(t, calendar, three)).toBe('cancelled');
+  });
+
+  it('ends quietly when the grant is gone: no throw, no delete, and the connection is as it was (the next sync marks it broken)', async () => {
+    const t = await connectedWith('usr_003');
+    const calendar = await calendarOf(t, 'usr_003');
+    const stale = eventIdOf('mtg_900');
+    addEvent(t, calendar, stale);
+    t.google.state.grantAlive = false;
+    const before = await ledger(t);
+    t.google.requests.length = 0;
+    expect(await tidyOne(t.deps as never, 'usr_003')).toBe(0);
+    expect(statusOf(t, calendar, stale)).toBe('confirmed');
+    expect(t.google.eventRequests()).toEqual([]);
+    expect(await ledger(t)).toEqual(before);
+    expect(t.deps.logs.some((line) => line.message === 'A Google Calendar tidy ended. The next sync decides about the connection.')).toBe(true);
+  });
+
+  it('ends quietly when Google still says 401 after a new access token, and when the calendar is gone (404) or the list is refused (403)', async () => {
+    for (const status of [401, 404, 403]) {
+      const t = await connectedWith('usr_003');
+      t.google.failAll(isList, status);
+      expect(await tidyOne(t.deps as never, 'usr_003'), String(status)).toBe(0);
+      if (status === 401) expect(refreshes(t)).toHaveLength(2);
+      expect(await state(t, 'usr_003'), String(status)).toMatchObject({ state: 'ok', last_error: null });
+    }
+  });
+
+  it('throws for a timeout, a network error, a 5xx or a 429, so the outbox tries again, and the error holds only the code', async () => {
+    for (const [name, fail] of [
+      ['503', (t: GoogleOffice) => t.google.failAll(isList, 503, { error: { message: 'rt-SECRET at-SECRET' } })],
+      ['429', (t: GoogleOffice) => t.google.failAll(isList, 429)],
+      ['network', (t: GoogleOffice) => t.google.on(isList, () => { throw new TypeError('connect ECONNREFUSED 10.0.0.1 rt-SECRET'); })],
+    ] as const) {
+      const t = await connectedWith('usr_003');
+      fail(t);
+      const error = await tidyOne(t.deps as never, 'usr_003').catch((e: unknown) => e);
+      expect(error, name).toBeInstanceOf(GoogleError);
+      expect((error as GoogleError).retry, name).toBe(true);
+      expect(String((error as Error).message), name).toMatch(/^(server|rate_limited|unreachable)$/);
+    }
+  });
+
+  it('is a registered effect: a row with the payload userId runs through the outbox, fails with a code and runs again', async () => {
+    const t = await connectedWith('usr_003');
+    const calendar = await calendarOf(t, 'usr_003');
+    const stale = eventIdOf('mtg_900');
+    addEvent(t, calendar, stale);
+    t.google.failAll(isList, 503);
+    const [id] = await t.db.tx('write', (q) => writeOutbox(q, [{ kind: 'gcal.tidy', payload: { userId: 'usr_003' } }]));
+    expect((await processOutbox(t.deps as never, [id])).failed).toEqual([id]);
+    expect(await outboxRows(t, 'gcal.tidy')).toEqual([expect.objectContaining({ payload: { userId: 'usr_003' }, done: false, error: 'server' })]);
+    t.google.clearRules();
+    t.deps.clock.advance(3 * 60_000);
+    expect((await processOutbox(t.deps as never, [id])).done).toEqual([id]);
+    expect(statusOf(t, calendar, stale)).toBe('cancelled');
+  });
+
+  it('does nothing, and calls Google not at all, for a person with no connection, a broken connection, a turned off person, a removed person, or a copy with no Google', async () => {
+    const t = await connectedWith('usr_003', 'usr_004');
+    expect(await tidyOne(t.deps as never, 'usr_005')).toBe(0);
+    await t.db.statement('write', "update google_connections set state = 'broken', sealed_token = null where user_id = 'usr_004'");
+    expect(await tidyOne(t.deps as never, 'usr_004')).toBe(0);
+    await t.db.statement('write', "update users set doc = json_set(doc, '$.active', json('false')) where id = 'usr_003'");
+    expect(await tidyOne(t.deps as never, 'usr_003')).toBe(0);
+    await t.db.statement('write', "update users set doc = json_set(doc, '$.active', json('true'), '$.removed', json('true')) where id = 'usr_003'");
+    expect(await tidyOne(t.deps as never, 'usr_003')).toBe(0);
+    expect(t.google.requests).toEqual([]);
+    const off = await googleOffice({ google: false });
+    expect(await tidyOne(off.deps as never, 'usr_003')).toBe(0);
+    expect(off.google.requests).toEqual([]);
+  });
+
+  it('does not touch the calendar of another person', async () => {
+    const t = await connectedWith('usr_003', 'usr_004');
+    const reem = await calendarOf(t, 'usr_003');
+    const omar = await calendarOf(t, 'usr_004');
+    addEvent(t, reem, eventIdOf('mtg_900'));
+    addEvent(t, omar, eventIdOf('mtg_900'));
+    expect(await tidyOne(t.deps as never, 'usr_003')).toBe(1);
+    expect(statusOf(t, reem, eventIdOf('mtg_900'))).toBe('cancelled');
+    expect(statusOf(t, omar, eventIdOf('mtg_900'))).toBe('confirmed');
   });
 });

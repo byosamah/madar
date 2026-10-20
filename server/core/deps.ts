@@ -9,7 +9,7 @@ import '../mcp/revokeAll';
 import '../mail/effects';
 // Registers the push effect (push.notify) and the push producers in every entry (owner, 2026-10-08).
 import '../push/effects';
-// Registers the Google Calendar effects (gcal.sync, gcal.revoke) and their producers in every entry (fbk_022).
+// Registers the Google Calendar effects (gcal.sync, gcal.revoke, gcal.tidy) and their producers in every entry (fbk_022).
 import '../google/effects';
 import { pgDb } from '../data/sql';
 import { env } from '../env';

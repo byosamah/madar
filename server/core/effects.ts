@@ -33,7 +33,7 @@ export type OutboxRow = { kind: string; payload: Record<string, unknown> };
  * (tests, scripts), every kind runs before the answer. A test keeps these names equal to the kinds of mail/ and usage/.
  */
 export const AFTER_ANSWER_KINDS: ReadonlySet<string> = new Set([
-  'mail.notice', 'mail.quotaWarning', 'usage.limitWarning', 'push.notify', 'push.chat', 'mail.chatNotice', 'gcal.sync', 'gcal.revoke',
+  'mail.notice', 'mail.quotaWarning', 'usage.limitWarning', 'push.notify', 'push.chat', 'mail.chatNotice', 'gcal.sync', 'gcal.revoke', 'gcal.tidy',
 ]);
 /** How long the waited kinds wait after the answer (chat design item 20): a person who reads the chat in this time gets no push and no mail. */
 export const CHAT_WAIT_MS = 10_000;

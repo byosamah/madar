@@ -1,12 +1,13 @@
 import type { Meeting } from '../../src/api/contract/entities';
+import { nowStamp } from '../../src/lib/dates';
 import type { Deps, Query } from '../core/ports';
 import { statementQuery } from '../data/dialect';
-import { deleteEvent, GoogleError, insertEvent, patchEvent, refreshAccess, revokeToken, updateEvent, type EventBody, type GoogleClient } from './api';
+import { deleteEvent, GoogleError, insertEvent, listEvents, patchEvent, refreshAccess, revokeToken, updateEvent, type EventBody, type GoogleClient } from './api';
 import { googleOf, type GoogleReady } from './client';
 import { openToken, SealBroken } from './keys';
 import {
   connectionById, deleteConnection, deleteEventRow, deleteEventsOfUser, eventRow, liveConnection, markBroken, markNotSynced, markOk, meetingOf, personOf,
-  saveEventRow, type Connection,
+  saveEventRow, upcomingMeetingIds, type Connection,
 } from './store';
 
 /**
@@ -22,6 +23,9 @@ import {
  * once) and the row is done. A timeout, a network error, a 5xx or a rate limit sets state not_synced and throws, so the outbox tries
  * again (5 times). Any other refusal sets not_synced with the code refused and does not retry. An error text, a log line and an outbox
  * error hold the code and the ids only, never a token, a code, a title or a Google answer.
+ *
+ * gcal.tidy (one calendar for each person, owner test 2026-10-20): a connect that reuses the calendar of the person leaves the old events
+ * of Madar in it. The tidy deletes each event of Madar that is not one of the meetings the connect backfills, and no other event.
  */
 
 /** The calls whose save can change a meeting: each one writes gcal.sync rows (server/google/rows.ts). Wave 3 adds meetings.extend. */
@@ -29,11 +33,24 @@ export const GCAL_CALLS = ['meetings.create', 'meetings.update', 'meetings.cance
 
 const TIME_ZONE = 'Asia/Riyadh';
 const encoder = new TextEncoder();
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The meetings of a new connection: those that start from now to 60 days later, at most 200 (the first backfill, and the set that the tidy keeps). */
+export const BACKFILL_DAYS = 60;
+export const BACKFILL_MAX = 200;
+
+/** The meetings that a connect sends to Google at once: the scheduled meetings of the person from `now` to 60 days later, at most 200. */
+export function backfillMeetingIds(q: Query, userId: string, now: Date): Promise<string[]> {
+  return upcomingMeetingIds(q, userId, nowStamp(now), nowStamp(new Date(now.getTime() + BACKFILL_DAYS * DAY_MS)), BACKFILL_MAX);
+}
 
 /** The Google event id of a meeting: the hex of the bytes of "madar:<meeting id>" (base32hex, 5 to 1024 characters). The same in every calendar. */
 export function eventIdOf(meetingId: string): string {
   return [...encoder.encode(`madar:${meetingId}`)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
+
+/** Every event id that Madar makes starts with this text, the hex of "madar:mtg_". The tidy deletes only events whose id starts with it. */
+export const MADAR_EVENT_PREFIX = eventIdOf('mtg_');
 
 /** The body of the Google event: exactly five keys. The stamps are the stored +03:00 stamps. */
 export function eventBodyOf(meeting: Pick<Meeting, 'title' | 'where' | 'startsAt' | 'endsAt'>): EventBody {
@@ -171,6 +188,46 @@ export async function syncOne(deps: Deps, userId: string, meetingId: string): Pr
       await markNotSynced(q, connection.id, 'refused', deps.clock.now());
       deps.log.warn('Google Calendar refused a sync. It is not tried again.', { code: error.code, userId });
       return 'none';
+    }
+    throw error;
+  }
+}
+
+/**
+ * gcal.tidy: takes the stale events of Madar out of a calendar that a connect reused. It lists the events of the calendar from now on,
+ * keeps those whose id is the event id of a meeting in the backfill set of the person (the meetings the connect sends), and deletes every
+ * other event whose id starts with MADAR_EVENT_PREFIX. An event of the person, or any id without the prefix, is never touched. It gives
+ * the number of events it took away.
+ *
+ * It writes no row: the event rows of google_events come only from gcal.sync. A revoked grant, a seal that does not open, a calendar that
+ * is gone or a refusal ends the work quietly: the next gcal.sync finds the same fault and ends the connection as it does today. A
+ * timeout, a network error, a 5xx or a rate limit throws, so the outbox tries again (the delete of an event is safe to repeat).
+ */
+export async function tidyOne(deps: Deps, userId: string): Promise<number> {
+  const ready = googleOf(deps);
+  if (!ready) return 0;
+  const q = statementQuery(deps.db, 'write');
+  const connection = await liveConnection(q, userId);
+  if (!connection || connection.state === 'broken' || connection.sealedToken === null || connection.calendarId === null) return 0;
+  const calendarId = connection.calendarId;
+  const person = await personOf(q, userId);
+  if (!person || !person.active || person.removed) return 0;
+  const now = deps.clock.now();
+  const keep = new Set((await backfillMeetingIds(q, userId, now)).map(eventIdOf));
+  try {
+    return await withAccess(deps, ready, connection, async (token) => {
+      const stale = (await listEvents(ready.client, token, calendarId, now.toISOString())).filter((id) => id.startsWith(MADAR_EVENT_PREFIX) && !keep.has(id));
+      for (const id of stale) await dropEvent(ready.client, token, calendarId, id);
+      return stale.length;
+    });
+  } catch (error) {
+    if (error instanceof GoogleError && error.retry) {
+      deps.log.warn('A Google Calendar tidy will be tried again.', { code: error.code, userId });
+      throw error;
+    }
+    if (error instanceof SealBroken || error instanceof GoogleError) {
+      deps.log.warn('A Google Calendar tidy ended. The next sync decides about the connection.', { code: error instanceof GoogleError ? error.code : 'seal_broken', userId });
+      return 0;
     }
     throw error;
   }

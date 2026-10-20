@@ -8,11 +8,13 @@ import { digestOf, replay, sqlKeys, type StoredResult } from '../core/idempotenc
 import { takeOfficeLock } from '../core/lock';
 import type { Deps } from '../core/ports';
 import type { ServerCall, ServerCallCtx } from '../core/types';
-import { authUrl, exchangeCode, GOOGLE_SCOPE, GoogleError, makeCalendar, revokeToken } from '../google/api';
+import { authUrl, exchangeCode, getCalendar, GOOGLE_SCOPE, GoogleError, makeCalendar, revokeToken } from '../google/api';
 import { googleOf, type GoogleReady } from '../google/client';
 import { sealToken } from '../google/keys';
+import { TIDY_EFFECT } from '../google/rows';
 import { readState, signState } from '../google/state';
-import { deleteEventsOfUser, insertConnection, liveConnection, startRevoking, upcomingMeetingIds } from '../google/store';
+import { backfillMeetingIds } from '../google/sync';
+import { deleteEventsOfUser, insertConnection, liveConnection, rememberCalendar, rememberedCalendar, startRevoking } from '../google/store';
 
 /**
  * The four Google Calendar calls (fbk_022, owner 2026-10-19): google.status, google.connectStart, google.connect and
@@ -26,13 +28,12 @@ import { deleteEventsOfUser, insertConnection, liveConnection, startRevoking, up
  * transaction. The sync of the meetings to Google runs after the commit, on the host `after` (server/core/after.ts), so the answer
  * does not wait for Google. The refresh token reaches the database only as a sealed text. No answer, error or log line holds a token,
  * a code or a state.
+ *
+ * One calendar for each person (owner test 2026-10-20): the scope cannot list calendars, so Madar remembers the id of the calendar it made
+ * (google_calendars) and keeps it after a disconnect. A new connect asks Google for that calendar and uses it. The first 60 days of
+ * meetings (BACKFILL_DAYS, BACKFILL_MAX in server/google/sync.ts) go to it as before, and one gcal.tidy row takes the stale events of Madar out.
  */
 
-/** The meetings of a new connection: those that start from now to 60 days later, at most 200 (the first backfill). */
-export const BACKFILL_DAYS = 60;
-export const BACKFILL_MAX = 200;
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 const FORBIDDEN_MESSAGE = 'An agent does not connect Google Calendar.';
 
 /** The person of the call. An agent gets forbidden, also on a copy with no Google. */
@@ -98,6 +99,23 @@ async function runAfterCommit(deps: Deps, ids: string[], name: string): Promise<
   else await work;
 }
 
+/**
+ * The calendar of the new connection. With a remembered id, Madar asks Google for that calendar with the new access token: the scope reaches
+ * every calendar that Madar made, across links. 200 uses it. 404 or 410 means the person deleted it, so Madar makes a new one. Any other
+ * failure (a timeout, a 5xx, a 429, a 401) ends the connect with google_unreachable and makes no calendar: the person presses Connect again.
+ */
+async function calendarFor(ready: GoogleReady, known: string | undefined, accessToken: string): Promise<{ calendarId: string; reused: boolean }> {
+  if (known !== undefined) {
+    try {
+      return { calendarId: await getCalendar(ready.client, accessToken, known), reused: true };
+    } catch (error) {
+      if (!(error instanceof GoogleError)) throw error;
+      if (error.code !== 'not_found') throw unreachable();
+    }
+  }
+  return { calendarId: await makeCalendar(ready.client, accessToken), reused: false };
+}
+
 export const googleConnect: ServerCall<'google.connect'> = async (input, ctx) => {
   const person = personOf(ctx, 'google.connect');
   const { deps } = ctx;
@@ -115,6 +133,10 @@ export const googleConnect: ServerCall<'google.connect'> = async (input, ctx) =>
   if (!read.ok) throw linkOld();
   if (read.userId !== actorId) throw forbidden('This Google step belongs to another Madar sign-in.', { action: 'google.connect', reason: 'google_link_person' });
 
+  // The calendar that Madar made for this person at an earlier connect. It is read before the code swap, so a failure here uses no code and
+  // leaves no grant. It is read on the primary: a row that was missed would make a second calendar.
+  const known = await deps.db.tx('write', (q) => rememberedCalendar(q, actorId));
+
   let tokens: Awaited<ReturnType<typeof exchangeCode>>;
   try {
     tokens = await exchangeCode(ready.client, input.code, read.verifier);
@@ -127,8 +149,9 @@ export const googleConnect: ServerCall<'google.connect'> = async (input, ctx) =>
     throw denied();
   }
   let calendarId: string;
+  let reused: boolean;
   try {
-    calendarId = await makeCalendar(ready.client, tokens.accessToken);
+    ({ calendarId, reused } = await calendarFor(ready, known, tokens.accessToken));
   } catch (error) {
     await dropGrant(ready, tokens.refreshToken);
     throw refusalOf(error);
@@ -146,12 +169,14 @@ export const googleConnect: ServerCall<'google.connect'> = async (input, ctx) =>
     // The old live row of the person goes out. Its grant is the same grant at Google, so the revoke row only deletes the sealed
     // token here (replaced): a revoke at Google would take back the grant that the new row uses.
     for (const id of await startRevoking(q, actorId, now)) rows.push({ kind: 'gcal.revoke', payload: { connectionId: id, replaced: true } });
-    // The Google events of the old connection are in the old calendar. The new calendar starts with none, and the backfill fills it.
+    // The event rows of the old connection go. A new calendar starts with no event. A reused calendar still holds the old events: the backfill
+    // writes each meeting again (an insert that finds its id becomes an update), and gcal.tidy then takes out the events that no meeting needs.
     await deleteEventsOfUser(q, actorId);
     await insertConnection(q, { id: crypto.randomUUID(), userId: actorId, sealedToken: sealed, calendarId, at: now });
-    const from = nowStamp(now);
-    const to = nowStamp(new Date(now.getTime() + BACKFILL_DAYS * DAY_MS));
-    for (const meetingId of await upcomingMeetingIds(q, actorId, from, to, BACKFILL_MAX)) rows.push({ kind: 'gcal.sync', payload: { userId: actorId, meetingId } });
+    await rememberCalendar(q, actorId, calendarId, now);
+    for (const meetingId of await backfillMeetingIds(q, actorId, now)) rows.push({ kind: 'gcal.sync', payload: { userId: actorId, meetingId } });
+    // The last row, so the tidy runs when the backfill rows are done.
+    if (reused) rows.push({ kind: TIDY_EFFECT, payload: { userId: actorId } });
     const ids = await writeOutbox(q, rows);
     const result: StoredResult = { output: { state: 'ok', meetings: rows.filter((row) => row.kind === 'gcal.sync').length }, changed: false };
     if (ctx.key !== undefined && digest !== undefined) await sqlKeys(q).put({ actorId, key: ctx.key, name: 'google.connect', digest, result, at: now });

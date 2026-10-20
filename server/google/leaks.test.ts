@@ -134,6 +134,41 @@ describe('the errors of the effects', () => {
   });
 });
 
+describe('the reuse of a calendar (owner test 2026-10-20)', () => {
+  it('keeps only the user id in the payload of gcal.tidy, holds only the calendar id in google_calendars, and logs no secret or title in the tidy', async () => {
+    const t = await googleOffice();
+    ok(await t.connect('usr_003'));
+    const id = await planMeeting(t, 'usr_003', { startsAt: START, title: TITLE, notes: NOTE, guests: GUEST, where: 'Room 4' });
+    ok(await t.call('usr_003', 'google.disconnect', {}));
+    // The tidy ends with a log line when Google refuses the list: the line holds a code and an id, nothing else.
+    t.google.failAll((request) => request.method === 'GET' && request.path.endsWith('/events'), 403, { error: { message: `${TITLE} rt-SECRET at-SECRET` } });
+    ok(await t.connect('usr_003'));
+    t.google.clearRules();
+    expect(id).toBeTruthy();
+    const rows = await outboxRows(t, 'gcal.tidy');
+    expect(rows.map((row) => Object.keys(row.payload))).toEqual([['userId']]);
+    expect(rows.map((row) => [row.done, row.error])).toEqual([[true, null]]);
+    noSecret(text(rows), [TITLE, NOTE]);
+    const calendars = await rowsOf(t, 'select * from google_calendars');
+    expect(calendars.map((row) => Object.keys(row).sort())).toEqual([['calendar_id', 'changed_at', 'user_id']]);
+    noSecret(text(calendars), [await sealedOf(t, 'usr_003')]);
+    const lines = t.deps.logs.filter((line) => line.message.startsWith('A Google Calendar tidy'));
+    expect(lines).toHaveLength(1);
+    noSecret(text(t.deps.logs), [TITLE, NOTE, GUEST, 'Room 4', await sealedOf(t, 'usr_003')]);
+  });
+
+  it('answers a failed reuse with no secret and no calendar id', async () => {
+    const t = await googleOffice();
+    ok(await t.connect('usr_003'));
+    ok(await t.call('usr_003', 'google.disconnect', {}));
+    t.google.failAll((request) => request.method === 'GET' && /^\/calendar\/v3\/calendars\/[^/]+$/.test(request.path), 503, { error: { message: 'rt-SECRET at-SECRET cal-1@group.calendar.google.com' } });
+    const answer = await t.connect('usr_003');
+    expect(answer).toMatchObject({ ok: false, error: { details: { reason: 'google_unreachable' } } });
+    noSecret(text(answer), ['cal-1@group.calendar.google.com']);
+    noSecret(text(t.deps.logs), ['cal-1@group.calendar.google.com']);
+  });
+});
+
 describe('events, signals and records', () => {
   it('writes no event and sends no signal when a connection is made, synced, revoked or disconnected', async () => {
     const t = await googleOffice();
@@ -224,7 +259,8 @@ describe('the body of an event', () => {
     ok(await t.connect(leader));
     const [project] = await rowsOf(t, "select json_extract(doc, '$.name') as name, json_extract(doc, '$.code') as code from projects where id = 'prj_001'");
     await planMeeting(t, leader, { kind: 'client', projectId: 'prj_001', startsAt: START, title: 'Facade review', where: 'Client office', notes: NOTE, guests: GUEST, attendeeIds: ['usr_002'] });
-    const requests = t.google.eventRequests();
+    // The list of the tidy (a second connect of the same person reuses the calendar) is a GET with no body: only the writes carry an event.
+    const requests = t.google.eventRequests().filter((request) => request.method !== 'GET');
     expect(requests.length).toBeGreaterThan(0);
     for (const request of requests) {
       const keys = Object.keys(request.body as object).sort();
