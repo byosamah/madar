@@ -17,7 +17,7 @@ export async function taskCall(L: Load, input: Input): Promise<void> {
   await taskScope(L, str(input.id) ?? '');
 }
 
-/** tasks.take: the task by input.taskId, the same scope as the other task writes. */
+/** tasks.take and tasks.help: the task by input.taskId, the same scope as the other task writes. */
 export async function tasksTake(L: Load, input: Input): Promise<void> {
   await taskScope(L, str(input.taskId) ?? '');
 }

@@ -60,6 +60,8 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'tasks.createFromTemplate': ['events', 'tasks'],
   'tasks.update': ['events', 'notifications', 'tasks'],
   'tasks.take': ['events', 'notifications', 'tasks'],
+  // An Admin outside the team who joins a task as a helper joins the team too.
+  'tasks.help': ['events', 'members', 'notifications', 'tasks'],
   'tasks.arrange': ['events', 'tasks'],
   'tasks.newVersion': ['comments', 'events', 'projects', 'tasks', 'tracker'],
   'tasks.complete': ['comments', 'events', 'notifications', 'tasks', 'tracker'],

@@ -355,6 +355,8 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
       // Admin save it, never the maker alone (the rule of taskTemplates.save).
       saveTemplate: task.stageId !== null && can(viewer, 'task.updateAny', { projectRole: r.projectRole }),
       take: task.ownerId === null && task.status !== 'done' && can(viewer, 'task.take', r),
+      // Joins as a helper with one tap: a person on the team who neither leads nor helps, on a project task (fbk_035).
+      help: task.projectId !== null && task.ownerId !== viewer.id && !helpersOf(task).includes(viewer.id) && can(viewer, 'task.help', r),
     },
     history,
   };

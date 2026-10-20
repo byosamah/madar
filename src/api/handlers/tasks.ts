@@ -524,6 +524,35 @@ export const tasksTake = defineCall({
   },
 });
 
+/**
+ * A person on the project team joins a task as a helper with one tap, or leaves it (fbk_035, owner 2026-10-20). An agent joins for
+ * the person it acts for. The lead hears of a join; a leave tells nobody. A second join, or a leave by a person who does not help,
+ * changes nothing. A done task takes a helper too, so a person who helped gets the credit after. Nobody joins an office task: its
+ * maker names its people, and a helper only leaves it. The change is a change of helpers, so Undo takes it back.
+ */
+export const tasksHelp = defineCall({
+  input: z.object({ taskId: TaskId, help: z.boolean() }),
+  output: TaskDetail,
+  run(input, ctx) {
+    const task = requireTask(ctx, input.taskId);
+    assertCan(ctx, 'task.help', taskRole(ctx, task));
+    const me = ctx.authority.id;
+    if (input.help === helpersOf(task).includes(me)) return detail(ctx, task);
+    if (input.help) {
+      if (task.projectId === null) throw invalid('help', 'The maker names the helpers of an office task.', 'office_help');
+      if (task.ownerId === me) throw invalid('help', 'You lead this task, so you cannot also help on it.', 'lead_is_helper');
+      ensureMayWork(ctx, task.projectId, me, 'helperIds');
+    }
+    const helperIds = input.help ? [...helpersOf(task), me] : helpersOf(task).filter((id) => id !== me);
+    // Written down first, so Undo has a value to bring back for a task that never had helpers.
+    task.helperIds ??= [];
+    applyPatch(ctx, task, { helperIds }, { projectId: task.projectId, verb: 'task.updated', targetType: 'task', targetId: task.id });
+    if (input.help && task.ownerId !== null) notifyIn(ctx, { userIds: [task.ownerId], trigger: 'helper_joined', targetType: 'task', targetId: task.id });
+    touch(ctx, task.projectId);
+    return detail(ctx, task);
+  },
+});
+
 /** The most tasks in one new order: more than any date group of one person holds. */
 export const MAX_ARRANGE = 200;
 
@@ -691,6 +720,8 @@ export const tasksDelete = defineCall({
     assertCan(ctx, 'task.delete', taskRole(ctx, task));
     const watch = watchStage(ctx, task.projectId);
     recordDelete(ctx, { projectId: task.projectId, verb: 'task.deleted', targetType: 'task', targetId: task.id, entity: task });
+    // The lead may delete a task that another person made, so the maker hears of a delete by anyone else (fbk_034, owner 2026-10-20).
+    notifyIn(ctx, { userIds: [makerOf(ctx, task)], trigger: 'task_deleted', targetType: 'task', targetId: task.id });
     delete ctx.state.tasks[task.id];
     // A deleted template task stays dropped, so a later template update does not add it again. Its Undo takes the part back (fbk_008 item 4).
     const project = task.projectId ? ctx.state.projects[task.projectId] : undefined;
@@ -711,6 +742,7 @@ export const taskCalls = {
   'tasks.createFromTemplate': tasksCreateFromTemplate,
   'tasks.update': tasksUpdate,
   'tasks.take': tasksTake,
+  'tasks.help': tasksHelp,
   'tasks.arrange': tasksArrange,
   'tasks.newVersion': tasksNewVersion,
   'tasks.complete': tasksComplete,

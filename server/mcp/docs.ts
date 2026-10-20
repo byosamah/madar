@@ -1,7 +1,7 @@
 /**
  * The written instructions for AI agents (plan 5.6; spec 1, section 17, rule 7). INSTRUCTIONS goes in the answer of
  * server/discover and starts the answer of madar.readFirst (readFirstAnswer adds who the agent acts for). TOOL_DOCS gives each of
- * the 55 tools its title and description. Every agent gets 51 of them. An agent of an Admin gets 3 more. An agent of a person with
+ * the 56 tools its title and description. Every agent gets 52 of them. An agent of an Admin gets 3 more. An agent of a person with
  * the report right gets reports.office (tools.ts).
  * The reader is a model that acts for one person, so the texts are short, exact, and in plain English.
  * tools.test.ts checks that each description is 40 to 600 characters.
@@ -30,7 +30,7 @@ export const INSTRUCTIONS = [
   '',
   'Links: the links of a project (the moodboard, the office folder, the map and the client delivery folder) come in projects.get. The screens show them in the Files & Links tab, above the files. You cannot add or change a link: your person does that in the screens.',
   '',
-  'Leads: a task can have no lead (ownerId null). A new task has no lead unless you name one. A task with no lead cannot be completed or sent to review: the call fails with reason needs_lead. tasks.take makes your person the lead of a task with no lead. On a project task, the person who added it (its maker) changes it like the project leader while on the team: title, dates, lead, helpers, prerequisites and the delete. A maker names only people on the team. Only the leader or the Admin reviews a task, changes its review need, or names a person outside the team.',
+  'Leads: a task can have no lead (ownerId null). A new task has no lead unless you name one. A task with no lead cannot be completed or sent to review: the call fails with reason needs_lead. tasks.take makes your person the lead of a task with no lead. tasks.help makes your person a helper of a project task, or takes them off it. On a project task, the person who added it (its maker) changes it like the project leader while on the team: title, dates, lead, helpers, prerequisites and the delete. The lead of a project task may delete it in the screens too, and its maker then gets a notification. A maker names only people on the team. Only the leader or the Admin reviews a task, changes its review need, or names a person outside the team.',
   '',
   'Order: inside each date group (Past due, Today, This week, Later, No date), the Tasks screen and Home show the tasks in one shared order: the tasks with a place (rank) first, lowest first, then the others by date. tasks.arrange sets that order. It changes no date, status or lead.',
   '',
@@ -256,6 +256,10 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   'tasks.take': {
     title: 'Take a task',
     description: 'Makes your person the lead of one task that has no lead (taskId, for example tsk_014). Your person must be on the project team; an Admin joins it. It fails with reason has_lead when the task has a lead already.',
+  },
+  'tasks.help': {
+    title: 'Help on a task',
+    description: 'Makes your person a helper of one project task (taskId, for example tsk_014, and help true), or takes your person off its helpers (help false). Your person must be on the project team and must not lead the task. It works on a done task too, so a person who helped gets the credit. The lead gets a notification of a join; a leave tells nobody. A second join, or a leave by a person who does not help, changes nothing. An office task takes no join: its maker names its helpers (reason office_help). It fails with reason lead_is_helper for the lead.',
   },
   'tasks.update': {
     title: 'Change a task',

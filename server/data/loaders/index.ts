@@ -120,6 +120,7 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'tasks.update': task(taskCall),
   'tasks.arrange': task(tasksArrange),
   'tasks.take': task(tasksTake),
+  'tasks.help': task(tasksTake),
   'tasks.newVersion': task(taskCall),
   'tasks.complete': task(taskCall),
   'tasks.move': task(taskCall),

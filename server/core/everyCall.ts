@@ -95,6 +95,7 @@ function rest(office: State): Record<string, [unknown, string?]> {
     'tasks.move': [{ id: task.id, status: 'in_progress', stageId: otherStage?.id ?? task.stageId }],
     'tasks.approve': [{ id: review?.id ?? task.id }],
     'tasks.take': [{ taskId: task.id }],
+    'tasks.help': [{ taskId: task.id, help: true }],
     'tasks.arrange': [{ ids: [task.id] }],
     'events.undo': [{ eventId: ownEvent?.id ?? 'evt_001' }],
     'notifications.updateSettings': [{ channel: 'email', trigger: 'mention', on: false }],

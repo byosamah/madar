@@ -111,7 +111,7 @@ describe('the notices of requests and bugs', () => {
   });
 
   it('sends email for every trigger but the five that stay in the app', () => {
-    expect([...IN_APP_ONLY_TRIGGERS]).toEqual(['feedback_sent', 'feedback_done', 'added_to_group', 'meeting_invited', 'meeting_soon']);
+    expect([...IN_APP_ONLY_TRIGGERS]).toEqual(['feedback_sent', 'feedback_done', 'added_to_group', 'meeting_invited', 'meeting_soon', 'helper_joined', 'task_deleted']);
     expect(EMAIL_TRIGGERS).toEqual(TRIGGERS.filter((trigger) => !(IN_APP_ONLY_TRIGGERS as readonly string[]).includes(trigger)));
     expect(EMAIL_TRIGGERS).toEqual(OLD);
     expect(isEmailTrigger('feedback_done')).toBe(false);

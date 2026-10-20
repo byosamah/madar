@@ -1,0 +1,43 @@
+{
+  "taskHelp": {
+    "hint": "You can view this task. Do you work on it too? Join as a helper, so your name shows on it.",
+    "join": "Join as a helper",
+    "joined": "You help on this task now.",
+    "leave": "Leave this task",
+    "left": "You do not help on this task now."
+  },
+  "settings": {
+    "triggers": {
+      "helper_joined": "Someone joins my task as a helper",
+      "task_deleted": "Someone deletes a task that I added"
+    }
+  },
+  "inbox": {
+    "trigger": {
+      "helper_joined": "{{actor}} joined “{{target}}” as a helper",
+      "task_deleted": "{{actor}} deleted “{{target}}”"
+    }
+  },
+  "errors": {
+    "reasons": {
+      "lead_is_helper": "The lead of a task cannot also help on it.",
+      "office_help": "The person who made an office task names its helpers."
+    }
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-56": {
+        "title": "Join a task as a helper",
+        "body": "Do you work on a task that another person leads? Open the task and press “Join as a helper”. Your name then shows on the task, and its lead gets a notice. To leave, press “Leave this task”."
+      },
+      "2026-10-23-57": {
+        "title": "The lead can delete a task",
+        "body": "Did a task go into the wrong project? Its lead can now delete it: open the task and press “Delete task” at the end. The person who added the task gets a notice. Undo brings the task back."
+      },
+      "2026-10-23-58": {
+        "title": "Past-due words fit on a phone",
+        "body": "On a phone, a long line such as “Past due by 157 days” went under the chat button of a task. Now the line goes on to a second line."
+      }
+    }
+  }
+}

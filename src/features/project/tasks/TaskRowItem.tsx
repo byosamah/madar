@@ -149,7 +149,7 @@ export function TaskRowItem({ row, me, onOpen, showProject = false, drag }: {
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-footnote text-ink-2">
             {helping && row.owner && <HelperLine name={nameOf(row.owner)} context={actorContext(me)} />}
             {(task.status === 'in_progress' || inReview) && <span>{t(`taskStatus.${task.status}`)}</span>}
-            {when && (!starts && word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular">{when}</span>)}
+            {when && (!starts && word?.tone === 'attn' ? <StatusSign state="late" wrap>{when}</StatusSign> : <span className="tabular">{when}</span>)}
             {waiting && (
               <span className="inline-flex min-w-0 items-center gap-1">
                 <AnimatedIcon icon={PauseIcon} size={12} className="shrink-0" aria-hidden />

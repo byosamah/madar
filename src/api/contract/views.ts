@@ -178,6 +178,8 @@ export const TaskDetail = TaskRow.extend({
     saveTemplate: z.boolean(),
     /** Takes the lead of an open task with no lead: a person on the project team (owner, 2026-10-05). */
     take: z.boolean(),
+    /** Joins the task as a helper with one tap: a person on the project team who neither leads nor helps (fbk_035). Optional, so older answers load. */
+    help: z.boolean().optional(),
   }),
   history: z.array(EventView),
 });

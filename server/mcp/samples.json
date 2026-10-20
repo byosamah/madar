@@ -50,7 +50,7 @@
     "limit": 10
   },
   "events.undo": {
-    "eventId": "evt_373"
+    "eventId": "evt_374"
   },
   "events.undoStory": {
     "correlationId": "cor_sample_022"
@@ -183,6 +183,11 @@
   },
   "tasks.get": {
     "id": "tsk_001"
+  },
+  "tasks.help": {
+    "taskId": "tsk_007",
+    "help": true,
+    "storyId": "cor_sample_022"
   },
   "tasks.list": {
     "projectId": "prj_001",

@@ -57,14 +57,26 @@ describe('the task sheet', () => {
     await waitFor(() => expect(store.state.tasks.tsk_010.status).toBe('in_progress'));
   });
 
-  it("shows another person's task as read only", async () => {
+  it("shows another person's task as read only, with the join as a helper for a team member (fbk_035)", async () => {
     await renderApp(TASK('tsk_011'), as('usr_005'));
     const sheet = await screen.findByRole('dialog', { name: 'Balady submission set' });
-    expect(within(sheet).getByText('You can view this task. Only its lead and the project leader can change it.')).toBeInTheDocument();
+    expect(within(sheet).getByText('You can view this task. Do you work on it too? Join as a helper, so your name shows on it.')).toBeInTheDocument();
+    expect(within(sheet).getByRole('button', { name: 'Join as a helper' })).toBeInTheDocument();
     expect(within(sheet).queryByRole('textbox', { name: 'Title' })).toBeNull();
     expect(within(sheet).queryAllByRole('combobox')).toHaveLength(0);
     expect(within(sheet).getByText('Lead').parentElement).toHaveTextContent('Faisal Al-Harbi');
     expect(within(sheet).queryByRole('button', { name: 'Delete task' })).toBeNull();
+  });
+
+  it('joins a task as a helper in one press, then leaves it (fbk_035)', async () => {
+    const { store } = await renderApp(TASK('tsk_011'), as('usr_005'));
+    const sheet = await screen.findByRole('dialog', { name: 'Balady submission set' });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Join as a helper' }));
+    expect(await screen.findByText('You help on this task now.')).toBeInTheDocument();
+    expect(store.state.tasks.tsk_011.helperIds).toContain('usr_005');
+    await userEvent.click(await within(sheet).findByRole('button', { name: 'Leave this task' }));
+    expect(await screen.findByText('You do not help on this task now.')).toBeInTheDocument();
+    expect(store.state.tasks.tsk_011.helperIds).not.toContain('usr_005');
   });
 
   it('deletes a task, then brings it back with Undo', async () => {

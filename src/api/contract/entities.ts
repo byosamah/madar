@@ -60,7 +60,7 @@ export type Glass = z.infer<typeof Glass>;
 export const TRIGGERS = [
   'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested',
   'task_approved', 'task_sent_back', 'stage_changed', 'added_to_project', 'resume_due',
-  'feedback_sent', 'feedback_done', 'added_to_group', 'meeting_invited', 'meeting_soon',
+  'feedback_sent', 'feedback_done', 'added_to_group', 'meeting_invited', 'meeting_soon', 'helper_joined', 'task_deleted',
 ] as const;
 export const Trigger = z.enum(TRIGGERS);
 export type Trigger = z.infer<typeof Trigger>;
@@ -68,7 +68,11 @@ export type Trigger = z.infer<typeof Trigger>;
 // "added_to_group": a person is added to a group chat (UX audit 2026-10-19, INT-15). It stays in the app too.
 // "meeting_invited" (a new, moved or cancelled meeting) and "meeting_soon" (30 minutes before the start): the mail quota is small, and
 // calendar apps remind by themselves (fbk_022, owner 2026-10-19). Both stay in the app and in push, never in email.
-export const IN_APP_ONLY_TRIGGERS = ['feedback_sent', 'feedback_done', 'added_to_group', 'meeting_invited', 'meeting_soon'] as const satisfies readonly Trigger[];
+// "helper_joined" (a team member joins a task as a helper, to its lead) and "task_deleted" (another person deletes a task, to its maker):
+// each one gives news and asks for no action, so it stays in the app and in push, never in email (fbk_034, fbk_035, owner 2026-10-20).
+export const IN_APP_ONLY_TRIGGERS = [
+  'feedback_sent', 'feedback_done', 'added_to_group', 'meeting_invited', 'meeting_soon', 'helper_joined', 'task_deleted',
+] as const satisfies readonly Trigger[];
 export type EmailTrigger = Exclude<Trigger, (typeof IN_APP_ONLY_TRIGGERS)[number]>;
 export function isEmailTrigger(trigger: Trigger): trigger is EmailTrigger {
   return !(IN_APP_ONLY_TRIGGERS as readonly Trigger[]).includes(trigger);
