@@ -16,7 +16,7 @@ import { assertCan } from './shared';
 
 /**
  * The office report of one period (owner, 2026-10-18, fbk_016). Only the right "report.office" reads it. The right
- * "payment.manage" gives the money. The right "admin.manage" gives the gaps.
+ * "payment.manage" gives the money. The right "gaps.view" gives the gaps.
  *
  * Counting rules. The report reads the office as it is now, with the dates of each record.
  * - A task is made on the day it was created. It is done on the day it was completed.
@@ -144,7 +144,7 @@ function buildReport(ctx: Ctx, input: { period: ReportPeriodKind; start?: string
 
   const officeName = input.subCompanyId ? subCompanies[input.subCompanyId]?.name ?? OFFICE_NAME : OFFICE_NAME;
   const money = can(actor, 'payment.manage') ? moneyOf(payments, range) : null;
-  const gaps = can(actor, 'admin.manage') ? gapsOf(state, tasks, projects) : null;
+  const gaps = can(actor, 'gaps.view') ? gapsOf(state, tasks, projects) : null;
 
   return {
     period: { kind: input.period, from: range.from, to: range.to },

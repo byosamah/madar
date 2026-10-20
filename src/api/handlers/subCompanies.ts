@@ -43,12 +43,12 @@ const subCompaniesList = defineCall({
   },
 });
 
-/** No id makes a sub-company. An id changes it. Only the Admin saves. */
+/** No id makes a sub-company. An id changes it. Only the Admin, or a role with subCompanies.manage, saves. */
 const subCompaniesSave = defineCall({
   input: z.object({ id: SubCompanyId.optional(), name: SubCompanyText, nameAr: SubCompanyText, logo: Logo }),
   output: SubCompany,
   run(input, ctx) {
-    assertCan(ctx, 'admin.manage');
+    assertCan(ctx, 'subCompanies.manage');
     if (input.id === undefined) {
       assertNamesFree(ctx, input, null);
       const id = nextId(ctx.state, 'sub');
@@ -73,7 +73,7 @@ const subCompaniesDelete = defineCall({
   input: z.object({ id: SubCompanyId, moveToId: SubCompanyId.nullable().optional() }),
   output: z.object({}),
   run(input, ctx) {
-    assertCan(ctx, 'admin.manage');
+    assertCan(ctx, 'subCompanies.manage');
     const sub = requireSubCompany(ctx, input.id);
     const naming = Object.values(ctx.state.projects).filter((project) => project.subCompanyId === sub.id);
     if (input.moveToId === sub.id) throw invalid('moveToId', 'Choose another sub-company to move the projects to.');

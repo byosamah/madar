@@ -17,7 +17,7 @@ const MEMBER = 'usr_003';
 const SENDER = 'usr_004';
 const PROBES = [MEMBER, FORMER, 'usr_005', 'usr_006'];
 const MESSAGE = 'The fee screen shows the wrong total for the Rashid villa.';
-const FORBIDDEN = { code: 'forbidden', message: 'You cannot do this.', details: { action: 'admin.manage' } };
+const FORBIDDEN = { code: 'forbidden', message: 'You cannot do this.', details: { action: 'feedback.manage' } };
 
 async function world() {
   const t = testApi(calls);
