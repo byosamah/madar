@@ -8,15 +8,18 @@ import type { PagesEnv } from './pagesForward';
  * 2026-10-12): a browser sends every tile of a host over one connection, so a bad pick stalls the whole map. Cloudflare reaches Esri
  * well, so this function asks Esri, with a time limit and one more try, and the browser asks only its own site.
  *
- * The key is the office's Esri key, shared with Kutla (owner, 2026-10-20): the Pages secret ESRI_KEY. It never reaches a page, a URL
+ * The key is Madar's own Esri key (owner, 2026-10-20): the Pages secret ESRI_KEY. It never reaches a page, a URL
  * of the browser or a log. Only a person signed in to the copy of the host gets a tile, so the route is no open way to Esri. The
  * tile is not stored on our side; the browser keeps it for the day, as Esri allows. Esri's terms ask for "Powered by Esri" on the
  * map while the pictures show (src/features/map/satellite.ts).
  */
 
 export const IMAGERY = 'https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer';
-/** The office key works only with the referrer that the Esri account lists for it: the address of Kutla, where the key began. */
-export const ESRI_REFERER = 'https://kutla.vado.sa';
+/**
+ * The key works only with the referrer that its Esri settings list: https://madar.vado.sa. The server sends it for both copies,
+ * because the browser never asks Esri.
+ */
+export const ESRI_REFERER = 'https://madar.vado.sa';
 
 /** The maps never ask for more than zoom 19 (SATELLITE_MAX_ZOOM in src/features/map/satellite.ts). */
 const MAX_ZOOM = 19;

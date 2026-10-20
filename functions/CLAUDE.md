@@ -16,7 +16,7 @@
 - `satellite/[[path]].ts`: `GET /satellite/<z>/<y>/<x>`, one Esri World Imagery tile of the maps (owner, 2026-10-20), logic in
   `server/http/pagesSatellite.ts`. Only the page hosts of the two copies (any other host: 404). Only a person signed in to that copy (the
   browser token, ES256, the issuer of the copy, no agent token): else 401, and a key set that does not load gives 503. It adds the Pages
-  secret `ESRI_KEY` and the referrer `https://kutla.vado.sa`, gives each Esri call 8 s and one more try, passes only a picture (never an
+  secret `ESRI_KEY` and the referrer `https://madar.vado.sa` (the one referrer of the key at Esri, for both copies), gives each Esri call 8 s and one more try, passes only a picture (never an
   Esri error page, which could name the key), stores nothing, and lets the browser keep a tile for a day. No `ESRI_KEY` gives 404
   `no_map`. Set the secret on both environments with `pbpaste | npx wrangler pages secret put ESRI_KEY --project-name madar --env preview`
   (then `--env production`); a secret reaches only the next deployment. Each tile is one Functions request (about 30 for a view).

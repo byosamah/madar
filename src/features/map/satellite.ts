@@ -2,9 +2,9 @@ import type { StyleSpecification } from 'maplibre-gl';
 import { tileToken } from '../../app/remote/tileToken';
 
 /**
- * The satellite view of the maps (owner, 2026-10-20): Esri World Imagery, with the office's Esri key that Kutla uses (ArcGIS Location
- * Platform, 2,000,000 basemap tiles a month at no cost). No free service with no account has pictures sharp enough for a plot, and
- * Esri's terms ask a business for an account.
+ * The satellite view of the maps (owner, 2026-10-20): Esri World Imagery, with Madar's own key of the office's Esri account (ArcGIS
+ * Location Platform, 2,000,000 basemap tiles a month at no cost, shared with Kutla). No free service with no account has pictures sharp
+ * enough for a plot, and Esri's terms ask a business for an account.
  *
  * The browser never asks Esri: one of its edge addresses never answers from Saudi networks (measured by Kutla, 2026-10-12). It asks
  * our own route /satellite/<z>/<y>/<x> (server/http/pagesSatellite.ts), which adds the key, a Pages secret. A build shows the button

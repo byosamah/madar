@@ -91,12 +91,12 @@ any screen work.
   MapTiler, Stadia) never goes in. The own map file (`functions/map`, `server/http/pagesMap.ts`, `scripts/map/build-basemap.sh`) stays in the
   repo as the later option; no screen uses it.
 - **The one exception: the satellite view (owner, 2026-10-20).** No free service with no account has pictures sharp enough for a plot, and
-  Esri's terms ask a business for an account, so the maps use the office's Esri key that Kutla uses (ArcGIS Location Platform, 2,000,000
-  basemap tiles a month at no cost, shared with Kutla). The browser never asks Esri: one of its edge addresses never answers from Saudi
+  Esri's terms ask a business for an account, so the maps use Madar's own key of the office's Esri account (ArcGIS Location Platform,
+  2,000,000 basemap tiles a month at no cost, shared with Kutla; the key ends on 2027-10-19, renew it before). The browser never asks Esri: one of its edge addresses never answers from Saudi
   networks (measured by Kutla, 2026-10-12). The style (`satellite.ts`) asks `madar-satellite://tile/{z}/{y}/{x}`; the loader (`addProtocol`)
   fetches our own route `/satellite/<z>/<y>/<x>` with the sign-in token (`app/remote/tileToken.ts`, set by the bootstrap). The route
   (`functions/satellite`, `server/http/pagesSatellite.ts`) checks the person and adds the key (the Pages secret `ESRI_KEY`, never in a page
-  or a file) and the referrer that the key allows (`https://kutla.vado.sa`). `VITE_MADAR_SATELLITE=on` in `config/remote.<env>.env` shows
+  or a file) and the referrer that the key allows (`https://madar.vado.sa`, for both copies). `VITE_MADAR_SATELLITE=on` in `config/remote.<env>.env` shows
   the button; without it, no button. `MapCanvas` puts one small button in the top start corner of every map ("Satellite", then "Street map");
   the choice stays for the next map (`madar.mapLayer` in localStorage). "Powered by Esri" shows beside the credit button while the pictures
   show (Esri's rule; the sources sit behind the "i"). An error of the satellite source before its first tile (no key, signed out, Esri down)
