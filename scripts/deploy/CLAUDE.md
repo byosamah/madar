@@ -27,7 +27,11 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
   the tree is not clean, and `all.sh test` records no commit.
 - When `deploy-test` exists, it holds main, so `git fetch . <branch>:main` refuses. Use
   `git -C .claude/worktrees/deploy-test merge --ff-only <branch>`.
+- `all.sh` runs from any clean worktree that holds main, with links to `node_modules`, `secrets` and `.env.local` (2026-10-20:
+  `~/dev/madar-rb/gcal-reuse`, because `deploy-test` sat on `rb/phone-bar`). `git worktree list | grep '\[main\]'` finds it.
+  `all.sh test` also ran with the sandbox off and `< /dev/null`: the prompt took yes, and the record was written.
 - After production: commit the record on main, then `git push origin main` (GitHub holds each release).
+- After a production release, tell every session that waits on main (`SendMessage`) and give it the new commit of the record.
 - The test copy keeps every mail in `mail_outbox` and sends none. Show the owner a mail change from that table.
 - Each seed empties the test copy: only the 4 sample accounts and the sample office stay. Trial data does not survive. Push
   devices go too: turn the switch on again after a seed (and after the deploy suite, which seeds at its end).
