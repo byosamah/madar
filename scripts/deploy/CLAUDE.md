@@ -180,6 +180,9 @@ token with Object Read & Write on `<bucket>` only (`server/files/CLAUDE.md`).
 - A Pages step that fails with "Failed to publish your Function. Got error: Unknown internal error occurred." is a fault at
   Cloudflare when `functions/` did not change. The steps before it stay done: run `scripts/deploy/pages.sh <env>` again after a
   few minutes (2026-10-12: the third run went through).
+- `config.sh` once stopped with `ConfigPushApiUpdateStatusError` (500, "Postgrest config update did not succeed within the
+  expected time frame") on production, after `db.sh` had pushed two migrations (2026-10-20). Nothing changed: check that the
+  Data API is still off (`supabase/CLAUDE.md`), then run `all.sh production` again. The second run went through.
 - `db.sh` once stopped with `DbPushMissingLocalError` ("Remote migration versions not found in local migrations directory",
   20261008000100 and 20261012000100) while both files were in the folder; `db.sh` alone a minute later said up to date
   (2026-10-16). Run `db.sh` again. Never run the `supabase migration repair` that the CLI suggests: it rewrites the migration

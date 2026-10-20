@@ -1015,6 +1015,20 @@ walk caught the answer: a whole-batch 500 "Something went wrong" for the Admin, 
   change at any step. The way back to the test phase: the word `office` again, `all.sh test`, and a fresh office with
   `import.ts --mode replace` or the seed, then R5 step 4.
 
+### Production at 5350647 (2026-10-20, the owner ran it)
+- The release: meetings wave 1 (5bc5458), the privacy page `/privacy` for Google (5e1e537), the chat batch (924eb2c, ced1a0a)
+  and the chat on a phone (86ecc3c). `all.sh test` had put the same commit on the test copy, and the deploy suite passed at 924eb2c.
+- First run: `db.sh` pushed `20261020000100_meetings.sql` and `20261020000200_message_search.sql`. Then `config.sh` stopped:
+  the API step of `config push` got 500 from Supabase ("Postgrest config update did not succeed within the expected time
+  frame", `ConfigPushApiUpdateStatusError`). `supabase/config.toml` had no change since b68a50e, and the Data API stayed off
+  (`db_schema` empty; a read with the publishable key gave 503). The old release ran on the new tables with no fault.
+- Second run of `all.sh production`: the migrations were up to date, the settings went through, then the secrets, the functions,
+  the Worker and Pages (fb03c961). The checks passed: the health from `supabase` with 143 calls and the R2 file store, the
+  database check, and `POST /mcp` with no token 401. The page answers 200 with the title Madar, `/privacy` 200 ("Madar
+  privacy"), `/favicon.ico` 200, and the live page starts `bootstrap-BlRG-CER.js` of this build.
+- Reports: fbk_030 and fbk_032 are done (the chat drop and paste). fbk_028 stays open: its part 2 (Mark as unread, owner
+  2026-10-20) is in the meetings join.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 
