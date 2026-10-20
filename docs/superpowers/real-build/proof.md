@@ -1854,3 +1854,8 @@ fbk_022). Each suite ran once; a suite ran again only for the files of a fix.
   reaches nobody with a push.
 - Gates: 5 new tests first (3 failed before the fix; 2 hold what stays: one line for a chat title, the full hint on a computer), then `npm test` 689 files, 7,288 passed, 6 skipped; `npm run build`
   green. Shots (390 px: English and Arabic, light and dark; 360 px: English and Arabic) in the session scratchpad `shots-polish/`.
+- The reaction pills: the shot script reported each pill as 28 px high, under the touch size of 44 px. The script measured only the
+  visible pill. The button has an invisible strip of 8 px above and below it (`after:-inset-y-2`), and `min-w-11` makes it 44 px
+  wide. In a 390 px window, `elementFromPoint` at 242 points of the 44 x 44 px area hit the button at every point, also with a 👍
+  and a ✅ under each message of a run in a project chat. The only misses came from 2 pills that had scrolled under the top bar.
+  No change was necessary. A size audit must test the press area with `elementFromPoint`, not the box of the element.
