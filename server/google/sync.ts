@@ -6,7 +6,7 @@ import { deleteEvent, GoogleError, insertEvent, listEvents, patchEvent, refreshA
 import { googleOf, type GoogleReady } from './client';
 import { openToken, SealBroken } from './keys';
 import {
-  connectionById, deleteConnection, deleteEventRow, deleteEventsOfUser, eventRow, liveConnection, markBroken, markNotSynced, markOk, meetingOf, personOf,
+  connectionById, deleteConnection, deleteEventRow, deleteEventsOfUser, eventIdsOfUser, eventRow, liveConnection, markBroken, markNotSynced, markOk, meetingOf, personOf,
   saveEventRow, upcomingMeetingIds, type Connection,
 } from './store';
 
@@ -25,7 +25,7 @@ import {
  * error hold the code and the ids only, never a token, a code, a title or a Google answer.
  *
  * gcal.tidy (one calendar for each person, owner test 2026-10-20): a connect that reuses the calendar of the person leaves the old events
- * of Madar in it. The tidy deletes each event of Madar that is not one of the meetings the connect backfills, and no other event.
+ * of Madar in it. The tidy deletes each event of Madar that no meeting of the backfill needs and that gcal.sync did not write, and no other event.
  */
 
 /** The calls whose save can change a meeting: each one writes gcal.sync rows (server/google/rows.ts). Wave 3 adds meetings.extend. */
@@ -195,9 +195,11 @@ export async function syncOne(deps: Deps, userId: string, meetingId: string): Pr
 
 /**
  * gcal.tidy: takes the stale events of Madar out of a calendar that a connect reused. It lists the events of the calendar from now on,
- * keeps those whose id is the event id of a meeting in the backfill set of the person (the meetings the connect sends), and deletes every
- * other event whose id starts with MADAR_EVENT_PREFIX. An event of the person, or any id without the prefix, is never touched. It gives
- * the number of events it took away.
+ * keeps those whose id is the event id of a meeting in the backfill set of the person (the meetings the connect sends) and those that
+ * have a row in google_events (gcal.sync wrote them since the connect, for example for a meeting made while the tidy ran), and deletes
+ * every other event whose id starts with MADAR_EVENT_PREFIX. An event of the person, or any id without the prefix, is never touched.
+ * The keep set is read after the list, so an event that sync writes while the tidy runs is never taken for a stale one. It gives the
+ * number of events it took away.
  *
  * It writes no row: the event rows of google_events come only from gcal.sync. A revoked grant, a seal that does not open, a calendar that
  * is gone or a refusal ends the work quietly: the next gcal.sync finds the same fault and ends the connection as it does today. A
@@ -213,10 +215,12 @@ export async function tidyOne(deps: Deps, userId: string): Promise<number> {
   const person = await personOf(q, userId);
   if (!person || !person.active || person.removed) return 0;
   const now = deps.clock.now();
-  const keep = new Set((await backfillMeetingIds(q, userId, now)).map(eventIdOf));
   try {
     return await withAccess(deps, ready, connection, async (token) => {
-      const stale = (await listEvents(ready.client, token, calendarId, now.toISOString())).filter((id) => id.startsWith(MADAR_EVENT_PREFIX) && !keep.has(id));
+      const listed = (await listEvents(ready.client, token, calendarId, now.toISOString())).filter((id) => id.startsWith(MADAR_EVENT_PREFIX));
+      if (listed.length === 0) return 0;
+      const keep = new Set([...(await backfillMeetingIds(q, userId, now)).map(eventIdOf), ...(await eventIdsOfUser(q, userId))]);
+      const stale = listed.filter((id) => !keep.has(id));
       for (const id of stale) await dropEvent(ready.client, token, calendarId, id);
       return stale.length;
     });

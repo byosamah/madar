@@ -156,6 +156,12 @@ export async function deleteEventRow(q: Query, userId: string, meetingId: string
   await q(sqlFor(q, 'delete from google_events where user_id = $1 and meeting_id = $2', 'delete from google_events where user_id = ?1 and meeting_id = ?2'), [userId, meetingId]);
 }
 
+/** The Google event ids that Madar believes it has in the calendar of the person (the rows that only gcal.sync writes). */
+export async function eventIdsOfUser(q: Query, userId: string): Promise<string[]> {
+  const rows = await q<{ event_id: string }>(sqlFor(q, 'select event_id from google_events where user_id = $1', 'select event_id from google_events where user_id = ?1'), [userId]);
+  return rows.map((row) => row.event_id);
+}
+
 export async function deleteEventsOfUser(q: Query, userId: string): Promise<void> {
   await q(sqlFor(q, 'delete from google_events where user_id = $1', 'delete from google_events where user_id = ?1'), [userId]);
 }

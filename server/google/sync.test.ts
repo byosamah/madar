@@ -434,12 +434,46 @@ describe('gcal.tidy', () => {
     const other = await planMeeting(t, 'usr_004', { startsAt: START });
     const far = await planMeeting(t, 'usr_003', { startsAt: '2026-12-25T10:00:00.000+03:00' });
     const kept = await planMeeting(t, 'usr_003', { startsAt: '2026-10-24T10:00:00.000+03:00' });
+    // After a new connect the event rows are gone (the connect deletes them), so the event of the far meeting has none.
+    await t.db.statement('write', 'delete from google_events where meeting_id = ?1', [far]);
     const ids = [cancelled, other, far, 'mtg_999'].map(eventIdOf);
     for (const id of ids) addEvent(t, calendar, id);
     t.google.requests.length = 0;
     expect(await tidyOne(t.deps as never, 'usr_003')).toBe(4);
     for (const id of ids) expect(statusOf(t, calendar, id), id).toBe('cancelled');
     expect(statusOf(t, calendar, eventIdOf(kept))).toBe('confirmed');
+  });
+
+  it('keeps an event that has an event row, also when its meeting is not in the backfill set (written by gcal.sync after the connect)', async () => {
+    const t = await connectedWith('usr_003');
+    const calendar = await calendarOf(t, 'usr_003');
+    const far = await planMeeting(t, 'usr_003', { startsAt: '2026-12-25T10:00:00.000+03:00' });
+    const stale = eventIdOf('mtg_903');
+    addEvent(t, calendar, stale);
+    expect(await rowsOf(t, 'select meeting_id from google_events')).toEqual([{ meeting_id: far }]);
+    expect(await tidyOne(t.deps as never, 'usr_003')).toBe(1);
+    expect(statusOf(t, calendar, eventIdOf(far))).toBe('confirmed');
+    expect(statusOf(t, calendar, stale)).toBe('cancelled');
+  });
+
+  it('reads the keep set after the list: an event that sync writes while the tidy lists is kept', async () => {
+    const t = await connectedWith('usr_003');
+    const calendar = await calendarOf(t, 'usr_003');
+    const stale = eventIdOf('mtg_904');
+    addEvent(t, calendar, stale);
+    // The meeting is made, and its event row is written, when the list answers: the list shows the event of the meeting too.
+    const late = 'mtg_905';
+    t.google.on(
+      (request) => request.method === 'GET' && request.path.endsWith('/events'),
+      async () => {
+        addEvent(t, calendar, eventIdOf(late));
+        await t.db.statement('write', "insert into google_events (user_id, meeting_id, event_id, synced_rev, synced_at) values ('usr_003', ?1, ?2, 1, '2026-10-21T06:00:00.000Z')", [late, eventIdOf(late)]);
+        return t.google.reply({ items: [...t.google.eventsOf(calendar).values()].filter((event) => event.status === 'confirmed') }, 200);
+      },
+    );
+    expect(await tidyOne(t.deps as never, 'usr_003')).toBe(1);
+    expect(statusOf(t, calendar, eventIdOf(late))).toBe('confirmed');
+    expect(statusOf(t, calendar, stale)).toBe('cancelled');
   });
 
   it('leaves alone a Madar event that ended before now, because the list does not show it', async () => {

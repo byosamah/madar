@@ -152,8 +152,9 @@ The other host stays deployed as the way back. Each area below has its own guide
   chain can stop part way on the Worker (about 30 s after the answer), and the 15-minute job retries the rest.
 - `gcal.tidy` (`tidyOne`, `sync.ts`) runs after the backfill rows of a connect that reused a calendar. The old events of Madar are still in it: the disconnect
   deleted the `google_events` rows, so the backfill writes each meeting again (an insert that finds its id becomes an update, `putEvent`), which sets the
-  right time. The tidy lists the events of the calendar from now on (`listEvents`: `singleEvents`, 250 in a page, at most 4 pages), keeps the events whose id is
-  the event id of a meeting in the backfill set of the person (`backfillMeetingIds`: the next 60 days, at most 200), and deletes every other event whose id
+  right time. The tidy lists the events of the calendar from now on (`listEvents`: `singleEvents`, 250 in a page, at most 4 pages), then reads its keep set
+  (after the list, so an event that sync writes meanwhile is never taken for a stale one): the event ids of the meetings in the backfill set of the person
+  (`backfillMeetingIds`: the next 60 days, at most 200) and the event ids in the `google_events` rows of the person. It deletes every other event whose id
   starts with `MADAR_EVENT_PREFIX` (the hex of `madar:mtg_`). It never deletes an event without that prefix. It writes no row: the `google_events` rows come
   only from `gcal.sync`. A revoked grant, a 401 after a new access token, a seal that does not open, a calendar that is gone or a refusal ends it quietly (the next
   sync finds the same fault and ends the connection as today); a timeout, a network error, a 5xx or a 429 throws, and the outbox tries again.
