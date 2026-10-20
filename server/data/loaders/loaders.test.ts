@@ -480,6 +480,39 @@ describe('the 18 places of AM 6', () => {
     expect(read.outcome.error).toBeUndefined();
   });
 
+  // Owner, 2026-10-23: what reaches the Admin. The scoped load gives the same list, badge and read as the whole office for each choice.
+  it('chats.list, chats.unreadCount and chats.markRead: the scoped load follows the Admin choice (mixed, mine, all)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    apply(state, 'chats.send', { conversationId: room.id, body: `${mentionMarkup(state.users[ADMIN].name, ADMIN)} please approve 7702.` }, 'usr_002', { now: at(5) });
+    const rowOf = (run: Run) => (run.outcome.output as { id: string; unread: number }[]).find((row) => row.id === room.id);
+    const unreadOf = (run: Run) => (run.outcome.output as { unread: number }).unread;
+    // Today: the default. The Admin is not on prj_001, so the chat lists and counts only the named message.
+    const mixed = await same(state, 'chats.list', {}, ADMIN);
+    expect(rowOf(mixed)?.unread).toBe(1);
+    const mixedBadge = unreadOf(await same(state, 'chats.unreadCount', {}, ADMIN));
+    // Only my work: the chat leaves the list, and the badge drops by what the chat counted.
+    state.users[ADMIN].preferences = { ...state.users[ADMIN].preferences, adminReach: 'mine' };
+    expect(rowOf(await same(state, 'chats.list', {}, ADMIN))).toBeUndefined();
+    expect(unreadOf(await same(state, 'chats.unreadCount', {}, ADMIN))).toBe(mixedBadge - 1);
+    expect((await same(state, 'chats.markRead', { conversationId: room.id }, ADMIN)).outcome.error).toBeUndefined();
+    expect((await same(state, 'chats.messages', { conversationId: room.id }, ADMIN)).outcome.error).toBeUndefined();
+    expect((await same(state, 'chats.send', { conversationId: room.id, body: 'Seen, thanks 7703.' }, ADMIN, { now: at(6) })).outcome.error).toBeUndefined();
+    expect((await same(state, 'chats.setNotify', { conversationId: room.id, notify: 'all' }, ADMIN)).outcome.error).toBeUndefined();
+    expect((await same(state, 'chats.markUnread', { conversationId: room.id }, ADMIN)).outcome.error).toBeUndefined();
+    expect((await same(state, 'chats.archive', { conversationId: room.id, archived: true }, ADMIN)).outcome.error).toBeUndefined();
+    // Everything: every message counts.
+    state.users[ADMIN].preferences = { ...state.users[ADMIN].preferences, adminReach: 'all' };
+    const all = await same(state, 'chats.list', {}, ADMIN);
+    expect(rowOf(all)?.unread).toBe(3);
+    expect(unreadOf(await same(state, 'chats.unreadCount', {}, ADMIN))).toBeGreaterThan(mixedBadge);
+    // A person who is not an Admin reads the same whatever is stored.
+    const sara = Object.values(state.members).find((m) => m.projectId === 'prj_001' && m.userId !== 'usr_002' && state.users[m.userId].kind === 'human')!.userId;
+    state.users[sara].preferences = { ...state.users[sara].preferences, adminReach: 'mine' };
+    expect(rowOf(await same(state, 'chats.list', {}, sara))).toBeDefined();
+  });
+
   // Design item 22: a group waits only for a message that names the person, a reply to a comment names its author, and a 👍 answers.
   it('chats.waiting: the scoped load gives the same answer for a group that names the person, a reply to a comment and a 👍 (item 22)', async () => {
     const state = office();

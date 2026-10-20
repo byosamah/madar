@@ -1,5 +1,5 @@
 import { isLiveMessage } from './chatNaming';
-import type { ChatRead, Conversation, Message, NotifyLevel, User } from './contract/entities';
+import type { AdminReach, ChatRead, Conversation, Message, NotifyLevel, User } from './contract/entities';
 import { forbidden, invalid, notFound } from './errors';
 import { can, principalOf, projectRoleOf, type ProjectRole } from './permissions';
 import { chatReadKey, nextId, unreadCountKey, type State } from './store';
@@ -93,13 +93,31 @@ export function levelFromRead(read: Pick<ChatRead, 'notify'> | undefined, kind: 
 }
 
 /**
+ * What reaches a person (owner, 2026-10-23). Only a person with the Admin role has a choice: every other person reads "mixed", whatever
+ * is stored. A missing value means "mixed", which is the rule of chat design item 23. The loader and the handlers both read this one rule.
+ */
+export function adminReachOf(user: Pick<User, 'systemRole' | 'preferences'>): AdminReach {
+  return user.systemRole === 'admin' ? (user.preferences.adminReach ?? 'mixed') : 'mixed';
+}
+
+/**
  * True when the unread count of a chat holds only the messages that name the person (chat design item 23): the project chat of a project
  * that the person neither leads nor works on the team of, for a person who did not pick All messages. Only an Admin opens a project
  * chat with the role "other" (`can`, "chat.project"), so this is the Admin's "other project chat". A task lead outside the team does not
- * count as on the project. The loader (server/data/loaders/chat.ts) and unreadIn use this one rule.
+ * count as on the project. The Admin who picked "Everything" (`reach` "all") counts every message of it. The loader
+ * (server/data/loaders/chat.ts) and unreadIn use this one rule. The push does not use it: levelFromRead alone decides the push.
  */
-export function countsNamedOnly(role: ProjectRole, conversation: Conversation, level: NotifyLevel): boolean {
-  return conversation.kind === 'project' && role === 'other' && level !== 'all';
+export function countsNamedOnly(role: ProjectRole, conversation: Conversation, level: NotifyLevel, reach: AdminReach = 'mixed'): boolean {
+  return conversation.kind === 'project' && role === 'other' && level !== 'all' && reach !== 'all';
+}
+
+/**
+ * True when the chat leaves the list, the count and the badge of the Admin who picked "Only my work": a project chat that the Admin
+ * neither leads nor works on the team of. The chat still opens (canSeeConversation does not change). The loader and the handlers
+ * use this one rule.
+ */
+export function hiddenByReach(role: ProjectRole, conversation: Conversation, reach: AdminReach): boolean {
+  return reach === 'mine' && conversation.kind === 'project' && role === 'other';
 }
 
 /** The messages of one page of a chat when the screen names no limit, and the most it may ask for (plan 4.13, A5; AM 7.5). */
@@ -121,7 +139,8 @@ export function messagesOf(state: State, conversationId: string): Message[] {
 /**
  * Live messages that other people wrote after the person last read the room. A person's own agent counts as the person.
  * A count that a server loader put in the state comes first (plan 4.13, A9); without it, a scan of the messages in the state.
- * The Admin's other project chats count only the messages that name the Admin (countsNamedOnly, design item 23).
+ * The Admin's other project chats count only the messages that name the Admin (countsNamedOnly, design item 23), unless the Admin
+ * picked "Everything".
  * A chat that the person marked unread (chats.markUnread, fbk_028) counts at least 1 until the person opens it again, in every kind
  * and also in the Admin's other project chats. The mark never adds one: a chat with 3 new messages that is marked unread still has 3.
  */
@@ -132,7 +151,9 @@ export function unreadIn(state: State, conversationId: string, userId: string): 
   const lastRead = read?.lastReadAt ?? '';
   // The Admin's other project chats count only the messages that name the Admin, unless the Admin picked All messages (item 23).
   const chat = state.conversations[conversationId];
-  const namedOnly = chat !== undefined && countsNamedOnly(projectRoleOf(state, chat.projectId, userId), chat, levelFromRead(read, chat.kind));
+  const person = state.users[userId];
+  const namedOnly = chat !== undefined && person !== undefined
+    && countsNamedOnly(projectRoleOf(state, chat.projectId, userId), chat, levelFromRead(read, chat.kind), adminReachOf(person));
   const count = counted ?? Object.values(state.messages).filter(
     (m) => m.conversationId === conversationId && isLiveMessage(m) && m.createdAt > lastRead && principalOf(state, m.authorId) !== userId && m.actingForId !== userId
       && (!namedOnly || m.mentions.includes(userId)),

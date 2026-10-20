@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
-  Gender,
+  AdminReach, Gender,
   Client, ClientId, ClientInitials, Glass, Language, OfficeRight, RoleId, Settings, SystemRole, Theme, User, UserAvatarInput, UserId, defaultPreferences,
   type Preferences,
 } from '../contract/entities';
@@ -341,9 +341,14 @@ export const meUpdateProfile = defineCall({
 });
 
 export const meUpdatePreferences = defineCall({
-  input: z.object({ language: Language.optional(), theme: Theme.optional(), glass: Glass.optional(), hatchOverlap: z.boolean().optional() }),
+  input: z.object({ language: Language.optional(), theme: Theme.optional(), glass: Glass.optional(), hatchOverlap: z.boolean().optional(), adminReach: AdminReach.optional() }),
   output: User,
   run(input, ctx) {
+    // What reaches the Admin is the choice of an Admin (owner, 2026-10-23). Any other person gets a refusal, so a stored value never exists
+    // for a Member. The agent of an Admin may not set it: the choice changes what the person sees, so only the person sets it.
+    if (input.adminReach !== undefined && (ctx.actor.systemRole !== 'admin' || ctx.actor.kind === 'agent')) {
+      throw forbidden('Only an Admin picks what reaches the Admin.', { action: 'me.adminReach' });
+    }
     const current = ctx.actor.preferences;
     // The email switches and the morning summary stay as they are: this call never names them (review 2026-10-03).
     const next: Preferences = {
@@ -352,6 +357,7 @@ export const meUpdatePreferences = defineCall({
       theme: input.theme ?? current.theme,
       glass: input.glass ?? current.glass,
       ...(input.hatchOverlap !== undefined && { hatchOverlap: input.hatchOverlap }),
+      ...(input.adminReach !== undefined && { adminReach: input.adminReach }),
     };
     // The stored record takes the change. A change to the context copy is lost, because the copy holds the office rights.
     const me = ctx.state.users[ctx.actor.id];

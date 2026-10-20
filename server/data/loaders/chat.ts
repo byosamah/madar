@@ -1,5 +1,5 @@
 import type { ChatRead, Comment, Conversation, Message, Task } from '../../../src/api/contract/entities';
-import { canSeeConversation, countsNamedOnly, levelFromRead, TASK_THREAD_LIMIT } from '../../../src/api/chatState';
+import { adminReachOf, canSeeConversation, countsNamedOnly, hiddenByReach, levelFromRead, TASK_THREAD_LIMIT } from '../../../src/api/chatState';
 import { can, projectRoleOf } from '../../../src/api/permissions';
 import { chatReadKey, unreadCountKey } from '../../../src/api/store';
 import type { Load } from './build';
@@ -60,8 +60,10 @@ async function chatsOf(L: Load, userId: string, conversations: readonly Conversa
   // The Admin's other project chats count only the messages that name the Admin (design item 23): a second grouped count, with the
   // extra condition on "mentions". Every other chat counts as before. A count with no chat is skipped.
   const office = officeState(L);
+  // The Admin who picked "Everything" counts every message of those chats, so the same rule (adminReachOf) feeds both counts (owner, 2026-10-23).
+  const reach = L.authority && L.authority.id === userId ? adminReachOf(L.authority) : 'mixed';
   const namedOnly = new Set(conversations
-    .filter((c) => countsNamedOnly(projectRoleOf(office, c.projectId, userId), c, levelFromRead(L.get<ChatRead>('chatReads', chatReadKey(c.id, userId)), c.kind)))
+    .filter((c) => countsNamedOnly(projectRoleOf(office, c.projectId, userId), c, levelFromRead(L.get<ChatRead>('chatReads', chatReadKey(c.id, userId)), c.kind), reach))
     .map((c) => c.id));
   const countOf = (own: string[], extra: readonly { has: string; value: string }[]) => {
     if (own.length === 0) return Promise.resolve();
@@ -112,10 +114,20 @@ function visible(L: Load): Conversation[] {
   return L.authority ? Object.values(L.office.conversations).filter((c) => canSeeConversation(office, c, L.authority!)) : [];
 }
 
+/**
+ * The chats of the list and the badge: the chats U may open, less the project chats that an Admin who picked "Only my work" neither
+ * leads nor works on (owner, 2026-10-23). It is the rule of listedConversations in src/api/handlers/chats.ts.
+ */
+function listed(L: Load): Conversation[] {
+  const office = officeState(L);
+  const reach = L.authority ? adminReachOf(L.authority) : 'mixed';
+  return reach === 'mine' ? visible(L).filter((c) => !hiddenByReach(projectRoleOf(office, c.projectId, L.authority!.id), c, reach)) : visible(L);
+}
+
 /** Every chat and task thread of U. */
 async function everyChat(L: Load, mode: Mode): Promise<void> {
   if (!L.authority) return;
-  await chatsOf(L, L.authority.id, visible(L), mode);
+  await chatsOf(L, L.authority.id, listed(L), mode);
   await threadsOf(L, L.authority.id, mode);
 }
 
@@ -163,6 +175,10 @@ export async function chatsMarkRead(L: Load, input: Input): Promise<void> {
   await everyChat(L, { inWrite: true });
   const id = typeof input.conversationId === 'string' ? input.conversationId : '';
   if (!L.authority || id === '') return;
+  // The Admin who picked "Only my work" does not list the other project chats, but may read one: the chat loads as in chats.messages
+  // (its read mark, its newest message and its count), so the write finds the same rows as the whole office (owner, 2026-10-23).
+  const hidden = visible(L).find((c) => c.id === id && !listed(L).some((l) => l.id === id));
+  if (hidden) await chatsOf(L, L.authority.id, [hidden], { inWrite: true });
   await mentionNoticesOf(L, id);
   if (!id.startsWith('tsk_')) return;
   await L.byKey('tasks', [id]);

@@ -96,6 +96,14 @@ export type EventTarget = z.infer<typeof EventTarget>;
 export const NotificationTarget = z.enum(['project', 'task', 'update', 'chat', 'feedback', 'meeting']);
 export type NotificationTarget = z.infer<typeof NotificationTarget>;
 
+/**
+ * What reaches the Admin (owner, 2026-10-23). "mine": only the work of the Admin, as for a Member. "mixed": the work of the Admin, and the
+ * other project chats in the list, which count only the messages that name the Admin. "all": every message of every project chat counts,
+ * and the bell gets a copy of each notice of the office. A missing value means "mixed". Only a person with the Admin role has an effect.
+ */
+export const AdminReach = z.enum(['mine', 'mixed', 'all']);
+export type AdminReach = z.infer<typeof AdminReach>;
+
 export const Preferences = z.object({
   language: Language,
   theme: Theme,
@@ -108,6 +116,8 @@ export const Preferences = z.object({
   morningSummary: z.boolean().optional(),
   /** The hatch over the days that two stages share, on every schedule. A missing value means on (owner, 2026-10-05, item 9). */
   hatchOverlap: z.boolean().optional(),
+  /** What reaches the Admin. A missing value means "mixed". Read it with adminReachOf (chatState.ts), which also checks the Admin role. */
+  adminReach: AdminReach.optional(),
 });
 export type Preferences = z.infer<typeof Preferences>;
 
@@ -870,6 +880,11 @@ export const Notification = z.object({
   reply: z.literal(true).optional(),
   /** What happened to the meeting of a meeting_invited notice: it is new for this person, it moved, or it was cancelled (fbk_022). Optional, so older notices load. */
   meeting: z.object({ change: z.enum(['new', 'moved', 'cancelled']) }).optional(),
+  /**
+   * Present only on a copy for an Admin who picked "Everything" (owner, 2026-10-23): the people that the original notice went to.
+   * A copy sends no push and no mail. Optional, so older notices load.
+   */
+  forUserIds: z.array(UserId).min(1).max(200).optional(),
 });
 export type Notification = z.infer<typeof Notification>;
 

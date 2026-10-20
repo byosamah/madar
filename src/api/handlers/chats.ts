@@ -3,11 +3,11 @@ import { defineCall, type Ctx } from '../registry';
 import { ConversationId, FileId, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, NotifyLevel, TaskId, UserId, emptyReactions, type Comment, type Conversation, type GroupLogEntry, type Message, type Project, type Reaction, type Task, type User } from '../contract/entities';
 import { ChatRow, ChatThread, MessageView, WaitingRow, type GroupLine } from '../contract/views';
 import { messagePageAround } from '../chatAround';
-import { addDirectConversation, addGroupConversation, canSeeConversation, closedChatError, isArchived, markedUnread, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, personLeft, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
+import { adminReachOf, addDirectConversation, addGroupConversation, canSeeConversation, hiddenByReach, closedChatError, isArchived, markedUnread, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, personLeft, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
 import { isLiveMessage, namesPerson, notifyLevelOf, replyRefOf } from '../chatNaming';
 import { notifyIn } from '../notify';
-import { can, mayViewTask, principalOf } from '../permissions';
+import { can, mayViewTask, principalOf, projectRoleOf } from '../permissions';
 import { chatReadKey, nextId, unreadCountKey, type State } from '../store';
 import { attachmentsOf, cardOf, mayViewFile } from '../views';
 import { assertFilesForDirect, assertFilesInProject } from './attach';
@@ -46,6 +46,16 @@ function requireGroup(ctx: Ctx, id: string): Conversation {
 /** The conversations the person may open. The Admin may open every project chat. */
 function visibleConversations(state: State, viewer: User): Conversation[] {
   return Object.values(state.conversations).filter((c) => canSeeConversation(state, c, viewer));
+}
+
+/**
+ * The conversations in the Inbox list and in the badge: the ones the person may open, less the project chats that an Admin who picked
+ * "Only my work" neither leads nor works on (owner, 2026-10-23). Such a chat still opens, from its project, a link, a search or a notice.
+ */
+function listedConversations(state: State, viewer: User): Conversation[] {
+  const reach = adminReachOf(viewer);
+  const all = visibleConversations(state, viewer);
+  return reach === 'mine' ? all.filter((c) => !hiddenByReach(projectRoleOf(state, c.projectId, viewer.id), c, reach)) : all;
 }
 
 function isMine(state: State, message: Message, viewerId: string): boolean {
@@ -189,7 +199,7 @@ function messageViewOf(state: State, message: Message, viewer: User): MessageVie
 }
 
 function totalUnread(state: State, viewer: User): number {
-  const chats = visibleConversations(state, viewer).reduce((sum, c) => sum + unreadIn(state, c.id, viewer.id), 0);
+  const chats = listedConversations(state, viewer).reduce((sum, c) => sum + unreadIn(state, c.id, viewer.id), 0);
   return chats + taskThreads(state, viewer).reduce((sum, t) => sum + taskUnread(state, t.task.id, t.comments, viewer.id), 0);
 }
 
@@ -231,7 +241,7 @@ export const chatsList = defineCall({
   readOnly: true,
   run(_input, ctx) {
     // A direct chat with no message shows only for the person who has a read mark on it, who opened it (chat design 2026-10-19, item 18).
-    const shown = visibleConversations(ctx.state, ctx.authority)
+    const shown = listedConversations(ctx.state, ctx.authority)
       .map((c) => rowOf(ctx.state, c, ctx.authority))
       .filter((row) => row.kind !== 'direct' || row.previewAuthor !== null || ctx.state.chatReads[chatReadKey(row.id, ctx.authority.id)] !== undefined);
     const rows = [...shown, ...taskRows(ctx.state, ctx.authority)];
