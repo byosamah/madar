@@ -32,7 +32,7 @@ describe('renderSigninMail: the invitation and reset mail in the person\'s langu
     expect(en.subject).toBe('Reset your Madar password');
     expect(en.text).toContain('If you did not ask for this, ignore this email.');
     const ar = renderSigninMail('reset', 'ar', { name: 'سارة', link: LINK }, 'female');
-    expect(ar.subject).toBe('إعادة تعيين كلمة المرور في مدار');
+    expect(ar.subject).toBe('أعد تعيين كلمة مرورك في مدار');
     expect(ar.text).toContain('إذا لم تطلبي ذلك');
   });
 

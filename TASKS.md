@@ -735,3 +735,10 @@ separate checker. No production change before Friday 2026-10-23. Answers fbk_028
 - [x] The phone tab bar (owner, 2026-10-20: "fix it", icons only, the floating pill chosen): each 24 px icon in the centre of a 48 px tab, the open tab a round pill, the bar 16 px from the sides and the bottom, the Inbox count on its icon. What's new 2026-10-23-31. Gates: npm test (16 files timed out under load 137 and passed alone), prototype smoke 87 of 87, shots EN/AR, light/dark, 390 px. Production at 5a98255
 - [x] Cleanup (owner, 2026-10-20: "do only 6"): the raw direction marks in `GroupSheets.tsx` and `ReasonLine.tsx` are escapes now, and `check-rtl.ts` stops the build on a raw mark in `src`. People see no change, so What's new has no line for it
 - [ ] Proposed for later (not approved): the other items of "Not in this batch" in the design
+
+## 2026-10-20: the Arabic audit in Thmanyah style (branch `rb/arabic`, owner request)
+- [x] Audit with a lint of the Thmanyah rules over all 2,729 Arabic strings (28 word files). Before: 105 strings with «تم» or «يتم», 241 labels that use a noun where a verb fits, 34 stiff phrases, 11 sentences over 14 words. After: 0, 28 (names of things and past-tense verbs, all fine), 0, 0
+- [x] Rewrite: 571 strings changed in the word files only (keys unchanged). Buttons are imperative verbs, confirmations are short passive verbs, switches start with «عندما». One word for one thing: «مدير النظام», «لوحة المعلومات», «عبء العمل», «خيارات», «باسم». Rules are in `src/i18n/CLAUDE.md`
+- [x] Real mistakes found and fixed: «لوحة المتابعة» and «ضغط العمل» in What's new (the screens say «لوحة المعلومات» and «عبء العمل»), the picture formats missing from a photo error, an Eastern digit in the screenshot hint, five wrong tanween marks, «إجراء» for a meeting task, «أحدث» for "later"
+- [x] Merged into main and released: production at 15a9815 (2026-10-20, the owner ran it). Record: proof.md. The owner may still read the before/after page and name any string to revert
+- [x] What's new line 2026-10-23-32 for the new Arabic wording

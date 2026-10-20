@@ -165,7 +165,7 @@ describe('the summary at the end of the meeting (owner, 2026-10-02)', () => {
       await rendered.api.call('tasks.create', { projectId: 'prj_011', stageId: project.currentStageId, title: 'Update the permit tracker', ownerId: project.leaderId!, dueDate: '2026-10-06' });
       if (arabic) {
         await userEvent.click(screen.getByRole('button', { name: /^جدول الأعمال/ }));
-        await userEvent.click(within(await screen.findByRole('dialog', { name: 'جدول الأعمال' })).getByRole('button', { name: 'عرض ملخص الاجتماع' }));
+        await userEvent.click(within(await screen.findByRole('dialog', { name: 'جدول الأعمال' })).getByRole('button', { name: 'اعرض ملخص الاجتماع' }));
       } else {
         await openSummary();
       }
@@ -197,7 +197,7 @@ describe('the summary at the end of the meeting (owner, 2026-10-02)', () => {
 
     it('writes the action line in Arabic', async () => {
       const { group, lead } = await actionThenSummary(true);
-      expect(group.getByText(`إجراء: Update the permit tracker · ${lead} · ${formatDay('2026-10-06', 'ar', 'withWeekday')}`)).toBeInTheDocument();
+      expect(group.getByText(`مهمة: Update the permit tracker · ${lead} · ${formatDay('2026-10-06', 'ar', 'withWeekday')}`)).toBeInTheDocument();
     });
   });
 

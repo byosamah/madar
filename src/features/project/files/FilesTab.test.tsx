@@ -219,9 +219,9 @@ describe('the Files tab with the limit of the file store (plan 2b, point 1)', ()
   it('says the same in Arabic, right to left, with no Retry for a file that can never fit', async () => {
     await renderReal({ language: 'ar' });
     await waitFor(() => expect(document.documentElement.dir).toBe('rtl'));
-    await userEvent.upload(await screen.findByLabelText('رفع ملفات'), bigFile());
+    await userEvent.upload(await screen.findByLabelText('ارفع ملفات'), bigFile());
     expect(await screen.findByText('حجم Site model.rvt أكبر من 50 ميغابايت.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'إعادة المحاولة' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'حاول مرة أخرى' })).toBeNull();
   });
 
   it('shows one Retry when the upload to the store fails, and Retry saves the file', async () => {

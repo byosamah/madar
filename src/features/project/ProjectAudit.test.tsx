@@ -710,8 +710,8 @@ describe('a deadline can change (audit 2026-10-03, PRJ-13; Edit word, V-23)', ()
 
   it('says Edit in Arabic too, the word of every other edit (audit 2026-10-03, V-23)', () => {
     const ar = initI18n('ar');
-    expect(ar.t('schedule.editDeadlineTitle')).toBe('تعديل الموعد');
-    expect(ar.t('schedule.editDeadline', { name: 'تقديم بلدي' })).toBe('تعديل تقديم بلدي');
+    expect(ar.t('schedule.editDeadlineTitle')).toBe('عدّل الموعد');
+    expect(ar.t('schedule.editDeadline', { name: 'تقديم بلدي' })).toBe('عدّل تقديم بلدي');
     initI18n('en');
   });
 

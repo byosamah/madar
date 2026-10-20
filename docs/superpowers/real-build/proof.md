@@ -1042,6 +1042,17 @@ walk caught the answer: a whole-batch 500 "Something went wrong" for the Admin, 
   new phone bar.
 - Reports: fbk_028, fbk_029 and fbk_031 wait for the owner's word that the release is live, then `feedback.setStatus` done.
 
+### Production at 15a9815 (2026-10-20, the owner ran it)
+- The release: the Arabic rewrite in the Thmanyah style (50093ad: 571 strings of the word files, the test pins, the mail
+  snapshots and the rules in `src/i18n/CLAUDE.md`) and the What's new line 2026-10-23-32 (15a9815). No migration. `all.sh test`
+  put the same commit on the test copy (the quick checks passed). The deploy suite did not run on 15a9815: only words changed,
+  and the unit tests of the touched folders were green (363 of 364 files at the first run, the last pin fixed, then green).
+- One run of `all.sh production` (the owner ran it): the database was up to date, then the settings, the secrets, the
+  functions, the Worker and Pages (f1ec40c5). The checks passed: the health from `supabase` with 146 calls and the R2 file
+  store, the database check, and `POST /mcp` with no token 401. The page answers 200 with the title Madar, and
+  `/favicon.ico` 200.
+- The commit of this record changes HEAD, so the next production needs `all.sh test` again.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 

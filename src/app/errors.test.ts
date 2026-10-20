@@ -19,7 +19,7 @@ describe('errorMessage', () => {
     const refusal = invalid('status', 'x', 'review_send_back');
     expect(errorMessage(refusal, en.t.bind(en))).toBe('This task is in review. Use Send back and write a note for the lead.');
     const ar = initI18n('ar');
-    expect(errorMessage(refusal, ar.t.bind(ar))).toBe('هذه المهمة قيد المراجعة. استخدم «إعادة للتعديل» واكتب ملاحظة للمسؤول الرئيسي عنها.');
+    expect(errorMessage(refusal, ar.t.bind(ar))).toBe('هذه المهمة قيد المراجعة. اضغط «أعدها للتعديل» واكتب ملاحظة للمسؤول الرئيسي عنها.');
   });
 
   it('has a text in both languages for every error code and every server reason (plan, T0.3)', () => {

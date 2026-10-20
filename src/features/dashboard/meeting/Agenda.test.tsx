@@ -234,7 +234,7 @@ describe('the meeting agenda (owner, 2026-10-02)', () => {
       state.users.usr_001.preferences.language = 'ar';
     });
     await screen.findByRole('article', { name: 'Al Waha Clinic Fit-out' });
-    await userEvent.click(screen.getByRole('button', { name: 'تخطي' }));
+    await userEvent.click(screen.getByRole('button', { name: 'أجّل' }));
     expect(await screen.findByText('نُقل Al Waha Clinic Fit-out إلى آخر جدول الأعمال.')).toBeInTheDocument();
   });
 

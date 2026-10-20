@@ -206,8 +206,8 @@ describe('Arabic, right to left', () => {
     await renderApp('/inbox', inArabic);
     await openTower(ar.chat.list);
     expect(document.documentElement).toHaveAttribute('dir', 'rtl');
-    await userEvent.click(within(row()).getByRole('button', { name: 'إجراءات هذه الرسالة' }));
-    const menu = screen.getByRole('menu', { name: 'إجراءات هذه الرسالة' });
+    await userEvent.click(within(row()).getByRole('button', { name: 'خيارات هذه الرسالة' }));
+    const menu = screen.getByRole('menu', { name: 'خيارات هذه الرسالة' });
     expect(within(menu).getByRole('group', { name: 'التفاعلات' })).toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
     await menuGone();

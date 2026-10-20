@@ -50,7 +50,7 @@ describe('the workload grid', () => {
       state.users.usr_001.preferences.language = 'ar';
     });
     const grid = await screen.findByRole('region', { name: 'عبء العمل' });
-    expect(within(grid).getByText('شخصان ليس لديهما مهام في هذه الأسابيع')).toBeInTheDocument();
+    expect(within(grid).getByText('لا مهام لدى شخصين في هذه الأسابيع')).toBeInTheDocument();
   });
 
   it('names one task in the singular in the cell label (audit 2026-10-03, F-10)', async () => {

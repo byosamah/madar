@@ -152,7 +152,7 @@ describe('Settings, Agents (plan 5.6; task G4)', () => {
     const { container } = await open(setup(), 'ar');
     expect(await screen.findByRole('heading', { level: 2, name: 'الوكلاء' })).toBeInTheDocument();
     expect(document.documentElement.dir).toBe('rtl');
-    expect(await screen.findByRole('button', { name: 'إزالة Claude Code' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'أزل Claude Code' })).toBeInTheDocument();
     expectCalm(container, { titleLevel: 2 });
   });
 });

@@ -88,7 +88,7 @@ describe('Notify me in the chat menu', () => {
       state.users.usr_001.preferences.language = 'ar';
     });
     await screen.findByRole('log');
-    const buttons = screen.getAllByRole('button', { name: /^خيارات/ });
+    const buttons = screen.getAllByRole('button', { name: /^خيارات(?! هذه الرسالة)/ });
     await userEvent.click(buttons[buttons.length - 1]);
     expect(await screen.findByRole('menuitemradio', { name: 'فقط عندما يذكرني أحد' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByRole('menuitemradio', { name: 'كل الرسائل' })).toHaveAttribute('aria-checked', 'false');

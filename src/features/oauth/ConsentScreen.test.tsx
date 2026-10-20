@@ -107,11 +107,11 @@ describe('the agent consent screen (plan 5.6; task G4)', () => {
 
     it('keeps the calm rules in Arabic, right to left, after the refusal', async () => {
       const { container } = await open({ tools: removed(), language: 'ar' });
-      await userEvent.click(await screen.findByRole('button', { name: 'موافقة' }));
+      await userEvent.click(await screen.findByRole('button', { name: 'وافق' }));
       expect(await screen.findByRole('alert')).toHaveTextContent('أزلت هذا التطبيق في مدار. في تطبيق الذكاء الاصطناعي، أزل ربط مدار ثم أضفه مرة أخرى.');
       expect(document.documentElement.dir).toBe('rtl');
-      expect(screen.queryByRole('button', { name: 'موافقة' })).toBeNull();
-      expect(within(container.querySelector('.panel') as HTMLElement).getAllByRole('button').map((b) => b.textContent)).toEqual(['رفض']);
+      expect(screen.queryByRole('button', { name: 'وافق' })).toBeNull();
+      expect(within(container.querySelector('.panel') as HTMLElement).getAllByRole('button').map((b) => b.textContent)).toEqual(['ارفض']);
       expectCalm(container);
     });
   });
@@ -220,7 +220,7 @@ describe('the agent consent screen (plan 5.6; task G4)', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'هل تربط Claude Code بمدار؟' })).toBeInTheDocument();
     expect(document.documentElement.dir).toBe('rtl');
     expect(screen.getByText(/لا يعرف مدار العنوان/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'موافقة' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'وافق' })).toBeInTheDocument();
     expectCalm(container);
   });
 

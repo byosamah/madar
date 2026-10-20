@@ -1,0 +1,10 @@
+{
+  "whatsNew": {
+    "items": {
+      "2026-10-23-32": {
+        "title": "Clearer Arabic",
+        "body": "The Arabic screens use plainer words now. A button tells you what it does, for example Save or Delete. A message says in a few words what happened. The Arabic and English screens work the same way."
+      }
+    }
+  }
+}

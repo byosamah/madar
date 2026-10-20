@@ -2,13 +2,13 @@
   "profile": {
     "nameEn": "الاسم بالإنجليزية",
     "nameAr": "الاسم بالعربية",
-    "addPicture": "إضافة صورة",
-    "changePicture": "تغيير الصورة",
-    "removePicture": "إزالة الصورة",
+    "addPicture": "أضف صورة",
+    "changePicture": "غيّر الصورة",
+    "removePicture": "أزل الصورة",
     "choosePicture": "اختر صورة",
     "pictureSaved": "حُفظت الصورة.",
     "pictureRemoved": "أُزيلت الصورة.",
-    "pictureUnreadable": "لا يستطيع مدار قراءة هذه الصورة. اختر صورة بصيغة أخرى.",
+    "pictureUnreadable": "لا يستطيع مدار قراءة هذه الصورة. اختر صورة بصيغة JPEG أو PNG أو WebP.",
     "pictureTooBig": "لا يستطيع مدار تصغير هذه الصورة بما يكفي. اختر صورة أخرى.",
     "errors": {
       "nameAr": "اكتب الاسم بالعربية."

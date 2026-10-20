@@ -54,11 +54,11 @@ describe('the Forgot password screen (plan 5.1, client map 7.1)', () => {
     expectCalm(english.container);
     english.unmount();
     const arabic = await renderAuth('/forgot', { auth: auth(), language: 'ar' });
-    expect(await screen.findByRole('heading', { level: 1, name: 'إعادة تعيين كلمة المرور' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'أعد تعيين كلمة المرور' })).toBeInTheDocument();
     expect(document.documentElement.dir).toBe('rtl');
     expectCalm(arabic.container);
     await userEvent.type(screen.getByLabelText('البريد الإلكتروني'), 'hala.nasser@madar.test');
-    await userEvent.click(screen.getByRole('button', { name: 'إرسال الرابط' }));
+    await userEvent.click(screen.getByRole('button', { name: 'أرسل الرابط' }));
     expect(await screen.findByRole('status')).toHaveTextContent('إن كان لهذا البريد حساب في مدار');
     expectCalm(arabic.container);
   });

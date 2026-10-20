@@ -29,6 +29,22 @@ speaker, so write it as natural Arabic, not as a word-for-word copy of the Engli
 - Western digits and the Gregorian calendar in both languages (`ar-SA-u-ca-gregory-nu-latn`).
 - Office time is UTC+3. The work week is Sunday to Thursday.
 - Gentle words: "3 days past due", never "Overdue".
+
+## Arabic style (Thmanyah, owner, 2026-10-20)
+All Arabic follows the Thmanyah rules of the owner's global guide. The audit of 2026-10-20 rewrote 571 of 2,729 strings with them.
+- Plain standard Arabic. No dialect. One idea in each sentence, 14 words or less.
+- A button, a menu line and a title that names an action is a verb in the imperative: «احفظ», «احذف», «أضف», «افتح»,
+  «عدّل», «أرسل», «حاول مرة أخرى». «إلغاء» and «تراجع» stay as they are. A name (tab, screen, column, right) stays a noun.
+- A confirmation is a short passive verb with its vowel mark, never «تم» or «يتم»: «حُفظ ملفك.», «حُذف القالب.», «أُضيف الموعد.».
+  Where the name of a person follows and the verb cannot agree, put the verb first: «أُضيف إلى الفريق: {{name}}».
+  «نا» always means the office («ردنا», «رددنا»). The screen never says «حفظنا».
+- Talk to the reader: «ملفك», «مهامك», «ارجع». A switch for a notice starts with «عندما».
+- One word for one thing. Admin = «مدير النظام» (never «المدير»). Dashboard = «لوحة المعلومات». Workload = «عبء العمل».
+  Menu of options = «خيارات» (never «إجراءات»). Filter = «تصفية». Acts for = «باسم». Meeting task = «مهمة».
+  Past due = «تجاوزت موعدها». Lead of a task = «المسؤول الرئيسي». Resume (a paused project) = «استئناف».
+- Digits are Western («3», never «٣» or «ثلاثة» for a count in the UI). Tanween sits before the alif («أولًا», «كاملًا»).
+- Avoid «من خلال», «بواسطة», «يرجى», «الخاص بك», «إجراء», «عملية». Write «لا تحتاج إلى فعل شيء», not «لا يلزم أي إجراء».
+- A text that names a button writes the same label as the button, between «». Check it after a rename.
 - RTL: the layout uses logical classes only. Never put a left or right style next to a word.
 - A language switch calls `withWords(language, apply)`, so the direction and the words change together. The bundle check
   fails a remote first load that holds the words.

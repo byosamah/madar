@@ -132,7 +132,7 @@ describe('the morning email with the open tasks, through the outbox driver', () 
     expect(text).toContain('- Update the door schedule\n  260902AZT \u00b7 الأربعاء، 7 أكتوبر');
     expect(text).toContain('مراجعة واحدة بانتظارك.');
     expect(text).not.toContain('more');
-    expect(text).toContain('فتح مدار: https://madar.test/work');
+    expect(text).toContain('افتح مدار: https://madar.test/work');
   });
 
   it('sends one mail for one person and one day when the job runs twice', async () => {

@@ -148,7 +148,7 @@ describe('the sign-in gate of the remote build (plan U2, client map 7.3)', () =>
     await screen.findByRole('form', { name: 'انشر تحديثًا' });
     act(() => arabic.auth.expire());
     const open = await screen.findByRole('dialog', { name: 'انتهت جلستك' });
-    expect(within(open).getByRole('button', { name: 'متابعة' })).toBeInTheDocument();
+    expect(within(open).getByRole('button', { name: 'تابع' })).toBeInTheDocument();
     expectCalm(open, { titleLevel: 2 });
   });
 

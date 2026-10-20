@@ -33,7 +33,7 @@ describe('the language switch of the sign-in screens (performance audit BND-7)',
     expect(window.localStorage.getItem('madar.lang')).toBeNull();
 
     open();
-    expect(await screen.findByRole('heading', { level: 1, name: 'تسجيل الدخول إلى مدار' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'سجّل الدخول إلى مدار' })).toBeInTheDocument();
     expect(document.documentElement.dir).toBe('rtl');
     expect(document.documentElement.lang).toBe('ar');
     expect(window.localStorage.getItem('madar.lang')).toBe('ar');
