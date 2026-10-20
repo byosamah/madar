@@ -21,6 +21,10 @@ export type NotifyInput = {
   dueDate?: string;
   /** The kind and the excerpt of a report (owner, 2026-10-07). */
   feedback?: NoticeFeedback;
+  /** The chat message or the task comment that the notice points to, so a press opens the chat at that message (chat design item 17). */
+  messageId?: string;
+  /** True on the notice of a reply: the person wrote the message that this one answers (chat design item 10). */
+  reply?: true;
   /** What happened to the meeting of a meeting_invited notice (fbk_022). */
   meeting?: Notification['meeting'];
 };
@@ -98,6 +102,8 @@ export function notify(state: State, actor: User | null, stamp: string, input: N
       ...(input.correlationId ? { correlationId: input.correlationId } : {}),
       ...(input.dueDate ? { dueDate: input.dueDate } : {}),
       ...(input.feedback ? { feedback: { ...input.feedback } } : {}),
+      ...(input.messageId ? { messageId: input.messageId } : {}),
+      ...(input.reply ? { reply: true as const } : {}),
       ...(input.meeting ? { meeting: { ...input.meeting } } : {}),
     };
     state.notifications[id] = notification;

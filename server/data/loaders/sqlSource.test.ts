@@ -30,6 +30,33 @@ describe('the time bound of atOrAfter (DB-1)', () => {
   });
 });
 
+describe('the rows after one row, oldest first, and contains as a LIKE (chat design 2026-10-19, item 17)', () => {
+  it('reads the rows after one row, oldest first (open at one message)', () => {
+    const { text, values } = selectSql({
+      c: 'messages', where: [{ col: 'conversation_id', in: ['cnv_001'] }, { after: { at: '2026-10-04T10:00:00.000+03:00', id: 'msg_010' } }],
+      order: { col: 'created_at', asc: true, id: true }, limit: 479,
+    });
+    expect(text).toContain('(t.created_at collate "C" > $2::text or (t.created_at = $2::text and t.id collate "C" > $3::text))');
+    expect(text).toContain('row_number() over (order by t.created_at collate "C" asc, t.id collate "C" asc, t.ord asc)');
+    expect(values).toEqual([['cnv_001'], '2026-10-04T10:00:00.000+03:00', 'msg_010', 479]);
+  });
+
+  it('sends contains as LIKE with its wildcards escaped, so a trigram index can serve it', () => {
+    const { text, values } = selectSql({ c: 'tasks', where: [{ col: 'search_text', contains: '50%_off\\' }] });
+    expect(text).toContain('t.search_text like $1::text');
+    expect(values).toEqual(['%50\\%\\_off\\\\%']);
+  });
+
+  it('refuses an ascending read with ties', () => {
+    expect(() => selectSql({ c: 'messages', where: [], order: { col: 'created_at', asc: true }, limit: 2, ties: true })).toThrow('An ascending read takes no ties.');
+  });
+
+  it('gives a per read the ascending order in its LATERAL form too', () => {
+    const { text } = selectSql({ c: 'messages', where: [{ col: 'conversation_id', in: ['cnv_001'] }], order: { col: 'created_at', asc: true, id: true }, per: 'conversation_id', limit: 3 });
+    expect(text).toContain('order by t.created_at collate "C" asc, t.id collate "C" asc, t.ord asc limit $2::int) x order by x.ord');
+  });
+});
+
 describe('the newest rows of each key (DB-2)', () => {
   const feed: Select = {
     c: 'events', where: [{ col: 'project_id', in: ['prj_001', 'prj_002'] }, { col: 'verb', in: ['task.created'] }, { notUndone: true }],

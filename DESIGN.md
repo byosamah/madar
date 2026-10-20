@@ -29,6 +29,11 @@ colors:
   on-surface-variant-dark: "#A1A1A6"
   outline-dark: "#26262B"
   link-dark: "#4DA3FF"
+  # A chat message or a comment that names the reader: a soft lilac tint with a 3 px bar on its start side. Only the reader sees it.
+  mention: "#F4EDFF"
+  mention-bar: "#7E22CE"
+  mention-dark: "#2D2442"
+  mention-bar-dark: "#C29BFF"
   # State words. Red is only for Late and for errors.
   error: "#B42318"
   error-container: "#FDECEC"
@@ -273,6 +278,17 @@ components:
     textColor: "{colors.link}"
   link-dark:
     textColor: "{colors.link-dark}"
+  message-names-you:
+    backgroundColor: "{colors.mention}"
+    textColor: "{colors.on-surface}"
+  message-names-you-bar:
+    backgroundColor: "{colors.mention-bar}"
+    width: 3px
+  message-names-you-dark:
+    backgroundColor: "{colors.mention-dark}"
+    textColor: "{colors.on-surface-dark}"
+  message-names-you-bar-dark:
+    backgroundColor: "{colors.mention-bar-dark}"
   divider:
     backgroundColor: "{colors.outline}"
     height: 1px
@@ -392,6 +408,7 @@ One ink, one signature, quiet states. Colour carries meaning, never decoration.
   {colors.fill-strong} on hover. In code both fills are translucent grey (12% and 20%), so they read the same on a
   panel, on the page and in the dark theme; the token values are their result on a white panel.
 - **Links** use {colors.link} ({colors.link-dark} in dark). The focus ring uses the same blue.
+- **Names you:** a chat message or a comment that names the reader sits on {colors.mention} with a 3 px {colors.mention-bar} bar on its start side ({colors.mention-dark} and {colors.mention-bar-dark} in dark). Only the reader sees it. No motion, no red.
 - **State words:** "past due" and "at risk" use the attention orange {colors.attention} on {colors.attention-container}.
   "Late" and errors use {colors.error} on {colors.error-container}. Done uses {colors.success}. Red appears for Late and
   for errors only; a date that slipped is a fact to handle, not an alarm.

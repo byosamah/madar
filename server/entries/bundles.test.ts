@@ -149,8 +149,10 @@ describe('the minified function bundles (performance audit SRV-11)', () => {
   it('builds the api bundle minified, and it still answers a preflight', async () => {
     const file = await build('api', 'server/entries/deno-api.ts', join(OUT, 'api'));
     const text = readFileSync(file, 'utf8');
-    // 687,737 before the Google Calendar sync (fbk_022); the sync and its client added about 26,000 (713,337).
-    expect(text.length).toBeLessThan(750_000);
+    // The bound proves the minify: a bundle that is not minified is far larger. The chat batch of 2026-10-19 (search, the push rules,
+    // edit and delete, Notify me) took the minified bundle from about 688,000 to 711,111 characters, so the bound is 760,000.
+    // The Google Calendar sync and its client (fbk_022) added about 26,000 on their own branch (713,337 there). Both together after the join of 2026-10-20: 748,238.
+    expect(text.length).toBeLessThan(760_000);
     expect(text.includes('JWTExpired')).toBe(true);
     expect(text.includes('@param {import(')).toBe(false);
     expect(checkBundles('server', dirname(file)).ok).toBe(true);

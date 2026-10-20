@@ -49,6 +49,9 @@ function rest(office: State): Record<string, [unknown, string?]> {
   const waiting = Object.values(office.tracker ?? {}).find((e) => e.closedAt === null && e.waiting === 'us');
   const ownEvent = Object.values(office.events).filter((e) => e.actingForId === ADMIN && e.undoneBy === null).at(-1);
   const plan = Object.values(office.projectTemplates ?? {}).find((t) => t.tasks.length > 0)!;
+  // Two messages of a person (not of an agent) for the author-only calls. The reaction of the sweep sits on the newest message of the
+  // project chat cnv_001, so these two (the oldest of the office) are never the one that a reaction needs live.
+  const [talk, gone] = Object.values(office.messages).filter((m) => m.authorId === m.actingForId && office.users[m.actingForId]?.active);
   // The meeting that the three calls change: the first of the office, else the one that meetings.create makes first.
   const meeting = Object.values(office.meetings ?? {})[0]?.id ?? 'mtg_001';
   return {
@@ -99,6 +102,9 @@ function rest(office: State): Record<string, [unknown, string?]> {
     'chats.leaveGroup': [{ conversationId: 'cnv_001' }],
     'chats.archive': [{ conversationId: 'cnv_001', archived: true }],
     'chats.markUnread': [{ conversationId: 'cnv_001' }],
+    'chats.editMessage': [{ id: talk.id, body: 'A corrected line' }, talk.actingForId],
+    'chats.deleteMessage': [{ id: gone.id }, gone.actingForId],
+    'chats.setNotify': [{ conversationId: 'cnv_001', notify: 'all' }],
     'stageTemplates.list': [{}],
     'stageTemplates.save': [{ name: 'Short', stages: ['Concept', 'Design'] }],
     'stageTemplates.delete': [{ id: 'stt_002' }],

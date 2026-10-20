@@ -4,6 +4,7 @@ import {
   ProjectTemplate, PushDevice, Settings, Stage, StageTemplate, SubCompany, Task, TaskTemplate, Team, TrackerEntry, Update, User,
 } from '../../src/api/contract/entities';
 import { chatReadKey, memberKey, type State } from '../../src/api/store';
+import { bodySearchText } from '../../src/lib/searchMatch';
 import { normalizeForSearch } from '../../src/lib/text';
 import { OFFICE_COLLECTIONS } from '../core/types';
 
@@ -75,13 +76,20 @@ const TABLE_OF: { [C in TableCollection]: Omit<TableSpec, 'collection' | 'office
         const target = rec.targetType === 'task' ? state.tasks[rec.targetId as string] : state.updates[rec.targetId as string];
         return target?.projectId ?? null;
       },
+      // The folded body, for the message search (chat design 2026-10-19, item 16). The loader picks the comments of tasks.
+      search_text: (rec) => bodySearchText(rec.body as string),
     },
   },
   files: { table: 'files', key: byId, schema: FileRec, serverColumns: { search_text: (rec) => searchText(rec.name) } },
   tracker: { table: 'tracker', key: byId, schema: TrackerEntry },
   payments: { table: 'payments', key: byId, schema: Payment },
   notifications: { table: 'notifications', key: byId, schema: Notification },
-  messages: { table: 'messages', key: byId, schema: Message },
+  messages: {
+    table: 'messages', key: byId, schema: Message,
+    // The folded body, for the message search (chat design 2026-10-19, item 16). A deleted message keeps none, so no SQL read finds it;
+    // the Undo writes the column again with the record.
+    serverColumns: { search_text: (rec) => (typeof rec.deletedAt === 'string' ? null : bodySearchText(rec.body as string)) },
+  },
   chatReads: { table: 'chat_reads', key: (rec) => chatReadKey(rec.conversationId as string, rec.userId as string), schema: ChatRead },
   events: { table: 'events', key: byId, schema: Event },
 };

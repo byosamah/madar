@@ -9,6 +9,8 @@ import { nowStamp } from '../../src/lib/dates';
 import { fakeDeps, type FakeDeps } from '../test/fakes/deps';
 import { runInHost } from './after';
 import { diffState } from '../data/save';
+import { CHAT_NOTICE_EFFECT } from '../mail/notices';
+import { PUSH_CHAT_EFFECT } from '../push/notify';
 import { registerOutbox } from './effects';
 import { EXPECTED_REFUSALS, everyCall } from './everyCall';
 import { memoryData, type MemoryData } from './memoryData';
@@ -547,6 +549,37 @@ describe('runCall: hooks and effects (plan 4.5, steps 5.1, 5.5 and 6; plan 4.12)
       expect(ran).toEqual([['1']]);
       expect((await call(ADMIN, 'clients.create', { name: 'No host' })).ok).toBe(true);
       expect(ran).toEqual([['1'], ['2']]);
+    });
+
+    it('waits CHAT_WAIT_MS after the answer for a push.chat or mail.chatNotice row, on a chain of its own (item 20)', async () => {
+      undo.push(registerOutbox('clients.create', async () => [
+        { kind: PUSH_CHAT_EFFECT, payload: { userId: 'usr_002', items: [] } },
+        { kind: 'mail.notice', payload: { notificationId: 'ntf_900' } },
+        { kind: CHAT_NOTICE_EFFECT, payload: { notificationId: 'ntf_901' } },
+      ]));
+      const ran: string[][] = [];
+      const waits: number[] = [];
+      let open: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => (open = resolve));
+      const { call } = setup({ afterCommit: async (_deps, ids) => void ran.push(ids), wait: (ms) => { waits.push(ms); return gate; } });
+      const later: Promise<unknown>[] = [];
+      expect((await runInHost({ host: 'workers', after: (work) => void later.push(work) }, () => call(ADMIN, 'clients.create', { name: 'With a chat push' }))).ok).toBe(true);
+      expect(waits).toEqual([10_000]);
+      expect(later).toHaveLength(2);
+      await later[0];
+      expect(ran).toEqual([['2']]);
+      open();
+      await Promise.all(later);
+      expect(ran).toEqual([['2'], ['1', '3']]);
+    });
+
+    it('runs a waited row before the answer, with no wait, when the host has no after', async () => {
+      undo.push(registerOutbox('clients.create', async () => [{ kind: PUSH_CHAT_EFFECT, payload: { userId: 'usr_002', items: [] } }]));
+      const ran: string[][] = [];
+      const waits: number[] = [];
+      const { call } = setup({ afterCommit: async (_deps, ids) => void ran.push(ids), wait: async (ms) => void waits.push(ms) });
+      expect((await call(ADMIN, 'clients.create', { name: 'No host' })).ok).toBe(true);
+      expect([waits, ran]).toEqual([[], [['1']]]);
     });
 
     it('logs the same warning when the mail work fails after the answer, and the answer stays', async () => {

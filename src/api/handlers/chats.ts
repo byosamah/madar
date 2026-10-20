@@ -1,14 +1,17 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ConversationId, FileId, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, TaskId, UserId, type Comment, type Conversation, type GroupLogEntry, type Message, type Project, type Task, type User } from '../contract/entities';
+import { ConversationId, FileId, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, NotifyLevel, TaskId, UserId, emptyReactions, type Comment, type Conversation, type GroupLogEntry, type Message, type Project, type Reaction, type Task, type User } from '../contract/entities';
 import { ChatRow, ChatThread, MessageView, WaitingRow, type GroupLine } from '../contract/views';
+import { messagePageAround } from '../chatAround';
 import { addDirectConversation, addGroupConversation, canSeeConversation, closedChatError, isArchived, markedUnread, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, personLeft, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
+import { isLiveMessage, namesPerson, notifyLevelOf, replyRefOf } from '../chatNaming';
 import { notifyIn } from '../notify';
 import { can, mayViewTask, principalOf } from '../permissions';
 import { chatReadKey, nextId, unreadCountKey, type State } from '../store';
 import { attachmentsOf, cardOf, mayViewFile } from '../views';
 import { assertFilesForDirect, assertFilesInProject } from './attach';
+import { replyNotHere } from './shared';
 import { isLine, lineKindOf } from '../../lib/commentLine';
 import { mentionedUserIds, plainText } from '../../lib/text';
 import { listFormat } from '../../lib/dates';
@@ -23,16 +26,13 @@ const previewOf = (body: string): string => {
 };
 
 /**
- * The chat the person may open. A group that the person may not open answers as a missing chat, so an outsider learns nothing
- * of it (Review Focus 1, owner rule of 2026-10-18). A project or direct chat keeps its answer.
+ * The chat the person may open. A chat that the person may not open answers as a missing chat, whatever its kind: a direct chat, a
+ * group and a project chat alike, so an outsider learns nothing of it, not even that the id exists (owner rule of 2026-10-18 for a
+ * group, chat design 2026-10-19, item 17, for the others). The answer equals the one for an id that was never made.
  */
 function requireConversation(ctx: Ctx, id: string): Conversation {
   const conversation = ctx.state.conversations[id];
-  if (!conversation) throw notFound('Conversation', id);
-  if (!canSeeConversation(ctx.state, conversation, ctx.authority)) {
-    if (conversation.kind === 'group') throw notFound('Conversation', id);
-    throw forbidden('You cannot open this chat.', { conversationId: id });
-  }
+  if (!conversation || !canSeeConversation(ctx.state, conversation, ctx.authority)) throw notFound('Conversation', id);
   return conversation;
 }
 
@@ -183,6 +183,8 @@ function messageViewOf(state: State, message: Message, viewer: User): MessageVie
     actingFor: message.actingForId !== message.authorId ? cardOf(state, message.actingForId) : null,
     mine: isMine(state, message, viewer.id),
     files: attachmentsOf(state, fileIds),
+    replyTo: replyRefOf(state, message, viewer.id),
+    namesMe: namesPerson(state, message, viewer.id),
   };
 }
 
@@ -208,12 +210,31 @@ function markReadNow(ctx: Ctx, conversation: Conversation): void {
   writeReadMark(ctx, conversation.id, messagesOf(ctx.state, conversation.id).at(-1)?.createdAt);
 }
 
+/**
+ * A read of a chat or a task thread also reads its mention notices (chat design item 20): the unread notices of the person with the
+ * trigger "mention" (a reply notice has it too) that point to this chat or task. The bell then shows nothing the person has seen,
+ * and the mention mail and push of the 10-second wait find the notice read. Notices of other chats, and every other trigger (for
+ * example added_to_group), stay as they are. chats.send does not call this: its loader loads no notices, and the open chat marked them.
+ */
+function readMentionNotices(ctx: Ctx, chatId: string): void {
+  const targetType = chatId.startsWith('tsk_') ? 'task' : 'chat';
+  for (const notice of Object.values(ctx.state.notifications)) {
+    if (notice.userId === ctx.authority.id && !notice.read && notice.trigger === 'mention' && notice.targetType === targetType && notice.targetId === chatId) {
+      notice.read = true;
+    }
+  }
+}
+
 export const chatsList = defineCall({
   input: z.object({}),
   output: z.array(ChatRow),
   readOnly: true,
   run(_input, ctx) {
-    const rows = [...visibleConversations(ctx.state, ctx.authority).map((c) => rowOf(ctx.state, c, ctx.authority)), ...taskRows(ctx.state, ctx.authority)];
+    // A direct chat with no message shows only for the person who has a read mark on it, who opened it (chat design 2026-10-19, item 18).
+    const shown = visibleConversations(ctx.state, ctx.authority)
+      .map((c) => rowOf(ctx.state, c, ctx.authority))
+      .filter((row) => row.kind !== 'direct' || row.previewAuthor !== null || ctx.state.chatReads[chatReadKey(row.id, ctx.authority.id)] !== undefined);
+    const rows = [...shown, ...taskRows(ctx.state, ctx.authority)];
     return rows.sort((a, b) => b.lastAt.localeCompare(a.lastAt) || b.id.localeCompare(a.id));
   },
 });
@@ -240,17 +261,22 @@ export const chatsMessages = defineCall({
   /**
    * One page of messages (plan 4.13, A5): the newest "limit" messages before the message "before", oldest first.
    * The screen asks for the next page with the id of the oldest message it shows. A page shorter than "limit" is the last one.
+   * "around" (chat design 2026-10-19, item 17) opens the page at one message: 20 messages before it and every newer one, up to 500 in
+   * all; "newer" says that more follow. A message that is no live message of this chat gives the newest page, with no error.
    */
   input: z.object({
     conversationId: ConversationId,
     before: MessageId.optional(),
+    around: MessageId.optional(),
     limit: z.number().int().min(1).max(MESSAGE_PAGE_MAX).default(MESSAGE_PAGE),
   }),
   output: ChatThread,
   readOnly: true,
   run(input, ctx) {
     const conversation = requireConversation(ctx, input.conversationId);
-    const page = messagePage(ctx.state, conversation.id, input.limit, input.before);
+    if (input.around !== undefined && input.before !== undefined) throw invalid('around', 'Give around or before, not both.');
+    const around = input.around === undefined ? null : messagePageAround(ctx.state, conversation.id, input.limit, input.around);
+    const page = around?.page ?? messagePage(ctx.state, conversation.id, input.limit, input.before);
     if (!page) throw invalid('before', 'This message is not in this chat.');
     const people = Object.values(ctx.state.users)
       .filter((u) => u.kind === 'human' && u.id !== ctx.authority.id && canSeeConversation(ctx.state, conversation, u))
@@ -260,12 +286,37 @@ export const chatsMessages = defineCall({
       people,
       messages: page.map((m) => messageViewOf(ctx.state, m, ctx.authority)),
       lines: conversation.kind === 'group' ? linesOf(ctx.state, conversation) : [],
+      // The read time before this read (the read itself marks nothing, but the open of the screen does), for the "New" line.
+      readUpTo: ctx.state.chatReads[chatReadKey(conversation.id, ctx.authority.id)]?.lastReadAt ?? null,
+      notify: notifyLevelOf(ctx.state, conversation, ctx.authority.id),
+      newer: around?.newer ?? false,
     };
   },
 });
 
+/**
+ * The people that a message body names (chat design items 4 and 10): the active people of the chat whom the text names with @, and
+ * the author of the old message when the message is a reply. A reply names the person behind the old message, unless that is the
+ * sender, or the person left, or cannot open the chat. A person named in the text too has the one plain notice, so "replyOnly" is the
+ * reply author named by the reply alone. "mentions" is the list the message keeps.
+ */
+function namesIn(ctx: Ctx, conversation: Conversation, body: string, old: Message | undefined): { named: string[]; replyOnly: string | undefined; mentions: string[] } {
+  const named = mentionedUserIds(body).filter((id) => {
+    const user = ctx.state.users[id];
+    return user?.active === true && canSeeConversation(ctx.state, conversation, user);
+  });
+  const replyUser = old === undefined ? undefined : ctx.state.users[old.actingForId];
+  const replyAuthor = replyUser !== undefined && replyUser.id !== ctx.authority.id && replyUser.active && canSeeConversation(ctx.state, conversation, replyUser)
+    ? replyUser.id : undefined;
+  const replyOnly = replyAuthor !== undefined && !named.includes(replyAuthor) ? replyAuthor : undefined;
+  return { named, replyOnly, mentions: replyOnly === undefined ? named : [...named, replyOnly] };
+}
+
 /** Checks the files of a message against the room, then stores the message. A project room takes files of its project. A direct room takes files that both people may open. */
-export function postMessage(ctx: Ctx, conversation: Conversation, body: string, fileIds: string[]): MessageView {
+export function postMessage(ctx: Ctx, conversation: Conversation, body: string, fileIds: string[], replyToId?: string): MessageView {
+  // A reply answers a live message of the same chat. Every other case gives one refusal, so the answer never tells that an id exists elsewhere.
+  const old = replyToId === undefined ? undefined : ctx.state.messages[replyToId];
+  if (replyToId !== undefined && (!old || !isLiveMessage(old) || old.conversationId !== conversation.id)) throw replyNotHere();
   // Files are refused unless a rule below allows them.
   if (fileIds.length > 0) {
     if (conversation.kind === 'project') {
@@ -277,17 +328,17 @@ export function postMessage(ctx: Ctx, conversation: Conversation, body: string, 
       assertFilesForDirect(ctx, fileIds, others, conversation.id);
     }
   }
-  const mentions = mentionedUserIds(body).filter((id) => {
-    const user = ctx.state.users[id];
-    return user?.active === true && canSeeConversation(ctx.state, conversation, user);
-  });
+  const { named, replyOnly, mentions } = namesIn(ctx, conversation, body, old);
   const id = nextId(ctx.state, 'msg');
   const message: Message = {
     id, conversationId: conversation.id, authorId: ctx.actor.id, actingForId: ctx.authority.id, body, mentions, fileIds,
-    createdAt: ctx.stamp, editedAt: null,
+    ...(replyToId ? { replyToId } : {}), createdAt: ctx.stamp, editedAt: null,
   };
   ctx.state.messages[id] = message;
-  notifyIn(ctx, { userIds: mentions, trigger: 'mention', targetType: 'chat', targetId: conversation.id });
+  notifyIn(ctx, { userIds: named, trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: id });
+  if (replyOnly !== undefined) {
+    notifyIn(ctx, { userIds: [replyOnly], trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: id, reply: true });
+  }
   markReadNow(ctx, conversation);
   return messageViewOf(ctx.state, message, ctx.authority);
 }
@@ -297,12 +348,14 @@ export const chatsSend = defineCall({
     conversationId: ConversationId,
     body: z.string().trim().min(1).max(MESSAGE_MAX),
     fileIds: z.array(FileId).max(MAX_ATTACHMENTS).default([]),
+    // The message of the same chat that this one answers (chat design item 10). Its author is named.
+    replyToId: MessageId.optional(),
   }),
   output: MessageView,
   run(input, ctx) {
     const conversation = requireConversation(ctx, input.conversationId);
     if (personLeft(ctx.state, conversation, ctx.authority)) throw closedChatError(conversation);
-    return postMessage(ctx, conversation, input.body, input.fileIds);
+    return postMessage(ctx, conversation, input.body, input.fileIds, input.replyToId);
   },
 });
 
@@ -330,6 +383,7 @@ export const chatsMarkRead = defineCall({
   run(input, ctx) {
     if (input.conversationId.startsWith('tsk_')) markTaskReadNow(ctx, input.conversationId);
     else markReadNow(ctx, requireConversation(ctx, input.conversationId));
+    readMentionNotices(ctx, input.conversationId);
     return { unread: totalUnread(ctx.state, ctx.authority) };
   },
 });
@@ -374,13 +428,37 @@ export const chatsArchive = defineCall({
     const id = input.conversationId;
     if (id.startsWith('tsk_')) requireTaskThread(ctx, id);
     else requireConversation(ctx, id);
-    if (input.archived) writeReadMark(ctx, id, undefined);
+    if (input.archived) {
+      writeReadMark(ctx, id, undefined);
+      readMentionNotices(ctx, id);
+    }
     const key = chatReadKey(id, ctx.authority.id);
     const read = ctx.state.chatReads[key];
+    // Every other field of the mark stays, the "Notify me" choice too (chat design item 21).
     ctx.state.chatReads[key] = {
-      conversationId: id, userId: ctx.authority.id, lastReadAt: read?.lastReadAt ?? NEVER_READ, archivedAt: input.archived ? ctx.stamp : null,
+      ...read, conversationId: id, userId: ctx.authority.id, lastReadAt: read?.lastReadAt ?? NEVER_READ, archivedAt: input.archived ? ctx.stamp : null,
     };
     return { archived: input.archived };
+  },
+});
+
+export const chatsSetNotify = defineCall({
+  /**
+   * Keeps the "Notify me" choice of the person for one chat (chat design item 21): "all" pushes every message, "named" pushes only a
+   * message that names the person. A chat only: a task thread has no choice. Only the own read mark changes, every other field of it
+   * stays, and no event, notice or message is written. With no mark yet, the mark holds NEVER_READ, so the chat stays as unread as it
+   * was. The checks are those of chats.markRead, so a hidden chat answers the same way.
+   */
+  input: z.object({ conversationId: ConversationId, notify: NotifyLevel }),
+  output: z.object({ notify: NotifyLevel }),
+  run(input, ctx) {
+    requireConversation(ctx, input.conversationId);
+    const key = chatReadKey(input.conversationId, ctx.authority.id);
+    const read = ctx.state.chatReads[key];
+    ctx.state.chatReads[key] = {
+      ...read, conversationId: input.conversationId, userId: ctx.authority.id, lastReadAt: read?.lastReadAt ?? NEVER_READ, notify: input.notify,
+    };
+    return { notify: input.notify };
   },
 });
 
@@ -404,7 +482,13 @@ export const chatsOpenDirect = defineCall({
   input: z.object({ userId: UserId }),
   output: z.object({ id: ConversationId }),
   run(input, ctx) {
-    return { id: directWith(ctx, requireDirectPartner(ctx, input.userId)).id };
+    const chat = directWith(ctx, requireDirectPartner(ctx, input.userId));
+    // A chat with no message shows only for the person who opened it, who gets a read mark (chat design 2026-10-19, item 18). An agent
+    // writes no mark: its person sees the chat after the first message. A chat with messages, or with a mark, changes nothing.
+    if (ctx.actor.kind === 'human' && messagesOf(ctx.state, chat.id).length === 0 && ctx.state.chatReads[chatReadKey(chat.id, ctx.authority.id)] === undefined) {
+      writeReadMark(ctx, chat.id, undefined);
+    }
+    return { id: chat.id };
   },
 });
 
@@ -532,6 +616,14 @@ const laterThan = (a: { createdAt: string; id: string }, b: { createdAt: string;
 /** The whole days from a stamp to now. */
 const daysSince = (at: string, now: Date): number => Math.max(0, Math.floor((now.getTime() - Date.parse(at)) / DAY_MS));
 
+/**
+ * True when the viewer put a 👍 or a ✅ on the message or comment that waits (chat design item 22): that counts as the answer. A reaction
+ * of an agent of the viewer counts as the viewer's own. A 👀 is no answer: it says "seen", not "done".
+ */
+export function answeredByReaction(state: State, reactions: Partial<Record<Reaction, string[]>> | undefined, viewerId: string): boolean {
+  return (['👍', '✅'] as const).some((emoji) => (reactions?.[emoji] ?? []).some((id) => principalOf(state, id) === viewerId));
+}
+
 /** A chat that waits for the reply of the viewer, with the message that waits. Null when nothing waits. */
 function waitingChat(state: State, conversation: Conversation, viewer: User, now: Date): WaitingRow | null {
   const messages = messagesOf(state, conversation.id);
@@ -541,16 +633,18 @@ function waitingChat(state: State, conversation: Conversation, viewer: User, now
   // A group with nobody else in it takes no reply (UX audit 2026-10-19, chats-11).
   if (conversation.kind === 'group' && personLeft(state, conversation, viewer)) return null;
   let waiting: Message | undefined;
-  if (conversation.kind === 'project') {
-    // A project chat: a message that names the viewer, and is newer than the viewer's newest message.
+  if (conversation.kind === 'direct') {
+    // A direct chat: its newest message came from another person.
+    if (last && !isMine(state, last, viewer.id)) waiting = last;
+  } else {
+    // A group or a project chat: the newest message of another person that names the viewer (an @mention, or a reply to a message of the
+    // viewer, which joined "mentions" when it was sent), and is newer than the viewer's newest message (chat design item 22).
     const own = messages.findLast((m) => isMine(state, m, viewer.id));
-    const named = messages.findLast((m) => m.mentions.includes(viewer.id));
+    const named = messages.findLast((m) => namesPerson(state, m, viewer.id));
     if (named && (!own || laterThan(named, own))) waiting = named;
-  } else if (last && !isMine(state, last, viewer.id)) {
-    // A direct or group chat: its newest message came from another person.
-    waiting = last;
   }
-  if (!waiting) return null;
+  // A 👍 or a ✅ of the viewer on the message that waits is the answer.
+  if (!waiting || answeredByReaction(state, waiting.reactions, viewer.id)) return null;
   const row = rowOf(state, conversation, viewer);
   return {
     kind: conversation.kind, id: conversation.id, title: row.title, project: row.project, from: cardOf(state, waiting.authorId),
@@ -560,9 +654,9 @@ function waitingChat(state: State, conversation: Conversation, viewer: User, now
 
 /**
  * A task thread that waits for the reply of the viewer. Its newest comment came from another person.
- * The viewer leads the task, or a newer comment of another person names the viewer with @. Comments keep
- * no mention list, so the body holds the mention markup. The row shows the newest comment for the lead,
- * and the named comment otherwise.
+ * The viewer leads the task, or a newer comment of another person names the viewer: an @ in the body, or a reply to a comment of the
+ * viewer (namesPerson). Comments keep no mention list, so the body holds the mention markup. The row shows the newest comment for the
+ * lead, and the named comment otherwise. A 👍 or ✅ of the viewer on that comment is the answer (chat design item 22).
  */
 function waitingThread(state: State, thread: TaskThread, viewer: User, now: Date): WaitingRow | null {
   const { task, project } = thread;
@@ -573,8 +667,8 @@ function waitingThread(state: State, thread: TaskThread, viewer: User, now: Date
   if (isArchived(state.chatReads[chatReadKey(task.id, viewer.id)], last.createdAt)) return null;
   const own = comments.findLast((c) => principalOf(state, c.authorId) === viewer.id);
   const others = comments.filter((c) => principalOf(state, c.authorId) !== viewer.id && (!own || laterThan(c, own)));
-  const waiting = task.ownerId === viewer.id ? others.at(-1) : others.findLast((c) => mentionedUserIds(c.body).includes(viewer.id));
-  if (!waiting) return null;
+  const waiting = task.ownerId === viewer.id ? others.at(-1) : others.findLast((c) => namesPerson(state, c, viewer.id));
+  if (!waiting || answeredByReaction(state, waiting.reactions, viewer.id)) return null;
   return {
     kind: 'task', id: task.id, title: task.title, project: project ? { id: project.id, code: project.code, name: project.name, mark: markOf(project) } : null,
     from: cardOf(state, waiting.authorId), body: Array.from(plainText(waiting.body)).slice(0, WAITING_BODY_MAX).join(''),
@@ -584,9 +678,11 @@ function waitingThread(state: State, thread: TaskThread, viewer: User, now: Date
 
 /**
  * The chats and task threads that wait for the reply of the person (fbk_011, owner 2026-10-18), oldest first.
- * - A direct or group chat waits when its newest message came from another person.
- * - A project chat waits when a message that names the person is newer than the person's newest message.
+ * - A direct chat waits when its newest message came from another person.
+ * - A group or a project chat waits when a message that names the person (an @mention or a reply to the person) is newer than the
+ *   person's newest message (design item 22; a group no longer waits for each member).
  * - A task thread waits when its newest comment came from another person, and the person leads the task or is named (see waitingThread).
+ * - In every kind, a 👍 or ✅ of the person on the message that waits is the answer (answeredByReaction).
  * A message or comment of an agent of the person counts as the person's own. An archived chat does not count. A chat or task that
  * the person may not open is never in the list: the chats come from canSeeConversation, the threads from taskThreads.
  */
@@ -616,13 +712,118 @@ export const chatsWaiting = defineCall({
   },
 });
 
+/**
+ * The message by id, for a call that changes it (chat design items 11 and 12). A missing message, a message of a chat that the person
+ * may not open, and (unless "allowDeleted") a deleted message all answer not_found, the same answer for an id that was never made, so
+ * an outsider learns nothing of a chat (Review Focus 5). With "author", a person who is not the author gets forbidden with the reason
+ * not_author: the person can open the chat, so the refusal tells nothing new. An agent's message belongs to its person (isMine).
+ */
+export function requireMessage(ctx: Ctx, id: string, rules: { author: boolean; allowDeleted: boolean }): { message: Message; conversation: Conversation } {
+  const message = ctx.state.messages[id];
+  const conversation = message ? ctx.state.conversations[message.conversationId] : undefined;
+  if (!message || !conversation || !canSeeConversation(ctx.state, conversation, ctx.authority) || (!rules.allowDeleted && !isLiveMessage(message))) {
+    throw notFound('Message', id);
+  }
+  if (rules.author && !isMine(ctx.state, message, ctx.authority.id)) {
+    throw forbidden('You can change only your own messages.', { messageId: id, reason: 'not_author' });
+  }
+  return { message, conversation };
+}
+
+/** The old message that a reply answers, for the names of an edit: the same chat only, also when it is deleted since. */
+function replyTargetOf(ctx: Ctx, message: Message): Message | undefined {
+  const old = message.replyToId === undefined ? undefined : ctx.state.messages[message.replyToId];
+  return old !== undefined && old.conversationId === message.conversationId ? old : undefined;
+}
+
+/** Takes away the notices that point to one message, for the given people only (every person when "userIds" is left out). */
+function dropMessageNotices(ctx: Ctx, message: Message, userIds?: readonly string[]): void {
+  for (const [key, notice] of Object.entries(ctx.state.notifications)) {
+    if (notice.targetType !== 'chat' || notice.targetId !== message.conversationId || notice.messageId !== message.id) continue;
+    if (userIds === undefined || userIds.includes(notice.userId)) delete ctx.state.notifications[key];
+  }
+}
+
+/**
+ * Toggles the reaction of the person behind the call on a chat message (chat design item 12). Any person who may open the chat reacts, in
+ * a closed chat too. It writes no event and no notice and leaves "createdAt" alone, so it makes no unread mark and no push. A message
+ * with no reactions record starts from none.
+ */
+export function toggleMessageReaction(ctx: Ctx, messageId: string, emoji: Reaction): MessageView {
+  const { message } = requireMessage(ctx, messageId, { author: false, allowDeleted: false });
+  const now = { ...emptyReactions(), ...message.reactions };
+  const me = ctx.authority.id;
+  const next = now[emoji].includes(me) ? now[emoji].filter((id) => id !== me) : [...now[emoji], me];
+  const reacted: Message = { ...message, reactions: { ...now, [emoji]: next } };
+  ctx.state.messages[message.id] = reacted;
+  return messageViewOf(ctx.state, reacted, ctx.authority);
+}
+
+export const chatsEditMessage = defineCall({
+  /**
+   * The author changes the words of a chat message, at any time, in a closed chat too (design item 11). The same words change nothing.
+   * The names are found again: a person named for the first time gets the mention notice, a person whose name the edit removes loses
+   * the notices of this message, and the reply author stays named while that person is active and in the chat. It writes no History
+   * event, as a message never does.
+   */
+  input: z.object({ id: MessageId, body: z.string().trim().min(1).max(MESSAGE_MAX) }),
+  output: MessageView,
+  run(input, ctx) {
+    const { message, conversation } = requireMessage(ctx, input.id, { author: true, allowDeleted: false });
+    if (input.body === message.body) return messageViewOf(ctx.state, message, ctx.authority);
+    const { named, replyOnly, mentions } = namesIn(ctx, conversation, input.body, replyTargetOf(ctx, message));
+    const edited: Message = { ...message, body: input.body, mentions, editedAt: ctx.stamp };
+    ctx.state.messages[message.id] = edited;
+    dropMessageNotices(ctx, message, message.mentions.filter((id) => !mentions.includes(id)));
+    const first = (ids: readonly string[]) => ids.filter((id) => !message.mentions.includes(id));
+    notifyIn(ctx, { userIds: first(named), trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: message.id });
+    if (replyOnly !== undefined) {
+      notifyIn(ctx, { userIds: first([replyOnly]), trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: message.id, reply: true });
+    }
+    return messageViewOf(ctx.state, edited, ctx.authority);
+  },
+});
+
+export const chatsDeleteMessage = defineCall({
+  /**
+   * The author deletes a chat message for everyone, with no question (design item 11). The message leaves every read path and its notices
+   * go. A file of the message stays. The Undo of the toast calls this again with "deleted: false": the message comes back and the people it
+   * names get their notices again, already read, so a restore sends no second push and no second mention mail. The same value changes
+   * nothing. It works in a closed chat. It writes no History event, as chats.archive does not.
+   */
+  input: z.object({ id: MessageId, deleted: z.boolean().default(true) }),
+  output: z.object({ deleted: z.boolean() }),
+  run(input, ctx) {
+    const { message, conversation } = requireMessage(ctx, input.id, { author: true, allowDeleted: true });
+    const gone = !isLiveMessage(message);
+    if (input.deleted === gone) return { deleted: gone };
+    if (input.deleted) {
+      ctx.state.messages[message.id] = { ...message, deletedAt: ctx.stamp };
+      dropMessageNotices(ctx, message);
+      return { deleted: true };
+    }
+    const { deletedAt: _deletedAt, ...live } = message;
+    ctx.state.messages[message.id] = live;
+    const { named, replyOnly } = namesIn(ctx, conversation, message.body, replyTargetOf(ctx, message));
+    const again = notifyIn(ctx, { userIds: named, trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: message.id });
+    if (replyOnly !== undefined) {
+      again.push(...notifyIn(ctx, { userIds: [replyOnly], trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: message.id, reply: true }));
+    }
+    for (const notice of again) notice.read = true;
+    return { deleted: false };
+  },
+});
+
 export const chatCalls = {
   'chats.list': chatsList,
   'chats.messages': chatsMessages,
   'chats.send': chatsSend,
+  'chats.editMessage': chatsEditMessage,
+  'chats.deleteMessage': chatsDeleteMessage,
   'chats.markRead': chatsMarkRead,
   'chats.markUnread': chatsMarkUnread,
   'chats.archive': chatsArchive,
+  'chats.setNotify': chatsSetNotify,
   'chats.openDirect': chatsOpenDirect,
   'chats.createGroup': chatsCreateGroup,
   'chats.updateGroup': chatsUpdateGroup,

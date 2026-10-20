@@ -118,3 +118,28 @@ describe('excerptOf', () => {
     expect(loneSurrogate.test(emoji)).toBe(false);
   });
 });
+
+describe('web addresses in a message (design item 7)', () => {
+  it('cuts a full stop, a comma and an Arabic comma off the end of an address', () => {
+    expect(segmentsOf('The lab quote: https://drive.google.com/drive/folders/seaside-villa-soil-test-quote-october-2026.')).toEqual([
+      { kind: 'text', text: 'The lab quote: ' }, { kind: 'url', url: 'https://drive.google.com/drive/folders/seaside-villa-soil-test-quote-october-2026' }, { kind: 'text', text: '.' }]);
+    expect(segmentsOf('عرض السعر: https://drive.google.com/x، شكرًا')).toEqual([
+      { kind: 'text', text: 'عرض السعر: ' }, { kind: 'url', url: 'https://drive.google.com/x' }, { kind: 'text', text: '، شكرًا' }]);
+  });
+  it('keeps a closing bracket that the address opened, and cuts one that it did not', () => {
+    expect(segmentsOf('(see https://en.wikipedia.org/wiki/Mashrabiya_(window))')).toEqual([
+      { kind: 'text', text: '(see ' }, { kind: 'url', url: 'https://en.wikipedia.org/wiki/Mashrabiya_(window)' }, { kind: 'text', text: ')' }]);
+  });
+  it('makes no link of another scheme', () => {
+    expect(segmentsOf('ftp://files.test/a javascript:alert(1)')).toEqual([{ kind: 'text', text: 'ftp://files.test/a javascript:alert(1)' }]);
+  });
+  it('keeps mentions and project codes beside an address', () => {
+    expect(segmentsOf('See #KH-26-014 at https://maps.google.com/?q=26.29,50.21 @[Sara Al-Qahtani](usr_005)')).toEqual([
+      { kind: 'text', text: 'See ' }, { kind: 'project', code: 'KH-26-014' }, { kind: 'text', text: ' at ' },
+      { kind: 'url', url: 'https://maps.google.com/?q=26.29,50.21' }, { kind: 'text', text: ' ' }, { kind: 'mention', name: 'Sara Al-Qahtani', userId: 'usr_005' }]);
+  });
+  it('keeps a hash inside an address as a part of it, and makes no link of a bare scheme', () => {
+    expect(segmentsOf('https://x.test/plan#KH-26-014')).toEqual([{ kind: 'url', url: 'https://x.test/plan#KH-26-014' }]);
+    expect(segmentsOf('Say https://.')).toEqual([{ kind: 'text', text: 'Say https://.' }]);
+  });
+});

@@ -26,7 +26,11 @@ export function useEarlierMessages(conversationId: string, newest: MessageView[]
     setSeen(newest);
     if ((older.length > 0 || pending) && seen && newest) {
       const kept = new Set(newest.map((view) => view.message.id));
-      const left = seen.filter((view) => !kept.has(view.message.id));
+      // A message stays in the earlier pages only when it is older than the oldest message of the new page: it was pushed out by a newer
+      // message. A message that left from inside the page was deleted (chat design 2026-10-19, item 11), and it must go.
+      const top = newest[0]?.message;
+      const left = seen.filter((view) => !kept.has(view.message.id) && top !== undefined
+        && (view.message.createdAt.localeCompare(top.createdAt) || view.message.id.localeCompare(top.id)) < 0);
       if (left.length > 0) setOlder([...older, ...left]);
     }
   }

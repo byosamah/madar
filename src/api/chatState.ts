@@ -1,6 +1,7 @@
-import type { ChatRead, Conversation, Message, User } from './contract/entities';
+import { isLiveMessage } from './chatNaming';
+import type { ChatRead, Conversation, Message, NotifyLevel, User } from './contract/entities';
 import { forbidden, invalid, notFound } from './errors';
-import { can, principalOf, projectRoleOf } from './permissions';
+import { can, principalOf, projectRoleOf, type ProjectRole } from './permissions';
 import { chatReadKey, nextId, unreadCountKey, type State } from './store';
 
 /** Makes the chat room of a project. A project has one. */
@@ -82,31 +83,59 @@ export function chatForUpload(state: State, conversationId: string, person: User
   return conversation;
 }
 
+/**
+ * The "Notify me" level from a stored read mark and the kind of the chat (design item 21): the stored level, else "named" for a project
+ * chat and "all" for a direct chat or a group. A loader and the push facts hold no State, so they use this. notifyLevelOf
+ * (chatNaming.ts) reads the same rule from a State, and a test keeps the two equal.
+ */
+export function levelFromRead(read: Pick<ChatRead, 'notify'> | undefined, kind: Conversation['kind']): NotifyLevel {
+  return read?.notify ?? (kind === 'project' ? 'named' : 'all');
+}
+
+/**
+ * True when the unread count of a chat holds only the messages that name the person (chat design item 23): the project chat of a project
+ * that the person neither leads nor works on the team of, for a person who did not pick All messages. Only an Admin opens a project
+ * chat with the role "other" (`can`, "chat.project"), so this is the Admin's "other project chat". A task lead outside the team does not
+ * count as on the project. The loader (server/data/loaders/chat.ts) and unreadIn use this one rule.
+ */
+export function countsNamedOnly(role: ProjectRole, conversation: Conversation, level: NotifyLevel): boolean {
+  return conversation.kind === 'project' && role === 'other' && level !== 'all';
+}
+
 /** The messages of one page of a chat when the screen names no limit, and the most it may ask for (plan 4.13, A5; AM 7.5). */
 export const MESSAGE_PAGE = 200;
 export const MESSAGE_PAGE_MAX = 500;
 /** The most task threads that chats.list shows. The Inbox keeps the newest; older threads stay on their task. */
 export const TASK_THREAD_LIMIT = 100;
 
-/** The messages of a conversation, oldest first: by stamp, then by id. The server reads them in the same order. */
+/**
+ * The live messages of a conversation, oldest first: by stamp, then by id. The server reads them in the same order. A deleted message
+ * (deletedAt set, chat design item 11) is not here, so no page, preview, count or wait reads it until an Undo.
+ */
 export function messagesOf(state: State, conversationId: string): Message[] {
   return Object.values(state.messages)
-    .filter((m) => m.conversationId === conversationId)
+    .filter((m) => m.conversationId === conversationId && isLiveMessage(m))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
 }
 
 /**
- * Messages that other people wrote after the person last read the room. A person's own agent counts as the person.
+ * Live messages that other people wrote after the person last read the room. A person's own agent counts as the person.
  * A count that a server loader put in the state comes first (plan 4.13, A9); without it, a scan of the messages in the state.
- * A chat that the person marked unread (chats.markUnread, fbk_028) counts at least 1 until the person opens it again. The mark never
- * adds one: a chat with 3 new messages that is marked unread still has 3.
+ * The Admin's other project chats count only the messages that name the Admin (countsNamedOnly, design item 23).
+ * A chat that the person marked unread (chats.markUnread, fbk_028) counts at least 1 until the person opens it again, in every kind
+ * and also in the Admin's other project chats. The mark never adds one: a chat with 3 new messages that is marked unread still has 3.
  */
 export function unreadIn(state: State, conversationId: string, userId: string): number {
   const key = chatReadKey(conversationId, userId);
   const counted = state.counts?.[unreadCountKey(conversationId, userId)];
-  const lastRead = state.chatReads[key]?.lastReadAt ?? '';
+  const read = state.chatReads[key];
+  const lastRead = read?.lastReadAt ?? '';
+  // The Admin's other project chats count only the messages that name the Admin, unless the Admin picked All messages (item 23).
+  const chat = state.conversations[conversationId];
+  const namedOnly = chat !== undefined && countsNamedOnly(projectRoleOf(state, chat.projectId, userId), chat, levelFromRead(read, chat.kind));
   const count = counted ?? Object.values(state.messages).filter(
-    (m) => m.conversationId === conversationId && m.createdAt > lastRead && principalOf(state, m.authorId) !== userId && m.actingForId !== userId,
+    (m) => m.conversationId === conversationId && isLiveMessage(m) && m.createdAt > lastRead && principalOf(state, m.authorId) !== userId && m.actingForId !== userId
+      && (!namedOnly || m.mentions.includes(userId)),
   ).length;
   return markedUnread(state, key) ? Math.max(count, 1) : count;
 }
@@ -126,13 +155,17 @@ export function isArchived(read: ChatRead | undefined, lastAt: string | null): b
 }
 
 /**
- * One page of a conversation: the newest "limit" messages that come before the message "before", oldest first.
- * "before" is a message id, not a stamp, so messages with the same stamp never fall between two pages.
- * Null when "before" is not a message of this conversation.
+ * One page of a conversation: the newest "limit" live messages that come before the message "before", oldest first.
+ * "before" is a message id, not a stamp, so messages with the same stamp never fall between two pages. A "before" that is a deleted
+ * message of the conversation works too (chat design item 11): the screen asks with the oldest message it shows, and that message may
+ * have been deleted since. Null when "before" is not a message of this conversation.
  */
 export function messagePage(state: State, conversationId: string, limit: number, before?: string): Message[] | null {
   const all = messagesOf(state, conversationId);
-  const end = before === undefined ? all.length : all.findIndex((m) => m.id === before);
-  if (end < 0) return null;
+  if (before === undefined) return all.slice(Math.max(0, all.length - limit));
+  const cut = state.messages[before];
+  if (!cut || cut.conversationId !== conversationId) return null;
+  // The live messages that come before the cut in the order of messagesOf: the stamp, then the id.
+  const end = all.filter((m) => (m.createdAt.localeCompare(cut.createdAt) || m.id.localeCompare(cut.id)) < 0).length;
   return all.slice(Math.max(0, end - limit), end);
 }

@@ -1,10 +1,11 @@
 import type { Ctx } from '../registry';
 import { emptyReactions, type Comment, type CommentKind, type DateMove, type Project, type Stage, type Task, type User } from '../contract/entities';
-import { can, mayViewTask, projectRoleOf, taskResource, type Action, type ProjectRole, type Resource } from '../permissions';
-import { forbidden, invalid, notFound } from '../errors';
+import { can, mayViewTask, principalOf, projectRoleOf, taskResource, type Action, type ProjectRole, type Resource } from '../permissions';
+import { forbidden, invalid, notFound, type ApiError } from '../errors';
 import { recordCreate } from '../events';
 import { notifyIn } from '../notify';
 import { memberKey, nextId, type State } from '../store';
+import { isLine } from '../../lib/commentLine';
 import { mentionedUserIds } from '../../lib/text';
 
 export function assertCan(ctx: Ctx, action: Action, resource: Resource = {}): void {
@@ -63,17 +64,45 @@ export function activeMentions(state: State, body: string): string[] {
   return mentionedUserIds(body).filter((id) => state.users[id]?.active === true);
 }
 
+/**
+ * The one refusal of a reply to an item that is not in the same chat or task (chat design item 10, base B6). A missing item, a
+ * deleted message, an item of another chat or task, a comment of a post and a quiet line all give this one error with this one text,
+ * so no answer tells that an id exists elsewhere.
+ */
+export function replyNotHere(): ApiError {
+  return invalid('replyToId', 'Reply to a message of the same chat or task.', 'reply_not_here');
+}
+
+/**
+ * The comment that a new comment of a task answers: a message (not a quiet line) of the same task. A comment of a post has no reply
+ * in this batch, so a reply on a post, or to a post comment, is refused too.
+ */
+export function requireReplyComment(ctx: Ctx, targetType: 'task' | 'update', targetId: string, replyToId: string): Comment {
+  const old = ctx.state.comments[replyToId];
+  if (!old || targetType !== 'task' || old.targetType !== 'task' || old.targetId !== targetId || isLine(old)) throw replyNotHere();
+  return old;
+}
+
 export function insertComment(
   ctx: Ctx, targetType: 'task' | 'update', targetId: string, projectId: string | null, body: string, fileIds: string[] = [], dates?: DateMove,
-  kind?: CommentKind,
+  kind?: CommentKind, replyToId?: string,
 ): Comment {
   const id = nextId(ctx.state, 'cmt');
   const comment: Comment = {
-    id, targetType, targetId, authorId: ctx.actor.id, body, reactions: emptyReactions(), fileIds, ...(dates ? { dates } : {}), ...(kind ? { kind } : {}), createdAt: ctx.stamp, editedAt: null,
+    id, targetType, targetId, authorId: ctx.actor.id, body, reactions: emptyReactions(), fileIds, ...(dates ? { dates } : {}), ...(kind ? { kind } : {}),
+    ...(replyToId ? { replyToId } : {}), createdAt: ctx.stamp, editedAt: null,
   };
   ctx.state.comments[id] = comment;
   recordCreate(ctx, { projectId, verb: 'comment.created', targetType: 'comment', targetId: id, entity: comment });
-  notifyIn(ctx, { userIds: activeMentions(ctx.state, body), trigger: 'mention', targetType, targetId });
+  const named = activeMentions(ctx.state, body);
+  notifyIn(ctx, { userIds: named, trigger: 'mention', targetType, targetId, messageId: id });
+  // A reply names the person behind the old comment. A person who is named in the text too has the one plain notice above. notify skips
+  // the sender, agents, inactive people and an office task the person does not see.
+  const old = replyToId === undefined ? undefined : ctx.state.comments[replyToId];
+  const replyAuthor = old === undefined ? undefined : principalOf(ctx.state, old.authorId);
+  if (replyAuthor !== undefined && !named.includes(replyAuthor)) {
+    notifyIn(ctx, { userIds: [replyAuthor], trigger: 'mention', targetType, targetId, messageId: id, reply: true });
+  }
   return comment;
 }
 

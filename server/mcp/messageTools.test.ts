@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { Message } from '../../src/api/contract/entities';
+import { emptyReactions, type Message } from '../../src/api/contract/entities';
 import type { ChatRow } from '../../src/api/contract/views';
 import { addDirectConversation, addGroupConversation } from '../../src/api/chatState';
 import { nextId, type State } from '../../src/api/store';
@@ -108,6 +108,28 @@ async function call(w: World, name: string, args: Record<string, unknown>): Prom
   return { text, result: body.result };
 }
 
+describe('a deleted message and the agent (chat design 2026-10-19, base B3)', () => {
+  it('never gives an agent the text of a deleted message', async () => {
+    const w = world();
+    const gone = 'The deleted offer is 41000.';
+    w.mem.tables.state.messages.msg_991 = {
+      id: 'msg_991', conversationId: hala3, authorId: 'usr_003', actingForId: 'usr_003', body: gone, mentions: [],
+      createdAt: '2026-10-04T05:30:00.000Z', editedAt: null, deletedAt: '2026-10-04T05:40:00.000Z',
+    };
+    w.mem.tables.version += 1;
+    const read = await call(w, 'chats.messages', { conversationId: hala3 });
+    expect(read.result.isError, JSON.stringify(read.result)).toBeUndefined();
+    expect(read.text).toContain(SECRET);
+    expect(read.text).not.toContain(gone);
+    const list = await call(w, 'chats.list', {});
+    expect(list.text).not.toContain(gone);
+    expect((list.result.structuredContent.output as ChatRow[]).find((row) => row.id === hala3)).toMatchObject({ preview: SECRET });
+    const waiting = await call(w, 'chats.waiting', {});
+    expect(waiting.text).not.toContain(gone);
+    expect((waiting.result.structuredContent.output as { id: string; body: string }[]).find((row) => row.id === hala3)).toMatchObject({ body: SECRET });
+  });
+});
+
 describe('the message tools over MCP (owner, 2026-10-12)', () => {
   it('opens the direct chat that exists with a person, and makes one with a person who has none', async () => {
     const w = world();
@@ -120,6 +142,22 @@ describe('the message tools over MCP (owner, 2026-10-12)', () => {
     const created = w.mem.tables.state.conversations[made.result.structuredContent.output.id];
     expect(created).toMatchObject({ kind: 'direct', memberIds: ['usr_001', 'usr_005'] });
     expect(Object.keys(w.mem.tables.state.conversations)).toHaveLength(before + 1);
+  });
+
+  it('opens a direct chat that shows in chats.list after the first message', async () => {
+    const w = world();
+    const made = await call(w, 'chats.openDirect', { userId: 'usr_005' });
+    const id = made.result.structuredContent.output.id as string;
+    const before = await call(w, 'chats.list', {});
+    expect((before.result.structuredContent.output as ChatRow[]).some((row) => row.id === id)).toBe(false);
+    expect(w.mem.tables.state.chatReads[`${id}:usr_001`]).toBeUndefined();
+    const sent = await call(w, 'chats.send', { conversationId: id, body: 'A first line.' });
+    expect(sent.result.isError, JSON.stringify(sent.result)).toBeUndefined();
+    const after = await call(w, 'chats.list', {});
+    expect((after.result.structuredContent.output as ChatRow[]).find((row) => row.id === id)).toMatchObject({ preview: 'A first line.' });
+    const { TOOL_DOCS } = await import('./docs');
+    expect(TOOL_DOCS['chats.list'].description).toContain('shows only for the person who opened it');
+    expect(TOOL_DOCS['chats.openDirect'].description).toContain('after the first message');
   });
 
   it('sends a direct message as the person, with the agent named beside it', async () => {
@@ -152,7 +190,7 @@ describe('the message tools over MCP (owner, 2026-10-12)', () => {
     const w = world();
     const { result } = await call(w, 'chats.send', { conversationId: faisalAndTurki, body: 'Hello.' });
     expect(result.isError).toBe(true);
-    expect(result.structuredContent.error.code).toBe('forbidden');
+    expect(result.structuredContent.error).toMatchObject({ code: 'not_found', message: `Conversation ${faisalAndTurki} does not exist.` });
     expect(Object.values(w.mem.tables.state.messages).some((m) => m.body === 'Hello.')).toBe(false);
   });
 
@@ -189,6 +227,64 @@ describe('the message tools over MCP (owner, 2026-10-12)', () => {
     expect(messages.find((m) => m.message.body === SECRET)).toMatchObject({ author: { id: 'usr_003' } });
   });
 
+  it('reads the page of a chat at one message with around', async () => {
+    const w = world();
+    const first = await call(w, 'chats.messages', { conversationId: hala3 });
+    const secret = (first.result.structuredContent.output.messages as { message: Message }[]).find((m) => m.message.body === SECRET)!.message.id;
+    const { text, result } = await call(w, 'chats.messages', { conversationId: hala3, around: secret });
+    expect(result.isError, JSON.stringify(result)).toBeUndefined();
+    expect(text).toContain(SECRET);
+    expect(result.structuredContent.output.newer).toBe(false);
+    const { TOOL_DOCS } = await import('./docs');
+    expect(TOOL_DOCS['chats.messages'].description).toContain('around');
+    expect(TOOL_DOCS['chats.messages'].description.length).toBeLessThanOrEqual(600);
+  });
+
+  it('finds the messages of its person with search.query, and none of a chat its person may not open', async () => {
+    const w = world();
+    const found = await call(w, 'search.query', { text: 'private offer' });
+    expect(found.result.isError, JSON.stringify(found.result)).toBeUndefined();
+    const hits = found.result.structuredContent.output.messages as { chatId: string; kind: string; line: string }[];
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ chatId: hala3, kind: 'direct', line: SECRET });
+    // A direct chat of two other people and a group that the person is not in: no hit, no text, no id.
+    for (const text of ['Admin may not open', 'other team text']) {
+      const none = await call(w, 'search.query', { text });
+      expect(none.result.isError, text).toBeUndefined();
+      expect(none.result.structuredContent.output.messages, text).toEqual([]);
+      expect(none.text, text).not.toContain(faisalAndTurki);
+      expect(none.text, text).not.toContain(outsiderRoom);
+    }
+  });
+
+  it('finds a comment of a project task with search.query, as a hit of kind task', async () => {
+    const w = world();
+    const task = Object.values(seed.tasks).find((t) => t.projectId !== null)!;
+    w.mem.tables.state.comments.cmt_991 = {
+      id: 'cmt_991', targetType: 'task', targetId: task.id, authorId: 'usr_003', body: 'The tower crane permit arrives on Sunday.', reactions: emptyReactions(), fileIds: [],
+      createdAt: '2026-10-04T05:20:00.000Z', editedAt: null,
+    };
+    w.mem.tables.version += 1;
+    const found = await call(w, 'search.query', { text: 'crane permit' });
+    expect(found.result.isError, JSON.stringify(found.result)).toBeUndefined();
+    const hits = found.result.structuredContent.output.messages as { id: string; chatId: string; kind: string; title: string }[];
+    expect(hits).toEqual([expect.objectContaining({ id: 'cmt_991', chatId: task.id, kind: 'task', title: task.title })]);
+    const { TOOL_DOCS } = await import('./docs');
+    expect(TOOL_DOCS['search.query'].description).toContain('task comments');
+    expect(TOOL_DOCS['search.query'].description.length).toBeLessThanOrEqual(600);
+  });
+
+  it('gives the project chat id of a project in projects.get, for the person of the agent', async () => {
+    const w = world();
+    const project = Object.values(seed.conversations).find((c) => c.kind === 'project')!;
+    const got = await call(w, 'projects.get', { id: project.projectId! });
+    expect(got.result.isError, JSON.stringify(got.result)).toBeUndefined();
+    expect(got.result.structuredContent.output.chatId).toBe(project.id);
+    const { TOOL_DOCS } = await import('./docs');
+    expect(TOOL_DOCS['projects.get'].description).toContain('chatId');
+    expect(TOOL_DOCS['projects.get'].description.length).toBeLessThanOrEqual(600);
+  });
+
   it('reads a group of its person with chats.messages', async () => {
     const w = world();
     const { text, result } = await call(w, 'chats.messages', { conversationId: groupRoom });
@@ -211,8 +307,18 @@ describe('the message tools over MCP (owner, 2026-10-12)', () => {
     expect(text).not.toContain(OUTSIDER_SECRET);
     const rows = result.structuredContent.output as { kind: string; id: string; from: { id: string }; body: string }[];
     expect(rows.find((row) => row.id === hala3)).toMatchObject({ kind: 'direct', from: { id: 'usr_003' }, body: SECRET });
-    expect(rows.find((row) => row.id === groupRoom)).toMatchObject({ kind: 'group', from: { id: 'usr_010' }, body: GROUP_SECRET });
+    // A group waits only when a newer message names the person (item 22): the plain group text does not.
+    expect(rows.some((row) => row.id === groupRoom)).toBe(false);
     expect(rows.some((row) => row.id === outsiderRoom)).toBe(false);
+    const state = w.mem.tables.state;
+    const id = nextId(state, 'msg');
+    state.messages[id] = {
+      id, conversationId: groupRoom, authorId: 'usr_010', actingForId: 'usr_010', body: 'Please look at the group text.', mentions: ['usr_001'],
+      createdAt: '2026-10-04T05:05:00.000Z', editedAt: null,
+    };
+    w.mem.tables.version += 1;
+    const later = (await call(w, 'chats.waiting', {})).result.structuredContent.output as { kind: string; id: string; from: { id: string }; body: string }[];
+    expect(later.find((row) => row.id === groupRoom)).toMatchObject({ kind: 'group', from: { id: 'usr_010' }, body: 'Please look at the group text.' });
   });
 });
 
@@ -352,6 +458,56 @@ describe('a file of a group chat over MCP (owner, 2026-10-19)', () => {
   });
 });
 
+// Base B5 (chat design 2026-10-19): the texts of chats.messages and comments.list name the new fields of the views.
+describe('the new view fields in the texts of the message tools (base B5)', () => {
+  it('names the new message fields in chats.messages and comments.list', async () => {
+    const { TOOL_DOCS } = await import('./docs');
+    const read = TOOL_DOCS['chats.messages'].description;
+    for (const word of ['reactions', 'editedAt', 'replyTo', 'namesMe', 'readUpTo', 'Deleted messages are left out', 'direct or group chat', 'quiet lines']) expect(read, word).toContain(word);
+    // 540 left 60 characters for the "around" input of track find; the tool limit is 600.
+    expect(read.length).toBeLessThanOrEqual(600);
+    for (const word of ['replyTo', 'namesMe']) expect(TOOL_DOCS['comments.list'].description, word).toContain(word);
+    expect(TOOL_DOCS['comments.list'].description.length).toBeLessThanOrEqual(600);
+  });
+});
+
+// Base B6 (chat design 2026-10-19): a reply names the author of the message it answers, and the texts say so.
+describe('the reply in the texts of the message tools (base B6)', () => {
+  it('names replyToId in chats.send and comments.create, and the notice rule in INSTRUCTIONS', async () => {
+    const { INSTRUCTIONS, TOOL_DOCS } = await import('./docs');
+    for (const name of ['chats.send', 'comments.create']) {
+      const text = TOOL_DOCS[name].description;
+      expect(text, name).toContain('replyToId');
+      expect(text.length, name).toBeGreaterThanOrEqual(40);
+      expect(text.length, name).toBeLessThanOrEqual(600);
+    }
+    expect(INSTRUCTIONS).toContain('A reply (replyToId) names the author of the message it answers');
+  });
+
+  it('sends a reply as the person, names the author of the old message, and refuses a reply to another chat', async () => {
+    const w = world();
+    const first = await call(w, 'chats.send', { conversationId: hala3, body: 'The first line.' });
+    const firstId = first.result.structuredContent.output.message.id as string;
+    // usr_003 (Reem) wrote SECRET in this chat: a reply to it names Reem for the Admin.
+    const reemMessage = Object.values(w.mem.tables.state.messages).find((m) => m.body === SECRET)!;
+    const reply = await call(w, 'chats.send', { conversationId: hala3, body: 'Understood.', replyToId: reemMessage.id });
+    expect(reply.result.isError, JSON.stringify(reply.result)).toBeUndefined();
+    expect(reply.result.structuredContent.output.message).toMatchObject({ replyToId: reemMessage.id, mentions: ['usr_003'] });
+    expect(reply.result.structuredContent.output.replyTo).toMatchObject({ id: reemMessage.id, deleted: false });
+    // A reply to an own message names nobody.
+    const own = await call(w, 'chats.send', { conversationId: hala3, body: 'And one more.', replyToId: firstId });
+    expect(own.result.structuredContent.output.message.mentions).toEqual([]);
+    // A reply into the group text of another chat is refused with the one text of a missing message.
+    const groupMessage = Object.values(w.mem.tables.state.messages).find((m) => m.body === GROUP_SECRET)!;
+    const wrong = await call(w, 'chats.send', { conversationId: hala3, body: 'x', replyToId: groupMessage.id });
+    const missing = await call(w, 'chats.send', { conversationId: hala3, body: 'x', replyToId: 'msg_9999' });
+    expect(wrong.result.isError).toBe(true);
+    expect(wrong.result.structuredContent.error).toMatchObject({ code: 'invalid_input', details: { reason: 'reply_not_here' } });
+    expect(wrong.result.structuredContent.error.message).toBe(missing.result.structuredContent.error.message);
+    expect(wrong.text).not.toContain(GROUP_SECRET);
+  });
+});
+
 // UX audit 2026-10-19, INT-18 and chats-10: the tool texts that the model reads at the call must say how to read and answer a task
 // thread, and that a group gives quiet lines that are no messages.
 describe('the texts of the message tools', () => {
@@ -367,5 +523,35 @@ describe('the texts of the message tools', () => {
     expect(TOOL_DOCS['chats.list'].description).toContain('comments.list');
     expect(TOOL_DOCS['chats.messages'].description).toContain('quiet lines');
     expect(TOOL_DOCS['chats.messages'].description.length).toBeLessThanOrEqual(600);
+  });
+
+  it('says what unread means for an Admin in chats.list', async () => {
+    const { TOOL_DOCS } = await import('./docs');
+    const text = TOOL_DOCS['chats.list'].description;
+    expect(text).toContain('counts only the unread messages that name the Admin');
+    expect(text.length).toBeLessThanOrEqual(600);
+  });
+
+  it('says the wait rules of item 22 in chats.waiting', async () => {
+    const { TOOL_DOCS } = await import('./docs');
+    const text = TOOL_DOCS['chats.waiting'].description;
+    expect(text).toContain('A group or a project chat waits when a newer message names your person');
+    expect(text).toContain('👍 or ✅');
+    expect(text.length).toBeLessThanOrEqual(600);
+  });
+});
+
+// Track msg B8 to B10 (chat design 2026-10-19, items 11 and 12): only the person edits, deletes or reacts to a message, in the screens.
+describe('edit, delete and reaction of a message are for the person only', () => {
+  it('keeps the new message calls on the deny list and out of every tool list of an agent', async () => {
+    const { INSTRUCTIONS } = await import('./docs');
+    const { MCP_ADMIN, MCP_ALLOW, MCP_DENY, mcpTools } = await import('./tools');
+    const listed = new Set(mcpTools({ admin: true }).map((tool) => tool.name as string));
+    for (const name of ['chats.editMessage', 'chats.deleteMessage']) {
+      expect(MCP_DENY, name).toContain(name);
+      expect([...MCP_ALLOW, ...MCP_ADMIN], name).not.toContain(name);
+      expect(listed.has(name), name).toBe(false);
+    }
+    expect(INSTRUCTIONS).toContain('Only your person edits, deletes or reacts to a message, in the screens.');
   });
 });

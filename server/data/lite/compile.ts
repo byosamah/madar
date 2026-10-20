@@ -71,6 +71,10 @@ export function whereOf(s: Select | CountSelect, values: unknown[], skip: readon
       values.push(one.before.at, one.before.at, one.before.id);
       return '(t.created_at < ? or (t.created_at = ? and t.id < ?))';
     }
+    if ('after' in one) {
+      values.push(one.after.at, one.after.at, one.after.id);
+      return '(t.created_at > ? or (t.created_at = ? and t.id > ?))';
+    }
     if ('bounds' in one) {
       const column = col(one.bounds.col);
       const terms = Object.entries(one.bounds.by).map(([key, bound]) => {

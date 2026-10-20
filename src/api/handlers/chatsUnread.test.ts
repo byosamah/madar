@@ -1,8 +1,8 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { emptyReactions, type ChatRead, type Comment, type Message } from '../contract/entities';
 import type { ChatRow } from '../contract/views';
-import { canSeeConversation } from '../chatState';
-import { principalOf } from '../permissions';
+import { canSeeConversation, countsNamedOnly, levelFromRead } from '../chatState';
+import { principalOf, projectRoleOf } from '../permissions';
 import { chatReadKey, unreadCountKey, type State } from '../store';
 import { buildSeed } from '../../data/seed';
 import { setNow } from '../../lib/dates';
@@ -61,7 +61,11 @@ function scoped(state: State, userId: string): State {
   const messages: Record<string, Message> = {};
   for (const room of Object.values(state.conversations)) {
     const all = Object.values(state.messages).filter((m) => m.conversationId === room.id).sort(byStamp);
-    counts[unreadCountKey(room.id, userId)] = all.filter((m) => m.createdAt > mark(room.id) && principalOf(state, m.authorId) !== userId && m.actingForId !== userId).length;
+    // Item 23: the Admin's other project chats count only the messages that name the Admin, unless the Admin picked All messages.
+    const namedOnly = countsNamedOnly(projectRoleOf(state, room.projectId, userId), room, levelFromRead(state.chatReads[chatReadKey(room.id, userId)], room.kind));
+    counts[unreadCountKey(room.id, userId)] = all.filter(
+      (m) => m.createdAt > mark(room.id) && principalOf(state, m.authorId) !== userId && m.actingForId !== userId && (!namedOnly || m.mentions.includes(userId)),
+    ).length;
     const newest = all.at(-1);
     if (newest) messages[newest.id] = newest;
   }

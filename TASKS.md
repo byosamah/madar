@@ -684,9 +684,9 @@ Builders: Haiku 5.5. Checkers: Sonnet 5.5 (owner, 2026-10-18, for these builds).
 
 ## 2026-10-23: five team requests (branch `rb/team-fixes`, What's new 2026-10-23-26 to 29)
 
-- [x] fbk_032 (Faisal): paste a picture or a file into a chat box (the Inbox box and the comment box of the task panel); same list, limits and upload target as the attach button
-- [x] fbk_030 (Osama): drop files on the open conversation, one quiet overlay "Drop to attach", and a file dropped anywhere else never opens in the tab
-- [x] fbk_028 (Faisal), bug: (a) `public/sw.js` shows no line while a window of Madar is visible and has the focus, in Chromium only (WebKit revokes a subscription that gets a push with no notice, so Safari, iPhone browsers, Firefox and unknown engines always show it); no server delay (the outbox has none). (b) "Waits for your reply" is gone; "Mark as unread" (`chats.markUnread`, MCP deny list) is in the row menu and in the menu of the open chat
+- [x] fbk_032 (Faisal): paste a picture or a file into a chat box (the Inbox box and the comment box of the task panel); same list, limits and upload target as the attach button. At the join with main (2026-10-20) the chat batch (design item 14) won: both boxes take a paste of only pictures (`pastedPictures`), and text stays text
+- [x] fbk_030 (Osama): drop files on the open conversation, one quiet overlay "Drop to attach", and a file dropped anywhere else never opens in the tab. At the join with main (2026-10-20) the chat batch (design item 14, `ChatDropArea`) won; the join keeps the drop on the comments of the task panel (with `ChatDropArea`) and the page guard `useBlockFileDrop`
+- [x] fbk_028 (Faisal), bug: (a) `public/sw.js` shows no line while a window of Madar is visible and has the focus, in Chromium only (WebKit revokes a subscription that gets a push with no notice, so Safari, iPhone browsers, Firefox and unknown engines always show it); at the join with main (2026-10-20) the server wait of the chat batch (design item 20: 10 s, then no push for a person who read the chat) comes in addition. (b) "Waits for your reply" is gone; "Mark as unread" (`chats.markUnread`, MCP deny list) is in the row menu and in the menu of the open chat
 - [x] fbk_029 (Osama): a frame step (drag, zoom, round previews, Save) for the profile picture, one shared `PictureFrame` with the sub-company logo
 - [x] fbk_031 (Faisal), bug: a Stage field for every task in the template editor; the move keeps the days of a saved task, and a task that Add task just made goes where Add task would put it in the new stage
 - [ ] Release: the owner says when it is live, then `feedback.setStatus` done for fbk_028, fbk_029, fbk_030, fbk_031 and fbk_032
@@ -697,11 +697,32 @@ Builders: Haiku 5.5. Checkers: Sonnet 5.5 (owner, 2026-10-18, for these builds).
 
 - [x] Wave 1 (Tasks 1 to 6): the meetings, private meetings with no project, Home and the project tab; on main at 5bc54585, no "Minutes by" (owner, 2026-10-19: any attendee writes the minutes); the privacy page `/privacy` for Google (5e1e537)
 - [ ] Wave 1 release: the owner pushes main and runs production at 5e1e537
-- [x] Wave 2, track minutes (`rb/meetings-minutes`): the 15-minute job settles an ended meeting and makes its Tracker line; any attendee writes the minutes; files of a meeting with no project stay with its people; What's new 2026-10-23-24
-- [x] Wave 2, track gcal (`rb/meetings-gcal`): one-way Google Calendar connect in Settings (scope `calendar.app.created`, only the title, the time and the place); the callback passes the code to the signed-in screen, which calls `google.connect`; What's new 2026-10-23-25
+- [x] Wave 2, track minutes (`rb/meetings-minutes`): the 15-minute job settles an ended meeting and makes its Tracker line; any attendee writes the minutes; files of a meeting with no project stay with its people; What's new 2026-10-23-52 (24 on its branch; the chat batch took 24 and 25 first)
+- [x] Wave 2, track gcal (`rb/meetings-gcal`): one-way Google Calendar connect in Settings (scope `calendar.app.created`, only the title, the time and the place); the callback passes the code to the signed-in screen, which calls `google.connect`; What's new 2026-10-23-53 (25 on its branch)
 - [x] Join on `rb/meetings-join` with the five team requests (2026-10-19) and two security fixes: the organizer is the author of the Tracker line of a meeting, and only the leader or the Admin deletes it; `users.remove` sets the Google row of the person to revoking in its own transaction, so the cleanup deletes it when Google never answers
 - [x] Join gates (2026-10-19): typecheck, npm test 7,263 (1 deploy-script test timed out under load, 53 of 53 alone), test:lite 1,773, test:office 38, builds, test:db 1,773, test:it 318 (2 new Google tests fixed: the local runCall runs gcal.revoke at once; the cleanup test has the Google count), test:mcp 240 and conformance 5 of 32 as expected, prototype smoke 87 of 87
+- [x] The join merged with main (the chat batch, `ced1a0a4`) on 2026-10-20, in `rb/meetings-join`: lite schema 6 search, 7 meetings settle, 8 Google; What's new 52 and 53 for the minutes and Google; the chat drop and paste of main; Mark as unread with the read rules of item 5
 - [ ] Join to main and the test copy after the wave 1 release; then `scripts/google/setup-secrets.ts test` and `production` from deploy-test (the 3 Google secrets), `all.sh test`, the deploy suite
 - [ ] Task 14.5: the owner connects Google Calendar on the test copy; check the replaced flag (does a revoke of an old refresh token end a newer one?) and the second "Madar" calendar
 - [ ] Wave 2 release: production by the owner; fbk_022 stays open until wave 3 is live
 - [ ] Wave 3: repeating meetings (every day Sunday to Thursday, every week, every 2 weeks)
+
+## 2026-10-19: a better chat, with lessons from Campfire (branch `rb/chat-campfire`, worktree `~/dev/madar-rb/chat-campfire`)
+Design `docs/superpowers/specs/2026-10-19-madar-chat-campfire-design.md` (owner approved 2026-10-19), plan
+`docs/superpowers/plans/2026-10-19-madar-chat-campfire-plan.md`. Opus plans and joins, Sonnet 5.5 builds (owner, 2026-10-19). No
+separate checker. No production change before Friday 2026-10-23. Answers fbk_028 (both parts) and fbk_030.
+
+- [x] Study of Campfire against the Madar chat, the owner's 16 choices and 6 rule answers, the mockup, the design, the builder check
+- [x] The plan: 52 tasks in 4 tracks plus the base (msg B1 to B17, read A1 to A12, find D1 to D13, notify E1 to E10)
+- [x] Wave 1: the base, B1 to B7 (one builder on `rb/chat-campfire`)
+- [x] Wave 2: track read A1 to A12 (`rb/chat-read`)
+- [x] Wave 2: track msg B8 to B14, B17 (`rb/chat-msg`)
+- [x] Wave 2: track find D1 to D12 (`rb/chat-find`)
+- [x] Wave 2: track notify E1 to E10 (`rb/chat-notify`)
+- [x] Join: read, msg, find, notify into `rb/chat-campfire` (2026-10-19; one scroll fix for the saved copy of a sent message, the search reread capped at 3 after the security review, the count pins at 138 shared calls)
+- [x] Wave 3: B15, B16, D13 (one builder on `rb/chat-campfire`)
+- [x] Gate (2026-10-19, after the join with main and meetings): typecheck, npm test 7,281, builds, test:lite 1,840, test:office 37, test:db 1,840, test:it 305, test:mcp 242 and conformance 5 of 32, prototype smoke 87 of 87, 32 phone shots and the checks in Chrome. Record: proof.md, "Chat batch: the merge gate"
+- [x] Main and the test copy (`all.sh test`, 924eb2c), then the deploy suite on the test copy (2026-10-20): 161 passed, 0 failed, 3 skipped by design, the walk in 4 variants. Record: proof.md, "Chat batch: the test copy and the deploy suite"
+- [x] fbk_028 part 2 follows the owner decision of 2026-10-20 (the line is gone from the screens; Mark as unread): it wins over item 22 at the join with `rb/meetings-join`, and the waits rule of item 22 stays in the API for `chats.waiting` and the agents
+- [ ] Release: production from Friday 2026-10-23 by the owner; then `feedback.setStatus` done for fbk_028 and fbk_030 after the owner says live
+- [ ] Proposed for later (not approved): the task thread title at 390 px (the Open task button takes the width), the box placeholder on three lines at 390 px, and the items of "Not in this batch" in the design

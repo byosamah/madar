@@ -1,0 +1,15 @@
+{
+  "search": {
+    "messages": "Messages",
+    "placeholderAll": "Search projects, tasks, people, files and messages"
+  },
+  "person": {
+    "message": "Message"
+  },
+  "project": {
+    "chat": "Project chat"
+  },
+  "chat": {
+    "newerMessages": "Show newer messages"
+  }
+}

@@ -14,7 +14,7 @@ import { isFinePointer } from '../../lib/calendar';
 import { usePersonName } from '../../app/personName';
 import { useStableHandler } from '../../app/useStableHandler';
 import { useIsPhone } from '../../app/useIsPhone';
-import { Menu } from '../../components/Menu';
+import { Menu, type MenuItem } from '../../components/Menu';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { ChevronRightIcon } from '../../components/icons/animated/chevron-right';
 import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-check';
@@ -49,19 +49,24 @@ export function chatMenuItems(
   { id, archived, unread, onArchive, onMarkUnread }: {
     id: string; archived: boolean; unread: number; onArchive: (id: string, archived: boolean) => void; onMarkUnread: (id: string) => void;
   },
-) {
+): MenuItem[] {
   return [
     ...(!archived && unread === 0 ? [{ label: t('chat.markUnread'), onSelect: () => onMarkUnread(id) }] : []),
     { label: archived ? t('chat.moveBack') : t('chat.archive'), onSelect: () => onArchive(id, !archived) },
   ];
 }
 
-/** The menu of a chat or a task thread. The button names its chat, so a screen reader does not hear "Chat options" for every row (UX audit 2026-10-19, chats-06). */
-export function ChatMenu({ id, archived, unread, title, onArchive, onMarkUnread }: {
+/**
+ * The menu of a chat or a task thread. The button names its chat, so a screen reader does not hear "Chat options" for every row (UX
+ * audit 2026-10-19, chats-06). The extra items come after Archive: the header menu adds "Notify me" there (chat design item 21). The row
+ * menu adds none.
+ */
+export function ChatMenu({ id, archived, unread, title, onArchive, onMarkUnread, extra = [] }: {
   id: string; archived: boolean; unread: number; title: string; onArchive: (id: string, archived: boolean) => void; onMarkUnread: (id: string) => void;
+  extra?: MenuItem[];
 }) {
   const { t } = useTranslation();
-  return <Menu label={t('chat.optionsFor', { title })} items={chatMenuItems(t, { id, archived, unread, onArchive, onMarkUnread })} />;
+  return <Menu label={t('chat.optionsFor', { title })} items={[...chatMenuItems(t, { id, archived, unread, onArchive, onMarkUnread }), ...extra]} />;
 }
 
 /** How far a swipe goes before the row archives. The same as the swipe of the Notifications rows. */

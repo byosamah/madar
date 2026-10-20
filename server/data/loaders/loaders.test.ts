@@ -4,7 +4,7 @@ import { addGroupConversation } from '../../../src/api/chatState';
 import { runScheduledTriggers } from '../../../src/api/notify';
 import { isReferenced } from '../../../src/api/references';
 import { sharedCalls, type SharedCallName } from '../../../src/api/sharedCalls';
-import { chatReadKey, type State } from '../../../src/api/store';
+import { chatReadKey, memberKey, type State } from '../../../src/api/store';
 import { buildSeed } from '../../../src/data/seed';
 import { mentionMarkup } from '../../../src/lib/text';
 import { snapshotOf } from '../officeCache';
@@ -15,7 +15,7 @@ import { INBOX_TASK_FIELDS } from './inbox';
 import { LOADER_OF } from './index';
 import { loadJobs } from './jobs';
 import { memorySource } from './memorySource';
-import { AGENT_MADE_TASK, badgeTraps, ENDED_MEETING_TITLE, ENDED_PROJECT_MEETING_TITLE, ENDED_TEAM_MEETING_TITLE, MEETING_FILE_ID, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, trapOffice, writeSweep } from './sweep';
+import { AGENT_MADE_TASK, badgeTraps, ENDED_MEETING_TITLE, ENDED_PROJECT_MEETING_TITLE, ENDED_TEAM_MEETING_TITLE, findSweep, findTraps, MEETING_FILE_ID, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, trapOffice, writeSweep } from './sweep';
 
 /**
  * Task C2: each loader gives the handler the same answer as the whole office (plan 4.6, "Safety net"). runBoth runs the call on
@@ -86,6 +86,66 @@ describe('the sweep: every read call on the sample office for every person and r
     const traps = trapOffice(seed);
     for (const [name, input, actor, prepared] of [...readSweep(traps), ...writeSweep(traps)]) await same(traps, name, input, actor, { prepared });
   }, 30_000);
+});
+
+describe('the reads of track find on the scoped load', () => {
+  it('gives the same answers as the whole office', async () => {
+    const traps = office(findTraps);
+    const calls = findSweep(traps);
+    expect(calls.length).toBeGreaterThan(15);
+    for (const [name, input, actor] of calls) await same(traps, name, input, actor);
+  }, 30_000);
+
+  it('finds the messages of the chats that the person may open, and only those (item 16)', async () => {
+    const traps = office(findTraps);
+    const ids = (run: Run) => (run.outcome.output as { messages: { id: string }[] }).messages.map((hit) => hit.id);
+    // The Admin opens the project chat, not the group and not the direct chat of two others. The deleted message is never found.
+    // The newest 5 of messages and comments together: the comment of the office task, three comments of the project task, one message.
+    expect(ids(await same(traps, 'search.query', { text: 'riser' }, ADMIN))).toEqual(['cmt_2007', 'cmt_2006', 'cmt_2005', 'cmt_2004', 'msg_2007']);
+    const group = Object.values(traps.conversations).find((c) => c.name === 'Find group')!;
+    const member = ids(await same(traps, 'search.query', { text: 'riser' }, group.memberIds[0]));
+    // The two newest comments of the project task come first, then the direct message and the group message.
+    expect(member).toEqual(expect.arrayContaining(['cmt_2006', 'cmt_2005', 'msg_2010', 'msg_2009']));
+    expect(member).not.toContain('msg_2008');
+    // A comment of a deleted task and a comment on a post are never found.
+    for (const id of ['cmt_2008', 'cmt_2009', 'cmt_2010']) expect(member).not.toContain(id);
+    expect(ids(await same(traps, 'search.query', { text: 'اسعار' }, ADMIN))).toEqual(['msg_2011']);
+    expect(ids(await same(traps, 'search.query', { text: 'ri' }, ADMIN))).toEqual([]);
+  });
+
+  it('finds a comment of an office task only for the people of the task and the Admin (item 16)', async () => {
+    const traps = office(findTraps);
+    const ids = (run: Run) => (run.outcome.output as { messages: { id: string }[] }).messages.map((hit) => hit.id);
+    for (const person of ['usr_004', 'usr_005', 'usr_006', ADMIN]) expect(ids(await same(traps, 'search.query', { text: 'riser parts' }, person)), person).toEqual(['cmt_2007']);
+    for (const person of ['usr_002', 'usr_003']) expect(ids(await same(traps, 'search.query', { text: 'riser parts' }, person)), person).toEqual([]);
+  });
+
+  it('shows an empty direct chat only for the person who opened it, on the scoped load too (item 18)', async () => {
+    const traps = office(findTraps);
+    const empty = Object.values(traps.conversations).find((c) => c.kind === 'direct' && c.createdAt === '2026-10-03T08:00:00.000+03:00' && !Object.values(traps.messages).some((m) => m.conversationId === c.id))!;
+    const [a, b] = empty.memberIds;
+    const listed = (run: Run) => (run.outcome.output as { id: string }[]).some((row) => row.id === empty.id);
+    expect(listed(await same(traps, 'chats.list', {}, a))).toBe(false);
+    const opened = await same(traps, 'chats.openDirect', { userId: b }, a);
+    expect(inserted(opened, 'chat_reads')).toHaveLength(1);
+    apply(traps, 'chats.openDirect', { userId: b }, a);
+    expect(listed(await same(traps, 'chats.list', {}, a))).toBe(true);
+    expect(listed(await same(traps, 'chats.list', {}, b))).toBe(false);
+    expect(inserted(await same(traps, 'chats.openDirect', { userId: a }, b), 'chat_reads')).toHaveLength(1);
+    // The second open of the first person changes nothing.
+    expect(inserted(await same(traps, 'chats.openDirect', { userId: b }, a), 'chat_reads')).toHaveLength(0);
+  });
+
+  it('opens the group at an old message with the 20 before it and the 500 in all, and says that newer ones exist', async () => {
+    const traps = office(findTraps);
+    const group = Object.values(traps.conversations).find((c) => c.name === 'Find group')!;
+    const run = await same(traps, 'chats.messages', { conversationId: group.id, around: 'msg_1030' }, group.memberIds[0]);
+    const out = run.outcome.output as { messages: { message: { id: string } }[]; newer: boolean };
+    // 540 messages, two deleted, so 538 are live. The 30th is the 29th live message: the page starts 20 before it.
+    expect(out.messages[0].message.id).toBe('msg_1010');
+    expect(out.messages).toHaveLength(500);
+    expect(out.newer).toBe(true);
+  });
 });
 
 describe('the 18 places of AM 6', () => {
@@ -358,6 +418,27 @@ describe('the 18 places of AM 6', () => {
     expect(after.find((row) => row.id === room.id)?.unread).toBe(0);
   });
 
+  it('chats.markRead and chats.archive: the loader loads the unread mention notices of the chat, so the write marks them read (item 20)', async () => {
+    const room = Object.values(seed.conversations).find((c) => c.kind === 'project')!;
+    const task = Object.values(seed.tasks)[0];
+    const notice = (id: string, targetType: 'chat' | 'task', targetId: string, trigger: Notification['trigger'] = 'mention'): Notification => ({
+      id, userId: 'usr_001', trigger, actorId: 'usr_002', targetType, targetId, read: false, createdAt: '2026-10-04T08:00:00.000+03:00', dedupeKey: null,
+    });
+    const state = office((s) => {
+      s.notifications.ntf_901 = notice('ntf_901', 'chat', room.id);
+      s.notifications.ntf_902 = notice('ntf_902', 'task', task.id);
+      s.notifications.ntf_903 = notice('ntf_903', 'chat', room.id, 'added_to_group');
+    });
+    const chat = await same(state, 'chats.markRead', { conversationId: room.id }, 'usr_001');
+    expect(docs(chat, 'notifications').map((d) => [d.id, d.read])).toEqual([['ntf_901', true]]);
+    const thread = await same(state, 'chats.markRead', { conversationId: task.id }, 'usr_001');
+    expect(docs(thread, 'notifications').map((d) => [d.id, d.read])).toEqual([['ntf_902', true]]);
+    const archived = await same(state, 'chats.archive', { conversationId: room.id, archived: true }, 'usr_001');
+    expect(docs(archived, 'notifications').map((d) => d.id)).toEqual(['ntf_901']);
+    const back = await same(state, 'chats.archive', { conversationId: room.id, archived: false }, 'usr_001');
+    expect(docs(back, 'notifications')).toEqual([]);
+  });
+
   it('chats.waiting: the loader gives the handler the same answer, for a project mention and a named task thread (fbk_011, owner 2026-10-18)', async () => {
     const state = office();
     const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
@@ -375,6 +456,252 @@ describe('the 18 places of AM 6', () => {
     const rows = run.outcome.output as { kind: string; id: string }[];
     expect(rows.map((row) => row.kind)).toEqual(expect.arrayContaining(['project', 'task']));
     expect(rows.find((row) => row.id === task.id)).toBeDefined();
+  });
+
+  // Design item 23: the Admin's other project chats count only the messages that name the Admin, in the grouped count too.
+  it('chats.list, chats.unreadCount and chats.markRead: the scoped count of an Admin outside the project holds only the named messages (item 23)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    // Hala (the Admin) is not on prj_001. Two plain messages are unread for her already (the sample), and one more names her.
+    apply(state, 'chats.send', { conversationId: room.id, body: `${mentionMarkup(state.users[ADMIN].name, ADMIN)} please approve 5513.` }, 'usr_002', { now: at(5) });
+    const unreadOf = (run: Run) => (run.outcome.output as { id: string; unread: number }[]).find((row) => row.id === room.id)?.unread;
+    expect(unreadOf(await same(state, 'chats.list', {}, ADMIN))).toBe(1);
+    expect((await same(state, 'chats.unreadCount', {}, ADMIN)).outcome.output).toMatchObject({ unread: expect.any(Number) });
+    // A person on the team keeps the count of every unread message.
+    const sara = Object.values(state.members).find((m) => m.projectId === 'prj_001' && m.userId !== 'usr_002' && state.users[m.userId].kind === 'human')!.userId;
+    state.chatReads[chatReadKey(room.id, sara)] = { conversationId: room.id, userId: sara, lastReadAt: '2026-10-03T11:00:00.000+03:00', notify: 'named' };
+    expect(unreadOf(await same(state, 'chats.list', {}, sara))).toBe(3);
+    // The Admin picks All messages: the count comes back.
+    state.chatReads[chatReadKey(room.id, ADMIN)] = { ...state.chatReads[chatReadKey(room.id, ADMIN)], notify: 'all' };
+    expect(unreadOf(await same(state, 'chats.list', {}, ADMIN))).toBe(3);
+    state.chatReads[chatReadKey(room.id, ADMIN)] = { ...state.chatReads[chatReadKey(room.id, ADMIN)], notify: 'named' };
+    const read = await same(state, 'chats.markRead', { conversationId: room.id }, ADMIN);
+    expect(read.outcome.error).toBeUndefined();
+  });
+
+  // Design item 22: a group waits only for a message that names the person, a reply to a comment names its author, and a 👍 answers.
+  it('chats.waiting: the scoped load gives the same answer for a group that names the person, a reply to a comment and a 👍 (item 22)', async () => {
+    const state = office();
+    const team = Object.values(state.members).filter((m) => m.projectId === 'prj_001').map((m) => m.userId).filter((id) => id !== ADMIN && state.users[id].kind === 'human');
+    const [person, other] = team;
+    if (!person || !other) throw new Error('The sample office needs two team members on prj_001.');
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    const idOf = (view: unknown) => (view as { message: { id: string } }).message.id;
+    const { id: group } = apply(state, 'chats.createGroup', { name: 'Item 22 team', memberIds: [person, ADMIN] }, other) as { id: string };
+    apply(state, 'chats.send', { conversationId: group, body: 'Plain group note 6641.' }, other, { now: at(1) });
+    const { id: direct } = apply(state, 'chats.openDirect', { userId: person }, other) as { id: string };
+    const question = idOf(apply(state, 'chats.send', { conversationId: direct, body: 'Direct question 2231.' }, other, { now: at(2) }));
+    const task = tasksOfProject(state, 'prj_001').find((t) => t.ownerId !== null && t.ownerId !== person)!;
+    // The reply answers the first comment of the person, which is older than the newest comment of the person: only a load by key sees it.
+    const first = apply(state, 'comments.create', { targetType: 'task', targetId: task.id, body: 'I will check the wall.' }, person, { now: at(3) }) as { comment: { id: string } };
+    apply(state, 'comments.create', { targetType: 'task', targetId: task.id, body: 'Second note.' }, person, { now: at(4) });
+    apply(state, 'comments.create', { targetType: 'task', targetId: task.id, body: 'Thanks.', replyToId: first.comment.id }, other, { now: at(5) });
+    // The plain group note names nobody, so the group does not wait yet.
+    const before = (await same(state, 'chats.waiting', {}, person)).outcome.output as { kind: string; id: string }[];
+    expect(before.map((row) => row.id)).not.toContain(group);
+    expect(before.map((row) => row.id)).toEqual(expect.arrayContaining([direct, task.id]));
+    // The naming message is older than the newest message of the group: only the select of the newest naming message sees it.
+    apply(state, 'chats.send', { conversationId: group, body: `${mentionMarkup(state.users[person].name, person)} Please look at 6641.` }, other, { now: at(6) });
+    apply(state, 'chats.send', { conversationId: group, body: 'And a plain word after it.' }, other, { now: at(7) });
+    const named = (await same(state, 'chats.waiting', {}, person)).outcome.output as { kind: string; id: string }[];
+    expect(named.map((row) => row.id)).toContain(group);
+    // A 👍 of the person on the question and on the comment that waits answers them.
+    state.messages[question].reactions = { ...emptyReactions(), '👍': [person] };
+    const answered = (await same(state, 'chats.waiting', {}, person)).outcome.output as { kind: string; id: string }[];
+    expect(answered.map((row) => row.id)).not.toContain(direct);
+    expect(answered.map((row) => row.id)).toContain(group);
+  });
+
+  // Base B3 (chat design 2026-10-19): a deleted message leaves every read path, also in the scoped load.
+  it('chats reads: the scoped load leaves a deleted message out, as the handler does (base B3)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const team = Object.values(state.members).filter((m) => m.projectId === 'prj_001').map((m) => m.userId).filter((id) => id !== ADMIN && state.users[id].kind === 'human');
+    const [person, other] = team;
+    if (!person || !other) throw new Error('The sample office needs two team members on prj_001.');
+    const named = mentionMarkup(state.users[person].name, person);
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    const idOf = (view: unknown) => (view as { message: { id: string } }).message.id;
+    // A live message that names the person, then a newer message that names the person too, and is deleted.
+    apply(state, 'chats.send', { conversationId: room.id, body: `${named} Live note 4417.` }, other, { now: at(1) });
+    const goneInRoom = idOf(apply(state, 'chats.send', { conversationId: room.id, body: `${named} Deleted note 7731.` }, ADMIN, { now: at(2) }));
+    // A direct chat whose newest message is deleted.
+    const { id: direct } = apply(state, 'chats.openDirect', { userId: person }, other) as { id: string };
+    apply(state, 'chats.send', { conversationId: direct, body: 'Direct live 5521.' }, other, { now: at(3) });
+    const goneInDirect = idOf(apply(state, 'chats.send', { conversationId: direct, body: 'Direct deleted 9921.' }, other, { now: at(4) }));
+    for (const id of [goneInRoom, goneInDirect]) state.messages[id].deletedAt = '2026-10-04T09:30:00.000+03:00';
+    for (const actor of [person, other, ADMIN]) {
+      await same(state, 'chats.list', {}, actor);
+      await same(state, 'chats.unreadCount', {}, actor);
+      await same(state, 'chats.waiting', {}, actor);
+      await same(state, 'chats.markRead', { conversationId: room.id }, actor);
+      await same(state, 'chats.messages', { conversationId: room.id }, actor);
+    }
+    const page = await same(state, 'chats.messages', { conversationId: direct }, person);
+    expect(JSON.stringify(page.outcome.output)).toContain('Direct live 5521.');
+    expect(JSON.stringify(page.outcome.output)).not.toContain('9921');
+    const list = (await same(state, 'chats.list', {}, person)).outcome.output as { id: string; preview: string; unread: number }[];
+    expect(list.find((row) => row.id === direct)).toMatchObject({ preview: 'Direct live 5521.', unread: 1 });
+    expect(JSON.stringify(list)).not.toContain('7731');
+    const waits = (await same(state, 'chats.waiting', {}, person)).outcome.output as { id: string; body: string }[];
+    expect(waits.find((row) => row.id === room.id)?.body).toContain('Live note 4417.');
+    expect(JSON.stringify(waits)).not.toMatch(/7731|9921/);
+  });
+
+  // Base B5 (chat design 2026-10-19): a reply link reads an old message or comment that the scoped load may not hold yet.
+  it('chats.messages: the scoped load brings the old message of a reply that is older than the page (base B5)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const team = Object.values(state.members).filter((m) => m.projectId === 'prj_001').map((m) => m.userId).filter((id) => id !== ADMIN && state.users[id].kind === 'human');
+    const [person, other] = team;
+    if (!person || !other) throw new Error('The sample office needs two team members on prj_001.');
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    const idOf = (view: unknown) => (view as { message: { id: string } }).message.id;
+    const old = idOf(apply(state, 'chats.send', { conversationId: room.id, body: `${mentionMarkup(state.users[person].name, person)} Old question 3318.\nSecond line.` }, other, { now: at(1) }));
+    apply(state, 'chats.send', { conversationId: room.id, body: 'Middle one.' }, other, { now: at(2) });
+    apply(state, 'chats.send', { conversationId: room.id, body: 'Middle two.' }, other, { now: at(3) });
+    const last = idOf(apply(state, 'chats.send', { conversationId: room.id, body: 'The answer.' }, person, { now: at(4) }));
+    state.messages[last].replyToId = old;
+    for (const actor of [person, other, ADMIN]) {
+      const run = await same(state, 'chats.messages', { conversationId: room.id, limit: 2 }, actor);
+      const page = run.outcome.output as { messages: { message: { id: string }; replyTo: { firstLine: string; deleted: boolean } | null; namesMe: boolean }[]; notify: string; readUpTo: string | null };
+      expect(page.messages, actor).toHaveLength(2);
+      const reply = page.messages.find((view) => view.message.id === last)!;
+      expect(reply.replyTo, actor).toMatchObject({ firstLine: expect.stringContaining('Old question 3318.'), deleted: false });
+      expect(page.messages.some((view) => view.message.id === old), 'the old message is not on the page').toBe(false);
+    }
+  });
+
+  it('comments.update and reactions.toggle: the scoped load brings the comment a reply answers (base B5)', async () => {
+    const state = office();
+    const task = Object.values(state.tasks).find((t) => t.projectId !== null && t.ownerId !== null)!;
+    const lead = task.ownerId as string;
+    const other = Object.values(state.members).filter((m) => m.projectId === task.projectId).map((m) => m.userId).find((id) => id !== lead && id !== ADMIN && state.users[id].kind === 'human')!;
+    const add = (id: string, authorId: string, at: string, extra: Partial<State['comments'][string]> = {}) => {
+      state.comments[id] = { id, targetType: 'task', targetId: task.id, authorId, body: `Note ${id} 6641`, reactions: emptyReactions(), fileIds: [], createdAt: at, editedAt: null, ...extra };
+    };
+    add('cmt_901', lead, '2026-10-01T09:00:00.000+03:00');
+    add('cmt_902', other, '2026-10-02T09:00:00.000+03:00', { replyToId: 'cmt_901' });
+    for (const [name, input, actor] of [
+      ['comments.list', { targetType: 'task', targetId: task.id }, lead],
+      ['comments.update', { id: 'cmt_902', body: 'A new word for the reply.' }, other],
+      ['reactions.toggle', { commentId: 'cmt_902', emoji: '👍' }, lead],
+    ] as const) {
+      const run = await same(state, name, input, actor);
+      expect(run.outcome.error, name).toBeUndefined();
+    }
+    const view = (await same(state, 'reactions.toggle', { commentId: 'cmt_902', emoji: '👍' }, lead)).outcome.output as { replyTo: { id: string; deleted: boolean } | null; namesMe: boolean };
+    expect(view.replyTo).toMatchObject({ id: 'cmt_901', deleted: false });
+    expect(view.namesMe).toBe(true);
+  });
+
+  // Base B6 (chat design 2026-10-19): a reply reads the old message or comment by key, and names its author.
+  it('chats.send and comments.create with a reply: the scoped load gives the answer and the writes of the whole office (base B6)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const team = Object.values(state.members).filter((m) => m.projectId === 'prj_001').map((m) => m.userId).filter((id) => id !== ADMIN && state.users[id].kind === 'human');
+    const [person, other] = team;
+    if (!person || !other) throw new Error('The sample office needs two team members on prj_001.');
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    const idOf = (view: unknown) => (view as { message: { id: string } }).message.id;
+    const old = idOf(apply(state, 'chats.send', { conversationId: room.id, body: 'Old question 3318.' }, other, { now: at(1) }));
+    for (let i = 0; i < 3; i += 1) apply(state, 'chats.send', { conversationId: room.id, body: `Newer ${i}.` }, other, { now: at(2 + i) });
+    const sent = await same(state, 'chats.send', { conversationId: room.id, body: 'The answer.', replyToId: old }, person, { now: at(10) });
+    expect(sent.outcome.error).toBeUndefined();
+    expect(sent.outcome.output).toMatchObject({ message: { replyToId: old, mentions: [other] }, replyTo: { id: old, deleted: false } });
+    expect(inserted(sent, 'notifications').length).toBe(1);
+    const refused = await same(state, 'chats.send', { conversationId: room.id, body: 'The answer.', replyToId: 'msg_9999' }, person, { now: at(10) });
+    expect(refused.outcome.error).toMatchObject({ code: 'invalid_input' });
+
+    const task = Object.values(state.tasks).find((t) => t.projectId === 'prj_001' && t.ownerId !== null)!;
+    const another = Object.values(state.tasks).find((t) => t.projectId === 'prj_001' && t.id !== task.id)!;
+    const add = (id: string, targetId: string, authorId: string, at2: string) => {
+      state.comments[id] = { id, targetType: 'task', targetId, authorId, body: `Note ${id} 6641`, reactions: emptyReactions(), fileIds: [], createdAt: at2, editedAt: null };
+    };
+    add('cmt_901', task.id, other, '2026-10-01T09:00:00.000+03:00');
+    add('cmt_902', another.id, other, '2026-10-01T10:00:00.000+03:00');
+    for (const actor of [person, ADMIN]) {
+      const made = await same(state, 'comments.create', { targetType: 'task', targetId: task.id, body: 'A reply.', replyToId: 'cmt_901' }, actor);
+      expect(made.outcome.error, actor).toBeUndefined();
+      const foreign = await same(state, 'comments.create', { targetType: 'task', targetId: task.id, body: 'A reply.', replyToId: 'cmt_902' }, actor);
+      expect(foreign.outcome.error, actor).toMatchObject({ code: 'invalid_input' });
+    }
+  });
+
+  // Track msg B8 (chat design 2026-10-19, item 11): an edit finds the names again. The notices of the message must be in the scoped load,
+  // or the removal of a name would leave its notice behind, and the whole office would delete it.
+  it('chats.editMessage: the scoped load adds the notice of a new name and takes away the notice of a removed name (B8)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const team = Object.values(state.members).filter((m) => m.projectId === 'prj_001').map((m) => m.userId).filter((id) => id !== ADMIN && state.users[id].kind === 'human');
+    const [author, first, second] = team;
+    if (!author || !first || !second) throw new Error('The sample office needs three team members on prj_001.');
+    const idOf = (view: unknown) => (view as { message: { id: string } }).message.id;
+    const sent = idOf(apply(state, 'chats.send', { conversationId: room.id, body: `${mentionMarkup(state.users[first].name, first)} look at the wall.` }, author, { now: new Date(NOW.getTime() + 60_000) }));
+    expect(Object.values(state.notifications).filter((n) => n.messageId === sent && n.userId === first)).toHaveLength(1);
+    const removed = await same(state, 'chats.editMessage', { id: sent, body: 'Look at the wall.' }, author);
+    expect(removed.outcome.error).toBeUndefined();
+    expect(deleted(removed, 'notifications')).toHaveLength(1);
+    expect(inserted(removed, 'notifications')).toHaveLength(0);
+    const swapped = await same(state, 'chats.editMessage', { id: sent, body: `${mentionMarkup(state.users[second].name, second)} look at the wall.` }, author);
+    expect(swapped.outcome.error).toBeUndefined();
+    expect(deleted(swapped, 'notifications')).toHaveLength(1);
+    expect(inserted(swapped, 'notifications')).toHaveLength(1);
+    const other = await same(state, 'chats.editMessage', { id: sent, body: 'Not mine' }, first);
+    expect(other.outcome.error).toMatchObject({ code: 'forbidden' });
+  });
+
+  // Track msg B9 (chat design 2026-10-19, item 11): a delete takes the notices of the message away, and a restore writes them again, read.
+  it('chats.deleteMessage: the scoped load takes the notices away, and the restore brings them back read (B9)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const team = Object.values(state.members).filter((m) => m.projectId === 'prj_001').map((m) => m.userId).filter((id) => id !== ADMIN && state.users[id].kind === 'human');
+    const [author, first] = team;
+    if (!author || !first) throw new Error('The sample office needs two team members on prj_001.');
+    const idOf = (view: unknown) => (view as { message: { id: string } }).message.id;
+    const sent = idOf(apply(state, 'chats.send', { conversationId: room.id, body: `${mentionMarkup(state.users[first].name, first)} Secret offer 8842.` }, author, { now: new Date(NOW.getTime() + 60_000) }));
+    const gone = await same(state, 'chats.deleteMessage', { id: sent }, author);
+    expect(gone.outcome.output).toEqual({ deleted: true });
+    expect(deleted(gone, 'notifications')).toHaveLength(1);
+    expect(docs(gone, 'messages')[0]).toMatchObject({ id: sent, deletedAt: expect.any(String) });
+    apply(state, 'chats.deleteMessage', { id: sent }, author);
+    expect(Object.values(state.notifications).filter((n) => n.messageId === sent)).toHaveLength(0);
+    const back = await same(state, 'chats.deleteMessage', { id: sent, deleted: false }, author);
+    expect(back.outcome.output).toEqual({ deleted: false });
+    expect(docs(back, 'notifications')).toEqual([expect.objectContaining({ messageId: sent, userId: first, read: true })]);
+    expect(docs(back, 'messages')[0]).not.toHaveProperty('deletedAt');
+    // The page before the deleted message works on the scoped load too.
+    const read = await same(state, 'chats.messages', { conversationId: room.id, before: sent, limit: 3 }, author);
+    expect(read.outcome.error).toBeUndefined();
+    expect(JSON.stringify(read.outcome.output)).not.toContain('8842');
+  });
+
+  // Track msg B10 (chat design 2026-10-19, item 12): a reaction on a message reads the message and the message it answers, and writes no notice.
+  it('reactions.toggle on a message: the scoped load gives the view with its reply link, and writes the message only (B10)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const team = Object.values(state.members).filter((m) => m.projectId === 'prj_001').map((m) => m.userId).filter((id) => id !== ADMIN && state.users[id].kind === 'human');
+    const [person, other] = team;
+    if (!person || !other) throw new Error('The sample office needs two team members on prj_001.');
+    const idOf = (view: unknown) => (view as { message: { id: string } }).message.id;
+    const old = idOf(apply(state, 'chats.send', { conversationId: room.id, body: 'Old question 3318.' }, other, { now: new Date(NOW.getTime() + 60_000) }));
+    const last = idOf(apply(state, 'chats.send', { conversationId: room.id, body: 'The answer.' }, person, { now: new Date(NOW.getTime() + 120_000) }));
+    state.messages[last].replyToId = old;
+    for (const actor of [person, other, ADMIN]) {
+      const run = await same(state, 'reactions.toggle', { messageId: last, emoji: '👍' }, actor);
+      expect(run.outcome.error, actor).toBeUndefined();
+      expect(run.outcome.output, actor).toMatchObject({ message: { id: last, reactions: { '👍': [actor] } }, replyTo: { id: old, firstLine: 'Old question 3318.', deleted: false } });
+      expect(docs(run, 'messages').map((doc) => doc.id), actor).toEqual([last]);
+      expect(inserted(run, 'notifications'), actor).toHaveLength(0);
+      expect(inserted(run, 'events'), actor).toHaveLength(0);
+    }
+    // A comment still takes the old input.
+    const task = Object.values(state.tasks).find((t) => t.projectId !== null && t.ownerId !== null)!;
+    state.comments.cmt_901 = { id: 'cmt_901', targetType: 'task', targetId: task.id, authorId: person, body: 'A note', reactions: emptyReactions(), fileIds: [], createdAt: '2026-10-01T09:00:00.000+03:00', editedAt: null };
+    const comment = await same(state, 'reactions.toggle', { commentId: 'cmt_901', emoji: '✅' }, ADMIN);
+    expect(comment.outcome.error).toBeUndefined();
+    expect(inserted(comment, 'events').length).toBe(1);
   });
 
   it('row 16: a task approved after review moves its dependents by the days it was late on the review day', async () => {
@@ -485,6 +812,8 @@ describe('unread counts (plan 4.13, A9)', () => {
     const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
     const leader = state.projects.prj_001.leaderId!;
     const agent = Object.values(state.users).find((u) => u.kind === 'agent' && u.ownerId === leader);
+    // Item 23: the Admin counts every message of a chat only of a project that the Admin works on, so the Admin joins the team here.
+    state.members[memberKey('prj_001', ADMIN)] = { projectId: 'prj_001', userId: ADMIN, discipline: 'Architect' };
     for (const key of Object.keys(state.chatReads)) if (state.chatReads[key].userId === ADMIN) delete state.chatReads[key];
     for (let i = 0; i < LONG; i += 1) {
       const id = `msg_${String(10_000 + i)}`;

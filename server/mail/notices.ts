@@ -6,6 +6,7 @@ import { readLiteOffice } from '../data/lite/office';
 import type { SaveResult } from '../data/save';
 import { processOutbox, writeOutbox, type OutboxRow } from '../core/effects';
 import type { Db, Deps, Mail, Query } from '../core/ports';
+import { isChatItemNotice } from '../push/chatRule';
 import { QUOTA_LIMITS, sendCounted, utcDay, type QuotaKind, type SendCounted } from './quota';
 import { renderMail, type RenderedMail } from './templates';
 
@@ -28,13 +29,20 @@ import { renderMail, type RenderedMail } from './templates';
  */
 
 export const NOTICE_EFFECT = 'mail.notice';
+/** The mention or reply mail of a chat message or a task comment: it waits 10 seconds after the answer and checks again (chat design item 20). */
+export const CHAT_NOTICE_EFFECT = 'mail.chatNotice';
 export const QUOTA_WARNING_EFFECT = 'mail.quotaWarning';
 
-/** The calls that change old notices and never make one: no notice producer runs for them. */
-export const NOTICE_FREE_CALLS: ReadonlySet<string> = new Set(['notifications.markRead', 'notifications.markAllRead', 'notifications.markUnread']);
+/**
+ * The calls that change old notices and never make one: no notice producer runs for them. A read of a chat or a task thread and an
+ * archive mark its mention notices read (chat design item 20), and the Notify me choice (chats.setNotify) touches no notice.
+ */
+export const NOTICE_FREE_CALLS: ReadonlySet<string> = new Set([
+  'notifications.markRead', 'notifications.markAllRead', 'notifications.markUnread', 'chats.markRead', 'chats.archive', 'chats.setNotify',
+]);
 
 /** $1 the people whose notices the save changed. The unread notices that the open transaction inserted, with their person. */
-export const NEW_NOTICES_SQL = `select n.id, n.user_id, n.doc->>'trigger' as trigger, u.kind, u.active, u.doc->'preferences' as preferences
+export const NEW_NOTICES_SQL = `select n.id, n.user_id, n.doc->>'trigger' as trigger, n.target_type, n.doc->>'messageId' as message_id, u.kind, u.active, u.doc->'preferences' as preferences
 from notifications n join users u on u.id = n.user_id
 where n.user_id = any($1::text[]) and not n.read
   and n.xmin::text::bigint = (pg_current_xact_id_if_assigned()::text::bigint % 4294967296)
@@ -73,7 +81,7 @@ export const NOTICE_MAIL_LITE = "select n.id as id, json_extract(n.doc, '$.trigg
 export const USER_DOC_LITE = 'select doc from users where id = ?1';
 export const ADMINS_LITE = "select rowid as ord, id from users where json_extract(doc, '$.kind') = 'human' and json_type(doc, '$.active') = 'true' and json_extract(doc, '$.systemRole') = 'admin'";
 
-type NewNotice = { id: string; user_id: string; trigger: Trigger; kind: string; active: boolean; preferences: Preferences };
+type NewNotice = { id: string; user_id: string; trigger: Trigger; target_type?: string; message_id?: string | null; kind: string; active: boolean; preferences: Preferences };
 export type PersonRow = { user_id: string; kind: string; active: boolean; email: string; preferences: Preferences; gender: Gender | null };
 type NoticeRow = PersonRow & { id: string; trigger: Trigger };
 type UserDoc = { id: string; kind: string; active?: boolean; email: string; preferences: Preferences; gender?: Gender | null; systemRole?: string };
@@ -108,14 +116,23 @@ export function appLink(appUrl: string, path: string): string {
 /** True when the person may get mail at all: an active human. */
 export const mailable = (person: Pick<PersonRow, 'kind' | 'active'>): boolean => person.kind === 'human' && person.active;
 
-/** The mail.notice outbox rows of one save. Run inside the call's transaction, after the save. */
+/**
+ * The outbox row of one new notice (chat design item 20): a mention or reply notice of a chat message or a task comment waits 10 seconds
+ * and sends nothing when the person read it by then (mail.chatNotice). Every other notice goes at once (mail.notice).
+ */
+function mailRowOf(id: string, targetType: string | undefined, messageId: string | null | undefined): OutboxRow {
+  const waits = isChatItemNotice({ targetType: targetType ?? '', messageId });
+  return { kind: waits ? CHAT_NOTICE_EFFECT : NOTICE_EFFECT, payload: { notificationId: id } };
+}
+
+/** The mail outbox rows of one save. Run inside the call's transaction, after the save. */
 export async function noticeRows(q: Query, saved: Pick<SaveResult, 'kinds' | 'people' | 'noticeIds'>): Promise<OutboxRow[]> {
   if (!saved.kinds.has('notifications') || saved.people.size === 0) return [];
   if (isLite(q)) return liteNoticeRows(q, saved.noticeIds ?? []);
   const found = await q<NewNotice>(NEW_NOTICES_SQL, [[...saved.people].sort()]);
   return found
     .filter((n) => mailable(n) && inAppOn(n.preferences, n.trigger) && emailOn(n.preferences, n.trigger))
-    .map((n) => ({ kind: NOTICE_EFFECT, payload: { notificationId: n.id } }));
+    .map((n) => mailRowOf(n.id, n.target_type, n.message_id));
 }
 
 /** The mail rows of the new notices on SQLite, in the order of the save (the order of ord on Postgres). */
@@ -129,7 +146,7 @@ async function liteNoticeRows(q: Query, ids: readonly string[]): Promise<OutboxR
     if (!notice || !person) continue;
     const trigger = notice.doc.trigger;
     if (mailable(person) && inAppOn(person.preferences, trigger) && emailOn(person.preferences, trigger)) {
-      rows.push({ kind: NOTICE_EFFECT, payload: { notificationId: notice.id } });
+      rows.push(mailRowOf(notice.id, notice.doc.targetType, notice.doc.messageId ?? null));
     }
   }
   return rows;
@@ -169,6 +186,23 @@ export async function sendNoticeMail(payload: Record<string, unknown>, deps: Dep
   if (!isEmailTrigger(trigger) || !inAppOn(preferences, trigger) || !emailOn(preferences, trigger)) return;
   const rendered = renderMail('notice', preferences.language, { trigger, link: appLink(deps.config.appUrl, '/notifications') }, { reader: notice.gender ?? undefined }, { appUrl: deps.config.appUrl });
   await sendWarned(deps, 'notice', mailOf(notice.email, rendered, 'notice', `notice-${id}`), notice.user_id);
+}
+
+/** $1 the notice. The notice, when it is still unread. A read of the chat marks its mention notices read (chat design item 20). */
+export const NOTICE_UNREAD_SQL = 'select id from notifications where id = $1 and not read';
+export const NOTICE_UNREAD_LITE = 'select id from notifications where id = ?1 and read = 0';
+
+/**
+ * The mail.chatNotice effect: the mention or reply mail of a chat message or a task comment, 10 seconds after the answer. A notice that
+ * is read by now (the person read the chat or the notice), or gone (a delete or an edit took it), sends nothing. Otherwise it sends
+ * the same mail as sendNoticeMail, with the same quota and the same key notice-<id>.
+ */
+export async function sendChatNoticeMail(payload: Record<string, unknown>, deps: Deps): Promise<void> {
+  const id = String(payload.notificationId ?? '');
+  // The primary, never a read copy: the read may have committed a moment ago.
+  const unread = await deps.db.statement<{ id: string }>('write', isLite(deps.db) ? NOTICE_UNREAD_LITE : NOTICE_UNREAD_SQL, [id]);
+  if (unread.length === 0) return;
+  await sendNoticeMail(payload, deps);
 }
 
 /** The mail.quotaWarning effect: one warning to one Admin, once a day. A person who is no longer an Admin gets nothing. */

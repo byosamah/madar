@@ -11,7 +11,7 @@ import { can, mayViewMeeting, mayViewTask, taskResource } from '../permissions';
 import { cardOf } from '../views';
 import { markOf } from '../../lib/projectMark';
 import { meetingLink } from '../../lib/meetings';
-import { taskLink } from '../../lib/params';
+import { chatLink, taskLink } from '../../lib/params';
 import { stampDay } from '../../lib/dates';
 
 /**
@@ -118,7 +118,9 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     target = text(copy?.title);
     projectCode = project?.code ?? null;
     tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
-    if (task) link = taskLink(task.projectId, task.id);
+    // A notice of a comment opens the Inbox task thread at that comment (chat design 2026-10-19, item 17). Any other notice of a task
+    // opens the task panel.
+    if (task) link = n.messageId?.startsWith('cmt_') ? chatLink(task.id, n.messageId) : taskLink(task.projectId, task.id);
     // A reminder saved before it kept its day names the due day of the task.
     if (n.trigger === 'due_tomorrow') dueDate = n.dueDate ?? (text(copy?.dueDate) || null);
     canApprove = n.trigger === 'review_requested' && task?.status === 'in_review'
@@ -140,7 +142,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     target = project?.name ?? (conversation?.kind === 'group' && !gone ? (conversation.name ?? '') : '');
     projectCode = project?.code ?? null;
     tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
-    if (!gone) link = `/inbox/${n.targetId}`;
+    if (!gone) link = chatLink(n.targetId, n.messageId);
   } else if (n.targetType === 'project') {
     const project = state.projects[n.targetId];
     const copy: Copy | null = project ?? deletedCopy(state, 'project', n.targetId);

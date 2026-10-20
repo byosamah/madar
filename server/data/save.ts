@@ -47,6 +47,8 @@ export type Diff = {
   people: Set<string>;
   /** The messages that this change inserted, in the order of the State (the push producer reads them, server/push/notify.ts). */
   messageIds: string[];
+  /** The comments that this change inserted, in State order: the push producer reads them (a comment of a task pushes the lead). */
+  commentIds: string[];
   /** The notices that the save inserted, in State order: the mail and push producers on SQLite (exit wave 3) read them. */
   noticeIds: string[];
   /** The meetings that the save inserted, changed or deleted: the Google Calendar sync reads them (server/google/rows.ts, fbk_022). */
@@ -91,6 +93,8 @@ export type SaveResult = {
   people: Set<string>;
   /** The messages that the save inserted. The push producer reads them. Left out when there are none. */
   messageIds?: string[];
+  /** The comments that the save inserted. The push producer reads them. Left out when there are none. */
+  commentIds?: string[];
   /** The notices that the save inserted. Left out when there are none. */
   noticeIds?: string[];
   /** The meetings that the save inserted, changed or deleted (fbk_022). Left out when there are none. */
@@ -430,11 +434,12 @@ export function diffState(before: State, after: State): Diff {
   const personal = kinds.size > 0 && [...kinds].every((kind) => PERSONAL_KINDS.has(kind));
   const anonymous = publicKinds.size > 0 && projects.size === 0 && officeTasks.size === 0 && officeMeetings.size === 0 && [...publicKinds].every((kind) => PRIVATE_CHAT_KINDS.has(kind));
   const messageIds = tables.find((change) => change.spec.collection === 'messages')?.inserted ?? [];
+  const commentIds = tables.find((change) => change.spec.collection === 'comments')?.inserted ?? [];
   const noticeIds = tables.find((change) => change.spec.collection === 'notifications')?.inserted ?? [];
   const meetingChange = tables.find((change) => change.spec.collection === 'meetings');
   const meetingIds = meetingChange ? [...meetingChange.inserted, ...meetingChange.updated, ...meetingChange.deleted] : [];
   return {
-    tables, counters, kinds, projects, office: personal ? false : office, people, messageIds, noticeIds, meetingIds, officeRows, personal, unresolvedComments,
+    tables, counters, kinds, projects, office: personal ? false : office, people, messageIds, commentIds, noticeIds, meetingIds, officeRows, personal, unresolvedComments,
     meta: meta ?? { storyId: '', actorId: '' },
     privateChange: officeTasks.size > 0 || officeMeetings.size > 0,
     privatePeople,
@@ -471,6 +476,7 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
   const result = (fields: Partial<SaveResult> = {}): SaveResult => ({
     changed, kinds: new Set(diff.kinds), projects, office, people: new Set(diff.people), bytesWritten: 0, signals: [],
     ...(diff.messageIds.length > 0 ? { messageIds: diff.messageIds } : {}),
+    ...(diff.commentIds.length > 0 ? { commentIds: diff.commentIds } : {}),
     ...(diff.noticeIds.length > 0 ? { noticeIds: diff.noticeIds } : {}),
     ...(diff.meetingIds.length > 0 ? { meetingIds: diff.meetingIds } : {}),
     ...fields,

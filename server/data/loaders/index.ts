@@ -2,7 +2,8 @@ import type { z } from 'zod';
 import type { SharedCallName, SharedCalls } from '../../../src/api/sharedCalls';
 import type { State } from '../../../src/api/store';
 import { Load, type LoadCtx } from './build';
-import { chatsAll, chatsArchive, chatsMarkRead, chatsMessages, chatsUnread, chatsWaiting } from './chat';
+import { chatMessageCall, chatMessageRows, chatsAll, chatsArchive, chatsMarkRead, chatsMessages, chatsSetNotify, chatsUnread, chatsWaiting } from './chat';
+import { chatsOpenDirect } from './chatOpen';
 import { inboxCount, inboxList } from './inbox';
 import { meetingCall, meetingMinutes, meetingsList } from './meetings';
 import { dashboardGet, eventsList, projectsList, searchQuery, tasksList, templateSyncTasks } from './overview';
@@ -23,7 +24,7 @@ import {
  * The loader of each call that the server runs (plan 4.6; task C2). runCall (C3) calls loadFor() inside the call's transaction,
  * after the office lock for a write, and runs the handler on the State it returns. The table of plan 4.6 names the loaders:
  *
- *   office         the office lists only (people, clients, settings, teams, templates, deadlines.list, session.get, chats.openDirect).
+ *   office         the office lists only (people, clients, settings, teams, templates, deadlines.list, session.get).
  *                  projects.create reads its project template from them too. The group calls (chats.createGroup,
  *                  chats.updateGroup, chats.leaveGroup) read the chat rooms there too.
  *   feedback       the office and every feedback row
@@ -134,7 +135,8 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'comments.create': content(commentsCreate),
   'comments.update': content(commentCall),
   'comments.delete': content(commentCall),
-  'reactions.toggle': content(commentCall),
+  // A reaction on a message reads the message with its files and its reply target, and no notice (chat design item 12).
+  'reactions.toggle': content((L, i) => (i.messageId === undefined ? commentCall(L, i) : chatMessageRows(L, i))),
 
   'files.list': project(filesList),
   'files.upload': project(filesUpload),
@@ -156,10 +158,13 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'chats.list': chat(chatsAll),
   'chats.messages': chat(chatsMessages),
   'chats.send': chat(chatsSend),
+  'chats.editMessage': chat(chatMessageCall),
+  'chats.deleteMessage': chat(chatMessageCall),
   'chats.markRead': chat(chatsMarkRead),
   'chats.archive': chat(chatsArchive),
   'chats.markUnread': chat(chatsArchive),
-  'chats.openDirect': office,
+  'chats.setNotify': chat(chatsSetNotify),
+  'chats.openDirect': chat(chatsOpenDirect),
   'chats.createGroup': office,
   'chats.updateGroup': office,
   'chats.leaveGroup': office,

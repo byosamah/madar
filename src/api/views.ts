@@ -3,6 +3,7 @@ import type {
   Attachment, CommentView, EventView, FeedItem, FileView, MinutesView, ProjectDetail, ProjectSummary, PaymentRow, TaskDetail, TaskRow, TrackerRow, UserCard,
 } from './contract/views';
 import { canSeeConversation } from './chatState';
+import { namesPerson, replyRefOf } from './chatNaming';
 import { computeHealth, isOverdue } from './health';
 import { can, mayViewMeeting, meetingResource, principalOf, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
 import { commentCountKey, fileCountKey, projectTemplatesOf, type State } from './store';
@@ -284,7 +285,10 @@ export function detailOf(state: State, project: Project, today: string, viewer: 
       active: state.users[m.userId]?.active ?? false,
     }))
     .sort((a, b) => Number(b.isLeader) - Number(a.isLeader) || a.user.name.localeCompare(b.user.name));
-  return { ...summary, members, deadlines: deadlinesOf(state, project.id) };
+  // The project chat, when the viewer may open it (an outsider gets null, and no id of the chat).
+  const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === project.id);
+  const chatId = room && canSeeConversation(state, room, viewer) ? room.id : null;
+  return { ...summary, members, deadlines: deadlinesOf(state, project.id), chatId };
 }
 
 export function eventViewOf(state: State, event: Event): EventView {
@@ -384,6 +388,8 @@ export function commentViewOf(state: State, comment: Comment, viewer: User): Com
       : canEditContent(state, target.projectId, comment.authorId, viewer),
     files: attachmentsOf(state, comment.fileIds),
     kind: lineKindOf(comment),
+    replyTo: replyRefOf(state, comment, viewer.id),
+    namesMe: namesPerson(state, comment, viewer.id),
   };
 }
 

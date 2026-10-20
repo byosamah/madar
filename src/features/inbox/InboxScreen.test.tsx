@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { addGroupConversation } from '../../api/chatState';
-import type { State } from '../../api/store';
+import { memberKey, type State } from '../../api/store';
 import { renderApp } from '../../test/render';
 
 // Render counters for the performance tests (audit 2026-10-07, RND-5). The wrappers call the real parts, so every other test of
@@ -38,6 +38,12 @@ const withTaskTalk = (state: State) => {
   };
 };
 
+// Item 23: the Admin counts every message of a project chat only when she works on its project. Hala is not on the Corniche Office Tower
+// team in the sample, so a test of a count that drops or clears puts her on the team first.
+const withHalaOnTower = (state: State) => {
+  state.members[memberKey('prj_001', 'usr_001')] = { projectId: 'prj_001', userId: 'usr_001', discipline: 'Architect' };
+};
+
 describe('the Inbox chat', () => {
   it('lists project chats, direct chats and task threads', async () => {
     await renderApp('/inbox', withTaskTalk);
@@ -58,7 +64,7 @@ describe('the Inbox chat', () => {
   });
 
   it('shows the unread count of a chat and clears it when the chat opens', async () => {
-    const { store } = await renderApp('/inbox');
+    const { store } = await renderApp('/inbox', withHalaOnTower);
     const row = await rowLink(/Corniche Office Tower/);
     expect(within(row).getByText('Unread: 2')).toBeInTheDocument();
     await userEvent.click(row);
@@ -204,15 +210,20 @@ describe('the Inbox chat', () => {
 });
 
 describe('the Inbox chat after the audit of 2026-10-03', () => {
-  it('empties the box after a Retry of a failed send, so the next Send does not post it twice (SHL-10)', async () => {
+  // Instant send (chat design 2026-10-19, item 13): the box empties at once. A failed message stays in the log as "Not sent" with its own
+  // button, and the button sends it again with the same key, so the message does not go twice.
+  it('empties the box at once, and sends a failed message again once (SHL-10)', async () => {
     const { store } = await renderApp('/inbox', undefined, { failFirst: 'chats.send' });
     await userEvent.click(await rowLink(/Corniche Office Tower/));
     const box = await screen.findByRole('textbox', { name: 'Message' });
     await userEvent.type(box, 'Please check beam B14.');
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    expect(box).toHaveValue('');
+    await userEvent.click(await screen.findByRole('button', { name: 'Send again' }));
     await waitFor(() => expect(Object.values(store.state.messages).filter((m) => m.body === 'Please check beam B14.')).toHaveLength(1));
-    await waitFor(() => expect(box).toHaveValue(''));
+    await waitFor(() => expect(screen.queryByText('Not sent')).toBeNull());
+    await waitFor(() => expect(within(screen.getByRole('log', { name: 'Messages' })).getAllByText('Please check beam B14.')).toHaveLength(1));
+    expect(box).toHaveValue('');
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
   });
 
@@ -308,7 +319,7 @@ describe('the Inbox chat after the audit of 2026-10-03', () => {
   }, 20000);
 
   // A draft belongs to the person who typed it, not to the browser tab (audit 2026-10-03, V-22).
-  const savedDrafts = () => Object.keys(window.sessionStorage).filter((key) => key.startsWith('madar.draft.')).map((key) => window.sessionStorage.getItem(key));
+  const savedDrafts = () => Object.keys(window.localStorage).filter((key) => key.startsWith('madar.draft.')).map((key) => window.localStorage.getItem(key));
 
   it('shows the next person no unsent words or files of the person before, after Preview as (V-22)', async () => {
     const { api } = await renderApp('/inbox');
@@ -351,12 +362,13 @@ describe('the bell and the Inbox badge', () => {
     await renderApp('/dashboard');
     const nav = await screen.findByRole('navigation', { name: 'Main navigation' });
     const inbox = within(nav).getByRole('link', { name: /^Inbox/ });
-    // Three chat messages, and two task threads with a new comment from someone else (audit 2026-10-03, SHL-5).
-    expect(await within(inbox).findByText('Unread messages: 5')).toBeInTheDocument();
+    // One direct chat message, and two task threads with a new comment from someone else (audit 2026-10-03, SHL-5).
+    // Item 23: the Admin's count of a project chat outside her projects holds only the messages that name her, and the tower chat names her in none.
+    expect(await within(inbox).findByText('Unread messages: 3')).toBeInTheDocument();
   });
 
   it('counts a new chat message and clears the count once the chat is read', async () => {
-    const { api, store } = await renderApp('/dashboard');
+    const { api, store } = await renderApp('/dashboard', withHalaOnTower);
     const nav = await screen.findByRole('navigation', { name: 'Main navigation' });
     await within(within(nav).getByRole('link', { name: /^Inbox/ })).findByText('Unread messages: 5');
     await api.call('chats.markRead', { conversationId: Object.values(store.state.conversations).find((c) => c.projectId === 'prj_001')?.id ?? '' });
@@ -445,7 +457,7 @@ describe('the Inbox archive (owner, 2026-10-18; UX audit 2026-10-19)', () => {
   });
 
   it('drops the unread number of the Inbox badge when a chat with unread messages is archived', async () => {
-    await renderApp('/inbox');
+    await renderApp('/inbox', withHalaOnTower);
     const nav = await screen.findByRole('navigation', { name: 'Main navigation' });
     await within(within(nav).getByRole('link', { name: /^Inbox/ })).findByText('Unread messages: 5');
     await archiveFromRow(await rowLink(/Corniche Office Tower/), 'Corniche Office Tower');
@@ -598,8 +610,11 @@ describe('Mark as unread (fbk_028, owner 2026-10-19)', () => {
 
   it('offers it only for a chat with nothing unread: a chat with new messages has Archive alone', async () => {
     await renderApp('/inbox');
-    const tower = await rowOf(/Corniche Office Tower/);
-    await userEvent.click(within(tower).getByRole('button', { name: 'Options for Corniche Office Tower' }));
+    // Faisal wrote the newest message of this chat, so it starts with 1 unread message. (A project chat outside the projects of the
+    // Admin counts only the messages that name the Admin, design item 23, so it is no sure chat with new messages.)
+    const faisal = await rowOf(/Faisal Al-Harbi/);
+    expect(within(faisal).getByText('Unread: 1')).toBeInTheDocument();
+    await userEvent.click(within(faisal).getByRole('button', { name: 'Options for Faisal Al-Harbi' }));
     expect(await screen.findByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Mark as unread' })).toBeNull();
   });
@@ -775,7 +790,7 @@ describe('group chats', () => {
     expect(within(sheet).queryByRole('button', { name: /^Remove/ })).toBeNull();
   });
 
-  it('keeps Rename, Mark as unread and Archive in the group menu, and nothing else', async () => {
+  it('keeps Rename, Mark as unread and Archive as the items of the group menu, then the Notify me choice and nothing else', async () => {
     await renderApp('/inbox', withGroup);
     await openGroup();
     const menus = screen.getAllByRole('button', { name: 'Options for Tower team' });
@@ -784,6 +799,7 @@ describe('group chats', () => {
     expect(screen.getByRole('menuitem', { name: 'Mark as unread' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
     expect(screen.getAllByRole('menuitem')).toHaveLength(3);
+    expect(screen.getAllByRole('menuitemradio').map((item) => item.textContent)).toEqual(['All messages', 'Only when I am named']);
   });
 
   it('lets the maker rename the group, and writes one quiet line about it', async () => {

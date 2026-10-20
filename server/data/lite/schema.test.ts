@@ -8,13 +8,13 @@ import { DEFAULT_SETTINGS, LITE_SCHEMA_VERSION, SIGNIN_TABLES, applyLiteSchema, 
 import { freshLite } from './testDb';
 
 /** The sha256 of the schema text of LITE_SCHEMA_VERSION. A change of the schema needs a new version and a new value here. */
-const PINNED_SHA256 = 'a9a94953a224f86a961f5a86302de077e35f1905374cfd61a3e533416b1654a5';
+const PINNED_SHA256 = '70e71a4443ceb5fec18285a07fed1a2273df5a70c5e74da569ce7edca605165d';
 
 const tablesOf = (raw: DatabaseSync) =>
   (raw.prepare("select name from sqlite_master where type = 'table' and name not like 'sqlite_%' order by name").all() as { name: string }[]).map((r) => r.name);
 const columnsOf = (raw: DatabaseSync, table: string) =>
   (raw.prepare('select name from pragma_table_info(?)').all(table) as { name: string }[]).map((r) => r.name);
-/** Takes the two Google tables away, as an office below version 7 has none (fbk_022). */
+/** Takes the two Google tables away, as an office below version 8 has none (fbk_022). */
 const dropGoogle = (raw: DatabaseSync) => {
   raw.exec('drop table google_connections');
   raw.exec('drop table google_events');
@@ -39,10 +39,12 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     const { raw } = await freshLite();
     raw.exec('drop table usage_day');
     raw.exec('drop table sub_companies');
+    raw.exec('alter table messages drop column search_text');
+    raw.exec('alter table comments drop column search_text');
     raw.exec('drop table meetings');
     dropGoogle(raw);
     raw.exec('update schema_version set version = 2');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [3, 4, 5, 6, 7] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [3, 4, 5, 6, 7, 8] });
     expect(columnsOf(raw, 'usage_day')).toEqual(['day', 'rows_read', 'rows_written', 'requests', 'calls', 'worker_requests']);
     expect(columnsOf(raw, 'sub_companies')).toEqual(['id', 'doc']);
     expect(columnsOf(raw, 'meetings')).toEqual(['id', 'doc', ...columnNames('meetings')]);
@@ -58,7 +60,9 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     raw.exec('drop table meetings');
     dropGoogle(raw);
     raw.exec('update schema_version set version = 3');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [4, 5, 6, 7] });
+    raw.exec('alter table messages drop column search_text');
+    raw.exec('alter table comments drop column search_text');
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [4, 5, 6, 7, 8] });
     expect(raw.prepare("select sql from sqlite_master where name = 'sub_companies'").get()).toEqual(fresh);
   });
 
@@ -69,12 +73,29 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     expect(fresh.map((row) => (row as { name: string }).name)).toEqual(['meetings', 'meetings_project_starts', 'meetings_starts', 'meetings_to_settle', 'sqlite_autoindex_meetings_1']);
     raw.exec('drop table meetings');
     dropGoogle(raw);
+    raw.exec('alter table messages drop column search_text');
+    raw.exec('alter table comments drop column search_text');
     raw.exec('update schema_version set version = 4');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [5, 6, 7] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [5, 6, 7, 8] });
     expect(objects()).toEqual(fresh);
   });
 
-  it('steps a version 5 office to the same settle index as a new office (fbk_022, wave 2)', async () => {
+  it('steps a version 5 office to the same messages and comments table texts as a new office', async () => {
+    const { raw } = await freshLite();
+    const text = (table: string) => raw.prepare('select sql from sqlite_master where name = ?').get(table);
+    const fresh = [text('messages'), text('comments')];
+    raw.exec('alter table messages drop column search_text');
+    raw.exec('alter table comments drop column search_text');
+    raw.exec('drop index meetings_to_settle');
+    dropGoogle(raw);
+    raw.exec('update schema_version set version = 5');
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [6, 7, 8] });
+    expect([text('messages'), text('comments')]).toEqual(fresh);
+    expect(columnsOf(raw, 'messages')).toEqual(['id', 'doc', 'conversation_id', 'created_at', 'search_text']);
+    expect(columnsOf(raw, 'comments')).toEqual(['id', 'doc', 'target_type', 'target_id', 'created_at', 'project_id', 'search_text']);
+  });
+
+  it('steps a version 6 office to the same settle index as a new office (fbk_022, wave 2)', async () => {
     const { raw } = await freshLite();
     const objects = () => raw.prepare("select name, sql from sqlite_master where tbl_name = 'meetings' order by name").all();
     const fresh = objects();
@@ -83,12 +104,12 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     );
     raw.exec('drop index meetings_to_settle');
     dropGoogle(raw);
-    raw.exec('update schema_version set version = 5');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [6, 7] });
+    raw.exec('update schema_version set version = 6');
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [7, 8] });
     expect(objects()).toEqual(fresh);
   });
 
-  it('steps a version 6 office to the same Google tables and indexes as a new office (fbk_022)', async () => {
+  it('steps a version 7 office to the same Google tables and indexes as a new office (fbk_022)', async () => {
     const { raw } = await freshLite();
     const objects = () => raw.prepare("select name, sql from sqlite_master where tbl_name in ('google_connections', 'google_events') order by name").all();
     const fresh = objects();
@@ -96,8 +117,8 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
       'google_connections', 'google_connections_person', 'google_events', 'google_events_meeting', 'sqlite_autoindex_google_events_1', 'sqlite_autoindex_google_connections_1',
     ].sort());
     dropGoogle(raw);
-    raw.exec('update schema_version set version = 6');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [7] });
+    raw.exec('update schema_version set version = 7');
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [8] });
     expect(objects()).toEqual(fresh);
   });
 
@@ -185,6 +206,6 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
 
   it('pins the schema text to its version', () => {
     const sha256 = createHash('sha256').update(liteSchemaSql().join('\n')).digest('hex');
-    expect({ version: LITE_SCHEMA_VERSION, sha256 }).toEqual({ version: 7, sha256: PINNED_SHA256 });
+    expect({ version: LITE_SCHEMA_VERSION, sha256 }).toEqual({ version: 8, sha256: PINNED_SHA256 });
   });
 });

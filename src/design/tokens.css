@@ -25,6 +25,9 @@
   --c-late-text: #B42318;
   --c-done: #067647;
   --c-link: #0066CC;
+  /* A chat message or a comment that names the reader: a soft lilac tint and a 3 px bar (chat design 2026-10-19, item 4). */
+  --c-mention-bg: #F4EDFF;
+  --c-mention-bar: #7E22CE;
   /* The signature: solid blueprint navy, not a gradient (owner's choice 2026-10-01). It marks the one main button, the open tab, the day ring and the timer. */
   --sig-from: #1F2A55;
   --sig-to: #1F2A55;
@@ -125,6 +128,8 @@
   --c-late-text: #FF8A80;
   --c-done: #4ADE80;
   --c-link: #4DA3FF;
+  --c-mention-bg: #2D2442;
+  --c-mention-bar: #C29BFF;
   --sig-from: #C9D4FF;
   --sig-to: #C9D4FF;
   --on-sig: #10183A;
@@ -259,6 +264,8 @@
   --color-late-bg: var(--c-late-bg);
   --color-done: var(--c-done);
   --color-link: var(--c-link);
+  --color-mention-bg: var(--c-mention-bg);
+  --color-mention-bar: var(--c-mention-bar);
   --radius-card: var(--r-card);
   --radius-sheet: var(--r-sheet);
   --radius-control: var(--r-control);

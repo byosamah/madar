@@ -1,14 +1,16 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Project, User } from '../../src/api/contract/entities';
 import { canSeeConversation } from '../../src/api/chatState';
-import { runCall } from '../core/runCall';
+import { mentionMarkup } from '../../src/lib/text';
+import { processOutbox } from '../core/effects';
+import { createRunCall, runCall } from '../core/runCall';
 import type { RunResult } from '../core/types';
-import { PUSH_DEVICES_SQL, PUSH_EFFECT } from '../push/notify';
+import { PUSH_CHAT_EFFECT, PUSH_DEVICES_SQL, PUSH_EFFECT } from '../push/notify';
 import { makeVapidKeys } from '../push/vapid';
 // It registers the push effect and the push producers, as server/core/deps.ts does for the entries.
 import '../push/effects';
 import '../mail/effects';
-import { newBatch, startOffice, type ItOffice } from './runCallOffice';
+import { newBatch, NOW, startOffice, type ItOffice } from './runCallOffice';
 
 /**
  * Browser push on the local database (owner, 2026-10-08), as madar_server: the three device calls, the unique endpoint, the
@@ -40,8 +42,10 @@ describe('browser push on the local database, as madar_server', () => {
   const call = (as: string, name: string, input: unknown, d: Live = deps) => runCall(d, { principal: { userId: as }, name, input, batch: newBatch() });
   const register = async (userId: string, endpoint = endpointOf(userId)) =>
     okOf(await call(userId, 'push.register', { endpoint, label: 'Chrome on Mac' }));
+  // Both kinds: push.notify (a plain notice, at once) and push.chat (a chat message or a task comment, after the wait; with no host the
+  // rows of a test run before the answer, with no wait).
   const outboxOf = () => office.sql<{ payload: { userId: string }; done: boolean; error: string | null }>(
-    'select payload, done_at is not null as done, error from outbox where kind = $1 order by id', [PUSH_EFFECT],
+    'select payload, done_at is not null as done, error from outbox where kind = any($1::text[]) order by id', [[PUSH_EFFECT, PUSH_CHAT_EFFECT]],
   );
   const pushedTo = () => posted.map((entry) => entry.url).sort();
 
@@ -118,19 +122,18 @@ describe('browser push on the local database, as madar_server', () => {
     expect(await office.sql<{ at: string | null }>("select doc->>'lastPushAt' as at from push_devices where user_id = $1", [omar.id])).toEqual([{ at: null }]);
   });
 
-  it('pushes a project chat message to the people who read that chat, never to its sender, and a direct message to the other member', async () => {
+  it('pushes a project chat message only to the people it names, never to its sender, and a direct message to the other member (item 19)', async () => {
     const seed = office.seed;
     const conversation = Object.values(seed.conversations).find((c) => c.kind === 'project' && c.projectId === project.id)!;
     const sender = members[0];
+    const named = members[1];
     const everyone = Object.values(seed.users).filter((u) => u.kind === 'human' && u.active);
     for (const user of everyone) await register(user.id);
     okOf(await call(sender.id, 'chats.send', { conversationId: conversation.id, body: 'Update for the team' }));
-    const readers = everyone.filter((u) => u.id !== sender.id && canSeeConversation(seed, conversation, u)).map((u) => endpointOf(u.id)).sort();
-    expect(readers.length).toBeGreaterThan(0);
-    expect(pushedTo()).toEqual(readers);
-    expect(pushedTo()).not.toContain(endpointOf(sender.id));
-    // One row for each person.
-    expect((await outboxOf()).map((row) => row.payload.userId).sort()).toEqual(everyone.filter((u) => u.id !== sender.id && canSeeConversation(seed, conversation, u)).map((u) => u.id).sort());
+    expect(pushedTo()).toEqual([]);
+    okOf(await call(sender.id, 'chats.send', { conversationId: conversation.id, body: `${mentionMarkup(named.name, named.id)} please look` }));
+    expect(pushedTo()).toEqual([endpointOf(named.id)]);
+    expect((await outboxOf()).map((row) => row.payload.userId)).toEqual([named.id]);
 
     posted.length = 0;
     await office.sql('truncate outbox');
@@ -138,6 +141,41 @@ describe('browser push on the local database, as madar_server', () => {
     const direct = okOf<{ id: string }>(await call(a.id, 'chats.openDirect', { userId: b.id }));
     okOf(await call(a.id, 'chats.send', { conversationId: direct.id, body: 'Hello' }));
     expect(pushedTo()).toEqual([endpointOf(b.id)]);
+  });
+
+  it('pushes a plain task comment to the task lead, and not to the author or a third person (item 19)', async () => {
+    const [sara, omar, third] = members;
+    for (const user of [sara, omar, third]) await register(user.id);
+    const { task } = okOf<{ task: { id: string } }>(await call(leader, 'tasks.create', { projectId: project.id, title: 'A task for Sara', ownerId: sara.id }));
+    posted.length = 0;
+    await office.sql('truncate outbox');
+    okOf(await call(omar.id, 'comments.create', { targetType: 'task', targetId: task.id, body: 'A plain note.' }));
+    expect(pushedTo()).toEqual([endpointOf(sara.id)]);
+    expect((await outboxOf()).map((row) => row.payload.userId)).toEqual([sara.id]);
+  });
+
+  it('sends no push for a direct message that the other person read before the push ran (item 20)', async () => {
+    const [a, b] = members;
+    await register(b.id);
+    const direct = okOf<{ id: string }>(await call(a.id, 'chats.openDirect', { userId: b.id }));
+    posted.length = 0;
+    await office.sql('truncate outbox');
+    // The rows are held, as on a host with after: the push runs 10 seconds later, here after the read.
+    const held: string[] = [];
+    const sendHeld = createRunCall({ afterCommit: async (_deps, ids) => void held.push(...ids) });
+    okOf(await sendHeld(deps, { principal: { userId: a.id }, name: 'chats.send', input: { conversationId: direct.id, body: 'Read me soon' }, batch: newBatch() }));
+    expect(held).toHaveLength(1);
+    okOf(await call(b.id, 'chats.markRead', { conversationId: direct.id }));
+    await processOutbox(deps, held);
+    expect(posted).toEqual([]);
+    // A message that the person did not read still pushes after the wait. The office clock stands still in this test, so it moves one
+    // minute: a message with the same stamp as the read mark counts as read.
+    deps.clock.set(new Date(NOW.getTime() + 60_000));
+    held.length = 0;
+    okOf(await sendHeld(deps, { principal: { userId: a.id }, name: 'chats.send', input: { conversationId: direct.id, body: 'Unread this time' }, batch: newBatch() }));
+    await processOutbox(deps, held);
+    expect(pushedTo()).toEqual([endpointOf(b.id)]);
+    deps.clock.set(NOW);
   });
 
   it('pushes a group message to the other people of the group, and to nobody outside it (2026-10-18)', async () => {

@@ -1,0 +1,35 @@
+{
+  "errors": {
+    "reasons": {
+      "reply_not_here": "You can reply only to a message in the same chat or task.",
+      "not_author": "You can change only your own messages."
+    }
+  },
+  "chat": {
+    "messageActions": "Actions for this message",
+    "reactions": "Reactions",
+    "yourMessage": "Your message",
+    "copyText": "Copy text",
+    "copied": "Text copied.",
+    "reply": "Reply",
+    "replyTo": "Reply to {{name}}",
+    "cancelReply": "Cancel the reply",
+    "deletedMessage": "Deleted message",
+    "messageDeleted": "Message deleted.",
+    "notSent": "Not sent",
+    "sendAgain": "Send again"
+  },
+  "notices": {
+    "repliedToYou": "{{actor}} replied to you in {{target}}",
+    "repliedDirect": "{{actor}} replied to you in a direct message",
+    "repliedGroupGone": "{{actor}} replied to you in a group"
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-30": {
+        "title": "Reply, react and edit in chats",
+        "body": "Each message has a small menu. React to it, reply to it, or edit and delete your own message. A reply tells the person you answer. Your message shows at once, and a message that did not go has Send again."
+      }
+    }
+  }
+}

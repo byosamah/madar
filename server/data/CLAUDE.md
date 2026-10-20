@@ -22,7 +22,7 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - `push_devices` (`20261008000100_push_devices.sql`, owner 2026-10-08): the private rows of the browsers that get push. Not an office
   list. `loaders/push.ts` reads the own rows of the person of the call and nothing more (`push.register` also reads the row of
   its endpoint). `diffState` adds no kind for it, so a save of a device sends no signal. `endpoint` has a unique index.
-  `SaveResult.messageIds` lists the messages a save inserted, for the push producer.
+  `SaveResult.messageIds` and `SaveResult.commentIds` list the messages and comments a save inserted, for the push producer.
 - A file of a direct chat or a group (owner, 2026-10-19) keeps `conversationId` in its `files` doc: no column and no migration, because
   no read selects by it. Its row has `project_id` and `task_id` null, so the search loader and `files.list` never load it. `diffState`
   counts `files` as a kind of `PRIVATE_CHAT_KINDS`: its save sends the anonymous office signal of a private chat (`save.ts`).
@@ -35,6 +35,12 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   `meetings.list` hold no minutes, so the list reads the meeting rows only. `tracker.list`, `trackerScope` (close, update, delete, assignReply) and the event
   targets (`eventTargets`: the feed and the Undo) load the meeting of a line that names one and the files of its minutes (`lineMinutes`), because the row
   gives `meeting`, `minutes` and `canEditMinutes` and the Undo reads the right to write the minutes.
+- Chat search (`20261020000200_message_search.sql`, chat design 2026-10-19, item 16): `messages.search_text` and `comments.search_text`
+  hold `bodySearchText(body)` (`src/lib/searchMatch.ts`), written by the save from `tables.ts`. A deleted message keeps null; the
+  Undo writes it again. The GIN trigram indexes `messages_search` and `comments_search` use `extensions.gin_trgm_ops`, and the loader
+  `contains` sends an escaped LIKE, so a key press never reads every message. `search_fold(text)` is the fold in SQL (backfill and the
+  parity test); it must stay in step with `bodySearchText`. One known difference: `İ` (U+0130) folds to `i` in SQL and to `i` plus a dot
+  in JavaScript; no other tested letter differs. The index needs a table of some size: with 6,000 comments Postgres read every row.
 - `meetings` (`20261020000100_meetings.sql`, fbk_022): not an office list. Generated columns `project_id`, `organizer_id`, `starts_at`, `ends_at`,
   `status`, `settled_at`; text indexes on `starts_at collate "C"` and `(project_id, starts_at)`, and a GIN index on `doc->'attendeeIds'`.
   `loaders/meetings.ts`: `meetings.list` reads one window (`atOrAfter` and `atBefore` on `starts_at`), `meetingConds` is the view rule in SQL
@@ -85,6 +91,14 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - `atOrAfter` (`events.list` since) adds a text lower bound on `created_at collate "C"`: the UTC text of the time minus 36
   hours. The timestamptz test still decides, so the bound never removes a row. A count with a bounds condition on its `per`
   column joins the bound rows to the table on that column.
+- `after` is the mirror of `before`, and `order.asc` reads oldest first (no ties); `chats.messages` with `around` uses both.
+  `contains` sends an escaped LIKE on Postgres (`likeOf`, `sqlSource.ts`), so a trigram index serves it; memory and SQLite keep
+  the substring test.
+- `search.query` reads the message hits after its other reads (`messageHits`, `loaders/overview.ts`): the newest 5 live messages of the
+  visible chats, the newest 5 comments of project tasks (the read goes again without a task that the load does not hold, because
+  Postgres keeps the project of the comment of a deleted task), and the newest 5 comments of the office tasks that the person sees.
+  `OFFICE_TASK_HIT` adds the title to the pick of those tasks. `source.sweep.test.ts` lets these three statements sort in a temporary
+  b-tree: they scan `search_text` on the office path until the restart.
 - `referencing` (the Undo check of a create) sends one equality on the text column when the reference path is one plain field
   with a text column in `query.ts` (`columnOfField`). A list or nested path keeps `jsonb_path_exists`.
 - Leak rule for picks: `chats.unreadCount` has its own loader (`chatsUnread`), with `THREAD_TASK_FIELDS` and
@@ -96,6 +110,9 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - The unread count and the reply that waits of a task thread read the messages only (fbk_027): the chat loader adds `MESSAGES_ONLY`
   (`dates` and `kind` null) to the count, to the newest message and to the own newest message, and keeps the reads of the newest item of any
   kind (the preview, the order, who is in the thread). Change `taskUnread` and `waitingThread` (`src/api/handlers/chats.ts`) with it.
+- The unread count of a chat is one grouped count, or two (chat design item 23): the project chats that `countsNamedOnly` marks (the Admin's
+  chats of projects that the Admin neither leads nor works on, with no stored `notify: 'all'`) get a second grouped count with the extra
+  condition `{ has: 'mentions', value: userId }`; every other chat keeps the first. Change `unreadIn` (`src/api/chatState.ts`) with it.
 - `atBefore` (a Cond on a stamp column) is the upper bound of a period: a timestamp test in SQL, in memorySource and in the
   SQLite compile, never text. `reports.office` (`loaders/report.ts`) reads the clock from `LoadCtx.now` (the call's time), and
   its counts come from `countWhere` with one key for each value (`REPORT_KEYS`). A loader without the clock never resolves a period.
@@ -155,11 +172,16 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   `{ 3: [USAGE_DAY_SQL], 4: [the create table of sub_companies] }`; the SQL text is in `lite/schema.ts`.
 - Schema version 5 (fbk_022) adds the table `meetings` with its key columns and two read indexes (`meetings_starts`, `meetings_project_starts`).
   Its step is in `LITE_STEPS` and makes the same objects as a new office (`schema.test.ts` checks it).
-- Schema version 6 (fbk_022, wave 2) adds the partial index `meetings_to_settle` (`ends_at`, where `status = 'scheduled' and settled_at is null`), with no
+- Schema version 6 (chat search) adds `search_text text` to `messages` and `comments`, the last column of each. `LITE_STEPS[6]` is two
+  `alter table ... add column`. The office path keeps no index on it: `contains` is `instr`, a scan (`exit-handoff.md`, section 7,
+  names the FTS5 index for the restart). No step writes a value: no real office exists below version 6.
+- Schema version 7 (fbk_022, wave 2) adds the partial index `meetings_to_settle` (`ends_at`, where `status = 'scheduled' and settled_at is null`), with no
   `collate`. Its step makes the same object as a new office.
-- Schema version 7 (fbk_022) adds the two server tables `google_connections` and `google_events` with their indexes (`google_connections_person`,
+- Schema version 8 (fbk_022) adds the two server tables `google_connections` and `google_events` with their indexes (`google_connections_person`,
   `google_events_meeting`). Their step is in `LITE_STEPS`, and `schema.test.ts` checks that it makes the same objects as a new office. The office object
   has no Google yet, so these tables stay empty there.
+- The order of versions 6 to 8 comes from the join of 2026-10-20: the chat batch reached main first with version 6, so the meetings settle step
+  (version 6 on its branch) became 7 and the Google step (version 7 on its branch) became 8.
 - Each event index costs 1 row written for each event, and a read needs each of the 8. Task 18 dropped four of them, one at a
   time: a read then took 12,815 to 183,416 rows in place of 4 to 4,189 (proof.md "Wave 1: the rows pins"). Drop one only with
   a rows pin that shows that no read needs it.

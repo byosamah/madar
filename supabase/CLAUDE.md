@@ -16,6 +16,9 @@ Two hosted projects, both in Frankfurt (eu-central-1): `madar-test` = `qdgwpnesx
 - After any migration change: `npx supabase db reset`, from your own worktree, under the Docker lock.
 - The Supabase CLI native runtime (no Docker, alpha since 2026-10-02) is not in use: the MinIO suites need Docker
   (`server/it/minio.ts`). The trial is a TASKS.md item.
+- `pg_trgm` lives in the schema `extensions` (`20261020000200_message_search.sql`), so an index names `extensions.gin_trgm_ops`. The
+  function `search_fold` must stay in step with `bodySearchText` (`src/lib/searchMatch.ts`); `server/it/messageSearch.it.test.ts`
+  checks that they agree.
 - The office object has one SQLite schema (`server/data/lite/schema.ts`), not these migrations. Until the switch (wave 6), a
   new table or column needs both: a migration here and the SQLite schema with a new version.
 

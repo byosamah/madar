@@ -165,7 +165,34 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   the list. It writes no event, no notice and no push, and its only signal is the kind `chatReads` to the person. The checks are those of
   `chats.markRead` and `chats.archive`, so a hidden chat answers the same way. Its loader is that of `chats.archive`; `WRITE_KINDS`: `['chatReads']`.
   MCP: deny list, as `chats.markRead` (an unread mark is the own reminder of the person; `INSTRUCTIONS` says so). `chats.waiting` stays in the contract
-  and on the MCP allow list, but no screen reads it any more.
+  and on the MCP allow list, with the waits rule of chat design item 22 (a 👍 or ✅ answers, a group waits only when it names you), but no screen reads
+  it any more (owner, 2026-10-20: Mark as unread is the one reminder). The mark counts at least 1 also in the Admin's other project chats
+  (`countsNamedOnly`, item 23), and also when a server loader gave the count (`state.counts`).
+- `search.query` has a `messages` group (chat design 2026-10-19, item 16): `messageHits` (`messageSearch.ts`) gives the newest 5 of the
+  live chat messages of the chats the person may open (`canSeeConversation`) and the comments of the tasks the person may read
+  (`can(viewer, 'comment.read', taskResource)`: every project task, an office task for its people and the Admin; the quiet reason lines
+  count, the comments on posts do not), whose folded text (`bodySearchText`) holds every word of the query (`searchWords`), when one
+  word has 3 letters or more. Each hit has `chatId` (the task id for a comment), `kind` (`project`, `direct`, `group`, `task`), `title`,
+  `project`, `person`, `author`, `mine`, `line` (`hitLine`) and `at`. A comment of a deleted task is dropped. The loader reads the newest
+  5 matching rows of each kind, so the cut of the handler gives the same rows. An agent gets the hits of its person. Chat files stay out.
+- A direct chat with no live message shows in `chats.list` only for the person who has a read mark on it (chat design 2026-10-19, item 18).
+  `chats.openDirect` writes that mark when the chat has no live message and the actor is a human; an agent writes none, so its person sees
+  the chat after the first message. The loader `chatsOpenDirect` (`loaders/chatOpen.ts`) loads the newest live message and the mark.
+- A notice with `messageId` links to `/inbox/<chat or task>?at=<id>` (`chatLink`, `lib/params.ts`): a chat notice opens the chat at the
+  message, and a task notice whose `messageId` starts with `cmt_` opens the Inbox task thread at that comment. A notice with no
+  `messageId` (saved before) keeps its old link; an office task that the viewer no longer sees still gives no link.
+- A chat that the person may not open answers `not_found` ("Conversation <id> does not exist."), whatever its kind (chat design
+  2026-10-19, item 17): `requireConversation` serves `chats.messages`, `chats.send`, `chats.markRead`, `chats.archive` and the group
+  writes. The answer equals the one for an id that was never made, so an outsider learns nothing, the Admin included for a direct chat.
+- `chats.messages` with `around` (chat design 2026-10-19, item 17) opens the page at one message: `messagePageAround` (`chatAround.ts`)
+  gives the newest page when the message is in it, else 20 live messages before it and every newer one, up to 500 in all, and
+  `ChatThread.newer` is true when more follow. `around` with `before` fails `invalid`. A message that is no live message of this
+  chat (deleted, another chat, unknown) gives the newest page and no error. The loader reads the window next to the newest page.
+- Notify me (chat design item 21): `chats.setNotify { conversationId, notify }` keeps `ChatRead.notify` ("all" or "named") for the person and
+  one chat (a project chat, a direct chat or a group; a task thread id fails the input). It writes the own read mark only, keeps the other
+  fields (`lastReadAt`, `archivedAt`), and writes no event. With no mark it stores `NEVER_READ`. The default is "named" for a project chat
+  and "all" otherwise (`levelFromRead`). `chats.markRead` and `chats.archive` (when it archives) also mark the unread mention and reply
+  notices of that chat or task thread read (`readMentionNotices`, design item 20), so their `WRITE_KINDS` lines hold `notifications`.
 - Files of a direct chat or a group (owner, 2026-10-19): `files.upload` and `files.uploadStart` take `conversationId` in place of a
   project or an office task. `FileRec.conversationId` (optional, so older files load) names the chat; `projectId`, `stageId` and `taskId`
   are null. `mayViewFile` is `canSeeConversation` of that chat: exactly the people who read its messages, never the Admin who is not a
@@ -356,6 +383,25 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   line that a person wrote is no reply. The loader does the same (`MESSAGES_ONLY`, `server/data/loaders/chat.ts`). The newest item of a thread
   still gives the preview and the order, so a line can be the preview. `tasks.newVersion` writes the `reopened` line, so `comments` is in its
   `WRITE_KINDS` line.
+
+## Edit, delete and react to a chat message (chat design 2026-10-19, items 11 and 12)
+- `requireMessage(ctx, id, { author, allowDeleted })` (`handlers/chats.ts`) is the one door of the calls below (the reaction of B10 too). A missing message, a message of
+  a chat the person may not open, and (without `allowDeleted`) a deleted message all answer `not_found` Message, the answer for an id that was
+  never made, for a direct chat, a project chat and a group alike. With `author`, a person who can open the chat but is not the author (or the
+  person behind the agent that wrote it, `isMine`) gets `forbidden` with reason `not_author`.
+- `chats.editMessage { id, body }`: the author only, at any time, in a closed chat too. The same body changes nothing. A new body sets `editedAt`
+  and finds the names again (`namesIn`, the rule of `postMessage`): a person named for the first time gets the mention notice with `messageId`,
+  a person whose name goes loses the notices of that message, and the reply author stays named while active and in the chat. No History event.
+- `chats.deleteMessage { id, deleted = true }`: sets `deletedAt` (a deleted message leaves every read path, `isLiveMessage`) and takes away the
+  notices of the message. `deleted: false` is the Undo of the toast: it removes `deletedAt` and writes the notices again, already read, so a
+  restore sends no push and no mail. The same value changes nothing. The files of the message stay. `messagePage` accepts a deleted `before`,
+  so "Earlier messages" works when the oldest shown message was deleted meanwhile.
+- `reactions.toggle { commentId | messageId, emoji }` takes exactly one id (older inputs with `commentId` stay valid). A message reaction toggles
+  the id of the person behind the call in `Message.reactions` (a missing record starts from `emptyReactions()`), for any person who may open
+  the chat, in a closed chat too. It writes no event and no notice and leaves `createdAt` alone, so it makes no unread mark and no push. The
+  output is a `CommentView` or a `MessageView`. The loader reads the message with `chatMessageRows`, and `WRITE_KINDS` adds `messages`.
+- The three calls name only the kinds `messages` and `notifications` (the reaction only `messages`), so their signals stay nameless (INT-16).
+  MCP: edit, delete and the reaction are on the deny list.
 
 ## Meetings (owner, 2026-10-19, fbk_022)
 - `Meeting` (`mtg_`, `contract/entities.ts`): a meeting, a client meeting, a team meeting or a site visit (`MeetingKind`). Kind and project are two

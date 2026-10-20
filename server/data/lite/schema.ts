@@ -18,12 +18,15 @@ import type { SqlHost } from './host';
  *
  * Version 5 (fbk_022): the table meetings, with key columns and two read indexes. Its step is in LITE_STEPS.
  *
- * Version 6 (fbk_022, wave 2): the partial index meetings_to_settle for the job that settles ended meetings. Its step is in LITE_STEPS.
+ * Version 6 (chat search, chat design 2026-10-19, item 16): the column search_text of messages and comments, the folded body.
+ * Its step is in LITE_STEPS. The office path keeps no index on it (the search scans it until the restart, exit-handoff.md).
  *
- * Version 7 (fbk_022, the track gcal): the server tables google_connections and google_events of the Google Calendar connect, with
+ * Version 7 (fbk_022, wave 2): the partial index meetings_to_settle for the job that settles ended meetings. Its step is in LITE_STEPS.
+ *
+ * Version 8 (fbk_022, the track gcal): the server tables google_connections and google_events of the Google Calendar connect, with
  * their indexes. Its step is in LITE_STEPS.
  */
-export const LITE_SCHEMA_VERSION = 7;
+export const LITE_SCHEMA_VERSION = 8;
 
 export type LiteIndex = { table: string; name: string; columns: string; unique?: true; where?: string };
 
@@ -139,8 +142,11 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
  * Version 3 adds the day meters. It has no text for the sign-in tables of wave 2 (see the top of this file).
  * Version 4 adds the table sub_companies (fbk_007). It is an office list, so it has only id and doc, as in liteSchemaSql.
  * Version 5 adds the table meetings (fbk_022) with the key columns of query.ts and its two read indexes, as in liteSchemaSql.
- * Version 6 adds the partial index meetings_to_settle (fbk_022, wave 2): the scheduled meetings with no settled_at, by ends_at.
- * Version 7 adds the two server tables of the Google Calendar connect and their indexes, as in liteSchemaSql.
+ * Version 6 adds search_text to messages and comments. It is the last column of each, as COLUMNS of query.ts holds it, so the table
+ * text of a stepped office equals the table text of a new office. No real office exists below version 6 (the import of exit wave 4
+ * computes the column with rowOf), so the step writes no value.
+ * Version 7 adds the partial index meetings_to_settle (fbk_022, wave 2): the scheduled meetings with no settled_at, by ends_at.
+ * Version 8 adds the two server tables of the Google Calendar connect and their indexes, as in liteSchemaSql.
  */
 export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   3: [USAGE_DAY_SQL],
@@ -150,8 +156,9 @@ export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
     'create index meetings_starts on meetings (starts_at)',
     'create index meetings_project_starts on meetings (project_id, starts_at)',
   ],
-  6: ["create index meetings_to_settle on meetings (ends_at) where status = 'scheduled' and settled_at is null"],
-  7: [
+  6: ['alter table messages add column search_text text', 'alter table comments add column search_text text'],
+  7: ["create index meetings_to_settle on meetings (ends_at) where status = 'scheduled' and settled_at is null"],
+  8: [
     ...GOOGLE_SQL,
     ...GOOGLE_INDEXES.map(indexSql),
   ],

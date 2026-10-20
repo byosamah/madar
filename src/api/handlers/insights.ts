@@ -6,6 +6,7 @@ import {
 } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { computeHealth, isOverdue } from '../health';
+import { MESSAGE_HITS, MessageHit, messageHits } from '../messageSearch';
 import { pauseKindOf, peopleFilter, staleDaysOf } from '../pause';
 import { reviewersOfTask } from '../notify';
 import { can, mayViewTask } from '../permissions';
@@ -14,6 +15,7 @@ import { paymentsOf, subCompaniesOf, trackerOf, type State } from '../store';
 import { stageTag } from '../flow';
 import { cardOf, deadlinesOf, mayViewFile, stagesInTime, stagesOf, userCard } from '../views';
 import { addDays, diffDays, maxDay, stampDay, weekStartOf } from '../../lib/dates';
+import { searchWords } from '../../lib/searchMatch';
 import { normalizeForSearch } from '../../lib/text';
 import { isOpen } from '../../lib/tracker';
 import { isLive } from '../../lib/overview';
@@ -312,6 +314,8 @@ export const SearchView = z.object({
   subCompanies: z.array(z.object({ id: SubCompanyId, name: z.string(), nameAr: z.string(), projects: Count })).max(5).optional(),
   /** taskId: the task of the file. A file of an office task (projectId null) opens on its task (owner, 2026-10-06). */
   files: z.array(z.object({ id: FileId, name: z.string(), projectId: ProjectId.nullable(), projectCode: z.string(), taskId: TaskId.nullable() })).max(5),
+  /** The newest chat messages that hold every word, at most 5, last in the answer (chat design 2026-10-19, item 16). */
+  messages: z.array(MessageHit).max(MESSAGE_HITS).default([]),
 });
 
 export const searchQuery = defineCall({
@@ -322,7 +326,7 @@ export const searchQuery = defineCall({
     const { state } = ctx;
     // A project link in a post reads "#KH-26-001" and a mention "@Name", so Search drops that first mark (audit PER-3).
     const query = normalizeForSearch(input.text.replace(/^[#@]+/, ''));
-    if (!query) return { projects: [], tasks: [], people: [], subCompanies: [], files: [] };
+    if (!query) return { projects: [], tasks: [], people: [], subCompanies: [], files: [], messages: [] };
     const hit = (...parts: (string | undefined)[]) => normalizeForSearch(parts.filter(Boolean).join(' ')).includes(query);
     const codeOf = (projectId: string | null) => (projectId === null ? '' : state.projects[projectId]?.code ?? '');
     return {
@@ -353,6 +357,7 @@ export const searchQuery = defineCall({
         .filter((f) => f.conversationId === undefined && f.meetingId === undefined && (f.projectId !== null || mayViewFile(state, ctx.authority, f)) && hit(f.name))
         .slice(0, 5)
         .map((f) => ({ id: f.id, name: f.name, projectId: f.projectId, projectCode: codeOf(f.projectId), taskId: f.taskId })),
+      messages: messageHits(state, ctx.authority, searchWords(input.text)),
     };
   },
 });

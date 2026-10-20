@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { calls } from '../../src/api/calls';
 import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
+import { bodySearchText } from '../../src/lib/searchMatch';
 import { testApi } from '../../src/test/factories';
 import type { Query } from '../core/ports';
 import { deepFreeze } from './officeCache';
@@ -88,7 +89,7 @@ describe('diffState', () => {
     comment.body = 'Edited';
     const diff = diffState(seed, after);
     expect(table(diff, 'tasks')!.upserts[0].columns).toEqual({ search_text: 'floor plans' });
-    expect(table(diff, 'comments')!.upserts[0].columns).toEqual({ project_id: after.tasks[comment.targetId].projectId });
+    expect(table(diff, 'comments')!.upserts[0].columns).toEqual({ project_id: after.tasks[comment.targetId].projectId, search_text: 'edited' });
     expect(diff.projects.has(after.tasks[comment.targetId].projectId!)).toBe(true);
     expect(diff.unresolvedComments).toEqual([]);
   });
@@ -98,7 +99,7 @@ describe('diffState', () => {
     after.comments.cmt_900 = { ...Object.values(after.comments)[0], id: 'cmt_900', targetType: 'task', targetId: 'tsk_not_loaded' };
     const diff = diffState(seed, after);
     expect(diff.unresolvedComments).toEqual([{ id: 'cmt_900', targetType: 'task', targetId: 'tsk_not_loaded' }]);
-    expect(table(diff, 'comments')!.upserts[0].columns).toEqual({ project_id: null });
+    expect(table(diff, 'comments')!.upserts[0].columns).toEqual({ project_id: null, search_text: bodySearchText(after.comments.cmt_900.body) });
   });
 
   it('upserts only the changed counters', () => {
@@ -554,6 +555,20 @@ describe('the meetings of a save (the Google Calendar sync reads them, fbk_022)'
   });
 });
 
+describe('the new comments of a save (the push producer reads them)', () => {
+  it('lists the ids of the comments that the save inserted, and leaves the list out when there are none', async () => {
+    const after = copy();
+    const comment = Object.values(after.comments)[0];
+    after.comments.cmt_901 = { ...comment, id: 'cmt_901' };
+    after.comments.cmt_902 = { ...comment, id: 'cmt_902' };
+    expect((await save(recorder().q, seed, after)).commentIds).toEqual(['cmt_901', 'cmt_902']);
+    const edited = copy();
+    Object.values(edited.comments)[0].body = 'Edited';
+    expect((await save(recorder().q, seed, edited)).commentIds).toBeUndefined();
+    expect(diffState(seed, edited).commentIds).toEqual([]);
+  });
+});
+
 describe('the new notices of a save (the mail and push producers on SQLite read them)', () => {
   it('lists the ids of the notices that the save inserted, and leaves the list out when there are none', async () => {
     const after = copy();
@@ -700,6 +715,57 @@ describe('the office signal of a private chat message', () => {
     expect(diff.anonymous).toBe(true);
     const result = await writeDiff(q, diff, { story: { storyId: 'sty_g', actorId: 'usr_003' } });
     expect(result.signals.every((signal) => !('actorId' in signal) && !('storyId' in signal))).toBe(true);
+  });
+
+  // Chat design 2026-10-19, items 11 and 12: an edit, a delete and a reaction on a message are private chat kinds (messages, and the
+  // notices of the message), so their office signal stays nameless. A message and its notices change together.
+  it('names no actor and no story for an edit of a group message', async () => {
+    const before = groupAfter();
+    const after = structuredClone(before);
+    after.messages.msg_901 = { ...after.messages.msg_901, body: 'A corrected line', editedAt: '2026-10-04T11:00:00.000+03:00' };
+    const diff = diffState(before, after);
+    expect(diff.anonymous).toBe(true);
+    expect(sorted(diff.kinds)).toEqual(['messages']);
+    const { q } = recorder({ officeSeq: 4 });
+    const result = await writeDiff(q, diff, { story: { storyId: 'sty_g', actorId: 'usr_003' } });
+    const office = result.signals.find((signal) => signal.channel === 'office')!;
+    expect(office).not.toHaveProperty('actorId');
+    expect(office).not.toHaveProperty('storyId');
+    expect(JSON.stringify(result.signals)).not.toContain('usr_003');
+  });
+
+  it('names no actor and no story for a delete of a group message, with the notices that go with it', async () => {
+    const before = groupAfter();
+    before.notifications.ntf_901 = {
+      id: 'ntf_901', userId: 'usr_004', trigger: 'mention', actorId: 'usr_002', targetType: 'chat', targetId: 'cnv_901', read: false,
+      createdAt: '2026-10-04T10:00:00.000+03:00', dedupeKey: null, messageId: 'msg_901',
+    };
+    const after = structuredClone(before);
+    after.messages.msg_901 = { ...after.messages.msg_901, deletedAt: '2026-10-04T11:00:00.000+03:00' };
+    delete after.notifications.ntf_901;
+    const diff = diffState(before, after);
+    expect(diff.anonymous).toBe(true);
+    expect(sorted(diff.kinds)).toEqual(['messages', 'notifications']);
+    const { q } = recorder({ officeSeq: 4 });
+    const result = await writeDiff(q, diff, { story: { storyId: 'sty_g', actorId: 'usr_003' } });
+    const office = result.signals.find((signal) => signal.channel === 'office')!;
+    expect(office).not.toHaveProperty('actorId');
+    expect(office).not.toHaveProperty('storyId');
+  });
+
+  it('names no actor and no story for a reaction on a group message', async () => {
+    const before = groupAfter();
+    const after = structuredClone(before);
+    after.messages.msg_901 = { ...after.messages.msg_901, reactions: { '👍': ['usr_003'], '✅': [], '👀': [] } };
+    const diff = diffState(before, after);
+    expect(diff.anonymous).toBe(true);
+    expect(sorted(diff.kinds)).toEqual(['messages']);
+    const { q } = recorder({ officeSeq: 4 });
+    const result = await writeDiff(q, diff, { story: { storyId: 'sty_g', actorId: 'usr_003' } });
+    const office = result.signals.find((signal) => signal.channel === 'office')!;
+    expect(office).not.toHaveProperty('actorId');
+    expect(office).not.toHaveProperty('storyId');
+    expect(JSON.stringify(result.signals)).not.toContain('usr_003');
   });
 
   it('keeps the actor and the story for a project chat message and for a change of a project', async () => {

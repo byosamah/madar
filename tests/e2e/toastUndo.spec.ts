@@ -12,7 +12,8 @@ async function deleteAComment(page: Page, text: string) {
   await sheet.getByRole('textbox', { name: 'Add a comment' }).fill(text);
   await sheet.getByRole('button', { name: 'Send' }).click();
   await expect(sheet.getByText(text)).toBeVisible();
-  await sheet.getByRole('button', { name: 'Actions for this comment' }).last().click();
+  // The comment shows at once while it goes (instant send), and gets its menu when it is saved: wait for the menu of this comment.
+  await sheet.getByRole('listitem').filter({ hasText: text }).getByRole('button', { name: 'Actions for this comment' }).click();
   await page.getByRole('menuitem', { name: 'Delete' }).click();
   await expect(page.getByText('Comment deleted.')).toBeVisible();
   await expect(sheet.getByText(text)).toHaveCount(0);

@@ -319,6 +319,43 @@ any screen work.
   an Edit menu for the author of a date reason only. In the Inbox thread it is one centered grey line (`Bubble.reason`, `ReasonLineItem`), as
   a group line is. The sentence keeps the name and the reason between FSI and PDI (`\u2068`, `\u2069`).
 
+## Chat messages (track msg, 2026-10-19)
+- One small menu for each message (`features/inbox/MessageMenu.tsx`). On a computer a "..." button (`MessageTools`, a `Menu` with a `head`) sits in the
+  side spot (`data-part="side"`) of the row and shows on hover or focus, never on a touch screen. The `head` of `Menu` is the row of the three
+  reactions (`role="menuitemcheckbox"`); a press on one closes the menu. On a phone a long press of a finger (`longPress.ts`, 500 ms, 10 px) opens
+  `MessageSheet` (a `Sheet`: the preview, the reactions, the items, "Copy text"; no Copy item where the browser has no clipboard).
+- The handlers of a bubble reach `MessageBubble` through `BubbleActionsContext` (`bubbleActions.ts`), never through a `MessageLog` prop. The ChatPane
+  and the TaskPane each give one stable object (`useMemo`). A task thread names its menu "Actions for this comment"; a person who may not post sees
+  plain pills and no menu. Reaction pills (`ReactionPills.tsx`) are 28 px high with a 44 px press area; the names come in `title` and, after a long
+  press, in a `role="tooltip"`; the pill of the reader has the ring; no faces.
+- Reply: the menu item "Reply" (first in the list, also in the phone sheet) puts `ComposerReplyStrip` above the field of the box (the name, the first line
+  and an X; Escape in the field with no open mention list drops it too) and moves the focus into the field. The next send passes `replyToId` (`chats.send`
+  or `comments.create`) and clears the strip. The sent bubble shows `BubbleReplyQuote` above its words (the name and the first line, or only "Deleted message").
+  A closed chat has no Reply (`canReply`). The server names the author of the old message (`api/CLAUDE.md`).
+- Edit and delete (own messages only, `Bubble.canEdit`): the menu shows Edit and Delete (red) after Reply (after "Copy text" on the phone sheet). Edit
+  puts `MessageEditForm` in place of the words (`EditingContext` holds the id; Enter saves, Escape cancels; Save is a secondary button) and the box
+  gets the focus back at the end. The Up key in an empty box with no picked file opens the edit of the newest own bubble (`Composer` `onEditLast`).
+  Delete asks nothing: `useDeleteMessage` (`deleteMessage.ts`) calls `chats.deleteMessage` and shows the toast "Message deleted." with Undo (the same
+  call with `deleted: false`); a task comment keeps `comments.update` and `useUndoable('comments.delete')`. `useEarlierMessages` keeps a message that
+  left the newest page only when it is older than the oldest message of the new page, so a deleted message does not stay after "Earlier messages".
+- Instant send (`features/inbox/outbox.ts`, a chat and a task thread in the Inbox): a send adds an entry to the outbox and clears the box at once; the log
+  draws it as a faded bubble (`Bubble.status` "pending", `aria-busy`) with no menu. The saved message takes its place: `matchOutbox` pairs an entry with the
+  saved message of the person that has the same words and was not in the log at the send (or with the message of the answer id), one to one, oldest first,
+  so a change signal that comes before the answer shows the message once. The saved bubble has `fromOutbox` and skips its rise. A send that fails (code
+  `failed`) shows "Not sent" in the error color with "Send again" (`useAction` `retry`: the same input and the idempotency key of the failed attempt, so
+  nothing goes twice) and no toast; a refusal still shows its toast, and a failure after the pane closed shows the toast with Retry as before.
+- A press on a reply strip goes to the old message (B15): `BubbleReplyQuote` is a button (the name and the first line, 44 px high) when the old
+  message is live and the pane gives `BubbleActions.focusMessage`; the strip of a deleted message stays plain text. The ChatPane and the TaskPane hold
+  `focusId` and pass `focusId` and `onFocused` to `MessageLog`, which puts the old message in the middle and frames it for one second (`FRAME_MS`).
+- The task panel takes the chat look (B16, design item 6): `CommentThread` draws a task comment with `TaskComments.tsx` (by day, `MessageBubble` with
+  `runStart` from `runs.ts`, the pills, the menu "Actions for this comment", its own `BubbleActionsContext` and `EditingContext`) and a post comment with
+  `CommentItem.tsx` as before. A quiet reason line is still a `CommentItem` line (a grey line with its age and Edit). The comments stay in the scroll
+  of the panel: no Newest button, no "New" line, no faded copy. A press on a strip there scrolls the old comment to the middle (`scrollIntoView`) and
+  frames it. The box of a task holds `ComposerReplyStrip` and sends `replyToId`; the X drops the reply (Escape stays with the panel). `bubbles.ts`
+  (`useBubbles`, `bubbleOfComment`) is shared by `TaskPane` and `TaskComments`.
+- The bell says "X replied to you" for a mention notice with `reply: true` (`NotificationsScreen.tsx`): `notices.repliedDirect` in a direct chat,
+  `notices.repliedGroupGone` in a group the reader left, `notices.repliedToYou` elsewhere. The link, the face and the row stay as for a mention.
+
 ## Inbox, groups and What's new (owner 2026-10-18; UX audit 2026-10-19)
 - Inbox list (`features/inbox/ChatList.tsx`): "Archived (n)" is one quiet row under the search field, only while a chat is archived
   and nothing is typed. The archived view has a back arrow, the title "Archived chats" and its own search words. A search in the
@@ -326,33 +363,56 @@ any screen work.
   have its row). An archive and a move back show a toast with Undo (`archive.ts`, `useArchive`; `chats.archive` writes no event, so
   the Undo calls it again with the other value). The menu button of a row shows on hover or focus only (`pointer-coarse:hidden`,
   `max-sm:hidden`); on a phone or a finger a swipe on the row archives it. The menu button names its chat ("Options for <title>").
-- No "Waits for your reply" line (owner, 2026-10-19, fbk_028): the Inbox does not call `chats.waiting` any more (the call stays for agents). In its
+- No "Waits for your reply" line (owner, 2026-10-19 and 2026-10-20, fbk_028; it wins over item 22 of the chat design, whose waits rule stays in the
+  API for `chats.waiting` and the agents): the Inbox does not call `chats.waiting` any more. In its
   place the menu of a chat has "Mark as unread" (`chatMenuItems` in `ChatList.tsx`: the row menu, and the menu in the header of the open chat, which is
   the way on a phone). It shows only for a chat with nothing unread that is not archived. The call is `chats.markUnread`; the toast "Marked as unread."
   has Undo, which calls `chats.markRead` (`inbox/markUnread.ts`, kept in `InboxScreen` so the toast stays when the open chat closes). The open chat
-  goes back to the list. The chat is bold again, the badge counts it, until the person opens it again. `ChatPane` marks a chat read when it loads and
-  when a new message comes (the triggers are the load and the newest message, not the number), so a mark set on the open chat stays; `useMarkTaskRead`
-  also sends the mark for a thread that the cached list shows as unread, so a thread whose newest comment is the own comment of the person ends it too.
+  goes back to the list. The chat is bold again, the badge counts it, until the person opens it again. `ChatPane` marks a chat read at its first look
+  (the first fresh answer while the tab shows, design item 5), and after that only when a message is newer than the read time (`behind`), so a mark
+  set on the open chat (from another device, or before the chat closes) stays, also when a hidden tab shows again. `useMarkTaskRead` marks a thread
+  once for each new count of comments, and also sends the mark for a thread that the cached list shows as unread, so a thread whose newest comment
+  is the own comment of the person ends it too.
 - A group has one picture, `GroupPicture` (the glow of its id and a people icon), never a stack of faces. The header shows the
   count of people ("4 people") as a button; it and the picture open the People sheet (`GroupSheets.tsx`): names with "You" and
   "Group maker", Add people at the top, Remove on each other row for the maker (toast with Undo), Leave group at the end (a confirm
-  sheet with Cancel in focus). The group menu holds Rename and Archive only. A group of one person left reads a closed chat.
+  sheet with Cancel in focus). The group menu holds Rename, Mark as unread and Archive, then the Notify me choice. A group of one person left reads a closed chat.
+- Notify me (design item 21): the header menu of a project chat, a direct chat or a group holds, under Archive, the heading Notify me and two
+  radio items (`useNotifyItems`, `NotifyChoice.tsx`), saved by `chats.setNotify`. A `MenuItem` takes `checked`, `heading` and `note`
+  (`components/Menu.tsx`): a checked item is `role="menuitemradio"` with a check mark at its end. The row menu of the list and a task
+  thread have no Notify me.
+- The Admin's count (design item 23): the Inbox count and the badge of an Admin cover the project chats of the projects that the Admin leads
+  or works on (the leader or a team member), plus every message that names the Admin. The other project chats stay in the list and open
+  as before, and their row counts only the unread messages that name the Admin, unless the Admin picked All messages in the chat menu
+  (`countsNamedOnly`, `chatState.ts`). Because such a row can count 0 while plain messages are new, `ChatPane` marks the chat read on
+  open when its newest message is newer than `readUpTo` (`behind`), not only when the count is above 0.
 - New group (`InboxScreen.tsx`): the title says "New group", a line counts the people, the name field shows from the start and is
   optional (an empty name takes the first names), and one full-width button makes the group.
 - Every chat takes files (owner, 2026-10-19). The box of a project chat uploads into the files of its project. The box of a direct chat
   and of a group uploads into the chat itself (`UploadTarget.conversationId`, `ConversationPane.tsx`), with the same attach button and
   the same limits. A chat file shows in no Files tab and no search.
-- A paste into the box takes a picture or a file from the clipboard (owner, 2026-10-23, fbk_032): `pastedFiles` (`features/files/Attachments.tsx`)
-  gives the files of a paste, and they go into the same `useAttachments` list as the attach button, with the same limits and the same
-  upload target. Text stays a text paste: a clipboard with real text beside a picture (a range of cells) gives no file. The Finder and the
-  Explorer put the file name on the clipboard as text; that text does not count, and the paste of a file stops, so the name is not typed too.
-  The Inbox box (`Composer` in `Thread.tsx`: project chat, direct chat, group and task thread) and the comment box of the task panel
-  (`CommentThread.tsx`) both do it.
-- A drop of files on the open conversation goes into the same list (owner, 2026-10-23, fbk_030). `DropZone` (`features/files/Attachments.tsx`)
-  wraps the whole pane (`ChatPane`, `TaskPane`) and the comments of the task panel. The box inside tells the zone what to do with the files
-  (`useDropHandler`; a closed chat registers none, so the zone shows nothing and takes nothing). While files are over the zone one quiet overlay
-  says "Drop to attach" (`attachments.drop`); a drag of text shows nothing. `useBlockFileDrop` (the zone and `InboxScreen`) stops the browser from
-  opening a file that is dropped anywhere else, with or without an open chat, and sets the cursor to "not here" outside the zone.
+- Paste and drop in the comments of the task panel (fbk_030 and fbk_032; the chat part is design item 14 of the chat batch, which won at the
+  join of 2026-10-20): `CommentThread.tsx` wraps its section in `ChatDropArea` with `className="relative"` (no flex item, so the panel keeps
+  its layout) and the note of a project task or an office task; `DropReceiver` registers the box with `useChatDropReceiver` where the person
+  may post. A paste uses the one rule of the chat box, `pastedPictures` (`features/files/Attachments.tsx`): a paste that holds text stays
+  text, a paste of only pictures adds them. `useBlockFileDrop` (`Attachments.tsx`, called by `InboxScreen` and `CommentThread`) stops the
+  browser from opening a file that is dropped anywhere else, with or without an open chat, and sets the cursor to "not here" there. It leaves
+  a drag that a drop area took first (`defaultPrevented`), so `ChatDropArea` keeps its "copy" cursor and its drop.
+- `/inbox/<id>?at=<msg_ or cmt_>` opens the chat at that message (chat design 2026-10-19, item 17): `ConversationPane` reads the mark
+  (`messageParam`) and keys each pane by id and mark, so a new mark opens a new pane. A chat asks `chats.messages` with `around`; a window
+  of an old message ends with a plain "Show newer messages" button (`NewerMessages.tsx`), and a send from a window goes to the newest page
+  (`navigate(chatLink(id), { replace: true })`). A window page holds at least 220 messages, so the Earlier messages control shows by the
+  size rule of `useEarlierMessages`. The ChatPane and the TaskPane start `focusId` at the mark (`focusFromRoute`), so the opened message goes to the
+  middle and wears the soft frame once; the query keeps `around` after the frame. A press on a reply strip (`focusMessage` of the ChatPane) frames the
+  old message when it is in the loaded pages, and else navigates to `chatLink(id, target)`, the page at that old message.
+- Shortcuts to a chat (chat design 2026-10-19, item 18): the person sheet of Search has a grey Message button (`PersonSheet.tsx`) that calls
+  `chats.openDirect` and opens `/inbox/<id>`; the own person and an agent have none. The project page header has a grey Project chat link
+  (`ProjectHeader.tsx`, `ProjectDetail.chatId`, null for a person who may not open the chat). Both use the message icon and the secondary
+  look, never the navy main button.
+- Search has a Messages group, last (`features/search/MessageHits.tsx`; chat design 2026-10-19, item 16): the newest 5 messages and task
+  comments with every word (a word of 3 letters or more). A hit shows the chat picture (32 px), the chat name, the person ("You" for the
+  own line), the line with each matched whole word in a grey `<mark>`, and the date; a press opens `/inbox/<id>?at=<message>`. The words
+  of the hit fold as the server folds them (`lib/searchMatch.ts`), so an Arabic word marks across letter forms.
 - A picture in a chat bubble or a task comment shows as a preview (owner, 2026-10-19). `AttachmentList` (`features/files/PictureAttachments.tsx`)
   replaces `FileChips` in `Thread.tsx` and `CommentThread.tsx`: a picture (`Attachment.mimeType` and `usePictureTest`) is a small rounded
   picture, at most 240 px wide, from the thumb link (`useFileLink(..., 'thumb')`); two or more sit in a grid; every other file stays a chip.
@@ -371,6 +431,20 @@ any screen work.
   `to` (one quiet link "Open"). An entry newer than the last one the person saw has the word "New". The person menu shows the word
   "New" after the item, and Home ends its date line with the link "See what's new", until the person opens the page. There is no dot
   and no bold item.
+
+## Chat reading (track read, 2026-10-19)
+- Runs (`features/inbox/runs.ts`): the messages of one person within 5 minutes of the one before form a run; a new day, a quiet line, another person, an agent message or the New line starts a run. A next message shows no face and no name; its time sits in the side spot (`data-part="side"`) at opacity 0 until hover or focus.
+- Names you: `MessageView.namesMe` and `CommentView.namesMe` (a mention or a reply to you) give another person's bubble `bg-mention-bg`, a 3 px `bg-mention-bar` on its start side and the hidden sentence `chat.namesYou`.
+- Keep my place (`MessageLog`, `logScroll.ts`): a new message moves the log only when the reader is in the last 80 px or sent it. Else the round Newest button shows (sticky inside the log, `aria-live="off"`), still, with no count.
+- New line (`newLine.ts`): the pane keeps the read state of the first fresh answer (`useOpenMark`) and shows the log only then. A chat places the line by `ChatThread.readUpTo`, a task thread by the unread count of its `chats.list` row. The line goes when the person sends. The mark read goes only after the mark exists, so a stale cached answer never clears the unread count first.
+- Open at one message: `MessageLog` `focusId` centers that bubble (by `data-message-id`), frames it for 1 s (`FRAME_MS`, `data-framed`) and calls `onFocused` once. Tracks msg (reply strip) and find (notices, search, the route) pass it. At the open the focus message beats the New line, and the New line beats the bottom.
+- Read only while you look: `ChatPane` and `useMarkTaskRead` mark read only while `usePageVisible()` (`app/usePageVisible.ts`) is true. A task thread is marked once for each new count of comments. A hidden tab only marks the lists (`app/signals.ts`), so a message reaches an open chat in a hidden tab only when something else loads it; a test that needs that loads the chat itself with `queryClient.refetchQueries`.
+- Links (`segmentsOf`, `RichText`): an `http://` or `https://` address is a link with `dir="ltr"` and `break-all`; an outside address opens in a new tab with `noopener noreferrer`. The marks of the sentence at its end (`. , ; : ! ? ' "`, the Arabic comma, semicolon and question mark, `»`, `]`, `}`) and a closing bracket the address did not open stay out of the link.
+- Drafts (`app/drafts.ts`): the text of a draft lives in localStorage for each person, so it stays after the tab closes. A sign-out (`keepDraftsOf('')`) and a change of person clear both stores. A draft of the old session store moves to localStorage on its first read. Picked files stay in memory only.
+- On a phone (`useIsPhone`) Enter in the chat box adds a line; the Send button sends.
+- A cut title: the `<bdi>` itself is `block truncate`, never its parent, so a title in the other language cuts at its end (`Header` in `ConversationPane.tsx` takes a plain string).
+- Upload progress: `CallMeta.onProgress` reaches `xhrPut` through the upload adapter (screen only, never on the wire; the small picture reports nothing). `useAttachments` keeps a whole percent for each file (`progress`), `PickedFiles` draws a 3 px grey bar for each file and locks Remove while the uploads run; the uploads still start at Send, and `onSend(body, fileIds, clear)` keeps its order.
+- Drop and paste (`ChatDrop.tsx`): `ChatDropArea` wraps a loaded chat or task thread (and the comments of the task panel, see above) and shows its frame only while the box registered a receiver (`useChatDropReceiver`); it still stops the browser from opening a dropped file. Files go to the picked chips; nothing sends until Send. A paste with text stays text; a paste of only pictures adds them. Picked files wait in memory for each chat (`app/drafts.ts`), so a test that picks files calls `keepDraftsOf('')` after it.
 
 ## Meetings screens (owner, 2026-10-19, fbk_022)
 - `/meetings` is the second view of the Tasks tab (`features/meetings/`, `MeetingsScreen.tsx`). The tab pill keeps 5 tabs: `isNavActive` keeps

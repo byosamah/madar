@@ -62,6 +62,8 @@ export async function commentsList(L: Load, input: Input): Promise<void> {
 export async function commentsCreate(L: Load, input: Input): Promise<void> {
   await target(L, input.targetType, input.targetId);
   await attachedFiles(L, (input.fileIds as string[] | undefined) ?? []);
+  // The comment that the new one answers (chat design item 10): its rules and the view read it.
+  await L.byKey('comments', [str(input.replyToId)]);
 }
 
 /** comments.update, comments.delete and reactions.toggle: the comment, its target and its files. */
@@ -71,6 +73,8 @@ export async function commentCall(L: Load, input: Input): Promise<void> {
   const comment = L.get<Comment>('comments', id);
   if (!comment) return;
   await target(L, comment.targetType, comment.targetId);
+  // The comment that this one answers: the view gives its reply link and the names-you mark (chat design items 4 and 10).
+  await L.byKey('comments', [comment.replyToId]);
   // A task that is gone: its delete event holds its last copy, which tells whether the comment was on a private office task.
   if (comment.targetType === 'task' && !L.get('tasks', comment.targetId)) {
     await L.select({ c: 'events', where: [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: [comment.targetId] }, { col: 'verb', in: ['task.deleted'] }] });
@@ -121,9 +125,11 @@ async function roomsForPost(L: Load, roomIds: readonly string[]): Promise<Messag
   return newestMessages(L, roomIds);
 }
 
-/** chats.send: the files the message names, and the newest message of the room (the read mark of the sender). */
+/** chats.send: the files the message names, the message it answers, and the newest message of the room (the read mark of the sender). */
 export async function chatsSend(L: Load, input: Input): Promise<Message[]> {
   await attachedFiles(L, (input.fileIds as string[] | undefined) ?? []);
+  // The message that the new one answers (chat design item 10): its rules and the view read it.
+  await L.byKey('messages', [str(input.replyToId)]);
   return roomsForPost(L, [str(input.conversationId) ?? '']);
 }
 

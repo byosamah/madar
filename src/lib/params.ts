@@ -58,6 +58,19 @@ export function trackerEntryLink(projectId: string, entryId: string): string {
   return `/projects/${projectId}?tab=tracker&entry=${entryId}`;
 }
 
+/**
+ * The link of a chat or of a task thread in the Inbox, and one message in it (chat design 2026-10-19, item 17). A notice, a search
+ * hit and a reply strip use it.
+ */
+export function chatLink(chatId: string, messageId?: string): string {
+  return messageId ? `/inbox/${chatId}?at=${messageId}` : `/inbox/${chatId}`;
+}
+
+/** A message or a comment from the link, when it has the form of an id. A person can type anything into a link. */
+export function messageParam(value: string | null): string | undefined {
+  return value && /^(msg|cmt)_\d{3,}$/.test(value) ? value : undefined;
+}
+
 /** A meeting from the link, when it has the form of a meeting id (fbk_022). Anything else opens no sheet. */
 export function meetingParam(value: string | null): string | undefined {
   return value && /^mtg_\d{3,}$/.test(value) ? value : undefined;

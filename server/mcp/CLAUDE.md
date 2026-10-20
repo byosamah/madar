@@ -65,18 +65,29 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   there is none), `chats.list` (the chats the person may open, to find a project chat) and `chats.send` (one message as the
   person; the author is the agent and `actingForId` the person, so the Inbox shows both names). For one task it uses
   `comments.create`, and for the feed of a project `updates.create`. Owner, 2026-10-18 (fbk_011): an agent also reads the chats of
-  its person. `chats.messages` (one page of a chat the person may open, with `not_found` for a group the person is not in) and
+  its person. `chats.messages` (one page of a chat the person may open, with `not_found` for a chat the person may not open) and
   `chats.waiting` (what waits for the reply of the person, from `waitingFor` in `handlers/chats.ts`) are on `MCP_ALLOW`, and
   `chats.list` keeps the preview of every chat (`run.ts` no longer blanks it). `chats.messages` of a group also gives `lines`, its quiet lines (added, removed, left, renamed); a line is no message
   (UX audit 2026-10-19). The texts of `chats.list` and `chats.waiting` say how to read and answer a row of kind task. `chats.markRead`, `chats.unreadCount`,
-  `chats.markUnread` (fbk_028, owner 2026-10-23: the own reminder of the person; `INSTRUCTIONS` says an agent marks a chat neither read nor unread), `chats.archive` and the three group writes stay on `MCP_DENY`: a read mark and an archive are the person's own acts. A sent
+  `chats.markUnread` (fbk_028, owner 2026-10-20: the own reminder of the person; `INSTRUCTIONS` says an agent marks a chat neither read nor unread),
+  `chats.archive`, `chats.setNotify` (the Notify me choice, chat design item 21) and the three group writes stay on `MCP_DENY`: a read mark, an
+  unread mark, an archive and a Notify me choice are the person's own acts. A sent
   message writes no event, so no Undo takes it back, and `chats.openDirect` and `chats.send` are not additive (the client may
   ask its person first). INSTRUCTIONS has a Messages paragraph that says: send only when the person asks.
+- `search.query` finds the messages of the chats that the person may open (`messages`, the newest 5; chat design 2026-10-19, item 16).
+  The `TOOL_DOCS` of `search.query` and the Messages paragraph of INSTRUCTIONS say so. Chat files stay closed to agents.
+- A chat that the person may not open answers `not_found` for the agent too, for every kind (chat design 2026-10-19, item 17): it was
+  `forbidden` for a direct or project chat. `TOOL_DOCS` of `chats.send` says so.
+- `chats.messages` takes `around` (a message id; chat design 2026-10-19, item 17): the page that holds the message, and `newer` says
+  that more follow. A search hit or a notice gives the agent the id to open. A message that the person may not read gives the newest page.
 - Chat files (owner, 2026-10-19): a message of a direct or group chat may carry files. The agent of a member reads the file name in
   `chats.messages`, as its person does, and never opens the file: no tool opens a file, `files.list` and `search.query` show none,
   and `files.link` and `files.get` refuse an agent with not_found. INSTRUCTIONS (Messages) and the `TOOL_DOCS` of `chats.messages`,
   `chats.send`, `files.list` and `search.query` say so. No new call and no new tool. A file row now also carries its type (`mimeType`), so
   the agent sees `image/jpeg` beside the name (owner, 2026-10-19); the rows and the rights stay the same.
+- Edit, delete and react (chat design 2026-10-19, items 11 and 12): `chats.editMessage` and `chats.deleteMessage` are on `MCP_DENY`, and `reactions.toggle`
+  (now also for a chat message) stays on it. INSTRUCTIONS (Messages) says: only your person edits, deletes or reacts to a message, in the screens. An agent
+  still reads `reactions`, `editedAt`, `replyTo` (with `deleted` for an old message that is gone) and `namesMe` in `chats.messages`, which leaves a deleted message out, and sends a reply with `replyToId`.
 - An agent never gets a storage key in the JSON of `feedback.list` or `feedback.setStatus` (`run.ts`). `feedback.screenshot`
   gives the signed link as it is, and its path names the key.
 - INSTRUCTIONS rule 6: text that people write (names, titles, comments, posts, Tracker notes, report messages and pages,

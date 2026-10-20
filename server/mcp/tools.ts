@@ -76,6 +76,8 @@ export const MCP_DENY = [
   // Task work that needs a person's eye: templates, versions, deletes.
   'tasks.createFromTemplate', 'tasks.newVersion', 'tasks.delete',
   'updates.update', 'updates.delete', 'comments.update', 'comments.delete', 'reactions.toggle',
+  // Only the person edits, deletes or reacts to a chat message, in the screens (chat design 2026-10-19, items 11 and 12).
+  'chats.editMessage', 'chats.deleteMessage',
   // Files: uploads and links happen in the Madar screens.
   'files.upload', 'files.uploadStart', 'files.link', 'files.delete', 'files.markDelivered', 'files.share',
   // Notifications and read marks: screen state of one person. An agent reads the chats of its person (fbk_011, owner 2026-10-18), but
@@ -84,6 +86,8 @@ export const MCP_DENY = [
   // owner 2026-10-23): an unread mark is the person's own reminder, and a bold row with nothing new in it would only confuse the person.
   'notifications.list', 'notifications.count', 'notifications.markRead', 'notifications.markAllRead', 'notifications.markUnread',
   'notifications.updateSettings', 'chats.markRead', 'chats.markUnread', 'chats.unreadCount', 'chats.archive',
+  // A Notify me choice is screen state of one person, as an archive mark (design item 21).
+  'chats.setNotify',
   // Group chats are screen work (fbk_011): an agent may send to a group, but it does not make, rename or leave one.
   'chats.createGroup', 'chats.updateGroup', 'chats.leaveGroup',
   // Templates, tracker extras and payment deletes.

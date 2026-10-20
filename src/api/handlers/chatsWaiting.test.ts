@@ -1,19 +1,22 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { chatCalls } from './chats';
 import { contentCalls } from './content';
-import { addProjectConversation } from '../chatState';
+import { addDirectConversation, addGroupConversation, addProjectConversation } from '../chatState';
+import { emptyReactions, type Comment, type Message } from '../contract/entities';
 import { mentionMarkup } from '../../lib/text';
 import { setNow } from '../../lib/dates';
 import { makeTask, NOW, testApi } from '../../test/factories';
 
 /**
  * chats.waiting (fbk_011, owner 2026-10-18): the chats and task threads that wait for the person's reply.
- * - A direct or group chat waits when its newest message came from another person.
- * - A project chat waits when a message that names the person is newer than the person's newest message.
+ * - A direct chat waits when its newest message came from another person.
+ * - A group or a project chat waits when a message that names the person (an @mention, or a reply to a message of the person) is
+ *   newer than the person's newest message (chat design item 22; a group no longer waits for each member, INT-26 changed).
  * - A task thread waits when its newest comment came from another person, and the person leads the task, or a newer
- *   comment of another person names the person with @.
+ *   comment of another person names the person with @ or by a reply to a comment of the person.
+ * - In every kind, a 👍 or ✅ of the person on the message that waits counts as an answer (a 👀 does not).
  * A message or comment of the person's agent counts as the person's own. An archived chat does not count. A chat that the
- * person may not open is never in the list.
+ * person may not open is never in the list. A deleted message is no message.
  */
 
 beforeEach(() => setNow(NOW));
@@ -57,20 +60,23 @@ describe('chats.waiting', () => {
     expect(await t.api.call('chats.waiting', {})).toEqual([]);
   });
 
-  it('lists a group for each member except the one who wrote last', async () => {
+  it('lists a group only when a newer message names the person (item 22, INT-26 changed)', async () => {
     const t = world();
     t.as('usr_002');
     const { id } = await t.api.call('chats.createGroup', { name: 'Tower team', memberIds: ['usr_003', 'usr_001'] });
     await t.api.call('chats.send', { conversationId: id, body: 'Drawings are ready.' });
     t.as('usr_003');
-    expect(await t.api.call('chats.waiting', {})).toEqual([expect.objectContaining({ kind: 'group', id, title: 'Tower team', from: expect.objectContaining({ id: 'usr_002' }) })]);
+    expect((await t.api.call('chats.waiting', {})).map((row) => row.id)).not.toContain(id);
+    laterBy(1);
     t.as('usr_002');
+    await t.api.call('chats.send', { conversationId: id, body: `${mentionMarkup('Sara Team', 'usr_003')} please check.` });
+    t.as('usr_003');
+    expect(await t.api.call('chats.waiting', {})).toEqual([expect.objectContaining({ kind: 'group', id, from: expect.objectContaining({ id: 'usr_002' }) })]);
+    t.as('usr_001');
     expect((await t.api.call('chats.waiting', {})).map((row) => row.id)).not.toContain(id);
     t.as('usr_003');
-    await t.api.call('chats.send', { conversationId: id, body: 'Thanks.' });
-    t.as('usr_001');
-    expect((await t.api.call('chats.waiting', {})).map((row) => row.id)).toContain(id);
-    t.as('usr_003');
+    laterBy(2);
+    await t.api.call('chats.send', { conversationId: id, body: 'Checked.' });
     expect((await t.api.call('chats.waiting', {})).map((row) => row.id)).not.toContain(id);
   });
 
@@ -170,7 +176,7 @@ describe('chats.waiting', () => {
     laterBy(60);
     t.as('usr_002');
     const group = await t.api.call('chats.createGroup', { name: 'Tower team', memberIds: ['usr_003', 'usr_001'] });
-    await t.api.call('chats.send', { conversationId: group.id, body: 'Drawings are ready.' });
+    await t.api.call('chats.send', { conversationId: group.id, body: `${mentionMarkup('Sara Team', 'usr_003')} Drawings are ready.` });
     setNow(new Date(NOW.getTime() + 2 * 86_400_000));
     t.as('usr_003');
     const rows = await t.api.call('chats.waiting', {});
@@ -189,5 +195,116 @@ describe('chats.waiting', () => {
     expect(Object.keys(t.store.state.events)).toHaveLength(events);
     expect(Object.keys(t.store.state.chatReads)).toHaveLength(reads);
     expect(calls['chats.waiting'].readOnly).toBe(true);
+  });
+});
+
+// The rows of item 22 that the calls of track msg make later (a reply, a reaction, a delete) are planted in the state here, so this track
+// needs no call of another track.
+const T1 = '2026-09-30T09:10:00.000+03:00';
+const T2 = '2026-09-30T09:20:00.000+03:00';
+const T3 = '2026-09-30T09:30:00.000+03:00';
+
+function message(over: Partial<Message> & Pick<Message, 'id' | 'conversationId'>): Message {
+  return { authorId: 'usr_002', actingForId: 'usr_002', body: 'Hello', mentions: [], createdAt: T1, editedAt: null, ...over };
+}
+
+function comment(over: Partial<Comment> & Pick<Comment, 'id'>): Comment {
+  return { targetType: 'task', targetId: 'tsk_001', authorId: 'usr_002', body: 'Hello', reactions: emptyReactions(), createdAt: T1, editedAt: null, ...over };
+}
+
+describe('chats.waiting: the rules of item 22', () => {
+  it('lists a project chat or a group when a newer message replies to the person', async () => {
+    const t = world();
+    const state = t.store.state;
+    const group = addGroupConversation(state, 'Tower team', 'usr_002', ['usr_002', 'usr_003', 'usr_001'], T1).id;
+    // Sara wrote first; Faisal replies. A reply names the author of the old message, so the reply is in "mentions" of the new message.
+    state.messages.msg_901 = message({ id: 'msg_901', conversationId: t.room, authorId: 'usr_003', actingForId: 'usr_003', body: 'The slab is ready.' });
+    state.messages.msg_902 = message({ id: 'msg_902', conversationId: t.room, body: 'Thanks, I will check it.', replyToId: 'msg_901', mentions: ['usr_003'], createdAt: T2 });
+    state.messages.msg_903 = message({ id: 'msg_903', conversationId: group, authorId: 'usr_003', actingForId: 'usr_003', body: 'Drawings are ready.' });
+    state.messages.msg_904 = message({ id: 'msg_904', conversationId: group, body: 'Looks good.', replyToId: 'msg_903', mentions: ['usr_003'], createdAt: T2 });
+    state.counters.msg = 4;
+    t.as('usr_003');
+    const rows = await t.api.call('chats.waiting', {});
+    expect(rows.map((row) => [row.kind, row.id, row.body])).toEqual([['project', t.room, 'Thanks, I will check it.'], ['group', group, 'Looks good.']]);
+  });
+
+  it('clears the message that waits when the person puts 👍 or ✅ on it, and keeps it for 👀', async () => {
+    const t = world();
+    const state = t.store.state;
+    const direct = addDirectConversation(state, 'usr_002', 'usr_003', T1).id;
+    state.messages.msg_901 = message({ id: 'msg_901', conversationId: direct, body: 'Is the beam fixed?' });
+    state.counters.msg = 1;
+    t.as('usr_003');
+    expect((await t.api.call('chats.waiting', {})).map((row) => row.id)).toEqual([direct]);
+    for (const emoji of ['👍', '✅'] as const) {
+      state.messages.msg_901 = { ...state.messages.msg_901, reactions: { ...emptyReactions(), [emoji]: ['usr_003'] } };
+      expect(await t.api.call('chats.waiting', {})).toEqual([]);
+    }
+    state.messages.msg_901 = { ...state.messages.msg_901, reactions: { ...emptyReactions(), '👀': ['usr_003'] } };
+    expect((await t.api.call('chats.waiting', {})).map((row) => row.id)).toEqual([direct]);
+    // The 👍 of another person is no answer of this person.
+    state.messages.msg_901 = { ...state.messages.msg_901, reactions: { ...emptyReactions(), '👍': ['usr_001'] } };
+    expect((await t.api.call('chats.waiting', {})).map((row) => row.id)).toEqual([direct]);
+  });
+
+  it('counts a reaction of the agent of the person as an answer', async () => {
+    const t = world();
+    const state = t.store.state;
+    const direct = addDirectConversation(state, 'usr_002', 'usr_003', T1).id;
+    state.messages.msg_901 = message({ id: 'msg_901', conversationId: direct, body: 'Is the beam fixed?', reactions: { ...emptyReactions(), '✅': ['usr_005'] } });
+    state.counters.msg = 1;
+    t.as('usr_003');
+    expect(await t.api.call('chats.waiting', {})).toEqual([]);
+  });
+
+  it('never waits on a deleted message: a direct chat waits on the newest live message', async () => {
+    const t = world();
+    const state = t.store.state;
+    const direct = addDirectConversation(state, 'usr_002', 'usr_003', T1).id;
+    state.messages.msg_901 = message({ id: 'msg_901', conversationId: direct, body: 'Is the beam fixed?' });
+    state.messages.msg_902 = message({ id: 'msg_902', conversationId: direct, body: 'Never mind.', createdAt: T2, deletedAt: T3 });
+    state.counters.msg = 2;
+    t.as('usr_003');
+    expect(await t.api.call('chats.waiting', {})).toEqual([expect.objectContaining({ id: direct, body: 'Is the beam fixed?' })]);
+    state.messages.msg_901 = { ...state.messages.msg_901, deletedAt: T3 };
+    expect(await t.api.call('chats.waiting', {})).toEqual([]);
+  });
+
+  it('never waits on a deleted message that named the person in a group', async () => {
+    const t = world();
+    const state = t.store.state;
+    const group = addGroupConversation(state, 'Tower team', 'usr_002', ['usr_002', 'usr_003', 'usr_001'], T1).id;
+    state.messages.msg_901 = message({ id: 'msg_901', conversationId: group, body: 'Sara, please check.', mentions: ['usr_003'], deletedAt: T3 });
+    state.counters.msg = 1;
+    t.as('usr_003');
+    expect(await t.api.call('chats.waiting', {})).toEqual([]);
+  });
+
+  it('lists a task thread for a person named by a reply to their comment', async () => {
+    const t = world();
+    const state = t.store.state;
+    // tsk_002 is led by Faisal. Sara commented; Faisal replied to her comment with no @.
+    state.comments.cmt_901 = comment({ id: 'cmt_901', targetId: 'tsk_002', authorId: 'usr_003', body: 'I will check the wall.' });
+    state.comments.cmt_902 = comment({ id: 'cmt_902', targetId: 'tsk_002', body: 'Thanks.', replyToId: 'cmt_901', createdAt: T2 });
+    state.counters.cmt = 2;
+    t.as('usr_003');
+    expect(await t.api.call('chats.waiting', {})).toEqual([expect.objectContaining({ kind: 'task', id: 'tsk_002', body: 'Thanks.' })]);
+    // A comment that replies to nobody of Sara's does not name her.
+    state.comments.cmt_902 = comment({ id: 'cmt_902', targetId: 'tsk_002', body: 'Thanks.', createdAt: T2 });
+    expect((await t.api.call('chats.waiting', {})).map((row) => row.id)).not.toContain('tsk_002');
+  });
+
+  it('clears a task thread when the person reacts 👍 to the comment that waits', async () => {
+    const t = world();
+    const state = t.store.state;
+    // tsk_001 is led by Sara; Faisal's comment waits for her.
+    state.comments.cmt_901 = comment({ id: 'cmt_901', body: 'Please check the column.' });
+    state.counters.cmt = 1;
+    t.as('usr_003');
+    expect((await t.api.call('chats.waiting', {})).map((row) => row.id)).toEqual(['tsk_001']);
+    state.comments.cmt_901 = { ...state.comments.cmt_901, reactions: { ...emptyReactions(), '👍': ['usr_003'] } };
+    expect(await t.api.call('chats.waiting', {})).toEqual([]);
+    state.comments.cmt_901 = { ...state.comments.cmt_901, reactions: { ...emptyReactions(), '👀': ['usr_003'] } };
+    expect((await t.api.call('chats.waiting', {})).map((row) => row.id)).toEqual(['tsk_001']);
   });
 });

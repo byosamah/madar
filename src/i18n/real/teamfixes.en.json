@@ -2,8 +2,8 @@
   "whatsNew": {
     "items": {
       "2026-10-23-26": {
-        "title": "Paste and drop files in chats",
-        "body": "Now you can paste a picture or a file into a chat box. Copy it, click the box, and press Ctrl+V or Cmd+V. You can also drag files onto a chat. The files go the same way as with the Attach files button."
+        "title": "Drop and paste files in task comments",
+        "body": "Now you can drag files onto the comments of a task, or paste a picture into its comment box. The files go the same way as with the Attach files button. A file that you drop by mistake next to a chat or the comments no longer opens in place of Madar."
       },
       "2026-10-23-27": {
         "title": "Quiet notices and Mark as unread",
@@ -18,9 +18,6 @@
         "body": "Now you can pick the stage of a task in a project template. Open the task and use the Stage field. This works for a new task and for an old task. The days of an old task stay as they are. A note tells you when they no longer fit the stage."
       }
     }
-  },
-  "attachments": {
-    "drop": "Drop to attach"
   },
   "chat": {
     "markUnread": "Mark as unread",

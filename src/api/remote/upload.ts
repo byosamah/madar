@@ -10,19 +10,21 @@ import type { Adapter, AdapterCtx } from './wire';
 
 /** The answer of one upload to the file store. Status 0: no answer (no network, a CORS refusal or an abort). */
 export type PutResult = { status: number; body: string };
-export type PutSender = (put: SignedPut, body: Blob) => Promise<PutResult>;
+export type PutSender = (put: SignedPut, body: Blob, onProgress?: (sent: number, total: number) => void) => Promise<PutResult>;
 
 /**
  * Sends one file to the signed link with XMLHttpRequest, with exactly the headers that the server signed. The browser goes
- * straight to the file store, so the API function never carries the file. It never throws: a failure is status 0.
+ * straight to the file store, so the API function never carries the file. It never throws: a failure is status 0. The browser reports
+ * the bytes that went up to onProgress, when the size is known.
  */
-export const xhrPut: PutSender = (put, body) =>
+export const xhrPut: PutSender = (put, body, onProgress) =>
   new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
     const none = () => resolve({ status: 0, body: '' });
     try {
       xhr.open('PUT', put.url);
       for (const [name, value] of Object.entries(put.headers)) xhr.setRequestHeader(name, value);
+      if (onProgress) xhr.upload.onprogress = (event) => { if (event.lengthComputable) onProgress(event.loaded, event.total); };
       xhr.onload = () => resolve({ status: xhr.status, body: typeof xhr.responseText === 'string' ? xhr.responseText : '' });
       xhr.onerror = none;
       xhr.onabort = none;
@@ -169,7 +171,8 @@ export function uploadAdapter(o: {
 
     // Step 2: the browser sends the file straight to the store. Only the browser sees the size refusal of the store.
     // The small picture goes at the same time, because the two uploads do not depend on each other (performance audit BGR-M2).
-    const fileSent = send(start.put, blob);
+    // Only the file reports its progress to the screen. The small picture is extra and quick.
+    const fileSent = send(start.put, blob, ctx.meta.onProgress);
     const thumbSent = thumb && start.thumbPut ? send(start.thumbPut, thumb) : null;
     // A failed file upload throws before the small picture ends, so its end needs a handler. The uploads job removes a staging
     // picture that no version uses.

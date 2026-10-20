@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { NOTIFY_LEVELS } from './limits';
 import {
   Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, Gender, GeoPoint, HealthValue,
   MeetingId, MeetingKind, MeetingRepeat, Message, Payment, Project, ProjectTemplateId, Team,
@@ -117,6 +118,8 @@ export const ProjectDetail = ProjectSummary.extend({
     active: z.boolean(),
   })),
   deadlines: z.array(Deadline),
+  /** The project chat when the viewer may open it, else null (chat design 2026-10-19, item 18): the Project chat button needs it. */
+  chatId: ConversationId.nullable().default(null),
 });
 export type ProjectDetail = z.infer<typeof ProjectDetail>;
 
@@ -186,10 +189,22 @@ export type TaskDetail = z.infer<typeof TaskDetail>;
  * when a task it waited for finished late). A line is never an instruction and never a message that waits for a reply.
  */
 export const CommentLineKind = z.enum(['message', 'due_date', 'start_date', 'shifted', 'reopened']);
+/**
+ * The message or the comment that a reply answers (chat design item 10, owner 2026-10-19). A deleted, missing or unreadable old item
+ * gives "deleted: true", an empty first line and the author of the reply, so no text and no name of another place leaves.
+ * "firstLine" is the first line of the old item in plain text, at most 100 code points (200 characters).
+ */
+export const ReplyRef = z.object({ id: z.string(), author: UserCard, firstLine: z.string().max(200), deleted: z.boolean() });
+export type ReplyRef = z.infer<typeof ReplyRef>;
+
 export const CommentView = z.object({
   comment: Comment, author: UserCard, canEdit: z.boolean(), files: z.array(Attachment),
   // Optional with a default, so an older answer still parses.
   kind: CommentLineKind.default('message'),
+  /** The comment this one answers, or null (item 10). */
+  replyTo: ReplyRef.nullable().default(null),
+  /** True when this comment names the reader: an @mention of the reader, or a reply to a comment of the reader (item 4). */
+  namesMe: z.boolean().default(false),
 });
 export type CommentView = z.infer<typeof CommentView>;
 
@@ -242,6 +257,10 @@ export const MessageView = z.object({
   actingFor: UserCard.nullable(),
   mine: z.boolean(),
   files: z.array(Attachment),
+  /** The message this one answers, or null (item 10). */
+  replyTo: ReplyRef.nullable().default(null),
+  /** True when this message names the reader: an @mention of the reader, or a reply to a message of the reader (item 4). */
+  namesMe: z.boolean().default(false),
 });
 export type MessageView = z.infer<typeof MessageView>;
 
@@ -263,6 +282,12 @@ export const ChatThread = z.object({
   messages: z.array(MessageView),
   /** A group only: its quiet lines (the newest 100), oldest first. The screen puts them between the messages by time. */
   lines: z.array(GroupLine).default([]),
+  /** The last read time of the reader for this chat before this read, or null (item 3: the "New" line needs the time before the open). */
+  readUpTo: Stamp.nullable().default(null),
+  /** The "Notify me" level of the reader for this chat (item 21). */
+  notify: z.enum(NOTIFY_LEVELS).default('all'),
+  /** True when newer messages exist after this page: a page that opens at one message (item 17) may end before the newest. */
+  newer: z.boolean().default(false),
 });
 export type ChatThread = z.infer<typeof ChatThread>;
 

@@ -85,7 +85,11 @@ function InboxItem({ view }: { view: NoticeView }) {
   const restart = n.trigger === 'resume_due';
   const restartPast = restart && dueDate !== null && dueDate < todayISO();
   const meeting = n.targetType === 'meeting';
-  const sentenceKey = meeting ? meetingKey(n, gone) : report ? reportKey(n) : direct ? 'inbox.mentionDirect' : group ? groupKey(n.trigger, target !== '') : restartPast ? 'inbox.trigger.resume_due_past' : `inbox.trigger.${n.trigger}`;
+  // A reply to a message of the person says "replied to you" (chat design 2026-10-19, item 10). The place is named as for a mention.
+  const reply = n.trigger === 'mention' && n.reply === true;
+  const sentenceKey = meeting ? meetingKey(n, gone) : report ? reportKey(n)
+    : reply ? (direct ? 'notices.repliedDirect' : group && target === '' ? 'notices.repliedGroupGone' : 'notices.repliedToYou')
+      : direct ? 'inbox.mentionDirect' : group ? groupKey(n.trigger, target !== '') : restartPast ? 'inbox.trigger.resume_due_past' : `inbox.trigger.${n.trigger}`;
   // A done report names no person, so its row shows the bell and not the Admin who marked it. A group notice shows the group.
   const face = report && n.trigger === 'feedback_done' ? null : actor;
   const sentence = t(sentenceKey, {

@@ -27,9 +27,9 @@ describe('chat permissions', () => {
       expect((await t.api.call('chats.messages', { conversationId: t.room })).chat.kind).toBe('project');
     }
     t.as('usr_004');
-    await expect(t.api.call('chats.messages', { conversationId: t.room })).rejects.toMatchObject({ code: 'forbidden' });
-    await expect(t.api.call('chats.send', { conversationId: t.room, body: 'Hello' })).rejects.toMatchObject({ code: 'forbidden' });
-    await expect(t.api.call('chats.markRead', { conversationId: t.room })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('chats.messages', { conversationId: t.room })).rejects.toMatchObject({ code: 'not_found' });
+    await expect(t.api.call('chats.send', { conversationId: t.room, body: 'Hello' })).rejects.toMatchObject({ code: 'not_found' });
+    await expect(t.api.call('chats.markRead', { conversationId: t.room })).rejects.toMatchObject({ code: 'not_found' });
     expect((await t.api.call('chats.list', {})).some((row) => row.id === t.room)).toBe(false);
   });
 
@@ -47,10 +47,10 @@ describe('chat permissions', () => {
     const { id } = await t.api.call('chats.openDirect', { userId: 'usr_002' });
     await t.api.call('chats.send', { conversationId: id, body: 'Do you have a minute?' });
     t.as('usr_004');
-    await expect(t.api.call('chats.messages', { conversationId: id })).rejects.toMatchObject({ code: 'forbidden' });
-    await expect(t.api.call('chats.send', { conversationId: id, body: 'Hi' })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('chats.messages', { conversationId: id })).rejects.toMatchObject({ code: 'not_found' });
+    await expect(t.api.call('chats.send', { conversationId: id, body: 'Hi' })).rejects.toMatchObject({ code: 'not_found' });
     t.as('usr_001');
-    await expect(t.api.call('chats.messages', { conversationId: id })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('chats.messages', { conversationId: id })).rejects.toMatchObject({ code: 'not_found' });
     expect((await t.api.call('chats.list', {})).some((row) => row.id === id)).toBe(false);
     t.as('usr_002');
     const thread = await t.api.call('chats.messages', { conversationId: id });
@@ -192,10 +192,11 @@ describe('chat mentions', () => {
   it('opens the chat from the notice of the mentioned person', async () => {
     const t = world();
     t.as('usr_003');
-    await t.api.call('chats.send', { conversationId: t.room, body: 'Look @[Faisal Leader](usr_002).' });
+    const sent = await t.api.call('chats.send', { conversationId: t.room, body: 'Look @[Faisal Leader](usr_002).' });
     t.as('usr_002');
     const [view] = await (async () => testApiNotices(t))();
-    expect(view).toMatchObject({ link: `/inbox/${t.room}`, target: 'Test Tower', gone: false });
+    // The link names the message (chat design 2026-10-19, item 17), so the chat opens at it.
+    expect(view).toMatchObject({ link: `/inbox/${t.room}?at=${sent.message.id}`, target: 'Test Tower', gone: false });
   });
 });
 

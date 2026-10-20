@@ -1,19 +1,32 @@
 import { AnimatePresence, motion } from 'motion/react';
 import {
-  useCallback, useEffect, useRef, useState,
+  Fragment, useCallback, useEffect, useRef, useState,
   type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
 import { spring } from '../design/motion';
 import { AnimatedIcon } from './icons/AnimatedIcon';
+import { CheckIcon } from './icons/animated/check';
 import { EllipsisIcon } from './icons/animated/ellipsis';
 import { fixedFrame, inFrame, measure, menuPlace } from './placement';
 
-export type MenuItem = { label: string; onSelect: () => void; destructive?: boolean; hidden?: boolean };
+/**
+ * `checked` makes the item a radio item (`role="menuitemradio"`, `aria-checked`) and draws a check mark at its end when it is true.
+ * `heading` draws a hairline and a small label above the item, `note` a small line under it (the "Notify me" part of a chat menu,
+ * chat design item 21). A heading and a note are text, not items: the arrow keys skip them.
+ */
+export type MenuItem = { label: string; onSelect: () => void; destructive?: boolean; hidden?: boolean; checked?: boolean; heading?: string; note?: string };
 
-/** The list of a menu. It takes the focus, moves with the arrow keys, and closes on Escape, Tab or a press outside. */
+/** What a key press moves between: the items, the choice items (Notify me), and the tick items of a head (a row of choices above the items). */
+const STOPS = '[role="menuitem"],[role="menuitemradio"],[role="menuitemcheckbox"]';
+
+/**
+ * The list of a menu. It takes the focus, moves with the arrow keys, and closes on Escape, Tab or a press outside. A `head` sits above
+ * the items with one hairline under it: a row of round buttons with `role="menuitemcheckbox"` (the three reactions of a message). A
+ * press on one of them closes the menu after the button has done its work.
+ */
 export function MenuList({
-  label, items, onClose, boundary, className = '', style,
+  label, items, onClose, boundary, className = '', style, head,
 }: {
   label: string;
   items: MenuItem[];
@@ -21,10 +34,11 @@ export function MenuList({
   boundary?: RefObject<HTMLElement | null>;
   className?: string;
   style?: CSSProperties;
+  head?: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    ref.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    ref.current?.querySelector<HTMLElement>(STOPS)?.focus();
   }, []);
   useEffect(() => {
     const onDown = (event: PointerEvent) => {
@@ -36,7 +50,7 @@ export function MenuList({
     return () => document.removeEventListener('pointerdown', onDown);
   }, [onClose, boundary]);
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const all = [...(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+    const all = [...(ref.current?.querySelectorAll<HTMLElement>(STOPS) ?? [])];
     const index = all.indexOf(document.activeElement as HTMLElement);
     if (event.key === 'ArrowDown') {
       event.preventDefault();
@@ -65,20 +79,37 @@ export function MenuList({
       style={style}
       className={`float z-50 flex min-w-52 flex-col rounded-2xl p-1.5 ${className}`}
     >
-      {items.filter((item) => !item.hidden).map((item) => (
-        <button
-          key={item.label}
-          type="button"
-          role="menuitem"
-          tabIndex={-1}
-          onClick={() => {
-            onClose(true);
-            item.onSelect();
+      {head && (
+        <div
+          className="mb-1 border-b border-hairline px-1 pb-1.5"
+          onClick={(event) => {
+            if ((event.target as Element).closest('[role="menuitemcheckbox"]')) onClose(true);
           }}
-          className={`flex min-h-11 w-full items-center rounded-xl px-3 text-start text-body hover:bg-fill focus:bg-fill focus:outline-none ${item.destructive ? 'text-late' : 'text-ink'}`}
         >
-          {item.label}
-        </button>
+          {head}
+        </div>
+      )}
+      {items.filter((item) => !item.hidden).map((item) => (
+        <Fragment key={item.label}>
+          {item.heading && (
+            <div className="mx-3 mt-1 border-t border-hairline pb-1 pt-3 text-footnote font-semibold text-ink-2">{item.heading}</div>
+          )}
+          <button
+            type="button"
+            role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
+            aria-checked={item.checked}
+            tabIndex={-1}
+            onClick={() => {
+              onClose(true);
+              item.onSelect();
+            }}
+            className={`flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-start text-body hover:bg-fill focus:bg-fill focus:outline-none ${item.destructive ? 'text-late' : 'text-ink'}`}
+          >
+            <span className="min-w-0 flex-1">{item.label}</span>
+            {item.checked === true && <AnimatedIcon icon={CheckIcon} size={18} aria-hidden className="shrink-0 text-accent" />}
+          </button>
+          {item.note && <p className="px-3 pb-1.5 text-footnote text-ink-2">{item.note}</p>}
+        </Fragment>
       ))}
     </motion.div>
   );
@@ -93,8 +124,8 @@ export function MenuList({
  * the start edge of the button (`align: 'start'`), so it opens under the word and not over the side menu.
  */
 export function Menu({
-  label, items, triggerClassName = '', icon, text, align = 'end',
-}: { label: string; items: MenuItem[]; triggerClassName?: string; icon?: ReactNode; text?: string; align?: 'start' | 'end' }) {
+  label, items, triggerClassName = '', icon, text, align = 'end', head,
+}: { label: string; items: MenuItem[]; triggerClassName?: string; icon?: ReactNode; text?: string; align?: 'start' | 'end'; head?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [place, setPlace] = useState<CSSProperties>({});
   const [layer, setLayer] = useState<HTMLElement | null>(null);
@@ -114,13 +145,17 @@ export function Menu({
       window.removeEventListener('resize', onMove);
     };
   }, [open, close]);
-  if (items.every((item) => item.hidden)) return null;
+  // A menu with a head shows also when no item is left to use: the head holds the choices.
+  if (!head && items.every((item) => item.hidden)) return null;
   const openMenu = () => {
     if (!trigger.current) return;
     // The measures come in the units of the menu, so the menu opens next to its button also under Big screen.
     const { box, screen } = measure(trigger.current);
     const dialog = trigger.current.closest<HTMLElement>('[role="dialog"]');
-    const onScreen = menuPlace(box, screen, { itemCount: items.filter((item) => !item.hidden).length, rtl: document.documentElement.dir === 'rtl', align });
+    // A heading and a note take about the height of one more item each, and a head counts as one item: it is as high as a row.
+    const shown = items.filter((item) => !item.hidden);
+    const itemCount = shown.length + shown.filter((item) => item.heading).length + shown.filter((item) => item.note).length + (head ? 1 : 0);
+    const onScreen = menuPlace(box, screen, { itemCount, rtl: document.documentElement.dir === 'rtl', align });
     // A sheet that moves (a transform) is the frame of a fixed list inside it, so the place turns into the sheet's units.
     setPlace(dialog ? inFrame(onScreen, fixedFrame(dialog), screen) : onScreen);
     setLayer(dialog);
@@ -142,7 +177,7 @@ export function Menu({
         {text}
       </button>
       {createPortal(
-        <AnimatePresence>{open && <MenuList label={label} items={items} onClose={close} boundary={trigger} style={place} />}</AnimatePresence>,
+        <AnimatePresence>{open && <MenuList label={label} items={items} onClose={close} boundary={trigger} style={place} head={head} />}</AnimatePresence>,
         layer ?? document.body,
       )}
     </>

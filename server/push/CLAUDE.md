@@ -27,10 +27,12 @@ message from a notice, and the server cannot know that a window is open. The fix
   but not the rule for a window in front, and a line too many costs nothing while a lost subscription costs every later push.
 - A person on Safari or Firefox still gets the line while the chat is open. That is the price of a subscription that stays alive; the person can
   turn off "Notify me on this device" in Settings.
-- **Why not a server delay.** The idea: wait a few seconds after a chat message, then send no push if the person read it. It needs a delayed
-  outbox row, and the outbox has none (`claimed_until` only holds a row; only the 15-minute job runs it again, so a delay would be up to 15
-  minutes). A sleep inside the effect would hold the mail chain of the batch (`AFTER_ANSWER_KINDS` run on one chain) and a Worker request. It also
-  mixes notices and messages in one push row. So the server sends as before.
+- **The server wait and this rule work together** (the join of 2026-10-20). The chat batch (design item 20) gave the server a wait: a
+  `push.chat` row (a chat message, a task comment, or a mention or reply notice of one) waits `CHAT_WAIT_MS` (10 s) after the answer on a chain
+  of its own (`WAITED_KINDS` in `core/effects.ts`, `runCall`), so it holds neither the answer nor the mail chain of the batch. After the wait the
+  server skips each person who already read that chat or task thread on any device ("Who gets a push"). A `push.notify` row has no wait. The
+  worker rule stays for what the wait does not catch: a `push.notify` row, and a chat push for a person who did not read the chat in the 10
+  seconds but has a window of Madar in front. The office object runs the waited kinds with no wait (exit-handoff section 10).
 - Tests: `src/app/remote/serviceWorker.test.ts` (user agents of Chrome, Edge, Firefox, Android, Safari on a Mac and an iPhone, Chrome and Firefox
   on an iPhone; windows in front, hidden, without focus; a failed list of windows).
 
@@ -38,27 +40,37 @@ message from a notice, and the server cannot know that a window is open. The fix
 - `vapid.ts`: the ES256 token (RFC 8292) with WebCrypto only, so it runs on Deno Edge Functions and on Workers. No Node API and
   no package. `vapidConfigOf` reads the three secrets. `makeVapidKeys` makes a pair.
 - `send.ts`: one push to one endpoint. `sendPush` tells `sent`, `gone` or `refused`, or throws `PushSendError` for a retry.
-- `notify.ts`: the producer `pushRows` (SQL), the effect `sendPushNotify`, and the four SQL texts.
+- `notify.ts`: the producer `pushRows`, the effects `sendPushNotify` and `sendChatPush`, and their SQL texts.
+- `chatRule.ts`: the pure rule `planPushes` and its facts. `chatFacts.ts`: the fact readers with their SQL texts, Postgres and SQLite.
 - `register.ts`, `effects.ts`: the registration, like `server/mail/register.ts` and `effects.ts`. `deps.ts` imports `effects.ts`.
 - The calls (`push.register`, `push.remove`, `push.mine`) are in `src/api/handlers/push.ts`. The record is `PushDevice`.
 
 ## Who gets a push
-- A person gets ONE push for each transaction that wrote, for them, an unread notice (every trigger, the two notices of requests
-  and bugs and the two notices of a meeting too: a new, moved or cancelled meeting, and the reminder 30 minutes before the start, fbk_022) or a message in a chat that they read and did not write. The other chat members get it: a direct chat goes to the
-  other person, a group goes to its other members, a project chat to the leader, the team and the Admins.
-- Never the sender: the author of a message and the person the author acts for (an agent writes for a person) are left out.
+- A new unread notice that does not point to a chat message or a task comment (`isChatItemNotice`) gives a `push.notify` row at
+  once (the notices of requests, bugs and meetings too, fbk_022). A new chat message, a new task comment, and a mention or reply notice of one give a `push.chat` row, after the 10-second wait.
+  `planPushes` (`chatRule.ts`) decides: a direct chat or a group pushes its members; a project chat pushes the people its message
+  names (an @mention or a reply); a person who picked All messages (`ChatRead.notify`) gets every message; a task comment pushes the
+  task lead and the maker of an office task, and other people only when named. Never the author or the person an agent writes for;
+  never for a reaction, a delete, a quiet line or an Undo; an edit pushes only a person it names for the first time. One row for each
+  person for each save: a `push.notify` row wins over a `push.chat` row. The mention switch of Settings does not stop a push that
+  names a person.
 - Only an active human with at least one device. A person with no device gets no row.
 - The switches of the notices (`Preferences.notifications`) already decide whether a notice exists. There is no push switch
   for a kind. The one switch of a person is per device: "Notify me on this device" in Settings.
 
 ## The path
-1. After the save of a write call, the producer (`pushRows`, registered for every shared write except `PUSH_FREE_CALLS`) writes
-   one `push.notify` outbox row for each person, in the transaction of the call. A rollback sends nothing.
-   A new notice is a row whose `xmin` is the id of the open transaction (the rule of `NEW_NOTICES_SQL` in the mail guide). A new
-   message is one of `SaveResult.messageIds` (the ids that the save inserted).
+1. After the save of a write call, the producer (`pushRows`, registered for every shared write except `PUSH_FREE_CALLS`) reads the
+   facts of the save (`chatFacts.ts`: at most five statements on Postgres, in the transaction of the call; the office lists and
+   reads by key on SQLite), asks `planPushes`, and writes one outbox row for each person (`push.notify` or `push.chat`). A rollback
+   sends nothing. A new notice is a row whose `xmin` is the id of the open transaction (the rule of `NEW_NOTICES_SQL` in the mail
+   guide). A new message and a new comment are `SaveResult.messageIds` and `SaveResult.commentIds` (the ids that the save inserted).
+   An Undo call (`UNDO_CALLS`) pushes nothing for the comments it brings back.
 2. `push.notify` is in `AFTER_ANSWER_KINDS` (`server/core/effects.ts`), so on the hosted functions it runs right after the
    answer, on the chain of the mails of the batch. Without `after` (tests, scripts) it runs before the answer.
 3. The 15-minute job writes the same rows after its own save (`jobs/steps/triggers.ts`) and retries a failed row (up to 5 times).
+   A `push.chat` row (a chat message, a task comment, or a mention or reply notice of one) waits 10 s after the answer
+   (`WAITED_KINDS`). Then `sendChatPush` asks `PUSH_STILL_NEW_SQL` which items the person has not read on any device
+   (`chat_reads.lastReadAt`) and which are not deleted, and sends one push only when one is left.
 4. The effect `sendPushNotify` reads the devices of the person again from the primary, and posts to each device at once.
    - 201 or 202: sent. The effect sets `lastPushAt` of the device.
    - 404 or 410: the browser dropped the subscription. The effect deletes the device.

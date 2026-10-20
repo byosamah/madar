@@ -1,4 +1,4 @@
-import { addDirectConversation } from '../../../src/api/chatState';
+import { addDirectConversation, addGroupConversation } from '../../../src/api/chatState';
 import { emptyReactions } from '../../../src/api/contract/entities';
 import { sharedCalls, type SharedCallName } from '../../../src/api/sharedCalls';
 import { chatReadKey, type State } from '../../../src/api/store';
@@ -131,6 +131,7 @@ export function writeSweep(office: State): SweepCall[] {
   const notice = Object.values(office.notifications)[0];
   const file = Object.values(office.files)[0];
   const plan = Object.values(office.projectTemplates ?? {}).find((t) => t.tasks.length > 0)!;
+  const roomMessage = Object.values(office.messages).filter((m) => m.conversationId === 'cnv_001').at(-1);
   return [
     ['projects.update', { id: 'prj_001', patch: { name: 'Renamed', coverFileId: file.projectId === 'prj_001' ? file.id : null } }, ADMIN],
     // The project code (owner, 2026-10-05): a code from its parts writes the initials onto a client that has none, the same
@@ -163,6 +164,8 @@ export function writeSweep(office: State): SweepCall[] {
     ['comments.update', { id: comment.id, body: 'Edited' }, comment.authorId],
     ['comments.delete', { id: comment.id }, comment.authorId],
     ['reactions.toggle', { commentId: comment.id, emoji: '👍' }, ADMIN],
+    // The reaction on a chat message (chat design item 12): the newest message of the project chat cnv_001, by a member of its team.
+    ...(roomMessage ? [['reactions.toggle', { messageId: roomMessage.id, emoji: '👍' }, leader] as SweepCall] : []),
     ['files.upload', { projectId: file.projectId, name: file.name, uploadId: 'upl_1' }, ADMIN, { blobKey: 'blob_sweep', mimeType: 'application/pdf', size: 3 }],
     ['files.delete', { id: file.id }, ADMIN],
     ['files.markDelivered', { id: file.id }, ADMIN],
@@ -542,3 +545,132 @@ export function trapOffice(seed: State): State {
   state.chatReads[chatReadKey(thread.id, 'usr_006')] = { conversationId: thread.id, userId: 'usr_006', lastReadAt: '2026-10-03T10:00:00.000+03:00' };
   return state;
 }
+
+/** The name of the group of findTraps. */
+export const FIND_GROUP = 'Find group';
+
+/** The ids of the messages of the group of findTraps, oldest first: msg_1001 is the first, and the ones at 100 and 300 are deleted. */
+const findId = (n: number) => `msg_${1000 + n}`;
+
+/**
+ * The reads of track find (chat design 2026-10-19, items 16 and 17), on a copy of the sample office: a group of three people with 540
+ * messages, one minute apart, two of them deleted (the 100th and the 300th). The reads of chats.messages with "around" must give the
+ * same answers on the scoped load as on the whole office. Later tasks of the track add their records here.
+ */
+export function findTraps(state: State): void {
+  const people = Object.values(state.users).filter((u) => u.kind === 'human' && u.active && u.systemRole !== 'admin').map((u) => u.id).slice(0, 3);
+  const group = addGroupConversation(state, FIND_GROUP, people[0], people, '2026-10-02T08:00:00.000+03:00');
+  for (let n = 1; n <= 540; n++) {
+    const author = people[n % people.length];
+    state.messages[findId(n)] = {
+      id: findId(n), conversationId: group.id, authorId: author, actingForId: author, body: `Find line ${n}`, mentions: [], fileIds: [],
+      createdAt: new Date(Date.UTC(2026, 9, 2, 6) + n * 60_000).toISOString(), editedAt: null,
+      ...(n === 100 || n === 300 ? { deletedAt: '2026-10-03T06:00:00.000Z' } : {}),
+    };
+  }
+  searchTraps(state, group.id, people);
+  emptyDirectTrap(state);
+}
+
+/** The non-Admin active people of an office, in id order. */
+const crew = (state: State): string[] => Object.values(state.users).filter((u) => u.kind === 'human' && u.active && u.systemRole !== 'admin').map((u) => u.id).sort();
+const talks = (state: State, a: string, b: string) =>
+  Object.values(state.conversations).find((c) => c.kind === 'direct' && c.memberIds.includes(a) && c.memberIds.includes(b));
+const pairsOf = (people: string[]): [string, string][] => people.flatMap((a) => people.filter((b) => b > a).map((b): [string, string] => [a, b]));
+
+/** An empty direct chat of two people who had none (item 18): it shows only for the person who opens it. */
+function emptyDirectTrap(state: State): void {
+  const pair = pairsOf(crew(state)).find(([a, b]) => !talks(state, a, b));
+  if (pair) addDirectConversation(state, pair[0], pair[1], '2026-10-03T08:00:00.000+03:00');
+}
+
+/** The id of a message of the search records of findTraps. */
+const searchId = (n: number) => `msg_${2000 + n}`;
+
+/**
+ * The records of the message search (item 16): 7 messages with "riser" in the project chat of prj_001 and one deleted message with
+ * "riser" newer than them, the word in the group and in a direct chat of two people, and an Arabic message with "أسعار".
+ */
+function searchTraps(state: State, groupId: string, people: string[]): void {
+  const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+  const leader = state.projects.prj_001.leaderId!;
+  const [first, second] = people;
+  const talk = Object.values(state.conversations).find((c) => c.kind === 'direct' && c.memberIds.includes(first) && c.memberIds.includes(second))
+    ?? addDirectConversation(state, first, second, '2026-10-02T08:00:00.000+03:00');
+  const put = (n: number, conversationId: string, authorId: string, body: string, extra: Record<string, unknown> = {}) => {
+    state.messages[searchId(n)] = {
+      id: searchId(n), conversationId, authorId, actingForId: authorId, body, mentions: [], fileIds: [],
+      createdAt: `2026-10-04T08:${String(10 + n).padStart(2, '0')}:00.000+03:00`, editedAt: null, ...extra,
+    };
+  };
+  for (let n = 1; n <= 7; n++) put(n, room.id, leader, `Riser size ${n}`);
+  put(8, room.id, leader, 'Riser deleted offer', { deletedAt: '2026-10-03T12:00:00.000Z' });
+  put(9, groupId, first, 'The riser of the group');
+  put(10, talk.id, second, 'The riser of two people');
+  put(11, room.id, leader, 'أسعار المواد ارتفعت');
+  searchCommentTraps(state, leader);
+}
+
+/** The id of a comment of the search records of findTraps. */
+const noteId = (n: number) => `cmt_${2000 + n}`;
+
+/**
+ * The comment records of the message search (item 16): 6 comments with "riser" on one project task, between the messages in time; a
+ * comment with "riser" on a new office task (its lead and its helper see it); a project task that is deleted after 2 newer comments
+ * with "riser" (Postgres keeps their project, the memory form does not); and a comment with "riser" on a project post.
+ */
+function searchCommentTraps(state: State, leader: string): void {
+  const task = Object.values(state.tasks).find((t) => t.projectId === 'prj_001' && t.status !== 'done')!;
+  const put = (n: number, targetType: 'task' | 'update', targetId: string, authorId: string, body: string, createdAt: string) => {
+    state.comments[noteId(n)] = { id: noteId(n), targetType, targetId, authorId, body, reactions: emptyReactions(), fileIds: [], createdAt, editedAt: null };
+  };
+  for (let n = 1; n <= 6; n++) put(n, 'task', task.id, leader, `Riser comment ${n}`, `2026-10-04T08:${String(10 + 2 * n).padStart(2, '0')}:30.000+03:00`);
+  const office = apply(state, 'tasks.create', { title: 'Order the riser parts', ownerId: 'usr_005', helperIds: ['usr_006'], dueDate: '2026-10-08' }, 'usr_004', 'cor_find_office') as { task: { id: string } };
+  put(7, 'task', office.task.id, 'usr_005', 'Riser parts ordered', '2026-10-04T08:25:00.000+03:00');
+  const gone = apply(state, 'tasks.create', { projectId: 'prj_001', title: 'Short lived task', ownerId: leader }, leader, 'cor_find_gone') as { task: { id: string } };
+  put(8, 'task', gone.task.id, leader, 'Riser of a gone task one', '2026-10-04T08:30:00.000+03:00');
+  put(9, 'task', gone.task.id, leader, 'Riser of a gone task two', '2026-10-04T08:31:00.000+03:00');
+  apply(state, 'tasks.delete', { id: gone.task.id }, leader, 'cor_find_gone_delete');
+  const post = Object.values(state.updates).find((u) => u.projectId === 'prj_001')!;
+  put(10, 'update', post.id, leader, 'Riser on a project post', '2026-10-04T08:40:00.000+03:00');
+}
+
+/** The calls of track find: chats.messages with "around", for each member and for a person outside, on the group of findTraps. */
+export function findSweep(office: State): SweepCall[] {
+  const group = Object.values(office.conversations).find((c) => c.kind === 'group' && c.name === FIND_GROUP);
+  if (!group) return [];
+  const foreign = Object.values(office.messages).find((m) => m.conversationId !== group.id)!.id;
+  const outsider = Object.values(office.users).find((u) => u.kind === 'human' && u.active && !group.memberIds.includes(u.id))!.id;
+  const calls: SweepCall[] = [];
+  for (const actor of group.memberIds) {
+    for (const around of [findId(30), findId(300), findId(400), findId(530), foreign]) calls.push(['chats.messages', { conversationId: group.id, around }, actor]);
+    calls.push(['chats.messages', { conversationId: group.id, around: findId(30), limit: 50 }, actor]);
+  }
+  calls.push(['chats.messages', { conversationId: group.id, around: findId(30) }, outsider]);
+  // The message search, for every active human and agent: a word, an Arabic word in another letter form, and a query with no word of 3 letters.
+  const searchers = Object.values(office.users).filter((u) => u.active).map((u) => u.id);
+  for (const actor of searchers) for (const text of ['riser', 'اسعار', 'ri', 'riser size']) calls.push(['search.query', { text }, actor]);
+  calls.push(...directOpenSweep(office));
+  return calls;
+}
+
+/**
+ * chats.openDirect and chats.list for the direct chats of item 18 (an empty direct chat shows only for the person who opened it): a
+ * pair with no chat, a pair with an empty chat (each of the two opens it), and a pair with messages, as writes. The chat list of every
+ * person follows, as reads.
+ */
+function directOpenSweep(office: State): SweepCall[] {
+  const people = crew(office);
+  const live = (chatId: string) => Object.values(office.messages).some((m) => m.conversationId === chatId && m.deletedAt === undefined);
+  const direct = Object.values(office.conversations).filter((c) => c.kind === 'direct' && c.memberIds.every((id) => people.includes(id)));
+  const empty = direct.find((c) => !live(c.id));
+  const full = direct.find((c) => live(c.id));
+  const none = pairsOf(people).find(([a, b]) => !talks(office, a, b));
+  const calls: SweepCall[] = [];
+  if (empty) calls.push(['chats.openDirect', { userId: empty.memberIds[1] }, empty.memberIds[0]], ['chats.openDirect', { userId: empty.memberIds[0] }, empty.memberIds[1]]);
+  if (full) calls.push(['chats.openDirect', { userId: full.memberIds[1] }, full.memberIds[0]]);
+  if (none) calls.push(['chats.openDirect', { userId: none[1] }, none[0]]);
+  for (const actor of Object.values(office.users).filter((u) => u.active).map((u) => u.id)) calls.push(['chats.list', {}, actor]);
+  return calls;
+}
+

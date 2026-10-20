@@ -12,8 +12,9 @@ export const READ_PINS: readonly ReadPin[] = [
   { name: 'chats.unreadCount', input: {}, actorId: 'usr_005', rowsRead: 16_994 },
   { name: 'chats.unreadCount', input: {}, actorId: 'usr_001', rowsRead: 16_968 },
   { name: 'chats.list', input: {}, actorId: 'usr_001', rowsRead: 16_990 },
-  // chats.waiting (fbk_011): the ceiling is the measured rows of the year office plus 10% (2026-10-18).
-  { name: 'chats.waiting', input: {}, actorId: 'usr_005', rowsRead: 21_488 },
+  // chats.waiting (fbk_011): the ceiling is the measured rows of the year office plus 10% (2026-10-18). The chat batch of 2026-10-19
+  // (item 22: a group waits only when named, a 👍 or ✅ answers) reads the reactions and reply links too: 22,579 measured, so 24,837.
+  { name: 'chats.waiting', input: {}, actorId: 'usr_005', rowsRead: 24_837 },
   { name: 'chats.waiting', input: {}, actorId: 'usr_001', rowsRead: 48_725 },
   { name: 'notifications.count', input: {}, actorId: 'usr_005', rowsRead: 2 },
   { name: 'notifications.list', input: {}, actorId: 'usr_005', rowsRead: 118 },
@@ -21,8 +22,10 @@ export const READ_PINS: readonly ReadPin[] = [
   { name: 'tasks.list', input: { filter: 'review_for_me' }, actorId: 'usr_002', rowsRead: 2_536 },
   { name: 'projects.list', input: { status: 'all' }, actorId: 'usr_001', rowsRead: 2_028 },
   { name: 'dashboard.get', input: {}, actorId: 'usr_001', rowsRead: 4_510 },
-  { name: 'search.query', input: { text: 'plan' }, actorId: 'usr_005', rowsRead: 1_142 },
-  { name: 'search.query', input: { text: 'zqxv' }, actorId: 'usr_005', rowsRead: 7_738 },
+  // search.query reads the chat messages and the task comments too (chat design 2026-10-19, item 16): the office path scans both with instr. The ceilings
+  // are the measured rows plus 10%; the reason and the numbers before are in proof.md, "Chat search".
+  { name: 'search.query', input: { text: 'plan' }, actorId: 'usr_005', rowsRead: 17_820 },
+  { name: 'search.query', input: { text: 'zqxv' }, actorId: 'usr_005', rowsRead: 34_736 },
   { name: 'events.list', input: { limit: 50 }, actorId: 'usr_001', rowsRead: 87 },
   { name: 'events.list', input: { limit: 500 }, actorId: 'usr_001', rowsRead: 19, sinceHours: 1 },
   // reports.office (fbk_016, Task 28): 240,966 rows read for the year, measured on the year office (week 5,138, month 23,194, quarter

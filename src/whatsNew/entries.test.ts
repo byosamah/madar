@@ -54,6 +54,27 @@ describe("What's new entries", () => {
     expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-12')?.right).toBe('report.office');
   });
 
+  // Chat design 2026-10-19 (track msg, B17): the message menu, reply, edit, delete, reactions and instant send.
+  it('name the message menu of the chats in one entry that opens the Inbox', () => {
+    const entry = WHATS_NEW.find((item) => item.id === '2026-10-23-30');
+    expect(entry).toEqual({ id: '2026-10-23-30', day: '2026-10-23', to: '/inbox' });
+    expect(wordAt(en, ['whatsNew', 'items', '2026-10-23-30', 'title'])).toBe('Reply, react and edit in chats');
+    expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-30', 'body']))).toContain('أرسلها مجددًا');
+  });
+
+  // Chat design 2026-10-19 (track find, D13): message search, the Message button and the Project chat button.
+  it('name the search of messages in one entry that opens the Search screen, between the notify and the msg lines', () => {
+    const entry = WHATS_NEW.find((item) => item.id === '2026-10-23-40');
+    expect(entry).toEqual({ id: '2026-10-23-40', day: '2026-10-23', to: '/search' });
+    const ids = WHATS_NEW.map((item) => item.id);
+    expect(ids.indexOf('2026-10-23-40')).toBeGreaterThan(ids.indexOf('2026-10-23-50'));
+    expect(ids.indexOf('2026-10-23-40')).toBeLessThan(ids.indexOf('2026-10-23-30'));
+    expect(wordAt(en, ['whatsNew', 'items', '2026-10-23-40', 'title'])).toBe('Search messages');
+    expect(String(wordAt(en, ['whatsNew', 'items', '2026-10-23-40', 'body']))).toContain('Project chat');
+    expect(wordAt(ar, ['whatsNew', 'items', '2026-10-23-40', 'title'])).toBe('ابحث في الرسائل');
+    expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-40', 'body']))).toContain('محادثة المشروع');
+  });
+
   it('have a short "Open" link word and a "New" mark in both languages', () => {
     for (const tree of [en, ar]) {
       for (const key of ['newMark', 'seeNew', 'open', 'openItem']) expect(typeof wordAt(tree, ['whatsNew', key]), key).toBe('string');
