@@ -17,9 +17,10 @@ export const DERIVED = new Set(['project.stage_changed']);
 
 /**
  * Changes with no Undo. The mark "meeting.settled" (fbk_022, wave 2) is final: the job would settle the meeting again, and the Tracker
- * line that it made has its own Undo (tracker.logged deletes the line).
+ * line that it made has its own Undo (tracker.logged deletes the line). The mark "meeting.extended" (wave 3) only names the series that the
+ * job filled: the meetings it added (meeting.added) are the changes, and a person cancels a meeting that is not wanted.
  */
-export const NOT_UNDOABLE = new Set(['project.created', 'project.deleted', 'project.stages_changed', 'meeting.settled', 'undo', ...DERIVED]);
+export const NOT_UNDOABLE = new Set(['project.created', 'project.deleted', 'project.stages_changed', 'meeting.settled', 'meeting.extended', 'undo', ...DERIVED]);
 
 /**
  * Changes that Madar makes to other tasks because of a person's change: a done task that opens again, and a date that moves.

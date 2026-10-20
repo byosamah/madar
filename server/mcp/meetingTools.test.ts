@@ -300,3 +300,87 @@ describe('the minutes over MCP (wave 2, owner 2026-10-19)', () => {
     expect(missing.error).toMatchObject({ code: 'invalid_input', details: { reason: 'file_missing' } });
   });
 });
+
+describe('a repeating series over MCP (wave 3, owner 2026-10-19)', () => {
+  const failed = async (w: World, name: string, args: Record<string, unknown>) => {
+    const { text, result } = await call(w, name, args);
+    return { text, isError: result.isError, error: result.structuredContent?.error as { code: string; message: string; details?: { reason?: string } } | undefined };
+  };
+
+  it('tell the agent in the instructions and the tool texts what repeat and scope do, and to ask the person before a series', () => {
+    const line = INSTRUCTIONS.split('\n').find((text) => text.startsWith('Meetings:'))!;
+    for (const word of ['repeat', 'every', 'two_weeks', 'first 8 meetings', 'keeps full by itself', 'Ask your person before you plan a series', 'scope', 'later', 'a new day is for one meeting only']) {
+      expect(line, word).toContain(word);
+    }
+    expect(line).not.toMatch(/[–—]/);
+    for (const word of ['repeat', 'day, week or two_weeks', '8 meetings', 'ask your person first, also before a series', '400']) expect(TOOL_DOCS['meetings.create'].description + ' ' + line, word).toContain(word);
+    expect(TOOL_DOCS['meetings.update'].description).toContain('scope');
+    expect(TOOL_DOCS['meetings.cancel'].description).toContain('scope later');
+    expect(TOOL_DOCS['meetings.list'].description).toContain('seriesId');
+  });
+
+  it('put meetings.extend on the deny list only: the job keeps a series full, an agent never does', () => {
+    expect(MCP_DENY as readonly string[]).toContain('meetings.extend');
+    expect(MCP_ALLOW as readonly string[]).not.toContain('meetings.extend');
+    expect(mcpTools().map((tool) => tool.name)).not.toContain('meetings.extend');
+  });
+
+  it('plans a series as the person, changes the later meetings with the scope, and cancels them', async () => {
+    const w = world();
+    const made = await call(w, 'meetings.create', { kind: 'client', title: 'Weekly facade review', projectId: 'prj_001', startsAt: '2026-10-07T09:00:00+03:00', repeat: { every: 'week', until: null } });
+    expect(made.result.isError, JSON.stringify(made.result)).toBeUndefined();
+    const first = made.result.structuredContent.output as MeetingRow;
+    expect(first).toMatchObject({ seriesId: first.id, repeat: { every: 'week', until: null } });
+    const series = () => Object.values(w.mem.tables.state.meetings!).filter((m) => m.seriesId === first.id).sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+    expect(series()).toHaveLength(8);
+    const third = series()[2].id;
+    const moved = await call(w, 'meetings.update', { id: third, where: 'Room 9', scope: 'later' });
+    expect(moved.result.isError, JSON.stringify(moved.result)).toBeUndefined();
+    expect(series().map((m) => m.where)).toEqual(['', '', 'Room 9', 'Room 9', 'Room 9', 'Room 9', 'Room 9', 'Room 9']);
+    const day = await failed(w, 'meetings.update', { id: third, startsAt: '2026-10-22T09:00:00+03:00', scope: 'later' });
+    expect(day.error).toMatchObject({ code: 'invalid_input', details: { reason: 'series_day_one_only' } });
+    const cancelled = await call(w, 'meetings.cancel', { id: third, scope: 'later' });
+    expect(cancelled.result.isError, JSON.stringify(cancelled.result)).toBeUndefined();
+    expect(series().map((m) => m.status)).toEqual(['scheduled', 'scheduled', ...Array(6).fill('cancelled')]);
+    // The History names the agent and the person on each event of the series.
+    const events = Object.values(w.mem.tables.state.events).filter((e) => e.targetType === 'meeting' && series().some((m) => m.id === e.targetId));
+    expect(events.length).toBeGreaterThan(8);
+    expect(events.every((e) => e.actorId === 'usr_009' && e.actingForId === 'usr_001')).toBe(true);
+    // The list shows the series and the rule.
+    const rows = await call(w, 'meetings.list', { from: '2026-10-04', to: '2026-12-31', projectId: 'prj_001', mine: false });
+    expect((rows.result.structuredContent.output as MeetingRow[]).filter((row) => row.seriesId === first.id)).toHaveLength(8);
+  });
+
+  it('answers the agent of the Admin who is not invited, for a private series, exactly as for a meeting that does not exist, scope later too', async () => {
+    const w = world(OMAR_AGENT);
+    const made = await call(w, 'meetings.create', { kind: 'meeting', title: SECRET_TITLE, startsAt: '2026-10-11T09:00:00+03:00', attendeeIds: ['usr_006'], repeat: { every: 'day', until: null } });
+    expect(made.result.isError, JSON.stringify(made.result)).toBeUndefined();
+    const ids = Object.values(w.mem.tables.state.meetings!).filter((m) => m.seriesId === (made.result.structuredContent.output as MeetingRow).id).map((m) => m.id);
+    expect(ids).toHaveLength(8);
+    // The same office for the agent of the Admin.
+    const admin = world();
+    admin.mem.tables.state.meetings = structuredClone(w.mem.tables.state.meetings);
+    admin.mem.tables.state.events = structuredClone(w.mem.tables.state.events);
+    admin.mem.tables.state.counters = structuredClone(w.mem.tables.state.counters);
+    admin.mem.tables.version += 1;
+    for (const id of [ids[0], ids[5]]) {
+      for (const [name, args] of [
+        ['meetings.get', { id }], ['meetings.update', { id, where: 'x', scope: 'later' }], ['meetings.cancel', { id, scope: 'later' }],
+      ] as const) {
+        const real = await failed(admin, name, args);
+        const none = await failed(admin, name, { ...args, id: 'mtg_999' });
+        expect(real.isError, name).toBe(true);
+        expect(JSON.stringify(real.error), name).toBe(JSON.stringify(none.error).replaceAll('mtg_999', id));
+        expect(real.error, name).toMatchObject({ code: 'not_found', message: `Meeting ${id} does not exist.` });
+      }
+    }
+    for (const [name, args] of [
+      ['meetings.list', { from: '2026-10-01', to: '2026-12-31' }], ['events.list', { limit: 500 }], ['events.list', { targetType: 'meeting', limit: 500 }], ['search.query', { text: 'salary' }],
+    ] as const) {
+      const { text } = await call(admin, name, args as Record<string, unknown>);
+      expect(text, name).not.toContain(SECRET_TITLE);
+      for (const id of ids) expect(text, `${name} ${id}`).not.toContain(id);
+    }
+    expect(Object.values(admin.mem.tables.state.meetings!).every((m) => m.status === 'scheduled' && m.where === '')).toBe(true);
+  });
+});

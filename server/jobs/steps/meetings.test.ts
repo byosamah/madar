@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest';
 import type { Meeting } from '../../../src/api/contract/entities';
 import type { State } from '../../../src/api/store';
 import { buildSeed } from '../../../src/data/seed';
-import { addMinutes } from '../../../src/lib/meetings';
+import { addMinutes, SERIES_AHEAD } from '../../../src/lib/meetings';
 import { snapshotOf } from '../../data/officeCache';
 import { liteData } from '../../data/lite/callData';
 import { freshLite } from '../../data/lite/testDb';
 import { liteWriteState } from '../../data/lite/whole';
 import { createRunCall, type RunCall } from '../../core/runCall';
 import { fakeDeps } from '../../test/fakes/deps';
-import { meetings, SETTLE_LITE, SETTLE_SQL, settleActorOf } from './meetings';
+import { EXTEND_LITE, EXTEND_SQL, meetings, SETTLE_LITE, SETTLE_SQL, settleActorOf } from './meetings';
 
 /**
  * The job step that settles the meetings that ended (fbk_022, wave 2, owner 2026-10-19). It reads the due meetings with one statement,
@@ -168,6 +168,148 @@ describe('the person who acts for a meeting', () => {
     const { seen, run } = stub();
     deps.runCall = run;
     expect(await meetings(deps, AT)).toEqual({ settled: 0, skipped: 1, failed: 0, extended: 0 });
+    expect(seen).toEqual([]);
+  });
+});
+
+/**
+ * The second half of the step (wave 3): keep the series full. One read gives the last meeting of each series that has fewer than 8
+ * meetings ahead, and for each one the step runs the normal call meetings.extend, as the organizer.
+ */
+describe('the meetings step keeps the series full (fbk_022, wave 3)', () => {
+  const DAYS = ['2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26', '2026-11-02', '2026-11-09', '2026-11-16', '2026-11-23', '2026-11-30'];
+  /** A weekly series of "count" meetings from Monday 2026-10-05 at 10:00, all ahead of the run. */
+  const weekly = (seriesId: string, count: number, extra: Partial<Meeting> = {}): Meeting[] =>
+    DAYS.slice(0, count).map((day, n) => meeting(`${seriesId}${String(n + 1).padStart(2, '0')}`, `${day}T11:00:00.000+03:00`, { seriesId, repeat: { every: 'week', until: null }, ...extra }));
+
+  type Extend = { seriesId: string; userId: string };
+  function extendStub(options: { fail?: string[]; added?: number } = {}) {
+    const seen: Extend[] = [];
+    const run: RunCall = async (_deps, req) => {
+      // A meeting of the test that is over settles with no change here: the settle half of the step has its own tests above.
+      if (req.name === 'meetings.settle') return { ok: true, output: { settledAt: null, trackerEntryId: null }, changed: false };
+      const input = req.input as { seriesId: string };
+      seen.push({ seriesId: input.seriesId, userId: (req.principal as { userId: string }).userId });
+      if (options.fail?.includes(input.seriesId)) return { ok: false, error: { code: 'conflict', message: 'Could not extend Secret title' } };
+      return { ok: true, output: { added: options.added ?? 2 }, changed: true };
+    };
+    return { seen, run };
+  }
+
+  it('asks for the series that have meetings ahead but fewer than 8, and for no other', async () => {
+    const rows = [
+      ...weekly('mtg_101', 3),
+      // 8 ahead: full. 7 ahead with the last scheduled: short.
+      ...weekly('mtg_102', 8), ...weekly('mtg_103', 7),
+      // The last meeting is cancelled: a person ended the series there.
+      ...weekly('mtg_104', 5).map((row, n) => (n === 4 ? { ...row, status: 'cancelled' as const } : row)),
+      // The last day is reached: nothing to add, so no call.
+      ...weekly('mtg_105', 3, { repeat: { every: 'week', until: '2026-10-19' } }),
+      // Every meeting is over: the series is not in the read.
+      ...weekly('mtg_106', 2).map((row, n) => ({ ...row, startsAt: `2026-09-2${n}T10:00:00.000+03:00`, endsAt: `2026-09-2${n}T11:00:00.000+03:00` })),
+      // One meeting in no series.
+      meeting('mtg_190', '2026-10-06T11:00:00.000+03:00'),
+    ];
+    const { deps } = await office(rows);
+    const { seen, run } = extendStub({ added: 5 });
+    deps.runCall = run;
+    expect(await meetings(deps, AT)).toEqual({ settled: 0, skipped: 0, failed: 0, extended: 10 });
+    // The fewest ahead first, then by series.
+    expect(seen).toEqual([{ seriesId: 'mtg_101', userId: 'usr_002' }, { seriesId: 'mtg_103', userId: 'usr_002' }]);
+  });
+
+  it('reads at most 20 series, the fewest ahead first, and the rest in the next run', async () => {
+    const rows = Array.from({ length: 23 }, (_, n) => weekly(`mtg_${200 + n}`, 1 + (n % 7))).flat();
+    const { deps } = await office(rows);
+    const { seen, run } = extendStub({ added: 1 });
+    deps.runCall = run;
+    const report = await meetings(deps, AT);
+    expect(seen).toHaveLength(20);
+    expect(report.extended).toBe(20);
+    // 23 series with 1 to 7 ahead: order by the number ahead, then the id. The three with the most ahead wait.
+    const aheadOf = (id: string) => rows.filter((row) => row.seriesId === id).length;
+    const order = seen.map((one) => aheadOf(one.seriesId));
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(Math.max(...order)).toBeLessThanOrEqual(7);
+    expect(new Set(seen.map((one) => one.seriesId)).size).toBe(20);
+  });
+
+  it('names the same conditions in both SQL texts, with the number of meetings to keep ahead', () => {
+    for (const text of [EXTEND_SQL, EXTEND_LITE]) {
+      expect(text).toContain("status = 'scheduled'");
+      expect(text).toContain(`ahead < ${SERIES_AHEAD}`);
+      expect(text).toContain('limit 20');
+      expect(text).toContain('row_number() over');
+    }
+    expect(EXTEND_SQL).toContain('collate "C"');
+    expect(EXTEND_SQL).toContain("doc->>'seriesId'");
+    expect(EXTEND_LITE).not.toContain('collate');
+    expect(EXTEND_LITE).toContain("json_extract(doc, '$.seriesId')");
+  });
+
+  it('runs the call as the organizer; for an organizer who is off, as the first Admin of a project series and as the first attendee of a private series', async () => {
+    const rows = [
+      ...weekly('mtg_111', 2, { organizerId: 'usr_006', projectId: 'prj_001', attendeeIds: ['usr_003'] }),
+      ...weekly('mtg_112', 2, { organizerId: 'usr_006', projectId: null, attendeeIds: ['usr_006', 'usr_004', 'usr_003'] }),
+      ...weekly('mtg_113', 2, { organizerId: 'usr_006', projectId: null, attendeeIds: [] }),
+    ];
+    const { deps } = await office(rows, (seed) => {
+      seed.users.usr_006 = { ...seed.users.usr_003, id: 'usr_006', active: false };
+    });
+    const { seen, run } = extendStub({ added: 1 });
+    deps.runCall = run;
+    const report = await meetings(deps, AT);
+    expect(report).toEqual({ settled: 0, skipped: 1, failed: 0, extended: 2 });
+    expect(seen).toEqual([{ seriesId: 'mtg_111', userId: 'usr_001' }, { seriesId: 'mtg_112', userId: 'usr_003' }]);
+  });
+
+  it('goes on after a failure, and logs the series id and the code, never the title', async () => {
+    const { deps } = await office([...weekly('mtg_101', 2), ...weekly('mtg_102', 3)]);
+    const { seen, run } = extendStub({ fail: ['mtg_101'], added: 4 });
+    deps.runCall = run;
+    expect(await meetings(deps, AT)).toEqual({ settled: 0, skipped: 0, failed: 1, extended: 4 });
+    expect(seen.map((one) => one.seriesId)).toEqual(['mtg_101', 'mtg_102']);
+    const line = deps.logs.find((one) => one.fields?.step === 'meetings');
+    expect(line?.fields).toEqual({ step: 'meetings', id: 'mtg_101', error: 'conflict' });
+    expect(JSON.stringify(deps.logs)).not.toContain('Secret title');
+  });
+
+  it('settles the meetings that ended and keeps the series full in one run', async () => {
+    const { deps } = await office([meeting('mtg_199', '2026-10-04T12:14:00.000+03:00'), ...weekly('mtg_101', 3)]);
+    const seen: string[] = [];
+    deps.runCall = async (_deps, req) => {
+      seen.push(req.name);
+      return req.name === 'meetings.settle'
+        ? { ok: true, output: { settledAt: '2026-10-04T12:15:00.000+03:00', trackerEntryId: null }, changed: true }
+        : { ok: true, output: { added: 5 }, changed: true };
+    };
+    expect(await meetings(deps, AT)).toEqual({ settled: 1, skipped: 0, failed: 0, extended: 5 });
+    expect(seen).toEqual(['meetings.settle', 'meetings.extend']);
+  });
+
+  it('makes the missing meetings with the real call, once: a second run adds none and writes nothing', async () => {
+    const { deps, db } = await office(weekly('mtg_101', 3, { attendeeIds: ['usr_003'] }));
+    deps.runCall = createRunCall({ data: liteData });
+    expect(await meetings(deps, AT)).toEqual({ settled: 0, skipped: 0, failed: 0, extended: 5 });
+    const rows = () => db.statement<{ id: string; starts_at: string }>('read', "select id, starts_at from meetings where json_extract(doc, '$.seriesId') = 'mtg_101' order by starts_at");
+    const after = await rows();
+    expect(after).toHaveLength(8);
+    expect(after.slice(3).map((row) => row.starts_at.slice(0, 10))).toEqual(['2026-10-26', '2026-11-02', '2026-11-09', '2026-11-16', '2026-11-23']);
+    // The new meetings are scheduled, have no settle mark, and the events name the mark that caused them.
+    const marks = await db.statement<{ id: string }>('read', "select json_extract(doc, '$.id') as id from events where json_extract(doc, '$.verb') = 'meeting.extended'");
+    expect(marks).toHaveLength(1);
+    const added = await db.statement<{ cause: string }>('read', "select json_extract(doc, '$.causeEventId') as cause from events where json_extract(doc, '$.verb') = 'meeting.added'");
+    expect(added).toHaveLength(5);
+    expect(new Set(added.map((row) => row.cause))).toEqual(new Set([marks[0].id]));
+    expect(await meetings(deps, AT)).toEqual({ settled: 0, skipped: 0, failed: 0, extended: 0 });
+    expect(await rows()).toEqual(after);
+  });
+
+  it('makes no call when the read finds nothing', async () => {
+    const { deps } = await office([meeting('mtg_190', '2026-10-06T11:00:00.000+03:00')]);
+    const { seen, run } = extendStub();
+    deps.runCall = run;
+    expect(await meetings(deps, AT)).toEqual({ settled: 0, skipped: 0, failed: 0, extended: 0 });
     expect(seen).toEqual([]);
   });
 });

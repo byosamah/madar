@@ -3,7 +3,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Meeting } from '../../src/api/contract/entities';
 import { runCall } from '../core/runCall';
-import { SETTLE_SQL } from '../jobs/steps/meetings';
+import { EXTEND_SQL, SETTLE_SQL } from '../jobs/steps/meetings';
 import { dropSchema, localClient, migrationFiles } from './migrate';
 import { newBatch, startOffice, type ItOffice } from './runCallOffice';
 
@@ -291,3 +291,106 @@ describe.runIf(process.env.MADAR_IT === '1')('the settle and the minutes, on the
   });
 });
 
+
+/**
+ * Repeating meetings (wave 3, owner 2026-10-19) through runCall on the local database as madar_server: the loaders of the scope writes
+ * (the field seriesId and the start bound) and of meetings.extend, the 8 rows of a new series, and the read of the job. The memory form
+ * of the same probes runs in src/api/handlers/meetingSeries.test.ts, meetingExtend.test.ts and server/data/loaders/loaders.test.ts.
+ */
+describe.runIf(process.env.MADAR_IT === '1')('a repeating series, on the local database', () => {
+  const ADMIN = 'usr_001';
+  const ATTENDEE = 'usr_006';
+  const ORGANIZER = 'usr_004';
+  const OUTSIDER = 'usr_002';
+  const TITLE = 'Weekly talk DB-SERIES-3318';
+  let office: ItOffice;
+  let deps: ReturnType<ItOffice['isolate']>;
+  let first: string;
+  const call = (userId: string, name: string, input: unknown) => runCall(deps, { principal: { userId }, name, input, batch: newBatch() });
+  const okOf = <T>(result: Awaited<ReturnType<typeof call>>): T => {
+    if (!result.ok) throw new Error(`The call failed: ${result.error.code} ${result.error.message}`);
+    return result.output as T;
+  };
+  const rows = () => office.sql<{ id: string; starts_at: string; status: string; place: string; until: string | null }>(
+    "select id, starts_at, status, doc->>'where' as place, doc->'repeat'->>'until' as until from meetings where doc->>'seriesId' = $1 order by starts_at", [first],
+  );
+
+  beforeAll(async () => {
+    office = await startOffice('mtgser');
+    deps = office.isolate();
+    // The clock of the suite is Sunday 2026-10-04 09:00 in Riyadh.
+    first = okOf<{ id: string }>(await call(ORGANIZER, 'meetings.create', { kind: 'meeting', title: TITLE, startsAt: '2026-10-11T09:00:00+03:00', attendeeIds: [ATTENDEE], repeat: { every: 'week', until: null } })).id;
+  }, 60_000);
+
+  afterAll(async () => {
+    await office?.close();
+  });
+
+  it('makes the 8 rows of the series in one save, all with no project, and one notice for each attendee', async () => {
+    const list = await rows();
+    expect(list.map((row) => String(row.starts_at).slice(0, 10))).toEqual(['2026-10-11', '2026-10-18', '2026-10-25', '2026-11-01', '2026-11-08', '2026-11-15', '2026-11-22', '2026-11-29']);
+    expect(await office.sql('select count(*)::int as n from meetings where project_id is null')).toEqual([{ n: 8 }]);
+    const notices = await office.sql("select user_id, dedupe_key from notifications where target_type = 'meeting' order by user_id");
+    expect(notices).toEqual([{ user_id: ATTENDEE, dedupe_key: `meeting_invited:${first}:${ATTENDEE}` }]);
+  });
+
+  it('answers the scope writes and the extension for the Admin who is not invited and for an outsider as for an unknown id', async () => {
+    const [, , third] = await rows();
+    for (const person of [ADMIN, OUTSIDER]) {
+      for (const [name, input, missing] of [
+        ['meetings.update', { id: third.id, where: 'x', scope: 'later' }, { id: 'mtg_999', where: 'x', scope: 'later' }],
+        ['meetings.cancel', { id: third.id, scope: 'later' }, { id: 'mtg_999', scope: 'later' }],
+        ['meetings.extend', { seriesId: first }, { seriesId: 'mtg_999' }],
+      ] as const) {
+        const hidden = await call(person, name, input);
+        const gone = await call(person, name, missing);
+        expect(hidden.ok, `${person} ${name}`).toBe(false);
+        if (hidden.ok || gone.ok) continue;
+        expect(hidden.error.code, `${person} ${name}`).toBe('not_found');
+        expect(hidden.error.message, `${person} ${name}`).toBe(gone.error.message.replace('mtg_999', name === 'meetings.extend' ? first : third.id));
+      }
+    }
+    expect((await rows()).every((row) => row.place === '' && row.status === 'scheduled')).toBe(true);
+  });
+
+  it('changes this meeting and the later ones with the scope "later", and cancels the later ones and ends the series', async () => {
+    const list = await rows();
+    okOf(await call(ORGANIZER, 'meetings.update', { id: list[3].id, where: 'Room 9', scope: 'later' }));
+    expect((await rows()).map((row) => row.place)).toEqual(['', '', '', 'Room 9', 'Room 9', 'Room 9', 'Room 9', 'Room 9']);
+    okOf(await call(ORGANIZER, 'meetings.cancel', { id: list[6].id, scope: 'later' }));
+    const after = await rows();
+    expect(after.map((row) => row.status)).toEqual([...Array(6).fill('scheduled'), 'cancelled', 'cancelled']);
+    expect(after.slice(6).map((row) => row.until)).toEqual(['2026-11-21', '2026-11-21']);
+    // The History of the Admin holds none of it.
+    const listed = okOf<unknown[]>(await call(ADMIN, 'events.list', { limit: 500 }));
+    expect(JSON.stringify(listed)).not.toContain(TITLE);
+  });
+
+  it('adds the missing meeting with meetings.extend, none after a cancelled last meeting, and reads the short series with the statement of the job', async () => {
+    // A second series: one meeting alone in the middle is cancelled, so 7 are ahead and the last one is scheduled.
+    const other = okOf<{ id: string }>(await call(ORGANIZER, 'meetings.create', { kind: 'meeting', title: 'Second series', startsAt: '2026-10-12T09:00:00+03:00', attendeeIds: [ATTENDEE], repeat: { every: 'week', until: null } })).id;
+    const [, , middle] = await office.sql<{ id: string }>("select id from meetings where doc->>'seriesId' = $1 order by starts_at", [other]);
+    okOf(await call(ORGANIZER, 'meetings.cancel', { id: middle.id }));
+    const read = async () => office.sql<{ doc: { seriesId: string }; ahead: string }>(EXTEND_SQL, ['2026-10-04T09:00:00.000+03:00', '2026-10-04T00:00:00.000+03:00']);
+    // The first series ends with a cancelled meeting: out of the read. The second is short.
+    expect((await read()).map((row) => [row.doc.seriesId, Number(row.ahead)])).toEqual([[other, 7]]);
+    expect(okOf(await call(ORGANIZER, 'meetings.extend', { seriesId: first }))).toEqual({ added: 0 });
+    expect(okOf(await call(ORGANIZER, 'meetings.extend', { seriesId: other }))).toEqual({ added: 1 });
+    expect(await read()).toEqual([]);
+    expect(await office.sql("select count(*)::int as n from meetings where doc->>'seriesId' = $1", [other])).toEqual([{ n: 9 }]);
+    const marks = await office.sql("select id from events where doc->>'verb' = 'meeting.extended' and doc->>'targetId' in (select id from meetings where doc->>'seriesId' = $1)", [other]);
+    expect(marks).toHaveLength(1);
+    expect(okOf(await call(ORGANIZER, 'meetings.extend', { seriesId: other }))).toEqual({ added: 0 });
+  });
+
+  it('serves the read of the job with the index of the start', async () => {
+    await office.sql('set enable_seqscan = off');
+    try {
+      const text = EXTEND_SQL.replace('$1::text', "'2026-10-04T09:00:00.000+03:00'::text").replace('$2::text', "'2026-10-04T00:00:00.000+03:00'::text");
+      const plan = (await office.sql(`explain ${text}`)).map((row) => String(row['QUERY PLAN'])).join('\n');
+      expect(plan).toContain('meetings_starts');
+    } finally {
+      await office.sql('reset enable_seqscan');
+    }
+  });
+});

@@ -121,7 +121,7 @@ The other host stays deployed as the way back. Each area below has its own guide
   back. Each person connects once in Settings (`google.connectStart`, the Google screen, the callback, `google.connect`; see `src/api/CLAUDE.md`). The
   scope is only `calendar.app.created`: Madar makes its own calendar and writes only there. Code: `server/google/` (`api.ts` the Google calls with a 3 s
   limit, `keys.ts` the seal, `state.ts` the signed state with the PKCE verifier, `store.ts` the two tables, `sync.ts`, `rows.ts`, `register.ts`).
-- The producers (`rows.ts`): after the save of `meetings.create`, `meetings.update`, `meetings.cancel`, `events.undo`, `events.undoStory` and
+- The producers (`rows.ts`): after the save of `meetings.create`, `meetings.update`, `meetings.cancel`, `meetings.extend`, `events.undo`, `events.undoStory` and
   `projects.delete` (`GCAL_CALLS`), `gcalRows` writes one `gcal.sync { userId, meetingId }` for each connected organizer or attendee (state ok or
   not_synced) and each person who has a Google event for a touched meeting (`SaveResult.meetingIds`, set by `data/save.ts`); it asks the database only
   when the save touched a meeting. The producer of `users.remove` (`revokeRowsOf`) sets the live connection of the person to `revoking` (`startRevoking`,
@@ -168,8 +168,11 @@ The other host stays deployed as the way back. Each area below has its own guide
   partial index `meetings_to_settle`) gives at most 20 due meetings, the oldest end first: scheduled, not settled, ended in the last 14 days. For each
   one the step runs the normal call `meetings.settle` as the organizer (`settleActorOf`: else the first active Admin for a project meeting, else the
   first active attendee), so the mark and the Tracker line come from the one settle rule and carry the events of a normal call. It writes no row of
-  its own. A failure logs the id and the code only and the loop goes on. It reports `{ settled, skipped, failed, extended }` (`extended` waits for
-  wave 3). `Deps.runCall` (`core/ports.ts`) is the run of a normal call for a step: only the office object sets it (its own SQLite run, `office/parts.ts`);
+  its own. A failure logs the id and the code only and the loop goes on. It reports `{ settled, skipped, failed, extended }`. The second half keeps the repeating
+  series full (wave 3): one read (`EXTEND_SQL`, `EXTEND_LITE`; no new index: the base is the meetings that start today or later, served by `meetings_starts`)
+  gives the last meeting of each series that is scheduled and has fewer than 8 scheduled meetings ahead (`ends_at` after the run), the fewest ahead first, at most
+  20 series. The step skips a series whose rule has no day left (`occurrencesOf`), then runs the normal call `meetings.extend { seriesId }` for each, as the same
+  person as the settle (`settleActorOf` of the last meeting), and counts the meetings added in `extended`. A failure logs the series id and the code only. `Deps.runCall` (`core/ports.ts`) is the run of a normal call for a step: only the office object sets it (its own SQLite run, `office/parts.ts`);
   every other host uses the Postgres `runCall`.
 - Usage meters and the 80% Admin warning (`usage/`). The free-plan limits are in `FREE_PLAN_LIMITS`. The calls limit follows
   the host that serves the copy (`config.servingHost`, from `config/server-host.json`): 500,000 on Supabase, 10 million on

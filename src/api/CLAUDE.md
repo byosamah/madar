@@ -443,8 +443,33 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   The server job loads the scheduled meetings that start within the hour (`loadJobs`, `now` of the run). The screen words are in
   `src/i18n/real/meetings.*.json` (`inbox.trigger.meeting_invited`, `_moved`, `_cancelled`, `meeting_soon`, `inbox.meetingGone`).
 - `projects.delete` deletes the meetings of the project and their notices. A person who is an attendee and leaves keeps the record.
-- `Task.meetingId`, `Meeting.minutesTaskId`, `seriesId` and `repeat` are in the contract for the later waves. Nothing sets the first two since the
-  owner dropped the minutes task (2026-10-19), and wave 3 sets the others.
+- `Task.meetingId` and `Meeting.minutesTaskId` are in the contract and nothing sets them since the owner dropped the minutes task (2026-10-19).
+- Repeating meetings (wave 3, owner 2026-10-19, Q7; `handlers/meetings.ts`, `lib/meetings.ts`): `meetings.create` takes `repeat: { every: 'day' | 'week' | 'two_weeks',
+  until: Day | null }` (optional, null is none) and makes the first `SERIES_AHEAD` (8) meetings at once, one row for each, with `seriesId` (the id of the first)
+  and the same `repeat`. `occurrencesOf(rule, first, after, count)` gives the days: "day" is Sunday to Thursday (also when the first day is a Friday), "week" and
+  "two_weeks" keep the weekday of the first day. `until` is the last day and is kept; it is refused before the first day (`until_before_start`) and more than
+  400 days after it (`until_too_far`), both `invalid_input` on `repeat`. The events: `meeting.created` for the first meeting, `meeting.added` for each of the others
+  (cause: the first event), all in the story of the call, so one `events.undoStory` takes the series back with its notice. The project feed shows the first
+  meeting alone: `meeting.added`, `meeting.series_updated`, `meeting.series_cancelled` and `meeting.extended` are not feed verbs (a daily series would fill
+  the feed and refresh the "last activity" of a project). The attendees get one `meeting_invited` notice for the series, with the dedupe key
+  `meeting_invited:<seriesId>` (and `:<userId>`), aimed at the first meeting.
+- The scope (`scope: 'one' | 'later'`, default `one`) of `meetings.update` and `meetings.cancel`. "later" changes the meeting and every scheduled meeting of the
+  series that starts after it and is not over (`laterOf`); a past meeting and a cancelled meeting never change. The rights and the checks are those of the
+  meeting alone (a meeting in no series is one meeting whatever the scope). An update changes only what changed on this meeting: each changed field goes to the
+  later meetings (the people replace their lists); a new time of day applies to each later meeting on its own day, a new length to each; a new day is refused
+  with `series_day_one_only` (`invalid_input` on `startsAt`) and is made one meeting at a time. A cancel from here on also sets `repeat.until` of the
+  cancelled meetings to the day before the first of them (an earlier `until` stays). The target writes `meeting.updated` or `meeting.cancelled`; each other
+  meeting writes `meeting.series_updated` or `meeting.series_cancelled` with the target's event as its cause. Each changed start, end or place raises `rev`
+  of that meeting. One notice for the whole change (the target's), `moved` or `new` or `cancelled`, with no dedupe key. One Undo of the story takes it all back.
+- `meetings.extend { seriesId } -> { added }` keeps a series full (the 15-minute job and the prototype timer call it, as they call `meetings.settle`; MCP deny
+  list; `WRITE_KINDS`: events, meetings). It reads the visible meetings of the series from today on, takes the last one as the template, and adds meetings after it
+  until `SERIES_AHEAD` scheduled meetings that are not over are ahead, or until `until`. It adds none when the last meeting is cancelled (a person ended the series
+  there), and a series with no meeting from today on reads as `not_found` (so does an unknown or hidden id, with the text of an unknown id). New meetings start
+  after the last day, or after today when the series ran dry, copy the title, kind, project, place, guests, notes, organizer, people, length and time of day, get
+  `createdBy` of the caller, and have no notice. One mark `meeting.extended` (target: the last meeting, not undoable, `NOT_UNDOABLE`) and one `meeting.added` for each
+  new meeting with the mark as its cause. Like `settle`, the call needs only the view of the series. `seriesToExtend(state, at)` is the rule of the job read for the
+  prototype timer.
+- Reasons added: `until_before_start`, `until_too_far`, `series_day_one_only`.
 - Settle (wave 2, owner 2026-10-19; `meetings.settle { id }`, `settleMeeting`, `dueToSettle` in `handlers/meetings.ts`): after `endsAt` Madar marks the
   meeting as over (`settledAt`, event verb `meeting.settled`) and, when `hasTrackerLine` (`lib/meetings.ts`: a project meeting that is not a team
   meeting), makes its Tracker line: type `meeting`, side `both`, the title and notes of the meeting, the day of the start, the organizer and the

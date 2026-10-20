@@ -15,7 +15,7 @@ import { INBOX_TASK_FIELDS } from './inbox';
 import { LOADER_OF } from './index';
 import { loadJobs } from './jobs';
 import { memorySource } from './memorySource';
-import { AGENT_MADE_TASK, badgeTraps, ENDED_MEETING_TITLE, ENDED_PROJECT_MEETING_TITLE, ENDED_TEAM_MEETING_TITLE, findSweep, findTraps, MEETING_FILE_ID, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, trapOffice, writeSweep } from './sweep';
+import { AGENT_MADE_TASK, badgeTraps, ENDED_MEETING_TITLE, ENDED_PROJECT_MEETING_TITLE, ENDED_TEAM_MEETING_TITLE, findSweep, findTraps, MEETING_FILE_ID, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, SERIES_PRIVATE_TITLE, SERIES_PROJECT_TITLE, seriesSweep, seriesTraps, trapOffice, writeSweep } from './sweep';
 
 /**
  * Task C2: each loader gives the handler the same answer as the whole office (plan 4.6, "Safety net"). runBoth runs the call on
@@ -1016,6 +1016,76 @@ describe('office tasks (owner, 2026-10-06)', () => {
     const again = await loadJobs({ src: memorySource(traps), office: snapshotOf(traps, 1) });
     runScheduledTriggers(again, NOW, { dedupeUsed });
     expect(Object.values(again.notifications).filter((n) => n.targetId === paper.id).map((n) => [n.userId, n.trigger])).toEqual([[paper.createdBy, 'overdue']]);
+  });
+});
+
+describe('repeating meetings on the scoped load (fbk_022, wave 3)', () => {
+  const seriesOf = (state: State, title: string) => Object.values(state.meetings ?? {}).filter((m) => m.title === title).sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+
+  it('give the same answers as the whole office for the reads and the writes of a private series and a project series', async () => {
+    const traps = office(seriesTraps);
+    const calls = seriesSweep(traps);
+    expect(calls.length).toBeGreaterThan(50);
+    for (const [name, input, actor] of calls) {
+      const run = await same(traps, name, input, actor);
+      expect(run.outcome.error?.code, `${name} as ${actor}`).not.toBe('crash');
+    }
+  }, 30_000);
+
+  it('the traps make a full private series with one meeting cancelled, and a daily series that stops at its last day', () => {
+    const traps = office(seriesTraps);
+    const priv = seriesOf(traps, SERIES_PRIVATE_TITLE);
+    expect(priv.map((m) => m.startsAt.slice(0, 10))).toEqual(['2026-10-11', '2026-10-18', '2026-10-25', '2026-11-01', '2026-11-08', '2026-11-15', '2026-11-22', '2026-11-29']);
+    expect(priv.map((m) => m.status)).toEqual(['scheduled', 'scheduled', 'cancelled', 'scheduled', 'scheduled', 'scheduled', 'scheduled', 'scheduled']);
+    const open = seriesOf(traps, SERIES_PROJECT_TITLE);
+    expect(open.map((m) => m.startsAt.slice(0, 10))).toEqual(['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-18', '2026-10-19', '2026-10-20', '2026-10-21']);
+  });
+
+  it('meetings.update and meetings.cancel with the scope "later" load the later meetings of the series, and the person who does not see the series gets not_found', async () => {
+    const traps = office(seriesTraps);
+    const priv = seriesOf(traps, SERIES_PRIVATE_TITLE);
+    const organizer = priv[0].organizerId;
+    const update = await same(traps, 'meetings.update', { id: priv[3].id, where: 'Room 7', scope: 'later' }, organizer);
+    expect(update.outcome.error).toBeUndefined();
+    // The fourth meeting and the four after it change; the third is cancelled and the first two are earlier.
+    const updated = (Array.isArray(update.changes) ? update.changes.find((c) => c.table === 'meetings')?.updated : []) as string[];
+    expect([...updated].sort()).toEqual(priv.slice(3).map((m) => m.id).sort());
+    const cancel = await same(traps, 'meetings.cancel', { id: priv[3].id, scope: 'later' }, organizer);
+    expect((Array.isArray(cancel.changes) ? cancel.changes.find((c) => c.table === 'meetings')?.updated : []) as string[]).toHaveLength(5);
+    for (const outsider of [ADMIN, 'usr_003', 'usr_002']) {
+      for (const [name, input] of [
+        ['meetings.update', { id: priv[3].id, where: 'No', scope: 'later' }], ['meetings.cancel', { id: priv[3].id, scope: 'later' }], ['meetings.extend', { seriesId: priv[0].seriesId }],
+      ] as const) {
+        const run = await same(traps, name, input, outsider);
+        const expectedId = name === 'meetings.extend' ? priv[0].seriesId : priv[3].id;
+        expect(run.outcome.error, `${name} as ${outsider}`).toEqual({ code: 'not_found', message: `Meeting ${expectedId} does not exist.` });
+        expect(run.changes, `${name} as ${outsider}`).toEqual([]);
+      }
+    }
+  });
+
+  it('meetings.extend adds the missing meeting after the last one, as the same rows on both loads, and nothing more on a second call', async () => {
+    const traps = office(seriesTraps);
+    const priv = seriesOf(traps, SERIES_PRIVATE_TITLE);
+    const organizer = priv[0].organizerId;
+    const run = await same(traps, 'meetings.extend', { seriesId: priv[0].seriesId }, organizer);
+    expect(run.outcome.output).toEqual({ added: 1 });
+    expect(inserted(run, 'meetings')).toHaveLength(1);
+    expect(docs(run, 'meetings')[0]).toMatchObject({
+      title: SERIES_PRIVATE_TITLE, seriesId: priv[0].seriesId, startsAt: '2026-12-06T09:00:00.000+03:00', endsAt: '2026-12-06T10:00:00.000+03:00', organizerId: organizer,
+      attendeeIds: ['usr_006'], status: 'scheduled', rev: 1,
+    });
+    // The attendee runs it too (the job runs it for the organizer, or for an attendee when the organizer left).
+    expect((await same(traps, 'meetings.extend', { seriesId: priv[0].seriesId }, 'usr_006')).outcome.output).toEqual({ added: 1 });
+    // A series that is full gets nothing: the 8 meetings of a new series are all ahead.
+    const full = office((state) => apply(state, 'meetings.create', { kind: 'meeting', title: 'Full', startsAt: '2026-10-11T09:00:00+03:00', repeat: { every: 'week', until: null } }, 'usr_004'));
+    const made = Object.values(full.meetings!)[0];
+    expect((await same(full, 'meetings.extend', { seriesId: made.id }, 'usr_004')).outcome.output).toEqual({ added: 0 });
+    // The daily series ends at its last day: nothing to add after 2026-10-22 (the 8 meetings made reach 2026-10-21, so one day is left).
+    const open = seriesOf(traps, SERIES_PROJECT_TITLE);
+    const daily = await same(traps, 'meetings.extend', { seriesId: open[0].seriesId }, open[0].organizerId);
+    expect(daily.outcome.output).toEqual({ added: 1 });
+    expect(docs(daily, 'meetings')[0]).toMatchObject({ startsAt: '2026-10-22T10:00:00.000+03:00' });
   });
 });
 

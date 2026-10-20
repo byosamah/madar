@@ -100,6 +100,8 @@ export const MCP_DENY = [
   'tracker.delete', 'tracker.assignReply', 'tracker.export', 'payments.delete',
   // A meeting that ended is settled by the 15-minute job and by the minutes call (fbk_022, wave 2): Madar makes its Tracker line, an agent does not.
   'meetings.settle',
+  // A series is kept full by the job and by the prototype timer (fbk_022, wave 3): the agent plans a series with meetings.create and repeat.
+  'meetings.extend',
   // Feedback: a report comes in from the screens only. Agents and usage.
   'feedback.send', 'feedback.uploadStart',
   'agents.list', 'agents.remove', 'usage.get', 'usage.retryEffect',

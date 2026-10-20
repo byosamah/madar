@@ -445,6 +445,70 @@ function meetingTraps(state: State): void {
   apply(state, 'meetings.create', { kind: 'client', title: 'Review the facade', projectId: 'prj_001', startsAt: '2026-10-05T12:00:00+03:00', attendeeIds: ['usr_003'] }, leader, 'cor_trap_meeting_project');
 }
 
+/** The titles of the two series of seriesTraps. */
+export const SERIES_PRIVATE_TITLE = 'Private weekly talk';
+export const SERIES_PROJECT_TITLE = 'Daily site check';
+
+/**
+ * Two series (fbk_022, wave 3) on a copy of the sample office. usr_004 plans a weekly talk with no project for usr_006: 8 meetings from
+ * Sunday 2026-10-11. The leader of prj_001 plans a daily site check of the project for usr_003 until 2026-10-22: 9 working days from Monday
+ * 2026-10-12, 8 of them made. In each series one meeting in the middle is cancelled alone, so the series has 7 meetings ahead and the
+ * extension adds one (the daily series stops at its last day, so it adds none). Not in trapOffice: its tests count the meetings there.
+ */
+export function seriesTraps(state: State): void {
+  const leader = state.projects.prj_001.leaderId!;
+  const priv = apply(state, 'meetings.create', {
+    kind: 'meeting', title: SERIES_PRIVATE_TITLE, startsAt: '2026-10-11T09:00:00+03:00', attendeeIds: ['usr_006'], repeat: { every: 'week', until: null },
+  }, 'usr_004', 'cor_trap_series_private') as { id: string };
+  const open = apply(state, 'meetings.create', {
+    kind: 'client', title: SERIES_PROJECT_TITLE, projectId: 'prj_001', startsAt: '2026-10-12T10:00:00+03:00', attendeeIds: ['usr_003'], repeat: { every: 'day', until: '2026-10-22' },
+  }, leader, 'cor_trap_series_project') as { id: string };
+  const second = (seriesId: string) => Object.values(state.meetings ?? {}).filter((m) => m.seriesId === seriesId).sort((a, b) => a.startsAt.localeCompare(b.startsAt))[2].id;
+  apply(state, 'meetings.cancel', { id: second(priv.id) }, 'usr_004', 'cor_trap_series_private_one');
+  apply(state, 'meetings.cancel', { id: second(open.id) }, leader, 'cor_trap_series_project_one');
+}
+
+/**
+ * Reads and writes on the series of seriesTraps: the organizer, an attendee, an outsider, the Admin who is not invited and the agent of the
+ * organizer try the private series; the leader, a team member and the Admin try the project series. A person who does not see a series
+ * gets the same refusal on the scoped load and on the whole office. None on an office without the traps.
+ */
+export function seriesSweep(office: State): SweepCall[] {
+  const series = (title: string) => Object.values(office.meetings ?? {}).filter((m) => m.title === title).sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  const priv = series(SERIES_PRIVATE_TITLE);
+  const open = series(SERIES_PROJECT_TITLE);
+  if (priv.length === 0 || open.length === 0) return [];
+  const [pFirst, , pThird, pFourth] = priv;
+  const [oFirst, , oThird, oFourth] = open;
+  const leader = office.projects.prj_001.leaderId!;
+  const outsider = 'usr_003';
+  const calls: SweepCall[] = [];
+  for (const actor of [pFirst.organizerId, pFirst.attendeeIds[0], outsider, ADMIN, OFFICE_AGENT, leader]) {
+    calls.push(['meetings.list', { from: '2026-10-01', to: '2026-12-31' }, actor], ['meetings.list', { from: '2026-10-01', to: '2026-12-31', mine: false, projectId: 'prj_001' }, actor]);
+    for (const m of [pFirst, pFourth, oFirst, oFourth]) calls.push(['meetings.get', { id: m.id }, actor]);
+  }
+  for (const actor of [pFirst.organizerId, pFirst.attendeeIds[0], outsider, ADMIN, OFFICE_AGENT]) {
+    calls.push(
+      ['meetings.update', { id: pFourth.id, where: 'Room 7', scope: 'later' }, actor],
+      ['meetings.update', { id: pFourth.id, startsAt: '2026-11-01T14:30:00+03:00', durationMin: 90, attendeeIds: [...pFirst.attendeeIds, 'usr_007'], scope: 'later' }, actor],
+      ['meetings.cancel', { id: pFourth.id, scope: 'later' }, actor],
+      ['meetings.extend', { seriesId: pFirst.seriesId }, actor],
+    );
+  }
+  for (const actor of [leader, 'usr_003', ADMIN, 'usr_004', 'usr_006']) {
+    calls.push(
+      ['meetings.update', { id: oThird.id, title: 'Site check, new title', scope: 'later' }, actor],
+      ['meetings.update', { id: oThird.id, startsAt: '2026-10-14T08:00:00+03:00', scope: 'later' }, actor],
+      ['meetings.update', { id: oThird.id, startsAt: '2026-10-15T08:00:00+03:00', scope: 'later' }, actor],
+      ['meetings.cancel', { id: oThird.id, scope: 'later' }, actor],
+      ['meetings.cancel', { id: oFourth.id }, actor],
+      ['meetings.extend', { seriesId: oFirst.seriesId }, actor],
+    );
+  }
+  calls.push(['meetings.create', { kind: 'team', title: 'New daily', startsAt: '2026-10-18T09:00:00+03:00', attendeeIds: ['usr_007'], repeat: { every: 'two_weeks', until: null } }, pFirst.organizerId]);
+  return calls;
+}
+
 /** The project of the ties of newestTies. */
 export const TIE_PROJECT = 'prj_004';
 

@@ -5,7 +5,7 @@ import { Load, type LoadCtx } from './build';
 import { chatMessageCall, chatMessageRows, chatsAll, chatsArchive, chatsMarkRead, chatsMessages, chatsSetNotify, chatsUnread, chatsWaiting } from './chat';
 import { chatsOpenDirect } from './chatOpen';
 import { inboxCount, inboxList } from './inbox';
-import { meetingCall, meetingMinutes, meetingsList } from './meetings';
+import { meetingCall, meetingChange, meetingExtend, meetingMinutes, meetingsList } from './meetings';
 import { dashboardGet, eventsList, projectsList, searchQuery, tasksList, templateSyncTasks } from './overview';
 import {
   fileCall, filesList, filesUpload, paymentCall, paymentsOfProject, projectCall, projectsCreate, stagesReplace, trackerCall, trackerExport,
@@ -39,7 +39,7 @@ import {
  *   push           the push devices of the person of the call (push.register also reads the row of its endpoint)
  *   report         reports.office: the tasks, Tracker entries and payments of the projects, and the events of the period as counts
  *   meetings       the meetings of one window (meetings.list), or one meeting by id with the records it names (meetings.get, update, cancel,
- *                  settle)
+ *                  settle), with its series from it on for a "later" write, or the series of one id (meetings.extend)
  *
  * The 9 server calls of plan 4.11 run their own code on the office snapshot and have no loader.
  */
@@ -232,10 +232,12 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'meetings.list': meetings(meetingsList),
   'meetings.get': meetings(meetingCall),
   'meetings.create': office,
-  'meetings.update': meetings(meetingCall),
-  'meetings.cancel': meetings(meetingCall),
+  'meetings.update': meetings(meetingChange),
+  'meetings.cancel': meetings(meetingChange),
   // The settle reads the meeting by id (it writes the mark and the Tracker line, which needs no other row). A project is in the office.
   'meetings.settle': meetings(meetingCall),
+  // The extension of a series (wave 3) reads the meetings of the series from today on. It writes new rows, which need only the counters.
+  'meetings.extend': meetings(meetingExtend),
   // The minutes read the meeting and its line (and their files), and the files that the new minutes carry (wave 2).
   'meetings.saveMinutes': meetings(meetingMinutes),
 };

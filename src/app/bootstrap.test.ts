@@ -176,6 +176,51 @@ describe('the minute timer of the prototype (performance audit FET-11)', () => {
     expect(lines()).toHaveLength(1);
   });
 
+  // A repeating series (fbk_022, wave 3): the prototype has no job, so its minute timer calls meetings.extend.
+  it('keeps a series full: the first tick after a meeting of it ends adds the meeting that is short, and the next tick adds none', async () => {
+    vi.useFakeTimers();
+    setNow(new Date('2026-09-30T05:59:30Z'));
+    const runtime = await bootstrap({ persister: memoryPersister(), latencyMs: 0 });
+    await runtime.store.flush();
+    const made = await runtime.api.call('meetings.create', {
+      kind: 'client', title: 'Weekly review', projectId: 'prj_001', startsAt: '2026-09-30T08:45:00+03:00', durationMin: 15, repeat: { every: 'week', until: null },
+    });
+    const series = () => Object.values(runtime.store.state.meetings!).filter((meeting) => meeting.seriesId === made.id);
+    expect(series()).toHaveLength(8);
+    const stop = startScheduler(runtime.store, runtime.api);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(series()).toHaveLength(8);
+    // 09:00:30: the first meeting ended 30 seconds ago, so 7 are ahead and one is short.
+    setNow(new Date('2026-09-30T06:00:30Z'));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(series()).toHaveLength(9);
+    expect(series().map((meeting) => meeting.startsAt.slice(0, 10)).at(-1)).toBe('2026-11-25');
+    await vi.advanceTimersByTimeAsync(2 * 60_000);
+    stop();
+    expect(series()).toHaveLength(9);
+  });
+
+  it('keeps no series full without an api, and stops at the last day of the rule', async () => {
+    vi.useFakeTimers();
+    setNow(new Date('2026-09-30T05:59:30Z'));
+    const runtime = await bootstrap({ persister: memoryPersister(), latencyMs: 0 });
+    await runtime.store.flush();
+    const made = await runtime.api.call('meetings.create', {
+      kind: 'client', title: 'Weekly review', projectId: 'prj_001', startsAt: '2026-09-30T08:45:00+03:00', durationMin: 15, repeat: { every: 'week', until: '2026-11-18' },
+    });
+    const series = () => Object.values(runtime.store.state.meetings!).filter((meeting) => meeting.seriesId === made.id);
+    expect(series()).toHaveLength(8);
+    setNow(new Date('2026-09-30T06:00:30Z'));
+    const withoutApi = startScheduler(runtime.store);
+    await vi.advanceTimersByTimeAsync(60_000);
+    withoutApi();
+    // The 8 meetings reach 2026-11-18, the last day: nothing is short that a rule can fill.
+    const withApi = startScheduler(runtime.store, runtime.api);
+    await vi.advanceTimersByTimeAsync(60_000);
+    withApi();
+    expect(series()).toHaveLength(8);
+  });
+
   it('runs the settle for no meeting without an api, and ignores a meeting that the current person does not see', async () => {
     vi.useFakeTimers();
     setNow(new Date('2026-09-30T06:00:30Z'));

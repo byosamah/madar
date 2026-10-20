@@ -4,7 +4,7 @@ import { buildSeed } from '../../../src/data/seed';
 import { runBoth } from '../loaders/compare';
 import { memorySource } from '../loaders/memorySource';
 import type { Source } from '../loaders/source';
-import { readSweep, trapOffice, writeSweep } from '../loaders/sweep';
+import { readSweep, seriesSweep, seriesTraps, trapOffice, writeSweep } from '../loaders/sweep';
 import type { LiteDb } from './db';
 import { liteSource } from './source';
 import { freshLite } from './testDb';
@@ -85,5 +85,32 @@ describe('every loader read on SQLite (the sweep of server/it/loaders.it.test.ts
       return plan.some((row) => String(row.detail).includes('TEMP B-TREE'));
     });
     expect(sorts).toEqual([]);
+  }, 120_000);
+});
+
+describe('the reads of a repeating series on SQLite (fbk_022, wave 3)', () => {
+  it('give the answers of the memory form: the later meetings of a series, the series from today on, and the person who does not see them', async () => {
+    const office = structuredClone(await buildSeed(TODAY, async () => undefined));
+    seriesTraps(office);
+    const lite = await freshLite();
+    await lite.db.tx('write', (q) => liteWriteState(q, office));
+    const calls = seriesSweep(office);
+    expect(calls.length).toBeGreaterThan(50);
+    const requests: Request[] = [];
+    const source = recording(memorySource(office), requests);
+    for (const [name, input, actor] of calls) await runBoth(office, name, input, actor, { now: NOW, correlationId: 'cor_lite', source });
+    // The reads that name the series field are in the list, and SQLite answers each one as the memory form does.
+    const unique = [...new Map(requests.map((request) => [JSON.stringify(request), request])).values()];
+    expect(unique.filter((request) => JSON.stringify(request).includes('seriesId')).length).toBeGreaterThan(3);
+    const memory = memorySource(office);
+    for (const request of unique) {
+      const call = (s: Source) => (s[request.method] as (...a: unknown[]) => Promise<unknown>)(...structuredClone(request.args));
+      const answer = await lite.db.tx('read', (q) => call(liteSource(q)));
+      expect(comparable(request.method, answer), JSON.stringify(request)).toEqual(comparable(request.method, await call(memory)));
+    }
+    for (const [name, input, actor] of calls) {
+      const { whole, scoped } = await lite.db.tx('read', (q) => runBoth(office, name, input, actor, { now: NOW, correlationId: 'cor_lite', source: liteSource(q) }));
+      expect(scoped, `${name} ${JSON.stringify(input)} as ${actor}`).toEqual(whole);
+    }
   }, 120_000);
 });

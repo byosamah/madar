@@ -288,3 +288,152 @@ describe('the minutes of a meeting with no project', () => {
   });
 });
 
+
+/**
+ * A repeating series with no project (wave 3, owner 2026-10-19, Q4). Every meeting of it follows the rule of one: a person who is not in
+ * it, the Admin who is not invited, a person taken off it and the agents of these people learn nothing of it. The scope edits and the
+ * extension answer as for an id that does not exist, and the notices, the History and the signals name nobody outside it.
+ */
+describe('a series with no project', () => {
+  async function seriesWorld() {
+    const t = testApi(calls);
+    t.store.state.users.usr_006 = makeUser('usr_006', { name: 'Nour Member' });
+    t.store.state.users.usr_007 = makeUser('usr_007', { name: 'Lina Member' });
+    t.store.state.users.usr_008 = makeUser('usr_008', { name: 'Hala Assistant', kind: 'agent', discipline: 'Agent', ownerId: 'usr_001' });
+    t.store.state.counters.usr = 8;
+    t.as(ORGANIZER);
+    const first = await t.api.call('meetings.create', {
+      kind: 'meeting', title: TITLE, startsAt: '2026-10-01T10:00:00+03:00', where: 'Room 4', notes: NOTES, attendeeIds: [ATTENDEE, REMOVED], repeat: { every: 'week', until: null },
+    });
+    const ids = Object.values(t.store.state.meetings!).filter((m) => m.seriesId === first.id).map((m) => m.id);
+    return { t, id: first.id, ids };
+  }
+
+  it('is 8 meetings, all private to the organizer and the attendees', async () => {
+    const w = await seriesWorld();
+    expect(w.ids).toHaveLength(8);
+    expect(Object.values(w.t.store.state.meetings!).every((m) => m.projectId === null && m.repeat?.every === 'week')).toBe(true);
+  });
+
+  it('lists no meeting of it, and reads none, for a person who is not in it', async () => {
+    const w = await seriesWorld();
+    for (const person of [...PEOPLE_WITHOUT_VIEW, 'usr_007']) {
+      for (const input of [{}, { from: '2026-09-01', to: '2026-12-31' }, { mine: false, projectId: 'prj_001' }, { from: '2026-10-22', to: '2026-10-22' }] as const) {
+        const rows = await as(w, person, () => w.t.api.call('meetings.list', input));
+        expect(JSON.stringify(rows), `${person} ${JSON.stringify(input)}`).not.toContain(TITLE);
+        expect(rows.map((row) => row.id), `${person} ${JSON.stringify(input)}`).not.toEqual(expect.arrayContaining([w.id]));
+      }
+      for (const id of w.ids) {
+        const hidden = await as(w, person, () => error(() => w.t.api.call('meetings.get', { id })));
+        expect(hidden, `${person} ${id}`).toEqual({ code: 'not_found', message: `Meeting ${id} does not exist.`, reason: undefined });
+      }
+    }
+    // The people of the series read every meeting of it, also the agent of an attendee.
+    for (const person of [ORGANIZER, ATTENDEE, AGENT_OF_ATTENDEE]) {
+      expect((await as(w, person, () => w.t.api.call('meetings.list', { from: '2026-09-01', to: '2026-12-31' }))).map((row) => row.id), person).toEqual(w.ids);
+    }
+  });
+
+  it('answers the scope edits, the cancel and the extension for an outsider exactly as for an unknown id, and changes nothing', async () => {
+    const w = await seriesWorld();
+    const before = structuredClone(w.t.store.state.meetings);
+    setNow(new Date('2026-10-21T06:00:00Z'));
+    for (const person of [...PEOPLE_WITHOUT_VIEW, 'usr_007']) {
+      for (const id of [w.ids[0], w.ids[4]]) {
+        for (const [name, input, missing] of [
+          ['meetings.update', { id, where: 'Room 9', scope: 'later' }, { id: 'mtg_999', where: 'Room 9', scope: 'later' }],
+          ['meetings.update', { id, title: 'Forged', attendeeIds: [person], scope: 'later' }, { id: 'mtg_999', title: 'Forged', attendeeIds: [person], scope: 'later' }],
+          ['meetings.cancel', { id, scope: 'later' }, { id: 'mtg_999', scope: 'later' }],
+          ['meetings.cancel', { id, scope: 'one' }, { id: 'mtg_999', scope: 'one' }],
+          ['meetings.extend', { seriesId: id }, { seriesId: 'mtg_999' }],
+        ] as const) {
+          const hidden = await as(w, person, () => error(() => w.t.api.call(name, input as never)));
+          const gone = await as(w, person, () => error(() => w.t.api.call(name, missing as never)));
+          expect(hidden, `${person} ${name} ${id}`).toEqual({ ...gone, message: gone!.message.replace('mtg_999', id) });
+          expect(hidden, `${person} ${name} ${id}`).toMatchObject({ code: 'not_found', message: `Meeting ${id} does not exist.` });
+        }
+      }
+    }
+    expect(w.t.store.state.meetings).toEqual(before);
+  });
+
+  it('refuses a change of the series to an attendee with forbidden, which the attendee may know, and leaves it as it is', async () => {
+    const w = await seriesWorld();
+    expect((await as(w, ATTENDEE, () => error(() => w.t.api.call('meetings.update', { id: w.ids[2], where: 'x', scope: 'later' }))))?.code).toBe('forbidden');
+    expect((await as(w, ATTENDEE, () => error(() => w.t.api.call('meetings.cancel', { id: w.ids[2], scope: 'later' }))))?.code).toBe('forbidden');
+    expect(Object.values(w.t.store.state.meetings!).every((m) => m.where === 'Room 4' && m.status === 'scheduled')).toBe(true);
+  });
+
+  it('holds no event of the series for a person who is not in it, also after a scope edit, a scope cancel and an extension', async () => {
+    const w = await seriesWorld();
+    await as(w, ORGANIZER, () => w.t.api.call('meetings.update', { id: w.ids[3], where: 'Room 5', scope: 'later' }));
+    await as(w, ORGANIZER, () => w.t.api.call('meetings.cancel', { id: w.ids[4] }));
+    setNow(new Date('2026-10-21T06:00:00Z'));
+    await as(w, ORGANIZER, () => w.t.api.call('meetings.extend', { seriesId: w.id }));
+    await as(w, ORGANIZER, () => w.t.api.call('meetings.cancel', { id: w.ids[6], scope: 'later' }));
+    const events = Object.values(w.t.store.state.events).filter((e) => e.targetType === 'meeting');
+    expect(events.length).toBeGreaterThan(8);
+    expect(events.every((e) => e.officeMeetingId !== undefined)).toBe(true);
+    const created = events.find((e) => e.verb === 'meeting.created')!;
+    for (const person of [...PEOPLE_WITHOUT_VIEW, 'usr_007']) {
+      for (const input of [
+        { limit: 500 }, { targetType: 'meeting' as const, limit: 500 }, { targetId: w.ids[3] }, { correlationId: created.correlationId }, { since: '2026-09-01T00:00:00+03:00', limit: 500 },
+      ]) {
+        const seen = JSON.stringify(await as(w, person, () => w.t.api.call('events.list', input)));
+        expect(seen, `${person} ${JSON.stringify(input)}`).not.toContain('meeting.');
+        expect(seen, `${person} ${JSON.stringify(input)}`).not.toContain(TITLE);
+        expect(seen, `${person} ${JSON.stringify(input)}`).not.toContain('Room 5');
+      }
+      for (const event of events) {
+        const undo = await as(w, person, () => error(() => w.t.api.call('events.undo', { eventId: event.id })));
+        expect(undo, `${person} ${event.verb}`).toMatchObject({ code: 'not_found' });
+      }
+      const story = await as(w, person, () => error(() => w.t.api.call('events.undoStory', { correlationId: created.correlationId })));
+      expect(story, person).toMatchObject({ code: 'not_found' });
+    }
+    const own = JSON.stringify(await as(w, ORGANIZER, () => w.t.api.call('events.list', { targetType: 'meeting', limit: 500 })));
+    for (const verb of ['meeting.created', 'meeting.added', 'meeting.updated', 'meeting.series_updated', 'meeting.cancelled', 'meeting.series_cancelled', 'meeting.extended']) {
+      expect(own.includes(verb), verb).toBe(true);
+    }
+  });
+
+  it('keeps the notices of a series to its people: the Admin who is not invited and an outsider get none, also for a later change', async () => {
+    const w = await seriesWorld();
+    await as(w, ORGANIZER, () => w.t.api.call('meetings.update', { id: w.ids[3], startsAt: '2026-10-22T14:30:00+03:00', scope: 'later' }));
+    await as(w, ORGANIZER, () => w.t.api.call('meetings.cancel', { id: w.ids[6], scope: 'later' }));
+    const notices = Object.values(w.t.store.state.notifications);
+    expect(notices.map((n) => n.userId).every((id) => id === ATTENDEE || id === REMOVED)).toBe(true);
+    // One notice for the plan, one for the later change and one for the later cancel, to each of the two attendees.
+    expect(notices).toHaveLength(6);
+    for (const person of [...PEOPLE_WITHOUT_VIEW, 'usr_007']) {
+      const seen = JSON.stringify(await as(w, person, () => w.t.api.call('notifications.list', {})));
+      expect(seen, person).not.toContain(TITLE);
+      expect(seen, person).not.toContain(w.id);
+    }
+  });
+
+  it('stays hidden after a person is taken off the later meetings: the notice reads as gone and the series reads as missing', async () => {
+    const w = await seriesWorld();
+    await as(w, ORGANIZER, () => w.t.api.call('meetings.update', { id: w.ids[0], attendeeIds: [ATTENDEE], scope: 'later' }));
+    expect(Object.values(w.t.store.state.meetings!).every((m) => !m.attendeeIds.includes(REMOVED))).toBe(true);
+    for (const id of w.ids) {
+      const hidden = await as(w, REMOVED, () => error(() => w.t.api.call('meetings.get', { id })));
+      expect(hidden, id).toMatchObject({ code: 'not_found' });
+    }
+    const seen = JSON.stringify(await as(w, REMOVED, () => w.t.api.call('notifications.list', {})));
+    expect(seen).not.toContain(TITLE);
+  });
+
+  it('finds the series in no search, dashboard or project read of an outsider', async () => {
+    const w = await seriesWorld();
+    for (const person of [...PEOPLE_WITHOUT_VIEW, 'usr_007']) {
+      const text = await as(w, person, async () => JSON.stringify([
+        await w.t.api.call('search.query', { text: 'Salary' }), await w.t.api.call('search.query', { text: '4,000' }), await w.t.api.call('dashboard.get', {}),
+        await w.t.api.call('projects.get', { id: 'prj_001' }), await w.t.api.call('updates.list', { projectId: 'prj_001' }),
+      ]));
+      expect(text, person).not.toContain(TITLE);
+      expect(text, person).not.toContain(NOTES);
+      for (const id of w.ids) expect(text, `${person} ${id}`).not.toContain(id);
+    }
+  });
+});

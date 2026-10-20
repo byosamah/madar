@@ -52,6 +52,10 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   that settles ended meetings. The minutes (`doc->'minutes'`), the `meetingId` of a Tracker line and the `meetingId` of a file live in the jsonb docs
   and need no column. `meetings.settle` loads the meeting by id (`meetingCall`) and nothing else: the line it makes needs no other row. `notifications.count` reads the
   meeting of a notice with `INBOX_MEETING_FIELDS`. `projectDelete` reads the meetings of the project and their notices.
+  A series (wave 3, owner 2026-10-19) needs no column and no index: `seriesId` and `repeat` live in the doc. `meetings.update` and `meetings.cancel` with the scope
+  `later` use `meetingChange`, which adds one read of the series (`field seriesId` in the person's visible meetings, `starts_at` at or after the start of the
+  meeting, so the meetings_starts index bounds it). `meetings.extend` uses `meetingExtend`: the same read from the start of today. The job reads the last meeting of
+  each short series with `EXTEND_SQL`, a window statement over the meetings that start today or later (the index `meetings_starts` serves it).
 - `google_connections` and `google_events` (`20261021000200_google_calendar.sql`, fbk_022): server-only tables, in `SERVER_TABLES`, with no State
   collection and no loader. `google_connections` has one live row for each person (a partial unique index on `user_id` where `state <> 'revoking'`);
   its `sealed_token` is AES-256-GCM cipher text (`server/google/keys.ts`). `google_events` holds the Google event of a meeting for a person.

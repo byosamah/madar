@@ -24,8 +24,8 @@ import {
  * error hold the code and the ids only, never a token, a code, a title or a Google answer.
  */
 
-/** The calls whose save can change a meeting: each one writes gcal.sync rows (server/google/rows.ts). Wave 3 adds meetings.extend. */
-export const GCAL_CALLS = ['meetings.create', 'meetings.update', 'meetings.cancel', 'events.undo', 'events.undoStory', 'projects.delete'] as const;
+/** The calls whose save can change a meeting: each one writes gcal.sync rows (server/google/rows.ts). The extension of a series (wave 3) adds meetings, so it is here too. */
+export const GCAL_CALLS = ['meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.extend', 'events.undo', 'events.undoStory', 'projects.delete'] as const;
 
 const TIME_ZONE = 'Asia/Riyadh';
 const encoder = new TextEncoder();

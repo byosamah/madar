@@ -10,7 +10,7 @@ import { addSampleSubCompanies } from '../data/sampleSubCompanies';
 import { sampleOffice } from '../data/sampleOffice';
 import { settleFuture, shiftState } from '../data/shift';
 import { diffDays, now, todayISO } from '../lib/dates';
-import { dueToSettle } from '../api/handlers/meetings';
+import { dueToSettle, seriesToExtend } from '../api/handlers/meetings';
 import { alwaysSignedIn } from './auth';
 import type { ChangeSource, Runtime } from './runtime';
 
@@ -62,7 +62,7 @@ export async function bootstrap(options: { persister?: Persister; latencyMs?: nu
  * Runs the time-based triggers every minute. A tick tells the screens and saves the office only when it made a notice, or when
  * the office day changed, so the day counts ("due today", "past due") still refresh after midnight (performance audit FET-11).
  * notify changes the state only when it makes a notice, so a quiet tick changes nothing. With the api, a tick also settles the meetings
- * that ended (the prototype has no 15-minute job).
+ * that ended and keeps the repeating series full (the prototype has no 15-minute job).
  */
 export function startScheduler(store: Store, api?: Api<CallMap>): () => void {
   let day = todayISO();
@@ -77,6 +77,8 @@ export function startScheduler(store: Store, api?: Api<CallMap>): () => void {
     // The prototype has no job: the same tick settles the meetings that ended (fbk_022, wave 2), with the normal call. A meeting that the
     // current person does not see answers not_found, and any other refusal waits for the next tick. A settled meeting leaves the list.
     if (api) for (const meeting of dueToSettle(store.state, now())) api.call('meetings.settle', { id: meeting.id }).catch(() => undefined);
+    // The same tick keeps a series full (fbk_022, wave 3), as the job does: the series that has fewer than 8 meetings ahead gets the missing ones.
+    if (api) for (const seriesId of seriesToExtend(store.state, now())) api.call('meetings.extend', { seriesId }).catch(() => undefined);
   }, 60_000);
   return () => window.clearInterval(id);
 }

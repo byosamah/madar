@@ -66,7 +66,7 @@ export async function meetingsList(L: Load, input: Input): Promise<void> {
   await L.select({ c: 'meetings', where });
 }
 
-/** meetings.get, meetings.update, meetings.cancel and meetings.settle: the meeting by id, and the records it names. */
+/** meetings.get and meetings.settle: the meeting by id, and the records it names. */
 export async function meetingCall(L: Load, input: Input): Promise<void> {
   const id = str(input.id);
   if (!id) return;
@@ -82,4 +82,27 @@ export async function meetingCall(L: Load, input: Input): Promise<void> {
 export async function meetingMinutes(L: Load, input: Input): Promise<void> {
   await meetingCall(L, input);
   await attachedFiles(L, (input.fileIds as string[] | undefined) ?? []);
+}
+
+/** The meetings of one series, among the ones the person sees, that start at or after a moment. */
+async function seriesFrom(L: Load, seriesId: string, from: string): Promise<void> {
+  await L.select({ c: 'meetings', where: [...meetingConds(L), { field: 'seriesId', in: [seriesId] }, { col: 'starts_at', atOrAfter: from }] });
+}
+
+/**
+ * meetings.update and meetings.cancel (wave 3): the meeting by id and what it names. With the scope "later" also the meetings of its series
+ * that start at or after it, which the handler changes with it.
+ */
+export async function meetingChange(L: Load, input: Input): Promise<void> {
+  await meetingCall(L, input);
+  const id = str(input.id);
+  const meeting = id ? L.get<Meeting>('meetings', id) : undefined;
+  if (input.scope === 'later' && meeting?.seriesId) await seriesFrom(L, meeting.seriesId, meeting.startsAt);
+}
+
+/** meetings.extend (wave 3): the meetings of the series from the start of today. The last one and the ones ahead are all the handler reads. */
+export async function meetingExtend(L: Load, input: Input): Promise<void> {
+  const seriesId = str(input.seriesId);
+  if (!seriesId || !L.now) return;
+  await seriesFrom(L, seriesId, `${todayISO(L.now)}T00:00:00.000+03:00`);
 }

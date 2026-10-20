@@ -1,5 +1,6 @@
 import { MEETING_LIMITS, type MeetingKindName } from '../api/contract/limits';
-import { nowStamp, stampDay } from './dates';
+import { addDays, diffDays, nowStamp, stampDay } from './dates';
+import { isWorkingDay } from './workdays';
 
 /**
  * The plain rules of a meeting (fbk_022). The screens and the handlers share them. Time is office time (+03:00, the same all year),
@@ -77,4 +78,50 @@ export function earliestStart(at: Date): Date {
 /** The address that opens the sheet of a meeting on the Meetings view of Tasks (fbk_022). */
 export function meetingLink(meetingId: string): string {
   return `/meetings?meeting=${meetingId}`;
+}
+
+/** A series keeps this many scheduled meetings ahead (fbk_022, wave 3). A new series makes this many, and the job adds the rest later. */
+export const SERIES_AHEAD = 8;
+
+/** The last day of a series is at most this many days after its first day. */
+export const REPEAT_MAX_DAYS = 400;
+
+type RepeatRule = { every: 'day' | 'week' | 'two_weeks'; until: string | null };
+
+/**
+ * The next days of a repeat rule after a day, at most "count" of them, in order (fbk_022, wave 3, owner 2026-10-19, Q7).
+ * - "day" means every working day, Sunday to Thursday, whatever the first day is.
+ * - "week" and "two_weeks" keep the weekday of "first", also a Friday: the days are first plus 7 or 14 days, again and again.
+ * - Nothing after "until" (the last day, kept), and nothing at or before "after".
+ */
+export function occurrencesOf(rule: RepeatRule, first: string, after: string, count: number): string[] {
+  const out: string[] = [];
+  if (count <= 0) return out;
+  const within = (day: string) => rule.until === null || day <= rule.until;
+  if (rule.every === 'day') {
+    // A working week has 5 days in 7, so a window of 2 weeks for each wanted day always ends this loop.
+    for (let day = addDays(after, 1), left = count * 7 + 14; left > 0 && out.length < count && within(day); day = addDays(day, 1), left -= 1) {
+      if (isWorkingDay(day)) out.push(day);
+    }
+    return out;
+  }
+  const step = rule.every === 'week' ? 7 : 14;
+  // The first step that lands after "after". A day before "first" starts at "first" itself.
+  const ahead = Math.max(0, Math.floor(diffDays(first, after) / step) + 1);
+  for (let k = ahead; out.length < count; k += 1) {
+    const day = addDays(first, k * step);
+    if (!within(day)) break;
+    out.push(day);
+  }
+  return out;
+}
+
+/** The time of day of a stamp in office time, as HH:MM. A stamp in another offset gives the office clock. */
+export function clockOf(stamp: string): string {
+  return officeStamp(stamp).slice(11, 16);
+}
+
+/** The stamp of a time of day (HH:MM) on an office day. */
+export function stampOn(day: string, clock: string): string {
+  return officeStamp(`${day}T${clock}:00+03:00`);
 }

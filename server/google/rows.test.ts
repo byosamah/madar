@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { Query } from '../core/ports';
 import { gcalRows, revokeRowsOf } from './rows';
 import { resetAccessCache } from './sync';
-import { googleOffice, outboxRows, planMeeting, type GoogleOffice } from './testOffice';
+import { googleOffice, outboxRows, PLAN, planMeeting, type GoogleOffice } from './testOffice';
 
 /** The producers of the sync rows (fbk_022): which pairs of person and meeting get a gcal.sync row. Reem is usr_003, Omar usr_004, Sara usr_005. */
 
@@ -79,6 +79,43 @@ describe('the rows of a call', () => {
     ok(await t.call('usr_003', 'events.undo', { eventId: update.id }));
     ok(await t.call('usr_003', 'meetings.cancel', { id }));
     expect((await outboxRows(t, 'gcal.sync')).map((row) => row.payload)).toEqual(Array(4).fill({ userId: 'usr_003', meetingId: id }));
+  });
+
+  it('writes one row for each meeting of a new series, for a connected attendee (wave 3)', async () => {
+    const t = await googleOffice();
+    ok(await t.connect('usr_004'));
+    const made = ok(await t.call('usr_003', 'meetings.create', { ...PLAN, startsAt: START, attendeeIds: ['usr_004'], repeat: { every: 'week', until: null } }));
+    const ids = (await t.db.statement('read', "select id from meetings where json_extract(doc, '$.seriesId') = ?1 order by starts_at", [made.id as string])) as { id: string }[];
+    expect(ids).toHaveLength(8);
+    const rows = (await outboxRows(t, 'gcal.sync')).map((row) => row.payload);
+    expect(rows).toHaveLength(8);
+    expect(rows.map((row) => row.meetingId).sort()).toEqual(ids.map((row) => row.id).sort());
+    expect(new Set(rows.map((row) => row.userId))).toEqual(new Set(['usr_004']));
+  });
+
+  it('writes one row for each meeting that a "later" change or cancel touches, and for each meeting that the extension adds (wave 3)', async () => {
+    const t = await googleOffice();
+    ok(await t.connect('usr_004'));
+    const made = ok(await t.call('usr_003', 'meetings.create', { ...PLAN, startsAt: START, attendeeIds: ['usr_004'], repeat: { every: 'week', until: null } }));
+    const ids = ((await t.db.statement('read', "select id from meetings where json_extract(doc, '$.seriesId') = ?1 order by starts_at", [made.id as string])) as { id: string }[]).map((row) => row.id);
+    const seen = async () => (await outboxRows(t, 'gcal.sync')).map((row) => row.payload.meetingId as string);
+    const before = (await seen()).length;
+    ok(await t.call('usr_003', 'meetings.update', { id: ids[5], where: 'Room 9', scope: 'later' }));
+    expect((await seen()).slice(before).sort()).toEqual(ids.slice(5).sort());
+    const afterUpdate = (await seen()).length;
+    ok(await t.call('usr_003', 'meetings.cancel', { id: ids[6], scope: 'later' }));
+    expect((await seen()).slice(afterUpdate).sort()).toEqual(ids.slice(6).sort());
+    // A second series: one meeting in the middle is cancelled alone, so 7 are ahead and the extension adds one, then no more.
+    const other = ok(await t.call('usr_003', 'meetings.create', { ...PLAN, title: 'Other', startsAt: START, attendeeIds: ['usr_004'], repeat: { every: 'week', until: null } }));
+    const otherIds = ((await t.db.statement('read', "select id from meetings where json_extract(doc, '$.seriesId') = ?1 order by starts_at", [other.id as string])) as { id: string }[]).map((row) => row.id);
+    ok(await t.call('usr_003', 'meetings.cancel', { id: otherIds[2] }));
+    const afterCancel = (await seen()).length;
+    expect(ok(await t.call('usr_003', 'meetings.extend', { seriesId: other.id }))).toEqual({ added: 1 });
+    const added = (await seen()).slice(afterCancel);
+    expect(added).toHaveLength(1);
+    expect(otherIds).not.toContain(added[0]);
+    expect(ok(await t.call('usr_003', 'meetings.extend', { seriesId: other.id }))).toEqual({ added: 0 });
+    expect((await seen()).slice(afterCancel)).toHaveLength(1);
   });
 
   it('writes no row for a call that touches no meeting', async () => {

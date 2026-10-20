@@ -1,15 +1,18 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { Day, FileId, MAX_ATTACHMENTS, MEETING_LIMITS, Meeting, MeetingId, MeetingKind, ProjectId, Stamp, TrackerId, UserId, type MeetingMinutes, type TrackerEntry } from '../contract/entities';
+import { Day, FileId, MAX_ATTACHMENTS, MEETING_LIMITS, Meeting, MeetingId, MeetingKind, MeetingRepeat, ProjectId, Stamp, TrackerId, UserId, type MeetingMinutes, type TrackerEntry } from '../contract/entities';
 import { MeetingDetail, MeetingRow } from '../contract/views';
 import { ApiError, forbidden, invalid, notFound } from '../errors';
-import { applyPatch, recordCreate } from '../events';
+import { applyPatch, recordCreate, writeEvent } from '../events';
 import { can, mayViewMeeting, meetingResource, type Actor } from '../permissions';
 import { notifyIn } from '../notify';
 import { meetingsOf, nextId, type State } from '../store';
 import { cardOf, minutesViewOf } from '../views';
-import { addDays, diffDays } from '../../lib/dates';
-import { addMinutes, dayOf, earliestStart, hasTrackerLine, kindDefaults, minutesBetween, officeStamp, onFiveMinutes, phaseOf, SETTLE_BACK_DAYS } from '../../lib/meetings';
+import { addDays, diffDays, maxDay, todayISO } from '../../lib/dates';
+import {
+  addMinutes, clockOf, dayOf, earliestStart, hasTrackerLine, kindDefaults, minutesBetween, occurrencesOf, officeStamp, onFiveMinutes, phaseOf, REPEAT_MAX_DAYS, SERIES_AHEAD,
+  SETTLE_BACK_DAYS, stampOn,
+} from '../../lib/meetings';
 import { markOf } from '../../lib/projectMark';
 import { visibleTextPattern } from '../../lib/projectCode';
 import { assertFilesForMeeting, assertFilesInProject } from './attach';
@@ -25,6 +28,12 @@ const Where = z.string().trim().max(L.whereMax);
 const Guests = z.string().trim().max(L.guestsMax);
 const Notes = z.string().trim().max(L.notesMax);
 const Length = z.number().int().min(L.minMinutes).max(L.maxMinutes);
+
+/**
+ * The scope of a change or a cancel in a series (fbk_022, wave 3): "one" is this meeting alone (the default), "later" is this meeting and
+ * every scheduled meeting after it. A meeting in no series is one meeting whatever the scope.
+ */
+const Scope = z.enum(['one', 'later']);
 
 /** The fields that a new meeting and a change share. A change makes each of them optional. */
 const Fields = {
@@ -128,10 +137,35 @@ export function minutesOf(state: State, meeting: Meeting): { place: 'tracker' | 
  * who left gets none, and a person with the switch off gets none (notify). A person who cannot see the meeting gets none either, so a
  * meeting with no project tells only its people. The notice joins the story of the call, so an Undo of the story takes it back.
  */
-function tell(ctx: Ctx, meeting: Meeting, userIds: readonly string[], change: 'new' | 'moved' | 'cancelled'): void {
+function tell(ctx: Ctx, meeting: Meeting, userIds: readonly string[], change: 'new' | 'moved' | 'cancelled', dedupeKey?: string): void {
   if (userIds.length === 0) return;
-  notifyIn(ctx, { userIds: [...userIds], trigger: 'meeting_invited', targetType: 'meeting', targetId: meeting.id, meeting: { change } });
+  notifyIn(ctx, { userIds: [...userIds], trigger: 'meeting_invited', targetType: 'meeting', targetId: meeting.id, meeting: { change }, ...(dedupeKey ? { dedupeKey } : {}) });
 }
+
+/** The last day of a repeat: not before the first meeting, and at most REPEAT_MAX_DAYS days after it. */
+function checkRepeat(repeat: MeetingRepeat, firstDay: string): void {
+  if (repeat.until === null) return;
+  if (repeat.until < firstDay) throw invalid('repeat', 'The last day of a repeat cannot come before the first meeting.', 'until_before_start');
+  if (diffDays(firstDay, repeat.until) > REPEAT_MAX_DAYS) throw invalid('repeat', `A repeat ends at most ${REPEAT_MAX_DAYS} days after the first meeting.`, 'until_too_far');
+}
+
+const byStart = (a: Meeting, b: Meeting): number => Date.parse(a.startsAt) - Date.parse(b.startsAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+/**
+ * The other meetings that a "later" write changes: the scheduled meetings of the same series that start after this one and are not over.
+ * A past meeting and a cancelled meeting stay as they are. A meeting in no series has none.
+ */
+function laterOf(ctx: Ctx, meeting: Meeting): Meeting[] {
+  if (!meeting.seriesId) return [];
+  const from = Date.parse(meeting.startsAt);
+  return Object.values(meetingsOf(ctx.state))
+    .filter((m) => m.seriesId === meeting.seriesId && m.id !== meeting.id && Date.parse(m.startsAt) > from && m.status === 'scheduled' && phaseOf(m, ctx.now) !== 'done')
+    .sort(byStart);
+}
+
+/** True when the patch that an event holds moves the meeting for a calendar: the start, the end or the place. */
+const movesCalendar = (event: { after: unknown } | null): boolean =>
+  event !== null && Object.keys((event.after ?? {}) as object).some((key) => key === 'startsAt' || key === 'endsAt' || key === 'where');
 
 /**
  * The attendees, checked. The organizer and a repeated person drop out of the attendees. An attendee is an active person, never an
@@ -183,6 +217,8 @@ const meetingsCreate = defineCall({
     guests: Fields.guests.optional(),
     notes: Fields.notes.optional(),
     attendeeIds: Fields.attendeeIds.optional(),
+    /** Every day (Sunday to Thursday), every week or every 2 weeks, up to the day "until" (wave 3). Madar makes the first 8 meetings. */
+    repeat: MeetingRepeat.nullable().optional(),
   }),
   output: MeetingDetail,
   run(input, ctx) {
@@ -190,18 +226,34 @@ const meetingsCreate = defineCall({
     assertMayPlan(ctx, projectId);
     checkTitle(input.title);
     const startsAt = checkStart(input.startsAt, ctx.now);
+    const repeat = input.repeat ? { every: input.repeat.every, until: input.repeat.until } : null;
+    const firstDay = dayOf({ startsAt });
+    if (repeat) checkRepeat(repeat, firstDay);
     const defaults = kindDefaults(input.kind);
+    const minutes = input.durationMin ?? defaults.durationMin;
     const organizerId = ctx.authority.id;
     const attendeeIds = checkPeople(ctx, organizerId, input.attendeeIds ?? []);
     const id = nextId(ctx.state, 'mtg');
     const meeting: Meeting = {
-      id, kind: input.kind, title: input.title, projectId, startsAt, endsAt: addMinutes(startsAt, input.durationMin ?? defaults.durationMin),
+      id, kind: input.kind, title: input.title, projectId, startsAt, endsAt: addMinutes(startsAt, minutes),
       where: input.where ?? '', guests: input.guests ?? '', notes: input.notes ?? '', organizerId, attendeeIds,
-      status: 'scheduled', rev: 1, createdBy: ctx.actor.id, createdAt: ctx.stamp,
+      status: 'scheduled', rev: 1, ...(repeat ? { seriesId: id, repeat } : {}), createdBy: ctx.actor.id, createdAt: ctx.stamp,
     };
     meetingsOf(ctx.state)[id] = meeting;
-    recordCreate(ctx, { projectId, verb: 'meeting.created', targetType: 'meeting', targetId: id, entity: meeting });
-    tell(ctx, meeting, attendeeIds, 'new');
+    const created = recordCreate(ctx, { projectId, verb: 'meeting.created', targetType: 'meeting', targetId: id, entity: meeting });
+    if (repeat) {
+      // The next meetings of the series, one row for each. Their events are not in the project feed (one line is enough), and each one
+      // names the first as its cause. All of them are in the story of this call, so one Undo takes the whole series back.
+      const clock = clockOf(startsAt);
+      for (const day of occurrencesOf(repeat, firstDay, firstDay, SERIES_AHEAD - 1)) {
+        const next: Meeting = { ...structuredClone(meeting), id: nextId(ctx.state, 'mtg'), startsAt: stampOn(day, clock) };
+        next.endsAt = addMinutes(next.startsAt, minutes);
+        meetingsOf(ctx.state)[next.id] = next;
+        recordCreate(ctx, { projectId, verb: 'meeting.added', targetType: 'meeting', targetId: next.id, causeEventId: created.id, entity: next });
+      }
+    }
+    // One notice for the whole series (owner, 2026-10-19): the dedupe key holds the series.
+    tell(ctx, meeting, attendeeIds, 'new', repeat ? `meeting_invited:${id}` : undefined);
     return meetingDetailOf(ctx.state, meeting, ctx.authority, ctx.now);
   },
 });
@@ -218,18 +270,24 @@ const meetingsUpdate = defineCall({
     guests: Fields.guests.optional(),
     notes: Fields.notes.optional(),
     attendeeIds: Fields.attendeeIds.optional(),
+    scope: Scope.optional(),
   }),
   output: MeetingDetail,
   run(input, ctx) {
     const meeting = requireMeeting(ctx, input.id);
     assertCan(ctx, 'meeting.edit', meetingResource(ctx.state, meeting, ctx.authority.id));
     if (meeting.status === 'cancelled') throw conflict('This meeting is cancelled. It cannot change.', 'meeting_cancelled');
+    const later = input.scope === 'later' && meeting.seriesId ? laterOf(ctx, meeting) : [];
     // A meeting stays in its project, or stays private. A call may repeat the project that the meeting has.
     if (input.projectId !== undefined && input.projectId !== meeting.projectId) {
       throw invalid('projectId', 'A meeting stays in its project. Cancel it and plan a new one.', 'project_fixed');
     }
     if (input.title !== undefined) checkTitle(input.title);
     const startsAt = input.startsAt === undefined ? meeting.startsAt : checkStart(input.startsAt, ctx.now, meeting.startsAt);
+    // The time of day applies to the later meetings, each on its own day. A new day would put them all on one day, so it is for one meeting.
+    if (input.scope === 'later' && meeting.seriesId && dayOf({ startsAt }) !== dayOf(meeting)) {
+      throw invalid('startsAt', 'A change for this and later meetings keeps the day. Move one meeting to another day at a time.', 'series_day_one_only');
+    }
     const endsAt = input.startsAt === undefined && input.durationMin === undefined
       ? meeting.endsAt
       : addMinutes(startsAt, input.durationMin ?? minutesBetween(meeting.startsAt, meeting.endsAt));
@@ -249,12 +307,30 @@ const meetingsUpdate = defineCall({
       throw conflict('This meeting is over. Only its notes change.', 'meeting_over');
     }
     const wasOn = [...meeting.attendeeIds];
+    // What a "later" write gives the other meetings, worked out before the patch changes this meeting: a new time of day, a new
+    // length, and the fields that this change moved. A field that did not change here stays as each later meeting has it.
+    const clockChanged = clockOf(startsAt) !== clockOf(meeting.startsAt);
+    const lengthChanged = input.durationMin !== undefined && input.durationMin !== minutesBetween(meeting.startsAt, meeting.endsAt);
     const event = applyPatch(ctx, meeting, Object.fromEntries(changed.map((key) => [key, next[key]])) as Partial<Meeting>, {
       projectId: meeting.projectId, verb: 'meeting.updated', targetType: 'meeting', targetId: meeting.id,
     });
     // rev is not in the event: an Undo brings the time or the place back and raises rev again (history.ts), so it never goes down.
     const moved = changed.some((key) => key === 'startsAt' || key === 'endsAt' || key === 'where');
     if (event && moved) meeting.rev += 1;
+    if (event) {
+      for (const other of later) {
+        const patch: Partial<Meeting> = Object.fromEntries(changed.filter((key) => key !== 'startsAt' && key !== 'endsAt').map((key) => [key, next[key]]));
+        if (clockChanged || lengthChanged) {
+          const start = clockChanged ? stampOn(dayOf(other), clockOf(startsAt)) : other.startsAt;
+          patch.startsAt = start;
+          patch.endsAt = addMinutes(start, lengthChanged ? (input.durationMin as number) : minutesBetween(other.startsAt, other.endsAt));
+        }
+        const done = applyPatch(ctx, other, patch, {
+          projectId: other.projectId, verb: 'meeting.series_updated', targetType: 'meeting', targetId: other.id, causeEventId: event.id,
+        });
+        if (movesCalendar(done)) other.rev += 1;
+      }
+    }
     // A person added to the list hears "new". The people who stay hear "moved" when the day, the time or the place changes: the
     // attendees, and the organizer when another person moved it. A person taken off hears nothing.
     const added = meeting.attendeeIds.filter((id) => !wasOn.includes(id));
@@ -265,7 +341,7 @@ const meetingsUpdate = defineCall({
 });
 
 const meetingsCancel = defineCall({
-  input: z.object({ id: MeetingId }),
+  input: z.object({ id: MeetingId, scope: Scope.optional() }),
   output: MeetingDetail,
   run(input, ctx) {
     const meeting = requireMeeting(ctx, input.id);
@@ -273,8 +349,22 @@ const meetingsCancel = defineCall({
     // A second cancel changes nothing and writes no event.
     if (meeting.status === 'cancelled') return meetingDetailOf(ctx.state, meeting, ctx.authority, ctx.now);
     if (phaseOf(meeting, ctx.now) === 'done') throw conflict('This meeting is over. It cannot be cancelled.', 'meeting_over');
-    applyPatch(ctx, meeting, { status: 'cancelled' }, { projectId: meeting.projectId, verb: 'meeting.cancelled', targetType: 'meeting', targetId: meeting.id });
+    const later = input.scope === 'later' && meeting.seriesId ? laterOf(ctx, meeting) : [];
+    // A cancel from here on ends the series on the day before this meeting: the cancelled meetings keep the rule with that last day.
+    // An earlier last day stays. A past meeting or an earlier meeting is not touched.
+    const ended = (m: Meeting): { repeat?: MeetingRepeat } => {
+      if (input.scope !== 'later' || !m.repeat) return {};
+      const dayBefore = addDays(dayOf(meeting), -1);
+      return { repeat: { every: m.repeat.every, until: m.repeat.until !== null && m.repeat.until < dayBefore ? m.repeat.until : dayBefore } };
+    };
+    const event = applyPatch(ctx, meeting, { status: 'cancelled', ...ended(meeting) }, { projectId: meeting.projectId, verb: 'meeting.cancelled', targetType: 'meeting', targetId: meeting.id });
     meeting.rev += 1;
+    for (const other of later) {
+      applyPatch(ctx, other, { status: 'cancelled', ...ended(other) }, {
+        projectId: other.projectId, verb: 'meeting.series_cancelled', targetType: 'meeting', targetId: other.id, ...(event ? { causeEventId: event.id } : {}),
+      });
+      other.rev += 1;
+    }
     tell(ctx, meeting, [meeting.organizerId, ...meeting.attendeeIds], 'cancelled');
     return meetingDetailOf(ctx.state, meeting, ctx.authority, ctx.now);
   },
@@ -315,6 +405,28 @@ export function dueToSettle(state: State, at: Date): Meeting[] {
     .sort((a, b) => Date.parse(a.endsAt) - Date.parse(b.endsAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
+/**
+ * The series that the prototype timer extends (the prototype has no job). The same rule as the read of the job (server/jobs/steps/meetings.ts):
+ * a series whose last meeting starts today or later and is scheduled, with fewer than SERIES_AHEAD scheduled meetings that are not over,
+ * and a day left in its rule. The fewest ahead first, then by series, at most 20.
+ */
+export function seriesToExtend(state: State, at: Date): string[] {
+  const today = todayISO(at);
+  const bySeries = new Map<string, Meeting[]>();
+  for (const m of Object.values(meetingsOf(state))) {
+    if (m.seriesId && dayOf(m) >= today) bySeries.set(m.seriesId, [...(bySeries.get(m.seriesId) ?? []), m]);
+  }
+  const short: { seriesId: string; ahead: number }[] = [];
+  for (const [seriesId, list] of bySeries) {
+    const last = [...list].sort(byStart).at(-1) as Meeting;
+    if (last.status !== 'scheduled' || !last.repeat) continue;
+    const ahead = list.filter((m) => m.status === 'scheduled' && phaseOf(m, at) !== 'done').length;
+    if (ahead >= SERIES_AHEAD || occurrencesOf(last.repeat, dayOf(last), maxDay(dayOf(last), today), 1).length === 0) continue;
+    short.push({ seriesId, ahead });
+  }
+  return short.sort((a, b) => a.ahead - b.ahead || (a.seriesId < b.seriesId ? -1 : a.seriesId > b.seriesId ? 1 : 0)).slice(0, 20).map((one) => one.seriesId);
+}
+
 const meetingsSettle = defineCall({
   input: z.object({ id: MeetingId }),
   output: z.object({ settledAt: Stamp.nullable(), trackerEntryId: TrackerId.nullable() }),
@@ -323,6 +435,49 @@ const meetingsSettle = defineCall({
     // Before the end, for a cancelled meeting and after the first settle, the call writes nothing and gives the stored values.
     if (meeting.status === 'scheduled' && !meeting.settledAt && phaseOf(meeting, ctx.now) === 'done') settleMeeting(ctx, meeting);
     return { settledAt: meeting.settledAt ?? null, trackerEntryId: meeting.trackerEntryId ?? null };
+  },
+});
+
+/**
+ * Keeps a series full (fbk_022, wave 3; the 15-minute job and the prototype timer call it, as they call meetings.settle). It adds meetings
+ * after the last one until SERIES_AHEAD scheduled meetings are ahead (a meeting that is not over counts), or until the last day of the rule.
+ * It adds none when the last meeting of the series is cancelled: a person ended the series there. The new meetings copy the last one (title,
+ * place, people, length, time of day) and start the day after it, or after today when the series ran dry. One mark, meeting.extended, names
+ * the series; each new meeting has the event meeting.added with that mark as its cause. No notice: the people heard of the series when it
+ * was planned. Like settle, the call needs only the view of the series, and a second call adds nothing.
+ */
+const meetingsExtend = defineCall({
+  input: z.object({ seriesId: MeetingId }),
+  output: z.object({ added: z.number().int().min(0) }),
+  run(input, ctx) {
+    // The meetings from today on are the ones that matter (the loader reads the same window): the last one and the ones ahead.
+    const rows = Object.values(meetingsOf(ctx.state))
+      .filter((m) => m.seriesId === input.seriesId && dayOf(m) >= ctx.today && mayViewMeeting(ctx.state, ctx.authority, m))
+      .sort(byStart);
+    if (rows.length === 0) throw notFound('Meeting', input.seriesId);
+    const last = rows[rows.length - 1];
+    if (last.status === 'cancelled' || !last.repeat) return { added: 0 };
+    const ahead = rows.filter((m) => m.status === 'scheduled' && phaseOf(m, ctx.now) !== 'done').length;
+    const lastDay = dayOf(last);
+    const days = occurrencesOf(last.repeat, lastDay, maxDay(lastDay, ctx.today), SERIES_AHEAD - ahead);
+    if (days.length === 0) return { added: 0 };
+    const mark = writeEvent(ctx, {
+      projectId: last.projectId, verb: 'meeting.extended', targetType: 'meeting', targetId: last.id, before: { ahead }, after: { ahead: ahead + days.length },
+    });
+    const clock = clockOf(last.startsAt);
+    const minutes = minutesBetween(last.startsAt, last.endsAt);
+    for (const day of days) {
+      const startsAt = stampOn(day, clock);
+      const id = nextId(ctx.state, 'mtg');
+      const next: Meeting = {
+        id, kind: last.kind, title: last.title, projectId: last.projectId, startsAt, endsAt: addMinutes(startsAt, minutes), where: last.where, guests: last.guests,
+        notes: last.notes, organizerId: last.organizerId, attendeeIds: [...last.attendeeIds], status: 'scheduled', rev: 1, seriesId: last.seriesId,
+        repeat: { every: last.repeat.every, until: last.repeat.until }, createdBy: ctx.actor.id, createdAt: ctx.stamp,
+      };
+      meetingsOf(ctx.state)[id] = next;
+      recordCreate(ctx, { projectId: next.projectId, verb: 'meeting.added', targetType: 'meeting', targetId: id, causeEventId: mark.id, entity: next });
+    }
+    return { added: days.length };
   },
 });
 
@@ -418,5 +573,6 @@ export const meetingCalls = {
   'meetings.update': meetingsUpdate,
   'meetings.cancel': meetingsCancel,
   'meetings.settle': meetingsSettle,
+  'meetings.extend': meetingsExtend,
   'meetings.saveMinutes': meetingsSaveMinutes,
 };
