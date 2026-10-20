@@ -1099,6 +1099,13 @@ walk caught the answer: a whole-batch 500 "Something went wrong" for the Admin, 
   screenshots EN/AR, light/dark, at 390 and 1440. The deploy suite did not run.
 - `all.sh test` (148 calls), then `all.sh production`: health from `supabase` with 148 calls, the database check, `POST /mcp` with no token 401.
 
+### Production at adbc8e5f (2026-10-20, the past-due wrap in the Overview and the meeting views, and guide lines; the owner ran it with `!`)
+- Changes: `StatusSign wrap` in `OverviewTab`, `MeetingProjects` and `PeopleStrip`; What's new 2026-10-23-58 names the four places;
+  guide lines in `CLAUDE.md`, `src/CLAUDE.md`, `src/api/CLAUDE.md` and `tests/CLAUDE.md`.
+- Gates: typecheck, the touched screen tests (21), `npm run build`, `build:remote -- test`, screenshots of the Overview (EN/AR,
+  light/dark, 390). The owner asked to skip the full suite and the smoke (each over 5 minutes) for this one-flag change.
+- `all.sh test` (148 calls), then `all.sh production`: health from `supabase` with 148 calls, the database check, `POST /mcp` with no token 401.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 
