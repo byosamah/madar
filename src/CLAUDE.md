@@ -335,6 +335,9 @@ any screen work.
 - Edit and delete (own messages only, `Bubble.canEdit`): the menu shows Edit and Delete (red) after Reply (after "Copy text" on the phone sheet). Edit
   puts `MessageEditForm` in place of the words (`EditingContext` holds the id; Enter saves, Escape cancels; Save is a secondary button) and the box
   gets the focus back at the end. The Up key in an empty box with no picked file opens the edit of the newest own bubble (`Composer` `onEditLast`).
+  The box has `field-sizing: content`, so an empty box takes the height of its hint. On a phone (`useIsPhone`) the hint is `chat.placeholderPhone`
+  ("Use @ to mention." / «اكتب @ لذكر أحد.»), one line at 360 px. Keep the @ tip in every hint: a project chat pushes only the people that a
+  message names.
   Delete asks nothing: `useDeleteMessage` (`deleteMessage.ts`) calls `chats.deleteMessage` and shows the toast "Message deleted." with Undo (the same
   call with `deleted: false`); a task comment keeps `comments.update` and `useUndoable('comments.delete')`. `useEarlierMessages` keeps a message that
   left the newest page only when it is older than the oldest message of the new page, so a deleted message does not stay after "Earlier messages".
@@ -551,6 +554,8 @@ any screen work.
 - The owner likes to choose a visual style from a side-by-side comparison artifact.
 - A quick 390 px check without Playwright: in the claude-in-chrome tab, add a fixed 390 x 844 `iframe` of the same page
   (`innerWidth` is 390). Switch the language or theme in the outer tab, then load the frame again (they share IndexedDB).
+  Measure a phone text fit at 360 px and 390 px in both languages: Arabic buttons («إرسال») are wider. To check a press area, use
+  `elementFromPoint` on a grid around the element: a box measure misses an `after:` press strip.
 - To set the prototype person, language or theme, or add a sample record, without clicks: edit the saved office (IndexedDB
   `madar`, store `data`, key `state`: `session.currentUserId`, `users[id].preferences.language` and `.theme`), then reload.
 

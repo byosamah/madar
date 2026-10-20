@@ -83,7 +83,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `npm run build:remote -- <test|production>` - the real screens from `config/remote.<env>.env` (public VITE_ names only).
 - `npm run build:server` - the server bundles: `supabase/functions/_build/{api,mcp,jobs}.js` and `dist-server/worker.js`.
 - `npm run typecheck` - both tsconfigs (screens and server).
-- `npm test` - the `unit` and `server` projects (about 5,400 tests). Run it alone: next to a build or Playwright,
+- `npm test` - the `unit` and `server` projects (about 7,300 tests). Run it alone: next to a build or Playwright,
   screen tests time out. With a load average far above the core count (`uptime`), other screen tests time out on each
   run: run the failed files alone (`--no-file-parallelism --testTimeout=60000`) before you call a test broken.
 - Port 5173 on this Mac often runs another project. Start Madar with `npx vite --host 127.0.0.1 --port 5180
@@ -122,8 +122,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `scripts/dev/docker-lock.sh run <holder> -- <cmd>` - every Docker or database task takes this lock first.
 - Size of an old build: `git archive <sha> | tar -x -C $TMPDIR/base`, link `node_modules` into it, build there.
 - `npx supabase db reset` - after any migration change, from your own worktree, under the lock.
-- Last counts (2026-10-18, main 5378e48 and the exit wave 4 gate): unit+server 5,393 passed (532 files); test:db 1,149;
-  test:lite 1,149; test:office 37; smoke:office 10 of 10; test:it 279; test:mcp 176; prototype smoke 87 of 87.
+- Last counts (2026-10-20, the chat batch, main 86ecc3c): unit+server 7,288 passed (689 files); test:db 1,840; test:lite 1,840;
+  test:office 37; test:it 305; test:mcp 242; prototype smoke 87 of 87; deploy suite 161 passed, 3 skipped.
 - `grep -c` that counts 0 exits 1, so it stops a `&&` chain: end the count with `; true` or check its number apart.
 
 ## Run the real product locally
@@ -179,7 +179,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - Agent tool worktrees live in `.claude/worktrees/agent-*` (Workflow agents: `wf_<run>-<n>`, branch `worktree-wf_<run>-<n>`)
   and may start on an old commit: brief each agent to run
   `git merge --ff-only <batch branch>` first. Removal: `git worktree remove --force`, `git worktree prune`, then `git branch -d`
-  its branch and its `worktree-agent-*` branch (sandbox off).
+  its branch and its `worktree-agent-*` branch (sandbox off). Before `git worktree remove`, run `rm <worktree>/node_modules`
+  (it removes the link only): a clean worktree then goes without `--force`.
 - While a release waits on its recorded commit, build the next batch in a worktree branch: production refuses any new commit
   on main.
 - A helper that a subagent starts reports to the main session, not to that subagent: forward what the subagent needs.

@@ -32,10 +32,13 @@ the config, the heartbeat of one run stays and the next run fails.
 - Flags: `MADAR_E2E_AFTER_G=1`, `MADAR_E2E_AFTER_M=1`, `MADAR_E2E_WALK=1` (the whole-product walk, `walk.spec.ts`). `agents.spec.ts` skips
   itself without `MADAR_E2E_AFTER_G=1` ("1 skipped" is no pass). Its first case also checks that the tool list of the test copy holds
   the three chat tools (2026-10-12). One case alone: `-g "an approved agent shows in Settings"`.
+- `full.spec.ts` alone takes about 12 minutes, more than the 600 s limit of a foreground Bash call: run it in the background.
 - It is the only check of the CSP: `vite preview` sends no CSP (`csp.spec.ts`).
 - The walk names the file store from the host of its upload PUT (`store.ts`): Supabase Storage or R2. On Storage it counts
   `storage.objects`. On R2 it heads the new keys in `madar-files-test`, only with the four R2 lines of `secrets/test.env` in the
-  environment (`set -a; . <(grep '^R2_' secrets/test.env); set +a`). Without them it reports the count as n/a. The download
+  environment (zsh: `set -a; . <(grep '^R2_' secrets/test.env); set +a`. The bash of macOS (3.2) loads nothing that way: use
+  `while IFS= read -r line; do export "$line"; done < <(grep '^R2_' secrets/test.env)`. Never source all of `secrets/test.env`:
+  it stops with a syntax error on line 5). Without them it reports the count as n/a. The download
   fallback takes a signed link of Storage or of the R2 test bucket (owner, 2026-10-16).
 - Playwright's Chromium does not start in the sandbox (SIGTRAP): run browser scripts with the sandbox off.
 - Signed-in screens take the language and theme saved on the account (server). The device keys change only the screens

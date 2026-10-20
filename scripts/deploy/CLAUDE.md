@@ -80,6 +80,10 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
 - A short "ok" did not pass that check, and later the owner's plain words did not pass either (2026-10-07). After one
   refusal, give the owner the one-line command with `!` as the very first character of the input box. Without that, it
   arrives as chat text and runs nothing.
+- A `!` command runs in the folder of the session, often the main folder. Start each release command with
+  `cd <deploy-test> &&` or `git -C <deploy-test>`.
+- Before a release step, check that another session did not do it already: `git fetch`,
+  `npx wrangler pages deployment list --project-name madar`, and the release record on main (2026-10-20).
 - A test deploy of a newer commit replaces the record. While an older commit waits for production, hold `all.sh test`
   of the newer one until production is done.
 - Change only madar-test unless the owner asked for production.
