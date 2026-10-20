@@ -7,7 +7,8 @@ import { executeParsed, resolveAuthority } from './execute';
 import type { AnyCall } from './registry';
 import { makeUser, makeWorld } from '../test/factories';
 
-const ALL = ['people.manage', 'payment.manage', 'project.delete', 'project.editCode', 'clients.manage', 'templates.manageAll', 'report.office'];
+// Every office right: the seven of fbk_014 and the ten of role-rights (2026-10-23).
+const ALL = [...OFFICE_RIGHTS] as string[];
 const sorted = (rights: readonly string[]) => [...rights].sort();
 
 const admin = makeUser('usr_001', { systemRole: 'admin' });
@@ -45,7 +46,9 @@ describe('opensAdminPage: who sees the Admin page (owner, 2026-10-18, fbk_014)',
   });
 
   it('names the rights that open a section, and only those', () => {
-    expect(sorted(ADMIN_PAGE_RIGHTS)).toEqual(['clients.manage', 'people.manage', 'templates.manageAll']);
+    expect(sorted(ADMIN_PAGE_RIGHTS)).toEqual([
+      'clients.manage', 'feedback.manage', 'people.manage', 'subCompanies.manage', 'templates.manageAll', 'templates.updateProjects',
+    ]);
   });
 });
 

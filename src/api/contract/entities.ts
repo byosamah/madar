@@ -125,11 +125,25 @@ export const SystemRole = z.enum(['admin', 'management', 'accounting', 'member']
 export type SystemRole = z.infer<typeof SystemRole>;
 
 /**
- * The office rights (owner, 2026-10-18, fbk_014). A right opens some actions for a person. The Admin holds every right.
+ * The office rights (owner, 2026-10-18, fbk_014; 17 rights in 7 sections since 2026-10-23). A right opens some actions for a person. The
+ * Admin holds every right. The order follows the sections of the role sheet.
  * permissions.ts holds the same names as plain constants (OFFICE_RIGHTS), because it loads with the screens and takes no zod.
  */
 export const OfficeRight = z.enum([
-  'people.manage', 'payment.manage', 'project.delete', 'project.editCode', 'clients.manage', 'templates.manageAll', 'report.office',
+  // Projects
+  'project.editAny', 'project.changeLeaderAny', 'project.archiveAny', 'project.delete', 'project.editCode',
+  // To-dos
+  'task.reviewAny', 'task.changeAny',
+  // People
+  'people.manage', 'clients.manage', 'subCompanies.manage',
+  // Money
+  'payment.manage',
+  // Templates
+  'templates.manageAll', 'templates.updateProjects',
+  // AI and reports
+  'report.office', 'agents.undoAny',
+  // Office
+  'feedback.manage', 'gaps.view',
 ]);
 export type OfficeRight = z.infer<typeof OfficeRight>;
 
