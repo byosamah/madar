@@ -1075,6 +1075,19 @@ walk caught the answer: a whole-batch 500 "Something went wrong" for the Admin, 
   `all.sh test` (147 calls), then `all.sh production`: health from `supabase` with 147 calls, the database check, `POST /mcp` with no
   token 401, the page 200.
 
+### Production at 86bcf255 (2026-10-20, fbk_033: the Google Calendar connect; the owner ran it with `!` after the auto-mode check refused Claude)
+- The cause, from the function logs: on production, 3 of the 4 connects between 12:05 and 12:08 Riyadh answered `google_unreachable` after
+  3.5 to 3.7 s, and the one that worked ran 3.3 s. On the test copy the owner's connects ran 3.2 and 3.4 s and worked. A reconnect that reused
+  the calendar was as slow, so the code swap (the first call to Google) takes most of the time, and the limit of 3 s cut it.
+- The fix: the Google calls of `google.connect` share a budget of 15 s, at most 10 s for one call; a failed connect logs its step, code and HTTP
+  status; the Ctrl+Z listener takes a keydown with no key (the TypeError in the report, from the password fill of Chrome); What's new 2026-10-23-55.
+- Gates: typecheck, npm test 7,913 (6 skipped), the three builds, `server/it/google.it.test.ts` 12 of 12 on the local stack. `test:db`, the rest of
+  `test:it`, the deploy suite and the screenshots did not run (no SQL change; the one visible change is a What's new line).
+- The owner's connect on the test copy at 86bcf255 (13:10 Riyadh, a new Google account): state ok about 8 s after the callback, with three Google
+  calls (the remembered calendar gave 404 for the new account, then a new calendar). The old limit would have failed it.
+- `all.sh test` (147 calls), then `all.sh production`: health from `supabase` with 147 calls, the database check, `POST /mcp` with no token 401.
+  Production serves `runtime-DFS4BLg9.js` with the new key check.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 
