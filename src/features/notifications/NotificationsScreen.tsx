@@ -16,7 +16,7 @@ import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { ScreenTitle } from '../../components/ScreenTitle';
-import { addDays, clockFormat, formatDay, stampDay, todayISO } from '../../lib/dates';
+import { addDays, clockFormat, formatDay, listFormat, stampDay, todayISO } from '../../lib/dates';
 import { actorContext, counted } from '../../lib/grammar';
 import { groupByDay } from '../../lib/group';
 import { LoadFailed } from '../../components/LoadFailed';
@@ -50,6 +50,21 @@ function meetingKey(n: NoticeView['notification'], gone: boolean): string {
   if (n.meeting?.change === 'cancelled') return 'inbox.trigger.meeting_invited_cancelled';
   return 'inbox.trigger.meeting_invited';
 }
+
+/**
+ * The sentence of a copy for an Admin who picked "Everything" (owner, 2026-10-23). It names the actor and the people that the original
+ * went to. A copy of an item that the viewer no longer sees names nobody, and says so in one line.
+ */
+function copyKey(view: NoticeView): string {
+  const n = view.notification;
+  if (view.forPeople.length === 0) return 'adminReach.copyGone';
+  if (n.trigger === 'mention') return `adminReach.copy.${n.reply === true ? 'reply' : 'mention'}_${n.targetType === 'chat' ? 'chat' : 'task'}`;
+  if (n.trigger === 'meeting_invited') return `adminReach.copy.meeting_${n.meeting?.change ?? 'new'}`;
+  return `adminReach.copy.${n.trigger}`;
+}
+
+/** Up to 3 names in one list ("A, B and C"). With more people: the first 2 names, then the number of the others. */
+const MOST_NAMES = 3;
 
 function InboxItem({ view }: { view: NoticeView }) {
   const { t } = useTranslation();
@@ -87,7 +102,13 @@ function InboxItem({ view }: { view: NoticeView }) {
   const meeting = n.targetType === 'meeting';
   // A reply to a message of the person says "replied to you" (chat design 2026-10-19, item 10). The place is named as for a mention.
   const reply = n.trigger === 'mention' && n.reply === true;
-  const sentenceKey = meeting ? meetingKey(n, gone) : report ? reportKey(n)
+  // A copy for an Admin who picked "Everything" (owner, 2026-10-23) has its own sentences, with the people of the original.
+  const copy = n.forUserIds !== undefined;
+  const names = view.forPeople.map((person) => `\u2068${nameOf(person)}\u2069`);
+  const people = names.length <= MOST_NAMES
+    ? listFormat(lang).format(names)
+    : t('adminReach.andOthers', { names: names.slice(0, 2).join(', '), others: t('adminReach.others', { count: names.length - 2 }) });
+  const sentenceKey = copy ? copyKey(view) : meeting ? meetingKey(n, gone) : report ? reportKey(n)
     : reply ? (direct ? 'notices.repliedDirect' : group && target === '' ? 'notices.repliedGroupGone' : 'notices.repliedToYou')
       : direct ? 'inbox.mentionDirect' : group ? groupKey(n.trigger, target !== '') : restartPast ? 'inbox.trigger.resume_due_past' : `inbox.trigger.${n.trigger}`;
   // A done report names no person, so its row shows the bell and not the Admin who marked it. A group notice shows the group.
@@ -96,6 +117,7 @@ function InboxItem({ view }: { view: NoticeView }) {
     actor: actor ? nameOf(actor) : t('inbox.someone'),
     context: actorContext(actor),
     // The excerpt of a report, the name of a group and the title of a meeting keep their own direction (FSI and PDI), so an English "…" or "?" stays at its end in Arabic.
+    people,
     target: report || group || restart || meeting ? `\u2068${target}\u2069` : target,
     // A reminder names its due day, which can be days away after a weekend (audit 2026-10-03, API-11). A meeting notice names the day and the time of the start (fbk_022).
     day: startsAt ? formatDay(stampDay(startsAt), lang, 'withWeekday') : dueDate ? formatDay(dueDate, lang, 'weekday') : '',

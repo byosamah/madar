@@ -1,0 +1,48 @@
+{
+  "adminReach": {
+    "title": "What reaches me",
+    "saved": "Your choice is saved.",
+    "mine": {
+      "label": "Only my work",
+      "hint": "You see only the chats and the notices of your own projects and to-dos. A message that names you still reaches you."
+    },
+    "mixed": {
+      "label": "My work, and the rest in the list",
+      "hint": "The other project chats stay in your list. They count only the messages that name you."
+    },
+    "all": {
+      "label": "Everything",
+      "hint": "Every message of every project chat counts. The bell gets a copy of each notice of the office. A copy sends no push and no email."
+    },
+    "andOthers": "{{names}} and {{others}}",
+    "others": "{{count}} others",
+    "others_one": "1 other",
+    "others_other": "{{count}} others",
+    "copyGone": "A change that you can no longer see",
+    "copy": {
+      "task_assigned": "{{actor}} gave {{people}} “{{target}}”",
+      "review_requested": "{{actor}} sent “{{target}}” to {{people}} for review",
+      "task_approved": "{{actor}} approved “{{target}}” and told {{people}}",
+      "task_sent_back": "{{actor}} sent back “{{target}}” and told {{people}}",
+      "stage_changed": "{{actor}} changed the stage of {{target}} and told {{people}}",
+      "added_to_project": "{{actor}} added {{people}} to {{target}}",
+      "meeting_new": "{{actor}} invited {{people}} to {{target}}, {{day}} at {{time}}",
+      "meeting_moved": "{{actor}} moved {{target}} to {{day}} at {{time}} and told {{people}}",
+      "meeting_cancelled": "{{actor}} cancelled {{target}}, which was planned for {{day}} at {{time}}, and told {{people}}",
+      "helper_joined": "{{actor}} joined “{{target}}” as a helper and told {{people}}",
+      "task_deleted": "{{actor}} deleted “{{target}}” and told {{people}}",
+      "mention_chat": "{{actor}} mentioned {{people}} in {{target}}",
+      "reply_chat": "{{actor}} replied to {{people}} in {{target}}",
+      "mention_task": "{{actor}} mentioned {{people}} in a comment on “{{target}}”",
+      "reply_task": "{{actor}} replied to {{people}} in a comment on “{{target}}”"
+    }
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-69": {
+        "title": "Choose what reaches you",
+        "body": "As the Admin, you can now choose what reaches you. Pick “Only my work”, “My work, and the rest in the list”, or “Everything”. With Everything, you see every project chat message in the count, and the bell shows a copy of each notice of the office. You find the choice in Settings."
+      }
+    }
+  }
+}

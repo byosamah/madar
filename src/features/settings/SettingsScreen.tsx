@@ -10,6 +10,7 @@ import { ScreenTitle } from '../../components/ScreenTitle';
 import { SegmentedControl } from '../../components/SegmentedControl';
 import { Sheet } from '../../components/Sheet';
 import { Switch } from '../../components/Switch';
+import { AdminReachSection } from './AdminReachSection';
 import { AgentsSection } from './AgentsSection';
 import { GoogleCalendarSection } from './GoogleCalendarSection';
 import { NotificationsSection } from './NotificationsSection';
@@ -62,6 +63,8 @@ export function SettingsScreen() {
         />
       </Section>
 
+      {/* The Admin only: what reaches the Admin (owner, 2026-10-23). It sits before the switches of the notices. */}
+      <AdminReachSection />
       <NotificationsSection />
       {/* The real build: browser push on this device (owner, 2026-10-08). */}
       <PushSection />

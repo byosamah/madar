@@ -1,0 +1,66 @@
+{
+  "adminReach": {
+    "title": "ما يصلك",
+    "saved": "حُفظ اختيارك.",
+    "mine": {
+      "label": "عملي فقط",
+      "hint": "ترى محادثات مشاريعك ومهامك وإشعاراتها فقط. وتصلك أي رسالة تذكرك."
+    },
+    "mixed": {
+      "label": "عملي، وبقية المحادثات في القائمة",
+      "hint": "تبقى محادثات المشاريع الأخرى في قائمتك. ويحسب مدار فيها الرسائل التي تذكرك فقط."
+    },
+    "all": {
+      "label": "كل شيء",
+      "hint": "تُحسب كل رسالة في كل محادثة مشروع. ويصلك في الجرس نسخة من كل إشعار في المكتب. ولا ترسل النسخة تنبيهًا ولا بريدًا."
+    },
+    "andOthers": "{{names}} و{{others}}",
+    "others": "{{count}} شخص آخر",
+    "others_one": "شخص آخر",
+    "others_two": "شخصين آخرين",
+    "others_few": "{{count}} أشخاص آخرين",
+    "others_many": "{{count}} شخصًا آخر",
+    "others_other": "{{count}} شخص آخر",
+    "copyGone": "تغيير لم تعد تراه",
+    "copy": {
+      "task_assigned": "{{actor}} أسند إلى {{people}} «{{target}}»",
+      "task_assigned_female": "{{actor}} أسندت إلى {{people}} «{{target}}»",
+      "review_requested": "{{actor}} أرسل «{{target}}» إلى {{people}} للمراجعة",
+      "review_requested_female": "{{actor}} أرسلت «{{target}}» إلى {{people}} للمراجعة",
+      "task_approved": "{{actor}} اعتمد «{{target}}» وأبلغ {{people}}",
+      "task_approved_female": "{{actor}} اعتمدت «{{target}}» وأبلغت {{people}}",
+      "task_sent_back": "{{actor}} أعاد «{{target}}» للتعديل وأبلغ {{people}}",
+      "task_sent_back_female": "{{actor}} أعادت «{{target}}» للتعديل وأبلغت {{people}}",
+      "stage_changed": "{{actor}} غيّر مرحلة {{target}} وأبلغ {{people}}",
+      "stage_changed_female": "{{actor}} غيّرت مرحلة {{target}} وأبلغت {{people}}",
+      "added_to_project": "{{actor}} أضاف {{people}} إلى {{target}}",
+      "added_to_project_female": "{{actor}} أضافت {{people}} إلى {{target}}",
+      "meeting_new": "{{actor}} دعا {{people}} إلى {{target}}، {{day}} الساعة {{time}}",
+      "meeting_new_female": "{{actor}} دعت {{people}} إلى {{target}}، {{day}} الساعة {{time}}",
+      "meeting_moved": "{{actor}} نقل {{target}} إلى {{day}} الساعة {{time}} وأبلغ {{people}}",
+      "meeting_moved_female": "{{actor}} نقلت {{target}} إلى {{day}} الساعة {{time}} وأبلغت {{people}}",
+      "meeting_cancelled": "{{actor}} ألغى {{target}} الذي كان مقررًا {{day}} الساعة {{time}}، وأبلغ {{people}}",
+      "meeting_cancelled_female": "{{actor}} ألغت {{target}} الذي كان مقررًا {{day}} الساعة {{time}}، وأبلغت {{people}}",
+      "helper_joined": "{{actor}} انضم إلى «{{target}}» مساعدًا وأبلغ {{people}}",
+      "helper_joined_female": "{{actor}} انضمت إلى «{{target}}» مساعدةً وأبلغت {{people}}",
+      "task_deleted": "{{actor}} حذف «{{target}}» وأبلغ {{people}}",
+      "task_deleted_female": "{{actor}} حذفت «{{target}}» وأبلغت {{people}}",
+      "mention_chat": "{{actor}} أشار إلى {{people}} في {{target}}",
+      "mention_chat_female": "{{actor}} أشارت إلى {{people}} في {{target}}",
+      "reply_chat": "{{actor}} ردّ على {{people}} في {{target}}",
+      "reply_chat_female": "{{actor}} ردّت على {{people}} في {{target}}",
+      "mention_task": "{{actor}} أشار إلى {{people}} في تعليق على «{{target}}»",
+      "mention_task_female": "{{actor}} أشارت إلى {{people}} في تعليق على «{{target}}»",
+      "reply_task": "{{actor}} ردّ على {{people}} في تعليق على «{{target}}»",
+      "reply_task_female": "{{actor}} ردّت على {{people}} في تعليق على «{{target}}»"
+    }
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-69": {
+        "title": "اختر ما يصلك",
+        "body": "بصفتك مدير النظام، صار بإمكانك اختيار ما يصلك. اختر «عملي فقط»، أو «عملي، وبقية المحادثات في القائمة»، أو «كل شيء». مع «كل شيء» تُحسب كل رسالة في محادثات المشاريع، ويعرض الجرس نسخة من كل إشعار في المكتب. تجد الاختيار في الإعدادات."
+      }
+    }
+  }
+}

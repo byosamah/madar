@@ -179,3 +179,24 @@ describe('all (Everything)', () => {
     expect((await rowOf(t, t.other))?.unread).toBe(3);
   });
 });
+
+describe('an agent of the Admin follows the choice of its person', () => {
+  it('lists and counts like the Admin, for each choice, and cannot pick the choice itself', async () => {
+    const t = world();
+    t.store.state.users.usr_009 = makeUser('usr_009', { name: 'Admin Agent', kind: 'agent', discipline: 'Agent', ownerId: 'usr_001' });
+    await talk(t, t.other);
+    const asAgent = async () => {
+      t.as('usr_009');
+      return { rows: await t.api.call('chats.list', {}), count: (await t.api.call('chats.unreadCount', {})).unread };
+    };
+    expect((await asAgent()).rows.find((row) => row.id === t.other)?.unread).toBe(1);
+    await pick(t, 'mine');
+    const mine = await asAgent();
+    expect(mine.rows.map((row) => row.id)).not.toContain(t.other);
+    expect(mine.count).toBe(0);
+    await pick(t, 'all');
+    expect((await asAgent()).rows.find((row) => row.id === t.other)?.unread).toBe(3);
+    t.as('usr_009');
+    await expect(t.api.call('me.updatePreferences', { adminReach: 'mine' })).rejects.toMatchObject({ code: 'forbidden' });
+  });
+});

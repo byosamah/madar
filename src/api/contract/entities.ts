@@ -103,6 +103,8 @@ export type NotificationTarget = z.infer<typeof NotificationTarget>;
  */
 export const AdminReach = z.enum(['mine', 'mixed', 'all']);
 export type AdminReach = z.infer<typeof AdminReach>;
+/** The three choices in the order the Settings screen shows them. */
+export const ADMIN_REACH_CHOICES = AdminReach.options;
 
 export const Preferences = z.object({
   language: Language,
