@@ -471,8 +471,10 @@ any screen work.
 
 ## Meetings screens (owner, 2026-10-19, fbk_022)
 - `/meetings` is the second view of the Tasks tab (`features/meetings/`, `MeetingsScreen.tsx`). The tab pill keeps 5 tabs: `isNavActive` keeps
-  Tasks open on `/meetings`, and `screenKey` (`AppShell.tsx`) gives both views one entrance. Under the title "Tasks" the switch `WorkSwitch`
-  (`features/work/`, a `SegmentedControl` over the address) picks To-dos (`meetings.switch.todos`, Arabic «قائمة المهام») or Meetings. The one main
+  Tasks open on `/meetings`, and `screenKey` (`AppShell.tsx`) gives both views one entrance. The switch `WorkSwitch`
+  (`features/work/`, a `SegmentedControl` over the address) sits in its own row under the title "Tasks", in `ScreenControls`
+  (`components/`, owner 2026-10-23): the same row and the same space as the Filter button of Projects (20 px under the title block, 16 px above the list; the
+  screen wrapper has no gap of its own). It picks To-dos (`meetings.switch.todos`, Arabic «قائمة المهام») or Meetings. The one main
   button follows the view: "New office to-do" or "New meeting".
 - Words (owner, 2026-10-20): "Tasks" now names the umbrella of to-dos and meetings. Only the tab (`nav.tasks`) and the screen title
   (`screens.myWork`) say "Tasks". Every other English text calls one old task a "to-do" (the project tab "To-dos", "Add a to-do", "To-do list").

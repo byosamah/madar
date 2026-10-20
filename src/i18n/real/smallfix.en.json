@@ -12,6 +12,10 @@
       "2026-10-23-66": {
         "title": "Delete a cancelled meeting",
         "body": "Open a cancelled meeting and press Delete meeting. The message offers Undo. For a series, you choose this meeting or this and the later cancelled meetings."
+      },
+      "2026-10-23-67": {
+        "title": "The switch has its own row",
+        "body": "On Tasks and Meetings, the To-dos and Meetings switch now sits in its own row under the title. It has the same space as the Filter button on Projects."
       }
     }
   },

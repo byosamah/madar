@@ -9,6 +9,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../components/icons/animated/plus';
 import { LoadFailed } from '../../components/LoadFailed';
+import { ScreenControls } from '../../components/ScreenControls';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { addDays, todayISO, type DayStyle } from '../../lib/dates';
 import { closeMeeting, meetingParam, openMeeting } from '../../lib/params';
@@ -85,7 +86,7 @@ export function MeetingsScreen() {
   const close = useCallback(() => setParams((current) => closeMeeting(current)), [setParams]);
   const meetingId = meetingParam(params.get('meeting'));
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col">
       <ScreenTitle
         title={t('screens.myWork')}
         action={(
@@ -94,9 +95,10 @@ export function MeetingsScreen() {
             {t('meetings.new')}
           </Button>
         )}
-      >
+      />
+      <ScreenControls>
         <WorkSwitch />
-      </ScreenTitle>
+      </ScreenControls>
       {list.error && !list.data && <LoadFailed error={list.error} onRetry={() => void list.refetch()} />}
       {list.data && <MeetingsBody rows={list.data} today={today} onOpen={open} />}
       {meetingId && <MeetingSheet key={meetingId} meetingId={meetingId} onClose={close} />}

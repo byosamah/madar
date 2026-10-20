@@ -15,6 +15,7 @@ import { useStableHandler } from '../../app/useStableHandler';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { FilterButton } from '../../components/FilterButton';
+import { ScreenControls } from '../../components/ScreenControls';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { clientName } from '../../lib/clientName';
 import { clientParam, oneOf, subCompanyParam, teamParam, userParam } from '../../lib/params';
@@ -138,7 +139,7 @@ export function ProjectsScreen() {
           </Button>
         )}
       />
-      <div className="flex flex-wrap items-center gap-3 pb-4">
+      <ScreenControls>
         <FilterButton label={t('filter.label')} count={active}>
           <fieldset className="flex flex-col">
             <legend className={LEGEND}>{t('projects.show')}</legend>
@@ -213,7 +214,7 @@ export function ProjectsScreen() {
             <Button variant="plain" onClick={() => update((next) => next.delete('health'))}>{t('projects.clearHealth')}</Button>
           </p>
         )}
-      </div>
+      </ScreenControls>
       <ProjectsBody rows={list.data} error={list.error} onRetry={retry} onShowAll={showAll} />
       <NewProjectSheet open={creating} onOpenChange={setCreating} />
     </>
