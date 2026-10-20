@@ -4,6 +4,8 @@
 #
 #   scripts/backup/mac-backup.sh            the backup and its upload (sandbox off; after 17:00 Riyadh, see below)
 #   scripts/backup/mac-backup.sh --check    the inputs and one read-only query: no dump, no upload
+#   scripts/backup/mac-backup.sh --if-due   the backup only when scripts/backup/due.ts says it is due (each session runs this
+#                                           on each owner message until the end of October 2026, root CLAUDE.md)
 #
 # Needs: `brew install postgresql@17` (pg_dump 17, the version of the server), `age`, the gh CLI, and in .env.local
 # MADAR_DB_PASSWORD (production) and BACKUP_REPO_TOKEN (write on madar-backups only). The backup holds the office lock for the
@@ -12,6 +14,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 set -a; . ./.env.local; set +a
+if [[ "${1:-}" == "--if-due" ]]; then
+  NEWEST="$(GH_TOKEN="$BACKUP_REPO_TOKEN" gh release list --repo byosamah/madar-backups --limit 100 --json tagName,publishedAt \
+    --jq '[.[] | select(.tagName | startswith("madar-db-"))] | sort_by(.publishedAt) | last | .publishedAt // ""')"
+  GITHUB="$(gh run list -R byosamah/madar --workflow "DB backup" --status success --limit 1 --json createdAt --jq '.[0].createdAt // ""')"
+  DUE="$(npx tsx scripts/backup/due.ts "$NEWEST" "$GITHUB")"
+  echo "Mac backup: $DUE"
+  [[ "$DUE" == due:* ]] || exit 0
+fi
 export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"
 BACKUP_DB_URL="$(node -e 'const p=process.env.MADAR_DB_PASSWORD||"";if(!p)process.exit(1);process.stdout.write(`postgresql://postgres.oprkvdjudjxxhvodkzgs:${encodeURIComponent(p)}@aws-1-eu-central-1.pooler.supabase.com:5432/postgres`)')"
 export BACKUP_DB_URL

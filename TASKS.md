@@ -593,7 +593,9 @@ Supabase. Production follows in the same run after the test copy passes. The Sup
   workflow does. The newest backup before it: `madar-db-20261017-011632Z`. Done: 2026-10-18 `madar-db-20261018-143030Z`
   (41 tables, 1,508 rows; `scripts/backup/mac-backup.sh --check` of the repo copy passed after it); 2026-10-19
   `madar-db-20261019-143014Z` (42 tables with `sub_companies`, 2,247 rows; GitHub refused the run of 01:08 UTC again).
-  Next: 2026-10-20 17:30 Riyadh
+  GitHub's own run of 2026-10-20 01:44 UTC worked again (`madar-db-20261020-014535Z`). Owner (2026-10-20): every session runs
+  `~/dev/madar-rb/mac-backup/scripts/backup/mac-backup.sh --if-due` on each owner message, until the end of October only; it skips
+  while GitHub makes the backups (root `CLAUDE.md`, `scripts/backup/due.ts`)
 - [x] Wave 5 R3: the test copy at b4eb2e6 (exit waves 1 to 4, the word still `supabase`), `all.sh test` by Claude after the owner's
   `npm install` (2026-10-17). The gate ran on the Mac (GitHub runs no CI): typecheck, `npm test` 5,393 passed. The test Worker has
   its empty office object and the Cron (1 of 5 in the account); the office routes answer 401 with no secret. Production did not

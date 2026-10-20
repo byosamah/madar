@@ -32,9 +32,25 @@ describe('scripts/backup/mac-backup.sh', () => {
   });
 
   it('has a --check form that sends one read-only query and makes no dump and no upload', () => {
-    const check = text.slice(text.indexOf('if [[ "${1:-}" == "--check" ]]'), text.indexOf('exit 0'));
+    const start = text.indexOf('if [[ "${1:-}" == "--check" ]]');
+    const check = text.slice(start, text.indexOf('exit 0', start));
     expect(check).not.toBe('');
     expect(check).not.toContain('dump.ts --out');
     expect(check).not.toContain('release create');
+  });
+
+  it('has an --if-due form that asks due.ts with the newest madar-db release, and stops before the dump when none is due', () => {
+    const start = text.indexOf('if [[ "${1:-}" == "--if-due" ]]');
+    expect(start).toBeGreaterThan(-1);
+    const ifDue = text.slice(start, text.indexOf('\nfi\n', start));
+    expect(ifDue).toContain('GH_TOKEN="$BACKUP_REPO_TOKEN" gh release list --repo byosamah/madar-backups');
+    expect(ifDue).toContain('startswith("madar-db-")');
+    // createdAt is the date of the commit of the tag: only publishedAt orders the backups (.github/CLAUDE.md).
+    expect(ifDue).toContain('sort_by(.publishedAt)');
+    expect(ifDue).toContain('gh run list -R byosamah/madar --workflow "DB backup" --status success --limit 1');
+    expect(ifDue).toContain('npx tsx scripts/backup/due.ts "$NEWEST" "$GITHUB"');
+    expect(ifDue).toContain('exit 0');
+    expect(start).toBeLessThan(text.indexOf('dump.ts --out'));
+    expect(start).toBeLessThan(text.indexOf('pg_dump --version'));
   });
 });

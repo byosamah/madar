@@ -62,7 +62,9 @@ function in 287 to 350 ms (medians). The member step of the office path is not m
 
 ## 4. What needs doing now (during the pause)
 1. **The database backup from the Mac**, each evening after 17:00 Riyadh, until GitHub runs `db-backup.yml` again:
-   `scripts/backup/mac-backup.sh` (sandbox off). `--check` tests the inputs with no dump. Check the run with
+   `scripts/backup/mac-backup.sh` (sandbox off). Since 2026-10-20 every session runs it as
+   `~/dev/madar-rb/mac-backup/scripts/backup/mac-backup.sh --if-due` on each owner message, until the end of October only (root
+   `CLAUDE.md`). `--check` tests the inputs with no dump. Check the run with
    `gh release list -R byosamah/madar-backups --limit 3`. When `gh run list -R byosamah/madar --workflow "DB backup" --limit 1`
    shows a success again, stop the Mac runs. The script removes no old backup: the workflow does that again.
 2. **The team's feature.** The normal flow of the repo (`CLAUDE.md`, the guides). Every new or changed call also keeps
