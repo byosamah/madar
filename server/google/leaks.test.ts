@@ -108,7 +108,7 @@ describe('the log', () => {
 });
 
 describe('the errors of the effects', () => {
-  it('keep only a code in the outbox error and in usage.get failedEffects', async () => {
+  it('keep only a code in the outbox error', async () => {
     const t = await googleOffice();
     ok(await t.connect('usr_003'));
     t.google.failAll((request) => request.path.endsWith('/events'), 503, { error: { message: `${TITLE} rt-SECRET at-SECRET` } });
@@ -116,9 +116,6 @@ describe('the errors of the effects', () => {
     const rows = await outboxRows(t, 'gcal.sync');
     expect(rows.map((row) => row.error)).toEqual(['server']);
     noSecret(text(rows), [TITLE]);
-    const usage = ok(await t.call('usr_001', 'usage.get', {})) as { failedEffects: { kind: string; error: string | null }[] };
-    expect(usage.failedEffects.filter((effect) => effect.kind === 'gcal.sync')).toEqual([expect.objectContaining({ error: 'server' })]);
-    noSecret(text(usage), [TITLE]);
   });
 
   it('keep only the ids in the payload of every row', async () => {

@@ -186,18 +186,18 @@ describe('the office parts (server/office/parts.ts)', () => {
     const { parts, sockets, raw, net } = await office();
     const stale = openFor(sockets, 'usr_002', Date.parse(NOW) - 10 * 60_000);
     const report = await parts.cron({ at: NOW, worker: 2 }, net);
-    expect(report.steps.map((s) => s.name)).toEqual(['heartbeat', 'triggers', 'meetings', 'summary', 'outbox', 'cleanup', 'uploads', 'usage']);
+    expect(report.steps.map((s) => s.name)).toEqual(['heartbeat', 'triggers', 'meetings', 'summary', 'outbox', 'cleanup', 'uploads']);
     // The reminders of the run send signals, and each delivery sweeps first: that sweep or the one of the Cron closes the socket.
     expect(stale.closed?.code).toBe(CLOSE_STALE);
     expect(raw.prepare("select done_at from job_runs where key = 'heartbeat'").get()).toEqual({ done_at: NOW });
     expect(report.day).toMatchObject({ requests: 1, worker_requests: 2 });
   });
 
-  it('warns the Admins in a Cron run when a day meter reaches 80%', async () => {
+  it('sends no warning mail in a Cron run when a day meter reaches 80%: the usage warning went (owner, 2026-10-23)', async () => {
     const { parts, raw, net } = await office();
     raw.prepare("insert into usage_day (day, rows_read) values ('2026-10-04', 4500000)").run();
     await parts.cron({ at: NOW, worker: 0 }, net);
-    expect(net.calls).toContain('mail limit-warning-2026-10-04-rowsReadDay-usr_001');
+    expect(net.calls.filter((call) => call.includes('limit-warning'))).toEqual([]);
   });
 
   it('answers health with the schema version and the last job run', async () => {

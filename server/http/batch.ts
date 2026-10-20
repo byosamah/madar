@@ -85,17 +85,6 @@ export async function handleBatch(request: Request, deps: Deps, o: BatchOptions)
     at = end;
   }
 
-  const counted = (async () => {
-    try {
-      await deps.meter.countRequest(deps.db);
-    } catch (error) {
-      deps.log.warn('The usage meter did not count the request.', { error: error instanceof Error ? error.message : String(error) });
-    }
-  })();
-  const { after } = requestHost();
-  if (after) after(counted);
-  else await counted;
-
   const body: WireResponse = { v: 1, serverTime: nowStamp(deps.clock.now()), results };
   return Response.json(body);
 }

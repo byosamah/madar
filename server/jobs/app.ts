@@ -12,7 +12,6 @@ import { runJob, type JobReport } from './run';
  *   runs in constant time. A missing or wrong secret gets 401, and so does every request while JOBS_SECRET is not set.
  * - The answer is 200 with the report of each step when every step passed, else 500 with the same report, so the cron log
  *   (net._http_response) shows a failed run. The report holds counts and error messages, never a payload or a secret.
- * - The run counts as one request on the usage meter, with the bytes its steps read.
  */
 
 export const JOBS_SECRET_HEADER = 'x-madar-jobs-secret';
@@ -51,11 +50,6 @@ export function jobsApp(deps: Deps, o: JobsAppOptions = {}): Hono {
     if (given === undefined || !(await sameSecret(given, secret))) return c.json(UNAUTHENTICATED, 401);
 
     const report = await run(deps, deps.clock.now());
-    try {
-      await deps.meter.countRequest(deps.db);
-    } catch (error) {
-      deps.log.warn('The job run was not counted on the usage meter.', { error: error instanceof Error ? error.message : String(error) });
-    }
     return c.json({ v: 1, ...report }, report.ok ? 200 : 500);
   });
 

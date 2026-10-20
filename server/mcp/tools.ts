@@ -102,9 +102,11 @@ export const MCP_DENY = [
   'meetings.settle',
   // A series is kept full by the job and by the prototype timer (fbk_022, wave 3): the agent plans a series with meetings.create and repeat.
   'meetings.extend',
-  // Feedback: a report comes in from the screens only. Agents and usage.
+  // A person deletes a cancelled meeting in the screens (owner, 2026-10-23). An agent cancels only: the delete has no confirm step for an agent.
+  'meetings.delete',
+  // Feedback: a report comes in from the screens only. Agents.
   'feedback.send', 'feedback.uploadStart',
-  'agents.list', 'agents.remove', 'usage.get', 'usage.retryEffect',
+  'agents.list', 'agents.remove',
   // Browser push devices (owner, 2026-10-08): a device is the browser of a person. An agent has none and reads none.
   'push.register', 'push.remove', 'push.mine',
   // Live updates (exit wave 3): the ticket opens a browser socket. An agent has no socket.

@@ -9,7 +9,6 @@ import { filesLink, filesUploadHooks, filesUploadStart, projectsDeleteHooks } fr
 import { googleConnect, googleConnectStart, googleDisconnect, googleStatus } from './google';
 import { usersInvites, usersResendInvite } from './people';
 import { storyStart } from './story';
-import { usageGet, usageRetryEffect } from './usage';
 import { liveTicket } from './live';
 
 /**
@@ -25,8 +24,6 @@ export const SERVER_CALLS: { [N in ServerCallName]: ServerCall<N> } = {
   'users.resendInvite': usersResendInvite,
   'agents.list': agentsList,
   'agents.remove': agentsRemove,
-  'usage.get': usageGet,
-  'usage.retryEffect': usageRetryEffect,
   'live.ticket': liveTicket,
   'google.status': googleStatus,
   'google.connectStart': googleConnectStart,

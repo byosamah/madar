@@ -11,7 +11,6 @@ import setting from '../../config/server-host.json' with { type: 'json' };
  * free address. Every place that must follow the switch reads it here:
  *   - scripts/build-remote.ts: the API address of the screens (VITE_API_URL),
  *   - server/http/pagesApiProxy.ts and server/http/pagesMcpProxy.ts: where the Pages Functions send /api and /mcp,
- *   - server/core/deps.ts: the calls limit of the Usage page (server/usage/meters.ts),
  *   - scripts/deploy/checks.sh (through scripts/deploy/serverHost.ts): which host must answer after a deploy.
  *
  * This file imports only the setting, so the Pages Functions, the server bundles and the scripts can all import it. Never import

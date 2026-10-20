@@ -281,8 +281,8 @@ describe('the auth effects (plan 5.1): each reads the person now, so a late retr
     const store = memoryPeople([{ ...accepted, user: person({ email: 'sara.new@madar.test' }) }, ADMIN], mem.db);
     await runAuthEffect(AUTH_KINDS.email, { userId: 'usr_012', inviteId: 'inv_f', byId: 'usr_001' }, deps, store);
     expect(deps.mail.sent).toEqual([]);
-    // A security notice never counts as done unless the mail went out: the job tries it again, and after 5 attempts the Admin
-    // sees it as a failed effect in Usage (track M).
+    // A security notice never counts as done unless the mail went out: the job tries it again, and after 5 attempts the row stays failed
+    // in the outbox.
     expect(mem.outbox.map((row) => [row.kind, row.done, row.error])).toEqual([[AUTH_KINDS.emailNotice, false, expect.stringMatching(/quota/)]]);
     // Here the test frees the claim by hand. The real job claims the row again only after the next UTC midnight once the merge
     // lead patch of S1 (processOutbox reads QuotaFull.retryAt) is in; without it, each run of a full day spends an attempt.

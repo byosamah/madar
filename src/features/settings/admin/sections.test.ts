@@ -31,9 +31,17 @@ describe('the Admin section registry', () => {
     }
   });
 
-  it('gives the Admin every section in group order, and Usage only in the real build', () => {
-    expect(ids(sectionsFor(as('admin'), false))).toEqual(['people', 'teams', 'roles', 'office', 'clients', 'sub-companies', 'project-templates', 'task-templates', 'feedback']);
-    expect(ids(sectionsFor(as('admin'), true))).toEqual(['people', 'teams', 'roles', 'office', 'clients', 'sub-companies', 'project-templates', 'task-templates', 'feedback', 'usage']);
+  it('gives the Admin every section in group order, in both builds, and no Usage section (owner, 2026-10-23)', () => {
+    const all = ['people', 'teams', 'roles', 'office', 'clients', 'sub-companies', 'project-templates', 'task-templates', 'feedback'];
+    expect(ids(sectionsFor(as('admin'), false))).toEqual(all);
+    expect(ids(sectionsFor(as('admin'), true))).toEqual(all);
+    expect(ADMIN_SECTIONS.map((section) => section.id)).not.toContain('usage');
+  });
+
+  it('keeps a section that only the real build can fill out of the prototype list', () => {
+    const only = { ...ADMIN_SECTIONS[0], id: 'real-only', remoteOnly: true };
+    expect(ids(sectionsFor(as('admin'), false, [...ADMIN_SECTIONS, only]))).not.toContain('real-only');
+    expect(ids(sectionsFor(as('admin'), true, [...ADMIN_SECTIONS, only]))).toContain('real-only');
   });
 
   it('gives Management People and Teams only, and Accounting and a member nothing', () => {

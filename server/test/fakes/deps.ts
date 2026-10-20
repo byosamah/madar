@@ -4,18 +4,16 @@ import { fixedClock, type FixedClock } from './clock';
 import { noDb } from './db-none';
 import { fakeFiles, type FakeFiles } from './files';
 import { fakeMail, type FakeMail } from './mail';
-import { recordingMeter, type RecordingMeter } from './meter';
 import { recordingSignals, type RecordingSignals } from './signal';
 
 export type LogLine = { level: 'info' | 'warn' | 'error'; message: string; fields?: LogFields };
 
-export type FakeDeps = Omit<Deps, 'clock' | 'files' | 'mail' | 'signal' | 'authAdmin' | 'meter'> & {
+export type FakeDeps = Omit<Deps, 'clock' | 'files' | 'mail' | 'signal' | 'authAdmin'> & {
   clock: FixedClock;
   files: FakeFiles;
   mail: FakeMail;
   signal: RecordingSignals;
   authAdmin: FakeAuthAdmin;
-  meter: RecordingMeter;
   logs: LogLine[];
 };
 
@@ -33,7 +31,6 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
     forwardRegion: 'eu-central-1',
     fileStore: 'supabase',
     limits: { maxFileBytes: FILE_STORE_LIMITS.supabase.maxFileBytes, filesTotalBytes: FILE_STORE_LIMITS.supabase.totalBytes },
-    servingHost: 'supabase',
     ...overrides,
   };
 }
@@ -53,7 +50,6 @@ export function fakeDeps(o: { db?: Db; config?: Partial<Config> } = {}): FakeDep
     mail: fakeMail(),
     signal: recordingSignals(),
     authAdmin: fakeAuthAdmin(),
-    meter: recordingMeter(),
     config,
     log,
     logs,

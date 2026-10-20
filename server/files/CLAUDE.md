@@ -20,8 +20,7 @@ server checks the final object, then saves the record.
 - The scripts of the switch: `scripts/storage/move-to-r2.ts --env` (the copy; `--copy-only` after the switch) and
   `scripts/storage/verify-r2-keys.ts --env` (every record key has an object on R2). The runbook is in
   `scripts/deploy/CLAUDE.md`, "Switch the files to R2".
-- On R2 the storage meter counts only the file versions of the records, not the small pictures, the screenshots, the staging
-  objects or the data that Undo keeps (`server/usage/meters.ts`). The 10 GB R2 free tier is one for both buckets.
+- The 10 GB R2 free tier is one for both buckets. No meter counts the storage since the usage feature went (owner, 2026-10-23).
 
 ## Upload flow
 1. `files.uploadStart` (or `feedback.uploadStart`) writes one upload intent and gives a signed upload link (`intents.ts`).

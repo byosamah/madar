@@ -6,7 +6,7 @@ speaker, so write it as natural Arabic, not as a word-for-word copy of the Engli
 ## Files
 - Base words: `en.json` and `ar.json`.
 - Track files: `real/<track>.en.json` and `real/<track>.ar.json`, one pair for each build track (agents, auth, core,
-  files, h, mail, notices, p, people, q, s, usage, dash, office, fbnotices, fbadmin, push, teama, meetings).
+  files, h, mail, notices, p, people, q, s, dash, office, fbnotices, fbadmin, push, teama, meetings).
   `teama` holds the words of the team-requests batch of 2026-10-19 (fbk_024, fbk_025, fbk_027). `meetings` holds the words of the meetings
   (fbk_022): the refusals, the notices, the screens, and `feed.meeting.*`.
   `chatfind` holds the words of the chat search and the open-at-a-message screens of 2026-10-19 (Messages group, Message and Project chat

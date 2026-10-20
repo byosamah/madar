@@ -1,0 +1,37 @@
+{
+  "whatsNew": {
+    "items": {
+      "2026-10-23-64": {
+        "title": "The chat filter keeps your choice",
+        "body": "Pick People or Projects once. The chat list stays on your choice, also after you close Madar, until you pick another one."
+      },
+      "2026-10-23-65": {
+        "title": "Meeting buttons at the bottom",
+        "body": "Edit and Cancel meeting now sit at the bottom of the meeting sheet. The menu at the top is gone."
+      },
+      "2026-10-23-66": {
+        "title": "Delete a cancelled meeting",
+        "body": "Open a cancelled meeting and press Delete meeting. The message offers Undo. For a series, you choose this meeting or this and the later cancelled meetings."
+      },
+      "2026-10-23-67": {
+        "title": "The switch has its own row",
+        "body": "On Tasks and Meetings, the To-dos and Meetings switch now sits in its own row under the title. It has the same space as the Filter button on Projects."
+      }
+    }
+  },
+  "meetings": {
+    "sheet": {
+      "delete": "Delete meeting",
+      "deleted": "Meeting deleted."
+    }
+  },
+  "series": {
+    "toast": {
+      "deleted": "Meetings deleted."
+    },
+    "scope": {
+      "deleteTitle": "Delete which meetings?",
+      "deleteBody": "This meeting is one of a series. The second choice deletes only the later meetings that are cancelled. A meeting that is not cancelled stays."
+    }
+  }
+}

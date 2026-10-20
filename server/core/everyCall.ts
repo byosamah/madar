@@ -155,6 +155,8 @@ function rest(office: State): Record<string, [unknown, string?]> {
     'meetings.get': [{ id: meeting }],
     'meetings.update': [{ id: meeting, where: 'Meeting room' }],
     'meetings.cancel': [{ id: meeting }],
+    // A delete runs with the removes, last, after meetings.cancel made the meeting cancelled.
+    'meetings.delete': [{ id: meeting }],
     // The settle writes nothing before the end of the meeting, and the sweep runs at the time of the sample office. For the same reason the
     // minutes are refused (minutes_not_yet): the traps of the loader sweep (sweep.ts) cover the minutes of meetings that ended.
     'meetings.settle': [{ id: meeting }],

@@ -11,7 +11,6 @@ import { SubCompaniesSection } from './SubCompaniesSection';
 import { RolesSection } from './RolesSection';
 import { TaskTemplatesSection } from './TaskTemplatesSection';
 import { TeamsSection } from './TeamsSection';
-import { UsageSection } from './UsageSection';
 
 /** The groups of the Admin side list, in the order of the list (owner, 2026-10-05, item 4). Each has a word at adminNav.groups.<group>. */
 export const ADMIN_GROUPS = ['people', 'office', 'templates', 'system'] as const;
@@ -29,7 +28,7 @@ export type AdminSection = {
   /** An office right that opens the section too (owner, 2026-10-18, fbk_014): a person who holds it sees the section, whatever the role. */
   right?: OfficeRight;
   Component: ComponentType;
-  /** True for a section that only the real build can fill (Usage reads the server meters). */
+  /** True for a section that only the real build can fill (it reads data that the prototype does not have). No section uses it now. */
   remoteOnly?: boolean;
 };
 
@@ -40,7 +39,7 @@ export type SectionViewer = { systemRole: SystemRole; officeRights?: readonly Of
  * Every section of the Admin page. To add a section, add one line here. The list puts each line inside its group, so the place
  * of a line in this array counts only inside its group.
  * A section that a right opens (`right`) shows to every person who holds that right (owner, 2026-10-18, fbk_014). Management holds
- * the people right by default. The Roles section, the office settings, the requests and bugs, and the free plan meters stay with the Admin.
+ * the people right by default. The Roles section, the office settings, and the requests and bugs stay with the Admin.
  */
 export const ADMIN_SECTIONS: readonly AdminSection[] = [
   { id: 'people', group: 'people', titleKey: 'admin.people', roles: ['admin'], right: 'people.manage', Component: PeopleSection },
@@ -52,7 +51,6 @@ export const ADMIN_SECTIONS: readonly AdminSection[] = [
   { id: 'project-templates', group: 'templates', titleKey: 'projectTemplates.title', roles: ['admin'], right: 'templates.manageAll', Component: ProjectTemplatesSection },
   { id: 'task-templates', group: 'templates', titleKey: 'taskTemplates.title', roles: ['admin'], right: 'templates.manageAll', Component: TaskTemplatesSection },
   { id: 'feedback', group: 'system', titleKey: 'feedback.adminTitle', roles: ['admin'], Component: FeedbackSection },
-  { id: 'usage', group: 'system', titleKey: 'usage.title', roles: ['admin'], Component: UsageSection, remoteOnly: true },
 ];
 
 /** True when the viewer sees the section: by the system role, or by a right that opens it. The Admin holds every right. */

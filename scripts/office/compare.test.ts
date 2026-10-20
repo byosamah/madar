@@ -29,8 +29,8 @@ describe('the check of an import (scripts/office/compare.ts)', () => {
     const { source, folder } = await imported();
     const out = compareImport(source, folder);
     expect(out.problems).toEqual([]);
-    // The finish adds the meters of the import itself to usage_month: a note, never a problem.
-    expect(out.notes.join(' ')).toMatch(/^usage_month: /);
+    // The finish no longer adds the meters of the import to usage_month (owner, 2026-10-23): no note.
+    expect(out.notes).toEqual([]);
     expect(Object.keys(sourceDigests(source))).toEqual(expect.arrayContaining(['tasks', 'events', 'counters', 'person_seq', 'office_seq', 'auth_users', 'job_runs']));
   });
 

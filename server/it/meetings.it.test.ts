@@ -353,30 +353,31 @@ describe.runIf(process.env.MADAR_IT === '1')('a repeating series, on the local d
     expect((await rows()).every((row) => row.place === '' && row.status === 'scheduled')).toBe(true);
   });
 
-  it('changes this meeting and the later ones with the scope "later", and cancels the later ones and ends the series', async () => {
+  it('changes this meeting and the later ones with the scope "later", and cancels the later ones and records the last day on the whole series', async () => {
     const list = await rows();
     okOf(await call(ORGANIZER, 'meetings.update', { id: list[3].id, where: 'Room 9', scope: 'later' }));
     expect((await rows()).map((row) => row.place)).toEqual(['', '', '', 'Room 9', 'Room 9', 'Room 9', 'Room 9', 'Room 9']);
     okOf(await call(ORGANIZER, 'meetings.cancel', { id: list[6].id, scope: 'later' }));
     const after = await rows();
     expect(after.map((row) => row.status)).toEqual([...Array(6).fill('scheduled'), 'cancelled', 'cancelled']);
-    expect(after.slice(6).map((row) => row.until)).toEqual(['2026-11-21', '2026-11-21']);
+    // The cancel records the last day on every meeting of the series, the earlier ones too (owner, 2026-10-23).
+    expect(after.map((row) => row.until)).toEqual(Array(8).fill('2026-11-21'));
     // The History of the Admin holds none of it.
     const listed = okOf<unknown[]>(await call(ADMIN, 'events.list', { limit: 500 }));
     expect(JSON.stringify(listed)).not.toContain(TITLE);
   });
 
-  it('adds the missing meeting with meetings.extend, none after a cancelled last meeting, and reads the short series with the statement of the job', async () => {
+  it('adds the missing meeting with meetings.extend, none after the last day of the rule, and reads the short series with the statement of the job', async () => {
     // A second series: one meeting alone in the middle is cancelled, so 7 are ahead and the last one is scheduled.
     const other = okOf<{ id: string }>(await call(ORGANIZER, 'meetings.create', { kind: 'meeting', title: 'Second series', startsAt: '2026-10-12T09:00:00+03:00', attendeeIds: [ATTENDEE], repeat: { every: 'week', until: null } })).id;
     const [, , middle] = await office.sql<{ id: string }>("select id from meetings where doc->>'seriesId' = $1 order by starts_at", [other]);
     okOf(await call(ORGANIZER, 'meetings.cancel', { id: middle.id }));
     const read = async () => office.sql<{ doc: { seriesId: string }; ahead: string }>(EXTEND_SQL, ['2026-10-04T09:00:00.000+03:00', '2026-10-04T00:00:00.000+03:00']);
-    // The first series ends with a cancelled meeting: out of the read. The second is short.
-    expect((await read()).map((row) => [row.doc.seriesId, Number(row.ahead)])).toEqual([[other, 7]]);
+    // The first series has 6 ahead and its rule ends on 2026-11-21: the read holds it (the SQL cannot tell, the job checks the rule). The second is short.
+    expect((await read()).map((row) => [row.doc.seriesId, Number(row.ahead)])).toEqual([[first, 6], [other, 7]]);
     expect(okOf(await call(ORGANIZER, 'meetings.extend', { seriesId: first }))).toEqual({ added: 0 });
     expect(okOf(await call(ORGANIZER, 'meetings.extend', { seriesId: other }))).toEqual({ added: 1 });
-    expect(await read()).toEqual([]);
+    expect((await read()).map((row) => row.doc.seriesId)).toEqual([first]);
     expect(await office.sql("select count(*)::int as n from meetings where doc->>'seriesId' = $1", [other])).toEqual([{ n: 9 }]);
     const marks = await office.sql("select id from events where doc->>'verb' = 'meeting.extended' and doc->>'targetId' in (select id from meetings where doc->>'seriesId' = $1)", [other]);
     expect(marks).toHaveLength(1);

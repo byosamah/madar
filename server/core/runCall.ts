@@ -70,7 +70,7 @@ export function sqlData(deps: Deps): CallData {
           q,
           lock: (key) => takeOfficeLock(q, key),
           office: () => readOffice(deps, q),
-          source: () => sqlSource(q, { bytes: (n) => deps.meter.addBytes(n) }),
+          source: () => sqlSource(q),
           save: (before, after, o) => save(q, before, after, o),
           stories: sqlStories(q),
           keys: sqlKeys(q),

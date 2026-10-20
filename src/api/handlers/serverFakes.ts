@@ -1,6 +1,6 @@
 import { defineCall } from '../registry';
 import { MAX_FILE_BYTES, type FileVersion, type User } from '../contract/entities';
-import { FREE_PLAN_LIMITS, UPLOAD_LIFE_MS, serverContracts as c, type SignedPut } from '../contract/server';
+import { UPLOAD_LIFE_MS, serverContracts as c, type SignedPut } from '../contract/server';
 import { ApiError, forbidden, invalid, notFound } from '../errors';
 import { applyPatch } from '../events';
 import { principalOf } from '../permissions';
@@ -184,35 +184,6 @@ const agentsRemove = defineCall({
   },
 });
 
-const usageGet = defineCall({
-  ...c['usage.get'],
-  run(_input, ctx) {
-    assertCan(ctx, 'admin.manage');
-    const meter = (limit: number) => ({ used: 0, limit });
-    return {
-      month: ctx.today.slice(0, 7),
-      calls: meter(FREE_PLAN_LIMITS.calls),
-      database: meter(FREE_PLAN_LIMITS.databaseBytes),
-      files: meter(FREE_PLAN_LIMITS.filesBytes),
-      backupCopy: meter(FREE_PLAN_LIMITS.backupCopyBytes),
-      emails: meter(FREE_PLAN_LIMITS.emailsPerDay),
-      emailsMonth: meter(FREE_PLAN_LIMITS.emailsPerMonth),
-      egress: meter(FREE_PLAN_LIMITS.egressBytes),
-      failedEffects: [],
-      jobsLastRun: null,
-    };
-  },
-});
-
-/** The prototype has no outbox, so no effect fails and none waits for a Retry. */
-const usageRetryEffect = defineCall({
-  ...c['usage.retryEffect'],
-  run(input, ctx) {
-    assertCan(ctx, 'admin.manage');
-    throw notFound('Failed effect', input.id);
-  },
-});
-
 /** The prototype has no server and no socket: its changes come from the store (src/app/signals.ts). This ticket opens nothing. */
 const liveTicket = defineCall({
   ...c['live.ticket'],
@@ -269,8 +240,6 @@ export const serverFakes = {
   'users.resendInvite': usersResendInvite,
   'agents.list': agentsList,
   'agents.remove': agentsRemove,
-  'usage.get': usageGet,
-  'usage.retryEffect': usageRetryEffect,
   'live.ticket': liveTicket,
   'google.status': googleStatus,
   'google.connectStart': googleConnectStart,

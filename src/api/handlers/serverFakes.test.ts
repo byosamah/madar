@@ -12,10 +12,10 @@ const pdf = (text: string) => new Blob([text], { type: 'application/pdf' });
 const TEN_MINUTES_LATER = '2026-09-30T09:10:00.000+03:00';
 
 describe('the server call contracts', () => {
-  it('name the 15 server calls, and the fakes follow the same contracts', () => {
+  it('name the 13 server calls, and the fakes follow the same contracts', () => {
     expect([...SERVER_CALL_NAMES].sort()).toEqual([
       'agents.list', 'agents.remove', 'feedback.uploadStart', 'files.link', 'files.uploadStart', 'google.connect', 'google.connectStart', 'google.disconnect', 'google.status',
-      'live.ticket', 'story.start', 'usage.get', 'usage.retryEffect', 'users.invites', 'users.resendInvite',
+      'live.ticket', 'story.start', 'users.invites', 'users.resendInvite',
     ]);
     expect(Object.keys(serverFakes).sort()).toEqual([...SERVER_CALL_NAMES].sort());
     for (const name of SERVER_CALL_NAMES) {
@@ -171,25 +171,6 @@ describe('the fake server calls', () => {
     expect(t.store.state.users.usr_005.active).toBe(false);
     expect(Object.values(t.store.state.events).map((e) => [e.verb, e.targetId])).toEqual([['user.deactivated', 'usr_005']]);
     expect((await t.api.call('agents.list', {}))[0].active).toBe(false);
-  });
-
-  it('usage.get gives zeros, the plan limits, no failed effects and no job run, for the Admin only', async () => {
-    const t = testApi(CALLS);
-    t.as('usr_001');
-    const usage = await t.api.call('usage.get', {});
-    expect(usage).toMatchObject({ month: '2026-09', failedEffects: [], jobsLastRun: null, calls: { used: 0, limit: 500_000 } });
-    for (const meter of [usage.calls, usage.database, usage.files, usage.backupCopy, usage.emails, usage.emailsMonth, usage.egress]) expect(meter.used).toBe(0);
-    t.as('usr_002');
-    await expect(t.api.call('usage.get', {})).rejects.toMatchObject({ code: 'forbidden' });
-  });
-
-  it('usage.retryEffect finds no failed effect in the prototype (it has no outbox), and refuses everyone but the Admin', async () => {
-    const t = testApi(CALLS);
-    t.as('usr_001');
-    await expect(t.api.call('usage.retryEffect', { id: '17' })).rejects.toMatchObject({ code: 'not_found' });
-    await expect(t.api.call('usage.retryEffect', { id: 'x' })).rejects.toMatchObject({ code: 'invalid_input' });
-    t.as('usr_002');
-    await expect(t.api.call('usage.retryEffect', { id: '17' })).rejects.toMatchObject({ code: 'forbidden' });
   });
 
   it('live.ticket gives a ticket of 60 seconds that opens nothing: the prototype has no server and no socket (exit wave 3)', async () => {

@@ -12,9 +12,8 @@ async function setup() {
 
 describe('the office meter (server/office/meter.ts)', () => {
   it('keeps the counts in memory and writes no statement for a request', async () => {
-    const { db, log, meter } = await setup();
+    const { log, meter } = await setup();
     meter.request({ calls: 3, worker: 2 });
-    await meter.countRequest(db);
     expect(log).toEqual([]);
     expect(meter.pending()).toEqual({ rowsRead: 0, rowsWritten: 0, requests: 1, calls: 3, workerRequests: 2 });
   });
@@ -22,12 +21,12 @@ describe('the office meter (server/office/meter.ts)', () => {
   it('adds the rows of the host, the requests and the calls in the next write, and clears them after the commit', async () => {
     const { db, totals, meter } = await setup();
     meter.request({ calls: 2, worker: 1 });
-    meter.addBytes(500);
     totals.rowsRead = 120;
     totals.rowsWritten = 9;
     await db.tx('write', (q) => meter.flush(q, NOW));
     expect(await db.statement('read', DAY_ROW_LITE, ['2026-10-04'])).toEqual([{ rows_read: 120, rows_written: 9, requests: 1, calls: 2, worker_requests: 1 }]);
-    expect(await db.statement('read', 'select calls, bytes_read from usage_month where month = ?1', ['2026-10'])).toEqual([{ calls: 1, bytes_read: 500 }]);
+    // The month table is not written any more (owner, 2026-10-23).
+    expect(await db.statement('read', 'select count(*) as n from usage_month')).toEqual([{ n: 0 }]);
     expect(meter.pending()).toEqual({ rowsRead: 0, rowsWritten: 0, requests: 0, calls: 0, workerRequests: 0 });
   });
 

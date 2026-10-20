@@ -109,9 +109,13 @@ describe('meetings.extend', () => {
     expect(seriesOf(t)).toHaveLength(9);
   });
 
-  it('adds none for a series whose last meeting is cancelled, and counts a cancelled meeting in the middle as not ahead', async () => {
+  it('adds a meeting after a last meeting that is cancelled alone: a cancel of one meeting never ends a series (owner, 2026-10-23)', async () => {
     const t = await series();
     await t.api.call('meetings.cancel', { id: 'mtg_008' });
+    expect(await t.api.call('meetings.extend', { seriesId: 'mtg_001' })).toEqual({ added: 1 });
+    const last = seriesOf(t).at(-1)!;
+    // The new meeting copies the fields of the last one and is scheduled, a week after the cancelled one.
+    expect(last).toMatchObject({ status: 'scheduled', startsAt: '2026-11-26T10:00:00.000+03:00', title: 'Weekly review', where: 'Site office', repeat: { every: 'week', until: null } });
     expect(await t.api.call('meetings.extend', { seriesId: 'mtg_001' })).toEqual({ added: 0 });
     const u = await series();
     await u.api.call('meetings.cancel', { id: 'mtg_004' });
@@ -131,11 +135,14 @@ describe('meetings.extend', () => {
     expect(await t.api.call('meetings.extend', { seriesId: 'mtg_001' })).toEqual({ added: 3 });
   });
 
-  it('adds none after a "later" cancel, which ends the series', async () => {
+  it('adds none after a "later" cancel: the cancel recorded the last day on the series, the person\'s choice to stop it', async () => {
     const t = await series();
     await t.api.call('meetings.cancel', { id: 'mtg_004', scope: 'later' });
     expect(await t.api.call('meetings.extend', { seriesId: 'mtg_001' })).toEqual({ added: 0 });
     expect(seriesOf(t)).toHaveLength(8);
+    // Also after the Undo of the cancel the rule is as before and the series goes on.
+    await t.api.call('events.undoStory', { correlationId: eventsOf(t, 'meeting.cancelled')[0].correlationId });
+    for (const m of seriesOf(t)) expect(m.repeat, m.id).toEqual({ every: 'week', until: null });
   });
 
   it('counts a meeting in progress as ahead and a meeting that is over as not ahead', async () => {
@@ -268,10 +275,10 @@ describe('seriesToExtend (the rule of the job read, for the prototype timer)', (
     expect(seriesToExtend(t.store.state, at)).toEqual(['mtg_001']);
     await t.api.call('meetings.extend', { seriesId: 'mtg_001' });
     expect(seriesToExtend(t.store.state, at)).toEqual([]);
-    // The last meeting of "Other" cancelled alone: the series ended there.
+    // The last meeting of "Other" cancelled alone: the series goes on (owner, 2026-10-23), so it is short by one and the timer extends it.
     const last = Object.values(t.store.state.meetings!).filter((m) => m.seriesId === other.id).sort((a, b) => a.startsAt.localeCompare(b.startsAt)).at(-1)!;
     await t.api.call('meetings.cancel', { id: last.id });
-    expect(seriesToExtend(t.store.state, at)).toEqual([]);
+    expect(seriesToExtend(t.store.state, at)).toEqual([other.id]);
   });
 
   it('reads the series with the fewest meetings ahead first, then by id, and at most 20 of them', async () => {

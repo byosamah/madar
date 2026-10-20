@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
 import { fakeDeps } from '../test/fakes/deps';
@@ -9,12 +9,6 @@ import { createRunCall } from './runCall';
  * The signal of chats.markUnread (fbk_028). The call writes no event. Its only signal goes to the person who marked the chat: no office
  * signal, and the kind of the person's own read marks.
  */
-
-// usage.get is not built here (as in writeKinds.test.ts). serverCallMap.ts copies each call at import, so the mock comes first.
-vi.mock('../calls/usage', async () => {
-  const { notBuiltAsync } = await import('./notBuilt');
-  return { usageGet: () => notBuiltAsync('usage.get'), usageRetryEffect: () => notBuiltAsync('usage.retryEffect') };
-});
 
 const NOW = new Date('2026-10-04T06:00:00Z');
 

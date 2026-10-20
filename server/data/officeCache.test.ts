@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { emptyState, type State } from '../../src/api/store';
 import type { Db, Query } from '../core/ports';
 import { OFFICE_COLLECTIONS } from '../core/types';
-import { recordingMeter } from '../test/fakes/meter';
 import { AUTH_LINK_SQL, createOfficeCache, META_SQL, OFFICE_DELETES_KEEP_DAYS, OFFICE_DELETES_SQL, OFFICE_ROWS_SQL, readOffice, setAuthUserId, snapshotOf, userIdOfAuth } from './officeCache';
 import { tableOf } from './tables';
 
@@ -77,7 +76,7 @@ function seeded() {
   return office;
 }
 
-const deps = { db: undefined as unknown as Db, meter: recordingMeter() };
+const deps = { db: undefined as unknown as Db };
 
 describe('the office cache', () => {
   it('loads every office row on a cold start, in insertion order, and keeps the version it read', async () => {
@@ -224,18 +223,11 @@ describe('the office cache', () => {
     expect(userIdOfAuth(await cache.read(deps, q), 'auth-2')).toBe('usr_002');
   });
 
-  it('counts the bytes it reads toward the egress meter', async () => {
-    const { q } = seeded();
-    const meter = recordingMeter();
-    await createOfficeCache().read({ ...deps, meter }, q);
-    expect(meter.bytes).toBeGreaterThan(100);
-  });
-
   it('opens a read transaction of its own when no transaction is open', async () => {
     const { q } = seeded();
     const modes: string[] = [];
     const db = { tx: async (mode: 'read' | 'write', work: (inner: Query) => Promise<unknown>) => { modes.push(mode); return work(q); } } as unknown as Db;
-    const snapshot = await createOfficeCache().read({ db, meter: recordingMeter() }, undefined);
+    const snapshot = await createOfficeCache().read({ db }, undefined);
     expect(modes).toEqual(['read']);
     expect(snapshot.version).toBe(1);
   });
@@ -243,7 +235,7 @@ describe('the office cache', () => {
   it('keeps one cache for each office, through readOffice', async () => {
     const { q, rowsAsked } = seeded();
     const config = { supabaseUrl: 'http://127.0.0.1:54321', lockKey: 9_001 } as never;
-    const full = { db: undefined as unknown as Db, meter: recordingMeter(), config } as never;
+    const full = { db: undefined as unknown as Db, config } as never;
     await readOffice(full, q);
     await readOffice(full, q);
     expect(rowsAsked()).toEqual([-1]);

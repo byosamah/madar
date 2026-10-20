@@ -29,7 +29,7 @@ import {
  */
 
 /** The calls whose save can change a meeting: each one writes gcal.sync rows (server/google/rows.ts). The extension of a series (wave 3) adds meetings, so it is here too. */
-export const GCAL_CALLS = ['meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.extend', 'events.undo', 'events.undoStory', 'projects.delete'] as const;
+export const GCAL_CALLS = ['meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.delete', 'meetings.extend', 'events.undo', 'events.undoStory', 'projects.delete'] as const;
 
 const TIME_ZONE = 'Asia/Riyadh';
 const encoder = new TextEncoder();

@@ -165,8 +165,8 @@ export { QuotaFull };
 /**
  * The auth.emailNotice effect: the notice at the old email, counted against the daily mail quota as sign-in mail. A security
  * notice never counts as done unless the mail went out (S1 review): a full day throws QuotaFull, so the row stays in the outbox
- * for the next UTC day. Any other failure throws as it is: the job tries it again (up to 5 attempts); after that the Admin sees
- * it as a failed effect in Usage (track M).
+ * for the next UTC day. Any other failure throws as it is: the job tries it again (up to 5 attempts); after that the row stays failed in
+ * the outbox (no screen lists it since the Usage section went, 2026-10-23).
  */
 export async function sendEmailNotice(payload: Record<string, unknown>, deps: Deps): Promise<void> {
   const parsed = NoticePayload.safeParse(payload);

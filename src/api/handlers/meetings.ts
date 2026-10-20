@@ -3,7 +3,7 @@ import { defineCall, type Ctx } from '../registry';
 import { Day, FileId, MAX_ATTACHMENTS, MEETING_LIMITS, Meeting, MeetingId, MeetingKind, MeetingRepeat, ProjectId, Stamp, TrackerId, UserId, type MeetingMinutes, type TrackerEntry } from '../contract/entities';
 import { MeetingDetail, MeetingRow } from '../contract/views';
 import { ApiError, forbidden, invalid, notFound } from '../errors';
-import { applyPatch, recordCreate, writeEvent } from '../events';
+import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { can, mayViewMeeting, meetingResource, type Actor } from '../permissions';
 import { notifyIn } from '../notify';
 import { meetingsOf, nextId, type State } from '../store';
@@ -116,7 +116,11 @@ export function meetingDetailOf(state: State, meeting: Meeting, viewer: Actor, a
     settledAt: meeting.settledAt ?? null,
     minutesTask: null,
     trackerEntry: entry ? { id: entry.id, title: entry.title } : null,
-    viewerCan: { edit: open, cancel: open && phaseOf(meeting, at) !== 'done', minutes: minutesRefusal(state, meeting, viewer, at) === null },
+    viewerCan: {
+      edit: open, cancel: open && phaseOf(meeting, at) !== 'done', minutes: minutesRefusal(state, meeting, viewer, at) === null,
+      // A cancelled meeting that the person may change can be deleted (owner, 2026-10-23).
+      delete: meeting.status === 'cancelled' && viewerMayEdit(state, viewer, meeting),
+    },
     minutes: held.minutes ? minutesViewOf(state, held.minutes, viewer) : null,
     minutesPlace: held.place,
   };
@@ -351,11 +355,12 @@ const meetingsCancel = defineCall({
     if (meeting.status === 'cancelled') return meetingDetailOf(ctx.state, meeting, ctx.authority, ctx.now);
     if (phaseOf(meeting, ctx.now) === 'done') throw conflict('This meeting is over. It cannot be cancelled.', 'meeting_over');
     const later = input.scope === 'later' && meeting.seriesId ? laterOf(ctx, meeting) : [];
-    // A cancel from here on ends the series on the day before this meeting: the cancelled meetings keep the rule with that last day.
-    // An earlier last day stays. A past meeting or an earlier meeting is not touched.
+    // A cancel for "this and later meetings" is the choice of the person to stop the series here (owner, 2026-10-23): the rule of the series
+    // records it. Every meeting of the series that the person sees, the earlier ones too (cancelled or not), gets the last day "the day before
+    // this meeting". An earlier last day stays. Madar never ends or restarts a series by itself.
+    const dayBefore = addDays(dayOf(meeting), -1);
     const ended = (m: Meeting): { repeat?: MeetingRepeat } => {
       if (input.scope !== 'later' || !m.repeat) return {};
-      const dayBefore = addDays(dayOf(meeting), -1);
       return { repeat: { every: m.repeat.every, until: m.repeat.until !== null && m.repeat.until < dayBefore ? m.repeat.until : dayBefore } };
     };
     const event = applyPatch(ctx, meeting, { status: 'cancelled', ...ended(meeting) }, { projectId: meeting.projectId, verb: 'meeting.cancelled', targetType: 'meeting', targetId: meeting.id });
@@ -366,8 +371,47 @@ const meetingsCancel = defineCall({
       });
       other.rev += 1;
     }
+    if (input.scope === 'later' && meeting.seriesId) {
+      const changed = new Set([meeting.id, ...later.map((m) => m.id)]);
+      for (const kept of Object.values(meetingsOf(ctx.state)).filter((m) => m.seriesId === meeting.seriesId && !changed.has(m.id) && mayViewMeeting(ctx.state, ctx.authority, m)).sort(byStart)) {
+        applyPatch(ctx, kept, ended(kept), {
+          projectId: kept.projectId, verb: 'meeting.series_updated', targetType: 'meeting', targetId: kept.id, ...(event ? { causeEventId: event.id } : {}),
+        });
+      }
+    }
     tell(ctx, meeting, [meeting.organizerId, ...meeting.attendeeIds], 'cancelled');
     return meetingDetailOf(ctx.state, meeting, ctx.authority, ctx.now);
+  },
+});
+
+/**
+ * Deletes a cancelled meeting (owner, 2026-10-23). The right is the right to change the meeting. A meeting that is not cancelled stays
+ * (`meeting_not_cancelled`). One event `meeting.deleted` keeps the whole record in `before`, so the Undo of the toast brings the meeting
+ * back. With the scope "later" it deletes this meeting and every later meeting of the same series that is cancelled and that the person
+ * sees, never a scheduled one. It tells nobody: the cancel told the attendees, and a notice of a deleted meeting reads as gone.
+ * A delete changes no repeat rule: the users decide if a meeting repeats, not the platform (owner, 2026-10-23). The cancel for "this and
+ * later meetings" already recorded the last day of the series on every meeting.
+ */
+const meetingsDelete = defineCall({
+  input: z.object({ id: MeetingId, scope: Scope.optional() }),
+  output: z.object({ deleted: z.number().int().min(1) }),
+  run(input, ctx) {
+    const meeting = requireMeeting(ctx, input.id);
+    assertCan(ctx, 'meeting.edit', meetingResource(ctx.state, meeting, ctx.authority.id));
+    if (meeting.status !== 'cancelled') throw conflict('Only a cancelled meeting can be deleted. Cancel it first.', 'meeting_not_cancelled');
+    const from = Date.parse(meeting.startsAt);
+    const later = input.scope === 'later' && meeting.seriesId
+      ? Object.values(meetingsOf(ctx.state))
+        .filter((m) => m.seriesId === meeting.seriesId && m.id !== meeting.id && Date.parse(m.startsAt) > from && m.status === 'cancelled' && mayViewMeeting(ctx.state, ctx.authority, m))
+        .sort(byStart)
+      : [];
+    const first = recordDelete(ctx, { projectId: meeting.projectId, verb: 'meeting.deleted', targetType: 'meeting', targetId: meeting.id, entity: meeting });
+    delete meetingsOf(ctx.state)[meeting.id];
+    for (const other of later) {
+      recordDelete(ctx, { projectId: other.projectId, verb: 'meeting.deleted', targetType: 'meeting', targetId: other.id, entity: other, causeEventId: first.id });
+      delete meetingsOf(ctx.state)[other.id];
+    }
+    return { deleted: 1 + later.length };
   },
 });
 
@@ -408,7 +452,7 @@ export function dueToSettle(state: State, at: Date): Meeting[] {
 
 /**
  * The series that the prototype timer extends (the prototype has no job). The same rule as the read of the job (server/jobs/steps/meetings.ts):
- * a series whose last meeting starts today or later and is scheduled, with fewer than SERIES_AHEAD scheduled meetings that are not over,
+ * a series whose last meeting starts today or later, with fewer than SERIES_AHEAD scheduled meetings that are not over,
  * and a day left in its rule, and whose project (if any) is active or paused. The fewest ahead first, then by series, at most 20.
  */
 export function seriesToExtend(state: State, at: Date): string[] {
@@ -420,7 +464,7 @@ export function seriesToExtend(state: State, at: Date): string[] {
   const short: { seriesId: string; ahead: number }[] = [];
   for (const [seriesId, list] of bySeries) {
     const last = [...list].sort(byStart).at(-1) as Meeting;
-    if (last.status !== 'scheduled' || !last.repeat || (last.projectId !== null && !seriesProjectIsOpen(state, last.projectId))) continue;
+    if (!last.repeat || (last.projectId !== null && !seriesProjectIsOpen(state, last.projectId))) continue;
     const ahead = list.filter((m) => m.status === 'scheduled' && phaseOf(m, at) !== 'done').length;
     if (ahead >= SERIES_AHEAD || occurrencesOf(last.repeat, dayOf(last), maxDay(dayOf(last), today), 1).length === 0) continue;
     short.push({ seriesId, ahead });
@@ -448,7 +492,8 @@ const seriesProjectIsOpen = (state: State, projectId: string): boolean => {
 /**
  * Keeps a series full (fbk_022, wave 3; the 15-minute job and the prototype timer call it, as they call meetings.settle). It adds meetings
  * after the last one until SERIES_AHEAD scheduled meetings are ahead (a meeting that is not over counts), or until the last day of the rule.
- * It adds none when the last meeting of the series is cancelled: a person ended the series there. The new meetings copy the last one (title,
+ * It adds by the rule only: a cancelled last meeting does not end a series, because the users decide if a meeting repeats, not the platform
+ * (owner, 2026-10-23); a cancel for "this and later meetings" records the last day on the series. The new meetings copy the last one (title,
  * place, people, length, time of day) and start the day after it, or after today when the series ran dry. One mark, meeting.extended, names
  * the series; each new meeting has the event meeting.added with that mark as its cause. No notice: the people heard of the series when it
  * was planned. A second call adds nothing. The call counts every meeting of the series, also those that the caller does not see, and the
@@ -467,7 +512,7 @@ const meetingsExtend = defineCall({
     // A series that the caller cannot see reads as missing, with the text of an unknown id.
     if (!last || !mayViewMeeting(ctx.state, ctx.authority, last)) throw notFound('Meeting', input.seriesId);
     assertCan(ctx, 'meeting.edit', meetingResource(ctx.state, last, ctx.authority.id));
-    if (last.status === 'cancelled' || !last.repeat) return { added: 0 };
+    if (!last.repeat) return { added: 0 };
     // A project that is completed or archived holds no new meeting: its series stops (a paused project goes on).
     if (last.projectId !== null && !seriesProjectIsOpen(ctx.state, last.projectId)) return { added: 0 };
     const ahead = rows.filter((m) => m.status === 'scheduled' && phaseOf(m, ctx.now) !== 'done').length;
@@ -585,6 +630,7 @@ export const meetingCalls = {
   'meetings.get': meetingsGet,
   'meetings.update': meetingsUpdate,
   'meetings.cancel': meetingsCancel,
+  'meetings.delete': meetingsDelete,
   'meetings.settle': meetingsSettle,
   'meetings.extend': meetingsExtend,
   'meetings.saveMinutes': meetingsSaveMinutes,

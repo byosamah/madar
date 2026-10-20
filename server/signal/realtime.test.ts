@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { Logger, LogFields, MeterPort, Query } from '../core/ports';
+import type { Logger, LogFields, Query } from '../core/ports';
 import type { ChangeSignal } from '../core/types';
 import { onNotice, type DbNotice } from '../data/sql';
-import { recordingMeter } from '../test/fakes/meter';
 import { realtimeSender, SIGNAL_EVENT, type NoticeListen } from './realtime';
 
 /**
@@ -43,12 +42,6 @@ function recordingLog() {
   return { log, lines };
 }
 
-function recordingFailures() {
-  const failed: number[] = [];
-  const meter: MeterPort & { signalsFailed(count: number): void } = { ...recordingMeter(), signalsFailed: (count) => failed.push(count) };
-  return { meter, failed };
-}
-
 describe('the Realtime sender', () => {
   it('sends every signal of a save in one statement: the channel as the private topic, the signal as the payload', async () => {
     const { q, sent, listen } = recordingQuery();
@@ -68,14 +61,12 @@ describe('the Realtime sender', () => {
     expect(sent).toEqual([]);
   });
 
-  it('counts a WARNING of realtime.send as a failed signal: it logs the warning and reports it to the meter, and the save goes on', async () => {
+  it('treats a WARNING of realtime.send as a failed signal: it logs the warning, and the save goes on', async () => {
     const { q, listen } = recordingQuery({
       during: (fire) => fire({ severity: 'WARNING', message: 'WarnSendingBroadcastMessage: permission denied for table messages' }),
     });
     const { log, lines } = recordingLog();
-    const { meter, failed } = recordingFailures();
-    await expect(realtimeSender({ log, meter, listen }).send(q, [signal('office', 7), signal('person:usr_005', 3)])).resolves.toBeUndefined();
-    expect(failed).toEqual([1]);
+    await expect(realtimeSender({ log, listen }).send(q, [signal('office', 7), signal('person:usr_005', 3)])).resolves.toBeUndefined();
     expect(lines).toEqual([{
       level: 'error',
       message: 'A change signal was not sent: realtime.send gave a warning. The screens reload at the next signal, which shows the gap.',
@@ -92,9 +83,7 @@ describe('the Realtime sender', () => {
       },
     });
     const { log, lines } = recordingLog();
-    const { meter, failed } = recordingFailures();
-    await realtimeSender({ log, meter, listen }).send(q, [signal('office', 1), signal('person:usr_002', 1)]);
-    expect(failed).toEqual([2]);
+    await realtimeSender({ log, listen }).send(q, [signal('office', 1), signal('person:usr_002', 1)]);
     expect(lines[0].fields?.warnings).toEqual(['WarnSendingBroadcastMessage: a', 'WarnSendingBroadcastMessage: b']);
   });
 
@@ -103,9 +92,7 @@ describe('the Realtime sender', () => {
       during: (fire) => fire({ severity: 'WARNUNG', code: '01000', message: 'WarnSendingBroadcastMessage: Keine Berechtigung für Tabelle messages' }),
     });
     const { log, lines } = recordingLog();
-    const { meter, failed } = recordingFailures();
-    await realtimeSender({ log, meter, listen }).send(q, [signal('office', 1)]);
-    expect(failed).toEqual([1]);
+    await realtimeSender({ log, listen }).send(q, [signal('office', 1)]);
     expect(lines.map((line) => line.level)).toEqual(['error']);
   });
 
@@ -114,35 +101,23 @@ describe('the Realtime sender', () => {
       during: (fire) => fire({ severity: 'WARNING', code: '01000', message: 'there is no transaction in progress' }),
     });
     const { log, lines } = recordingLog();
-    const { meter, failed } = recordingFailures();
-    await realtimeSender({ log, meter, listen }).send(q, [signal('office', 1)]);
-    expect([failed, lines]).toEqual([[], []]);
+    await realtimeSender({ log, listen }).send(q, [signal('office', 1)]);
+    expect(lines).toEqual([]);
   });
 
   it('reports nothing for a send with no warning, and stops listening after its statement', async () => {
     const { q, listen, fire, listening } = recordingQuery();
     const { log, lines } = recordingLog();
-    const { meter, failed } = recordingFailures();
-    await realtimeSender({ log, meter, listen }).send(q, [signal('office', 1)]);
+    await realtimeSender({ log, listen }).send(q, [signal('office', 1)]);
     expect(listening()).toBe(0);
     fire({ severity: 'WARNING', message: 'a later statement' });
-    expect([failed, lines]).toEqual([[], []]);
+    expect(lines).toEqual([]);
   });
 
   it('lets an error of the statement fail the save, and stops listening', async () => {
     const { q, listen, listening } = recordingQuery({ fail: new Error('function realtime.send(jsonb, text, text, boolean) does not exist') });
     await expect(realtimeSender({ log: recordingLog().log, listen }).send(q, [signal('office', 1)])).rejects.toThrow('does not exist');
     expect(listening()).toBe(0);
-  });
-
-  it('logs a failed signal also without a meter, and counts it on the meter of the Deps', async () => {
-    const { q, listen } = recordingQuery({ during: (fire) => fire({ severity: 'WARNING', message: 'WarnSendingBroadcastMessage: x' }) });
-    const { log, lines } = recordingLog();
-    await realtimeSender({ log, listen }).send(q, [signal('office', 1)]);
-    expect(lines.map((line) => line.level)).toEqual(['error']);
-    const meter = recordingMeter();
-    await realtimeSender({ log, meter, listen }).send(q, [signal('office', 1)]);
-    expect(meter.failedSignals).toBe(1);
   });
 
   it('listens through onNotice of pgDb by default, which hears nothing on a query that is not of pgDb', async () => {

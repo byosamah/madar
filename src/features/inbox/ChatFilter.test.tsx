@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { addGroupConversation } from '../../api/chatState';
 import type { State } from '../../api/store';
@@ -84,5 +84,22 @@ describe('the filter of the chat list (owner, 2026-10-20)', () => {
     await pick('All');
     expect((await list()).getByRole('link', { name: /Corniche Office Tower/ })).toBeInTheDocument();
     expect(screen.queryByText('No chats here.')).toBeNull();
+  });
+  it('keeps the last choice after a new visit, and after the Inbox closes (owner, 2026-10-23)', async () => {
+    await renderApp('/inbox', withEveryKind);
+    await pick('People');
+    expect(window.localStorage.getItem('madar.chatKind')).toBe('people');
+    cleanup();
+    await renderApp('/inbox', withEveryKind);
+    expect(await filterButton()).toHaveAccessibleName('Show chats: People');
+    const chats = await list();
+    expect(chats.getByRole('link', { name: /Faisal Al-Harbi/ })).toBeInTheDocument();
+    expect(chats.queryByRole('link', { name: /Corniche Office Tower/ })).toBeNull();
+  });
+
+  it('reads a stored value that is no kind as All', async () => {
+    window.localStorage.setItem('madar.chatKind', 'nonsense');
+    await renderApp('/inbox', withEveryKind);
+    expect(await filterButton()).toHaveAccessibleName('Show chats: All');
   });
 });

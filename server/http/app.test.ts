@@ -18,11 +18,6 @@ function harness(o: Partial<AppOptions> & { minClientBuild?: string } = {}): Har
   const deps = fakeDeps({ config: { minClientBuild: o.minClientBuild ?? '0' } });
   const seen: RunRequest[] = [];
   const order: string[] = [];
-  const countRequest = deps.meter.countRequest.bind(deps.meter);
-  deps.meter.countRequest = async (db) => {
-    order.push('count');
-    return countRequest(db);
-  };
   const runCall = async (_d: unknown, req: RunRequest): Promise<RunResult> => {
     seen.push(req);
     order.push(`start:${req.name}`);
@@ -70,7 +65,7 @@ describe('POST /batch', () => {
     expect(body.serverTime).toMatch(/\+03:00$/);
     expect(body.results.map((r) => r.i)).toEqual([0, 1, 2]);
     expect(body.results[1]).toEqual({ i: 1, ok: true, output: { name: 'tasks.create', input: { title: 'A' } }, changed: false });
-    expect(h.order).toEqual(['start:projects.get', 'end:projects.get', 'start:tasks.create', 'end:tasks.create', 'start:tasks.get', 'end:tasks.get', 'count']);
+    expect(h.order).toEqual(['start:projects.get', 'end:projects.get', 'start:tasks.create', 'end:tasks.create', 'start:tasks.get', 'end:tasks.get']);
     expect(h.seen.map((r) => [r.name, r.story, r.key])).toEqual([
       ['projects.get', undefined, undefined],
       ['tasks.create', { ref: 'cor_ui_1' }, 'key-1'],
@@ -186,75 +181,11 @@ describe('POST /batch', () => {
     expect(response.status).toBe(500);
     expect(JSON.stringify(await response.json())).not.toContain('10.0.0.1');
   });
-
-  it('counts one request after the last entry, outside every call, and a meter failure does not fail the batch', async () => {
-    const h = harness();
-    let running = 0;
-    const runCall: AppOptions['runCall'] = async (_d, req) => {
-      running += 1;
-      await new Promise((resolve) => setTimeout(resolve, 2));
-      running -= 1;
-      return { ok: true, output: req.name, changed: false };
-    };
-    const counts: number[] = [];
-    const deps = fakeDeps();
-    deps.meter.countRequest = async () => {
-      counts.push(running);
-      throw new Error('meter down');
-    };
-    const app = apiApp(deps, { runCall, verifyToken: async () => ({ authUserId: 'a' }), principalOf: () => ({ userId: 'usr_001' }), readOffice: async () => office });
-    const response = await app.fetch(new Request('http://127.0.0.1/batch', { method: 'POST', headers: { Authorization: 'Bearer x' }, body: JSON.stringify({ v: 1, calls: [call(0, 'a'), call(1, 'b')] }) }));
-    expect(response.status).toBe(200);
-    expect(counts).toEqual([0]);
-    expect(deps.logs.some((l) => l.level === 'warn' && l.message.includes('meter'))).toBe(true);
-    void h;
-  });
 });
 
 describe('POST /batch: the work after the answer (performance audit SRV-4, SRV-M2, SRV-6)', () => {
   const plain = (calls: unknown[]) =>
     new Request('http://127.0.0.1/batch', { method: 'POST', headers: { Authorization: 'Bearer good' }, body: JSON.stringify({ v: 1, calls }) });
-
-  it('hands the meter to after when the host has one: the answer does not wait for it, and the count still runs once', async () => {
-    const h = harness();
-    let release: () => void = () => undefined;
-    let counted = 0;
-    h.deps.meter.countRequest = () => {
-      counted += 1;
-      return new Promise<void>((resolve) => (release = resolve));
-    };
-    const later: Promise<unknown>[] = [];
-    const response = await runInHost({ host: 'workers', after: (work) => void later.push(work) }, () => h.app.fetch(plain([call(0, 'tasks.get')])));
-    expect(response.status).toBe(200);
-    expect((await response.json() as WireResponse).results).toHaveLength(1);
-    expect([counted, later.length]).toEqual([1, 1]);
-    release();
-    await Promise.all(later);
-    expect(counted).toBe(1);
-  });
-
-  it('keeps the warning of a meter that fails after the answer, and never fails the batch', async () => {
-    const h = harness();
-    h.deps.meter.countRequest = async () => {
-      throw new Error('meter down');
-    };
-    const later: Promise<unknown>[] = [];
-    const response = await runInHost({ host: 'workers', after: (work) => void later.push(work) }, () => h.app.fetch(plain([call(0, 'tasks.get')])));
-    expect(response.status).toBe(200);
-    await Promise.all(later);
-    expect(h.deps.logs).toContainEqual({ level: 'warn', message: 'The usage meter did not count the request.', fields: { error: 'meter down' } });
-  });
-
-  it('counts before the answer when the host has no after, as before', async () => {
-    const h = harness();
-    let done = false;
-    h.deps.meter.countRequest = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 5));
-      done = true;
-    };
-    await h.app.fetch(plain([call(0, 'tasks.get')]));
-    expect(done).toBe(true);
-  });
 
   /** A Db whose warm is recorded beside the steps of the sign-in. */
   function warmHarness(o: { write?: boolean; token?: string } = {}) {
@@ -349,7 +280,7 @@ describe('POST /batch: the work after the answer (performance audit SRV-4, SRV-M
     ]);
     expect(h.order).toEqual([
       'start:projects.get', 'end:projects.get', 'start:files.link', 'start:files.link', 'end:files.link', 'end:files.link',
-      'start:tasks.get', 'end:tasks.get', 'start:files.link', 'end:files.link', 'count',
+      'start:tasks.get', 'end:tasks.get', 'start:files.link', 'end:files.link',
     ]);
   });
 });

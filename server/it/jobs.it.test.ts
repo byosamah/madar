@@ -9,9 +9,8 @@ import { clearOfficeCaches } from '../data/officeCache';
 import { supabaseStorageFilesPort } from '../files/supabaseStorage';
 import { NOTICE_EFFECT } from '../mail/notices';
 import { buildMorning, summaryPeople } from '../mail/summary';
-// The entries load the mail and usage effects for their side effect (server/core/deps.ts); this suite does the same.
+// The entries load the mail effects for their side effect (server/core/deps.ts); this suite does the same.
 import '../mail/effects';
-import '../usage/effects';
 import { JOBS_SECRET_HEADER, jobsApp } from '../jobs/app';
 import { cleanup } from '../jobs/steps/cleanup';
 import { outboxRetry } from '../jobs/steps/outbox';
@@ -239,20 +238,18 @@ describe('suite 10: the 15-minute job on the local database, as madar_server', (
     expect(await office.sql("select id from google_connections where id like '%-n3' order by id")).toEqual([{ id: 'gc-live-n3' }, { id: 'gc-new-n3' }]);
   });
 
-  it('answers POST /jobs/run with the secret: 200, every step passed, the heartbeat moved, and one request counted', async () => {
+  it('answers POST /jobs/run with the secret: 200, every step passed, and the heartbeat moved', async () => {
     const friday = at('2026-11-27');
     deps.clock.set(friday);
-    const requests = deps.meter.requests;
     const app = jobsApp(deps, { secret: () => 'local-jobs-secret-made-up' });
     expect((await app.fetch(new Request('http://127.0.0.1/run', { method: 'POST' }))).status).toBe(401);
     const response = await app.fetch(new Request('http://127.0.0.1/run', { method: 'POST', headers: { [JOBS_SECRET_HEADER]: 'local-jobs-secret-made-up' } }));
     const body = (await response.json()) as { ok: boolean; steps: { name: string; ok: boolean; error?: string }[] };
     expect(body.steps.filter((s) => !s.ok)).toEqual([]);
     expect(response.status).toBe(200);
-    expect(body.steps.map((s) => s.name)).toEqual(['heartbeat', 'triggers', 'meetings', 'summary', 'outbox', 'cleanup', 'uploads', 'usage']);
+    expect(body.steps.map((s) => s.name)).toEqual(['heartbeat', 'triggers', 'meetings', 'summary', 'outbox', 'cleanup', 'uploads']);
     const [beat] = await office.sql<{ done_at: Date }>("select done_at from job_runs where key = 'heartbeat'");
     expect(beat.done_at.toISOString()).toBe(friday.toISOString());
-    expect(deps.meter.requests).toBe(requests + 1);
     deps.clock.set(NOW);
   });
 });

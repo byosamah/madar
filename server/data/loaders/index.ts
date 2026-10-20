@@ -5,7 +5,7 @@ import { Load, type LoadCtx } from './build';
 import { chatMessageCall, chatMessageRows, chatsAll, chatsArchive, chatsMarkRead, chatsMessages, chatsSetNotify, chatsUnread, chatsWaiting } from './chat';
 import { chatsOpenDirect } from './chatOpen';
 import { inboxCount, inboxList } from './inbox';
-import { meetingCall, meetingChange, meetingExtend, meetingMinutes, meetingsList } from './meetings';
+import { meetingCall, meetingCancel, meetingChange, meetingExtend, meetingMinutes, meetingsList } from './meetings';
 import { dashboardGet, eventsList, projectsList, searchQuery, tasksList, templateSyncTasks } from './overview';
 import {
   fileCall, filesList, filesUpload, paymentCall, paymentsOfProject, projectCall, projectsCreate, stagesReplace, trackerCall, trackerExport,
@@ -39,7 +39,8 @@ import {
  *   push           the push devices of the person of the call (push.register also reads the row of its endpoint)
  *   report         reports.office: the tasks, Tracker entries and payments of the projects, and the events of the period as counts
  *   meetings       the meetings of one window (meetings.list), or one meeting by id with the records it names (meetings.get, update, cancel,
- *                  settle), with its series from it on for a "later" write, or the series of one id (meetings.extend)
+ *                  settle), with its series from it on for a "later" update or delete, the whole series for a "later" cancel, or the series of one id
+ *                  (meetings.extend)
  *
  * The 9 server calls of plan 4.11 run their own code on the office snapshot and have no loader.
  */
@@ -234,7 +235,10 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'meetings.get': meetings(meetingCall),
   'meetings.create': office,
   'meetings.update': meetings(meetingChange),
-  'meetings.cancel': meetings(meetingChange),
+  // A cancel for "this and later meetings" records the last day of the series on every meeting of it, so it reads the whole series.
+  'meetings.cancel': meetings(meetingCancel),
+  // The delete reads the meeting and, with the scope "later", the series from it on, as the cancel reads them.
+  'meetings.delete': meetings(meetingChange),
   // The settle reads the meeting by id (it writes the mark and the Tracker line, which needs no other row). A project is in the office.
   'meetings.settle': meetings(meetingCall),
   // The extension of a series (wave 3) reads the meetings of the series from today on. It writes new rows, which need only the counters.

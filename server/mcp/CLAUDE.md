@@ -18,8 +18,6 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
    hop first (`forward.ts`, `MCP_FORWARD_REGION`, default eu-central-1). The Worker never hops: its region label
    (`WORKER_REGION`, `workers-eu-central-1`) is no AWS region name. Every answer names its host in `x-madar-server`.
 4. The token check (`auth.ts`). Then the tool runs through `runCall` with the person's rights (`run.ts`).
-5. With a host `after`, the usage meter counts (the request, and the hop count when `hopTagOk`) run after the answer, as one
-   work, in order. With no `after`, they run before the answer.
 
 ## The address
 - MCP_URL in `secrets/<env>.env` is the short address. It is the token audience, the resource metadata and the
@@ -55,6 +53,9 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   `not_found` as for an unknown id. The tools leave out `minutesById`. The meeting writes take `storyId` like any write.
 - Repeating meetings (wave 3, owner 2026-10-19): `meetings.create` takes `repeat` and makes the first 8 meetings of a series; `meetings.update` and
   `meetings.cancel` take `scope` (`one` or `later`). No new tool. `meetings.extend` is on `MCP_DENY`: the job keeps a series full, an agent does not.
+  `meetings.delete` (owner, 2026-10-23: a person deletes a cancelled meeting in the screens) is on `MCP_DENY` too: an agent cancels only. `INSTRUCTIONS` and `TOOL_DOCS` of
+  `meetings.cancel` say so. A cancel with `scope` `later` ends the series (the last day goes on every meeting); `scope` `one` never does (the users decide if a meeting
+  repeats, not the platform).
   The `Meetings:` paragraph of `INSTRUCTIONS` and `TOOL_DOCS` of `meetings.create`, `.update`, `.cancel` and `.list` say it, and tell the agent to ask its person
   before it plans a series. A private series answers every call as an unknown id for anyone who is not in it. The tests are in `meetingTools.test.ts`.
 - Google Calendar (owner, 2026-10-19, fbk_022): the four `google.*` calls are on `MCP_DENY` (a person connects in the Settings screen; an agent cannot

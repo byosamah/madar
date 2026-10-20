@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { isRead } from '../../src/api/remote/keys';
 import type { Kind } from '../../src/api/remote/wire';
 import type { State } from '../../src/api/store';
@@ -20,12 +20,6 @@ import type { Principal } from './types';
  * signal and of the actor's own person signal, and a personal kind only when the signal names the actor. A missing kind costs
  * no old list (the signals still reload it, as before), only the round trip that the line saves.
  */
-
-// usage.get is not built here (as in runCall.test.ts). serverCallMap.ts copies each call at import, so the mock comes first.
-vi.mock('../calls/usage', async () => {
-  const { notBuiltAsync } = await import('./notBuilt');
-  return { usageGet: () => notBuiltAsync('usage.get'), usageRetryEffect: () => notBuiltAsync('usage.retryEffect') };
-});
 
 const NOW = new Date('2026-10-04T06:00:00Z');
 const AGENT = 'usr_009';

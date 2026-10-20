@@ -6,7 +6,7 @@ import { isLite } from '../../data/dialect';
  * Step 3 of the 15-minute job (plan 4.12, 5.5): the effects that did not finish after their commit. It takes the open rows
  * (done_at null) with fewer than 5 attempts that are older than 2 minutes and not claimed now, oldest first, and runs them with
  * processOutbox, which claims each row with one statement before any work. A row that another worker claims in between is
- * skipped. A row that fails keeps its attempts and error, and usage.get shows it to the Admin (track M).
+ * skipped. A row that fails keeps its attempts and error, and stays in the outbox (no screen lists it since the Usage section went, 2026-10-23).
  */
 
 export const OUTBOX_MAX_ATTEMPTS = 5;

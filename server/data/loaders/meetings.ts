@@ -110,3 +110,14 @@ export async function meetingExtend(L: Load, input: Input): Promise<void> {
   if (!seriesId || !L.now) return;
   await L.select({ c: 'meetings', where: [{ field: 'seriesId', in: [seriesId] }, { col: 'starts_at', atOrAfter: `${todayISO(L.now)}T00:00:00.000+03:00` }] });
 }
+
+/**
+ * meetings.cancel with the scope "later" (owner, 2026-10-23): the person's choice to stop the series records the last day on EVERY meeting of
+ * the series that the person sees, the earlier ones too. So the load holds the whole series, not only the meetings from this one on.
+ */
+export async function meetingCancel(L: Load, input: Input): Promise<void> {
+  await meetingCall(L, input);
+  const id = str(input.id);
+  const meeting = id ? L.get<Meeting>('meetings', id) : undefined;
+  if (input.scope === 'later' && meeting?.seriesId) await L.select({ c: 'meetings', where: [...meetingConds(L), { field: 'seriesId', in: [meeting.seriesId] }] });
+}

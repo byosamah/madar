@@ -12,6 +12,7 @@ import { ProjectTile } from '../../components/ProjectTile';
 import { normalizeForSearch } from '../../lib/text';
 import { isFinePointer } from '../../lib/calendar';
 import { usePersonName } from '../../app/personName';
+import { usePersistentChoice } from '../../app/choices';
 import { useStableHandler } from '../../app/useStableHandler';
 import { useIsPhone } from '../../app/useIsPhone';
 import { Menu, type MenuItem } from '../../components/Menu';
@@ -176,8 +177,8 @@ const ChatRowItem = memo(function ChatRowItem({ row, selected, swipe, showArchiv
  * "Archived (n)" is one quiet row under the search field while some chat is archived; it opens the archived chats, which have a
  * title and a back arrow of their own (UX audit 2026-10-19, chats-04 and chats-05). A search in the main list looks in every
  * chat, and an archived match carries the word "Archived". The row menu has "Mark as unread" for a chat that was read (fbk_028).
- * A menu beside the search shows one kind of chat (owner, 2026-10-20). The choice holds while the Inbox is open, also on a phone, where
- * the list stays mounted under an open chat. The search and the archived list look only in the chosen kind.
+ * A menu beside the search shows one kind of chat (owner, 2026-10-20). The choice lasts for the next visit (owner, 2026-10-23, key
+ * `madar.chatKind`). The search and the archived list look only in the chosen kind.
  */
 export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; selectedId: string | undefined; onMarkUnread: (id: string) => void }) {
   const { t } = useTranslation();
@@ -186,7 +187,8 @@ export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; sele
   const onArchive = useStableHandler(archive);
   const markUnread = useStableHandler(onMarkUnread);
   const [query, setQuery] = useState('');
-  const [kind, setKind] = useState<ChatKind>('all');
+  // The last choice lasts after the Inbox closes, after a reload and for the next visit (owner, 2026-10-23).
+  const [kind, setKind] = usePersistentChoice<ChatKind>('madar.chatKind', KINDS, 'all');
   const kindRows = kind === 'all' ? rows : rows.filter((row) => inKind(row, kind));
   // The archived chats leave the main list. The archived list closes by itself when its last chat moves back (owner, 2026-10-18).
   const [wantArchived, setWantArchived] = useState(false);

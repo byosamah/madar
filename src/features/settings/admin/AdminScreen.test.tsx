@@ -212,7 +212,6 @@ describe('the Admin side list', () => {
       { group: 'People', rows: ['People', 'Teams', 'Roles'] },
       { group: 'Office', rows: ['Office settings', 'Clients', 'Sub-companies'] },
       { group: 'Templates', rows: ['Project templates', 'To-do templates'] },
-      // Usage is a section of the real build only.
       { group: 'System', rows: ['Requests and bugs'] },
     ]);
     expect(screen.getAllByRole('heading', { level: 1 }).map((h) => h.textContent)).toEqual(['Admin']);
@@ -255,9 +254,11 @@ describe('the Admin side list', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/admin/people'));
   });
 
-  it('goes back to /admin from Usage in the prototype, where Usage has no data', async () => {
+  it('goes back to /admin from /admin/usage, a section that the Admin page no longer has (owner, 2026-10-23)', async () => {
     const { router } = await renderApp('/admin/usage');
+    expect(await region('People')).toBeInTheDocument();
     await waitFor(() => expect(router.state.location.pathname).toBe('/admin/people'));
+    expect(screen.queryByRole('link', { name: 'Usage' })).toBeNull();
   });
 
   it('sends Management from a section of the Admin to its own first section', async () => {

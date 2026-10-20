@@ -128,8 +128,7 @@ describe('the Edit meeting sheet', () => {
   async function openEdit(over: Partial<Meeting> = {}) {
     const app = await renderApp('/meetings?meeting=mtg_001', (state) => edit(state, over));
     const sheet = await screen.findByRole('dialog', { name: 'Review the facade' });
-    await userEvent.click(await within(sheet).findByRole('button', { name: 'Meeting actions' }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit' }));
+    await userEvent.click(await within(sheet).findByRole('button', { name: 'Edit' }));
     const form = await screen.findByRole('dialog', { name: 'Edit meeting' });
     return { ...app, form };
   }
@@ -263,8 +262,7 @@ describe('the Edit meeting sheet of a meeting that repeats (wave 3)', () => {
   async function openEdit(id = 'mtg_002') {
     const app = await renderApp(`/meetings?meeting=${id}`, edit);
     const sheet = await screen.findByRole('dialog', { name: 'Review the facade' });
-    await userEvent.click(await within(sheet).findByRole('button', { name: 'Meeting actions' }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit' }));
+    await userEvent.click(await within(sheet).findByRole('button', { name: 'Edit' }));
     const form = await screen.findByRole('dialog', { name: 'Edit meeting' });
     return { ...app, form };
   }
@@ -345,8 +343,7 @@ describe('the Edit meeting sheet of a meeting that repeats (wave 3)', () => {
       withMeeting(state, { id: 'mtg_001', title: 'Review the facade', where: 'Client office' });
     });
     const sheet = await screen.findByRole('dialog', { name: 'Review the facade' });
-    await userEvent.click(await within(sheet).findByRole('button', { name: 'Meeting actions' }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit' }));
+    await userEvent.click(await within(sheet).findByRole('button', { name: 'Edit' }));
     const form = await screen.findByRole('dialog', { name: 'Edit meeting' });
     await userEvent.type(within(form).getByRole('textbox', { name: 'Where' }), ' 2');
     await userEvent.click(within(form).getByRole('button', { name: 'Save changes' }));

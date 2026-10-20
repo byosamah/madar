@@ -17,7 +17,7 @@ opens a file in that folder. Read the guide of a part before you change that par
 
 | Part | Guide | What it covers |
 | --- | --- | --- |
-| Server | `server/CLAUDE.md` | request path, runCall, calls, entries, ports, change rules, realtime, jobs, usage |
+| Server | `server/CLAUDE.md` | request path, runCall, calls, entries, ports, change rules, realtime, jobs |
 | AI agents (MCP) | `server/mcp/CLAUDE.md` | the /mcp address, tools lists, token, approval, conformance |
 | Sign-in and people | `server/auth/CLAUDE.md` | invitations, renew, forgot, limits, Accepted or Invited, first Admin |
 | Data layer | `server/data/CLAUDE.md` | tables, counters, idempotency, office cache, loaders, roles |

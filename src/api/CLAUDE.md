@@ -8,7 +8,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - `handlers/*.ts`: one file for each area. `handlers/serverFakes.ts`: the prototype fakes of the server-only calls.
 - `calls.ts`: joins the handlers and the fakes. `sharedCalls.ts`: the calls the server runs, without `SERVER_EXCLUDED`.
 - `contract/entities.ts` (records, ids like `prj_`, `tsk_`), `contract/views.ts` (read shapes), `contract/server.ts`
-  (the server-only calls, `UPLOAD_LIFE_MS`, `FREE_PLAN_LIMITS`), `contract/limits.ts` (the plain limits and marks with no zod:
+  (the server-only calls, `UPLOAD_LIFE_MS`), `contract/limits.ts` (the plain limits and marks with no zod:
   `MAX_FILE_BYTES`, `MAX_SHOT_BYTES`, `MAX_ATTACHMENTS`, `MAX_HELPERS`, `MAX_PREREQUISITES`, `REACTIONS`, `PICTURE_DATA`,
   `PASSWORD_SET_MARK`, `DEFAULT_STALE_DAYS`). entities.ts and server.ts export these again under the same names.
 - `rowKeys.ts`: `memberKey` and `chatReadKey` (store.ts exports them again). `permissions.ts` and `store.ts` take no value
@@ -441,12 +441,12 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   stored. A meeting lasts 15 to 720 minutes. `State.meetings` is optional (`meetingsOf`), so there is no `STATE_VERSION` step.
   Plain limits: `MEETING_LIMITS` and `MEETING_KINDS` in `contract/limits.ts`. Plain rules: `src/lib/meetings.ts` (`dayOf`, `phaseOf`, `kindDefaults`).
 - Calls (`handlers/meetings.ts`): `meetings.list` (window of the office day of the start, default today to 60 days, at most 400 days, 200 rows,
-  `mine` true by default, `mine: false` needs `projectId`), `meetings.get`, `meetings.create`, `meetings.update`, `meetings.cancel`. `create` is
+  `mine` true by default, `mine: false` needs `projectId`), `meetings.get`, `meetings.create`, `meetings.update`, `meetings.cancel`, `meetings.delete`. `create` is
   the first key of `meetingCalls` on purpose: the call sweep (`server/core/everyCall.ts`) runs in that order and the others need a meeting.
 - Reasons (`invalid_input` unless said): `in_the_past` (a start more than 14 days ago), `start_not_on_five`, `project_closed` (the project is
   not active or on hold), `minutes_not_attending` (wave 1 only: no call raises it since wave 2, but an old answer can name it), `attendee_agent`, `person_inactive`, `title_hidden`, `project_fixed` (a meeting never
   changes its project), `window_too_long`, `window_reversed`, `project_needed`; `conflict`: `meeting_cancelled`, `meeting_over` (after the end
-  only `notes` change, and a cancel is refused).
+  only `notes` change, and a cancel is refused), `meeting_not_cancelled` (a delete of a meeting that is not cancelled).
 - Rights (`permissions.ts`): `meeting.view`, `meeting.create`, `meeting.edit`, with `meetingResource` and `mayViewMeeting`. A project meeting is
   read by everyone, planned by the team, the leader and the Admin (the right to post), and changed or cancelled by its organizer, the leader and
   the Admin. A meeting with no project is read by its organizer and its attendees only, and changed by its organizer only. The Admin has no
@@ -489,20 +489,29 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   series that starts after it and is not over (`laterOf`); a past meeting and a cancelled meeting never change. The rights and the checks are those of the
   meeting alone (a meeting in no series is one meeting whatever the scope). An update changes only what changed on this meeting: each changed field goes to the
   later meetings (the people replace their lists); a new time of day applies to each later meeting on its own day, a new length to each; a new day is refused
-  with `series_day_one_only` (`invalid_input` on `startsAt`) and is made one meeting at a time. A cancel from here on also sets `repeat.until` of the
-  cancelled meetings to the day before the first of them (an earlier `until` stays). The target writes `meeting.updated` or `meeting.cancelled`; each other
+  with `series_day_one_only` (`invalid_input` on `startsAt`) and is made one meeting at a time. A cancel for "later" is the choice of the person to stop the series (owner, 2026-10-23: the users decide if a meeting repeats, not the platform), so it sets `repeat.until` of EVERY
+  meeting of the series that the person sees, the earlier ones too (cancelled or not, past or not), to the day before this meeting (an earlier `until` stays). A meeting that
+  is not cancelled by it only changes its rule: event `meeting.series_updated`, no `rev`, no notice. A cancel of one meeting (scope "one"), also the last one, changes no rule. The target writes `meeting.updated` or `meeting.cancelled`; each other
   meeting writes `meeting.series_updated` or `meeting.series_cancelled` with the target's event as its cause. Each changed start, end or place raises `rev`
   of that meeting. One notice for the whole change (the target's), `moved` or `new` or `cancelled`, with no dedupe key. One Undo of the story takes it all back.
 - `meetings.extend { seriesId } -> { added }` keeps a series full (the 15-minute job and the prototype timer call it, as they call `meetings.settle`; MCP deny
   list; `WRITE_KINDS`: events, meetings). It reads the visible meetings of the series from today on, takes the last one as the template, and adds meetings after it
-  until `SERIES_AHEAD` scheduled meetings that are not over are ahead, or until `until`. It adds none when the last meeting is cancelled (a person ended the series
-  there) and none for a series of a project that is completed or archived (a paused project goes on), and a series with no meeting from today on reads as `not_found` (so does an unknown or hidden id, with the text of an unknown id). New meetings start
+  until `SERIES_AHEAD` scheduled meetings that are not over are ahead, or until `until`. It adds by the rule only (`until`, the 8 ahead): a cancelled last meeting does not end a series (owner, 2026-10-23), and the new meeting copies the last one and is
+  scheduled. It adds none for a series of a project that is completed or archived (a paused project goes on), and a series with no meeting from today on reads as `not_found` (so does an unknown or hidden id, with the text of an unknown id). New meetings start
   after the last day, or after today when the series ran dry, copy the title, kind, project, place, guests, notes, organizer, people, length and time of day, get
   `createdBy` of the caller, and have no notice. One mark `meeting.extended` (target: the last meeting, not undoable, `NOT_UNDOABLE`) and one `meeting.added` for each
   new meeting with the mark as its cause. The call counts every meeting of the series, also those that the caller does not see; the caller must see the
   last meeting and may change it (`meeting.edit`: the organizer, or the leader and the Admin of a project meeting; review 2026-10-20), else `not_found` or `forbidden`. `seriesToExtend(state, at)` is the rule of the job read for the
   prototype timer.
 - Reasons added: `until_before_start`, `until_too_far`, `series_day_one_only`.
+- Delete (owner, 2026-10-23; `meetings.delete { id, scope? } -> { deleted }`, handlers/meetings.ts): only a cancelled meeting (else `conflict` `meeting_not_cancelled`), by the right
+  `meeting.edit` (the organizer, the leader and the Admin of a project meeting; the organizer of a meeting with no project); a hidden meeting answers `not_found`. It writes
+  `meeting.deleted` with the whole record in `before` (`recordDelete`; a meeting with no project carries `officeMeetingId`), so the Undo of the toast (`events.undoStory`) brings it
+  back (`rev` grows once more). Scope "later" deletes this meeting and every later CANCELLED meeting of the series that the person sees, never a scheduled one; the later events
+  name the first as their cause, all in one story. A delete changes NO repeat rule (the cancel did that). It sends no notice; a notice of the meeting then reads as gone
+  (`inbox.meetingGone`). `seesEvent` (history.ts) reads the last copy of a deleted meeting for an Undo (`lastMeetingCopy`), so the people of a meeting with no project take the delete
+  back, and nobody else does (`not_found`). `MeetingDetail.viewerCan.delete` is true for a cancelled meeting that the person may change. The call is in `GCAL_CALLS` (a cancel whose
+  sync never ran leaves a Google event row; the delete sends a sync row for it). MCP: deny list (an agent cancels only). Tests: `meetingDelete.test.ts`.
 - Settle (wave 2, owner 2026-10-19; `meetings.settle { id }`, `settleMeeting`, `dueToSettle` in `handlers/meetings.ts`): after `endsAt` Madar marks the
   meeting as over (`settledAt`, event verb `meeting.settled`) and, when `hasTrackerLine` (`lib/meetings.ts`: a project meeting that is not a team
   meeting), makes its Tracker line: type `meeting`, side `both`, the title and notes of the meeting, the day of the start, the organizer and the
@@ -557,7 +566,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.
 2. If it is server-only: its contract in `contract/server.ts`, its fake in `handlers/serverFakes.ts`, its server body in
-   `server/calls/`. There are 15 server-only calls; `live.ticket` (exit wave 3) is the 11th, and the four `google.*` calls (fbk_022) follow it.
+   `server/calls/`. There are 13 server-only calls (`usage.get` and `usage.retryEffect` were removed, 2026-10-23); `live.ticket` (exit wave 3) is the 9th, and the four `google.*` calls (fbk_022) follow it.
 3. A loader entry in `server/data/loaders/` (a test fails without it).
 4. The MCP allow list, Admin list (`MCP_ADMIN`, only an agent of an Admin sees it) or deny list in `server/mcp/tools.ts`
    (a test fails without it). An allowed or Admin tool needs `TOOL_DOCS`. It also needs a sample: add a call to

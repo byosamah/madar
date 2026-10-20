@@ -369,16 +369,25 @@ describe('meetings.cancel with a scope', () => {
     expect(meetingsOf(t).map((m) => m.status)).toEqual(['scheduled', 'scheduled', 'cancelled', 'scheduled', 'cancelled', 'scheduled', 'scheduled', 'scheduled']);
   });
 
-  it('cancels this meeting and every scheduled meeting after it with the scope "later", and ends the series at the day before', async () => {
+  it('cancels this meeting and every scheduled meeting after it with the scope "later", and records the last day on every meeting of the series (owner, 2026-10-23)', async () => {
     const t = await series();
     const result = await t.api.call('meetings.cancel', { id: 'mtg_004', scope: 'later' });
     expect(result).toMatchObject({ id: 'mtg_004', status: 'cancelled' });
     const list = meetingsOf(t);
     expect(list.map((m) => m.status)).toEqual(['scheduled', 'scheduled', 'scheduled', ...Array(5).fill('cancelled')]);
-    // The cancelled meetings keep the rule and end it on the day before the first of them.
-    for (const m of list.slice(3)) expect(m.repeat, m.id).toEqual({ every: 'week', until: '2026-10-21' });
-    expect(list.slice(0, 3).every((m) => m.repeat?.until === null)).toBe(true);
+    // The person chose to stop the series here, so the rule of every meeting, the earlier ones too, ends on the day before the first cancelled one.
+    for (const m of list) expect(m.repeat, m.id).toEqual({ every: 'week', until: '2026-10-21' });
     expect(list.slice(3).every((m) => m.rev === 2)).toBe(true);
+    // The earlier meetings change their rule only: no new rev, no notice for them, and a series_updated event each.
+    expect(list.slice(0, 3).every((m) => m.rev === 1)).toBe(true);
+    expect(eventsOf(t, 'meeting.series_updated').map((e) => e.targetId).sort()).toEqual(['mtg_001', 'mtg_002', 'mtg_003']);
+  });
+
+  it('records no last day with the scope "one": a cancel of one meeting never ends a series, also not the last meeting', async () => {
+    const t = await series();
+    await t.api.call('meetings.cancel', { id: 'mtg_008' });
+    for (const m of meetingsOf(t)) expect(m.repeat, m.id).toEqual({ every: 'week', until: null });
+    expect(eventsOf(t, 'meeting.series_updated')).toHaveLength(0);
   });
 
   it('keeps an earlier until when the series ended sooner', async () => {
@@ -398,7 +407,9 @@ describe('meetings.cancel with a scope', () => {
     await t.api.call('meetings.cancel', { id: 'mtg_004', scope: 'later' });
     const after = meetingsOf(t);
     expect(after.map((m) => m.status)).toEqual(['scheduled', 'scheduled', 'scheduled', 'cancelled', 'cancelled', 'cancelled', 'cancelled', 'cancelled']);
-    for (const id of ['mtg_001', 'mtg_002', 'mtg_003', 'mtg_006']) expect(after.find((m) => m.id === id), id).toEqual(before.find((m) => m.id === id));
+    // These meetings change their rule only (the last day): the status, the time and the rev stay.
+    const plain = ({ repeat: _repeat, ...rest }: Meeting) => rest;
+    for (const id of ['mtg_001', 'mtg_002', 'mtg_003', 'mtg_006']) expect(plain(after.find((m) => m.id === id)!), id).toEqual(plain(before.find((m) => m.id === id)!));
   });
 
   it('tells each person once that the later meetings are cancelled, not once for each meeting', async () => {

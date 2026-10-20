@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
 import { diffState } from '../data/save';
@@ -11,12 +11,6 @@ import { createRunCall } from './runCall';
  * attendees: its signals go only to the person channels of those people, the Admin too only when invited. They carry no office signal,
  * no actor, no story, no project and no id or title of the meeting. A project meeting signals like any change of its project.
  */
-
-// usage.get is not built here (as in chatsGroupSignal.test.ts). serverCallMap.ts copies each call at import, so the mock comes first.
-vi.mock('../calls/usage', async () => {
-  const { notBuiltAsync } = await import('./notBuilt');
-  return { usageGet: () => notBuiltAsync('usage.get'), usageRetryEffect: () => notBuiltAsync('usage.retryEffect') };
-});
 
 const NOW = new Date('2026-10-04T06:00:00Z');
 const ADMIN = 'usr_001';
@@ -82,6 +76,27 @@ describe('the signals of a meeting with no project', () => {
     expect(channels.sort()).toEqual([ATTENDEE, ORGANIZER, REMOVED].sort().map((user) => `person:${user}`));
     const cancelled = await call(ORGANIZER, 'meetings.cancel', { id });
     expect(cancelled.signals.map((signal) => signal.channel)).toEqual([ATTENDEE, ORGANIZER].sort().map((user) => `person:${user}`));
+  });
+
+  it('go, for a delete and its Undo, to the people of the meeting only, with no title and no id (owner, 2026-10-23)', async () => {
+    const { mem, call } = runner();
+    const made = await call(ORGANIZER, 'meetings.create', { kind: 'meeting', title: TITLE, startsAt: '2026-10-06T10:00:00+03:00', attendeeIds: [ATTENDEE, REMOVED] });
+    const id = (made.output as { id: string }).id;
+    await call(ORGANIZER, 'meetings.cancel', { id });
+    const deleted = await call(ORGANIZER, 'meetings.delete', { id });
+    expect(deleted.output).toEqual({ deleted: 1 });
+    const people = [ATTENDEE, ORGANIZER, REMOVED].sort().map((user) => `person:${user}`);
+    expect(deleted.signals.map((signal) => signal.channel).sort()).toEqual(people);
+    for (const signal of deleted.signals) {
+      const text = JSON.stringify(signal);
+      for (const hidden of [id, TITLE, 'SIGNAL-7731']) expect(text).not.toContain(hidden);
+      expect(signal.office).toBe(false);
+      expect(signal.projects).toEqual([]);
+      expect(signal.kinds).toEqual(expect.arrayContaining(['events', 'meetings']));
+    }
+    const story = Object.values(mem.tables.state.events).find((event) => event.verb === 'meeting.deleted')!.correlationId;
+    const back = await call(ORGANIZER, 'events.undoStory', { correlationId: story });
+    expect(back.signals.map((signal) => signal.channel).sort()).toEqual(people);
   });
 
   it('go to the organizer behind an agent, not to the agent', async () => {

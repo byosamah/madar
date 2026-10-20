@@ -218,6 +218,12 @@ export function meetingWrites(office: State): SweepCall[] {
     ['meetings.cancel', { id: open.id }, open.organizerId],
     ['events.undoStory', { correlationId: 'cor_trap_meeting_office' }, ADMIN],
     ['events.undoStory', { correlationId: 'cor_trap_meeting_office' }, hidden.organizerId],
+    // A delete of a meeting that is not cancelled, and of a hidden one (owner, 2026-10-23).
+    ['meetings.delete', { id: open.id }, ADMIN],
+    ['meetings.delete', { id: hidden.id }, outsider],
+    ['meetings.delete', { id: hidden.id }, ADMIN],
+    ['meetings.delete', { id: hidden.id }, hidden.attendeeIds[0]],
+    ['meetings.delete', { id: hidden.id }, hidden.organizerId],
   ];
 }
 
@@ -493,6 +499,10 @@ export function seriesSweep(office: State): SweepCall[] {
       ['meetings.update', { id: pFourth.id, startsAt: '2026-11-01T14:30:00+03:00', durationMin: 90, attendeeIds: [...pFirst.attendeeIds, 'usr_007'], scope: 'later' }, actor],
       ['meetings.cancel', { id: pFourth.id, scope: 'later' }, actor],
       ['meetings.extend', { seriesId: pFirst.seriesId }, actor],
+      // The third meeting is cancelled by the trap: a delete of it, alone and with its later cancelled meetings (owner, 2026-10-23).
+      ['meetings.delete', { id: pThird.id }, actor],
+      ['meetings.delete', { id: pThird.id, scope: 'later' }, actor],
+      ['meetings.delete', { id: pFourth.id }, actor],
     );
   }
   for (const actor of [leader, 'usr_003', ADMIN, 'usr_004', 'usr_006']) {
@@ -503,6 +513,8 @@ export function seriesSweep(office: State): SweepCall[] {
       ['meetings.cancel', { id: oThird.id, scope: 'later' }, actor],
       ['meetings.cancel', { id: oFourth.id }, actor],
       ['meetings.extend', { seriesId: oFirst.seriesId }, actor],
+      ['meetings.delete', { id: oThird.id }, actor],
+      ['meetings.delete', { id: oThird.id, scope: 'later' }, actor],
     );
   }
   calls.push(['meetings.create', { kind: 'team', title: 'New daily', startsAt: '2026-10-18T09:00:00+03:00', attendeeIds: ['usr_007'], repeat: { every: 'two_weeks', until: null } }, pFirst.organizerId]);

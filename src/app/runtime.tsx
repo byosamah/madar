@@ -34,7 +34,7 @@ export const SHORT_MS = 5 * 60_000;
 /**
  * remote: a read keeps its answer until a change signal names it (plan R2), so a screen that opens again shows the cached list
  * at once and asks the server nothing. An answer that no screen shows stays for an hour (keepAnswers has the two exceptions).
- * A read that never reloads on a signal (a signed link, a screenshot, the usage meters) still loads each time a screen opens it,
+ * A read that never reloads on a signal (a signed link, a screenshot) still loads each time a screen opens it,
  * and it goes 5 minutes after its screen closed, as does a search (one answer for each typed text). The prototype reloads
  * every list after each change and on each mount, as before.
  */

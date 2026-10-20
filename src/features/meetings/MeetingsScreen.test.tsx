@@ -28,6 +28,9 @@ describe('the Meetings view of the Tasks screen', () => {
     const switchBox = screen.getByRole('radiogroup', { name: 'Show' });
     expect(within(switchBox).getByRole('radio', { name: 'Meetings' })).toBeChecked();
     expect(within(switchBox).getByRole('radio', { name: 'To-dos' })).not.toBeChecked();
+    // The switch sits in its own row under the title block, as the Filter button does on Projects (owner, 2026-10-23).
+    expect(screen.getByRole('heading', { level: 1, name: 'Tasks' }).closest('div.pb-5')!.contains(switchBox)).toBe(false);
+    expect(switchBox.parentElement!.className).toBe('flex flex-wrap items-center gap-3 pb-4');
     expect(screen.getAllByRole('button', { name: 'New meeting' })).toHaveLength(1);
     const today = await screen.findByRole('region', { name: 'Today' });
     expect(within(today).getByText('Review the facade')).toBeInTheDocument();
@@ -118,5 +121,28 @@ describe('the Meetings view of the Tasks screen', () => {
     expect(row.textContent).not.toMatch(/[٠-٩]/);
     expect(row.textContent).toMatch(/\d{1,2}:\d{2}/);
     expect(screen.getByRole('region', { name: 'اليوم' })).toBeInTheDocument();
+  });
+});
+
+describe('the space of the controls row (owner, 2026-10-23)', () => {
+  it('is the same row on Projects, Tasks and Meetings: 20 px under the title and 16 px above the list', async () => {
+    const rowOf = (node: HTMLElement) => node.closest('div.pb-4') as HTMLElement;
+    const projects = await renderApp('/projects', office);
+    const filter = rowOf(await screen.findByRole('button', { name: /^Filter/ }));
+    const projectsTitle = screen.getByRole('heading', { level: 1 }).closest('div.pb-5') as HTMLElement;
+    expect(filter.previousElementSibling).toBe(projectsTitle);
+    const rowClass = filter.className;
+    projects.unmount();
+    for (const path of ['/work', '/meetings']) {
+      const app = await renderApp(path, office);
+      const row = rowOf(await screen.findByRole('radiogroup', { name: 'Show' }));
+      const title = screen.getByRole('heading', { level: 1, name: 'Tasks' }).closest('div.pb-5') as HTMLElement;
+      expect(row.className, path).toBe(rowClass);
+      expect(row.previousElementSibling, path).toBe(title);
+      // The title holds no line under it any more, and the row sits right above the list: no gap between them.
+      expect(title.querySelector('.mt-1\\.5'), path).toBeNull();
+      expect(row.parentElement!.className, path).not.toContain('gap-');
+      app.unmount();
+    }
   });
 });

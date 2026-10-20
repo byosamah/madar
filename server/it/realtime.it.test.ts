@@ -7,7 +7,6 @@ import type { Deps, SignalPort } from '../core/ports';
 import { runCall } from '../core/runCall';
 import type { ChangeSignal, RunResult } from '../core/types';
 import { pgDb } from '../data/sql';
-import { recordingMeter } from '../test/fakes/meter';
 import { realtimeSender, SIGNAL_EVENT } from '../signal/realtime';
 import { localClient, localDbUrl } from './migrate';
 import { newBatch, startOffice, type ItOffice } from './runCallOffice';
@@ -85,7 +84,6 @@ describe('suite 7: change signals on Realtime, on the local stack', () => {
   let pgAdmin: pg.Client;
   /** Every signal that runCall gave the sender, so a test can name the ones it waits for. */
   const handed: ChangeSignal[] = [];
-  const failed: number[] = [];
   /** What the person me received, for each topic. */
   const received: Record<string, ChangeSignal[]> = {};
   let me = '';
@@ -126,7 +124,7 @@ describe('suite 7: change signals on Realtime, on the local stack', () => {
   beforeAll(async () => {
     office = await startOffice('rt');
     const isolate = office.isolate();
-    const sender = realtimeSender({ log: isolate.log, meter: { ...recordingMeter(), signalsFailed: (n) => failed.push(n) } });
+    const sender = realtimeSender({ log: isolate.log });
     deps = { ...isolate, signal: { send: async (q, signals) => { handed.push(...signals); await sender.send(q, signals); } } };
     pgAdmin = await localClient();
 
@@ -196,7 +194,6 @@ describe('suite 7: change signals on Realtime, on the local stack', () => {
       [[officeSignal.id, personSignal.id]],
     );
     expect(rows.rows.map((r) => [r.topic, Number(r.n)])).toEqual([['office', 1], [`person:${me}`, 1]].sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
-    expect(failed).toEqual([]);
   });
 
   it('sends nothing after a rollback or a read', async () => {
@@ -227,13 +224,12 @@ describe('suite 7: change signals on Realtime, on the local stack', () => {
     for (const signal of rolledBack) expect(arrivals(signal.channel, signal.id)).toEqual([]);
     const stored = await pgAdmin.query<{ n: string }>("select count(*) as n from realtime.messages where payload->>'id' = any($1)", [rolledBack.map((s) => s.id)]);
     expect(Number(stored.rows[0].n)).toBe(0);
-    expect(failed).toEqual([]);
   });
 
   it.each([
     ['without the insert grant (the rights before this migration: usage and execute)', [], /BroadcastMessage: permission denied for table messages/],
     ['with the insert grant but no insert policy for the role', ['grant insert on realtime.messages to %I'], /BroadcastMessage: new row violates row-level security policy/],
-  ])('counts a send %s as a failed signal: realtime.send warns, the sender logs it and reports it to the meter', async (_, more, warning) => {
+  ])('treats a send %s as a failed signal: realtime.send warns and the sender logs it', async (_, more, warning) => {
     // A role of its own with the rights of the case, so the test never takes a right from madar_server.
     const role = `madar_n1_nosend_${process.pid}`;
     const rolePassword = randomUUID();
@@ -254,10 +250,8 @@ describe('suite 7: change signals on Realtime, on the local stack', () => {
     url.password = rolePassword;
     const db = pgDb({ writeUrl: url.toString(), readUrl: url.toString() });
     const logs: { level: string; message: string; fields?: Record<string, unknown> }[] = [];
-    const counted: number[] = [];
     const sender = realtimeSender({
       log: { info: () => undefined, warn: () => undefined, error: (message, fields) => logs.push({ level: 'error', message, fields }) },
-      meter: { ...recordingMeter(), signalsFailed: (n) => counted.push(n) },
     });
     const signal: ChangeSignal = {
       v: 1, id: `sig_nosend_${run}_${more.length}`, channel: 'office', seq: 1, projects: [], office: true, kinds: ['tasks'], people: [], storyId: 'sty_nosend', actorId: leader,
@@ -269,7 +263,6 @@ describe('suite 7: change signals on Realtime, on the local stack', () => {
       await db.close();
       await dropRole();
     }
-    expect(counted).toEqual([1]);
     expect(logs).toHaveLength(1);
     expect(logs[0].fields).toMatchObject({ failed: 1, channels: ['office'] });
     expect((logs[0].fields?.warnings as string[])[0]).toMatch(warning);

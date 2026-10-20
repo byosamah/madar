@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
 import { fakeDeps } from '../test/fakes/deps';
@@ -9,12 +9,6 @@ import { createRunCall } from './runCall';
  * The signal of chats.setNotify (chat design item 21). The choice is the own read mark of one person: the call writes no event, and
  * its only signal goes to that person, with no office signal.
  */
-
-// usage.get is not built here (as in chatsArchiveSignal.test.ts). serverCallMap.ts copies each call at import, so the mock comes first.
-vi.mock('../calls/usage', async () => {
-  const { notBuiltAsync } = await import('./notBuilt');
-  return { usageGet: () => notBuiltAsync('usage.get'), usageRetryEffect: () => notBuiltAsync('usage.retryEffect') };
-});
 
 const NOW = new Date('2026-10-04T06:00:00Z');
 

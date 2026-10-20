@@ -234,7 +234,7 @@ follow the host (see the R2 runbook).
   `docs/superpowers/plans/2026-10-17-madar-exit-wave4-ops-plan.md`.
 - What follows the word: the `VITE_API_URL` of the screens (`build:remote`: the page's own `/api`, or the api function); the
   Pages Functions of `/api` and `/mcp` (the Worker through the service binding, or the Supabase function); the calls limit of
-  the Usage page (10 million or 500,000; the 10 million are the Paid month, see First setup step 1); what `checks.sh` wants in `x-madar-server`. The Pages Functions get the word when
+  the usage meters and the warning mail (10 million or 500,000; the 10 million are the Paid month, see First setup step 1); what `checks.sh` wants in `x-madar-server`. The Pages Functions get the word when
   Pages builds them, so a change reaches them only with `pages.sh`.
 - What does not follow it: MCP_URL (the agents keep their connection), the jobs (pg_cron calls the Supabase jobs function in
   both settings), the Vault, the database password.

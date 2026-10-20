@@ -66,7 +66,8 @@ export const COLD_EXTRA_ROWS = 4;
 export const IMPORT_ROWS_PER_RECORD = 7.5;
 
 /**
- * The rows that one Cron run reads on the year office, after a first run wrote its reminders (exit wave 3). quarter: a run at
+ * The usage step went (owner, 2026-10-23), so a run at minute 0 reads no more than a run at minute 15 now; the hourly ceiling is just a roomy
+ * ceiling. The rows that one Cron run reads on the year office, after a first run wrote its reminders (exit wave 3). quarter: a run at
  * minute 15, with no usage step. hourly: the first run of an hour, which also reads the size of every file version. The first
  * ceilings were 3,012 (wave 0 measured 2,738 rows for the trigger loader, the dedupe lookup, the outbox and the cleanup, plus 10%)
  * and 10,000 (one row for each of the 6,000 files and the rest). Task 17 measured 1,486 and 14,695 and set each ceiling to the

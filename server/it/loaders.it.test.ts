@@ -273,10 +273,4 @@ describe('the loaders on the local database', () => {
     }
     expect(found).toBeGreaterThan(10);
   });
-
-  it('counts the bytes it reads toward the egress meter', async () => {
-    let bytes = 0;
-    await sqlSource(q, { bytes: (n) => (bytes += n) }).select({ c: 'tasks', where: [{ col: 'project_id', in: ['prj_001'] }] });
-    expect(bytes).toBeGreaterThan(1000);
-  });
 });
