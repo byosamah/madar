@@ -510,6 +510,7 @@ any screen work.
   rows, labels and buttons, Regular for body text.
 - RTL: logical classes only (`start/end`, `ms/me`, `ps/pe`). `scripts/check-rtl.ts` fails on left or right styles.
 - Write a direction mark as an escape (`\u2068`), never as the raw character: GitHub flags hidden bidi characters.
+  `check-rtl.ts` (`findRawDirectionMark`) stops the build on a raw mark in `src`; it does not read test files or word files.
 - Text with its own direction (`dir="auto"`, `dir="ltr"`, `<bdi>`) takes its side from the page (`tokens.css`), so an
   English name sits on the right in Arabic. Typed text (a `textarea` or `input` with `dir="auto"`) and the text of a chat or a comment
   (`natural-side`) follow their own language instead: Arabic from the right, English from the left (owner, 2026-10-19). Put `dir="auto"` on the text, never on a flex or grid box or with

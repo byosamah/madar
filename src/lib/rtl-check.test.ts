@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findDirectionBox, findPhysicalDirection } from './rtl-check';
+import { findDirectionBox, findPhysicalDirection, findRawDirectionMark } from './rtl-check';
 
 const flagged = [
   'ml-4', 'mr-2', 'pl-3', 'pr-1', 'left-0', 'right-4', '-left-2', 'text-left', 'text-right', 'float-left',
@@ -58,5 +58,28 @@ describe('findDirectionBox', () => {
 
   it('reports the line of dir', () => {
     expect(findDirectionBox('a\n<span\n  dir="auto" className="flex">')[0]).toMatchObject({ line: 3, match: 'flex' });
+  });
+});
+
+// GitHub flags a hidden direction character in the code (src/CLAUDE.md). The code writes each one as an escape, such as `\u2068`.
+describe('findRawDirectionMark', () => {
+  const codes = [0x200e, 0x200f, 0x061c, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066, 0x2067, 0x2068, 0x2069];
+  const nameOf = (code: number) => `U+${code.toString(16).toUpperCase().padStart(4, '0')}`;
+
+  it.each(codes.map((code) => [nameOf(code), code] as const))('flags the raw character %s', (name, code) => {
+    expect(findRawDirectionMark(`const a = \`${String.fromCodePoint(code)}name\`;`)).toEqual([{ line: 1, rule: 'Raw direction mark', match: name }]);
+  });
+
+  it('allows the escapes and Arabic words', () => {
+    expect(findRawDirectionMark('const a = `\\u2068${name}\\u2069`; // \\u200F')).toEqual([]);
+    expect(findRawDirectionMark("t('chat.placeholderPhone') // اكتب @ لذكر أحد.")).toEqual([]);
+  });
+
+  it('reports the line of each mark', () => {
+    const text = `a\nb ${String.fromCodePoint(0x2068)}x${String.fromCodePoint(0x2069)}`;
+    expect(findRawDirectionMark(text)).toEqual([
+      { line: 2, rule: 'Raw direction mark', match: 'U+2068' },
+      { line: 2, rule: 'Raw direction mark', match: 'U+2069' },
+    ]);
   });
 });

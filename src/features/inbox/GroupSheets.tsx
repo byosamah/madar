@@ -146,7 +146,7 @@ function LeaveSheet({ id, name, onClose }: { id: string; name: string; onClose: 
     onSuccess: () => {
       onClose();
       navigate('/inbox');
-      toast.show({ message: t('chat.leaveToast', { name: `⁨${name}⁩` }) });
+      toast.show({ message: t('chat.leaveToast', { name: `\u2068${name}\u2069` }) });
     },
   });
   return (

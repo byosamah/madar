@@ -8,7 +8,7 @@ import { plainText } from '../../lib/text';
 export type ReasonKind = Exclude<CommentLineKind, 'message'>;
 
 /** A name or a reason keeps its own direction (FSI and PDI), so an English name in an Arabic line stays in order. */
-const isolate = (text: string): string => `⁨${text}⁩`;
+const isolate = (text: string): string => `\u2068${text}\u2069`;
 
 /**
  * The words of one quiet line of a task thread, in the screen language (fbk_027, owner 2026-10-19): "Faisal changed the due date:
