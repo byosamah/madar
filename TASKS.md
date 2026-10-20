@@ -691,7 +691,7 @@ Builders: Haiku 5.5. Checkers: Sonnet 5.5 (owner, 2026-10-18, for these builds).
 - [x] fbk_028 (Faisal), bug: (a) `public/sw.js` shows no line while a window of Madar is visible and has the focus, in Chromium only (WebKit revokes a subscription that gets a push with no notice, so Safari, iPhone browsers, Firefox and unknown engines always show it); at the join with main (2026-10-20) the server wait of the chat batch (design item 20: 10 s, then no push for a person who read the chat) comes in addition. (b) "Waits for your reply" is gone; "Mark as unread" (`chats.markUnread`, MCP deny list) is in the row menu and in the menu of the open chat
 - [x] fbk_029 (Osama): a frame step (drag, zoom, round previews, Save) for the profile picture, one shared `PictureFrame` with the sub-company logo
 - [x] fbk_031 (Faisal), bug: a Stage field for every task in the template editor; the move keeps the days of a saved task, and a task that Add task just made goes where Add task would put it in the new stage
-- [ ] Release: the owner says when it is live, then `feedback.setStatus` done for fbk_028, fbk_029 and fbk_031 (fbk_030 and fbk_032 went live with the chat batch and are done, 2026-10-20)
+- [ ] Release: production at 5a98255 (2026-10-20, the owner ran it; record: proof.md). Waits: the owner says it is live, then `feedback.setStatus` done for fbk_028, fbk_029 and fbk_031 (fbk_030 and fbk_032 went live with the chat batch and are done, 2026-10-20)
 - [ ] Open: the update of linked projects (`syncDiff`) has no kind for a task that moved to another stage; `chats.waiting` stays in the contract and on the MCP allow list but no screen reads it
 - [x] `server/it/markUnread.it.test.ts` ran in the join gate (2026-10-19, test:it 318 passed after the fix of 2 Google tests)
 
@@ -708,7 +708,7 @@ Builders: Haiku 5.5. Checkers: Sonnet 5.5 (owner, 2026-10-18, for these builds).
 - [x] A new connect uses the same Madar calendar (owner test 2026-10-20 found a second calendar after Disconnect and Connect)
 - [ ] Join to main and the test copy after the wave 1 release; then `scripts/google/setup-secrets.ts test` and `production` from deploy-test (the 3 Google secrets), `all.sh test`, the deploy suite
 - [ ] Task 14.5: the owner connects Google Calendar on the test copy; check the replaced flag (does a revoke of an old refresh token end a newer one?) and the second "Madar" calendar
-- [ ] Wave 2 release: production by the owner; fbk_022 stays open until wave 3 is live
+- [x] Wave 2 release: production at 5a98255 (2026-10-20, the owner ran it, with the Google calendar reuse). Record: proof.md. fbk_022 stays open until wave 3 is live
 - [ ] Wave 3: repeating meetings (every day Sunday to Thursday, every week, every 2 weeks)
 
 ## 2026-10-19: a better chat, with lessons from Campfire (branch `rb/chat-campfire`, worktree `~/dev/madar-rb/chat-campfire`)
@@ -731,5 +731,6 @@ separate checker. No production change before Friday 2026-10-23. Answers fbk_028
 - [x] Release: production at 5350647 (2026-10-20, the owner ran it; the second run went through after a 500 of the Supabase settings step). fbk_030 and fbk_032 done; fbk_028 waits for the meetings join (part 2, Mark as unread, owner 2026-10-20). Record: proof.md
 - [x] Phone fixes (owner, 2026-10-20: "fix them"): a task thread title takes up to two lines under 640 px, and the task picture shows only from 640 px; the phone box hint is short and keeps the @ tip ("Use @ to mention." / «اكتب @ لذكر أحد.»), one line at 360 px and 390 px, because a project chat pushes only the people that a message names. What's new: one line on the task title (item 24), and "To reach a person, type @ and pick the name." (item 50). Record: proof.md, "Chat batch: the phone fixes"
 - [x] The reaction pills on a phone (owner, 2026-10-20: "fix it"): no change was necessary. A pill is 28 px high, and its press area is 44 x 44 px. Record: proof.md, "Chat batch: the phone fixes"
+- [x] The phone tab bar (owner, 2026-10-20: "fix it", icons only, the floating pill chosen): each 24 px icon in the centre of a 48 px tab, the open tab a round pill, the bar 16 px from the sides and the bottom, the Inbox count on its icon. What's new 2026-10-23-31. Gates: npm test (16 files timed out under load 137 and passed alone), prototype smoke 87 of 87, shots EN/AR, light/dark, 390 px. Production at 5a98255
 - [x] Cleanup (owner, 2026-10-20: "do only 6"): the raw direction marks in `GroupSheets.tsx` and `ReasonLine.tsx` are escapes now, and `check-rtl.ts` stops the build on a raw mark in `src`. People see no change, so What's new has no line for it
 - [ ] Proposed for later (not approved): the other items of "Not in this batch" in the design
