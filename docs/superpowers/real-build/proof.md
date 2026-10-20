@@ -1070,6 +1070,11 @@ walk caught the answer: a whole-batch 500 "Something went wrong" for the Admin, 
   Madar, `/privacy` and `/favicon.ico` 200, and the live page starts `bootstrap-l3Nn2aCd.js` of this build. No deploy suite ran before it:
   the owner chose speed. fbk_022 is done.
 
+### Production at 55cae0c5 (2026-10-20, guides only; Claude ran it on the owner's word "merge to main, push then deploy")
+- Three guide lines on top of 9a8aa6a6 (main without a folder, the pinned test scripts, the loader of a right on a hidden row), no code.
+  `all.sh test` (147 calls), then `all.sh production`: health from `supabase` with 147 calls, the database check, `POST /mcp` with no
+  token 401, the page 200.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 

@@ -711,6 +711,7 @@ Builders: Haiku 5.5. Checkers: Sonnet 5.5 (owner, 2026-10-18, for these builds).
 - [x] Wave 2 release: production at 5a98255 (2026-10-20, the owner ran it, with the Google calendar reuse). Record: proof.md. fbk_022 stays open until wave 3 is live
 - [x] Wave 3, track series (`rb/meetings-series`): `meetings.create` takes `repeat` (every day Sunday to Thursday, every week, every 2 weeks, with a last day) and makes the first 8 meetings; `meetings.update` and `meetings.cancel` take a `scope` ("This meeting" or "This and later meetings"); `meetings.extend` keeps a series 8 meetings ahead (the 15-minute job step and the prototype timer; no new migration, no new SQLite step); Repeat and Until under "More", the question sheet `ScopeSheet`, the line "Repeats every week" on the meeting sheet; leak tests of a private series; Google Calendar syncs every meeting of a series; What's new 2026-10-23-54
 - [x] Wave 3 release: production at 9a8aa6a6 (2026-10-20, run by Claude on the owner's word "once u finish merge to main and deploy"), with the security fix of `meetings.extend` and the heavy test lock. fbk_022 done. Record: proof.md
+- [x] Production at 55cae0c5 (2026-10-20): guide lines only, after `all.sh test`. Record: proof.md
 
 ## 2026-10-19: a better chat, with lessons from Campfire (branch `rb/chat-campfire`, worktree `~/dev/madar-rb/chat-campfire`)
 Design `docs/superpowers/specs/2026-10-19-madar-chat-campfire-design.md` (owner approved 2026-10-19), plan
