@@ -128,6 +128,11 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   deploy suite on the office path (`tests/CLAUDE.md`), and removes it at the stop. Run it after `build:server`, sandbox off.
 - `npx supabase start -x edge-runtime` - the local stack (project CLI only, see `supabase/CLAUDE.md`).
 - `scripts/dev/docker-lock.sh run <holder> -- <cmd>` - every Docker or database task takes this lock first.
+- One heavy run at a time (owner, 2026-10-20): `npm test`, `test:server`, `test:db`, `test:lite`, `test:office`, `test:it`,
+  `test:mcp` and `npm run smoke` take `scripts/dev/heavy-lock.sh` by themselves and wait for the run before them (up to 60
+  minutes; `heavy-lock: waiting for ...` names the holder). Start them in the background. Each vitest run uses at most 5 workers
+  (`maxWorkers`, `vite.config.ts`). A few files with `npx vitest run <files>` take no lock. Why: two or three full runs of other
+  sessions at once filled the 16 GB of memory, the load reached 190 on 10 cores, and tests failed on their time limits.
 - Size of an old build: `git archive <sha> | tar -x -C $TMPDIR/base`, link `node_modules` into it, build there.
 - `npx supabase db reset` - after any migration change, from your own worktree, under the lock.
 - Last counts (2026-10-20, the chat batch, main 86ecc3c): unit+server 7,288 passed (689 files); test:db 1,840; test:lite 1,840;
