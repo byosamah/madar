@@ -101,9 +101,11 @@ export function seedTarget(target: string): { ref: string; supabaseUrl: string }
 /**
  * The server tables that a reseed keeps: the office version and the change counters (open screens and warm caches compare
  * them, so they only rise), the office deletes (a warm cache needs them), the project values (the token hook), and the
- * quota, usage and job records (the email quota of the UTC day, the meters and the morning summary count real sends).
+ * quota, usage and job records (the email quota of the UTC day, the meters and the morning summary count real sends), and the
+ * Madar calendar of each person (google_calendars): the calendar lives in a real Google account, so the next connect after a reseed
+ * uses it again and makes no second calendar "Madar" (owner test, 2026-10-20).
  */
-export const KEEP_TABLES = ['office_meta', 'office_deletes', 'person_seq', 'platform_config', 'mail_log', 'usage_month', 'usage_warnings', 'job_runs'] as const;
+export const KEEP_TABLES = ['office_meta', 'office_deletes', 'person_seq', 'platform_config', 'mail_log', 'usage_month', 'usage_warnings', 'job_runs', 'google_calendars'] as const;
 
 /**
  * The platform tables of the old office that a reseed empties: the agent approvals (20261004000402_platform_agent_approvals.sql).

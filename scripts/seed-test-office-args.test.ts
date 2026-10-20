@@ -115,7 +115,7 @@ describe('seed-test-office: the tables', () => {
   it('empties every office table, the counters and the per-office server tables, and keeps the ones that guard quotas and links', () => {
     const all = [...TABLES.map((spec) => spec.table), COUNTERS_TABLE, ...SERVER_TABLES, ...PLATFORM_SEED_TABLES].sort();
     expect([...TRUNCATE_TABLES, ...KEEP_TABLES].sort()).toEqual(all);
-    expect([...KEEP_TABLES].sort()).toEqual(['job_runs', 'mail_log', 'office_deletes', 'office_meta', 'person_seq', 'platform_config', 'usage_month', 'usage_warnings']);
+    expect([...KEEP_TABLES].sort()).toEqual(['google_calendars', 'job_runs', 'mail_log', 'office_deletes', 'office_meta', 'person_seq', 'platform_config', 'usage_month', 'usage_warnings']);
     expect(TRUNCATE_SQL).toBe(`truncate ${TRUNCATE_TABLES.join(', ')} restart identity`);
     expect(TRUNCATE_SQL).not.toMatch(/public\./);
   });
