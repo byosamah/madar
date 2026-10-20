@@ -210,14 +210,15 @@ describe('the reload after a change signal (plan 5.3)', () => {
     const app = setup();
     const tasks = app.show('tasks.list', {});
     const session = app.show('session.get');
-    const chats = app.show('chats.list');
+    // The chat reads also read the preferences (the Admin's choice of what reaches the Admin), so the bell list is the person list here.
+    const notices = app.show('notifications.list');
     await settle();
     app.send([sig({ channel: `person:${ME}`, kinds: ['preferences'], people: [ME], seq: 4 })]);
     await vi.advanceTimersByTimeAsync(1000);
-    expect([tasks(), session(), chats()]).toEqual([1, 2, 1]);
+    expect([tasks(), session(), notices()]).toEqual([1, 2, 1]);
     app.send([sig({ channel: `person:${ME}`, kinds: ['preferences'], people: [ME], seq: 6 })]);
     await vi.advanceTimersByTimeAsync(1000);
-    expect([tasks(), session(), chats()]).toEqual([1, 3, 2]);
+    expect([tasks(), session(), notices()]).toEqual([1, 3, 2]);
     app.stop();
   });
 

@@ -89,10 +89,10 @@ const RULES: Record<string, ReadRule> = {
   // deletes each notice of the send or keeps a hidden one, which reads as gone both before and after (review 2026-10-07).
   'notifications.list': rule('person', ['notifications', 'projects', 'tasks', 'updates', 'users']),
   'notifications.count': rule('person', ['notifications', 'projects', 'tasks', 'updates', 'users']),
-  'chats.list': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'projects', 'tasks', 'users']),
-  'chats.unreadCount': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'projects', 'tasks', 'users']),
-  'chats.messages': rule('person', ['chatReads', 'conversations', 'members', 'messages', 'projects', 'users']),
-  'chats.waiting': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'projects', 'tasks', 'users']),
+  'chats.list': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'preferences', 'projects', 'tasks', 'users']),
+  'chats.unreadCount': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'preferences', 'projects', 'tasks', 'users']),
+  'chats.messages': rule('person', ['chatReads', 'conversations', 'members', 'messages', 'preferences', 'projects', 'users']),
+  'chats.waiting': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'preferences', 'projects', 'tasks', 'users']),
   // The ticket of the live socket (exit wave 3): src/api/remote/liveSocket.ts asks for it with api.call, never with useCall.
   'live.ticket': rule('none', []),
   // The Google Calendar connect (fbk_022): the state of a connection is private to its person and changes with no signal. The Settings
