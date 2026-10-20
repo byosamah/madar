@@ -301,9 +301,10 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 ## Google Calendar (owner, 2026-10-19, fbk_022)
 - Four server-only calls (`contract/server.ts`, `server/calls/google.ts`): `google.status` (read) gives `{ ready, state, connectedAt }` with `state` one of
   `none`, `ok`, `not_synced`, `broken`. `google.connectStart` (read) gives the Google address with a signed state. `google.connect { code, state }`
-  swaps the code and makes the calendar "Madar" in the Google account of the person. `google.disconnect` stops the sync. Only a person, for the person:
+  swaps the code and gets the calendar "Madar" in the Google account of the person: the one that Madar made before (it remembers the id, and a disconnect
+  keeps it), else a new one. `google.disconnect` stops the sync. Only a person, for the person:
   an agent gets `forbidden`, and no call takes the id of another person. All four are on the MCP deny list.
-- They touch only the two server-only tables `google_connections` and `google_events` (`server/google/store.ts`). No State collection reads them, so the
+- They touch only the three server-only tables `google_connections`, `google_events` and `google_calendars` (`server/google/store.ts`). No State collection reads them, so the
   calls write no event, no History row and no change signal, and `WRITE_KINDS` has `[]` for the two writes. The prototype fakes give `ready: false`
   and refuse the other three with `google_not_ready`.
 - Reasons: `google_not_ready` (this copy has no Google values), `google_link_old` (the state is changed or past 10 minutes, or Google calls the code

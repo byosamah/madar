@@ -37,7 +37,7 @@ The other host stays deployed as the way back. Each area below has its own guide
   alive after the answer on both hosts: on Supabase within the 150 s of the function, on the Worker through waitUntil for
   about 30 s after the answer. A long mail or push chain can stop part way there; the 15-minute job retries the outbox.
 - The kinds in `AFTER_ANSWER_KINDS` (`core/effects.ts`: `mail.notice`, `mail.quotaWarning`, `usage.limitWarning`, `push.notify`,
-  `push.chat`, `mail.chatNotice`, `gcal.sync`, `gcal.revoke`) run after the answer when the host has `after`, on one chain per batch
+  `push.chat`, `mail.chatNotice`, `gcal.sync`, `gcal.revoke`, `gcal.tidy`) run after the answer when the host has `after`, on one chain per batch
   (`BatchScope.mail`), so the mails keep the order of the entries. Every other kind runs before the answer. With no `after` (tests,
   scripts), every kind runs before the answer. A new mail or push kind goes into `AFTER_ANSWER_KINDS`; `effects.test.ts` pins the
   names (performance audit 2026-10-07). The kinds in `WAITED_KINDS` (`push.chat`, `mail.chatNotice`) wait `CHAT_WAIT_MS` (10 s)
@@ -120,7 +120,16 @@ The other host stays deployed as the way back. Each area below has its own guide
 - One way: Madar writes each meeting to the calendar "Madar" of each connected person who is its organizer or an attendee. A change in Google never comes
   back. Each person connects once in Settings (`google.connectStart`, the Google screen, the callback, `google.connect`; see `src/api/CLAUDE.md`). The
   scope is only `calendar.app.created`: Madar makes its own calendar and writes only there. Code: `server/google/` (`api.ts` the Google calls with a 3 s
-  limit, `keys.ts` the seal, `state.ts` the signed state with the PKCE verifier, `store.ts` the two tables, `sync.ts`, `rows.ts`, `register.ts`).
+  limit, `keys.ts` the seal, `state.ts` the signed state with the PKCE verifier, `store.ts` the three tables, `sync.ts`, `rows.ts`, `register.ts`).
+- One calendar for each person (owner test 2026-10-20: Disconnect, then Connect made a second calendar "Madar" with the same meetings at two times). The scope
+  reaches every calendar that Madar made, also with the token of a newer link, but it cannot list calendars (`users/me/calendarList` gives 403). So Madar
+  remembers the calendar id in `google_calendars` (one row for each person). Each connect that gets a calendar id upserts the row in the transaction that inserts
+  the connection (`rememberCalendar`; the row changes only when the id changes). Before it makes a calendar, `google.connect` reads the row and asks Google for
+  that calendar with the new access token (`getCalendar`, GET `calendars/<id>`): 200 uses it and writes one `gcal.tidy { userId }` row after the sync rows;
+  404 or 410 (the person deleted it in Google) makes a new calendar and updates the row; any other answer (timeout, network error, 5xx, 429, 401, 403) ends the
+  connect with `google_unreachable`, takes the new grant back, and makes no calendar, so the person presses Connect again. A disconnect keeps the row on purpose;
+  `users.remove` deletes it in its transaction (`revokeRowsOf`). A person who connects with another Google account gets 404 for the old id and a new
+  calendar: Google answers 404 for a calendar that the account cannot see (probe with the owner's link on the test copy, 2026-10-20).
 - The producers (`rows.ts`): after the save of `meetings.create`, `meetings.update`, `meetings.cancel`, `meetings.extend`, `events.undo`, `events.undoStory` and
   `projects.delete` (`GCAL_CALLS`), `gcalRows` writes one `gcal.sync { userId, meetingId }` for each connected organizer or attendee (state ok or
   not_synced) and each person who has a Google event for a touched meeting (`SaveResult.meetingIds`, set by `data/save.ts`); it asks the database only
@@ -141,6 +150,14 @@ The other host stays deployed as the way back. Each area below has its own guide
   makes no call to Google: its grant is the grant of the new row, and a revoke could take that grant back. The cleanup step deletes every `revoking` row
   older than one day, so a sealed token never stays long in the database. The connect backfills the meetings of the next 60 days, at most 200; a long
   chain can stop part way on the Worker (about 30 s after the answer), and the 15-minute job retries the rest.
+- `gcal.tidy` (`tidyOne`, `sync.ts`) runs after the backfill rows of a connect that reused a calendar. The old events of Madar are still in it: the disconnect
+  deleted the `google_events` rows, so the backfill writes each meeting again (an insert that finds its id becomes an update, `putEvent`), which sets the
+  right time. The tidy lists the events of the calendar from now on (`listEvents`: `singleEvents`, 250 in a page, at most 4 pages), then reads its keep set
+  (after the list, so an event that sync writes meanwhile is never taken for a stale one): the event ids of the meetings in the backfill set of the person
+  (`backfillMeetingIds`: the next 60 days, at most 200) and the event ids in the `google_events` rows of the person. It deletes every other event whose id
+  starts with `MADAR_EVENT_PREFIX` (the hex of `madar:mtg_`). It never deletes an event without that prefix. It writes no row: the `google_events` rows come
+  only from `gcal.sync`. A revoked grant, a 401 after a new access token, a seal that does not open, a calendar that is gone or a refusal ends it quietly (the next
+  sync finds the same fault and ends the connection as today); a timeout, a network error, a 5xx or a 429 throws, and the outbox tries again.
 - Tests use `google/fakeGoogle.ts` (a stand-in for the token address, the revoke address and the Calendar API) behind `Deps.googleFetch`, and
   `google/testOffice.ts` (the sample office on node:sqlite). `server/it/google.it.test.ts` runs the SQL on Postgres.
 

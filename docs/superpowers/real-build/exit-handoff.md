@@ -62,7 +62,9 @@ function in 287 to 350 ms (medians). The member step of the office path is not m
 
 ## 4. What needs doing now (during the pause)
 1. **The database backup from the Mac**, each evening after 17:00 Riyadh, until GitHub runs `db-backup.yml` again:
-   `scripts/backup/mac-backup.sh` (sandbox off). `--check` tests the inputs with no dump. Check the run with
+   `scripts/backup/mac-backup.sh` (sandbox off). Since 2026-10-20 every session runs it as
+   `~/dev/madar-rb/mac-backup/scripts/backup/mac-backup.sh --if-due` on each owner message, until the end of October only (root
+   `CLAUDE.md`). `--check` tests the inputs with no dump. Check the run with
    `gh release list -R byosamah/madar-backups --limit 3`. When `gh run list -R byosamah/madar --workflow "DB backup" --limit 1`
    shows a success again, stop the Mac runs. The script removes no old backup: the workflow does that again.
 2. **The team's feature.** The normal flow of the repo (`CLAUDE.md`, the guides). Every new or changed call also keeps
@@ -105,10 +107,10 @@ tokenizer, fed by the save, and lower the `search.query` pins (`server/office/te
 ## 7b. Google Calendar and the office object (fbk_022, 2026-10-19)
 - The Google Calendar connect is built for the Postgres path (Supabase functions and the Worker with Hyperdrive). The office path has no Google yet:
   `entries/officeSignin.ts` answers `GET /api/google/callback` with `#google=not_ready` and calls no object, and the office object builds no
-  `Config.google`. The SQLite schema (version 7) already has the two server tables, empty.
+  `Config.google`. The SQLite schema (version 9) already has the three server tables, empty.
 - Before the office path gets Google: the network port of the Worker needs the Google calls (the object does no network work), `Deps.googleFetch`
-  must use it, the sync effects must run in the object (`gcal.sync` and `gcal.revoke` write only `google_connections` and `google_events`), the
-  import of wave 4 must copy both tables (it copies no server table of this kind today), and `DRIFT_TABLES` must name them. People then connect again
+  must use it, the sync effects must run in the object (`gcal.sync`, `gcal.revoke` and `gcal.tidy` write only `google_connections` and `google_events`; `google.connect` and `users.remove` also write `google_calendars`), the
+  import of wave 4 must copy the three tables (it copies no server table of this kind today), and `DRIFT_TABLES` must name them. People then connect again
   at the restart, or the sealed tokens move with the key `MADAR_GOOGLE_KEY` of the copy.
 
 ## 8. References

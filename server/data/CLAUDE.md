@@ -61,6 +61,11 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   its `sealed_token` is AES-256-GCM cipher text (`server/google/keys.ts`). `google_events` holds the Google event of a meeting for a person.
   Only `server/google/store.ts` reads and writes them. The nightly backup holds them (cipher text only), and the backup check lists them in
   `OUTSIDE_OFFICE_LOCK`, because the Google effects write them outside the office lock.
+- `google_calendars` (`20261021000300_google_calendars.sql`, owner test 2026-10-20): the third Google table, server-only, in `SERVER_TABLES`. One row for each
+  person: `user_id` (primary key), `calendar_id`, `changed_at`. It holds the id of the calendar that Madar made, and no key and no event. `google.connect`
+  reads it before it makes a calendar and writes it (`rememberCalendar`, an upsert that changes the row only when the id changes) in the transaction that
+  inserts the connection, so a new connect uses the same calendar. A disconnect keeps the row; `users.remove` deletes it in its transaction
+  (`revokeRowsOf`). It is not in `OUTSIDE_OFFICE_LOCK`: both writers hold the office lock. The migration follows the pattern of `google_connections`.
 - `events` only grows: a trigger refuses update and delete, and madar_server has only select and insert. Undo is a new
   event (`undoes`). The save never writes `undoneBy`.
 
@@ -184,6 +189,9 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - Schema version 8 (fbk_022) adds the two server tables `google_connections` and `google_events` with their indexes (`google_connections_person`,
   `google_events_meeting`). Their step is in `LITE_STEPS`, and `schema.test.ts` checks that it makes the same objects as a new office. The office object
   has no Google yet, so these tables stay empty there.
+- Schema version 9 (fbk_022, one calendar for each person) adds the server table `google_calendars` (`user_id` primary key, `calendar_id`, `changed_at`). It has
+  no extra index. Its step is `GOOGLE_CALENDARS_SQL` in `LITE_STEPS`, and `schema.test.ts` checks that it makes the same objects as a new office. The office
+  object has no Google yet, so the table stays empty there.
 - The order of versions 6 to 8 comes from the join of 2026-10-20: the chat batch reached main first with version 6, so the meetings settle step
   (version 6 on its branch) became 7 and the Google step (version 7 on its branch) became 8.
 - Each event index costs 1 row written for each event, and a read needs each of the 8. Task 18 dropped four of them, one at a

@@ -265,7 +265,9 @@ any screen work.
   (`reviewAll`). A person who is not the Admin sees "Office" (not "Admin") as the title of the page.
 - Shell (`app/AppShell.tsx`): a floating tab pill (Home, Projects, Tasks, Dashboard, Inbox, plus Search and the bell; top
   on desktop, bottom on a phone; on a phone the tabs show icons only, and the word of each tab stays `sr-only` below
-  640 px, owner 2026-10-08), the Madar mark at the top start (a press opens Home), the person menu. No sidebar.
+  640 px, owner 2026-10-08; each phone tab is 48 px high with its 24 px icon in the centre, the open tab is a round pill, the
+  bar sits 16 px from the sides and the bottom, and the Inbox count sits on the icon, owner 2026-10-20), the Madar mark at the top
+  start (a press opens Home), the person menu. No sidebar.
 - Focus mode is `?focus=<taskId>` with a 25-minute timer.
 - Tasks (`/work`): one main button, New office task (`features/work/NewOfficeTaskSheet.tsx`: title, lead, due date). A list
   screen opens a task panel with `?task=<id>` and, for a project task, `&project=<id>` (`openTask`, `lib/params.ts`).

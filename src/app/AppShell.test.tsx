@@ -45,46 +45,25 @@ describe('app shell', () => {
     expect(await screen.findAllByRole('link', { name: 'مدار، الرئيسية' })).toHaveLength(2);
   });
 
-  // jsdom has no layout, so this test holds the rule in the classes. The pixel check is a Playwright run at 360 and 390 px.
-  // jsdom has no layout, so this test holds the rule in the classes. The pixel check was a browser run at 320 to 412 px in
-  // Arabic and English: every tab and badge inside the bar, the Arabic label whole on two lines (F-2 re-check).
-  it('lets a two-word phone label wrap, never cut, and keeps a tab no narrower than its longest word (audit 2026-10-03, F-2)', async () => {
+  // jsdom has no layout, so these tests hold the rules in the classes. A phone tab shows its icon only (owner, 2026-10-08), so its word
+  // never wraps on a phone. From 640 px up the word shows on one line, and the tab is never narrower than its word (audit 2026-10-03, F-2).
+  it('keeps the word of a desk tab whole on one line', async () => {
     await renderApp('/dashboard', (state) => {
       state.users.usr_001.preferences.language = 'ar';
     });
     const nav = await screen.findByRole('navigation', { name: 'التنقل الرئيسي' });
     const tab = within(nav).getByRole('link', { name: 'لوحة المعلومات' });
-    expect(tab).toHaveClass('min-w-min');
-    expect(tab).toHaveClass('max-sm:rounded-[18px]');
+    expect(tab).toHaveClass('sm:min-w-min');
     const label = within(tab).getByText('لوحة المعلومات');
-    expect(label).not.toHaveClass('whitespace-nowrap');
     expect(label).not.toHaveClass('truncate');
     expect(label).toHaveClass('sm:whitespace-nowrap');
   });
 
-  // A wrapped label made its tab taller, and the centred content lifted its icon above the other four (2026-10-05).
-  it('lines up the phone tabs at the top with one height, so a two-line label never lifts its icon', async () => {
-    await renderApp('/dashboard', (state) => {
-      state.users.usr_001.preferences.language = 'ar';
-    });
-    const nav = await screen.findByRole('navigation', { name: 'التنقل الرئيسي' });
-    expect(nav).toHaveClass('max-sm:items-stretch');
-    for (const name of ['الرئيسية', 'المشاريع', 'المهام', 'لوحة المعلومات']) {
-      const tab = within(nav).getByRole('link', { name });
-      expect(tab).toHaveClass('max-sm:justify-start');
-      expect(tab).toHaveClass('max-sm:py-1.5');
-    }
-  });
-
-  // jsdom has no layout, so this test holds the rule in the classes. The pixel check is a Playwright run at 280 and 300 px.
-  it('keeps every phone tab inside the bar below 320 px: a smaller label, less padding, tabs that can shrink (audit 2026-10-03, F-2)', async () => {
+  // The five phone tabs share the bar and can shrink, so they stay inside it at 280 px too.
+  it('keeps every phone tab inside the bar on a narrow phone', async () => {
     await renderApp('/dashboard');
     const nav = await pill();
-    expect(nav).toHaveClass('max-[319px]:gap-0');
-    for (const name of ['Home', 'Projects', 'Dashboard']) {
-      const tab = within(nav).getByRole('link', { name });
-      for (const rule of ['max-[319px]:[--size-caption:11px]', 'max-[319px]:px-1', 'max-[319px]:flex-auto', 'max-[319px]:min-w-0']) expect(tab).toHaveClass(rule);
-    }
+    for (const name of ['Home', 'Projects', 'Dashboard']) expect(within(nav).getByRole('link', { name })).toHaveClass('flex-1', 'min-w-0');
   });
 
   it('moves between screens', async () => {

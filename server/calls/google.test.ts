@@ -150,7 +150,7 @@ describe('google.connect', () => {
     expect(ok(await t.connect('usr_003'))).toEqual({ state: 'ok', meetings: 200 });
   });
 
-  it('replaces the old row at a second connect: one live row, one revoke row that says replaced, no call to revoke at Google, and no old Google events', async () => {
+  it('replaces the old row at a second connect: one live row on the same calendar, one revoke row that says replaced, no call to revoke at Google, and no old Google events', async () => {
     const t = await googleOffice();
     ok(await t.connect('usr_003'));
     const [first] = await rowsOf(t, 'select id from google_connections');
@@ -160,7 +160,9 @@ describe('google.connect', () => {
     expect(ok(await t.connect('usr_003'))).toMatchObject({ state: 'ok' });
     const rows = await rowsOf(t, 'select id, state, calendar_id from google_connections');
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ state: 'ok', calendar_id: 'cal-2@group.calendar.google.com' });
+    // The calendar of the person is the one that Madar made at the first connect (owner test 2026-10-20): no second calendar.
+    expect(rows[0]).toMatchObject({ state: 'ok', calendar_id: 'cal-1@group.calendar.google.com' });
+    expect(t.google.calendars.size).toBe(1);
     expect(rows[0].id).not.toBe(first.id);
     // The revoke row says replaced: the grant at Google is the grant of the new row, so the effect only deletes the old row.
     expect((await outboxRows(t, 'gcal.revoke')).map((row) => [row.payload, row.done])).toEqual([[{ connectionId: first.id, replaced: true }, true]]);
@@ -246,6 +248,157 @@ describe('google.connect', () => {
   });
 });
 
+const CAL1 = 'cal-1@group.calendar.google.com';
+const CAL2 = 'cal-2@group.calendar.google.com';
+const isGetCalendar = (request: { method: string; path: string }) => request.method === 'GET' && /^\/calendar\/v3\/calendars\/[^/]+$/.test(request.path);
+const makes = (t: GoogleOffice) => t.google.requests.filter((request) => request.method === 'POST' && request.path === '/calendar/v3/calendars');
+const remembered = (t: GoogleOffice) => rowsOf(t, 'select user_id, calendar_id, changed_at from google_calendars order by user_id');
+const liveCalendar = (t: GoogleOffice) => rowsOf(t, "select calendar_id from google_connections where state <> 'revoking'");
+
+describe('one calendar for each person (owner test 2026-10-20: a second calendar after Disconnect and Connect)', () => {
+  it('makes the calendar at the first connect, remembers its id, reads no calendar first, and writes no gcal.tidy row', async () => {
+    const t = await googleOffice();
+    ok(await t.connect('usr_003'));
+    expect(makes(t)).toHaveLength(1);
+    expect(t.google.requests.filter(isGetCalendar)).toEqual([]);
+    expect(await remembered(t)).toEqual([{ user_id: 'usr_003', calendar_id: CAL1, changed_at: '2026-10-21T06:00:00.000Z' }]);
+    expect(await outboxRows(t, 'gcal.tidy')).toEqual([]);
+  });
+
+  it('uses the same calendar at a connect after a disconnect: no second calendar, the row unchanged, one gcal.tidy row', async () => {
+    const t = await googleOffice();
+    await planMeeting(t, 'usr_003', { startsAt: days(2) });
+    ok(await t.connect('usr_003'));
+    const first = await remembered(t);
+    ok(await t.call('usr_003', 'google.disconnect', {}));
+    // The disconnect keeps the id on purpose.
+    expect(await remembered(t)).toEqual(first);
+    t.deps.clock.advance(60_000);
+    t.google.requests.length = 0;
+    expect(ok(await t.connect('usr_003'))).toEqual({ state: 'ok', meetings: 1 });
+    expect(makes(t)).toEqual([]);
+    expect(t.google.calendars.size).toBe(1);
+    expect(t.google.state.calendars).toBe(1);
+    // It asked Google for the remembered calendar with the new access token.
+    const asked = t.google.requests.filter(isGetCalendar);
+    expect(asked.map((request) => decodeURIComponent(request.path))).toEqual([`/calendar/v3/calendars/${CAL1}`]);
+    expect(asked[0].headers.authorization).toBe('Bearer at-SECRET');
+    expect(await remembered(t)).toEqual(first);
+    expect(await liveCalendar(t)).toEqual([{ calendar_id: CAL1 }]);
+    expect((await outboxRows(t, 'gcal.tidy')).map((row) => [row.payload, row.done])).toEqual([[{ userId: 'usr_003' }, true]]);
+    // The meeting is in the one calendar, once.
+    expect([...t.google.eventsOf(CAL1).values()].filter((event) => event.status === 'confirmed')).toHaveLength(1);
+  });
+
+  it('writes the gcal.tidy row after the sync rows, so the tidy runs when the backfill is done', async () => {
+    const t = await googleOffice();
+    await planMeeting(t, 'usr_003', { startsAt: days(2) });
+    ok(await t.connect('usr_003'));
+    ok(await t.call('usr_003', 'google.disconnect', {}));
+    ok(await t.connect('usr_003'));
+    const order = (await rowsOf(t, "select id, kind from outbox where kind in ('gcal.sync', 'gcal.tidy', 'gcal.revoke') order by id")).map((row) => row.kind);
+    expect(order.at(-1)).toBe('gcal.tidy');
+    expect(order.filter((kind) => kind === 'gcal.tidy')).toHaveLength(1);
+    expect(order.lastIndexOf('gcal.sync')).toBeLessThan(order.indexOf('gcal.tidy'));
+  });
+
+  it('reuses the calendar of a person whose connection ended (broken) as well, and keeps the id of another person apart', async () => {
+    const t = await googleOffice();
+    ok(await t.connect('usr_003'));
+    ok(await t.connect('usr_004'));
+    await t.db.statement('write', "update google_connections set state = 'broken', sealed_token = null where user_id = 'usr_003'");
+    ok(await t.connect('usr_003'));
+    expect(t.google.calendars.size).toBe(2);
+    expect(await remembered(t)).toEqual([
+      expect.objectContaining({ user_id: 'usr_003', calendar_id: CAL1 }),
+      expect.objectContaining({ user_id: 'usr_004', calendar_id: CAL2 }),
+    ]);
+    expect((await outboxRows(t, 'gcal.tidy')).map((row) => row.payload)).toEqual([{ userId: 'usr_003' }]);
+  });
+
+  it('makes a new calendar and remembers it when Google says 404 for the remembered one (the person deleted it), with no gcal.tidy row', async () => {
+    const t = await googleOffice();
+    ok(await t.connect('usr_003'));
+    ok(await t.call('usr_003', 'google.disconnect', {}));
+    t.google.deleteCalendar(CAL1);
+    t.deps.clock.advance(60_000);
+    ok(await t.connect('usr_003'));
+    expect(t.google.requests.filter(isGetCalendar)).toHaveLength(1);
+    expect(makes(t)).toHaveLength(2);
+    expect(await remembered(t)).toEqual([{ user_id: 'usr_003', calendar_id: CAL2, changed_at: '2026-10-21T06:01:00.000Z' }]);
+    expect(await liveCalendar(t)).toEqual([{ calendar_id: CAL2 }]);
+    expect(await outboxRows(t, 'gcal.tidy')).toEqual([]);
+  });
+
+  it('makes a new calendar for a 410 as well', async () => {
+    const t = await googleOffice();
+    ok(await t.connect('usr_003'));
+    ok(await t.call('usr_003', 'google.disconnect', {}));
+    t.google.failAll(isGetCalendar, 410);
+    ok(await t.connect('usr_003'));
+    expect(makes(t)).toHaveLength(2);
+    expect(await remembered(t)).toEqual([expect.objectContaining({ user_id: 'usr_003', calendar_id: CAL2 })]);
+  });
+
+  it('fails the connect and makes no second calendar for a timeout, a network error, a 5xx, a 429, a 401 or a 403 on the remembered calendar', async () => {
+    const answers: [string, (t: GoogleOffice) => void][] = [
+      ['500', (t) => t.google.failAll(isGetCalendar, 500)],
+      ['503', (t) => t.google.failAll(isGetCalendar, 503)],
+      ['429', (t) => t.google.failAll(isGetCalendar, 429)],
+      ['401', (t) => t.google.failAll(isGetCalendar, 401)],
+      ['403', (t) => t.google.failAll(isGetCalendar, 403)],
+      ['network', (t) => t.google.on(isGetCalendar, () => { throw new TypeError('connect ECONNREFUSED 10.0.0.1'); })],
+    ];
+    for (const [name, fail] of answers) {
+      const t = await googleOffice();
+      ok(await t.connect('usr_003'));
+      const first = await remembered(t);
+      ok(await t.call('usr_003', 'google.disconnect', {}));
+      fail(t);
+      t.google.requests.length = 0;
+      expect(await t.connect('usr_003'), name).toMatchObject({ ok: false, error: { code: 'failed', details: { reason: 'google_unreachable' } } });
+      expect(makes(t), name).toEqual([]);
+      expect(t.google.calendars.size, name).toBe(1);
+      // The new grant goes back at once (as at a calendar that cannot be made), nothing is stored, and the remembered id stays.
+      expect(t.google.requests.filter((request) => request.path === '/revoke').map((request) => request.body), name).toEqual([{ token: 'rt-SECRET' }]);
+      expect(await rowsOf(t, 'select * from google_connections'), name).toEqual([]);
+      expect(await remembered(t), name).toEqual(first);
+      expect(await outboxRows(t, 'gcal.tidy'), name).toEqual([]);
+    }
+  });
+
+  it('lets the person press Connect again after a failure: the next connect reuses the calendar', async () => {
+    const t = await googleOffice();
+    ok(await t.connect('usr_003'));
+    ok(await t.call('usr_003', 'google.disconnect', {}));
+    t.google.failAll(isGetCalendar, 503);
+    expect(await t.connect('usr_003')).toMatchObject({ ok: false });
+    t.google.clearRules();
+    ok(await t.connect('usr_003'));
+    expect(t.google.calendars.size).toBe(1);
+    expect(await liveCalendar(t)).toEqual([{ calendar_id: CAL1 }]);
+  });
+
+  it('keeps the remembered id when the connect fails before the calendar step (a used code)', async () => {
+    const t = await googleOffice();
+    ok(await t.connect('usr_003'));
+    ok(await t.call('usr_003', 'google.disconnect', {}));
+    expect(await t.connect('usr_003', 'a-used-code')).toMatchObject({ ok: false, error: { details: { reason: 'google_link_old' } } });
+    expect((await remembered(t)).map((row) => row.calendar_id)).toEqual([CAL1]);
+  });
+
+  it('reads the remembered calendar of the person who connects and no other person', async () => {
+    const t = await googleOffice();
+    ok(await t.connect('usr_004'));
+    ok(await t.call('usr_004', 'google.disconnect', {}));
+    t.google.requests.length = 0;
+    ok(await t.connect('usr_003'));
+    expect(t.google.requests.filter(isGetCalendar)).toEqual([]);
+    expect(makes(t)).toHaveLength(1);
+    expect((await remembered(t)).map((row) => [row.user_id, row.calendar_id])).toEqual([['usr_003', CAL2], ['usr_004', CAL1]]);
+  });
+});
+
 describe('google.disconnect', () => {
   it('gives none, removes the Google event rows of the person, and writes one revoke row; the row stays revoking while Google is down', async () => {
     const t = await googleOffice();
@@ -272,6 +425,13 @@ describe('google.disconnect', () => {
     const t = await googleOffice();
     expect(ok(await t.call('usr_003', 'google.disconnect', {}))).toEqual({ state: 'none' });
     expect(await rowsOf(t, 'select * from outbox')).toEqual([]);
+  });
+
+  it('keeps the remembered calendar id of the person (a new connect uses the same calendar)', async () => {
+    const t = await googleOffice();
+    ok(await t.connect('usr_003'));
+    ok(await t.call('usr_003', 'google.disconnect', {}));
+    expect(await rowsOf(t, 'select user_id, calendar_id from google_calendars')).toEqual([{ user_id: 'usr_003', calendar_id: 'cal-1@group.calendar.google.com' }]);
   });
 
   it('leaves the row and the events of another person', async () => {

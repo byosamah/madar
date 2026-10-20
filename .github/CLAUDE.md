@@ -63,6 +63,10 @@ backups first. While GitHub refuses, the database backup runs from the Mac (see 
 - While GitHub refuses jobs (October 2026): `scripts/backup/mac-backup.sh` on the Mac, each evening after 17:00 Riyadh (the dump
   holds the office lock for a few seconds), sandbox off. The same file and release as `db-backup.yml`; `--check` sends one
   read-only query and uploads nothing. It needs `brew install postgresql@17`, `MADAR_DB_PASSWORD` and `BACKUP_REPO_TOKEN`.
+- `--if-due` (owner, 2026-10-20): every session runs it on each owner message, from the fixed copy in
+  `~/dev/madar-rb/mac-backup` (root CLAUDE.md). `scripts/backup/due.ts` decides. No backup in 08:00 to 17:00 Riyadh, none when
+  the newest successful "DB backup" run is less than 26 hours old, none when a `madar-db-` release is less than 18 hours old,
+  and none from 1 November 2026 (Riyadh). It orders the releases by `publishedAt`.
 - The private key is not on the Mac (deleted 2026-10-05 after a match check with `age-keygen -y` against
   `BACKUP_AGE_RECIPIENT`). The owner holds the only copy.
 - To check one: the owner gives the key for the check, `age -d -i <owner key>` opens it, then delete the opened copy

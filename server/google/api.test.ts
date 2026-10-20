@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  GOOGLE_SCOPE, GOOGLE_TIMEOUT_MS, GoogleError, authUrl, deleteEvent, exchangeCode, insertEvent, makeCalendar, patchEvent, refreshAccess, revokeToken, updateEvent,
+  GOOGLE_SCOPE, GOOGLE_TIMEOUT_MS, GoogleError, LIST_PAGES, LIST_PAGE_SIZE, authUrl, deleteEvent, exchangeCode, getCalendar, insertEvent, listEvents, makeCalendar, patchEvent,
+  refreshAccess, revokeToken, updateEvent,
   type EventBody, type GoogleClient,
 } from './api';
 
@@ -133,6 +134,99 @@ describe('makeCalendar', () => {
   it('gives unauthorized for a 401 and refused for another 4xx', async () => {
     expect(await makeCalendar(client(stub(() => json({}, 401)).fetch), 'at-1').catch((e: unknown) => e)).toMatchObject({ code: 'unauthorized', retry: false });
     expect(await makeCalendar(client(stub(() => json({}, 400)).fetch), 'at-1').catch((e: unknown) => e)).toMatchObject({ code: 'refused' });
+  });
+});
+
+describe('getCalendar', () => {
+  it('reads the calendar by its id with the access token, and gives the id that Google names', async () => {
+    const { fetch, seen } = stub(() => json({ id: 'cal 1@group.calendar.google.com', summary: 'Madar' }));
+    expect(await getCalendar(client(fetch), 'at-1', 'cal 1@group.calendar.google.com')).toBe('cal 1@group.calendar.google.com');
+    expect(seen).toHaveLength(1);
+    expect(seen[0].url).toBe('https://www.googleapis.com/calendar/v3/calendars/cal%201%40group.calendar.google.com');
+    expect(seen[0].init.method).toBe('GET');
+    expect(new Headers(seen[0].init.headers).get('authorization')).toBe('Bearer at-1');
+    expect(seen[0].init.body).toBeUndefined();
+    expect(seen[0].init.redirect).toBe('manual');
+  });
+
+  it('gives not_found for a 404 and a 410 (the person deleted the calendar), with no retry', async () => {
+    for (const status of [404, 410]) {
+      expect(await getCalendar(client(stub(() => json({}, status)).fetch), 'at-1', 'cal-1').catch((e: unknown) => e), String(status)).toMatchObject({ code: 'not_found', retry: false, message: 'not_found' });
+    }
+  });
+
+  it('maps the other answers as the event calls do: 401 unauthorized, 429 and 5xx retry, another 4xx refused', async () => {
+    const cases: [number, string, boolean][] = [[401, 'unauthorized', false], [429, 'rate_limited', true], [500, 'server', true], [503, 'server', true], [403, 'refused', false], [400, 'refused', false]];
+    for (const [status, code, retry] of cases) {
+      expect(await getCalendar(client(stub(() => json({}, status)).fetch), 'at-1', 'cal-1').catch((e: unknown) => e), String(status)).toMatchObject({ code, retry, message: code });
+    }
+  });
+
+  it('gives refused for a 200 with no id', async () => {
+    expect(await getCalendar(client(stub(() => json({ summary: 'Madar' })).fetch), 'at-1', 'cal-1').catch((e: unknown) => e)).toMatchObject({ code: 'refused' });
+    expect(await getCalendar(client(stub(() => new Response('not json', { status: 200 })).fetch), 'at-1', 'cal-1').catch((e: unknown) => e)).toMatchObject({ code: 'refused' });
+  });
+
+  it('gives timeout with retry after 3000 ms for a stub that never answers, and unreachable for a network error', async () => {
+    vi.useFakeTimers();
+    const { fetch } = stub(() => new Promise<Response>(() => undefined));
+    const outcome = getCalendar(client(fetch), 'at-1', 'cal-1').catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(GOOGLE_TIMEOUT_MS);
+    expect(await outcome).toMatchObject({ code: 'timeout', retry: true });
+    vi.useRealTimers();
+    const lost = (async () => { throw new TypeError('connect ECONNREFUSED 10.0.0.1 secret-token'); }) as unknown as typeof globalThis.fetch;
+    expect(await getCalendar(client(lost), 'at-1', 'cal-1').catch((e: unknown) => e)).toMatchObject({ code: 'unreachable', retry: true, message: 'unreachable' });
+  });
+});
+
+describe('listEvents', () => {
+  const page = (ids: string[], next?: string, extra: object[] = []) =>
+    json({ items: [...ids.map((id) => ({ id, status: 'confirmed' })), ...extra], ...(next ? { nextPageToken: next } : {}) });
+
+  it('reads the events from the time on, as single events, 250 in a page, with the access token', async () => {
+    const { fetch, seen } = stub(() => page(['a1', 'b2']));
+    expect(await listEvents(client(fetch), 'at-1', 'cal 1@group', '2026-10-21T06:00:00.000Z')).toEqual(['a1', 'b2']);
+    expect(seen).toHaveLength(1);
+    const url = new URL(seen[0].url);
+    expect(`${url.origin}${url.pathname}`).toBe('https://www.googleapis.com/calendar/v3/calendars/cal%201%40group/events');
+    expect(Object.fromEntries(url.searchParams)).toEqual({ timeMin: '2026-10-21T06:00:00.000Z', singleEvents: 'true', maxResults: '250' });
+    expect(LIST_PAGE_SIZE).toBe(250);
+    expect(seen[0].init.method).toBe('GET');
+    expect(new Headers(seen[0].init.headers).get('authorization')).toBe('Bearer at-1');
+    expect(seen[0].init.body).toBeUndefined();
+  });
+
+  it('follows the next page token, and stops at the last page', async () => {
+    const answers = [page(['a1'], 'token-2'), page(['b2'], 'token-3'), page(['c3'])];
+    const { fetch, seen } = stub(() => answers.shift()!);
+    expect(await listEvents(client(fetch), 'at-1', 'cal-1', '2026-10-21T06:00:00.000Z')).toEqual(['a1', 'b2', 'c3']);
+    expect(seen.map((one) => new URL(one.url).searchParams.get('pageToken'))).toEqual([null, 'token-2', 'token-3']);
+  });
+
+  it('reads at most 4 pages, also when Google names a next page', async () => {
+    let n = 0;
+    const { fetch, seen } = stub(() => page([`e${(n += 1)}`], `token-${n + 1}`));
+    expect(await listEvents(client(fetch), 'at-1', 'cal-1', '2026-10-21T06:00:00.000Z')).toEqual(['e1', 'e2', 'e3', 'e4']);
+    expect(seen).toHaveLength(LIST_PAGES);
+    expect(LIST_PAGES).toBe(4);
+  });
+
+  it('gives no id for an event that is cancelled or has no id, and an empty list for an answer with no items', async () => {
+    expect(await listEvents(client(stub(() => json({ items: [{ id: 'a1', status: 'cancelled' }, { status: 'confirmed' }, { id: 'b2' }, 'text', null] })).fetch), 'at-1', 'cal-1', 'now')).toEqual(['b2']);
+    expect(await listEvents(client(stub(() => json({})).fetch), 'at-1', 'cal-1', 'now')).toEqual([]);
+  });
+
+  it('maps the statuses as the event calls do: 401 unauthorized, 404 not_found, 429 and 5xx retry, another 4xx refused', async () => {
+    const cases: [number, string, boolean][] = [[401, 'unauthorized', false], [404, 'not_found', false], [410, 'not_found', false], [429, 'rate_limited', true], [500, 'server', true], [403, 'refused', false]];
+    for (const [status, code, retry] of cases) {
+      expect(await listEvents(client(stub(() => json({}, status)).fetch), 'at-1', 'cal-1', 'now').catch((e: unknown) => e), String(status)).toMatchObject({ code, retry, message: code });
+    }
+  });
+
+  it('throws when a later page fails, and the ids of the first page are lost with it', async () => {
+    const answers = [page(['a1'], 'token-2'), json({}, 503)];
+    const { fetch } = stub(() => answers.shift()!);
+    expect(await listEvents(client(fetch), 'at-1', 'cal-1', 'now').catch((e: unknown) => e)).toMatchObject({ code: 'server', retry: true });
   });
 });
 

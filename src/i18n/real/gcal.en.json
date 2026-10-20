@@ -15,9 +15,9 @@
     "done_other": "Connected. {{count}} meetings are on their way to Google.",
     "disconnect": "Disconnect",
     "disconnectTitle": "Disconnect Google Calendar?",
-    "disconnectBody": "New changes stop. Your Madar calendar stays in Google, and you can delete it there.",
+    "disconnectBody": "New changes stop. Your Madar calendar stays in Google, and you can delete it there. If you connect again, Madar uses the same calendar.",
     "keep": "Keep it",
-    "disconnected": "Disconnected. Your Madar calendar stays in Google.",
+    "disconnected": "Disconnected. Your Madar calendar stays in Google. If you connect again, Madar uses the same calendar.",
     "denied": "Google did not give Madar the calendar permission. Press Connect Google Calendar to try again.",
     "failed": "The Google step did not finish. Press Connect Google Calendar again."
   },

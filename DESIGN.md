@@ -512,7 +512,8 @@ Every component exists to make the next step obvious. All live in `src/component
 - **Sheets** ({components.sheet}): a bottom sheet on a phone and a side or centred sheet on a desk; one title, one main
   action.
 - **The tab pill** ({components.tab-pill}): the open tab carries the signature fill ({components.tab-active}) and glides
-  between tabs. Phone tabs show an icon and a short label.
+  between tabs. Phone tabs show the icon only, in the centre of a 48 px tab; the open tab is a round pill, and the bar keeps
+  the 16 px edge of the page (owner, 2026-10-20). The Inbox count sits on the corner of its icon.
 - **"Next for you"** ({components.next-for-you}): the one card with the glow. It names one task and one action.
 - **Filter button:** one button with a count opens a sheet or a popover. Never a row of filter chips.
 - **Status sign:** the shape plus an ink word, for example "At risk". "On track" never shows in lists; a sign shows only

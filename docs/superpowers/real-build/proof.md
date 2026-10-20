@@ -1029,6 +1029,19 @@ walk caught the answer: a whole-batch 500 "Something went wrong" for the Admin, 
 - Reports: fbk_030 and fbk_032 are done (the chat drop and paste). fbk_028 stays open: its part 2 (Mark as unread, owner
   2026-10-20) is in the meetings join.
 
+### Production at 5a98255 (2026-10-20, the owner ran it)
+- The release: the meetings join (be34823: meetings wave 2 with the minutes and Google Calendar, the team fixes fbk_028,
+  fbk_029 and fbk_031, two security fixes), the Google calendar reuse (085ef64), the backup `--if-due` (6b18434) and the
+  phone tab bar (5a98255). `all.sh test` had put the same commit on the test copy (the owner ran it). The deploy suite did
+  not run on 5a98255.
+- One run of `all.sh production`: `db.sh` pushed `20261021000100_meetings_settle.sql`, `20261021000200_google_calendar.sql`
+  and `20261021000300_google_calendars.sql`; then the settings, the secrets (the three Google values are in
+  `secrets/production.env`), the functions, the Worker and Pages (7d69fe6d). The checks passed: the health from `supabase`
+  with 146 calls and the R2 file store, the database check, and `POST /mcp` with no token 401. The page answers 200 with the
+  title Madar, `/favicon.ico` 200, the live page starts `bootstrap-BNuu_Fsn.js` of this build, and its index chunk holds the
+  new phone bar.
+- Reports: fbk_028, fbk_029 and fbk_031 wait for the owner's word that the release is live, then `feedback.setStatus` done.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 

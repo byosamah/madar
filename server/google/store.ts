@@ -3,10 +3,11 @@ import type { Query } from '../core/ports';
 import { sqlFor } from '../data/dialect';
 
 /**
- * The two server-only tables of the Google Calendar connect (fbk_022; supabase/migrations/20261021000200_google_calendar.sql):
- * google_connections (one live row for each person, and revoking rows on their way out) and google_events (the Google event of a
- * meeting in the calendar of a person). No State collection reads them, so no handler, loader, event, signal or export of the
- * office ever sees them. Each statement has a Postgres text and a SQLite twin, picked with sqlFor from the query that runs it.
+ * The three server-only tables of the Google Calendar connect (fbk_022; supabase/migrations/20261021000200_google_calendar.sql and
+ * 20261021000300_google_calendars.sql): google_connections (one live row for each person, and revoking rows on their way out),
+ * google_events (the Google event of a meeting in the calendar of a person) and google_calendars (the id of the calendar that Madar made
+ * for a person, kept after a disconnect so a new connect uses the same calendar). No State collection reads them, so no handler,
+ * loader, event, signal or export of the office ever sees them. Each statement has a Postgres text and a SQLite twin, picked with sqlFor from the query that runs it.
  *
  * A time reads back as a Date from Postgres and as ISO text from SQLite; every function here gives a Date.
  */
@@ -57,6 +58,33 @@ const INSERT_LITE =
 
 export async function insertConnection(q: Query, c: { id: string; userId: string; sealedToken: string; calendarId: string; at: Date }): Promise<void> {
   await q(sqlFor(q, INSERT_SQL, INSERT_LITE), [c.id, c.userId, c.sealedToken, c.calendarId, c.at]);
+}
+
+const CALENDAR_SQL = 'select calendar_id from google_calendars where user_id = $1';
+const CALENDAR_LITE = 'select calendar_id from google_calendars where user_id = ?1';
+
+/** The id of the calendar that Madar made for the person, or undefined when Madar made none. A disconnect keeps it. */
+export async function rememberedCalendar(q: Query, userId: string): Promise<string | undefined> {
+  const [row] = await q<{ calendar_id: string }>(sqlFor(q, CALENDAR_SQL, CALENDAR_LITE), [userId]);
+  return row?.calendar_id;
+}
+
+// The row changes only when the id changes, so changed_at tells when Madar made the calendar that the row names.
+const REMEMBER_SQL =
+  'insert into google_calendars (user_id, calendar_id, changed_at) values ($1, $2, $3) '
+  + 'on conflict (user_id) do update set calendar_id = excluded.calendar_id, changed_at = excluded.changed_at where google_calendars.calendar_id <> excluded.calendar_id';
+const REMEMBER_LITE =
+  'insert into google_calendars (user_id, calendar_id, changed_at) values (?1, ?2, ?3) '
+  + 'on conflict (user_id) do update set calendar_id = excluded.calendar_id, changed_at = excluded.changed_at where google_calendars.calendar_id <> excluded.calendar_id';
+
+/** Keeps the calendar id of the person. It runs in the transaction that inserts the connection. */
+export async function rememberCalendar(q: Query, userId: string, calendarId: string, at: Date): Promise<void> {
+  await q(sqlFor(q, REMEMBER_SQL, REMEMBER_LITE), [userId, calendarId, at]);
+}
+
+/** Forgets the calendar id of the person. Only users.remove calls it: a disconnect keeps the id on purpose. */
+export async function forgetCalendar(q: Query, userId: string): Promise<void> {
+  await q(sqlFor(q, 'delete from google_calendars where user_id = $1', 'delete from google_calendars where user_id = ?1'), [userId]);
 }
 
 const REVOKING_SQL = "update google_connections set state = 'revoking', changed_at = $2 where user_id = $1 and state <> 'revoking' returning id";
@@ -126,6 +154,12 @@ export async function saveEventRow(q: Query, o: { userId: string; meetingId: str
 
 export async function deleteEventRow(q: Query, userId: string, meetingId: string): Promise<void> {
   await q(sqlFor(q, 'delete from google_events where user_id = $1 and meeting_id = $2', 'delete from google_events where user_id = ?1 and meeting_id = ?2'), [userId, meetingId]);
+}
+
+/** The Google event ids that Madar believes it has in the calendar of the person (the rows that only gcal.sync writes). */
+export async function eventIdsOfUser(q: Query, userId: string): Promise<string[]> {
+  const rows = await q<{ event_id: string }>(sqlFor(q, 'select event_id from google_events where user_id = $1', 'select event_id from google_events where user_id = ?1'), [userId]);
+  return rows.map((row) => row.event_id);
 }
 
 export async function deleteEventsOfUser(q: Query, userId: string): Promise<void> {
