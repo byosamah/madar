@@ -3,7 +3,6 @@ import { calls } from '../calls';
 import { makeUser, NOW, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
 import type { Meeting } from '../contract/entities';
-import { seriesToExtend } from './meetings';
 
 beforeEach(() => setNow(NOW));
 
@@ -210,68 +209,49 @@ describe('meetings.delete in a series', () => {
     expect(await t.api.call('meetings.delete', { id: 'mtg_001', scope: 'later' })).toEqual({ deleted: 1 });
   });
 
-  it('keeps the series ended: no new meeting after a cancelled tail that a person deleted (series guard)', async () => {
+  it('adds no meeting after a cancel for "this and later" and a delete of the cancelled tail: the cancel recorded the last day on the series', async () => {
     const t = await series();
     await t.api.call('meetings.cancel', { id: 'mtg_003', scope: 'later' });
-    // Before the delete a cancelled last meeting already stops the series.
-    expect(await t.api.call('meetings.extend', { seriesId: 'mtg_001' })).toEqual({ added: 0 });
     await t.api.call('meetings.delete', { id: 'mtg_003', scope: 'later' });
     expect(idsOf(t)).toEqual(['mtg_001', 'mtg_002']);
-    // The meetings that stay end on the day before the first deleted meeting (2026-10-15).
+    // The cancel set the last day on every meeting, the earlier ones too: the day before the first cancelled meeting (2026-10-15).
     for (const id of ['mtg_001', 'mtg_002']) expect(t.store.state.meetings![id].repeat, id).toEqual({ every: 'week', until: '2026-10-14' });
-    // A later day: the job would have added meetings to the open series. It adds none.
     expect(await t.api.call('meetings.extend', { seriesId: 'mtg_001' })).toEqual({ added: 0 });
-    // On 2026-10-21 both meetings are past. The series is dry, and the job does not even ask to extend it.
-    setNow(new Date('2026-10-21T06:00:00Z'));
-    expect(seriesToExtend(t.store.state, new Date('2026-10-21T06:00:00Z'))).toEqual([]);
     expect(idsOf(t)).toEqual(['mtg_001', 'mtg_002']);
   });
 
-  it('keeps the series ended when one cancelled last meeting is deleted', async () => {
+  it('changes no last day: a delete never ends or restarts a series (owner, 2026-10-23)', async () => {
+    const t = await series();
+    await t.api.call('meetings.cancel', { id: 'mtg_008' });
+    await t.api.call('meetings.cancel', { id: 'mtg_003' });
+    const before = structuredClone(meetingsOf(t)).map(({ rev: _rev, ...rest }) => rest);
+    await t.api.call('meetings.delete', { id: 'mtg_008' });
+    await t.api.call('meetings.delete', { id: 'mtg_003' });
+    expect(eventsOf(t, 'meeting.series_updated')).toHaveLength(0);
+    const after = meetingsOf(t).map(({ rev: _rev, ...rest }) => rest);
+    expect(after).toEqual(before.filter((m) => m.id !== 'mtg_008' && m.id !== 'mtg_003'));
+    for (const m of meetingsOf(t)) expect(m.repeat, m.id).toEqual({ every: 'week', until: null });
+  });
+
+  it('keeps a series open when its last meeting is cancelled alone and deleted: the extension adds a meeting again', async () => {
     const t = await series();
     await t.api.call('meetings.cancel', { id: 'mtg_008' });
     await t.api.call('meetings.delete', { id: 'mtg_008' });
-    expect(t.store.state.meetings!.mtg_007.repeat).toEqual({ every: 'week', until: '2026-11-18' });
-    expect(await t.api.call('meetings.extend', { seriesId: 'mtg_001' })).toEqual({ added: 0 });
-    expect(idsOf(t)).toHaveLength(7);
+    expect(t.store.state.meetings!.mtg_007.repeat).toEqual({ every: 'week', until: null });
+    expect(await t.api.call('meetings.extend', { seriesId: 'mtg_001' })).toEqual({ added: 1 });
   });
 
-  it('changes no last day when a later meeting stays, scheduled or cancelled', async () => {
-    const t = await series();
-    await t.api.call('meetings.cancel', { id: 'mtg_003' });
-    await t.api.call('meetings.delete', { id: 'mtg_003' });
-    for (const m of meetingsOf(t)) expect(m.repeat, m.id).toEqual({ every: 'week', until: null });
-    expect(eventsOf(t, 'meeting.series_updated')).toHaveLength(0);
-    // A cancelled meeting that stays after the deleted one also ends the series, so no change is needed.
-    await t.api.call('meetings.cancel', { id: 'mtg_006' });
-    await t.api.call('meetings.cancel', { id: 'mtg_007' });
-    await t.api.call('meetings.delete', { id: 'mtg_006' });
-    for (const m of meetingsOf(t)) expect(m.repeat, m.id).toEqual({ every: 'week', until: null });
-  });
-
-  it('takes the guard back with the Undo of the story: the last day of the meetings that stay is as before', async () => {
+  it('takes the whole story of a later cancel and a later delete back, in two Undos', async () => {
     const t = world();
     t.as('usr_003');
     await t.api.call('meetings.create', project({ repeat: { every: 'week', until: '2026-10-22' } }));
-    expect(idsOf(t)).toEqual(['mtg_001', 'mtg_002', 'mtg_003', 'mtg_004']);
-    await t.api.call('meetings.cancel', { id: 'mtg_004' });
-    await t.api.call('meetings.delete', { id: 'mtg_004' });
+    await t.api.call('meetings.cancel', { id: 'mtg_004', scope: 'later' });
     for (const id of ['mtg_001', 'mtg_002', 'mtg_003']) expect(t.store.state.meetings![id].repeat, id).toEqual({ every: 'week', until: '2026-10-21' });
+    await t.api.call('meetings.delete', { id: 'mtg_004' });
     await t.api.call('events.undoStory', { correlationId: eventsOf(t, 'meeting.deleted')[0].correlationId });
+    await t.api.call('events.undoStory', { correlationId: eventsOf(t, 'meeting.cancelled')[0].correlationId });
     expect(idsOf(t)).toEqual(['mtg_001', 'mtg_002', 'mtg_003', 'mtg_004']);
     for (const m of meetingsOf(t)) expect(m.repeat, m.id).toEqual({ every: 'week', until: '2026-10-22' });
-  });
-
-  it('changes the last day only of the meetings from today on', async () => {
-    const t = await series();
-    await t.api.call('meetings.cancel', { id: 'mtg_005', scope: 'later' });
-    setNow(new Date('2026-10-15T06:00:00Z'));
-    await t.api.call('meetings.delete', { id: 'mtg_005', scope: 'later' });
-    // The meetings of 10-01 and 10-08 are past, so they keep their rule. The first deleted meeting is mtg_005 on 2026-10-29, so the
-    // meetings of 10-15 and 10-22 end on 2026-10-28.
-    expect(t.store.state.meetings!.mtg_001.repeat).toEqual({ every: 'week', until: null });
-    expect(t.store.state.meetings!.mtg_002.repeat).toEqual({ every: 'week', until: null });
-    expect(t.store.state.meetings!.mtg_003.repeat).toEqual({ every: 'week', until: '2026-10-28' });
-    expect(t.store.state.meetings!.mtg_004.repeat).toEqual({ every: 'week', until: '2026-10-28' });
+    expect(meetingsOf(t).map((m) => m.status)).toEqual(['scheduled', 'scheduled', 'scheduled', 'scheduled']);
   });
 });

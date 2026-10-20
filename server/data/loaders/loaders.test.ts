@@ -1051,7 +1051,8 @@ describe('repeating meetings on the scoped load (fbk_022, wave 3)', () => {
     const updated = (Array.isArray(update.changes) ? update.changes.find((c) => c.table === 'meetings')?.updated : []) as string[];
     expect([...updated].sort()).toEqual(priv.slice(3).map((m) => m.id).sort());
     const cancel = await same(traps, 'meetings.cancel', { id: priv[3].id, scope: 'later' }, organizer);
-    expect((Array.isArray(cancel.changes) ? cancel.changes.find((c) => c.table === 'meetings')?.updated : []) as string[]).toHaveLength(5);
+    // The cancel records the last day on every meeting of the series, the earlier ones too (owner, 2026-10-23): all 8 change.
+    expect((Array.isArray(cancel.changes) ? cancel.changes.find((c) => c.table === 'meetings')?.updated : []) as string[]).toHaveLength(8);
     for (const outsider of [ADMIN, 'usr_003', 'usr_002']) {
       for (const [name, input] of [
         ['meetings.update', { id: priv[3].id, where: 'No', scope: 'later' }], ['meetings.cancel', { id: priv[3].id, scope: 'later' }], ['meetings.extend', { seriesId: priv[0].seriesId }],
@@ -1064,7 +1065,7 @@ describe('repeating meetings on the scoped load (fbk_022, wave 3)', () => {
     }
   });
 
-  it('meetings.delete loads the series: the cancelled tail ends the series on both loads, a delete in the middle changes no last day, and an outsider gets not_found', async () => {
+  it('meetings.delete loads the meeting and the cancelled ones after it, changes no last day, and an outsider gets not_found', async () => {
     const traps = office(seriesTraps);
     const priv = seriesOf(traps, SERIES_PRIVATE_TITLE);
     const organizer = priv[0].organizerId;
@@ -1074,13 +1075,12 @@ describe('repeating meetings on the scoped load (fbk_022, wave 3)', () => {
     expect(middle.outcome.output).toEqual({ deleted: 1 });
     expect(deleted(middle, 'meetings')).toEqual([priv[2].id]);
     expect(updated(middle)).toEqual([]);
-    // Cancel from the fourth on, then delete from the fourth on: the series ends on the day before the fourth (2026-10-31).
+    // Cancel from the fourth on, then delete from the fourth on: the cancel recorded the last day, the delete changes no row but the deleted ones.
     apply(traps, 'meetings.cancel', { id: priv[3].id, scope: 'later' }, organizer);
     const tail = await same(traps, 'meetings.delete', { id: priv[3].id, scope: 'later' }, organizer);
     expect(tail.outcome.output).toEqual({ deleted: 5 });
     expect([...deleted(tail, 'meetings')].sort()).toEqual(priv.slice(3).map((m) => m.id).sort());
-    expect([...updated(tail)].sort()).toEqual(priv.slice(0, 3).map((m) => m.id).sort());
-    for (const doc of docs(tail, 'meetings').filter((d) => priv.slice(0, 3).some((m) => m.id === d.id))) expect(doc.repeat).toEqual({ every: 'week', until: '2026-10-31' });
+    expect(updated(tail)).toEqual([]);
     // The attendee reads the series but may not change it. An outsider and the Admin who is not invited read nothing.
     expect((await same(traps, 'meetings.delete', { id: priv[3].id }, priv[0].attendeeIds[0])).outcome.error).toMatchObject({ code: 'forbidden' });
     for (const outsider of [ADMIN, 'usr_003', 'usr_002']) {

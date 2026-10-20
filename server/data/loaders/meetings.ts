@@ -112,16 +112,12 @@ export async function meetingExtend(L: Load, input: Input): Promise<void> {
 }
 
 /**
- * meetings.delete (owner, 2026-10-23): the meeting by id and what it names. For a meeting of a series, every meeting of the series from the
- * earlier of today and this meeting, also those that the person of the call does not see. The handler deletes this meeting and, with the
- * scope "later", the later cancelled ones that the person sees. It then reads the meetings that stay to see whether the series ends here, and
- * gives the last day to the ones from today on that the person sees (the series guard). No row of an unseen meeting leaves the call.
+ * meetings.cancel with the scope "later" (owner, 2026-10-23): the person's choice to stop the series records the last day on EVERY meeting of
+ * the series that the person sees, the earlier ones too. So the load holds the whole series, not only the meetings from this one on.
  */
-export async function meetingDelete(L: Load, input: Input): Promise<void> {
+export async function meetingCancel(L: Load, input: Input): Promise<void> {
   await meetingCall(L, input);
   const id = str(input.id);
   const meeting = id ? L.get<Meeting>('meetings', id) : undefined;
-  if (!meeting?.seriesId || !L.now) return;
-  const today = `${todayISO(L.now)}T00:00:00.000+03:00`;
-  await L.select({ c: 'meetings', where: [{ field: 'seriesId', in: [meeting.seriesId] }, { col: 'starts_at', atOrAfter: today < meeting.startsAt ? today : meeting.startsAt }] });
+  if (input.scope === 'later' && meeting?.seriesId) await L.select({ c: 'meetings', where: [...meetingConds(L), { field: 'seriesId', in: [meeting.seriesId] }] });
 }

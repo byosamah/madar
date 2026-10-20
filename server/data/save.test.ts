@@ -567,7 +567,7 @@ describe('the meetings of a series (wave 3: the Google Calendar sync needs every
     return { after, ids: [...diffState(state, after).meetingIds].sort() };
   }
 
-  it('lists the 8 meetings of a new series, the meetings that a "later" change touched, the meetings that a "later" cancel touched, and the meetings that the extension added', () => {
+  it('lists the 8 meetings of a new series, the meetings that a "later" change touched, the meetings that a "later" cancel touched (the whole series), and the meetings that the extension added', () => {
     const made = step(copy(), 'meetings.create', { kind: 'meeting', title: 'Weekly', startsAt: '2026-10-11T09:00:00+03:00', repeat: { every: 'week', until: null } }, 'usr_004');
     const all = Object.keys(made.after.meetings!).sort();
     expect(all).toHaveLength(8);
@@ -578,7 +578,8 @@ describe('the meetings of a series (wave 3: the Google Calendar sync needs every
     const one = step(made.after, 'meetings.update', { id: third.id, where: 'Room 9' }, 'usr_004');
     expect(one.ids).toEqual([third.id]);
     const cancelled = step(changed.after, 'meetings.cancel', { id: third.id, scope: 'later' }, 'usr_004');
-    expect(cancelled.ids).toEqual(all.slice(2));
+    // A cancel for "this and later" records the last day of the series on every meeting of it (owner, 2026-10-23), so all 8 are touched.
+    expect(cancelled.ids).toEqual(all);
     // One meeting in the middle is cancelled alone, so one is short and the extension adds one: the new row is in the list.
     const gap = step(made.after, 'meetings.cancel', { id: all[3] }, 'usr_004');
     const extended = step(gap.after, 'meetings.extend', { seriesId: made.after.meetings![all[0]].seriesId }, 'usr_004');

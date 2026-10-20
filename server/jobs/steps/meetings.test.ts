@@ -208,7 +208,7 @@ describe('the meetings step keeps the series full (fbk_022, wave 3)', () => {
       ...weekly('mtg_101', 3),
       // 8 ahead: full. 7 ahead with the last scheduled: short.
       ...weekly('mtg_102', 8), ...weekly('mtg_103', 7),
-      // The last meeting is cancelled: a person ended the series there.
+      // The last meeting is cancelled alone: that does not end the series (owner, 2026-10-23), so it is short and read.
       ...weekly('mtg_104', 5).map((row, n) => (n === 4 ? { ...row, status: 'cancelled' as const } : row)),
       // The last day is reached: nothing to add, so no call.
       ...weekly('mtg_105', 3, { repeat: { every: 'week', until: '2026-10-19' } }),
@@ -220,9 +220,9 @@ describe('the meetings step keeps the series full (fbk_022, wave 3)', () => {
     const { deps } = await office(rows);
     const { seen, run } = extendStub({ added: 5 });
     deps.runCall = run;
-    expect(await meetings(deps, AT)).toEqual({ settled: 0, skipped: 0, failed: 0, extended: 10 });
+    expect(await meetings(deps, AT)).toEqual({ settled: 0, skipped: 0, failed: 0, extended: 15 });
     // The fewest ahead first, then by series.
-    expect(seen).toEqual([{ seriesId: 'mtg_101', userId: 'usr_002' }, { seriesId: 'mtg_103', userId: 'usr_002' }]);
+    expect(seen).toEqual([{ seriesId: 'mtg_101', userId: 'usr_002' }, { seriesId: 'mtg_104', userId: 'usr_002' }, { seriesId: 'mtg_103', userId: 'usr_002' }]);
   });
 
   it('reads at most 20 series, the fewest ahead first, and the rest in the next run', async () => {

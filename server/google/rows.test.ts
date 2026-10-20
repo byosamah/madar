@@ -110,7 +110,7 @@ describe('the rows of a call', () => {
     expect(new Set(rows.map((row) => row.userId))).toEqual(new Set(['usr_004']));
   });
 
-  it('writes one row for each meeting that a "later" change or cancel touches, and for each meeting that the extension adds (wave 3)', async () => {
+  it('writes one row for each meeting that a "later" change or cancel touches (a "later" cancel touches the whole series), and for each meeting that the extension adds (wave 3)', async () => {
     const t = await googleOffice();
     ok(await t.connect('usr_004'));
     const made = ok(await t.call('usr_003', 'meetings.create', { ...PLAN, startsAt: START, attendeeIds: ['usr_004'], repeat: { every: 'week', until: null } }));
@@ -121,7 +121,8 @@ describe('the rows of a call', () => {
     expect((await seen()).slice(before).sort()).toEqual(ids.slice(5).sort());
     const afterUpdate = (await seen()).length;
     ok(await t.call('usr_003', 'meetings.cancel', { id: ids[6], scope: 'later' }));
-    expect((await seen()).slice(afterUpdate).sort()).toEqual(ids.slice(6).sort());
+    // The cancel records the last day of the series on every meeting of it (owner, 2026-10-23), so every meeting gets a row.
+    expect((await seen()).slice(afterUpdate).sort()).toEqual(ids.slice().sort());
     // A second series: one meeting in the middle is cancelled alone, so 7 are ahead and the extension adds one, then no more.
     const other = ok(await t.call('usr_003', 'meetings.create', { ...PLAN, title: 'Other', startsAt: START, attendeeIds: ['usr_004'], repeat: { every: 'week', until: null } }));
     const otherIds = ((await t.db.statement('read', "select id from meetings where json_extract(doc, '$.seriesId') = ?1 order by starts_at", [other.id as string])) as { id: string }[]).map((row) => row.id);

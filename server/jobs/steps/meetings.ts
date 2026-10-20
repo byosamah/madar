@@ -36,22 +36,23 @@ export const SETTLE_LITE =
 /**
  * $1 the stamp of this run, $2 the stamp of the start of today (office time). The base is the meetings that start today or later, so the
  * partial order of meetings_starts serves it. For each series: the last meeting (row_number 1), and how many scheduled meetings are
- * ahead of the run (ends_at after $1). Only a series whose last meeting is scheduled and that has fewer than SERIES_AHEAD ahead is read:
- * a cancelled last meeting ends the series. The fewest ahead first, then by series, at most 20.
+ * ahead of the run (ends_at after $1). Only a series that has fewer than SERIES_AHEAD ahead is read. A cancelled last meeting does not end the
+ * series (owner, 2026-10-23): only the rule does (its last day, which a cancel for "this and later meetings" sets). The fewest ahead first,
+ * then by series, at most 20.
  */
 export const EXTEND_SQL =
-  'select id, doc, ahead from (select id, doc, status, '
+  'select id, doc, ahead from (select id, doc, '
   + "row_number() over (partition by doc->>'seriesId' order by starts_at collate \"C\" desc, id desc) as rn, "
   + "count(*) filter (where status = 'scheduled' and ends_at collate \"C\" > $1::text) over (partition by doc->>'seriesId') as ahead "
   + "from meetings where starts_at collate \"C\" >= $2::text and doc->>'seriesId' is not null) t "
-  + `where rn = 1 and status = 'scheduled' and ahead < ${SERIES_AHEAD} order by ahead, doc->>'seriesId' limit 20`;
+  + `where rn = 1 and ahead < ${SERIES_AHEAD} order by ahead, doc->>'seriesId' limit 20`;
 /** SQLite (the office object): the same read; the stamps are text already, and the index meetings_starts serves the base. */
 export const EXTEND_LITE =
-  'select id, doc, ahead from (select id, doc, status, '
+  'select id, doc, ahead from (select id, doc, '
   + "row_number() over (partition by json_extract(doc, '$.seriesId') order by starts_at desc, id desc) as rn, "
   + "count(*) filter (where status = 'scheduled' and ends_at > ?1) over (partition by json_extract(doc, '$.seriesId')) as ahead "
   + "from meetings where starts_at >= ?2 and json_extract(doc, '$.seriesId') is not null) "
-  + `where rn = 1 and status = 'scheduled' and ahead < ${SERIES_AHEAD} order by ahead, json_extract(doc, '$.seriesId') limit 20`;
+  + `where rn = 1 and ahead < ${SERIES_AHEAD} order by ahead, json_extract(doc, '$.seriesId') limit 20`;
 
 type Due = Pick<Meeting, 'organizerId' | 'projectId' | 'attendeeIds'>;
 
