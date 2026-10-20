@@ -25,8 +25,11 @@ import type { SqlHost } from './host';
  *
  * Version 8 (fbk_022, the track gcal): the server tables google_connections and google_events of the Google Calendar connect, with
  * their indexes. Its step is in LITE_STEPS.
+ *
+ * Version 9 (fbk_022, one calendar for each person): the server table google_calendars, the id of the calendar that Madar made for a person.
+ * Its step is in LITE_STEPS.
  */
-export const LITE_SCHEMA_VERSION = 8;
+export const LITE_SCHEMA_VERSION = 9;
 
 export type LiteIndex = { table: string; name: string; columns: string; unique?: true; where?: string };
 
@@ -83,6 +86,11 @@ const GOOGLE_SQL: readonly string[] = [
   + "state text not null check (state in ('ok', 'not_synced', 'broken', 'revoking')), connected_at text not null, last_error text, last_error_at text, changed_at text not null)",
   'create table google_events (user_id text not null, meeting_id text not null, event_id text not null, synced_rev integer not null, synced_at text not null, primary key (user_id, meeting_id))',
 ];
+/**
+ * The server table of the calendar of each person (version 9, fbk_022; supabase/migrations/20261021000300_google_calendars.sql). It has no
+ * index: user_id is its primary key. A new connect reads it to reuse the calendar of the person.
+ */
+const GOOGLE_CALENDARS_SQL = 'create table google_calendars (user_id text primary key, calendar_id text not null, changed_at text not null)';
 const GOOGLE_INDEXES: readonly LiteIndex[] = [
   { table: 'google_connections', name: 'google_connections_person', columns: 'user_id', unique: true, where: "state <> 'revoking'" },
   { table: 'google_events', name: 'google_events_meeting', columns: 'meeting_id' },
@@ -108,6 +116,7 @@ const SERVER_SQL: readonly string[] = [
   `create table job_runs (key text primary key, done_at text not null default (${NOW}))`,
   USAGE_DAY_SQL,
   ...GOOGLE_SQL,
+  GOOGLE_CALENDARS_SQL,
   // The sign-in rows (Supabase exit, wave 2). id is the auth.users id of Supabase for an imported person, else a new uuid.
   `create table auth_users (id text primary key, user_id text, email text not null, password_hash text, password_set integer not null default 0, email_confirmed integer not null default 0, banned integer not null default 0, created_at text not null default (${NOW}), updated_at text not null default (${NOW}))`,
   `create table auth_links (token_hash text primary key, auth_id text not null, type text not null check (type in ('invite', 'recovery')), expires_at text not null, used_at text, created_at text not null default (${NOW}))`,
@@ -147,6 +156,7 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
  * computes the column with rowOf), so the step writes no value.
  * Version 7 adds the partial index meetings_to_settle (fbk_022, wave 2): the scheduled meetings with no settled_at, by ends_at.
  * Version 8 adds the two server tables of the Google Calendar connect and their indexes, as in liteSchemaSql.
+ * Version 9 adds the server table google_calendars (fbk_022, one calendar for each person), as in liteSchemaSql.
  */
 export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   3: [USAGE_DAY_SQL],
@@ -162,6 +172,7 @@ export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
     ...GOOGLE_SQL,
     ...GOOGLE_INDEXES.map(indexSql),
   ],
+  9: [GOOGLE_CALENDARS_SQL],
 };
 
 /** The sign-in tables of wave 2: the import of wave 4 and the restore check copy them with the office. */

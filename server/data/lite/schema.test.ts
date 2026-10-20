@@ -8,16 +8,18 @@ import { DEFAULT_SETTINGS, LITE_SCHEMA_VERSION, SIGNIN_TABLES, applyLiteSchema, 
 import { freshLite } from './testDb';
 
 /** The sha256 of the schema text of LITE_SCHEMA_VERSION. A change of the schema needs a new version and a new value here. */
-const PINNED_SHA256 = '70e71a4443ceb5fec18285a07fed1a2273df5a70c5e74da569ce7edca605165d';
+const PINNED_SHA256 = 'b112d5ed4eb1c2e7406ca7dbb10b11ad7f68cc333da9fb2908d908c2d71d1268';
 
 const tablesOf = (raw: DatabaseSync) =>
   (raw.prepare("select name from sqlite_master where type = 'table' and name not like 'sqlite_%' order by name").all() as { name: string }[]).map((r) => r.name);
 const columnsOf = (raw: DatabaseSync, table: string) =>
   (raw.prepare('select name from pragma_table_info(?)').all(table) as { name: string }[]).map((r) => r.name);
-/** Takes the two Google tables away, as an office below version 8 has none (fbk_022). */
+/** Takes the Google tables away, as an office below version 8 has none (fbk_022). google_calendars is version 9: dropCalendars takes only that one. */
+const dropCalendars = (raw: DatabaseSync) => raw.exec('drop table google_calendars');
 const dropGoogle = (raw: DatabaseSync) => {
   raw.exec('drop table google_connections');
   raw.exec('drop table google_events');
+  dropCalendars(raw);
 };
 
 describe('the SQLite schema (server/data/lite/schema.ts)', () => {
@@ -44,12 +46,13 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     raw.exec('drop table meetings');
     dropGoogle(raw);
     raw.exec('update schema_version set version = 2');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [3, 4, 5, 6, 7, 8] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [3, 4, 5, 6, 7, 8, 9] });
     expect(columnsOf(raw, 'usage_day')).toEqual(['day', 'rows_read', 'rows_written', 'requests', 'calls', 'worker_requests']);
     expect(columnsOf(raw, 'sub_companies')).toEqual(['id', 'doc']);
     expect(columnsOf(raw, 'meetings')).toEqual(['id', 'doc', ...columnNames('meetings')]);
     expect(columnsOf(raw, 'google_connections')).toEqual(['id', 'user_id', 'sealed_token', 'calendar_id', 'state', 'connected_at', 'last_error', 'last_error_at', 'changed_at']);
     expect(columnsOf(raw, 'google_events')).toEqual(['user_id', 'meeting_id', 'event_id', 'synced_rev', 'synced_at']);
+    expect(columnsOf(raw, 'google_calendars')).toEqual(['user_id', 'calendar_id', 'changed_at']);
     expect(raw.prepare('select version from schema_version').get()).toEqual({ version: LITE_SCHEMA_VERSION });
   });
 
@@ -62,7 +65,7 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     raw.exec('update schema_version set version = 3');
     raw.exec('alter table messages drop column search_text');
     raw.exec('alter table comments drop column search_text');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [4, 5, 6, 7, 8] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [4, 5, 6, 7, 8, 9] });
     expect(raw.prepare("select sql from sqlite_master where name = 'sub_companies'").get()).toEqual(fresh);
   });
 
@@ -76,7 +79,7 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     raw.exec('alter table messages drop column search_text');
     raw.exec('alter table comments drop column search_text');
     raw.exec('update schema_version set version = 4');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [5, 6, 7, 8] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [5, 6, 7, 8, 9] });
     expect(objects()).toEqual(fresh);
   });
 
@@ -89,7 +92,7 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     raw.exec('drop index meetings_to_settle');
     dropGoogle(raw);
     raw.exec('update schema_version set version = 5');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [6, 7, 8] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [6, 7, 8, 9] });
     expect([text('messages'), text('comments')]).toEqual(fresh);
     expect(columnsOf(raw, 'messages')).toEqual(['id', 'doc', 'conversation_id', 'created_at', 'search_text']);
     expect(columnsOf(raw, 'comments')).toEqual(['id', 'doc', 'target_type', 'target_id', 'created_at', 'project_id', 'search_text']);
@@ -105,7 +108,7 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     raw.exec('drop index meetings_to_settle');
     dropGoogle(raw);
     raw.exec('update schema_version set version = 6');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [7, 8] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [7, 8, 9] });
     expect(objects()).toEqual(fresh);
   });
 
@@ -118,8 +121,29 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     ].sort());
     dropGoogle(raw);
     raw.exec('update schema_version set version = 7');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [8] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [8, 9] });
     expect(objects()).toEqual(fresh);
+  });
+
+  it('steps a version 8 office to the same google_calendars table as a new office (fbk_022, one calendar for each person)', async () => {
+    const { raw } = await freshLite();
+    const objects = () => raw.prepare("select name, sql from sqlite_master where tbl_name = 'google_calendars' order by name").all();
+    const fresh = objects();
+    expect(fresh.map((row) => (row as { name: string }).name)).toEqual(['google_calendars', 'sqlite_autoindex_google_calendars_1']);
+    dropCalendars(raw);
+    raw.exec('update schema_version set version = 8');
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [9] });
+    expect(objects()).toEqual(fresh);
+    expect(columnsOf(raw, 'google_calendars')).toEqual(['user_id', 'calendar_id', 'changed_at']);
+  });
+
+  it('keeps one calendar for each person (fbk_022)', async () => {
+    const { raw } = await freshLite();
+    const add = (user: string, calendar: string | null) => raw.prepare("insert into google_calendars (user_id, calendar_id, changed_at) values (?, ?, '2026-10-21T06:00:00.000Z')").run(user, calendar);
+    add('usr_003', 'cal-1@group.calendar.google.com');
+    expect(() => add('usr_003', 'cal-2@group.calendar.google.com')).toThrow('UNIQUE');
+    expect(() => add('usr_004', null)).toThrow('NOT NULL');
+    add('usr_004', 'cal-3@group.calendar.google.com');
   });
 
   it('keeps one live connection for each person, and lets a revoking row live beside it (fbk_022)', async () => {
@@ -206,6 +230,6 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
 
   it('pins the schema text to its version', () => {
     const sha256 = createHash('sha256').update(liteSchemaSql().join('\n')).digest('hex');
-    expect({ version: LITE_SCHEMA_VERSION, sha256 }).toEqual({ version: 8, sha256: PINNED_SHA256 });
+    expect({ version: LITE_SCHEMA_VERSION, sha256 }).toEqual({ version: 9, sha256: PINNED_SHA256 });
   });
 });

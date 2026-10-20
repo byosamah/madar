@@ -113,8 +113,8 @@ export const COUNTERS_TABLE = 'counters';
 export const SERVER_TABLES = [
   'office_meta', 'office_deletes', 'person_seq', 'platform_config', 'stories', 'idempotency', 'outbox', 'upload_intents',
   'agent_links', 'mail_log', 'mail_outbox', 'usage_month', 'usage_warnings', 'rate_limits', 'job_runs',
-  // Google Calendar (fbk_022): the connection of a person and the Google event of a meeting. No State collection reads them.
-  'google_connections', 'google_events',
+  // Google Calendar (fbk_022): the connection of a person, the Google event of a meeting and the calendar of a person. No State collection reads them.
+  'google_connections', 'google_events', 'google_calendars',
 ] as const;
 
 /** The rows of one collection, in the order of its State map. Settings is one row with the key "office". */
