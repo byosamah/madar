@@ -100,9 +100,13 @@ export async function meetingChange(L: Load, input: Input): Promise<void> {
   if (input.scope === 'later' && meeting?.seriesId) await seriesFrom(L, meeting.seriesId, meeting.startsAt);
 }
 
-/** meetings.extend (wave 3): the meetings of the series from the start of today. The last one and the ones ahead are all the handler reads. */
+/**
+ * meetings.extend (wave 3): every meeting of the series from the start of today, also those that the person of the call does not see. The
+ * handler finds the true last one and checks the view and the right to change it there (review 2026-10-20), so the load must not drop the
+ * later meetings of a person who was taken off them. No row of them leaves the call: the answer is a count or the text of an unknown id.
+ */
 export async function meetingExtend(L: Load, input: Input): Promise<void> {
   const seriesId = str(input.seriesId);
   if (!seriesId || !L.now) return;
-  await seriesFrom(L, seriesId, `${todayISO(L.now)}T00:00:00.000+03:00`);
+  await L.select({ c: 'meetings', where: [{ field: 'seriesId', in: [seriesId] }, { col: 'starts_at', atOrAfter: `${todayISO(L.now)}T00:00:00.000+03:00` }] });
 }
