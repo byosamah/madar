@@ -82,7 +82,26 @@ export function fakeGoogle(o: FakeGoogleOptions = {}) {
     }
     const [calendarId, kind, eventId] = parts;
     const store = events.get(calendarId);
+    // One calendar by its id: any link of the same app reads a calendar that the app made. A deleted calendar is a 404.
+    if (parts.length === 1 && request.method === 'GET') {
+      const found = calendars.get(calendarId);
+      return found ? reply({ id: calendarId, summary: found.summary, timeZone: found.timeZone }) : reply({ error: { code: 404, message: 'Not Found' } }, 404);
+    }
     if (!calendars.has(calendarId) || !store || kind !== 'events') return reply({ error: { code: 404, message: 'Not Found' } }, 404);
+    // The list of events, as Google gives it by default: no deleted event, the events that end after timeMin, in pages of maxResults.
+    if (parts.length === 2 && request.method === 'GET') {
+      const query = new URL(request.url).searchParams;
+      const timeMin = query.get('timeMin');
+      const size = Number(query.get('maxResults') ?? '250');
+      const from = Number(query.get('pageToken') ?? '0');
+      const live = [...store.values()].filter((event) => {
+        if (event.status === 'cancelled') return false;
+        const end = Date.parse(String((event.end as { dateTime?: string } | undefined)?.dateTime ?? ''));
+        return timeMin === null || Number.isNaN(end) || end > Date.parse(timeMin);
+      });
+      const items = live.slice(from, from + size);
+      return reply({ kind: 'calendar#events', items, ...(from + size < live.length ? { nextPageToken: String(from + size) } : {}) });
+    }
     if (parts.length === 2 && request.method === 'POST') {
       const body = request.body as StoredEvent;
       if (store.has(body.id)) return reply({ error: { code: 409, message: 'The requested identifier already exists.' } }, 409);
@@ -137,6 +156,11 @@ export function fakeGoogle(o: FakeGoogleOptions = {}) {
     state,
     calendars,
     events,
+    /** The person deletes a calendar in Google: its events go with it, and a read of it gives 404. */
+    deleteCalendar(calendarId: string) {
+      calendars.delete(calendarId);
+      events.delete(calendarId);
+    },
     /** The requests to the Calendar API for events. */
     eventRequests: () => requests.filter((request) => /\/events/.test(request.path)),
     /** The events of the newest calendar, or of the given one. */

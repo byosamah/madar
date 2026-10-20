@@ -1,6 +1,6 @@
 /**
  * The Google client of the Calendar connect (fbk_022, owner 2026-10-19): the sign-in address, the code swap, the refresh, the
- * Madar calendar, its events, and the revoke. Plain `fetch` with a 3 second limit on every call. Tests pass a stub fetch, so no
+ * Madar calendar (make it, read it), its events (write them, list them), and the revoke. Plain `fetch` with a 3 second limit on every call. Tests pass a stub fetch, so no
  * test reaches Google.
  *
  * An error is a GoogleError whose message is its code and nothing more. The text of a network error, a Google answer, an address, a
@@ -149,13 +149,28 @@ export async function refreshAccess(c: GoogleClient, refreshToken: string): Prom
   return { accessToken, expiresIn: typeof expiresIn === 'number' ? expiresIn : 3600 };
 }
 
-/** The calendar "Madar" in the account of the person. The scope cannot list calendars, so a second connect makes a second one. */
+/**
+ * The calendar "Madar" in the account of the person. The scope cannot list calendars, so Madar must remember the id (the table
+ * google_calendars) and ask for it with getCalendar before it makes another one.
+ */
 export async function makeCalendar(c: GoogleClient, accessToken: string): Promise<string> {
   const answer = await send(c, CALENDARS_URL, {
     method: 'POST',
     headers: { ...bearer(accessToken), 'Content-Type': 'application/json' },
     body: JSON.stringify({ summary: 'Madar', timeZone: 'Asia/Riyadh' }),
   });
+  if (answer.status !== 200) throw calendarFailure(answer);
+  const id = field(answer.json, 'id');
+  if (typeof id !== 'string' || id === '') throw new GoogleError('refused');
+  return id;
+}
+
+/**
+ * One calendar by its id. The scope reaches every calendar that Madar made, also with the token of a newer link. A 404 or a 410 gives
+ * not_found: the person deleted the calendar in Google. Any other failure keeps its own code, so the caller makes no new calendar for it.
+ */
+export async function getCalendar(c: GoogleClient, accessToken: string, calendarId: string): Promise<string> {
+  const answer = await send(c, `${CALENDARS_URL}/${encodeURIComponent(calendarId)}`, { method: 'GET', headers: bearer(accessToken) });
   if (answer.status !== 200) throw calendarFailure(answer);
   const id = field(answer.json, 'id');
   if (typeof id !== 'string' || id === '') throw new GoogleError('refused');
@@ -197,3 +212,37 @@ export const updateEvent = (c: GoogleClient, accessToken: string, calendarId: st
   eventCall(c, eventOf(calendarId, eventId), 'PUT', accessToken, event);
 export const deleteEvent = (c: GoogleClient, accessToken: string, calendarId: string, eventId: string): Promise<void> =>
   eventCall(c, eventOf(calendarId, eventId), 'DELETE', accessToken);
+
+/** The page size and the page limit of listEvents: at most 1000 events. */
+export const LIST_PAGE_SIZE = 250;
+export const LIST_PAGES = 4;
+
+/**
+ * The ids of the events of a calendar that end after `timeMin` (an ISO stamp), as single events, in pages of LIST_PAGE_SIZE. It follows
+ * nextPageToken up to LIST_PAGES pages. Google leaves out the deleted events, and an event with the status cancelled gives no id here.
+ * A failure of any page throws: the caller gets no part of the list.
+ */
+export async function listEvents(c: GoogleClient, accessToken: string, calendarId: string, timeMin: string): Promise<string[]> {
+  const ids: string[] = [];
+  let pageToken: string | undefined;
+  for (let page = 0; page < LIST_PAGES; page += 1) {
+    const url = new URL(eventsOf(calendarId));
+    url.searchParams.set('timeMin', timeMin);
+    url.searchParams.set('singleEvents', 'true');
+    url.searchParams.set('maxResults', String(LIST_PAGE_SIZE));
+    if (pageToken !== undefined) url.searchParams.set('pageToken', pageToken);
+    const answer = await send(c, url.toString(), { method: 'GET', headers: bearer(accessToken) });
+    if (answer.status !== 200) throw calendarFailure(answer);
+    const items = field(answer.json, 'items');
+    if (Array.isArray(items)) {
+      for (const item of items) {
+        const id = field(item, 'id');
+        if (typeof id === 'string' && id !== '' && field(item, 'status') !== 'cancelled') ids.push(id);
+      }
+    }
+    const next = field(answer.json, 'nextPageToken');
+    if (typeof next !== 'string' || next === '') break;
+    pageToken = next;
+  }
+  return ids;
+}
