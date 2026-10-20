@@ -75,6 +75,18 @@ describe("What's new entries", () => {
     expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-40', 'body']))).toContain('محادثة المشروع');
   });
 
+  // Meetings, wave 3 (fbk_022): a meeting can repeat every day, every week or every 2 weeks.
+  it('name the repeating meetings in one entry that opens the Meetings view, above the Google Calendar line', () => {
+    const entry = WHATS_NEW.find((item) => item.id === '2026-10-23-54');
+    expect(entry).toEqual({ id: '2026-10-23-54', day: '2026-10-23', to: '/meetings' });
+    const ids = WHATS_NEW.map((item) => item.id);
+    expect(ids.indexOf('2026-10-23-54')).toBeLessThan(ids.indexOf('2026-10-23-53'));
+    expect(wordAt(en, ['whatsNew', 'items', '2026-10-23-54', 'title'])).toBe('Meetings that repeat');
+    expect(String(wordAt(en, ['whatsNew', 'items', '2026-10-23-54', 'body']))).toContain('A meeting can repeat every day, every week or every 2 weeks.');
+    expect(wordAt(ar, ['whatsNew', 'items', '2026-10-23-54', 'title'])).toBe('اجتماعات متكررة');
+    expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-54', 'body']))).toContain('كل أسبوعين');
+  });
+
   it('have a short "Open" link word and a "New" mark in both languages', () => {
     for (const tree of [en, ar]) {
       for (const key of ['newMark', 'seeNew', 'open', 'openItem']) expect(typeof wordAt(tree, ['whatsNew', key]), key).toBe('string');

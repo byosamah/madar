@@ -41,3 +41,17 @@ export function withLine(state: State, over: Partial<TrackerEntry> = {}): void {
   Object.assign(meetingsOf(state).mtg_001, { settledAt: '2026-09-29T15:05:00.000+03:00', trackerEntryId: 'trk_900' });
 }
 
+
+/**
+ * A weekly series of "count" meetings (wave 3): mtg_001 is the first, today at 14:00 in the test office, and each next one is a week later.
+ * "Now" is Wednesday 2026-09-30 09:00, so the first is today. Each meeting has the same title, rule and series.
+ */
+export function withSeries(state: State, count = 4, over: Partial<Meeting> = {}, every: 'day' | 'week' | 'two_weeks' = 'week'): void {
+  const days = ['2026-09-30', '2026-10-07', '2026-10-14', '2026-10-21', '2026-10-28', '2026-11-04', '2026-11-11', '2026-11-18'];
+  for (let n = 0; n < count; n += 1) {
+    withMeeting(state, {
+      id: `mtg_${String(n + 1).padStart(3, '0')}`, startsAt: `${days[n]}T14:00:00.000+03:00`, endsAt: `${days[n]}T15:00:00.000+03:00`,
+      seriesId: 'mtg_001', repeat: { every, until: null }, ...over,
+    });
+  }
+}

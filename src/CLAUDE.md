@@ -480,6 +480,16 @@ any screen work.
   sheet of an auto meeting line shows the same part (`TrackerRow.meeting`, `minutes`, `canEditMinutes`), the quiet link "Open the meeting", and the auto
   word `tracker.autoMeeting`; a Tracker row with minutes shows the small word "Minutes". The feed words are `feed.meeting.minutes_saved_<meeting|visit>`
   for `meeting.minutes_saved` and `tracker.minutes_saved`. Screen tests: `meetings/testMeetings.ts` (`ENDED`, `SOME_MINUTES`, `withLine`).
+- Repeating meetings on the screens (wave 3, owner 2026-10-19; `series.*` words in `i18n/real/series.*.json`). The new meeting form keeps Repeat under "More"
+  (`REPEATS` in `formModel.ts`: Does not repeat, Every day (Sunday to Thursday), Every week, Every 2 weeks), and Until (a `DateField`, optional, not before the day
+  of the first meeting and at most `REPEAT_MAX_DAYS` after it) shows only when a repeat is chosen. The visible controls stay eight. The edit form has neither: the rule of
+  a series is fixed. `ScopeSheet.tsx` is the question before a change or a cancel of a meeting with a `seriesId`: two plain buttons, "This meeting" and "This and
+  later meetings", with the focus on the first; Escape or Close leaves the meeting as it is. The edit form opens it after Save when something changed (nothing
+  changed: it closes, as before), and turns the second button off with a short line when the change moves the meeting to a new day (the server refuses a new
+  day with `later`). The meeting sheet opens it (mode `cancel`) in place of the plain "Cancel this meeting?" question for a meeting of a series; the plain question
+  stays for a meeting in no series. The toasts say "Meetings saved." and "Meetings cancelled." for `later`, and the Undo of the toast takes the story back. The sheet
+  shows one quiet line under the time: "Repeats every week", with ", until <day>" when the rule has a last day. Tests: `ScopeSheet.test.tsx`, `MeetingForm.test.tsx`,
+  `MeetingSheet.test.tsx` (`withSeries` in `testMeetings.ts`).
 - Home: `home/MeetingsCard.tsx` ("Meetings today", only my meetings that are on or still to come, three rows). Project Overview:
   `project/overview/ProjectMeetings.tsx` (the next two meetings; the button "Plan a meeting" for `viewerCan.post` on an open project). Both read
   through `meetings/readInputs.ts`, and `tabReads` (`project/tabs.tsx`, now with `today`) prefetches the panel read with the same input.

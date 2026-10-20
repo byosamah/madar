@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { ApiError } from '../../api/errors';
@@ -20,6 +20,7 @@ import { MeetingForm } from './MeetingForm';
 import { joinLink, mainAction } from './meetingLinks';
 import { AddMinutes, MinutesBody, QUIET } from './MinutesPart';
 import { MinutesSheet } from './MinutesSheet';
+import { ScopeSheet, type Scope } from './ScopeSheet';
 
 const MAIN_LINK = 'pressable signature inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 text-subheadline font-semibold shadow-[0_4px_14px_rgba(31,42,85,0.22)] transition-[box-shadow,filter,transform] duration-150 hover:-translate-y-px hover:shadow-[0_8px_20px_rgba(31,42,85,0.28)] hover:brightness-110';
 
@@ -91,7 +92,8 @@ export function MeetingSheet({ meetingId, onClose }: { meetingId: string; onClos
   const [editing, setEditing] = useState(false);
   const [asking, setAsking] = useState(false);
   const [writing, setWriting] = useState(false);
-  const cancel = useUndoable('meetings.cancel', { message: () => t('meetings.sheet.cancelled') });
+  const scopeOf = useRef<Scope>('one');
+  const cancel = useUndoable('meetings.cancel', { message: () => t(scopeOf.current === 'later' ? 'series.toast.cancelled' : 'meetings.sheet.cancelled') });
   if (!meeting) {
     return query.error ? <Unavailable error={query.error} onRetry={() => void query.refetch()} onClose={onClose} /> : null;
   }
@@ -102,6 +104,12 @@ export function MeetingSheet({ meetingId, onClose }: { meetingId: string; onClos
   const place = joinLink(meeting.where);
   const kind = t(`meetings.kind.${meeting.kind}`);
   const stateWord = phase === 'now' || phase === 'cancelled' || phase === 'done' ? t(`meetings.state.${phase}`) : '';
+  // One quiet line under the time for a meeting of a series (wave 3): "Repeats every week", with the last day when the rule has one.
+  const repeatLine = meeting.repeat
+    ? meeting.repeat.until
+      ? t(`series.lineUntil.${meeting.repeat.every}`, { day: formatDay(meeting.repeat.until, lang, 'short') })
+      : t(`series.line.${meeting.repeat.every}`)
+    : '';
   return (
     <>
       <Sheet
@@ -128,6 +136,7 @@ export function MeetingSheet({ meetingId, onClose }: { meetingId: string; onClos
           <Fact label={t('meetings.sheet.when')}>
             <span className="block">{formatDay(day, lang, 'withWeekday')}</span>
             <span className="tabular block">{t('meetings.range', { from: clock.format(new Date(meeting.startsAt)), to: clock.format(new Date(meeting.endsAt)) })}</span>
+            {repeatLine && <span className="block text-footnote text-ink-2">{repeatLine}</span>}
           </Fact>
           {meeting.where && (
             <Fact label={t('meetings.sheet.where')}>
@@ -179,11 +188,24 @@ export function MeetingSheet({ meetingId, onClose }: { meetingId: string; onClos
       </Sheet>
       <MeetingForm open={editing} onOpenChange={setEditing} meeting={meeting} />
       {writing && <MinutesSheet meeting={{ id: meeting.id, title: meeting.title, projectId: meeting.project?.id ?? null }} minutes={meeting.minutes ?? null} onClose={() => setWriting(false)} />}
-      {asking && (
+      {asking && !meeting.seriesId && (
         <CancelSheet
           onKeep={() => setAsking(false)}
           onConfirm={() => {
+            scopeOf.current = 'one';
             cancel.mutate({ id: meeting.id });
+            setAsking(false);
+          }}
+        />
+      )}
+      {/* A meeting of a series asks which meetings, in place of the plain question: "This meeting" or "This and later meetings". */}
+      {asking && meeting.seriesId && (
+        <ScopeSheet
+          mode="cancel"
+          onClose={() => setAsking(false)}
+          onPick={(scope) => {
+            scopeOf.current = scope;
+            cancel.mutate({ id: meeting.id, scope });
             setAsking(false);
           }}
         />

@@ -3,6 +3,10 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-54": {
+        "title": "Meetings that repeat",
+        "body": "A meeting can repeat every day, every week or every 2 weeks. Choose Repeat under More when you plan it. When you change or cancel a meeting of a series, you choose this meeting or the later meetings."
+      },
       "2026-10-23-53": {
         "title": "Your meetings in Google Calendar",
         "body": "Connect Google Calendar once in Settings. Madar then puts each of your meetings there and keeps it up to date. Google gets only the title, the time and the place."

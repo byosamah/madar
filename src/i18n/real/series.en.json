@@ -1,0 +1,45 @@
+{
+  "errors": {
+    "reasons": {
+      "until_before_start": "The last day comes before the first meeting. Choose a later day.",
+      "until_too_far": "The last day is more than 400 days after the first meeting. Choose an earlier day.",
+      "series_day_one_only": "A new day changes one meeting at a time. Choose “This meeting”."
+    }
+  },
+  "series": {
+    "repeat": {
+      "none": "Does not repeat",
+      "day": "Every day (Sunday to Thursday)",
+      "week": "Every week",
+      "two_weeks": "Every 2 weeks"
+    },
+    "form": {
+      "repeat": "Repeat",
+      "until": "Until",
+      "untilHint": "The last day. Leave it empty to repeat with no end."
+    },
+    "line": {
+      "day": "Repeats every day, Sunday to Thursday",
+      "week": "Repeats every week",
+      "two_weeks": "Repeats every 2 weeks"
+    },
+    "lineUntil": {
+      "day": "Repeats every day, Sunday to Thursday, until {{day}}",
+      "week": "Repeats every week, until {{day}}",
+      "two_weeks": "Repeats every 2 weeks, until {{day}}"
+    },
+    "scope": {
+      "editTitle": "Change which meetings?",
+      "editBody": "This meeting is one of a series.",
+      "cancelTitle": "Cancel which meetings?",
+      "cancelBody": "This meeting is one of a series. The people get one notice.",
+      "one": "This meeting",
+      "later": "This and later meetings",
+      "dayNote": "A new day changes one meeting at a time."
+    },
+    "toast": {
+      "saved": "Meetings saved.",
+      "cancelled": "Meetings cancelled."
+    }
+  }
+}

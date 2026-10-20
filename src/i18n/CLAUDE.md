@@ -10,7 +10,8 @@ speaker, so write it as natural Arabic, not as a word-for-word copy of the Engli
   `teama` holds the words of the team-requests batch of 2026-10-19 (fbk_024, fbk_025, fbk_027). `meetings` holds the words of the meetings
   (fbk_022): the refusals, the notices, the screens, and `feed.meeting.*`.
   `chatfind` holds the words of the chat search and the open-at-a-message screens of 2026-10-19 (Messages group, Message and Project chat
-  buttons, Show newer messages). `chatmsg`, `chatread` and `chatnotify` are the other chat tracks.
+  buttons, Show newer messages). `chatmsg`, `chatread` and `chatnotify` are the other chat tracks. `series` holds the words of the repeating meetings (fbk_022, wave 3):
+  Repeat and Until, the line "Repeats every week", the scope question, the toasts and the refusals `until_before_start`, `until_too_far` and `series_day_one_only`.
 - A task adds new words only to its own track files.
 - Server code reads the word files with plain JSON imports (no `import.meta.glob`).
 - `words.en.ts` and `words.ar.ts` each merge one language (the base file plus the track files). `trees.ts` gives both trees,

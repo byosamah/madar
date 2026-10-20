@@ -5,7 +5,7 @@ import type { Meeting } from '../../api/contract/entities';
 import type { State } from '../../api/store';
 import { formatDay } from '../../lib/dates';
 import { renderApp } from '../../test/render';
-import { as, ENDED, SOME_MINUTES, withLine, withMeeting } from './testMeetings';
+import { as, ENDED, SOME_MINUTES, withLine, withMeeting, withSeries } from './testMeetings';
 
 /**
  * The sheet of one meeting (fbk_022). "Now" is Wednesday 2026-09-30 09:00 in Riyadh. usr_002 (Faisal) leads prj_001, usr_005 (Sara)
@@ -257,3 +257,95 @@ describe('the minutes on the meeting sheet', () => {
   });
 });
 
+
+describe('the sheet of a meeting that repeats (wave 3)', () => {
+  const series = (state: State, every: 'day' | 'week' | 'two_weeks' = 'week', over: Partial<Meeting> = {}) => {
+    as('usr_002')(state);
+    withSeries(state, 4, { title: 'Review the facade', attendeeIds: ['usr_005'], ...over }, every);
+  };
+
+  it('says how the meeting repeats, in one quiet line under the time', async () => {
+    await renderApp('/meetings?meeting=mtg_002', (state) => series(state));
+    const box = await sheet();
+    expect(within(box).getByText('Repeats every week')).toBeInTheDocument();
+  });
+
+  it('says every day as Sunday to Thursday, and every 2 weeks', async () => {
+    const day = await renderApp('/meetings?meeting=mtg_002', (state) => series(state, 'day'));
+    expect(within(await sheet()).getByText('Repeats every day, Sunday to Thursday')).toBeInTheDocument();
+    day.unmount();
+    await renderApp('/meetings?meeting=mtg_002', (state) => series(state, 'two_weeks'));
+    expect(within(await sheet()).getByText('Repeats every 2 weeks')).toBeInTheDocument();
+  });
+
+  it('names the last day when the rule has one', async () => {
+    await renderApp('/meetings?meeting=mtg_002', (state) => series(state, 'week', { repeat: { every: 'week', until: '2026-10-28' } }));
+    expect(within(await sheet()).getByText(`Repeats every week, until ${formatDay('2026-10-28', 'en', 'short')}`)).toBeInTheDocument();
+  });
+
+  it('shows no repeat line for a meeting in no series', async () => {
+    await renderApp('/meetings?meeting=mtg_001', (state) => client(state));
+    const box = await sheet();
+    expect(within(box).queryByText(/Repeats/)).toBeNull();
+  });
+
+  async function openCancel(id = 'mtg_002') {
+    const app = await renderApp(`/meetings?meeting=${id}`, (state) => series(state));
+    const box = await sheet();
+    await userEvent.click(await within(box).findByRole('button', { name: 'Meeting actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Cancel meeting' }));
+    const ask = await screen.findByRole('dialog', { name: 'Cancel which meetings?' });
+    return { ...app, ask };
+  }
+
+  it('asks which meetings to cancel, in place of the plain question, and cancels this meeting alone', async () => {
+    const { ask, store } = await openCancel();
+    expect(screen.queryByRole('dialog', { name: 'Cancel this meeting?' })).toBeNull();
+    await userEvent.click(within(ask).getByRole('button', { name: 'This meeting' }));
+    await waitFor(() => expect(store.state.meetings!.mtg_002.status).toBe('cancelled'));
+    expect(['mtg_001', 'mtg_003', 'mtg_004'].map((id) => store.state.meetings![id].status)).toEqual(['scheduled', 'scheduled', 'scheduled']);
+    expect(await screen.findByText('Meeting cancelled.')).toBeInTheDocument();
+  });
+
+  it('cancels this and the later meetings, tells so, and takes it all back with Undo', async () => {
+    const { ask, store } = await openCancel();
+    await userEvent.click(within(ask).getByRole('button', { name: 'This and later meetings' }));
+    await waitFor(() => expect(store.state.meetings!.mtg_004.status).toBe('cancelled'));
+    expect(['mtg_001', 'mtg_002', 'mtg_003', 'mtg_004'].map((id) => store.state.meetings![id].status)).toEqual(['scheduled', 'cancelled', 'cancelled', 'cancelled']);
+    expect(await screen.findByText('Meetings cancelled.')).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(store.state.meetings!.mtg_004.status).toBe('scheduled'));
+    expect(['mtg_002', 'mtg_003'].map((id) => store.state.meetings![id].status)).toEqual(['scheduled', 'scheduled']);
+  });
+
+  it('keeps the meeting when the question is closed', async () => {
+    const { store } = await openCancel();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Cancel which meetings?' })).toBeNull());
+    expect(store.state.meetings!.mtg_002.status).toBe('scheduled');
+  });
+
+  it('writes the repeat line, the question and the buttons in Arabic, with Western digits', async () => {
+    await renderApp('/meetings?meeting=mtg_002', (state) => {
+      series(state, 'week', { repeat: { every: 'week', until: '2026-10-28' } });
+      state.users.usr_002.preferences.language = 'ar';
+    });
+    const box = await screen.findByRole('dialog', { name: 'Review the facade' });
+    const line = await within(box).findByText(/^يتكرر كل أسبوع، حتى/);
+    expect(line.textContent).not.toMatch(/[٠-٩]/);
+    await userEvent.click(within(box).getByRole('button', { name: 'خيارات الاجتماع' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'إلغاء الاجتماع' }));
+    const ask = await screen.findByRole('dialog', { name: 'أي اجتماعات تريد إلغاءها؟' });
+    expect(within(ask).getByRole('button', { name: 'هذا الاجتماع' })).toBeInTheDocument();
+    expect(within(ask).getByRole('button', { name: 'هذا الاجتماع والاجتماعات اللاحقة' })).toBeInTheDocument();
+  });
+
+  it('keeps the plain question for a meeting in no series', async () => {
+    await renderApp('/meetings?meeting=mtg_001', (state) => client(state));
+    const box = await sheet();
+    await userEvent.click(await within(box).findByRole('button', { name: 'Meeting actions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Cancel meeting' }));
+    expect(await screen.findByRole('dialog', { name: 'Cancel this meeting?' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Cancel which meetings?' })).toBeNull();
+  });
+});

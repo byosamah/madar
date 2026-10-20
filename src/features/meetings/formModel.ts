@@ -45,3 +45,7 @@ export function lengthWords(minutes: number): { key: string; values: Record<stri
   const rest = minutes % 60;
   return rest === 0 ? { key: 'meetings.form.hour', values: { n: hours } } : { key: 'meetings.form.hourMin', values: { h: hours, m: rest } };
 }
+
+/** The choices of Repeat in the form (wave 3). The empty choice is "Does not repeat". */
+export const REPEATS = ['day', 'week', 'two_weeks'] as const;
+export type RepeatEvery = (typeof REPEATS)[number];
