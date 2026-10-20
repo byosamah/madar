@@ -1964,3 +1964,12 @@ fbk_022). Each suite ran once; a suite ran again only for the files of a fix.
   merge (236 passed), build, build:server. Not run (owner chose speed): `test:db`, `test:it`, `test:mcp`, the prototype smoke, the deploy
   suite, the screenshots (the Chrome extension was off; the Playwright helper was refused the sign-in by the auto-mode check).
 - `all.sh test` (148 calls), then `all.sh production`: health from `supabase` with 148 calls, the database check, `POST /mcp` with no token 401.
+### Production at a115a281 (2026-10-20, the owner batch of 7 items; Claude ran it after the owner's "deploy to production")
+- Changes: the chat filter keeps its choice; the role rights in 7 sections (17 rights, 10 new, an All switch for each section of two or
+  more); fbk_037, Edit and Cancel meeting in the footer of the meeting sheet; the To-dos / Meetings switch in its own row; `meetings.delete`
+  for a cancelled meeting, with the owner's series rule (only "Cancel this and later" ends a repeat, a delete changes no repeat); the
+  Admin's "What reaches me"; the usage feature removed (the tables `usage_month` and `usage_warnings` stay, unused). What's new 64 to 69.
+- Gates: typecheck, the shared rule and server tests (217 files, 3,170 tests), the touched screen tests (154 files), `npm run build`,
+  `build:server`, screenshots in Chrome (EN/AR, 390 and 960). Not run (owner rule, each over 5 minutes): the full `npm test`, `test:db`,
+  `test:it`, `test:mcp`, the deploy suite, the prototype smoke.
+- `all.sh test` (149 calls), then `all.sh production`: health from `supabase` with 149 calls, the database check, `POST /mcp` with no token 401.

@@ -786,6 +786,6 @@ tests on the test copy by hand. What's new 2026-10-23-64 to 69.
 - [x] Item 7: the usage feature is gone (the Admin section, `usage.get`, `usage.retryEffect`, the meter, the 80% warning). The tables `usage_month` and `usage_warnings` stay unused (a drop needs the owner's OK). Nothing shows a failed outbox row now, only the log
 - [x] Gates run: typecheck, the shared rule and server tests (217 files, 3,170 tests), the touched screen tests (154 files), `npm run build`, `npm run build:server`
 - [ ] Not run (owner rule, over 5 minutes): the full `npm test`, `test:db`, `test:it`, `test:mcp`, the deploy suite, the prototype smoke
-- [ ] The owner tries the 7 items on the test copy
-- [ ] Production (only when the owner says; team live week), then fbk_037 done
+- [x] The owner chose to release without a hand test on the test copy
+- [x] Production at a115a281 (2026-10-20, the owner said "deploy to production"; Claude ran it). fbk_037 done
 - [ ] Later: the step of `.github/workflows/files-backup.yml` that writes the backup size to `usage_month` (nothing reads it now); remove it when file backups start again
