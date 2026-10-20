@@ -248,3 +248,42 @@ describe('the Undo of a role change', () => {
     await expect(t.api.call('events.undo', { eventId: eventOf(t, 'role.updated').id })).rejects.toMatchObject({ code: 'forbidden' });
   });
 });
+
+// role-rights (owner, 2026-10-23): the rights list grew to 17 rights in 7 sections, and its order follows the sections. A role stored
+// before in the old order is the same role: a save of the same rights in another order is no change.
+describe('the order of the rights in 17 rights (role-rights)', () => {
+  it('makes a role with the new rights, and keeps them in the order of the sections', async () => {
+    const t = world();
+    const role = await t.api.call('roles.create', {
+      name: 'Office lead', nameAr: 'قائد المكتب',
+      rights: ['gaps.view', 'feedback.manage', 'agents.undoAny', 'templates.updateProjects', 'subCompanies.manage', 'task.changeAny', 'project.archiveAny', 'project.editAny'],
+    });
+    expect(role.rights).toEqual([
+      'project.editAny', 'project.archiveAny', 'task.changeAny', 'subCompanies.manage', 'templates.updateProjects', 'agents.undoAny', 'feedback.manage', 'gaps.view',
+    ]);
+  });
+
+  it('keeps a role that was stored in the old order, and writes no event for a save of the same rights in another order', async () => {
+    const t = world();
+    t.store.state.settings.roles = { custom: [{ id: 'rol_001', name: 'Cashier', nameAr: 'أمين الصندوق', rights: ['payment.manage', 'project.delete'] }] };
+    await t.api.call('roles.update', { role: 'rol_001', rights: ['project.delete', 'payment.manage'] });
+    expect(roleEvents(t)).toEqual([]);
+    expect(t.store.state.settings.roles?.custom?.[0].rights).toEqual(['payment.manage', 'project.delete']);
+  });
+
+  it('writes no event for a built-in role saved with the same rights in another order', async () => {
+    const t = world();
+    t.store.state.settings.roles = { rights: { accounting: ['payment.manage', 'clients.manage'] } };
+    await t.api.call('roles.update', { role: 'accounting', rights: ['clients.manage', 'payment.manage'] });
+    expect(roleEvents(t)).toEqual([]);
+  });
+
+  it('writes one event when a right is added, and the Undo gives the old rights back', async () => {
+    const t = world();
+    await t.api.call('roles.update', { role: 'rol_001', rights: ['payment.manage', 'feedback.manage'] }, { correlationId: 'cor_add' });
+    expect(t.store.state.settings.roles?.custom?.[0].rights).toEqual(['payment.manage', 'feedback.manage']);
+    const [event] = roleEvents(t, 'role.updated');
+    await t.api.call('events.undo', { eventId: event.id });
+    expect(t.store.state.settings.roles?.custom?.[0].rights).toEqual(['payment.manage']);
+  });
+});

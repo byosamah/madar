@@ -212,7 +212,8 @@ function templateMadeOf(ctx: Ctx, input: { template?: TemplateUse; stages?: stri
  * A task that waits for other tasks is dynamic (fbk_008): its length is the working days of its plan, and its waits name the new ids.
  */
 function addTemplateTasks(ctx: Ctx, projectId: string, stageIdOf: Map<string, string>, made: TemplateMade): void {
-  const maySkipReview = can(ctx.authority, 'task.updateAny', { projectRole: roleIn(ctx, projectId) });
+  // "No review" is the review need, which belongs to the reviewer (task.review), not to the right to change a task.
+  const maySkipReview = can(ctx.authority, 'task.review', { projectRole: roleIn(ctx, projectId) });
   // The ids come first, so a task can wait for a task that comes later in the template.
   const taskIdOf = new Map<string, string>(made.template.tasks.map((part): [string, string] => [part.id, nextId(ctx.state, 'tsk')]));
   for (const part of made.template.tasks) {

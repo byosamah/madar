@@ -11,7 +11,8 @@ import { makeUser } from '../test/factories';
 const member = makeUser('usr_008');
 const admin = makeUser('usr_001', { systemRole: 'admin' });
 const withRights = (rights: readonly OfficeRight[]): Actor => ({ ...member, officeRights: rights });
-const outsider: Resource = { projectRole: 'other' };
+// A task of the project, made and led by other people. Only the task actions read the people; the project actions ignore them.
+const outsider: Resource = { projectRole: 'other', makerId: 'usr_002', ownerId: 'usr_003', helperIds: [] };
 
 /** Each new right, the actions it passes on a project the person is not on, and actions it must not pass. */
 const NEW_RIGHTS: [OfficeRight, Action[], Action[]][] = [
@@ -68,6 +69,14 @@ describe('the new office rights in can() (role-rights)', () => {
     for (const action of actions) expect(can(holder, action, office), action).toBe(false);
     // The Admin sees it, as before.
     expect(can(admin, 'task.view', office)).toBe(true);
+  });
+
+  it('does not let task.changeAny delete a file or a Tracker entry: task.delete without a task is the leader stand-in, and it stays with the leader', () => {
+    const holder = withRights(['task.changeAny']);
+    // mayDeleteFile and mayDeleteTracker ask task.delete with the project role alone.
+    expect(can(holder, 'task.delete', { projectRole: 'other' })).toBe(false);
+    expect(can(holder, 'task.delete', outsider)).toBe(true);
+    expect(can(admin, 'task.delete', { projectRole: 'other' })).toBe(true);
   });
 
   it('opens no action that stays tied to a person', () => {

@@ -65,6 +65,15 @@ function changesAny(actor: Actor): boolean {
 }
 
 /**
+ * True when the resource describes a task: taskResource always names the maker of the task. A file or a Tracker entry of a project asks
+ * task.delete with the project role alone, as a stand-in for "the leader or the Admin". The right to change any to-do must not open
+ * those: it changes to-dos, and it does not delete the files or the Tracker entries of a project (role-rights, owner 2026-10-23).
+ */
+function describesTask(resource: Resource): boolean {
+  return resource.makerId !== undefined;
+}
+
+/**
  * ownerId is the lead of a task. Null: the task has no lead, so nobody holds the rights of its lead.
  * office: the resource is an office task (or its comment or file), which belongs to no project. makerId is the person who made the
  * task: for a task an agent made, the person the agent acts for (owner, 2026-10-06). A project task names its maker too (2026-10-07).
@@ -275,7 +284,7 @@ export function can(actor: Actor, action: Action, resource: Resource = {}): bool
       return makes || changesAny(actor);
     // The lead deletes the task too, for a task that went into the wrong project. The call tells the maker (fbk_034, owner 2026-10-20).
     case 'task.delete':
-      return makes || (onProject && resource.ownerId === actor.id) || changesAny(actor);
+      return makes || (onProject && resource.ownerId === actor.id) || (changesAny(actor) && describesTask(resource));
     // The office settings stay with the Admin.
     case 'admin.manage':
       return admin;

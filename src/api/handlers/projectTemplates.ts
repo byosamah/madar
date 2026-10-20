@@ -478,7 +478,8 @@ const projectTemplatesSyncApply = defineCall({
     const watch = watchStage(ctx, project.id);
     const counts = { added: 0, broughtBack: 0, removed: 0, text: 0, dates: 0, leads: 0, closed: 0, stages: 0, edited: 0 };
     const restored = new Set<string>();
-    const maySkipReview = can(ctx.authority, 'task.updateAny', { projectRole: roleIn(ctx, project.id) });
+    // "No review" is the review need, which belongs to the reviewer (task.review), not to the right to change a task.
+    const maySkipReview = can(ctx.authority, 'task.review', { projectRole: roleIn(ctx, project.id) });
     const stagePart = new Map(template.stages.map((part) => [part.id, part]));
     const taskPart = new Map(template.tasks.map((part) => [part.id, part]));
     const rolePart = new Map(template.roles.map((role) => [role.id, role]));
