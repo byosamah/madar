@@ -1,0 +1,10 @@
+{
+  "chatFilter": {
+    "label": "Show chats: {{kind}}",
+    "all": "All",
+    "projects": "Projects",
+    "todos": "To-dos",
+    "people": "People",
+    "none": "No chats here."
+  }
+}

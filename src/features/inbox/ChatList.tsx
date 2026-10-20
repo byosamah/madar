@@ -18,6 +18,7 @@ import { Menu, type MenuItem } from '../../components/Menu';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { ChevronRightIcon } from '../../components/icons/animated/chevron-right';
 import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-check';
+import { SlidersHorizontalIcon } from '../../components/icons/animated/sliders-horizontal';
 import { reasonLineText } from '../comments/ReasonLine';
 import { useArchive } from './archive';
 import { GroupPicture } from './GroupPicture';
@@ -67,6 +68,20 @@ export function ChatMenu({ id, archived, unread, title, onArchive, onMarkUnread,
 }) {
   const { t } = useTranslation();
   return <Menu label={t('chat.optionsFor', { title })} items={[...chatMenuItems(t, { id, archived, unread, onArchive, onMarkUnread }), ...extra]} />;
+}
+
+/**
+ * The kinds of the filter beside the search (owner, 2026-10-20): Projects holds the project chats, To-dos the threads of to-dos, and
+ * People the direct chats and the groups.
+ */
+const KINDS = ['all', 'projects', 'todos', 'people'] as const;
+type ChatKind = (typeof KINDS)[number];
+
+function inKind(row: Row, kind: ChatKind): boolean {
+  if (kind === 'projects') return row.kind === 'project';
+  if (kind === 'todos') return row.kind === 'task';
+  if (kind === 'people') return row.kind === 'direct' || row.kind === 'group';
+  return true;
 }
 
 /** How far a swipe goes before the row archives. The same as the swipe of the Notifications rows. */
@@ -161,6 +176,8 @@ const ChatRowItem = memo(function ChatRowItem({ row, selected, swipe, showArchiv
  * "Archived (n)" is one quiet row under the search field while some chat is archived; it opens the archived chats, which have a
  * title and a back arrow of their own (UX audit 2026-10-19, chats-04 and chats-05). A search in the main list looks in every
  * chat, and an archived match carries the word "Archived". The row menu has "Mark as unread" for a chat that was read (fbk_028).
+ * A menu beside the search shows one kind of chat (owner, 2026-10-20). The choice holds while the Inbox is open, also on a phone, where
+ * the list stays mounted under an open chat. The search and the archived list look only in the chosen kind.
  */
 export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; selectedId: string | undefined; onMarkUnread: (id: string) => void }) {
   const { t } = useTranslation();
@@ -169,9 +186,11 @@ export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; sele
   const onArchive = useStableHandler(archive);
   const markUnread = useStableHandler(onMarkUnread);
   const [query, setQuery] = useState('');
+  const [kind, setKind] = useState<ChatKind>('all');
+  const kindRows = kind === 'all' ? rows : rows.filter((row) => inKind(row, kind));
   // The archived chats leave the main list. The archived list closes by itself when its last chat moves back (owner, 2026-10-18).
   const [wantArchived, setWantArchived] = useState(false);
-  const archivedRows = rows.filter((row) => row.archived);
+  const archivedRows = kindRows.filter((row) => row.archived);
   // A stale flag must not reopen the archived list on the next archive: it resets when no archived chat is left.
   useEffect(() => {
     if (archivedRows.length === 0) setWantArchived(false);
@@ -179,7 +198,7 @@ export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; sele
   const archivedOpen = wantArchived && archivedRows.length > 0;
   const needle = normalizeForSearch(query);
   // The main list holds the chats that are not archived; a search looks in all of them. The archived list holds the archived chats.
-  const listed = archivedOpen ? archivedRows : needle === '' ? rows.filter((row) => !row.archived) : rows;
+  const listed = archivedOpen ? archivedRows : needle === '' ? kindRows.filter((row) => !row.archived) : kindRows;
   // A direct chat matches both names of the person (owner item 12). A group matches its name, and only its members have its row.
   const shown = needle === '' ? listed : listed.filter((row) => normalizeForSearch(`${row.title} ${row.person?.nameAr ?? ''} ${row.project?.name ?? ''}`).includes(needle));
   // A finger swipes. A mouse or a trackpad uses the button that shows on hover.
@@ -187,6 +206,7 @@ export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; sele
   // A new object on each render: the row ages read the clock on each switch and each search key, as before the memo (RND-5).
   const refresh = {};
   const searchLabel = archivedOpen ? t('chat.searchArchived') : t('chat.search');
+  const kindLabel = t(`chatFilter.${kind}`);
   return (
     <>
       {archivedOpen && (
@@ -205,18 +225,28 @@ export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; sele
           <h2 className="min-w-0 truncate text-headline text-ink">{t('chat.archivedTitle')}</h2>
         </div>
       )}
-      <div className="relative p-3">
-        <label htmlFor="chat-search" className="sr-only">{searchLabel}</label>
-        <AnimatedIcon icon={SearchIcon} size={16} aria-hidden className="pointer-events-none absolute start-6 top-1/2 -translate-y-1/2 text-ink-2" />
-        <input
-          id="chat-search"
-          type="search"
-          dir="auto"
-          autoComplete="off"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={searchLabel}
-          className="min-h-11 w-full rounded-full bg-fill ps-9 pe-4 text-subheadline text-ink placeholder:text-ink-2"
+      <div className="flex items-center gap-2 p-3">
+        <div className="relative min-w-0 flex-1">
+          <label htmlFor="chat-search" className="sr-only">{searchLabel}</label>
+          <AnimatedIcon icon={SearchIcon} size={16} aria-hidden className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-ink-2" />
+          <input
+            id="chat-search"
+            type="search"
+            dir="auto"
+            autoComplete="off"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={searchLabel}
+            className="min-h-11 w-full rounded-full bg-fill ps-9 pe-4 text-subheadline text-ink placeholder:text-ink-2"
+          />
+        </div>
+        {/* The button names the shown kind, so a person who comes back knows why the list is short. */}
+        <Menu
+          label={t('chatFilter.label', { kind: kindLabel })}
+          text={kindLabel}
+          icon={<AnimatedIcon icon={SlidersHorizontalIcon} size={16} aria-hidden />}
+          triggerClassName="shrink-0 bg-fill text-ink hover:text-ink-2"
+          items={KINDS.map((value) => ({ label: t(`chatFilter.${value}`), checked: value === kind, onSelect: () => setKind(value) }))}
         />
       </div>
       {!archivedOpen && needle === '' && archivedRows.length > 0 && (
@@ -230,6 +260,7 @@ export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; sele
         </button>
       )}
       {shown.length === 0 && needle !== '' && <p className="px-4 pb-4 text-subheadline text-ink-2">{t('chat.noMatch')}</p>}
+      {shown.length === 0 && needle === '' && kind !== 'all' && <p className="px-4 pb-4 text-subheadline text-ink-2">{t('chatFilter.none')}</p>}
       <AgeRefresh.Provider value={refresh}>
         <ul aria-label={t('chat.list')} className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
           {shown.map((row) => (
