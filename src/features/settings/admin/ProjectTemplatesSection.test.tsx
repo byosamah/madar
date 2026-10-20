@@ -348,6 +348,35 @@ describe('the Admin section Project templates', () => {
     expect(within(menu).queryByRole('menuitem', { name: 'Projects using this template' })).not.toBeInTheDocument();
   });
 
+  // role-rights (owner, 2026-10-23): the update of projects has its own right, templates.updateProjects.
+  it('shows "Projects using this template" and the count to a person with the update right, who is not the Admin', async () => {
+    await renderApp('/admin/project-templates', (state) => {
+      state.settings.roles = { custom: [{ id: 'rol_001', name: 'Updater', nameAr: 'محدّث', rights: ['templates.manageAll', 'templates.updateProjects'] }] };
+      state.users.usr_003.roleId = 'rol_001';
+      state.session.currentUserId = 'usr_003';
+    });
+    const section = await region('Project templates');
+    expect(await within(section).findByText('1 project follows it')).toBeInTheDocument();
+    await userEvent.click(await within(section).findByRole('button', { name: 'Actions for template Villa, full design' }));
+    expect(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Projects using this template' })).toBeInTheDocument();
+  });
+
+  it('opens the section for the update right alone, without the right to change a template', async () => {
+    await renderApp('/admin/project-templates', (state) => {
+      state.settings.roles = { custom: [{ id: 'rol_001', name: 'Updater', nameAr: 'محدّث', rights: ['templates.updateProjects'] }] };
+      state.users.usr_003.roleId = 'rol_001';
+      state.session.currentUserId = 'usr_003';
+    });
+    const section = await region('Project templates');
+    expect(await within(section).findByText('1 project follows it')).toBeInTheDocument();
+    await userEvent.click(await within(section).findByRole('button', { name: 'Actions for template Villa, full design' }));
+    const menu = screen.getByRole('menu');
+    expect(within(menu).getByRole('menuitem', { name: 'Projects using this template' })).toBeInTheDocument();
+    // The right to update the projects is not the right to change or delete a template that another person made.
+    expect(within(menu).queryByRole('menuitem', { name: 'Duplicate' })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitem', { name: 'Delete' })).not.toBeInTheDocument();
+  });
+
   it('makes a task and a stage wait for other parts of the template, and saves the waits', async () => {
     const { store } = await renderApp('/admin/project-templates');
     await userEvent.click(within(await region('Project templates')).getByRole('button', { name: 'New template' }));

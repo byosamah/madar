@@ -55,6 +55,8 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
     const rights = custom ? custom.rights : roleSettings?.rights?.[value as 'management' | 'accounting'] ?? DEFAULT_RIGHTS[value as 'management' | 'accounting'] ?? [];
     const name = custom ? roleName(custom.id, 'member') : t(`admin.roles.${value}`);
     if (rights.length === 0) return t('roles.line.only', { name });
+    // A role with many rights would make a long line, so the line gives only the count (role-rights, 2026-10-23).
+    if (rights.length > 3) return t('roles.line.many', { name, count: rights.length });
     return t('roles.line.plus', { name, rights: listFormat(lang).format(rights.map((right) => t(`roles.rights.${RIGHT_KEYS[right]}.label`))) });
   };
   const [form, setForm] = useState<Form>(EMPTY);

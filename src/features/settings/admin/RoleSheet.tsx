@@ -2,30 +2,45 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '../../../api/errors';
 import type { CustomRole, OfficeRight } from '../../../api/contract/entities';
-import { OFFICE_RIGHTS } from '../../../api/permissions';
+import { OFFICE_RIGHTS, RIGHT_SECTIONS } from '../../../api/permissions';
 import { useUndoable } from '../../../app/actions';
 import { errorMessage, fieldError } from '../../../app/errors';
 import { useLang } from '../../../app/lang';
 import { Button } from '../../../components/Button';
 import { SelectField, TextField } from '../../../components/Fields';
 import { Sheet } from '../../../components/Sheet';
-import { Switch } from '../../../components/Switch';
+import { SmallSwitch, Switch } from '../../../components/Switch';
 import { listFormat } from '../../../lib/dates';
 
 /** The word key of each right, without dots: its name is roles.rights.<key>.label and its line roles.rights.<key>.hint. */
 export const RIGHT_KEYS: Readonly<Record<OfficeRight, string>> = {
-  'people.manage': 'peopleManage',
-  'payment.manage': 'paymentManage',
+  'project.editAny': 'projectEditAny',
+  'project.changeLeaderAny': 'projectChangeLeaderAny',
+  'project.archiveAny': 'projectArchiveAny',
   'project.delete': 'projectDelete',
   'project.editCode': 'projectEditCode',
+  'task.reviewAny': 'taskReviewAny',
+  'task.changeAny': 'taskChangeAny',
+  'people.manage': 'peopleManage',
   'clients.manage': 'clientsManage',
+  'subCompanies.manage': 'subCompaniesManage',
+  'payment.manage': 'paymentManage',
   'templates.manageAll': 'templatesManageAll',
+  'templates.updateProjects': 'templatesUpdateProjects',
   'report.office': 'reportOffice',
+  'agents.undoAny': 'agentsUndoAny',
+  'feedback.manage': 'feedbackManage',
+  'gaps.view': 'gapsView',
 };
 
 /** The rights with one of them switched on or off. The result keeps the order of the rights list. */
 export function withRight(rights: readonly OfficeRight[], right: OfficeRight, on: boolean): OfficeRight[] {
   return OFFICE_RIGHTS.filter((item) => (item === right ? on : rights.includes(item)));
+}
+
+/** The rights with every right of one section switched on or off. The rights of the other sections stay as they are. */
+export function withSection(rights: readonly OfficeRight[], section: readonly OfficeRight[], on: boolean): OfficeRight[] {
+  return OFFICE_RIGHTS.filter((item) => (section.includes(item) ? on : rights.includes(item)));
 }
 
 /** One right: a switch with its name and one short line under it. */
@@ -50,7 +65,7 @@ const EMPTY: Form = { name: '', nameAr: '', rights: [] };
 
 /**
  * The sheet of one role (owner, 2026-10-18, fbk_014; ADM-12 to ADM-14): the people who hold it at the top, then its names (a custom
- * role), the seven rights, and one main button, Save role, with Cancel. The switches live only here and save with the button, so the
+ * role), the rights in seven sections (each section has a heading, and a section of two or more rights an All switch), and one main button, Save role, with Cancel. The switches live only here and save with the button, so the
  * page changes the rights of a role by one deliberate step. A custom role also has Delete role. A role that people hold asks one
  * question first: it names the people and the role they take, and "Delete and move" does both in one story, so one Undo brings back the
  * role and the roles of the people. Only the Admin sees this sheet.
@@ -169,13 +184,27 @@ export function RoleSheet({ open, onOpenChange, target, holders, moveChoices }: 
             />
           </>
         )}
-        <div className="flex flex-col">
+        <div className="flex flex-col gap-4">
           <p className="text-footnote font-medium text-label-2">{t('roles.sheet.rights')}</p>
-          {OFFICE_RIGHTS.map((right) => (
-            <RightSwitch
-              key={right} id={`role-form-${RIGHT_KEYS[right]}`} right={right} checked={form.rights.includes(right)}
-              onChange={(on) => setForm((current) => ({ ...current, rights: withRight(current.rights, right, on) }))}
-            />
+          {RIGHT_SECTIONS.map((section) => (
+            <section key={section.key} aria-labelledby={`role-section-${section.key}`} className="flex flex-col">
+              {/* A section of one right needs no All: it would repeat the one switch under it. */}
+              <div className="flex min-h-11 items-center justify-between gap-4">
+                <h3 id={`role-section-${section.key}`} className="field-label">{t(`roles.sections.${section.key}`)}</h3>
+                {section.rights.length > 1 && (
+                  <SmallSwitch
+                    id={`role-all-${section.key}`} label={t('roles.sheet.all')} checked={section.rights.every((right) => form.rights.includes(right))}
+                    onChange={(on) => setForm((current) => ({ ...current, rights: withSection(current.rights, section.rights, on) }))}
+                  />
+                )}
+              </div>
+              {section.rights.map((right) => (
+                <RightSwitch
+                  key={right} id={`role-form-${RIGHT_KEYS[right]}`} right={right} checked={form.rights.includes(right)}
+                  onChange={(on) => setForm((current) => ({ ...current, rights: withRight(current.rights, right, on) }))}
+                />
+              ))}
+            </section>
           ))}
         </div>
         {customId !== null && (

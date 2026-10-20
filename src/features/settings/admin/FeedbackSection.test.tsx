@@ -216,6 +216,31 @@ describe('Requests and bugs in the prototype (spec 4.3)', () => {
     expect(within(sheet).getByRole('link', { name: 'Open screenshot 1 at full size' })).toHaveAttribute('href', 'blob:madar-test');
   });
 
+  // role-rights (owner, 2026-10-23): the right feedback.manage opens the reports for a person who is not the Admin.
+  it('shows the reports to a Member with the feedback right, and lets that person mark one done', async () => {
+    const { store } = await renderApp('/admin/feedback', (state) => {
+      state.feedback = { fbk_001: { ...REPORT, screenshots: [], createdBy: 'usr_004' } };
+      state.settings.roles = { custom: [{ id: 'rol_001', name: 'Reports reader', nameAr: 'قارئ البلاغات', rights: ['feedback.manage'] }] };
+      state.users.usr_003.roleId = 'rol_001';
+      state.session.currentUserId = 'usr_003';
+    });
+    const section = await screen.findByRole('region', { name: /Requests and bugs/ });
+    expect(await within(section).findByText(REPORT.message)).toBeInTheDocument();
+    await userEvent.click(await within(section).findByRole('button', { name: 'Mark done' }));
+    await waitFor(() => expect(store.state.feedback?.fbk_001.status).toBe('done'));
+    expect(store.state.feedback?.fbk_001.doneBy).toBe('usr_003');
+  });
+
+  it('keeps the reports from a Member without the feedback right', async () => {
+    await renderApp('/admin/feedback', (state) => {
+      state.feedback = { fbk_001: { ...REPORT, screenshots: [], createdBy: 'usr_004' } };
+      state.session.currentUserId = 'usr_003';
+    });
+    expect((await screen.findAllByText('Office')).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('region', { name: /Requests and bugs/ })).toBeNull();
+    expect(screen.queryByText(REPORT.message)).toBeNull();
+  });
+
   it('offers Undo after Mark done, and the report is open again after Undo (rule B20)', async () => {
     const { store } = await renderApp('/admin/feedback', (state) => {
       state.feedback = { fbk_001: { ...REPORT, screenshots: [] } };

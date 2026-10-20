@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { DEFAULT_RIGHTS } from '../../../api/permissions';
+import { DEFAULT_RIGHTS, OFFICE_RIGHTS, RIGHT_SECTIONS } from '../../../api/permissions';
 import type { State } from '../../../api/store';
 import { renderApp } from '../../../test/render';
 
@@ -22,6 +22,15 @@ function withRoles(state: State) {
 }
 
 const roles = () => screen.findByRole('region', { name: 'Roles' });
+/** The label of a right as the sheet shows it. */
+const LABELS: Record<string, string> = {
+  'project.editAny': 'Change any project', 'project.changeLeaderAny': 'Change the leader of any project', 'project.archiveAny': 'Pause and archive any project',
+  'project.delete': 'Delete projects', 'project.editCode': 'Change project codes', 'task.reviewAny': 'Review any to-do', 'task.changeAny': 'Change any to-do',
+  'people.manage': 'Manage people', 'clients.manage': 'Manage clients', 'subCompanies.manage': 'Manage sub-companies', 'payment.manage': 'See and change payments',
+  'templates.manageAll': 'Change any template', 'templates.updateProjects': 'Update projects from a template', 'report.office': 'Office report for AI assistants',
+  'agents.undoAny': 'Undo AI assistant changes', 'feedback.manage': 'Requests and bugs', 'gaps.view': 'Data gaps',
+};
+const labelOf = (right: string) => LABELS[right];
 /** The row button of a role: its name is the first line of the button. */
 const row = async (name: string) => within(await roles()).findByRole('button', { name: new RegExp(`^${name}`) });
 
@@ -31,9 +40,9 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014)', () => {
     const section = within(await roles());
     expect(section.getByText('Everything')).toBeInTheDocument();
     expect(section.queryByRole('switch')).toBeNull();
-    expect(await row('Management')).toHaveTextContent(`1 person · ${DEFAULT_RIGHTS.management.length} of 7 rights`);
-    expect(await row('Cashier')).toHaveTextContent('1 person · 1 of 7 rights');
-    expect(await row('Planner')).toHaveTextContent('No one yet · 1 of 7 rights');
+    expect(await row('Management')).toHaveTextContent(`1 person · ${DEFAULT_RIGHTS.management.length} of 17 rights`);
+    expect(await row('Cashier')).toHaveTextContent('1 person · 1 of 17 rights');
+    expect(await row('Planner')).toHaveTextContent('No one yet · 1 of 17 rights');
     // One row for each role, not a wall of switches (28 switches before).
     expect(section.getAllByRole('button').length).toBeLessThan(10);
   });
@@ -46,7 +55,98 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014)', () => {
     await userEvent.click(within(sheet).getByRole('switch', { name: 'Manage clients' }));
     expect(store.state.settings.roles?.custom?.[0].rights).toEqual(['payment.manage']);
     await userEvent.click(within(sheet).getByRole('button', { name: 'Save role' }));
-    await waitFor(() => expect(store.state.settings.roles?.custom?.[0].rights).toEqual(['payment.manage', 'clients.manage']));
+    // The rights keep the order of the sections: People comes before Money.
+    await waitFor(() => expect(store.state.settings.roles?.custom?.[0].rights).toEqual(['clients.manage', 'payment.manage']));
+  });
+
+  // role-rights (owner, 2026-10-23): the rights sit in seven sections. A section of two or more rights has an All switch.
+  describe('the rights in sections', () => {
+    const open = async () => {
+      const view = await renderApp('/admin/roles', withRoles);
+      await userEvent.click(await row('Cashier'));
+      const sheet = await screen.findByRole('dialog', { name: 'Cashier' });
+      return { ...view, sheet };
+    };
+    const group = (sheet: HTMLElement, name: string) => within(within(sheet).getByRole('region', { name }));
+
+    it('shows seven sections, each with its heading and its switches, and one switch for each of the 17 rights', async () => {
+      const { sheet } = await open();
+      for (const name of ['Projects', 'To-dos', 'People', 'Money', 'Templates', 'AI and reports', 'Office']) {
+        expect(within(sheet).getByRole('region', { name }), name).toBeInTheDocument();
+      }
+      expect(RIGHT_SECTIONS).toHaveLength(7);
+      // 17 right switches and 6 All switches (the Money section has one right, so it has no All).
+      expect(within(sheet).getAllByRole('switch')).toHaveLength(OFFICE_RIGHTS.length + 6);
+      expect(group(sheet, 'Projects').getAllByRole('switch').map((one) => one.id)).toEqual([
+        'role-all-projects', 'role-form-projectEditAny', 'role-form-projectChangeLeaderAny', 'role-form-projectArchiveAny', 'role-form-projectDelete', 'role-form-projectEditCode',
+      ]);
+      expect(group(sheet, 'Money').getAllByRole('switch')).toHaveLength(1);
+      expect(group(sheet, 'Money').queryByRole('switch', { name: 'All' })).toBeNull();
+      // The main button stays the only primary action.
+      expect(within(sheet).getByRole('button', { name: 'Save role' })).toBeInTheDocument();
+    });
+
+    it('turns All on when every right of the section is on, and off when one is off', async () => {
+      const { sheet } = await open();
+      const projects = group(sheet, 'Projects');
+      expect(projects.getByRole('switch', { name: 'All' })).toHaveAttribute('aria-checked', 'false');
+      for (const name of ['Change any project', 'Change the leader of any project', 'Pause and archive any project', 'Delete projects']) {
+        await userEvent.click(projects.getByRole('switch', { name }));
+      }
+      expect(projects.getByRole('switch', { name: 'All' })).toHaveAttribute('aria-checked', 'false');
+      await userEvent.click(projects.getByRole('switch', { name: 'Change project codes' }));
+      expect(projects.getByRole('switch', { name: 'All' })).toHaveAttribute('aria-checked', 'true');
+      await userEvent.click(projects.getByRole('switch', { name: 'Delete projects' }));
+      expect(projects.getByRole('switch', { name: 'All' })).toHaveAttribute('aria-checked', 'false');
+    });
+
+    it('turns on every right of a section with All, keeps the other sections as they are, and saves them with Save role', async () => {
+      const { store, sheet } = await open();
+      await userEvent.click(group(sheet, 'Projects').getByRole('switch', { name: 'All' }));
+      for (const right of RIGHT_SECTIONS[0].rights) expect(within(sheet).getByRole('switch', { name: new RegExp(`^${labelOf(right)}`) })).toHaveAttribute('aria-checked', 'true');
+      // The payment right of Cashier stays on, and no right of another section comes on.
+      expect(group(sheet, 'Money').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+      expect(group(sheet, 'To-dos').getByRole('switch', { name: 'All' })).toHaveAttribute('aria-checked', 'false');
+      // Nothing is saved before Save role.
+      expect(store.state.settings.roles?.custom?.[0].rights).toEqual(['payment.manage']);
+      await userEvent.click(within(sheet).getByRole('button', { name: 'Save role' }));
+      await waitFor(() => expect(store.state.settings.roles?.custom?.[0].rights).toEqual([...RIGHT_SECTIONS[0].rights, 'payment.manage']));
+    });
+
+    it('turns off every right of a section with All, and only the rights of that section', async () => {
+      const { store, sheet } = await open();
+      await userEvent.click(group(sheet, 'AI and reports').getByRole('switch', { name: 'All' }));
+      await userEvent.click(group(sheet, 'Office').getByRole('switch', { name: 'All' }));
+      expect(group(sheet, 'AI and reports').getByRole('switch', { name: 'All' })).toHaveAttribute('aria-checked', 'true');
+      await userEvent.click(group(sheet, 'AI and reports').getByRole('switch', { name: 'All' }));
+      for (const right of RIGHT_SECTIONS[5].rights) expect(within(sheet).getByRole('switch', { name: new RegExp(`^${labelOf(right)}`) })).toHaveAttribute('aria-checked', 'false');
+      for (const right of RIGHT_SECTIONS[6].rights) expect(within(sheet).getByRole('switch', { name: new RegExp(`^${labelOf(right)}`) })).toHaveAttribute('aria-checked', 'true');
+      await userEvent.click(within(sheet).getByRole('button', { name: 'Save role' }));
+      await waitFor(() => expect(store.state.settings.roles?.custom?.[0].rights).toEqual(['payment.manage', 'feedback.manage', 'gaps.view']));
+    });
+
+    it('makes a role with only the rights of two sections from the New role sheet', async () => {
+      const { store } = await renderApp('/admin/roles', withRoles);
+      await userEvent.click(within(await roles()).getByRole('button', { name: 'New role' }));
+      const sheet = await screen.findByRole('dialog', { name: 'New role' });
+      await userEvent.type(within(sheet).getByLabelText(/Name in English/), 'Office lead');
+      await userEvent.type(within(sheet).getByLabelText(/Name in Arabic/), 'قائد المكتب');
+      await userEvent.click(group(sheet, 'To-dos').getByRole('switch', { name: 'All' }));
+      await userEvent.click(group(sheet, 'Templates').getByRole('switch', { name: 'All' }));
+      await userEvent.click(within(sheet).getByRole('button', { name: 'Save role' }));
+      await waitFor(() => expect(store.state.settings.roles?.custom).toHaveLength(3));
+      expect(store.state.settings.roles?.custom?.[2].rights).toEqual(['task.reviewAny', 'task.changeAny', 'templates.manageAll', 'templates.updateProjects']);
+    });
+
+    it('opens a built-in role with the same sections, and the Management defaults on', async () => {
+      await renderApp('/admin/roles', withRoles);
+      await userEvent.click(await row('Management'));
+      const sheet = await screen.findByRole('dialog', { name: 'Management' });
+      expect(group(sheet, 'People').getByRole('switch', { name: 'Manage people' })).toHaveAttribute('aria-checked', 'true');
+      expect(group(sheet, 'People').getByRole('switch', { name: 'All' })).toHaveAttribute('aria-checked', 'false');
+      expect(group(sheet, 'Money').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+      expect(group(sheet, 'Office').getByRole('switch', { name: 'Requests and bugs' })).toHaveAttribute('aria-checked', 'false');
+    });
   });
 
   it('has Cancel, which leaves the rights as they were', async () => {

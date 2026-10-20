@@ -65,7 +65,7 @@
     "peopleCount_few": "{{count}} أشخاص",
     "peopleCount_many": "{{count}} شخصًا",
     "peopleCount_other": "{{count}} شخص",
-    "rightsCount": "{{count}} من {{total}} صلاحيات",
+    "rightsCount": "{{count}} من {{total}} صلاحية",
     "deletedMoved_zero": "حُذف الدور.",
     "deletedMoved_one": "حُذف الدور. انتقل شخص واحد.",
     "deletedMoved_two": "حُذف الدور. انتقل شخصان.",

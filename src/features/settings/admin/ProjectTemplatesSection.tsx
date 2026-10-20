@@ -33,8 +33,9 @@ function useSizeLine() {
 /**
  * The office's project templates (owner, 2026-10-05, item 6a): one row for each template, with its size, how many projects follow it
  * and who saved it. A row opens the template in the editor, and Duplicate opens a copy of it. "New template" opens an empty editor.
- * Stage templates of before are here as templates with stages and no tasks. Only the Admin sends a template update (the calls ask
- * admin.manage), so only the Admin sees the update item, the count of projects, and the toast "Update them" (ADM-03, ADM-05).
+ * Stage templates of before are here as templates with stages and no tasks. Only a person with the right to update projects (the Admin, or a
+ * role with templates.updateProjects) sends a template update, so only that person sees the update item, the count of projects, and the toast
+ * "Update them" (ADM-03, ADM-05).
  */
 export function ProjectTemplatesSection() {
   const { t } = useTranslation();
@@ -42,7 +43,9 @@ export function ProjectTemplatesSection() {
   const sizeOf = useSizeLine();
   const templates = useCall('projectTemplates.list', {});
   const toast = useToast();
-  const isAdmin = useCall('session.get', {}).data?.authority.systemRole === 'admin';
+  // The update of the projects of a template needs the right templates.updateProjects, which the Admin holds (role-rights, 2026-10-23).
+  const authority = useCall('session.get', {}).data?.authority;
+  const mayUpdate = authority !== undefined && (authority.systemRole === 'admin' || (authority.officeRights ?? []).includes('templates.updateProjects'));
   // The number of projects that follow the template being deleted, for the words of the Undo toast.
   const deletedFollowers = useRef(0);
   const remove = useUndoable('projectTemplates.delete', {
@@ -59,7 +62,7 @@ export function ProjectTemplatesSection() {
   const [updating, setUpdating] = useState<{ template: ProjectTemplate; reviewAll: boolean } | null>(null);
   // After a save of a template that projects follow, the toast offers the update (ADM-05).
   const saved = (row: ProjectTemplateRow, changed: boolean) => {
-    const followers = changed && isAdmin ? row.followers ?? 0 : 0;
+    const followers = changed && mayUpdate ? row.followers ?? 0 : 0;
     if (followers === 0) {
       toast.show({ message: t('projectTemplates.saved') });
       return;
@@ -106,15 +109,17 @@ export function ProjectTemplatesSection() {
                   {body}
                 </button>
               ) : <div className="flex min-h-14 min-w-0 flex-1 items-center px-2 py-2">{body}</div>}
-              {template.canEdit && (
+              {/* A person who may only update the projects (templates.updateProjects) gets the menu with that one item. */}
+              {(template.canEdit || mayUpdate) && (
                 <Menu
                   label={t('projectTemplates.actions', { name: template.name })}
                   items={[
                     {
                       label: t('projectTemplates.duplicate'),
                       onSelect: () => setEditing({ template: null, copy: duplicateDraft(template, names, activeIds, copyWord) }),
+                      hidden: !template.canEdit,
                     },
-                    { label: t('projectTemplates.update.open'), onSelect: () => setUpdating({ template, reviewAll: false }), hidden: !isAdmin },
+                    { label: t('projectTemplates.update.open'), onSelect: () => setUpdating({ template, reviewAll: false }), hidden: !mayUpdate },
                     {
                       label: t('projectTemplates.delete'),
                       onSelect: () => {
@@ -122,6 +127,7 @@ export function ProjectTemplatesSection() {
                         remove.mutate({ id: template.id });
                       },
                       destructive: true,
+                      hidden: !template.canEdit,
                     },
                   ]}
                 />
