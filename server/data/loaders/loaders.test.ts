@@ -513,6 +513,46 @@ describe('the 18 places of AM 6', () => {
     expect(rowOf(await same(state, 'chats.list', {}, sara))).toBeDefined();
   });
 
+  // Owner, 2026-10-23: the copies for an Admin who picked "Everything". The scoped load makes the same copies as the whole office, and an
+  // Undo of the story takes them back on both.
+  it('the copies for an Admin who picked Everything: the scoped load makes the same copies, and the Undo of the story takes them back', async () => {
+    const state = office();
+    state.users[ADMIN].preferences = { ...state.users[ADMIN].preferences, adminReach: 'all' };
+    const project = Object.values(state.projects).find((p) => p.id === 'prj_001')!;
+    const lead = project.leaderId!;
+    const people = Object.values(state.members).filter((m) => m.projectId === 'prj_001' && m.userId !== lead && state.users[m.userId].kind === 'human').map((m) => m.userId);
+    const [first, second] = people;
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+    const copiesOf = (run: Run) => docs(run, 'notifications').filter((doc) => doc.userId === ADMIN && doc.forUserIds !== undefined);
+    const task = tasksOfProject(state, 'prj_001').find((t) => t.status === 'todo' && t.ownerId === first)!;
+    const calls: [SharedCallName, unknown, string, number][] = [
+      ['tasks.create', { projectId: 'prj_001', title: 'Copy check 8801', ownerId: second }, lead, 1],
+      ['tasks.complete', { id: task.id }, first, 2],
+      ['chats.send', { conversationId: room.id, body: `${mentionMarkup(state.users[second].name, second)} please look.` }, lead, 3],
+      ['comments.create', { targetType: 'task', targetId: task.id, body: `${mentionMarkup(state.users[second].name, second)} see this.` }, lead, 4],
+      ['meetings.create', { kind: 'client', title: 'Copy meeting 8802', projectId: 'prj_001', startsAt: '2026-10-11T09:00:00+03:00', attendeeIds: [second] }, lead, 5],
+    ];
+    for (const [name, input, actor, minute] of calls) {
+      const run = await same(state, name, input, actor, { now: at(minute) });
+      expect(run.outcome.error, name).toBeUndefined();
+      expect(copiesOf(run), name).toHaveLength(1);
+      apply(state, name, input, actor, { now: at(minute), story: `cor_copy_${minute}` });
+    }
+    // The Undo of a story on the scoped load takes the copy back with the original.
+    const created = apply(state, 'tasks.create', { projectId: 'prj_001', title: 'Copy check 8803', ownerId: second }, lead, { now: at(6), story: 'cor_copy_undo' }) as unknown;
+    expect(created).toBeDefined();
+    const copy = Object.values(state.notifications).find((n) => n.correlationId === 'cor_copy_undo' && n.userId === ADMIN);
+    expect(copy?.forUserIds).toEqual([second]);
+    const undone = await same(state, 'events.undoStory', { correlationId: 'cor_copy_undo' }, lead, { now: at(7) });
+    expect(undone.outcome.error).toBeUndefined();
+    expect(deleted(undone, 'notifications')).toEqual(expect.arrayContaining([copy!.id]));
+    // The bell of the Admin lists the copy with the names, on the scoped load too.
+    const bell = await same(state, 'notifications.list', {}, ADMIN);
+    const view = (bell.outcome.output as { notification: { forUserIds?: string[] }; forPeople: { id: string }[] }[]).find((v) => v.notification.forUserIds !== undefined);
+    expect(view?.forPeople.length).toBeGreaterThan(0);
+  });
+
   // Design item 22: a group waits only for a message that names the person, a reply to a comment names its author, and a 👍 answers.
   it('chats.waiting: the scoped load gives the same answer for a group that names the person, a reply to a comment and a 👍 (item 22)', async () => {
     const state = office();

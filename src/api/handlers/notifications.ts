@@ -44,6 +44,11 @@ export const NotificationView = z.object({
   chatKind: z.enum(['project', 'direct', 'group']).nullable().default(null),
   /** The start of the meeting of a meeting notice, so the words name the time (fbk_022). Null for any other notice, and for a meeting the viewer no longer sees. */
   startsAt: Stamp.nullable().default(null),
+  /**
+   * The people that the original of a copy went to (owner, 2026-10-23), so the sentence names them. Empty for every other notice, and for
+   * a copy whose target the viewer no longer sees: it names nothing then.
+   */
+  forPeople: z.array(UserCard).default([]),
 });
 export type NotificationView = z.infer<typeof NotificationView>;
 
@@ -97,6 +102,16 @@ function isGone(state: State, n: Notification, viewer: User): boolean {
   // (review 2026-10-07).
   if (n.targetType === 'feedback') return feedbackNoticeHidden(n, viewer) || !state.feedback?.[n.targetId];
   return false;
+}
+
+/**
+ * The people that a copy names. A copy of an office task, a meeting or a chat that the viewer no longer sees names nobody, as the
+ * original names nothing of it. A deleted task still names its people: the notice of the delete tells who was told.
+ */
+function peopleOfCopy(state: State, n: Notification, viewer: User, gone: boolean): NotificationView['forPeople'] {
+  if (n.forUserIds === undefined) return [];
+  if ((n.targetType === 'task' && hiddenTask(state, n, viewer)) || (n.targetType === 'meeting' && gone) || (n.targetType === 'chat' && gone)) return [];
+  return n.forUserIds.filter((id) => state.users[id] !== undefined).map((id) => cardOf(state, id));
 }
 
 function viewOf(state: State, n: Notification, viewer: User): NotificationView {
@@ -172,7 +187,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
       const { feedback: _words, correlationId: _story, ...rest } = n;
       return {
         notification: { ...rest, actorId: null, targetId: 'hidden' }, actor: null, target: '', projectCode: null, project: null, link: '',
-        needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove: false, gone, dueDate: null, chatKind: null, startsAt: null,
+        needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove: false, gone, dueDate: null, chatKind: null, startsAt: null, forPeople: [],
       };
     }
     // The notice keeps the start of the message, so it needs no report row. A done notice opens nothing: it only tells the sender.
@@ -181,7 +196,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   }
   return {
     notification: n, actor: n.actorId ? cardOf(state, n.actorId) : null, target, projectCode, project: tile, link,
-    needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove, gone, dueDate, chatKind, startsAt,
+    needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove, gone, dueDate, chatKind, startsAt, forPeople: peopleOfCopy(state, n, viewer, gone),
   };
 }
 

@@ -2,6 +2,7 @@ import {
   ADMIN_ONLY_TRIGGERS, TRIGGERS, isEmailTrigger, type NoticeFeedback, type Notification, type NotificationTarget, type Preferences, type Task, type Trigger,
   type User,
 } from './contract/entities';
+import { copyForAdmins } from './adminCopies';
 import { can, mayViewMeeting, mayViewTask, principalOf } from './permissions';
 import { nextId, type State } from './store';
 import { addDays, nowStamp, officeClock, weekStartOf } from '../lib/dates';
@@ -78,7 +79,7 @@ export type NotifyOptions = { dedupeUsed?(key: string): boolean };
 /**
  * Skips the actor and the person an agent actor works for, agents, inactive people, people who turned the trigger off, repeats of
  * a dedupe key, a person who does not see the office task of the notice (owner, 2026-10-06), and a person who does not see the
- * meeting of the notice (fbk_022).
+ * meeting of the notice (fbk_022). Then copyForAdmins (adminCopies.ts) makes the copies for the Admins who picked "Everything".
  */
 export function notify(state: State, actor: User | null, stamp: string, input: NotifyInput, options: NotifyOptions = {}): Notification[] {
   const used = options.dedupeUsed ?? ((key: string) => Object.values(state.notifications).some((n) => n.dedupeKey === key));
@@ -109,6 +110,8 @@ export function notify(state: State, actor: User | null, stamp: string, input: N
     state.notifications[id] = notification;
     created.push(notification);
   }
+  // An Admin who picked "Everything" gets a copy of the notice, with the names of the people who got it (owner, 2026-10-23).
+  copyForAdmins(state, actor, stamp, input, created);
   return created;
 }
 

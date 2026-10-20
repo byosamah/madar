@@ -6,6 +6,7 @@ import { messagePageAround } from '../chatAround';
 import { adminReachOf, addDirectConversation, addGroupConversation, canSeeConversation, hiddenByReach, closedChatError, isArchived, markedUnread, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, personLeft, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
 import { isLiveMessage, namesPerson, notifyLevelOf, replyRefOf } from '../chatNaming';
+import { readCopiesOf } from '../adminCopies';
 import { notifyIn } from '../notify';
 import { can, mayViewTask, principalOf, projectRoleOf } from '../permissions';
 import { chatReadKey, nextId, unreadCountKey, type State } from '../store';
@@ -750,6 +751,14 @@ function replyTargetOf(ctx: Ctx, message: Message): Message | undefined {
 function dropMessageNotices(ctx: Ctx, message: Message, userIds?: readonly string[]): void {
   for (const [key, notice] of Object.entries(ctx.state.notifications)) {
     if (notice.targetType !== 'chat' || notice.targetId !== message.conversationId || notice.messageId !== message.id) continue;
+    // A copy for an Admin names the people of the original (owner, 2026-10-23): an edit that removes a name takes that name out of the
+    // copy, and the copy goes when no name is left. A delete (no userIds) takes every copy.
+    if (notice.forUserIds !== undefined && userIds !== undefined) {
+      const left = notice.forUserIds.filter((id) => !userIds.includes(id));
+      if (left.length === 0) delete ctx.state.notifications[key];
+      else if (left.length < notice.forUserIds.length) ctx.state.notifications[key] = { ...notice, forUserIds: left };
+      continue;
+    }
     if (userIds === undefined || userIds.includes(notice.userId)) delete ctx.state.notifications[key];
   }
 }
@@ -820,6 +829,7 @@ export const chatsDeleteMessage = defineCall({
       again.push(...notifyIn(ctx, { userIds: [replyOnly], trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: message.id, reply: true }));
     }
     for (const notice of again) notice.read = true;
+    readCopiesOf(ctx, message.id);
     return { deleted: false };
   },
 });

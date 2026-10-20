@@ -19,13 +19,15 @@ export type PushSaved = Pick<SaveResult, 'kinds' | 'people' | 'messageIds' | 'co
 
 /**
  * $1 the people whose notices the save changed. The unread notices that the open transaction inserted, for an active human with at
- * least one device, with the message or comment that each one points to.
+ * least one device, with the message or comment that each one points to. A copy for an Admin who picked "Everything" has "forUserIds"
+ * and gives no push (owner, 2026-10-23).
  */
 export const PUSH_NEW_NOTICES_SQL = `select n.user_id, n.target_type, n.target_id, n.doc->>'messageId' as message_id
 from notifications n join users u on u.id = n.user_id
 where n.user_id = any($1::text[]) and not n.read
   and n.xmin::text::bigint = (pg_current_xact_id_if_assigned()::text::bigint % 4294967296)
   and u.kind = 'human' and u.active
+  and n.doc->'forUserIds' is null
   and exists (select 1 from push_devices d where d.user_id = n.user_id)
 order by n.user_id, n.ord`;
 
@@ -140,6 +142,8 @@ async function liteFacts(q: Query, saved: PushSaved, wroteNotices: boolean, undo
     for (const row of await q<{ user_id: string; doc: Notification }>(PUSH_NEW_NOTICES_LITE, [noticeIds])) {
       const person = users[row.user_id];
       if (person?.kind !== 'human' || person.active !== true || !withDevice.has(row.user_id)) continue;
+      // A copy for an Admin who picked "Everything" gives no push (owner, 2026-10-23).
+      if (row.doc.forUserIds !== undefined) continue;
       notices.push({ userId: row.user_id, targetType: row.doc.targetType, targetId: row.doc.targetId, messageId: row.doc.messageId ?? null });
     }
   }
