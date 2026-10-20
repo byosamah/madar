@@ -84,6 +84,8 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
   `cd <deploy-test> &&` or `git -C <deploy-test>`.
 - Before a release step, check that another session did not do it already: `git fetch`,
   `npx wrangler pages deployment list --project-name madar`, and the release record on main (2026-10-20).
+- A commit on main after another session's `all.sh test` blocks that session's production. Tell that session: `ListAgents`,
+  then `SendMessage` with the new commit (2026-10-20).
 - A test deploy of a newer commit replaces the record. While an older commit waits for production, hold `all.sh test`
   of the newer one until production is done.
 - Change only madar-test unless the owner asked for production.

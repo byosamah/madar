@@ -53,3 +53,21 @@ export function findDirectionBox(source: string): RtlFinding[] {
   }
   return findings;
 }
+
+/** The direction marks that GitHub flags as hidden characters: LRM, RLM, ALM, the embeddings and overrides, and the isolates. */
+const RAW_MARK = /[\u200E\u200F\u061C\u202A-\u202E\u2066-\u2069]/g;
+
+/**
+ * Finds a raw direction mark. The code writes each one as an escape (`\u2068`), so a reader and a review see it (src/CLAUDE.md).
+ * The match names the character by its code point, because the raw character shows nothing.
+ */
+export function findRawDirectionMark(source: string): RtlFinding[] {
+  const findings: RtlFinding[] = [];
+  source.split('\n').forEach((text, index) => {
+    for (const match of text.matchAll(RAW_MARK)) {
+      const code = match[0].codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0');
+      findings.push({ line: index + 1, rule: 'Raw direction mark', match: `U+${code}` });
+    }
+  });
+  return findings;
+}
