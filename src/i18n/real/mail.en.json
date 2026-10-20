@@ -26,13 +26,13 @@
     "notice": {
       "details": "Open Madar to see the details.",
       "subject": {
-        "task_assigned": "A task is assigned to you",
+        "task_assigned": "A to-do is assigned to you",
         "mention": "Someone mentioned you",
-        "due_tomorrow": "Your task is due the next working day",
-        "overdue": "Your task is past due",
-        "review_requested": "A task waits for your review",
-        "task_approved": "Your task is approved",
-        "task_sent_back": "Your task is sent back",
+        "due_tomorrow": "Your to-do is due the next working day",
+        "overdue": "Your to-do is past due",
+        "review_requested": "A to-do waits for your review",
+        "task_approved": "Your to-do is approved",
+        "task_sent_back": "Your to-do is sent back",
         "stage_changed": "The stage of your project changed",
         "added_to_project": "You are added to a project",
         "resume_due": "A paused project reached its restart date"
@@ -48,9 +48,9 @@
       "today": "Today",
       "week": "This week",
       "office": "Office",
-      "more": "and {{count}} more tasks.",
-      "more_one": "and 1 more task.",
-      "more_other": "and {{count}} more tasks."
+      "more": "and {{count}} more to-dos.",
+      "more_one": "and 1 more to-do.",
+      "more_other": "and {{count}} more to-dos."
     },
     "limit": {
       "subject": "Madar is near a free plan limit",

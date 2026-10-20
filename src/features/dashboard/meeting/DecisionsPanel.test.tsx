@@ -164,7 +164,7 @@ describe('decisions and actions, in the meeting (owner, 2026-10-02)', () => {
     await userEvent.selectOptions(decisions.getByRole('combobox', { name: 'Who' }), person.id);
     await userEvent.click(decisions.getByRole('button', { name: 'Add' }));
     await decisions.findByText(/^Action: Revise sections/);
-    const toast = (await screen.findByText(`Task added for ${person.name}.`)).closest('[role="status"]') as HTMLElement;
+    const toast = (await screen.findByText(`To-do added for ${person.name}.`)).closest('[role="status"]') as HTMLElement;
     await userEvent.click(within(toast).getByRole('button', { name: 'Undo' }));
     await waitFor(() => expect(Object.values(store.state.tasks).some((task) => task.title === 'Revise sections')).toBe(false));
     await waitFor(() => expect(decisions.queryByText(/^Action: Revise sections/)).toBeNull());

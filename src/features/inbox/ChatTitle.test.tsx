@@ -27,7 +27,7 @@ describe('the chat title (design item 8)', () => {
 describe('the task thread title on a phone (owner, 2026-10-20)', () => {
   it('gives the title up to two lines and shows the task picture only from 640 px', async () => {
     await renderApp('/inbox/tsk_001');
-    const link = await screen.findByRole('link', { name: 'Open task' }, { timeout: 10_000 });
+    const link = await screen.findByRole('link', { name: 'Open to-do' }, { timeout: 10_000 });
     const header = link.closest('header') as HTMLElement;
     const heading = within(header).getByRole('heading', { level: 2 });
     // At 390 px the Open task button took the width, and one line held only a few letters of the title.

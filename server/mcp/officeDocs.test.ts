@@ -20,3 +20,12 @@ describe('the agent docs of office tasks (owner, 2026-10-06)', () => {
     expect(TOOL_DOCS['files.list'].description).toContain('office task');
   });
 });
+
+/** The screen word for a task (owner, 2026-10-20). */
+describe('the agent docs of the screen words (owner, 2026-10-20)', () => {
+  it('say that the screens call a task a to-do, and that the Tasks tab holds To-dos and Meetings', () => {
+    const line = INSTRUCTIONS.split('\n').find((text) => text.startsWith('Words:'));
+    expect(line).toBeDefined();
+    for (const word of ['"to-do"', 'Tasks tab', 'To-dos and Meetings', '"tasks"']) expect(line, word).toContain(word);
+  });
+});

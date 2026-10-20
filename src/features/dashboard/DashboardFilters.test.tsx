@@ -54,8 +54,8 @@ describe('the Leader and Client filters reach the lists (owner, 2026-10-06)', ()
     const { api } = await renderApp('/dashboard?leader=usr_002&client=cli_001');
     const { tiles } = await api.call('dashboard.get', { leaderId: 'usr_002', clientId: 'cli_001' });
     expect(tiles.overdueTasks).toBeGreaterThan(0);
-    await userEvent.click(await tile(/Past-due tasks/));
-    expect(await screen.findByRole('heading', { level: 1, name: 'Past-due tasks' })).toBeInTheDocument();
+    await userEvent.click(await tile(/Past-due to-dos/));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Past-due to-dos' })).toBeInTheDocument();
     expect(await screen.findByText(/Leader: Faisal Al-Harbi/)).toBeInTheDocument();
     expect(await screen.findByText(/Client: /)).toBeInTheDocument();
     await waitFor(() => expect(listRows()).toHaveLength(tiles.overdueTasks));

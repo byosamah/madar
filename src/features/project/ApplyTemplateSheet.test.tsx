@@ -72,7 +72,7 @@ describe('the choice of the template', () => {
     const { store } = await renderApp('/projects/prj_001', as('usr_002'));
     const picker = await openPicker();
     const villa = await within(picker).findByRole('button', { name: /Villa, full design/ }, LOAD);
-    expect(villa).toHaveTextContent('5 stages · 11 tasks');
+    expect(villa).toHaveTextContent('5 stages · 11 to-dos');
     // A template that came from a stage template has stages only.
     expect(within(picker).getByRole('button', { name: /Competition entry/ })).toHaveTextContent('3 stages');
     expect(store.state.projects.prj_001.templateLink).toBeFalsy();
@@ -84,7 +84,7 @@ describe('the choice of the template', () => {
     await userEvent.click(await within(picker).findByRole('button', { name: /Villa, full design/ }, LOAD));
     const sheet = await screen.findByRole('dialog', { name: 'Apply Villa, full design to Corniche Office Tower' }, LOAD);
     expect(await within(sheet).findByRole('radio', { name: /^Add them to the project/ }, LOAD)).toBeChecked();
-    expect(within(sheet).getByText(/^Each new task gets the default person of its role as lead/)).toBeInTheDocument();
+    expect(within(sheet).getByText(/^Each new to-do gets the default person of its role as lead/)).toBeInTheDocument();
     // The project started in May, so the dates of the template are past and the new parts move forward.
     expect(within(sheet).getByText(/^The new parts run from .+ to .+\./)).toBeInTheDocument();
     expect(within(sheet).getByText(/the new parts move forward/)).toBeInTheDocument();

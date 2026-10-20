@@ -126,7 +126,7 @@ describe('the Tracker tab: types, sides and replies', () => {
     await waitFor(() => expect(entry.replyTaskId).toBeDefined());
     expect(store.state.tasks[entry.replyTaskId!]).toMatchObject({ ownerId: 'usr_005', dueDate: '2026-10-04' });
     // The sheet now names the task and the button is gone.
-    expect(await screen.findByText('Reply task')).toBeInTheDocument();
+    expect(await screen.findByText('Reply to-do')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Assign a reply' })).not.toBeInTheDocument();
   });
 

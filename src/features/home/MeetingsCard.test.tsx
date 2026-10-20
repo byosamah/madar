@@ -43,7 +43,7 @@ describe('the Meetings card on Home', () => {
       as('usr_002')(state);
       withMeeting(state, { id: 'mtg_001', startsAt: '2026-10-01T10:00:00.000+03:00', endsAt: '2026-10-01T11:00:00.000+03:00' });
     });
-    await screen.findByRole('link', { name: 'See all my tasks' });
+    await screen.findByRole('link', { name: 'See all my to-dos' });
     expect(screen.queryByRole('region', { name: 'Meetings today' })).toBeNull();
   });
 
@@ -53,7 +53,7 @@ describe('the Meetings card on Home', () => {
       today(state, 'mtg_001', '07:00', '08:00', { title: 'Over already' });
       today(state, 'mtg_002', '14:00', '15:00', { title: 'Cancelled one', status: 'cancelled' });
     });
-    await screen.findByRole('link', { name: 'See all my tasks' });
+    await screen.findByRole('link', { name: 'See all my to-dos' });
     expect(screen.queryByRole('region', { name: 'Meetings today' })).toBeNull();
   });
 
@@ -79,7 +79,7 @@ describe('the Meetings card on Home', () => {
       as('usr_006')(state);
       today(state, 'mtg_001', '14:00', '15:00', { title: 'Private talk', projectId: null, organizerId: 'usr_002', attendeeIds: ['usr_005'] });
     });
-    await screen.findByRole('link', { name: 'See all my tasks' });
+    await screen.findByRole('link', { name: 'See all my to-dos' });
     expect(screen.queryByRole('region', { name: 'Meetings today' })).toBeNull();
     expect(screen.queryByText('Private talk')).toBeNull();
   });

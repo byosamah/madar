@@ -2,14 +2,14 @@
   "lead": {
     "noLead": "No lead",
     "takeIt": "Take it",
-    "takeHint": "Nobody leads this task yet. Take it to work on it and finish it.",
-    "taken": "This task is yours now.",
-    "removed": "This task has no lead now.",
-    "needsLeadToast": "Not yet. Give this task a lead first.",
+    "takeHint": "Nobody leads this to-do yet. Take it to work on it and finish it.",
+    "taken": "This to-do is yours now.",
+    "removed": "This to-do has no lead now.",
+    "needsLeadToast": "Not yet. Give this to-do a lead first.",
     "completeNeedsLead": "{{title}} cannot be finished yet. It has no lead.",
-    "countLine": "{{count}} tasks have no lead.",
-    "countLine_one": "1 task has no lead.",
-    "countLine_other": "{{count}} tasks have no lead.",
+    "countLine": "{{count}} to-dos have no lead.",
+    "countLine_one": "1 to-do has no lead.",
+    "countLine_other": "{{count}} to-dos have no lead.",
     "showThem": "Show them"
   },
   "tasks": {
@@ -19,8 +19,8 @@
   },
   "errors": {
     "reasons": {
-      "needs_lead": "This task has no lead. Give it a lead first.",
-      "has_lead": "This task has a lead already."
+      "needs_lead": "This to-do has no lead. Give it a lead first.",
+      "has_lead": "This to-do has a lead already."
     }
   },
   "dashboard": {

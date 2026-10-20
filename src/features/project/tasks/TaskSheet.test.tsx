@@ -60,18 +60,18 @@ describe('the task sheet', () => {
   it("shows another person's task as read only", async () => {
     await renderApp(TASK('tsk_011'), as('usr_005'));
     const sheet = await screen.findByRole('dialog', { name: 'Balady submission set' });
-    expect(within(sheet).getByText('You can view this task. Only its lead and the project leader can change it.')).toBeInTheDocument();
+    expect(within(sheet).getByText('You can view this to-do. Only its lead and the project leader can change it.')).toBeInTheDocument();
     expect(within(sheet).queryByRole('textbox', { name: 'Title' })).toBeNull();
     expect(within(sheet).queryAllByRole('combobox')).toHaveLength(0);
     expect(within(sheet).getByText('Lead').parentElement).toHaveTextContent('Faisal Al-Harbi');
-    expect(within(sheet).queryByRole('button', { name: 'Delete task' })).toBeNull();
+    expect(within(sheet).queryByRole('button', { name: 'Delete to-do' })).toBeNull();
   });
 
   it('deletes a task, then brings it back with Undo', async () => {
     const { store } = await renderApp(TASK('tsk_013'), as('usr_002'));
     const sheet = await screen.findByRole('dialog', { name: 'Coordination meeting notes' });
-    await userEvent.click(within(sheet).getByRole('button', { name: 'Delete task' }));
-    expect(await screen.findByText('Task deleted.')).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Delete to-do' }));
+    expect(await screen.findByText('To-do deleted.')).toBeInTheDocument();
     expect(store.state.tasks.tsk_013).toBeUndefined();
     await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
     await waitFor(() => expect(store.state.tasks.tsk_013).toBeDefined());

@@ -42,7 +42,7 @@ describe('the workload grid', () => {
     expect(idle.length).toBe(2);
     for (const row of idle) expect(within(grid).queryByText(row.user.name)).toBeNull();
     expect(within(grid).getAllByRole('row')).toHaveLength(d.workload.rows.length - idle.length + 1);
-    expect(within(grid).getByText('2 people have no tasks in these weeks')).toBeInTheDocument();
+    expect(within(grid).getByText('2 people have no to-dos in these weeks')).toBeInTheDocument();
   });
 
   it('says how many people have no tasks with the Arabic noun forms', async () => {
@@ -57,9 +57,9 @@ describe('the workload grid', () => {
     await renderApp('/dashboard?view=people');
     const grid = await screen.findByRole('region', { name: 'Workload' });
     const names = within(grid).getAllByRole('link').map((link) => link.getAttribute('aria-label') ?? '');
-    expect(names.filter((name) => /: 1 tasks/.test(name))).toEqual([]);
-    expect(names.some((name) => /: 1 task(,|$)/.test(name))).toBe(true);
-    expect(names.some((name) => /: [02-9]\d* tasks(,|$)/.test(name))).toBe(true);
+    expect(names.filter((name) => /: 1 to-dos/.test(name))).toEqual([]);
+    expect(names.some((name) => /: 1 to-do(,|$)/.test(name))).toBe(true);
+    expect(names.some((name) => /: [02-9]\d* to-dos(,|$)/.test(name))).toBe(true);
   });
 
   it('counts the tasks in Arabic with the right noun form (audit 2026-10-03, F-10)', async () => {
@@ -109,21 +109,21 @@ describe('the No lead row of the workload grid (fbk_024)', () => {
     expect(within(rows[1]).getByTestId('no-lead-mark')).toBeInTheDocument();
     expect(within(rows[2]).getByRole('rowheader')).not.toHaveTextContent('No lead');
     expect(within(rows[1]).getAllByRole('link').map((link) => link.getAttribute('aria-label'))).toEqual([
-      'No lead: all open tasks',
-      'No lead, past due: 1 task', 'No lead, week of 30 Sept: 1 task', 'No lead, week of 4 Oct: 1 task',
-      'No lead, week of 11 Oct: 0 tasks', 'No lead, week of 18 Oct: 0 tasks',
+      'No lead: all open to-dos',
+      'No lead, past due: 1 to-do', 'No lead, week of 30 Sept: 1 to-do', 'No lead, week of 4 Oct: 1 to-do',
+      'No lead, week of 11 Oct: 0 to-dos', 'No lead, week of 18 Oct: 0 to-dos',
     ]);
-    expect(within(rows[1]).getByRole('link', { name: 'No lead, past due: 1 task' })).toHaveClass('text-attn');
+    expect(within(rows[1]).getByRole('link', { name: 'No lead, past due: 1 to-do' })).toHaveClass('text-attn');
   });
 
   it('opens the list of tasks with no lead for a week', async () => {
     await renderApp('/dashboard?view=people', unled);
     const grid = await screen.findByRole('region', { name: 'Workload' });
-    await userEvent.click(within(grid).getByRole('link', { name: 'No lead, week of 30 Sept: 1 task' }));
+    await userEvent.click(within(grid).getByRole('link', { name: 'No lead, week of 30 Sept: 1 to-do' }));
     await waitFor(() => expect(window.location.hash).toContain('filter=no_lead'));
     expect(window.location.hash).toContain('from=2026-09-30');
     expect(window.location.hash).toContain('to=2026-10-03');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Tasks with no lead' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'To-dos with no lead' })).toBeInTheDocument();
     await waitFor(() => expect(within(list()).getAllByRole('listitem')).toHaveLength(1));
     expect(within(list()).getByText('Soil report')).toBeInTheDocument();
   });
@@ -131,7 +131,7 @@ describe('the No lead row of the workload grid (fbk_024)', () => {
   it('opens the past-due tasks with no lead', async () => {
     await renderApp('/dashboard?view=people', unled);
     const grid = await screen.findByRole('region', { name: 'Workload' });
-    await userEvent.click(within(grid).getByRole('link', { name: 'No lead, past due: 1 task' }));
+    await userEvent.click(within(grid).getByRole('link', { name: 'No lead, past due: 1 to-do' }));
     await waitFor(() => expect(window.location.hash).toContain('filter=no_lead'));
     expect(window.location.hash).toContain('to=2026-09-29');
     await waitFor(() => expect(within(list()).getAllByRole('listitem')).toHaveLength(1));
@@ -145,7 +145,7 @@ describe('the No lead row of the workload grid (fbk_024)', () => {
       state.tasks.tsk_904 = { ...state.tasks.tsk_901, id: 'tsk_904', title: 'Client brief', dueDate: null };
     });
     const grid = await screen.findByRole('region', { name: 'Workload' });
-    await userEvent.click(within(grid).getByRole('link', { name: 'No lead: all open tasks' }));
+    await userEvent.click(within(grid).getByRole('link', { name: 'No lead: all open to-dos' }));
     await waitFor(() => expect(window.location.hash).toContain('filter=no_lead'));
     await waitFor(() => expect(within(list()).getAllByRole('listitem')).toHaveLength(4));
     expect(within(list()).getByText('Client brief')).toBeInTheDocument();
@@ -154,7 +154,7 @@ describe('the No lead row of the workload grid (fbk_024)', () => {
   it('keeps the Dashboard filters in the links of the row', async () => {
     await renderApp('/dashboard?view=people&leader=usr_002', unled);
     const grid = await screen.findByRole('region', { name: 'Workload' });
-    const link = within(grid).getByRole('link', { name: 'No lead, week of 30 Sept: 1 task' });
+    const link = within(grid).getByRole('link', { name: 'No lead, week of 30 Sept: 1 to-do' });
     expect(link.getAttribute('href')).toContain('leader=usr_002');
   });
 

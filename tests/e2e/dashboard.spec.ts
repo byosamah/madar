@@ -41,14 +41,14 @@ for (const width of [390, 1440]) {
 test('a tile and a workload cell open the lists behind them', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/#/dashboard');
-  await page.getByRole('link', { name: /Past-due tasks/ }).click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Past-due tasks' })).toBeVisible();
+  await page.getByRole('link', { name: /Past-due to-dos/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Past-due to-dos' })).toBeVisible();
   await page.goBack();
   // Workload sits under the People tab.
   await page.getByRole('tab', { name: 'People' }).click();
   // The first cell of a row is Past due (owner, 2026-10-06). A week cell opens the person's tasks.
   await page.getByRole('region', { name: 'Workload' }).getByRole('link', { name: /, week of / }).first().click();
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Tasks of');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('To-dos of');
 });
 
 test('the office schedule runs right to left in Arabic', async ({ page }) => {

@@ -15,7 +15,7 @@ export function WorkSwitch() {
     <SegmentedControl
       label={t('meetings.switch.label')}
       value={value}
-      options={[{ value: 'tasks', label: t('nav.tasks') }, { value: 'meetings', label: t('meetings.switch.meetings') }]}
+      options={[{ value: 'tasks', label: t('meetings.switch.todos') }, { value: 'meetings', label: t('meetings.switch.meetings') }]}
       onChange={(next) => navigate(next === 'meetings' ? '/meetings' : '/work')}
     />
   );

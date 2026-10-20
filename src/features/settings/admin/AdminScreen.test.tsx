@@ -77,7 +77,7 @@ describe('the Admin page', () => {
 
   it('lists the task templates by stage, and lets the Admin rename and delete one, with Undo', async () => {
     const { store } = await renderApp('/admin/task-templates');
-    const section = await region('Task templates');
+    const section = await region('To-do templates');
     const stage = await within(section).findByRole('group', { name: 'Construction Documents' });
     expect(within(stage).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['Construction Documents']);
     expect(within(stage).getByText('Floor plans set')).toBeInTheDocument();
@@ -211,7 +211,7 @@ describe('the Admin side list', () => {
     expect(groupsOf(await sectionList())).toEqual([
       { group: 'People', rows: ['People', 'Teams', 'Roles'] },
       { group: 'Office', rows: ['Office settings', 'Clients', 'Sub-companies'] },
-      { group: 'Templates', rows: ['Project templates', 'Task templates'] },
+      { group: 'Templates', rows: ['Project templates', 'To-do templates'] },
       // Usage is a section of the real build only.
       { group: 'System', rows: ['Requests and bugs'] },
     ]);
@@ -225,7 +225,7 @@ describe('the Admin side list', () => {
     const list = await sectionList();
     expect(within(list).getByRole('link', { name: 'People' })).toHaveAttribute('aria-current', 'page');
     expect(within(list).getByRole('link', { name: 'Teams' })).not.toHaveAttribute('aria-current');
-    for (const name of ['Teams', 'Office settings', 'Project templates', 'Task templates']) expect(screen.queryByRole('region', { name })).toBeNull();
+    for (const name of ['Teams', 'Office settings', 'Project templates', 'To-do templates']) expect(screen.queryByRole('region', { name })).toBeNull();
   });
 
   it('opens one section at a time from its row, and keeps the list in place', async () => {
@@ -241,7 +241,7 @@ describe('the Admin side list', () => {
   });
 
   it('gives each section its own link', async () => {
-    for (const [path, name] of [['/admin/teams', 'Teams'], ['/admin/office', 'Office settings'], ['/admin/clients', 'Clients'], ['/admin/sub-companies', 'Sub-companies'], ['/admin/project-templates', 'Project templates'], ['/admin/task-templates', 'Task templates'], ['/admin/feedback', /Requests and bugs/]] as const) {
+    for (const [path, name] of [['/admin/teams', 'Teams'], ['/admin/office', 'Office settings'], ['/admin/clients', 'Clients'], ['/admin/sub-companies', 'Sub-companies'], ['/admin/project-templates', 'Project templates'], ['/admin/task-templates', 'To-do templates'], ['/admin/feedback', /Requests and bugs/]] as const) {
       const view = await renderApp(path);
       expect(await region(name as string)).toBeInTheDocument();
       expect(within(await sectionList()).getByRole('link', { current: 'page' })).toHaveAttribute('href', `#${path}`);

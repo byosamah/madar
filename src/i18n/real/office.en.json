@@ -1,22 +1,22 @@
 {
   "office": {
     "word": "Office",
-    "new": "New office task",
-    "add": "Add task",
-    "private": "Only you, its lead, its helpers and the Admin see this task.",
-    "sheetNote": "Office task. Only its people and the Admin see it.",
-    "readOnly": "You can view this task. Only its lead and the person who made it can change it.",
-    "helpersHint": "Helpers tick checklist items and comment. Only the lead finishes the task.",
-    "needsReviewHint": "The person who made the task checks it before it is done."
+    "new": "New office to-do",
+    "add": "Add to-do",
+    "private": "Only you, its lead, its helpers and the Admin see this to-do.",
+    "sheetNote": "Office to-do. Only its people and the Admin see it.",
+    "readOnly": "You can view this to-do. Only its lead and the person who made it can change it.",
+    "helpersHint": "Helpers tick checklist items and comment. Only the lead finishes the to-do.",
+    "needsReviewHint": "The person who made the to-do checks it before it is done."
   },
   "errors": {
     "reasons": {
-      "not_a_person": "Only a person can lead or help on a task. An agent acts for its person.",
-      "office_no_stage": "An office task belongs to no project, so it has no stage.",
-      "office_no_prerequisites": "An office task does not wait for other tasks.",
-      "review_by_maker": "The person who made this task reviews it. A task that this person leads needs no review.",
-      "file_office_task": "A file of an office task stays on its task.",
-      "office_needs_task": "Choose the project or the office task of this file."
+      "not_a_person": "Only a person can lead or help on a to-do. An agent acts for its person.",
+      "office_no_stage": "An office to-do belongs to no project, so it has no stage.",
+      "office_no_prerequisites": "An office to-do does not wait for other to-dos.",
+      "review_by_maker": "The person who made this to-do reviews it. A to-do that this person leads needs no review.",
+      "file_office_task": "A file of an office to-do stays on its to-do.",
+      "office_needs_task": "Choose the project or the office to-do of this file."
     }
   }
 }

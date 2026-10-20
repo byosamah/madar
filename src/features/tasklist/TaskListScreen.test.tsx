@@ -6,13 +6,13 @@ import { renderApp } from '../../test/render';
 describe('the Task list', () => {
   it('shows overdue tasks', async () => {
     await renderApp('/tasks?filter=overdue');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Past-due tasks' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Past-due to-dos' })).toBeInTheDocument();
     expect(await screen.findByText('Stair details')).toBeInTheDocument();
   });
 
   it("shows a person's open tasks for a week", async () => {
     await renderApp('/tasks?owner=usr_005&from=2026-10-18&to=2026-10-24');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Tasks of Sara Al-Qahtani' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'To-dos of Sara Al-Qahtani' })).toBeInTheDocument();
     expect(await screen.findByText('Civil Defense drawings')).toBeInTheDocument();
     expect(screen.getByText('Due 18 Oct to 24 Oct')).toBeInTheDocument();
   });
@@ -20,7 +20,7 @@ describe('the Task list', () => {
   // The Past due cell of the People tab opens this list for one person (owner, 2026-10-06).
   it('names the person of a past-due list', async () => {
     const { api } = await renderApp('/tasks?filter=overdue&owner=usr_005');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Past-due tasks of Sara Al-Qahtani' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Past-due to-dos of Sara Al-Qahtani' })).toBeInTheDocument();
     const expected = await api.call('tasks.list', { filter: 'overdue', ownerId: 'usr_005', includeDone: false });
     expect(expected.length).toBeGreaterThan(0);
     await waitFor(() => expect(within(within(screen.getByRole('main')).getByRole('list')).getAllByRole('listitem')).toHaveLength(expected.length));
@@ -29,8 +29,8 @@ describe('the Task list', () => {
   // A week cell of the People tab opens the work of a person: the tasks to review count in the first week (owner, 2026-10-06).
   it("shows a person's work for the first week, with the tasks the person reviews", async () => {
     const { api } = await renderApp('/tasks?work=usr_002&from=2026-09-30&to=2026-10-03');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Tasks of Faisal Al-Harbi' })).toBeInTheDocument();
-    expect(screen.getByText(/With the tasks to review/)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'To-dos of Faisal Al-Harbi' })).toBeInTheDocument();
+    expect(screen.getByText(/With the to-dos to review/)).toBeInTheDocument();
     const expected = await api.call('tasks.list', { workOf: 'usr_002', dueFrom: '2026-09-30', dueTo: '2026-10-03', includeDone: false });
     expect(expected.some((row) => row.task.status === 'in_review')).toBe(true);
     await waitFor(() => expect(within(within(screen.getByRole('main')).getByRole('list')).getAllByRole('listitem')).toHaveLength(expected.length));
@@ -38,8 +38,8 @@ describe('the Task list', () => {
 
   it('says nothing about reviews for a later week of a person', async () => {
     await renderApp('/tasks?work=usr_002&from=2026-10-11&to=2026-10-17');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Tasks of Faisal Al-Harbi' })).toBeInTheDocument();
-    expect(screen.queryByText(/With the tasks to review/)).toBeNull();
+    expect(await screen.findByRole('heading', { level: 1, name: 'To-dos of Faisal Al-Harbi' })).toBeInTheDocument();
+    expect(screen.queryByText(/With the to-dos to review/)).toBeNull();
   });
 
   it('lists deadlines and links each one to its project schedule', async () => {
@@ -51,7 +51,7 @@ describe('the Task list', () => {
 
   it('ignores bad values in the link', async () => {
     await renderApp('/tasks?from=banana&filter=weird&owner=nobody');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Task list' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'To-do list' })).toBeInTheDocument();
     // With no filter left, the list holds every open task, and several projects have a task with this name.
     expect((await screen.findAllByText('Stair details')).length).toBeGreaterThan(1);
   });
@@ -95,7 +95,7 @@ describe('the Task list', () => {
   // Every list says what to do next, and a failed list shows only the error (audit PER-18).
   it('offers the way back when the list is empty, and shows no empty panel under an error', async () => {
     const first = await renderApp('/tasks?owner=usr_005&from=2030-01-05&to=2030-01-11');
-    expect(await screen.findByText('No tasks match this list.')).toBeInTheDocument();
+    expect(await screen.findByText('No to-dos match this list.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Back to Dashboard' })).toHaveAttribute('href', '#/dashboard');
     first.unmount();
     await renderApp('/tasks?filter=overdue', undefined, { failFirst: 'tasks.list' });

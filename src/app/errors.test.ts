@@ -17,7 +17,7 @@ describe('errorMessage', () => {
   it('names the lead, not the owner, when a reviewer moves a task in review (audit 2026-10-03, V-5)', () => {
     const en = initI18n('en');
     const refusal = invalid('status', 'x', 'review_send_back');
-    expect(errorMessage(refusal, en.t.bind(en))).toBe('This task is in review. Use Send back and write a note for the lead.');
+    expect(errorMessage(refusal, en.t.bind(en))).toBe('This to-do is in review. Use Send back and write a note for the lead.');
     const ar = initI18n('ar');
     expect(errorMessage(refusal, ar.t.bind(ar))).toBe('هذه المهمة قيد المراجعة. اضغط «أعدها للتعديل» واكتب ملاحظة للمسؤول الرئيسي عنها.');
   });

@@ -67,7 +67,7 @@
     },
     "sharedTitle": "Projects with this code",
     "sharedBody": "These projects belong to one contract and share one code. Choose one.",
-    "searchHint": "Try a project name, a code such as {{example}}, a task, a person or a file name.",
+    "searchHint": "Try a project name, a code such as {{example}}, a to-do, a person or a file name.",
     "useAnyway": "Use this code anyway"
   },
   "errors": {

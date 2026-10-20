@@ -61,9 +61,9 @@ describe('Waiting for review (owner, 2026-10-06, item 9)', () => {
     expect([...links[0].querySelectorAll('bdi')].map((bdi) => bdi.textContent)).toContain(projectKey(first.projectCode));
     // One task has no "oldest": the line says how long it waits.
     const single = inReview.find((row) => row.count === 1)!;
-    expect(region).toHaveTextContent(`1 task · waits ${single.oldestDays === 1 ? '1 day' : `${single.oldestDays} days`}`);
+    expect(region).toHaveTextContent(`1 to-do · waits ${single.oldestDays === 1 ? '1 day' : `${single.oldestDays} days`}`);
     const several = inReview.find((row) => row.count > 1)!;
-    expect(region).toHaveTextContent(`${several.count} tasks · the oldest waits ${several.oldestDays} days`);
+    expect(region).toHaveTextContent(`${several.count} to-dos · the oldest waits ${several.oldestDays} days`);
     await userEvent.click(links[0]);
     await waitFor(() => expect(window.location.hash).toContain(`task=${first.id}`));
   });
@@ -115,15 +115,15 @@ describe('Data gaps, for the Admin only (owner, 2026-10-06, item 10)', () => {
     const region = await card(/^Data gaps/);
     const links = within(region).getAllByRole('link');
     expect(links.map((link) => link.textContent)).toEqual([
-      ...(gaps!.noDueDate > 0 ? [`Open tasks with no due date${gaps!.noDueDate}`] : []),
-      ...(gaps!.noLead > 0 ? [`Open tasks with no lead${gaps!.noLead}`] : []),
+      ...(gaps!.noDueDate > 0 ? [`Open to-dos with no due date${gaps!.noDueDate}`] : []),
+      ...(gaps!.noLead > 0 ? [`Open to-dos with no lead${gaps!.noLead}`] : []),
       ...(gaps!.projectsStageNoEnd > 0 ? [`Active projects with a stage with no end date${gaps!.projectsStageNoEnd}`] : []),
       `Active projects with no area${gaps!.noArea}`,
     ]);
     // Each row looks pressable, like the Deadlines and Area rows: it ends with the chevron (review, 2026-10-06).
     for (const link of links) expect(link.querySelector('svg')).not.toBeNull();
-    await userEvent.click(within(region).getByRole('link', { name: /Open tasks with no due date/ }));
-    expect(await screen.findByRole('heading', { level: 1, name: 'Tasks with no due date' })).toBeInTheDocument();
+    await userEvent.click(within(region).getByRole('link', { name: /Open to-dos with no due date/ }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'To-dos with no due date' })).toBeInTheDocument();
     await waitFor(() => expect(listRows()).toHaveLength(2));
   });
 
@@ -153,7 +153,7 @@ describe('Data gaps, for the Admin only (owner, 2026-10-06, item 10)', () => {
     const { api } = await renderApp('/tasks?filter=no_lead', (state) => {
       Object.values(state.tasks).find((task) => task.projectId === 'prj_003' && task.status === 'todo')!.ownerId = null;
     });
-    expect(await screen.findByRole('heading', { level: 1, name: 'Tasks with no lead' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'To-dos with no lead' })).toBeInTheDocument();
     const expected = await api.call('tasks.list', { filter: 'no_lead', includeDone: false });
     expect(expected.length).toBeGreaterThan(0);
     await waitFor(() => expect(listRows()).toHaveLength(expected.length));

@@ -62,7 +62,7 @@ describe('Link an older project', () => {
     const ctx = await setUp();
     await openSheet(ctx);
     expect(screen.getByRole('dialog', { name: 'Link Harbour Offices to Villa, full design' })).toBeInTheDocument();
-    expect(screen.getByText('3 of 5 stages and 2 of 11 tasks match.')).toBeInTheDocument();
+    expect(screen.getByText('3 of 5 stages and 2 of 11 to-dos match.')).toBeInTheDocument();
     const none = screen.getByRole('region', { name: 'No match yet · 11' });
     expect(within(none).getByRole('combobox', { name: 'Project item for Design Development' })).toBeInTheDocument();
     expect(within(none).queryByRole('combobox', { name: 'Project item for Concept' })).not.toBeInTheDocument();
@@ -97,9 +97,9 @@ describe('Link an older project', () => {
     const ctx = await setUp();
     ctx.store.state.projects[ctx.projectId].startDate = '2026-10-04';
     await openSheet(ctx);
-    expect(screen.queryByText(/^Each new task gets the default person of its role as lead/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Each new to-do gets the default person of its role as lead/)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('radio', { name: /^Add them to the project/ }));
-    expect(screen.getByText(/^Each new task gets the default person of its role as lead/)).toBeInTheDocument();
+    expect(screen.getByText(/^Each new to-do gets the default person of its role as lead/)).toBeInTheDocument();
     // The project starts after today, so the dates of the template stay and nothing moves forward.
     expect(screen.getByText(/^The new parts run from .+ to .+\./)).toBeInTheDocument();
     expect(screen.queryByText(/the new parts move forward/)).not.toBeInTheDocument();

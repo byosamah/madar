@@ -32,7 +32,7 @@ describe('Needs first and Unlocks in the task panel', () => {
   it('lets the leader add and remove what a task needs first', async () => {
     const { store } = await renderApp(`${TASKS}&task=tsk_008`, as('usr_002'));
     const panel = await screen.findByRole('dialog', { name: 'Structural drawings check' });
-    await userEvent.selectOptions(await within(panel).findByLabelText('Add a task it needs first'), 'Coordination meeting notes');
+    await userEvent.selectOptions(await within(panel).findByLabelText('Add a to-do it needs first'), 'Coordination meeting notes');
     await waitFor(() => expect(store.state.tasks.tsk_008.prerequisiteIds).toEqual(['tsk_007', 'tsk_013']));
     await userEvent.click(await within(panel).findByRole('button', { name: 'Remove Stair details from the list' }));
     await waitFor(() => expect(store.state.tasks.tsk_008.prerequisiteIds).toEqual(['tsk_013']));
@@ -43,7 +43,7 @@ describe('Needs first and Unlocks in the task panel', () => {
     const panel = await screen.findByRole('dialog', { name: 'Stair details' });
     // "Specifications draft" already waits for this task, so it is not offered. Make the loop through a third task, then ask for it.
     store.state.tasks.tsk_013.prerequisiteIds = ['tsk_008'];
-    await userEvent.selectOptions(await within(panel).findByLabelText('Add a task it needs first'), 'Coordination meeting notes');
+    await userEvent.selectOptions(await within(panel).findByLabelText('Add a to-do it needs first'), 'Coordination meeting notes');
     expect(await screen.findByText('These would wait for each other. Pick another one.')).toBeInTheDocument();
     expect(store.state.tasks.tsk_007.prerequisiteIds).toEqual(['tsk_006']);
   });
@@ -53,7 +53,7 @@ describe('Needs first and Unlocks in the task panel', () => {
     const panel = await screen.findByRole('dialog', { name: 'Structural drawings check' });
     const needs = await within(panel).findByRole('region', { name: 'Needs first' });
     expect(within(needs).getByText('Stair details')).toBeInTheDocument();
-    expect(within(panel).queryByLabelText('Add a task it needs first')).toBeNull();
+    expect(within(panel).queryByLabelText('Add a to-do it needs first')).toBeNull();
     expect(within(panel).queryByRole('button', { name: /^Remove .* from the list$/ })).toBeNull();
   });
 });
@@ -69,7 +69,7 @@ describe('a task that waits', () => {
     tick.focus();
     expect(tick).toHaveFocus();
     await userEvent.click(tick);
-    expect(await screen.findByText('Not yet. This task is waiting for Stair details.')).toBeInTheDocument();
+    expect(await screen.findByText('Not yet. This to-do is waiting for Stair details.')).toBeInTheDocument();
     expect(store.state.tasks.tsk_008.status).toBe('in_progress');
   });
 

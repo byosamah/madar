@@ -31,6 +31,6 @@
   },
   "projectTemplates": {
     "taskStage": "Stage",
-    "taskOutside": "The days of this task are outside the days of its stage. Change the start day, or the days of the stage."
+    "taskOutside": "The days of this to-do are outside the days of its stage. Change the start day, or the days of the stage."
   }
 }

@@ -2,7 +2,7 @@
   "push": {
     "title": "Notifications on this device",
     "switch": "Notify me on this device",
-    "hint": "Madar sends one short line when you have a new notice or message. The line shows no task, project or person.",
+    "hint": "Madar sends one short line when you have a new notice or message. The line shows no to-do, project or person.",
     "ask": "Get one short line on this device when you have a new notice or message.",
     "askButton": "Turn on notifications",
     "unsupported": "This browser cannot show Madar notifications. Use a recent Chrome, Edge, Firefox or Safari.",

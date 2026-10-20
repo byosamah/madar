@@ -14,7 +14,7 @@ describe('the project key in tight places (item 6b)', () => {
   it('names a new example code in the hint of an empty search', async () => {
     await renderApp('/search');
     await userEvent.type(await screen.findByRole('combobox', {}, LOAD), 'qqzzxx');
-    expect(await screen.findByText('Try a project name, a code such as 260902AZT, a task, a person or a file name.', {}, LOAD)).toBeInTheDocument();
+    expect(await screen.findByText('Try a project name, a code such as 260902AZT, a to-do, a person or a file name.', {}, LOAD)).toBeInTheDocument();
   });
 
   it('finds a project by its key and shows the key, not the full code', async () => {

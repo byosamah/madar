@@ -13,18 +13,18 @@
   "taskList": {
     "leader": "Leader: {{name}}",
     "client": "Client: {{name}}",
-    "overdueOf": "Past-due tasks of {{name}}",
-    "withReviews": "With the tasks to review",
-    "noLead": "Tasks with no lead",
-    "noDate": "Tasks with no due date",
+    "overdueOf": "Past-due to-dos of {{name}}",
+    "withReviews": "With the to-dos to review",
+    "noLead": "To-dos with no lead",
+    "noDate": "To-dos with no due date",
     "subCompany": "Sub-company: {{name}}"
   },
   "dashboard": {
     "overdueColumn": "Past due",
     "overdueCell": "{{name}}, past due: {{tasks}}",
-    "idlePeople": "{{n}} people have no tasks in these weeks",
-    "idlePeople_one": "1 person has no tasks in these weeks",
-    "idlePeople_other": "{{count}} people have no tasks in these weeks",
+    "idlePeople": "{{n}} people have no to-dos in these weeks",
+    "idlePeople_one": "1 person has no to-dos in these weeks",
+    "idlePeople_other": "{{count}} people have no to-dos in these weeks",
     "noArea": "{{n}} projects have no area",
     "noArea_one": "1 project has no area",
     "noArea_other": "{{count}} projects have no area",
@@ -54,8 +54,8 @@
     },
     "gaps": {
       "title": "Data gaps",
-      "noDueDate": "Open tasks with no due date",
-      "noLead": "Open tasks with no lead",
+      "noDueDate": "Open to-dos with no due date",
+      "noLead": "Open to-dos with no lead",
       "projectsStageNoEnd": "Active projects with a stage with no end date",
       "noArea": "Active projects with no area",
       "noSubCompany": "Active projects with no sub-company"

@@ -112,7 +112,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 
 ## Health and the Dashboard (owner, 2026-10-06)
 - `health.ts`: a past-due task puts its project At risk only from `AT_RISK_DAYS_PAST_DUE` (3) calendar days past due.
-  `isOverdue` still counts it from day 1 ("Past-due tasks", the Past due column, `tasks.list` filter `overdue`).
+  `isOverdue` still counts it from day 1 ("Past-due to-dos", the Past due column, `tasks.list` filter `overdue`).
 - `dashboard.get` returns `gaps` only for `can(admin.manage)` and `money` only for `can(payment.manage)`; anyone else, and an
   agent of anyone else, gets null. Contract changes stay additive: `charts.healthMix` and `charts.throughput` stay for agents.
 - Each Dashboard number has a list that holds the same records: `tasks.list` and `deadlines.list` take `leaderId`, `clientId`

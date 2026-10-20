@@ -61,6 +61,6 @@ describe('the task board', () => {
     await userEvent.click(within(screen.getByRole('dialog', { name: 'Filter' })).getByRole('radio', { name: 'Board' }));
     await userEvent.keyboard('{Escape}');
     await screen.findByRole('region', { name: 'To do: 4' });
-    expect(screen.getByText(/Press Space to pick up a task/)).toBeInTheDocument();
+    expect(screen.getByText(/Press Space to pick up a to-do/)).toBeInTheDocument();
   });
 });

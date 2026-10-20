@@ -1,7 +1,7 @@
 {
   "errors": {
     "reasons": {
-      "reply_not_here": "You can reply only to a message in the same chat or task.",
+      "reply_not_here": "You can reply only to a message in the same chat or to-do.",
       "not_author": "You can change only your own messages."
     }
   },

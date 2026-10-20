@@ -38,7 +38,7 @@ describe('the avatar of a task row', () => {
     await userEvent.click(within(popover).getByRole('button', { name: /Sara Al-Qahtani/ }));
     await waitFor(() => expect(store.state.tasks.tsk_013.ownerId).toBe('usr_005'));
     expect(screen.queryByRole('dialog', { name: 'Change the lead' })).toBeNull();
-    expect(await screen.findByText('Sara Al-Qahtani now leads this task.')).toBeInTheDocument();
+    expect(await screen.findByText('Sara Al-Qahtani now leads this to-do.')).toBeInTheDocument();
     noPanel();
   });
 
@@ -56,7 +56,7 @@ describe('the avatar of a task row', () => {
     await userEvent.click(within(popover).getByRole('button', { name: /Khalid Al-Mutairi/ }));
     await waitFor(() => expect(store.state.tasks.tsk_013.helperIds).toEqual(['usr_005', 'usr_008']));
     expect(screen.queryByRole('dialog', { name: 'Add a helper' })).toBeNull();
-    expect(await screen.findByText('Khalid Al-Mutairi helps on this task.')).toBeInTheDocument();
+    expect(await screen.findByText('Khalid Al-Mutairi helps on this to-do.')).toBeInTheDocument();
     noPanel();
   });
 

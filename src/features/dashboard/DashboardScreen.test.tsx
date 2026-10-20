@@ -11,7 +11,7 @@ describe('the Dashboard', () => {
     await renderApp('/dashboard');
     expect(await tile(/Active projects/)).toHaveTextContent('9');
     expect(await tile(/At risk or late/)).toHaveTextContent('5');
-    for (const name of [/Past-due tasks/, /Deadlines, next 14 days/, /Area in design/]) expect(await tile(name)).toBeInTheDocument();
+    for (const name of [/Past-due to-dos/, /Deadlines, next 14 days/, /Area in design/]) expect(await tile(name)).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Projects' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByRole('region', { name: 'Workload' })).toBeNull();
     expect(screen.queryByRole('radiogroup')).toBeNull();
@@ -83,7 +83,7 @@ describe('the Dashboard', () => {
   // The numbers count the tasks of the team's projects, so each link to the Task list carries the team too (audit 2026-10-03, V-37b).
   it('keeps the Team filter in every link that opens the Task list (audit 2026-10-03, V-37b)', async () => {
     await renderApp('/dashboard?team=tm_003');
-    expect((await tile(/Past-due tasks/)).getAttribute('href')).toContain('team=tm_003');
+    expect((await tile(/Past-due to-dos/)).getAttribute('href')).toContain('team=tm_003');
     expect((await tile(/Deadlines, next 14 days/)).getAttribute('href')).toContain('team=tm_003');
     await userEvent.click(screen.getByRole('tab', { name: 'People' }));
     const cells = within(await screen.findByRole('region', { name: 'Workload' })).getAllByRole('link');

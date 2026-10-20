@@ -55,7 +55,7 @@ describe('My Work tasks', () => {
       state.session.currentUserId = 'usr_005';
       for (const task of Object.values(state.tasks)) task.status = 'done';
     });
-    expect(await screen.findByText('You have no open tasks.')).toBeInTheDocument();
+    expect(await screen.findByText('You have no open to-dos.')).toBeInTheDocument();
   });
 
   it('shows Retry when My Work cannot load', async () => {

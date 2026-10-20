@@ -52,8 +52,8 @@ describe('the feed line of an applied template (fbk_020)', () => {
     expect(FEED_VERBS.has('project.template_applied')).toBe(true);
     expect(FEED_EVENT_VERBS.has('project.template_applied')).toBe(true);
     initI18n('en');
-    expect(feedText(applied, i18n.t.bind(i18n))).toBe('applied the template Villa, full design: added 1 stage and 2 tasks');
-    expect(feedText({ ...applied, detail: { ...applied.detail, stages: '0', tasks: '5' } }, i18n.t.bind(i18n))).toBe('applied the template Villa, full design: added 5 tasks');
+    expect(feedText(applied, i18n.t.bind(i18n))).toBe('applied the template Villa, full design: added 1 stage and 2 to-dos');
+    expect(feedText({ ...applied, detail: { ...applied.detail, stages: '0', tasks: '5' } }, i18n.t.bind(i18n))).toBe('applied the template Villa, full design: added 5 to-dos');
     expect(feedText({ ...applied, detail: { ...applied.detail, stages: '3', tasks: '0' } }, i18n.t.bind(i18n))).toBe('applied the template Villa, full design: added 3 stages');
     expect(feedText({ ...applied, detail: { template: '', stages: '0', tasks: '0' } }, i18n.t.bind(i18n))).toBe('applied a template: added nothing');
   });

@@ -43,10 +43,10 @@ describe('the toast after a file is shared', () => {
   it('names the task and opens its conversation', async () => {
     const { router } = await renderApp(FILES, as('usr_002'));
     const sheet = await openShare();
-    await userEvent.click(within(sheet).getByRole('radio', { name: 'Task' }));
-    await userEvent.selectOptions(within(sheet).getByRole('combobox', { name: 'Task' }), 'tsk_007');
+    await userEvent.click(within(sheet).getByRole('radio', { name: 'To-do' }));
+    await userEvent.selectOptions(within(sheet).getByRole('combobox', { name: 'To-do' }), 'tsk_007');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Share' }));
-    expect(await screen.findByText('Shared in the task “Stair details”.')).toBeInTheDocument();
+    expect(await screen.findByText('Shared in the to-do “Stair details”.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Open' }));
     await waitFor(() => expect(router.state.location.search).toContain('task=tsk_007'));
     expect(router.state.location.search).toContain('thread=1');

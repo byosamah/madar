@@ -180,7 +180,7 @@ describe('the Inbox chat', () => {
     const { store } = await renderApp('/inbox', withTaskTalk);
     await userEvent.click(await rowLink(/Room finish schedule/));
     expect(await within(await screen.findByRole('log', { name: 'Messages' })).findByText('The finish codes are ready.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open task' })).toHaveAttribute('href', expect.stringMatching(/\/projects\/prj_006\?tab=tasks&task=tsk_\d+/));
+    expect(screen.getByRole('link', { name: 'Open to-do' })).toHaveAttribute('href', expect.stringMatching(/\/projects\/prj_006\?tab=tasks&task=tsk_\d+/));
     await userEvent.type(await screen.findByRole('textbox', { name: 'Message' }), 'Thanks, I will check them.');
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() => expect(Object.values(store.state.comments).some((c) => c.body === 'Thanks, I will check them.')).toBe(true));

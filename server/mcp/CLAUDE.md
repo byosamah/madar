@@ -177,3 +177,5 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   no message and never waits for a reply. `dashboard.get` gives `workload.unassigned` (the No lead row). Tests: `pauseDocs.test.ts`,
   `dashboardDocs.test.ts`.
 - `server/mcp/oauth/sdk.test.ts` runs the whole flow with `@modelcontextprotocol/sdk` 1.32.0 on node:sqlite.
+- Words (owner, 2026-10-20): `INSTRUCTIONS` has a "Words:" paragraph. The screens call a task a "to-do", and the Tasks tab holds To-dos and Meetings. The calls and
+  the tools keep the word "tasks". Test: `officeDocs.test.ts`.

@@ -51,7 +51,7 @@ describe('a reason in the task thread of the Inbox (fbk_027)', () => {
       line(taskId, 'cmt_903', 'Survey finished 2 working days late', '2026-09-30T09:00:00.000+03:00', { dates: { ...MOVE, byTaskId: 'tsk_001', byTaskTitle: 'Survey', lateDays: 2 } })(state);
     });
     await renderApp('/inbox/' + (await taskIdOf(setup)), setup);
-    expect((await screen.findByText(/ reopened the task: .*Client comments, 12 Oct/)).closest('li')).toHaveClass('self-center');
+    expect((await screen.findByText(/ reopened the to-do: .*Client comments, 12 Oct/)).closest('li')).toHaveClass('self-center');
     expect((await screen.findByText(/^Madar moved the dates: .*Survey.* finished 2 working days late\.$/)).closest('li')).toHaveClass('self-center');
   });
 

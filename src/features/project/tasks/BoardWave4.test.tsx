@@ -47,17 +47,17 @@ describe('a refused board drop', () => {
   it('marks To do and In progress as closed while the reviewer lifts a card in review', async () => {
     await renderApp(TASKS, as('usr_002'));
     await openBoard();
-    expect(screen.queryByText('This task cannot move here.')).toBeNull();
+    expect(screen.queryByText('This to-do cannot move here.')).toBeNull();
     const grip = screen.getByRole('button', { name: 'Drag Toilet details' });
     grip.focus();
     fireEvent.keyDown(grip, { key: ' ', code: 'Space' });
     expect(await screen.findByText('Picked up Toilet details.')).toBeInTheDocument();
-    await waitFor(() => expect(within(screen.getByRole('region', { name: /^To do/ })).getByText('This task cannot move here.')).toBeInTheDocument());
-    expect(within(screen.getByRole('region', { name: /^In progress/ })).getByText('This task cannot move here.')).toBeInTheDocument();
-    expect(within(screen.getByRole('region', { name: /^Done/ })).queryByText('This task cannot move here.')).toBeNull();
-    expect(within(screen.getByRole('region', { name: /^In review/ })).queryByText('This task cannot move here.')).toBeNull();
+    await waitFor(() => expect(within(screen.getByRole('region', { name: /^To do/ })).getByText('This to-do cannot move here.')).toBeInTheDocument());
+    expect(within(screen.getByRole('region', { name: /^In progress/ })).getByText('This to-do cannot move here.')).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: /^Done/ })).queryByText('This to-do cannot move here.')).toBeNull();
+    expect(within(screen.getByRole('region', { name: /^In review/ })).queryByText('This to-do cannot move here.')).toBeNull();
     fireEvent.keyDown(grip, { key: 'Escape', code: 'Escape' });
-    await waitFor(() => expect(screen.queryByText('This task cannot move here.')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('This to-do cannot move here.')).toBeNull());
   });
 
   it('says why after a drop on In progress, and Open task opens the review block', async () => {
@@ -81,8 +81,8 @@ describe('a refused board drop', () => {
     } finally {
       measure.mockRestore();
     }
-    expect(await screen.findByText('This task is in review. Use Send back and write a note for the lead.')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Open task' }));
+    expect(await screen.findByText('This to-do is in review. Use Send back and write a note for the lead.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Open to-do' }));
     expect(await screen.findByRole('region', { name: 'Review' })).toBeInTheDocument();
   });
 
@@ -112,8 +112,8 @@ describe('a refused board drop', () => {
     } finally {
       measure.mockRestore();
     }
-    expect(await screen.findByText('This task waits for the leader to approve it.')).toBeInTheDocument();
-    expect(screen.queryByText('This task is in review. Use Send back and write a note for the lead.')).toBeNull();
+    expect(await screen.findByText('This to-do waits for the leader to approve it.')).toBeInTheDocument();
+    expect(screen.queryByText('This to-do is in review. Use Send back and write a note for the lead.')).toBeNull();
   });
 
   // On a phone the board scrolls while the card goes to the start edge. The delta of the drag end counts that scroll too,
@@ -148,7 +148,7 @@ describe('a refused board drop', () => {
     } finally {
       measure.mockRestore();
     }
-    expect(await screen.findByText('This task is in review. Use Send back and write a note for the lead.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Open task' })).toBeInTheDocument();
+    expect(await screen.findByText('This to-do is in review. Use Send back and write a note for the lead.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open to-do' })).toBeInTheDocument();
   });
 });

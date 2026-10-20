@@ -191,7 +191,7 @@ describe('Projects using this template', () => {
     await openSheet(ctx);
     const review = await reachReview();
     const card = await within(review).findByRole('region', { name: 'Planned dates' });
-    expect(within(card).getByText('2 tasks in 2 projects')).toBeInTheDocument();
+    expect(within(card).getByText('2 to-dos in 2 projects')).toBeInTheDocument();
     expect(within(card).getAllByText(/^Balady pack: .+ to .+ becomes .+ to .+$/)).toHaveLength(2);
     const main = screen.getByRole('button', { name: 'Update 2 projects' });
     expect(main).toBeDisabled();
