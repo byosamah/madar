@@ -41,8 +41,10 @@ Two hosted projects, both in Frankfurt (eu-central-1): `madar-test` = `qdgwpnesx
 - It runs only on the local stack (after `db reset` and the first `start`). It never reaches a hosted project.
 
 ## The local stack
-- Always the project CLI (`npx supabase`, version 2.119.0). Never the global `supabase`: it starts older images, and
-  Realtime then refuses madar_server.
+- Always the project CLI (`npx supabase`, version 2.121.0 since 2026-10-20). Never the global `supabase`: it starts
+  older images, and Realtime then refuses madar_server.
+- CLI 2.121.0 starts Postgres `17.11.0.004` and Realtime `v2.143.4`. After a CLI update, the first `functions serve` pulls a
+  new edge runtime image for minutes: `server/it/cron.it.test.ts` then stops at its 240 s wait. Run that file again.
 - `npx supabase start -x edge-runtime` for database work. Ports: API 54321, Postgres 54322, Mailpit 54324.
 - `supabase status -o env` has no API_URL: the API is `http://127.0.0.1:54321`.
 - Every Docker or database task takes the lock first: `scripts/dev/docker-lock.sh run <holder> -- <cmd>` (or `acquire`
