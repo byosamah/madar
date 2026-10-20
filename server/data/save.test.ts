@@ -1,11 +1,13 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { calls } from '../../src/api/calls';
+import { sharedCalls, type SharedCallName } from '../../src/api/sharedCalls';
 import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
 import { bodySearchText } from '../../src/lib/searchMatch';
 import { testApi } from '../../src/test/factories';
 import type { Query } from '../core/ports';
 import { deepFreeze } from './officeCache';
+import { runOn } from './loaders/compare';
 import { diffState, save, writeDiff, type Diff } from './save';
 
 /**
@@ -552,6 +554,36 @@ describe('the meetings of a save (the Google Calendar sync reads them, fbk_022)'
     Object.values(other.tasks)[0].title = 'Another title';
     expect((await save(recorder().q, before, other)).meetingIds).toBeUndefined();
     expect(diffState(before, other).meetingIds).toEqual([]);
+  });
+});
+
+describe('the meetings of a series (wave 3: the Google Calendar sync needs every touched meeting)', () => {
+  const NOW = new Date('2026-10-04T06:00:00Z');
+  /** Runs one call on a copy of the office and gives the diff of the save and the office after it. */
+  function step(state: State, name: SharedCallName, input: unknown, actor: string): { after: State; ids: string[] } {
+    const after = structuredClone(state);
+    const outcome = runOn(after, name, sharedCalls[name].input.parse(input), actor, { now: NOW, correlationId: `cor_${name}` });
+    if (outcome.error) throw new Error(`${name} failed: ${outcome.error.message}`);
+    return { after, ids: [...diffState(state, after).meetingIds].sort() };
+  }
+
+  it('lists the 8 meetings of a new series, the meetings that a "later" change touched, the meetings that a "later" cancel touched, and the meetings that the extension added', () => {
+    const made = step(copy(), 'meetings.create', { kind: 'meeting', title: 'Weekly', startsAt: '2026-10-11T09:00:00+03:00', repeat: { every: 'week', until: null } }, 'usr_004');
+    const all = Object.keys(made.after.meetings!).sort();
+    expect(all).toHaveLength(8);
+    expect(made.ids).toEqual(all);
+    const [, , third] = Object.values(made.after.meetings!).sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+    const changed = step(made.after, 'meetings.update', { id: third.id, where: 'Room 9', scope: 'later' }, 'usr_004');
+    expect(changed.ids).toEqual(all.slice(2));
+    const one = step(made.after, 'meetings.update', { id: third.id, where: 'Room 9' }, 'usr_004');
+    expect(one.ids).toEqual([third.id]);
+    const cancelled = step(changed.after, 'meetings.cancel', { id: third.id, scope: 'later' }, 'usr_004');
+    expect(cancelled.ids).toEqual(all.slice(2));
+    // One meeting in the middle is cancelled alone, so one is short and the extension adds one: the new row is in the list.
+    const gap = step(made.after, 'meetings.cancel', { id: all[3] }, 'usr_004');
+    const extended = step(gap.after, 'meetings.extend', { seriesId: made.after.meetings![all[0]].seriesId }, 'usr_004');
+    expect(extended.ids).toHaveLength(1);
+    expect(all).not.toContain(extended.ids[0]);
   });
 });
 
