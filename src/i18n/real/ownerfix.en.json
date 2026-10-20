@@ -1,19 +1,19 @@
 {
   "whatsNew": {
     "items": {
-      "2026-10-23-59": {
+      "2026-10-23-63": {
         "title": "To-dos and Meetings",
         "body": "The Tasks tab now holds two lists: To-dos and Meetings. A to-do is what Madar called a task before. In a project, the tab is To-dos."
       },
-      "2026-10-23-58": {
+      "2026-10-23-62": {
         "title": "Show one kind of chat",
         "body": "Next to the chat search, pick All, Projects, To-dos or People. People shows direct chats and groups."
       },
-      "2026-10-23-57": {
+      "2026-10-23-61": {
         "title": "Satellite view on the maps",
         "body": "Press Satellite in the corner of a map to see the site from above. Press Street map to go back. Madar keeps your choice."
       },
-      "2026-10-23-56": {
+      "2026-10-23-60": {
         "title": "Cleaner sub-company logos",
         "body": "The small logo of a sub-company on a project picture now sits in a clean gap, with no dark or white ring around it."
       }

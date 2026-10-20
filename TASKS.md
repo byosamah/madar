@@ -751,7 +751,7 @@ separate checker. No production change before Friday 2026-10-23. Answers fbk_028
 - [x] Gates, `all.sh test`, the owner's try on the test copy (13:10, a new Google account, ok), production at 86bcf255 (2026-10-20, the owner ran it). Record: proof.md. fbk_033 done (Faisal gets the notice)
 - [ ] After the release: a connect that timed out at the calendar step may have left an empty calendar "Madar" in that Google account. If Faisal sees two, he deletes the empty one
 
-## 2026-10-20: four owner fixes (branch `rb/owner-fixes`, What's new 2026-10-23-56 to 59)
+## 2026-10-20: four owner fixes (branch `rb/owner-fixes`, What's new 2026-10-23-60 to 63)
 
 - [x] Satellite view on every map: one small button, Esri World Imagery through our own route `/satellite` (Madar's own Esri key as
   the Pages secret `ESRI_KEY` on both copies, set 2026-10-20; the key ends 2027-10-19; the referrer lock did not save at Esri)
