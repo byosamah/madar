@@ -13,6 +13,7 @@ import {
   addMinutes, clockOf, dayOf, earliestStart, hasTrackerLine, kindDefaults, minutesBetween, occurrencesOf, officeStamp, onFiveMinutes, phaseOf, REPEAT_MAX_DAYS, SERIES_AHEAD,
   SETTLE_BACK_DAYS, stampOn,
 } from '../../lib/meetings';
+import { isLive } from '../../lib/overview';
 import { markOf } from '../../lib/projectMark';
 import { visibleTextPattern } from '../../lib/projectCode';
 import { assertFilesForMeeting, assertFilesInProject } from './attach';
@@ -408,7 +409,7 @@ export function dueToSettle(state: State, at: Date): Meeting[] {
 /**
  * The series that the prototype timer extends (the prototype has no job). The same rule as the read of the job (server/jobs/steps/meetings.ts):
  * a series whose last meeting starts today or later and is scheduled, with fewer than SERIES_AHEAD scheduled meetings that are not over,
- * and a day left in its rule. The fewest ahead first, then by series, at most 20.
+ * and a day left in its rule, and whose project (if any) is active or paused. The fewest ahead first, then by series, at most 20.
  */
 export function seriesToExtend(state: State, at: Date): string[] {
   const today = todayISO(at);
@@ -419,7 +420,7 @@ export function seriesToExtend(state: State, at: Date): string[] {
   const short: { seriesId: string; ahead: number }[] = [];
   for (const [seriesId, list] of bySeries) {
     const last = [...list].sort(byStart).at(-1) as Meeting;
-    if (last.status !== 'scheduled' || !last.repeat) continue;
+    if (last.status !== 'scheduled' || !last.repeat || (last.projectId !== null && !seriesProjectIsOpen(state, last.projectId))) continue;
     const ahead = list.filter((m) => m.status === 'scheduled' && phaseOf(m, at) !== 'done').length;
     if (ahead >= SERIES_AHEAD || occurrencesOf(last.repeat, dayOf(last), maxDay(dayOf(last), today), 1).length === 0) continue;
     short.push({ seriesId, ahead });
@@ -437,6 +438,12 @@ const meetingsSettle = defineCall({
     return { settledAt: meeting.settledAt ?? null, trackerEntryId: meeting.trackerEntryId ?? null };
   },
 });
+
+/** True while the project of a series is active or paused. A series of a completed or archived project is not extended. */
+const seriesProjectIsOpen = (state: State, projectId: string): boolean => {
+  const project = state.projects[projectId];
+  return project !== undefined && isLive(project.status);
+};
 
 /**
  * Keeps a series full (fbk_022, wave 3; the 15-minute job and the prototype timer call it, as they call meetings.settle). It adds meetings
@@ -457,6 +464,8 @@ const meetingsExtend = defineCall({
     if (rows.length === 0) throw notFound('Meeting', input.seriesId);
     const last = rows[rows.length - 1];
     if (last.status === 'cancelled' || !last.repeat) return { added: 0 };
+    // A project that is completed or archived holds no new meeting: its series stops (a paused project goes on).
+    if (last.projectId !== null && !seriesProjectIsOpen(ctx.state, last.projectId)) return { added: 0 };
     const ahead = rows.filter((m) => m.status === 'scheduled' && phaseOf(m, ctx.now) !== 'done').length;
     const lastDay = dayOf(last);
     const days = occurrencesOf(last.repeat, lastDay, maxDay(lastDay, ctx.today), SERIES_AHEAD - ahead);

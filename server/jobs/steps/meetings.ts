@@ -1,5 +1,6 @@
 import type { Meeting } from '../../../src/api/contract/entities';
 import { maxDay, todayISO } from '../../../src/lib/dates';
+import { isLive } from '../../../src/lib/overview';
 import { dayOf, occurrencesOf, officeStamp, SERIES_AHEAD, SETTLE_BACK_DAYS } from '../../../src/lib/meetings';
 import { runCall } from '../../core/runCall';
 import type { Deps } from '../../core/ports';
@@ -80,9 +81,11 @@ export async function meetings(deps: Deps, at: Date): Promise<MeetingsReport> {
     'read', sqlFor(deps.db, EXTEND_SQL, EXTEND_LITE), [officeStamp(at.toISOString()), `${today}T00:00:00.000+03:00`],
   );
   // A series whose rule has no day left (its last day came) needs no call: the read cannot tell, the rule can.
-  const extend = short.filter((row) => row.doc.repeat && occurrencesOf(row.doc.repeat, dayOf(row.doc), maxDay(dayOf(row.doc), today), 1).length > 0);
-  if (due.length === 0 && extend.length === 0) return report;
+  const ruleLeft = short.filter((row) => row.doc.repeat && occurrencesOf(row.doc.repeat, dayOf(row.doc), maxDay(dayOf(row.doc), today), 1).length > 0);
+  if (due.length === 0 && ruleLeft.length === 0) return report;
   const office = isLite(deps.db) ? await deps.db.tx('read', (q) => readLiteOffice(liteDbOf(q), q)) : await readOffice(deps);
+  // A series of a project that is completed or archived is not extended (the call refuses it too).
+  const extend = ruleLeft.filter((row) => row.doc.projectId === null || (office.lists.projects[row.doc.projectId] !== undefined && isLive(office.lists.projects[row.doc.projectId].status)));
   // The office object puts its own run on its deps (the SQLite data). Every other host runs the Postgres path.
   const run = deps.runCall ?? runCall;
   const batch = () => ({ storyRefs: new Map<string, string>(), overviewCalls: 0 });

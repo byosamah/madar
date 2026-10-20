@@ -464,7 +464,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - `meetings.extend { seriesId } -> { added }` keeps a series full (the 15-minute job and the prototype timer call it, as they call `meetings.settle`; MCP deny
   list; `WRITE_KINDS`: events, meetings). It reads the visible meetings of the series from today on, takes the last one as the template, and adds meetings after it
   until `SERIES_AHEAD` scheduled meetings that are not over are ahead, or until `until`. It adds none when the last meeting is cancelled (a person ended the series
-  there), and a series with no meeting from today on reads as `not_found` (so does an unknown or hidden id, with the text of an unknown id). New meetings start
+  there) and none for a series of a project that is completed or archived (a paused project goes on), and a series with no meeting from today on reads as `not_found` (so does an unknown or hidden id, with the text of an unknown id). New meetings start
   after the last day, or after today when the series ran dry, copy the title, kind, project, place, guests, notes, organizer, people, length and time of day, get
   `createdBy` of the caller, and have no notice. One mark `meeting.extended` (target: the last meeting, not undoable, `NOT_UNDOABLE`) and one `meeting.added` for each
   new meeting with the mark as its cause. Like `settle`, the call needs only the view of the series. `seriesToExtend(state, at)` is the rule of the job read for the

@@ -263,6 +263,19 @@ describe('the meetings step keeps the series full (fbk_022, wave 3)', () => {
     expect(seen).toEqual([{ seriesId: 'mtg_111', userId: 'usr_001' }, { seriesId: 'mtg_112', userId: 'usr_003' }]);
   });
 
+  it('asks for no series of a project that is completed or archived', async () => {
+    const rows = [...weekly('mtg_101', 2), ...weekly('mtg_102', 2, { projectId: 'prj_002' }), ...weekly('mtg_103', 2, { projectId: 'prj_003' }), ...weekly('mtg_104', 2, { projectId: null })];
+    const { deps, seed } = await office(rows, (state) => {
+      state.projects.prj_002 = { ...state.projects.prj_001, id: 'prj_002', status: 'completed' };
+      state.projects.prj_003 = { ...state.projects.prj_001, id: 'prj_003', status: 'on_hold' };
+    });
+    expect(seed.projects.prj_002.status).toBe('completed');
+    const { seen, run } = extendStub({ added: 1 });
+    deps.runCall = run;
+    expect(await meetings(deps, AT)).toEqual({ settled: 0, skipped: 0, failed: 0, extended: 3 });
+    expect(seen.map((one) => one.seriesId)).toEqual(['mtg_101', 'mtg_103', 'mtg_104']);
+  });
+
   it('goes on after a failure, and logs the series id and the code, never the title', async () => {
     const { deps } = await office([...weekly('mtg_101', 2), ...weekly('mtg_102', 3)]);
     const { seen, run } = extendStub({ fail: ['mtg_101'], added: 4 });

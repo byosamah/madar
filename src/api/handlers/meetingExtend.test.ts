@@ -119,6 +119,18 @@ describe('meetings.extend', () => {
     expect(days(seriesOf(u)).at(-1)).toBe('2026-11-26');
   });
 
+  it('adds none to the series of a project that is completed or archived, and goes on when the project is paused or opens again', async () => {
+    const t = await series();
+    setNow(new Date('2026-10-21T06:00:00Z'));
+    for (const status of ['completed', 'archived'] as const) {
+      t.store.state.projects.prj_001.status = status;
+      expect(await t.api.call('meetings.extend', { seriesId: 'mtg_001' }), status).toEqual({ added: 0 });
+      expect(seriesToExtend(t.store.state, new Date('2026-10-21T06:00:00Z')), status).toEqual([]);
+    }
+    t.store.state.projects.prj_001.status = 'on_hold';
+    expect(await t.api.call('meetings.extend', { seriesId: 'mtg_001' })).toEqual({ added: 3 });
+  });
+
   it('adds none after a "later" cancel, which ends the series', async () => {
     const t = await series();
     await t.api.call('meetings.cancel', { id: 'mtg_004', scope: 'later' });
