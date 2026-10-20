@@ -202,7 +202,7 @@ describe('the task panel in the look of the chat', () => {
   it('reads the panel in Arabic, right to left', async () => {
     const { comments } = await openPanel(plant(undefined, 'ar'), 'التعليقات');
     expect(document.documentElement).toHaveAttribute('dir', 'rtl');
-    expect(within(commentOf(comments, 'Second note')).getByRole('button', { name: 'إجراءات هذا التعليق' })).toBeInTheDocument();
+    expect(within(commentOf(comments, 'Second note')).getByRole('button', { name: 'خيارات هذا التعليق' })).toBeInTheDocument();
     expect(comments.getByText('أمس')).toBeInTheDocument();
   });
 });

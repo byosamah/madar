@@ -115,14 +115,14 @@ describe('the warning before Deactivate (owner, 2026-10-03, API-7)', () => {
     });
     const people = await screen.findByRole('region', { name: 'الأشخاص' });
     // The Arabic screen names her in Arabic (owner item 12).
-    await userEvent.click(await within(people).findByRole('button', { name: 'إجراءات سارة القحطاني' }));
-    await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'إيقاف الحساب' }));
-    const sheet = await screen.findByRole('dialog', { name: 'إيقاف حساب سارة القحطاني؟' });
-    expect(within(sheet).getByText('تذهب المهام التي تنتظر مراجعتها إلى مديري النظام، ولا يمكن لأحد أن يسند إليها عملًا جديدًا.')).toBeInTheDocument();
+    await userEvent.click(await within(people).findByRole('button', { name: 'خيارات سارة القحطاني' }));
+    await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'أوقف الحساب' }));
+    const sheet = await screen.findByRole('dialog', { name: 'هل توقف حساب سارة القحطاني؟' });
+    expect(within(sheet).getByText('تنتقل مراجعاتها إلى مديري النظام. ولا يستطيع أحد أن يسند إليها عملًا جديدًا.')).toBeInTheDocument();
     expect(within(sheet).getByRole('region', { name: 'المشاريع التي تقودها' })).toBeInTheDocument();
     // 10 takes the Arabic plural for 3 to 10, and 2 takes the dual.
     const open = within(sheet).getByRole('region', { name: '10 مهام مفتوحة' });
     expect(within(open).getByText('مهمتان أخريان')).toBeInTheDocument();
-    expect(within(sheet).getByRole('button', { name: 'إيقاف الحساب رغم ذلك' })).toBeInTheDocument();
+    expect(within(sheet).getByRole('button', { name: 'أوقف الحساب رغم ذلك' })).toBeInTheDocument();
   });
 });

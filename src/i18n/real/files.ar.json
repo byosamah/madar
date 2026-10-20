@@ -1,7 +1,7 @@
 {
   "files": {
-    "add": "إضافة",
-    "uploadOne": "رفع ملف",
+    "add": "أضف",
+    "uploadOne": "ارفع ملفًا",
     "tooLarge": "حجم {{name}} أكبر من {{limit}}.",
     "limitMb": "{{n}} ميغابايت"
   },

@@ -95,7 +95,7 @@ describe('the prototype controls in the remote build (plan U3, client map 6)', (
       expect(people).toBeInTheDocument();
       if (language === 'ar') {
         await userEvent.click(within(faisal).getByRole('button'));
-        await userEvent.click(await screen.findByRole('menuitem', { name: 'إرسال الدعوة مرة أخرى' }));
+        await userEvent.click(await screen.findByRole('menuitem', { name: 'أرسل الدعوة مرة أخرى' }));
         expect(await screen.findByText('الدعوة في طريقها إلى فيصل الحربي.')).toBeInTheDocument();
       }
       unmount();
@@ -189,7 +189,7 @@ describe('Settings, Password (plan 5.1)', () => {
     await renderAuth('/settings', { auth, routes: only(<PasswordSection />), language: 'ar' });
     await userEvent.type(await screen.findByLabelText('كلمة المرور الحالية'), 'not-the-password');
     await userEvent.type(screen.getByLabelText('كلمة المرور الجديدة'), 'green-field-77');
-    await userEvent.click(screen.getByRole('button', { name: 'تغيير كلمة المرور' }));
+    await userEvent.click(screen.getByRole('button', { name: 'غيّر كلمة المرور' }));
     expect(await screen.findByText('كلمة المرور غير صحيحة.')).toBeInTheDocument();
     expect(document.documentElement.dir).toBe('rtl');
     expect(auth.current()?.password).toBe(SAMPLE_ACCOUNTS.hala.password);
@@ -211,7 +211,7 @@ describe('Settings, Password (plan 5.1)', () => {
     const arabic = await renderAuth('/settings', { auth: signedIn(), routes: only(<PasswordSection />), language: 'ar' });
     expect(await screen.findByRole('heading', { level: 2, name: 'كلمة المرور' })).toBeInTheDocument();
     expect(document.documentElement.dir).toBe('rtl');
-    expect(screen.getByRole('button', { name: 'تغيير كلمة المرور' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'غيّر كلمة المرور' })).toBeInTheDocument();
     expectCalm(arabic.container, { titleLevel: 2 });
   });
 });

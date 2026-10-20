@@ -147,7 +147,7 @@ describe('delete a message', () => {
     expect(document.documentElement).toHaveAttribute('dir', 'rtl');
     const id = await sendLine(store, 'سطر للحذف', ar.chat.composer);
     await rowShows(id);
-    await pick(id, 'إجراءات هذه الرسالة', ar.comments.delete);
+    await pick(id, 'خيارات هذه الرسالة', ar.comments.delete);
     await rowGone(id);
     expect(await screen.findByText('حُذفت الرسالة.')).toBeInTheDocument();
   });

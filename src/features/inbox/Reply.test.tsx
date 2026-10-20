@@ -205,7 +205,7 @@ describe('Arabic, right to left', () => {
     });
     await openTower(ar.chat.list);
     expect(document.documentElement).toHaveAttribute('dir', 'rtl');
-    await reply('msg_901', 'إجراءات هذه الرسالة', 'رد');
+    await reply('msg_901', 'خيارات هذه الرسالة', 'رد');
     expect(await screen.findByText('رد على فيصل الحربي')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'ألغِ الرد' })).toBeInTheDocument();
   });

@@ -93,7 +93,7 @@ describe('POST /auth/forgot', () => {
   it('writes the reset mail in the person\'s language, with the feminine Arabic forms for a woman', async () => {
     const { deps, post } = await setup();
     expect((await post({ email: 'sara.al.qahtani@madar.test' })).status).toBe(200);
-    expect(deps.mail.sent[0].subject).toBe('إعادة تعيين كلمة المرور في مدار');
+    expect(deps.mail.sent[0].subject).toBe('أعد تعيين كلمة مرورك في مدار');
     expect(deps.mail.sent[0].text).toContain('افتحي الرابط');
   });
 

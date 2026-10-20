@@ -44,8 +44,8 @@ describe('upload progress in the chat box (design item 14)', () => {
     }) as typeof api.call);
     await userEvent.click(await within(await screen.findByRole('list', { name: 'المحادثات' })).findByRole('link', { name: /Corniche Office Tower|برج/ }));
     await userEvent.type(await screen.findByRole('textbox', { name: 'الرسالة' }), 'رسم الباب.');
-    await userEvent.upload(screen.getByLabelText('إرفاق ملفات'), new File(['x'], 'Door sketch.pdf', { type: 'application/pdf' }));
-    await userEvent.click(screen.getByRole('button', { name: 'إرسال' }));
+    await userEvent.upload(screen.getByLabelText('أرفق ملفات'), new File(['x'], 'Door sketch.pdf', { type: 'application/pdf' }));
+    await userEvent.click(screen.getByRole('button', { name: 'أرسل' }));
     expect(await screen.findByRole('progressbar', { name: 'Door sketch.pdf: رُفع 50%' })).toHaveAttribute('aria-valuenow', '50');
     release();
     await waitFor(() => expect(screen.queryByRole('progressbar')).toBeNull());

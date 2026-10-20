@@ -222,7 +222,7 @@ describe('the notifications screen', () => {
         state.users.usr_003.preferences.language = 'ar';
         withNotices('usr_003', [{ ...report('ntf_905', 'feedback_done', 'bug', 'usr_001'), feedback: { kind: 'bug', excerpt: long } }])(state);
       });
-      expect(await screen.findByText(`تم إصلاح الخلل في بلاغك: «\u2068${long}\u2069»`)).toBeInTheDocument();
+      expect(await screen.findByText(`أُصلح الخلل في بلاغك: «\u2068${long}\u2069»`)).toBeInTheDocument();
     });
 
     it('shows a former Admin the new report as gone, with no link and no words of the report', async () => {

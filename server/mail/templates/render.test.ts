@@ -203,7 +203,7 @@ describe('renderMail', () => {
     expect(en).toContain('Above 10 million calls in a month, Cloudflare Workers charges about $0.30 for each extra million. No action is needed.');
     const ar = renderMail('limitWarning', 'ar', { meter: 'callsWorkers', percent: 82, link: LINK }).text;
     expect(ar).toContain('طلبات الخادم هذا الشهر');
-    expect(ar).toContain('لا يلزم أي إجراء.');
+    expect(ar).toContain('لا تحتاج إلى فعل شيء.');
   });
 
   it('never names the database vendor: the screen bundle loads these words, and the prototype bundle check refuses the name', () => {
@@ -324,7 +324,7 @@ describe('the morning summary lists the open tasks (fbk_021, owner 2026-10-19)',
     expect(m.text).toContain('- Task number 4\n  المكتب · الأحد، 4 أكتوبر\n');
     expect(m.text).toContain('و5 مهام أخرى.');
     expect(m.text).toContain('مراجعتان بانتظارك.');
-    expect(m.text).toContain('فتح مدار: ');
+    expect(m.text).toContain('افتح مدار: ');
     expect(m.text).not.toMatch(/[\u2013\u2014]/);
   });
 

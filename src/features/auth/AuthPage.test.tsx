@@ -12,7 +12,7 @@ const HALA = { email: 'hala.nasser@madar.test', password: 'blue-river-42', userI
 const auth = () => fakeAuth({ accounts: [HALA], links: { 'hash-reset': { type: 'recovery', email: HALA.email }, 'hash-invite': { type: 'invite', email: HALA.email } } });
 
 const SCREENS = [
-  { path: '/sign-in', title: { en: 'Sign in to Madar', ar: 'تسجيل الدخول إلى مدار' } },
+  { path: '/sign-in', title: { en: 'Sign in to Madar', ar: 'سجّل الدخول إلى مدار' } },
   { path: '/forgot', title: { en: null, ar: null } },
   { path: '/reset?token_hash=hash-reset&type=recovery', title: { en: null, ar: null } },
   { path: '/welcome?token_hash=hash-invite&type=invite', title: { en: 'Welcome to Madar', ar: null } },

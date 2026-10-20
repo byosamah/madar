@@ -296,7 +296,7 @@ describe('the Arabic screen', () => {
   });
 
   it('shows the Arabic done line with the right plural form', async () => {
-    for (const [meetings, text] of [[1, 'تم الربط. اجتماع واحد في الطريق إلى Google.'], [2, 'تم الربط. اجتماعان في الطريق إلى Google.'], [5, 'تم الربط. 5 اجتماعات في الطريق إلى Google.'], [12, 'تم الربط. 12 اجتماعًا في الطريق إلى Google.']] as const) {
+    for (const [meetings, text] of [[1, 'اكتمل الربط. اجتماع واحد في الطريق إلى Google.'], [2, 'اكتمل الربط. اجتماعان في الطريق إلى Google.'], [5, 'اكتمل الربط. 5 اجتماعات في الطريق إلى Google.'], [12, 'اكتمل الربط. 12 اجتماعًا في الطريق إلى Google.']] as const) {
       cleanup();
       comeBackWith('#google=finish&code=abc&state=signed.state');
       await open(setup({}, { connect: () => ({ state: 'ok', meetings }) }), 'ar');

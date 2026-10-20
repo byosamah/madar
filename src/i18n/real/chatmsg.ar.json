@@ -7,7 +7,7 @@
   },
   "chat": {
     "placeholderPhone": "اكتب @ لذكر أحد.",
-    "messageActions": "إجراءات هذه الرسالة",
+    "messageActions": "خيارات هذه الرسالة",
     "reactions": "التفاعلات",
     "yourMessage": "رسالتك",
     "copyText": "انسخ النص",

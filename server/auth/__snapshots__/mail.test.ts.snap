@@ -10,7 +10,7 @@ exports[`the header of the invitation and the reset mail: the Madar mark of the 
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 24px;"><tr><td style="padding:0;padding-left:10px;vertical-align:middle;"><img src="https://madar.test/icons/madar-192.png" width="28" height="28" alt="" style="display:block;border:0;outline:none;width:28px;height:28px;"></td><td style="padding:0;vertical-align:middle;font-weight:600;font-size:18px;">مدار</td></tr></table>
 <h1 style="font-size:20px;margin:0 0 16px">أهلًا سارة، مرحبًا بكِ في مدار</h1>
 <p style="font-size:15px;line-height:1.5;margin:0 0 24px">يدعوكِ مكتبكِ إلى مدار. افتحي الرابط لتعيين كلمة المرور.</p>
-<p style="margin:0 0 24px"><a href="https://madar.test/welcome?token_hash=abc&amp;type=invite" style="display:inline-block;padding:12px 20px;border-radius:10px;background:#1d1d1f;color:#ffffff;text-decoration:none;font-weight:600">قبول الدعوة</a></p>
+<p style="margin:0 0 24px"><a href="https://madar.test/welcome?token_hash=abc&amp;type=invite" style="display:inline-block;padding:12px 20px;border-radius:10px;background:#1d1d1f;color:#ffffff;text-decoration:none;font-weight:600">اقبل الدعوة</a></p>
 <p style="font-size:13px;line-height:1.5;color:#6e6e73;margin:0 0 8px">إذا لم يفتح الزر، انسخي هذا الرابط في المتصفح:</p>
 <p dir="ltr" style="font-size:13px;line-height:1.5;color:#6e6e73;margin:0 0 24px;word-break:break-all">https://madar.test/welcome?token_hash=abc&amp;type=invite</p>
 <p style="font-size:13px;line-height:1.5;color:#6e6e73;margin:0">يعمل الرابط مرة واحدة، لمدة ساعة. إذا انتهت صلاحيته، افتحيه مع ذلك واضغطي «أرسل لي رابطًا جديدًا».</p>
@@ -21,7 +21,7 @@ exports[`the header of the invitation and the reset mail: the Madar mark of the 
 
 يدعوكِ مكتبكِ إلى مدار. افتحي الرابط لتعيين كلمة المرور.
 
-قبول الدعوة: https://madar.test/welcome?token_hash=abc&type=invite
+اقبل الدعوة: https://madar.test/welcome?token_hash=abc&type=invite
 
 يعمل الرابط مرة واحدة، لمدة ساعة. إذا انتهت صلاحيته، افتحيه مع ذلك واضغطي «أرسل لي رابطًا جديدًا».",
 }
@@ -64,18 +64,18 @@ exports[`the header of the invitation and the reset mail: the Madar mark of the 
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 24px;"><tr><td style="padding:0;padding-left:10px;vertical-align:middle;"><img src="https://madar.test/icons/madar-192.png" width="28" height="28" alt="" style="display:block;border:0;outline:none;width:28px;height:28px;"></td><td style="padding:0;vertical-align:middle;font-weight:600;font-size:18px;">مدار</td></tr></table>
 <h1 style="font-size:20px;margin:0 0 16px">أهلًا سارة</h1>
 <p style="font-size:15px;line-height:1.5;margin:0 0 24px">افتحي الرابط لتعيين كلمة مرور جديدة.</p>
-<p style="margin:0 0 24px"><a href="https://madar.test/welcome?token_hash=abc&amp;type=invite" style="display:inline-block;padding:12px 20px;border-radius:10px;background:#1d1d1f;color:#ffffff;text-decoration:none;font-weight:600">تعيين كلمة مرور جديدة</a></p>
+<p style="margin:0 0 24px"><a href="https://madar.test/welcome?token_hash=abc&amp;type=invite" style="display:inline-block;padding:12px 20px;border-radius:10px;background:#1d1d1f;color:#ffffff;text-decoration:none;font-weight:600">عيّن كلمة مرور جديدة</a></p>
 <p style="font-size:13px;line-height:1.5;color:#6e6e73;margin:0 0 8px">إذا لم يفتح الزر، انسخي هذا الرابط في المتصفح:</p>
 <p dir="ltr" style="font-size:13px;line-height:1.5;color:#6e6e73;margin:0 0 24px;word-break:break-all">https://madar.test/welcome?token_hash=abc&amp;type=invite</p>
 <p style="font-size:13px;line-height:1.5;color:#6e6e73;margin:0">إذا لم تطلبي ذلك، تجاهلي هذه الرسالة. تبقى كلمة المرور كما هي.</p>
 </div>
 </body></html>",
-  "subject": "إعادة تعيين كلمة المرور في مدار",
+  "subject": "أعد تعيين كلمة مرورك في مدار",
   "text": "أهلًا سارة
 
 افتحي الرابط لتعيين كلمة مرور جديدة.
 
-تعيين كلمة مرور جديدة: https://madar.test/welcome?token_hash=abc&type=invite
+عيّن كلمة مرور جديدة: https://madar.test/welcome?token_hash=abc&type=invite
 
 إذا لم تطلبي ذلك، تجاهلي هذه الرسالة. تبقى كلمة المرور كما هي.",
 }

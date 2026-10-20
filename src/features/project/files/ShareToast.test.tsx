@@ -55,9 +55,9 @@ describe('the toast after a file is shared', () => {
 
   it('names the place in Arabic too', () => {
     const ar = initI18n('en').getFixedT('ar');
-    expect(ar('files.sharedChat', { project: 'Corniche Office Tower' })).toBe('تمت المشاركة في محادثة Corniche Office Tower.');
-    expect(ar('files.sharedPerson', { name: 'Sara Al-Qahtani' })).toBe('تمت المشاركة مع Sara Al-Qahtani.');
-    expect(ar('files.sharedTask', { title: 'Stair details' })).toBe('تمت المشاركة في المهمة «Stair details».');
-    expect(ar('files.sharedOpen')).toBe('فتح');
+    expect(ar('files.sharedChat', { project: 'Corniche Office Tower' })).toBe('أُرسل الملف إلى محادثة Corniche Office Tower.');
+    expect(ar('files.sharedPerson', { name: 'Sara Al-Qahtani' })).toBe('أُرسل الملف إلى Sara Al-Qahtani.');
+    expect(ar('files.sharedTask', { title: 'Stair details' })).toBe('أُرسل الملف في محادثة المهمة «Stair details».');
+    expect(ar('files.sharedOpen')).toBe('افتح');
   });
 });

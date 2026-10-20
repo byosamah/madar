@@ -83,7 +83,7 @@ describe('the Sign in screen (plan 5.1, client map 7.1)', () => {
   it('works in Arabic, right to left, with the calm checks, and switches the language without a session', async () => {
     atPhoneWidth();
     const { container } = await renderAuth('/sign-in', { auth: signedOut(), language: 'ar' });
-    expect(await screen.findByRole('heading', { level: 1, name: 'تسجيل الدخول إلى مدار' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'سجّل الدخول إلى مدار' })).toBeInTheDocument();
     expect(document.documentElement.dir).toBe('rtl');
     expect(screen.getByLabelText('البريد الإلكتروني')).toHaveAttribute('dir', 'ltr');
     expectCalm(container);

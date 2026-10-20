@@ -64,7 +64,7 @@ describe('the Reset password screen (plan 5.1, client map 7.1)', () => {
     expectCalm(english.container);
     english.unmount();
     const arabic = await renderAuth(LINK, { auth: port(), language: 'ar' });
-    expect(await screen.findByRole('heading', { level: 1, name: 'تعيين كلمة مرور جديدة' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'عيّن كلمة مرور جديدة' })).toBeInTheDocument();
     expect(document.documentElement.dir).toBe('rtl');
     expectCalm(arabic.container);
   });

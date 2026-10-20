@@ -92,7 +92,7 @@ describe('the Welcome screen of an invitation (plan 5.1, client map 7.1)', () =>
     expect(await screen.findByRole('heading', { level: 1, name: 'أهلًا بك في مدار' })).toBeInTheDocument();
     expect(document.documentElement.dir).toBe('rtl');
     expectCalm(arabic.container);
-    await userEvent.click(screen.getByRole('button', { name: 'قبول الدعوة' }));
+    await userEvent.click(screen.getByRole('button', { name: 'اقبل الدعوة' }));
     expect(await screen.findByLabelText('كلمة المرور الجديدة')).toBeInTheDocument();
     expectCalm(arabic.container);
   });
@@ -160,7 +160,7 @@ describe('the Welcome screen of an invitation (plan 5.1, client map 7.1)', () =>
       expect(screen.queryByText('انتهت صلاحية هذا الرابط. اطلب دعوة جديدة من مدير النظام.')).toBeNull();
       expectCalm(arabic.container);
       await userEvent.click(screen.getByRole('button', { name: 'احصل على رابط جديد' }));
-      expect(await screen.findByRole('heading', { level: 1, name: 'إعادة تعيين كلمة المرور' })).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { level: 1, name: 'أعد تعيين كلمة المرور' })).toBeInTheDocument();
     });
   });
 
