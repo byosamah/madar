@@ -2,7 +2,8 @@
 -- connects, disconnects and connects again must get the same calendar "Madar" in Google, not a second one. The scope calendar.app.created
 -- reaches every calendar that Madar made, but it cannot list calendars, so Madar remembers the id. The row holds the id only: no key,
 -- no token, no event. A disconnect keeps it on purpose. users.remove deletes it.
--- The table starts empty, so this file writes no office row and needs no version step.
+-- The table starts with the calendar of each live connection (the connections made before this file), so their next connect after a
+-- disconnect uses the same calendar. It writes no office row and needs no version step.
 
 create table google_calendars (
   user_id     text primary key,
@@ -16,3 +17,9 @@ alter table google_calendars enable row level security;
 revoke all on table google_calendars from public, anon, authenticated;
 grant select, insert, update, delete on table google_calendars to madar_server;
 create policy server_all on google_calendars for all to madar_server using (true) with check (true);
+
+-- The calendars of the connections made before this table (on the test copy, 2026-10-20). One live row for each person at most.
+insert into google_calendars (user_id, calendar_id, changed_at)
+select user_id, calendar_id, connected_at from google_connections
+where state <> 'revoking' and calendar_id is not null
+on conflict (user_id) do nothing;
