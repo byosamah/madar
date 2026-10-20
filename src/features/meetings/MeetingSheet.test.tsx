@@ -334,7 +334,7 @@ describe('the sheet of a meeting that repeats (wave 3)', () => {
     const line = await within(box).findByText(/^يتكرر كل أسبوع، حتى/);
     expect(line.textContent).not.toMatch(/[٠-٩]/);
     await userEvent.click(within(box).getByRole('button', { name: 'خيارات الاجتماع' }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'إلغاء الاجتماع' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'ألغِ الاجتماع' }));
     const ask = await screen.findByRole('dialog', { name: 'أي اجتماعات تريد إلغاءها؟' });
     expect(within(ask).getByRole('button', { name: 'هذا الاجتماع' })).toBeInTheDocument();
     expect(within(ask).getByRole('button', { name: 'هذا الاجتماع والاجتماعات اللاحقة' })).toBeInTheDocument();
