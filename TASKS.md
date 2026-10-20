@@ -743,3 +743,10 @@ separate checker. No production change before Friday 2026-10-23. Answers fbk_028
 - [x] Real mistakes found and fixed: «لوحة المتابعة» and «ضغط العمل» in What's new (the screens say «لوحة المعلومات» and «عبء العمل»), the picture formats missing from a photo error, an Eastern digit in the screenshot hint, five wrong tanween marks, «إجراء» for a meeting task, «أحدث» for "later"
 - [x] Merged into main and released: production at 15a9815 (2026-10-20, the owner ran it). Record: proof.md. The owner may still read the before/after page and name any string to revert
 - [x] What's new line 2026-10-23-32 for the new Arabic wording
+
+## 2026-10-20: team report fbk_033, the Google Calendar connect (branch `rb/fbk-033`, worktree `~/dev/madar-rb/fbk-033`)
+- [x] Cause: on production, 3 of the 4 connects between 12:05 and 12:08 Riyadh failed with `google_unreachable` after 3.5 to 3.7 s, and the one that worked ran 3.3 s (function logs). A Google step of the connect needs about 3 s, and the limit of 3 s cut it. Faisal has no remembered calendar, so the reuse step was not the cause
+- [x] Fix: the Google calls of `google.connect` wait 5 s (`GOOGLE_CONNECT_TIMEOUT_MS`), and a test keeps the chain with the revoke (18 s) under the 20 s of the screen. A failed connect logs its step, code and HTTP status. What's new 2026-10-23-55
+- [x] Fix: the Ctrl+Z listener of the toasts takes a keydown with no key. Chrome sends one when it fills a saved password: this was the TypeError in Faisal's console
+- [ ] Gates, `all.sh test`, the owner's try on the test copy, production after the owner's OK, then fbk_033 done (Faisal gets the notice)
+- [ ] After the release: a connect that timed out at the calendar step may have left an empty calendar "Madar" in that Google account. If Faisal sees two, he deletes the empty one
