@@ -183,7 +183,8 @@ describe('chats.markUnread', () => {
       expect(await codeOf(t.api.call('chats.markUnread', { conversationId: id })), id).toBe(marked);
       expect(t.store.state.chatReads[chatReadKey(id, 'usr_004')], id).toBeUndefined();
     }
-    expect(await codeOf(t.api.call('chats.markUnread', { conversationId: t.room }))).toBe('forbidden');
+    // Since chat design item 17, a chat that the person may not open answers not_found for every kind, as a group did.
+    expect(await codeOf(t.api.call('chats.markUnread', { conversationId: t.room }))).toBe('not_found');
     expect(await codeOf(t.api.call('chats.markUnread', { conversationId: group }))).toBe('not_found');
   });
 
