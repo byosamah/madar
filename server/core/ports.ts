@@ -140,7 +140,7 @@ export type Config = {
   limits: Limits;
   /**
    * The host that serves the screens and agents of this copy (config/server-host.json, server/core/serverHost.ts), not always
-   * the running host: the 15-minute job stays on the Supabase jobs function. The calls limit of the Usage page follows it
+   * the running host: the 15-minute job stays on the Supabase jobs function. The calls limit of the usage meters follows it
    * (CALL_LIMITS), so the job on Supabase and usage.get on the Worker give the same answer.
    */
   servingHost: ServerHost;

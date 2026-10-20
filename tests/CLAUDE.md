@@ -32,7 +32,7 @@ the config, the heartbeat of one run stays and the next run fails.
   `OFFICE_SQL`), and `agents.spec.ts` uses the own OAuth routes under `/mcp`. Seed with
   `npx tsx scripts/office/seed.ts --to <address>` before and after the run. A new SQL text in the walk needs its SQLite form in
   `OFFICE_SQL`: `scripts/e2e-deploy-helpers.test.ts` fails without it, and prepares each form on the SQLite schema.
-- Flags: `MADAR_E2E_AFTER_G=1`, `MADAR_E2E_AFTER_M=1`, `MADAR_E2E_WALK=1` (the whole-product walk, `walk.spec.ts`). `agents.spec.ts` skips
+- Flags: `MADAR_E2E_AFTER_G=1`, `MADAR_E2E_WALK=1` (the whole-product walk, `walk.spec.ts`; its step 15 checks that the old `/admin/usage` link shows no Usage section, since 2026-10-23). `agents.spec.ts` skips
   itself without `MADAR_E2E_AFTER_G=1` ("1 skipped" is no pass). Its first case also checks that the tool list of the test copy holds
   the three chat tools (2026-10-12). One case alone: `-g "an approved agent shows in Settings"`.
 - `full.spec.ts` alone takes about 12 minutes, more than the 600 s limit of a foreground Bash call: run it in the background.

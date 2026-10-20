@@ -647,23 +647,15 @@ for (const { lang, width } of VARIANTS) {
       return `the field is read-only with the hint; the API answered ${answer.error?.code}; users.email unchanged`;
     });
 
-    // 15. Admin, Usage: only the Admin sees it.
+    // 15. Admin, Usage: the section is gone (owner, 2026-10-23). The old link goes back to the first section, for every role.
     for (const role of ROLES) {
       await step('usage', role, async () => {
         const page = pages[role];
         await goto(page, '/admin/usage');
         await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-        const heading = page.getByRole('heading', { level: 2, name: w('usage.title'), exact: true });
-        if (role === 'admin') {
-          await expect(heading).toBeVisible();
-          const section = page.locator('section').filter({ has: heading });
-          await expect(section.locator('p, li').first()).toBeVisible();
-          await heading.scrollIntoViewIfNeeded();
-          await shot('usage', role);
-          return 'the Usage section shows';
-        }
         await page.waitForTimeout(1000);
-        await expect(heading).toHaveCount(0);
+        await expect(page.getByRole('heading', { level: 2, name: 'Usage', exact: true })).toHaveCount(0);
+        await expect(page.locator('main')).not.toContainText(/of the free plan limit/);
         return 'no Usage section';
       });
     }

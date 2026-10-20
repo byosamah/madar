@@ -255,9 +255,11 @@ describe('the Admin side list', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/admin/people'));
   });
 
-  it('goes back to /admin from Usage in the prototype, where Usage has no data', async () => {
+  it('goes back to /admin from /admin/usage, a section that the Admin page no longer has (owner, 2026-10-23)', async () => {
     const { router } = await renderApp('/admin/usage');
+    expect(await region('People')).toBeInTheDocument();
     await waitFor(() => expect(router.state.location.pathname).toBe('/admin/people'));
+    expect(screen.queryByRole('link', { name: 'Usage' })).toBeNull();
   });
 
   it('sends Management from a section of the Admin to its own first section', async () => {

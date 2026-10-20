@@ -146,7 +146,7 @@ The other host stays deployed as the way back. Each area below has its own guide
   and tries once more.
 - Errors: `grant_gone`, a seal that does not open, or a deleted calendar (404 on an insert) ends the connection (state `broken`, the token is deleted at
   once, the event rows go) and the row is done. A timeout, a network error, a 5xx or a rate limit sets `not_synced` and throws, so the outbox tries again
-  (5 times, then the Admin sees the row in Usage). Any other refusal sets `not_synced` with `last_error` `refused` and does not retry. An error text, a
+  (5 times, then the row stays failed in the outbox; `usage.get` lists it, and no screen shows it since the Usage section went, 2026-10-23). Any other refusal sets `not_synced` with `last_error` `refused` and does not retry. An error text, a
   log line and an outbox error hold the code and the ids, never a token, a code, a title or a Google answer (`leaks.test.ts` proves it).
 - A connect that a Google step ends writes one warn line, "A Google Calendar connect failed.", with `userId`, `step` (`token`, `calendar_read`,
   `calendar_make`), `code` (the GoogleError code, or `no_refresh_token`, `scope_missing`) and `status` (the HTTP status, absent for a timeout or a
@@ -197,11 +197,12 @@ The other host stays deployed as the way back. Each area below has its own guide
   person who may change the series (`extendActorOf` of the last meeting: the organizer, else the first active Admin of a project series; a private series of an
   organizer who left is skipped, review 2026-10-20), and counts the meetings added in `extended`. A failure logs the series id and the code only. `Deps.runCall` (`core/ports.ts`) is the run of a normal call for a step: only the office object sets it (its own SQLite run, `office/parts.ts`);
   every other host uses the Postgres `runCall`.
-- Usage meters and the 80% Admin warning (`usage/`). The free-plan limits are in `FREE_PLAN_LIMITS`. The calls limit follows
+- Usage meters and the 80% Admin warning (`usage/`). The Admin page has no Usage section since 2026-10-23 (owner: an internal tool, not paid), so the
+  warning mail is the only sign of a limit; the meters, the jobs and the call `usage.get` stay (the contract is additive). The free-plan limits are in `FREE_PLAN_LIMITS`. The calls limit follows
   the host that serves the copy (`config.servingHost`, from `config/server-host.json`): 500,000 on Supabase, 10 million on
   Workers Paid, 3 million on the office host (`CALL_LIMITS`, `core/ports.ts`). The office host sends no month calls warning: the
   day meters below cover its Free limit (`warningMeters`). On the Worker the calls meter is `callsWorkers` in the warning mail, and the
-  screen picks its words by the limit, as it picks `filesR2`. The job on Supabase and `usage.get` on the Worker give the same
+  mail picks its words by the limit, as it picks `filesR2`. The job on Supabase and `usage.get` on the Worker give the same
   limit, because both read the setting, not the running host.
 - On the office object only, the 80% warning also covers the four Free day meters: rows read, rows written, object requests
   and Worker requests (`DAY_LIMITS` and `checkDayLimits`, `usage/warn.ts`), one warning a UTC day for each meter.

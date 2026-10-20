@@ -109,5 +109,3 @@ export function passwordOf(role: DeployRole): string {
 
 /** The specs that need track G (agents) run after the merge lead merges rb/G and sets MADAR_E2E_AFTER_G=1. */
 export const AFTER_G = process.env.MADAR_E2E_AFTER_G === '1';
-/** The Usage spec needs track M (usage meters); it runs after the merge of rb/M, with MADAR_E2E_AFTER_M=1. */
-export const AFTER_M = process.env.MADAR_E2E_AFTER_M === '1';
