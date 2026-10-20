@@ -74,4 +74,40 @@ describe('read only while you look (design item 5)', () => {
     await settle();
     expect(marks(call)).toHaveLength(1);
   });
+
+  // Mark as unread (fbk_028, owner 2026-10-20): the open chat ends the mark only at its first look, or for a newer message.
+  it('keeps an unread mark that is set on the open chat, also when the tab hides and shows again', async () => {
+    const { api, store } = await renderApp('/inbox');
+    await userEvent.click(await rowLink(/Faisal Al-Harbi/));
+    await within(await screen.findByRole('log', { name: 'Messages' })).findByText('I will bring the new stage dates.');
+    const room = Object.values(store.state.conversations).find((c) => c.kind === 'direct' && c.memberIds.includes('usr_001') && c.memberIds.includes('usr_002'))!;
+    const key = chatReadKey(room.id, 'usr_001');
+    await waitFor(() => expect(store.state.chatReads[key]?.lastReadAt).toBeDefined());
+    await settle();
+    const call = vi.spyOn(api, 'call');
+    // The mark comes while the chat is open (another device, or the menu just before the chat closes).
+    await act(async () => { await api.call('chats.markUnread', { conversationId: room.id }); });
+    await settle();
+    act(() => show(false));
+    act(() => show(true));
+    await settle();
+    expect(marks(call)).toHaveLength(0);
+    expect(store.state.chatReads[key]?.markedUnread).toBe(true);
+    expect(within(await rowLink(/Faisal Al-Harbi/)).getByText('Unread: 1')).toBeInTheDocument();
+  });
+
+  it('keeps an unread mark that is set on the open task thread, also when the tab hides and shows again', async () => {
+    const { api, store } = await renderApp('/inbox', withTaskTalk);
+    const call = vi.spyOn(api, 'call');
+    await userEvent.click(await rowLink(/Room finish schedule/));
+    await waitFor(() => expect(marks(call)).toHaveLength(1));
+    const task = Object.values(store.state.tasks).find((t) => t.title === 'Room finish schedule')!;
+    await act(async () => { await api.call('chats.markUnread', { conversationId: task.id }); });
+    await settle();
+    act(() => show(false));
+    act(() => show(true));
+    await settle();
+    expect(marks(call)).toHaveLength(1);
+    expect(store.state.chatReads[chatReadKey(task.id, 'usr_001')]?.markedUnread).toBe(true);
+  });
 });
