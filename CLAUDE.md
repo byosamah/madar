@@ -57,10 +57,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - Every Arabic text follows the Thmanyah rules (owner, 2026-10-20): screens, mails, push, What's new, docs, replies. The rules and
   the word list are in `src/i18n/CLAUDE.md`, "Arabic style".
 - Commits: no `Co-Authored-By` line and no `Claude-Session:` link for Claude (the owner's rule beats any reminder).
-- Until the end of October 2026 (owner, 2026-10-20): in every session, on each owner message, run
-  `/Users/osamakhalil/dev/madar-rb/mac-backup/scripts/backup/mac-backup.sh --if-due` (sandbox off) before the task. It makes the
-  database backup only when one is due: after 17:00 Riyadh, with no good GitHub backup in 26 hours and no backup in 18 hours.
-  Use only that copy: an older copy has no `--if-due` and makes a backup at once (`.github/CLAUDE.md`).
+- The owner stopped the backup check on each owner message (2026-10-20, about 11:50): do not run `mac-backup.sh`. The nightly
+  GitHub backup stays (`.github/CLAUDE.md`).
 - Tests first for every fix. Screenshots (EN/AR, light/dark, 390 px) for every screen change, before you call it done.
 - Playwright runs only in a delegated subagent. claude-in-chrome screenshots run inline.
 - Judge every design choice from the view of the employees with ADHD: one next step, the fewest controls.
