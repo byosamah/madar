@@ -1088,6 +1088,17 @@ walk caught the answer: a whole-batch 500 "Something went wrong" for the Admin, 
 - `all.sh test` (147 calls), then `all.sh production`: health from `supabase` with 147 calls, the database check, `POST /mcp` with no token 401.
   Production serves `runtime-DFS4BLg9.js` with the new key check.
 
+### Production at ab4b0d0a (2026-10-20, fbk_034 to fbk_036, the connection line, and the CLI update; the owner ran it with `!`)
+- Changes: `tasks.help` (a team member joins a task as a helper with one tap, or leaves it; the lead gets `helper_joined`); `task.delete` for
+  the lead of a project task, with `task_deleted` to the maker, and not for a lead who took the task themselves (`leadTookTask`, from the
+  security review of the branch); the past-due sign of a task row wraps on a phone (`StatusSign wrap`); the connection line floats in the toast
+  lane (`useStandingNotice`); What's new 2026-10-23-56 to 59. Before it on main: wrangler 4.151.2 and the Supabase CLI 2.121.0 (74a65de6),
+  and the Arabic reset subject pin of `invites.it.test.ts` (2c19baea).
+- Gates: typecheck, npm test 7,935 (2 files timed out under the load of another session and passed alone; the api bundle bound became 800,000
+  at 760,035), the three builds, `test:db` 2,028, `test:it` 335, `test:mcp` 256 (conformance 5 of 32, as always), the prototype smoke 87 of 87,
+  screenshots EN/AR, light/dark, at 390 and 1440. The deploy suite did not run.
+- `all.sh test` (148 calls), then `all.sh production`: health from `supabase` with 148 calls, the database check, `POST /mcp` with no token 401.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 

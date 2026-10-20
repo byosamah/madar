@@ -757,7 +757,7 @@ separate checker. No production change before Friday 2026-10-23. Answers fbk_028
 - [x] fbk_034 (Abdelrahman): the lead of a project task may delete it; the maker gets `task_deleted`. A lead who took the task themselves may not (security review, `leadTookTask`)
 - [x] Owner, 2026-10-20: the connection line ("Live updates paused", "No connection") floats in the toast lane (`useStandingNotice`), never under the header
 - [x] What's new 2026-10-23-56 to 59. Gates: npm test 7,935 (2 timeouts that pass alone; the api bundle bound is 800,000), builds, test:db 2,028, test:it 335, test:mcp 256, shots EN/AR light/dark 390 and 1440
-- [ ] Prototype smoke, ff main, `all.sh test`, the owner's try on the test copy, production, then fbk_034 to fbk_036 done
+- [x] Prototype smoke 87 of 87, ff main, `all.sh test`, production at ab4b0d0a (2026-10-20, the owner ran it). Record: proof.md. fbk_034 to fbk_036 done
 - [ ] Proposal (not built): the same long past-due sign sits in the project Overview and two meeting views (`OverviewTab`, `MeetingProjects`, `PeopleStrip`); give them `wrap` too
 
 ## 2026-10-20: four owner fixes (branch `rb/owner-fixes`, What's new 2026-10-23-60 to 63)
