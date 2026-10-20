@@ -40,7 +40,7 @@
       },
       "2026-10-23-58": {
         "title": "Past-due words fit on a phone",
-        "body": "On a phone, a long line such as “Past due by 157 days” went under the chat button of a to-do. Now the line goes on to a second line."
+        "body": "On a phone, a long line such as “Past due by 157 days” went under the button next to it: on Home, in Tasks, in a project and in the meeting view. Now the line goes on to a second line."
       }
     }
   }

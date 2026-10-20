@@ -42,7 +42,7 @@ function TaskLine({ row, onOpen, showOwner = true }: { row: TaskRow; onOpen: (id
           <bdi className="block truncate text-subheadline font-medium text-ink">{row.task.title}</bdi>
           {showOwner && <bdi className="block truncate text-footnote text-ink-2">{row.owner ? nameOf(row.owner) : t('lead.noLead')}</bdi>}
         </span>
-        {when && (word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular shrink-0 text-footnote text-ink-2">{when}</span>)}
+        {when && (word?.tone === 'attn' ? <StatusSign state="late" wrap>{when}</StatusSign> : <span className="tabular shrink-0 text-footnote text-ink-2">{when}</span>)}
       </button>
     </li>
   );

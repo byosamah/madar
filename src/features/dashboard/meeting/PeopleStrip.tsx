@@ -50,7 +50,7 @@ function PersonSheet({ person, onOpenTask, onClose }: { person: Person; onOpenTa
               {/* The sheet closes first, so two panels never stack. Then the task panel opens over the meeting. */}
               <button type="button" onClick={() => { onClose(); onOpenTask(row.task.id); }} className="pressable flex w-full items-center gap-3 rounded-2xl py-2.5 text-start">
                 <bdi className="min-w-0 flex-1 truncate text-[19px] font-semibold text-ink">{row.task.title}</bdi>
-                {when && (word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular shrink-0 text-[15px] text-ink-2">{when}</span>)}
+                {when && (word?.tone === 'attn' ? <StatusSign state="late" wrap>{when}</StatusSign> : <span className="tabular shrink-0 text-[15px] text-ink-2">{when}</span>)}
               </button>
             </li>
           );

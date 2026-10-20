@@ -66,7 +66,7 @@ function TaskItem({ row, label, onOpen }: { row: TaskRow; label?: string; onOpen
             <bdi>{row.owner ? nameOf(row.owner) : t('lead.noLead')}</bdi>{label && <> · {label}</>}
           </span>
         </span>
-        {when && (word?.tone === 'attn' ? <StatusSign state="late">{when}</StatusSign> : <span className="tabular shrink-0 text-[15px] text-ink-2">{when}</span>)}
+        {when && (word?.tone === 'attn' ? <StatusSign state="late" wrap>{when}</StatusSign> : <span className="tabular shrink-0 text-[15px] text-ink-2">{when}</span>)}
       </button>
     </li>
   );
