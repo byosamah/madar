@@ -22,30 +22,29 @@ export function TabPill() {
       aria-label={t('nav.main')}
       data-pill
       data-compact={compact || undefined}
-      className={`pill fixed inset-x-0 bottom-[max(12px,env(safe-area-inset-bottom))] z-30 mx-auto flex w-[calc(100vw-24px)] max-w-md items-center max-sm:items-stretch gap-0.5 max-[319px]:gap-0 sm:w-max sm:max-w-none rounded-full p-1.5 origin-bottom motion-safe:transition-transform motion-safe:duration-300 sm:bottom-auto sm:top-4 sm:origin-top ${compact ? 'max-sm:motion-safe:scale-[0.94]' : ''}`}
+      className={`pill fixed inset-x-0 bottom-[max(16px,env(safe-area-inset-bottom))] z-30 mx-auto flex w-[calc(100vw-32px)] max-w-md items-center gap-0.5 sm:w-max sm:max-w-none rounded-full p-1.5 origin-bottom motion-safe:transition-transform motion-safe:duration-300 sm:bottom-auto sm:top-4 sm:origin-top ${compact ? 'max-sm:motion-safe:scale-[0.94]' : ''}`}
     >
       {NAV.filter((item) => phone || !item.badge).map((item) => {
         const active = isNavActive(item.to, pathname);
         const Moving = item.animated;
-        // From 640 px up, the tabs share the width, but a tab never gets narrower than its longest word and some room for the round
-        // ends of its highlight. A label of two words such as "لوحة المعلومات" wraps onto two short lines, so it stays whole and
-        // the five tabs still fit inside the bar at 320 to 412 px. On a phone the highlight is a rounded box, not a pill, so a
-        // second line clears its corners (audit 2026-10-03, F-2 and its re-check). The phone tabs share one height and start
-        // at the top, so a two-line label never lifts its icon above the other four (2026-10-05).
-        // Below 320 px the five whole labels do not fit at full size, so the label takes 11 px (the floor), the padding gets
-        // smaller and each tab starts from its own width. The tabs can also shrink, so the bar never runs off the screen (F-2).
+        // On a phone each tab is one press area of 48 px with its icon in the centre, and the open tab is a round pill, the
+        // shape of the bar (owner, 2026-10-20). The bar keeps the 16 px edge of the page. The word of the tab stays for screen
+        // readers (owner, 2026-10-08). From 640 px up the tab shows its word and no icon.
         return (
           <Link
             key={item.to}
             to={item.to}
             aria-current={active ? 'page' : undefined}
-            className={`pressable relative isolate flex min-h-12 min-w-min flex-1 flex-col items-center justify-center max-sm:justify-start max-sm:py-1.5 gap-0.5 rounded-full max-sm:rounded-[18px] px-1.5 text-caption min-[360px]:px-2.5 max-[319px]:min-w-0 max-[319px]:flex-auto max-[319px]:px-1 max-[319px]:[--size-caption:11px] font-semibold sm:min-h-11 sm:flex-none sm:flex-row sm:px-4 sm:text-subheadline ${active ? 'text-[var(--on-sig)]' : 'text-ink-2 hover:text-ink'}`}
+            className={`pressable relative isolate flex h-12 min-w-0 flex-1 items-center justify-center rounded-full font-semibold sm:h-11 sm:min-w-min sm:flex-none sm:gap-0.5 sm:px-4 sm:text-subheadline ${active ? 'text-[var(--on-sig)]' : 'text-ink-2 hover:text-ink'}`}
           >
-            {active && <motion.span layoutId="pill-active" transition={spring.standard} className="signature absolute inset-0 -z-10 rounded-full max-sm:rounded-[18px]" />}
-            <AnimatedIcon icon={Moving} size={20} className="sm:hidden" playWhen={active} aria-hidden />
-            {/* On a phone the icon alone shows the tab (owner, 2026-10-08); the word stays for screen readers. */}
-            <span className="sr-only text-center leading-[1.15] sm:not-sr-only sm:whitespace-nowrap">{t(item.key)}</span>
-            {item.badge && unreadChats > 0 && <Badge count={unreadChats} label={t('nav.inboxUnread', { count: unreadChats })} className="absolute -top-0.5 end-0 sm:static sm:ms-1.5" />}
+            {active && <motion.span layoutId="pill-active" transition={spring.standard} className="signature absolute inset-0 -z-10 rounded-full" />}
+            {/* The word comes first, so a screen reader says the name before the count. On a phone it takes no space. */}
+            <span className="sr-only leading-[1.15] sm:not-sr-only sm:whitespace-nowrap">{t(item.key)}</span>
+            {/* The count of the Inbox sits on the corner of its icon. Only a phone has the Inbox tab, so it hides with the icon. */}
+            <span data-tab-icon className="relative grid place-items-center sm:hidden">
+              <AnimatedIcon icon={Moving} size={24} playWhen={active} aria-hidden />
+              {item.badge && unreadChats > 0 && <Badge count={unreadChats} label={t('nav.inboxUnread', { count: unreadChats })} className="absolute -top-2 -end-3" />}
+            </span>
           </Link>
         );
       })}
