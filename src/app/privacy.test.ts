@@ -25,6 +25,15 @@ describe('the privacy page', () => {
     expect(page).toContain('يبقى تقويم «مدار» في تقويم Google عندك');
   });
 
+  it('says what Madar keeps after a disconnect: only the calendar id, so a new connect uses the same calendar, and a removal deletes it (owner test 2026-10-20)', () => {
+    expect(page).toContain('After a disconnect, Madar keeps only the id of the Madar calendar. It keeps no key and no event.');
+    expect(page).toContain('If you connect again, Madar uses the same calendar.');
+    expect(page).toContain('When the office removes a person from Madar, Madar deletes this id too.');
+    expect(page).toContain('بعد أن تفصل الربط، يحفظ مدار رقم تقويم «مدار» فقط. لا يحفظ مفتاحًا ولا مواعيد.');
+    expect(page).toContain('وإذا ربطت من جديد، يستعمل مدار التقويم نفسه.');
+    expect(page).toContain('وعندما يحذف المكتب شخصًا من مدار، يحذف مدار هذا الرقم أيضًا.');
+  });
+
   it('holds the date of the last change in both languages', () => {
     expect(page).toContain('Last change: 23 October 2026');
     expect(page).toContain('آخر تعديل: 23 أكتوبر 2026');
