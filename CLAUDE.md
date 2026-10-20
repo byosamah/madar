@@ -83,7 +83,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `npm run build:remote -- <test|production>` - the real screens from `config/remote.<env>.env` (public VITE_ names only).
 - `npm run build:server` - the server bundles: `supabase/functions/_build/{api,mcp,jobs}.js` and `dist-server/worker.js`.
 - `npm run typecheck` - both tsconfigs (screens and server).
-- `npm test` - the `unit` and `server` projects (about 7,300 tests). Run it alone: next to a build or Playwright,
+- `npm test` - the `unit` and `server` projects (about 7,700 tests). Run it alone: next to a build or Playwright,
   screen tests time out. With a load average far above the core count (`uptime`), other screen tests time out on each
   run: run the failed files alone (`--no-file-parallelism --testTimeout=60000`) before you call a test broken.
 - Port 5173 on this Mac often runs another project. Start Madar with `npx vite --host 127.0.0.1 --port 5180
