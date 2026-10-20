@@ -405,57 +405,63 @@ describe('one calendar for each person (owner test 2026-10-20: a second calendar
 // that worked ran 3.3 s: a Google step of the connect needed about 3 s, and the limit of 3 s cut it.
 describe('the time limit of a connect (fbk_033)', () => {
   const isMake = (request: { method: string; path: string }) => request.method === 'POST' && request.path === '/calendar/v3/calendars';
+  const isToken = (request: { path: string }) => request.path === '/token';
+  const TOKENS = { access_token: 'at-SECRET', refresh_token: 'rt-SECRET', expires_in: 3600, scope: GOOGLE_SCOPE };
   const late = (t: GoogleOffice, ms: number, body: unknown) => (): Promise<Response> =>
     new Promise((resolve) => { setTimeout(() => resolve(t.google.reply(body)), ms); });
+  const failures = (t: GoogleOffice) => t.deps.logs.filter((line) => line.message === 'A Google Calendar connect failed.').map((line) => line.fields);
   // The crypto of the connect runs outside the fake clock, so the clock moves in small steps until the call answers.
   async function settle<T>(pending: Promise<T>): Promise<T> {
     let done = false;
     void pending.finally(() => { done = true; });
-    for (let step = 0; step < 200 && !done; step += 1) {
+    for (let step = 0; step < 400 && !done; step += 1) {
       await vi.advanceTimersByTimeAsync(100);
       await new Promise((resolve) => { setImmediate(resolve); });
     }
     return pending;
   }
+  async function connectWithClock(t: GoogleOffice) {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    try {
+      return await settle(t.connect('usr_003'));
+    } finally {
+      vi.useRealTimers();
+    }
+  }
 
   it('waits more than 3 s for Google: a calendar that comes after 4 s connects', async () => {
     const t = await googleOffice();
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    try {
-      t.google.on(isMake, late(t, 4000, { id: 'cal-slow@group.calendar.google.com' }));
-      expect(ok(await settle(t.connect('usr_003')))).toMatchObject({ state: 'ok' });
-    } finally {
-      vi.useRealTimers();
-    }
+    t.google.on(isMake, late(t, 4000, { id: 'cal-slow@group.calendar.google.com' }));
+    expect(ok(await connectWithClock(t))).toMatchObject({ state: 'ok' });
     expect((await rowsOf(t, 'select calendar_id from google_connections')).map((row) => row.calendar_id)).toEqual(['cal-slow@group.calendar.google.com']);
   });
 
-  it('waits more than 3 s for the code swap as well', async () => {
+  it('gives the code swap, the first call to Google, up to 10 s', async () => {
     const t = await googleOffice();
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    try {
-      t.google.on((request) => request.path === '/token', late(t, 4000, { access_token: 'at-SECRET', refresh_token: 'rt-SECRET', expires_in: 3600, scope: GOOGLE_SCOPE }));
-      expect(ok(await settle(t.connect('usr_003')))).toMatchObject({ state: 'ok' });
-    } finally {
-      vi.useRealTimers();
-    }
+    t.google.on(isToken, late(t, 8000, TOKENS));
+    expect(ok(await connectWithClock(t))).toMatchObject({ state: 'ok' });
+    expect(failures(t)).toEqual([]);
   });
 
-  it('stops at 5 s, takes the grant back, stores nothing, and logs a timeout of the calendar step', async () => {
+  it('stops one call at 10 s, takes the grant back, stores nothing, and logs a timeout of the calendar step', async () => {
     const t = await googleOffice();
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    try {
-      t.google.on(isMake, late(t, 7000, { id: 'cal-late@group.calendar.google.com' }));
-      expect(await settle(t.connect('usr_003'))).toMatchObject({ ok: false, error: { details: { reason: 'google_unreachable' } } });
-    } finally {
-      vi.useRealTimers();
-    }
+    t.google.on(isMake, late(t, 11_000, { id: 'cal-late@group.calendar.google.com' }));
+    expect(await connectWithClock(t)).toMatchObject({ ok: false, error: { details: { reason: 'google_unreachable' } } });
     expect(t.google.requests.filter((request) => request.path === '/revoke')).toHaveLength(1);
     expect(await rowsOf(t, 'select * from google_connections')).toEqual([]);
-    expect(t.deps.logs.filter((line) => line.message === 'A Google Calendar connect failed.').map((line) => line.fields))
-      .toEqual([{ userId: 'usr_003', step: 'calendar_make', code: 'timeout' }]);
+    expect(failures(t)).toEqual([{ userId: 'usr_003', step: 'calendar_make', code: 'timeout' }]);
+  });
+
+  it('shares one budget of 15 s: after a code swap of 9 s, a calendar that comes after 7 s is too late', async () => {
+    const t = await googleOffice();
+    t.google.on(isToken, late(t, 9000, TOKENS));
+    t.google.on(isMake, late(t, 7000, { id: 'cal-late@group.calendar.google.com' }));
+    expect(await connectWithClock(t)).toMatchObject({ ok: false, error: { details: { reason: 'google_unreachable' } } });
+    expect(failures(t)).toEqual([{ userId: 'usr_003', step: 'calendar_make', code: 'timeout' }]);
+    expect(await rowsOf(t, 'select * from google_connections')).toEqual([]);
   });
 });
+
 
 // fbk_033 (2026-10-20): a connect on production answered google_unreachable, and no log line said which Google call failed or how.
 describe('the log of a failed connect (fbk_033)', () => {

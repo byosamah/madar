@@ -108,8 +108,9 @@ The other host stays deployed as the way back. Each area below has its own guide
   writes a State table (`push_devices`) outside `runCall` (`push/CLAUDE.md`).
 - Lock order: the office lock, then the mail lock. The mail reserve takes only the mail lock, in its own transaction.
 - A preflight hook does network work before the transaction and never holds the lock.
-- Every network call has a 3 s timeout. The one exception: the Google calls of `google.connect` get 5 s (`GOOGLE_CONNECT_TIMEOUT_MS`,
-  fbk_033), because the person waits on the screen and the steps took about 3 s on production. Their chain stays under the 20 s of the screen.
+- Every network call has a 3 s timeout. The one exception: the Google calls of `google.connect` share a budget of 15 s, at most 10 s
+  for one call (`GOOGLE_CONNECT_BUDGET_MS`, `GOOGLE_CONNECT_CALL_MS`; fbk_033), because the person waits on the screen and the first call
+  took about 3 s on production. The budget and the 3 s revoke of a failure stay under the 20 s of the screen.
 - Only `set local` on the pooler: `data/sql.ts` refuses a plain SET.
 - Database TLS fails closed: TLS with the Supabase root CA (`DATABASE_CA`) for every host except loopback and the local
   Docker hosts. No `sslmode` in a URL.
@@ -120,7 +121,7 @@ The other host stays deployed as the way back. Each area below has its own guide
 ## Google Calendar (fbk_022, owner 2026-10-19)
 - One way: Madar writes each meeting to the calendar "Madar" of each connected person who is its organizer or an attendee. A change in Google never comes
   back. Each person connects once in Settings (`google.connectStart`, the Google screen, the callback, `google.connect`; see `src/api/CLAUDE.md`). The
-  scope is only `calendar.app.created`: Madar makes its own calendar and writes only there. Code: `server/google/` (`api.ts` the Google calls with a 3 s (5 s in a connect)
+  scope is only `calendar.app.created`: Madar makes its own calendar and writes only there. Code: `server/google/` (`api.ts` the Google calls with a 3 s (a 15 s budget in a connect)
   limit, `keys.ts` the seal, `state.ts` the signed state with the PKCE verifier, `store.ts` the three tables, `sync.ts`, `rows.ts`, `register.ts`).
 - One calendar for each person (owner test 2026-10-20: Disconnect, then Connect made a second calendar "Madar" with the same meetings at two times). The scope
   reaches every calendar that Madar made, also with the token of a newer link, but it cannot list calendars (`users/me/calendarList` gives 403). So Madar

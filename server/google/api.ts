@@ -1,7 +1,7 @@
 /**
  * The Google client of the Calendar connect (fbk_022, owner 2026-10-19): the sign-in address, the code swap, the refresh, the
  * Madar calendar (make it, read it), its events (write them, list them), and the revoke. Plain `fetch` with a 3 second limit on every call,
- * and 5 seconds on the calls of a connect (GOOGLE_CONNECT_TIMEOUT_MS). Tests pass a stub fetch, so no test reaches Google.
+ * and a longer limit on the calls of a connect (GOOGLE_CONNECT_BUDGET_MS). Tests pass a stub fetch, so no test reaches Google.
  *
  * An error is a GoogleError whose message is its code and nothing more. The text of a network error, a Google answer, an address, a
  * token or a title never reaches an error, a log line or the outbox. The caller decides from `code` and `retry`.
@@ -9,11 +9,14 @@
 
 export const GOOGLE_TIMEOUT_MS = 3000;
 /**
- * The limit of each Google call of google.connect: the code swap, the read of the remembered calendar and the new calendar (fbk_033).
- * On production (2026-10-20) these steps took about 3 s, and the limit of 3 s failed 3 of 4 connects. The person waits on the screen,
- * and the screen waits 20 s for an answer (REQUEST_TIMEOUT_MS): three calls of 5 s and the revoke of 3 s (18 s) stay under it.
+ * The time of the Google calls of one google.connect before its answer: the code swap, the read of the remembered calendar and the new
+ * calendar (fbk_033). On production (2026-10-20) a connect ran 3.2 to 3.7 s, mostly in the code swap, the first call to Google, and the
+ * limit of 3 s failed 3 of 4 connects. Each call waits at most GOOGLE_CONNECT_CALL_MS and never past the budget. The person waits on the
+ * screen, and the screen waits 20 s for an answer (REQUEST_TIMEOUT_MS): the budget and the revoke of a failure (3 s) stay under it.
  */
-export const GOOGLE_CONNECT_TIMEOUT_MS = 5000;
+export const GOOGLE_CONNECT_BUDGET_MS = 15_000;
+/** The most that one Google call of a connect waits. */
+export const GOOGLE_CONNECT_CALL_MS = 10_000;
 /** The one scope: Madar makes its own calendar in the account of the person and writes only there. */
 export const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/calendar.app.created';
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
