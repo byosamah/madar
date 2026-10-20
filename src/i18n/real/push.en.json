@@ -12,6 +12,21 @@
     "error": "Madar could not turn on notifications on this device. Try again.",
     "offError": "Madar could not turn off notifications on this device. Try again.",
     "notificationTitle": "Madar",
-    "notificationBody": "You have something new in Madar."
+    "notificationBody": "You have something new in Madar.",
+    "homeScreenLine": "On an iPhone or iPad, Madar can send notifications only from the Home Screen. Add it there in 3 steps:",
+    "homeScreenStep1": "Tap Share in your browser. In Safari, it can be under •••.",
+    "homeScreenStep2": "Tap “Add to Home Screen”.",
+    "homeScreenStep3": "Open Madar from its new icon, sign in, and tap “Turn on notifications”.",
+    "installTitle": "Madar on your Home Screen",
+    "installLine": "Add Madar to your Home Screen. It then opens like an app, in its own window.",
+    "installButton": "Add to Home Screen"
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-70": {
+        "title": "Notifications on your phone",
+        "body": "On an iPhone, Home now shows 3 steps that add Madar to the Home Screen. An iPhone gets notifications only from there. On Android, Home shows one button that adds Madar to the Home Screen. Notifications now reach a phone in sleep mode at once. They also reach a phone that had no signal for some hours."
+      }
+    }
   }
 }

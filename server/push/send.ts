@@ -17,8 +17,16 @@ import { PushConfigError, VAPID_NAMES, vapidAuthorization, type VapidConfig } fr
 
 export type PushOutcome = 'sent' | 'gone' | 'refused';
 
-/** The push service holds an unsent message for one hour (the browser is off), and then drops it. */
-export const PUSH_TTL_SECONDS = 3600;
+/**
+ * The push service holds an unsent message for one day (the phone is off or has no signal, as on a site visit), and then drops it
+ * (owner, 2026-10-20). The topic "madar" keeps only the newest unsent push for each device, so a phone that comes back gets one line.
+ */
+export const PUSH_TTL_SECONDS = 86_400;
+/**
+ * High (owner, 2026-10-20): every push is a line for a person about a task or a chat. Android holds a normal push while the phone
+ * is in sleep mode (Doze) until the phone wakes, and sends a high push at once.
+ */
+const PUSH_URGENCY = 'high';
 const DEFAULT_TIMEOUT_MS = 3_000;
 
 /** A send that may work later. */
@@ -54,7 +62,7 @@ export async function sendPush(config: VapidConfig | undefined, endpoint: string
   try {
     response = await (o.fetch ?? globalThis.fetch)(endpoint, {
       method: 'POST',
-      headers: { Authorization: authorization, TTL: String(PUSH_TTL_SECONDS), Urgency: 'normal', Topic: 'madar' },
+      headers: { Authorization: authorization, TTL: String(PUSH_TTL_SECONDS), Urgency: PUSH_URGENCY, Topic: 'madar' },
       // A push service never needs a redirect. A redirect answer is a refusal, so the server never follows it to another host.
       redirect: 'manual',
       signal: AbortSignal.timeout(o.timeoutMs ?? DEFAULT_TIMEOUT_MS),

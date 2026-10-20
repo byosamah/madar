@@ -72,6 +72,28 @@ export function iphoneBrowser(): void {
   });
 }
 
+/** The user agent of Chrome on an Android phone: push works in the tab, and Chrome may offer the install. */
+export function androidBrowser(): void {
+  Object.defineProperty(navigator, 'userAgent', {
+    configurable: true,
+    value: 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36',
+  });
+}
+
+/**
+ * A made-up `beforeinstallprompt` event of Chrome (owner, 2026-10-20). `prompt` records the call; `userChoice` gives the answer of the
+ * person in the install box.
+ */
+export function installEvent(outcome: 'accepted' | 'dismissed' = 'accepted') {
+  const event = new Event('beforeinstallprompt', { cancelable: true }) as Event & {
+    prompt: ReturnType<typeof vi.fn>;
+    userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+  };
+  event.prompt = vi.fn(async () => undefined);
+  event.userChoice = Promise.resolve({ outcome });
+  return event;
+}
+
 /** The push words of both languages. The track files are not in the type of the base file, so the tests read them through this. */
 export const pushWords = {
   en: (en as unknown as { push: Record<string, string> }).push,

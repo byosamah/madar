@@ -81,6 +81,12 @@ any screen work.
 - Only a person who turned the switch off stays off. `usePushDevice` keeps that choice in localStorage for each person
   (`madar.pushOff.<user id>`, `isPushOptedOut` and `setPushOptOut` in `push.ts`), sets it before the turn off, takes it back when
   the turn off fails, and clears it at a turn on. The ask also stays away from that person. The choice is never on the server.
+- The Home Screen (owner, 2026-10-20), until the store app comes: `PushAskCard` shows one of three cards, in this order. (1) The
+  push ask. (2) On an iPhone or iPad in a browser tab (`needs_install`), the 3 steps to the Home Screen, with no button: Apple lets no
+  page start the install, and a Home Screen app keeps its own storage, so step 3 says to sign in there. (3) On Android, after the
+  first push check, one button "Add to Home Screen" when Chrome offers the install. `src/app/remote/install.ts` keeps the
+  `beforeinstallprompt` event (Android only, so a computer keeps the install icon of Chrome) and stops the bar of Chrome; `main.tsx`
+  starts it before the first screen. The tap calls `promptInstall` first. Chrome gives the event once, so any answer ends the card.
 
 ## The project pin and the map (owner, 2026-10-18, fbk_017; the free map since 2026-10-19)
 - `src/features/map/`: `MapCanvas.tsx` is the one MapLibre wrapper, `PinPicker.tsx` the one field of the pin, `PinSheet.tsx` the sheet

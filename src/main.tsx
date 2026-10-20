@@ -15,6 +15,7 @@ import { AppearanceSync } from './app/AppearanceSync';
 import { canonicalUrl } from './app/canonicalHost';
 import { REMOTE } from './app/mode';
 import { hasStoredSession } from './app/remote/authMode';
+import { watchInstall } from './app/remote/install';
 import { createAppRouter, screensAt } from './app/routes';
 import { RuntimeProvider, createQueryClient, type Runtime } from './app/runtime';
 import { loadScreen, prefetchScreens, preloadScreens } from './app/screens';
@@ -89,4 +90,8 @@ async function main(): Promise<void> {
 // www.<host> moves to <host> first (src/app/canonicalHost.ts), so nothing starts on the address that the person leaves.
 const canonical = REMOTE ? canonicalUrl(window.location.href) : null;
 if (canonical) window.location.replace(canonical);
-else void main();
+else {
+  // Chrome on Android can send its install event before the first screen, so the page listens from the start (owner, 2026-10-20).
+  if (REMOTE) watchInstall();
+  void main();
+}

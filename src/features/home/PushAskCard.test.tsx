@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { watchInstall } from '../../app/remote/install';
 import { setPushOptOut } from '../../app/remote/push';
 import { initI18n } from '../../i18n';
-import { iphoneBrowser, PUSH_TEST_ENDPOINT, PUSH_TEST_KEY, pushBrowser, pushWords, stopPushBrowser } from '../../test/pushBrowser';
+import {
+  androidBrowser, installEvent, iphoneBrowser, PUSH_TEST_ENDPOINT, PUSH_TEST_KEY, pushBrowser, pushWords, stopPushBrowser,
+} from '../../test/pushBrowser';
 import { renderWithRuntime } from '../../test/render';
 import { HomeScreen } from './HomeScreen';
 import { PushAskCard } from './PushAskCard';
@@ -17,12 +20,16 @@ function remote(on: boolean) {
   mode.PROTOTYPE = !on;
 }
 
+let stopInstall: () => void = () => undefined;
+
 beforeEach(() => {
   remote(true);
   vi.stubEnv('VITE_VAPID_PUBLIC_KEY', PUSH_TEST_KEY);
 });
 
 afterEach(() => {
+  stopInstall();
+  stopInstall = () => undefined;
   cleanup();
   remote(false);
   vi.unstubAllGlobals();
@@ -99,10 +106,6 @@ describe('the one ask for browser push on Home (owner, 2026-10-09)', () => {
       () => pushBrowser({ permission: 'denied' }),
       () => pushBrowser({ none: true }),
       () => {
-        pushBrowser({ none: true });
-        iphoneBrowser();
-      },
-      () => {
         vi.stubEnv('VITE_VAPID_PUBLIC_KEY', '');
         pushBrowser();
       },
@@ -127,6 +130,137 @@ describe('the one ask for browser push on Home (owner, 2026-10-09)', () => {
     initI18n('ar');
     expect(await screen.findByRole('button', { name: pushWords.ar.askButton })).toBeInTheDocument();
     expect(screen.getByText(pushWords.ar.ask)).toBeInTheDocument();
+    await act(async () => undefined);
+  });
+});
+
+// The Home Screen app until the store app comes (owner, 2026-10-20): each phone gets its own one next step.
+describe('the steps to the Home Screen on an iPhone or iPad', () => {
+  const iphoneSafari = () => {
+    pushBrowser({ none: true });
+    iphoneBrowser();
+  };
+
+  it('shows the line and the 3 steps, with no button, in a browser tab of an iPhone', async () => {
+    iphoneSafari();
+    await renderWithRuntime(<PushAskCard />);
+    expect(await screen.findByText(pushWords.en.homeScreenLine)).toBeInTheDocument();
+    const steps = screen.getAllByRole('listitem').map((item) => item.textContent);
+    expect(steps).toEqual([pushWords.en.homeScreenStep1, pushWords.en.homeScreenStep2, pushWords.en.homeScreenStep3]);
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+  });
+
+  it('names the same button as the ask, which the person taps once Madar opens from the Home Screen', () => {
+    expect(pushWords.en.homeScreenStep3).toContain(`“${pushWords.en.askButton}”`);
+    expect(pushWords.ar.homeScreenStep3).toContain(`«${pushWords.ar.askButton}»`);
+  });
+
+  it('reads in Arabic', async () => {
+    iphoneSafari();
+    await renderWithRuntime(<div dir="rtl"><PushAskCard /></div>);
+    initI18n('ar');
+    expect(await screen.findByText(pushWords.ar.homeScreenLine)).toBeInTheDocument();
+    expect(screen.getByText(pushWords.ar.homeScreenStep2)).toBeInTheDocument();
+    await act(async () => undefined);
+  });
+
+  it('is not in the prototype build', async () => {
+    remote(false);
+    iphoneSafari();
+    const { container } = await renderWithRuntime(<PushAskCard />);
+    await settle();
+    expect(container.textContent).toBe('');
+  });
+});
+
+describe('the Home Screen button on Android', () => {
+  const installButton = () => screen.findByRole('button', { name: pushWords.en.installButton });
+  const offered = (outcome?: 'accepted' | 'dismissed') => {
+    const event = installEvent(outcome);
+    window.dispatchEvent(event);
+    return event;
+  };
+
+  it('waits while the ask for notifications shows, so the phone has one next step', async () => {
+    androidBrowser();
+    pushBrowser();
+    stopInstall = watchInstall();
+    offered();
+    await renderWithRuntime(<PushAskCard />);
+    expect(await button()).toBeEnabled();
+    expect(screen.queryByRole('button', { name: pushWords.en.installButton })).toBeNull();
+  });
+
+  it('shows one line and one button after the answer about notifications', async () => {
+    androidBrowser();
+    pushBrowser({ permission: 'granted', subscribed: true });
+    stopInstall = watchInstall();
+    offered();
+    await renderWithRuntime(<PushAskCard />);
+    expect(await installButton()).toBeEnabled();
+    expect(screen.getByText(pushWords.en.installLine)).toBeInTheDocument();
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+    expect((await installButton()).classList.contains('signature')).toBe(false);
+  });
+
+  it('comes when Chrome offers the install after the card is on the screen', async () => {
+    androidBrowser();
+    pushBrowser({ permission: 'denied' });
+    stopInstall = watchInstall();
+    await renderWithRuntime(<PushAskCard />);
+    await settle();
+    expect(screen.queryByRole('button', { name: pushWords.en.installButton })).toBeNull();
+    act(() => void offered());
+    expect(await installButton()).toBeEnabled();
+  });
+
+  it('opens the install box of Chrome inside the tap, and is gone after any answer', async () => {
+    for (const outcome of ['accepted', 'dismissed'] as const) {
+      cleanup();
+      stopInstall();
+      androidBrowser();
+      pushBrowser({ permission: 'granted', subscribed: true });
+      stopInstall = watchInstall();
+      const event = offered(outcome);
+      await renderWithRuntime(<PushAskCard />);
+      fireEvent.click(await installButton());
+      expect(event.prompt).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(screen.queryByRole('button', { name: pushWords.en.installButton })).toBeNull());
+    }
+  });
+
+  it('shows nothing when Chrome offers no install (Madar is already on the Home Screen) or on a computer', async () => {
+    for (const setup of [
+      () => {
+        androidBrowser();
+        pushBrowser({ permission: 'granted', subscribed: true });
+        stopInstall = watchInstall();
+      },
+      () => {
+        pushBrowser({ permission: 'granted', subscribed: true });
+        stopInstall = watchInstall();
+        offered();
+      },
+    ]) {
+      cleanup();
+      stopInstall();
+      stopPushBrowser();
+      setup();
+      const { container } = await renderWithRuntime(<PushAskCard />);
+      await settle();
+      expect(container.textContent).toBe('');
+    }
+  });
+
+  it('reads in Arabic', async () => {
+    androidBrowser();
+    pushBrowser({ permission: 'granted', subscribed: true });
+    stopInstall = watchInstall();
+    offered();
+    await renderWithRuntime(<div dir="rtl"><PushAskCard /></div>);
+    initI18n('ar');
+    expect(await screen.findByRole('button', { name: pushWords.ar.installButton })).toBeInTheDocument();
+    expect(screen.getByText(pushWords.ar.installLine)).toBeInTheDocument();
     await act(async () => undefined);
   });
 });

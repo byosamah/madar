@@ -82,7 +82,10 @@ message from a notice, and the server cannot know that a window is open. The fix
      one line only.
    - Any other answer (400, 401, 403, 413, a redirect): `refused`. The effect logs a warning with the host and does not retry.
      The device stays.
-5. The headers are `Authorization: vapid t=<jwt>, k=<public key>`, `TTL: 3600`, `Urgency: normal` and `Topic: madar`.
+5. The headers are `Authorization: vapid t=<jwt>, k=<public key>`, `TTL: 86400`, `Urgency: high` and `Topic: madar` (owner,
+   2026-10-20). One day of life: a phone with no signal for some hours still gets the line, and the topic keeps only the newest
+   unsent push for each device. High: Android holds a normal push while the phone is in sleep mode (Doze) until it wakes.
+   These fixes serve the Home Screen app until the store app comes.
    The sender sets no `Content-Length`: a fetch POST with no body sends `Content-Length: 0` by itself. The token has `aud` = the origin of the endpoint, `exp` under 12 hours (11 hours) and `sub` = VAPID_SUBJECT.
    The fetch never follows a redirect.
 6. On the office object (exit wave 3), `sendPush` signs the VAPID token in the object and posts through `deps.pushFetch`, the

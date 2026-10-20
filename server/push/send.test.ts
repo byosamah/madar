@@ -31,8 +31,10 @@ describe('sendPush', () => {
     const headers = new Headers(init.headers);
     expect(headers.get('authorization')).toMatch(/^vapid t=[\w-]+\.[\w-]+\.[\w-]+, k=[\w-]{87}$/);
     expect(headers.get('ttl')).toBe(String(PUSH_TTL_SECONDS));
-    expect(PUSH_TTL_SECONDS).toBe(3600);
-    expect(headers.get('urgency')).toBe('normal');
+    // A day, so a phone with no signal for some hours (a site visit) still gets the line. The topic keeps only the newest push.
+    expect(PUSH_TTL_SECONDS).toBe(86_400);
+    // High, so Android sends it at once to a phone in sleep mode (Doze holds a normal push until the phone wakes).
+    expect(headers.get('urgency')).toBe('high');
     expect(headers.get('topic')).toBe('madar');
     // A fetch POST with no body sets Content-Length 0 by itself on Node, Deno and Workers. A header set by hand can only fail there.
     expect(headers.has('content-length')).toBe(false);
