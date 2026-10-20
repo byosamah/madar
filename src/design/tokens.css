@@ -534,6 +534,21 @@
   pointer-events: none;
 }
 
+/* The project tile under a sub-company badge: a circle of radius --cut leaves the end corner, where the badge center sits
+   (ProjectTile.tsx). The surface under the tile shows in the gap, so the badge needs no ring of one color (owner, 2026-10-20).
+   The map box is dir="ltr" inside an Arabic page, so the last rule puts the cut back on the end side of that box. */
+.tile-cut {
+  --cut-x: 100%;
+  -webkit-mask-image: radial-gradient(circle at var(--cut-x) 100%, transparent calc(var(--cut) - 0.5px), #000 calc(var(--cut) + 0.5px));
+  mask-image: radial-gradient(circle at var(--cut-x) 100%, transparent calc(var(--cut) - 0.5px), #000 calc(var(--cut) + 0.5px));
+}
+[dir="rtl"] .tile-cut {
+  --cut-x: 0%;
+}
+[dir="rtl"] [dir="ltr"] .tile-cut {
+  --cut-x: 100%;
+}
+
 /* Motion moment 4: a line draws from zero once, from the start side. */
 .draw-line {
   transform-origin: left center; /* rtl-ok: flipped below */

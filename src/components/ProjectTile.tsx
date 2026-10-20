@@ -32,6 +32,9 @@ export function ProjectTile({ id, mark, size = 34, shared = false, subCompanyId 
   // The badge is 45% of the tile, and 18 px at least, so a mark still reads on a small tile (PRJ-11). Its center sits on the end
   // corner, so half of it stays outside the tile (fbk_007).
   const badge = Math.max(MIN_BADGE, Math.round(size * 0.45));
+  // The tile loses a circle 2 px wider than the badge (tile-cut in tokens.css), so the surface under the tile shows around the badge.
+  // A ring in one color showed as a dark or white edge on the other surfaces (owner, 2026-10-20).
+  const cut = sub ? { '--cut': `${badge / 2 + 2}px` } : {};
   return (
     <span className="relative inline-flex shrink-0" style={{ width: size, height: size }}>
       <motion.span
@@ -39,17 +42,18 @@ export function ProjectTile({ id, mark, size = 34, shared = false, subCompanyId 
         transition={spring.expand}
         aria-hidden="true"
         data-project-mark={value}
-        style={{ width: size, height: size, background: markGlow(id, value) }}
-        className="grid shrink-0 place-items-center rounded-[30%] ring-1 ring-inset ring-ink/10"
+        style={{ width: size, height: size, background: markGlow(id, value), ...cut }}
+        className={`grid shrink-0 place-items-center rounded-[30%] ring-1 ring-inset ring-ink/10 ${sub ? 'tile-cut' : ''}`}
       >
         <MarkForm mark={value} className="size-[45%]" />
       </motion.span>
       {sub && (
+        // A flex box, so its height is the logo, not a line of text: an inline box drew the old ring as a pill (owner, 2026-10-20).
         <span
           data-sub-company-badge
           title={lang === 'ar' ? sub.nameAr : sub.name}
-          style={{ insetBlockEnd: -badge / 2, insetInlineEnd: -badge / 2, boxShadow: '0 0 0 2px var(--c-panel)' }}
-          className="absolute rounded-full"
+          style={{ width: badge, height: badge, insetBlockEnd: -badge / 2, insetInlineEnd: -badge / 2 }}
+          className="absolute flex rounded-full"
         >
           <SubCompanyLogo subCompanyId={sub.id} size={badge} />
         </span>

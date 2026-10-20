@@ -42,12 +42,27 @@ describe('the project tile and its sub-company (fbk_007)', () => {
     expect(plate.style.background).toBe('rgb(255, 255, 255)');
   });
 
-  it('draws the badge with a 2 px ring in the card color', () => {
-    const { container } = render(tile({ subCompanyId: 'sub_001' }));
-    const badge = container.querySelector<HTMLElement>('[data-sub-company-badge]');
-    expect(badge).not.toBeNull();
-    expect(badge!.style.boxShadow).toContain('2px');
-    expect(badge!.style.boxShadow).toContain('var(--c-panel)');
+  it('cuts a 2 px gap around the badge out of the tile, so the badge reads on any surface with no ring of its own (owner, 2026-10-20)', () => {
+    const { container } = render(tile({ subCompanyId: 'sub_001', size: 40 }));
+    const badge = container.querySelector<HTMLElement>('[data-sub-company-badge]')!;
+    const mark = container.querySelector<HTMLElement>('[data-project-mark]')!;
+    expect(mark).toHaveClass('tile-cut');
+    // The badge is 18 px: a gap of 2 px around its radius of 9 px.
+    expect(mark.style.getPropertyValue('--cut')).toBe('11px');
+    expect(badge.style.boxShadow).toBe('');
+  });
+
+  it('keeps the box of the badge the size of the circle, so nothing draws a pill below it (owner, 2026-10-20)', () => {
+    const { container } = render(tile({ subCompanyId: 'sub_001', size: 40 }));
+    const badge = container.querySelector<HTMLElement>('[data-sub-company-badge]')!;
+    // A flex box holds no line of text, so its height is the height of the logo, not the line height of the page.
+    expect(badge).toHaveClass('flex');
+    expect(badge).toHaveStyle({ width: '18px', height: '18px' });
+  });
+
+  it('cuts no gap in a tile with no sub-company', () => {
+    const { container } = render(tile({ subCompanyId: null }));
+    expect(container.querySelector('[data-project-mark]')).not.toHaveClass('tile-cut');
   });
 
   it('keeps the tile itself hidden from a screen reader, and the logo visible to it', () => {
