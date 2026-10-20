@@ -124,6 +124,10 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - The unread count of a chat is one grouped count, or two (chat design item 23): the project chats that `countsNamedOnly` marks (the Admin's
   chats of projects that the Admin neither leads nor works on, with no stored `notify: 'all'`) get a second grouped count with the extra
   condition `{ has: 'mentions', value: userId }`; every other chat keeps the first. Change `unreadIn` (`src/api/chatState.ts`) with it.
+- The choice of the Admin (`adminReachOf`, owner 2026-10-23) feeds the same rule in the loader: `chatsOf` passes it to `countsNamedOnly` (`all`
+  counts every message), and `chatsAll`, `chatsUnread` and `chatsMarkRead` read the chats through `listed(L)` (`mine` leaves out the project chats
+  with the role `other`, `hiddenByReach`). `chats.markRead` of such a hidden chat loads that chat by itself (`chatsOf`), because the list no longer
+  does. `loaders.test.ts` keeps the whole office and the scoped load equal for each choice. A copy of a notice has `forUserIds` and no column.
 - `atBefore` (a Cond on a stamp column) is the upper bound of a period: a timestamp test in SQL, in memorySource and in the
   SQLite compile, never text. `reports.office` (`loaders/report.ts`) reads the clock from `LoadCtx.now` (the call's time), and
   its counts come from `countWhere` with one key for each value (`REPORT_KEYS`). A loader without the clock never resolves a period.

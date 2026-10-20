@@ -295,6 +295,27 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   notice (`server/data/loaders/inbox.ts`). `readMap.ts` needs no `feedback` kind: that answer never changes on a report change.
 - Both triggers count on the bell (`ACTION_TRIGGERS`). A done notice has the link `''`: its row only marks it read.
 
+## Copies for the Admin (owner, 2026-10-23)
+- An Admin with `Preferences.adminReach` `all` gets a COPY of each notice of the office that the Admin did not get as a recipient.
+  `notify()` calls `copyForAdmins` (`adminCopies.ts`) after the normal notices, with the notices it made (`told`). The copy is a
+  `Notification` with `forUserIds`: the people that the original went to. A call that tells nobody makes no copy.
+- The triggers that copy (`COPY_TRIGGERS`): `task_assigned`, `review_requested`, `task_approved`, `task_sent_back`, `stage_changed`,
+  `added_to_project`, `meeting_invited`, `helper_joined`, `task_deleted`, and `mention` only for a project chat message or a task comment
+  (`makesCopies`). Never `added_to_group`, a reminder (`due_tomorrow`, `overdue`, `resume_due`, `meeting_soon`), a report notice, or a
+  mention in a direct chat, a group or a project post. A new trigger makes no copy until it is in `COPY_TRIGGERS`.
+- One copy for each notice call and each Admin. The Admin gets none when the Admin is a recipient of the call, is the actor or the person
+  behind an agent actor, is inactive, has the in-app switch of the trigger off, or may not see the target (`mayViewTask`, `mayViewMeeting`,
+  `canSeeConversation`, an existing project). A message that names one person and replies to another is two calls, so two copies.
+- A copy sends no push and no email: the producers skip a notice with `forUserIds` (`PUSH_NEW_NOTICES_SQL`, `NEW_NOTICES_SQL`, and the
+  SQLite forms). Tests: `server/push/adminCopies.test.ts`. A copy joins the story of the call (`correlationId`), so `dropNotices` takes it back
+  with the original. An edit of a chat message that removes a name takes the name out of the copy, and the copy goes with its last name
+  (`dropMessageNotices`); the restore of a deleted message makes its copies read (`readCopiesOf`).
+- The view (`NotificationView.forPeople`) names the people. A copy of an office task, a meeting or a chat that the person no longer sees names
+  nobody (`peopleOfCopy`), and the line reads `adminReach.copyGone`. The words are `adminReach.copy.<trigger>` (the mention and the meeting
+  have `mention_chat`, `reply_chat`, `mention_task`, `reply_task`, `meeting_new`, `meeting_moved`, `meeting_cancelled`), in
+  `src/i18n/real/adminreach.*.json`. A copy counts on the bell like any notice (`ACTION_TRIGGERS`).
+- The choice is saved by `me.updatePreferences` (`adminReach`). It refuses a person who is not an Admin, and an agent, with `forbidden`.
+
 ## Browser push devices (owner, 2026-10-08)
 - `PushDevice` (`pdv_`): `userId`, `endpoint`, `label`, `createdAt`, `lastPushAt`. `State.pushDevices` is optional (`pushDevicesOf`), so
   there is no `STATE_VERSION` step. It is private to its person: nobody else reads it, the Admin included.

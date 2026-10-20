@@ -258,6 +258,9 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   card with one button (the owner chose the card over an ask at the first tap or at the start). After Allow, push turns on again by
   itself at each sign-in. A person who turns the switch off stays off on that browser. No MCP change: the three push calls stay
   on the deny list. Record: `src/CLAUDE.md`.
+- 2026-10-23: one choice for the Admin, "What reaches me" (Settings): Only my work, My work and the rest in the list (the default, as before), or
+  Everything (every project chat message counts, and the bell gets a copy of each notice of the office, with no push and no email). Record: `src/CLAUDE.md`
+  and `src/api/CLAUDE.md` ("Copies for the Admin").
 - 2026-10-16: move the files from Supabase Storage to R2, and the server from Supabase Edge Functions to one Cloudflare Worker
   for each copy (the test copy first); the database, Auth and Realtime stay; the functions stay as the way back; the Worker
   stays only if it measures faster.

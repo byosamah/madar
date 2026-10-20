@@ -408,6 +408,16 @@ any screen work.
   as before, and their row counts only the unread messages that name the Admin, unless the Admin picked All messages in the chat menu
   (`countsNamedOnly`, `chatState.ts`). Because such a row can count 0 while plain messages are new, `ChatPane` marks the chat read on
   open when its newest message is newer than `readUpTo` (`behind`), not only when the count is above 0.
+- What reaches the Admin (owner, 2026-10-23): one choice for a person with the Admin role, `Preferences.adminReach`, in Settings
+  (`settings/AdminReachSection.tsx`, "What reaches me", before the notification switches; three radio choices, saved at once by
+  `me.updatePreferences` with a toast). Read it only with `adminReachOf` (`chatState.ts`): a missing value means `mixed`, and any person who is
+  not an Admin reads `mixed` whatever is stored. `mixed` is item 23 above, with no change. `mine` ("Only my work") leaves the project
+  chats with the role `other` out of the Inbox list and the badge (`hiddenByReach`); such a chat still opens (a link, a search, a notice, the
+  project page), and a message that names the Admin still gives the bell notice. `all` ("Everything") counts every message of every
+  project chat (`countsNamedOnly` takes the choice as its fourth argument) and makes copies for the bell (`src/api/CLAUDE.md`, "Copies
+  for the Admin"). The push of a chat message does not follow the choice: it keeps `levelFromRead` and the default "named" of a project
+  chat. The agent of an Admin follows the choice of its person, and cannot set it. The base word tree has no type for the track words, so a
+  test reads `adminReach.*` through a cast.
 - New group (`InboxScreen.tsx`): the title says "New group", a line counts the people, the name field shows from the start and is
   optional (an empty name takes the first names), and one full-width button makes the group.
 - Every chat takes files (owner, 2026-10-19). The box of a project chat uploads into the files of its project. The box of a direct chat

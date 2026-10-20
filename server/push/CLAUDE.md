@@ -54,6 +54,9 @@ message from a notice, and the server cannot know that a window is open. The fix
   never for a reaction, a delete, a quiet line or an Undo; an edit pushes only a person it names for the first time. One row for each
   person for each save: a `push.notify` row wins over a `push.chat` row. The mention switch of Settings does not stop a push that
   names a person.
+- A copy for an Admin who picked "Everything" (`Notification.forUserIds`, owner 2026-10-23) gives no push: `PUSH_NEW_NOTICES_SQL` and the SQLite
+  reader skip it. The choice does not change the push of a chat message either: `planPushes` reads the stored "Notify me" level and the default
+  "named" of a project chat, never the Admin choice. Tests: `adminCopies.test.ts`.
 - Only an active human with at least one device. A person with no device gets no row.
 - The switches of the notices (`Preferences.notifications`) already decide whether a notice exists. There is no push switch
   for a kind. The one switch of a person is per device: "Notify me on this device" in Settings.

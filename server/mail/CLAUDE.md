@@ -41,6 +41,10 @@ after the commit of the call that asked for it.
   ref), with the UTC day from the caller's clock. `REFUSAL_MARK_LITE` and `SENT_TODAY_LITE` are the first refusal and the meter. A mail of the office object goes through the network port of the Worker; with `MAIL_DRIVER=outbox` it goes into
   `mail_outbox` of the object.
 
+## Copies (owner, 2026-10-23)
+- A copy of a notice for an Admin who picked "Everything" (`Notification.forUserIds`) sends no mail: `NEW_NOTICES_SQL` and the SQLite reader
+  (`liteNoticeRows`) skip it, so no `mail.notice` and no `mail.chatNotice` row exists for it. Tests: `server/push/adminCopies.test.ts`.
+
 ## Content
 - Notice mail carries no client data: no task, project or comment text. The morning summary is the one exception (owner, 2026-10-19,
   fbk_021): it lists the open tasks of its reader, and each line holds the task title, the project key (`projectKey`, or "Office" for an

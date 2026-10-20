@@ -12,6 +12,8 @@ speaker, so write it as natural Arabic, not as a word-for-word copy of the Engli
   `chatfind` holds the words of the chat search and the open-at-a-message screens of 2026-10-19 (Messages group, Message and Project chat
   buttons, Show newer messages). `chatmsg`, `chatread` and `chatnotify` are the other chat tracks. `series` holds the words of the repeating meetings (fbk_022, wave 3):
   Repeat and Until, the line "Repeats every week", the scope question, the toasts and the refusals `until_before_start`, `until_too_far` and `series_day_one_only`.
+  `adminreach` holds the words of "What reaches me" (owner, 2026-10-23): the Settings section, the bell lines of a copy for an Admin
+  (`adminReach.copy.*`, with `_female` forms), the plural `adminReach.others`, and the What's new entry `2026-10-23-69`.
 - A task adds new words only to its own track files.
 - Server code reads the word files with plain JSON imports (no `import.meta.glob`).
 - `words.en.ts` and `words.ar.ts` each merge one language (the base file plus the track files). `trees.ts` gives both trees,

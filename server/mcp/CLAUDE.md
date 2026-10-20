@@ -66,6 +66,10 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 - Every other call is in `MCP_DENY` (`tools.ts`). A test fails for a call in no list or in two, so every new shared call goes
   into exactly one of them. The three `push.*` calls (browser push devices) are on it: an agent has no device (owner, 2026-10-08).
   `live.ticket` (exit wave 3) is on it too: an agent opens no socket.
+- What reaches the Admin (owner, 2026-10-23): `chats.list` of an agent of an Admin follows the choice of its person (`adminReachOf`, `mine` leaves
+  out the project chats the Admin neither leads nor works on, `all` counts every message). The agent cannot set it: `me.updatePreferences` and
+  `notifications.updateSettings` stay on the deny list. The `TOOL_DOCS` of `chats.list` (600 characters at most) and the Messages paragraph of
+  INSTRUCTIONS say so. Notices are not an MCP read, so the copies for the bell need no tool text.
 - Messages (owner, 2026-10-12): an agent messages the team with `chats.openDirect` (the direct chat with one person, made when
   there is none), `chats.list` (the chats the person may open, to find a project chat) and `chats.send` (one message as the
   person; the author is the agent and `actingForId` the person, so the Inbox shows both names). For one task it uses
