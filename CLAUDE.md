@@ -131,6 +131,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   minutes; `heavy-lock: waiting for ...` names the holder). Start them in the background. Each vitest run uses at most 5 workers
   (`maxWorkers`, `vite.config.ts`). A few files with `npx vitest run <files>` take no lock. Why: two or three full runs of other
   sessions at once filled the 16 GB of memory, the load reached 190 on 10 cores, and tests failed on their time limits.
+- A change to a test script in `package.json` also changes `scripts/vite-config.test.ts`: it pins the script texts.
 - Size of an old build: `git archive <sha> | tar -x -C $TMPDIR/base`, link `node_modules` into it, build there.
 - `npx supabase db reset` - after any migration change, from your own worktree, under the lock.
 - Last counts (2026-10-20, the chat batch, main 86ecc3c): unit+server 7,288 passed (689 files); test:db 1,840; test:lite 1,840;
@@ -209,8 +210,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - One builder for a track works in `deploy-test` on `rb/<track>` (`git switch -c`): no commit on main, no push, no deploy.
   The merge lead rebases it on main (`git rebase main`; the branch is not pushed), runs the gates once, then
   `git switch main && git merge --ff-only rb/<track>` and `git branch -d rb/<track>`.
-- To commit on main when no folder holds it, use `git commit-tree` and `git update-ref refs/heads/main <new> <old>`
-  (the old value guards a race). No folder changes.
+- When no folder holds main, check it out in a clean worktree (`git switch main`) and `git merge --ff-only <branch>` there.
+  `git update-ref refs/heads/main` was refused by the auto-mode check as Git Destructive (2026-10-20).
 - Never send a message to a running Workflow agent: it starts a duplicate copy in the same worktree.
 - A Workflow agent that stopped (an API error) keeps its commits, but SendMessage cannot resume it, and a re-run
   starts it again from its brief. Start a finisher in the same worktree with the commit list and the transcript

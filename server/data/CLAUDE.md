@@ -46,6 +46,8 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   `loaders/meetings.ts`: `meetings.list` reads one window (`atOrAfter` and `atBefore` on `starts_at`), `meetingConds` is the view rule in SQL
   (`project_id` in the office projects, or the person is the organizer or an attendee), and `meetingCall` reads one meeting by id with the
   minutes task and the Tracker line it names. The handler checks the view rule again on the rows. `meetings.create` reads the office only.
+- A handler that checks a right on a row the caller may not see (`meetings.extend`: the true last meeting of a series) needs a
+  loader without `meetingConds`; with it, the shadow run finds `forbidden` on the scoped load and `not_found` on the whole office.
   `events.list` adds the test "no `officeMeetingId`, or one of the private meetings of the person" for every person (`privateMeetingsOf`), the
   Admin too (owner, 2026-10-19, Q4), and the migration adds the statistics `events_office_meeting` for it. Wave 2 adds the partial index
   `meetings_to_settle` on `ends_at collate "C"` where `status = 'scheduled'` and `settled_at is null` (`20261021000100_meetings_settle.sql`), for the job
