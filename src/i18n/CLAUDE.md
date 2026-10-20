@@ -28,9 +28,13 @@ speaker, so write it as natural Arabic, not as a word-for-word copy of the Engli
 - Western digits and the Gregorian calendar in both languages (`ar-SA-u-ca-gregory-nu-latn`).
 - Office time is UTC+3. The work week is Sunday to Thursday.
 - Gentle words: "3 days past due", never "Overdue".
+- RTL: the layout uses logical classes only. Never put a left or right style next to a word.
+- A language switch calls `withWords(language, apply)`, so the direction and the words change together. The bundle check
+  fails a remote first load that holds the words.
 
 ## Arabic style (Thmanyah, owner, 2026-10-20)
-All Arabic follows the Thmanyah rules of the owner's global guide. The audit of 2026-10-20 rewrote 571 of 2,729 strings with them.
+🔴 Always: every Arabic text that you write follows the Thmanyah rules. This covers the screens, the mails, the push line,
+What's new, the docs and your replies to the owner in Arabic. The audit of 2026-10-20 rewrote 571 of 2,729 strings with them.
 - Plain standard Arabic. No dialect. One idea in each sentence, 14 words or less.
 - A button, a menu line and a title that names an action is a verb in the imperative: «احفظ», «احذف», «أضف», «افتح»,
   «عدّل», «أرسل», «حاول مرة أخرى». «إلغاء» and «تراجع» stay as they are. A name (tab, screen, column, right) stays a noun.
@@ -44,9 +48,12 @@ All Arabic follows the Thmanyah rules of the owner's global guide. The audit of 
 - Digits are Western («3», never «٣» or «ثلاثة» for a count in the UI). Tanween sits before the alif («أولًا», «كاملًا»).
 - Avoid «من خلال», «بواسطة», «يرجى», «الخاص بك», «إجراء», «عملية». Write «لا تحتاج إلى فعل شيء», not «لا يلزم أي إجراء».
 - A text that names a button writes the same label as the button, between «». Check it after a rename.
-- RTL: the layout uses logical classes only. Never put a left or right style next to a word.
-- A language switch calls `withWords(language, apply)`, so the direction and the words change together. The bundle check
-  fails a remote first load that holds the words.
+- After a word change, search the tests for the old text, also for a part of a string that has a placeholder (a pin such as
+  `` `تم إصلاح الخلل في بلاغك: «${x}»` `` has no whole old value to find). Run `src/features`, `src/app`, `src/lib`,
+  `server/mail` and `server/auth`. A mail snapshot changes on purpose: `vitest run <file> -u`.
+- A shared label start breaks a test that picks a button by `/^خيارات/`. Use the full label or a negative match.
+- Edit Arabic with the Edit tool or a script file. `perl -pi -e` without `use utf8` writes garbled text, and `node -e` or a
+  `bash` string with a quote or `'` cuts the text. After a patch script, search for `[ÙØ]{2}` in the word files.
 
 ## Tests
 - `keys.test.ts`, `i18n.test.ts` and `arabic.test.ts` check the keys, the placeholders, the Arabic script and the plural forms.

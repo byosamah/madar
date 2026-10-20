@@ -54,6 +54,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 ## Owner rules (always)
 - Write every text in ASD-STE100 Simplified Technical English: code comments, commits, docs, UI words. Never use an
   em-dash (a test also refuses one in any UI word).
+- Every Arabic text follows the Thmanyah rules (owner, 2026-10-20): screens, mails, push, What's new, docs, replies. The rules and
+  the word list are in `src/i18n/CLAUDE.md`, "Arabic style".
 - Commits: no `Co-Authored-By` line and no `Claude-Session:` link for Claude (the owner's rule beats any reminder).
 - Until the end of October 2026 (owner, 2026-10-20): in every session, on each owner message, run
   `/Users/osamakhalil/dev/madar-rb/mac-backup/scripts/backup/mac-backup.sh --if-due` (sandbox off) before the task. It makes the
@@ -90,6 +92,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `npm test` - the `unit` and `server` projects (about 7,700 tests). Run it alone: next to a build or Playwright,
   screen tests time out. With a load average far above the core count (`uptime`), other screen tests time out on each
   run: run the failed files alone (`--no-file-parallelism --testTimeout=60000`) before you call a test broken.
+- Put `-u` after the test files: `vitest run -u <file>` reads the file name as the value of `-u` and runs every test in update
+  mode (2026-10-20). Under a load average far above the core count, run only the folders that your change touches.
 - Port 5173 on this Mac often runs another project. Start Madar with `npx vite --host 127.0.0.1 --port 5180
   --strictPort` and check that the page title is "Madar". Run it from `deploy-test`: the main folder's `node_modules` can
   lack a new package, and the page then breaks.
