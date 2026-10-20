@@ -132,7 +132,7 @@ describe('suite 4: invitations on the local stack', () => {
     const response = await forgot(new Request('http://127.0.0.1/auth/forgot', { method: 'POST', headers: { 'cf-connecting-ip': '198.51.100.40' }, body: JSON.stringify({ email }) }), deps);
     expect(response.status).toBe(200);
     const reset = mailTo(email);
-    expect(reset.subject).toBe('إعادة تعيين كلمة المرور في مدار');
+    expect(reset.subject).toBe('أعد تعيين كلمة مرورك في مدار');
     expect(reset.text).toContain('إذا لم تطلبي ذلك');
     const url = linkIn(reset.text);
     expect([url.pathname, url.searchParams.get('type')]).toEqual(['/reset', 'recovery']);
