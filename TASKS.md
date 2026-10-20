@@ -739,5 +739,5 @@ separate checker. No production change before Friday 2026-10-23. Answers fbk_028
 - [x] Audit with a lint of the Thmanyah rules over all 2,729 Arabic strings (28 word files). Before: 105 strings with «تم» or «يتم», 241 labels that use a noun where a verb fits, 34 stiff phrases, 11 sentences over 14 words. After: 0, 28 (names of things and past-tense verbs, all fine), 0, 0
 - [x] Rewrite: 571 strings changed in the word files only (keys unchanged). Buttons are imperative verbs, confirmations are short passive verbs, switches start with «عندما». One word for one thing: «مدير النظام», «لوحة المعلومات», «عبء العمل», «خيارات», «باسم». Rules are in `src/i18n/CLAUDE.md`
 - [x] Real mistakes found and fixed: «لوحة المتابعة» and «ضغط العمل» in What's new (the screens say «لوحة المعلومات» and «عبء العمل»), the picture formats missing from a photo error, an Eastern digit in the screenshot hint, five wrong tanween marks, «إجراء» for a meeting task, «أحدث» for "later"
-- [ ] Wait for the owner's read of the before/after page, then merge. No deploy in the live week (2026-10-18 to 10-22)
-- [ ] Before the deploy: a What's new line for the new Arabic wording (rule: every visible change)
+- [x] Merged into main and released: production at 15a9815 (2026-10-20, the owner ran it). Record: proof.md. The owner may still read the before/after page and name any string to revert
+- [x] What's new line 2026-10-23-32 for the new Arabic wording
