@@ -451,7 +451,9 @@ const seriesProjectIsOpen = (state: State, projectId: string): boolean => {
  * It adds none when the last meeting of the series is cancelled: a person ended the series there. The new meetings copy the last one (title,
  * place, people, length, time of day) and start the day after it, or after today when the series ran dry. One mark, meeting.extended, names
  * the series; each new meeting has the event meeting.added with that mark as its cause. No notice: the people heard of the series when it
- * was planned. Like settle, the call needs only the view of the series, and a second call adds nothing.
+ * was planned. A second call adds nothing. The call counts every meeting of the series, also those that the caller does not see, and the
+ * caller must see the last one and may change it (the organizer, or the leader and the Admin of a project meeting; review 2026-10-20):
+ * a person taken off the later meetings, or an attendee who only reads them, never adds meetings from the ones they still see.
  */
 const meetingsExtend = defineCall({
   input: z.object({ seriesId: MeetingId }),
@@ -459,10 +461,12 @@ const meetingsExtend = defineCall({
   run(input, ctx) {
     // The meetings from today on are the ones that matter (the loader reads the same window): the last one and the ones ahead.
     const rows = Object.values(meetingsOf(ctx.state))
-      .filter((m) => m.seriesId === input.seriesId && dayOf(m) >= ctx.today && mayViewMeeting(ctx.state, ctx.authority, m))
+      .filter((m) => m.seriesId === input.seriesId && dayOf(m) >= ctx.today)
       .sort(byStart);
-    if (rows.length === 0) throw notFound('Meeting', input.seriesId);
     const last = rows[rows.length - 1];
+    // A series that the caller cannot see reads as missing, with the text of an unknown id.
+    if (!last || !mayViewMeeting(ctx.state, ctx.authority, last)) throw notFound('Meeting', input.seriesId);
+    assertCan(ctx, 'meeting.edit', meetingResource(ctx.state, last, ctx.authority.id));
     if (last.status === 'cancelled' || !last.repeat) return { added: 0 };
     // A project that is completed or archived holds no new meeting: its series stops (a paused project goes on).
     if (last.projectId !== null && !seriesProjectIsOpen(ctx.state, last.projectId)) return { added: 0 };

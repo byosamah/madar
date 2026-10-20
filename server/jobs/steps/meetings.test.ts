@@ -9,7 +9,7 @@ import { freshLite } from '../../data/lite/testDb';
 import { liteWriteState } from '../../data/lite/whole';
 import { createRunCall, type RunCall } from '../../core/runCall';
 import { fakeDeps } from '../../test/fakes/deps';
-import { EXTEND_LITE, EXTEND_SQL, meetings, SETTLE_LITE, SETTLE_SQL, settleActorOf } from './meetings';
+import { EXTEND_LITE, EXTEND_SQL, extendActorOf, meetings, SETTLE_LITE, SETTLE_SQL, settleActorOf } from './meetings';
 
 /**
  * The job step that settles the meetings that ended (fbk_022, wave 2, owner 2026-10-19). It reads the due meetings with one statement,
@@ -161,6 +161,13 @@ describe('the person who acts for a meeting', () => {
     expect(settleActorOf(users(), { organizerId: 'usr_006', projectId: null, attendeeIds: [] })).toBeNull();
   });
 
+  it('extends a series as a person who may change it: the organizer, else the first Admin of a project series, else nobody', () => {
+    expect(extendActorOf(users(), { organizerId: 'usr_002', projectId: null, attendeeIds: ['usr_003'] })).toBe('usr_002');
+    expect(extendActorOf(users(), { organizerId: 'usr_006', projectId: 'prj_001', attendeeIds: ['usr_003'] })).toBe('usr_001');
+    // An attendee may read a private meeting but not change it, so a private series of an organizer who left stops.
+    expect(extendActorOf(users(), { organizerId: 'usr_006', projectId: null, attendeeIds: ['usr_004', 'usr_003'] })).toBeNull();
+  });
+
   it('counts a meeting with nobody to act as skipped', async () => {
     const { deps } = await office([meeting('mtg_001', '2026-10-04T12:00:00.000+03:00', { projectId: null, organizerId: 'usr_006', attendeeIds: [] })], (seed) => {
       seed.users.usr_006 = { ...seed.users.usr_003, id: 'usr_006', active: false };
@@ -247,7 +254,8 @@ describe('the meetings step keeps the series full (fbk_022, wave 3)', () => {
     expect(EXTEND_LITE).toContain("json_extract(doc, '$.seriesId')");
   });
 
-  it('runs the call as the organizer; for an organizer who is off, as the first Admin of a project series and as the first attendee of a private series', async () => {
+  it('runs the call as the organizer; for an organizer who is off, as the first Admin of a project series, and skips a private series, which nobody '
+    + 'else may change (review 2026-10-20)', async () => {
     const rows = [
       ...weekly('mtg_111', 2, { organizerId: 'usr_006', projectId: 'prj_001', attendeeIds: ['usr_003'] }),
       ...weekly('mtg_112', 2, { organizerId: 'usr_006', projectId: null, attendeeIds: ['usr_006', 'usr_004', 'usr_003'] }),
@@ -259,8 +267,8 @@ describe('the meetings step keeps the series full (fbk_022, wave 3)', () => {
     const { seen, run } = extendStub({ added: 1 });
     deps.runCall = run;
     const report = await meetings(deps, AT);
-    expect(report).toEqual({ settled: 0, skipped: 1, failed: 0, extended: 2 });
-    expect(seen).toEqual([{ seriesId: 'mtg_111', userId: 'usr_001' }, { seriesId: 'mtg_112', userId: 'usr_003' }]);
+    expect(report).toEqual({ settled: 0, skipped: 2, failed: 0, extended: 1 });
+    expect(seen).toEqual([{ seriesId: 'mtg_111', userId: 'usr_001' }]);
   });
 
   it('asks for no series of a project that is completed or archived', async () => {

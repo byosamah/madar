@@ -70,6 +70,16 @@ export function settleActorOf(office: OfficeSnapshot, row: Due): string | null {
   return [...row.attendeeIds].sort().find(person) ?? null;
 }
 
+/**
+ * The person who extends a series: a person who may change it (review 2026-10-20). The organizer while active, else the first active Admin
+ * for a project series. A private series of an organizer who left has nobody who may change it: it stops, and the step skips it quietly.
+ */
+export function extendActorOf(office: OfficeSnapshot, row: Due): string | null {
+  const users = office.lists.users;
+  if (users[row.organizerId]?.kind === 'human' && users[row.organizerId].active) return row.organizerId;
+  return row.projectId === null ? null : settleActorOf(office, row);
+}
+
 export type MeetingsReport = { settled: number; skipped: number; failed: number; extended: number };
 
 export async function meetings(deps: Deps, at: Date): Promise<MeetingsReport> {
@@ -103,8 +113,8 @@ export async function meetings(deps: Deps, at: Date): Promise<MeetingsReport> {
     } else if ((result.output as { settledAt: string | null }).settledAt !== null) report.settled += 1;
   }
   for (const row of extend) {
-    // The last meeting of the series gives the people: the same rule as the settle names the person who acts.
-    const userId = settleActorOf(office, row.doc);
+    // The last meeting of the series gives the people; the person who acts may change the series (extendActorOf).
+    const userId = extendActorOf(office, row.doc);
     const seriesId = row.doc.seriesId as string;
     if (userId === null) {
       report.skipped += 1;

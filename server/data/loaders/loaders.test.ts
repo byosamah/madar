@@ -1075,8 +1075,8 @@ describe('repeating meetings on the scoped load (fbk_022, wave 3)', () => {
       title: SERIES_PRIVATE_TITLE, seriesId: priv[0].seriesId, startsAt: '2026-12-06T09:00:00.000+03:00', endsAt: '2026-12-06T10:00:00.000+03:00', organizerId: organizer,
       attendeeIds: ['usr_006'], status: 'scheduled', rev: 1,
     });
-    // The attendee runs it too (the job runs it for the organizer, or for an attendee when the organizer left).
-    expect((await same(traps, 'meetings.extend', { seriesId: priv[0].seriesId }, 'usr_006')).outcome.output).toEqual({ added: 1 });
+    // The attendee reads the series but may not change it, so the call refuses on both loads (review 2026-10-20).
+    expect((await same(traps, 'meetings.extend', { seriesId: priv[0].seriesId }, 'usr_006')).outcome.error).toMatchObject({ code: 'forbidden' });
     // A series that is full gets nothing: the 8 meetings of a new series are all ahead.
     const full = office((state) => apply(state, 'meetings.create', { kind: 'meeting', title: 'Full', startsAt: '2026-10-11T09:00:00+03:00', repeat: { every: 'week', until: null } }, 'usr_004'));
     const made = Object.values(full.meetings!)[0];

@@ -172,7 +172,8 @@ The other host stays deployed as the way back. Each area below has its own guide
   series full (wave 3): one read (`EXTEND_SQL`, `EXTEND_LITE`; no new index: the base is the meetings that start today or later, served by `meetings_starts`)
   gives the last meeting of each series that is scheduled and has fewer than 8 scheduled meetings ahead (`ends_at` after the run), the fewest ahead first, at most
   20 series. The step skips a series whose rule has no day left (`occurrencesOf`) and a series of a completed or archived project, then runs the normal call `meetings.extend { seriesId }` for each, as the same
-  person as the settle (`settleActorOf` of the last meeting), and counts the meetings added in `extended`. A failure logs the series id and the code only. `Deps.runCall` (`core/ports.ts`) is the run of a normal call for a step: only the office object sets it (its own SQLite run, `office/parts.ts`);
+  person who may change the series (`extendActorOf` of the last meeting: the organizer, else the first active Admin of a project series; a private series of an
+  organizer who left is skipped, review 2026-10-20), and counts the meetings added in `extended`. A failure logs the series id and the code only. `Deps.runCall` (`core/ports.ts`) is the run of a normal call for a step: only the office object sets it (its own SQLite run, `office/parts.ts`);
   every other host uses the Postgres `runCall`.
 - Usage meters and the 80% Admin warning (`usage/`). The free-plan limits are in `FREE_PLAN_LIMITS`. The calls limit follows
   the host that serves the copy (`config.servingHost`, from `config/server-host.json`): 500,000 on Supabase, 10 million on

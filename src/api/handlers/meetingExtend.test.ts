@@ -191,8 +191,8 @@ describe('meetings.extend', () => {
     expect(await refusal(() => t.api.call('events.undo', { eventId: mark.id }))).toMatchObject({ code: 'conflict' });
   });
 
-  it('is open to the people who see the series: an attendee, the leader and the Admin, as the job runs it for the organizer or for another person', async () => {
-    for (const person of ['usr_003', 'usr_002', 'usr_001', 'usr_004']) {
+  it('is open to the people who may change the series: the organizer, the leader and the Admin; an attendee who only reads it is refused', async () => {
+    for (const person of ['usr_003', 'usr_002', 'usr_001']) {
       setNow(NOW);
       const t = await series();
       setNow(new Date('2026-10-21T06:00:00Z'));
@@ -200,6 +200,32 @@ describe('meetings.extend', () => {
       expect(await t.api.call('meetings.extend', { seriesId: 'mtg_001' }), person).toEqual({ added: 3 });
       expect(seriesOf(t).slice(8).every((m) => m.organizerId === 'usr_003' && m.createdBy === person), person).toBe(true);
     }
+    // Omar attends but is on no team: he reads the series, and the History must never name him for meetings he may not plan (review 2026-10-20).
+    setNow(NOW);
+    const t = await series();
+    setNow(new Date('2026-10-21T06:00:00Z'));
+    t.as('usr_004');
+    expect(await refusal(() => t.api.call('meetings.extend', { seriesId: 'mtg_001' }))).toMatchObject({ code: 'forbidden' });
+    expect(seriesOf(t)).toHaveLength(8);
+    expect(eventsOf(t, 'meeting.extended')).toHaveLength(0);
+  });
+
+  it('counts every meeting of the series: a person taken off the later meetings of a private series cannot extend it from the ones they still see', async () => {
+    const t = world();
+    t.as('usr_004');
+    await t.api.call('meetings.create', { kind: 'meeting', title: 'Private weekly', startsAt: START, attendeeIds: ['usr_006', 'usr_003'], repeat: { every: 'week', until: null } });
+    // From the meeting of 10-29 on, Sara is off the series. She still sees the meetings of 10-22 (and the past ones).
+    await t.api.call('meetings.update', { id: 'mtg_005', attendeeIds: ['usr_006'], scope: 'later' });
+    setNow(new Date('2026-10-21T06:00:00Z'));
+    t.as('usr_003');
+    expect(await refusal(() => t.api.call('meetings.extend', { seriesId: 'mtg_001' }))).toMatchObject({ code: 'not_found' });
+    expect(seriesOf(t)).toHaveLength(8);
+    // The organizer extends it from the true last meeting: the new meetings copy its people, without Sara, on new days only.
+    t.as('usr_004');
+    expect(await t.api.call('meetings.extend', { seriesId: 'mtg_001' })).toEqual({ added: 3 });
+    const all = seriesOf(t);
+    expect(new Set(days(all)).size).toBe(all.length);
+    expect(all.slice(8).every((m) => m.attendeeIds.join() === 'usr_006')).toBe(true);
   });
 
   it('answers an unknown series as a missing meeting, and a person without a view of a private series the same', async () => {
@@ -215,11 +241,11 @@ describe('meetings.extend', () => {
       expect(real, outsider).toEqual({ ...none, message: 'Meeting mtg_001 does not exist.' });
     }
     expect(Object.values(t.store.state.meetings ?? {})).toHaveLength(8);
-    // The organizer and the attendee extend it.
-    for (const person of ['usr_004', 'usr_006']) {
-      t.as(person);
-      expect(await t.api.call('meetings.extend', { seriesId: 'mtg_001' }), person).toMatchObject({ added: expect.any(Number) });
-    }
+    // The attendee reads it but may not change it. The organizer extends it.
+    t.as('usr_006');
+    expect(await refusal(() => t.api.call('meetings.extend', { seriesId: 'mtg_001' }))).toMatchObject({ code: 'forbidden' });
+    t.as('usr_004');
+    expect(await t.api.call('meetings.extend', { seriesId: 'mtg_001' })).toEqual({ added: 3 });
   });
 
   it('keeps the series of a meeting in no series out: its id gives not_found', async () => {

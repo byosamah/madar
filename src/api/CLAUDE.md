@@ -467,7 +467,8 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   there) and none for a series of a project that is completed or archived (a paused project goes on), and a series with no meeting from today on reads as `not_found` (so does an unknown or hidden id, with the text of an unknown id). New meetings start
   after the last day, or after today when the series ran dry, copy the title, kind, project, place, guests, notes, organizer, people, length and time of day, get
   `createdBy` of the caller, and have no notice. One mark `meeting.extended` (target: the last meeting, not undoable, `NOT_UNDOABLE`) and one `meeting.added` for each
-  new meeting with the mark as its cause. Like `settle`, the call needs only the view of the series. `seriesToExtend(state, at)` is the rule of the job read for the
+  new meeting with the mark as its cause. The call counts every meeting of the series, also those that the caller does not see; the caller must see the
+  last meeting and may change it (`meeting.edit`: the organizer, or the leader and the Admin of a project meeting; review 2026-10-20), else `not_found` or `forbidden`. `seriesToExtend(state, at)` is the rule of the job read for the
   prototype timer.
 - Reasons added: `until_before_start`, `until_too_far`, `series_day_one_only`.
 - Settle (wave 2, owner 2026-10-19; `meetings.settle { id }`, `settleMeeting`, `dueToSettle` in `handlers/meetings.ts`): after `endsAt` Madar marks the
