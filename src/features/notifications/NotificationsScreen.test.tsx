@@ -258,7 +258,7 @@ describe('the notices of a meeting', () => {
     state.meetings = {
       mtg_901: {
         id: 'mtg_901', kind: 'client', title: 'Review the facade', projectId: 'prj_001', startsAt: START, endsAt: '2026-10-01T11:00:00.000+03:00', where: '', guests: '',
-        notes: '', organizerId: 'usr_002', attendeeIds: ['usr_005'], minutesById: 'usr_002', status: 'scheduled', rev: 1, createdBy: 'usr_002', createdAt: TODAY_7,
+        notes: '', organizerId: 'usr_002', attendeeIds: ['usr_005'], status: 'scheduled', rev: 1, createdBy: 'usr_002', createdAt: TODAY_7,
       },
     };
     withNotices('usr_005', list)(state);

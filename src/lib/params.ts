@@ -53,6 +53,11 @@ export function taskLink(projectId: string | null, taskId: string, thread = fals
   return `/projects/${projectId}?tab=tasks&task=${taskId}${thread ? '&thread=1' : ''}`;
 }
 
+/** The link of one Tracker entry: the Tracker tab of its project, with the sheet of the entry open (the minutes of a meeting, wave 2). */
+export function trackerEntryLink(projectId: string, entryId: string): string {
+  return `/projects/${projectId}?tab=tracker&entry=${entryId}`;
+}
+
 /**
  * The link of a chat or of a task thread in the Inbox, and one message in it (chat design 2026-10-19, item 17). A notice, a search
  * hit and a reply strip use it.

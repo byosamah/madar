@@ -10,6 +10,7 @@ export function isOpen(entry: Pick<TrackerEntry, 'waiting' | 'closedAt'>): boole
 /** The text that says why an entry was made by itself. The "shift" value belongs to the stage and dependency work. */
 export const AUTO_KEY: Partial<Record<NonNullable<TrackerEntry['auto']>, string>> = {
   upload: 'tracker.autoUpload', delivered: 'tracker.autoDelivered', version: 'tracker.autoVersion', reply: 'tracker.autoReply',
+  meeting: 'tracker.autoMeeting',
 };
 
 /** How many whole days ago the exchange was. An entry dated in the future counts as 0. */

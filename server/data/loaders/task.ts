@@ -102,9 +102,11 @@ export async function updateCall(L: Load, input: Input): Promise<void> {
  */
 export async function filesShare(L: Load, input: Input): Promise<void> {
   await L.byKey('files', [str(input.fileId)]);
-  const file = L.get<{ projectId: string | null; taskId: string | null }>('files', str(input.fileId));
+  const file = L.get<{ projectId: string | null; taskId: string | null; meetingId?: string }>('files', str(input.fileId));
   // A file of an office task: its task, for the view rule (owner, 2026-10-06).
   if (file?.projectId === null) await L.byKey('tasks', [file.taskId]);
+  // A file of a meeting with no project: its meeting, for the view rule (wave 2).
+  if (file?.meetingId !== undefined) await L.byKey('meetings', [file.meetingId]);
   const shareTarget = (input.target ?? {}) as { kind?: string; taskId?: string; userId?: string };
   if (shareTarget.kind === 'task') {
     await L.byKey('tasks', [shareTarget.taskId]);

@@ -34,6 +34,8 @@ export const EXPECTED_REFUSALS: Readonly<Record<string, string>> = {
   // The sample office has no group, and cnv_001 is a project chat: a group change of it is refused as not a group.
   'chats.updateGroup': 'invalid_input',
   'chats.leaveGroup': 'invalid_input',
+  // The meeting of the sweep starts after the time of the sample office, so its minutes wait for the end (wave 2).
+  'meetings.saveMinutes': 'conflict',
 };
 
 /** A call that removes a record: it runs after every other call. */
@@ -99,6 +101,7 @@ function rest(office: State): Record<string, [unknown, string?]> {
     'chats.updateGroup': [{ conversationId: 'cnv_001', name: 'Renamed' }],
     'chats.leaveGroup': [{ conversationId: 'cnv_001' }],
     'chats.archive': [{ conversationId: 'cnv_001', archived: true }],
+    'chats.markUnread': [{ conversationId: 'cnv_001' }],
     'chats.editMessage': [{ id: talk.id, body: 'A corrected line' }, talk.actingForId],
     'chats.deleteMessage': [{ id: gone.id }, gone.actingForId],
     'chats.setNotify': [{ conversationId: 'cnv_001', notify: 'all' }],
@@ -148,6 +151,10 @@ function rest(office: State): Record<string, [unknown, string?]> {
     'meetings.get': [{ id: meeting }],
     'meetings.update': [{ id: meeting, where: 'Meeting room' }],
     'meetings.cancel': [{ id: meeting }],
+    // The settle writes nothing before the end of the meeting, and the sweep runs at the time of the sample office. For the same reason the
+    // minutes are refused (minutes_not_yet): the traps of the loader sweep (sweep.ts) cover the minutes of meetings that ended.
+    'meetings.settle': [{ id: meeting }],
+    'meetings.saveMinutes': [{ id: meeting, text: 'Minutes of the sweep', fileIds: [] }],
   };
 }
 

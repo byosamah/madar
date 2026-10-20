@@ -102,6 +102,15 @@ share one limit count; `server-time.sh` has no member sign-in for the office pat
 Chat search on the office path scans `messages` and `comments` (`instr`). At the restart, give both an FTS5 table with the trigram
 tokenizer, fed by the save, and lower the `search.query` pins (`server/office/test/pins.ts`; the numbers are in `proof.md`, "Chat search").
 
+## 7b. Google Calendar and the office object (fbk_022, 2026-10-19)
+- The Google Calendar connect is built for the Postgres path (Supabase functions and the Worker with Hyperdrive). The office path has no Google yet:
+  `entries/officeSignin.ts` answers `GET /api/google/callback` with `#google=not_ready` and calls no object, and the office object builds no
+  `Config.google`. The SQLite schema (version 7) already has the two server tables, empty.
+- Before the office path gets Google: the network port of the Worker needs the Google calls (the object does no network work), `Deps.googleFetch`
+  must use it, the sync effects must run in the object (`gcal.sync` and `gcal.revoke` write only `google_connections` and `google_events`), the
+  import of wave 4 must copy both tables (it copies no server table of this kind today), and `DRIFT_TABLES` must name them. People then connect again
+  at the restart, or the sealed tokens move with the key `MADAR_GOOGLE_KEY` of the copy.
+
 ## 8. References
 - Spec: `docs/superpowers/specs/2026-10-16-madar-cloudflare-exit-design.md` (wave 0 results and six changes at the top; section 7
   the owner decisions).

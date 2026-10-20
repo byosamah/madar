@@ -28,11 +28,12 @@ async function openHeaderMenu(name: string) {
 }
 
 describe('Notify me in the chat menu', () => {
+  // Mark as unread (fbk_028) comes first: the open chat has nothing unread after its first look.
   it('shows Notify me under Archive, with Only when I am named checked, in a project chat', async () => {
     await renderApp('/inbox/cnv_001');
     const menu = await openHeaderMenu('Options for Corniche Office Tower');
     const items = [...menu.querySelectorAll('[role="menuitem"], [role="menuitemradio"]')];
-    expect(items.map((i) => i.textContent)).toEqual(['Archive', 'All messages', 'Only when I am named']);
+    expect(items.map((i) => i.textContent)).toEqual(['Mark as unread', 'Archive', 'All messages', 'Only when I am named']);
     expect(within(menu).getByRole('menuitemradio', { name: 'Only when I am named' })).toHaveAttribute('aria-checked', 'true');
     expect(within(menu).getByRole('menuitemradio', { name: 'All messages' })).toHaveAttribute('aria-checked', 'false');
     expect(within(menu).getByText('Notify me')).toBeInTheDocument();
@@ -50,7 +51,7 @@ describe('Notify me in the chat menu', () => {
     await renderApp('/inbox/cnv_015');
     const group = await openHeaderMenu('Options for Facade review');
     const items = [...group.querySelectorAll('[role="menuitem"], [role="menuitemradio"]')];
-    expect(items.map((i) => i.textContent)).toEqual(['Rename', 'Archive', 'All messages', 'Only when I am named']);
+    expect(items.map((i) => i.textContent)).toEqual(['Rename', 'Mark as unread', 'Archive', 'All messages', 'Only when I am named']);
     expect(within(group).getByRole('menuitemradio', { name: 'All messages' })).toHaveAttribute('aria-checked', 'true');
   });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addMinutes, dayOf, earliestStart, kindDefaults, minutesBetween, officeStamp, onFiveMinutes, phaseOf } from './meetings';
+import { addMinutes, dayOf, earliestStart, hasTrackerLine, kindDefaults, minutesBetween, officeStamp, onFiveMinutes, phaseOf, SETTLE_BACK_DAYS } from './meetings';
 
 const meeting = (startsAt: string, endsAt: string, status: 'scheduled' | 'cancelled' = 'scheduled') => ({ startsAt, endsAt, status });
 
@@ -43,17 +43,32 @@ describe('phaseOf', () => {
 });
 
 describe('kindDefaults', () => {
-  it('gives 60 minutes and the organizer for a meeting and a client meeting', () => {
-    expect(kindDefaults('meeting')).toEqual({ durationMin: 60, minutesByOrganizer: true });
-    expect(kindDefaults('client')).toEqual({ durationMin: 60, minutesByOrganizer: true });
+  it('gives 60 minutes for a meeting and a client meeting', () => {
+    expect(kindDefaults('meeting')).toEqual({ durationMin: 60 });
+    expect(kindDefaults('client')).toEqual({ durationMin: 60 });
   });
 
-  it('gives 30 minutes and nobody for a team meeting', () => {
-    expect(kindDefaults('team')).toEqual({ durationMin: 30, minutesByOrganizer: false });
+  it('gives 30 minutes for a team meeting', () => {
+    expect(kindDefaults('team')).toEqual({ durationMin: 30 });
   });
 
-  it('gives 120 minutes and the organizer for a site visit', () => {
-    expect(kindDefaults('site_visit')).toEqual({ durationMin: 120, minutesByOrganizer: true });
+  it('gives 120 minutes for a site visit', () => {
+    expect(kindDefaults('site_visit')).toEqual({ durationMin: 120 });
+  });
+});
+
+describe('hasTrackerLine', () => {
+  it('is true for a project meeting that is not a team meeting', () => {
+    for (const kind of ['meeting', 'client', 'site_visit'] as const) expect(hasTrackerLine({ projectId: 'prj_001', kind }), kind).toBe(true);
+  });
+
+  it('is false for a team meeting, also with a project, and for a meeting with no project', () => {
+    expect(hasTrackerLine({ projectId: 'prj_001', kind: 'team' })).toBe(false);
+    for (const kind of ['meeting', 'client', 'team', 'site_visit'] as const) expect(hasTrackerLine({ projectId: null, kind }), kind).toBe(false);
+  });
+
+  it('settles back 14 days', () => {
+    expect(SETTLE_BACK_DAYS).toBe(14);
   });
 });
 

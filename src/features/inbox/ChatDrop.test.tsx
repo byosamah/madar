@@ -95,3 +95,29 @@ describe('drop and paste files (design item 14, fbk_030)', () => {
     expect(screen.getByText('تنضم الملفات أيضًا إلى ملفات المشروع.')).toBeInTheDocument();
   });
 });
+
+// The page guard of the Inbox (useBlockFileDrop, fbk_030): a file dropped outside the drop area of the open chat never opens in the tab.
+const dragOf = (picked: File[]) => ({ dataTransfer: { types: ['Files'], files: picked, dropEffect: 'none' } });
+const textDrag = { dataTransfer: { types: ['text/plain'], files: [], dropEffect: 'none' } };
+
+describe('a file dropped anywhere else (fbk_030)', () => {
+  it('never opens in the browser tab: the page stops the drop outside the conversation, with a chat open and with none', async () => {
+    await renderApp('/inbox');
+    // No chat is open yet: the Inbox still stops the drop.
+    await rowLink(/Faisal Al-Harbi/);
+    expect(fireEvent.dragOver(document.body, dragOf(files(1)))).toBe(false);
+    expect(fireEvent.drop(document.body, dragOf(files(1)))).toBe(false);
+    await userEvent.click(await rowLink(/Faisal Al-Harbi/));
+    const side = await screen.findByRole('list', { name: 'Chats' });
+    const over = dragOf(files(1));
+    expect(fireEvent.dragOver(side, over)).toBe(false);
+    // The cursor says "not here" outside the conversation, and "copy" inside its drop area.
+    expect(over.dataTransfer.dropEffect).toBe('none');
+    const inside = dragOf(files(1));
+    expect(fireEvent.dragOver(await screen.findByRole('log', { name: 'Messages' }), inside)).toBe(false);
+    expect(inside.dataTransfer.dropEffect).toBe('copy');
+    expect(screen.queryByRole('list', { name: 'Files to send' })).toBeNull();
+    // A drag of text is not stopped.
+    expect(fireEvent.dragOver(document.body, textDrag)).toBe(true);
+  });
+});

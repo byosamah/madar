@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { SaveResult } from '../data/save';
 import { CHAT_NOTICE_EFFECT, NOTICE_EFFECT, QUOTA_WARNING_EFFECT } from '../mail/notices';
+import { REVOKE_EFFECT, SYNC_EFFECT } from '../google/rows';
 import { PUSH_CHAT_EFFECT, PUSH_EFFECT } from '../push/notify';
 import { fakeDeps } from '../test/fakes/deps';
 import { LIMIT_WARNING_EFFECT } from '../usage/warn';
@@ -35,8 +36,8 @@ function scriptedDb(rows: Record<string, { kind: string; payload: unknown }>) {
 }
 
 describe('effects after the commit (plan 4.12)', () => {
-  it('runs after the answer only the mail kinds and the push kind, by the names that mail/, push/ and usage/ register (performance audit SRV-1; owner, 2026-10-08)', () => {
-    expect([...AFTER_ANSWER_KINDS].sort()).toEqual([LIMIT_WARNING_EFFECT, NOTICE_EFFECT, PUSH_EFFECT, QUOTA_WARNING_EFFECT, PUSH_CHAT_EFFECT, CHAT_NOTICE_EFFECT].sort());
+  it('runs after the answer only the mail kinds, the push kinds and the two Google Calendar kinds, by the names that mail/, push/, usage/ and google/ register (performance audit SRV-1; owner, 2026-10-08; fbk_022)', () => {
+    expect([...AFTER_ANSWER_KINDS].sort()).toEqual([LIMIT_WARNING_EFFECT, NOTICE_EFFECT, PUSH_EFFECT, QUOTA_WARNING_EFFECT, PUSH_CHAT_EFFECT, CHAT_NOTICE_EFFECT, REVOKE_EFFECT, SYNC_EFFECT].sort());
   });
 
   it('waits 10 seconds only for the chat push and the chat mention mail', () => {
@@ -47,10 +48,10 @@ describe('effects after the commit (plan 4.12)', () => {
 
   it('collects the outbox rows that each registered producer gives for a call, in the order they registered', async () => {
     const q = (async () => []) as Query;
-    expect(await outboxRowsOf('users.create', { id: 'usr_012' }, saved, q)).toEqual([]);
+    expect(await outboxRowsOf('users.create', { id: 'usr_012' }, saved, q, new Date('2026-10-01T06:00:00Z'))).toEqual([]);
     undo.push(registerOutbox('users.create', async (output) => [{ kind: 'auth.invite', payload: { userId: (output as { id: string }).id } }]));
     undo.push(registerOutbox('users.create', async () => [{ kind: 'mail.notice', payload: {} }]));
-    expect(await outboxRowsOf('users.create', { id: 'usr_012' }, saved, q)).toEqual([
+    expect(await outboxRowsOf('users.create', { id: 'usr_012' }, saved, q, new Date('2026-10-01T06:00:00Z'))).toEqual([
       { kind: 'auth.invite', payload: { userId: 'usr_012' } },
       { kind: 'mail.notice', payload: {} },
     ]);

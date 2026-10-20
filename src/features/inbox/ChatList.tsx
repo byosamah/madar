@@ -2,6 +2,7 @@ import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { SearchIcon } from '../../components/icons/animated/search';
 import { motion } from 'motion/react';
 import { memo, useEffect, useRef, useState } from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { CallOutput } from '../../api/calls';
@@ -38,21 +39,34 @@ export function useTitleOf(): (row: Row) => string {
 }
 
 /**
- * The menu of a chat, in its row and in its header: Archive, or Move back to Inbox in the archived list (owner, 2026-10-18).
- * Only the person sees it: an agent never archives a chat (the MCP deny list). The button names its chat, so a screen reader
- * does not hear "Chat options" for every row (UX audit 2026-10-19, chats-06).
+ * The items of the menu of a chat, in its row and in its header: "Mark as unread" for a chat that was read (fbk_028, owner 2026-10-19),
+ * and Archive, or Move back to Inbox in the archived list (owner, 2026-10-18). A chat with new messages is unread already, and an
+ * archived chat is out of the list, so neither offers "Mark as unread". Only the person sees the menu: an agent never archives a chat or
+ * marks it unread (the MCP deny list).
  */
-export function ArchiveMenu({ id, archived, title, onArchive, extra = [] }: {
-  id: string; archived: boolean; title: string; onArchive: (id: string, archived: boolean) => void; extra?: MenuItem[];
+export function chatMenuItems(
+  t: TFunction,
+  { id, archived, unread, onArchive, onMarkUnread }: {
+    id: string; archived: boolean; unread: number; onArchive: (id: string, archived: boolean) => void; onMarkUnread: (id: string) => void;
+  },
+): MenuItem[] {
+  return [
+    ...(!archived && unread === 0 ? [{ label: t('chat.markUnread'), onSelect: () => onMarkUnread(id) }] : []),
+    { label: archived ? t('chat.moveBack') : t('chat.archive'), onSelect: () => onArchive(id, !archived) },
+  ];
+}
+
+/**
+ * The menu of a chat or a task thread. The button names its chat, so a screen reader does not hear "Chat options" for every row (UX
+ * audit 2026-10-19, chats-06). The extra items come after Archive: the header menu adds "Notify me" there (chat design item 21). The row
+ * menu adds none.
+ */
+export function ChatMenu({ id, archived, unread, title, onArchive, onMarkUnread, extra = [] }: {
+  id: string; archived: boolean; unread: number; title: string; onArchive: (id: string, archived: boolean) => void; onMarkUnread: (id: string) => void;
+  extra?: MenuItem[];
 }) {
   const { t } = useTranslation();
-  return (
-    <Menu
-      label={t('chat.optionsFor', { title })}
-      // The extra items come after Archive: the header menu adds "Notify me" there (chat design item 21). The row menu adds none.
-      items={[{ label: archived ? t('chat.moveBack') : t('chat.archive'), onSelect: () => onArchive(id, !archived) }, ...extra]}
-    />
-  );
+  return <Menu label={t('chat.optionsFor', { title })} items={[...chatMenuItems(t, { id, archived, unread, onArchive, onMarkUnread }), ...extra]} />;
 }
 
 /** How far a swipe goes before the row archives. The same as the swipe of the Notifications rows. */
@@ -66,8 +80,8 @@ const SWIPE_PX = 80;
  * The menu button of a row shows only while the pointer is on the row or the keyboard is in it (UX audit 2026-10-19, chats-06).
  * On a phone, or where the pointer is a finger, the button is gone and a swipe archives the row, with the toast and its Undo.
  */
-const ChatRowItem = memo(function ChatRowItem({ row, selected, waiting, swipe, showArchived, onArchive }: {
-  row: Row; selected: boolean; waiting: boolean; swipe: boolean; showArchived: boolean; onArchive: (id: string, archived: boolean) => void;
+const ChatRowItem = memo(function ChatRowItem({ row, selected, swipe, showArchived, onArchive, onMarkUnread }: {
+  row: Row; selected: boolean; swipe: boolean; showArchived: boolean; onArchive: (id: string, archived: boolean) => void; onMarkUnread: (id: string) => void;
 }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
@@ -131,14 +145,12 @@ const ChatRowItem = memo(function ChatRowItem({ row, selected, waiting, swipe, s
               </span>
             )}
           </span>
-          {/* The one next step of a chat that was read and not answered (UX audit 2026-10-19, INT-26). */}
-          {waiting && <span className="text-footnote font-medium text-ink">{t('chat.waiting')}</span>}
         </span>
       </Link>
       {/* The menu takes no room in the row: it floats over the end of the row and shows on hover or focus, so no empty strip waits
           for the mouse (owner, 2026-10-19). A phone has no menu: a swipe archives the chat. */}
       <span className="absolute inset-y-0 end-1 flex items-center rounded-full pointer-coarse:hidden max-sm:hidden sm:pointer-events-none sm:opacity-0 sm:group-focus-within:pointer-events-auto sm:group-focus-within:opacity-100 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100 sm:has-[[aria-expanded=true]]:pointer-events-auto sm:has-[[aria-expanded=true]]:opacity-100 [&>*]:bg-panel">
-        <ArchiveMenu id={row.id} archived={row.archived} title={title} onArchive={onArchive} />
+        <ChatMenu id={row.id} archived={row.archived} unread={row.unread} title={title} onArchive={onArchive} onMarkUnread={onMarkUnread} />
       </span>
     </motion.li>
   );
@@ -148,13 +160,14 @@ const ChatRowItem = memo(function ChatRowItem({ row, selected, waiting, swipe, s
  * The chats on the start side: a search field and one link for each project chat, direct chat, group and task thread.
  * "Archived (n)" is one quiet row under the search field while some chat is archived; it opens the archived chats, which have a
  * title and a back arrow of their own (UX audit 2026-10-19, chats-04 and chats-05). A search in the main list looks in every
- * chat, and an archived match carries the word "Archived". A chat that was read and waits for a reply shows that (INT-26).
+ * chat, and an archived match carries the word "Archived". The row menu has "Mark as unread" for a chat that was read (fbk_028).
  */
-export function ChatList({ rows, selectedId, waiting }: { rows: Row[]; selectedId: string | undefined; waiting: ReadonlySet<string> }) {
+export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; selectedId: string | undefined; onMarkUnread: (id: string) => void }) {
   const { t } = useTranslation();
   const phone = useIsPhone();
   const archive = useArchive();
   const onArchive = useStableHandler(archive);
+  const markUnread = useStableHandler(onMarkUnread);
   const [query, setQuery] = useState('');
   // The archived chats leave the main list. The archived list closes by itself when its last chat moves back (owner, 2026-10-18).
   const [wantArchived, setWantArchived] = useState(false);
@@ -224,10 +237,10 @@ export function ChatList({ rows, selectedId, waiting }: { rows: Row[]; selectedI
               key={row.id}
               row={row}
               selected={row.id === selectedId}
-              waiting={waiting.has(row.id)}
               swipe={swipe}
               showArchived={!archivedOpen}
               onArchive={onArchive}
+              onMarkUnread={markUnread}
             />
           ))}
         </ul>

@@ -47,6 +47,18 @@ any screen work.
 - To see which source file pulled code into the first load: build with `--sourcemap` into `$TMPDIR` and read the
   `sources` of `assets/index-*.js.map`.
 
+## Google Calendar in Settings (owner, 2026-10-19, fbk_022)
+- `features/settings/GoogleCalendarSection.tsx`, after the push section: one section with the fewest controls. The state of `google.status` decides the one
+  control: `none` gives the main button "Connect Google Calendar", `ok` and `not_synced` give a quiet "Disconnect", `broken` gives the main button
+  "Connect again". `ready: false` gives one line and no control, and the prototype gives one line (`gcal.prototype`) and asks nothing.
+- Connect asks `google.connectStart` and leaves for the address (`leave`, a prop for the tests). The page leaves only for `https://accounts.google.com`. Google
+  sends the person back through `GET /api/google/callback` (`server/google/callback.ts`) to `/settings#google=<word>`. The section reads the fragment once,
+  removes it at once with `history.replaceState` (a reload never runs the step again, and the code never stays in the address bar), and for the word
+  `finish` calls `google.connect` once with the code and the state. The words `denied`, `failed`, `old` and `not_ready` show their sentence, and the Connect
+  button stays. A refusal of `google.connect` shows the words of its reason inline (no toast).
+- Disconnect asks first: Keep has the focus, and Disconnect sits at the start side (`me-auto`). It has no Undo: Connect is the way back. The calendar "Madar"
+  stays in Google. The words are in `src/i18n/real/gcal.*.json`. The privacy page (`public/privacy.html`, `src/app/privacy.test.ts`) says what a disconnect does.
+
 ## Browser push in the screens (owner, 2026-10-08)
 - Real build only. `app/remote/push.ts` (no React, no zod): the state of the switch (`statusOf`), `turnOn`, `turnOff`, the check at the
   start (`syncThisDevice`, run by `app/remote/PushSync.tsx` in the shell) and `removeThisDevice` (the sign-out step in
@@ -58,6 +70,9 @@ any screen work.
   (`vite.config.ts`) drops the file from its dist; `check-bundles.ts` fails a prototype with it and a remote build without it.
 - The public VAPID key comes from `VITE_VAPID_PUBLIC_KEY` (`config/remote.<env>.env`). Without it the section says push is not set up.
 - A sign-out unsubscribes the browser, so the person who stays signed out gets no push.
+- No notice while Madar is in front (owner, 2026-10-23, fbk_028): `public/sw.js` shows no line when a window of Madar is visible and has the focus, in
+  Chromium only. Firefox and an engine that is not known show it. WebKit (Safari, and every browser on an iPhone) revokes the subscription of a site that gets a push and shows no notice, so
+  there the line always shows, as the first thing the worker does. An engine that is not known shows it too. Record and reasons: `server/push/CLAUDE.md`.
 - Push is on by default (owner, 2026-10-09). A browser lets a page turn push on only after a tap on Allow, so each new device gets
   one ask: `features/home/PushAskCard.tsx`, a small card under Today on Home with one short line and one button (not the main
   button; `canAsk` in `push.ts`). Any answer ends the ask; a closed question leaves it. The permission then stays in the browser, so
@@ -191,7 +206,14 @@ any screen work.
   least and has a `title` with the name. The badge shows wherever a project picture shows and the data has `subCompanyId`: the lists
   of `projects.list`, the Dashboard cards (`dashboard.get` refs carry `subCompanyId`), the meeting, the map list, the Open space.
 - A new logo gets a frame step (`LogoFrame.tsx`): drag, zoom, and a preview at 18, 22 and 28 px. The crop (`PictureCrop`, `cropPlace`,
-  `cropPreview` in `lib/picture.ts`) feeds both the canvas and the CSS preview. `buildSeed` has no sub-company: the prototype adds two
+  `cropPreview` in `lib/picture.ts`) feeds both the canvas and the CSS preview. The frame itself is the shared `components/PictureFrame.tsx`
+  (drag, arrow keys, the zoom slider, `CropCircle`); the logo and the profile picture each give it their plate, words and preview row.
+- A new profile picture gets the same frame step (owner, 2026-10-23, fbk_029). Choosing a file in Settings opens `AvatarFrameSheet.tsx` (title "Frame
+  your picture", Cancel and Save), no longer a save at once. It starts as the centre square (`fillCrop`, `start="fill"`: the picture fills the circle, as
+  before the frame existed), so a person who presses Save gets what they got before. Previews are round at 72, 40 and 24 px (Settings, the chat
+  header, the bubbles) on the glow of the person (`glowOf`). Save makes the 128 px picture once from the frame (`pictureOf(file, { crop })`), then
+  `me.updateProfile` saves it with the Undo toast as before. A picture the browser cannot load closes the step and shows the old line; a picture that
+  does not fit 16 KB keeps the step open with the old line. The welcome step and the Admin forms have no picture upload. `buildSeed` has no sub-company: the prototype adds two
   (`data/sampleSubCompanies.ts`, called by `bootstrap` and `sampleOffice`). A saved prototype office keeps its data until "Reset sample data".
 - The project form shows 2 to 5 sub-companies as one row of logo choices (`SegmentedControl` with `icon`), more than 5 as a select. A
   new project starts with the only sub-company, or the one of the last project of the same client, until the person taps.
@@ -223,6 +245,13 @@ any screen work.
   a stage start moves its tasks by the same days (`moveStageStart`, on blur), a new wait that points back moves the waiting part
   (`addWait`, with an Undo toast), a save problem names its part and field (`draftProblem`), and Cancel, Escape and the close button ask
   "Discard the changes?" when the draft changed (a control with `data-autofocus` takes the focus in a sheet).
+  The details of a task have a **Stage** field under the title (fbk_031, owner 2026-10-23: a person could not pick the stage of a task, new or old).
+  `moveTaskToStage` (`templateDraft.ts`) has one rule: the move changes the stage and nothing else, so the days of a task stay where they are and the
+  waits stay true; a note under the field says when the days are outside the own days of the new stage (`taskOutsideStage`; the stage panel keeps
+  its notes `tasksEndDay` and `startsBeforeStageAbove`). The one exception is a task that Add task just made and the person has not touched
+  (`DraftTask.fresh`, set by `addTask`, cleared by `touchTask` when the person or a bar of the chart sets its days; a task with a wait is never
+  placed again): it goes where Add task would put it in the new stage. The list stays grouped by stage: the moved task goes after the last task of
+  its new stage. `fresh` lives in the draft only; `draftInput` and `draftOf` never carry it.
 - Apply a template (owner, 2026-10-19, fbk_020): "Apply a template" in the "More actions" menu of the project header
   (`features/project/ApplyTemplateSheet.tsx`), for `viewerCan.edit` (the leader and the Admin) on an active or paused project. Step 1 is a
   list of the office templates (name, stages, tasks); one press opens step 2, `LinkProjectSheet` in `mode="apply"` over it (same matching,
@@ -334,11 +363,20 @@ any screen work.
   have its row). An archive and a move back show a toast with Undo (`archive.ts`, `useArchive`; `chats.archive` writes no event, so
   the Undo calls it again with the other value). The menu button of a row shows on hover or focus only (`pointer-coarse:hidden`,
   `max-sm:hidden`); on a phone or a finger a swipe on the row archives it. The menu button names its chat ("Options for <title>").
-- A chat that was read and waits for a reply shows "Waits for your reply" on its row (`chats.waiting` in `InboxScreen`).
+- No "Waits for your reply" line (owner, 2026-10-19 and 2026-10-20, fbk_028; it wins over item 22 of the chat design, whose waits rule stays in the
+  API for `chats.waiting` and the agents): the Inbox does not call `chats.waiting` any more. In its
+  place the menu of a chat has "Mark as unread" (`chatMenuItems` in `ChatList.tsx`: the row menu, and the menu in the header of the open chat, which is
+  the way on a phone). It shows only for a chat with nothing unread that is not archived. The call is `chats.markUnread`; the toast "Marked as unread."
+  has Undo, which calls `chats.markRead` (`inbox/markUnread.ts`, kept in `InboxScreen` so the toast stays when the open chat closes). The open chat
+  goes back to the list. The chat is bold again, the badge counts it, until the person opens it again. `ChatPane` marks a chat read at its first look
+  (the first fresh answer while the tab shows, design item 5), and after that only when a message is newer than the read time (`behind`), so a mark
+  set on the open chat (from another device, or before the chat closes) stays, also when a hidden tab shows again. `useMarkTaskRead` marks a thread
+  once for each new count of comments, and also sends the mark for a thread that the cached list shows as unread, so a thread whose newest comment
+  is the own comment of the person ends it too.
 - A group has one picture, `GroupPicture` (the glow of its id and a people icon), never a stack of faces. The header shows the
   count of people ("4 people") as a button; it and the picture open the People sheet (`GroupSheets.tsx`): names with "You" and
   "Group maker", Add people at the top, Remove on each other row for the maker (toast with Undo), Leave group at the end (a confirm
-  sheet with Cancel in focus). The group menu holds Rename and Archive, then the Notify me choice. A group of one person left reads a closed chat.
+  sheet with Cancel in focus). The group menu holds Rename, Mark as unread and Archive, then the Notify me choice. A group of one person left reads a closed chat.
 - Notify me (design item 21): the header menu of a project chat, a direct chat or a group holds, under Archive, the heading Notify me and two
   radio items (`useNotifyItems`, `NotifyChoice.tsx`), saved by `chats.setNotify`. A `MenuItem` takes `checked`, `heading` and `note`
   (`components/Menu.tsx`): a checked item is `role="menuitemradio"` with a check mark at its end. The row menu of the list and a task
@@ -353,6 +391,13 @@ any screen work.
 - Every chat takes files (owner, 2026-10-19). The box of a project chat uploads into the files of its project. The box of a direct chat
   and of a group uploads into the chat itself (`UploadTarget.conversationId`, `ConversationPane.tsx`), with the same attach button and
   the same limits. A chat file shows in no Files tab and no search.
+- Paste and drop in the comments of the task panel (fbk_030 and fbk_032; the chat part is design item 14 of the chat batch, which won at the
+  join of 2026-10-20): `CommentThread.tsx` wraps its section in `ChatDropArea` with `className="relative"` (no flex item, so the panel keeps
+  its layout) and the note of a project task or an office task; `DropReceiver` registers the box with `useChatDropReceiver` where the person
+  may post. A paste uses the one rule of the chat box, `pastedPictures` (`features/files/Attachments.tsx`): a paste that holds text stays
+  text, a paste of only pictures adds them. `useBlockFileDrop` (`Attachments.tsx`, called by `InboxScreen` and `CommentThread`) stops the
+  browser from opening a file that is dropped anywhere else, with or without an open chat, and sets the cursor to "not here" there. It leaves
+  a drag that a drop area took first (`defaultPrevented`), so `ChatDropArea` keeps its "copy" cursor and its drop.
 - `/inbox/<id>?at=<msg_ or cmt_>` opens the chat at that message (chat design 2026-10-19, item 17): `ConversationPane` reads the mark
   (`messageParam`) and keys each pane by id and mark, so a new mark opens a new pane. A chat asks `chats.messages` with `around`; a window
   of an old message ends with a plain "Show newer messages" button (`NewerMessages.tsx`), and a send from a window goes to the newest page
@@ -399,7 +444,7 @@ any screen work.
 - On a phone (`useIsPhone`) Enter in the chat box adds a line; the Send button sends.
 - A cut title: the `<bdi>` itself is `block truncate`, never its parent, so a title in the other language cuts at its end (`Header` in `ConversationPane.tsx` takes a plain string).
 - Upload progress: `CallMeta.onProgress` reaches `xhrPut` through the upload adapter (screen only, never on the wire; the small picture reports nothing). `useAttachments` keeps a whole percent for each file (`progress`), `PickedFiles` draws a 3 px grey bar for each file and locks Remove while the uploads run; the uploads still start at Send, and `onSend(body, fileIds, clear)` keeps its order.
-- Drop and paste (`ChatDrop.tsx`): `ChatDropArea` wraps a loaded chat or task thread and shows its frame only while the box registered a receiver (`useChatDropReceiver`); it still stops the browser from opening a dropped file. Files go to the picked chips; nothing sends until Send. A paste with text stays text; a paste of only pictures adds them. Picked files wait in memory for each chat (`app/drafts.ts`), so a test that picks files calls `keepDraftsOf('')` after it.
+- Drop and paste (`ChatDrop.tsx`): `ChatDropArea` wraps a loaded chat or task thread (and the comments of the task panel, see above) and shows its frame only while the box registered a receiver (`useChatDropReceiver`); it still stops the browser from opening a dropped file. Files go to the picked chips; nothing sends until Send. A paste with text stays text; a paste of only pictures adds them. Picked files wait in memory for each chat (`app/drafts.ts`), so a test that picks files calls `keepDraftsOf('')` after it.
 
 ## Meetings screens (owner, 2026-10-19, fbk_022)
 - `/meetings` is the second view of the Tasks tab (`features/meetings/`, `MeetingsScreen.tsx`). The tab pill keeps 5 tabs: `isNavActive` keeps
@@ -420,6 +465,18 @@ any screen work.
   starts with the address of the project. The edit form has no Project (`project_fixed`), sends only the fields that changed, writes nothing when
   nothing changed, and after the end opens only the Notes. A refusal of the server shows in the form (`role="alert"`). `TimeField.tsx` is a select of
   15-minute steps from 06:00 to 22:00; `formModel.ts` holds the pure rules (slots, lengths, `defaultSlot`, `stampOf`).
+- The minutes on the screens (wave 2, owner 2026-10-19; `meetings/MinutesPart.tsx`, `MinutesSheet.tsx`). After the end, the meeting sheet shows one quiet
+  text button "Add the minutes" under the people, until someone writes them (`viewerCan.minutes`): no task, no notice, no badge, no main button. With
+  minutes it shows a fact "Minutes": the text (`dir="auto"`, line breaks kept), the file chips, "By <name>, <day>", a quiet "Edit the minutes" for the
+  people who may, and for `minutesPlace: 'tracker'` a quiet link "Open in the Tracker" (`trackerEntryLink`, `lib/params.ts`). Every quiet control uses
+  `QUIET` (a text link in the link colour). `MinutesSheet` has one text area (`dir="auto"`, 8 rows, 10,000 letters), the attach button with the files that
+  stand (each with a remove button) and the files picked, and one main button "Save the minutes". A project meeting uploads to its project
+  (`{ projectId }`); a meeting with no project to the meeting (`{ projectId: null, meetingId }`). The save sends `since`, the `updatedAt` that the
+  sheet opened (kept in state, so a newer read behind the sheet never changes it); `minutes_changed` keeps the text in the field and shows its word
+  (`role="alert"`). After the save a toast "Minutes saved." offers Undo (`useUndoable`, the story of the call holds the minutes only). The Tracker entry
+  sheet of an auto meeting line shows the same part (`TrackerRow.meeting`, `minutes`, `canEditMinutes`), the quiet link "Open the meeting", and the auto
+  word `tracker.autoMeeting`; a Tracker row with minutes shows the small word "Minutes". The feed words are `feed.meeting.minutes_saved_<meeting|visit>`
+  for `meeting.minutes_saved` and `tracker.minutes_saved`. Screen tests: `meetings/testMeetings.ts` (`ENDED`, `SOME_MINUTES`, `withLine`).
 - Home: `home/MeetingsCard.tsx` ("Meetings today", only my meetings that are on or still to come, three rows). Project Overview:
   `project/overview/ProjectMeetings.tsx` (the next two meetings; the button "Plan a meeting" for `viewerCan.post` on an open project). Both read
   through `meetings/readInputs.ts`, and `tabReads` (`project/tabs.tsx`, now with `today`) prefetches the panel read with the same input.

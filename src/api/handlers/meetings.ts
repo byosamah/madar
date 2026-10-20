@@ -1,18 +1,20 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { Day, MEETING_LIMITS, Meeting, MeetingId, MeetingKind, ProjectId, Stamp, UserId } from '../contract/entities';
+import { Day, FileId, MAX_ATTACHMENTS, MEETING_LIMITS, Meeting, MeetingId, MeetingKind, ProjectId, Stamp, TrackerId, UserId, type MeetingMinutes, type TrackerEntry } from '../contract/entities';
 import { MeetingDetail, MeetingRow } from '../contract/views';
-import { ApiError, invalid, notFound } from '../errors';
+import { ApiError, forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate } from '../events';
-import { can, mayViewMeeting, mayViewTask, meetingResource, type Actor } from '../permissions';
+import { can, mayViewMeeting, meetingResource, type Actor } from '../permissions';
 import { notifyIn } from '../notify';
 import { meetingsOf, nextId, type State } from '../store';
-import { cardOf } from '../views';
+import { cardOf, minutesViewOf } from '../views';
 import { addDays, diffDays } from '../../lib/dates';
-import { addMinutes, dayOf, earliestStart, kindDefaults, minutesBetween, officeStamp, onFiveMinutes, phaseOf } from '../../lib/meetings';
+import { addMinutes, dayOf, earliestStart, hasTrackerLine, kindDefaults, minutesBetween, officeStamp, onFiveMinutes, phaseOf, SETTLE_BACK_DAYS } from '../../lib/meetings';
 import { markOf } from '../../lib/projectMark';
 import { visibleTextPattern } from '../../lib/projectCode';
-import { assertActive, assertCan, requireProject, requireUser, roleIn } from './shared';
+import { assertFilesForMeeting, assertFilesInProject } from './attach';
+import { addTrackerEntry } from './tracker';
+import { assertActive, assertCan, requireProject, requireUser, roleIn, touch } from './shared';
 
 const L = MEETING_LIMITS;
 const TITLE_PATTERN = visibleTextPattern(L.titleMax);
@@ -35,7 +37,6 @@ const Fields = {
   guests: Guests,
   notes: Notes,
   attendeeIds: z.array(UserId).max(L.attendeesMax),
-  minutesById: UserId.nullable(),
 };
 
 /** A meeting by id that the person of the call may see. A meeting that the person does not see reads as missing (owner, 2026-10-19). */
@@ -46,6 +47,23 @@ export function requireMeeting(ctx: Ctx, id: string): Meeting {
 }
 
 const conflict = (message: string, reason: string) => new ApiError('conflict', message, { reason });
+
+/**
+ * What stops a person from writing the minutes of a meeting now, or null when nothing does (fbk_022, wave 2). The same rule serves
+ * the upload of a meeting file and the save of the minutes. In this order: a meeting that the person does not see reads as missing;
+ * a cancelled meeting has none; none before the end; the person must be one who writes them (meeting.minutes); and a project meeting
+ * whose Tracker line is gone waits until someone brings the line back, because its minutes live on that line.
+ */
+export function minutesRefusal(state: State, meeting: Meeting, viewer: Actor, at: Date): ApiError | null {
+  if (!mayViewMeeting(state, viewer, meeting)) return notFound('Meeting', meeting.id);
+  if (meeting.status === 'cancelled') return conflict('This meeting is cancelled. It has no minutes.', 'meeting_cancelled');
+  if (phaseOf(meeting, at) !== 'done') return conflict('You can write the minutes after the meeting ends.', 'minutes_not_yet');
+  if (!can(viewer, 'meeting.minutes', meetingResource(state, meeting, viewer.id))) return forbidden('You cannot do this.', { action: 'meeting.minutes' });
+  if (hasTrackerLine(meeting) && meeting.settledAt && !(meeting.trackerEntryId && state.tracker?.[meeting.trackerEntryId])) {
+    return conflict('Someone deleted the Tracker line of this meeting. Undo the delete in the History first.', 'minutes_line_gone');
+  }
+  return null;
+}
 
 /** True when the person is the organizer or an attendee. An agent counts as the person it acts for. */
 const takesPart = (meeting: Pick<Meeting, 'organizerId' | 'attendeeIds'>, personId: string): boolean =>
@@ -70,23 +88,39 @@ export function meetingRowOf(state: State, meeting: Meeting, viewer: Actor): Mee
   };
 }
 
-/** One meeting with its people, its notes, the records Madar made after it, and the rights of the viewer. */
+/**
+ * One meeting with its people, its notes, the Tracker line that Madar made after it ended, and the rights of the viewer. "minutesBy"
+ * and "minutesTask" stay in the answer for an old tab and are always null: any attendee writes the minutes, and there is no minutes
+ * task (owner, 2026-10-19).
+ */
 export function meetingDetailOf(state: State, meeting: Meeting, viewer: Actor, at: Date): MeetingDetail {
-  const task = meeting.minutesTaskId ? state.tasks[meeting.minutesTaskId] : undefined;
   const entry = meeting.trackerEntryId ? state.tracker?.[meeting.trackerEntryId] : undefined;
   const open = meeting.status === 'scheduled' && viewerMayEdit(state, viewer, meeting);
+  const held = minutesOf(state, meeting);
   return {
     ...meetingRowOf(state, meeting, viewer),
     guests: meeting.guests,
     notes: meeting.notes,
     attendees: meeting.attendeeIds.map((id) => cardOf(state, id)),
-    minutesBy: meeting.minutesById ? cardOf(state, meeting.minutesById) : null,
+    minutesBy: null,
     settledAt: meeting.settledAt ?? null,
-    // A minutes task of a meeting with no project is an office task: only its people see it, so the reference follows its view rule.
-    minutesTask: task && mayViewTask(state, viewer, task) ? { id: task.id, title: task.title, status: task.status, dueDate: task.dueDate } : null,
+    minutesTask: null,
     trackerEntry: entry ? { id: entry.id, title: entry.title } : null,
-    viewerCan: { edit: open, cancel: open && phaseOf(meeting, at) !== 'done' },
+    viewerCan: { edit: open, cancel: open && phaseOf(meeting, at) !== 'done', minutes: minutesRefusal(state, meeting, viewer, at) === null },
+    minutes: held.minutes ? minutesViewOf(state, held.minutes, viewer) : null,
+    minutesPlace: held.place,
   };
+}
+
+/**
+ * Where the minutes of a meeting live and what they hold now (wave 2): on the Tracker line of a project meeting that is not a team meeting,
+ * else on the meeting itself. A cancelled meeting has none. Before the line exists, or when it is gone, the minutes read as empty.
+ */
+export function minutesOf(state: State, meeting: Meeting): { place: 'tracker' | 'meeting' | null; minutes: MeetingMinutes | null; entry?: TrackerEntry } {
+  if (meeting.status === 'cancelled') return { place: null, minutes: null };
+  if (!hasTrackerLine(meeting)) return { place: 'meeting', minutes: meeting.minutes ?? null };
+  const entry = meeting.trackerEntryId ? state.tracker?.[meeting.trackerEntryId] : undefined;
+  return { place: 'tracker', minutes: entry?.minutes ?? null, ...(entry ? { entry } : {}) };
 }
 
 /**
@@ -100,20 +134,14 @@ function tell(ctx: Ctx, meeting: Meeting, userIds: readonly string[], change: 'n
 }
 
 /**
- * The attendees and the person for the minutes, checked. The organizer and a repeated person drop out of the attendees. An attendee
- * is an active person, never an agent. The person for the minutes is the organizer or an attendee, or nobody.
+ * The attendees, checked. The organizer and a repeated person drop out of the attendees. An attendee is an active person, never an
+ * agent. A person who is on the list already may have left since, so only a new person must be active.
  */
-function checkPeople(
-  ctx: Ctx, organizerId: string, attendeeIds: readonly string[], minutesById: string | null, already: readonly string[] = [],
-): string[] {
+function checkPeople(ctx: Ctx, organizerId: string, attendeeIds: readonly string[], already: readonly string[] = []): string[] {
   const attendees = [...new Set(attendeeIds)].filter((id) => id !== organizerId);
-  // A person who is on the list already may have left since. Only a new person must be active.
   for (const id of attendees.filter((one) => !already.includes(one))) {
     assertActive(ctx, id, 'attendeeIds');
     if (requireUser(ctx, id).kind === 'agent') throw invalid('attendeeIds', 'An agent cannot attend a meeting. Choose a person.', 'attendee_agent');
-  }
-  if (minutesById !== null && minutesById !== organizerId && !attendees.includes(minutesById)) {
-    throw invalid('minutesById', 'The person for the minutes must be the organizer or an attendee.', 'minutes_not_attending');
   }
   return attendees;
 }
@@ -155,7 +183,6 @@ const meetingsCreate = defineCall({
     guests: Fields.guests.optional(),
     notes: Fields.notes.optional(),
     attendeeIds: Fields.attendeeIds.optional(),
-    minutesById: Fields.minutesById.optional(),
   }),
   output: MeetingDetail,
   run(input, ctx) {
@@ -165,13 +192,11 @@ const meetingsCreate = defineCall({
     const startsAt = checkStart(input.startsAt, ctx.now);
     const defaults = kindDefaults(input.kind);
     const organizerId = ctx.authority.id;
-    // A team meeting has nobody for the minutes unless the call names a person. Else the organizer writes them.
-    const minutesById = input.minutesById !== undefined ? input.minutesById : defaults.minutesByOrganizer ? organizerId : null;
-    const attendeeIds = checkPeople(ctx, organizerId, input.attendeeIds ?? [], minutesById);
+    const attendeeIds = checkPeople(ctx, organizerId, input.attendeeIds ?? []);
     const id = nextId(ctx.state, 'mtg');
     const meeting: Meeting = {
       id, kind: input.kind, title: input.title, projectId, startsAt, endsAt: addMinutes(startsAt, input.durationMin ?? defaults.durationMin),
-      where: input.where ?? '', guests: input.guests ?? '', notes: input.notes ?? '', organizerId, attendeeIds, minutesById,
+      where: input.where ?? '', guests: input.guests ?? '', notes: input.notes ?? '', organizerId, attendeeIds,
       status: 'scheduled', rev: 1, createdBy: ctx.actor.id, createdAt: ctx.stamp,
     };
     meetingsOf(ctx.state)[id] = meeting;
@@ -193,7 +218,6 @@ const meetingsUpdate = defineCall({
     guests: Fields.guests.optional(),
     notes: Fields.notes.optional(),
     attendeeIds: Fields.attendeeIds.optional(),
-    minutesById: Fields.minutesById.optional(),
   }),
   output: MeetingDetail,
   run(input, ctx) {
@@ -209,10 +233,7 @@ const meetingsUpdate = defineCall({
     const endsAt = input.startsAt === undefined && input.durationMin === undefined
       ? meeting.endsAt
       : addMinutes(startsAt, input.durationMin ?? minutesBetween(meeting.startsAt, meeting.endsAt));
-    const minutesById = input.minutesById !== undefined ? input.minutesById : meeting.minutesById;
-    const attendeeIds = input.attendeeIds !== undefined || input.minutesById !== undefined
-      ? checkPeople(ctx, meeting.organizerId, input.attendeeIds ?? meeting.attendeeIds, minutesById, meeting.attendeeIds)
-      : meeting.attendeeIds;
+    const attendeeIds = input.attendeeIds !== undefined ? checkPeople(ctx, meeting.organizerId, input.attendeeIds, meeting.attendeeIds) : meeting.attendeeIds;
     const next: Partial<Meeting> = {
       ...(input.kind !== undefined ? { kind: input.kind } : {}),
       ...(input.title !== undefined ? { title: input.title } : {}),
@@ -220,7 +241,7 @@ const meetingsUpdate = defineCall({
       ...(input.where !== undefined ? { where: input.where } : {}),
       ...(input.guests !== undefined ? { guests: input.guests } : {}),
       ...(input.notes !== undefined ? { notes: input.notes } : {}),
-      attendeeIds, minutesById,
+      attendeeIds,
     };
     const changed = (Object.keys(next) as (keyof Meeting)[]).filter((key) => JSON.stringify(next[key]) !== JSON.stringify(meeting[key]));
     // After the end only the notes change: the day, the place and the people are history (owner, 2026-10-19).
@@ -255,6 +276,103 @@ const meetingsCancel = defineCall({
     applyPatch(ctx, meeting, { status: 'cancelled' }, { projectId: meeting.projectId, verb: 'meeting.cancelled', targetType: 'meeting', targetId: meeting.id });
     meeting.rev += 1;
     tell(ctx, meeting, [meeting.organizerId, ...meeting.attendeeIds], 'cancelled');
+    return meetingDetailOf(ctx.state, meeting, ctx.authority, ctx.now);
+  },
+});
+
+/**
+ * The one settle rule (fbk_022, wave 2). Madar marks the meeting as over (meeting.settled, once, never undone) and, for a project meeting
+ * that is not a team meeting, makes its Tracker line with no minutes yet. The line names the mark as its cause, so the History shows that
+ * Madar made it because the meeting ended. No notice, no push and no mail. The caller checks that the meeting is scheduled, over and
+ * not settled yet.
+ */
+export function settleMeeting(ctx: Ctx, meeting: Meeting, o: { ownStory?: boolean } = {}): void {
+  // A call that settles on the way (the minutes) gives the mark and the line a story of their own. An Undo of that call then takes back
+  // the minutes only: the mark has no Undo, and it would refuse the whole story.
+  const sc: Ctx = o.ownStory ? { ...ctx, correlationId: `cor_settle_${meeting.id}` } : ctx;
+  // The id of the line comes first, so the mark can hold it and the line can name the mark.
+  const lineId = hasTrackerLine(meeting) ? nextId(sc.state, 'trk') : null;
+  const mark = applyPatch(
+    sc, meeting, { settledAt: sc.stamp, ...(lineId ? { trackerEntryId: lineId } : {}) },
+    { projectId: meeting.projectId, verb: 'meeting.settled', targetType: 'meeting', targetId: meeting.id },
+  );
+  if (lineId === null || meeting.projectId === null) return;
+  // The author of the line is the organizer, whoever settles: the 15-minute job, the first minutes save, or any person who sees the
+  // meeting (security fix, 2026-10-19). So the person who settles gets no author rights on the line (mayDeleteTracker).
+  addTrackerEntry(sc, {
+    id: lineId, projectId: meeting.projectId, type: 'meeting', direction: 'both', title: meeting.title, note: meeting.notes, date: dayOf(meeting),
+    peopleIds: [meeting.organizerId, ...meeting.attendeeIds].slice(0, 20), auto: 'meeting', meetingId: meeting.id, createdBy: meeting.organizerId,
+    ...(mark ? { causeEventId: mark.id } : {}),
+  });
+}
+
+/** The meetings that the job settles at this moment: scheduled, not settled, ended in the last 14 days. By end, then id. */
+export function dueToSettle(state: State, at: Date): Meeting[] {
+  const now = at.getTime();
+  const oldest = now - SETTLE_BACK_DAYS * 24 * 60 * 60_000;
+  return Object.values(meetingsOf(state))
+    .filter((m) => m.status === 'scheduled' && !m.settledAt && Date.parse(m.endsAt) <= now && Date.parse(m.endsAt) >= oldest)
+    .sort((a, b) => Date.parse(a.endsAt) - Date.parse(b.endsAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+const meetingsSettle = defineCall({
+  input: z.object({ id: MeetingId }),
+  output: z.object({ settledAt: Stamp.nullable(), trackerEntryId: TrackerId.nullable() }),
+  run(input, ctx) {
+    const meeting = requireMeeting(ctx, input.id);
+    // Before the end, for a cancelled meeting and after the first settle, the call writes nothing and gives the stored values.
+    if (meeting.status === 'scheduled' && !meeting.settledAt && phaseOf(meeting, ctx.now) === 'done') settleMeeting(ctx, meeting);
+    return { settledAt: meeting.settledAt ?? null, trackerEntryId: meeting.trackerEntryId ?? null };
+  },
+});
+
+const Minutes = {
+  id: MeetingId,
+  /** Trimmed, with the line breaks inside kept. Empty text with no files clears the minutes. */
+  text: z.string().trim().max(L.minutesMax),
+  fileIds: z.array(FileId).max(MAX_ATTACHMENTS).default([]),
+  /**
+   * The value of updatedAt that the screen opened, or null for no minutes yet. A save with another value is refused (minutes_changed), so a
+   * person never replaces what another attendee wrote since. Left out: no check.
+   */
+  since: Stamp.nullable().optional(),
+};
+
+const sameMinutes = (a: MeetingMinutes | null, b: MeetingMinutes | null): boolean =>
+  (a === null && b === null) || (a !== null && b !== null && a.text === b.text && JSON.stringify(a.fileIds) === JSON.stringify(b.fileIds));
+
+/**
+ * Any attendee writes the minutes (fbk_022, wave 2, owner 2026-10-19). One text with files, replaced as a whole. A project meeting that is
+ * not a team meeting keeps them on its Tracker line; every other meeting keeps them on the meeting. The rights and the phase come from
+ * minutesRefusal. A meeting with a Tracker line that the job did not settle yet is settled in this call, so the person never waits for the job.
+ * One event (tracker.minutes_saved, or meeting.minutes_saved), and no notice, no push and no badge. The same text and files write nothing.
+ */
+const meetingsSaveMinutes = defineCall({
+  input: z.object(Minutes),
+  output: MeetingDetail,
+  run(input, ctx) {
+    const meeting = requireMeeting(ctx, input.id);
+    const refusal = minutesRefusal(ctx.state, meeting, ctx.authority, ctx.now);
+    if (refusal) throw refusal;
+    if (meeting.projectId === null) assertFilesForMeeting(ctx, input.fileIds, meeting.id);
+    else assertFilesInProject(ctx, input.fileIds, meeting.projectId);
+    if (hasTrackerLine(meeting) && !meeting.settledAt) settleMeeting(ctx, meeting, { ownStory: true });
+    const held = minutesOf(ctx.state, meeting);
+    if (held.place === null) throw conflict('This meeting is cancelled. It has no minutes.', 'meeting_cancelled');
+    if (input.since !== undefined && input.since !== (held.minutes?.updatedAt ?? null)) {
+      throw conflict('Someone saved the minutes after you opened them. Copy your text, then open them again.', 'minutes_changed');
+    }
+    const next: MeetingMinutes | null = input.text === '' && input.fileIds.length === 0
+      ? null
+      : { text: input.text, fileIds: input.fileIds, updatedBy: ctx.authority.id, updatedAt: ctx.stamp };
+    if (!sameMinutes(held.minutes, next)) {
+      if (held.entry) {
+        applyPatch(ctx, held.entry, { minutes: next }, { projectId: held.entry.projectId, verb: 'tracker.minutes_saved', targetType: 'tracker', targetId: held.entry.id });
+        touch(ctx, held.entry.projectId);
+      } else {
+        applyPatch(ctx, meeting, { minutes: next }, { projectId: meeting.projectId, verb: 'meeting.minutes_saved', targetType: 'meeting', targetId: meeting.id });
+      }
+    }
     return meetingDetailOf(ctx.state, meeting, ctx.authority, ctx.now);
   },
 });
@@ -299,4 +417,6 @@ export const meetingCalls = {
   'meetings.get': meetingsGet,
   'meetings.update': meetingsUpdate,
   'meetings.cancel': meetingsCancel,
+  'meetings.settle': meetingsSettle,
+  'meetings.saveMinutes': meetingsSaveMinutes,
 };

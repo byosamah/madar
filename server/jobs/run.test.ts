@@ -10,8 +10,8 @@ import { JOB_STEPS, runJob, type JobStep } from './run';
 const AT = new Date('2026-10-04T06:00:00Z');
 
 describe('runJob (plan 5.5)', () => {
-  it('runs the heartbeat, the triggers, the summary, the outbox retry, the cleanup, the uploads and the usage check, in that order', () => {
-    expect(JOB_STEPS.map((step) => step.name)).toEqual(['heartbeat', 'triggers', 'summary', 'outbox', 'cleanup', 'uploads', 'usage']);
+  it('runs the heartbeat, the triggers, the meetings settle, the summary, the outbox retry, the cleanup, the uploads and the usage check, in that order', () => {
+    expect(JOB_STEPS.map((step) => step.name)).toEqual(['heartbeat', 'triggers', 'meetings', 'summary', 'outbox', 'cleanup', 'uploads', 'usage']);
   });
 
   it('gives every step the same time and reports each result', async () => {

@@ -181,6 +181,9 @@ the Inbox (`/inbox/tsk_...`). The task panel Conversation tab takes the look of 
     - In every kind: your 👍 or ✅ on the message that waits counts as an answer. The message that waits is the newest
       message from the other person (D) or the newest message that names you (G, P, T). *My call: task threads too, since
       they now have reactions.* This is fbk_028 part 2.
+    - Owner, 2026-10-20 (newest wins): the screens no longer show the line "Waits for your reply". "Mark as unread" is the
+      reminder: it shows the chat as unread until the person opens it again. The rule above stays in the API (`chats.waiting`)
+      for the agents.
 23. **The Admin's count.** An Admin's Inbox count and push cover the project chats of the projects that the Admin leads or
     works on, plus every message that names the Admin. The other project chats stay in the list and open as now, with no
     count and no push. *My call: an Admin who picks "All messages" on such a chat gets its count and its push back.*

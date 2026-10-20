@@ -1,6 +1,6 @@
 import type { Payment, TrackerEntry } from '../../../src/api/contract/entities';
 import type { Load } from './build';
-import { attachedFiles, covers, feed, fileById, namedFiles, projectView, tasksOf, trackerScope, type FeedFilter } from './steps';
+import { attachedFiles, covers, feed, fileById, lineMinutes, namedFiles, projectView, tasksOf, trackerScope, type FeedFilter } from './steps';
 
 /**
  * The project loader (plan 4.6): the calls that work on one project P. Each loads the project view of P when the call returns it
@@ -63,6 +63,8 @@ export async function filesList(L: Load, input: Input): Promise<void> {
  * a direct chat or a group (owner, 2026-10-19) reads nothing: the chat is in the office, and a second file with the same name is a new file.
  */
 export async function filesUpload(L: Load, input: Input): Promise<void> {
+  // A file of a meeting with no project (wave 2) reads the meeting by id (a meeting is not an office list), and no other file.
+  if (str(input.meetingId)) return L.byKey('meetings', [str(input.meetingId)]);
   if (str(input.conversationId)) return;
   if (!str(input.projectId)) return officeFiles(L, str(input.taskId));
   const projectId = str(input.projectId) ?? '';
@@ -75,6 +77,8 @@ export async function filesUpload(L: Load, input: Input): Promise<void> {
 export async function fileCall(L: Load, input: Input): Promise<void> {
   const file = await fileById(L, str(input.id) ?? '');
   if (file?.projectId === null) await L.byKey('tasks', [file.taskId]);
+  // The view rule of a file of a meeting reads the meeting (wave 2).
+  if (file?.meetingId !== undefined) await L.byKey('meetings', [file.meetingId]);
 }
 
 /** payments.list and payments.create: the payments of P. */
@@ -93,6 +97,8 @@ export async function trackerList(L: Load, input: Input): Promise<void> {
   const entries = (await L.select({ c: 'tracker', where: [{ col: 'project_id', in: [str(input.projectId) ?? ''] }] })) as TrackerEntry[];
   await L.byKey('tasks', entries.map((entry) => entry.replyTaskId));
   await namedFiles(L, entries);
+  // A line that Madar made for a meeting names the meeting and the files of its minutes (wave 2).
+  await lineMinutes(L, entries);
 }
 
 /** tracker.log: the tasks of P (a reply task joins the stage tag) and the files the entry names. */

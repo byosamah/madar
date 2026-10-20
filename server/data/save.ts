@@ -51,6 +51,8 @@ export type Diff = {
   commentIds: string[];
   /** The notices that the save inserted, in State order: the mail and push producers on SQLite (exit wave 3) read them. */
   noticeIds: string[];
+  /** The meetings that the save inserted, changed or deleted: the Google Calendar sync reads them (server/google/rows.ts, fbk_022). */
+  meetingIds: string[];
   /** True when a row of an office table changed: the office cache must load again (plan 4.7). */
   officeRows: boolean;
   /** True when every kind is personal (chatReads, notifications, preferences): no office signal. */
@@ -95,6 +97,8 @@ export type SaveResult = {
   commentIds?: string[];
   /** The notices that the save inserted. Left out when there are none. */
   noticeIds?: string[];
+  /** The meetings that the save inserted, changed or deleted (fbk_022). Left out when there are none. */
+  meetingIds?: string[];
   bytesWritten: number;
   signals: ChangeSignal[];
   /** The new office_meta.version when the save raised it. runCall then drops BatchScope.office (plan 4.7). */
@@ -324,6 +328,11 @@ export function diffState(before: State, after: State): Diff {
             } else if (spec.collection === 'files' && side.projectId === null && typeof side.taskId === 'string') {
               priv(spec.collection);
               officeTasks.add(side.taskId);
+            } else if (spec.collection === 'files' && side.projectId === null && typeof side.meetingId === 'string') {
+              // A file of a meeting with no project (wave 2) belongs to that private meeting: only its people hear the change, as for the
+              // meeting itself, the Admin too only when invited. No project and no office signal.
+              priv(spec.collection);
+              officeMeetings.add(side.meetingId);
             } else if (spec.collection === 'files' && side.projectId === null && typeof side.conversationId === 'string') {
               // A file of a direct chat or a group (owner, 2026-10-19) is private like a message (PRIVATE_CHAT_KINDS): it belongs to no
               // project and no task, so the save touches the office, and its office signal names no actor and no story. The signal
@@ -427,8 +436,10 @@ export function diffState(before: State, after: State): Diff {
   const messageIds = tables.find((change) => change.spec.collection === 'messages')?.inserted ?? [];
   const commentIds = tables.find((change) => change.spec.collection === 'comments')?.inserted ?? [];
   const noticeIds = tables.find((change) => change.spec.collection === 'notifications')?.inserted ?? [];
+  const meetingChange = tables.find((change) => change.spec.collection === 'meetings');
+  const meetingIds = meetingChange ? [...meetingChange.inserted, ...meetingChange.updated, ...meetingChange.deleted] : [];
   return {
-    tables, counters, kinds, projects, office: personal ? false : office, people, messageIds, commentIds, noticeIds, officeRows, personal, unresolvedComments,
+    tables, counters, kinds, projects, office: personal ? false : office, people, messageIds, commentIds, noticeIds, meetingIds, officeRows, personal, unresolvedComments,
     meta: meta ?? { storyId: '', actorId: '' },
     privateChange: officeTasks.size > 0 || officeMeetings.size > 0,
     privatePeople,
@@ -467,6 +478,7 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
     ...(diff.messageIds.length > 0 ? { messageIds: diff.messageIds } : {}),
     ...(diff.commentIds.length > 0 ? { commentIds: diff.commentIds } : {}),
     ...(diff.noticeIds.length > 0 ? { noticeIds: diff.noticeIds } : {}),
+    ...(diff.meetingIds.length > 0 ? { meetingIds: diff.meetingIds } : {}),
     ...fields,
   });
   if (!changed) return result();

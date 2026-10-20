@@ -22,6 +22,7 @@ function Line({ row, onOpen }: { row: TrackerRow; onOpen: () => void }) {
         </span>
         <DirectionMark direction={entry.direction} />
         <bdi className="line-clamp-2 min-w-0 text-body">{entry.title}</bdi>
+        {row.minutes && <span className="shrink-0 text-footnote text-ink-2">{t('minutes.rowWord')}</span>}
         {open && <StatusSign state="active">{t('tracker.openMark')}</StatusSign>}
         {closedLoop && <StatusSign state="completed">{t(entry.waiting === 'us' ? 'tracker.answered' : 'tracker.received')}</StatusSign>}
       </button>

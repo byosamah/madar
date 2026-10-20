@@ -1,0 +1,33 @@
+{
+  "errors": {
+    "reasons": {
+      "settle_final": "Madar marked this meeting as over. This mark has no Undo.",
+      "minutes_not_yet": "You can write the minutes after the meeting ends.",
+      "minutes_changed": "Someone saved the minutes after you opened them. Copy your text, then open them again.",
+      "minutes_line_gone": "Someone deleted the Tracker line of this meeting. Undo the delete in the History first.",
+      "file_meeting": "A file of this meeting stays with this meeting."
+    }
+  },
+  "tracker": {
+    "autoMeeting": "Added automatically when the meeting ended."
+  },
+  "minutes": {
+    "add": "Add the minutes",
+    "title": "Minutes",
+    "edit": "Edit the minutes",
+    "sheetTitle": "Minutes of “{{title}}”",
+    "field": "What did you agree, and who does what?",
+    "save": "Save the minutes",
+    "saved": "Minutes saved.",
+    "by": "By {{name}}, {{day}}",
+    "openTracker": "Open in the Tracker",
+    "openMeeting": "Open the meeting",
+    "rowWord": "Minutes"
+  },
+  "feed": {
+    "meeting": {
+      "minutes_saved_meeting": "wrote the minutes of “{{label}}”",
+      "minutes_saved_visit": "wrote the minutes of the site visit “{{label}}”"
+    }
+  }
+}

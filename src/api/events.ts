@@ -15,7 +15,11 @@ export const COLLECTION: Record<EventTarget, keyof State | null> = {
 /** Changes that follow from other changes. The project's stage tag follows its tasks, so it has no Undo of its own: it moves again with them. */
 export const DERIVED = new Set(['project.stage_changed']);
 
-export const NOT_UNDOABLE = new Set(['project.created', 'project.deleted', 'project.stages_changed', 'undo', ...DERIVED]);
+/**
+ * Changes with no Undo. The mark "meeting.settled" (fbk_022, wave 2) is final: the job would settle the meeting again, and the Tracker
+ * line that it made has its own Undo (tracker.logged deletes the line).
+ */
+export const NOT_UNDOABLE = new Set(['project.created', 'project.deleted', 'project.stages_changed', 'meeting.settled', 'undo', ...DERIVED]);
 
 /**
  * Changes that Madar makes to other tasks because of a person's change: a done task that opens again, and a date that moves.

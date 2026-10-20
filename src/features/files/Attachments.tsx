@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MAX_ATTACHMENTS } from '../../api/contract/limits';
 import type { Attachment } from '../../api/contract/views';
@@ -13,9 +13,44 @@ import { AttachFileIcon } from '../../components/icons/animated/attach-file';
 
 /**
  * Where the new files go. A task comment also links the file to its task. An office task has no project (projectId null). A direct chat
- * or a group has no project either, and names its chat (conversationId): its files stay in that chat (owner, 2026-10-19).
+ * or a group has no project either, and names its chat (conversationId): its files stay in that chat (owner, 2026-10-19). The minutes of
+ * a meeting with no project name their meeting (meetingId): the files stay with that meeting (wave 2).
  */
-export type UploadTarget = { projectId: string | null; stageId?: string | null; taskId?: string | null; conversationId?: string };
+export type UploadTarget = { projectId: string | null; stageId?: string | null; taskId?: string | null; conversationId?: string; meetingId?: string };
+
+/**
+ * The pictures of a paste, or an empty list (chat design 2026-10-19, item 14). A paste that holds text stays text. A paste of only
+ * pictures adds them as picked files. The chat box (Composer.tsx) and the comment box of the task panel (CommentThread.tsx, fbk_032)
+ * use this one rule.
+ */
+export function pastedPictures(data: Pick<DataTransfer, 'files' | 'getData'> | null): File[] {
+  if (!data || data.getData('text/plain') !== '') return [];
+  return [...data.files].filter((file) => file.type.startsWith('image/'));
+}
+
+/** True when a drag carries files. A drag of selected text or of a link carries none, and the page leaves it alone. */
+const dragHasFiles = (event: DragEvent): boolean => [...(event.dataTransfer?.types ?? [])].includes('Files');
+
+/**
+ * A file dropped on a page opens in the browser tab, and the person loses the page and the draft (fbk_030). While this runs, a drag of
+ * files over the page is not left to the browser, and the cursor says "not here". A drop area (ChatDropArea of the chat or of the task
+ * panel) takes the drag first and cancels its default: this leaves that drag alone, so the area keeps its own cursor and its drop.
+ */
+export function useBlockFileDrop(): void {
+  useEffect(() => {
+    const keep = (event: DragEvent) => {
+      if (!dragHasFiles(event) || event.defaultPrevented) return;
+      event.preventDefault();
+      if (event.type === 'dragover' && event.dataTransfer) event.dataTransfer.dropEffect = 'none';
+    };
+    window.addEventListener('dragover', keep);
+    window.addEventListener('drop', keep);
+    return () => {
+      window.removeEventListener('dragover', keep);
+      window.removeEventListener('drop', keep);
+    };
+  }, []);
+}
 
 /**
  * The files a person picked for a post, a comment or a message. The files upload when the person sends,
@@ -65,6 +100,7 @@ export function useAttachments(max: number = MAX_ATTACHMENTS, initial: File[] = 
               {
                 ...(target.projectId ? { projectId: target.projectId } : {}),
                 ...(target.conversationId ? { conversationId: target.conversationId } : {}),
+                ...(target.meetingId ? { meetingId: target.meetingId } : {}),
                 name: file.name, blob: file, stageId: target.stageId ?? null, taskId: target.taskId ?? null,
               },
               { ...meta, onProgress: (sent, total) => setPercent(file, total > 0 ? Math.min(100, Math.round((sent / total) * 100)) : 0) },

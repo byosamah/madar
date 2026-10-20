@@ -5,7 +5,7 @@ import { Load, type LoadCtx } from './build';
 import { chatMessageCall, chatMessageRows, chatsAll, chatsArchive, chatsMarkRead, chatsMessages, chatsSetNotify, chatsUnread, chatsWaiting } from './chat';
 import { chatsOpenDirect } from './chatOpen';
 import { inboxCount, inboxList } from './inbox';
-import { meetingCall, meetingsList } from './meetings';
+import { meetingCall, meetingMinutes, meetingsList } from './meetings';
 import { dashboardGet, eventsList, projectsList, searchQuery, tasksList, templateSyncTasks } from './overview';
 import {
   fileCall, filesList, filesUpload, paymentCall, paymentsOfProject, projectCall, projectsCreate, stagesReplace, trackerCall, trackerExport,
@@ -38,7 +38,8 @@ import {
  *   projectDelete  every row of P and what points at it
  *   push           the push devices of the person of the call (push.register also reads the row of its endpoint)
  *   report         reports.office: the tasks, Tracker entries and payments of the projects, and the events of the period as counts
- *   meetings       the meetings of one window (meetings.list), or one meeting by id with the records it names (meetings.get, update, cancel)
+ *   meetings       the meetings of one window (meetings.list), or one meeting by id with the records it names (meetings.get, update, cancel,
+ *                  settle)
  *
  * The 9 server calls of plan 4.11 run their own code on the office snapshot and have no loader.
  */
@@ -161,6 +162,7 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'chats.deleteMessage': chat(chatMessageCall),
   'chats.markRead': chat(chatsMarkRead),
   'chats.archive': chat(chatsArchive),
+  'chats.markUnread': chat(chatsArchive),
   'chats.setNotify': chat(chatsSetNotify),
   'chats.openDirect': chat(chatsOpenDirect),
   'chats.createGroup': office,
@@ -232,6 +234,10 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'meetings.create': office,
   'meetings.update': meetings(meetingCall),
   'meetings.cancel': meetings(meetingCall),
+  // The settle reads the meeting by id (it writes the mark and the Tracker line, which needs no other row). A project is in the office.
+  'meetings.settle': meetings(meetingCall),
+  // The minutes read the meeting and its line (and their files), and the files that the new minutes carry (wave 2).
+  'meetings.saveMinutes': meetings(meetingMinutes),
 };
 
 /**

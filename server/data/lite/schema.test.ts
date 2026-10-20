@@ -8,12 +8,17 @@ import { DEFAULT_SETTINGS, LITE_SCHEMA_VERSION, SIGNIN_TABLES, applyLiteSchema, 
 import { freshLite } from './testDb';
 
 /** The sha256 of the schema text of LITE_SCHEMA_VERSION. A change of the schema needs a new version and a new value here. */
-const PINNED_SHA256 = '9b182d8dd92ef02635a4ba7f4cd08dbf65fd67494a131db1d102b7c7f210bcfb';
+const PINNED_SHA256 = '70e71a4443ceb5fec18285a07fed1a2273df5a70c5e74da569ce7edca605165d';
 
 const tablesOf = (raw: DatabaseSync) =>
   (raw.prepare("select name from sqlite_master where type = 'table' and name not like 'sqlite_%' order by name").all() as { name: string }[]).map((r) => r.name);
 const columnsOf = (raw: DatabaseSync, table: string) =>
   (raw.prepare('select name from pragma_table_info(?)').all(table) as { name: string }[]).map((r) => r.name);
+/** Takes the two Google tables away, as an office below version 8 has none (fbk_022). */
+const dropGoogle = (raw: DatabaseSync) => {
+  raw.exec('drop table google_connections');
+  raw.exec('drop table google_events');
+};
 
 describe('the SQLite schema (server/data/lite/schema.ts)', () => {
   it('makes one table for each State collection, with the loader columns of query.ts, and only id and doc for an office list', async () => {
@@ -37,11 +42,14 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     raw.exec('alter table messages drop column search_text');
     raw.exec('alter table comments drop column search_text');
     raw.exec('drop table meetings');
+    dropGoogle(raw);
     raw.exec('update schema_version set version = 2');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [3, 4, 5, 6] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [3, 4, 5, 6, 7, 8] });
     expect(columnsOf(raw, 'usage_day')).toEqual(['day', 'rows_read', 'rows_written', 'requests', 'calls', 'worker_requests']);
     expect(columnsOf(raw, 'sub_companies')).toEqual(['id', 'doc']);
     expect(columnsOf(raw, 'meetings')).toEqual(['id', 'doc', ...columnNames('meetings')]);
+    expect(columnsOf(raw, 'google_connections')).toEqual(['id', 'user_id', 'sealed_token', 'calendar_id', 'state', 'connected_at', 'last_error', 'last_error_at', 'changed_at']);
+    expect(columnsOf(raw, 'google_events')).toEqual(['user_id', 'meeting_id', 'event_id', 'synced_rev', 'synced_at']);
     expect(raw.prepare('select version from schema_version').get()).toEqual({ version: LITE_SCHEMA_VERSION });
   });
 
@@ -50,10 +58,11 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     const fresh = raw.prepare("select sql from sqlite_master where name = 'sub_companies'").get();
     raw.exec('drop table sub_companies');
     raw.exec('drop table meetings');
+    dropGoogle(raw);
     raw.exec('update schema_version set version = 3');
     raw.exec('alter table messages drop column search_text');
     raw.exec('alter table comments drop column search_text');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [4, 5, 6] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [4, 5, 6, 7, 8] });
     expect(raw.prepare("select sql from sqlite_master where name = 'sub_companies'").get()).toEqual(fresh);
   });
 
@@ -61,12 +70,13 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     const { raw } = await freshLite();
     const objects = () => raw.prepare("select name, sql from sqlite_master where tbl_name = 'meetings' order by name").all();
     const fresh = objects();
-    expect(fresh.map((row) => (row as { name: string }).name)).toEqual(['meetings', 'meetings_project_starts', 'meetings_starts', 'sqlite_autoindex_meetings_1']);
+    expect(fresh.map((row) => (row as { name: string }).name)).toEqual(['meetings', 'meetings_project_starts', 'meetings_starts', 'meetings_to_settle', 'sqlite_autoindex_meetings_1']);
     raw.exec('drop table meetings');
+    dropGoogle(raw);
     raw.exec('alter table messages drop column search_text');
     raw.exec('alter table comments drop column search_text');
     raw.exec('update schema_version set version = 4');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [5, 6] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [5, 6, 7, 8] });
     expect(objects()).toEqual(fresh);
   });
 
@@ -76,11 +86,52 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     const fresh = [text('messages'), text('comments')];
     raw.exec('alter table messages drop column search_text');
     raw.exec('alter table comments drop column search_text');
+    raw.exec('drop index meetings_to_settle');
+    dropGoogle(raw);
     raw.exec('update schema_version set version = 5');
-    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [6] });
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [6, 7, 8] });
     expect([text('messages'), text('comments')]).toEqual(fresh);
     expect(columnsOf(raw, 'messages')).toEqual(['id', 'doc', 'conversation_id', 'created_at', 'search_text']);
     expect(columnsOf(raw, 'comments')).toEqual(['id', 'doc', 'target_type', 'target_id', 'created_at', 'project_id', 'search_text']);
+  });
+
+  it('steps a version 6 office to the same settle index as a new office (fbk_022, wave 2)', async () => {
+    const { raw } = await freshLite();
+    const objects = () => raw.prepare("select name, sql from sqlite_master where tbl_name = 'meetings' order by name").all();
+    const fresh = objects();
+    expect(fresh.map((row) => (row as { name: string; sql: string }).sql)).toContain(
+      "CREATE INDEX meetings_to_settle on meetings (ends_at) where status = 'scheduled' and settled_at is null",
+    );
+    raw.exec('drop index meetings_to_settle');
+    dropGoogle(raw);
+    raw.exec('update schema_version set version = 6');
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [7, 8] });
+    expect(objects()).toEqual(fresh);
+  });
+
+  it('steps a version 7 office to the same Google tables and indexes as a new office (fbk_022)', async () => {
+    const { raw } = await freshLite();
+    const objects = () => raw.prepare("select name, sql from sqlite_master where tbl_name in ('google_connections', 'google_events') order by name").all();
+    const fresh = objects();
+    expect(fresh.map((row) => (row as { name: string }).name)).toEqual([
+      'google_connections', 'google_connections_person', 'google_events', 'google_events_meeting', 'sqlite_autoindex_google_events_1', 'sqlite_autoindex_google_connections_1',
+    ].sort());
+    dropGoogle(raw);
+    raw.exec('update schema_version set version = 7');
+    expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [8] });
+    expect(objects()).toEqual(fresh);
+  });
+
+  it('keeps one live connection for each person, and lets a revoking row live beside it (fbk_022)', async () => {
+    const { raw } = await freshLite();
+    const add = (id: string, state: string) => raw.prepare("insert into google_connections (id, user_id, state, connected_at, changed_at) values (?, 'usr_003', ?, '2026-10-21T06:00:00.000Z', '2026-10-21T06:00:00.000Z')").run(id, state);
+    add('c1', 'ok');
+    expect(() => add('c2', 'not_synced')).toThrow('UNIQUE');
+    expect(() => add('c3', 'not_a_state')).toThrow('CHECK');
+    add('c4', 'revoking');
+    add('c5', 'revoking');
+    raw.prepare("update google_connections set state = 'revoking' where id = 'c1'").run();
+    add('c6', 'broken');
   });
 
   it('refuses an office whose version has no step to the next one, and changes nothing', async () => {
@@ -155,6 +206,6 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
 
   it('pins the schema text to its version', () => {
     const sha256 = createHash('sha256').update(liteSchemaSql().join('\n')).digest('hex');
-    expect({ version: LITE_SCHEMA_VERSION, sha256 }).toEqual({ version: 6, sha256: PINNED_SHA256 });
+    expect({ version: LITE_SCHEMA_VERSION, sha256 }).toEqual({ version: 8, sha256: PINNED_SHA256 });
   });
 });

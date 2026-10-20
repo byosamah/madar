@@ -1,6 +1,7 @@
 import type { Deps } from '../core/ports';
 import { cleanup } from './steps/cleanup';
 import { heartbeat } from './steps/heartbeat';
+import { meetings } from './steps/meetings';
 import { outboxRetry } from './steps/outbox';
 import { summary } from './steps/summary';
 import { triggers } from './steps/triggers';
@@ -13,6 +14,7 @@ import { usage } from './steps/usage';
  *
  *   heartbeat   the job_runs row "heartbeat" (usage.get shows the last run)
  *   triggers    the due, overdue and restart reminders under the office lock, with their notice mail
+ *   meetings    the meetings that ended: the mark and, for a project meeting, the Tracker line (meetings.settle as the organizer)
  *   summary     the morning summary at 07:30 Riyadh on a working day
  *   outbox      the effects that did not finish after their commit
  *   cleanup     old stories, idempotency keys, office_deletes rows and rate limit windows
@@ -30,6 +32,7 @@ export type JobReport = { ok: boolean; at: string; steps: StepReport[] };
 export const JOB_STEPS: readonly JobStep[] = [
   { name: 'heartbeat', run: heartbeat },
   { name: 'triggers', run: triggers },
+  { name: 'meetings', run: meetings },
   { name: 'summary', run: summary },
   { name: 'outbox', run: (deps) => outboxRetry(deps) },
   { name: 'cleanup', run: cleanup },

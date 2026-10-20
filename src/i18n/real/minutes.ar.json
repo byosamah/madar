@@ -1,0 +1,36 @@
+{
+  "errors": {
+    "reasons": {
+      "settle_final": "سجّل مدار أن الاجتماع انتهى. لا تراجع عن هذه العلامة.",
+      "minutes_not_yet": "تكتب المحضر بعد أن ينتهي الاجتماع.",
+      "minutes_changed": "حفظ شخص آخر المحضر بعد أن فتحته. انسخ نصك، ثم افتح المحضر من جديد.",
+      "minutes_line_gone": "حذف أحدهم سطر هذا الاجتماع من المتابعة. تراجع عن الحذف في السجل أولًا.",
+      "file_meeting": "ملف هذا الاجتماع يبقى معه."
+    }
+  },
+  "tracker": {
+    "autoMeeting": "أُضيف تلقائيًا بعد أن انتهى الاجتماع."
+  },
+  "minutes": {
+    "add": "اكتب محضر الاجتماع",
+    "title": "المحضر",
+    "edit": "عدّل المحضر",
+    "sheetTitle": "محضر «{{title}}»",
+    "field": "ماذا اتفقتم عليه، ومن يفعل ماذا؟",
+    "save": "احفظ المحضر",
+    "saved": "حفظنا المحضر.",
+    "by": "كتبه {{name}}، {{day}}",
+    "by_female": "كتبته {{name}}، {{day}}",
+    "openTracker": "افتحه في المتابعة",
+    "openMeeting": "افتح الاجتماع",
+    "rowWord": "محضر"
+  },
+  "feed": {
+    "meeting": {
+      "minutes_saved_meeting": "كتب محضر «{{label}}»",
+      "minutes_saved_meeting_female": "كتبت محضر «{{label}}»",
+      "minutes_saved_visit": "كتب محضر الزيارة «{{label}}»",
+      "minutes_saved_visit_female": "كتبت محضر الزيارة «{{label}}»"
+    }
+  }
+}

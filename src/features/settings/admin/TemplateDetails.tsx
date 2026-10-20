@@ -9,7 +9,7 @@ import { PlusIcon } from '../../../components/icons/animated/plus';
 import { XIcon } from '../../../components/icons/animated/x';
 import type { Kind, Picked } from './TemplateGantt';
 import {
-  moveStage, moveStageStart, removeStage, removeTask, startsBeforeStageAbove, tasksEndDay, wholeNumber,
+  moveStage, moveStageStart, moveTaskToStage, removeStage, removeTask, startsBeforeStageAbove, taskOutsideStage, tasksEndDay, touchTask, wholeNumber,
   type DraftProblem, type DraftStage, type DraftTask, type TemplateDraft,
 } from './templateDraft';
 
@@ -201,6 +201,8 @@ function StageDetails({ stage, draft, setDraft, onLink, onUnlink, onPick, error 
 function TaskDetails({ task, draft, setDraft, onLink, onUnlink, onPick, error }: DetailProps<{ task: DraftTask }>) {
   const { t } = useTranslation();
   const setTask = (next: DraftTask) => setDraft({ ...draft, tasks: draft.tasks.map((part) => (part.id === task.id ? next : part)) });
+  // A start or a length that the person types is a choice of the person: the task is no longer fresh, so a move to another stage keeps it.
+  const setDays = (next: DraftTask) => setTask(touchTask(next));
   return (
     <div className="flex flex-col gap-4">
       <TextField
@@ -213,13 +215,23 @@ function TaskDetails({ task, draft, setDraft, onLink, onUnlink, onPick, error }:
         error={error('title')}
         onChange={(event) => setTask({ ...task, title: event.target.value })}
       />
+      {/* The stage of the task (fbk_031). A move keeps the days of the task; a task that was just added goes where Add task would put it. */}
+      <SelectField
+        id="tpl-detail-stage"
+        label={t('projectTemplates.taskStage')}
+        value={task.stageId}
+        hint={taskOutsideStage(draft, task.id) ? t('projectTemplates.taskOutside') : undefined}
+        onChange={(event) => setDraft(moveTaskToStage(draft, task.id, event.target.value))}
+      >
+        {draft.stages.map((stage, index) => <option key={stage.id} value={stage.id}>{stage.name.trim() || String(index + 1)}</option>)}
+      </SelectField>
       <SelectField id="tpl-detail-role" label={t('projectTemplates.role')} value={task.roleId} onChange={(event) => setTask({ ...task, roleId: event.target.value })}>
         <option value="">{t('lead.noLead')}</option>
         {draft.roles.map((role, index) => <option key={role.id} value={role.id}>{role.name || String(index + 1)}</option>)}
       </SelectField>
       <div className="grid grid-cols-2 gap-3">
-        <TextField id="tpl-detail-start" label={t('projectTemplates.startDay')} value={task.start} error={error('start')} onChange={(event) => setTask({ ...task, start: event.target.value })} {...NUMBER} />
-        <TextField id="tpl-detail-days" label={t('projectTemplates.days')} value={task.days} error={error('days')} onChange={(event) => setTask({ ...task, days: event.target.value })} {...NUMBER} />
+        <TextField id="tpl-detail-start" label={t('projectTemplates.startDay')} value={task.start} error={error('start')} onChange={(event) => setDays({ ...task, start: event.target.value })} {...NUMBER} />
+        <TextField id="tpl-detail-days" label={t('projectTemplates.days')} value={task.days} error={error('days')} onChange={(event) => setDays({ ...task, days: event.target.value })} {...NUMBER} />
       </div>
       <label htmlFor="tpl-detail-flexible" className="flex min-h-11 items-center gap-3 self-start rounded-xl pe-2 hover:bg-fill">
         <input

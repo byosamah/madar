@@ -27,6 +27,8 @@ export const filesShare = defineCall({
     if (!file || !mayViewFile(ctx.state, ctx.authority, file)) throw notFound('File', input.fileId);
     // A file of a direct chat or a group stays in its chat (owner, 2026-10-19).
     if (file.conversationId !== undefined) throw invalid('target', 'A file of a chat stays in its chat.', 'file_chat');
+    // A file of a meeting stays with its meeting (wave 2).
+    if (file.meetingId !== undefined) throw invalid('target', 'A file of a meeting stays with its meeting.', 'file_meeting');
     const body = input.message || file.name;
     const { target } = input;
     if (target.kind === 'task') {

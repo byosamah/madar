@@ -26,13 +26,14 @@ export const MCP_ALLOW = [
   READ_FIRST, 'projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'tracker.list',
   'payments.list', 'deadlines.list', 'files.list', 'users.list', 'dashboard.get', 'search.query', 'events.list', 'chats.list', 'subCompanies.list',
   'chats.messages', 'chats.waiting', 'meetings.list', 'meetings.get',
-  // Writes (29). chats.openDirect and chats.send message the team: a direct chat, a group or a project chat (task comments and
+  // Writes (30). chats.openDirect and chats.send message the team: a direct chat, a group or a project chat (task comments and
   // project posts are comments.create and updates.create). stages.setDates sets the dates of one stage, as the Schedule tab does.
-  // meetings.create, meetings.update and meetings.cancel tell the attendees, who are real people.
+  // meetings.create, meetings.update and meetings.cancel tell the attendees, who are real people. meetings.saveMinutes writes the minutes of a meeting
+  // that ended (wave 2); it tells nobody.
   'story.start', 'tasks.create', 'tasks.update', 'tasks.take', 'tasks.arrange', 'tasks.move', 'tasks.complete', 'tasks.approve', 'tasks.sendBack', 'comments.create',
   'updates.create', 'tracker.log', 'tracker.update', 'tracker.close', 'payments.create', 'payments.update', 'payments.markReceived',
   'deadlines.create', 'deadlines.update', 'projects.update', 'projects.setStatus', 'events.undo', 'events.undoStory',
-  'chats.openDirect', 'chats.send', 'stages.setDates', 'meetings.create', 'meetings.update', 'meetings.cancel',
+  'chats.openDirect', 'chats.send', 'stages.setDates', 'meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.saveMinutes',
 ] as const satisfies readonly (typeof READ_FIRST | SharedCallName | ServerCallName)[];
 
 /**
@@ -81,9 +82,10 @@ export const MCP_DENY = [
   'files.upload', 'files.uploadStart', 'files.link', 'files.delete', 'files.markDelivered', 'files.share',
   // Notifications and read marks: screen state of one person. An agent reads the chats of its person (fbk_011, owner 2026-10-18), but
   // a read mark is the person's own act: an agent never marks a chat read (owner, 2026-10-12).
-  // An archive mark is screen state too: an agent never archives a chat (owner, 2026-10-18).
+  // An archive mark is screen state too: an agent never archives a chat (owner, 2026-10-18). Nor does it mark a chat unread (fbk_028,
+  // owner 2026-10-23): an unread mark is the person's own reminder, and a bold row with nothing new in it would only confuse the person.
   'notifications.list', 'notifications.count', 'notifications.markRead', 'notifications.markAllRead', 'notifications.markUnread',
-  'notifications.updateSettings', 'chats.markRead', 'chats.unreadCount', 'chats.archive',
+  'notifications.updateSettings', 'chats.markRead', 'chats.markUnread', 'chats.unreadCount', 'chats.archive',
   // A Notify me choice is screen state of one person, as an archive mark (design item 21).
   'chats.setNotify',
   // Group chats are screen work (fbk_011): an agent may send to a group, but it does not make, rename or leave one.
@@ -96,6 +98,8 @@ export const MCP_DENY = [
   'projectTemplates.matchPlan', 'projectTemplates.link', 'projectTemplates.usage', 'projectTemplates.syncPlan', 'projectTemplates.syncApply',
   'taskTemplates.list', 'taskTemplates.save', 'taskTemplates.rename', 'taskTemplates.delete',
   'tracker.delete', 'tracker.assignReply', 'tracker.export', 'payments.delete',
+  // A meeting that ended is settled by the 15-minute job and by the minutes call (fbk_022, wave 2): Madar makes its Tracker line, an agent does not.
+  'meetings.settle',
   // Feedback: a report comes in from the screens only. Agents and usage.
   'feedback.send', 'feedback.uploadStart',
   'agents.list', 'agents.remove', 'usage.get', 'usage.retryEffect',
@@ -103,6 +107,9 @@ export const MCP_DENY = [
   'push.register', 'push.remove', 'push.mine',
   // Live updates (exit wave 3): the ticket opens a browser socket. An agent has no socket.
   'live.ticket',
+  // Google Calendar (fbk_022, owner 2026-10-19): a person connects it in the Settings screen. An agent cannot connect, disconnect or read
+  // a connection. The meetings of its person reach their Google Calendar by themselves, with the title, the time and the place only.
+  'google.status', 'google.connectStart', 'google.connect', 'google.disconnect',
 ] as const satisfies readonly (SharedCallName | ServerCallName)[];
 
 /**

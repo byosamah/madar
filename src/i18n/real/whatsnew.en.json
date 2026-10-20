@@ -3,13 +3,21 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-53": {
+        "title": "Your meetings in Google Calendar",
+        "body": "Connect Google Calendar once in Settings. Madar then puts each of your meetings there and keeps it up to date. Google gets only the title, the time and the place."
+      },
+      "2026-10-23-52": {
+        "title": "Minutes after each meeting",
+        "body": "After a meeting, any attendee writes its minutes on the meeting. A project meeting also gets a line in the Tracker, and its minutes go there."
+      },
       "2026-10-23-51": {
         "title": "Project chats for the Admin",
         "body": "As the Admin, you see the unread count and get pushes of the project chats of your own projects. In other project chats, you see only the messages that name you. Pick All messages in the menu of a chat to see all of it."
       },
       "2026-10-23-50": {
         "title": "Fewer pushes",
-        "body": "A project chat now sends you a push only when a message names you. In the menu of each chat, Notify me sets All messages or Only when I am named. Madar sends no push for a chat that you already read. A 👍 or ✅ on a message answers it. To reach a person, type @ and pick the name."
+        "body": "A project chat now sends you a push only when a message names you. In the menu of each chat, Notify me sets All messages or Only when I am named. Madar sends no push for a chat that you already read. To reach a person, type @ and pick the name."
       },
       "2026-10-23-40": {
         "title": "Search messages",

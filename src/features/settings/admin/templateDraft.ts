@@ -17,6 +17,11 @@ export type DraftTask = {
   description: string; checklist: string[]; needsReview: boolean;
   /** The tasks that this task waits for. Missing means none. */
   prerequisiteIds?: string[];
+  /**
+   * True for a task that Add task just made and the person has not touched: its days are the days that Add task chose, not a choice of
+   * the person (fbk_031). The draft keeps it; the save never sees it. Missing means a saved task or a task whose days the person set.
+   */
+  fresh?: true;
 };
 /**
  * "partSeq" is the highest part number that the saved template ever gave (fbk_008 item 4). A new part gets a number above it,
@@ -203,24 +208,71 @@ export function addStage(draft: TemplateDraft): TemplateDraft {
 }
 
 /**
- * A new task starts where the last task of its stage ends. The first task of a stage starts at the own start day of the stage
- * when the stage has one (ADM-18), else where the template ends.
+ * The start day of a task that is added to a stage: where the last task of the stage ends. The first task of a stage starts at the own
+ * start day of the stage when the stage has one (ADM-18), else where the template ends.
  */
-export function addTask(draft: TemplateDraft, stageId: string): TemplateDraft {
+function newTaskStart(draft: TemplateDraft, stageId: string): number {
   const own = draftPlanTemplate({ ...draft, tasks: draft.tasks.filter((task) => task.stageId === stageId) });
   const stageStart = wholeNumber(draft.stages.find((stage) => stage.id === stageId)?.start ?? '');
-  const start = own.tasks.length > 0
+  return own.tasks.length > 0
     ? Math.max(...own.tasks.map((task) => task.startOffset + task.durationDays))
     : stageStart ?? templateDays(draftPlanTemplate(draft));
+}
+
+/** A new task starts where the last task of its stage ends (newTaskStart), for 5 days. It is "fresh" until the person sets its days. */
+export function addTask(draft: TemplateDraft, stageId: string): TemplateDraft {
+  const start = newTaskStart(draft, stageId);
   const task: DraftTask = {
     id: freeId(draft, 't'), stageId, title: '', roleId: '', start: String(start), days: String(NEW_TASK_DAYS), flexible: true,
-    description: '', checklist: [], needsReview: true,
+    description: '', checklist: [], needsReview: true, fresh: true,
   };
   // The task goes after the last task of its stage, so the list stays grouped by stage.
   const last = draft.tasks.map((t) => t.stageId).lastIndexOf(stageId);
   const tasks = [...draft.tasks];
   tasks.splice(last === -1 ? tasks.length : last + 1, 0, task);
   return { ...draft, tasks };
+}
+
+/** The task after the person set its days (start or length): it is no longer fresh, so a move to another stage keeps its days. */
+export function touchTask(task: DraftTask): DraftTask {
+  const { fresh: _fresh, ...rest } = task;
+  return rest;
+}
+
+/**
+ * Moves a task to another stage (fbk_031: "adding a task to an existing template does not let you change which stage it's added in").
+ * One rule, with the fewest surprises: the move changes the stage and nothing else, so the days of a task stay where they are, and the
+ * notes that the editor shows today say when they no longer fit the stage (tasksEndDay, startsBeforeStageAbove). The waits stay true,
+ * because the days do not move. One exception: a task that Add task just made and the person has not touched ("fresh", no wait) never
+ * had days of its own, so it goes where Add task would put it in the new stage. The list stays grouped by stage: the task goes after the
+ * last task of its new stage, or at the end when that stage has none. The draft comes back as it was for the same stage, a missing stage
+ * or a missing task.
+ */
+export function moveTaskToStage(draft: TemplateDraft, taskId: string, stageId: string): TemplateDraft {
+  const task = draft.tasks.find((part) => part.id === taskId);
+  if (!task || task.stageId === stageId || !draft.stages.some((stage) => stage.id === stageId)) return draft;
+  const rest = draft.tasks.filter((part) => part.id !== taskId);
+  const placed = task.fresh && (task.prerequisiteIds ?? []).length === 0;
+  const moved: DraftTask = { ...task, stageId, ...(placed ? { start: String(newTaskStart({ ...draft, tasks: rest }, stageId)) } : {}) };
+  const last = rest.map((part) => part.stageId).lastIndexOf(stageId);
+  const tasks = [...rest];
+  tasks.splice(last === -1 ? tasks.length : last + 1, 0, moved);
+  return { ...draft, tasks };
+}
+
+/**
+ * True when the stage of the task has its own days and the days of the task are not inside them (fbk_031). The editor says so under the
+ * Stage field, because a move to another stage keeps the days of the task. A stage with no own days, or a task with no valid numbers,
+ * has no such problem.
+ */
+export function taskOutsideStage(draft: TemplateDraft, taskId: string): boolean {
+  const task = draft.tasks.find((part) => part.id === taskId);
+  const stage = task && draft.stages.find((part) => part.id === task.stageId);
+  if (!task || !stage) return false;
+  const [from, days] = [wholeNumber(stage.start), wholeNumber(stage.days)];
+  const [start, length] = [wholeNumber(task.start), wholeNumber(task.days)];
+  if (from === null || days === null || start === null || length === null) return false;
+  return start < from || start + length > from + days;
 }
 
 /** Removes a task. The other tasks no longer wait for it, so a new task with the same id does not inherit the wait. */

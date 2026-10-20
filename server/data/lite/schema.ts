@@ -20,8 +20,13 @@ import type { SqlHost } from './host';
  *
  * Version 6 (chat search, chat design 2026-10-19, item 16): the column search_text of messages and comments, the folded body.
  * Its step is in LITE_STEPS. The office path keeps no index on it (the search scans it until the restart, exit-handoff.md).
+ *
+ * Version 7 (fbk_022, wave 2): the partial index meetings_to_settle for the job that settles ended meetings. Its step is in LITE_STEPS.
+ *
+ * Version 8 (fbk_022, the track gcal): the server tables google_connections and google_events of the Google Calendar connect, with
+ * their indexes. Its step is in LITE_STEPS.
  */
-export const LITE_SCHEMA_VERSION = 6;
+export const LITE_SCHEMA_VERSION = 8;
 
 export type LiteIndex = { table: string; name: string; columns: string; unique?: true; where?: string };
 
@@ -31,6 +36,7 @@ export const LITE_INDEXES: readonly LiteIndex[] = [
   { table: 'push_devices', name: 'push_devices_user', columns: 'user_id' },
   { table: 'meetings', name: 'meetings_starts', columns: 'starts_at' },
   { table: 'meetings', name: 'meetings_project_starts', columns: 'project_id, starts_at' },
+  { table: 'meetings', name: 'meetings_to_settle', columns: 'ends_at', where: "status = 'scheduled' and settled_at is null" },
   { table: 'tasks', name: 'tasks_project', columns: 'project_id' },
   { table: 'tasks', name: 'tasks_owner', columns: 'owner_id' },
   { table: 'updates', name: 'updates_project_created', columns: 'project_id, created_at' },
@@ -68,6 +74,20 @@ const USAGE_DAY_SQL =
   'create table usage_day (day text primary key, rows_read integer not null default 0, rows_written integer not null default 0, '
   + 'requests integer not null default 0, calls integer not null default 0, worker_requests integer not null default 0)';
 
+/**
+ * The server tables of the Google Calendar connect (version 7, fbk_022; supabase/migrations/20261021000200_google_calendar.sql). No
+ * State collection reads them. Their indexes are in GOOGLE_INDEXES.
+ */
+const GOOGLE_SQL: readonly string[] = [
+  'create table google_connections (id text primary key, user_id text not null, sealed_token text, calendar_id text, '
+  + "state text not null check (state in ('ok', 'not_synced', 'broken', 'revoking')), connected_at text not null, last_error text, last_error_at text, changed_at text not null)",
+  'create table google_events (user_id text not null, meeting_id text not null, event_id text not null, synced_rev integer not null, synced_at text not null, primary key (user_id, meeting_id))',
+];
+const GOOGLE_INDEXES: readonly LiteIndex[] = [
+  { table: 'google_connections', name: 'google_connections_person', columns: 'user_id', unique: true, where: "state <> 'revoking'" },
+  { table: 'google_events', name: 'google_events_meeting', columns: 'meeting_id' },
+];
+
 /** The server tables of 20261004000101_server_tables.sql, 20261004000600_usage_signals.sql and the agent approvals. */
 const SERVER_SQL: readonly string[] = [
   'create table counters (prefix text primary key, n integer not null check (n >= 0))',
@@ -87,6 +107,7 @@ const SERVER_SQL: readonly string[] = [
   'create table rate_limits (key text not null, window_start text not null, count integer not null default 0, primary key (key, window_start))',
   `create table job_runs (key text primary key, done_at text not null default (${NOW}))`,
   USAGE_DAY_SQL,
+  ...GOOGLE_SQL,
   // The sign-in rows (Supabase exit, wave 2). id is the auth.users id of Supabase for an imported person, else a new uuid.
   `create table auth_users (id text primary key, user_id text, email text not null, password_hash text, password_set integer not null default 0, email_confirmed integer not null default 0, banned integer not null default 0, created_at text not null default (${NOW}), updated_at text not null default (${NOW}))`,
   `create table auth_links (token_hash text primary key, auth_id text not null, type text not null check (type in ('invite', 'recovery')), expires_at text not null, used_at text, created_at text not null default (${NOW}))`,
@@ -112,6 +133,7 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
   { table: 'oauth_requests', name: 'oauth_requests_code', columns: 'code_hash', unique: true, where: 'code_hash is not null' },
   // The invitation texts of server/auth/invite.ts repeat this exact term, else SQLite scans the whole outbox (checked on node:sqlite).
   { table: 'outbox', name: 'outbox_signin', columns: 'kind', where: "kind in ('auth.invite', 'auth.email')" },
+  ...GOOGLE_INDEXES,
 ];
 
 /**
@@ -123,6 +145,8 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
  * Version 6 adds search_text to messages and comments. It is the last column of each, as COLUMNS of query.ts holds it, so the table
  * text of a stepped office equals the table text of a new office. No real office exists below version 6 (the import of exit wave 4
  * computes the column with rowOf), so the step writes no value.
+ * Version 7 adds the partial index meetings_to_settle (fbk_022, wave 2): the scheduled meetings with no settled_at, by ends_at.
+ * Version 8 adds the two server tables of the Google Calendar connect and their indexes, as in liteSchemaSql.
  */
 export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   3: [USAGE_DAY_SQL],
@@ -133,6 +157,11 @@ export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
     'create index meetings_project_starts on meetings (project_id, starts_at)',
   ],
   6: ['alter table messages add column search_text text', 'alter table comments add column search_text text'],
+  7: ["create index meetings_to_settle on meetings (ends_at) where status = 'scheduled' and settled_at is null"],
+  8: [
+    ...GOOGLE_SQL,
+    ...GOOGLE_INDEXES.map(indexSql),
+  ],
 };
 
 /** The sign-in tables of wave 2: the import of wave 4 and the restore check copy them with the office. */

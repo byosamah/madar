@@ -15,7 +15,7 @@ import { INBOX_TASK_FIELDS } from './inbox';
 import { LOADER_OF } from './index';
 import { loadJobs } from './jobs';
 import { memorySource } from './memorySource';
-import { AGENT_MADE_TASK, badgeTraps, findSweep, findTraps, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, trapOffice, writeSweep } from './sweep';
+import { AGENT_MADE_TASK, badgeTraps, ENDED_MEETING_TITLE, ENDED_PROJECT_MEETING_TITLE, ENDED_TEAM_MEETING_TITLE, findSweep, findTraps, MEETING_FILE_ID, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, trapOffice, writeSweep } from './sweep';
 
 /**
  * Task C2: each loader gives the handler the same answer as the whole office (plan 4.6, "Safety net"). runBoth runs the call on
@@ -385,6 +385,37 @@ describe('the 18 places of AM 6', () => {
     expect(chat.outcome.output).toEqual({ archived: true });
     const thread = await same(state, 'chats.archive', { conversationId: task.id, archived: true }, 'usr_001');
     expect(thread.outcome.output).toEqual({ archived: true });
+  });
+
+  it('chats.markUnread: the loader gives the handler the same answer, and the unread mark counts in the list, the badge and the chat (fbk_028, owner 2026-10-23)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const task = tasksOfProject(state, 'prj_001').find((t) => t.ownerId === ADMIN) ?? tasksOfProject(state, 'prj_001')[0];
+    // The person reads the chat and the thread first, so nothing is unread.
+    apply(state, 'chats.markRead', { conversationId: room.id }, ADMIN);
+    apply(state, 'comments.create', { targetType: 'task', targetId: task.id, body: 'A note.' }, ADMIN);
+    apply(state, 'chats.markRead', { conversationId: task.id }, ADMIN);
+    const before = (await same(state, 'chats.list', {}, ADMIN)).outcome.output as { id: string; unread: number }[];
+    expect(before.find((row) => row.id === room.id)?.unread).toBe(0);
+    for (const id of [room.id, task.id]) {
+      const run = await same(state, 'chats.markUnread', { conversationId: id }, ADMIN);
+      expect(run.outcome.output).toEqual({ unread: true });
+      // The write changed only the own read mark of the person.
+      expect(docs(run, 'chat_reads')).toHaveLength(1);
+      apply(state, 'chats.markUnread', { conversationId: id }, ADMIN);
+    }
+    const list = (await same(state, 'chats.list', {}, ADMIN)).outcome.output as { id: string; unread: number }[];
+    expect(list.find((row) => row.id === room.id)?.unread).toBe(1);
+    expect(list.find((row) => row.id === task.id)?.unread).toBe(1);
+    const badge = (await same(state, 'chats.unreadCount', {}, ADMIN)).outcome.output as { unread: number };
+    expect(badge.unread).toBe(list.reduce((sum, row) => sum + row.unread, 0));
+    const thread = (await same(state, 'chats.messages', { conversationId: room.id }, ADMIN)).outcome.output as { chat: { unread: number } };
+    expect(thread.chat.unread).toBe(1);
+    // Opening the chat again ends the mark, for the loader as for the whole office.
+    for (const id of [room.id, task.id]) await same(state, 'chats.markRead', { conversationId: id }, ADMIN);
+    apply(state, 'chats.markRead', { conversationId: room.id }, ADMIN);
+    const after = (await same(state, 'chats.list', {}, ADMIN)).outcome.output as { id: string; unread: number }[];
+    expect(after.find((row) => row.id === room.id)?.unread).toBe(0);
   });
 
   it('chats.markRead and chats.archive: the loader loads the unread mention notices of the chat, so the write marks them read (item 20)', async () => {
@@ -1027,7 +1058,9 @@ describe('meetings (fbk_022, owner 2026-10-19)', () => {
     const traps = trapOffice(seed);
     const [privateOne, privateTwo] = Object.values(traps.meetings!);
     const events = Object.values(traps.events).filter((e) => e.officeMeetingId !== undefined);
-    expect(events.map((e) => e.officeMeetingId).sort()).toEqual([privateOne.id, privateTwo.id]);
+    // The third private meeting is the ended one of the meeting file trap (wave 2): usr_004 and usr_006, no one else.
+    const ended = Object.values(traps.meetings!).find((m) => m.title === ENDED_MEETING_TITLE)!;
+    expect([...new Set(events.map((e) => e.officeMeetingId))].sort()).toEqual([privateOne.id, privateTwo.id, ended.id].sort());
     const ids = async (actor: string) => ((await same(traps, 'events.list', { limit: 500 }, actor)).outcome.output as { event: { id: string } }[]).map((row) => row.event.id);
     const mine = events.find((e) => e.officeMeetingId === privateOne.id)!.id;
     expect(await ids(privateOne.organizerId)).toContain(mine);
@@ -1091,23 +1124,82 @@ describe('meetings (fbk_022, owner 2026-10-19)', () => {
     expect(await day('2026-10-07')).toEqual(['Early call']);
   });
 
-  it('meetings.get brings the minutes task and the Tracker line that the meeting names, so the detail is the same on both loads', async () => {
+  it('meetings.get brings the Tracker line that the meeting names, so the detail is the same on both loads, and no minutes task is left', async () => {
     const state = office();
     const maker = 'usr_003';
     const made = apply(state, 'meetings.create', { kind: 'client', title: 'Review', projectId: 'prj_001', startsAt: '2026-10-06T10:00:00+03:00' }, state.projects.prj_001.leaderId!) as { id: string };
-    const task = todo(state, 'prj_001')[0];
     const entry = Object.values(state.tracker!)[0];
-    Object.assign(state.meetings![made.id], { minutesTaskId: task.id, trackerEntryId: entry.id });
+    Object.assign(state.meetings![made.id], { trackerEntryId: entry.id });
     const run = await same(state, 'meetings.get', { id: made.id }, maker);
-    expect(run.outcome.output).toMatchObject({ minutesTask: { id: task.id }, trackerEntry: { id: entry.id } });
+    expect(run.outcome.output).toMatchObject({ minutesTask: null, minutesBy: null, trackerEntry: { id: entry.id } });
+  });
+
+  it('meetings.settle makes the same Tracker line on both loads, writes nothing before the end, and reads a hidden meeting as missing', async () => {
+    const state = office();
+    const leader = state.projects.prj_001.leaderId!;
+    const made = apply(state, 'meetings.create', { kind: 'client', title: 'Review', projectId: 'prj_001', startsAt: '2026-10-06T10:00:00+03:00', attendeeIds: ['usr_003'] }, leader) as { id: string };
+    const hidden = apply(state, 'meetings.create', { kind: 'meeting', title: 'Private talk', startsAt: '2026-10-06T12:00:00+03:00', attendeeIds: ['usr_003'] }, 'usr_004') as { id: string };
+    // Before the end: the answer holds no mark and no row changes.
+    const early = await same(state, 'meetings.settle', { id: made.id }, leader, { now: new Date('2026-10-06T06:59:00Z') });
+    expect(early.outcome.output).toEqual({ settledAt: null, trackerEntryId: null });
+    expect(inserted(early, 'tracker')).toEqual([]);
+    // After the end: the mark and one Tracker line, with the same id on both loads.
+    const after = new Date('2026-10-06T08:00:00Z');
+    const run = await same(state, 'meetings.settle', { id: made.id }, leader, { now: after });
+    const result = run.outcome.output as { settledAt: string; trackerEntryId: string };
+    expect(result.settledAt).toBe('2026-10-06T11:00:00.000+03:00');
+    expect(inserted(run, 'tracker')).toEqual([result.trackerEntryId]);
+    expect(docs(run, 'tracker')[0]).toMatchObject({ type: 'meeting', auto: 'meeting', meetingId: made.id, minutes: null, peopleIds: [leader, 'usr_003'] });
+    // A meeting with no project gets the mark only, for its people. The Admin who is not invited and an outsider get not_found.
+    const mark = await same(state, 'meetings.settle', { id: hidden.id }, 'usr_003', { now: after });
+    expect(mark.outcome.output).toMatchObject({ trackerEntryId: null });
+    expect(inserted(mark, 'tracker')).toEqual([]);
+    for (const outsider of [ADMIN, 'usr_002']) {
+      const refused = await same(state, 'meetings.settle', { id: hidden.id }, outsider, { now: after });
+      expect(refused.outcome.error, outsider).toEqual({ code: 'not_found', message: `Meeting ${hidden.id} does not exist.` });
+    }
+  });
+
+  it('meetings.saveMinutes gives the same answer on both loads for a Tracker line and for a meeting with no project, and loads only the meeting, its line and its files', async () => {
+    const traps = trapOffice(seed);
+    const find = (title: string) => Object.values(traps.meetings!).find((m) => m.title === title)!;
+    const line = find(ENDED_PROJECT_MEETING_TITLE);
+    const solo = find(ENDED_MEETING_TITLE);
+    const team = find(ENDED_TEAM_MEETING_TITLE);
+    const loadedFor = async (id: string, actor: string, text: string, fileIds: string[] = []) => {
+      const { whole, scoped, loaded } = await runBoth(traps, 'meetings.saveMinutes', { id, text, fileIds }, actor, { now: NOW, correlationId: 'cor_test' });
+      expect(scoped).toEqual(whole);
+      expect(whole.outcome.error).toBeUndefined();
+      return { whole, loaded };
+    };
+    // A project meeting: the minutes change on the Tracker line, and nothing of the meeting row changes.
+    const lined = await loadedFor(line.id, line.organizerId, 'Changed on the line');
+    expect(docs(lined.whole, 'tracker').map((doc) => (doc.minutes as { text: string }).text)).toEqual(['Changed on the line']);
+    expect(Object.keys(lined.loaded.meetings ?? {})).toEqual([line.id]);
+    expect(Object.keys(lined.loaded.tracker ?? {})).toEqual([line.trackerEntryId]);
+    expect(deleted(lined.whole, 'tracker')).toEqual([]);
+    // A team meeting of a project and a meeting with no project: the minutes change on the meeting.
+    for (const [meeting, actor] of [[team, 'usr_003'], [solo, solo.attendeeIds[0]]] as const) {
+      const done = await loadedFor(meeting.id, actor, 'Changed on the meeting', meeting === solo ? [MEETING_FILE_ID] : []);
+      expect(docs(done.whole, 'meetings').map((doc) => (doc.minutes as { text: string }).text)).toEqual(['Changed on the meeting']);
+      expect(Object.keys(done.loaded.meetings ?? {})).toEqual([meeting.id]);
+      expect(inserted(done.whole, 'tracker')).toEqual([]);
+    }
+    // The meeting file reaches the scoped load with its meeting, and an outsider and the Admin who is not invited read the meeting as missing.
+    for (const outsider of [ADMIN, 'usr_002']) {
+      const run = await same(traps, 'meetings.saveMinutes', { id: solo.id, text: 'Try', fileIds: [] }, outsider);
+      expect(run.outcome.error, outsider).toEqual({ code: 'not_found', message: `Meeting ${solo.id} does not exist.` });
+    }
   });
 
   it('projects.delete takes the meetings of the project and their notices, and leaves a meeting with no project', async () => {
     const traps = trapOffice(seed);
     const run = await same(traps, 'projects.delete', { id: 'prj_001', confirm: true }, ADMIN);
     expect(run.outcome.error).toBeUndefined();
-    const project = Object.values(traps.meetings!).find((m) => m.projectId === 'prj_001')!;
-    expect(deleted(run, 'meetings')).toEqual([project.id]);
+    // The client meeting of the traps, and the two that ended with minutes (wave 2): all go with the project, and the private ones stay.
+    const ofProject = Object.values(traps.meetings!).filter((m) => m.projectId === 'prj_001').map((m) => m.id);
+    expect(ofProject.length).toBeGreaterThan(1);
+    expect(deleted(run, 'meetings').sort()).toEqual(ofProject.sort());
   });
 });
 
@@ -1209,6 +1301,10 @@ describe('the chat badge and the bell (performance audit DB-6, DB-M1, DB-M2)', (
     expect((await rows('usr_006')).find((row) => row.id === licence.id)?.unread).toBe(1);
     expect((await rows('usr_005')).find((row) => row.id === hall.id)?.unread).toBe(1);
     expect((await rows('usr_006')).find((row) => row.id === hall.id)).toBeUndefined();
+    // A chat and a thread that the leader read and marked unread (fbk_028): one each. The leader wrote the last comment of the thread.
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    expect((await rows(leader)).find((row) => row.id === room.id)?.unread).toBe(1);
+    expect((await rows(leader)).find((row) => row.id === tie[0].targetId)?.unread).toBe(1);
     const views = async (actor: string) => (await same(state, 'notifications.list', {}, actor)).outcome.output as View[];
     expect((await views('usr_006')).find((v) => v.notification.targetId === hall.id)).toMatchObject({ gone: true });
     expect((await views(member)).some((v) => v.notification.targetType === 'task' && v.gone && !state.tasks[v.notification.targetId])).toBe(true);

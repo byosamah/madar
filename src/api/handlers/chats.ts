@@ -3,7 +3,7 @@ import { defineCall, type Ctx } from '../registry';
 import { ConversationId, FileId, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, NotifyLevel, TaskId, UserId, emptyReactions, type Comment, type Conversation, type GroupLogEntry, type Message, type Project, type Reaction, type Task, type User } from '../contract/entities';
 import { ChatRow, ChatThread, MessageView, WaitingRow, type GroupLine } from '../contract/views';
 import { messagePageAround } from '../chatAround';
-import { addDirectConversation, addGroupConversation, canSeeConversation, closedChatError, isArchived, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, personLeft, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
+import { addDirectConversation, addGroupConversation, canSeeConversation, closedChatError, isArchived, markedUnread, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, personLeft, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
 import { isLiveMessage, namesPerson, notifyLevelOf, replyRefOf } from '../chatNaming';
 import { notifyIn } from '../notify';
@@ -95,9 +95,16 @@ function rowOf(state: State, conversation: Conversation, viewer: User): ChatRow 
  * A count that a server loader put in the state comes first, as unreadIn (plan 4.13, A9).
  */
 function taskUnread(state: State, taskId: string, comments: Comment[], viewerId: string): number {
+  const key = chatReadKey(taskId, viewerId);
   const counted = state.counts?.[unreadCountKey(taskId, viewerId)];
-  if (counted !== undefined) return counted;
-  const lastRead = state.chatReads[chatReadKey(taskId, viewerId)]?.lastReadAt ?? '';
+  const count = counted ?? newCommentsOf(state, key, comments, viewerId);
+  // A thread that the person marked unread (chats.markUnread, fbk_028) counts at least 1 until the person opens it again.
+  return markedUnread(state, key) ? Math.max(count, 1) : count;
+}
+
+/** The comments by other people after the last read mark and after the viewer's own last message. */
+function newCommentsOf(state: State, readKey: string, comments: Comment[], viewerId: string): number {
+  const lastRead = state.chatReads[readKey]?.lastReadAt ?? '';
   // A quiet line of a reason is no message: it is never unread, and a line that the viewer wrote does not count as a reply (fbk_027).
   const talk = comments.filter((c) => !isLine(c));
   const mine = talk.findLastIndex((c) => principalOf(state, c.authorId) === viewerId);
@@ -193,8 +200,9 @@ function totalUnread(state: State, viewer: User): number {
 function writeReadMark(ctx: Ctx, conversationId: string, lastAt: string | undefined): void {
   const lastReadAt = lastAt && lastAt > ctx.stamp ? lastAt : ctx.stamp;
   const key = chatReadKey(conversationId, ctx.authority.id);
-  // The archive mark stays (owner, 2026-10-18): a newer message clears it in the view, not here.
-  ctx.state.chatReads[key] = { ...ctx.state.chatReads[key], conversationId, userId: ctx.authority.id, lastReadAt };
+  // The archive mark stays (owner, 2026-10-18): a newer message clears it in the view, not here. A read ends the mark "unread" (fbk_028).
+  const { markedUnread: _ended, ...kept } = ctx.state.chatReads[key] ?? {};
+  ctx.state.chatReads[key] = { ...kept, conversationId, userId: ctx.authority.id, lastReadAt };
   if (ctx.state.counts) ctx.state.counts[unreadCountKey(conversationId, ctx.authority.id)] = 0;
 }
 
@@ -382,6 +390,30 @@ export const chatsMarkRead = defineCall({
 
 /** The read time of a chat with no read mark yet: older than any message, so the archive marks nothing read. */
 const NEVER_READ = '1970-01-01T00:00:00.000Z';
+
+export const chatsMarkUnread = defineCall({
+  /**
+   * The person marks a chat or a task thread as unread again (fbk_028, owner 2026-10-23). It shows as unread (the row, the Inbox badge)
+   * until the person opens it again: a read mark (chats.markRead, a sent message, an archive) ends it. The mark never adds to the number
+   * of new messages. Only the person's own read mark changes, and no event, notice or push is written. An archived chat comes back to
+   * the Inbox, so the badge never counts a chat that is out of the list. The checks are those of chats.markRead and chats.archive, so a
+   * hidden chat answers the same way. MCP: deny list, as chats.markRead.
+   */
+  input: z.object({ conversationId: z.union([ConversationId, TaskId]) }),
+  output: z.object({ unread: z.literal(true) }),
+  run(input, ctx) {
+    const id = input.conversationId;
+    if (id.startsWith('tsk_')) requireTaskThread(ctx, id);
+    else requireConversation(ctx, id);
+    const key = chatReadKey(id, ctx.authority.id);
+    const read = ctx.state.chatReads[key];
+    ctx.state.chatReads[key] = {
+      ...read, conversationId: id, userId: ctx.authority.id, lastReadAt: read?.lastReadAt ?? NEVER_READ,
+      ...(read?.archivedAt ? { archivedAt: null } : {}), markedUnread: true,
+    };
+    return { unread: true as const };
+  },
+});
 
 export const chatsArchive = defineCall({
   /**
@@ -789,6 +821,7 @@ export const chatCalls = {
   'chats.editMessage': chatsEditMessage,
   'chats.deleteMessage': chatsDeleteMessage,
   'chats.markRead': chatsMarkRead,
+  'chats.markUnread': chatsMarkUnread,
   'chats.archive': chatsArchive,
   'chats.setNotify': chatsSetNotify,
   'chats.openDirect': chatsOpenDirect,

@@ -6,8 +6,12 @@ import { columnOf, fieldName, type Bound, type Cond, type CountSelect, type Sele
  * fieldName. Text order is byte order (BINARY), the code point order of collate "C" and of the memory form.
  */
 
-/** Up to this many values go as bound values in one list; a longer list goes as one JSON value, so a statement stays under 100. */
-export const LIST_BOUND_MAX = 20;
+/**
+ * Up to this many values go as bound values in one list; a longer list goes as one JSON value, so a statement stays under 100.
+ * A read with ties holds its conditions twice: two lists of this size and the limit use 2 x 48 + 1 = 97 values. The project feed
+ * lists FEED_VERBS (21 verbs, wave 2): over this size SQLite drives its read by the verb and reads twice the rows (compile.test.ts).
+ */
+export const LIST_BOUND_MAX = 24;
 const HOUR = 3_600_000;
 
 /** A doc field as text, as the memory form gives it (fieldText): 'true', 'false', '3', '1.5', JSON text for an object or a list. */

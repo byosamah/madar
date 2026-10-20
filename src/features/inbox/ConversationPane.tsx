@@ -20,7 +20,7 @@ import { Composer, MessageLog, type Bubble } from './Thread';
 import { BubbleActionsContext, EditingContext, type BubbleActions } from './bubbleActions';
 import { useDeleteMessage } from './deleteMessage';
 import { replyRefOfBubble } from './ReplyStrip';
-import { ArchiveMenu } from './ChatList';
+import { ChatMenu, chatMenuItems } from './ChatList';
 import { GroupPicture } from './GroupPicture';
 import { GroupSheets, type GroupMode } from './GroupSheets';
 import { useArchive } from './archive';
@@ -73,12 +73,13 @@ function bubbleOfLine(line: GroupLine): Bubble {
 }
 
 /**
- * The menu of a group (UX audit 2026-10-19, chats-07): Rename and Archive, then the Notify me choice (chat design item 21, the extra
- * items). The people, adding people and leaving moved to the People sheet, which one press on the count or on the picture opens. The
- * archive item is the same as in the list (ArchiveMenu).
+ * The menu of a group (UX audit 2026-10-19, chats-07): Rename, Mark as unread (fbk_028) and Archive, then the Notify me choice (chat
+ * design item 21, the extra items). The people, adding people and leaving moved to the People sheet, which one press on the count or on
+ * the picture opens. Mark as unread and Archive are the same as in the list (chatMenuItems).
  */
-function GroupMenu({ id, archived, title, onPick, onArchive, extra }: {
-  id: string; archived: boolean; title: string; onPick: (mode: GroupMode) => void; onArchive: (id: string, archived: boolean) => void; extra: MenuItem[];
+function GroupMenu({ id, archived, unread, title, onPick, onArchive, onMarkUnread, extra }: {
+  id: string; archived: boolean; unread: number; title: string; onPick: (mode: GroupMode) => void; onArchive: (id: string, archived: boolean) => void;
+  onMarkUnread: (id: string) => void; extra: MenuItem[];
 }) {
   const { t } = useTranslation();
   return (
@@ -86,7 +87,7 @@ function GroupMenu({ id, archived, title, onPick, onArchive, extra }: {
       label={t('chat.optionsFor', { title })}
       items={[
         { label: t('chat.rename'), onSelect: () => onPick('rename') },
-        { label: archived ? t('chat.moveBack') : t('chat.archive'), onSelect: () => onArchive(id, !archived) },
+        ...chatMenuItems(t, { id, archived, unread, onArchive, onMarkUnread }),
         ...extra,
       ]}
     />
@@ -97,7 +98,7 @@ function GroupMenu({ id, archived, title, onPick, onArchive, extra }: {
  * A project chat, a direct chat or a group. Opening it marks it read. A link with a message (`?at=`, chat design 2026-10-19, item 17)
  * opens the page that holds that message: when newer messages follow the page, "Show newer messages" and a send go to the newest page.
  */
-export function ChatPane({ id, focusFromRoute }: { id: string; focusFromRoute: string | null }) {
+export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; focusFromRoute: string | null; onMarkUnread: (id: string) => void }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const navigate = useNavigate();
@@ -183,8 +184,15 @@ export function ChatPane({ id, focusFromRoute }: { id: string; focusFromRoute: s
   // The times compare as instants: a stamp comes in the +03:00 form or the Z form.
   const newestAt = data?.messages.at(-1)?.message.createdAt;
   const behind = newestAt !== undefined && (data?.readUpTo == null || Date.parse(newestAt) > Date.parse(data.readUpTo));
+  // An unread mark (fbk_028) counts 1 with no new message. The first look ends it: the person opened the chat again. While the chat stays
+  // open, a mark from its menu or from another device stays, also when the tab shows again: after the first look, only a message that is
+  // newer than the read time marks the chat read.
+  const looked = useRef(false);
   useEffect(() => {
-    if (opened && visible && (unread > 0 || behind)) markRead.mutate({ conversationId: id });
+    if (!opened || !visible) return;
+    const first = !looked.current;
+    looked.current = true;
+    if (behind || (first && unread > 0)) markRead.mutate({ conversationId: id });
     // The mutation object changes on every render. Only a new count of unread messages, a newer message than the read time, or the tab
     // that shows, matters here.
   }, [id, unread, opened, visible, behind]);
@@ -222,8 +230,8 @@ export function ChatPane({ id, focusFromRoute }: { id: string; focusFromRoute: s
         title={title}
         subtitle={subtitle}
         action={isGroup
-          ? <GroupMenu id={id} archived={chat.archived} title={title} onPick={setSheet} onArchive={archive} extra={notifyItems} />
-          : <ArchiveMenu id={id} archived={chat.archived} title={title} onArchive={archive} extra={notifyItems} />}
+          ? <GroupMenu id={id} archived={chat.archived} unread={chat.unread} title={title} onPick={setSheet} onArchive={archive} onMarkUnread={onMarkUnread} extra={notifyItems} />
+          : <ChatMenu id={id} archived={chat.archived} unread={chat.unread} title={title} onArchive={archive} onMarkUnread={onMarkUnread} extra={notifyItems} />}
       />
       <BubbleActionsContext.Provider value={actions}>
         <EditingContext.Provider value={editingId}>
@@ -265,7 +273,7 @@ const NO_PEOPLE: UserCard[] = [];
 const NO_UNSENT: never[] = [];
 
 /** The comments of one task as a chat. A message posts a task comment. A link with a comment (`?at=`) names the comment to frame. */
-export function TaskPane({ id, focusFromRoute }: { id: string; focusFromRoute: string | null }) {
+export function TaskPane({ id, focusFromRoute, onMarkUnread }: { id: string; focusFromRoute: string | null; onMarkUnread: (id: string) => void }) {
   const { t } = useTranslation();
   const task = useCall('tasks.get', { id });
   // An office task has no project (owner, 2026-10-06): its people are its maker, its lead and its helpers.
@@ -363,7 +371,7 @@ export function TaskPane({ id, focusFromRoute }: { id: string; focusFromRoute: s
             >
               {t('chat.openTask')}
             </Link>
-            <ArchiveMenu id={id} archived={row?.archived ?? false} title={task.data.task.title} onArchive={archive} />
+            <ChatMenu id={id} archived={row?.archived ?? false} unread={row?.unread ?? 0} title={task.data.task.title} onArchive={archive} onMarkUnread={onMarkUnread} />
           </>
         )}
       />
@@ -396,13 +404,13 @@ export function TaskPane({ id, focusFromRoute }: { id: string; focusFromRoute: s
 }
 
 /** What shows beside the list. A task thread has a task id. Anything else is a chat. */
-export function ConversationPane({ id }: { id: string }) {
+export function ConversationPane({ id, onMarkUnread }: { id: string; onMarkUnread: (id: string) => void }) {
   const { t } = useTranslation();
   // A link may name one message or comment (`?at=`). A new mark opens a new pane, so the page loads again at that message.
   const [params] = useSearchParams();
   const at = messageParam(params.get('at')) ?? null;
   const key = `${id}:${at ?? ''}`;
-  if (id.startsWith('tsk_')) return <TaskPane key={key} id={id} focusFromRoute={at} />;
-  if (id.startsWith('cnv_')) return <ChatPane key={key} id={id} focusFromRoute={at} />;
+  if (id.startsWith('tsk_')) return <TaskPane key={key} id={id} focusFromRoute={at} onMarkUnread={onMarkUnread} />;
+  if (id.startsWith('cnv_')) return <ChatPane key={key} id={id} focusFromRoute={at} onMarkUnread={onMarkUnread} />;
   return <div className="p-4"><EmptyState title={t('common.loadFailed')} body={t('errors.not_found')} /></div>;
 }

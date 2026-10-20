@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ar } from './trees';
 
-/** Real names that stay in Latin letters in Arabic text: tools, picture formats (WebP, JPEG, PNG) and the map credit. */
-const ALLOWED = ['Revit', 'KH', 'Escape', 'English', 'WebP', 'JPEG', 'PNG', 'OpenFreeMap', 'OpenMapTiles'];
+/** Real names that stay in Latin letters in Arabic text: tools, picture formats (WebP, JPEG, PNG), the map credit and Google (the name of the calendar service). */
+const ALLOWED = ['Revit', 'KH', 'Escape', 'English', 'WebP', 'JPEG', 'PNG', 'OpenFreeMap', 'OpenMapTiles', 'Google'];
 
 function values(node: unknown, path = ''): [string, string][] {
   if (typeof node === 'string') return [[path, node]];

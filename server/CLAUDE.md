@@ -21,7 +21,10 @@ The other host stays deployed as the way back. Each area below has its own guide
 - `POST /api/batch` (`http/batch.ts`; on a Supabase function URL with `?forceFunctionRegion=eu-central-1`, on the Worker
   through the page's own `/api`): at most 12 entries, 256 KB, 1 overview call
   (`http/limits.ts`). An old `X-Madar-Build` gives 409 `client_outdated`. CORS allows only listed origins, never `*`.
-- Extra routes (`http/routes.ts`) sit under the api app: `POST /auth/forgot` answers at `/api/auth/forgot`.
+- Extra routes (`http/routes.ts`) sit under the api app: `POST /auth/forgot` answers at `/api/auth/forgot`. `GET /google/callback` (fbk_022,
+  `google/callback.ts`) has no sign-in, reads no database and writes nothing: it checks the signed state and answers 302 to
+  `<APP_URL>/settings#google=<word>` with `Cache-Control: no-store` and `Referrer-Policy: no-referrer`. On the office path it answers `#google=not_ready`
+  and calls no object (`entries/officeSignin.ts`). The Pages forwarder passes it with its query and its 302 as they are.
 - The token check (`auth/verify.ts`): jose, ES256 only, issuer `${SUPABASE_URL}/auth/v1` (or `AUTH_ISSUER`). Never compare
   `aud` by hand. A token with `client_id` is an agent token: the api function refuses it with 403.
 - `principalOf` (`auth/principal.ts`) finds the person by `auth_user_id`. The role comes from the users row, never from the
@@ -34,12 +37,12 @@ The other host stays deployed as the way back. Each area below has its own guide
   alive after the answer on both hosts: on Supabase within the 150 s of the function, on the Worker through waitUntil for
   about 30 s after the answer. A long mail or push chain can stop part way there; the 15-minute job retries the outbox.
 - The kinds in `AFTER_ANSWER_KINDS` (`core/effects.ts`: `mail.notice`, `mail.quotaWarning`, `usage.limitWarning`, `push.notify`,
-  `push.chat`, `mail.chatNotice`) run after the answer when the host has `after`, on one chain per batch (`BatchScope.mail`), so the
-  mails keep the order of the entries. Every other kind runs before the answer. With no `after` (tests, scripts), every kind runs
-  before the answer. A new mail or push kind goes into `AFTER_ANSWER_KINDS`; `effects.test.ts` pins the names (performance audit
-  2026-10-07). The kinds in `WAITED_KINDS` (`push.chat`, `mail.chatNotice`) wait `CHAT_WAIT_MS` (10 s) after the answer on a chain
-  of their own, so the server can skip a person who read the chat (design item 20). The office object runs them with no wait
-  (exit-handoff section 10).
+  `push.chat`, `mail.chatNotice`, `gcal.sync`, `gcal.revoke`) run after the answer when the host has `after`, on one chain per batch
+  (`BatchScope.mail`), so the mails keep the order of the entries. Every other kind runs before the answer. With no `after` (tests,
+  scripts), every kind runs before the answer. A new mail or push kind goes into `AFTER_ANSWER_KINDS`; `effects.test.ts` pins the
+  names (performance audit 2026-10-07). The kinds in `WAITED_KINDS` (`push.chat`, `mail.chatNotice`) wait `CHAT_WAIT_MS` (10 s)
+  after the answer on a chain of their own, so the server can skip a person who read the chat (design item 20). The office object
+  runs them with no wait (exit-handoff section 10).
 - The screens depend on two facts of this path (performance audit FET-3). `http/batch.ts` runs the calls of a request one
   after the other, and a write clears `batch.office` (`core/runCall.ts`), so a read after a write in the same request sees
   the write. A change that runs the reads of a request in parallel, or keeps the office copy across a write, lets a screen
@@ -50,8 +53,9 @@ The other host stays deployed as the way back. Each area below has its own guide
 
 ## Calls
 - `core/serverCallMap.ts` holds every call the server runs: the shared calls of `src/api/sharedCalls.ts` plus the server calls.
-- 11 server-only calls (`calls/index.ts`): `story.start`, `files.uploadStart`, `files.link`, `feedback.uploadStart`,
-  `users.invites`, `users.resendInvite`, `agents.list`, `agents.remove`, `usage.get`, `usage.retryEffect`, `live.ticket`.
+- 15 server-only calls (`calls/index.ts`): `story.start`, `files.uploadStart`, `files.link`, `feedback.uploadStart`,
+  `users.invites`, `users.resendInvite`, `agents.list`, `agents.remove`, `usage.get`, `usage.retryEffect`, `live.ticket`, and the four Google
+  Calendar calls `google.status`, `google.connectStart`, `google.connect`, `google.disconnect` (fbk_022, `calls/google.ts`, `server/google/`).
 - Server hooks replace the prototype `prepare` of `files.upload`, `feedback.send`, `feedback.screenshot`, `projects.delete`.
 - `SERVER_EXCLUDED` (prototype only): `session.previewAs`, `session.setSimulateErrors`, `session.resetSampleData`, `files.get`.
   runCall answers `not_found` for them.
@@ -93,6 +97,8 @@ The other host stays deployed as the way back. Each area below has its own guide
 
 ## Ports
 - `core/ports.ts`: Db, Clock, FilesPort, MailPort, SignalPort, AuthAdminPort, MeterPort. Fakes in `test/fakes`.
+- `Config.google` (fbk_022): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MADAR_GOOGLE_KEY`, all three or none (`google/keys.ts`; the server refuses to
+  start with some and names the absent ones). `Deps.googleFetch` is the fetch of a test stub; no test reaches Google (`google/fakeGoogle.ts`).
 - `buildDeps` (`core/deps.ts`) reads the env. A missing variable gives an error that names the variable, never a value.
 
 ## Rules a change must keep
@@ -109,6 +115,34 @@ The other host stays deployed as the way back. Each area below has its own guide
 - The client address is `cf-connecting-ip` on Supabase, and `x-madar-client-address` on the Worker (`clientAddress`,
   `auth/forgot.ts`): the Worker has no public address, and the Pages Function always writes that header. Never read
   `x-forwarded-for` or `true-client-ip`.
+
+## Google Calendar (fbk_022, owner 2026-10-19)
+- One way: Madar writes each meeting to the calendar "Madar" of each connected person who is its organizer or an attendee. A change in Google never comes
+  back. Each person connects once in Settings (`google.connectStart`, the Google screen, the callback, `google.connect`; see `src/api/CLAUDE.md`). The
+  scope is only `calendar.app.created`: Madar makes its own calendar and writes only there. Code: `server/google/` (`api.ts` the Google calls with a 3 s
+  limit, `keys.ts` the seal, `state.ts` the signed state with the PKCE verifier, `store.ts` the two tables, `sync.ts`, `rows.ts`, `register.ts`).
+- The producers (`rows.ts`): after the save of `meetings.create`, `meetings.update`, `meetings.cancel`, `events.undo`, `events.undoStory` and
+  `projects.delete` (`GCAL_CALLS`), `gcalRows` writes one `gcal.sync { userId, meetingId }` for each connected organizer or attendee (state ok or
+  not_synced) and each person who has a Google event for a touched meeting (`SaveResult.meetingIds`, set by `data/save.ts`); it asks the database only
+  when the save touched a meeting. The producer of `users.remove` (`revokeRowsOf`) sets the live connection of the person to `revoking` (`startRevoking`,
+  at the time of the call), deletes the `google_events` rows of the person, and writes one `gcal.revoke { connectionId }` (security fix, 2026-10-19): so a
+  revoke that fails leaves no live token of a removed person, and the cleanup step deletes the row after one day. A person who is only turned off keeps
+  the connection (plan decision 11). The producers run in the transaction of the call; `runCall` gives each producer the time of the call (`at`).
+- The effects (`sync.ts`) run after the answer (`AFTER_ANSWER_KINDS`) and write only `google_connections` and `google_events`, server-only rows (as the
+  mail effects write `mail_log`): no event, no signal, no State table. `gcal.sync` reads again when it runs: the live connection, the person, the meeting
+  and the event row. The event id is the hex of `madar:<meeting id>` (`eventIdOf`); the body has exactly the title, the place, the start, the end and the
+  status (`eventBodyOf`, owner Q2). The access token lives in memory only, for the life of the isolate, until 60 seconds before it ends; a 401 drops it
+  and tries once more.
+- Errors: `grant_gone`, a seal that does not open, or a deleted calendar (404 on an insert) ends the connection (state `broken`, the token is deleted at
+  once, the event rows go) and the row is done. A timeout, a network error, a 5xx or a rate limit sets `not_synced` and throws, so the outbox tries again
+  (5 times, then the Admin sees the row in Usage). Any other refusal sets `not_synced` with `last_error` `refused` and does not retry. An error text, a
+  log line and an outbox error hold the code and the ids, never a token, a code, a title or a Google answer (`leaks.test.ts` proves it).
+- `gcal.revoke` takes the refresh token back at Google (a 400 counts as done) and deletes the row. A row that a new connect replaced (`replaced: true`)
+  makes no call to Google: its grant is the grant of the new row, and a revoke could take that grant back. The cleanup step deletes every `revoking` row
+  older than one day, so a sealed token never stays long in the database. The connect backfills the meetings of the next 60 days, at most 200; a long
+  chain can stop part way on the Worker (about 30 s after the answer), and the 15-minute job retries the rest.
+- Tests use `google/fakeGoogle.ts` (a stand-in for the token address, the revoke address and the Calendar API) behind `Deps.googleFetch`, and
+  `google/testOffice.ts` (the sample office on node:sqlite). `server/it/google.it.test.ts` runs the SQL on Postgres.
 
 ## Realtime, jobs, usage
 - Change signals go out inside the save transaction (`signal/realtime.ts`: `realtime.send`, topics `office` and
@@ -128,8 +162,15 @@ The other host stays deployed as the way back. Each area below has its own guide
 - pg_cron calls `jobs/run` of the Supabase jobs function every 15 minutes, in both host settings (owner, 2026-10-16), with the
   secret header `x-madar-jobs-secret`. The Worker keeps `/jobs` mounted, but nothing calls it: pg_cron and the Vault
   `project_url` do not change. Steps (`jobs/steps/`):
-  heartbeat, triggers, summary, outbox, cleanup, uploads, usage. Each step is idempotent. The triggers step also sends `resume_due`
+  heartbeat, triggers, meetings, summary, outbox, cleanup, uploads, usage. Each step is idempotent. The triggers step also sends `resume_due`
   (the planned restart day of a paused project) to the leader and to the person who paused it (`src/api/CLAUDE.md`).
+- The meetings step (fbk_022, wave 2; `jobs/steps/meetings.ts`) settles the meetings that ended. One read (`SETTLE_SQL`, `SETTLE_LITE`, served by the
+  partial index `meetings_to_settle`) gives at most 20 due meetings, the oldest end first: scheduled, not settled, ended in the last 14 days. For each
+  one the step runs the normal call `meetings.settle` as the organizer (`settleActorOf`: else the first active Admin for a project meeting, else the
+  first active attendee), so the mark and the Tracker line come from the one settle rule and carry the events of a normal call. It writes no row of
+  its own. A failure logs the id and the code only and the loop goes on. It reports `{ settled, skipped, failed, extended }` (`extended` waits for
+  wave 3). `Deps.runCall` (`core/ports.ts`) is the run of a normal call for a step: only the office object sets it (its own SQLite run, `office/parts.ts`);
+  every other host uses the Postgres `runCall`.
 - Usage meters and the 80% Admin warning (`usage/`). The free-plan limits are in `FREE_PLAN_LIMITS`. The calls limit follows
   the host that serves the copy (`config.servingHost`, from `config/server-host.json`): 500,000 on Supabase, 10 million on
   Workers Paid, 3 million on the office host (`CALL_LIMITS`, `core/ports.ts`). The office host sends no month calls warning: the

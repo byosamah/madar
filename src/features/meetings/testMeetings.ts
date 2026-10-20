@@ -1,5 +1,5 @@
-import type { Meeting } from '../../api/contract/entities';
-import { meetingsOf, type State } from '../../api/store';
+import type { Meeting, MeetingMinutes, TrackerEntry } from '../../api/contract/entities';
+import { meetingsOf, trackerOf, type State } from '../../api/store';
 
 /**
  * A meeting for the screen tests (fbk_022). The test office has "now" at 2026-09-30 09:00 in Riyadh (a Wednesday). In the sample
@@ -9,7 +9,7 @@ import { meetingsOf, type State } from '../../api/store';
 export function withMeeting(state: State, over: Partial<Meeting> & { id: string }): void {
   meetingsOf(state)[over.id] = {
     kind: 'client', title: 'Review the facade', projectId: 'prj_001', startsAt: '2026-09-30T14:00:00.000+03:00', endsAt: '2026-09-30T15:00:00.000+03:00',
-    where: '', guests: '', notes: '', organizerId: 'usr_002', attendeeIds: [], minutesById: 'usr_002', status: 'scheduled', rev: 1,
+    where: '', guests: '', notes: '', organizerId: 'usr_002', attendeeIds: [], status: 'scheduled', rev: 1,
     createdBy: 'usr_002', createdAt: '2026-09-29T09:00:00.000+03:00', ...over,
   };
   state.counters.mtg = Math.max(state.counters.mtg ?? 0, Number(over.id.slice(4)));
@@ -19,3 +19,25 @@ export function withMeeting(state: State, over: Partial<Meeting> & { id: string 
 export const as = (userId: string) => (state: State) => {
   state.session.currentUserId = userId;
 };
+
+/** A meeting that ended yesterday in the test office, 14:00 to 15:00. "Now" is Wednesday 2026-09-30 09:00 in Riyadh. */
+export const ENDED = { startsAt: '2026-09-29T14:00:00.000+03:00', endsAt: '2026-09-29T15:00:00.000+03:00' } as const;
+
+/** The minutes of a test, written by Faisal (usr_002) the day after the meeting ended. */
+export const SOME_MINUTES: MeetingMinutes = {
+  text: 'We agreed on the facade.\nFaisal sends the drawings on Sunday.', fileIds: [], updatedBy: 'usr_002', updatedAt: '2026-09-29T16:00:00.000+03:00',
+};
+
+/**
+ * The Tracker line that Madar makes for a project meeting that ended (wave 2): trk_900, of meeting mtg_001. The meeting gets its mark
+ * and names the line. Call it after withMeeting.
+ */
+export function withLine(state: State, over: Partial<TrackerEntry> = {}): void {
+  trackerOf(state).trk_900 = {
+    id: 'trk_900', projectId: 'prj_001', type: 'meeting', direction: 'both', title: 'Review the facade', note: '', date: '2026-09-29', waiting: null, closedAt: null,
+    closedBy: null, fileIds: [], peopleIds: ['usr_002', 'usr_005'], auto: 'meeting', createdBy: 'usr_002', createdAt: '2026-09-29T15:05:00.000+03:00',
+    meetingId: 'mtg_001', minutes: null, ...over,
+  };
+  Object.assign(meetingsOf(state).mtg_001, { settledAt: '2026-09-29T15:05:00.000+03:00', trackerEntryId: 'trk_900' });
+}
+

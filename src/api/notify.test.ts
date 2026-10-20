@@ -122,7 +122,7 @@ describe('the reminder of a meeting', () => {
   // NOW is 2026-09-30 09:00 in Riyadh (06:00 UTC). A meeting at 09:20 starts in 20 minutes.
   const meeting = (extra: Partial<Meeting> = {}): Meeting => ({
     id: 'mtg_001', kind: 'client', title: 'Review the facade', projectId: 'prj_001', startsAt: '2026-09-30T09:20:00.000+03:00', endsAt: '2026-09-30T10:20:00.000+03:00',
-    where: '', guests: '', notes: '', organizerId: 'usr_003', attendeeIds: ['usr_004'], minutesById: 'usr_003', status: 'scheduled', rev: 1,
+    where: '', guests: '', notes: '', organizerId: 'usr_003', attendeeIds: ['usr_004'], status: 'scheduled', rev: 1,
     createdBy: 'usr_003', createdAt: STAMP, ...extra,
   });
   const put = (extra: Partial<Meeting> = {}) => {

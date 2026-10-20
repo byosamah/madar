@@ -129,10 +129,10 @@ describe('a changed meeting', () => {
     }
   });
 
-  it('tells nobody for a change of the title, the notes, the guests, the kind or the person for the minutes', async () => {
+  it('tells nobody for a change of the title, the notes, the guests or the kind, and ignores the old key minutesById', async () => {
     const { t, id } = await planned();
     await t.api.call('meetings.update', { id, title: 'Other title', notes: 'Note', guests: 'A guest', kind: 'meeting' });
-    await t.api.call('meetings.update', { id, minutesById: 'usr_004' });
+    await t.api.call('meetings.update', { id, minutesById: 'usr_004' } as never);
     expect(notices(t)).toEqual([]);
   });
 
@@ -237,7 +237,7 @@ describe('the notices of a meeting with no project (owner, 2026-10-19)', () => {
   };
   const removeNour = (w: Awaited<ReturnType<typeof secret>>) => {
     w.t.as(ORGANIZER);
-    return w.t.api.call('meetings.update', { id: w.id, attendeeIds: [ATTENDEE], minutesById: null });
+    return w.t.api.call('meetings.update', { id: w.id, attendeeIds: [ATTENDEE] });
   };
 
   it('go to the attendees only, and name the title and the time to them', async () => {

@@ -295,6 +295,13 @@ export type ChatThread = z.infer<typeof ChatThread>;
 export const FileView =z.object({ file: FileRec, latest: FileVersion, uploader: UserCard, canDelete: z.boolean() });
 export type FileView = z.infer<typeof FileView>;
 
+/**
+ * The minutes of a meeting as a screen reads them (fbk_022, wave 2): the text, the files that the viewer may see, and who wrote them last.
+ * "updatedAt" is the value that a screen sends back as "since" when it saves.
+ */
+export const MinutesView = z.object({ text: z.string(), files: z.array(Attachment), updatedBy: UserCard, updatedAt: Stamp });
+export type MinutesView = z.infer<typeof MinutesView>;
+
 /** One tracker entry as a screen reads it, with the people and files named and the rights of the viewer. */
 export const TrackerRow = z.object({
   entry: TrackerEntry,
@@ -307,6 +314,13 @@ export const TrackerRow = z.object({
   canClose: z.boolean(),
   canEdit: z.boolean(),
   canDelete: z.boolean(),
+  /**
+   * An auto "meeting" line only (fbk_022, wave 2): the meeting, the minutes that any attendee wrote, and whether the viewer may write them.
+   * Other lines leave the three out. Optional, so older answers load.
+   */
+  meeting: z.object({ id: MeetingId, title: z.string() }).nullable().optional(),
+  minutes: MinutesView.nullable().optional(),
+  canEditMinutes: z.boolean().optional(),
 });
 export type TrackerRow = z.infer<typeof TrackerRow>;
 
@@ -332,7 +346,11 @@ export const MeetingRow = z.object({
 });
 export type MeetingRow = z.infer<typeof MeetingRow>;
 
-/** One meeting with its people, its notes, its rights for the viewer, and the records that Madar made after it ended (wave 2). */
+/**
+ * One meeting with its people, its notes, its rights for the viewer, and the records that Madar made after it ended (wave 2).
+ * "minutesBy" and "minutesTask" stay in the shape, always null, so an old tab parses the answer (owner, 2026-10-19: no person for the
+ * minutes and no minutes task). "minutesPlace" says where the minutes live: on the Tracker line, or on the meeting itself.
+ */
 export const MeetingDetail = MeetingRow.extend({
   guests: z.string(),
   notes: z.string(),
@@ -341,7 +359,9 @@ export const MeetingDetail = MeetingRow.extend({
   settledAt: Stamp.nullable(),
   minutesTask: z.object({ id: TaskId, title: z.string(), status: TaskStatus, dueDate: Day.nullable() }).nullable(),
   trackerEntry: z.object({ id: TrackerId, title: z.string() }).nullable(),
-  viewerCan: z.object({ edit: z.boolean(), cancel: z.boolean() }),
+  viewerCan: z.object({ edit: z.boolean(), cancel: z.boolean(), minutes: z.boolean().optional() }),
+  minutes: MinutesView.nullable().optional(),
+  minutesPlace: z.enum(['tracker', 'meeting']).nullable().optional(),
 });
 export type MeetingDetail = z.infer<typeof MeetingDetail>;
 

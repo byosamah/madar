@@ -1,19 +1,19 @@
 import { z } from 'zod';
-import { ConversationId, FileId, ProjectId, StageId, TaskId, UserId } from './entities';
+import { ConversationId, FileId, MeetingId, ProjectId, StageId, TaskId, UserId } from './entities';
 import { MAX_SHOT_BYTES, PASSWORD_SET_MARK } from './limits';
 
 // The plain limits live in limits.ts, with no zod, for the screens of the first load (performance audit BND-6).
 export { MAX_SHOT_BYTES, PASSWORD_SET_MARK };
 
 /**
- * The 11 calls that only the real build has (plan 4.11; usage.retryEffect from task M1, plan 4.12; live.ticket from the exit,
- * wave 3). They carry the work that State cannot hold: story IDs, file links, invitations, agents, usage and the ticket of the live
- * socket. The server runs its own versions; src/api/handlers/serverFakes.ts gives the prototype fake ones. The MCP tool list
+ * The 15 calls that only the real build has (plan 4.11; usage.retryEffect from task M1, plan 4.12; live.ticket from the exit,
+ * wave 3; the four google calls of fbk_022). They carry the work that State cannot hold: story IDs, file links, invitations, agents,
+ * usage, the ticket of the live socket and the Google Calendar connect. The server runs its own versions; src/api/handlers/serverFakes.ts gives the prototype fake ones. The MCP tool list
  * (track G) reads these contracts, not the server code.
  */
 export const SERVER_CALL_NAMES = [
   'story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove', 'usage.get',
-  'usage.retryEffect', 'live.ticket',
+  'usage.retryEffect', 'live.ticket', 'google.status', 'google.connectStart', 'google.connect', 'google.disconnect',
 ] as const;
 export type ServerCallName = (typeof SERVER_CALL_NAMES)[number];
 
@@ -66,6 +66,8 @@ const filesUploadStart = {
     projectId: ProjectId.optional(),
     /** A direct chat or a group. The file stays in that chat: no project, no stage, no task. */
     conversationId: ConversationId.optional(),
+    /** A meeting with no project (fbk_022, wave 2). The file stays with that meeting: no project, no stage, no task. */
+    meetingId: MeetingId.optional(),
     name: z.string().trim().min(1).max(200),
     /** The size is checked against the limit of the active file store, with the reason file_too_large and the limit in details. */
     size: z.number().int().min(0),
@@ -170,6 +172,39 @@ const liveTicket = {
   readOnly: true,
 };
 
+/**
+ * The Google Calendar connect (fbk_022, owner 2026-10-19): four calls, only for a person and only for that person. The records they
+ * touch (server/google/store.ts) are no State collection, so the calls write no event, no History row and no change signal. An agent
+ * gets forbidden. None of them gives a token, a code, a sealed text, a calendar id or an error text: only the state of the connection.
+ * google.connectStart reads and writes nothing: it makes the Google address with a signed state. google.connect takes the code and
+ * the state that Google sent back through the callback route (server/google/callback.ts).
+ */
+const GoogleState = z.enum(['none', 'ok', 'not_synced', 'broken']);
+
+const googleStatus = {
+  input: Empty,
+  output: z.object({ ready: z.boolean(), state: GoogleState, connectedAt: z.string().min(1).nullable() }),
+  readOnly: true,
+};
+
+const googleConnectStart = {
+  input: Empty,
+  output: z.object({ url: z.string().min(1) }),
+  readOnly: true,
+};
+
+const googleConnect = {
+  input: z.object({ code: z.string().min(1).max(512).regex(/^\S+$/, 'The code has no space.'), state: z.string().min(1).max(1024) }),
+  output: z.object({ state: z.literal('ok'), meetings: z.number().int().min(0) }),
+  readOnly: false,
+};
+
+const googleDisconnect = {
+  input: Empty,
+  output: z.object({ state: z.literal('none') }),
+  readOnly: false,
+};
+
 export const serverContracts = {
   'story.start': storyStart,
   'files.uploadStart': filesUploadStart,
@@ -182,5 +217,9 @@ export const serverContracts = {
   'usage.get': usageGet,
   'usage.retryEffect': usageRetryEffect,
   'live.ticket': liveTicket,
+  'google.status': googleStatus,
+  'google.connectStart': googleConnectStart,
+  'google.connect': googleConnect,
+  'google.disconnect': googleDisconnect,
 } satisfies Record<ServerCallName, { input: z.ZodType; output: z.ZodType; readOnly: boolean }>;
 export type ServerContracts = typeof serverContracts;

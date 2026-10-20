@@ -89,6 +89,7 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'chats.deleteMessage': ['messages', 'notifications'],
   'chats.markRead': ['chatReads', 'notifications'],
   'chats.archive': ['chatReads', 'notifications'],
+  'chats.markUnread': ['chatReads'],
   'chats.setNotify': ['chatReads'],
   'chats.openDirect': ['chatReads', 'conversations'],
   'chats.createGroup': ['conversations'],
@@ -124,9 +125,16 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'meetings.create': ['events', 'meetings', 'notifications'],
   'meetings.update': ['events', 'meetings', 'notifications'],
   'meetings.cancel': ['events', 'meetings', 'notifications'],
+  // The settle writes the mark of the meeting, its event, and the Tracker line of a project meeting (fbk_022, wave 2). It sends no notice.
+  'meetings.settle': ['events', 'meetings', 'tracker'],
+  // The minutes write the event and the Tracker line (or the meeting), and the call settles a meeting first when the job did not (wave 2).
+  'meetings.saveMinutes': ['events', 'meetings', 'tracker'],
   // A push device is private and sends no change signal (server/data/save.ts), so no list reloads for it (owner, 2026-10-08).
   'push.register': [],
   'push.remove': [],
   // A story holds no record of its own: nothing to reload.
   'story.start': [],
+  // The Google Calendar connect (fbk_022) changes no record of the office and sends no signal.
+  'google.connect': [],
+  'google.disconnect': [],
 };

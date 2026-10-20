@@ -10,7 +10,8 @@ import { Button } from '../../components/Button';
 import { MentionField } from '../../components/MentionField';
 import { withMentionMarkup } from '../../lib/text';
 import { LoadFailed } from '../../components/LoadFailed';
-import { AttachButton, PickedFiles, useAttachments } from '../files/Attachments';
+import { AttachButton, PickedFiles, pastedPictures, useAttachments, useBlockFileDrop } from '../files/Attachments';
+import { ChatDropArea, useChatDropReceiver } from '../inbox/ChatDrop';
 import { ComposerReplyStrip } from '../inbox/ReplyStrip';
 import { CommentItem } from './CommentItem';
 import { TaskComments } from './TaskComments';
@@ -74,41 +75,61 @@ function CommentThreadFor({
   const list = comments.data ?? [];
   // A new object on each render: the ages of the comments read the clock on each key, as before the memo (RND-3).
   const refresh = {};
+  // A file dropped on the panel outside the comments never opens in the browser tab (fbk_030).
+  useBlockFileDrop();
   return (
-    <section aria-label={t('comments.title')} className="flex flex-col gap-3">
-      <h3 className="text-headline">{t('comments.title')}</h3>
-      {comments.error && <LoadFailed error={comments.error} onRetry={() => void comments.refetch()} />}
-      {comments.data && list.length === 0 && <p className="text-footnote text-label-2">{t('comments.empty')}</p>}
-      {list.length > 0 && (
-        <AgeRefresh.Provider value={refresh}>
-          {targetType === 'task' ? (
-            // A task comment takes the look of the chat (chat design 2026-10-19, item 6). The comments of a post stay as they are.
-            <TaskComments targetId={targetId} list={list} people={people} canPost={canPost} onReply={setReplyTo} />
-          ) : (
-            <ol className="flex flex-col gap-3">
-              {list.map((view) => <CommentItem key={view.comment.id} view={view} people={people} canPost={canPost} />)}
-            </ol>
-          )}
-        </AgeRefresh.Provider>
-      )}
-      {canPost ? (
-        <form
-          className="flex flex-col gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const text = withMentionMarkup(body.trim(), people);
-            if (text && !uploading) void send(text);
-          }}
-        >
-          {replyTo && <ComposerReplyStrip replyTo={replyTo} onCancel={() => setReplyTo(null)} />}
-          <MentionField id={`comment-${targetId}`} label={t('comments.add')} value={body} onChange={setBody} people={people} placeholder={t('comments.placeholder')} rows={2} />
-          <PickedFiles files={attachments.files} onRemove={attachments.remove} />
-          <div className="flex items-center justify-between gap-2">
-            <AttachButton onPick={attachments.add} />
-            <Button variant={body.trim() ? 'primary' : 'secondary'} type="submit" disabled={!body.trim() || create.isPending || uploading}>{t('comments.send')}</Button>
-          </div>
-        </form>
-      ) : <p className="text-footnote text-label-2">{t('comments.cannot')}</p>}
-    </section>
+    // Files dropped on the comments join the picked files, as in a chat (chat design item 14, fbk_030), where the person may post. The
+    // area is no flex item here, so the panel keeps its layout.
+    <ChatDropArea note={targetType === 'task' && projectId === null ? t('chat.dropOfficeTask') : t('chat.dropProject')} className="relative">
+      <section aria-label={t('comments.title')} className="flex flex-col gap-3">
+        <h3 className="text-headline">{t('comments.title')}</h3>
+        {comments.error && <LoadFailed error={comments.error} onRetry={() => void comments.refetch()} />}
+        {comments.data && list.length === 0 && <p className="text-footnote text-label-2">{t('comments.empty')}</p>}
+        {list.length > 0 && (
+          <AgeRefresh.Provider value={refresh}>
+            {targetType === 'task' ? (
+              // A task comment takes the look of the chat (chat design 2026-10-19, item 6). The comments of a post stay as they are.
+              <TaskComments targetId={targetId} list={list} people={people} canPost={canPost} onReply={setReplyTo} />
+            ) : (
+              <ol className="flex flex-col gap-3">
+                {list.map((view) => <CommentItem key={view.comment.id} view={view} people={people} canPost={canPost} />)}
+              </ol>
+            )}
+          </AgeRefresh.Provider>
+        )}
+        {canPost ? (
+          <form
+            className="flex flex-col gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const text = withMentionMarkup(body.trim(), people);
+              if (text && !uploading) void send(text);
+            }}
+            // A paste of only pictures adds them to the picked files, with the rule of the chat box (item 14, fbk_032). Text stays text.
+            onPaste={(event) => {
+              const pictures = pastedPictures(event.clipboardData);
+              if (pictures.length === 0) return;
+              event.preventDefault();
+              attachments.add(pictures);
+            }}
+          >
+            <DropReceiver onFiles={attachments.add} />
+            {replyTo && <ComposerReplyStrip replyTo={replyTo} onCancel={() => setReplyTo(null)} />}
+            <MentionField id={`comment-${targetId}`} label={t('comments.add')} value={body} onChange={setBody} people={people} placeholder={t('comments.placeholder')} rows={2} />
+            <PickedFiles files={attachments.files} onRemove={attachments.remove} />
+            <div className="flex items-center justify-between gap-2">
+              <AttachButton onPick={attachments.add} />
+              <Button variant={body.trim() ? 'primary' : 'secondary'} type="submit" disabled={!body.trim() || create.isPending || uploading}>{t('comments.send')}</Button>
+            </div>
+          </form>
+        ) : <p className="text-footnote text-label-2">{t('comments.cannot')}</p>}
+      </section>
+    </ChatDropArea>
   );
+}
+
+/** Gives the files that are dropped on the comments to the picked files of the box (fbk_030). It draws nothing. */
+function DropReceiver({ onFiles }: { onFiles: (files: File[]) => void }) {
+  useChatDropReceiver(onFiles);
+  return null;
 }

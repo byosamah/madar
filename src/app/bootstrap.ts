@@ -1,5 +1,5 @@
 import { calls } from '../api/calls';
-import { createApi } from '../api/client';
+import { createApi, type Api, type CallMap } from '../api/client';
 import { runScheduledTriggers } from '../api/notify';
 import { memoryPersister, openPersister, type Persister } from '../api/persist';
 import { STATE_VERSION, Store } from '../api/store';
@@ -10,6 +10,7 @@ import { addSampleSubCompanies } from '../data/sampleSubCompanies';
 import { sampleOffice } from '../data/sampleOffice';
 import { settleFuture, shiftState } from '../data/shift';
 import { diffDays, now, todayISO } from '../lib/dates';
+import { dueToSettle } from '../api/handlers/meetings';
 import { alwaysSignedIn } from './auth';
 import type { ChangeSource, Runtime } from './runtime';
 
@@ -60,9 +61,10 @@ export async function bootstrap(options: { persister?: Persister; latencyMs?: nu
 /**
  * Runs the time-based triggers every minute. A tick tells the screens and saves the office only when it made a notice, or when
  * the office day changed, so the day counts ("due today", "past due") still refresh after midnight (performance audit FET-11).
- * notify changes the state only when it makes a notice, so a quiet tick changes nothing.
+ * notify changes the state only when it makes a notice, so a quiet tick changes nothing. With the api, a tick also settles the meetings
+ * that ended (the prototype has no 15-minute job).
  */
-export function startScheduler(store: Store): () => void {
+export function startScheduler(store: Store, api?: Api<CallMap>): () => void {
   let day = todayISO();
   const id = window.setInterval(() => {
     store.runIf((s) => {
@@ -72,6 +74,9 @@ export function startScheduler(store: Store): () => void {
       day = today;
       return made > 0 || newDay;
     });
+    // The prototype has no job: the same tick settles the meetings that ended (fbk_022, wave 2), with the normal call. A meeting that the
+    // current person does not see answers not_found, and any other refusal waits for the next tick. A settled meeting leaves the list.
+    if (api) for (const meeting of dueToSettle(store.state, now())) api.call('meetings.settle', { id: meeting.id }).catch(() => undefined);
   }, 60_000);
   return () => window.clearInterval(id);
 }

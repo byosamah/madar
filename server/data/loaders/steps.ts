@@ -58,11 +58,23 @@ export async function attachedFiles(L: Load, fileIds: readonly (string | null | 
   await L.byKey('files', fileIds);
   const office = fileIds.map((id) => L.get<FileRec>('files', id)).filter((file) => file?.projectId === null);
   await L.byKey('tasks', office.map((file) => file!.taskId));
+  // The view rule of a file of a meeting with no project reads that meeting (a meeting is not an office list), so a call that carries
+  // such a file brings the meeting too, and answers file_meeting or file_missing as the whole office does (wave 2).
+  await L.byKey('meetings', office.map((file) => file!.meetingId));
 }
 
 /** The files that these records name by id: attachments of posts, comments, messages and Tracker entries. */
 export async function namedFiles(L: Load, records: readonly { fileIds?: string[] }[], more: readonly (string | null | undefined)[] = []): Promise<void> {
   await L.byKey('files', [...records.flatMap((record) => record.fileIds ?? []), ...more]);
+}
+
+/**
+ * What the Tracker line of a meeting that ended names (wave 2): the meeting, for the right to write its minutes, and the files of its
+ * minutes. A line of any other kind names neither.
+ */
+export async function lineMinutes(L: Load, entries: readonly TrackerEntry[], o: { files?: boolean } = {}): Promise<void> {
+  await L.byKey('meetings', entries.map((entry) => entry.meetingId));
+  if (o.files !== false) await L.byKey('files', entries.flatMap((entry) => entry.minutes?.fileIds ?? []));
 }
 
 /** The comments on these targets: the rows for a write, the number for a read (plan 4.13, A4). */
@@ -99,6 +111,9 @@ export async function eventTargets(L: Load, events: readonly Event[]): Promise<v
     return event.targetType === 'tracker' && typeof after.replyTaskId === 'string' ? [after.replyTaskId] : [];
   });
   await L.byKey('tasks', replyTasks);
+  // The minutes of a meeting (wave 2): the Undo right and the feed word of a Tracker event read the meeting of its line.
+  const lines = events.filter((event) => event.targetType === 'tracker').map((event) => L.get<TrackerEntry>('tracker', event.targetId));
+  await lineMinutes(L, lines.filter((entry): entry is TrackerEntry => entry !== undefined), { files: false });
   const covers = events.filter((event) => typeof ((event.before ?? {}) as { coverFileId?: unknown }).coverFileId === 'string');
   if (covers.length > 0) await L.select({ c: 'events', where: [{ col: 'correlation_id', in: covers.map((event) => event.correlationId) }] });
 }
@@ -182,6 +197,7 @@ export async function trackerScope(L: Load, entryId: string, moreFiles: readonly
   const entry = L.get<TrackerEntry>('tracker', entryId);
   if (!entry) return undefined;
   await namedFiles(L, [entry], moreFiles);
+  await lineMinutes(L, [entry]);
   await tasksOf(L, [entry.projectId]);
   await L.byKey('tasks', [entry.replyTaskId]);
   await taskTail(L, [entry.replyTaskId]);

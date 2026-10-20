@@ -122,19 +122,27 @@ export function messagesOf(state: State, conversationId: string): Message[] {
  * Live messages that other people wrote after the person last read the room. A person's own agent counts as the person.
  * A count that a server loader put in the state comes first (plan 4.13, A9); without it, a scan of the messages in the state.
  * The Admin's other project chats count only the messages that name the Admin (countsNamedOnly, design item 23).
+ * A chat that the person marked unread (chats.markUnread, fbk_028) counts at least 1 until the person opens it again, in every kind
+ * and also in the Admin's other project chats. The mark never adds one: a chat with 3 new messages that is marked unread still has 3.
  */
 export function unreadIn(state: State, conversationId: string, userId: string): number {
+  const key = chatReadKey(conversationId, userId);
   const counted = state.counts?.[unreadCountKey(conversationId, userId)];
-  if (counted !== undefined) return counted;
-  const read = state.chatReads[chatReadKey(conversationId, userId)];
+  const read = state.chatReads[key];
   const lastRead = read?.lastReadAt ?? '';
   // The Admin's other project chats count only the messages that name the Admin, unless the Admin picked All messages (item 23).
   const chat = state.conversations[conversationId];
   const namedOnly = chat !== undefined && countsNamedOnly(projectRoleOf(state, chat.projectId, userId), chat, levelFromRead(read, chat.kind));
-  return Object.values(state.messages).filter(
+  const count = counted ?? Object.values(state.messages).filter(
     (m) => m.conversationId === conversationId && isLiveMessage(m) && m.createdAt > lastRead && principalOf(state, m.authorId) !== userId && m.actingForId !== userId
       && (!namedOnly || m.mentions.includes(userId)),
   ).length;
+  return markedUnread(state, key) ? Math.max(count, 1) : count;
+}
+
+/** True when the person marked the chat or the task thread unread and has not opened it since. */
+export function markedUnread(state: State, readKey: string): boolean {
+  return state.chatReads[readKey]?.markedUnread === true;
 }
 
 /**

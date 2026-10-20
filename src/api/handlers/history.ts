@@ -207,6 +207,14 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       return;
     }
     case 'tracker': {
+      // The minutes of a meeting (wave 2) are taken back by the people who write them now: the right to write the minutes of the meeting
+      // of the line (the organizer, the attendees, and for a project meeting the leader and the Admin).
+      if (event.verb === 'tracker.minutes_saved') {
+        const entry = ctx.state.tracker?.[event.targetId];
+        const meeting = entry?.meetingId ? ctx.state.meetings?.[entry.meetingId] : undefined;
+        if (!meeting) throw forbidden('You cannot do this.', { action: 'meeting.minutes' });
+        return need('meeting.minutes', meetingResource(ctx.state, meeting, ctx.authority.id));
+      }
       // Logging and deleting undo each other, so both follow the delete rule. Closing and editing follow the rule of posting.
       if (event.verb !== 'tracker.logged' && event.verb !== 'tracker.deleted') return need('content.post');
       const entry = (ctx.state.tracker?.[event.targetId] ?? event.before ?? event.after) as TrackerEntry;
@@ -274,6 +282,8 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       // or the whole meeting that a create event keeps.
       const meeting = ctx.state.meetings?.[event.targetId] ?? (event.after as Meeting | null) ?? (event.before as Meeting | null);
       if (!meeting) return need('admin.manage');
+      // The minutes of a meeting with no line (wave 2) follow the right to write them, not the right to change the meeting.
+      if (event.verb === 'meeting.minutes_saved') return need('meeting.minutes', meetingResource(ctx.state, meeting, ctx.authority.id));
       return need('meeting.edit', meetingResource(ctx.state, meeting, ctx.authority.id));
     }
     case 'subCompany':
@@ -339,6 +349,11 @@ function takeBackTemplatePart(ctx: Ctx, taskId: string, projectId: string | null
 function undoOne(ctx: Ctx, event: Event, guard: boolean, followOn = false): EventView {
   // A change that the person does not see reads as missing, before any other rule (owner, 2026-10-06).
   if (!seesEvent(ctx, event, true)) throw notFound('Event', event.id);
+  // The mark of a settled meeting is final: the next job run would settle the meeting again (fbk_022, wave 2). Every person who
+  // sees the change gets the same answer.
+  if (event.verb === 'meeting.settled') {
+    throw new ApiError('conflict', 'Madar marked this meeting as over. This mark has no Undo.', { reason: 'settle_final' });
+  }
   assertUndoRight(ctx, event);
   if (!followOn) assertMayUndo(ctx, event);
   const task = event.targetType === 'task' ? ctx.state.tasks[event.targetId] : undefined;

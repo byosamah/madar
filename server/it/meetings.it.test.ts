@@ -3,6 +3,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Meeting } from '../../src/api/contract/entities';
 import { runCall } from '../core/runCall';
+import { SETTLE_SQL } from '../jobs/steps/meetings';
 import { dropSchema, localClient, migrationFiles } from './migrate';
 import { newBatch, startOffice, type ItOffice } from './runCallOffice';
 
@@ -16,12 +17,12 @@ const schema = `madar_mtg_${process.pid}`;
 const STAMP = '2026-10-19T09:00:00.000+03:00';
 const OFFICE_MEETING: Meeting = {
   id: 'mtg_001', kind: 'meeting', title: 'Meet a new client', projectId: null, startsAt: '2026-10-21T10:00:00.000+03:00', endsAt: '2026-10-21T11:00:00.000+03:00',
-  where: 'Meeting room', guests: '', notes: '', organizerId: 'usr_004', attendeeIds: ['usr_006', 'usr_007'], minutesById: 'usr_004', status: 'scheduled', rev: 1,
+  where: 'Meeting room', guests: '', notes: '', organizerId: 'usr_004', attendeeIds: ['usr_006', 'usr_007'], status: 'scheduled', rev: 1,
   createdBy: 'usr_004', createdAt: STAMP,
 };
 const PROJECT_MEETING: Meeting = {
   ...OFFICE_MEETING, id: 'mtg_002', kind: 'client', projectId: 'prj_001', startsAt: '2026-10-22T09:00:00.000+03:00', endsAt: '2026-10-22T10:00:00.000+03:00',
-  organizerId: 'usr_002', attendeeIds: ['usr_003'], minutesById: null, settledAt: '2026-10-22T10:15:00.000+03:00',
+  organizerId: 'usr_002', attendeeIds: ['usr_003'], settledAt: '2026-10-22T10:15:00.000+03:00',
 };
 
 async function apply(db: pg.Client, names: string[]): Promise<void> {
@@ -86,9 +87,27 @@ describe.runIf(process.env.MADAR_IT === '1')('the meetings migration, on the loc
     expect(window.rows).toEqual([{ id: 'mtg_002' }]);
   });
 
-  it('has the three read indexes', async () => {
+  it('has the read indexes and the partial index of the settle job (20261021000100_meetings_settle.sql)', async () => {
     const { rows } = await db.query("select indexname from pg_indexes where schemaname = $1 and tablename = 'meetings' order by indexname", [schema]);
-    expect(rows.map((row) => row.indexname)).toEqual(['meetings_attendees', 'meetings_pkey', 'meetings_project_starts', 'meetings_starts']);
+    expect(rows.map((row) => row.indexname)).toEqual(['meetings_attendees', 'meetings_pkey', 'meetings_project_starts', 'meetings_starts', 'meetings_to_settle']);
+    const [partial] = (await db.query("select indexdef from pg_indexes where schemaname = $1 and indexname = 'meetings_to_settle'", [schema])).rows;
+    expect(partial.indexdef).toContain("WHERE ((status = 'scheduled'::text) AND (settled_at IS NULL))");
+  });
+
+  it('serves the read of the settle job with the partial index, and the read gives only the meetings that are due', async () => {
+    const stamps = ['2026-10-22T09:30:00.000+03:00', '2026-10-08T09:30:00.000+03:00'];
+    // Two rows cannot show a plan choice, so the test turns the sequential scan off: the planner then uses the index if the read can.
+    await db.query('set enable_seqscan = off');
+    try {
+      const text = SETTLE_SQL.replace('$1::text', `'${stamps[0]}'::text`).replace('$2::text', `'${stamps[1]}'::text`);
+      const plan = (await db.query(`explain ${text}`)).rows.map((row) => String(row['QUERY PLAN'])).join('\n');
+      expect(plan).toContain('meetings_to_settle');
+      // mtg_002 has its mark, mtg_001 ends on 2026-10-21 at 11:00, so it is due at 2026-10-22 09:30.
+      const due = await db.query(SETTLE_SQL, stamps);
+      expect(due.rows.map((row) => row.id)).toEqual(['mtg_001']);
+    } finally {
+      await db.query('reset enable_seqscan');
+    }
   });
 
   it('turns on Row Level Security for the table', async () => {
@@ -173,7 +192,7 @@ describe.runIf(process.env.MADAR_IT === '1')('a meeting with no project, on the 
 
   it('keeps hiding it from a person who was taken off, and still tells that person by signal', async () => {
     const sent = deps.signal.sent.length;
-    const changed = await call(ORGANIZER, 'meetings.update', { id, attendeeIds: [ATTENDEE], minutesById: null });
+    const changed = await call(ORGANIZER, 'meetings.update', { id, attendeeIds: [ATTENDEE] });
     expect(changed.ok).toBe(true);
     expect(deps.signal.sent.slice(sent).map((signal) => signal.channel).sort()).toEqual([ATTENDEE, ORGANIZER, REMOVED].map((user) => `person:${user}`));
     const got = await call(REMOVED, 'meetings.get', { id });
@@ -183,3 +202,92 @@ describe.runIf(process.env.MADAR_IT === '1')('a meeting with no project, on the 
     expect(JSON.stringify(listed.output)).not.toContain(TITLE);
   });
 });
+
+/**
+ * The settle and the minutes (wave 2, owner 2026-10-19) through runCall on the local database as madar_server: the loaders of
+ * meetings.settle and meetings.saveMinutes, the Tracker line of a project meeting, the minutes on the meeting for a meeting with no
+ * project, and the job read. The memory form of the same probes runs in src/api/handlers/meetingMinutes.test.ts and in
+ * server/data/loaders/loaders.test.ts (both loads).
+ */
+describe.runIf(process.env.MADAR_IT === '1')('the settle and the minutes, on the local database', () => {
+  const ADMIN = 'usr_001';
+  const ATTENDEE = 'usr_003';
+  const ORGANIZER = 'usr_004';
+  const OUTSIDER = 'usr_002';
+  const MINUTES = 'The raise is 4,000 riyals. DB-MINUTES-7714';
+  let office: ItOffice;
+  let deps: ReturnType<ItOffice['isolate']>;
+  let solo: string;
+  let client: string;
+  const call = (userId: string, name: string, input: unknown) => runCall(deps, { principal: { userId }, name, input, batch: newBatch() });
+  const okOf = <T>(result: Awaited<ReturnType<typeof call>>): T => {
+    if (!result.ok) throw new Error(`The call failed: ${result.error.code} ${result.error.message}`);
+    return result.output as T;
+  };
+
+  beforeAll(async () => {
+    office = await startOffice('mtgmin');
+    deps = office.isolate();
+    // The clock of the suite is 2026-10-04 09:00 in Riyadh, so both meetings ended two days ago.
+    solo = okOf<{ id: string }>(await call(ORGANIZER, 'meetings.create', { kind: 'meeting', title: 'Salary talk', startsAt: '2026-10-02T09:00:00+03:00', attendeeIds: [ATTENDEE] })).id;
+    const leader = office.seed.projects.prj_001.leaderId!;
+    client = okOf<{ id: string }>(await call(leader, 'meetings.create', { kind: 'client', title: 'Kick-off', projectId: 'prj_001', startsAt: '2026-10-02T10:00:00+03:00', attendeeIds: [ATTENDEE] })).id;
+  }, 60_000);
+
+  afterAll(async () => {
+    await office?.close();
+  });
+
+  it('settles a project meeting once: one mark, one Tracker line that names its cause, and the same answer the second time', async () => {
+    const first = okOf<{ settledAt: string; trackerEntryId: string }>(await call(ATTENDEE, 'meetings.settle', { id: client }));
+    expect(first.trackerEntryId).toMatch(/^trk_/);
+    const second = okOf<{ settledAt: string; trackerEntryId: string }>(await call(OUTSIDER, 'meetings.settle', { id: client }));
+    expect(second).toEqual(first);
+    const lines = await office.sql("select id, doc->>'meetingId' as meeting, doc->>'auto' as auto, doc->'minutes' as minutes from tracker where doc->>'meetingId' = $1", [client]);
+    expect(lines).toEqual([{ id: first.trackerEntryId, meeting: client, auto: 'meeting', minutes: null }]);
+    const marks = await office.sql("select count(*)::int as n from events where doc->>'verb' = 'meeting.settled' and doc->>'targetId' = $1", [client]);
+    expect(marks).toEqual([{ n: 1 }]);
+    const caused = await office.sql("select doc->>'causeEventId' as cause from events where doc->>'verb' = 'tracker.logged' and doc->>'targetId' = $1", [first.trackerEntryId]);
+    expect(caused[0].cause).toMatch(/^evt_/);
+  });
+
+  it('refuses the Undo of the mark with settle_final', async () => {
+    const [mark] = await office.sql("select id, doc->>'actingForId' as person from events where doc->>'verb' = 'meeting.settled' and doc->>'targetId' = $1", [client]);
+    const undone = await call(mark.person as string, 'events.undo', { eventId: mark.id });
+    expect(undone.ok).toBe(false);
+    if (!undone.ok) expect(undone.error).toMatchObject({ code: 'conflict', details: { reason: 'settle_final' } });
+  });
+
+  it('keeps the minutes of a project meeting on its Tracker line, and the minutes of a meeting with no project on the meeting', async () => {
+    const line = okOf<{ minutesPlace: string; minutes: { text: string } }>(await call(ATTENDEE, 'meetings.saveMinutes', { id: client, text: MINUTES, fileIds: [] }));
+    expect(line).toMatchObject({ minutesPlace: 'tracker', minutes: { text: MINUTES } });
+    const onLine = await office.sql("select doc->'minutes'->>'text' as text from tracker where doc->>'meetingId' = $1", [client]);
+    expect(onLine).toEqual([{ text: MINUTES }]);
+    const own = okOf<{ minutesPlace: string }>(await call(ATTENDEE, 'meetings.saveMinutes', { id: solo, text: MINUTES, fileIds: [] }));
+    expect(own.minutesPlace).toBe('meeting');
+    const onMeeting = await office.sql("select doc->'minutes'->>'text' as text from meetings where id = $1", [solo]);
+    expect(onMeeting).toEqual([{ text: MINUTES }]);
+    const event = await office.sql("select doc->>'officeMeetingId' as office from events where doc->>'verb' = 'meeting.minutes_saved' and doc->>'targetId' = $1", [solo]);
+    expect(event).toEqual([{ office: solo }]);
+  });
+
+  it('refuses a stale since, and takes the Undo of the save', async () => {
+    const stale = await call(ATTENDEE, 'meetings.saveMinutes', { id: solo, text: 'Other', fileIds: [], since: '2026-10-01T00:00:00.000+03:00' });
+    expect(stale.ok).toBe(false);
+    if (!stale.ok) expect(stale.error).toMatchObject({ code: 'conflict', details: { reason: 'minutes_changed' } });
+    const [saved] = await office.sql("select id from events where doc->>'verb' = 'meeting.minutes_saved' and doc->>'targetId' = $1", [solo]);
+    okOf(await call(ATTENDEE, 'events.undo', { eventId: saved.id }));
+    expect(await office.sql("select doc->'minutes' as minutes from meetings where id = $1", [solo])).toEqual([{ minutes: null }]);
+  });
+
+  it('reads a meeting with no project as missing for the Admin who is not invited and for an outsider, for the save as for the read', async () => {
+    for (const person of [ADMIN, OUTSIDER]) {
+      for (const [name, input] of [['meetings.saveMinutes', { id: solo, text: 'Try', fileIds: [] }], ['meetings.get', { id: solo }], ['meetings.settle', { id: solo }]] as const) {
+        const refused = await call(person, name, input);
+        expect(refused.ok, `${person} ${name}`).toBe(false);
+        if (!refused.ok) expect(refused.error, `${person} ${name}`).toMatchObject({ code: 'not_found', message: `Meeting ${solo} does not exist.` });
+      }
+    }
+  });
+});
+

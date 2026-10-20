@@ -152,6 +152,53 @@ describe('the minute timer of the prototype (performance audit FET-11)', () => {
     expect(save.mock.calls.length).toBe(1);
   });
 
+  // The settle of a meeting that ended (fbk_022, wave 2): the prototype has no job, so its minute timer calls meetings.settle.
+  it('settles a meeting in the first tick after its end, with its Tracker line, and the next tick does nothing more', async () => {
+    vi.useFakeTimers();
+    // 08:59:30 in Riyadh. The meeting 08:45 to 09:00 has not ended.
+    setNow(new Date('2026-09-30T05:59:30Z'));
+    const runtime = await bootstrap({ persister: memoryPersister(), latencyMs: 0 });
+    await runtime.store.flush();
+    const made = await runtime.api.call('meetings.create', { kind: 'client', title: 'Review the facade', projectId: 'prj_001', startsAt: '2026-09-30T08:45:00+03:00', durationMin: 15 });
+    const lines = () => Object.values(runtime.store.state.tracker ?? {}).filter((entry) => entry.auto === 'meeting');
+    const stop = startScheduler(runtime.store, runtime.api);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(runtime.store.state.meetings![made.id].settledAt ?? null).toBeNull();
+    expect(lines()).toHaveLength(0);
+    // 09:00:30: the meeting ended 30 seconds ago, and the next tick settles it.
+    setNow(new Date('2026-09-30T06:00:30Z'));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(runtime.store.state.meetings![made.id].settledAt).toBe('2026-09-30T09:00:30.000+03:00');
+    expect(lines()).toHaveLength(1);
+    expect(lines()[0]).toMatchObject({ meetingId: made.id, minutes: null, title: 'Review the facade' });
+    await vi.advanceTimersByTimeAsync(2 * 60_000);
+    stop();
+    expect(lines()).toHaveLength(1);
+  });
+
+  it('runs the settle for no meeting without an api, and ignores a meeting that the current person does not see', async () => {
+    vi.useFakeTimers();
+    setNow(new Date('2026-09-30T06:00:30Z'));
+    const runtime = await bootstrap({ persister: memoryPersister(), latencyMs: 0 });
+    await runtime.store.flush();
+    // A meeting with no project, planned by Omar for Sara: the current person (the Admin) is not on it.
+    const state = runtime.store.state;
+    const [first, second] = Object.values(state.users).filter((user) => user.kind === 'human' && user.active && user.systemRole !== 'admin');
+    state.meetings = { ...state.meetings, mtg_900: {
+      id: 'mtg_900', kind: 'meeting', title: 'Private talk', projectId: null, startsAt: '2026-09-30T08:45:00.000+03:00', endsAt: '2026-09-30T09:00:00.000+03:00', where: '', guests: '',
+      notes: '', organizerId: first.id, attendeeIds: [second.id], status: 'scheduled', rev: 1, createdBy: first.id, createdAt: '2026-09-29T09:00:00.000+03:00',
+    } };
+    const withoutApi = startScheduler(runtime.store);
+    await vi.advanceTimersByTimeAsync(60_000);
+    withoutApi();
+    expect(state.meetings.mtg_900.settledAt ?? null).toBeNull();
+    const withApi = startScheduler(runtime.store, runtime.api);
+    await vi.advanceTimersByTimeAsync(60_000);
+    withApi();
+    // not_found for the Admin: the timer ignores it and the meeting waits for a person who sees it.
+    expect(state.meetings.mtg_900.settledAt ?? null).toBeNull();
+  });
+
   it('still tells the screens once at a new office day, so the day counts refresh after midnight', async () => {
     vi.useFakeTimers();
     setNow(new Date('2026-10-08T20:59:30Z'));

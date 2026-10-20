@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { FEED_VERBS } from '../../../src/api/views';
 import { emptyState, type State } from '../../../src/api/store';
 import { memorySource } from '../loaders/memorySource';
 import type { Select } from '../loaders/query';
@@ -74,5 +75,15 @@ describe('the conditions of a read on SQLite (server/data/lite/compile.ts)', () 
     const list = Array.from({ length: LIST_BOUND_MAX + 5 }, (_, i) => `tsk_${i}`);
     expect(whereOf({ c: 'tasks', where: [{ col: 'id', in: list }] }, long)).toBe('t.id in (select value from json_each(?))');
     expect(long).toEqual([JSON.stringify(list)]);
+  });
+
+  it('keeps the verb list of the project feed as bound values, so SQLite reads the events of the project by its own index', () => {
+    // A list over LIST_BOUND_MAX turns into json_each. SQLite then drives the read by the verb and reads about twice the rows
+    // (the year office pin of projects.list, wave 2). Raise LIST_BOUND_MAX with care when the verb list grows.
+    const values: unknown[] = [];
+    const sql = whereOf({ c: 'events', where: [{ col: 'project_id', in: ['prj_001'] }, { col: 'verb', in: [...FEED_VERBS] }] }, values);
+    expect(sql).not.toContain('json_each');
+    // The read with ties holds the conditions twice, plus the limit: it must stay under the 100 values of the host.
+    expect(values.length * 2 + 1).toBeLessThanOrEqual(100);
   });
 });

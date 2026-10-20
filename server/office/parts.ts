@@ -194,6 +194,8 @@ export function officeParts(o: PartsInput): OfficeParts {
       log,
       pushFetch: ports.pushFetch,
       live: tickets,
+      // A job step that runs a normal call (the meetings step) runs it on the SQLite data of this object.
+      runCall: run,
     };
     ledgers.set(deps, new EffectLedger());
     return deps;

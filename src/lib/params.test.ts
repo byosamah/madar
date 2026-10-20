@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chatLink, clientParam, closeMeeting, dayParam, meetingParam, messageParam, oneOf, openMeeting, userParam } from './params';
+import { chatLink, clientParam, closeMeeting, dayParam, meetingParam, messageParam, oneOf, openMeeting, trackerEntryLink, userParam } from './params';
 
 describe('link values', () => {
   it('keeps a known value and falls back on anything else', () => {
@@ -46,3 +46,10 @@ describe('link values', () => {
     expect(closeMeeting(open).toString()).toBe('x=1');
   });
 });
+
+describe('trackerEntryLink (wave 2)', () => {
+  it('opens the sheet of one Tracker entry on the Tracker tab of its project', () => {
+    expect(trackerEntryLink('prj_001', 'trk_900')).toBe('/projects/prj_001?tab=tracker&entry=trk_900');
+  });
+});
+

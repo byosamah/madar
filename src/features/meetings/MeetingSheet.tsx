@@ -14,17 +14,20 @@ import { Menu } from '../../components/Menu';
 import { ProjectTile } from '../../components/ProjectTile';
 import { Sheet } from '../../components/Sheet';
 import { clockFormat, formatDay, now, stampDay } from '../../lib/dates';
+import { trackerEntryLink } from '../../lib/params';
 import { phaseOf } from '../../lib/meetings';
 import { MeetingForm } from './MeetingForm';
 import { joinLink, mainAction } from './meetingLinks';
+import { AddMinutes, MinutesBody, QUIET } from './MinutesPart';
+import { MinutesSheet } from './MinutesSheet';
 
 const MAIN_LINK = 'pressable signature inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 text-subheadline font-semibold shadow-[0_4px_14px_rgba(31,42,85,0.22)] transition-[box-shadow,filter,transform] duration-150 hover:-translate-y-px hover:shadow-[0_8px_20px_rgba(31,42,85,0.28)] hover:brightness-110';
 
-/** One fact of the sheet: a small label, then its value. */
-function Fact({ label, children }: { label: string; children: ReactNode }) {
+/** One fact of the sheet: a small label, then its value. A hidden label is for a screen reader only. */
+function Fact({ label, hidden = false, children }: { label: string; hidden?: boolean; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="text-footnote text-ink-2">{label}</dt>
+      <dt className={hidden ? 'sr-only' : 'text-footnote text-ink-2'}>{label}</dt>
       <dd className="text-subheadline text-ink">{children}</dd>
     </div>
   );
@@ -74,7 +77,7 @@ function Unavailable({ error, onRetry, onClose }: { error: unknown; onRetry: () 
 
 /**
  * The sheet of one meeting (fbk_022, owner 2026-10-19). The title, the kind and its state, the day and time, the place, the project,
- * the people and the notes. At most one main button: "Join" (the place is a link and the start is near, or the meeting
+ * the people, the minutes and the notes. After the end one quiet "Add the minutes" shows until someone writes them (wave 2). At most one main button: "Join" (the place is a link and the start is near, or the meeting
  * is on), "Open in Google Maps" (a site visit of a project with a pin), else none. The menu holds Edit and Cancel, by `viewerCan`.
  */
 export function MeetingSheet({ meetingId, onClose }: { meetingId: string; onClose: () => void }) {
@@ -87,6 +90,7 @@ export function MeetingSheet({ meetingId, onClose }: { meetingId: string; onClos
   const project = useCall('projects.get', { id: projectId }, { enabled: meeting?.kind === 'site_visit' && projectId !== '' });
   const [editing, setEditing] = useState(false);
   const [asking, setAsking] = useState(false);
+  const [writing, setWriting] = useState(false);
   const cancel = useUndoable('meetings.cancel', { message: () => t('meetings.sheet.cancelled') });
   if (!meeting) {
     return query.error ? <Unavailable error={query.error} onRetry={() => void query.refetch()} onClose={onClose} /> : null;
@@ -153,6 +157,19 @@ export function MeetingSheet({ meetingId, onClose }: { meetingId: string; onClos
               </ul>
             </Fact>
           )}
+          {meeting.minutes ? (
+            <Fact label={t('minutes.title')}>
+              <MinutesBody minutes={meeting.minutes} canEdit={meeting.viewerCan.minutes ?? false} onEdit={() => setWriting(true)}>
+                {meeting.minutesPlace === 'tracker' && meeting.trackerEntry && meeting.project && (
+                  <Link to={trackerEntryLink(meeting.project.id, meeting.trackerEntry.id)} className={QUIET}>
+                    {t('minutes.openTracker')}
+                  </Link>
+                )}
+              </MinutesBody>
+            </Fact>
+          ) : meeting.viewerCan.minutes && (
+            <Fact label={t('minutes.title')} hidden><AddMinutes onClick={() => setWriting(true)} /></Fact>
+          )}
           {meeting.guests && <Fact label={t('meetings.sheet.guests')}><span dir="auto" className="block whitespace-pre-wrap break-words">{meeting.guests}</span></Fact>}
           {meeting.notes && <Fact label={t('meetings.sheet.notes')}><span dir="auto" className="block whitespace-pre-wrap break-words">{meeting.notes}</span></Fact>}
           {meeting.kind === 'team' && (
@@ -161,6 +178,7 @@ export function MeetingSheet({ meetingId, onClose }: { meetingId: string; onClos
         </dl>
       </Sheet>
       <MeetingForm open={editing} onOpenChange={setEditing} meeting={meeting} />
+      {writing && <MinutesSheet meeting={{ id: meeting.id, title: meeting.title, projectId: meeting.project?.id ?? null }} minutes={meeting.minutes ?? null} onClose={() => setWriting(false)} />}
       {asking && (
         <CancelSheet
           onKeep={() => setAsking(false)}

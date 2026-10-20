@@ -533,6 +533,28 @@ describe('the new messages of a save (the push producer reads them)', () => {
   });
 });
 
+describe('the meetings of a save (the Google Calendar sync reads them, fbk_022)', () => {
+  const meeting = (id: string) => ({
+    id, kind: 'meeting' as const, title: 'Kickoff', projectId: null, startsAt: '2026-10-06T10:00:00.000+03:00', endsAt: '2026-10-06T11:00:00.000+03:00', where: '', guests: '', notes: '',
+    organizerId: 'usr_002', attendeeIds: [], minutesById: null, status: 'scheduled' as const, rev: 1, createdBy: 'usr_002', createdAt: '2026-10-04T09:00:00.000+03:00',
+  });
+
+  it('lists the ids of the meetings that the save inserted, changed and deleted, and leaves the list out when there are none', async () => {
+    const before = copy();
+    before.meetings = { mtg_901: meeting('mtg_901'), mtg_902: meeting('mtg_902') };
+    const after = structuredClone(before);
+    after.meetings!.mtg_903 = meeting('mtg_903');
+    after.meetings!.mtg_901.title = 'A new title';
+    delete after.meetings!.mtg_902;
+    expect((await save(recorder().q, before, after)).meetingIds?.sort()).toEqual(['mtg_901', 'mtg_902', 'mtg_903']);
+    expect((await save(recorder().q, before, structuredClone(before))).meetingIds).toBeUndefined();
+    const other = structuredClone(before);
+    Object.values(other.tasks)[0].title = 'Another title';
+    expect((await save(recorder().q, before, other)).meetingIds).toBeUndefined();
+    expect(diffState(before, other).meetingIds).toEqual([]);
+  });
+});
+
 describe('the new comments of a save (the push producer reads them)', () => {
   it('lists the ids of the comments that the save inserted, and leaves the list out when there are none', async () => {
     const after = copy();
@@ -839,3 +861,63 @@ describe('the signals of a chat file (owner, 2026-10-19)', () => {
     expect(result.signals.find((signal) => signal.channel === 'office')).toMatchObject({ actorId: 'usr_003', storyId: 'sty_m' });
   });
 });
+
+// Wave 2 (fbk_022, owner 2026-10-19): a file of a meeting with no project belongs to that private meeting. Its save is a private
+// change: only the person channels of the people of the meeting hear it, with the kinds and no names. The Admin who is not invited
+// hears nothing, and there is no office signal.
+describe('the signals of a meeting file (wave 2)', () => {
+  const privateMeeting = (state: State, id = 'mtg_901'): State => {
+    (state.meetings ??= {})[id] = {
+      id, kind: 'meeting', title: 'Salary talk', projectId: null, startsAt: '2026-10-02T09:00:00.000+03:00', endsAt: '2026-10-02T10:00:00.000+03:00', where: '', guests: '',
+      notes: '', organizerId: 'usr_004', attendeeIds: ['usr_003', 'usr_006'], status: 'scheduled', rev: 1, createdBy: 'usr_004', createdAt: '2026-10-01T09:00:00.000+03:00',
+    };
+    return state;
+  };
+  const file = (id: string, meetingId = 'mtg_901') => ({
+    id, projectId: null, stageId: null, taskId: null, meetingId, name: 'Hidden-minutes-5531.pdf',
+    versions: [{ letter: 'A', blobKey: 'meeting/mtg-901/upl-a/file', mimeType: 'application/pdf', size: 10, uploadedBy: 'usr_003', uploadedAt: '2026-10-02T11:00:00.000+03:00' }],
+  });
+
+  it('is a private change of the meeting: no project, no office, and the people of the meeting only', () => {
+    const before = privateMeeting(copy());
+    const after = structuredClone(before);
+    after.files.fil_960 = file('fil_960');
+    const diff = diffState(before, after);
+    expect(table(diff, 'files')?.inserted).toEqual(['fil_960']);
+    expect(diff.projects.size).toBe(0);
+    expect(diff.office).toBe(false);
+    expect(diff.privateChange).toBe(true);
+    expect(diff.privateOnly).toBe(true);
+    expect(diff.anonymous).toBe(false);
+    expect(sorted(diff.privatePeople)).toEqual(['usr_003', 'usr_004', 'usr_006']);
+    expect(sorted(diff.kinds)).toEqual(['files']);
+    expect([...diff.publicKinds]).toEqual([]);
+  });
+
+  it('sends person signals with the kind files and no name, and no office signal, and none to the Admin', async () => {
+    const before = privateMeeting(copy());
+    const after = structuredClone(before);
+    after.files.fil_960 = file('fil_960');
+    const { q } = recorder({ officeSeq: 4 });
+    const result = await writeDiff(q, diffState(before, after), { story: { storyId: 'sty_meeting', actorId: 'usr_003' } });
+    expect(result.signals.map((signal) => signal.channel).sort()).toEqual(['person:usr_003', 'person:usr_004', 'person:usr_006']);
+    const text = JSON.stringify(result.signals);
+    for (const hidden of ['fil_960', 'Hidden-minutes', 'mtg_901', 'Salary talk', 'sty_meeting', 'usr_001']) expect(text).not.toContain(hidden);
+    for (const signal of result.signals) {
+      expect(signal).toMatchObject({ kinds: ['files'], office: false, projects: [] });
+      expect(signal).not.toHaveProperty('actorId');
+      expect(signal).not.toHaveProperty('storyId');
+    }
+  });
+
+  it('tells the people of the meeting, and nobody else, when a file of the meeting is removed', async () => {
+    const before = privateMeeting(copy());
+    before.files.fil_960 = file('fil_960');
+    const after = structuredClone(before);
+    delete after.files.fil_960;
+    const diff = diffState(before, after);
+    expect(diff.privateChange).toBe(true);
+    expect(sorted(diff.privatePeople)).toEqual(['usr_003', 'usr_004', 'usr_006']);
+  });
+});
+

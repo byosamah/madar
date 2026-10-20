@@ -16,7 +16,11 @@ function carriesFiles(event: DragEvent): boolean {
   return Array.from(event.dataTransfer?.types ?? []).includes('Files');
 }
 
-export function ChatDropArea({ note, children }: { note: string; children: ReactNode }) {
+/**
+ * `className` sets the box of the area. The default fills the pane of a chat. The comments of a task panel (CommentThread) pass "relative",
+ * so the area is no flex item there and the panel keeps its layout.
+ */
+export function ChatDropArea({ note, className = 'relative flex min-h-0 flex-1 flex-col', children }: { note: string; className?: string; children: ReactNode }) {
   const { t } = useTranslation();
   // The receiver is kept in a ref, so a box that makes a new closure on each render does not render the area again.
   const receiver = useRef<Receive | null>(null);
@@ -61,6 +65,7 @@ export function ChatDropArea({ note, children }: { note: string; children: React
       }}
       title={t('chat.dropToAttach')}
       note={note}
+      className={className}
     >
       <DropSlot.Provider value={register}>{children}</DropSlot.Provider>
     </DropDraw>
@@ -68,12 +73,12 @@ export function ChatDropArea({ note, children }: { note: string; children: React
 }
 
 /** The box and the frame of the area. */
-function DropDraw({ ready, over, onEnter, onOver, onLeave, onDrop, title, note, children }: {
-  ready: boolean; over: boolean; title: string; note: string; children: ReactNode;
+function DropDraw({ ready, over, onEnter, onOver, onLeave, onDrop, title, note, className, children }: {
+  ready: boolean; over: boolean; title: string; note: string; className: string; children: ReactNode;
   onEnter: (event: DragEvent) => void; onOver: (event: DragEvent) => void; onLeave: (event: DragEvent) => void; onDrop: (event: DragEvent) => void;
 }) {
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col" onDragEnter={onEnter} onDragOver={onOver} onDragLeave={onLeave} onDrop={onDrop}>
+    <div className={className} onDragEnter={onEnter} onDragOver={onOver} onDragLeave={onLeave} onDrop={onDrop}>
       {children}
       {ready && over && (
         <div role="status" className="absolute inset-2 z-10 grid place-items-center rounded-2xl border-2 border-dashed border-link/60 bg-panel/85 text-center">

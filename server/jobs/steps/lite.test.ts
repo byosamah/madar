@@ -7,6 +7,8 @@ import type { State } from '../../../src/api/store';
 import { buildSeed } from '../../../src/data/seed';
 import { freshLite } from '../../data/lite/testDb';
 import { liteWriteState } from '../../data/lite/whole';
+import { createRunCall } from '../../core/runCall';
+import { liteData } from '../../data/lite/callData';
 import { stagingKey, uploadKey } from '../../files/keys';
 import { officeSteps, runOfficeJobs } from '../../office/jobs';
 import { fakeDeps } from '../../test/fakes/deps';
@@ -59,7 +61,7 @@ describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
   it('reminds the people of a meeting that starts within 30 minutes once, and the people of a later meeting in a later run', async () => {
     const meeting = (id: string, startsAt: string, endsAt: string, extra: Record<string, unknown> = {}) => ({
       id, kind: 'meeting' as const, title: `Meeting ${id}`, projectId: null, startsAt, endsAt, where: '', guests: '', notes: '', organizerId: 'usr_003', attendeeIds: ['usr_004'],
-      minutesById: null, status: 'scheduled' as const, rev: 1, createdBy: 'usr_003', createdAt: '2026-10-03T09:00:00.000+03:00', ...extra,
+      status: 'scheduled' as const, rev: 1, createdBy: 'usr_003', createdAt: '2026-10-03T09:00:00.000+03:00', ...extra,
     });
     const { db, deps } = await office((seed) => {
       seed.meetings = {
@@ -80,6 +82,36 @@ describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
     expect((await soon()).map((row) => row.target_id)).toEqual(['mtg_001', 'mtg_001', 'mtg_002', 'mtg_002']);
     // The reminders send no mail: the email default of both triggers is off, and the producers know the triggers stay in the app.
     expect(deps.mail.sent.filter((m) => /meeting/i.test(JSON.stringify(m)))).toEqual([]);
+  });
+
+  // The settle of a meeting that ended (fbk_022, wave 2): the step runs the normal call meetings.settle on the SQLite data.
+  it('settles the meetings that ended in the job, with the Tracker line of a project meeting, and settles nothing in a second run', async () => {
+    const meeting = (id: string, projectId: string | null, endsAt: string, extra: Record<string, unknown> = {}) => ({
+      id, kind: 'client' as const, title: `Review ${id}`, projectId, startsAt: endsAt.replace(/T(\d\d)/, (_m, h: string) => `T${String(Number(h) - 1).padStart(2, '0')}`), endsAt, where: '', guests: '', notes: 'Bring the plans',
+      organizerId: 'usr_002', attendeeIds: ['usr_003'], status: 'scheduled' as const, rev: 1, createdBy: 'usr_002', createdAt: '2026-10-03T09:00:00.000+03:00', ...extra,
+    });
+    const { db, deps } = await office((seed) => {
+      seed.meetings = {
+        mtg_001: meeting('mtg_001', 'prj_001', '2026-10-04T07:30:00.000+03:00'),
+        mtg_002: meeting('mtg_002', null, '2026-10-04T07:00:00.000+03:00'),
+        mtg_003: meeting('mtg_003', 'prj_001', '2026-10-04T09:00:00.000+03:00'),
+      };
+    });
+    deps.runCall = createRunCall({ data: liteData });
+    const report = await runOfficeJobs(deps, AT);
+    expect(report.steps.find((step) => step.name === 'meetings')).toEqual({ name: 'meetings', ok: true, result: { settled: 2, skipped: 0, failed: 0, extended: 0 } });
+    const rows = await db.statement<{ id: string; settled_at: string | null }>('read', 'select id, settled_at from meetings order by id');
+    expect(rows).toEqual([{ id: 'mtg_001', settled_at: '2026-10-04T08:00:00.000+03:00' }, { id: 'mtg_002', settled_at: '2026-10-04T08:00:00.000+03:00' }, { id: 'mtg_003', settled_at: null }]);
+    const lines = await db.statement<{ doc: { meetingId: string; minutes: unknown; title: string; date: string } }>('read', "select doc from tracker where json_extract(doc, '$.auto') = 'meeting'");
+    expect(lines.map((line) => [line.doc.meetingId, line.doc.title, line.doc.date, line.doc.minutes])).toEqual([['mtg_001', 'Review mtg_001', '2026-10-04', null]]);
+    // The marks and the line came from normal calls: the History holds the mark, and the line names it as its cause.
+    const events = await db.statement<{ doc: { verb: string; targetId: string; causeEventId?: string; id: string } }>('read', "select doc from events where json_extract(doc, '$.verb') in ('meeting.settled', 'tracker.logged') and json_extract(doc, '$.createdAt') >= '2026-10-04' order by seq");
+    const mark = events.find((row) => row.doc.verb === 'meeting.settled' && row.doc.targetId === 'mtg_001')!;
+    expect(events.find((row) => row.doc.verb === 'tracker.logged' && row.doc.causeEventId === mark.doc.id)).toBeDefined();
+    // A run that finds nothing writes nothing.
+    const again = await runOfficeJobs(deps, AT);
+    expect(again.steps.find((step) => step.name === 'meetings')).toMatchObject({ result: { settled: 0 } });
+    expect(await db.statement('read', "select id from tracker where json_extract(doc, '$.auto') = 'meeting'")).toHaveLength(1);
   });
 
   it('sends the morning summary to each person with something to say, marks the day, and sends nothing in a second run', async () => {
@@ -111,8 +143,20 @@ describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
     await db.statement('write', "insert into stories (id, actor_id, created_at) values ('sty_old', 'usr_001', ?1), ('sty_new', 'usr_001', ?2)", [old, AT.toISOString()]);
     await db.statement('write', "insert into idempotency (actor_id, key, name, digest, result, created_at) values ('usr_001', 'k', 'n', 'd', '{}', ?1)", [old]);
     await db.statement('write', "insert into rate_limits (key, window_start, count) values ('forgot:x', ?1, 1)", [old]);
-    expect(await cleanup(deps, AT)).toEqual({ stories: 1, idempotency: 1, officeDeletes: 0, rateLimits: 1 });
+    expect(await cleanup(deps, AT)).toEqual({ stories: 1, idempotency: 1, officeDeletes: 0, rateLimits: 1, googleRevoking: 0 });
     expect(await db.statement('read', 'select id from stories')).toEqual([{ id: 'sty_new' }]);
+  });
+
+  it('removes a revoking Google row after 25 hours, and keeps one of 23 hours and the live rows (fbk_022)', async () => {
+    const { db, deps } = await office();
+    const hoursAgo = (hours: number) => new Date(AT.getTime() - hours * 3_600_000).toISOString();
+    const add = (id: string, user: string, state: string, changed: string) =>
+      db.statement('write', 'insert into google_connections (id, user_id, sealed_token, state, connected_at, changed_at) values (?1, ?2, ?3, ?4, ?5, ?5)', [id, user, 'v1.sealed.text', state, changed]);
+    await add('old', 'usr_003', 'revoking', hoursAgo(25));
+    await add('recent', 'usr_004', 'revoking', hoursAgo(23));
+    await add('live', 'usr_005', 'ok', hoursAgo(90));
+    expect(await cleanup(deps, AT)).toMatchObject({ googleRevoking: 1 });
+    expect(await db.statement('read', 'select id from google_connections order by id')).toEqual([{ id: 'live' }, { id: 'recent' }]);
   });
 
   it('removes the staging objects of old intents through the files port, and deletes the rows after a day', async () => {

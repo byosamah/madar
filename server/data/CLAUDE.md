@@ -26,6 +26,15 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - A file of a direct chat or a group (owner, 2026-10-19) keeps `conversationId` in its `files` doc: no column and no migration, because
   no read selects by it. Its row has `project_id` and `task_id` null, so the search loader and `files.list` never load it. `diffState`
   counts `files` as a kind of `PRIVATE_CHAT_KINDS`: its save sends the anonymous office signal of a private chat (`save.ts`).
+- A file of a meeting with no project (wave 2) keeps `meetingId` in its `files` doc: no column and no migration. Its row has `project_id` and `task_id`
+  null, so the search loader and `files.list` never load it. `diffState` counts `files` with a `meetingId` as a private change of that meeting
+  (`officeMeetings`). `files.upload` with a `meetingId` loads the meeting by id; `attachedFiles` and the loaders of `files.delete`, `files.markDelivered`
+  and `files.share` load the meeting of a meeting file, because the view rule reads it.
+- The minutes (wave 2): `meetings.get`, `settle` and `saveMinutes` load the meeting (`meetingCall`), its Tracker line, and the files of the minutes (on the
+  meeting and on the line); `saveMinutes` also loads the files that the new minutes carry (`attachedFiles`, with the meeting of a meeting file). The rows of
+  `meetings.list` hold no minutes, so the list reads the meeting rows only. `tracker.list`, `trackerScope` (close, update, delete, assignReply) and the event
+  targets (`eventTargets`: the feed and the Undo) load the meeting of a line that names one and the files of its minutes (`lineMinutes`), because the row
+  gives `meeting`, `minutes` and `canEditMinutes` and the Undo reads the right to write the minutes.
 - Chat search (`20261020000200_message_search.sql`, chat design 2026-10-19, item 16): `messages.search_text` and `comments.search_text`
   hold `bodySearchText(body)` (`src/lib/searchMatch.ts`), written by the save from `tables.ts`. A deleted message keeps null; the
   Undo writes it again. The GIN trigram indexes `messages_search` and `comments_search` use `extensions.gin_trgm_ops`, and the loader
@@ -38,8 +47,16 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   (`project_id` in the office projects, or the person is the organizer or an attendee), and `meetingCall` reads one meeting by id with the
   minutes task and the Tracker line it names. The handler checks the view rule again on the rows. `meetings.create` reads the office only.
   `events.list` adds the test "no `officeMeetingId`, or one of the private meetings of the person" for every person (`privateMeetingsOf`), the
-  Admin too (owner, 2026-10-19, Q4), and the migration adds the statistics `events_office_meeting` for it. `notifications.count` reads the
+  Admin too (owner, 2026-10-19, Q4), and the migration adds the statistics `events_office_meeting` for it. Wave 2 adds the partial index
+  `meetings_to_settle` on `ends_at collate "C"` where `status = 'scheduled'` and `settled_at is null` (`20261021000100_meetings_settle.sql`), for the job
+  that settles ended meetings. The minutes (`doc->'minutes'`), the `meetingId` of a Tracker line and the `meetingId` of a file live in the jsonb docs
+  and need no column. `meetings.settle` loads the meeting by id (`meetingCall`) and nothing else: the line it makes needs no other row. `notifications.count` reads the
   meeting of a notice with `INBOX_MEETING_FIELDS`. `projectDelete` reads the meetings of the project and their notices.
+- `google_connections` and `google_events` (`20261021000200_google_calendar.sql`, fbk_022): server-only tables, in `SERVER_TABLES`, with no State
+  collection and no loader. `google_connections` has one live row for each person (a partial unique index on `user_id` where `state <> 'revoking'`);
+  its `sealed_token` is AES-256-GCM cipher text (`server/google/keys.ts`). `google_events` holds the Google event of a meeting for a person.
+  Only `server/google/store.ts` reads and writes them. The nightly backup holds them (cipher text only), and the backup check lists them in
+  `OUTSIDE_OFFICE_LOCK`, because the Google effects write them outside the office lock.
 - `events` only grows: a trigger refuses update and delete, and madar_server has only select and insert. Undo is a new
   event (`undoes`). The save never writes `undoneBy`.
 
@@ -158,6 +175,13 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - Schema version 6 (chat search) adds `search_text text` to `messages` and `comments`, the last column of each. `LITE_STEPS[6]` is two
   `alter table ... add column`. The office path keeps no index on it: `contains` is `instr`, a scan (`exit-handoff.md`, section 7,
   names the FTS5 index for the restart). No step writes a value: no real office exists below version 6.
+- Schema version 7 (fbk_022, wave 2) adds the partial index `meetings_to_settle` (`ends_at`, where `status = 'scheduled' and settled_at is null`), with no
+  `collate`. Its step makes the same object as a new office.
+- Schema version 8 (fbk_022) adds the two server tables `google_connections` and `google_events` with their indexes (`google_connections_person`,
+  `google_events_meeting`). Their step is in `LITE_STEPS`, and `schema.test.ts` checks that it makes the same objects as a new office. The office object
+  has no Google yet, so these tables stay empty there.
+- The order of versions 6 to 8 comes from the join of 2026-10-20: the chat batch reached main first with version 6, so the meetings settle step
+  (version 6 on its branch) became 7 and the Google step (version 7 on its branch) became 8.
 - Each event index costs 1 row written for each event, and a read needs each of the 8. Task 18 dropped four of them, one at a
   time: a read then took 12,815 to 183,416 rows in place of 4 to 4,189 (proof.md "Wave 1: the rows pins"). Drop one only with
   a rows pin that shows that no read needs it.

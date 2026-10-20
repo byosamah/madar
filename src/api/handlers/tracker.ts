@@ -50,19 +50,35 @@ function assertReplier(ctx: Ctx, projectId: string, userId: string): void {
 }
 
 type NewEntry = Pick<TrackerEntry, 'projectId' | 'type' | 'direction' | 'title'>
-  & Partial<Pick<TrackerEntry, 'note' | 'date' | 'waiting' | 'fileIds' | 'peopleIds' | 'auto'>>;
+  & Partial<Pick<TrackerEntry, 'note' | 'date' | 'waiting' | 'fileIds' | 'peopleIds' | 'auto'>>
+  & {
+    /** A line that Madar makes for a meeting that ended (fbk_022, wave 2): the id was reserved first, the meeting, and the event that caused it. */
+    id?: string; meetingId?: string; causeEventId?: string;
+    /**
+     * The author of a line that Madar makes (the organizer of the meeting). Left out: the person who makes the call. The event still
+     * names the person who made the call as its actor.
+     */
+    createdBy?: string;
+  };
 
-/** Writes one entry and its event. The calls that log by themselves (a file upload, "delivered") use this too. */
+/**
+ * Writes one entry and its event. The calls that log by themselves (a file upload, "delivered", a meeting that ended) use this too.
+ * A meeting line starts with no minutes, and its event names the event of the mark that caused it (causeEventId).
+ */
 export function addTrackerEntry(ctx: Ctx, input: NewEntry): TrackerEntry {
   assertSide(input.type, input.direction);
-  const id = nextId(ctx.state, 'trk');
+  const id = input.id ?? nextId(ctx.state, 'trk');
   const entry: TrackerEntry = {
     id, projectId: input.projectId, type: input.type, direction: input.direction, title: input.title, note: input.note ?? '',
     date: input.date ?? ctx.today, waiting: input.waiting ?? null, closedAt: null, closedBy: null, fileIds: input.fileIds ?? [],
-    peopleIds: input.peopleIds ?? [], auto: input.auto ?? null, createdBy: ctx.actor.id, createdAt: ctx.stamp,
+    peopleIds: input.peopleIds ?? [], auto: input.auto ?? null, createdBy: input.createdBy ?? ctx.actor.id, createdAt: ctx.stamp,
+    ...(input.meetingId ? { meetingId: input.meetingId, minutes: null } : {}),
   };
   trackerOf(ctx.state)[id] = entry;
-  recordCreate(ctx, { projectId: entry.projectId, verb: 'tracker.logged', targetType: 'tracker', targetId: id, entity: entry });
+  recordCreate(ctx, {
+    projectId: entry.projectId, verb: 'tracker.logged', targetType: 'tracker', targetId: id, entity: entry,
+    ...(input.causeEventId ? { causeEventId: input.causeEventId } : {}),
+  });
   touch(ctx, entry.projectId);
   return entry;
 }

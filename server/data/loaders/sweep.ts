@@ -88,7 +88,10 @@ export function readSweep(office: State): SweepCall[] {
   }
   const agents = Object.values(office.users).filter((u) => u.kind === 'agent' && u.active).map((u) => u.id);
   // The text 'chat-photo' names the file of a direct chat in trapOffice (owner, 2026-10-19): no search finds it, for its members too.
-  for (const actor of [...humans, ...agents]) calls.push(['search.query', { text: 'licence' }, actor], ['search.query', { text: 'chat-photo' }, actor]);
+  // The text 'meeting-notes' names the file of a meeting with no project in trapOffice (wave 2): no search finds it either.
+  for (const actor of [...humans, ...agents]) {
+    calls.push(['search.query', { text: 'licence' }, actor], ['search.query', { text: 'chat-photo' }, actor], ['search.query', { text: 'meeting-notes' }, actor]);
+  }
   for (const actor of agents) {
     calls.push(
       ['tasks.list', { filter: 'mine' }, actor], ['tasks.list', {}, actor], ['events.list', { limit: 20 }, actor], ['chats.list', {}, actor],
@@ -104,6 +107,9 @@ export function readSweep(office: State): SweepCall[] {
         ['meetings.list', { from: '2026-10-05', to: '2026-10-05', mine: false, projectId: 'prj_001' }, actor],
       );
       for (const meeting of Object.values(office.meetings ?? {})) calls.push(['meetings.get', { id: meeting.id }, actor]);
+      // The Tracker line of a meeting that ended holds the minutes, and the right to write them depends on the viewer (wave 2). The feed of
+      // the project holds the events of the minutes.
+      calls.push(['tracker.list', { projectId: 'prj_001' }, actor], ['updates.list', { projectId: 'prj_001' }, actor]);
     }
   }
   for (const comment of Object.values(office.comments)) calls.push(['comments.list', { targetType: comment.targetType, targetId: comment.targetId }, ADMIN]);
@@ -184,6 +190,8 @@ export function writeSweep(office: State): SweepCall[] {
     ...officeWrites(office),
     ...chatFileWrites(office),
     ...meetingWrites(office),
+    ...meetingFileWrites(office),
+    ...meetingMinutesWrites(office),
   ];
 }
 
@@ -285,6 +293,120 @@ export function chatFileWrites(office: State): SweepCall[] {
   ];
 }
 
+/** The id of the meeting file of meetingFileTrap. */
+export const MEETING_FILE_ID = 'fil_911';
+/** The title of the meeting with no project, ended, of meetingFileTrap. */
+export const ENDED_MEETING_TITLE = 'Salary review';
+/** The ended project meeting (a Tracker line) and the ended team meeting of a project (minutes on the meeting) of meetingMinutesTraps. */
+export const ENDED_PROJECT_MEETING_TITLE = 'Kick-off with the client';
+export const ENDED_TEAM_MEETING_TITLE = 'Weekly sync';
+
+/**
+ * A file of a meeting with no project (wave 2): usr_004 planned "Salary review" for usr_006 on 2026-10-02, and it ended. The file sits
+ * in its minutes folder. The reads of search.query, files.list and files.get, and the writes of the other places that could carry the
+ * file, must give the same answers on the scoped load as on the whole office, for the two people, for every other person and for the
+ * agents.
+ */
+function meetingFileTrap(state: State): void {
+  const made = apply(state, 'meetings.create', { kind: 'meeting', title: ENDED_MEETING_TITLE, startsAt: '2026-10-02T09:00:00+03:00', attendeeIds: ['usr_006'] }, 'usr_004', 'cor_trap_meeting_ended') as { id: string };
+  state.files[MEETING_FILE_ID] = {
+    id: MEETING_FILE_ID, projectId: null, stageId: null, taskId: null, meetingId: made.id, name: 'Hidden-meeting-notes.pdf',
+    versions: [{ letter: 'A', blobKey: 'blob_trap_meeting', mimeType: 'application/pdf', size: 9, uploadedBy: 'usr_006', uploadedAt: '2026-10-02T12:00:00.000+03:00' }],
+  };
+}
+
+/**
+ * The minutes of three meetings that ended (wave 2): the private meeting of meetingFileTrap, with its file (written by the attendee
+ * usr_006); a client meeting of prj_001 that the minutes settled on the way, with the Tracker line (written by usr_003); and a team
+ * meeting of prj_001 that keeps its minutes on the meeting (written by usr_003). Every read and write of the minutes must give the same
+ * answer on the scoped load as on the whole office.
+ */
+function meetingMinutesTraps(state: State): void {
+  const leader = state.projects.prj_001.leaderId!;
+  const ended = Object.values(state.meetings ?? {}).find((m) => m.title === ENDED_MEETING_TITLE)!;
+  apply(state, 'meetings.saveMinutes', { id: ended.id, text: 'The raise is 4,000 riyals. MINUTES-TRAP-PRIVATE', fileIds: [MEETING_FILE_ID] }, 'usr_006', 'cor_trap_minutes_private');
+  const project = apply(state, 'meetings.create', { kind: 'client', title: ENDED_PROJECT_MEETING_TITLE, projectId: 'prj_001', startsAt: '2026-10-02T10:00:00+03:00', attendeeIds: ['usr_003'] }, leader, 'cor_trap_meeting_ended_project') as { id: string };
+  apply(state, 'meetings.saveMinutes', { id: project.id, text: 'We agreed on the facade. MINUTES-TRAP-LINE', fileIds: [] }, 'usr_003', 'cor_trap_minutes_line');
+  const team = apply(state, 'meetings.create', { kind: 'team', title: ENDED_TEAM_MEETING_TITLE, projectId: 'prj_001', startsAt: '2026-10-02T08:00:00+03:00', attendeeIds: ['usr_003'] }, leader, 'cor_trap_meeting_ended_team') as { id: string };
+  apply(state, 'meetings.saveMinutes', { id: team.id, text: 'Team notes. MINUTES-TRAP-TEAM', fileIds: [] }, 'usr_003', 'cor_trap_minutes_team');
+}
+
+/**
+ * The writes on the minutes of meetingMinutesTraps: the people of each meeting, the leader who is not invited, a team member who did not
+ * attend, an outsider and the Admin who is not invited write, clear, ask with an old since, settle again, and take back the minutes.
+ * None on an office without the traps.
+ */
+export function meetingMinutesWrites(office: State): SweepCall[] {
+  const meetings = Object.values(office.meetings ?? {});
+  const privateOne = meetings.find((m) => m.title === ENDED_MEETING_TITLE);
+  const lineOne = meetings.find((m) => m.title === ENDED_PROJECT_MEETING_TITLE);
+  const teamOne = meetings.find((m) => m.title === ENDED_TEAM_MEETING_TITLE);
+  if (!privateOne || !lineOne || !teamOne) return [];
+  const leader = office.projects.prj_001.leaderId!;
+  const attendee = privateOne.attendeeIds[0];
+  const outsider = Object.values(office.users).find((u) => u.kind === 'human' && u.active && u.id !== ADMIN && u.id !== privateOne.organizerId && !privateOne.attendeeIds.includes(u.id)
+    && u.id !== leader && !lineOne.attendeeIds.includes(u.id))!.id;
+  const minutesEvents = (verb: string) => Object.values(office.events).filter((e) => e.verb === verb);
+  const privateEvent = minutesEvents('meeting.minutes_saved').find((e) => e.targetId === privateOne.id);
+  const lineEvent = minutesEvents('tracker.minutes_saved')[0];
+  const teamEvent = minutesEvents('meeting.minutes_saved').find((e) => e.targetId === teamOne.id);
+  const stale = '2026-10-01T00:00:00.000+03:00';
+  const calls: SweepCall[] = [
+    ['meetings.saveMinutes', { id: privateOne.id, text: 'Outsider try', fileIds: [] }, outsider],
+    ['meetings.saveMinutes', { id: privateOne.id, text: 'Admin try', fileIds: [] }, ADMIN],
+    ['meetings.saveMinutes', { id: privateOne.id, text: 'Late edit', fileIds: [MEETING_FILE_ID], since: stale }, attendee],
+    ['meetings.saveMinutes', { id: privateOne.id, text: 'Organizer edit', fileIds: [MEETING_FILE_ID] }, privateOne.organizerId],
+    ['meetings.saveMinutes', { id: privateOne.id, text: 'File of another place', fileIds: [Object.values(office.files).find((f) => f.projectId === 'prj_001')!.id] }, attendee],
+    ['meetings.saveMinutes', { id: privateOne.id, text: '', fileIds: [] }, attendee],
+    ['meetings.settle', { id: privateOne.id }, outsider],
+    ['meetings.settle', { id: privateOne.id }, attendee],
+    ['meetings.saveMinutes', { id: lineOne.id, text: 'Leader edit', fileIds: [] }, leader],
+    ['meetings.saveMinutes', { id: lineOne.id, text: 'Admin edit', fileIds: [] }, ADMIN],
+    ['meetings.saveMinutes', { id: lineOne.id, text: 'Outsider try', fileIds: [] }, outsider],
+    ['meetings.saveMinutes', { id: lineOne.id, text: 'File of a meeting', fileIds: [MEETING_FILE_ID] }, lineOne.attendeeIds[0]],
+    ['meetings.saveMinutes', { id: lineOne.id, text: '', fileIds: [] }, lineOne.attendeeIds[0]],
+    ['meetings.saveMinutes', { id: teamOne.id, text: 'Team edit', fileIds: [] }, leader],
+    ['meetings.saveMinutes', { id: teamOne.id, text: 'Outsider try', fileIds: [] }, outsider],
+    ['tracker.update', { id: lineOne.trackerEntryId!, note: 'A note by the leader' }, leader],
+  ];
+  for (const event of [privateEvent, lineEvent, teamEvent]) {
+    if (!event) continue;
+    calls.push(['events.undo', { eventId: event.id }, event.actingForId], ['events.undo', { eventId: event.id }, outsider], ['events.undo', { eventId: event.id }, ADMIN]);
+  }
+  return calls;
+}
+
+/**
+ * The writes on the meeting file of meetingFileTrap, by the attendee, by a person outside the meeting and by the Admin who is not
+ * invited: an upload, a message and a Tracker entry that carry the file, a share, a delete and a "delivered" mark. None on an office
+ * without the trap.
+ */
+export function meetingFileWrites(office: State): SweepCall[] {
+  const file = office.files[MEETING_FILE_ID];
+  const meeting = file?.meetingId ? office.meetings?.[file.meetingId] : undefined;
+  if (!file || !meeting) return [];
+  const [attendee] = meeting.attendeeIds;
+  const outside = Object.values(office.users).find((u) => u.kind === 'human' && u.active && u.id !== ADMIN && u.id !== meeting.organizerId && !meeting.attendeeIds.includes(u.id))!.id;
+  const leader = office.projects.prj_001.leaderId!;
+  const prepared = { blobKey: 'blob_sweep_meeting', mimeType: 'application/pdf', size: 5 };
+  const chat = Object.values(office.conversations).find((c) => c.kind === 'direct' && c.memberIds.includes(attendee))?.id ?? 'cnv_001';
+  return [
+    ['files.upload', { name: 'Second.pdf', meetingId: meeting.id, uploadId: 'upl_mtg_a' }, attendee, prepared],
+    ['files.upload', { name: 'Second.pdf', meetingId: meeting.id, uploadId: 'upl_mtg_b' }, outside, prepared],
+    ['files.upload', { name: 'Third.pdf', meetingId: meeting.id, uploadId: 'upl_mtg_c' }, ADMIN, prepared],
+    ['chats.send', { conversationId: chat, body: 'Again', fileIds: [file.id] }, attendee],
+    ['chats.send', { conversationId: 'cnv_001', body: 'Again', fileIds: [file.id] }, outside],
+    ['tracker.log', { projectId: 'prj_001', type: 'file', direction: 'in', title: 'Carry', fileIds: [file.id] }, leader],
+    ['comments.create', { targetType: 'task', targetId: Object.values(office.tasks).find((t) => t.projectId === 'prj_001')!.id, body: 'Carry', fileIds: [file.id] }, leader],
+    ['files.share', { fileId: file.id, target: { kind: 'person', userId: outside } }, attendee],
+    ['files.share', { fileId: file.id, target: { kind: 'person', userId: attendee } }, outside],
+    ['files.delete', { id: file.id }, attendee],
+    ['files.delete', { id: file.id }, outside],
+    ['files.markDelivered', { id: file.id }, attendee],
+    ['files.markDelivered', { id: file.id }, outside],
+  ];
+}
+
 function apply(state: State, name: SharedCallName, input: unknown, actorId: string, story: string, prepared?: unknown, now = NOW): unknown {
   const outcome = runOn(state, name, sharedCalls[name].input.parse(input), actorId, { now, correlationId: story, prepared });
   if (outcome.error) throw new Error(`Setup ${name} failed: ${outcome.error.message}`);
@@ -373,6 +495,13 @@ export function badgeTraps(traps: State): State {
   const gone = apply(state, 'tasks.create', { projectId: 'prj_001', title: 'Short lived', ownerId: member }, leader, 'cor_trap_badge_gone', undefined, at(9)) as { task: { id: string } };
   apply(state, 'tasks.delete', { id: gone.task.id }, leader, 'cor_trap_badge_delete', undefined, at(9, 10));
   apply(state, 'feedback.send', { kind: 'bug', message: 'The badge counts twice.' }, 'usr_003', 'cor_trap_badge_report', { shots: [] }, at(9, 20));
+  // A project chat and a thread that the leader read and then marked unread (fbk_028): the mark counts in the list, the badge and the
+  // chat, in memory and in the database. The leader reads both first, so the count is the mark alone.
+  const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+  for (const id of [room.id, thread.id]) {
+    apply(state, 'chats.markRead', { conversationId: id }, leader, 'cor_trap_badge_read', undefined, at(9, 30));
+    apply(state, 'chats.markUnread', { conversationId: id }, leader, 'cor_trap_badge_unread', undefined, at(9, 40));
+  }
   return state;
 }
 
@@ -386,6 +515,8 @@ export function trapOffice(seed: State): State {
   officeTraps(state);
   meetingTraps(state);
   chatFileTrap(state);
+  meetingFileTrap(state);
+  meetingMinutesTraps(state);
   newestTies(state);
   const leader = state.projects.prj_001.leaderId!;
   const task = Object.values(state.tasks).find((t) => t.projectId === 'prj_001' && t.status !== 'done')!;

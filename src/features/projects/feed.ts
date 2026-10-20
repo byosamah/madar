@@ -8,7 +8,7 @@ import { plainText } from '../../lib/text';
 const SIMPLE = new Set(['project.created', 'task.created', 'task.approved', 'task.sent_back', 'task.version_opened', 'task.reopened', 'task.dates_shifted', 'file.added', 'member.added']);
 
 /** The verbs that feedText writes a sentence for. Any other verb falls back to "made a change". */
-export const FEED_EVENT_VERBS = new Set([...SIMPLE, 'meeting.created', 'meeting.updated', 'meeting.cancelled', 'task.status_changed', 'project.stage_changed', 'project.leader_changed', 'project.code_changed', 'file.version_added', 'project.template_synced', 'project.template_applied']);
+export const FEED_EVENT_VERBS = new Set([...SIMPLE, 'meeting.created', 'meeting.updated', 'meeting.cancelled', 'meeting.minutes_saved', 'tracker.minutes_saved', 'task.status_changed', 'project.stage_changed', 'project.leader_changed', 'project.code_changed', 'file.version_added', 'project.template_synced', 'project.template_applied']);
 
 /**
  * One line for a feed item, without the author's name: the text of a post, or a sentence for an event (spec 5.2).
@@ -21,6 +21,8 @@ export function feedText(item: FeedItem, t: TFunction, lang: Lang = i18n.languag
   const label = item.verb === 'member.added' ? localName({ label: item.label, labelAr: detail.labelAr }, 'label', lang) : item.label;
   const context = actorContext(item.author);
   // A meeting and a site visit have their own words (fbk_022). The title shows in the sentence, as a task title does.
+  // The minutes of a meeting (wave 2) read the same on the Tracker line and on the meeting: "wrote the minutes of the site visit ...".
+  if (item.verb === 'tracker.minutes_saved') return t(`feed.meeting.minutes_saved_${detail.kind === 'site_visit' ? 'visit' : 'meeting'}`, { label, context });
   if (item.verb.startsWith('meeting.')) {
     return t(`feed.meeting.${item.verb.slice('meeting.'.length)}_${detail.kind === 'site_visit' ? 'visit' : 'meeting'}`, { label, context });
   }

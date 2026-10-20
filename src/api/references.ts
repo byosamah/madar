@@ -108,8 +108,16 @@ export const REFERENCE_FIELDS: readonly ReferenceField[] = [
   { collection: 'meetings', path: 'minutesById', targets: ['user'] },
   { collection: 'meetings', path: 'createdBy', targets: ['user'] },
   { collection: 'meetings', path: 'minutesTaskId', targets: ['task'] },
-  { collection: 'meetings', path: 'trackerEntryId', targets: ['tracker'] },
   { collection: 'tasks', path: 'meetingId', targets: ['meeting'] },
+  // The Tracker line of a meeting that ended names its meeting. The meeting names its line too, but that link is not a reference here:
+  // the Undo of the line (tracker.logged) deletes it, and the meeting then keeps a mark that points at nothing (minutes_line_gone).
+  { collection: 'tracker', path: 'meetingId', targets: ['meeting'] },
+  // The minutes name their writer and their files (fbk_022, wave 2). A file of a meeting with no project names its meeting.
+  { collection: 'meetings', path: 'minutes.updatedBy', targets: ['user'] },
+  { collection: 'meetings', path: 'minutes.fileIds[]', targets: ['file'] },
+  { collection: 'tracker', path: 'minutes.updatedBy', targets: ['user'] },
+  { collection: 'tracker', path: 'minutes.fileIds[]', targets: ['file'] },
+  { collection: 'files', path: 'meetingId', targets: ['meeting'] },
 ];
 
 /** For each target type, the fields that can hold its id. A type with no entry (a member, a deadline, a comment) is never used elsewhere. */

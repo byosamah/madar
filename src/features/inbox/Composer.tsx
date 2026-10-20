@@ -9,7 +9,7 @@ import { useIsPhone } from '../../app/useIsPhone';
 import { Button } from '../../components/Button';
 import { MentionField } from '../../components/MentionField';
 import { withMentionMarkup } from '../../lib/text';
-import { AttachButton, PickedFiles, useAttachments, type UploadTarget } from '../files/Attachments';
+import { AttachButton, pastedPictures, PickedFiles, useAttachments, type UploadTarget } from '../files/Attachments';
 import { useChatDropReceiver } from './ChatDrop';
 import { ComposerReplyStrip } from './ReplyStrip';
 
@@ -108,8 +108,8 @@ function ComposerBox({ id, people, pending, onSend, upload, owner, replyTo, onCa
         className="min-w-0 flex-1"
         onPaste={(event) => {
           // A paste that holds text stays text. A paste of only pictures adds them as picked files (item 14).
-          if (!upload || event.clipboardData.getData('text/plain') !== '') return;
-          const pictures = [...event.clipboardData.files].filter((file) => file.type.startsWith('image/'));
+          if (!upload) return;
+          const pictures = pastedPictures(event.clipboardData);
           if (pictures.length === 0) return;
           event.preventDefault();
           attachments.add(pictures);

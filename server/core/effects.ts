@@ -28,12 +28,12 @@ import type { Deps, Query } from './ports';
 export type OutboxRow = { kind: string; payload: Record<string, unknown> };
 
 /**
- * The effect kinds that runCall runs after the answer on a host with after (performance audit SRV-1, BGR-2): the mails and the browser pushes, so a
- * save never waits for Resend or for a push service. Every other kind (auth.*, agents.revokeAll, r2.delete) runs before the answer. With no after
+ * The effect kinds that runCall runs after the answer on a host with after (performance audit SRV-1, BGR-2): the mails, the browser pushes and the
+ * Google Calendar sync (fbk_022), so a save never waits for Resend, for a push service or for Google. Every other kind (auth.*, agents.revokeAll, r2.delete) runs before the answer. With no after
  * (tests, scripts), every kind runs before the answer. A test keeps these names equal to the kinds of mail/ and usage/.
  */
 export const AFTER_ANSWER_KINDS: ReadonlySet<string> = new Set([
-  'mail.notice', 'mail.quotaWarning', 'usage.limitWarning', 'push.notify', 'push.chat', 'mail.chatNotice',
+  'mail.notice', 'mail.quotaWarning', 'usage.limitWarning', 'push.notify', 'push.chat', 'mail.chatNotice', 'gcal.sync', 'gcal.revoke',
 ]);
 /** How long the waited kinds wait after the answer (chat design item 20): a person who reads the chat in this time gets no push and no mail. */
 export const CHAT_WAIT_MS = 10_000;
@@ -42,7 +42,11 @@ export const CHAT_WAIT_MS = 10_000;
  * and the mention mail of one. Their effects check again after the wait (server/push/notify.ts, server/mail/notices.ts).
  */
 export const WAITED_KINDS: ReadonlySet<string> = new Set(['push.chat', 'mail.chatNotice']);
-export type OutboxProducer = (output: unknown, saved: SaveResult, q: Query) => Promise<OutboxRow[]>;
+/**
+ * `at` is the time of the call, taken under the office lock (the stamp that the save wrote), for a producer that writes a time. runCall
+ * always gives it. It is optional only so that a test can call a producer that writes no time with three arguments.
+ */
+export type OutboxProducer = (output: unknown, saved: SaveResult, q: Query, at?: Date) => Promise<OutboxRow[]>;
 export type EffectHandler = (payload: Record<string, unknown>, deps: Deps) => Promise<void>;
 /** Only shared calls: runCall asks their producers. A server call writes its own rows (see above). */
 export type OutboxCallName = SharedCallName;
@@ -74,9 +78,9 @@ export function registerEffect(kind: string, handler: EffectHandler): () => void
 }
 
 /** The outbox rows of one call, from every producer of that call in the order they registered. */
-export async function outboxRowsOf(name: string, output: unknown, saved: SaveResult, q: Query): Promise<OutboxRow[]> {
+export async function outboxRowsOf(name: string, output: unknown, saved: SaveResult, q: Query, at: Date): Promise<OutboxRow[]> {
   const rows: OutboxRow[] = [];
-  for (const producer of EFFECTS_OF[name as OutboxCallName] ?? []) rows.push(...(await producer(output, saved, q)));
+  for (const producer of EFFECTS_OF[name as OutboxCallName] ?? []) rows.push(...(await producer(output, saved, q, at)));
   return rows;
 }
 

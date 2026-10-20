@@ -138,6 +138,15 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     await run('meetings.get', { id: meeting });
     await write('meetings.update', { id: meeting, where: 'Site office' });
     await write('meetings.cancel', { id: meeting });
+    // The minutes of a meeting that ended (wave 2). The agent plans a client meeting of the project two days ago, and writes its minutes. Both calls
+    // stay out of the story: the mark of a settled meeting has no Undo, so the Undo of the story could not take the meeting back.
+    before = snapshot();
+    await callApi('meetings.create', {
+      kind: 'client', title: 'Kick-off with the client', projectId: project.id, startsAt: `${addDays(TODAY, -2)}T10:00:00+03:00`, where: 'Client office, Al Khobar',
+      attendeeIds: [colleague.id],
+    }, { correlationId: 'cor_sample_past_meeting' });
+    const ended = added(before, s(), 'meetings');
+    await run('meetings.saveMinutes', { id: ended, text: 'The client accepted the three facade options. We send the drawings on Sunday.', fileIds: [], since: null });
 
     const inReview = Object.values(s().tasks).filter((t) => t.status === 'in_review' && s().projects[t.projectId!]?.status === 'active');
     await write('tasks.approve', { id: first(inReview, 'task in review').id });

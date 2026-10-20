@@ -11,6 +11,7 @@ import { SegmentedControl } from '../../components/SegmentedControl';
 import { Sheet } from '../../components/Sheet';
 import { Switch } from '../../components/Switch';
 import { AgentsSection } from './AgentsSection';
+import { GoogleCalendarSection } from './GoogleCalendarSection';
 import { NotificationsSection } from './NotificationsSection';
 import { PasswordSection } from './PasswordSection';
 import { PushSection } from './PushSection';
@@ -64,6 +65,8 @@ export function SettingsScreen() {
       <NotificationsSection />
       {/* The real build: browser push on this device (owner, 2026-10-08). */}
       <PushSection />
+      {/* Google Calendar: each meeting of the person goes to the calendar "Madar" in their Google account (fbk_022, owner 2026-10-19). */}
+      <GoogleCalendarSection />
 
       {/* The real build: the password (track U) and the person's agents (track G). The prototype has no sign-in, so no password. */}
       <PasswordSection />

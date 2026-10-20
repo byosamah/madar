@@ -1,8 +1,9 @@
-import type { Meeting } from '../../../src/api/contract/entities';
+import type { Meeting, TrackerEntry } from '../../../src/api/contract/entities';
 import { MEETING_LIMITS } from '../../../src/api/contract/limits';
 import { addDays, diffDays, todayISO } from '../../../src/lib/dates';
 import type { Cond } from './query';
 import type { Load } from './build';
+import { attachedFiles } from './steps';
 
 /**
  * The meeting loaders (fbk_022). A meeting is not an office list: a call reads the rows of its own window.
@@ -36,10 +37,14 @@ export async function privateMeetingsOf(L: Load): Promise<Meeting[]> {
   return (await L.select({ c: 'meetings', where: [{ col: 'project_id', eq: null }, ...mineConds(L)] })) as Meeting[];
 }
 
-/** The rows that a meeting names: its minutes task and its Tracker line (wave 2), by id. */
+/**
+ * The rows that a meeting names (wave 2): its Tracker line, by id, and the files of its minutes (on the meeting, and on the line). The
+ * minutes task is gone (owner, 2026-10-19), so no task is read.
+ */
 async function named(L: Load, meetings: readonly Meeting[]): Promise<void> {
-  await L.byKey('tasks', meetings.map((meeting) => meeting.minutesTaskId));
   await L.byKey('tracker', meetings.map((meeting) => meeting.trackerEntryId));
+  const lines = meetings.map((meeting) => L.get<TrackerEntry>('tracker', meeting.trackerEntryId)).filter((line): line is TrackerEntry => line !== undefined);
+  await L.byKey('files', [...meetings.flatMap((meeting) => meeting.minutes?.fileIds ?? []), ...lines.flatMap((line) => line.minutes?.fileIds ?? [])]);
 }
 
 /** meetings.list: the meetings that the person sees, whose start day is in the window, narrowed as the handler narrows them. */
@@ -57,14 +62,24 @@ export async function meetingsList(L: Load, input: Input): Promise<void> {
   const projectId = str(input.projectId);
   if (projectId) where.push({ col: 'project_id', in: [projectId] });
   if (input.mine !== false) where.push(...mineConds(L));
-  await named(L, (await L.select({ c: 'meetings', where })) as Meeting[]);
+  // A row of the list holds no minutes and no Tracker line, so nothing else is read.
+  await L.select({ c: 'meetings', where });
 }
 
-/** meetings.get, meetings.update and meetings.cancel: the meeting by id, and the records it names. */
+/** meetings.get, meetings.update, meetings.cancel and meetings.settle: the meeting by id, and the records it names. */
 export async function meetingCall(L: Load, input: Input): Promise<void> {
   const id = str(input.id);
   if (!id) return;
   await L.byKey('meetings', [id]);
   const meeting = L.get<Meeting>('meetings', id);
   if (meeting) await named(L, [meeting]);
+}
+
+/**
+ * meetings.saveMinutes (wave 2): the meeting and what it names, and the files that the new minutes carry (a file of a meeting with no
+ * project brings its meeting, the view rule of a file reads it).
+ */
+export async function meetingMinutes(L: Load, input: Input): Promise<void> {
+  await meetingCall(L, input);
+  await attachedFiles(L, (input.fileIds as string[] | undefined) ?? []);
 }

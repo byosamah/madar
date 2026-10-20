@@ -5,9 +5,36 @@ push service of the browser). There is no email, no WhatsApp, no SMS and no acco
 Firefox and Safari on a computer, on Android, and on an iPhone once Madar is on the Home Screen.
 
 The push is EMPTY. The server posts no text and no data, so it needs no message encryption. The service worker
-(`public/sw.js`) shows ONE fixed line: title "Madar" and body "You have something new in Madar." (Arabic: "مدار" and
+(`public/sw.js`) shows ONE fixed line (except in front of a window of Madar that has the focus, see "Quiet while Madar is in front"): title "Madar" and body "You have something new in Madar." (Arabic: "مدار" and
 "لديك جديد في مدار."). The line carries no task, project, client or person, like the notice mail. A press on it focuses an open
 Madar window, or opens `/`.
+
+## Quiet while Madar is in front (owner, 2026-10-23, fbk_028)
+Request: "each reply creates a desktop notification, even when the dm window is open". The push has no data, so the worker cannot tell a chat
+message from a notice, and the server cannot know that a window is open. The fix is in `public/sw.js`, and it is small:
+- When a window of Madar is visible and has the focus (`WindowClient.visibilityState === 'visible'` and `focused`), the worker shows no line. The
+  person sees the new thing in the page (the Inbox badge, the bell, the open chat). A window that is hidden, or visible with no focus, gets the line.
+- **WebKit never stays silent.** WebKit (Safari on a Mac, and every browser on an iPhone or iPad, whatever its name) needs a visible notice for every
+  push. "Violations of the `userVisibleOnly` promise will result in a push subscription being revoked" (WebKit blog, "Meet Web Push", and "Meet
+  Declarative Web Push": "if an event handler doesn't show the user visible notification for any reason we revoke its push subscription").
+  A person would then get no push at all. So `mayStaySilent(userAgent)` answers true only for Chromium (`Chrome/`, `Chromium/`, so Edge and Samsung
+  Internet too), and false for every iPhone and iPad agent (`iPhone`, `iPad`, `CriOS`, `FxiOS`, `EdgiOS`, `OPiOS`), Safari, Firefox and any engine
+  that is not known. For those the worker calls `showNotification` first, before it asks for the windows. A list of windows that
+  cannot be read also shows the line. The wrong answer is always "show the line", never "stay silent".
+- Why Chromium may: Chromium skips its "This site has been updated in the background" notice when a tab of the site is visible
+  (`push_messaging_notification_manager.cc`, `IsTabVisible`, named in Chromium issue 549525847); the worker asks for more than that (visible and
+  focused). Firefox is left out on purpose: its help page names a quota for pushes with no notice (Mozilla, "Web Push notifications in Firefox")
+  but not the rule for a window in front, and a line too many costs nothing while a lost subscription costs every later push.
+- A person on Safari or Firefox still gets the line while the chat is open. That is the price of a subscription that stays alive; the person can
+  turn off "Notify me on this device" in Settings.
+- **The server wait and this rule work together** (the join of 2026-10-20). The chat batch (design item 20) gave the server a wait: a
+  `push.chat` row (a chat message, a task comment, or a mention or reply notice of one) waits `CHAT_WAIT_MS` (10 s) after the answer on a chain
+  of its own (`WAITED_KINDS` in `core/effects.ts`, `runCall`), so it holds neither the answer nor the mail chain of the batch. After the wait the
+  server skips each person who already read that chat or task thread on any device ("Who gets a push"). A `push.notify` row has no wait. The
+  worker rule stays for what the wait does not catch: a `push.notify` row, and a chat push for a person who did not read the chat in the 10
+  seconds but has a window of Madar in front. The office object runs the waited kinds with no wait (exit-handoff section 10).
+- Tests: `src/app/remote/serviceWorker.test.ts` (user agents of Chrome, Edge, Firefox, Android, Safari on a Mac and an iPhone, Chrome and Firefox
+  on an iPhone; windows in front, hidden, without focus; a failed list of windows).
 
 ## Files
 - `vapid.ts`: the ES256 token (RFC 8292) with WebCrypto only, so it runs on Deno Edge Functions and on Workers. No Node API and

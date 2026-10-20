@@ -11,10 +11,11 @@ import { USER_MAIL_SQL } from '../../mail/notices';
 import { MailSendError } from '../../mail/resend';
 import { SUMMARY_COUNTS_SQL, SUMMARY_PEOPLE_SQL, SUMMARY_TASKS_SQL } from '../../mail/summary';
 import { fakeDeps } from '../../test/fakes/deps';
-import { IDEMPOTENCY_CLEANUP_SQL, OFFICE_DELETES_CLEANUP_SQL, RATE_LIMITS_CLEANUP_SQL, STORIES_CLEANUP_SQL, cleanup } from './cleanup';
+import { GOOGLE_REVOKING_CLEANUP_SQL, IDEMPOTENCY_CLEANUP_SQL, OFFICE_DELETES_CLEANUP_SQL, RATE_LIMITS_CLEANUP_SQL, STORIES_CLEANUP_SQL, cleanup } from './cleanup';
 import { HEARTBEAT_SQL, heartbeat } from './heartbeat';
 import { OUTBOX_BATCH, OUTBOX_DUE_SQL, OUTBOX_MAX_ATTEMPTS, outboxRetry } from './outbox';
 import { SUMMARY_DONE_SQL, SUMMARY_MARK_SQL, SUMMARY_SENT_SQL, summary, summaryDay } from './summary';
+import { meetings, SETTLE_SQL } from './meetings';
 import { USED_DEDUPE_SQL, usedDedupeKeys } from './triggers';
 import { INTENTS_DELETE_SQL, INTENT_KEEP_MS, OLD_INTENTS_SQL, STAGING_KEEP_MS, UPLOADS_BATCH, uploads } from './uploads';
 
@@ -82,6 +83,19 @@ describe('step 1, the dedupe lookup of the scheduled triggers', () => {
     const r = recorder();
     expect([...(await usedDedupeKeys(r.mem.q, state, WORLD_NOW))]).toEqual([]);
     expect(r.calls).toEqual([]);
+  });
+});
+
+describe('step 1b, the meetings that ended (fbk_022, wave 2)', () => {
+  it('asks for the meetings of the last 14 days that ended, with the stamp of the run and the stamp 14 days before it, in office time', async () => {
+    const r = recorder((text) => (text === SETTLE_SQL ? [] : undefined));
+    const report = await meetings(fakeDeps({ db: r.db }), AT);
+    expect(report).toEqual({ settled: 0, skipped: 0, failed: 0, extended: 0 });
+    // 06:00 UTC is 09:00 in Riyadh.
+    expect(r.valuesOf(SETTLE_SQL)).toEqual([['2026-10-04T09:00:00.000+03:00', '2026-09-20T09:00:00.000+03:00']]);
+    // One statement, and no office read, no transaction and no call when nothing is due.
+    expect(r.calls).toHaveLength(1);
+    expect(r.txs).toEqual([]);
   });
 });
 
@@ -205,16 +219,18 @@ describe('step 3, the outbox retry', () => {
 });
 
 describe('step 4, the cleanup', () => {
-  it('deletes stories after 7 days, idempotency keys after 24 hours, office_deletes after OFFICE_DELETES_KEEP_DAYS, rate limits after 1 day', async () => {
-    const answers = new Map<string, number>([[STORIES_CLEANUP_SQL, 1], [IDEMPOTENCY_CLEANUP_SQL, 2], [OFFICE_DELETES_CLEANUP_SQL, 3], [RATE_LIMITS_CLEANUP_SQL, 4]]);
+  it('deletes stories after 7 days, idempotency keys after 24 hours, office_deletes after OFFICE_DELETES_KEEP_DAYS, rate limits after 1 day, and revoking Google rows after 1 day', async () => {
+    const answers = new Map<string, number>([[STORIES_CLEANUP_SQL, 1], [IDEMPOTENCY_CLEANUP_SQL, 2], [OFFICE_DELETES_CLEANUP_SQL, 3], [RATE_LIMITS_CLEANUP_SQL, 4], [GOOGLE_REVOKING_CLEANUP_SQL, 5]]);
     const r = recorder((text) => (answers.has(text) ? [{ n: answers.get(text) }] : undefined));
-    expect(await cleanup(fakeDeps({ db: r.db }), AT)).toEqual({ stories: 1, idempotency: 2, officeDeletes: 3, rateLimits: 4 });
+    expect(await cleanup(fakeDeps({ db: r.db }), AT)).toEqual({ stories: 1, idempotency: 2, officeDeletes: 3, rateLimits: 4, googleRevoking: 5 });
     expect(r.calls).toEqual([
       { text: STORIES_CLEANUP_SQL, values: [ago(7 * DAY)] },
       { text: IDEMPOTENCY_CLEANUP_SQL, values: [ago(DAY)] },
       { text: OFFICE_DELETES_CLEANUP_SQL, values: [ago(OFFICE_DELETES_KEEP_DAYS * DAY)] },
       { text: RATE_LIMITS_CLEANUP_SQL, values: [ago(DAY)] },
+      { text: GOOGLE_REVOKING_CLEANUP_SQL, values: [ago(DAY)] },
     ]);
+    expect(GOOGLE_REVOKING_CLEANUP_SQL).toContain("state = 'revoking'");
     expect(OFFICE_DELETES_KEEP_DAYS).toBe(7);
     expect(r.txs).toEqual(['write']);
   });

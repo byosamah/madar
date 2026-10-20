@@ -77,7 +77,7 @@ describe('the signals of a meeting with no project', () => {
     const { call } = runner();
     const made = await call(ORGANIZER, 'meetings.create', { kind: 'meeting', title: TITLE, startsAt: '2026-10-06T10:00:00+03:00', attendeeIds: [ATTENDEE, REMOVED] });
     const id = (made.output as { id: string }).id;
-    const changed = await call(ORGANIZER, 'meetings.update', { id, attendeeIds: [ATTENDEE], minutesById: null });
+    const changed = await call(ORGANIZER, 'meetings.update', { id, attendeeIds: [ATTENDEE] });
     const channels = changed.signals.map((signal) => signal.channel);
     expect(channels.sort()).toEqual([ATTENDEE, ORGANIZER, REMOVED].sort().map((user) => `person:${user}`));
     const cancelled = await call(ORGANIZER, 'meetings.cancel', { id });
@@ -101,6 +101,42 @@ describe('the signals of a meeting with no project', () => {
     expect([...diff.publicKinds]).toEqual([]);
     expect(diff.office).toBe(false);
     expect([...diff.projects]).toEqual([]);
+  });
+});
+
+describe('the signals of the minutes (wave 2, owner 2026-10-19)', () => {
+  const MINUTES = 'The raise is 4,000 riyals. SIGNAL-MINUTES-9027';
+
+  it('go, for a meeting with no project, to the person channels of its people only, with the kinds and no name, no id and no text', async () => {
+    const { call } = runner();
+    const made = await call(ORGANIZER, 'meetings.create', { kind: 'meeting', title: TITLE, startsAt: '2026-10-02T09:00:00+03:00', attendeeIds: [ATTENDEE, REMOVED] });
+    const id = (made.output as { id: string }).id;
+    const saved = await call(ATTENDEE, 'meetings.saveMinutes', { id, text: MINUTES, fileIds: [] });
+    expect(saved.signals.map((signal) => signal.channel).sort()).toEqual([ATTENDEE, ORGANIZER, REMOVED].sort().map((user) => `person:${user}`));
+    for (const signal of saved.signals) {
+      const text = JSON.stringify(signal);
+      for (const hidden of [id, TITLE, 'SIGNAL-7731', 'SIGNAL-MINUTES-9027']) expect(text).not.toContain(hidden);
+      for (const key of Object.keys(signal)) expect(SIGNAL_KEYS.has(key), key).toBe(true);
+      expect(signal).not.toHaveProperty('actorId');
+      expect(signal).not.toHaveProperty('storyId');
+      expect(signal.projects).toEqual([]);
+      expect(signal.office).toBe(false);
+      expect(signal.kinds).toEqual(expect.arrayContaining(['events', 'meetings']));
+    }
+    for (const outsider of [ADMIN, OUTSIDER]) expect(saved.signals.some((signal) => signal.channel === `person:${outsider}`), outsider).toBe(false);
+    expect(saved.signals.some((signal) => signal.channel === 'office')).toBe(false);
+  });
+
+  it('go, for a project meeting, on the office channel with the project and the kind tracker, as any change of the Tracker', async () => {
+    const { call } = runner();
+    const leader = seed.projects.prj_001.leaderId!;
+    const made = await call(leader, 'meetings.create', { kind: 'client', title: 'Review the facade', projectId: 'prj_001', startsAt: '2026-10-02T09:00:00+03:00' });
+    const id = (made.output as { id: string }).id;
+    const saved = await call(leader, 'meetings.saveMinutes', { id, text: MINUTES, fileIds: [] });
+    const office = saved.signals.find((signal) => signal.channel === 'office')!;
+    expect(office).toMatchObject({ projects: ['prj_001'], actorId: leader });
+    expect(office.kinds).toEqual(expect.arrayContaining(['events', 'meetings', 'tracker']));
+    expect(JSON.stringify(saved.signals)).not.toContain('SIGNAL-MINUTES-9027');
   });
 });
 

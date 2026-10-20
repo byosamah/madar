@@ -58,8 +58,11 @@ export const GROUP_LOG_MAX = 100;
 export const MEETING_KINDS = ['meeting', 'client', 'team', 'site_visit'] as const;
 export type MeetingKindName = (typeof MEETING_KINDS)[number];
 
-/** The limits of a meeting. The length is in minutes. A start up to MEETING_PAST_DAYS days ago is allowed. */
+/**
+ * The limits of a meeting. The length is in minutes. A start up to MEETING_PAST_DAYS days ago is allowed. The minutes are one text of
+ * at most minutesMax letters (wave 2).
+ */
 export const MEETING_LIMITS = {
   titleMax: 120, whereMax: 200, guestsMax: 200, notesMax: 2000, attendeesMax: 30,
-  minMinutes: 15, maxMinutes: 720, pastDays: 14, windowDaysMax: 400, listMax: 200, listDefaultDays: 60,
+  minMinutes: 15, maxMinutes: 720, pastDays: 14, windowDaysMax: 400, listMax: 200, listDefaultDays: 60, minutesMax: 10_000,
 } as const;

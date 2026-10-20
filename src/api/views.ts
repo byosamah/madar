@@ -1,11 +1,11 @@
-import { PICTURE_DATA, type Comment, type Deadline, type Event, type FileRec, type Payment, type Project, type Stage, type Task, type TrackerEntry, type Update, type User } from './contract/entities';
+import { PICTURE_DATA, type Comment, type Deadline, type Event, type FileRec, type MeetingMinutes, type Payment, type Project, type Stage, type Task, type TrackerEntry, type Update, type User } from './contract/entities';
 import type {
-  Attachment, CommentView, EventView, FeedItem, FileView, ProjectDetail, ProjectSummary, PaymentRow, TaskDetail, TaskRow, TrackerRow, UserCard,
+  Attachment, CommentView, EventView, FeedItem, FileView, MinutesView, ProjectDetail, ProjectSummary, PaymentRow, TaskDetail, TaskRow, TrackerRow, UserCard,
 } from './contract/views';
 import { canSeeConversation } from './chatState';
 import { namesPerson, replyRefOf } from './chatNaming';
 import { computeHealth, isOverdue } from './health';
-import { can, principalOf, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
+import { can, mayViewMeeting, meetingResource, principalOf, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
 import { commentCountKey, fileCountKey, projectTemplatesOf, type State } from './store';
 import { lineKindOf } from '../lib/commentLine';
 import { diffDays } from '../lib/dates';
@@ -74,6 +74,8 @@ export const FEED_VERBS = new Set([
   'project.created', 'project.stage_changed', 'project.leader_changed', 'project.code_changed', 'task.created', 'task.status_changed',
   'task.approved', 'task.sent_back', 'task.version_opened', 'task.reopened', 'task.dates_shifted', 'file.added', 'file.version_added', 'member.added',
   'project.template_synced', 'project.template_applied', 'meeting.created', 'meeting.updated', 'meeting.cancelled',
+  // The minutes of a meeting (wave 2): on the Tracker line of a project meeting, or on the meeting itself. The mark "meeting.settled" stays out.
+  'tracker.minutes_saved', 'meeting.minutes_saved',
 ]);
 
 function lastLetter(value: unknown): string {
@@ -100,6 +102,8 @@ export function eventLabel(state: State, event: Event): { label: string; detail:
       const title = entry?.title ?? (typeof after.title === 'string' ? after.title : typeof before.title === 'string' ? before.title : '');
       const detail: Record<string, string> = {};
       if (entry?.waiting) detail.waiting = entry.waiting;
+      // The minutes of a meeting (wave 2): the kind of the meeting, so the feed says "site visit" for a site visit.
+      if (event.verb === 'tracker.minutes_saved' && entry?.meetingId) detail.kind = state.meetings?.[entry.meetingId]?.kind ?? 'meeting';
       if (typeof after.replyTaskId === 'string') {
         const reply = state.tasks[after.replyTaskId];
         if (reply?.ownerId) Object.assign(detail, namesUnder('person', state.users[reply.ownerId]));
@@ -394,22 +398,27 @@ export function commentViewOf(state: State, comment: Comment, viewer: User): Com
  * a file of an office task: its uploader while on the task, the maker of the task or the Admin (owner, 2026-10-06).
  */
 export function mayDeleteFile(state: State, viewer: User, file: FileRec): boolean {
-  // A file of a direct chat or a group stays with its messages: nobody deletes it (owner, 2026-10-19).
-  if (file.conversationId !== undefined) return false;
+  // A file of a direct chat or a group stays with its messages: nobody deletes it (owner, 2026-10-19). The same for a file of a meeting.
+  if (file.conversationId !== undefined || file.meetingId !== undefined) return false;
   const resource = file.projectId === null ? officeResource(state, file.taskId, viewer.id) : { projectRole: projectRoleOf(state, file.projectId, viewer.id) };
   return can(viewer, 'task.delete', resource)
     || can(viewer, 'content.editOwn', { ...resource, authorId: principalOf(state, file.versions[0].uploadedBy) });
 }
 
 /**
- * True when the person may see a file: every file of a project, a file of an office task only for the people of that task, and a file
- * of a direct chat or a group only for the people who read the messages of that chat (owner, 2026-10-19). The Admin who is not in the
- * chat does not read it, and a chat that is gone leaves its files to nobody.
+ * True when the person may see a file: every file of a project, a file of an office task only for the people of that task, a file
+ * of a direct chat or a group only for the people who read the messages of that chat (owner, 2026-10-19), and a file of a meeting
+ * only for the people who see that meeting (wave 2). The Admin who is not in the chat or not invited to the meeting does not read it,
+ * and a chat or a meeting that is gone leaves its files to nobody.
  */
 export function mayViewFile(state: State, viewer: User, file: FileRec): boolean {
   if (file.conversationId !== undefined) {
     const conversation = state.conversations[file.conversationId];
     return conversation !== undefined && canSeeConversation(state, conversation, viewer);
+  }
+  if (file.meetingId !== undefined) {
+    const meeting = state.meetings?.[file.meetingId];
+    return meeting !== undefined && mayViewMeeting(state, viewer, meeting);
   }
   if (file.projectId !== null) return can(viewer, 'project.view', { projectRole: projectRoleOf(state, file.projectId, viewer.id) });
   return can(viewer, 'task.view', officeResource(state, file.taskId, viewer.id));
@@ -417,10 +426,10 @@ export function mayViewFile(state: State, viewer: User, file: FileRec): boolean 
 
 /**
  * True when the actor may open the data of a file: the person who may view it. An agent acts with the rights of its person, but it never
- * opens a file of a direct chat or a group: it reads the name in the message, and nothing more (owner, 2026-10-19).
+ * opens a file of a direct chat, a group or a meeting: it reads the name in the message or in the minutes, and nothing more (owner, 2026-10-19).
  */
 export function mayOpenFile(state: State, viewer: User, actor: User, file: FileRec): boolean {
-  return mayViewFile(state, viewer, file) && !(file.conversationId !== undefined && actor.kind === 'agent');
+  return mayViewFile(state, viewer, file) && !((file.conversationId !== undefined || file.meetingId !== undefined) && actor.kind === 'agent');
 }
 
 export function fileViewOf(state: State, file: FileRec, viewer: User): FileView {
@@ -428,11 +437,15 @@ export function fileViewOf(state: State, file: FileRec, viewer: User): FileView 
   return { file, latest, uploader: cardOf(state, latest.uploadedBy), canDelete: mayDeleteFile(state, viewer, file) };
 }
 
-/** True when this person may delete the entry: its author (or the person an agent author acted for), the leader or the Admin. */
+/**
+ * True when this person may delete the entry: its author (or the person an agent author acted for), the leader or the Admin. The line
+ * that Madar made for a meeting (auto 'meeting') has no author delete: only the leader or the Admin deletes it, the organizer too has no
+ * author right on it (security fix, 2026-10-19). The Undo of its log follows this rule too (history.ts).
+ */
 export function mayDeleteTracker(state: State, viewer: User, entry: TrackerEntry): boolean {
   if (!viewer.active) return false;
-  return can(viewer, 'task.delete', { projectRole: projectRoleOf(state, entry.projectId, viewer.id) })
-    || principalOf(state, entry.createdBy) === viewer.id;
+  if (can(viewer, 'task.delete', { projectRole: projectRoleOf(state, entry.projectId, viewer.id) })) return true;
+  return entry.auto !== 'meeting' && principalOf(state, entry.createdBy) === viewer.id;
 }
 
 /** The reply task of an entry. A task that was deleted counts as no task. */
@@ -441,8 +454,27 @@ export function replyTaskOf(state: State, entry: TrackerEntry): TrackerRow['repl
   return task ? { id: task.id, title: task.title, status: task.status, dueDate: task.dueDate, owner: task.ownerId === null ? null : cardOf(state, task.ownerId) } : null;
 }
 
+/**
+ * The minutes as a screen reads them (wave 2): the text, the files that the viewer may see, and who wrote them last. A file that was
+ * deleted shows with no name; a file that the viewer may not see is left out.
+ */
+export function minutesViewOf(state: State, minutes: MeetingMinutes, viewer: User): MinutesView {
+  const visible = minutes.fileIds.filter((id) => {
+    const file = state.files[id];
+    return file === undefined || mayViewFile(state, viewer, file);
+  });
+  return { text: minutes.text, files: attachmentsOf(state, visible), updatedBy: cardOf(state, minutes.updatedBy), updatedAt: minutes.updatedAt };
+}
+
 export function trackerRowOf(state: State, entry: TrackerEntry, viewer: User): TrackerRow {
   const mayPost = can(viewer, 'content.post', { projectRole: projectRoleOf(state, entry.projectId, viewer.id) });
+  // The line that Madar made for a meeting that ended (wave 2) also gives the meeting, the minutes and the right to write them.
+  const meeting = entry.auto === 'meeting' && entry.meetingId ? state.meetings?.[entry.meetingId] : undefined;
+  const minutesPart = entry.auto === 'meeting' ? {
+    meeting: entry.meetingId ? { id: entry.meetingId, title: meeting?.title ?? entry.title } : null,
+    minutes: entry.minutes ? minutesViewOf(state, entry.minutes, viewer) : null,
+    canEditMinutes: meeting !== undefined && meeting.status === 'scheduled' && can(viewer, 'meeting.minutes', meetingResource(state, meeting, viewer.id)),
+  } : {};
   return {
     entry,
     createdBy: cardOf(state, entry.createdBy),
@@ -453,6 +485,7 @@ export function trackerRowOf(state: State, entry: TrackerEntry, viewer: User): T
     canClose: mayPost && entry.waiting !== null && entry.closedAt === null,
     canEdit: mayPost,
     canDelete: mayDeleteTracker(state, viewer, entry),
+    ...minutesPart,
   };
 }
 

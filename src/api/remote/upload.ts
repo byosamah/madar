@@ -111,12 +111,14 @@ async function sessionLimit(ctx: AdapterCtx): Promise<number | undefined> {
 }
 
 /** The fields of files.upload that go on the wire next to the upload ID (the wire form is strict). */
-const SHARED_FIELDS = ['projectId', 'conversationId', 'name', 'stageId', 'taskId', 'asCover', 'receivedFromClient'] as const;
+const SHARED_FIELDS = ['projectId', 'conversationId', 'meetingId', 'name', 'stageId', 'taskId', 'asCover', 'receivedFromClient'] as const;
 
 type ScreenUpload = {
   /** None: a file of the office task taskId (owner, 2026-10-06), or of the direct chat or group conversationId (owner, 2026-10-19). */
   projectId?: string;
   conversationId?: string;
+  /** A meeting with no project (wave 2). */
+  meetingId?: string;
   name: string;
   blob: Blob;
   stageId?: string | null;
@@ -158,6 +160,7 @@ export function uploadAdapter(o: {
     const start = (await ctx.call('files.uploadStart', {
       ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
       ...(input.conversationId !== undefined ? { conversationId: input.conversationId } : {}),
+      ...(input.meetingId !== undefined ? { meetingId: input.meetingId } : {}),
       name: input.name,
       size: blob.size,
       mimeType: blob.type || 'application/octet-stream',

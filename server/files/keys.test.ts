@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertObjectKey, chatUploadKey, chatUploadPrefix, chatUploadThumbKey, isObjectKey, isStagingKey, objectKey, officeUploadKey, officeUploadPrefix, officeUploadThumbKey, screenshotKey, stagingKey, stagingThumbKey, thumbKey, uploadKey, uploadThumbKey } from './keys';
+import { assertObjectKey, chatUploadKey, chatUploadPrefix, chatUploadThumbKey, isObjectKey, isStagingKey, meetingUploadKey, meetingUploadPrefix, meetingUploadThumbKey, objectKey, officeUploadKey, officeUploadPrefix, officeUploadThumbKey, screenshotKey, stagingKey, stagingThumbKey, thumbKey, uploadKey, uploadThumbKey } from './keys';
 
 const KEY_FORM = /^[a-z0-9-]+(\/[a-z0-9-]+)*$/;
 
@@ -73,6 +73,17 @@ describe('the object keys (plan 5.2)', () => {
     expect(chatUploadKey('cnv_014', 'upl_9f3a')).toMatch(KEY_FORM);
     expect(chatUploadKey('cnv_014', 'upl_9f3a').startsWith(officeUploadPrefix('cnv_014'))).toBe(false);
     expect(() => chatUploadKey('../x', 'upl_9f3a')).toThrow(/not a valid id/);
+  });
+
+  it('keep the uploads of a meeting with no project under meeting/<meeting>/<intent>, a place that no project, task or chat id can take (wave 2)', () => {
+    expect(meetingUploadKey('mtg_014', 'upl_9f3a')).toBe('meeting/mtg-014/upl-9f3a/file');
+    expect(meetingUploadThumbKey('mtg_014', 'upl_9f3a')).toBe('meeting/mtg-014/upl-9f3a/thumb');
+    expect(meetingUploadKey('mtg_014', 'upl_9f3a').startsWith(meetingUploadPrefix('mtg_014'))).toBe(true);
+    expect(meetingUploadKey('mtg_0140', 'upl_9f3a').startsWith(meetingUploadPrefix('mtg_014'))).toBe(false);
+    expect(isStagingKey(meetingUploadKey('mtg_014', 'upl_9f3a'))).toBe(false);
+    expect(meetingUploadKey('mtg_014', 'upl_9f3a')).toMatch(KEY_FORM);
+    for (const other of [officeUploadPrefix('mtg_014'), chatUploadPrefix('mtg_014')]) expect(meetingUploadKey('mtg_014', 'upl_9f3a').startsWith(other)).toBe(false);
+    expect(() => meetingUploadKey('../x', 'upl_9f3a')).toThrow(/not a valid id/);
   });
 
   it('tell a key of the key form from any other value, without a throw', () => {

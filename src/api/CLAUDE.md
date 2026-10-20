@@ -73,6 +73,10 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - Template tasks and stages can wait for other parts of their own template (`prerequisiteIds`, fbk_008). `projectTemplates.save`
   refuses a wait on a missing part (`prerequisite_not_in_template`), a repeated wait and a loop (`dependency_cycle`, `hasCycle`
   in `flow.ts`). A new project links the waits to its new ids. A task with waits is `dynamic` there, with its planned working days.
+- A task may move to another stage of its template (fbk_031, owner 2026-10-23): `projectTemplates.save` only checks that `stageId` names a stage of the same
+  template (`assertParts`), so a move is a plain save of the same task id with a new `stageId` (one `projectTemplate.updated` event; Undo takes it back).
+  The update of linked projects (`syncDiff`) has no kind for it: the project task keeps its stage, and its dates follow the offsets as before. A task
+  that is new to a project still comes under the stage that the template names.
 - Stage templates merged into project templates. Their calls stay in the contract, their screens are gone. Version 9 and the
   migration `20261005000100_project_templates.sql` made one project template from each stage template, once.
 - Link an older project (fbk_008 item 4): `projectTemplates.matchPlan` reads the matches by name (`matchByNames`,
@@ -154,6 +158,16 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   quiet lines (added, removed, left, renamed); `chats.messages` returns them as `lines` for a group. They are no messages, so no
   unread count, preview or push reads them. `chats.updateGroup` sends the trigger `added_to_group` (in-app only) to each added person.
   `NotificationView.chatKind` and `target` (the group name while the viewer is a member) let a group notice name the group.
+- Mark as unread (owner, 2026-10-19, fbk_028): `chats.markUnread { conversationId }` (a chat or a task thread) answers `{ unread: true }`. It sets
+  `ChatRead.markedUnread` (optional, so there is no `STATE_VERSION` step and no migration: the table keeps the whole record in `doc`). `unreadIn` and
+  `taskUnread` count at least 1 for a marked chat, and the mark never adds to a real count (3 new messages stay 3). A read mark ends it: `writeReadMark`
+  (`chats.markRead`, `chats.send`, an archive) drops the field. An archived chat comes back to the Inbox, so the badge never counts a chat that is out of
+  the list. It writes no event, no notice and no push, and its only signal is the kind `chatReads` to the person. The checks are those of
+  `chats.markRead` and `chats.archive`, so a hidden chat answers the same way. Its loader is that of `chats.archive`; `WRITE_KINDS`: `['chatReads']`.
+  MCP: deny list, as `chats.markRead` (an unread mark is the own reminder of the person; `INSTRUCTIONS` says so). `chats.waiting` stays in the contract
+  and on the MCP allow list, with the waits rule of chat design item 22 (a 👍 or ✅ answers, a group waits only when it names you), but no screen reads
+  it any more (owner, 2026-10-20: Mark as unread is the one reminder). The mark counts at least 1 also in the Admin's other project chats
+  (`countsNamedOnly`, item 23), and also when a server loader gave the count (`state.counts`).
 - `search.query` has a `messages` group (chat design 2026-10-19, item 16): `messageHits` (`messageSearch.ts`) gives the newest 5 of the
   live chat messages of the chats the person may open (`canSeeConversation`) and the comments of the tasks the person may read
   (`can(viewer, 'comment.read', taskResource)`: every project task, an office task for its people and the Admin; the quiet reason lines
@@ -284,6 +298,21 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - The endpoint must be the https address of a known push service (`isPushEndpoint`): the server posts to it, so a free address
   would let a person aim the server at any host. See `server/push/CLAUDE.md`.
 
+## Google Calendar (owner, 2026-10-19, fbk_022)
+- Four server-only calls (`contract/server.ts`, `server/calls/google.ts`): `google.status` (read) gives `{ ready, state, connectedAt }` with `state` one of
+  `none`, `ok`, `not_synced`, `broken`. `google.connectStart` (read) gives the Google address with a signed state. `google.connect { code, state }`
+  swaps the code and makes the calendar "Madar" in the Google account of the person. `google.disconnect` stops the sync. Only a person, for the person:
+  an agent gets `forbidden`, and no call takes the id of another person. All four are on the MCP deny list.
+- They touch only the two server-only tables `google_connections` and `google_events` (`server/google/store.ts`). No State collection reads them, so the
+  calls write no event, no History row and no change signal, and `WRITE_KINDS` has `[]` for the two writes. The prototype fakes give `ready: false`
+  and refuse the other three with `google_not_ready`.
+- Reasons: `google_not_ready` (this copy has no Google values), `google_link_old` (the state is changed or past 10 minutes, or Google calls the code
+  gone), `google_link_person` (the state is of another person; `forbidden`), `google_denied` (no refresh token, or the calendar scope is absent),
+  `google_unreachable` (`failed`; Google timed out or answered 5xx). The reason `google_link_person` is not `google_link_other`: i18next reads a key
+  that ends with `_other` as a plural form.
+- The callback `GET /api/google/callback` has no sign-in. It checks the signed state and sends the code to the Settings screen in the address fragment
+  (`/settings#google=finish&code=...&state=...`); the signed-in screen then calls `google.connect`. See `server/CLAUDE.md`.
+
 ## The project pin (owner, 2026-10-18, fbk_017)
 - `Project.geo` is an optional `GeoPoint` (`lat` -90 to 90, `lng` -180 to 180). `ProjectSummary.geo` is that point or null (`summaryOf`).
 - `projects.create` takes `geo` (default null). `projects.update` takes `patch.geo` (null removes the pin). Both refuse a value out of range.
@@ -383,7 +412,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   `mine` true by default, `mine: false` needs `projectId`), `meetings.get`, `meetings.create`, `meetings.update`, `meetings.cancel`. `create` is
   the first key of `meetingCalls` on purpose: the call sweep (`server/core/everyCall.ts`) runs in that order and the others need a meeting.
 - Reasons (`invalid_input` unless said): `in_the_past` (a start more than 14 days ago), `start_not_on_five`, `project_closed` (the project is
-  not active or on hold), `minutes_not_attending`, `attendee_agent`, `person_inactive`, `title_hidden`, `project_fixed` (a meeting never
+  not active or on hold), `minutes_not_attending` (wave 1 only: no call raises it since wave 2, but an old answer can name it), `attendee_agent`, `person_inactive`, `title_hidden`, `project_fixed` (a meeting never
   changes its project), `window_too_long`, `window_reversed`, `project_needed`; `conflict`: `meeting_cancelled`, `meeting_over` (after the end
   only `notes` change, and a cancel is refused).
 - Rights (`permissions.ts`): `meeting.view`, `meeting.create`, `meeting.edit`, with `meetingResource` and `mayViewMeeting`. A project meeting is
@@ -414,8 +443,55 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   The server job loads the scheduled meetings that start within the hour (`loadJobs`, `now` of the run). The screen words are in
   `src/i18n/real/meetings.*.json` (`inbox.trigger.meeting_invited`, `_moved`, `_cancelled`, `meeting_soon`, `inbox.meetingGone`).
 - `projects.delete` deletes the meetings of the project and their notices. A person who is an attendee and leaves keeps the record.
-- `Task.meetingId`, `TrackerEntry.auto: 'meeting'` and `Meeting.settledAt`, `minutesTaskId`, `trackerEntryId`, `seriesId`, `repeat` are in the
-  contract for the later waves (minutes, series). Nothing sets them in wave 1.
+- `Task.meetingId`, `Meeting.minutesTaskId`, `seriesId` and `repeat` are in the contract for the later waves. Nothing sets the first two since the
+  owner dropped the minutes task (2026-10-19), and wave 3 sets the others.
+- Settle (wave 2, owner 2026-10-19; `meetings.settle { id }`, `settleMeeting`, `dueToSettle` in `handlers/meetings.ts`): after `endsAt` Madar marks the
+  meeting as over (`settledAt`, event verb `meeting.settled`) and, when `hasTrackerLine` (`lib/meetings.ts`: a project meeting that is not a team
+  meeting), makes its Tracker line: type `meeting`, side `both`, the title and notes of the meeting, the day of the start, the organizer and the
+  first 19 attendees, `auto: 'meeting'`, `meetingId`, `minutes: null`. The line event (`tracker.logged`) carries `causeEventId` of the mark, so the
+  History shows that Madar made the line because the meeting ended. A team meeting and a meeting with no project get the mark only. There is no
+  minutes task, no notice, no push and no mail. The call needs only the view of the meeting (`requireMeeting`). Before the end, for a cancelled
+  meeting and after the first settle it writes nothing and gives the stored `{ settledAt, trackerEntryId }`. The job (`server/jobs/steps/meetings.ts`)
+  and the prototype minute timer call it for each meeting of `dueToSettle` (scheduled, not settled, ended in the last `SETTLE_BACK_DAYS` days).
+  The mark has no Undo: `events.undo` answers `conflict`, reason `settle_final` (`meeting.settled` is in `NOT_UNDOABLE`, and `undoOne` raises the
+  reason first), because the next job run would settle the meeting again. The Undo of `tracker.logged` deletes the line, as for any line; the
+  meeting then keeps `trackerEntryId`, which `REFERENCE_FIELDS` leaves out on purpose, so the delete is not refused. MCP: deny list.
+  The author of the line (`createdBy`) is always the organizer, whoever settles (the job, the first minutes save, or any person who sees the
+  meeting); the events name the caller as the actor (security fix, 2026-10-19). `mayDeleteTracker` (`views.ts`) gives a line with `auto: 'meeting'`
+  no author delete: only the project leader or the Admin deletes it, and so only they undo its `tracker.logged` (`history.ts` uses the same rule).
+  The screens read `canDelete` of the row, so the Delete button follows. Tests: `meetingSettle.test.ts` ("the author and the delete of the line").
+- Files of a meeting with no project (wave 2, owner 2026-10-19; the pattern of the chat files): `files.upload` and `files.uploadStart` take `meetingId`
+  in place of a project, an office task or a chat. `FileRec.meetingId` (optional) names the meeting; `projectId`, `stageId` and `taskId` are null. Only a
+  meeting with no project takes one: a project meeting, also a team meeting, uses the files of its project, and an upload with its id fails with
+  `invalid_input`, reason `file_meeting` (so does a `meetingId` next to a project, a chat, a stage, a task, a cover or a client mark). Who uploads:
+  `minutesRefusal(state, meeting, viewer, at)` (`handlers/meetings.ts`) must be null. In this order: `not_found` Meeting (the viewer does not see it; the
+  text of an unknown id), `conflict` `meeting_cancelled`, `conflict` `minutes_not_yet` (before `endsAt`), `forbidden` (no `meeting.minutes`: the
+  organizer and the attendees; for a project meeting the leader and the Admin too), and `conflict` `minutes_line_gone` (a Tracker line meeting whose
+  settled line is gone). `mayViewFile` is `mayViewMeeting` of the meeting: the people who see it, the Admin only when invited, and nobody once the
+  meeting is gone. `mayOpenFile` keeps an agent from opening one (`files.get`, the `files.link` fake). The upload writes no event (`uploadMeetingFile`).
+  `assertFilesForMeeting` (`attach.ts`) takes only a file of the meeting itself, and reads any other file as `file_missing`. Every other carrier (a task
+  comment, a project chat or a direct chat, the Tracker, `files.share`) refuses a meeting file with reason `file_meeting` (a post gives its plain
+  refusal for any file that is not a file of its project). `files.delete` and `files.markDelivered` refuse it too, and `mayDeleteFile` is false.
+  `search.query` finds no meeting file, and `files.list` never lists one. The leak tests: `handlers/meetingFiles.test.ts`, `server/calls/meetingFiles.test.ts`.
+- The minutes (wave 2, owner 2026-10-19; `meetings.saveMinutes { id, text, fileIds, since? }` in `handlers/meetings.ts`): any attendee of a meeting that
+  ended writes them, as one text of at most 10,000 letters (`MEETING_LIMITS.minutesMax`) with files (`MAX_ATTACHMENTS`), replaced as a whole. The right is
+  `meeting.minutes` (`permissions.ts`): the organizer and the attendees; for a project meeting the leader and the Admin too (the minutes join the project
+  record that the leader answers for); a team member who did not attend only reads them. For a meeting with no project the Admin writes only when invited.
+  `minutesRefusal` checks the phase and the right (see the files above). Where they live (`minutesOf`): a project meeting that is not a team meeting
+  (`hasTrackerLine`) keeps them on its Tracker line (`TrackerEntry.minutes`, event verb `tracker.minutes_saved`); a team meeting and a meeting with no project
+  keep them on the meeting (`Meeting.minutes`, verb `meeting.minutes_saved`; `officeMeetingId` for a meeting with no project). Both verbs are feed verbs
+  (`FEED_VERBS`), `meeting.settled` is not. A meeting that has a Tracker line and no mark is settled in the same call, so the person never waits for the
+  job; the mark and the line then get a story of their own (`cor_settle_<meeting>`), so the Undo toast of the save (`events.undoStory`) takes back the
+  minutes only and never meets the mark that has no Undo. `files` of a project meeting are files of its project (`assertFilesInProject`); a meeting with no
+  project takes only its own files (`assertFilesForMeeting`). `since` is the `updatedAt` that the screen opened (null for no minutes yet): another value gives
+  `conflict`, reason `minutes_changed`, so a late save never replaces what another attendee wrote. An empty text with no files writes `minutes: null`. The
+  same text and files write nothing. No notice, no push, no badge and no task. The Undo of either verb needs `meeting.minutes` on its meeting
+  (`assertMayUndo`, `handlers/history.ts`), and the change stays the person's own (`assertUndoRight`). `MeetingDetail` gives `minutes`, `minutesPlace` and
+  `viewerCan.minutes`; `TrackerRow` of an auto meeting line gives `meeting`, `minutes` and `canEditMinutes` (other rows leave the three out).
+  `tracker.log` and `tracker.update` never take `minutes` or `meetingId`: zod strips the keys. MCP: `meetings.saveMinutes` is on the allow list, not additive.
+- The person for the minutes is gone (owner, 2026-10-19). `Meeting.minutesById` is optional and nothing writes or reads it. The inputs of
+  `meetings.create` and `meetings.update` lost `minutesById`: zod strips the key, so an old tab or an old agent still works. `MeetingDetail.minutesBy`
+  and `minutesTask` stay in the shape, always null. A stored row with `minutesById` still parses. No migration and no backfill.
 - The sample office (`data/sampleMeetings.ts`, only the prototype and `sampleOffice`, as the sample sub-companies): one client meeting of an open
   project and one meeting with no project for the Admin and a leader. The prototype day shift moves `startsAt` and `endsAt` (`PLANNED_FIELDS`,
   `data/shift.ts`) and never pulls them back before now.
@@ -423,7 +499,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.
 2. If it is server-only: its contract in `contract/server.ts`, its fake in `handlers/serverFakes.ts`, its server body in
-   `server/calls/`. There are 11 server-only calls; the 11th is `live.ticket` (exit wave 3).
+   `server/calls/`. There are 15 server-only calls; `live.ticket` (exit wave 3) is the 11th, and the four `google.*` calls (fbk_022) follow it.
 3. A loader entry in `server/data/loaders/` (a test fails without it).
 4. The MCP allow list, Admin list (`MCP_ADMIN`, only an agent of an Admin sees it) or deny list in `server/mcp/tools.ts`
    (a test fails without it). An allowed or Admin tool needs `TOOL_DOCS`. It also needs a sample: add a call to

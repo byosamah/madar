@@ -52,7 +52,7 @@ const error = async (run: () => Promise<unknown>) => {
 };
 /** Takes Nour off the meeting. */
 async function removeNour(w: World) {
-  await as(w, ORGANIZER, () => w.t.api.call('meetings.update', { id: w.id, attendeeIds: [ATTENDEE], minutesById: null }));
+  await as(w, ORGANIZER, () => w.t.api.call('meetings.update', { id: w.id, attendeeIds: [ATTENDEE] }));
 }
 
 describe('meetings.list, meetings.get, meetings.update and meetings.cancel', () => {
@@ -177,3 +177,114 @@ describe('the History of a meeting with no project', () => {
     }
   });
 });
+
+/**
+ * The minutes of a meeting with no project (wave 2, owner 2026-10-19), and the file of its minutes. A person who is not in the
+ * meeting, the Admin who is not invited, a person taken off the meeting and the agents of these people must learn nothing of them:
+ * not the text, not the file name, not that the minutes exist.
+ */
+describe('the minutes of a meeting with no project', () => {
+  const MINUTES = 'The raise is 4,000 riyals. MINUTES-LEAK-6103';
+  const FILE = 'Hidden-minutes-file-6103.pdf';
+  const AFTER_END = new Date('2026-10-01T08:30:00Z');
+
+  async function withMinutes() {
+    const w = await world();
+    setNow(AFTER_END);
+    const up = await as(w, ATTENDEE, () => w.t.api.call('files.upload', { name: FILE, meetingId: w.id, blob: new Blob(['x'], { type: 'application/pdf' }) }));
+    await as(w, ATTENDEE, () => w.t.api.call('meetings.saveMinutes', { id: w.id, text: MINUTES, fileIds: [up.file.id] }));
+    return { w, fileId: up.file.id };
+  }
+
+  it('answers get and the save for an outsider exactly as for an unknown id, and writes nothing', async () => {
+    const { w } = await withMinutes();
+    for (const person of [...PEOPLE_WITHOUT_VIEW, 'usr_007']) {
+      for (const [name, input, missing] of [
+        ['meetings.get', { id: w.id }, { id: 'mtg_999' }],
+        ['meetings.saveMinutes', { id: w.id, text: 'Forged', fileIds: [] }, { id: 'mtg_999', text: 'Forged', fileIds: [] }],
+        ['meetings.saveMinutes', { id: w.id, text: '', fileIds: [] }, { id: 'mtg_999', text: '', fileIds: [] }],
+        ['meetings.settle', { id: w.id }, { id: 'mtg_999' }],
+      ] as const) {
+        const hidden = await as(w, person, () => error(() => w.t.api.call(name, input as never)));
+        const gone = await as(w, person, () => error(() => w.t.api.call(name, missing as never)));
+        expect(hidden, `${person} ${name}`).toEqual({ ...gone, message: gone!.message.replace('mtg_999', w.id) });
+        expect(hidden, `${person} ${name}`).toMatchObject({ code: 'not_found', message: `Meeting ${w.id} does not exist.` });
+      }
+    }
+    expect(w.t.store.state.meetings![w.id].minutes?.text).toBe(MINUTES);
+  });
+
+  it('puts no minutes key in a row of the list, for anyone', async () => {
+    const { w } = await withMinutes();
+    for (const person of [ORGANIZER, ATTENDEE, AGENT_OF_ATTENDEE, ...PEOPLE_WITHOUT_VIEW]) {
+      const rows = await as(w, person, () => w.t.api.call('meetings.list', { from: '2026-09-01', to: '2026-12-31' }));
+      expect(JSON.stringify(rows), person).not.toContain('MINUTES-LEAK');
+      for (const row of rows) expect(row, person).not.toHaveProperty('minutes');
+    }
+  });
+
+  it('holds no event of the save for a person who is not in the meeting, and the Undo of it answers as for a missing event', async () => {
+    const { w } = await withMinutes();
+    const event = Object.values(w.t.store.state.events).find((e) => e.verb === 'meeting.minutes_saved')!;
+    expect(event.officeMeetingId).toBe(w.id);
+    for (const person of [...PEOPLE_WITHOUT_VIEW, 'usr_007']) {
+      for (const input of [{ limit: 500 }, { targetType: 'meeting' as const, limit: 500 }, { targetId: w.id }, { correlationId: event.correlationId }]) {
+        const seen = JSON.stringify(await as(w, person, () => w.t.api.call('events.list', input)));
+        expect(seen, `${person} ${JSON.stringify(input)}`).not.toContain('meeting.minutes_saved');
+        expect(seen, `${person} ${JSON.stringify(input)}`).not.toContain('MINUTES-LEAK');
+        expect(seen, `${person} ${JSON.stringify(input)}`).not.toContain(w.id);
+      }
+      const undo = await as(w, person, () => error(() => w.t.api.call('events.undo', { eventId: event.id })));
+      const gone = await as(w, person, () => error(() => w.t.api.call('events.undo', { eventId: 'evt_9999' })));
+      expect(undo, person).toEqual({ ...gone, message: gone!.message.replace('evt_9999', event.id) });
+      const story = await as(w, person, () => error(() => w.t.api.call('events.undoStory', { correlationId: event.correlationId })));
+      expect(story, person).toMatchObject({ code: 'not_found' });
+    }
+    expect(w.t.store.state.meetings![w.id].minutes?.text).toBe(MINUTES);
+  });
+
+  it('finds the words of the minutes and the file name in no search, files list, link, dashboard or notice', async () => {
+    const { w, fileId } = await withMinutes();
+    for (const person of [...PEOPLE_WITHOUT_VIEW, 'usr_007']) {
+      const text = await as(w, person, async () => JSON.stringify([
+        await w.t.api.call('search.query', { text: 'MINUTES-LEAK' }),
+        await w.t.api.call('search.query', { text: 'Hidden-minutes' }),
+        await w.t.api.call('search.query', { text: '6103' }),
+        await w.t.api.call('files.list', { projectId: 'prj_001' }),
+        await w.t.api.call('dashboard.get', {}),
+        await w.t.api.call('notifications.list', {}),
+        await w.t.api.call('projects.get', { id: 'prj_001' }),
+      ]));
+      expect(text, person).not.toContain('MINUTES-LEAK');
+      expect(text, person).not.toContain('Hidden-minutes');
+      expect(text, person).not.toContain(fileId);
+      const link = await as(w, person, () => error(() => w.t.api.call('files.link', { id: fileId, variant: 'full', disposition: 'inline' })));
+      expect(link, person).toMatchObject({ code: 'not_found', message: `File ${fileId} does not exist.` });
+    }
+  });
+
+  it('gives a person taken off the meeting nothing of the minutes, and the agent of an attendee reads the text but never opens the file', async () => {
+    const { w, fileId } = await withMinutes();
+    // After the end the people no longer change through a call, so the record changes: the rule asks who sees the meeting now.
+    w.t.store.state.meetings![w.id].attendeeIds = [ATTENDEE];
+    const removed = await as(w, REMOVED, () => error(() => w.t.api.call('meetings.get', { id: w.id })));
+    expect(removed).toMatchObject({ code: 'not_found' });
+    const agent = await as(w, AGENT_OF_ATTENDEE, () => w.t.api.call('meetings.get', { id: w.id }));
+    expect(agent.minutes).toMatchObject({ text: MINUTES, files: [{ id: fileId, name: FILE }] });
+    for (const call of ['files.get', 'files.link'] as const) {
+      const input = call === 'files.get' ? { id: fileId } : { id: fileId, variant: 'full' as const, disposition: 'inline' as const };
+      expect(await as(w, AGENT_OF_ATTENDEE, () => error(() => w.t.api.call(call, input as never))), call).toMatchObject({ code: 'not_found' });
+    }
+  });
+
+  it('keeps a project meeting open (the control): its minutes show to every person who opens the project', async () => {
+    const { w } = await withMinutes();
+    const open = await as(w, 'usr_003', () => w.t.api.call('meetings.create', { kind: 'team', title: 'Open team sync', projectId: 'prj_001', startsAt: '2026-10-02T09:00:00+03:00' }));
+    setNow(new Date('2026-10-02T08:00:00Z'));
+    await as(w, 'usr_003', () => w.t.api.call('meetings.saveMinutes', { id: open.id, text: 'Open minutes OPEN-6103', fileIds: [] }));
+    for (const person of [ADMIN, OUTSIDER, AGENT_OF_ADMIN, ORGANIZER]) {
+      expect((await as(w, person, () => w.t.api.call('meetings.get', { id: open.id }))).minutes?.text, person).toBe('Open minutes OPEN-6103');
+    }
+  });
+});
+

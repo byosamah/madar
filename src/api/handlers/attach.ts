@@ -29,6 +29,11 @@ function chatFileStays(): never {
   throw invalid('fileIds', 'A file of a chat stays in its chat.', 'file_chat');
 }
 
+/** A file of a meeting with no project stays with its meeting: no chat, task, post or Tracker entry carries it (wave 2). */
+function meetingFileStays(): never {
+  throw invalid('fileIds', 'A file of a meeting stays with its meeting.', 'file_meeting');
+}
+
 /**
  * A comment or a project chat message carries only files of its own project. A comment on an office task (projectId null, with
  * officeTaskId) carries only files of that task.
@@ -36,6 +41,7 @@ function chatFileStays(): never {
 export function assertFilesInProject(ctx: Ctx, fileIds: string[], projectId: string | null, officeTaskId?: string): void {
   for (const file of requireFiles(ctx, fileIds)) {
     if (file.conversationId !== undefined) chatFileStays();
+    if (file.meetingId !== undefined) meetingFileStays();
     if (projectId === null) {
       if (file.projectId !== null || file.taskId !== officeTaskId) officeFileStays();
     } else if (file.projectId !== projectId) {
@@ -55,6 +61,7 @@ export function assertFilesForDirect(ctx: Ctx, fileIds: string[], recipientIds: 
       if (file.conversationId !== conversationId) chatFileStays();
       continue;
     }
+    if (file.meetingId !== undefined) meetingFileStays();
     if (file.projectId === null) officeFileStays();
     if (!mayShareProjectFile(ctx, file.projectId, ctx.authority.id)) {
       throw invalid('fileIds', 'You cannot see the project of this file.', 'file_not_visible');
@@ -64,5 +71,15 @@ export function assertFilesForDirect(ctx: Ctx, fileIds: string[], recipientIds: 
         throw invalid('fileIds', 'The other person cannot see the project of this file.', 'recipient_not_on_project');
       }
     }
+  }
+}
+
+/**
+ * The minutes of a meeting with no project carry only files of that meeting (wave 2). A file the person cannot see, a file of another
+ * meeting and a file of any other place all read as missing, so the answer tells nothing about a file the person may not know.
+ */
+export function assertFilesForMeeting(ctx: Ctx, fileIds: string[], meetingId: string): void {
+  for (const file of requireFiles(ctx, fileIds)) {
+    if (file.meetingId !== meetingId) throw invalid('fileIds', 'A file does not exist.', 'file_missing');
   }
 }

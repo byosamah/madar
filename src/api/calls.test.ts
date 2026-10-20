@@ -36,7 +36,7 @@ const TASK_CALLS = ['taskTemplates.list', 'taskTemplates.save', 'taskTemplates.r
 const EXTRA_CALLS = ['session.setSimulateErrors', 'session.resetSampleData', 'me.updateProfile', 'notifications.count', 'events.undoStory', 'deadlines.list'];
 // The chat (owner decision, 2026-10-01).
 const CHAT_CALLS = [
-  'chats.list', 'chats.messages', 'chats.send', 'chats.markRead', 'chats.openDirect', 'chats.unreadCount', 'chats.archive',
+  'chats.list', 'chats.messages', 'chats.send', 'chats.markRead', 'chats.markUnread', 'chats.openDirect', 'chats.unreadCount', 'chats.archive',
   // The Notify me choice of one person for one chat (chat design item 21).
   'chats.setNotify',
   // Group chats (fbk_011, plan 2026-10-18): a group is made, renamed and left in the screens.
@@ -72,21 +72,21 @@ const PUSH_CALLS = ['push.register', 'push.remove', 'push.mine'];
 const ROLE_CALLS = ['roles.create', 'roles.update', 'roles.delete'];
 // The office report data (owner, 2026-10-18, fbk_016): one read call.
 const REPORT_CALLS = ['reports.office'];
-// The 11 server calls of the real build, with fake versions for the prototype (plan 4.11; usage.retryEffect from task M1;
-// live.ticket from the exit, wave 3).
-const SERVER_CALLS = ['story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove', 'usage.get', 'usage.retryEffect', 'live.ticket'];
+// The 15 server calls of the real build, with fake versions for the prototype (plan 4.11; usage.retryEffect from task M1;
+// live.ticket from the exit, wave 3; the four google calls of fbk_022).
+const SERVER_CALLS = ['story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove', 'usage.get', 'usage.retryEffect', 'live.ticket', 'google.status', 'google.connectStart', 'google.connect', 'google.disconnect'];
 // Meetings, client meetings and site visits (fbk_022, owner 2026-10-19).
-const MEETING_CALLS = ['meetings.list', 'meetings.get', 'meetings.create', 'meetings.update', 'meetings.cancel'];
+const MEETING_CALLS = ['meetings.list', 'meetings.get', 'meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.settle', 'meetings.saveMinutes'];
 const MAP_CALLS = [...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS, ...FEEDBACK_CALLS, ...TEAM_CALLS, ...SUB_COMPANY_CALLS, ...AUDIT_CALLS, ...LEAD_CALLS, ...ORDER_CALLS, ...PROJECT_TEMPLATE_CALLS, ...PUSH_CALLS, ...ROLE_CALLS, ...REPORT_CALLS, ...MEETING_CALLS];
 const CHAT_READS =new Set(['chats.list', 'chats.messages', 'chats.unreadCount', 'chats.waiting', 'push.mine']);
 // Server reads named one by one, so the name rule does not decide them by accident.
-const SERVER_READS = new Set(['files.link', 'users.invites', 'agents.list', 'usage.get', 'live.ticket']);
+const SERVER_READS = new Set(['files.link', 'users.invites', 'agents.list', 'usage.get', 'live.ticket', 'google.status', 'google.connectStart']);
 
 describe('the call map', () => {
-  it('has every call from the spec plus the documented extras, and the 11 server calls', () => {
+  it('has every call from the spec plus the documented extras, and the 15 server calls', () => {
     expect(Object.keys(mapCalls).sort()).toEqual([...MAP_CALLS].sort());
     expect(Object.keys(calls).sort()).toEqual([...MAP_CALLS, ...SERVER_CALLS].sort());
-    expect(Object.keys(calls)).toHaveLength(158);
+    expect(Object.keys(calls)).toHaveLength(165);
   });
 
   it('marks exactly the read calls as read-only', () => {
@@ -122,17 +122,17 @@ describe('the call map', () => {
     expect(marked).toEqual(Object.keys(calls).filter((name) => name.startsWith('session.')).sort());
   });
 
-  it('has 147 calls in the map', () => {
-    expect(MAP_CALLS).toHaveLength(147);
-    expect(Object.keys(mapCalls)).toHaveLength(147);
+  it('has 150 calls in the map', () => {
+    expect(MAP_CALLS).toHaveLength(150);
+    expect(Object.keys(mapCalls)).toHaveLength(150);
   });
 });
 
 describe('the calls the server runs', () => {
-  it('are the 143 calls of the map without the prototype controls and the blob read', () => {
+  it('are the 146 calls of the map without the prototype controls and the blob read', () => {
     expect([...SERVER_EXCLUDED].sort()).toEqual(['files.get', 'session.previewAs', 'session.resetSampleData', 'session.setSimulateErrors']);
     const names = Object.keys(sharedCalls);
-    expect(names).toHaveLength(143);
+    expect(names).toHaveLength(146);
     for (const name of SERVER_EXCLUDED) expect(names).not.toContain(name);
     for (const name of names) expect(Object.keys(mapCalls)).toContain(name);
     for (const name of SERVER_CALLS) expect(names).not.toContain(name);
