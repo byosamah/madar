@@ -750,3 +750,14 @@ separate checker. No production change before Friday 2026-10-23. Answers fbk_028
 - [x] Fix: the Ctrl+Z listener of the toasts takes a keydown with no key. Chrome sends one when it fills a saved password: this was the TypeError in Faisal's console
 - [x] Gates, `all.sh test`, the owner's try on the test copy (13:10, a new Google account, ok), production at 86bcf255 (2026-10-20, the owner ran it). Record: proof.md. fbk_033 done (Faisal gets the notice)
 - [ ] After the release: a connect that timed out at the calendar step may have left an empty calendar "Madar" in that Google account. If Faisal sees two, he deletes the empty one
+
+## 2026-10-20: four owner fixes (branch `rb/owner-fixes`, What's new 2026-10-23-56 to 59)
+
+- [x] Satellite view on every map: one small button, Esri World Imagery through our own route `/satellite` (Madar's own Esri key as
+  the Pages secret `ESRI_KEY` on both copies, set 2026-10-20; the key ends 2027-10-19; the referrer lock did not save at Esri)
+- [x] The sub-company badge sits in a gap cut out of the project tile: no ring, no pill
+- [x] The chat list filter beside the search: All, Projects, To-dos, People (direct chats and groups)
+- [x] "Tasks" holds To-dos and Meetings: 209 English texts say to-do; the switch and the project tab say «قائمة المهام»; MCP INSTRUCTIONS line
+- [x] Gates: typecheck, npm test (7,943 passed; one deploy test timed out under load and passes alone), build, build:server
+- [ ] Not run (owner chose speed): test:db, test:it, the deploy suite, the screenshots (the Chrome extension was off)
+- [ ] The owner tries the four changes on the test copy, then production by the owner's OK (team live week until 2026-10-22)
