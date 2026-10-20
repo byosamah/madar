@@ -79,7 +79,7 @@ describe('the Balady tick box on the move-back sheet (owner, 2026-10-03, API-14)
 
   it('is there when a new task moves the project back, through the quick add', async () => {
     const { store } = await renderApp('/projects/prj_001?tab=tasks', as('usr_002'));
-    await userEvent.type(await screen.findByRole('textbox', { name: 'Add a task in Design Development' }, { timeout: 3000 }), 'Material samples{Enter}');
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Add a to-do in Design Development' }, { timeout: 3000 }), 'Material samples{Enter}');
     const ask = await screen.findByRole('dialog', { name: ASK });
     await userEvent.type(within(ask).getByRole('textbox', { name: 'Reason' }), 'Balady asked for material samples');
     await userEvent.click(within(ask).getByRole('checkbox', { name: BOX }));

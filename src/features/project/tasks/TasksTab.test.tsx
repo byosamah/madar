@@ -19,7 +19,7 @@ describe('the Tasks tab list', () => {
     const group = await screen.findByRole('region', { name: 'Construction Documents' });
     expect(within(group).getByText('Stair details')).toBeInTheDocument();
     expect(within(group).queryByText('Door and window schedule')).toBeNull();
-    await userEvent.click(within(await filter()).getByRole('checkbox', { name: 'Show done tasks' }));
+    await userEvent.click(within(await filter()).getByRole('checkbox', { name: 'Show done to-dos' }));
     expect(await within(group).findByText('Door and window schedule')).toBeInTheDocument();
   });
 
@@ -51,7 +51,7 @@ describe('the Tasks tab list', () => {
 
   it('adds a task with no lead to a stage from its quick add row (owner, 2026-10-05)', async () => {
     const { store } = await renderApp(TASKS, as('usr_005'));
-    await userEvent.type(await screen.findByRole('textbox', { name: 'Add a task in Permits' }), 'Fire strategy report{Enter}');
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Add a to-do in Permits' }), 'Fire strategy report{Enter}');
     await waitFor(() => expect(Object.values(store.state.tasks)
       .some((task) => task.title === 'Fire strategy report' && task.stageId === 'stg_005' && task.ownerId === null)).toBe(true));
     expect(await screen.findByText('Fire strategy report')).toBeInTheDocument();
@@ -82,8 +82,8 @@ describe('the Tasks tab list', () => {
 
   it('says so when every task of a stage is done', async () => {
     await renderApp(TASKS);
-    expect(await within(await screen.findByRole('region', { name: 'Schematic Design' })).findByText('All tasks in this stage are done.')).toBeInTheDocument();
-    expect(within(screen.getByRole('region', { name: 'Concept' })).getByText('No tasks here yet.')).toBeInTheDocument();
+    expect(await within(await screen.findByRole('region', { name: 'Schematic Design' })).findByText('All to-dos in this stage are done.')).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Concept' })).getByText('No to-dos here yet.')).toBeInTheDocument();
   });
 });
 

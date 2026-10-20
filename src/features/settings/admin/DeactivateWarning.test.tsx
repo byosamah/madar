@@ -25,7 +25,7 @@ describe('the warning before Deactivate (owner, 2026-10-03, API-7)', () => {
     // The Team tab is where the leader changes. The Admin may change it there, so the sheet needs no word about who does it.
     expect(within(led).getByRole('link', { name: /Eastern Shore Primary School/ })).toHaveAttribute('href', '#/projects/prj_003?tab=team');
     expect(within(led).queryByText('An Admin changes the leader.')).toBeNull();
-    const open = within(sheet).getByRole('region', { name: '5 open tasks' });
+    const open = within(sheet).getByRole('region', { name: '5 open to-dos' });
     const tasks = within(open).getAllByRole('link');
     expect(tasks).toHaveLength(5);
     for (const task of tasks) expect(task).toHaveAttribute('href', expect.stringMatching(/^#\/projects\/prj_00[37]\?tab=tasks&task=tsk_\w+$/));
@@ -47,9 +47,9 @@ describe('the warning before Deactivate (owner, 2026-10-03, API-7)', () => {
     // Only a leader reviews, so a person who leads nothing has no reviews to hand on.
     expect(within(sheet).getByText('Nobody can give them new work.')).toBeInTheDocument();
     expect(within(sheet).queryByText(/reviews/)).toBeNull();
-    const open = within(sheet).getByRole('region', { name: '10 open tasks' });
+    const open = within(sheet).getByRole('region', { name: '10 open to-dos' });
     expect(within(open).getAllByRole('link')).toHaveLength(8);
-    expect(within(open).getByText('2 more tasks')).toBeInTheDocument();
+    expect(within(open).getByText('2 more to-dos')).toBeInTheDocument();
     await userEvent.click(within(sheet).getByRole('button', { name: 'Deactivate anyway' }));
     await waitFor(() => expect(store.state.users.usr_005.active).toBe(false));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());

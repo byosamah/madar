@@ -143,7 +143,7 @@ describe('the Open space screen', () => {
     const { project, stages } = (await api.call('projects.list', { status: 'all' })).find((item) => item.project.name === 'Corniche Office Tower')!;
     expect(project.name).toBe('Corniche Office Tower');
     const facts = within(card).getByText(new RegExp(`^${stages.length} stages?$`)).closest<HTMLElement>('[data-facts]')!;
-    expect(within(facts).getByText(/open tasks?$/)).toBeInTheDocument();
+    expect(within(facts).getByText(/open to-dos?$/)).toBeInTheDocument();
   });
 
   it('opens and closes a project with Enter, and shows its stages', async () => {
@@ -348,7 +348,7 @@ describe('the focus on a person (PRJ-06)', () => {
     expect(countOf('[data-kind="project"][data-faded="true"]')).toBeGreaterThan(0);
     expect(countOf('[data-kind="task"][data-faded="false"]')).toBeGreaterThan(0);
     expect(countOf('[data-kind="stage"][data-faded="true"]')).toBeGreaterThan(0);
-    expect(screen.getByText(new RegExp(`^${option.textContent}: \\d+ open tasks? in \\d+ projects?$`))).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`^${option.textContent}: \\d+ open to-dos? in \\d+ projects?$`))).toBeInTheDocument();
     await waitFor(() => expect(flow.fitView).toHaveBeenCalled());
     // Everyone closes the map again.
     await userEvent.selectOptions(picker, '');

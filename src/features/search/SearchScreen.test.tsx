@@ -21,7 +21,7 @@ describe('search', () => {
   it('shows tasks and files in their own groups', async () => {
     await renderApp('/search');
     await userEvent.type(await box(), 'ground floor');
-    const tasks = await screen.findByRole('group', { name: 'Tasks' });
+    const tasks = await screen.findByRole('group', { name: 'To-dos' });
     expect(within(tasks).getAllByRole('option', { name: /Ground floor plan/ }).length).toBeGreaterThan(0);
     expect(within(screen.getByRole('group', { name: 'Files' })).getAllByRole('option', { name: /Ground floor plan\.pdf/ }).length).toBeGreaterThan(0);
   });
@@ -59,12 +59,12 @@ describe('search', () => {
 
   it('creates a task with no lead from the New task command (owner, 2026-10-05)', async () => {
     const { store } = await renderApp('/search', asSara);
-    await userEvent.click(await screen.findByRole('option', { name: 'New task' }));
-    const sheet = await screen.findByRole('dialog', { name: 'New task' });
+    await userEvent.click(await screen.findByRole('option', { name: 'New to-do' }));
+    const sheet = await screen.findByRole('dialog', { name: 'New to-do' });
     await userEvent.selectOptions(within(sheet).getByLabelText('Project'), 'KH-26-001 · Corniche Office Tower');
     await userEvent.type(within(sheet).getByLabelText('Title'), 'Fire exit check');
-    await userEvent.click(within(sheet).getByRole('button', { name: 'Create task' }));
-    expect(await screen.findByText('Task created.')).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Create to-do' }));
+    expect(await screen.findByText('To-do created.')).toBeInTheDocument();
     expect(Object.values(store.state.tasks).some((task) => task.title === 'Fire exit check' && task.ownerId === null && task.stageId === 'stg_004')).toBe(true);
   });
 

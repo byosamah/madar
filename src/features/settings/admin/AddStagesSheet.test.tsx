@@ -25,7 +25,7 @@ describe('Add stages from another template', () => {
     const editor = await openNewEditor();
     const sheet = await openAddStages(editor);
     await userEvent.selectOptions(within(sheet).getByLabelText('Template to take stages from'), 'Villa, full design');
-    expect(within(sheet).getByRole('checkbox', { name: 'With their tasks' })).toBeChecked();
+    expect(within(sheet).getByRole('checkbox', { name: 'With their to-dos' })).toBeChecked();
     await userEvent.click(within(sheet).getByRole('checkbox', { name: /^Concept/ }));
     await userEvent.click(within(sheet).getByRole('button', { name: 'Add the stages' }));
     expect(screen.queryByRole('dialog', { name: 'Add stages from another template' })).not.toBeInTheDocument();
@@ -40,7 +40,7 @@ describe('Add stages from another template', () => {
     const editor = await openNewEditor();
     const sheet = await openAddStages(editor);
     await userEvent.selectOptions(within(sheet).getByLabelText('Template to take stages from'), 'Villa, full design');
-    expect(within(sheet).getByRole('checkbox', { name: /^Concept.*3 tasks · 12 working days$/ })).toBeInTheDocument();
+    expect(within(sheet).getByRole('checkbox', { name: /^Concept.*3 to-dos · 12 working days$/ })).toBeInTheDocument();
   });
 
   it('puts the copied stages right after the last stage, and keeps their days only when asked (ADM-17)', async () => {
@@ -59,7 +59,7 @@ describe('Add stages from another template', () => {
     const editor = await openNewEditor();
     const sheet = await openAddStages(editor);
     await userEvent.selectOptions(within(sheet).getByLabelText('Template to take stages from'), 'Villa, full design');
-    await userEvent.click(within(sheet).getByRole('checkbox', { name: 'With their tasks' }));
+    await userEvent.click(within(sheet).getByRole('checkbox', { name: 'With their to-dos' }));
     await userEvent.click(within(sheet).getByRole('checkbox', { name: /^Concept/ }));
     await userEvent.click(within(sheet).getByRole('button', { name: 'Add the stages' }));
     expect(within(editor).getByRole('button', { name: 'Concept' })).toBeInTheDocument();

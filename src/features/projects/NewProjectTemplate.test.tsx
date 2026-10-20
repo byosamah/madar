@@ -140,7 +140,7 @@ describe('the New Project sheet with a project template', () => {
     await userEvent.selectOptions(within(sheet).getByLabelText('Start from a template'), TEMPLATE);
     date(sheet, 'Start date', '2026-10-04');
     date(sheet, 'Target end date', '2026-10-15');
-    expect(within(sheet).getByRole('alert')).toHaveTextContent('The locked tasks need at least 17 working days. Choose a later end date, or let more tasks stretch.');
+    expect(within(sheet).getByRole('alert')).toHaveTextContent('The locked to-dos need at least 17 working days. Choose a later end date, or let more to-dos stretch.');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Create project' }));
     // One message only: the line under the dates. The end date field is marked, and the focus goes to it.
     const end = within(sheet).getByLabelText('Target end date');

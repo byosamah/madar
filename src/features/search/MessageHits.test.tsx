@@ -78,6 +78,6 @@ describe('the Messages group of Search', () => {
 
   it('names the search for messages in the placeholder', async () => {
     await renderApp('/search');
-    expect(await screen.findByPlaceholderText('Search projects, tasks, people, files and messages')).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText('Search projects, to-dos, people, files and messages')).toBeInTheDocument();
   });
 });

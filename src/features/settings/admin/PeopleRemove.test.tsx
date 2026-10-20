@@ -31,7 +31,7 @@ describe('Remove in the People list (owner, 2026-10-12)', () => {
     });
     await userEvent.click((await openActions('Khalid Al-Mutairi')).getByRole('menuitem', { name: 'Remove from the list' }));
     const sheet = await screen.findByRole('dialog', { name: 'Remove Khalid Al-Mutairi from the list?' });
-    expect(within(sheet).getByText(/Their old tasks, comments and History keep their name/)).toBeInTheDocument();
+    expect(within(sheet).getByText(/Their old to-dos, comments and History keep their name/)).toBeInTheDocument();
     // A double press must not remove: Cancel takes the focus, and the confirm sits on the start side, as in Deactivate.
     expect(within(sheet).getByRole('button', { name: 'Cancel' })).toHaveFocus();
     expect(within(sheet).getByRole('button', { name: 'Remove for good' })).toHaveClass('me-auto');

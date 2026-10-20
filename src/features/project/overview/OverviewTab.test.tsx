@@ -26,7 +26,7 @@ describe('the project Overview', () => {
     await renderApp('/projects/prj_001', as('usr_002'));
     const people = await screen.findByRole('region', { name: 'Who is doing what' });
     const sara = within(people).getByText('Sara Al-Qahtani').closest('li') as HTMLElement;
-    await waitFor(() => expect(within(sara).getByText(/[1-9] open task/)).toBeInTheDocument());
+    await waitFor(() => expect(within(sara).getByText(/[1-9] open to-do/)).toBeInTheDocument());
     await userEvent.click(within(people).getAllByRole('button')[0]);
     await waitFor(() => expect(window.location.hash).toContain('task=tsk_'));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();

@@ -24,7 +24,7 @@ describe('a reason for a date change (owner, 2026-10-02)', () => {
 
     const ask = await screen.findByRole('dialog', { name: 'Why do the dates change?' });
     expect(within(ask).getByText('Due date: from Tue 20 Oct to Mon 26 Oct')).toBeInTheDocument();
-    expect(within(ask).getByText("Madar shows your reason in the task's Conversation as a quiet line.")).toBeInTheDocument();
+    expect(within(ask).getByText("Madar shows your reason in the to-do's Conversation as a quiet line.")).toBeInTheDocument();
     const save = within(ask).getByRole('button', { name: 'Save dates' });
     expect(save).toBeDisabled();
     expect(store.state.tasks.tsk_007.dueDate).toBe('2026-10-20');
@@ -93,7 +93,7 @@ describe('a reason for a date change (owner, 2026-10-02)', () => {
       };
     });
     const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
-    const message = (await within(sheet).findByText(/ reopened the task: .*Client comments, 12 Oct/)).closest('li') as HTMLElement;
+    const message = (await within(sheet).findByText(/ reopened the to-do: .*Client comments, 12 Oct/)).closest('li') as HTMLElement;
     expect(within(message).queryByRole('button', { name: 'Actions for this comment' })).toBeNull();
     expect(within(message).queryByRole('button', { name: /^React with/ })).toBeNull();
   });

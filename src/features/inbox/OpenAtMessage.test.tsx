@@ -100,7 +100,7 @@ describe('the Inbox opens at one message', () => {
     });
     expect(window.location.hash).toContain('?at=cmt_990');
     expect(await screen.findByText('Check the manhole spacing', {}, { timeout: 10_000 })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open task' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open to-do' })).toBeInTheDocument();
   }, 30_000);
 
   it('ignores an at mark that is no message id, and opens the chat as before', async () => {

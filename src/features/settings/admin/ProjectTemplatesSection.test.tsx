@@ -42,7 +42,7 @@ describe('the Admin section Project templates', () => {
     await renderApp('/admin/project-templates');
     const section = await region('Project templates');
     expect(await within(section).findByText('Villa, full design')).toBeInTheDocument();
-    expect(within(section).getByText('5 stages · 11 tasks · 60 working days')).toBeInTheDocument();
+    expect(within(section).getByText('5 stages · 11 to-dos · 60 working days')).toBeInTheDocument();
     expect(within(section).getByText('1 project follows it')).toBeInTheDocument();
     expect(within(section).getByText('Competition entry')).toBeInTheDocument();
     expect(within(section).getByText('3 stages')).toBeInTheDocument();
@@ -54,16 +54,16 @@ describe('the Admin section Project templates', () => {
     await userEvent.click(within(section).getByRole('button', { name: 'New template' }));
     const sheet = await screen.findByRole('dialog', { name: 'New project template' });
     await userEvent.type(within(sheet).getByLabelText(/Template name/), 'Small house');
-    await userEvent.click(within(sheet).getByRole('button', { name: 'Task leads · 0' }));
-    await userEvent.click(within(sheet).getByRole('button', { name: 'Add a task lead' }));
-    await userEvent.type(within(sheet).getByLabelText('Name of task lead 1'), 'Architect');
-    await userEvent.selectOptions(within(sheet).getByLabelText('Default person of task lead 1'), 'Faisal Al-Harbi');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'To-do leads · 0' }));
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Add a to-do lead' }));
+    await userEvent.type(within(sheet).getByLabelText('Name of to-do lead 1'), 'Architect');
+    await userEvent.selectOptions(within(sheet).getByLabelText('Default person of to-do lead 1'), 'Faisal Al-Harbi');
     await pick(sheet, '1');
     await userEvent.type(within(details(sheet)).getByLabelText('Stage name'), 'Concept');
-    await userEvent.click(within(sheet).getByRole('button', { name: 'Add a task' }));
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Add a to-do' }));
     const panel = details(sheet);
-    await userEvent.type(within(panel).getByLabelText('Task title'), 'Massing');
-    await userEvent.selectOptions(within(panel).getByLabelText('Task lead'), 'Architect');
+    await userEvent.type(within(panel).getByLabelText('To-do title'), 'Massing');
+    await userEvent.selectOptions(within(panel).getByLabelText('To-do lead'), 'Architect');
     const days = within(panel).getByLabelText('Working days');
     await userEvent.clear(days);
     await userEvent.type(days, '8');
@@ -108,7 +108,7 @@ describe('the Admin section Project templates', () => {
     expect(within(sheet).getByText('Keeps its length')).toBeInTheDocument();
     expect(sheet.querySelectorAll('[data-row="stage"]')).toHaveLength(5);
     expect(sheet.querySelectorAll('[data-row="task"]')).toHaveLength(11);
-    expect(within(details(sheet)).getByText('Pick a stage or a task to see its details.')).toBeInTheDocument();
+    expect(within(details(sheet)).getByText('Pick a stage or a to-do to see its details.')).toBeInTheDocument();
     const name = within(sheet).getByLabelText(/Template name/);
     await userEvent.clear(name);
     await userEvent.type(name, 'Villa, long');
@@ -125,7 +125,7 @@ describe('the Admin section Project templates', () => {
     expect(within(panel).queryByRole('combobox', { name: 'Waits for' })).not.toBeInTheDocument();
     expect(within(panel).getByRole('button', { name: 'Waits for' })).toBeInTheDocument();
     // The description, the checklist and "Needs review" sit under a fold (ADM-21).
-    expect(within(panel).getByText('More about this task').closest('details')).not.toHaveAttribute('open');
+    expect(within(panel).getByText('More about this to-do').closest('details')).not.toHaveAttribute('open');
   });
 
   it('moves a stage down and removes a task', async () => {
@@ -134,7 +134,7 @@ describe('the Admin section Project templates', () => {
     await pick(sheet, 'Concept');
     await userEvent.click(within(details(sheet)).getByRole('button', { name: 'Move down' }));
     await pick(sheet, 'Site visit and survey');
-    await userEvent.click(within(details(sheet)).getByRole('button', { name: 'Remove this task' }));
+    await userEvent.click(within(details(sheet)).getByRole('button', { name: 'Remove this to-do' }));
     await userEvent.click(within(sheet).getByRole('button', { name: 'Save template' }));
     await waitFor(() => {
       const saved = savedNamed(store, 'Villa, full design')!;
@@ -148,7 +148,7 @@ describe('the Admin section Project templates', () => {
     const sheet = await openEditor(/^Villa, full design/);
     await pick(sheet, 'Site visit and survey');
     const panel = details(sheet);
-    await userEvent.click(within(panel).getByText('More about this task'));
+    await userEvent.click(within(panel).getByText('More about this to-do'));
     expect(within(panel).getByLabelText('Checklist')).toHaveValue('Photos\nBoundary check');
     await userEvent.type(within(panel).getByLabelText('Description'), 'Visit with the client.');
     const list = within(panel).getByLabelText('Checklist');
@@ -179,10 +179,10 @@ describe('the Admin section Project templates', () => {
     const ownDays = within(panel).getByLabelText('Working days');
     await userEvent.type(ownDays, '5');
     // The last task of Concept ends on day 11, after the 5 days of the stage.
-    expect(within(panel).getByText('The tasks end on day 11.')).toBeInTheDocument();
+    expect(within(panel).getByText('The to-dos end on day 11.')).toBeInTheDocument();
     await userEvent.clear(ownDays);
     await userEvent.type(ownDays, '20');
-    expect(within(panel).queryByText('The tasks end on day 11.')).not.toBeInTheDocument();
+    expect(within(panel).queryByText('The to-dos end on day 11.')).not.toBeInTheDocument();
   });
 
   it('names the stage in the problem of a start day with no working days, and keeps the field', async () => {
@@ -209,7 +209,7 @@ describe('the Admin section Project templates', () => {
     // Nothing moves while the person types. The tasks move once, when the field is left.
     await userEvent.tab();
     expect(within(sheet).getByRole('slider', { name: 'Start of Concept presentation' })).toHaveAttribute('aria-valuenow', '12');
-    expect(within(details(sheet)).getByText('The tasks move with the stage.')).toBeInTheDocument();
+    expect(within(details(sheet)).getByText('The to-dos move with the stage.')).toBeInTheDocument();
     await userEvent.click(within(sheet).getByRole('button', { name: 'Save template' }));
     await waitFor(() => {
       const saved = savedNamed(store, 'Waits')!;
@@ -223,7 +223,7 @@ describe('the Admin section Project templates', () => {
     await api.call('projectTemplates.save', { ...WAITS, name: 'Empty stage', tasks: [] } as never);
     const sheet = await openEditor(/^Empty stage/);
     await pick(sheet, 'Concept');
-    await userEvent.click(within(sheet).getByRole('button', { name: 'Add a task' }));
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Add a to-do' }));
     expect(within(details(sheet)).getByLabelText('Start day')).toHaveValue('3');
   });
 
@@ -303,7 +303,7 @@ describe('the Admin section Project templates', () => {
     const section = await region('Project templates');
     await userEvent.click(await within(section).findByRole('button', { name: 'Actions for template Villa, full design' }));
     await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Delete' }));
-    expect(await screen.findByText('Template deleted. 1 project keeps its tasks.')).toBeInTheDocument();
+    expect(await screen.findByText('Template deleted. 1 project keeps its to-dos.')).toBeInTheDocument();
   });
 
   it('opens the projects that use a template from its row menu', async () => {
@@ -318,7 +318,7 @@ describe('the Admin section Project templates', () => {
     await renderApp('/admin/project-templates');
     const sheet = await openEditor(/^Villa, full design/);
     await pick(sheet, 'Floor plans');
-    const title = within(details(sheet)).getByLabelText('Task title');
+    const title = within(details(sheet)).getByLabelText('To-do title');
     await userEvent.type(title, ' v2');
     await userEvent.click(within(sheet).getByRole('button', { name: 'Save template' }));
     expect(await screen.findByText('Template saved. 1 project follows it.')).toBeInTheDocument();
@@ -355,10 +355,10 @@ describe('the Admin section Project templates', () => {
     await userEvent.type(within(sheet).getByLabelText(/Template name/), 'Waits');
     await pick(sheet, '1');
     await userEvent.type(within(details(sheet)).getByLabelText('Stage name'), 'Concept');
-    await userEvent.click(within(sheet).getByRole('button', { name: 'Add a task' }));
-    await userEvent.type(within(details(sheet)).getByLabelText('Task title'), 'Massing');
-    await userEvent.click(within(sheet).getByRole('button', { name: 'Add a task' }));
-    await userEvent.type(within(details(sheet)).getByLabelText('Task title'), 'Pack');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Add a to-do' }));
+    await userEvent.type(within(details(sheet)).getByLabelText('To-do title'), 'Massing');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Add a to-do' }));
+    await userEvent.type(within(details(sheet)).getByLabelText('To-do title'), 'Pack');
     await userEvent.click(within(details(sheet)).getByRole('button', { name: 'Waits for' }));
     await userEvent.selectOptions(within(details(sheet)).getByLabelText('Waits for'), 'Massing');
     expect(within(details(sheet)).getByRole('button', { name: 'Remove the wait for Massing' })).toBeInTheDocument();
@@ -397,7 +397,7 @@ describe('the Admin section Project templates', () => {
       expect(within(stage).getAllByRole('option').map((option) => option.textContent)).toEqual(['Concept', 'Permits']);
       // It sits right under the title, before the task lead.
       const labels = [...details(sheet).querySelectorAll('label')].map((label) => label.textContent);
-      expect(labels.findIndex((text) => text?.startsWith('Stage'))).toBe(labels.findIndex((text) => text?.startsWith('Task title')) + 1);
+      expect(labels.findIndex((text) => text?.startsWith('Stage'))).toBe(labels.findIndex((text) => text?.startsWith('To-do title')) + 1);
     });
 
     it('moves an old task to another stage and keeps its days, and the save accepts it', async () => {
@@ -409,7 +409,7 @@ describe('the Admin section Project templates', () => {
       expect(within(details(sheet)).getByLabelText('Start day')).toHaveValue('0');
       expect(within(details(sheet)).getByLabelText('Working days')).toHaveValue('8');
       // The days of the task are outside the days of its new stage (20 to 30): the editor says so, and moves nothing.
-      expect(within(details(sheet)).getByText('The days of this task are outside the days of its stage. Change the start day, or the days of the stage.')).toBeInTheDocument();
+      expect(within(details(sheet)).getByText('The days of this to-do are outside the days of its stage. Change the start day, or the days of the stage.')).toBeInTheDocument();
       await userEvent.click(within(sheet).getByRole('button', { name: 'Save template' }));
       expect(await screen.findByText('Template saved.')).toBeInTheDocument();
       const saved = savedNamed(store, 'Two stages')!;
@@ -432,11 +432,11 @@ describe('the Admin section Project templates', () => {
       await api.call('projectTemplates.save', TWO as never);
       const sheet = await openEditor(/^Two stages/);
       // Add task goes to the last stage (nothing is picked): Permits. Its first day is the end of Balady pack, day 26.
-      await userEvent.click(within(sheet).getByRole('button', { name: 'Add a task' }));
+      await userEvent.click(within(sheet).getByRole('button', { name: 'Add a to-do' }));
       const panel = details(sheet);
       expect(within(panel).getByLabelText('Stage')).toHaveValue('s2');
       expect(within(panel).getByLabelText('Start day')).toHaveValue('26');
-      await userEvent.type(within(panel).getByLabelText('Task title'), 'Site survey');
+      await userEvent.type(within(panel).getByLabelText('To-do title'), 'Site survey');
       await userEvent.selectOptions(within(panel).getByLabelText('Stage'), 'Concept');
       // Now it starts at the end of Massing options in Concept, day 8.
       expect(within(panel).getByLabelText('Start day')).toHaveValue('8');
@@ -450,9 +450,9 @@ describe('the Admin section Project templates', () => {
       const { store, api } = await renderApp('/admin/project-templates');
       await api.call('projectTemplates.save', TWO as never);
       const sheet = await openEditor(/^Two stages/);
-      await userEvent.click(within(sheet).getByRole('button', { name: 'Add a task' }));
+      await userEvent.click(within(sheet).getByRole('button', { name: 'Add a to-do' }));
       const panel = details(sheet);
-      await userEvent.type(within(panel).getByLabelText('Task title'), 'Site survey');
+      await userEvent.type(within(panel).getByLabelText('To-do title'), 'Site survey');
       const start = within(panel).getByLabelText('Start day');
       await userEvent.clear(start);
       await userEvent.type(start, '3');
@@ -494,7 +494,7 @@ describe('the Admin section Project templates', () => {
     expect(within(sheet).queryByRole('complementary')).not.toBeInTheDocument();
     await userEvent.click(within(sheet).getByRole('button', { name: /Floor plans/ }));
     const part = await screen.findByRole('dialog', { name: 'Floor plans' });
-    expect(within(part).getByLabelText('Task title')).toHaveValue('Floor plans');
+    expect(within(part).getByLabelText('To-do title')).toHaveValue('Floor plans');
     expect(within(part).getByRole('button', { name: 'Done' })).toBeInTheDocument();
   });
 });

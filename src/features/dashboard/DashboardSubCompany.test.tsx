@@ -57,8 +57,8 @@ describe('the sub-company filter of the Dashboard (INT-09, PRJ-15)', () => {
     const { api } = await renderApp('/dashboard?subCompany=sub_001', withCompanies);
     const { tiles } = await api.call('dashboard.get', { subCompanyId: 'sub_001' });
     expect(tiles.overdueTasks).toBeGreaterThan(0);
-    await userEvent.click(await tile(/Past-due tasks/));
-    expect(await screen.findByRole('heading', { level: 1, name: 'Past-due tasks' })).toBeInTheDocument();
+    await userEvent.click(await tile(/Past-due to-dos/));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Past-due to-dos' })).toBeInTheDocument();
     expect(await screen.findByText(/Sub-company: Vado/)).toBeInTheDocument();
     await waitFor(() => expect(within(within(screen.getByRole('main')).getByRole('list')).getAllByRole('listitem')).toHaveLength(tiles.overdueTasks));
   });

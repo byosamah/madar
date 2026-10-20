@@ -125,7 +125,7 @@ describe('the notifications screen', () => {
     expect(approve).toHaveTextContent(/^Approve$/);
     await userEvent.click(approve);
     await waitFor(() => expect(store.state.tasks.tsk_010.status).toBe('done'));
-    expect(await screen.findByText('Task approved.')).toBeInTheDocument();
+    expect(await screen.findByText('To-do approved.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
     await waitFor(() => expect(store.state.tasks.tsk_010.status).toBe('in_review'));
   });

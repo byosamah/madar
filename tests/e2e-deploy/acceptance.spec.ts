@@ -42,7 +42,7 @@ test("Member daily work: today's tasks with one step from any screen", async ({ 
   // On a day with nothing due today or past due, that panel is "Coming up" (owner, 2026-10-07), so the test takes either
   // name, like the prototype smoke test: it failed on such a day (Friday 2026-10-16).
   await expect(page.getByRole('region', { name: /^(Today|Coming up)$/ })).toBeVisible();
-  await tabTo(page, (text) => text === 'See all my tasks');
+  await tabTo(page, (text) => text === 'See all my to-dos');
   await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { level: 1, name: 'Tasks' })).toBeVisible();
   await expect(page.getByRole('region').first()).toBeVisible();

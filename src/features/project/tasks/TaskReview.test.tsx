@@ -97,7 +97,7 @@ describe('Send back with a note from the board (audit 2026-10-03, F-8)', () => {
     await waitFor(() => expect(note).toHaveFocus());
     await userEvent.type(note, 'Fix the tile joints.');
     await userEvent.click(within(review).getByRole('button', { name: 'Send back' }));
-    await screen.findByText('Task sent back.');
+    await screen.findByText('To-do sent back.');
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Review' })).toBeNull());
     expect(screen.getByRole('dialog', { name: 'Toilet details' })).toHaveFocus();
   });

@@ -16,7 +16,7 @@ describe('the Team tab', () => {
     expect(within(leader).getByText('Faisal Al-Harbi')).toBeInTheDocument();
     const members = screen.getByRole('region', { name: 'Members' });
     const sara = within(members).getByText('Sara Al-Qahtani').closest('li') as HTMLElement;
-    expect(within(sara).getByText('Open tasks: 2')).toBeInTheDocument();
+    expect(within(sara).getByText('Open to-dos: 2')).toBeInTheDocument();
   });
 
   it('shows a person outside the project no actions', async () => {

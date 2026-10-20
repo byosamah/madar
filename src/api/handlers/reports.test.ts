@@ -120,7 +120,7 @@ describe('reports.office: who may ask', () => {
   it('gives the Admin the gaps as well', async () => {
     const t = world();
     const report = await t.api.call('reports.office', { period: 'week', start: '2026-09-28' });
-    expect(report.gaps).toEqual(['Open tasks with no due date: 1', 'Open tasks with no lead: 1']);
+    expect(report.gaps).toEqual(['Open to-dos with no due date: 1', 'Open to-dos with no lead: 1']);
   });
 });
 

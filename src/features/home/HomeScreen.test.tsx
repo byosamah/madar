@@ -75,8 +75,8 @@ describe('Home', () => {
     await renderApp('/', as('usr_005'));
     const card = await next();
     expect(within(card).getByText('Finish “Facade details”')).toBeInTheDocument();
-    expect(within(card).getAllByRole('button').map((button) => button.textContent)).toEqual(['Open task', 'Focus']);
-    await userEvent.click(within(card).getByRole('button', { name: 'Open task' }));
+    expect(within(card).getAllByRole('button').map((button) => button.textContent)).toEqual(['Open to-do', 'Focus']);
+    await userEvent.click(within(card).getByRole('button', { name: 'Open to-do' }));
     expect(await screen.findByRole('dialog', { name: 'Facade details' })).toBeInTheDocument();
   });
 
@@ -181,7 +181,7 @@ describe('Home and meetings', () => {
     });
     const card = await screen.findByRole('region', { name: 'Meetings today' });
     expect(within(card).getByText('Review the facade')).toBeInTheDocument();
-    const today = screen.getByRole('link', { name: 'See all my tasks' }).closest('section')!;
+    const today = screen.getByRole('link', { name: 'See all my to-dos' }).closest('section')!;
     expect(today.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

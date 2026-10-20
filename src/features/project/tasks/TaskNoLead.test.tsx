@@ -21,10 +21,10 @@ describe('a task with no lead in the task panel', () => {
     const { store } = await renderApp(TASK('tsk_013'), both(as('usr_005'), noLead('tsk_013')));
     const sheet = await screen.findByRole('dialog', { name: 'Coordination meeting notes' });
     const block = within(sheet).getByRole('region', { name: 'No lead' });
-    expect(within(block).getByText('Nobody leads this task yet. Take it to work on it and finish it.')).toBeInTheDocument();
-    expect(within(sheet).queryByText(/You can view this task/)).toBeNull();
+    expect(within(block).getByText('Nobody leads this to-do yet. Take it to work on it and finish it.')).toBeInTheDocument();
+    expect(within(sheet).queryByText(/You can view this to-do/)).toBeNull();
     await userEvent.click(within(block).getByRole('button', { name: 'Take it' }));
-    expect(await screen.findByText('This task is yours now.')).toBeInTheDocument();
+    expect(await screen.findByText('This to-do is yours now.')).toBeInTheDocument();
     expect(store.state.tasks.tsk_013.ownerId).toBe('usr_005');
     await waitFor(() => expect(within(sheet).queryByRole('button', { name: 'Take it' })).toBeNull());
     await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
@@ -37,7 +37,7 @@ describe('a task with no lead in the task panel', () => {
     const lead = within(sheet).getByLabelText('Lead') as HTMLSelectElement;
     expect(lead.options[0].textContent).toBe('No lead');
     await userEvent.selectOptions(lead, '');
-    expect(await screen.findByText('This task has no lead now.')).toBeInTheDocument();
+    expect(await screen.findByText('This to-do has no lead now.')).toBeInTheDocument();
     expect(store.state.tasks.tsk_013.ownerId).toBeNull();
     await waitFor(() => expect(lead.value).toBe(''));
     // A task with no lead cannot finish, so the Status list has no Done and no In review.
@@ -71,18 +71,18 @@ describe('a task with no lead in the Tasks tab', () => {
     const tick = within(row).getByRole('checkbox', { name: 'Coordination meeting notes cannot be finished yet. It has no lead.' });
     expect(tick).toHaveAttribute('aria-disabled', 'true');
     await userEvent.click(tick);
-    expect(await screen.findByText('Not yet. Give this task a lead first.')).toBeInTheDocument();
+    expect(await screen.findByText('Not yet. Give this to-do a lead first.')).toBeInTheDocument();
     expect(store.state.tasks.tsk_013.status).toBe('todo');
   });
 
   it('gives the leader one gentle line with the count, and one press shows those tasks', async () => {
     await renderApp(TASKS, both(as('usr_002'), noLead('tsk_013', 'tsk_012')));
-    expect(await screen.findByText(/^2 tasks have no lead\./)).toBeInTheDocument();
+    expect(await screen.findByText(/^2 to-dos have no lead\./)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Show them' }));
     await waitFor(() => expect(screen.queryByText('Stair details')).toBeNull());
     expect(screen.getByText('Coordination meeting notes')).toBeInTheDocument();
     expect(screen.getByText('Civil Defense drawings')).toBeInTheDocument();
-    expect(screen.queryByText(/tasks have no lead/)).toBeNull();
+    expect(screen.queryByText(/to-dos have no lead/)).toBeNull();
     expect(screen.getByRole('button', { name: 'Filter, 1 active' })).toBeInTheDocument();
   });
 

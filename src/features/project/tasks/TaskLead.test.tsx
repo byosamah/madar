@@ -16,7 +16,7 @@ describe('a new lead for a task (audit 2026-10-03, F-22)', () => {
     const { store } = await renderApp(TASK('prj_001', 'tsk_007'));
     const sheet = await screen.findByRole('dialog', { name: 'Stair details' });
     await userEvent.selectOptions(within(sheet).getByLabelText('Lead'), 'usr_008');
-    expect(await screen.findByText('Khalid Al-Mutairi now leads this task.')).toBeInTheDocument();
+    expect(await screen.findByText('Khalid Al-Mutairi now leads this to-do.')).toBeInTheDocument();
     expect(store.state.tasks.tsk_007.ownerId).toBe('usr_008');
     await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
     await waitFor(() => expect(store.state.tasks.tsk_007.ownerId).toBe('usr_006'));
@@ -27,7 +27,7 @@ describe('a new lead for a task (audit 2026-10-03, F-22)', () => {
     expect(projectRoleOf(store.state, 'prj_002', 'usr_008')).toBe('other');
     const sheet = await screen.findByRole('dialog', { name: 'Facade details' });
     await userEvent.selectOptions(within(sheet).getByLabelText('Lead'), 'usr_008');
-    expect(await screen.findByText('Khalid Al-Mutairi now leads this task and joined the project team.')).toBeInTheDocument();
+    expect(await screen.findByText('Khalid Al-Mutairi now leads this to-do and joined the project team.')).toBeInTheDocument();
     expect(projectRoleOf(store.state, 'prj_002', 'usr_008')).not.toBe('other');
     await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
     await waitFor(() => expect(store.state.tasks.tsk_021.ownerId).toBe('usr_005'));

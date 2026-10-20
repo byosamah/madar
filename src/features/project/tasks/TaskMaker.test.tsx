@@ -30,7 +30,7 @@ describe('the maker of a project task in the task panel', () => {
     const outsider = Object.values(store.state.users).find((user) => user.kind === 'human' && user.active && !team.has(user.id));
     expect(outsider).toBeDefined();
     // Nobody joins the team from the list of a maker, so the hint says nothing of it.
-    expect(within(sheet).getByText('Helpers tick checklist items and comment. Only the lead finishes the task.')).toBeInTheDocument();
+    expect(within(sheet).getByText('Helpers tick checklist items and comment. Only the lead finishes the to-do.')).toBeInTheDocument();
     expect(within(sheet).queryByText(/outside the team joins it/)).toBeNull();
     await userEvent.selectOptions(lead, 'usr_002');
     await waitFor(() => expect(store.state.tasks.tsk_013.ownerId).toBe('usr_002'));
@@ -39,7 +39,7 @@ describe('the maker of a project task in the task panel', () => {
   it('shows Delete task and no review switch', async () => {
     const { store } = await renderApp(TASK, saraMadeIt);
     const sheet = await screen.findByRole('dialog', { name: 'Coordination meeting notes' });
-    expect(within(sheet).getByRole('button', { name: 'Delete task' })).toBeInTheDocument();
+    expect(within(sheet).getByRole('button', { name: 'Delete to-do' })).toBeInTheDocument();
     expect(within(sheet).queryByRole('switch', { name: /Needs review/ })).toBeNull();
     expect(store.state.tasks.tsk_013.needsReview).toBe(true);
   });

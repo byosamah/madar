@@ -27,7 +27,7 @@ describe('the Meetings view of the Tasks screen', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Tasks' })).toBeInTheDocument();
     const switchBox = screen.getByRole('radiogroup', { name: 'Show' });
     expect(within(switchBox).getByRole('radio', { name: 'Meetings' })).toBeChecked();
-    expect(within(switchBox).getByRole('radio', { name: 'Tasks' })).not.toBeChecked();
+    expect(within(switchBox).getByRole('radio', { name: 'To-dos' })).not.toBeChecked();
     expect(screen.getAllByRole('button', { name: 'New meeting' })).toHaveLength(1);
     const today = await screen.findByRole('region', { name: 'Today' });
     expect(within(today).getByText('Review the facade')).toBeInTheDocument();
@@ -101,12 +101,12 @@ describe('the Meetings view of the Tasks screen', () => {
     await userEvent.click(await screen.findByRole('radio', { name: 'Meetings' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/meetings'));
     expect(await screen.findByRole('button', { name: 'New meeting' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'New office task' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'New office to-do' })).toBeNull();
     const tab = screen.getAllByRole('link', { name: 'Tasks' }).find((link) => link.getAttribute('aria-current') === 'page');
     expect(tab).toBeDefined();
-    await userEvent.click(screen.getByRole('radio', { name: 'Tasks' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'To-dos' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/work'));
-    expect(await screen.findByRole('button', { name: 'New office task' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'New office to-do' })).toBeInTheDocument();
   });
 
   it('writes the times with Western digits in Arabic', async () => {

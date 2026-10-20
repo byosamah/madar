@@ -15,7 +15,7 @@ const event = (verb: string, label: string, detail: Record<string, string> = {})
 describe('feed sentences', () => {
   it('writes one sentence per event', () => {
     expect(feedText(event('task.status_changed', 'Stair details', { status: 'in_review' }), t)).toBe('sent “Stair details” to review');
-    expect(feedText(event('task.created', 'Stair details'), t)).toBe('added the task “Stair details”');
+    expect(feedText(event('task.created', 'Stair details'), t)).toBe('added the to-do “Stair details”');
     expect(feedText(event('file.version_added', 'Plan.pdf', { version: 'B' }), t)).toBe('added version B of “Plan.pdf”');
     expect(feedText(event('project.leader_changed', 'Tower', { leader: '' }), t)).toBe('removed the leader');
     expect(feedText(event('task.deleted', 'Stair details'), t)).toBe('made a change');

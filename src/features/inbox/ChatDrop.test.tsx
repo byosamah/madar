@@ -52,7 +52,7 @@ describe('drop and paste files (design item 14, fbk_030)', () => {
     await renderApp('/inbox', withOfficeTaskTalk);
     await userEvent.click(await rowLink(/Office keys/));
     fireEvent.dragEnter(await screen.findByRole('log', { name: 'Messages' }), drag([]));
-    expect(screen.getByText('The files stay with this task.')).toBeInTheDocument();
+    expect(screen.getByText('The files stay with this to-do.')).toBeInTheDocument();
   });
   it('takes 10 files at most from one drop, as the attach button does', async () => {
     await renderApp('/inbox');

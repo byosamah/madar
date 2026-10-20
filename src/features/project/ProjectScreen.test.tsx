@@ -56,9 +56,9 @@ describe('the Project screen header', () => {
     await renderApp(PROJECT, as('usr_002'));
     await userEvent.click(await screen.findByRole('button', { name: /Construction Documents/ }));
     const popover = screen.getByRole('dialog', { name: 'Stages' });
-    expect(within(popover).getByText(/earliest stage with an open task/)).toBeInTheDocument();
+    expect(within(popover).getByText(/earliest stage with an open to-do/)).toBeInTheDocument();
     await userEvent.click(within(popover).getByRole('button', { name: /Permits/ }));
-    expect(await within(popover).findByText('Tasks done: 0 of 2')).toBeInTheDocument();
+    expect(await within(popover).findByText('To-dos done: 0 of 2')).toBeInTheDocument();
     expect(within(popover).queryByRole('button', { name: 'Make current stage' })).toBeNull();
     expect(within(popover).queryByRole('button', { name: /^Move back/ })).toBeNull();
     // The leader sets what the stage needs first. Construction Documents still has open tasks, so Permits waits for it.
@@ -123,7 +123,7 @@ describe('the Project screen header', () => {
     await userEvent.click(within(sheet).getByRole('button', { name: `Remove ${busy.name}` }));
     const before = Object.values(store.state.stages).filter((s) => s.projectId === 'prj_001').length;
     await userEvent.click(within(sheet).getByRole('button', { name: 'Save changes' }));
-    expect(await screen.findByText('A stage with tasks cannot be removed. Move its tasks first.')).toBeInTheDocument();
+    expect(await screen.findByText('A stage with to-dos cannot be removed. Move its to-dos first.')).toBeInTheDocument();
     expect(Object.values(store.state.stages).filter((s) => s.projectId === 'prj_001')).toHaveLength(before);
   });
 

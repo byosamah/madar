@@ -580,9 +580,9 @@ describe('empty task links hide behind one press (audit 2026-10-03, PRJ-8)', () 
     expect(within(sheet).queryByRole('region', { name: 'Needs first' })).toBeNull();
     expect(within(sheet).queryByRole('region', { name: 'Unlocks' })).toBeNull();
     expect(within(sheet).queryByText('No task waits for this one.')).toBeNull();
-    await userEvent.click(within(sheet).getByRole('button', { name: 'Add a task it needs first' }));
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Add a to-do it needs first' }));
     expect(within(sheet).getByRole('region', { name: 'Needs first' })).toBeInTheDocument();
-    expect(within(sheet).getByLabelText('Add a task it needs first')).toHaveFocus();
+    expect(within(sheet).getByLabelText('Add a to-do it needs first')).toHaveFocus();
   });
 });
 
@@ -613,7 +613,7 @@ describe('the Overview while the tasks load (audit 2026-10-03, PRJ-18)', () => {
     await renderApp('/projects/prj_001', as('usr_002'), { latencyMs: 150 });
     await screen.findByRole('heading', { level: 1, name: 'Corniche Office Tower' });
     expect(screen.queryByText('Nothing needs attention.')).toBeNull();
-    expect(screen.queryByText('No open tasks')).toBeNull();
+    expect(screen.queryByText('No open to-dos')).toBeNull();
     expect(screen.queryByText('0 of 0 done')).toBeNull();
     expect(await screen.findByRole('region', { name: 'Who is doing what' }, { timeout: 3000 })).toBeInTheDocument();
   });
@@ -647,13 +647,13 @@ describe('filters stay in the link (audit 2026-10-03, PRJ-22)', () => {
     const { router } = await renderApp('/projects/prj_001?tab=tasks', as('usr_002'));
     await userEvent.click(await screen.findByRole('button', { name: /^Filter/ }));
     await userEvent.click(screen.getByRole('radio', { name: 'Mine' }));
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Show done tasks' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Show done to-dos' }));
     expect(router.state.location.search).toContain('show=mine');
     await userEvent.click(screen.getByRole('tab', { name: 'Overview' }));
-    await userEvent.click(await screen.findByRole('tab', { name: 'Tasks' }));
+    await userEvent.click(await screen.findByRole('tab', { name: 'To-dos' }));
     await userEvent.click(await screen.findByRole('button', { name: /^Filter/ }));
     expect(screen.getByRole('radio', { name: 'Mine' })).toBeChecked();
-    expect(screen.getByRole('checkbox', { name: 'Show done tasks' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Show done to-dos' })).toBeChecked();
   });
 
   it('reads the Activity filter from the link', async () => {
@@ -863,14 +863,14 @@ describe('a failed save shows the saved value (audit 2026-10-03, BRW-6)', () => 
 describe('quick add keeps the focus (audit 2026-10-03, BRW-11)', () => {
   it('leaves the focus in the field after Enter', async () => {
     const { store } = await renderApp('/projects/prj_001?tab=tasks', as('usr_002'), { latencyMs: 150 });
-    const field = await screen.findByRole('textbox', { name: 'Add a task in Permits' }, { timeout: 3000 });
+    const field = await screen.findByRole('textbox', { name: 'Add a to-do in Permits' }, { timeout: 3000 });
     await userEvent.type(field, 'Fire strategy report{Enter}');
     // A disabled field loses the focus in a browser; jsdom keeps it, so the test checks that the field never turns disabled.
     expect(field).toHaveAttribute('aria-busy', 'true');
     expect(field).not.toBeDisabled();
     await waitFor(() => expect(Object.values(store.state.tasks).some((task) => task.title === 'Fire strategy report')).toBe(true));
-    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Add a task in Permits' })).toHaveValue(''));
-    expect(screen.getByRole('textbox', { name: 'Add a task in Permits' })).toHaveFocus();
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Add a to-do in Permits' })).toHaveValue(''));
+    expect(screen.getByRole('textbox', { name: 'Add a to-do in Permits' })).toHaveFocus();
   });
 });
 
