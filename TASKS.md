@@ -769,4 +769,5 @@ separate checker. No production change before Friday 2026-10-23. Answers fbk_028
 - [x] "Tasks" holds To-dos and Meetings: 209 English texts say to-do; the switch and the project tab say «قائمة المهام»; MCP INSTRUCTIONS line
 - [x] Gates: typecheck, npm test (7,943 passed; one deploy test timed out under load and passes alone), build, build:server
 - [ ] Not run (owner chose speed): test:db, test:it, the deploy suite, the screenshots (the Chrome extension was off)
-- [ ] The owner tries the four changes on the test copy, then production by the owner's OK (team live week until 2026-10-22)
+- [x] Test copy and production at 3cb6e144 (2026-10-20, the owner's "go production now"). Record: proof.md
+- [ ] Screenshots EN/AR, light/dark, 390 px of the four changes (after the release; needs the Chrome extension or a signed-in browser)

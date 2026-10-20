@@ -1943,3 +1943,17 @@ fbk_022). Each suite ran once; a suite ran again only for the files of a fix.
   wide. In a 390 px window, `elementFromPoint` at 242 points of the 44 x 44 px area hit the button at every point, also with a 👍
   and a ✅ under each message of a run in a project chat. The only misses came from 2 pills that had scrolled under the top bar.
   No change was necessary. A size audit must test the press area with `elementFromPoint`, not the box of the element.
+
+### Production at 3cb6e144 (2026-10-20, the four owner fixes; Claude ran it on the owner's "go production now")
+- Changes: the satellite view on every map (one small button; Esri World Imagery through the own route `/satellite`, Pages Function
+  `functions/satellite`, Madar's own Esri key as the Pages secret `ESRI_KEY` on preview and production; the key ends 2027-10-19); the
+  sub-company badge in a gap cut out of the project tile (no ring, no pill); the chat filter (All, Projects, To-dos, People); "Tasks" holds
+  To-dos and Meetings (209 English texts say to-do, plus 8 texts and 3 What's new lines of fbk_034 to fbk_036; the switch and the project tab
+  say «قائمة المهام»; an MCP INSTRUCTIONS line); What's new 2026-10-23-60 to 63.
+- Probes: Esri answers the key with a picture (status 200, JPEG) with the referrer https://madar.vado.sa, and also with none: the referrer
+  lock did not save at Esri. The test copy route: signed out 401, signed in as admin@madar.test 200 JPEG in 0.85 s (zoom 10) and 0.63 s
+  (zoom 17). Production route signed out: 401.
+- Gates: typecheck, npm test 7,943 (one deploy test timed out under load and passed alone), the 18 test files of fbk_034 to fbk_036 after the
+  merge (236 passed), build, build:server. Not run (owner chose speed): `test:db`, `test:it`, `test:mcp`, the prototype smoke, the deploy
+  suite, the screenshots (the Chrome extension was off; the Playwright helper was refused the sign-in by the auto-mode check).
+- `all.sh test` (148 calls), then `all.sh production`: health from `supabase` with 148 calls, the database check, `POST /mcp` with no token 401.
