@@ -145,10 +145,13 @@ describe('tasks.update and tasks.delete', () => {
     await expect(t.api.call('tasks.update', { id: 'tsk_001', patch: { ownerId: 'usr_005' } })).rejects.toMatchObject({ code: 'invalid_input' });
   });
 
-  it('lets the leader delete a task', async () => {
+  it('lets the leader delete a task, and the lead too (fbk_034)', async () => {
     const t = withTask();
-    t.as('usr_003');
+    t.as('usr_004');
     await expect(t.api.call('tasks.delete', { id: 'tsk_001' })).rejects.toMatchObject({ code: 'forbidden' });
+    t.as('usr_003');
+    await expect(t.api.call('tasks.delete', { id: 'tsk_001' })).resolves.toEqual({ deleted: true });
+    t.store.state.tasks.tsk_001 = makeTask();
     t.as('usr_002');
     await t.api.call('tasks.delete', { id: 'tsk_001' });
     expect(t.store.state.tasks.tsk_001).toBeUndefined();

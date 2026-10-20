@@ -5,7 +5,7 @@ import type {
 import { canSeeConversation } from './chatState';
 import { namesPerson, replyRefOf } from './chatNaming';
 import { computeHealth, isOverdue } from './health';
-import { can, mayViewMeeting, meetingResource, principalOf, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
+import { can, leadTookTask, mayViewMeeting, meetingResource, principalOf, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
 import { commentCountKey, fileCountKey, projectTemplatesOf, type State } from './store';
 import { lineKindOf } from '../lib/commentLine';
 import { diffDays } from '../lib/dates';
@@ -348,13 +348,16 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
       complete: can(viewer, 'task.updateOwn', r) && task.status !== 'done',
       review: can(viewer, 'task.review', r) && task.status === 'in_review',
       setNeedsReview: can(viewer, 'task.review', r),
-      delete: can(viewer, 'task.delete', r),
+      // A lead who took the task themselves does not delete it (security review 2026-10-20).
+      delete: can(viewer, 'task.delete', r) && (can(viewer, 'task.updateAny', r) || !leadTookTask(state, task)),
       contribute: can(viewer, 'task.contribute', r),
       newVersion: task.status === 'done' && can(viewer, 'task.updateOwn', r),
       // A template belongs to a stage, so an office task never becomes one. It serves the whole office, so the leader and the
       // Admin save it, never the maker alone (the rule of taskTemplates.save).
       saveTemplate: task.stageId !== null && can(viewer, 'task.updateAny', { projectRole: r.projectRole }),
       take: task.ownerId === null && task.status !== 'done' && can(viewer, 'task.take', r),
+      // Joins as a helper with one tap: a person on the team who neither leads nor helps, on a project task (fbk_035).
+      help: task.projectId !== null && task.ownerId !== viewer.id && !helpersOf(task).includes(viewer.id) && can(viewer, 'task.help', r),
     },
     history,
   };

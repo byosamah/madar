@@ -133,6 +133,19 @@ function isOwnTake(ctx: Ctx, event: Event): boolean {
     && JSON.stringify((before.helperIds as string[]).filter((id) => id !== me)) === JSON.stringify(after.helperIds)));
 }
 
+/** True when the event is the person's own join or leave as a helper (fbk_035): only the helper list changed, by that one person. */
+function isOwnHelp(ctx: Ctx, event: Event): boolean {
+  const me = ctx.authority.id;
+  const before = fieldsOf(event.before);
+  const after = fieldsOf(event.after);
+  if (event.verb !== 'task.updated' || event.actingForId !== me) return false;
+  if (Object.keys({ ...before, ...after }).some((key) => key !== 'helperIds')) return false;
+  if (!Array.isArray(before.helperIds) || !Array.isArray(after.helperIds)) return false;
+  const was = before.helperIds as string[];
+  const now = JSON.stringify(after.helperIds);
+  return now === JSON.stringify([...was, me]) || (was.includes(me) && now === JSON.stringify(was.filter((id) => id !== me)));
+}
+
 /** True when the event changed nothing but ticks: only the checklist, with the same items in the same order and the same texts. */
 function isTickOnly(event: Event): boolean {
   const keys = Object.keys(fieldsOf(event.after));
@@ -183,6 +196,8 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       if (event.verb === 'task.approved') return need('task.review');
       // The person who took a task with no lead may give it back (owner, 2026-10-05). Any other change of lead keeps the rule below.
       if (isOwnTake(ctx, event)) return need('task.take');
+      // The person who joined a task as a helper, or left it, may take that back (fbk_035).
+      if (isOwnHelp(ctx, event)) return need('task.help');
       if ('needsReview' in fieldsOf(event.after)) need('task.review');
       if (Object.keys(fieldsOf(event.after)).some((field) => ANY_TASK_FIELDS.includes(field))) return need('task.updateAny');
       const current = ctx.state.tasks[event.targetId];

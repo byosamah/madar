@@ -28,11 +28,13 @@ export function SignGlyph({ state }: { state: SignState }) {
 /**
  * A project's state as a small sign and a word (owner's choice "Shape signs", 2026-10-01): the shape carries the color,
  * the word stays in ink. No pill and no tinted fill, so the screen stays calm.
+ * `wrap` lets long words go to a second line in a narrow row, such as "Past due by 157 days" in a task row on a phone (fbk_036).
  */
-export function StatusSign({ state, children }: { state: SignState; children: ReactNode }) {
+export function StatusSign({ state, wrap = false, children }: { state: SignState; wrap?: boolean; children: ReactNode }) {
   const loud = state in COLOR;
+  const fit = wrap ? 'min-w-0 whitespace-normal' : 'shrink-0 whitespace-nowrap';
   return (
-    <span data-sign={state} className={`inline-flex min-h-6 shrink-0 items-center gap-1.5 whitespace-nowrap text-caption font-semibold ${loud ? 'text-ink' : 'text-ink-2'}`}>
+    <span data-sign={state} className={`inline-flex min-h-6 ${fit} items-center gap-1.5 text-caption font-semibold ${loud ? 'text-ink' : 'text-ink-2'}`}>
       <SignGlyph state={state} />
       {children}
     </span>

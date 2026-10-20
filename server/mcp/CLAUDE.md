@@ -32,10 +32,11 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 
 ## Tools
 - MCP spec 2026-07-28, stateless. A 2025-era client gets the stateless legacy answer.
-- 51 tools for every agent in `MCP_ALLOW`, plus 3 for an agent of an Admin in `MCP_ADMIN` (`feedback.list`,
-  `feedback.screenshot`, `feedback.setStatus`): 54, with 23 reads and 31 writes. The reads include `subCompanies.list`, which
+- 52 tools for every agent in `MCP_ALLOW`, plus 3 for an agent of an Admin in `MCP_ADMIN` (`feedback.list`,
+  `feedback.screenshot`, `feedback.setStatus`): 55, with 23 reads and 32 writes. The reads include `subCompanies.list`, which
   leaves the logo data out (`run.ts`). `MCP_BY_RIGHT` adds `reports.office` (the office
-  report, fbk_016) for an agent whose person holds the report right (Admin and Management by default), so an Admin's agent gets 55.
+  report, fbk_016) for an agent whose person holds the report right (Admin and Management by default), so an Admin's agent gets 56.
+  `tasks.help` (fbk_035) joins the person to a task as a helper, or takes them off it.
   The factory in `app.ts` picks the list for each request from the office rights of the owner, never the agent user. A 2026-07-28 client can keep tools/list for 5 minutes, and a
   2025-era client keeps it until it connects again (the server says listChanged but never sends that notice). So a role change
   shows late in a client, and tools/call always checks.

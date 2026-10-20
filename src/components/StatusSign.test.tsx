@@ -32,3 +32,16 @@ describe('the sign of a project', () => {
     expect(shapes.size).toBe(3);
   });
 });
+
+describe('a long sign in a narrow line (fbk_036)', () => {
+  it('wraps to a second line when the row asks for it, and stays on one line by default', () => {
+    const wrapped = render(<StatusSign state="late" wrap>Past due by 157 days</StatusSign>).container.querySelector('[data-sign="late"]') as HTMLElement;
+    expect(wrapped.className).toContain('whitespace-normal');
+    expect(wrapped.className).toContain('min-w-0');
+    expect(wrapped.className).not.toContain('shrink-0');
+    expect(wrapped.className).not.toContain('whitespace-nowrap');
+    const plain = render(<StatusSign state="late">Late</StatusSign>).container.querySelector('[data-sign="late"]') as HTMLElement;
+    expect(plain.className).toContain('whitespace-nowrap');
+    expect(plain.className).toContain('shrink-0');
+  });
+});

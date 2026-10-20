@@ -14,7 +14,7 @@ export type ToastInput = {
 /** step: the step of the person that showed the toast (see "steps" in the ToastProvider). */
 type ToastItem = ToastInput & { id: number; step: number };
 
-const ToastContext = createContext<{ show: (toast: ToastInput) => void } | null>(null);
+const ToastContext = createContext<{ show: (toast: ToastInput) => void; setStanding: (text: string | null) => void } | null>(null);
 
 /**
  * The presses that started on a toast. A sheet waits for the end of a press (the click) before it decides that a press was
@@ -70,6 +70,8 @@ const isHeld = (holder: Holder) => holder.pointer !== null || holder.focus !== n
  */
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  // The one notice that stays while a state lasts (useStandingNotice), such as "Live updates paused".
+  const [standing, setStanding] = useState<string | null>(null);
   const latest = useRef(toasts);
   latest.current = toasts;
   // Each toast's time left, and its running timer. While a toast holds the pointer or the focus, no timer runs.
@@ -159,13 +161,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       sheetWatchers.delete(watch);
     };
   }, [dismiss]);
-  const value = useMemo(() => ({ show }), [show]);
+  const value = useMemo(() => ({ show, setStanding }), [show]);
   return (
     <ToastContext.Provider value={value}>
       {children}
       {/* A live region: sheets hide the rest of the page from screen readers, but never a live region, so toasts stay heard. */}
       {/* A press here never counts as a press outside an open sheet: see isToastPress (audit 2026-10-03, V-11). */}
       <div data-toasts aria-live="polite" onPointerDownCapture={(event) => toastPresses.add(event.nativeEvent)} className={`${LANE} ${overSheet ? LANE_OVER_SHEET : ''}`}>
+        {standing && (
+          <div role="status" data-standing className="float flex min-h-11 max-w-full items-center rounded-full px-5 py-2 text-center text-subheadline text-ink">
+            {standing}
+          </div>
+        )}
         {toasts.map((toast) => (
           <div
             key={toast.id}
@@ -208,6 +215,20 @@ export type Toasts = {
    */
   failed: (error: unknown, options?: { retry?: () => void; message?: string }) => void;
 };
+
+/**
+ * A notice that stays while a state lasts, such as "Live updates paused" (owner, 2026-10-20). It floats in the lane of the toasts,
+ * above them, so it never covers the header or moves the page. Null takes it away. One screen part owns it: the StorageBanner.
+ */
+export function useStandingNotice(text: string | null): void {
+  const context = useContext(ToastContext);
+  if (!context) throw new Error('ToastProvider is missing.');
+  const { setStanding } = context;
+  useEffect(() => {
+    setStanding(text);
+    return () => setStanding(null);
+  }, [text, setStanding]);
+}
 
 /** The toasts, with the two kinds that most screens show written once (cleanup 2026-10-06). */
 export function useToast(): Toasts {

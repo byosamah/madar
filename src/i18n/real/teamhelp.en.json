@@ -1,0 +1,47 @@
+{
+  "taskHelp": {
+    "hint": "You can view this to-do. Do you work on it too? Join as a helper, so your name shows on it.",
+    "join": "Join as a helper",
+    "joined": "You help on this to-do now.",
+    "leave": "Leave this to-do",
+    "left": "You do not help on this to-do now."
+  },
+  "settings": {
+    "triggers": {
+      "helper_joined": "Someone joins my to-do as a helper",
+      "task_deleted": "Someone deletes a to-do that I added"
+    }
+  },
+  "inbox": {
+    "trigger": {
+      "helper_joined": "{{actor}} joined “{{target}}” as a helper",
+      "task_deleted": "{{actor}} deleted “{{target}}”"
+    }
+  },
+  "errors": {
+    "reasons": {
+      "lead_is_helper": "The lead of a to-do cannot also help on it.",
+      "office_help": "The person who made an office to-do names its helpers."
+    }
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-59": {
+        "title": "The connection line is easy to read",
+        "body": "Lines such as “Live updates paused” went under the top bar. Now they show at the bottom of the screen, where other messages show, and the top bar stays in its place."
+      },
+      "2026-10-23-56": {
+        "title": "Join a to-do as a helper",
+        "body": "Do you work on a to-do that another person leads? Open the to-do and press “Join as a helper”. Your name then shows on the to-do, and its lead gets a notice. To leave, press “Leave this to-do”."
+      },
+      "2026-10-23-57": {
+        "title": "The lead can delete a to-do",
+        "body": "Did a to-do go into the wrong project? Its lead can now delete it: open the to-do and press “Delete to-do” at the end. The person who added the to-do gets a notice. Undo brings the to-do back."
+      },
+      "2026-10-23-58": {
+        "title": "Past-due words fit on a phone",
+        "body": "On a phone, a long line such as “Past due by 157 days” went under the chat button of a to-do. Now the line goes on to a second line."
+      }
+    }
+  }
+}

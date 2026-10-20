@@ -6,7 +6,7 @@ export type Action =
   | 'project.view' | 'project.create' | 'project.edit' | 'project.changeLeader' | 'project.archive'
   | 'project.delete' | 'project.healthOverride' | 'project.editCode'
   | 'task.view' | 'task.createForAnyone' | 'task.createForSelf' | 'task.updateOwn' | 'task.contribute' | 'task.updateAny' | 'task.review' | 'task.delete'
-  | 'task.take' | 'meeting.view' | 'meeting.create' | 'meeting.edit' | 'meeting.minutes'
+  | 'task.take' | 'task.help' | 'meeting.view' | 'meeting.create' | 'meeting.edit' | 'meeting.minutes'
   | 'content.post' | 'content.editOwn' | 'chat.project' | 'comment.read'
   | 'event.undoAgent' | 'admin.manage' | 'people.manage' | 'payment.manage' | 'clients.manage' | 'templates.manageAll' | 'report.office';
 
@@ -97,6 +97,25 @@ export function taskResource(state: State, task: TaskPeople, viewerId: string): 
   return { projectRole: projectRoleOf(state, task.projectId, viewerId), makerId, ...people };
 }
 
+/** The fields of an event side as a plain record. */
+const sideOf = (side: unknown): Record<string, unknown> => (side && typeof side === 'object' ? side as Record<string, unknown> : {});
+
+/**
+ * True when the lead of a task got it with their own take of a task with no lead (tasks.take): the newest change of its lead that
+ * still stands is the lead's own take. Such a lead does not delete the task, so a take never opens a delete (fbk_034, security
+ * review 2026-10-20). It reads the history of the task, which the server loads with the task (taskTail).
+ */
+export function leadTookTask(state: State, task: Pick<Task, 'id' | 'ownerId'>): boolean {
+  if (task.ownerId === null) return false;
+  let newest: State['events'][string] | undefined;
+  for (const event of Object.values(state.events)) {
+    if (event.targetType !== 'task' || event.targetId !== task.id || event.undoneBy || !('ownerId' in sideOf(event.after))) continue;
+    if (!newest || event.seq > newest.seq) newest = event;
+  }
+  if (!newest || newest.verb !== 'task.reassigned' || newest.actingForId !== task.ownerId) return false;
+  return (sideOf(newest.before).ownerId ?? null) === null && sideOf(newest.after).ownerId === task.ownerId;
+}
+
 /** The one view rule of a task: everyone sees a project task; an office task shows to its maker, lead, helpers and the Admin. */
 export function mayViewTask(state: State, viewer: User, task: TaskPeople): boolean {
   return can(viewer, 'task.view', taskResource(state, task, viewer.id));
@@ -121,6 +140,8 @@ function canOnOfficeTask(actor: User, action: Action, resource: Resource): boole
     case 'content.post':
     case 'task.contribute':
     case 'task.take':
+    // A helper leaves an office task. Nobody joins one: its maker names its people (fbk_035, the call refuses a join).
+    case 'task.help':
       return sees;
     case 'task.updateOwn':
       return leads;
@@ -222,8 +243,10 @@ export function can(actor: Actor, action: Action, resource: Resource = {}): bool
     case 'event.undoAgent':
       return leads;
     case 'task.updateAny':
-    case 'task.delete':
       return makes;
+    // The lead deletes the task too, for a task that went into the wrong project. The call tells the maker (fbk_034, owner 2026-10-20).
+    case 'task.delete':
+      return makes || (onProject && resource.ownerId === actor.id);
     // The office settings stay with the Admin.
     case 'admin.manage':
       return admin;
@@ -246,6 +269,8 @@ export function can(actor: Actor, action: Action, resource: Resource = {}): bool
     case 'chat.project':
     // A person on the team takes the lead of a task with no lead (owner, 2026-10-05). The call checks that the task has none.
     case 'task.take':
+    // A person on the team joins a task as a helper, or leaves it, with one tap (fbk_035, owner 2026-10-20).
+    case 'task.help':
       return onProject;
     case 'task.updateOwn':
       return makes || (onProject && resource.ownerId === actor.id);

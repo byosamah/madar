@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { ApiError } from '../api/errors';
 import { Sheet } from '../components/Sheet';
 import { initI18n } from '../i18n';
-import { ToastProvider, useToast } from './toasts';
+import { ToastProvider, useStandingNotice, useToast } from './toasts';
 
 // The two kinds of toast that most screens show, written once (cleanup 2026-10-06): a change with Undo, and a failed call.
 describe('the toast helpers', () => {
@@ -161,5 +161,26 @@ describe('toasts and an open sheet (owner, 2026-10-06, layout)', () => {
     await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(lane()).not.toHaveClass(...top));
     expect(lane()).toHaveClass(...bottom);
+  });
+});
+
+// A notice that stays while a state lasts, such as "Live updates paused" (owner, 2026-10-20): it floats in the lane of the toasts,
+// above them, so it never covers the header or moves the page.
+describe('the standing notice', () => {
+  function Notice({ text }: { text: string | null }) {
+    useStandingNotice(text);
+    const toast = useToast();
+    return <button type="button" onClick={() => toast.show({ message: 'Saved.' })}>Save</button>;
+  }
+
+  it('shows in the toast lane above the toasts, stays past the time of a toast, and goes when the text goes', async () => {
+    initI18n('en');
+    const { rerender } = render(<ToastProvider><Notice text="Live updates paused. Your changes still save." /></ToastProvider>);
+    const lane = document.querySelector('[data-toasts]') as HTMLElement;
+    expect(within(lane).getByRole('status')).toHaveTextContent('Live updates paused. Your changes still save.');
+    await userEvent.click(screen.getByText('Save'));
+    expect(within(lane).getAllByRole('status').map((item) => item.textContent)).toEqual(['Live updates paused. Your changes still save.', 'Saved.']);
+    rerender(<ToastProvider><Notice text={null} /></ToastProvider>);
+    await waitFor(() => expect(within(lane).queryByText('Live updates paused. Your changes still save.')).toBeNull());
   });
 });

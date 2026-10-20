@@ -28,6 +28,7 @@ import { TabPanel, Tabs } from '../../../components/Tabs';
 import { BOARD_COLUMNS, moveTargets } from '../../../lib/board';
 import { formatDay, formatNumber } from '../../../lib/dates';
 import { actorContext } from '../../../lib/grammar';
+import { helpersOf } from '../../../lib/taskPeople';
 import { CommentThread } from '../../comments/CommentThread';
 import { canPreview, PreviewSheet } from '../files/PreviewSheet';
 import { useFocusLink } from '../../focus/focusLink';
@@ -271,6 +272,9 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
   });
   // A person on the team takes a task with no lead in one press, and Undo gives it back (owner, 2026-10-05).
   const take = useUndoable('tasks.take', { message: () => t('lead.taken') });
+  // A person on the team joins a task as a helper in one press, or leaves it, and Undo takes it back (fbk_035, owner 2026-10-20).
+  const join = useUndoable('tasks.help', { message: () => t('taskHelp.joined', { context: actorContext(session.data?.authority) }) });
+  const leave = useUndoable('tasks.help', { message: () => t('taskHelp.left', { context: actorContext(session.data?.authority) }) });
   const remove = useUndoable('tasks.delete', {
     message: () => t('taskSheet.deleted'),
     onSuccess: () => {
@@ -340,6 +344,8 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
   // (owner, 2026-10-07).
   const choices = detail && !detail.viewerCan.edit ? pickable.filter((person) => teamIds.has(person.id)) : pickable;
   const me = session.data?.authority.id;
+  // A helper may leave the task with one press at the end of the panel (fbk_035).
+  const helping = me !== undefined && helpersOf(task).includes(me);
   const canUndoAgent = useCallback(
     (actingForId: string) => (detail ? detail.viewerCan.review : viewerCan.editAll) || actingForId === me,
     [detail, viewerCan.editAll, me],
@@ -377,7 +383,14 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
           <div className="flex flex-col gap-5">
             {/* An office task says who sees it (owner, 2026-10-06). */}
             {!detail && <p className="text-footnote text-label-2">{t('office.sheetNote')}</p>}
-            {!edit && !viewerCan.take && <p className="rounded-2xl bg-fill p-3 text-footnote text-label-2">{t(detail ? 'taskSheet.readOnly' : 'office.readOnly')}</p>}
+            {/* A team member who neither leads nor helps joins as a helper in one press, so their part shows on the task (fbk_035).
+                The leader and the maker name helpers in the people fields, so they get no second way. */}
+            {!edit && !viewerCan.take && (viewerCan.help && !viewerCan.editAll ? (
+              <section aria-label={t('taskHelp.join')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
+                <p className="text-footnote text-label-2">{t('taskHelp.hint')}</p>
+                <Button disabled={join.isPending} onClick={() => join.mutate({ taskId: task.id, help: true })}>{t('taskHelp.join')}</Button>
+              </section>
+            ) : <p className="rounded-2xl bg-fill p-3 text-footnote text-label-2">{t(detail ? 'taskSheet.readOnly' : 'office.readOnly')}</p>)}
             {/* A task with no lead: one next step, Take it (owner, 2026-10-05). Nobody can finish the task before it has a lead. */}
             {viewerCan.take && (
               <section aria-label={t('lead.noLead')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
@@ -499,8 +512,9 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
             <AgeRefresh.Provider value={refresh}>
               <History data={data} canUndoAgent={canUndoAgent} />
             </AgeRefresh.Provider>
-            {(viewerCan.saveTemplate || viewerCan.delete) && (
+            {(viewerCan.saveTemplate || viewerCan.delete || helping) && (
               <div className="flex flex-wrap gap-3">
+                {helping && <Button disabled={leave.isPending} onClick={() => leave.mutate({ taskId: task.id, help: false })}>{t('taskHelp.leave')}</Button>}
                 {viewerCan.saveTemplate && (
                   <Button disabled={saveTemplate.isPending} onClick={() => saveTemplate.mutate({ fromTaskId: task.id })}>{t('taskSheet.saveTemplate')}</Button>
                 )}

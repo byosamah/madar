@@ -220,6 +220,11 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - The person who adds a project task (`principalOf(createdBy)`, so the task of an agent belongs to its person) holds the
   leader's rights on it while on the team: `task.updateAny` (lead, helpers, prerequisites), `task.updateOwn` (title, dates,
   stage, status, checklist) and `task.delete`. `taskResource` names `makerId` for a project task too.
+- The lead of a project task holds `task.delete` too (fbk_034, owner 2026-10-20): a task can go into the wrong project. A delete
+  by anyone but the maker sends the maker the in-app notice `task_deleted`. An office task stays with its maker and the Admin.
+- `tasks.help` (fbk_035, owner 2026-10-20): a person on the team (`task.help`) joins a project task as a helper, or leaves it,
+  with one tap. The lead gets the in-app notice `helper_joined`; a leave tells nobody. Nobody joins an office task (`office_help`);
+  its helper may leave. `isOwnHelp` (`history.ts`) lets the person undo their own join or leave. `viewerCan.help` shows the join.
 - The review stays with the leader and the Admin: `task.review` (approve, send back) and the review need (`needsReview` in
   `tasks.update`, and `needsReview: false` in `tasks.create`). `TaskDetail.viewerCan.setNeedsReview` shows the switch.
 - `task.createForAnyone` equals `task.createForSelf` on a project: a team member names any team mate as lead and helpers.
