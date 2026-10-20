@@ -266,12 +266,12 @@ describe('the morning summary lists the open tasks (fbk_021, owner 2026-10-19)',
     const m = renderMail('summary', 'en', MANY, {}, { appUrl: APP_URL });
     expect(m.text.match(/^- Task number \d$/gm)).toHaveLength(8);
     expect(m.html.match(/Task number \d/g)).toHaveLength(8);
-    expect(m.text).toContain('and 5 more tasks.');
-    expect(m.html).toContain('and 5 more tasks.');
+    expect(m.text).toContain('and 5 more to-dos.');
+    expect(m.html).toContain('and 5 more to-dos.');
     expect(m.text).toContain('2 reviews wait for you.');
     // The "more" line and the review line come after the lists and before the button.
-    expect(m.text.indexOf('and 5 more tasks.')).toBeGreaterThan(m.text.indexOf('- Task number 8'));
-    expect(m.text.indexOf('2 reviews wait for you.')).toBeGreaterThan(m.text.indexOf('and 5 more tasks.'));
+    expect(m.text.indexOf('and 5 more to-dos.')).toBeGreaterThan(m.text.indexOf('- Task number 8'));
+    expect(m.text.indexOf('2 reviews wait for you.')).toBeGreaterThan(m.text.indexOf('and 5 more to-dos.'));
     expect(m.text.indexOf('Open Madar: ')).toBeGreaterThan(m.text.indexOf('2 reviews wait for you.'));
     expect(m.html.match(/>Open Madar<\/a>/g)).toHaveLength(1);
     expect(m.text.match(/Open Madar: /g)).toHaveLength(1);
@@ -331,6 +331,6 @@ describe('the morning summary lists the open tasks (fbk_021, owner 2026-10-19)',
   it('inflects the Arabic "more" line for 1, 2, 3 and 11 tasks', () => {
     const more = [1, 2, 3, 11, 100].map((n) => renderMail('summary', 'ar', { ...NONE, more: n }).text.split('\n').find((l) => l.includes('أخر'))!);
     expect(more).toEqual(['ومهمة أخرى.', 'ومهمتان أخريان.', 'و3 مهام أخرى.', 'و11 مهمة أخرى.', 'و100 مهمة أخرى.']);
-    expect(renderMail('summary', 'en', { ...NONE, more: 1 }).text).toContain('and 1 more task.');
+    expect(renderMail('summary', 'en', { ...NONE, more: 1 }).text).toContain('and 1 more to-do.');
   });
 });

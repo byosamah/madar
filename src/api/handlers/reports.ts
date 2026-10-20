@@ -206,8 +206,8 @@ function gapsOf(state: State, tasks: Task[], projects: Project[]): string[] {
   const active = projects.filter((project) => project.status === 'active');
   const noStageEnd = active.filter((project) => stagesOf(state, project.id).some((stage) => stage.endDate === null)).length;
   const counts: [string, number][] = [
-    ['Open tasks with no due date', open.filter((task) => task.dueDate === null).length],
-    ['Open tasks with no lead', open.filter((task) => task.ownerId === null).length],
+    ['Open to-dos with no due date', open.filter((task) => task.dueDate === null).length],
+    ['Open to-dos with no lead', open.filter((task) => task.ownerId === null).length],
     ['Active projects with a stage that has no end date', noStageEnd],
     ['Active projects with no area', active.filter((project) => project.areaM2 === null).length],
     // Counted only when the office has a sub-company (INT-10).

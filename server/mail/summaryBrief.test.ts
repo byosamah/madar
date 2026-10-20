@@ -97,7 +97,7 @@ describe('the morning email with the open tasks, through the outbox driver', () 
     ]);
     expect(text.indexOf('\nPast due\n')).toBeLessThan(text.indexOf('\nToday\n'));
     expect(text.indexOf('\nToday\n')).toBeLessThan(text.indexOf('\nThis week\n'));
-    expect(text).toContain('and 3 more tasks.');
+    expect(text).toContain('and 3 more to-dos.');
     expect(text).not.toMatch(/reviews? waits? for you/);
     // Left out: done, in review, no date, a paused project, another person's task, and the tasks due after this week.
     for (const left of ['A finished drawing', 'A drawing in review', 'A task with no date', 'A task of a paused project', 'A task of another person', 'Plan the tender package', 'Close the year file']) {
