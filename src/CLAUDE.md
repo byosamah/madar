@@ -486,8 +486,11 @@ any screen work.
   A notice and the Home card link to `meetingLink(id)` (`/meetings?meeting=<id>`).
 - `MeetingSheet.tsx` has at most one main button, chosen by `mainAction` (`meetingLinks.ts`): "Join" (the place is one `https://` link, and the
   meeting starts in 30 minutes or less or is on), else "Open in Google Maps" (a site visit of a project with a pin; the pin comes from `projects.get`),
-  else none. A cancelled or finished meeting has none. The menu holds Edit and Cancel by `viewerCan`. Cancel asks first (Keep meeting has the focus),
-  then a toast with Undo. A meeting that the person may not see reads "This meeting is not available.", as one that does not exist. Use `now()` from
+  else none. A cancelled or finished meeting has none. The footer of the sheet holds the buttons (owner, 2026-10-23, fbk_037, Faisal; the "..." menu is gone), in this order: "Cancel meeting" (`destructive`, at the start side with `me-auto`) or, for a
+  cancelled meeting, "Delete meeting" in its place; then "Edit" (secondary); then the one main button. Each shows by `viewerCan` (`cancel`, `delete`, `edit`). The Sheet footer is `flex flex-wrap justify-end`, so on a
+  narrow screen the row wraps and never overflows. Cancel asks first (Keep meeting has the focus), then a toast with Undo. "Delete meeting" (a cancelled meeting that the person may change)
+  asks nothing for a meeting in no series: the call `meetings.delete`, the sheet closes, and the toast "Meeting deleted." offers Undo (the meeting comes back). For a meeting of a series it opens
+  `ScopeSheet` in mode `delete` ("This meeting" / "This and later meetings"; the second deletes only the later cancelled meetings); the toast says "Meetings deleted." for more than one. A meeting that the person may not see reads "This meeting is not available.", as one that does not exist. Use `now()` from
   `lib/dates.ts`, never `new Date()`: the tests fix the clock.
 - `MeetingForm.tsx` plans and edits. Eight controls: Kind, Title, Project, Day, Time, Length, People, Where. The fold "More" holds Guests and Notes
   (no Minutes by: any attendee writes the minutes, owner 2026-10-19). A kind sets the length until the person chooses it (`kindDefaults`), and the place of a site visit
@@ -509,7 +512,7 @@ any screen work.
 - Repeating meetings on the screens (wave 3, owner 2026-10-19; `series.*` words in `i18n/real/series.*.json`). The new meeting form keeps Repeat under "More"
   (`REPEATS` in `formModel.ts`: Does not repeat, Every day (Sunday to Thursday), Every week, Every 2 weeks), and Until (a `DateField`, optional, not before the day
   of the first meeting and at most `REPEAT_MAX_DAYS` after it) shows only when a repeat is chosen. The visible controls stay eight. The edit form has neither: the rule of
-  a series is fixed. `ScopeSheet.tsx` is the question before a change or a cancel of a meeting with a `seriesId`: two plain buttons, "This meeting" and "This and
+  a series is fixed. `ScopeSheet.tsx` is the question before a change, a cancel or a delete (mode `edit`, `cancel`, `delete`) of a meeting with a `seriesId`: two plain buttons, "This meeting" and "This and
   later meetings", with the focus on the first; Escape or Close leaves the meeting as it is. The edit form opens it after Save when something changed (nothing
   changed: it closes, as before), and turns the second button off with a short line when the change moves the meeting to a new day (the server refuses a new
   day with `later`). The meeting sheet opens it (mode `cancel`) in place of the plain "Cancel this meeting?" question for a meeting of a series; the plain question

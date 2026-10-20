@@ -171,9 +171,9 @@ describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
     expect(deps.files.calls.filter((c) => c.op === 'remove').map((c) => c.key)).toEqual([[staging, staging.replace(/\/file$/, '/thumb'), final].join(',')]);
   });
 
-  it('runs the usage step in the first run of each hour only', () => {
-    expect(officeSteps(new Date('2026-10-04T05:00:00Z')).map((s) => s.name)).toContain('usage');
-    expect(officeSteps(new Date('2026-10-04T05:15:00Z')).map((s) => s.name)).not.toContain('usage');
+  it('has no usage step any more (owner, 2026-10-23), and runs every other step in each run', () => {
+    for (const at of ['2026-10-04T05:00:00Z', '2026-10-04T05:15:00Z']) expect(officeSteps(new Date(at)).map((s) => s.name)).not.toContain('usage');
+    expect(officeSteps(new Date('2026-10-04T05:15:00Z')).map((s) => s.name)).toContain('uploads');
   });
 
   it('runs the cleanup of the old sign-in rows in the first run after 00:00 UTC only (exit waves 2 and 3)', () => {

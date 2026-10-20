@@ -207,13 +207,12 @@ describe('the cache life of the real build (performance audit FET-5)', () => {
     const app = setup();
     const link: Read = ['files.link', { id: 'fil_001', variant: 'thumb', disposition: 'inline' }];
     const search: Read = ['search.query', { q: 'villa' }];
-    const usage: Read = ['usage.get', {}];
-    await app.show(link, search, usage);
+    await app.show(link, search);
     await app.show();
     await wait(5 * MINUTE - 1000);
-    expect([app.has(link), app.has(search), app.has(usage)]).toEqual([true, true, true]);
+    expect([app.has(link), app.has(search)]).toEqual([true, true]);
     await wait(2000);
-    expect([app.has(link), app.has(search), app.has(usage)]).toEqual([false, false, false]);
+    expect([app.has(link), app.has(search)]).toEqual([false, false]);
     app.unmount();
   });
 

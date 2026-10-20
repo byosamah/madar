@@ -39,7 +39,7 @@ select today.mine or exists (select 1 from added) as ok from today`;
 export const REFUSAL_MARK_SQL = `insert into mail_log (utc_day, kind, ref) values (${DAY}, 'refused', 'quota-refused')
 on conflict (utc_day, ref) do nothing returning id`;
 
-/** $1 day. The emails of the day, as Resend counts them (the usage meter reads this too). */
+/** $1 day. The emails of the day, as Resend counts them. */
 export const SENT_TODAY_SQL = `select count(*)::integer as n from mail_log where utc_day = ${DAY} and ${SENDING}`;
 
 /** $1 ref. The place of a mail that has no Resend id. */

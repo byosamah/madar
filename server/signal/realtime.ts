@@ -1,4 +1,4 @@
-import type { Logger, MeterPort, Query, SignalPort } from '../core/ports';
+import type { Logger, Query, SignalPort } from '../core/ports';
 import type { ChangeSignal } from '../core/types';
 import { onNotice, type DbNotice } from '../data/sql';
 
@@ -9,7 +9,7 @@ import { onNotice, type DbNotice } from '../data/sql';
  *
  * realtime.send catches every error of its insert and raises only a WARNING (WarnSendingBroadcastMessage), so its statement
  * succeeds also when nothing was sent (proof.md, Z0a item 5). The sender listens to the notices of its statement and counts
- * each such warning as a failed signal: it logs the warning and reports it to the meter. The save still commits; the next signal on
+ * each such warning as a failed signal: it logs the warning. The save still commits; the next signal on
  * that channel shows a gap in seq, and the screens reload (plan 5.3, Gaps). Supabase grants and policies:
  * supabase/migrations/20261004000200_platform_realtime.sql.
  */
@@ -32,7 +32,6 @@ export type NoticeListen = (q: Query, listener: (notice: DbNotice) => void) => (
 
 export type RealtimeSenderOptions = {
   log: Logger;
-  meter?: MeterPort;
   /** onNotice of pgDb by default. Unit tests pass their own. */
   listen?: NoticeListen;
 };
@@ -58,7 +57,6 @@ export function realtimeSender(o: RealtimeSenderOptions): SignalPort {
         seqs: signals.map((signal) => signal.seq),
         warnings,
       });
-      o.meter?.signalsFailed(warnings.length);
     },
   };
 }

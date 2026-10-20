@@ -38,7 +38,7 @@ describe('the real Deps from the environment', () => {
 
   it('builds every port and the config from a full environment, with the defaults of the plan', () => {
     const deps = buildDeps(reader(FULL));
-    expect(Object.keys(deps).sort()).toEqual(['authAdmin', 'clock', 'config', 'db', 'files', 'log', 'mail', 'meter', 'signal']);
+    expect(Object.keys(deps).sort()).toEqual(['authAdmin', 'clock', 'config', 'db', 'files', 'log', 'mail', 'signal']);
     expect(deps.config).toMatchObject({
       appUrl: 'https://madar.example',
       apiUrl: 'https://ref.supabase.co/functions/v1/api',
@@ -75,12 +75,6 @@ describe('the real Deps from the environment', () => {
       forwardRegion: 'eu-west-2',
       lockKey: 42,
     });
-  });
-
-  it('takes the serving host of the copy from config/server-host.json by SUPABASE_URL, and supabase for a local stack', () => {
-    expect(configFromEnv(reader({ ...FULL, SUPABASE_URL: 'http://127.0.0.1:54321' })).servingHost).toBe('supabase');
-    expect(configFromEnv(reader({ ...FULL, SUPABASE_URL: 'https://qdgwpnesxppnqsaabqzd.supabase.co' })).servingHost).toBe(serverHostOf('test'));
-    expect(configFromEnv(reader({ ...FULL, SUPABASE_URL: 'https://oprkvdjudjxxhvodkzgs.supabase.co' })).servingHost).toBe(serverHostOf('production'));
   });
 
   it('names the Worker by WORKER_REGION when SB_REGION is absent; on Supabase SB_REGION wins (owner, 2026-10-16)', () => {

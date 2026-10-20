@@ -20,11 +20,10 @@ async function liveOffice() {
   const seed = await buildSeed('2026-10-04', async () => undefined);
   await lite.db.tx('write', (q) => liteWriteState(q, seed));
   const sockets = fakeSockets();
-  const failed: number[] = [];
-  const port = liveSignals({ sockets, meter: { signalsFailed: (n) => failed.push(n) }, log: silent, now: () => NOW, staleMs: LIVE_STALE_MS });
+  const port = liveSignals({ sockets, log: silent, now: () => NOW, staleMs: LIVE_STALE_MS });
   const tickets = new LiveTickets();
   const accept = (request: Request, at = NOW) => acceptLive({ sockets, tickets, office: () => lite.db.tx('read', (q) => readLiteOffice(lite.db, q)), now: () => at }, request);
-  return { ...lite, seed, sockets, port, failed, tickets, accept };
+  return { ...lite, seed, sockets, port, tickets, accept };
 }
 
 describe('the change signals on the sockets of the office object (server/office/live.ts)', () => {
@@ -83,11 +82,10 @@ describe('the change signals on the sockets of the office object (server/office/
     expect(other.sent).toEqual([]);
   });
 
-  it('counts a send that throws as a failed signal', async () => {
-    const { db, sockets, port, failed } = await liveOffice();
+  it('does not fail the transaction when a send throws: the screen reloads when its socket opens again', async () => {
+    const { db, sockets, port } = await liveOffice();
     openFor(sockets, 'usr_002', NOW.getTime()).failSend = true;
-    await db.tx('write', (q) => port.send(q, [signal('office')]));
-    expect(failed).toEqual([1]);
+    await expect(db.tx('write', (q) => port.send(q, [signal('office')]))).resolves.toBeUndefined();
   });
 });
 

@@ -12,12 +12,11 @@ import { diffState, writeDiff } from '../data/save';
 import { NEW_NOTICES_SQL, NOTICE_EFFECT, NOTICE_MAIL_SQL, sendNoticeMail } from '../mail/notices';
 import { RESERVE_SQL } from '../mail/quota';
 import { fakeDeps } from '../test/fakes/deps';
-import { meterPort } from '../usage/meter';
 import { apiApp } from './app';
 
 /**
  * The database round trips before the answer (performance audit 2026-10-07: SRV-1, SRV-4, SRV-9). A unit-level count: the real
- * pgDb over a fake pg that counts every query, the real batch route, runCall, meter and notice mail effect. Only the rows come
+ * pgDb over a fake pg that counts every query, the real batch route, runCall and notice mail effect. Only the rows come
  * from memory (server/core/memoryData.ts): each step of a call transaction sends the statement that the SQL form sends (the lock,
  * office_meta, one statement for each loader read, the real writeDiff, the outbox insert, the notice producer, the signal), so
  * the counts follow the real code. The story and idempotency rows stay in memory and are not counted (the same in both forms).
@@ -146,8 +145,8 @@ type Measured = { beforeAnswer: number; total: number; status: number };
 async function measure(calls: { name: string; input: unknown }[]): Promise<Measured> {
   const mem = memoryData(seed);
   const db = pgDb(LOCAL);
-  // The real meter, and a signal port that sends its one realtime.send statement (server/signal/realtime.ts).
-  const deps: Deps = { ...fakeDeps({ db }), meter: meterPort(), signal: { send: async (q) => void (await q('select realtime.send($1)')) } };
+  // A signal port that sends its one realtime.send statement (server/signal/realtime.ts).
+  const deps: Deps = { ...fakeDeps({ db }), signal: { send: async (q) => void (await q('select realtime.send($1)')) } };
   const data = countingData(mem, db);
   const app = apiApp(deps, {
     runCall: createRunCall({ data: () => data }),
@@ -167,7 +166,7 @@ async function measure(calls: { name: string; input: unknown }[]): Promise<Measu
 }
 
 describe('the round trips before the answer (performance audit SRV-1, SRV-4, SRV-9)', () => {
-  it('a read batch of 4 calls: the sign-in read, 4 read transactions with one start statement each, and no meter', async () => {
+  it('a read batch of 4 calls: the sign-in read, 4 read transactions with one start statement each', async () => {
     const read = await measure([
       { name: 'projects.get', input: { id: 'prj_001' } },
       { name: 'tasks.list', input: { projectId: 'prj_001' } },
@@ -177,16 +176,16 @@ describe('the round trips before the answer (performance audit SRV-1, SRV-4, SRV
     console.log('round trips, 4-call read batch:', JSON.stringify(read));
     expect(read.status).toBe(200);
     // Before the audit: 37 before the answer. The sign-in read 4, each entry 4 plus its 3 loader reads, the meter 5.
-    // Now: the sign-in read 3, each entry 3 plus its loader reads, and the meter (3) after the answer.
-    expect(read).toMatchObject({ beforeAnswer: 27, total: 30 });
+    // Now: the sign-in read 3, each entry 3 plus its loader reads. The usage meter (3 after the answer) went with the usage feature (owner, 2026-10-23).
+    expect(read).toMatchObject({ beforeAnswer: 27, total: 27 });
   });
 
-  it('a task save that mails one person: the notice mail and the meter go after the answer', async () => {
+  it('a task save that mails one person: the notice mail goes after the answer', async () => {
     const save = await measure([{ name: 'tasks.update', input: { id: 'tsk_001', patch: { title: 'Roof plan' } } }]);
     console.log('round trips, a task save that mails one person:', JSON.stringify(save));
     expect(save.status).toBe(200);
     // Before the audit: 57 before the answer. The sign-in read 4, the write transaction 22, the notice mail 26, the meter 5.
-    // Now: the sign-in read 3 and the write transaction 20 before the answer; the notice mail 16 and the meter 3 after it.
-    expect(save).toMatchObject({ beforeAnswer: 23, total: 42 });
+    // Now: the sign-in read 3 and the write transaction 20 before the answer; the notice mail 16 after it (the meter 3 went, 2026-10-23).
+    expect(save).toMatchObject({ beforeAnswer: 23, total: 39 });
   });
 });

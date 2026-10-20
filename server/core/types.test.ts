@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import type { ApiErrorCode } from '../../src/api/errors';
 import type { ChangeSignal as WireSignal, WireEntry } from '../../src/api/remote/wire';
-import { FILE_STORE_LIMITS, fileStoreKind, type AuthAdminPort, type Deps, type FilesPort, type MailPort, type MeterPort, type SignalPort } from './ports';
+import { FILE_STORE_LIMITS, fileStoreKind, type AuthAdminPort, type Deps, type FilesPort, type MailPort, type SignalPort } from './ports';
 import type { BatchScope, ChangeSignal, Kind, OfficeSnapshot, RunResult, ServerCall, StoryRef } from './types';
 import { OFFICE_COLLECTIONS } from './types';
 import { fakeDeps } from '../test/fakes/deps';
@@ -48,7 +48,6 @@ describe('the server types (type-level checks; the file compiles only when they 
     expectTypeOf(deps.mail).toExtend<MailPort>();
     expectTypeOf(deps.signal).toExtend<SignalPort>();
     expectTypeOf(deps.authAdmin).toExtend<AuthAdminPort>();
-    expectTypeOf(deps.meter).toExtend<MeterPort>();
   });
 });
 

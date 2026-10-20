@@ -126,7 +126,6 @@ export function readOnlyDeps(db: Deps['db']): Deps {
       listUsers: refuse('list the Auth users'),
       getUser: refuse('read an Auth user'),
     },
-    meter: { addBytes: () => undefined, countRequest: async () => undefined, signalsFailed: () => undefined },
     config: {
       lockKey: LOCK_KEY,
       appUrl: local,
@@ -140,7 +139,6 @@ export function readOnlyDeps(db: Deps['db']): Deps {
       forwardRegion: 'eu-central-1',
       fileStore: 'supabase',
       limits: { maxFileBytes: FILE_STORE_LIMITS.supabase.maxFileBytes, filesTotalBytes: FILE_STORE_LIMITS.supabase.totalBytes },
-      servingHost: 'supabase',
     },
     log: quiet,
   };

@@ -8,7 +8,6 @@ import { r2FilesPort } from './files/r2';
 import { supabaseStorageFilesPort } from './files/supabaseStorage';
 import { mcpApp } from './mcp/app';
 import { jobsApp } from './jobs/app';
-import { meterPort } from './usage/meter';
 import worker from './entries/worker';
 import { fakeDeps } from './test/fakes/deps';
 import { noDb } from './test/fakes/db-none';
@@ -25,9 +24,9 @@ const office = { version: 0, lists: {} } as never;
 const ctx = { deps, principal: { userId: 'usr_001' }, office, batch: { storyRefs: new Map(), overviewCalls: 0 }, now: new Date() };
 
 describe('the registries', () => {
-  it('list the 15 server calls by name, and every stub refuses until its track builds it (story.start: server/core/runCall.test.ts; users.invites and users.resendInvite: server/calls/people.test.ts; the file calls: server/calls/{files,feedback}.test.ts; usage.get and usage.retryEffect: server/calls/usage.test.ts; agents.list and agents.remove: server/calls/agents.test.ts; live.ticket: server/calls/live.test.ts; the four google calls: server/calls/google.test.ts)', async () => {
+  it('list the 13 server calls by name, and every stub refuses until its track builds it (story.start: server/core/runCall.test.ts; users.invites and users.resendInvite: server/calls/people.test.ts; the file calls: server/calls/{files,feedback}.test.ts; agents.list and agents.remove: server/calls/agents.test.ts; live.ticket: server/calls/live.test.ts; the four google calls: server/calls/google.test.ts)', async () => {
     expect(Object.keys(SERVER_CALLS).sort()).toEqual([...SERVER_CALL_NAMES].sort());
-    const built = ['story.start', 'users.invites', 'users.resendInvite', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'usage.get', 'usage.retryEffect', 'agents.list', 'agents.remove', 'live.ticket', 'google.status', 'google.connectStart', 'google.connect', 'google.disconnect'];
+    const built = ['story.start', 'users.invites', 'users.resendInvite', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'agents.list', 'agents.remove', 'live.ticket', 'google.status', 'google.connectStart', 'google.connect', 'google.disconnect'];
     for (const name of SERVER_CALL_NAMES.filter((n) => !built.includes(n))) await refusesNotBuilt(() => SERVER_CALLS[name](undefined as never, ctx));
   });
 
@@ -74,9 +73,4 @@ describe('the stubs', () => {
     expect(response.headers.get('WWW-Authenticate')).toBe(challenge);
   });
 
-  it('the meter is built (track M): it writes the request to the database it gets, so a database that refuses makes it throw', async () => {
-    const meter = meterPort();
-    meter.addBytes(10);
-    await expect(meter.countRequest(noDb)).rejects.toThrow(/no database/);
-  });
 });

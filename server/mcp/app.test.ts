@@ -638,50 +638,6 @@ describe('suite 12: the MCP server in process', () => {
     expect([...w.limit.hits.values()]).toEqual([1]);
   });
 
-  it('counts each request on the usage meter, and a hopped request twice only when its hop header carries the server\'s tag', async () => {
-    const secretKey = 'sb_secret_meter_test';
-    const keyed = world({ secretKey });
-    await rpc(keyed, 'tools/list');
-    expect(keyed.deps.meter.requests).toBe(1);
-    // A client can send the header itself: a bare region, or a tag made with another key, counts once.
-    await rpc(keyed, 'tools/list', {}, { headers: { [HOP_HEADER]: 'us-east-1' } });
-    await rpc(keyed, 'tools/list', {}, { headers: { [HOP_HEADER]: await hopHeaderOf('us-east-1', await hopKeyFrom('another-secret')) } });
-    expect(keyed.deps.meter.requests).toBe(3);
-    await rpc(keyed, 'tools/list', {}, { headers: { [HOP_HEADER]: await hopHeaderOf('us-east-1', await hopKeyFrom(secretKey)) } });
-    expect(keyed.deps.meter.requests).toBe(5);
-  });
-
-  it('hands both meter counts to after when the host has one: the answer does not wait, and each count runs once, in order (performance audit SRV-4)', async () => {
-    const secretKey = 'sb_secret_meter_test';
-    const keyed = world({ secretKey });
-    const counts: string[] = [];
-    let release: () => void = () => undefined;
-    const gate = new Promise<void>((resolve) => (release = resolve));
-    keyed.deps.meter.countRequest = async () => {
-      counts.push(`start:${counts.length}`);
-      await gate;
-    };
-    const later: Promise<unknown>[] = [];
-    const hop = await hopHeaderOf('us-east-1', await hopKeyFrom(secretKey));
-    const answer = await runInHost({ host: 'workers', after: (work) => void later.push(work) }, () => rpc(keyed, 'tools/list', {}, { headers: { [HOP_HEADER]: hop } }));
-    expect(answer.status).toBe(200);
-    expect([counts, later.length]).toEqual([['start:0'], 1]);
-    release();
-    await Promise.all(later);
-    expect(counts).toEqual(['start:0', 'start:1']);
-  });
-
-  it('keeps the warning of an MCP meter count that fails after the answer', async () => {
-    const w = world();
-    w.deps.meter.countRequest = async () => {
-      throw new Error('meter down');
-    };
-    const later: Promise<unknown>[] = [];
-    expect((await runInHost({ host: 'workers', after: (work) => void later.push(work) }, () => rpc(w, 'tools/list'))).status).toBe(200);
-    await Promise.all(later);
-    expect(w.deps.logs).toContainEqual({ level: 'warn', message: 'The usage meter did not count the MCP request.', fields: { error: 'meter down' } });
-  });
-
   it('forwards a request in a region other than Frankfurt once, before the token check', async () => {
     const seen: Request[] = [];
     const far = world({

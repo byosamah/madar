@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { ApiError } from '../../src/api/errors';
 import { defineCall, type AnyCall } from '../../src/api/registry';
 import { sharedCalls } from '../../src/api/sharedCalls';
@@ -23,13 +23,6 @@ import type { BatchScope, Principal, RunRequest, RunResult } from './types';
  * Suite 2 of TM 7, the server core (task C3): runCall on the memory data (server/core/memoryData.ts), with no database.
  * server/it/runCall.it.test.ts runs the same rules on the local database through the real office cache, loaders and save step.
  */
-
-// usage.get stays a call that is not built here, whichever tracks merge later. server/calls/usage.test.ts and suite 13 run the
-// real one. serverCallMap.ts copies each call into its map once, at import, so the mock must be in place before that import.
-vi.mock('../calls/usage', async () => {
-  const { notBuiltAsync } = await import('./notBuilt');
-  return { usageGet: () => notBuiltAsync('usage.get'), usageRetryEffect: () => notBuiltAsync('usage.retryEffect') };
-});
 
 const TODAY = '2026-10-04';
 const NOW = new Date('2026-10-04T06:00:00Z');
@@ -650,11 +643,9 @@ describe('runCall: hooks and effects (plan 4.5, steps 5.1, 5.5 and 6; plan 4.12)
 });
 
 describe('runCall: the server calls (plan 4.11)', () => {
-  it('runs story.start, checks the actor first, and keeps the refusal of a server call that is not built yet', async () => {
+  it('runs story.start and checks the actor first', async () => {
     const { call, edit } = setup();
     expect((await call(ADMIN, 'story.start', {})).ok).toBe(true);
-    const stub = errorOf(await call(ADMIN, 'usage.get', {}));
-    expect([stub.code, stub.details?.reason]).toEqual(['failed', 'not_built']);
     edit((state) => {
       state.users.usr_005.active = false;
     });

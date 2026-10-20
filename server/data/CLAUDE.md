@@ -18,7 +18,7 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   rows to it. A migration that makes records with a counter prefix sets that counter to the highest number.
 - `project_templates` is an office list (`OFFICE_COLLECTIONS`), so `projects.create` reads its template from the office.
 - Server-only tables (`20261004000101_server_tables.sql`): office_meta, office_deletes, person_seq, platform_config, stories,
-  idempotency, outbox, upload_intents, agent_links, mail_log, mail_outbox, usage_month, usage_warnings, rate_limits, job_runs.
+  idempotency, outbox, upload_intents, agent_links, mail_log, mail_outbox, usage_month, usage_warnings (both unused since 2026-10-23, kept), rate_limits, job_runs.
 - `push_devices` (`20261008000100_push_devices.sql`, owner 2026-10-08): the private rows of the browsers that get push. Not an office
   list. `loaders/push.ts` reads the own rows of the person of the call and nothing more (`push.register` also reads the row of
   its endpoint). `diffState` adds no kind for it, so a save of a device sends no signal. `endpoint` has a unique index.
@@ -177,8 +177,7 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   `USAGE_DAY_SQL` in `LITE_STEPS`. The sign-in tables have no step, because no office object below version 3 exists outside the tests.
   `applyLiteSchema` runs the steps above the office version in one transaction. `LiteDb.isOpen()` tells the network port of the office object that
   a transaction is open. `SaveResult.noticeIds` names the notices of a save: the producers on SQLite read them in place of the
-  `xmin` test. `DAY_ROW_LITE` (the day row of the meters) lives in `server/usage/meters.ts`, because the Supabase bundles load
-  `usage/warn.ts` and may import no value from `server/office/` (`workerGraph.test.ts`); `server/office/meter.ts` exports it again.
+  `xmin` test. `DAY_ROW_LITE` (the day row of the meters) lives in `server/office/meter.ts`.
 - Schema version 4 (fbk_007) adds the office list `sub_companies`, with only `id` and `doc`. `LITE_STEPS` is
   `{ 3: [USAGE_DAY_SQL], 4: [the create table of sub_companies] }`; the SQL text is in `lite/schema.ts`.
 - Schema version 5 (fbk_022) adds the table `meetings` with its key columns and two read indexes (`meetings_starts`, `meetings_project_starts`).

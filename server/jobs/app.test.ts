@@ -47,13 +47,12 @@ describe('the job runner app (plan 5.5)', () => {
     expect(deps.logs).toContainEqual({ level: 'error', message: 'JOBS_SECRET is not set, so the job runner refuses every request.' });
   });
 
-  it('runs the job once at the time of the clock for the right secret, answers 200 with the report, and counts one request', async () => {
+  it('runs the job once at the time of the clock for the right secret, and answers 200 with the report', async () => {
     const { post, runs, deps } = setup();
     const response = await post();
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ v: 1, ...OK });
     expect(runs).toEqual(['2026-10-04T06:00:00.000Z']);
-    expect(deps.meter.requests).toBe(1);
   });
 
   it('answers 500 with the report when a step failed, so the cron log shows it', async () => {

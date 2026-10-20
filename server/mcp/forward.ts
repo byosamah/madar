@@ -12,8 +12,8 @@ import type { Config, Logger } from '../core/ports';
  * - Only a real region hops. A local host (SB_REGION local-deno, local-workers) or a host with no SB_REGION (unknown, the Workers
  *   fallback) has no regional copy to hop to, so it serves the request itself.
  * - A request that already hopped and still runs in the wrong region gets 503, so a hop never loops.
- * - The hop header is "<region>.<tag>": an HMAC-SHA256 of the region under a key from the server secret key. Frankfurt counts the
- *   extra invocation of a hop on the usage meter only when the tag checks out, because a client can send the header itself.
+ * - The hop header is "<region>.<tag>": an HMAC-SHA256 of the region under a key from the server secret key. Frankfurt can check the
+ *   tag (hopTagOk), because a client can send the header itself. Nothing counts hops since the usage meter went (2026-10-23).
  */
 
 export const HOP_HEADER = 'x-madar-hop';

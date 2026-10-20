@@ -212,7 +212,6 @@ describe('the Admin side list', () => {
       { group: 'People', rows: ['People', 'Teams', 'Roles'] },
       { group: 'Office', rows: ['Office settings', 'Clients', 'Sub-companies'] },
       { group: 'Templates', rows: ['Project templates', 'To-do templates'] },
-      // Usage is a section of the real build only.
       { group: 'System', rows: ['Requests and bugs'] },
     ]);
     expect(screen.getAllByRole('heading', { level: 1 }).map((h) => h.textContent)).toEqual(['Admin']);

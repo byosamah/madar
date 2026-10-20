@@ -36,7 +36,7 @@ type Entry = { ord: number; doc: Rec; auth?: string | null };
 type Tables = Map<OfficeCollection, Map<string, Entry>>;
 type Cached = { version: number; syncedAt: number; tables: Tables; snapshot: OfficeSnapshot };
 
-export type OfficeCacheDeps = Pick<Deps, 'db' | 'meter'>;
+export type OfficeCacheDeps = Pick<Deps, 'db'>;
 export type OfficeCache = {
   read(deps: OfficeCacheDeps, q?: Query): Promise<OfficeSnapshot>;
   /** The version the cache holds, or null when it is cold. */
@@ -123,7 +123,6 @@ export function createOfficeCache(o: { keepMs?: number } = {}): OfficeCache {
   async function rowsAbove(deps: OfficeCacheDeps, q: Query, version: number) {
     const rows = await q<{ c: OfficeCollection; id: string; ord: string | number; doc: Rec; auth: string | null }>(OFFICE_ROWS_SQL, [version]);
     const deletes = version < 0 ? [] : await q<{ tbl: string; id: string }>(OFFICE_DELETES_SQL, [version]);
-    deps.meter.addBytes(new TextEncoder().encode(JSON.stringify(rows) + JSON.stringify(deletes)).length);
     return { rows, deletes };
   }
 

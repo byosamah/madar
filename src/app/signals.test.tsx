@@ -607,7 +607,7 @@ describe('the runtime and its change source (plan R2)', () => {
     const remote = createQueryClient({ remote: true });
     expect(remote.getQueryDefaults(['api', 'tasks.list', {}]).staleTime).toBe(Infinity);
     expect(remote.getQueryDefaults(['api', 'session.get', {}]).staleTime).toBe(Infinity);
-    for (const name of ['files.link', 'usage.get', 'feedback.screenshot']) expect(remote.getQueryDefaults(['api', name, {}]).staleTime).toBe(0);
+    for (const name of ['files.link', 'feedback.screenshot']) expect(remote.getQueryDefaults(['api', name, {}]).staleTime).toBe(0);
     expect(remote.getQueryDefaults(['file-blob', 'fil_001']).staleTime).toBeUndefined();
     const prototype = createQueryClient();
     expect(prototype.getDefaultOptions().queries?.staleTime).toBe(0);

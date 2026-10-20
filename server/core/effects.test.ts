@@ -4,7 +4,6 @@ import { CHAT_NOTICE_EFFECT, NOTICE_EFFECT, QUOTA_WARNING_EFFECT } from '../mail
 import { REVOKE_EFFECT, SYNC_EFFECT, TIDY_EFFECT } from '../google/rows';
 import { PUSH_CHAT_EFFECT, PUSH_EFFECT } from '../push/notify';
 import { fakeDeps } from '../test/fakes/deps';
-import { LIMIT_WARNING_EFFECT } from '../usage/warn';
 import type { Db, Query } from './ports';
 import {
   AFTER_ANSWER_KINDS, CHAT_WAIT_MS, CLAIM_SQL, DONE_SQL, FAIL_SQL, OUTBOX_INSERT_SQL, outboxRowsOf, processOutbox, registerEffect, registerOutbox, WAIT_SQL, WAITED_KINDS, writeOutbox,
@@ -36,8 +35,8 @@ function scriptedDb(rows: Record<string, { kind: string; payload: unknown }>) {
 }
 
 describe('effects after the commit (plan 4.12)', () => {
-  it('runs after the answer only the mail kinds, the push kinds and the three Google Calendar kinds, by the names that mail/, push/, usage/ and google/ register (performance audit SRV-1; owner, 2026-10-08; fbk_022)', () => {
-    expect([...AFTER_ANSWER_KINDS].sort()).toEqual([LIMIT_WARNING_EFFECT, NOTICE_EFFECT, PUSH_EFFECT, QUOTA_WARNING_EFFECT, PUSH_CHAT_EFFECT, CHAT_NOTICE_EFFECT, REVOKE_EFFECT, SYNC_EFFECT, TIDY_EFFECT].sort());
+  it('runs after the answer only the mail kinds, the push kinds and the three Google Calendar kinds, by the names that mail/, push/ and google/ register (performance audit SRV-1; owner, 2026-10-08; fbk_022)', () => {
+    expect([...AFTER_ANSWER_KINDS].sort()).toEqual([NOTICE_EFFECT, PUSH_EFFECT, QUOTA_WARNING_EFFECT, PUSH_CHAT_EFFECT, CHAT_NOTICE_EFFECT, REVOKE_EFFECT, SYNC_EFFECT, TIDY_EFFECT].sort());
   });
 
   it('waits 10 seconds only for the chat push and the chat mention mail', () => {

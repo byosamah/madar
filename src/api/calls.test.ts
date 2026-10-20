@@ -72,21 +72,21 @@ const PUSH_CALLS = ['push.register', 'push.remove', 'push.mine'];
 const ROLE_CALLS = ['roles.create', 'roles.update', 'roles.delete'];
 // The office report data (owner, 2026-10-18, fbk_016): one read call.
 const REPORT_CALLS = ['reports.office'];
-// The 15 server calls of the real build, with fake versions for the prototype (plan 4.11; usage.retryEffect from task M1;
+// The 13 server calls of the real build, with fake versions for the prototype (plan 4.11;
 // live.ticket from the exit, wave 3; the four google calls of fbk_022).
-const SERVER_CALLS = ['story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove', 'usage.get', 'usage.retryEffect', 'live.ticket', 'google.status', 'google.connectStart', 'google.connect', 'google.disconnect'];
+const SERVER_CALLS = ['story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove', 'live.ticket', 'google.status', 'google.connectStart', 'google.connect', 'google.disconnect'];
 // Meetings, client meetings and site visits (fbk_022, owner 2026-10-19).
 const MEETING_CALLS = ['meetings.list', 'meetings.get', 'meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.delete', 'meetings.settle', 'meetings.extend', 'meetings.saveMinutes'];
 const MAP_CALLS = [...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS, ...FEEDBACK_CALLS, ...TEAM_CALLS, ...SUB_COMPANY_CALLS, ...AUDIT_CALLS, ...LEAD_CALLS, ...ORDER_CALLS, ...PROJECT_TEMPLATE_CALLS, ...PUSH_CALLS, ...ROLE_CALLS, ...REPORT_CALLS, ...MEETING_CALLS];
 const CHAT_READS =new Set(['chats.list', 'chats.messages', 'chats.unreadCount', 'chats.waiting', 'push.mine']);
 // Server reads named one by one, so the name rule does not decide them by accident.
-const SERVER_READS = new Set(['files.link', 'users.invites', 'agents.list', 'usage.get', 'live.ticket', 'google.status', 'google.connectStart']);
+const SERVER_READS = new Set(['files.link', 'users.invites', 'agents.list', 'live.ticket', 'google.status', 'google.connectStart']);
 
 describe('the call map', () => {
   it('has every call from the spec plus the documented extras, and the 15 server calls', () => {
     expect(Object.keys(mapCalls).sort()).toEqual([...MAP_CALLS].sort());
     expect(Object.keys(calls).sort()).toEqual([...MAP_CALLS, ...SERVER_CALLS].sort());
-    expect(Object.keys(calls)).toHaveLength(168);
+    expect(Object.keys(calls)).toHaveLength(166);
   });
 
   it('marks exactly the read calls as read-only', () => {

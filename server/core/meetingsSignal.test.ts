@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
 import { diffState } from '../data/save';
@@ -11,12 +11,6 @@ import { createRunCall } from './runCall';
  * attendees: its signals go only to the person channels of those people, the Admin too only when invited. They carry no office signal,
  * no actor, no story, no project and no id or title of the meeting. A project meeting signals like any change of its project.
  */
-
-// usage.get is not built here (as in chatsGroupSignal.test.ts). serverCallMap.ts copies each call at import, so the mock comes first.
-vi.mock('../calls/usage', async () => {
-  const { notBuiltAsync } = await import('./notBuilt');
-  return { usageGet: () => notBuiltAsync('usage.get'), usageRetryEffect: () => notBuiltAsync('usage.retryEffect') };
-});
 
 const NOW = new Date('2026-10-04T06:00:00Z');
 const ADMIN = 'usr_001';

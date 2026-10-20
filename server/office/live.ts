@@ -1,6 +1,6 @@
 import { nowStamp } from '../../src/lib/dates';
 import { resolveActor } from '../core/actor';
-import type { LivePort, Logger, MeterPort, Query, SignalPort } from '../core/ports';
+import type { LivePort, Logger, Query, SignalPort } from '../core/ports';
 import type { ChangeSignal, OfficeSnapshot, RunError } from '../core/types';
 import { onCommit } from '../data/lite/db';
 import { errorResponse, runErrorOf } from '../http/errors';
@@ -113,7 +113,7 @@ export function closeOff(sockets: Sockets, office: OfficeSnapshot): number {
   return closed;
 }
 
-export type LiveOptions = { sockets: Sockets; meter: Pick<MeterPort, 'signalsFailed'>; log: Logger; now: () => Date; staleMs: number };
+export type LiveOptions = { sockets: Sockets; log: Logger; now: () => Date; staleMs: number };
 
 /** Sends each signal to the sockets of its channel, after a sweep. A send that throws counts as a failed signal. */
 export function deliver(o: LiveOptions, signals: readonly ChangeSignal[]): void {
@@ -131,7 +131,6 @@ export function deliver(o: LiveOptions, signals: readonly ChangeSignal[]): void 
   }
   if (failed === 0) return;
   o.log.warn('A change signal did not reach an open socket. The screen reloads when its socket opens again.', { failed });
-  o.meter.signalsFailed(failed);
 }
 
 /** The SignalPort of the office object: the signals of a transaction go out after its commit, and a rollback drops them. */

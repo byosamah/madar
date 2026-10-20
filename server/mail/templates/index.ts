@@ -16,19 +16,8 @@ export type { RenderedMail } from './layout';
  * A template reads only the fields of its data type, so extra fields that a caller passes never reach the mail.
  */
 
-export const MAIL_TEMPLATES = ['invite', 'reset', 'notice', 'summary', 'limitWarning', 'quotaWarning'] as const;
+export const MAIL_TEMPLATES = ['invite', 'reset', 'notice', 'summary', 'quotaWarning'] as const;
 export type MailTemplate = (typeof MAIL_TEMPLATES)[number];
-
-/**
- * The usage meters of the 80% warning (plan 5.8). filesR2: file storage after the move to R2 (section 10, decision 2).
- * callsWorkers: the calls of a copy that the Worker serves (owner, 2026-10-16). The four *Day meters: the Free day limits of the
- * office path (exit wave 3), each until 03:00 Riyadh.
- */
-export const USAGE_METERS = [
-  'calls', 'callsWorkers', 'database', 'files', 'filesR2', 'backup', 'emailsToday', 'emailsMonth', 'egress',
-  'rowsReadDay', 'rowsWrittenDay', 'objectRequestsDay', 'workerRequestsDay',
-] as const;
-export type UsageMeter = (typeof USAGE_METERS)[number];
 
 export type MailData = {
   /** name: the new person; inviterName: the Admin who invited them. */
@@ -38,7 +27,6 @@ export type MailData = {
   notice: { trigger: EmailTrigger; link: string };
   /** The open tasks in three groups (server/mail/summaryTasks.ts), at most 8 lines in all; more: the tasks that do not show. */
   summary: { pastDue: SummaryLine[]; today: SummaryLine[]; week: SummaryLine[]; more: number; reviewsWaiting: number; link: string };
-  limitWarning: { meter: UsageMeter; percent: number; link: string };
   /** limit: the daily notice limit that stopped the mail (90). */
   quotaWarning: { limit: number; link: string };
 };
@@ -97,15 +85,6 @@ function partsOf<K extends MailTemplate>(kind: K, lang: Language, data: MailData
         ...(d.reviewsWaiting > 0 ? [t('mail.summary.reviewsWaiting', { count: d.reviewsWaiting })] : []),
       ];
       return { subject: t('mail.summary.subject'), paragraphs: [t('mail.summary.intro')], groups, closing, button: t('mail.common.open'), footer: 'footerSummary' };
-    }
-    case 'limitWarning': {
-      const d = data as MailData['limitWarning'];
-      return {
-        subject: t('mail.limit.subject'),
-        paragraphs: [t('mail.limit.line', { meter: t(`mail.limit.meter.${d.meter}`), percent: Math.round(d.percent) }), t(`mail.limit.next.${d.meter}`)],
-        button: t('mail.common.open'),
-        footer: 'footerAuto',
-      };
     }
     case 'quotaWarning': {
       const d = data as MailData['quotaWarning'];

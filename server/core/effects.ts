@@ -19,7 +19,7 @@ import type { Deps, Query } from './ports';
  *   through server/core/deps.ts.
  * - Claim before work: processOutbox and the job claim a row with one statement first. No row means another worker has it, or
  *   it is done. A failed row keeps its attempts and its error, and stays claimed for 2 minutes; the 15-minute job (track N3)
- *   retries rows older than 2 minutes, up to 5 attempts. usage.get shows the failed rows to the Admin (track M).
+ *   retries rows older than 2 minutes, up to 5 attempts. A failed row stays in the outbox; no screen lists it since the Usage section went (owner, 2026-10-23).
  * - A handler that knows when the work can go through (an error with retryAt, for example QuotaFull of a full mail day in
  *   server/auth/effects.ts) keeps its error, and the row stays claimed until retryAt with the attempt given back: a full day
  *   never uses up the 5 attempts of a row (S1 review).
@@ -30,10 +30,10 @@ export type OutboxRow = { kind: string; payload: Record<string, unknown> };
 /**
  * The effect kinds that runCall runs after the answer on a host with after (performance audit SRV-1, BGR-2): the mails, the browser pushes and the
  * Google Calendar sync (fbk_022), so a save never waits for Resend, for a push service or for Google. Every other kind (auth.*, agents.revokeAll, r2.delete) runs before the answer. With no after
- * (tests, scripts), every kind runs before the answer. A test keeps these names equal to the kinds of mail/ and usage/.
+ * (tests, scripts), every kind runs before the answer. A test keeps these names equal to the kinds of mail/.
  */
 export const AFTER_ANSWER_KINDS: ReadonlySet<string> = new Set([
-  'mail.notice', 'mail.quotaWarning', 'usage.limitWarning', 'push.notify', 'push.chat', 'mail.chatNotice', 'gcal.sync', 'gcal.revoke', 'gcal.tidy',
+  'mail.notice', 'mail.quotaWarning', 'push.notify', 'push.chat', 'mail.chatNotice', 'gcal.sync', 'gcal.revoke', 'gcal.tidy',
 ]);
 /** How long the waited kinds wait after the answer (chat design item 20): a person who reads the chat in this time gets no push and no mail. */
 export const CHAT_WAIT_MS = 10_000;

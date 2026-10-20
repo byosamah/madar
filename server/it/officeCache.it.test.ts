@@ -6,7 +6,6 @@ import type { Query } from '../core/ports';
 import { createOfficeCache, OFFICE_ROWS_SQL, setAuthUserId, userIdOfAuth } from '../data/officeCache';
 import { save } from '../data/save';
 import { loadWhole, writeState } from '../data/whole';
-import { recordingMeter } from '../test/fakes/meter';
 import { applyMigrations, dropSchema, localClient } from './migrate';
 
 /**
@@ -28,7 +27,7 @@ describe('the office cache on the local database', () => {
     if (text === OFFICE_ROWS_SQL) refreshes.push({ above: Number(values![0]), rows: rows.length });
     return rows;
   };
-  const deps = { db: undefined as never, meter: recordingMeter() };
+  const deps = { db: undefined as never };
 
   async function inTx<T>(mode: 'read' | 'write', work: () => Promise<T>): Promise<T> {
     await db.query(mode === 'read' ? 'begin isolation level repeatable read, read only' : 'begin');

@@ -7,12 +7,10 @@ import type { Source } from './source';
 
 /**
  * A Source on the database (task C2). Each read is one statement inside the call's transaction. Values always go as parameters;
- * table, column and field names come only from the lists in tables.ts and query.ts. Each answer counts toward the egress meter
- * (plan, change 10): "bytes" gets the size of the rows that the database sent.
+ * table, column and field names come only from the lists in tables.ts and query.ts.
  */
 
 const C = 'collate "C"';
-const bytesOf = (rows: unknown[]) => new TextEncoder().encode(JSON.stringify(rows)).length;
 const HOUR = 3_600_000;
 
 /**
@@ -197,12 +195,8 @@ export function countSql(s: CountSelect): { text: string; values: unknown[] } {
   return { text: `select ${per} as v, count(*)::integer as n from ${tableOf(s.c).table} t${where} group by ${per}`, values };
 }
 
-export function sqlSource(q: Query, o: { bytes?: (n: number) => void } = {}): Source {
-  const read = async <R,>(text: string, values: unknown[]): Promise<R[]> => {
-    const rows = await q<R>(text, values);
-    o.bytes?.(bytesOf(rows));
-    return rows;
-  };
+export function sqlSource(q: Query): Source {
+  const read = async <R,>(text: string, values: unknown[]): Promise<R[]> => q<R>(text, values);
 
   return {
     async select(s) {

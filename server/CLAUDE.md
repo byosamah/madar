@@ -14,7 +14,7 @@ The other host stays deployed as the way back. Each area below has its own guide
 - `entries/`: one mount for each function (`api`, `mcp`, `jobs`), the shared host builder `apps.ts`, the Deno wrappers
   `deno-*.ts`, Workers `worker.ts` (the Postgres path) and `workerMain.ts` (the bundle entry, which also has the office path).
 - `office/`: the office object of the Supabase exit (wave 3), off on every deployed Worker. See "The office object" below.
-- `jobs/` (the 15-minute job), `signal/` (change signals), `usage/` (meters and the Admin warning), `push/` (browser push).
+- `jobs/` (the 15-minute job), `signal/` (change signals), `push/` (browser push). The usage meter, the 80% warning and the Usage screen were removed (owner, 2026-10-23: an internal tool, not paid).
 - `test/`: the fakes of the ports, the db-mode harness, the shadow run. `it/`: helpers of the integration suites.
 
 ## Request path
@@ -36,7 +36,7 @@ The other host stays deployed as the way back. Each area below has its own guide
 - After the commit, `processOutbox` runs the effects once. The 15-minute job retries the rest. `core/after.ts` keeps work
   alive after the answer on both hosts: on Supabase within the 150 s of the function, on the Worker through waitUntil for
   about 30 s after the answer. A long mail or push chain can stop part way there; the 15-minute job retries the outbox.
-- The kinds in `AFTER_ANSWER_KINDS` (`core/effects.ts`: `mail.notice`, `mail.quotaWarning`, `usage.limitWarning`, `push.notify`,
+- The kinds in `AFTER_ANSWER_KINDS` (`core/effects.ts`: `mail.notice`, `mail.quotaWarning`, `push.notify`,
   `push.chat`, `mail.chatNotice`, `gcal.sync`, `gcal.revoke`, `gcal.tidy`) run after the answer when the host has `after`, on one chain per batch
   (`BatchScope.mail`), so the mails keep the order of the entries. Every other kind runs before the answer. With no `after` (tests,
   scripts), every kind runs before the answer. A new mail or push kind goes into `AFTER_ANSWER_KINDS`; `effects.test.ts` pins the
@@ -47,14 +47,14 @@ The other host stays deployed as the way back. Each area below has its own guide
   after the other, and a write clears `batch.office` (`core/runCall.ts`), so a read after a write in the same request sees
   the write. A change that runs the reads of a request in parallel, or keeps the office copy across a write, lets a screen
   show an old list after its own save. Adjacent `files.link` entries are the one exception: reads only, side by side.
-- With `after`, the usage meter of `POST /api/batch` also runs after the answer, with the same warning text. A batch with a
+- A batch with a
   write calls `db.warm('write')` after the token check. Adjacent `files.link` entries run side by side, each with its own
   error, and the answers keep their order. Every other entry runs alone, in order.
 
 ## Calls
 - `core/serverCallMap.ts` holds every call the server runs: the shared calls of `src/api/sharedCalls.ts` plus the server calls.
-- 15 server-only calls (`calls/index.ts`): `story.start`, `files.uploadStart`, `files.link`, `feedback.uploadStart`,
-  `users.invites`, `users.resendInvite`, `agents.list`, `agents.remove`, `usage.get`, `usage.retryEffect`, `live.ticket`, and the four Google
+- 13 server-only calls (`calls/index.ts`): `story.start`, `files.uploadStart`, `files.link`, `feedback.uploadStart`,
+  `users.invites`, `users.resendInvite`, `agents.list`, `agents.remove`, `live.ticket`, and the four Google
   Calendar calls `google.status`, `google.connectStart`, `google.connect`, `google.disconnect` (fbk_022, `calls/google.ts`, `server/google/`).
 - Server hooks replace the prototype `prepare` of `files.upload`, `feedback.send`, `feedback.screenshot`, `projects.delete`.
 - `SERVER_EXCLUDED` (prototype only): `session.previewAs`, `session.setSimulateErrors`, `session.resetSampleData`, `files.get`.
@@ -146,7 +146,7 @@ The other host stays deployed as the way back. Each area below has its own guide
   and tries once more.
 - Errors: `grant_gone`, a seal that does not open, or a deleted calendar (404 on an insert) ends the connection (state `broken`, the token is deleted at
   once, the event rows go) and the row is done. A timeout, a network error, a 5xx or a rate limit sets `not_synced` and throws, so the outbox tries again
-  (5 times, then the row stays failed in the outbox; `usage.get` lists it, and no screen shows it since the Usage section went, 2026-10-23). Any other refusal sets `not_synced` with `last_error` `refused` and does not retry. An error text, a
+  (5 times, then the row stays failed in the outbox; no screen lists it since the Usage section went, 2026-10-23). Any other refusal sets `not_synced` with `last_error` `refused` and does not retry. An error text, a
   log line and an outbox error hold the code and the ids, never a token, a code, a title or a Google answer (`leaks.test.ts` proves it).
 - A connect that a Google step ends writes one warn line, "A Google Calendar connect failed.", with `userId`, `step` (`token`, `calendar_read`,
   `calendar_make`), `code` (the GoogleError code, or `no_refresh_token`, `scope_missing`) and `status` (the HTTP status, absent for a timeout or a
@@ -166,7 +166,7 @@ The other host stays deployed as the way back. Each area below has its own guide
 - Tests use `google/fakeGoogle.ts` (a stand-in for the token address, the revoke address and the Calendar API) behind `Deps.googleFetch`, and
   `google/testOffice.ts` (the sample office on node:sqlite). `server/it/google.it.test.ts` runs the SQL on Postgres.
 
-## Realtime, jobs, usage
+## Realtime, jobs
 - Change signals go out inside the save transaction (`signal/realtime.ts`: `realtime.send`, topics `office` and
   `person:<id>`). A rollback sends nothing. A failed send only warns, and the sender counts it.
 - A save that changes an office task, its comments or its files (`Diff.privateChange`, `data/save.ts`) sends that part
@@ -184,7 +184,7 @@ The other host stays deployed as the way back. Each area below has its own guide
 - pg_cron calls `jobs/run` of the Supabase jobs function every 15 minutes, in both host settings (owner, 2026-10-16), with the
   secret header `x-madar-jobs-secret`. The Worker keeps `/jobs` mounted, but nothing calls it: pg_cron and the Vault
   `project_url` do not change. Steps (`jobs/steps/`):
-  heartbeat, triggers, meetings, summary, outbox, cleanup, uploads, usage. Each step is idempotent. The triggers step also sends `resume_due`
+  heartbeat, triggers, meetings, summary, outbox, cleanup, uploads. Each step is idempotent. The triggers step also sends `resume_due`
   (the planned restart day of a paused project) to the leader and to the person who paused it (`src/api/CLAUDE.md`).
 - The meetings step (fbk_022, wave 2; `jobs/steps/meetings.ts`) settles the meetings that ended. One read (`SETTLE_SQL`, `SETTLE_LITE`, served by the
   partial index `meetings_to_settle`) gives at most 20 due meetings, the oldest end first: scheduled, not settled, ended in the last 14 days. For each
@@ -197,15 +197,12 @@ The other host stays deployed as the way back. Each area below has its own guide
   person who may change the series (`extendActorOf` of the last meeting: the organizer, else the first active Admin of a project series; a private series of an
   organizer who left is skipped, review 2026-10-20), and counts the meetings added in `extended`. A failure logs the series id and the code only. `Deps.runCall` (`core/ports.ts`) is the run of a normal call for a step: only the office object sets it (its own SQLite run, `office/parts.ts`);
   every other host uses the Postgres `runCall`.
-- Usage meters and the 80% Admin warning (`usage/`). The Admin page has no Usage section since 2026-10-23 (owner: an internal tool, not paid), so the
-  warning mail is the only sign of a limit; the meters, the jobs and the call `usage.get` stay (the contract is additive). The free-plan limits are in `FREE_PLAN_LIMITS`. The calls limit follows
-  the host that serves the copy (`config.servingHost`, from `config/server-host.json`): 500,000 on Supabase, 10 million on
-  Workers Paid, 3 million on the office host (`CALL_LIMITS`, `core/ports.ts`). The office host sends no month calls warning: the
-  day meters below cover its Free limit (`warningMeters`). On the Worker the calls meter is `callsWorkers` in the warning mail, and the
-  mail picks its words by the limit, as it picks `filesR2`. The job on Supabase and `usage.get` on the Worker give the same
-  limit, because both read the setting, not the running host.
-- On the office object only, the 80% warning also covers the four Free day meters: rows read, rows written, object requests
-  and Worker requests (`DAY_LIMITS` and `checkDayLimits`, `usage/warn.ts`), one warning a UTC day for each meter.
+- The usage feature is gone (owner, 2026-10-23: "no need for it, remove it"; the meter only counted and warned, it blocked nothing). Removed: the Admin
+  Usage section, the calls `usage.get` and `usage.retryEffect`, `server/usage/` (the request, byte and failed-signal meter, `countRequest` after each
+  batch and MCP request and job run, the 80% warning and its effect `usage.limitWarning`), the job step `usage`, the mail template `limitWarning`
+  and its words. Kept: the Resend quota guard (`mail.quotaWarning`, `mail/quota.ts`), the job step `heartbeat` (the row `job_runs` "heartbeat"; the
+  health check of the office object reads it as `lastJob`, `JOBS_LAST_RUN_SQL` in `jobs/steps/heartbeat.ts`), the outbox retries, and the database tables
+  `usage_month` and `usage_warnings` (unused now: no migration, no drop; a drop needs the owner's OK). `usage_day` and the office cap stay (below).
 
 ## The office object (Supabase exit, wave 3)
 - Off on every deployed Worker: the office path runs only with the binding `OFFICE` and the var `MADAR_DATA = "office"`
@@ -223,12 +220,11 @@ The other host stays deployed as the way back. Each area below has its own guide
   turns a person off closes that person's sockets.
 - The Cron Trigger (`[triggers]`, every 15 minutes, UTC) gives the job steps to the object in one call (`office/jobs.ts`); the
   usage step runs in the first run of each hour. A Worker without `MADAR_DATA` returns at once. After the steps, the same call adds
-  the meter counts, checks the day meters, sweeps the sockets and gives back the day row.
-- The office meter (`office/meter.ts`) keeps the day counts in memory and adds them in the next write (`usage_day`); the 80% mail
-  covers the four Free day meters (`usage/warn.ts`, `checkDayLimits`).
-- On the year office one Cron run reads about 1,500 rows, and the first run of an hour about 14,700: the file size sum
-  (`FILES_BYTES_LITE`, `usage/meters.ts`) reads one row for each file and one for each version. That is about 460,000 rows a
-  day of the 5 million of Free (`CRON_PINS`, `office/test/pins.ts`).
+  the meter counts, sweeps the sockets and gives back the day row.
+- The office meter (`office/meter.ts`) keeps the day counts in memory and adds them in the next write (`usage_day`). It stays because the
+  CAP of the office object reads it and blocks requests at the Free day limits (`capDay`, `parts.ts`). It sends no warning mail and writes no
+  month row (the tables `usage_month` and `usage_warnings` stay and nothing writes them).
+- On the year office one Cron run reads about 1,500 rows (the file size sum of the usage step went, 2026-10-23; `CRON_PINS`, `office/test/pins.ts`).
 - The sign-in on the office object (the merge of exit waves 2 and 3): the object deps take `liteAuthAdmin`, so the invite and
   auth effects run in the object and only their mail goes through the Worker. With `MADAR_AUTH_PRIVATE_JWK`, `officeEntry` mounts
   the routes of `ownApiRoutes` under `/api` (`entries/officeSignin.ts`): each step is one call of `Office.signin`. The forgot and

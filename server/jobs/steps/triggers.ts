@@ -51,7 +51,7 @@ export async function triggers(deps: Deps, at: Date): Promise<{ notices: number;
       lockedAt = performance.now();
       // The office object (exit wave 3): its office lists in memory and the SQLite source and save.
       const office = isLite(q) ? await readLiteOffice(liteDbOf(q), q) : await readOffice(deps, q);
-      const state = await loadJobs({ src: isLite(q) ? liteSource(q) : sqlSource(q, { bytes: (n) => deps.meter.addBytes(n) }), office, now: at });
+      const state = await loadJobs({ src: isLite(q) ? liteSource(q) : sqlSource(q), office, now: at });
       const used = await usedDedupeKeys(q, state, at);
       const before = structuredClone(state);
       const notices = runScheduledTriggers(state, at, { dedupeUsed: (key) => used.has(key) });

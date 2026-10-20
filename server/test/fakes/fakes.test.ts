@@ -5,7 +5,6 @@ import { noDb } from './db-none';
 import { fakeDeps } from './deps';
 import { fakeFiles } from './files';
 import { fakeMail } from './mail';
-import { recordingMeter } from './meter';
 import { recordingSignals } from './signal';
 
 describe('the test fakes of the server ports', () => {
@@ -88,15 +87,6 @@ describe('the test fakes of the server ports', () => {
     expect(auth.users.get(made.authUserId)).toMatchObject({ email: 'boss@madar.test', banned: true });
     expect(auth.links.map((l) => l.type)).toEqual(['invite', 'recovery']);
     await expect(auth.setBanned('nobody', true)).rejects.toThrow();
-  });
-
-  it('recordingMeter counts bytes and requests', async () => {
-    const meter = recordingMeter();
-    meter.addBytes(100);
-    meter.addBytes(20);
-    await meter.countRequest(noDb);
-    expect(meter.bytes).toBe(120);
-    expect(meter.requests).toBe(1);
   });
 
   it('fakeDeps gives a full set of fakes with a test config, and takes overrides', () => {

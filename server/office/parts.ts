@@ -26,8 +26,7 @@ import { agentTokenChecker } from '../mcp/auth';
 import { liteAgentOf } from '../mcp/oauth/agent';
 import { mountOAuth } from '../mcp/oauth/routes';
 import { stateKeyFrom } from '../mcp/reasons';
-import { JOBS_LAST_RUN_SQL } from '../usage/meters';
-import { checkDayLimits } from '../usage/warn';
+import { JOBS_LAST_RUN_SQL } from '../jobs/steps/heartbeat';
 import { capRefusal, DAY_CAP_TTL_MS, dayCapOf } from './cap';
 import { EffectLedger, officeData, runOfficeBatch, runOfficeEntries, type OfficeBatchInput, type OfficeBatchOutput } from './batch';
 import { runOfficeJobs } from './jobs';
@@ -147,7 +146,7 @@ export function officeParts(o: PartsInput): OfficeParts {
   const cap = dayCapOf(o.read('MADAR_DAY_CAP'));
   let dayHeld: { at: number; day: DayRow } | undefined;
   const staleMs = Number(o.read('MADAR_LIVE_STALE_MS') ?? LIVE_STALE_MS);
-  const signals = liveSignals({ sockets: o.sockets, meter, log, now: () => clock.now(), staleMs });
+  const signals = liveSignals({ sockets: o.sockets, log, now: () => clock.now(), staleMs });
   const ledgers = new WeakMap<Deps, EffectLedger>();
   const data = officeData({ meter, ledgerOf: (deps) => ledgers.get(deps) });
   const run = createRunCall({
@@ -189,7 +188,6 @@ export function officeParts(o: PartsInput): OfficeParts {
       mail: values.mail.driver === 'outbox' ? outboxMailPort(db) : ports.mail,
       signal: signals,
       authAdmin,
-      meter,
       config: values.config,
       log,
       pushFetch: ports.pushFetch,
@@ -323,9 +321,6 @@ export function officeParts(o: PartsInput): OfficeParts {
       const deps = depsFor(net);
       const report = await runOfficeJobs(deps, at);
       await db.tx('write', (q) => meter.flush(q, at));
-      await checkDayLimits(deps, at).catch((error: unknown) => {
-        log.warn('The day meters were not checked. The next run checks them.', { error: error instanceof Error ? error.message : String(error) });
-      });
       const closed = sweep(o.sockets, clock.now(), staleMs);
       const [day] = await db.statement<DayRow>('read', DAY_ROW_LITE, [utcDay(at)]);
       return { ...report, closed, day: day ?? null };

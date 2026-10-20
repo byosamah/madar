@@ -6,20 +6,18 @@ import { outboxRetry } from './steps/outbox';
 import { summary } from './steps/summary';
 import { triggers } from './steps/triggers';
 import { uploads } from './steps/uploads';
-import { usage } from './steps/usage';
 
 /**
  * The 15-minute job (plan 5.5; task N3.1). pg_cron calls POST /jobs/run (server/jobs/app.ts), which runs these steps in order,
  * all at the same time "at":
  *
- *   heartbeat   the job_runs row "heartbeat" (usage.get shows the last run)
+ *   heartbeat   the job_runs row "heartbeat" (the health check of the office object reads the last run)
  *   triggers    the due, overdue and restart reminders under the office lock, with their notice mail
  *   meetings    the meetings that ended: the mark and, for a project meeting, the Tracker line (meetings.settle as the organizer)
  *   summary     the morning summary at 07:30 Riyadh on a working day
  *   outbox      the effects that did not finish after their commit
  *   cleanup     old stories, idempotency keys, office_deletes rows and rate limit windows
  *   uploads     every up/ object older than 2 hours 10 minutes, and the intent rows after 24 hours
- *   usage       the 80% warning
  *
  * Each step runs in its own transactions and is safe to run twice, so two runs that overlap do no harm. A step that fails is
  * logged and the next steps still run; the next run tries it again.
@@ -37,7 +35,6 @@ export const JOB_STEPS: readonly JobStep[] = [
   { name: 'outbox', run: (deps) => outboxRetry(deps) },
   { name: 'cleanup', run: cleanup },
   { name: 'uploads', run: uploads },
-  { name: 'usage', run: (deps) => usage(deps) },
 ];
 
 export async function runJob(deps: Deps, at: Date = deps.clock.now(), steps: readonly JobStep[] = JOB_STEPS): Promise<JobReport> {

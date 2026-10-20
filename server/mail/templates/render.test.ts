@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { EMAIL_TRIGGERS, type Gender, type Language } from '../../../src/api/contract/entities';
 import { MAIL_LOGO_PATH } from './layout';
-import { MAIL_TEMPLATES, USAGE_METERS, renderMail, type MailData, type MailTemplate } from './index';
+import { MAIL_TEMPLATES, renderMail, type MailData, type MailTemplate } from './index';
 
 /**
  * The mail templates (plan 5.4, change 22; task N2.1): snapshots in both languages, Arabic right to left with the female forms,
@@ -25,7 +25,6 @@ const SAMPLES: { [K in MailTemplate]: MailData[K] } = {
     reviewsWaiting: 1,
     link: 'https://madar.example/',
   },
-  limitWarning: { meter: 'files', percent: 85, link: 'https://madar.example/admin' },
   quotaWarning: { limit: 90, link: 'https://madar.example/admin' },
 };
 
@@ -38,7 +37,7 @@ function allOutput(m: { subject: string; html: string; text: string }): string {
 
 describe('renderMail', () => {
   it('has one template for each mail kind', () => {
-    expect([...MAIL_TEMPLATES].sort()).toEqual(['invite', 'limitWarning', 'notice', 'quotaWarning', 'reset', 'summary']);
+    expect([...MAIL_TEMPLATES].sort()).toEqual(['invite', 'notice', 'quotaWarning', 'reset', 'summary']);
   });
 
   for (const kind of MAIL_TEMPLATES) {
@@ -186,24 +185,6 @@ describe('renderMail', () => {
     expect(renderMail('summary', 'en', { ...base, reviewsWaiting: 0 }).text).not.toMatch(/review/);
     const counts = [1, 2, 3, 11].map((n) => renderMail('summary', 'ar', { ...base, reviewsWaiting: n }).text.split('\n').find((l) => l.includes('بانتظارك'))!);
     expect(counts).toEqual(['مراجعة واحدة بانتظارك.', 'مراجعتان بانتظارك.', '3 مراجعات بانتظارك.', '11 مراجعة بانتظارك.']);
-  });
-
-  it('names the meter and its one next step in a limit warning, for every meter', () => {
-    for (const lang of ['en', 'ar'] as Language[]) {
-      const steps = USAGE_METERS.map((meter) => renderMail('limitWarning', lang, { meter, percent: 80, link: LINK }).text);
-      expect(new Set(steps).size).toBe(USAGE_METERS.length);
-      for (const text of steps) expect(text).toContain('80%');
-    }
-    expect(renderMail('limitWarning', 'en', SAMPLES.limitWarning).text).toContain('move the files to Cloudflare R2, or remove old file versions');
-  });
-
-  it('gives the calls on the Worker their own next step: Workers Paid charges above 10 million, no action (owner, 2026-10-16)', () => {
-    const en = renderMail('limitWarning', 'en', { meter: 'callsWorkers', percent: 82, link: LINK }).text;
-    expect(en).toContain('Server calls this month: 82% of the free plan limit.');
-    expect(en).toContain('Above 10 million calls in a month, Cloudflare Workers charges about $0.30 for each extra million. No action is needed.');
-    const ar = renderMail('limitWarning', 'ar', { meter: 'callsWorkers', percent: 82, link: LINK }).text;
-    expect(ar).toContain('طلبات الخادم هذا الشهر');
-    expect(ar).toContain('لا تحتاج إلى فعل شيء.');
   });
 
   it('never names the database vendor: the screen bundle loads these words, and the prototype bundle check refuses the name', () => {

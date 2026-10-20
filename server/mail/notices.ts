@@ -68,8 +68,8 @@ from users where id = $1`;
 export const ADMINS_SQL = "select id from users where kind = 'human' and active and doc->>'systemRole' = 'admin' order by ord";
 
 /**
- * $1 the person. The row of USER_MAIL_SQL with the system role, so a warning to the Admins (the quota warning here, the limit
- * warning of server/usage/warn.ts) sends nothing to a person who lost the Admin role between the row write and the send (the job
+ * $1 the person. The row of USER_MAIL_SQL with the system role, so a warning to the Admins (the quota warning here)
+ * sends nothing to a person who lost the Admin role between the row write and the send (the job
  * retries a row for about an hour).
  */
 export const ADMIN_MAIL_SQL = `select id as user_id, kind, active, doc->>'email' as email, doc->'preferences' as preferences, doc->>'gender' as gender,

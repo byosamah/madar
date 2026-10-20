@@ -38,7 +38,7 @@ export const DB_MODE_SKIP: readonly SkipEntry[] = [
     reason:
       'It tests the fake versions of the 9 server calls (src/api/handlers/serverFakes.ts, T0.3), such as cor_ story IDs and blob: links. '
       + 'The server runs the real calls, and each owner track tests them on the server: C3 story.start, F the files and feedback calls, '
-      + 'P the invitations, G the agents, M usage.get.',
+      + 'P the invitations, G the agents.',
   },
   {
     file: 'src/api/handlers/payments.test.ts',

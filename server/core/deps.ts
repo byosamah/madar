@@ -20,9 +20,7 @@ import { outboxMailPort } from '../mail/outboxDriver';
 import { VAPID_NAMES, vapidConfigOf } from '../push/vapid';
 import { resendMailPort } from '../mail/resend';
 import { realtimeSender } from '../signal/realtime';
-import { meterPort } from '../usage/meter';
 import { FILE_STORE_LIMITS, fileStoreKind, type Config, type Db, type Deps, type LogFields, type Logger } from './ports';
-import { copyOfSupabaseUrl, serverHostOf } from './serverHost';
 
 /**
  * The real Deps from the environment (plan 4.5, task E2), the same on Supabase Edge Functions and on Cloudflare Workers.
@@ -181,7 +179,6 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
     forwardRegion: read('MCP_FORWARD_REGION') ?? FUNCTION_REGION,
     fileStore,
     limits: { maxFileBytes: FILE_STORE_LIMITS[fileStore].maxFileBytes, filesTotalBytes: FILE_STORE_LIMITS[fileStore].totalBytes },
-    servingHost: servingHostOf(supabaseUrl),
     ...(push ? { push } : {}),
     ...(google ? { google } : {}),
   };
@@ -195,12 +192,6 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
     mail: driver === 'resend' ? { driver, apiKey } : { driver },
     files: r2 ? { r2 } : { bucket: read('FILES_BUCKET') ?? 'madar-files', ...(read('FILES_PUBLIC_URL') ? { publicUrl: read('FILES_PUBLIC_URL') } : {}) },
   };
-}
-
-/** The host that serves the copy of SUPABASE_URL (config/server-host.json); supabase for a local stack or another URL. */
-function servingHostOf(supabaseUrl: string): Config['servingHost'] {
-  const copy = copyOfSupabaseUrl(supabaseUrl);
-  return copy ? serverHostOf(copy) : 'supabase';
 }
 
 export function configFromEnv(read: ReadEnv = env): Config {
@@ -226,7 +217,6 @@ export function depsFrom(values: ServerEnv, o: { db?: Db } = {}): Deps {
   const { config } = values;
   const db = o.db ?? pgDb(values.database);
   const log = consoleLogger();
-  const meter = meterPort();
   return {
     db,
     clock: { now: () => new Date() },
@@ -234,9 +224,8 @@ export function depsFrom(values: ServerEnv, o: { db?: Db } = {}): Deps {
       ? r2FilesPort(values.files.r2)
       : supabaseStorageFilesPort({ supabaseUrl: config.supabaseUrl, publicUrl: values.files.publicUrl, secretKey: values.secretKey, bucket: values.files.bucket }),
     mail: values.mail.driver === 'resend' ? resendMailPort({ apiKey: values.mail.apiKey, from: config.mailFrom }) : outboxMailPort(db),
-    signal: realtimeSender({ log, meter }),
+    signal: realtimeSender({ log }),
     authAdmin: authAdminPort({ supabaseUrl: config.supabaseUrl, secretKey: values.secretKey }),
-    meter,
     config,
     log,
   };

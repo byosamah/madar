@@ -8,7 +8,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - `handlers/*.ts`: one file for each area. `handlers/serverFakes.ts`: the prototype fakes of the server-only calls.
 - `calls.ts`: joins the handlers and the fakes. `sharedCalls.ts`: the calls the server runs, without `SERVER_EXCLUDED`.
 - `contract/entities.ts` (records, ids like `prj_`, `tsk_`), `contract/views.ts` (read shapes), `contract/server.ts`
-  (the server-only calls, `UPLOAD_LIFE_MS`, `FREE_PLAN_LIMITS`), `contract/limits.ts` (the plain limits and marks with no zod:
+  (the server-only calls, `UPLOAD_LIFE_MS`), `contract/limits.ts` (the plain limits and marks with no zod:
   `MAX_FILE_BYTES`, `MAX_SHOT_BYTES`, `MAX_ATTACHMENTS`, `MAX_HELPERS`, `MAX_PREREQUISITES`, `REACTIONS`, `PICTURE_DATA`,
   `PASSWORD_SET_MARK`, `DEFAULT_STALE_DAYS`). entities.ts and server.ts export these again under the same names.
 - `rowKeys.ts`: `memberKey` and `chatReadKey` (store.ts exports them again). `permissions.ts` and `store.ts` take no value
@@ -545,7 +545,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.
 2. If it is server-only: its contract in `contract/server.ts`, its fake in `handlers/serverFakes.ts`, its server body in
-   `server/calls/`. There are 15 server-only calls; `live.ticket` (exit wave 3) is the 11th, and the four `google.*` calls (fbk_022) follow it.
+   `server/calls/`. There are 13 server-only calls (`usage.get` and `usage.retryEffect` were removed, 2026-10-23); `live.ticket` (exit wave 3) is the 9th, and the four `google.*` calls (fbk_022) follow it.
 3. A loader entry in `server/data/loaders/` (a test fails without it).
 4. The MCP allow list, Admin list (`MCP_ADMIN`, only an agent of an Admin sees it) or deny list in `server/mcp/tools.ts`
    (a test fails without it). An allowed or Admin tool needs `TOOL_DOCS`. It also needs a sample: add a call to
