@@ -1841,3 +1841,16 @@ fbk_022). Each suite ran once; a suite ran again only for the files of a fix.
   suite made. The folder stayed clean: no `.playwright-mcp` folder, and `test-results/` is ignored by git.
 - The runner loads only the `R2_` lines of `secrets/test.env`, line by line: the bash of macOS (3.2) cannot source a process
   substitution, and a full source of that file stopped with a syntax error on its line 5.
+
+### Chat batch: the phone fixes (merge lead, 2026-10-20, branch rb/chat-polish)
+- The task thread at 390 px: the back button, the task picture, Open task and the menu left about 100 px for the title, so the title
+  showed 4 letters ("Bala..."). Under 640 px the picture now hides (it only decorates; the line under the title says "Task thread"),
+  and the title takes up to two lines. At 1,280 px and 960 px nothing changed: one line, with the picture.
+- The message box at 390 px has 167 px for text (195 px less 2 x 14 px of padding); at 360 px, 137 px. The full hint ("Write a
+  message. Type @ to mention someone.") took 3 lines. "Type @ to mention someone." still took 2. The phone hint "Use @ to mention."
+  takes 1 line at 360 px and 390 px. In Arabic, «اكتب @ لذكر شخص.» took 2 lines at 360 px, because «إرسال» is wider than "Send";
+  «اكتب @ لذكر أحد.» takes 1. At 320 px a hint of this length takes 2 lines.
+- The hint keeps the @ tip on a phone: a project chat pushes only the people that a message names, so a person who does not know @
+  reaches nobody with a push.
+- Gates: 5 new tests first (3 failed before the fix; 2 hold what stays: one line for a chat title, the full hint on a computer), then `npm test` 689 files, 7,288 passed, 6 skipped; `npm run build`
+  green. Shots (390 px: English and Arabic, light and dark; 360 px: English and Arabic) in the session scratchpad `shots-polish/`.

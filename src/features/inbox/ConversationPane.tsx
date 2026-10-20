@@ -42,7 +42,8 @@ import { NewerMessages } from './NewerMessages';
  * heading itself, so a title in the other language cuts at its end and not at its start (chat design 2026-10-19, item 8). A `<bdi>`
  * takes the direction of its own text, and its side from the page (tokens.css).
  */
-function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: string; subtitle: ReactNode; action?: ReactNode }) {
+/** `twoLines`: on a phone the title takes up to two lines, because a wide action (Open task) leaves little width for it. */
+function Header({ lead, title, subtitle, action, twoLines = false }: { lead: ReactNode; title: string; subtitle: ReactNode; action?: ReactNode; twoLines?: boolean }) {
   const { t } = useTranslation();
   return (
     <header className="flex items-center gap-3 border-b border-hairline px-3 py-2.5 sm:px-5">
@@ -51,7 +52,7 @@ function Header({ lead, title, subtitle, action }: { lead: ReactNode; title: str
       </Link>
       {lead}
       <div className="min-w-0 flex-1">
-        <h2 className="min-w-0 text-headline text-ink"><bdi className="block truncate">{title}</bdi></h2>
+        <h2 className="min-w-0 text-headline text-ink"><bdi className={twoLines ? 'line-clamp-2 [overflow-wrap:anywhere] sm:line-clamp-1' : 'block truncate'}>{title}</bdi></h2>
         <div className="truncate text-footnote text-ink-2">{subtitle}</div>
       </div>
       {action}
@@ -350,8 +351,9 @@ export function TaskPane({ id, focusFromRoute }: { id: string; focusFromRoute: s
   return (
     <ChatDropArea note={where ? t('chat.dropProject') : t('chat.dropOfficeTask')}>
       <Header
-        lead={<span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><AnimatedIcon icon={ClipboardCheckIcon} size={18} aria-hidden /></span>}
+        lead={<span aria-hidden className="hidden size-10 shrink-0 place-items-center rounded-full bg-fill text-ink-2 sm:grid"><AnimatedIcon icon={ClipboardCheckIcon} size={18} aria-hidden /></span>}
         title={task.data.task.title}
+        twoLines
         subtitle={`${t('chat.taskThread')} · ${where ? where.name : t('office.word')}`}
         action={(
           <>

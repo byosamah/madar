@@ -35,3 +35,25 @@ describe('the message box on a phone (design item 7)', () => {
     expect(box).toHaveValue('سطر\nسطر آخر');
   });
 });
+
+describe('the hint in the message box (owner, 2026-10-20)', () => {
+  // A project chat pushes only the people that a message names, so the short hint of a phone keeps the @ tip.
+  it('is short on a phone and keeps the @ tip, so the empty box keeps one line', async () => {
+    phone();
+    await renderApp('/inbox');
+    await userEvent.click(await rowLink(/Corniche Office Tower/));
+    expect(await screen.findByRole('textbox', { name: 'Message' })).toHaveAttribute('placeholder', 'Use @ to mention.');
+  });
+  it('is short on an Arabic phone too', async () => {
+    phone();
+    await renderApp('/inbox', (state) => { state.users.usr_001.preferences.language = 'ar'; });
+    await waitFor(() => expect(document.documentElement.dir).toBe('rtl'));
+    await userEvent.click(await within(await screen.findByRole('list', { name: 'المحادثات' })).findByRole('link', { name: /Corniche Office Tower|برج/ }));
+    expect(await screen.findByRole('textbox', { name: 'الرسالة' })).toHaveAttribute('placeholder', 'اكتب @ لذكر أحد.');
+  });
+  it('keeps the mention hint on a computer', async () => {
+    await renderApp('/inbox');
+    await userEvent.click(await rowLink(/Corniche Office Tower/));
+    expect(await screen.findByRole('textbox', { name: 'Message' })).toHaveAttribute('placeholder', 'Write a message. Type @ to mention someone.');
+  });
+});

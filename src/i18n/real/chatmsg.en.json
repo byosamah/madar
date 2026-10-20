@@ -6,6 +6,7 @@
     }
   },
   "chat": {
+    "placeholderPhone": "Use @ to mention.",
     "messageActions": "Actions for this message",
     "reactions": "Reactions",
     "yourMessage": "Your message",

@@ -48,6 +48,8 @@ function ComposerBox({ id, people, pending, onSend, upload, owner, replyTo, onCa
   const { t } = useTranslation();
   const toast = useToast();
   // On a phone, Enter makes a new line and only the Send button sends (chat design 2026-10-19, item 7).
+  // On a phone the box shows a short hint that keeps the @ tip: the full hint took three lines and made the empty box tall, and a
+  // project chat pushes only the people that a message names (owner, 2026-10-20).
   const phone = useIsPhone();
   const draftKey = id.startsWith('tsk_') ? `task:${id}` : `chat:${id}`;
   const attachments = useAttachments(MAX_ATTACHMENTS, readDraftFiles(owner, draftKey));
@@ -140,7 +142,7 @@ function ComposerBox({ id, people, pending, onSend, upload, owner, replyTo, onCa
           rows={1}
           inputRef={field}
           placement="above"
-          placeholder={t('chat.placeholder')}
+          placeholder={phone ? t('chat.placeholderPhone') : t('chat.placeholder')}
           className="[&_textarea]:max-h-40 [&_textarea]:min-h-11 [&_textarea]:resize-none [&_textarea]:[field-sizing:content]"
         />
       </div>

@@ -23,3 +23,23 @@ describe('the chat title (design item 8)', () => {
     });
   }
 });
+
+describe('the task thread title on a phone (owner, 2026-10-20)', () => {
+  it('gives the title up to two lines and shows the task picture only from 640 px', async () => {
+    await renderApp('/inbox/tsk_001');
+    const link = await screen.findByRole('link', { name: 'Open task' }, { timeout: 10_000 });
+    const header = link.closest('header') as HTMLElement;
+    const heading = within(header).getByRole('heading', { level: 2 });
+    // At 390 px the Open task button took the width, and one line held only a few letters of the title.
+    expect(cutter(heading)).toHaveClass('line-clamp-2', 'sm:line-clamp-1');
+    expect(cutter(heading)).not.toHaveClass('truncate');
+    // The task picture only decorates: the line under the title already says "Task thread".
+    expect(header.querySelector(':scope > span[aria-hidden]')).toHaveClass('hidden', 'sm:grid');
+  }, 30_000);
+
+  it('keeps one line for the title of a chat', async () => {
+    await renderApp('/inbox/cnv_001');
+    const header = (await screen.findByRole('textbox', { name: 'Message' }, { timeout: 10_000 })).closest('form')!.parentElement!.querySelector('header') as HTMLElement;
+    expect(cutter(within(header).getByRole('heading', { level: 2 }))).toHaveClass('block', 'truncate');
+  }, 30_000);
+});
