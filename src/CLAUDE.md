@@ -195,7 +195,7 @@ any screen work.
 - In the real build, Tasks shows the cached Home answer of `tasks.list {filter:'mine'}` without the done rows while its own
   list loads (`features/work/minePlaceholder.ts`), only when no change marked that answer. `WorkTasks` reads its list with
   `useQuery` under the `useCall` key, so a change to `useCall` must also go there.
-- The project Tasks tab asks `taskTemplates.list {}` once, with its `tasks.list`, under the gates of the menu (list view and
+- The project To-dos tab asks `taskTemplates.list {}` once, with its `tasks.list`, under the gates of the menu (list view and
   `createTaskForSelf`). Each `TemplateMenu` keeps the templates of its stage with `lib/sameText.ts`, as the handler does.
 - In the real build, a picture hook (`useFileLink`, `useScreenshotLink`) keeps its signed link in the cache for
   `LINK_STALE_MS` (8 minutes) after the screen closes. The row pictures (Files rows, the meeting drawings, the report
@@ -279,7 +279,7 @@ any screen work.
   the end of each row the person may move, and Space plus the arrow keys on the grip. Coming up on Home has no grips, because its
   tasks fall on different days. The row content sits in an inner box (`RowDrag`, `TaskRowItem.tsx`), so the drag and the slide of
   the row never set one transform.
-- The project Tasks tab (feedback fbk_005 and fbk_006, 2026-10-11, `features/project/tasks/`): the "+" before "Add a task" opens
+- The project To-dos tab (feedback fbk_005 and fbk_006, 2026-10-11, `features/project/tasks/`): the "+" before "Add a to-do" opens
   `NewTaskSheet` (title, a lead from the team, due date; a new task has no lead until one is picked), and the words next to it stay
   the quick add. A refusal "move the project back" opens the reason sheet over it, as in the quick add. The avatar of a row is
   `TaskPeople`: for a person with `row.canEditPeople` a press opens a small pop-up with the lead list (the lead first, then the
@@ -454,8 +454,12 @@ any screen work.
 ## Meetings screens (owner, 2026-10-19, fbk_022)
 - `/meetings` is the second view of the Tasks tab (`features/meetings/`, `MeetingsScreen.tsx`). The tab pill keeps 5 tabs: `isNavActive` keeps
   Tasks open on `/meetings`, and `screenKey` (`AppShell.tsx`) gives both views one entrance. Under the title "Tasks" the switch `WorkSwitch`
-  (`features/work/`, a `SegmentedControl` over the address) picks Tasks or Meetings. The one main button follows the view: "New office task"
-  or "New meeting".
+  (`features/work/`, a `SegmentedControl` over the address) picks To-dos (`meetings.switch.todos`, Arabic «قائمة المهام») or Meetings. The one main
+  button follows the view: "New office to-do" or "New meeting".
+- Words (owner, 2026-10-20): "Tasks" now names the umbrella of to-dos and meetings. Only the tab (`nav.tasks`) and the screen title
+  (`screens.myWork`) say "Tasks". Every other English text calls one old task a "to-do" (the project tab "To-dos", "Add a to-do", "To-do list").
+  Only two Arabic texts changed (`meetings.switch.todos` and `project.tab.tasks`, both «قائمة المهام»): the Arabic «مهمة» covers both.
+  Keys, calls, MCP tool names and code names keep "task".
 - The view reads `meetings.list {from: today - 7 days, to: today + 60 days, mine: true}`. `groups.ts` makes Today, This week and Later (the week of
   the Tasks screen: on a Friday or a Saturday it is the coming Sunday to Saturday). The days before today are one folded row, "Earlier (n)".
   An empty list is one line. A press on a row opens the sheet with `?meeting=<id>` (`openMeeting`, `closeMeeting`, `meetingParam` in `lib/params.ts`).
