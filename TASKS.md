@@ -789,3 +789,19 @@ tests on the test copy by hand. What's new 2026-10-23-64 to 69.
 - [x] The owner chose to release without a hand test on the test copy
 - [x] Production at a115a281 (2026-10-20, the owner said "deploy to production"; Claude ran it). fbk_037 done
 - [ ] Later: the step of `.github/workflows/files-backup.yml` that writes the backup size to `usage_month` (nothing reads it now); remove it when file backups start again
+
+## 2026-10-20: phone notifications for the Home Screen app (branch `rb/push-reach`, worktree `~/dev/madar-rb/push-reach`)
+Owner: tasks and chat need notifications on the phone. These fixes serve the Home Screen app only until the store app comes (owner,
+2026-10-20). What's new 2026-10-23-70.
+
+- [x] Home: an iPhone or iPad in a browser tab shows the 3 steps to the Home Screen (before, it showed nothing and got no push)
+- [x] Home: on Android, after the push ask, one button opens the install box of Chrome (`src/app/remote/install.ts`)
+- [x] Server: every push with `Urgency: high` (Android sends it at once in sleep mode) and a TTL of 1 day (was 1 hour)
+- [x] Gates: typecheck, `npm test` 8,149 passed (726 files), `npm run build`, `build:server`, `build:remote -- test`, `test:db`
+  2,205 passed (27 skipped), `test:it` 325 passed (39 files)
+- [ ] Not approved yet (owner): the push line names the kind ("New message", "A task for you") and a tap opens that chat or task.
+  It changes the rule of 2026-10-08 (one fixed line with no data) and needs the encryption of the push text (RFC 8291)
+- [ ] Found: What's new shows the day "23 October" for the entries of 2026-10-20 (ids `2026-10-23-*`). Ask the owner before a change:
+  a new id marks an entry as new again
+- [ ] Later, with the store app: the plan of 2026-10-20 (one code for both phones with Expo, the shared contract, a "phone" list for
+  each call and screen, a lowest app version). Decide the Supabase exit first
