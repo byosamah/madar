@@ -252,7 +252,8 @@ any screen work.
   (`features/projects/TemplateUse.tsx`, `templateForm.ts`; the picker sits right under the Name, and the people of the roles are ticked
   and locked in the Team list). A chosen template takes the place of the stage list and makes the start date required. The ticks "Can
   stretch" stay folded. The dates come from `lib/projectPlan.ts`, as on the server. The row menu has Duplicate (`duplicateDraft`); the
-  update item and the follower count are the Admin's only (the calls ask `admin.manage`).
+  update item and the follower count are for the Admin and for a role with `templates.updateProjects` (the calls ask that right). A person with only
+  that right sees the section and a row menu with the update item alone.
 - The template editor (`ProjectTemplateEditor.tsx`, ADM-06): a full-screen sheet (`Sheet full`) on a desk. The timeline (`TemplateGantt.tsx`)
   is the main view, with one row for each stage and task; a press on a row or a bar picks it, and `TemplateDetails.tsx` shows its fields
   beside the chart (a Sheet on a phone, with `TemplateList.tsx` as the rows). The editor works on a text draft (`templateDraft.ts`):
@@ -318,6 +319,10 @@ any screen work.
   Everyone sees all projects. Payments only for the payment right (by default Admin, Management, Accounting; fbk_014). Agents never join a team. The person who adds a
   project task changes and deletes it like the leader while on the team; the review stays with the leader (owner, 2026-10-07).
   Only the Admin changes a role. Management reads the role of a person as text in the person sheet (owner, 2026-10-18, fbk_014).
+  The role sheet shows 17 rights in 7 sections (`RIGHT_SECTIONS`, `permissions.ts`): a heading, an All switch for a section of two or
+  more rights, and one switch for each right. The Admin sections of sub-companies and requests and bugs open for `subCompanies.manage` and
+  `feedback.manage`; the project templates open for `templates.manageAll` or `templates.updateProjects` (`alsoRights` in `sections.ts`).
+  The words are in `real/rolerights.*`. A role with many rights shows only the count in the person sheet (`roles.line.many`).
 - Home (`features/home/`): the day ring shows its words, "11 of 14 done today" (owner, 2026-10-19, fbk_026); the text wraps under the date on a
   narrow phone. The Today panel lists my tasks due today or past due. With none, it is "Coming up": my next 3 open
   tasks with a due date (`comingUp`, `lib/home.ts`, owner 2026-10-07). With neither, it says that nothing is due today. Home

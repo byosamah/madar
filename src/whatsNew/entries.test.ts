@@ -54,6 +54,11 @@ describe("What's new entries", () => {
     expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-12')?.right).toBe('report.office');
   });
 
+  // role-rights (owner, 2026-10-23): only the Admin makes roles, so only the Admin reads the entry about the sections of rights.
+  it('shows the entry about the rights in sections to the Admin only, and opens the Roles section', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-68')).toEqual({ id: '2026-10-23-68', day: '2026-10-23', right: 'admin.manage', to: '/admin/roles' });
+  });
+
   // Chat design 2026-10-19 (track msg, B17): the message menu, reply, edit, delete, reactions and instant send.
   it('name the message menu of the chats in one entry that opens the Inbox', () => {
     const entry = WHATS_NEW.find((item) => item.id === '2026-10-23-30');

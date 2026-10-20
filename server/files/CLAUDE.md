@@ -66,6 +66,8 @@ server checks the final object, then saves the record.
   `application/octet-stream`.
 - Check `project.view`, and that the person is active, right before you sign any link (`rights.ts`). For a file of an
   office task: `task.view` on that task (`assertMayViewOfficeFile`), which answers not_found, as for a missing file.
+- A screenshot link of a report needs `feedback.manage` (`assertMayReadReports`, `rights.ts`). A hook has no office snapshot, so it reads the
+  roles from the settings row (`readRoles`, `records.ts`) and attaches the rights with `withOfficeRights`.
 - Never put a signed link in a message or a mail.
 
 ## Tests

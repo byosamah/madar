@@ -126,6 +126,10 @@
       "2026-10-23-12": {
         "title": "The office report",
         "body": "Now a person with the report right can ask an AI agent for the full office report."
+      },
+      "2026-10-23-68": {
+        "title": "Rights in sections",
+        "body": "The rights of a role now sit in seven sections, and each section has an All switch. Turn on only the parts of the Admin work that a role needs."
       }
     },
     "newMark": "New",
