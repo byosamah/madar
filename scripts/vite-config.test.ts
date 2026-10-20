@@ -85,14 +85,15 @@ describe('the Vitest projects', () => {
 
 describe('the test scripts', () => {
   it('turn on the project they run', () => {
-    expect(scripts['test:db']).toBe('MADAR_DB=1 vitest run --project db');
-    expect(scripts['test:it']).toBe('MADAR_IT=1 vitest run --project it --passWithNoTests');
-    expect(scripts['test:lite']).toBe('MADAR_LITE=1 vitest run --project lite');
-    expect(scripts['test:office']).toBe('MADAR_OFFICE=1 vitest run --project office');
+    // Each one takes the heavy lock first (owner, 2026-10-20; scripts/dev/heavy-lock.test.ts).
+    expect(scripts['test:db']).toBe('MADAR_DB=1 bash scripts/dev/heavy-lock.sh run test-db -- vitest run --project db');
+    expect(scripts['test:it']).toBe('MADAR_IT=1 bash scripts/dev/heavy-lock.sh run test-it -- vitest run --project it --passWithNoTests');
+    expect(scripts['test:lite']).toBe('MADAR_LITE=1 bash scripts/dev/heavy-lock.sh run test-lite -- vitest run --project lite');
+    expect(scripts['test:office']).toBe('MADAR_OFFICE=1 bash scripts/dev/heavy-lock.sh run test-office -- vitest run --project office');
   });
 
   it('run the MCP unit tests, then the conformance runner against the served function through server/mcp/conformance.ts (G3)', () => {
-    expect(scripts['test:mcp']).toBe('vitest run --project server server/mcp && tsx server/mcp/conformance.ts');
+    expect(scripts['test:mcp']).toBe("bash scripts/dev/heavy-lock.sh run test-mcp -- sh -c 'vitest run --project server server/mcp && tsx server/mcp/conformance.ts'");
   });
 });
 
