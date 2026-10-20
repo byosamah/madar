@@ -1053,6 +1053,23 @@ walk caught the answer: a whole-batch 500 "Something went wrong" for the Admin, 
   `/favicon.ico` 200.
 - The commit of this record changes HEAD, so the next production needs `all.sh test` again.
 
+### Production at 9a8aa6a6 (2026-10-20, meetings wave 3; Claude ran it on the owner's word)
+- The release: meetings wave 3 (a meeting repeats every day Sunday to Thursday, every week or every 2 weeks; the edit and the cancel ask
+  "This meeting" or "This and later meetings"; the 15-minute job keeps 8 meetings ahead with `meetings.extend`), the heavy test lock
+  (`scripts/dev/heavy-lock.sh` in the npm scripts, 5 vitest workers), and the guide line that a backup runs only when the owner asks.
+- Security review of `meetings.extend` (2026-10-20, two findings): it counted only the meetings that the caller sees and needed only the
+  view. Now it counts the whole series (its loader reads every meeting of the series from today), and the caller must see the last meeting
+  and may change it (`meeting.edit`). The job extends as the organizer, else the first active Admin of a project series; a private series
+  of an organizer who left stops. A test reproduced the attack before the fix. The shadow run of `test:lite` found that the loader still
+  dropped the hidden meetings; the loader fix closed it.
+- Gates on the release commit: typecheck, npm test 7,909 (2 pinned script texts fixed after the lock; earlier timeouts passed alone),
+  test:lite 2,008, test:office 38, the three builds (api bundle 757,096 of 760,000 characters), test:db 2,008, test:it 335, test:mcp 256
+  with conformance 5 of 32, prototype smoke 87 of 87, 390 px shots of the repeat form, the scope question and the series line.
+- `all.sh test` at 9a8aa6a6 (health 147 calls), `git push origin main`, then `all.sh production`: settings pushed, Pages 21c26e86, health
+  from `supabase` with 147 calls and the R2 file store, the database check, `POST /mcp` with no token 401; the page 200 with the title
+  Madar, `/privacy` and `/favicon.ico` 200, and the live page starts `bootstrap-l3Nn2aCd.js` of this build. No deploy suite ran before it:
+  the owner chose speed. fbk_022 is done.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 
