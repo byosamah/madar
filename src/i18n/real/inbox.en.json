@@ -53,7 +53,7 @@
       "group_too_small": "A group keeps at least two people.",
       "group_full": "A group holds 50 people at most.",
       "not_maker": "Only the person who made the group can remove other people.",
-      "file_chat": "A file of a chat stays in its chat. It has no stage, no task and no cover."
+      "file_chat": "A file of a chat stays in its chat. It has no stage, no to-do and no cover."
     }
   },
   "inbox": {
