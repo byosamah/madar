@@ -15,6 +15,9 @@ the config, the heartbeat of one run stays and the next run fails.
   while it runs.
 - The sample office follows the real date. An assertion on Home or on due dates must hold on any day: the Home panel is
   "Today" or "Coming up" (`acceptance.spec.ts`, 2026-10-12).
+- Prototype data for screenshots: edit IndexedDB `madar`, store `data`, key `state`, then reload (for example a due date 157 days back).
+  A Playwright clock does not age tasks: the start moves the sample dates to the new today. For the memory line, set `state.version = 999`
+  and reload; a blocked `indexedDB` did not bring it. A script in the scratchpad imports Playwright by its absolute path in the worktree.
 
 ## The deploy suite (`e2e-deploy/`)
 - `npx playwright test -c playwright.deploy.config.ts`. It runs the real screens on the server.

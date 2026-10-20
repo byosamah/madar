@@ -525,6 +525,8 @@ any screen work.
 
 ## Design rules (the short form of DESIGN.md)
 - Judge every choice from the view of the employees with ADHD: one next step, the fewest controls.
+- A notice that stays while a state lasts ("Live updates paused", "No connection") goes through `useStandingNotice` (`toasts.tsx`):
+  it floats in the toast lane. Never put a strip above the page: the header floats over it (owner, 2026-10-20).
 - Start from the LIVE app's design system (glow tiles, the tokens), never from the spec alone.
 - The signature is solid navy `#1F2A55` (dark `#C9D4FF`), never a gradient. It goes only on the one main button, the
   open tab, the day ring and the timer.

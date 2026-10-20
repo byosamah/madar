@@ -203,7 +203,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   each agent to `mv` every shot into the scratchpad. After each run, check
   `git status` in the main folder and in `deploy-test`, and move the folder out.
 - Start a browser-check agent without `name`: named agents became teammates that handed the work to a sub-agent, and several
-  reports ended with "no report". Ask for the report in the final message and in a scratchpad file.
+  reports ended with "no report". Ask for the report in the final message. The system may refuse a report file from a subagent.
 - `git branch -d` tests against the HEAD of the folder where it runs. The main folder is detached, so it refused merged
   branches. Run it from `deploy-test` (HEAD = main), or check `git merge-base --is-ancestor <branch> main` and use `-D`.
 - Agents without Docker cannot run `test:db` or `test:it`: the merge lead runs them and fixes what they pin.

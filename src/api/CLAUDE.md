@@ -225,6 +225,8 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - `tasks.help` (fbk_035, owner 2026-10-20): a person on the team (`task.help`) joins a project task as a helper, or leaves it,
   with one tap. The lead gets the in-app notice `helper_joined`; a leave tells nobody. Nobody joins an office task (`office_help`);
   its helper may leave. `isOwnHelp` (`history.ts`) lets the person undo their own join or leave. `viewerCan.help` shows the join.
+- A write that a person makes on themselves (`tasks.take`, `tasks.help`) needs its own rule in `assertMayUndo` (`isOwnTake`,
+  `isOwnHelp`, `history.ts`). Without it, Undo asks for the right of the general change, and the toast fails.
 - The review stays with the leader and the Admin: `task.review` (approve, send back) and the review need (`needsReview` in
   `tasks.update`, and `needsReview: false` in `tasks.create`). `TaskDetail.viewerCan.setNeedsReview` shows the switch.
 - `task.createForAnyone` equals `task.createForSelf` on a project: a team member names any team mate as lead and helpers.
@@ -270,6 +272,9 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   agents, people who left, and a switch that is off.
 - `Preferences.notifications` is a `partialRecord`: a missing trigger means on. Read a switch only with `inAppOn`
   (`notify.ts`). So a person stored before a new trigger still loads, with no backfill.
+- A new in-app notice type: `TRIGGERS` and `IN_APP_ONLY_TRIGGERS` (`entities.ts`), the words `settings.triggers.<t>` and
+  `inbox.trigger.<t>` (with `_female` in Arabic), the pins in `entities.test.ts`, `notify.test.ts` and `NotificationsSection.test.tsx`,
+  and the list in `server/mail/CLAUDE.md`. No migration: the column is text.
 - zod 4 `z.record(enumKey, …)` needs every key, so a new enum value refuses every stored doc. A stored map uses `z.partialRecord`.
 - `IN_APP_ONLY_TRIGGERS` (both) send no email: `emailOn` is false, `notifications.updateSettings` refuses their email switch
   with reason `in_app_only`, and Settings shows no email switch for them. `EMAIL_TRIGGERS` holds the other triggers.
@@ -542,7 +547,8 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
    screen of its actor. `server/core/writeKinds.test.ts` fails without the line.
 8. Words in English and Arabic for every new message.
 9. Raise the pinned call counts: `src/api/calls.test.ts`, `server/core/serverCallMap.test.ts`, `server/http/health.test.ts`,
-   `server/it/worker.it.test.ts`, and the MCP tool count tests.
+   `server/it/worker.it.test.ts`, and the MCP tool count tests: `server/mcp/app.test.ts`, `server/mcp/tools.test.ts` (two
+   destructive counts, member and Admin), `server/mcp/oauth/sdk.test.ts`, and the counts in `server/mcp/CLAUDE.md` and the `docs.ts` header.
 
 ## A new record type
 - A new zod collection needs a table in a new migration and an entry in `server/data/tables.ts`.
@@ -561,5 +567,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - Each version has a step in `src/data/migrate.ts`. A newer or unreadable saved office is never wiped.
 
 ## Tests
+- A delete of the last task of a stage records a stage change after the delete. A test undoes the delete event or the story,
+  never "the newest event".
 - `npm test` runs the rule tests on the store in memory. `npm run test:db` runs them again on the local Postgres (one
   schema for each worker, as madar_server).
