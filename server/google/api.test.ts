@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  GOOGLE_SCOPE, GOOGLE_TIMEOUT_MS, GoogleError, LIST_PAGES, LIST_PAGE_SIZE, authUrl, deleteEvent, exchangeCode, getCalendar, insertEvent, listEvents, makeCalendar, patchEvent,
+  GOOGLE_CONNECT_TIMEOUT_MS, GOOGLE_SCOPE, GOOGLE_TIMEOUT_MS, GoogleError, LIST_PAGES, LIST_PAGE_SIZE, authUrl, deleteEvent, exchangeCode, getCalendar, insertEvent, listEvents, makeCalendar, patchEvent,
   refreshAccess, revokeToken, updateEvent,
   type EventBody, type GoogleClient,
 } from './api';
+import { REQUEST_TIMEOUT_MS } from '../../src/api/remote/remoteApi';
 
 /** The Google client (fbk_022). Every test hands it a stub fetch; the real fetch never runs, and every value here is made up. */
 
@@ -94,6 +95,24 @@ describe('exchangeCode', () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(await outcome).toMatchObject({ code: 'timeout', retry: true, message: 'timeout' });
     expect(GOOGLE_TIMEOUT_MS).toBe(3000);
+  });
+
+  // fbk_033: the connect waits longer for Google, and its longest chain (the code swap, the remembered calendar, a new calendar, then the
+  // revoke of a failure) must still answer before the screen stops waiting.
+  it('gives the calls of a client with timeoutMs that limit, and the chain of a connect ends before the screen stops waiting', async () => {
+    vi.useFakeTimers();
+    const { fetch } = stub(() => new Promise<Response>(() => undefined));
+    const outcome = makeCalendar({ ...client(fetch), timeoutMs: GOOGLE_CONNECT_TIMEOUT_MS }, 'at-1').catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(GOOGLE_CONNECT_TIMEOUT_MS - 1);
+    let settled = false;
+    void outcome.then(() => { settled = true; });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await outcome).toMatchObject({ code: 'timeout', retry: true });
+    vi.useRealTimers();
+    expect(GOOGLE_CONNECT_TIMEOUT_MS).toBe(5000);
+    expect(3 * GOOGLE_CONNECT_TIMEOUT_MS + GOOGLE_TIMEOUT_MS).toBeLessThan(REQUEST_TIMEOUT_MS);
   });
 
   it('gives unreachable with retry for a network error, and the message holds nothing of the error', async () => {

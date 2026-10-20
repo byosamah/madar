@@ -1,13 +1,19 @@
 /**
  * The Google client of the Calendar connect (fbk_022, owner 2026-10-19): the sign-in address, the code swap, the refresh, the
- * Madar calendar (make it, read it), its events (write them, list them), and the revoke. Plain `fetch` with a 3 second limit on every call. Tests pass a stub fetch, so no
- * test reaches Google.
+ * Madar calendar (make it, read it), its events (write them, list them), and the revoke. Plain `fetch` with a 3 second limit on every call,
+ * and 5 seconds on the calls of a connect (GOOGLE_CONNECT_TIMEOUT_MS). Tests pass a stub fetch, so no test reaches Google.
  *
  * An error is a GoogleError whose message is its code and nothing more. The text of a network error, a Google answer, an address, a
  * token or a title never reaches an error, a log line or the outbox. The caller decides from `code` and `retry`.
  */
 
 export const GOOGLE_TIMEOUT_MS = 3000;
+/**
+ * The limit of each Google call of google.connect: the code swap, the read of the remembered calendar and the new calendar (fbk_033).
+ * On production (2026-10-20) these steps took about 3 s, and the limit of 3 s failed 3 of 4 connects. The person waits on the screen,
+ * and the screen waits 20 s for an answer (REQUEST_TIMEOUT_MS): three calls of 5 s and the revoke of 3 s (18 s) stay under it.
+ */
+export const GOOGLE_CONNECT_TIMEOUT_MS = 5000;
 /** The one scope: Madar makes its own calendar in the account of the person and writes only there. */
 export const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/calendar.app.created';
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -15,7 +21,8 @@ const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
 const CALENDARS_URL = 'https://www.googleapis.com/calendar/v3/calendars';
 
-export type GoogleClient = { clientId: string; clientSecret: string; redirectUri: string; fetch?: typeof fetch };
+/** `timeoutMs`: the limit of each call of this client, GOOGLE_TIMEOUT_MS when absent. */
+export type GoogleClient = { clientId: string; clientSecret: string; redirectUri: string; fetch?: typeof fetch; timeoutMs?: number };
 
 export type GoogleErrorCode = 'timeout' | 'unreachable' | 'server' | 'rate_limited' | 'grant_gone' | 'not_found' | 'conflict' | 'unauthorized' | 'refused';
 const RETRY: ReadonlySet<GoogleErrorCode> = new Set(['timeout', 'unreachable', 'server', 'rate_limited']);
@@ -47,7 +54,7 @@ async function send(c: GoogleClient, url: string, init: { method: string; header
     timer = setTimeout(() => {
       controller.abort();
       reject(new GoogleError('timeout'));
-    }, GOOGLE_TIMEOUT_MS);
+    }, c.timeoutMs ?? GOOGLE_TIMEOUT_MS);
   });
   const work = (async (): Promise<Answer> => {
     // A redirect is a refusal: the server never follows one to another host.

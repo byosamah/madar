@@ -1,0 +1,10 @@
+{
+  "whatsNew": {
+    "items": {
+      "2026-10-23-55": {
+        "title": "Google Calendar connects again",
+        "body": "Before, the connect to Google Calendar in Settings often stopped with the message that Madar could not reach Google. Madar now waits longer for Google. If you saw that message, press Connect Google Calendar again."
+      }
+    }
+  }
+}

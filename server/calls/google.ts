@@ -8,7 +8,7 @@ import { digestOf, replay, sqlKeys, type StoredResult } from '../core/idempotenc
 import { takeOfficeLock } from '../core/lock';
 import type { Deps } from '../core/ports';
 import type { ServerCall, ServerCallCtx } from '../core/types';
-import { authUrl, exchangeCode, getCalendar, GOOGLE_SCOPE, GoogleError, makeCalendar, revokeToken } from '../google/api';
+import { authUrl, exchangeCode, getCalendar, GOOGLE_CONNECT_TIMEOUT_MS, GOOGLE_SCOPE, GoogleError, makeCalendar, revokeToken, type GoogleClient } from '../google/api';
 import { googleOf, type GoogleReady } from '../google/client';
 import { sealToken } from '../google/keys';
 import { TIDY_EFFECT } from '../google/rows';
@@ -122,14 +122,14 @@ async function runAfterCommit(deps: Deps, ids: string[], name: string): Promise<
  * failure (a timeout, a 5xx, a 429, a 401) ends the connect with google_unreachable and makes no calendar: the person presses Connect again.
  */
 async function calendarFor(
-  ready: GoogleReady,
+  client: GoogleClient,
   known: string | undefined,
   accessToken: string,
   fail: (step: ConnectStep, error: unknown) => void,
 ): Promise<{ calendarId: string; reused: boolean }> {
   if (known !== undefined) {
     try {
-      return { calendarId: await getCalendar(ready.client, accessToken, known), reused: true };
+      return { calendarId: await getCalendar(client, accessToken, known), reused: true };
     } catch (error) {
       if (!(error instanceof GoogleError)) throw error;
       if (error.code !== 'not_found') {
@@ -139,7 +139,7 @@ async function calendarFor(
     }
   }
   try {
-    return { calendarId: await makeCalendar(ready.client, accessToken), reused: false };
+    return { calendarId: await makeCalendar(client, accessToken), reused: false };
   } catch (error) {
     fail('calendar_make', error);
     throw error;
@@ -168,9 +168,11 @@ export const googleConnect: ServerCall<'google.connect'> = async (input, ctx) =>
   const known = await deps.db.tx('write', (q) => rememberedCalendar(q, actorId));
 
   const fail = (step: ConnectStep, error: unknown) => logConnectFailure(deps, actorId, step, error);
+  // The Google steps of the connect get the longer limit: the person waits on the screen for them (fbk_033). The revoke keeps 3 s.
+  const client: GoogleClient = { ...ready.client, timeoutMs: GOOGLE_CONNECT_TIMEOUT_MS };
   let tokens: Awaited<ReturnType<typeof exchangeCode>>;
   try {
-    tokens = await exchangeCode(ready.client, input.code, read.verifier);
+    tokens = await exchangeCode(client, input.code, read.verifier);
   } catch (error) {
     fail('token', error);
     throw refusalOf(error);
@@ -184,7 +186,7 @@ export const googleConnect: ServerCall<'google.connect'> = async (input, ctx) =>
   let calendarId: string;
   let reused: boolean;
   try {
-    ({ calendarId, reused } = await calendarFor(ready, known, tokens.accessToken, fail));
+    ({ calendarId, reused } = await calendarFor(client, known, tokens.accessToken, fail));
   } catch (error) {
     await dropGrant(ready, tokens.refreshToken);
     throw refusalOf(error);
