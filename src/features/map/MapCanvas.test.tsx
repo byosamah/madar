@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import type { GeoPoint } from '../../api/contract/entities';
 import { renderWithRuntime } from '../../test/render';
 import MapCanvas, { foldCredit, releaseUrl } from './MapCanvas';
+import { loadSatelliteTile } from './satellite';
 
 // MapLibre runs in a browser, so these tests replace it with a double.
 type Handler = (event?: unknown) => void;
@@ -11,7 +12,7 @@ const made = vi.hoisted(() => [] as { easeTo: (options: unknown) => void; handle
 const markers = vi.hoisted(() => [] as { element: HTMLElement; lngLat: number[] }[]);
 const popups = vi.hoisted(() => [] as { content: HTMLElement | null; lngLat: number[]; options: unknown; removed: boolean }[]);
 const controls = vi.hoisted(() => [] as [string, unknown][]);
-const rtl = vi.hoisted(() => ({ setRTLTextPlugin: undefined as unknown as ReturnType<typeof vi.fn> }));
+const rtl = vi.hoisted(() => ({ setRTLTextPlugin: undefined as unknown as ReturnType<typeof vi.fn>, addProtocol: undefined as unknown as ReturnType<typeof vi.fn> }));
 
 vi.mock('maplibre-gl', () => {
   class FakeMap {
@@ -22,12 +23,21 @@ vi.mock('maplibre-gl', () => {
       this.style = options.style;
       made.push(this);
     }
-    addControl() {}
+    // A control of Madar (an object with onAdd) puts its box on the page, as MapLibre puts it in a corner of the map.
+    addControl(control: { onAdd?: () => HTMLElement }, position?: string) {
+      if (typeof control?.onAdd === 'function') {
+        const box = control.onAdd();
+        box.dataset.corner = position;
+        document.body.append(box);
+      }
+    }
     on(name: string, handler: Handler) {
       (this.handlers[name] ??= []).push(handler);
     }
     remove() {}
-    setStyle() {}
+    setStyle(style: unknown) {
+      this.style = style;
+    }
     fitBounds() {}
     getZoom() {
       return 10;
@@ -92,6 +102,7 @@ vi.mock('maplibre-gl', () => {
     }
   }
   rtl.setRTLTextPlugin = vi.fn(() => Promise.resolve());
+  rtl.addProtocol = vi.fn();
   return {
     Map: FakeMap,
     NavigationControl: FakeControl,
@@ -102,6 +113,7 @@ vi.mock('maplibre-gl', () => {
     Popup: FakePopup,
     setWorkerUrl: vi.fn(),
     setRTLTextPlugin: rtl.setRTLTextPlugin,
+    addProtocol: rtl.addProtocol,
   };
 });
 vi.mock('maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url', () => ({ default: 'worker.js' }));
@@ -158,6 +170,8 @@ describe('MapCanvas (fbk_017)', () => {
     expect(style.sources.openmaptiles.url).toBe('https://tiles.openfreemap.org/planet');
     expect(rtl.setRTLTextPlugin).toHaveBeenCalledWith(expect.stringMatching(/\/assets\/rtl-text-abc\.js$/), true);
     expect(String(rtl.setRTLTextPlugin.mock.calls[0][0])).not.toMatch(/^https:\/\/(?!localhost)/);
+    // The satellite tiles go through the loader of Madar, which sends the origin of the page as the referrer (owner, 2026-10-20).
+    expect(rtl.addProtocol).toHaveBeenCalledWith('madar-satellite', loadSatelliteTile);
   });
 
   // The owner asked for no credit line under the map (2026-10-19). The free data still needs its credit (ODbL), so it is the small
@@ -249,5 +263,83 @@ describe('MapCanvas (fbk_017)', () => {
     expect(popups[0].content?.firstElementChild?.getAttribute('dir')).toBe('ltr');
     view.rerender(<MapCanvas pins={pins} selectedId={null} renderPopup={(id) => <b>{`card of ${id}`}</b>} />);
     await waitFor(() => expect(popups[0].removed).toBe(true));
+  });
+});
+
+// The satellite view (owner, 2026-10-20): Esri World Imagery with the key of the office's free Esri developer account. A build with no
+// key (the prototype, a copy that has none yet) shows no button.
+describe('the satellite view of MapCanvas', () => {
+  type Style = { sources: Record<string, { type: string; tiles?: string[] }> };
+  const styleNow = () => made[made.length - 1].style as Style;
+  const button = (name: string) => screen.findByRole('button', { name });
+
+  beforeEach(() => {
+    made.length = 0;
+    controls.length = 0;
+    window.localStorage.removeItem('madar.mapLayer');
+    vi.stubEnv('VITE_ESRI_KEY', 'KEY');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    window.localStorage.removeItem('madar.mapLayer');
+    for (const box of document.querySelectorAll('[data-corner]')) box.remove();
+  });
+
+  it('shows no Satellite button in a build with no key', async () => {
+    vi.stubEnv('VITE_ESRI_KEY', '');
+    await renderWithRuntime(<MapCanvas pins={[]} />);
+    await waitFor(() => expect(made).toHaveLength(1));
+    expect(screen.queryByRole('button', { name: 'Satellite' })).toBeNull();
+  });
+
+  it('switches to the satellite pictures and back with one small button in the top start corner, with "Powered by Esri" while they show', async () => {
+    await renderWithRuntime(<MapCanvas pins={[]} draggablePin />);
+    const satellite = await button('Satellite');
+    expect(satellite.closest('[data-corner]')).toHaveAttribute('data-corner', 'top-left');
+    expect(styleNow().sources.openmaptiles).toBeDefined();
+    expect(screen.queryByText('Powered by Esri')).toBeNull();
+    fireEvent.click(satellite);
+    await waitFor(() => expect(styleNow().sources.satellite?.tiles?.[0]).toMatch(/World_Imagery.*token=KEY$/));
+    expect(await screen.findByText('Powered by Esri')).toBeInTheDocument();
+    fireEvent.click(await button('Street map'));
+    await waitFor(() => expect(styleNow().sources.openmaptiles).toBeDefined());
+    expect(screen.queryByText('Powered by Esri')).toBeNull();
+  });
+
+  it('keeps the choice for the next map', async () => {
+    const first = await renderWithRuntime(<MapCanvas pins={[]} />);
+    fireEvent.click(await button('Satellite'));
+    await waitFor(() => expect(styleNow().sources.satellite).toBeDefined());
+    first.unmount();
+    made.length = 0;
+    await renderWithRuntime(<MapCanvas pins={[]} fitTo="pins" />);
+    await waitFor(() => expect(made).toHaveLength(1));
+    expect(styleNow().sources.satellite).toBeDefined();
+    expect(await button('Street map')).toBeInTheDocument();
+  });
+
+  it('goes back to the street map with one line when the satellite pictures do not come, and hides the button', async () => {
+    await renderWithRuntime(<MapCanvas pins={[]} />);
+    await waitFor(() => expect(made).toHaveLength(1));
+    act(() => made[0].handlers.load.forEach((handler) => handler()));
+    fireEvent.click(await button('Satellite'));
+    await waitFor(() => expect(styleNow().sources.satellite).toBeDefined());
+    act(() => made[0].handlers.error.forEach((handler) => handler({ sourceId: 'satellite', error: new Error('498') })));
+    expect(await screen.findByText('The satellite view is not ready. The street map shows.')).toBeInTheDocument();
+    await waitFor(() => expect(styleNow().sources.openmaptiles).toBeDefined());
+    expect(screen.queryByRole('button', { name: 'Satellite' })).toBeNull();
+    expect(screen.queryByText('The street map is not ready yet.')).toBeNull();
+  });
+
+  it('keeps the satellite view after its first picture came: a later tile error is a tile that MapLibre retries', async () => {
+    await renderWithRuntime(<MapCanvas pins={[]} />);
+    await waitFor(() => expect(made).toHaveLength(1));
+    act(() => made[0].handlers.load.forEach((handler) => handler()));
+    fireEvent.click(await button('Satellite'));
+    await waitFor(() => expect(styleNow().sources.satellite).toBeDefined());
+    act(() => made[0].handlers.data.forEach((handler) => handler({ sourceId: 'satellite', tile: {} })));
+    act(() => made[0].handlers.error.forEach((handler) => handler({ sourceId: 'satellite', error: new Error('one tile') })));
+    expect(screen.queryByText('The satellite view is not ready. The street map shows.')).toBeNull();
+    expect(styleNow().sources.satellite).toBeDefined();
   });
 });

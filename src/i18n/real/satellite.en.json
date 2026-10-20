@@ -1,0 +1,9 @@
+{
+  "map": {
+    "layer": {
+      "satellite": "Satellite",
+      "street": "Street map",
+      "failed": "The satellite view is not ready. The street map shows."
+    }
+  }
+}

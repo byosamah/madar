@@ -90,6 +90,16 @@ any screen work.
   Nominatim (the place search) pass. `mapStyle.test.ts` pins the one host in the style. A paid or keyed service (Mapbox, Google Maps JS,
   MapTiler, Stadia) never goes in. The own map file (`functions/map`, `server/http/pagesMap.ts`, `scripts/map/build-basemap.sh`) stays in the
   repo as the later option; no screen uses it.
+- **The one exception: the satellite view (owner, 2026-10-20).** No free service with no account has pictures sharp enough for a plot, and
+  Esri's terms ask a business for an account, so the owner chose a free Esri developer account (ArcGIS Location Platform, 2,000,000 basemap
+  tiles a month at no cost). `satellite.ts`: Esri World Imagery, key `VITE_ESRI_KEY` in `config/remote.<env>.env` (public; it works only for
+  the hosts that the Esri account lists). No key: no button. `MapCanvas` puts one small button in the top start corner of every map
+  ("Satellite", then "Street map"); the choice stays for the next map (`madar.mapLayer` in localStorage). The tiles go through the loader
+  `madar-satellite://` (`addProtocol`), which fetches with `referrerPolicy: 'strict-origin'`: the page keeps `Referrer-Policy: no-referrer`,
+  and only this request sends the origin that the key needs. "Powered by Esri" shows beside the credit button while the pictures show
+  (Esri's rule; the sources sit behind the "i"). An error of the satellite source before its first tile (a bad or old key) goes back to the
+  street map with one line and hides the button. `connect-src` names `https://ibasemaps-api.arcgis.com`. An Esri key ends after one year at
+  most: renew it before it ends.
 - The style is written by hand for the OpenMapTiles layers: `MAP_COLORS` are tokens (`mapStyle.test.ts` checks it), labels follow the language
   of the screen (`name:ar` first in Arabic), no points of interest, glyph stacks `Noto Sans Regular` and `Noto Sans Bold` (both hold the Arabic block).
 - The Arabic text plugin is a file of this build: `MapCanvas.tsx` imports `@mapbox/mapbox-gl-rtl-text/dist/mapbox-gl-rtl-text.js?url` by a path
@@ -203,7 +213,9 @@ any screen work.
 
 ## Sub-companies, the Open space and the people stack (review 2026-10-19)
 - A sub-company logo sits on a white plate (`LOGO_PLATE`, `SubCompanyLogo.tsx`) in both themes. The badge of `ProjectTile` is 18 px at
-  least and has a `title` with the name. The badge shows wherever a project picture shows and the data has `subCompanyId`: the lists
+  least and has a `title` with the name. The tile loses a circle 2 px wider than the badge (`tile-cut` in `tokens.css`, a mask), so the
+  surface under it shows around the badge and no ring of one color draws an edge (owner, 2026-10-20). The badge box is a flex box: an inline
+  box took the height of a text line and drew the old ring as a pill. The badge shows wherever a project picture shows and the data has `subCompanyId`: the lists
   of `projects.list`, the Dashboard cards (`dashboard.get` refs carry `subCompanyId`), the meeting, the map list, the Open space.
 - A new logo gets a frame step (`LogoFrame.tsx`): drag, zoom, and a preview at 18, 22 and 28 px. The crop (`PictureCrop`, `cropPlace`,
   `cropPreview` in `lib/picture.ts`) feeds both the canvas and the CSS preview. The frame itself is the shared `components/PictureFrame.tsx`
@@ -362,7 +374,10 @@ any screen work.
   `notices.repliedGroupGone` in a group the reader left, `notices.repliedToYou` elsewhere. The link, the face and the row stay as for a mention.
 
 ## Inbox, groups and What's new (owner 2026-10-18; UX audit 2026-10-19)
-- Inbox list (`features/inbox/ChatList.tsx`): "Archived (n)" is one quiet row under the search field, only while a chat is archived
+- Inbox list (`features/inbox/ChatList.tsx`): a menu button beside the search shows one kind of chat (owner, 2026-10-20): All,
+  Projects (project chats), To-dos (the threads of to-dos) and People (direct chats and groups). The button names the shown kind. The
+  choice holds while the Inbox is open (the list stays mounted under an open chat on a phone); the search and "Archived (n)" look only in
+  that kind, and an empty kind says "No chats here.". "Archived (n)" is one quiet row under the search field, only while a chat is archived
   and nothing is typed. The archived view has a back arrow, the title "Archived chats" and its own search words. A search in the
   main list looks in every chat, and an archived match carries the word "Archived". A group matches by its name (only its members
   have its row). An archive and a move back show a toast with Undo (`archive.ts`, `useArchive`; `chats.archive` writes no event, so
