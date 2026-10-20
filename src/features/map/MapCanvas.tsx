@@ -122,8 +122,8 @@ function saveLayer(layer: MapLayer) {
   }
 }
 
-function styleOf(theme: MapTheme, lang: 'en' | 'ar', layer: MapLayer, key: string | undefined) {
-  return layer === 'satellite' && key ? satelliteStyle(key) : madarMapStyle(theme, lang);
+function styleOf(theme: MapTheme, lang: 'en' | 'ar', layer: MapLayer) {
+  return layer === 'satellite' ? satelliteStyle() : madarMapStyle(theme, lang);
 }
 
 /** The box of a Madar control in a corner of the map. MapLibre owns the box; React draws into it. */
@@ -147,7 +147,7 @@ function Dot({ label }: { label: string }) {
  * position relative, so an absolute box would collapse. The box sits inside a sheet with data-vaul-no-drag, so a drag on the map
  * does not close the sheet. The controls sit on the start side of the language. A pin is a React tree in a MapLibre marker (a
  * portal), so it can use the project tile. When the map cannot start or the tiles do not load, the box says so in one line.
- * With an Esri key in the build, a small button in the top start corner switches to the satellite pictures and back, on every map
+ * With VITE_MADAR_SATELLITE=on in the build, a small button in the top start corner switches to the satellite pictures and back, on every map
  * (owner, 2026-10-20). While the pictures show, "Powered by Esri" sits beside the credit button, as Esri asks. When the pictures do not
  * come, the map goes back to the street map with one line under it.
  */
@@ -162,19 +162,19 @@ export default function MapCanvas({ pins, onPinClick, draggablePin = false, onPi
   const [hosts, setHosts] = useState<{ id: string; element: HTMLElement }[]>([]);
   const [popupHost, setPopupHost] = useState<HTMLElement | null>(null);
   const shownStyle = useRef('');
-  // An empty value is no key: a copy with no Esri account shows no Satellite button.
-  const satelliteKey = import.meta.env.VITE_ESRI_KEY || undefined;
-  const [layer, setLayer] = useState<MapLayer>(() => (satelliteKey ? savedLayer() : 'street'));
+  // A copy without the flag shows no Satellite button (the prototype, a copy with no Esri key).
+  const satelliteOn = import.meta.env.VITE_MADAR_SATELLITE === 'on';
+  const [layer, setLayer] = useState<MapLayer>(() => (satelliteOn ? savedLayer() : 'street'));
   const [satelliteFailed, setSatelliteFailed] = useState(false);
   const [layerBoxes, setLayerBoxes] = useState<{ toggle: HTMLElement; credit: HTMLElement } | null>(null);
   // True after the first satellite tile came. An error before it is a key or a service that does not answer.
   const satelliteSeen = useRef(false);
-  const view: MapLayer = satelliteKey && !satelliteFailed ? layer : 'street';
+  const view: MapLayer = satelliteOn && !satelliteFailed ? layer : 'street';
   useEffect(() => onFailedChange?.(failed), [failed, onFailedChange]);
   // The latest props and words, so a marker or a map event never calls an old handler.
-  const latest = useRef({ theme, lang, pins, onPinClick, onPinMove, onMapClick, onPopupClose, fullscreen, view, satelliteKey });
+  const latest = useRef({ theme, lang, pins, onPinClick, onPinMove, onMapClick, onPopupClose, fullscreen, view, satelliteOn });
   useEffect(() => {
-    latest.current = { theme, lang, pins, onPinClick, onPinMove, onMapClick, onPopupClose, fullscreen, view, satelliteKey };
+    latest.current = { theme, lang, pins, onPinClick, onPinMove, onMapClick, onPopupClose, fullscreen, view, satelliteOn };
   });
   const pinsKey = JSON.stringify(pins.map((pin) => [pin.id, pin.point.lat, pin.point.lng, pin.label ?? '']));
 
@@ -185,12 +185,12 @@ export default function MapCanvas({ pins, onPinClick, draggablePin = false, onPi
     loadMapLib().then((lib) => {
       const element = box.current;
       if (cancelled || !element) return;
-      const { theme: now, lang: language, pins: first, view: firstView, satelliteKey: key } = latest.current;
+      const { theme: now, lang: language, pins: first, view: firstView, satelliteOn: withSatellite } = latest.current;
       const start = first[0]?.point ?? START_POINT;
       try {
         made = new lib.Map({
           container: element,
-          style: styleOf(now, language, firstView, key),
+          style: styleOf(now, language, firstView),
           center: [start.lng, start.lat],
           zoom: first.length > 0 ? 13 : START_ZOOM,
           attributionControl: false,
@@ -205,7 +205,7 @@ export default function MapCanvas({ pins, onPinClick, draggablePin = false, onPi
       made.addControl(new lib.NavigationControl({ showCompass: false }), near);
       if (latest.current.fullscreen) made.addControl(new lib.FullscreenControl({}), near);
       made.addControl(new lib.AttributionControl({ compact: true, customAttribution: MAP_CREDIT }), language === 'ar' ? 'bottom-left' : 'bottom-right');
-      if (key) {
+      if (withSatellite) {
         // The button sits in the top start corner. The Esri credit sits beside the credit button, so full screen keeps both.
         const toggle = controlBox('maplibregl-ctrl');
         const credit = controlBox('');
@@ -250,8 +250,8 @@ export default function MapCanvas({ pins, onPinClick, draggablePin = false, onPi
     if (shownStyle.current === key) return;
     shownStyle.current = key;
     if (view === 'satellite') satelliteSeen.current = false;
-    map.setStyle(styleOf(theme, lang, view, satelliteKey));
-  }, [map, theme, lang, view, satelliteKey]);
+    map.setStyle(styleOf(theme, lang, view));
+  }, [map, theme, lang, view]);
 
   const switchLayer = () => {
     const next: MapLayer = view === 'satellite' ? 'street' : 'satellite';

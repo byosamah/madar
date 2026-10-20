@@ -7,8 +7,8 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_PUBLISHABLE_KEY?: string;
   /** The public VAPID key of browser push (config/remote.<env>.env). Missing: the Settings row says push is not set up. */
   readonly VITE_VAPID_PUBLIC_KEY?: string;
-  /** The public key of the office's free Esri account (config/remote.<env>.env). Missing: the maps show no Satellite button. */
-  readonly VITE_ESRI_KEY?: string;
+  /** 'on' shows the Satellite button of the maps (config/remote.<env>.env). The Esri key itself is a Pages secret (ESRI_KEY). */
+  readonly VITE_MADAR_SATELLITE?: string;
   readonly VITE_API_URL?: string;
   /** The build ID (scripts/build-remote.ts): the UTC day of the build, sent as X-Madar-Build. */
   readonly VITE_MADAR_BUILD?: string;

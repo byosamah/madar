@@ -266,8 +266,8 @@ describe('MapCanvas (fbk_017)', () => {
   });
 });
 
-// The satellite view (owner, 2026-10-20): Esri World Imagery with the key of the office's free Esri developer account. A build with no
-// key (the prototype, a copy that has none yet) shows no button.
+// The satellite view (owner, 2026-10-20): Esri World Imagery through our own route, with the office's Esri key. A build without the
+// flag (the prototype, a copy with no key) shows no button.
 describe('the satellite view of MapCanvas', () => {
   type Style = { sources: Record<string, { type: string; tiles?: string[] }> };
   const styleNow = () => made[made.length - 1].style as Style;
@@ -277,7 +277,7 @@ describe('the satellite view of MapCanvas', () => {
     made.length = 0;
     controls.length = 0;
     window.localStorage.removeItem('madar.mapLayer');
-    vi.stubEnv('VITE_ESRI_KEY', 'KEY');
+    vi.stubEnv('VITE_MADAR_SATELLITE', 'on');
   });
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -285,8 +285,8 @@ describe('the satellite view of MapCanvas', () => {
     for (const box of document.querySelectorAll('[data-corner]')) box.remove();
   });
 
-  it('shows no Satellite button in a build with no key', async () => {
-    vi.stubEnv('VITE_ESRI_KEY', '');
+  it('shows no Satellite button in a build without the flag', async () => {
+    vi.stubEnv('VITE_MADAR_SATELLITE', '');
     await renderWithRuntime(<MapCanvas pins={[]} />);
     await waitFor(() => expect(made).toHaveLength(1));
     expect(screen.queryByRole('button', { name: 'Satellite' })).toBeNull();
@@ -299,7 +299,7 @@ describe('the satellite view of MapCanvas', () => {
     expect(styleNow().sources.openmaptiles).toBeDefined();
     expect(screen.queryByText('Powered by Esri')).toBeNull();
     fireEvent.click(satellite);
-    await waitFor(() => expect(styleNow().sources.satellite?.tiles?.[0]).toMatch(/World_Imagery.*token=KEY$/));
+    await waitFor(() => expect(styleNow().sources.satellite?.tiles?.[0]).toBe('madar-satellite://tile/{z}/{y}/{x}'));
     expect(await screen.findByText('Powered by Esri')).toBeInTheDocument();
     fireEvent.click(await button('Street map'));
     await waitFor(() => expect(styleNow().sources.openmaptiles).toBeDefined());

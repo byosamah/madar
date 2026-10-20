@@ -9,14 +9,14 @@
 #                     (proof Z0a, item 6), https://<account>.eu.r2.cloudflarestorage.com after the move to R2
 # The fixed host https://nominatim.openstreetmap.org in connect-src is the place search of the pin picker (Task 12b, fbk_017).
 # The fixed host https://tiles.openfreemap.org in connect-src is the street map: the tiles and the glyphs (owner, 2026-10-19). It is free,
-# with no account and no key. The fixed host https://ibasemaps-api.arcgis.com in connect-src is the satellite view (owner, 2026-10-20):
-# Esri World Imagery with the key of the office's free Esri account (src/features/map/satellite.ts). 'wasm-unsafe-eval' in script-src lets the Arabic text plugin of the map run its WebAssembly. It allows no eval().
+# with no account and no key. The satellite tiles come from the own route /satellite (functions/satellite), so no Esri host is here.
+# 'wasm-unsafe-eval' in script-src lets the Arabic text plugin of the map run its WebAssembly. It allows no eval().
 # style-src keeps 'unsafe-inline', because vaul adds a <style> element. img-src keeps blob: for the pictures of a new upload.
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
   X-Frame-Options: DENY
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {{FILES}}; font-src 'self' data:; connect-src 'self' {{SUPABASE}} {{SUPABASE_WSS}} {{FILES}} https://nominatim.openstreetmap.org https://tiles.openfreemap.org https://ibasemaps-api.arcgis.com; frame-src {{FILES}}; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {{FILES}}; font-src 'self' data:; connect-src 'self' {{SUPABASE}} {{SUPABASE_WSS}} {{FILES}} https://nominatim.openstreetmap.org https://tiles.openfreemap.org; frame-src {{FILES}}; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable

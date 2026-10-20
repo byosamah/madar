@@ -3,6 +3,7 @@ import type { CallName, Calls, MadarApi } from '../../api/calls';
 import type { FreshReads } from '../../api/remote/follow';
 import { liveSocketSource, liveUrl } from '../../api/remote/liveSocket';
 import { createRemoteApi } from '../../api/remote/remoteApi';
+import { setTileTokenSource } from './tileToken';
 import type { Adapter, ChangeSignal } from '../../api/remote/wire';
 import type { AuthPort, AuthStatus } from '../auth';
 import { remoteFileAdapters } from '../files';
@@ -188,6 +189,8 @@ export async function bootstrapRemote(o: {
   const auth = o.auth ?? (supabase
     ? await createSupabaseAuth(supabase, { apiUrl: config.apiUrl, fetch: o.fetch })
     : await createMadarAuth({ apiUrl: config.apiUrl, ...(o.fetch ? { fetch: o.fetch } : {}) }));
+  // The satellite tiles of the maps ask our own route with the same token as the API client.
+  setTileTokenSource(() => auth.accessToken());
   const adapters: Partial<Record<CallName, Adapter>> = remoteFileAdapters();
   let changes: PersonChangeSource | undefined;
   const api = createRemoteApi<Calls>({

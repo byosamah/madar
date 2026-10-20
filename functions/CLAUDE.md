@@ -1,6 +1,6 @@
 # Cloudflare Pages Functions
 
-`scripts/deploy/pages.sh` uploads this folder with the screens. It holds six functions:
+`scripts/deploy/pages.sh` uploads this folder with the screens. It holds seven functions:
 - `mcp/[[path]].ts`: the short MCP address (https://madar.vado.sa/mcp), logic in `server/http/pagesMcpProxy.ts`.
 - `api/[[path]].ts`: the page's own `/api` (owner, 2026-10-16), logic in `server/http/pagesApiProxy.ts`.
 - `.well-known/oauth-authorization-server/[[path]].ts` and `.well-known/openid-configuration/[[path]].ts` (exit wave 4): the
@@ -13,6 +13,13 @@
 - `maplink.ts`: `POST /maplink` follows a short Google Maps link (`maps.app.goo.gl`, `goo.gl/maps`) and answers the long address
   (audit 2026-10-19, PRJ-03), logic in `server/http/pagesMapLink.ts`. It needs no key and no binding. It opens only the short link, follows a
   redirect only to a Google host, never opens the last address, and answers only a request from the same site.
+- `satellite/[[path]].ts`: `GET /satellite/<z>/<y>/<x>`, one Esri World Imagery tile of the maps (owner, 2026-10-20), logic in
+  `server/http/pagesSatellite.ts`. Only the page hosts of the two copies (any other host: 404). Only a person signed in to that copy (the
+  browser token, ES256, the issuer of the copy, no agent token): else 401, and a key set that does not load gives 503. It adds the Pages
+  secret `ESRI_KEY` and the referrer `https://kutla.vado.sa`, gives each Esri call 8 s and one more try, passes only a picture (never an
+  Esri error page, which could name the key), stores nothing, and lets the browser keep a tile for a day. No `ESRI_KEY` gives 404
+  `no_map`. Set the secret on both environments with `pbpaste | npx wrangler pages secret put ESRI_KEY --project-name madar --env preview`
+  (then `--env production`); a secret reaches only the next deployment. Each tile is one Functions request (about 30 for a view).
 
 Both follow `config/server-host.json` (`server/core/serverHost.ts`), which Pages builds into the function: with `workers` or
 `office` (exit wave 4), each request goes to the Worker of its copy through a Pages service binding (`MADAR_SERVER_TEST` on the

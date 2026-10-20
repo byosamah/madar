@@ -91,15 +91,17 @@ any screen work.
   MapTiler, Stadia) never goes in. The own map file (`functions/map`, `server/http/pagesMap.ts`, `scripts/map/build-basemap.sh`) stays in the
   repo as the later option; no screen uses it.
 - **The one exception: the satellite view (owner, 2026-10-20).** No free service with no account has pictures sharp enough for a plot, and
-  Esri's terms ask a business for an account, so the owner chose a free Esri developer account (ArcGIS Location Platform, 2,000,000 basemap
-  tiles a month at no cost). `satellite.ts`: Esri World Imagery, key `VITE_ESRI_KEY` in `config/remote.<env>.env` (public; it works only for
-  the hosts that the Esri account lists). No key: no button. `MapCanvas` puts one small button in the top start corner of every map
-  ("Satellite", then "Street map"); the choice stays for the next map (`madar.mapLayer` in localStorage). The tiles go through the loader
-  `madar-satellite://` (`addProtocol`), which fetches with `referrerPolicy: 'strict-origin'`: the page keeps `Referrer-Policy: no-referrer`,
-  and only this request sends the origin that the key needs. "Powered by Esri" shows beside the credit button while the pictures show
-  (Esri's rule; the sources sit behind the "i"). An error of the satellite source before its first tile (a bad or old key) goes back to the
-  street map with one line and hides the button. `connect-src` names `https://ibasemaps-api.arcgis.com`. An Esri key ends after one year at
-  most: renew it before it ends.
+  Esri's terms ask a business for an account, so the maps use the office's Esri key that Kutla uses (ArcGIS Location Platform, 2,000,000
+  basemap tiles a month at no cost, shared with Kutla). The browser never asks Esri: one of its edge addresses never answers from Saudi
+  networks (measured by Kutla, 2026-10-12). The style (`satellite.ts`) asks `madar-satellite://tile/{z}/{y}/{x}`; the loader (`addProtocol`)
+  fetches our own route `/satellite/<z>/<y>/<x>` with the sign-in token (`app/remote/tileToken.ts`, set by the bootstrap). The route
+  (`functions/satellite`, `server/http/pagesSatellite.ts`) checks the person and adds the key (the Pages secret `ESRI_KEY`, never in a page
+  or a file) and the referrer that the key allows (`https://kutla.vado.sa`). `VITE_MADAR_SATELLITE=on` in `config/remote.<env>.env` shows
+  the button; without it, no button. `MapCanvas` puts one small button in the top start corner of every map ("Satellite", then "Street map");
+  the choice stays for the next map (`madar.mapLayer` in localStorage). "Powered by Esri" shows beside the credit button while the pictures
+  show (Esri's rule; the sources sit behind the "i"). An error of the satellite source before its first tile (no key, signed out, Esri down)
+  goes back to the street map with one line and hides the button. The CSP needs no Esri host. Esri's terms forbid stored copies of its
+  pictures: never keep a tile on our side.
 - The style is written by hand for the OpenMapTiles layers: `MAP_COLORS` are tokens (`mapStyle.test.ts` checks it), labels follow the language
   of the screen (`name:ar` first in Arabic), no points of interest, glyph stacks `Noto Sans Regular` and `Noto Sans Bold` (both hold the Arabic block).
 - The Arabic text plugin is a file of this build: `MapCanvas.tsx` imports `@mapbox/mapbox-gl-rtl-text/dist/mapbox-gl-rtl-text.js?url` by a path
