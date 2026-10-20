@@ -118,6 +118,8 @@ describe('the prototype controls in the remote build (plan U3, client map 6)', (
     const online = vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
     act(() => { window.dispatchEvent(new Event('offline')); });
     expect(await screen.findByRole('status')).toHaveTextContent('No connection. Madar cannot save changes until it connects again.');
+    // The notice floats in the lane of the toasts, so it never covers or moves the header (owner, 2026-10-20).
+    expect(screen.getByRole('status').closest('[data-toasts]')).not.toBeNull();
     online.mockReturnValue(true);
     act(() => { window.dispatchEvent(new Event('online')); });
     await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
@@ -143,6 +145,7 @@ describe('the prototype controls in the remote build (plan U3, client map 6)', (
       expect(screen.queryByRole('status')).toBeNull();
       check();
       expect(screen.getByRole('status')).toHaveTextContent('Live updates paused. Your changes still save.');
+      expect(screen.getByRole('status').closest('[data-toasts]')).not.toBeNull();
       status = 'open';
       check();
       expect(screen.queryByRole('status')).toBeNull();

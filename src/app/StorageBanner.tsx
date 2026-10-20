@@ -2,8 +2,12 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { REMOTE } from './mode';
 import { useCall, useRuntime } from './runtime';
+import { useStandingNotice } from './toasts';
 
-/** Spec 11.6: with no browser storage, the app runs in memory and says so. The real build says when it has no connection instead. */
+/**
+ * Spec 11.6: with no browser storage, the app runs in memory and says so. The real build says when it has no connection instead.
+ * The words float in the lane of the toasts (useStandingNotice), so they never sit under the header or move it (owner, 2026-10-20).
+ */
 export function StorageBanner() {
   return REMOTE ? <ConnectionBanner /> : <MemoryBanner />;
 }
@@ -11,12 +15,8 @@ export function StorageBanner() {
 function MemoryBanner() {
   const { t } = useTranslation();
   const persistent = useCall('session.get', {}).data?.persistent;
-  if (persistent !== false) return null;
-  return (
-    <div role="status" className="bg-fill px-4 py-2 text-center text-footnote text-label">
-      {t('storage.notSaved')}
-    </div>
-  );
+  useStandingNotice(persistent === false ? t('storage.notSaved') : null);
+  return null;
 }
 
 // The change channel has no event for its own state, so the banner looks again every few seconds, and at once when the browser
@@ -49,11 +49,6 @@ function ConnectionBanner() {
       window.clearInterval(timer);
     };
   }, [changes]);
-  const text = offline ? t('connection.lost') : closedChecks >= CLOSED_CHECKS ? t('connection.paused') : null;
-  if (!text) return null;
-  return (
-    <div role="status" className="bg-fill px-4 py-2 text-center text-footnote text-label">
-      {text}
-    </div>
-  );
+  useStandingNotice(offline ? t('connection.lost') : closedChecks >= CLOSED_CHECKS ? t('connection.paused') : null);
+  return null;
 }

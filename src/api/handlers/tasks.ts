@@ -11,7 +11,7 @@ import { isOverdue } from '../health';
 import { notifyIn, reviewersOfTask } from '../notify';
 import { peopleFilter } from '../pause';
 import { sentToReviewOn } from '../review';
-import { can, mayViewTask, principalOf } from '../permissions';
+import { can, leadTookTask, mayViewTask, principalOf } from '../permissions';
 import { nextId, taskTemplatesOf } from '../store';
 import { stagesOf, taskDetailOf, taskRowOf } from '../views';
 import { arrangeRanks } from '../../lib/arrange';
@@ -717,7 +717,12 @@ export const tasksDelete = defineCall({
   output: z.object({ deleted: z.literal(true) }),
   run(input, ctx) {
     const task = requireTask(ctx, input.id);
-    assertCan(ctx, 'task.delete', taskRole(ctx, task));
+    const resource = taskRole(ctx, task);
+    assertCan(ctx, 'task.delete', resource);
+    // A lead who took the task with no lead themselves does not delete it: its maker, the leader or the Admin does (security review).
+    if (!can(ctx.authority, 'task.updateAny', resource) && leadTookTask(ctx.state, task)) {
+      throw forbidden('You took this task yourself, so its maker or the project leader deletes it.');
+    }
     const watch = watchStage(ctx, task.projectId);
     recordDelete(ctx, { projectId: task.projectId, verb: 'task.deleted', targetType: 'task', targetId: task.id, entity: task });
     // The lead may delete a task that another person made, so the maker hears of a delete by anyone else (fbk_034, owner 2026-10-20).

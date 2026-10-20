@@ -26,6 +26,10 @@
   },
   "whatsNew": {
     "items": {
+      "2026-10-23-59": {
+        "title": "The connection line is easy to read",
+        "body": "Lines such as “Live updates paused” went under the top bar. Now they show at the bottom of the screen, where other messages show, and the top bar stays in its place."
+      },
       "2026-10-23-56": {
         "title": "Join a task as a helper",
         "body": "Do you work on a task that another person leads? Open the task and press “Join as a helper”. Your name then shows on the task, and its lead gets a notice. To leave, press “Leave this task”."

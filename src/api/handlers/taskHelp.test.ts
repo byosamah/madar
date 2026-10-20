@@ -194,6 +194,29 @@ describe('the lead deletes a task (fbk_034)', () => {
     expect(t.store.state.tasks.tsk_001).toMatchObject({ title: 'Ground floor plan' });
   });
 
+  it('refuses the delete to a lead who took the task with no lead themselves, so a take never opens a delete', async () => {
+    const t = world();
+    t.store.state.tasks.tsk_001.ownerId = null;
+    t.as('usr_006');
+    await t.api.call('tasks.take', { taskId: 'tsk_001' });
+    expect((await t.api.call('tasks.get', { id: 'tsk_001' })).viewerCan.delete).toBe(false);
+    await expect(t.api.call('tasks.delete', { id: 'tsk_001' })).rejects.toMatchObject({ code: 'forbidden' });
+    t.as('usr_002');
+    await expect(t.api.call('tasks.delete', { id: 'tsk_001' })).resolves.toEqual({ deleted: true });
+  });
+
+  it('lets the lead delete again when the maker names them after their take', async () => {
+    const t = world();
+    t.store.state.tasks.tsk_001.ownerId = null;
+    t.as('usr_006');
+    await t.api.call('tasks.take', { taskId: 'tsk_001' });
+    t.as('usr_002');
+    await t.api.call('tasks.update', { id: 'tsk_001', patch: { ownerId: 'usr_003' } });
+    await t.api.call('tasks.update', { id: 'tsk_001', patch: { ownerId: 'usr_006' } });
+    t.as('usr_006');
+    await expect(t.api.call('tasks.delete', { id: 'tsk_001' })).resolves.toEqual({ deleted: true });
+  });
+
   it('keeps an office task for its maker and the Admin: its lead does not delete it', async () => {
     const t = world();
     t.as('usr_004');
