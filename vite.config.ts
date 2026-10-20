@@ -108,6 +108,8 @@ export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss(), workerOnlyInRemote(mode.startsWith('remote')), ...(mode.startsWith('remote') ? [earlyLinks()] : [])],
   test: {
     restoreMocks: true,
+    // At most 5 test workers for each run (owner, 2026-10-20): the Mac has 10 cores and 16 GB, and several sessions test at once.
+    maxWorkers: 5,
     projects: [
       {
         extends: true,

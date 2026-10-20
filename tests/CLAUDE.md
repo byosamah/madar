@@ -10,7 +10,7 @@ The smoke keeps the local state of wrangler dev in its own temporary folder (`--
 the config, the heartbeat of one run stays and the next run fails.
 
 ## The prototype smoke (`e2e/`)
-- `npx playwright test` (`playwright.config.ts`, port 4173). 87 of 87 must pass at each screen merge.
+- `npm run smoke` (the heavy lock of the root guide, then `playwright test`; `playwright.config.ts`, port 4173). 87 of 87 must pass at each screen merge.
   It runs `npm run build` first, so it rewrites `dist/` (about 8 minutes in all). Never serve `dist/` for screenshots
   while it runs.
 - The sample office follows the real date. An assertion on Home or on due dates must hold on any day: the Home panel is

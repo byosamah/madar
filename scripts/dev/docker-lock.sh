@@ -12,8 +12,12 @@
 # Every Docker task: take the lock, run "supabase db reset" from its own worktree, do its work, release the lock. Never run two stacks.
 set -euo pipefail
 
-LOCK="${MADAR_DOCKER_LOCK:-/tmp/madar-docker.lock}"
-WAIT_SECONDS="${MADAR_DOCKER_LOCK_WAIT_SECONDS:-1800}"
+# heavy-lock.sh runs this script for its own lock (one heavy test run at a time, owner 2026-10-20) with MADAR_LOCK_PATH,
+# MADAR_LOCK_WAIT_SECONDS and MADAR_LOCK_LABEL. They belong to that one lock: the script unsets them, so a command under it may take the other lock.
+LOCK="${MADAR_LOCK_PATH:-${MADAR_DOCKER_LOCK:-/tmp/madar-docker.lock}}"
+WAIT_SECONDS="${MADAR_LOCK_WAIT_SECONDS:-${MADAR_DOCKER_LOCK_WAIT_SECONDS:-1800}}"
+LABEL="${MADAR_LOCK_LABEL:-docker-lock}"
+unset MADAR_LOCK_PATH MADAR_LOCK_WAIT_SECONDS MADAR_LOCK_LABEL
 POLL_SECONDS="${MADAR_DOCKER_LOCK_POLL_SECONDS:-5}"
 MAX_HOLD_SECONDS="${MADAR_DOCKER_LOCK_MAX_HOLD_SECONDS:-10800}"
 # A lock folder with no holder file this long after it was made is stale (the holder died between mkdir and the write).
@@ -75,7 +79,7 @@ break_if_stale() {
     return 0
   fi
   rm -rf "$moved"
-  echo "docker-lock: broke a stale lock ($reason). It was held by: $(printf '%s' "$text" | tr '\n' ' ')" >&2
+  echo "$LABEL: broke a stale lock ($reason). It was held by: $(printf '%s' "$text" | tr '\n' ' ')" >&2
 }
 
 acquire() {
@@ -86,18 +90,18 @@ acquire() {
       # The holder may have released between the two steps, so try once more before we stop.
       if err="$(mkdir "$LOCK" 2>&1)"; then break; fi
       if [ ! -e "$LOCK" ]; then
-        echo "docker-lock: cannot make the lock folder $LOCK: $err" >&2
+        echo "$LABEL: cannot make the lock folder $LOCK: $err" >&2
         exit 1
       fi
     fi
     break_if_stale
     if [ ! -e "$LOCK" ]; then continue; fi
     if [ "$waited" -ge "$WAIT_SECONDS" ]; then
-      echo "docker-lock: gave up after ${WAIT_SECONDS}s. The lock is held by: $(holder_of | tr '\n' ' ')" >&2
-      echo "docker-lock: if that holder is gone, run: $0 release <holder>" >&2
+      echo "$LABEL: gave up after ${WAIT_SECONDS}s. The lock is held by: $(holder_of | tr '\n' ' ')" >&2
+      echo "$LABEL: if that holder is gone, run: $0 release <holder>" >&2
       exit 1
     fi
-    if [ "$waited" -eq 0 ]; then echo "docker-lock: waiting for $(holder_of | tr '\n' ' ')" >&2; fi
+    if [ "$waited" -eq 0 ]; then echo "$LABEL: waiting for $(holder_of | tr '\n' ' ')" >&2; fi
     sleep "$POLL_SECONDS"
     waited=$((waited + POLL_SECONDS))
   done
@@ -112,7 +116,7 @@ release() {
   local who="$1"
   if [ ! -d "$LOCK" ]; then return 0; fi
   if ! grep -qx "holder=$who" "$LOCK/holder" 2>/dev/null; then
-    echo "docker-lock: the lock is not held by $who. It is held by: $(holder_of | tr '\n' ' ')" >&2
+    echo "$LABEL: the lock is not held by $who. It is held by: $(holder_of | tr '\n' ' ')" >&2
     exit 1
   fi
   rm -rf "$LOCK"
@@ -142,12 +146,12 @@ case "$1" in
   acquire)
     [ $# -eq 2 ] || usage
     acquire "$2" acquire
-    echo "docker-lock: held by $2"
+    echo "$LABEL: held by $2"
     ;;
   release)
     [ $# -eq 2 ] || usage
     release "$2"
-    echo "docker-lock: released by $2"
+    echo "$LABEL: released by $2"
     ;;
   status)
     if [ -d "$LOCK" ]; then holder_of; else echo "free"; fi
