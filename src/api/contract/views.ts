@@ -361,7 +361,7 @@ export const MeetingDetail = MeetingRow.extend({
   settledAt: Stamp.nullable(),
   minutesTask: z.object({ id: TaskId, title: z.string(), status: TaskStatus, dueDate: Day.nullable() }).nullable(),
   trackerEntry: z.object({ id: TrackerId, title: z.string() }).nullable(),
-  viewerCan: z.object({ edit: z.boolean(), cancel: z.boolean(), minutes: z.boolean().optional() }),
+  viewerCan: z.object({ edit: z.boolean(), cancel: z.boolean(), minutes: z.boolean().optional(), delete: z.boolean().optional() }),
   minutes: MinutesView.nullable().optional(),
   minutesPlace: z.enum(['tracker', 'meeting']).nullable().optional(),
 });

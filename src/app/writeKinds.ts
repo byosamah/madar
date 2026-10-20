@@ -127,6 +127,8 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'meetings.create': ['events', 'meetings', 'notifications'],
   'meetings.update': ['events', 'meetings', 'notifications'],
   'meetings.cancel': ['events', 'meetings', 'notifications'],
+  // A delete writes the events and removes the rows. It sends no notice, but a notice of the meeting then reads as gone.
+  'meetings.delete': ['events', 'meetings', 'notifications'],
   // The settle writes the mark of the meeting, its event, and the Tracker line of a project meeting (fbk_022, wave 2). It sends no notice.
   'meetings.settle': ['events', 'meetings', 'tracker'],
   // The extension of a series (wave 3) writes the mark, the new meetings and their events. It sends no notice.

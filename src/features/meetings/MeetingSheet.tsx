@@ -10,7 +10,6 @@ import { usePersonName } from '../../app/personName';
 import { useCall } from '../../app/runtime';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
-import { Menu } from '../../components/Menu';
 import { ProjectTile } from '../../components/ProjectTile';
 import { Sheet } from '../../components/Sheet';
 import { clockFormat, formatDay, now, stampDay } from '../../lib/dates';
@@ -79,7 +78,8 @@ function Unavailable({ error, onRetry, onClose }: { error: unknown; onRetry: () 
 /**
  * The sheet of one meeting (fbk_022, owner 2026-10-19). The title, the kind and its state, the day and time, the place, the project,
  * the people, the minutes and the notes. After the end one quiet "Add the minutes" shows until someone writes them (wave 2). At most one main button: "Join" (the place is a link and the start is near, or the meeting
- * is on), "Open in Google Maps" (a site visit of a project with a pin), else none. The menu holds Edit and Cancel, by `viewerCan`.
+ * is on), "Open in Google Maps" (a site visit of a project with a pin), else none. The footer holds, in this order, "Cancel meeting" (at the
+ * start side) or "Delete meeting" (a cancelled meeting), "Edit", and the main button; each shows by `viewerCan` (owner, 2026-10-23, fbk_037).
  */
 export function MeetingSheet({ meetingId, onClose }: { meetingId: string; onClose: () => void }) {
   const { t } = useTranslation();
@@ -91,9 +91,16 @@ export function MeetingSheet({ meetingId, onClose }: { meetingId: string; onClos
   const project = useCall('projects.get', { id: projectId }, { enabled: meeting?.kind === 'site_visit' && projectId !== '' });
   const [editing, setEditing] = useState(false);
   const [asking, setAsking] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [writing, setWriting] = useState(false);
   const scopeOf = useRef<Scope>('one');
   const cancel = useUndoable('meetings.cancel', { message: () => t(scopeOf.current === 'later' ? 'series.toast.cancelled' : 'meetings.sheet.cancelled') });
+  // The sheet closes at once after a delete: the meeting is gone, so a read of it would only say so.
+  const del = useUndoable('meetings.delete', {
+    message: (output) => t(output.deleted > 1 ? 'series.toast.deleted' : 'meetings.sheet.deleted'),
+    onSuccess: () => onClose(),
+  });
+  const remove = (id: string, scope: Scope) => del.mutate({ id, scope });
   if (!meeting) {
     return query.error ? <Unavailable error={query.error} onRetry={() => void query.refetch()} onClose={onClose} /> : null;
   }
@@ -117,19 +124,17 @@ export function MeetingSheet({ meetingId, onClose }: { meetingId: string; onClos
         onOpenChange={(open) => { if (!open) onClose(); }}
         title={meeting.title}
         description={stateWord ? `${kind} · ${stateWord}` : kind}
-        headerAction={(
-          <Menu
-            label={t('meetings.sheet.menu')}
-            items={[
-              { label: t('meetings.sheet.edit'), onSelect: () => setEditing(true), hidden: !meeting.viewerCan.edit },
-              { label: t('meetings.sheet.cancel'), onSelect: () => setAsking(true), destructive: true, hidden: !meeting.viewerCan.cancel },
-            ]}
-          />
-        )}
-        footer={action && (
-          <a href={action.href} target="_blank" rel="noopener noreferrer" className={MAIN_LINK}>
-            {action.kind === 'join' ? t('meetings.sheet.join') : t('map.pin.open')}
-          </a>
+        footer={(
+          <>
+            {meeting.viewerCan.cancel && <Button variant="destructive" className="me-auto" onClick={() => setAsking(true)}>{t('meetings.sheet.cancel')}</Button>}
+            {meeting.viewerCan.delete && <Button variant="destructive" className="me-auto" onClick={() => (meeting.seriesId ? setDeleting(true) : remove(meeting.id, 'one'))}>{t('meetings.sheet.delete')}</Button>}
+            {meeting.viewerCan.edit && <Button onClick={() => setEditing(true)}>{t('meetings.sheet.edit')}</Button>}
+            {action && (
+              <a href={action.href} target="_blank" rel="noopener noreferrer" className={MAIN_LINK}>
+                {action.kind === 'join' ? t('meetings.sheet.join') : t('map.pin.open')}
+              </a>
+            )}
+          </>
         )}
       >
         <dl className="flex flex-col gap-4 pt-1">
@@ -195,6 +200,16 @@ export function MeetingSheet({ meetingId, onClose }: { meetingId: string; onClos
             scopeOf.current = 'one';
             cancel.mutate({ id: meeting.id });
             setAsking(false);
+          }}
+        />
+      )}
+      {deleting && meeting.seriesId && (
+        <ScopeSheet
+          mode="delete"
+          onClose={() => setDeleting(false)}
+          onPick={(scope) => {
+            setDeleting(false);
+            remove(meeting.id, scope);
           }}
         />
       )}

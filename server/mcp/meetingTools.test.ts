@@ -325,6 +325,14 @@ describe('a repeating series over MCP (wave 3, owner 2026-10-19)', () => {
     expect(mcpTools().map((tool) => tool.name)).not.toContain('meetings.extend');
   });
 
+  it('put meetings.delete on the deny list only: a person deletes a cancelled meeting in the screens, an agent cancels (owner, 2026-10-23)', () => {
+    expect(MCP_DENY as readonly string[]).toContain('meetings.delete');
+    expect(MCP_ALLOW as readonly string[]).not.toContain('meetings.delete');
+    expect(mcpTools().map((tool) => tool.name)).not.toContain('meetings.delete');
+    expect(INSTRUCTIONS).toContain('never delete one');
+    expect(TOOL_DOCS['meetings.cancel'].description).toContain('You cannot delete a meeting');
+  });
+
   it('plans a series as the person, changes the later meetings with the scope, and cancels them', async () => {
     const w = world();
     const made = await call(w, 'meetings.create', { kind: 'client', title: 'Weekly facade review', projectId: 'prj_001', startsAt: '2026-10-07T09:00:00+03:00', repeat: { every: 'week', until: null } });

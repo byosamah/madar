@@ -119,6 +119,39 @@ describe('gcal.sync', () => {
     expect(await rowsOf(t, 'select * from google_events')).toEqual([]);
   });
 
+  it('leaves no row and no error when a cancelled meeting is deleted, and makes no Google request for it (owner, 2026-10-23)', async () => {
+    const t = await connectedWith('usr_003', 'usr_004');
+    const id = await planMeeting(t, 'usr_003', { startsAt: START, attendeeIds: ['usr_004'] });
+    ok(await t.call('usr_003', 'meetings.cancel', { id }));
+    t.google.requests.length = 0;
+    expect(ok(await t.call('usr_003', 'meetings.delete', { id }))).toEqual({ deleted: 1 });
+    expect(await rowsOf(t, 'select id from meetings where id = ?1', [id])).toEqual([]);
+    expect(await rowsOf(t, 'select * from google_events')).toEqual([]);
+    expect(t.google.eventRequests()).toEqual([]);
+    for (const user of ['usr_003', 'usr_004']) expect(await state(t, user)).toMatchObject({ state: 'ok', last_error: null });
+    // The Undo of the delete brings the cancelled meeting back, and it stays out of the calendar.
+    const [gone] = await rowsOf(t, "select id from events where verb = 'meeting.deleted' order by seq desc limit 1");
+    ok(await t.call('usr_003', 'events.undo', { eventId: gone.id }));
+    expect(await rowsOf(t, 'select id from meetings where id = ?1', [id])).toEqual([{ id }]);
+    expect(await rowsOf(t, 'select * from google_events')).toEqual([]);
+    expect(t.google.eventRequests()).toEqual([]);
+  });
+
+  it('takes the Google event away at the delete when the cancel left its row behind (the sync of the cancel never ran)', async () => {
+    const t = await connectedWith('usr_003');
+    const id = await planMeeting(t, 'usr_003', { startsAt: START });
+    const calendar = await calendarOf(t, 'usr_003');
+    ok(await t.call('usr_003', 'meetings.cancel', { id }));
+    // Put the row back, as if the sync of the cancel had failed for good.
+    await t.db.statement('write', "insert or replace into google_events (user_id, meeting_id, event_id, synced_rev, synced_at) values ('usr_003', ?1, ?2, 1, '2026-10-21T06:00:00.000Z')", [id, eventIdOf(id)]);
+    t.google.eventsOf(calendar).set(eventIdOf(id), { ...(t.google.eventsOf(calendar).get(eventIdOf(id)) as object), status: 'confirmed' } as never);
+    t.google.requests.length = 0;
+    ok(await t.call('usr_003', 'meetings.delete', { id }));
+    expect(t.google.eventsOf(calendar).get(eventIdOf(id))?.status).toBe('cancelled');
+    expect(await rowsOf(t, 'select * from google_events')).toEqual([]);
+    expect(await state(t, 'usr_003')).toMatchObject({ state: 'ok', last_error: null });
+  });
+
   it('deletes the events of the meetings of a project that is deleted', async () => {
     const t = await googleOffice();
     const project = 'prj_001';

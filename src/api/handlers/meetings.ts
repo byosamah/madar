@@ -3,7 +3,7 @@ import { defineCall, type Ctx } from '../registry';
 import { Day, FileId, MAX_ATTACHMENTS, MEETING_LIMITS, Meeting, MeetingId, MeetingKind, MeetingRepeat, ProjectId, Stamp, TrackerId, UserId, type MeetingMinutes, type TrackerEntry } from '../contract/entities';
 import { MeetingDetail, MeetingRow } from '../contract/views';
 import { ApiError, forbidden, invalid, notFound } from '../errors';
-import { applyPatch, recordCreate, writeEvent } from '../events';
+import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { can, mayViewMeeting, meetingResource, type Actor } from '../permissions';
 import { notifyIn } from '../notify';
 import { meetingsOf, nextId, type State } from '../store';
@@ -116,7 +116,11 @@ export function meetingDetailOf(state: State, meeting: Meeting, viewer: Actor, a
     settledAt: meeting.settledAt ?? null,
     minutesTask: null,
     trackerEntry: entry ? { id: entry.id, title: entry.title } : null,
-    viewerCan: { edit: open, cancel: open && phaseOf(meeting, at) !== 'done', minutes: minutesRefusal(state, meeting, viewer, at) === null },
+    viewerCan: {
+      edit: open, cancel: open && phaseOf(meeting, at) !== 'done', minutes: minutesRefusal(state, meeting, viewer, at) === null,
+      // A cancelled meeting that the person may change can be deleted (owner, 2026-10-23).
+      delete: meeting.status === 'cancelled' && viewerMayEdit(state, viewer, meeting),
+    },
     minutes: held.minutes ? minutesViewOf(state, held.minutes, viewer) : null,
     minutesPlace: held.place,
   };
@@ -372,6 +376,53 @@ const meetingsCancel = defineCall({
 });
 
 /**
+ * Deletes a cancelled meeting (owner, 2026-10-23). The right is the right to change the meeting. A meeting that is not cancelled stays
+ * (`meeting_not_cancelled`). One event `meeting.deleted` keeps the whole record in `before`, so the Undo of the toast brings the meeting
+ * back. With the scope "later" it deletes this meeting and every later meeting of the same series that is cancelled and that the person
+ * sees, never a scheduled one. It tells nobody: the cancel told the attendees, and a notice of a deleted meeting reads as gone.
+ *
+ * The series guard: `meetings.extend` adds no meeting after a cancelled last meeting, because a person ended the series there. When the
+ * delete takes away the end of a series and no meeting of the series is left after the first deleted one, the meetings that stay (from
+ * today on, the ones that `meetings.extend` reads) end on the day before the first deleted meeting, so the series stays ended. A last
+ * day that is earlier stays. The change joins the story, so the Undo takes it back with the meetings.
+ */
+const meetingsDelete = defineCall({
+  input: z.object({ id: MeetingId, scope: Scope.optional() }),
+  output: z.object({ deleted: z.number().int().min(1) }),
+  run(input, ctx) {
+    const meeting = requireMeeting(ctx, input.id);
+    assertCan(ctx, 'meeting.edit', meetingResource(ctx.state, meeting, ctx.authority.id));
+    if (meeting.status !== 'cancelled') throw conflict('Only a cancelled meeting can be deleted. Cancel it first.', 'meeting_not_cancelled');
+    const from = Date.parse(meeting.startsAt);
+    const series = meeting.seriesId ? Object.values(meetingsOf(ctx.state)).filter((m) => m.seriesId === meeting.seriesId) : [];
+    const later = input.scope === 'later' && meeting.seriesId
+      ? series.filter((m) => m.id !== meeting.id && Date.parse(m.startsAt) > from && m.status === 'cancelled' && mayViewMeeting(ctx.state, ctx.authority, m)).sort(byStart)
+      : [];
+    const gone = new Set([meeting.id, ...later.map((m) => m.id)]);
+    // The guard reads the whole series, also the meetings that the person does not see: a later meeting that stays keeps the series open or
+    // ended by itself (the last meeting decides). Only the meetings that the person sees get the new last day.
+    const endsHere = series.length > 0 && !series.some((m) => !gone.has(m.id) && Date.parse(m.startsAt) > from);
+    const first = recordDelete(ctx, { projectId: meeting.projectId, verb: 'meeting.deleted', targetType: 'meeting', targetId: meeting.id, entity: meeting });
+    delete meetingsOf(ctx.state)[meeting.id];
+    for (const other of later) {
+      recordDelete(ctx, { projectId: other.projectId, verb: 'meeting.deleted', targetType: 'meeting', targetId: other.id, entity: other, causeEventId: first.id });
+      delete meetingsOf(ctx.state)[other.id];
+    }
+    if (endsHere) {
+      const dayBefore = addDays(dayOf(meeting), -1);
+      for (const kept of series.filter((m) => !gone.has(m.id) && dayOf(m) >= ctx.today && m.repeat && mayViewMeeting(ctx.state, ctx.authority, m)).sort(byStart)) {
+        const rule = kept.repeat as MeetingRepeat;
+        if (rule.until !== null && rule.until <= dayBefore) continue;
+        applyPatch(ctx, kept, { repeat: { every: rule.every, until: dayBefore } }, {
+          projectId: kept.projectId, verb: 'meeting.series_updated', targetType: 'meeting', targetId: kept.id, causeEventId: first.id,
+        });
+      }
+    }
+    return { deleted: gone.size };
+  },
+});
+
+/**
  * The one settle rule (fbk_022, wave 2). Madar marks the meeting as over (meeting.settled, once, never undone) and, for a project meeting
  * that is not a team meeting, makes its Tracker line with no minutes yet. The line names the mark as its cause, so the History shows that
  * Madar made it because the meeting ended. No notice, no push and no mail. The caller checks that the meeting is scheduled, over and
@@ -585,6 +636,7 @@ export const meetingCalls = {
   'meetings.get': meetingsGet,
   'meetings.update': meetingsUpdate,
   'meetings.cancel': meetingsCancel,
+  'meetings.delete': meetingsDelete,
   'meetings.settle': meetingsSettle,
   'meetings.extend': meetingsExtend,
   'meetings.saveMinutes': meetingsSaveMinutes,

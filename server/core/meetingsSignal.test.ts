@@ -84,6 +84,27 @@ describe('the signals of a meeting with no project', () => {
     expect(cancelled.signals.map((signal) => signal.channel)).toEqual([ATTENDEE, ORGANIZER].sort().map((user) => `person:${user}`));
   });
 
+  it('go, for a delete and its Undo, to the people of the meeting only, with no title and no id (owner, 2026-10-23)', async () => {
+    const { mem, call } = runner();
+    const made = await call(ORGANIZER, 'meetings.create', { kind: 'meeting', title: TITLE, startsAt: '2026-10-06T10:00:00+03:00', attendeeIds: [ATTENDEE, REMOVED] });
+    const id = (made.output as { id: string }).id;
+    await call(ORGANIZER, 'meetings.cancel', { id });
+    const deleted = await call(ORGANIZER, 'meetings.delete', { id });
+    expect(deleted.output).toEqual({ deleted: 1 });
+    const people = [ATTENDEE, ORGANIZER, REMOVED].sort().map((user) => `person:${user}`);
+    expect(deleted.signals.map((signal) => signal.channel).sort()).toEqual(people);
+    for (const signal of deleted.signals) {
+      const text = JSON.stringify(signal);
+      for (const hidden of [id, TITLE, 'SIGNAL-7731']) expect(text).not.toContain(hidden);
+      expect(signal.office).toBe(false);
+      expect(signal.projects).toEqual([]);
+      expect(signal.kinds).toEqual(expect.arrayContaining(['events', 'meetings']));
+    }
+    const story = Object.values(mem.tables.state.events).find((event) => event.verb === 'meeting.deleted')!.correlationId;
+    const back = await call(ORGANIZER, 'events.undoStory', { correlationId: story });
+    expect(back.signals.map((signal) => signal.channel).sort()).toEqual(people);
+  });
+
   it('go to the organizer behind an agent, not to the agent', async () => {
     const { call } = runner();
     const made = await call(AGENT, 'meetings.create', { kind: 'team', title: TITLE, startsAt: '2026-10-06T10:00:00+03:00', attendeeIds: [ATTENDEE] });

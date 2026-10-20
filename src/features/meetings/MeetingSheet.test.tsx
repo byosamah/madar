@@ -81,27 +81,45 @@ describe('the meeting sheet', () => {
     expect(within(box).queryByRole('link', { name: /Corniche/ })).toBeNull();
   });
 
-  it('gives the menu with Edit and Cancel to the organizer', async () => {
-    await renderApp('/meetings?meeting=mtg_001', (state) => client(state));
-    await userEvent.click(await within(await sheet()).findByRole('button', { name: 'Meeting actions' }));
-    const menu = await screen.findByRole('menu', { name: 'Meeting actions' });
-    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Edit', 'Cancel meeting']);
+  it('puts Cancel meeting, Edit and the main button at the bottom, in this order, and keeps no menu at the top', async () => {
+    await renderApp('/meetings?meeting=mtg_001', (state) => client(state, { where: LINK, startsAt: '2026-09-30T09:20:00.000+03:00', endsAt: '2026-09-30T10:00:00.000+03:00' }));
+    const box = await sheet();
+    await within(box).findByRole('link', { name: 'Join' });
+    expect(within(box).queryByRole('button', { name: 'Meeting actions' })).toBeNull();
+    const footer = within(box).getByRole('button', { name: 'Edit' }).parentElement as HTMLElement;
+    expect([...footer.children].map((item) => item.textContent)).toEqual(['Cancel meeting', 'Edit', 'Join']);
+    // Cancel sits at the start side, away from the main button, and the footer wraps on a narrow screen.
+    expect(within(box).getByRole('button', { name: 'Cancel meeting' }).className).toContain('me-auto');
+    expect(footer.className).toContain('flex-wrap');
   });
 
-  it('gives an attendee no menu', async () => {
+  it('shows Cancel meeting and Edit to the organizer, and nothing else when there is no main button', async () => {
+    await renderApp('/meetings?meeting=mtg_001', (state) => client(state));
+    const box = await sheet();
+    const edit = await within(box).findByRole('button', { name: 'Edit' });
+    expect([...(edit.parentElement as HTMLElement).children].map((item) => item.textContent)).toEqual(['Cancel meeting', 'Edit']);
+  });
+
+  it('gives an attendee no button at the bottom', async () => {
     await renderApp('/meetings?meeting=mtg_001', (state) => {
       client(state);
       as('usr_005')(state);
     });
     const box = await sheet();
     await within(box).findByText('Bring the studies.');
-    expect(within(box).queryByRole('button', { name: 'Meeting actions' })).toBeNull();
+    for (const name of ['Edit', 'Cancel meeting', 'Delete meeting']) expect(within(box).queryByRole('button', { name }), name).toBeNull();
+  });
+
+  it('keeps Edit and drops Cancel for a meeting that is over: the edit opens only the notes', async () => {
+    await renderApp('/meetings?meeting=mtg_001', (state) => client(state, { ...ENDED }));
+    const box = await sheet();
+    expect(await within(box).findByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(within(box).queryByRole('button', { name: 'Cancel meeting' })).toBeNull();
   });
 
   it('asks before it cancels, keeps the focus on Keep meeting, and offers Undo', async () => {
     const { store } = await renderApp('/meetings?meeting=mtg_001', (state) => client(state));
-    await userEvent.click(await within(await sheet()).findByRole('button', { name: 'Meeting actions' }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Cancel meeting' }));
+    await userEvent.click(await within(await sheet()).findByRole('button', { name: 'Cancel meeting' }));
     const confirm = await screen.findByRole('dialog', { name: 'Cancel this meeting?' });
     expect(within(confirm).getByText('The people of the meeting get a notice.')).toBeInTheDocument();
     expect(within(confirm).getByRole('button', { name: 'Keep meeting' })).toHaveFocus();
@@ -115,19 +133,41 @@ describe('the meeting sheet', () => {
 
   it('keeps the meeting when the person presses Keep meeting', async () => {
     const { store } = await renderApp('/meetings?meeting=mtg_001', (state) => client(state));
-    await userEvent.click(await within(await sheet()).findByRole('button', { name: 'Meeting actions' }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Cancel meeting' }));
+    await userEvent.click(await within(await sheet()).findByRole('button', { name: 'Cancel meeting' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Keep meeting' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Cancel this meeting?' })).toBeNull());
     expect(store.state.meetings!.mtg_001.status).toBe('scheduled');
   });
 
-  it('shows a cancelled meeting as Cancelled, with no menu and no main button', async () => {
+  it('shows a cancelled meeting as Cancelled, with only Delete meeting at the bottom and no main button', async () => {
     await renderApp('/meetings?meeting=mtg_001', (state) => client(state, { status: 'cancelled', where: LINK }));
     const box = await sheet();
     expect(await within(box).findByText(/Cancelled/)).toBeInTheDocument();
-    expect(within(box).queryByRole('button', { name: 'Meeting actions' })).toBeNull();
+    const del = await within(box).findByRole('button', { name: 'Delete meeting' });
+    expect([...(del.parentElement as HTMLElement).children].map((item) => item.textContent)).toEqual(['Delete meeting']);
+    for (const name of ['Edit', 'Cancel meeting', 'Meeting actions']) expect(within(box).queryByRole('button', { name }), name).toBeNull();
     expect(within(box).queryByRole('link', { name: 'Join' })).toBeNull();
+  });
+
+  it('gives a person who may not change the meeting no Delete meeting on a cancelled meeting', async () => {
+    await renderApp('/meetings?meeting=mtg_001', (state) => {
+      client(state, { status: 'cancelled' });
+      as('usr_005')(state);
+    });
+    const box = await sheet();
+    await within(box).findByText(/Cancelled/);
+    expect(within(box).queryByRole('button', { name: 'Delete meeting' })).toBeNull();
+  });
+
+  it('deletes a cancelled meeting that is in no series at once, closes the sheet, and offers Undo that brings it back', async () => {
+    const { store } = await renderApp('/meetings?meeting=mtg_001', (state) => client(state, { status: 'cancelled' }));
+    await userEvent.click(await within(await sheet()).findByRole('button', { name: 'Delete meeting' }));
+    await waitFor(() => expect(store.state.meetings!.mtg_001).toBeUndefined());
+    expect(screen.queryByRole('dialog', { name: 'Delete which meetings?' })).toBeNull();
+    expect(await screen.findByText('Meeting deleted.')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Review the facade' })).toBeNull());
+    fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(store.state.meetings!.mtg_001?.status).toBe('cancelled'));
   });
 
   it('reads a private meeting of other people as gone', async () => {
@@ -292,8 +332,7 @@ describe('the sheet of a meeting that repeats (wave 3)', () => {
   async function openCancel(id = 'mtg_002') {
     const app = await renderApp(`/meetings?meeting=${id}`, (state) => series(state));
     const box = await sheet();
-    await userEvent.click(await within(box).findByRole('button', { name: 'Meeting actions' }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Cancel meeting' }));
+    await userEvent.click(await within(box).findByRole('button', { name: 'Cancel meeting' }));
     const ask = await screen.findByRole('dialog', { name: 'Cancel which meetings?' });
     return { ...app, ask };
   }
@@ -333,18 +372,68 @@ describe('the sheet of a meeting that repeats (wave 3)', () => {
     const box = await screen.findByRole('dialog', { name: 'Review the facade' });
     const line = await within(box).findByText(/^يتكرر كل أسبوع، حتى/);
     expect(line.textContent).not.toMatch(/[٠-٩]/);
-    await userEvent.click(within(box).getByRole('button', { name: 'خيارات الاجتماع' }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'ألغِ الاجتماع' }));
+    expect(within(box).queryByRole('button', { name: 'خيارات الاجتماع' })).toBeNull();
+    await userEvent.click(within(box).getByRole('button', { name: 'ألغِ الاجتماع' }));
     const ask = await screen.findByRole('dialog', { name: 'أي اجتماعات تريد إلغاءها؟' });
     expect(within(ask).getByRole('button', { name: 'هذا الاجتماع' })).toBeInTheDocument();
+    expect(within(ask).getByRole('button', { name: 'هذا الاجتماع والاجتماعات اللاحقة' })).toBeInTheDocument();
+  });
+
+  /** A weekly series of 4 where the first two meetings are cancelled, the third is cancelled too and the fourth stays scheduled. */
+  async function openDelete(cancelled: string[] = ['mtg_002', 'mtg_003']) {
+    const app = await renderApp('/meetings?meeting=mtg_002', (state) => {
+      series(state);
+      for (const id of cancelled) state.meetings![id].status = 'cancelled';
+    });
+    const box = await sheet();
+    await userEvent.click(await within(box).findByRole('button', { name: 'Delete meeting' }));
+    const ask = await screen.findByRole('dialog', { name: 'Delete which meetings?' });
+    return { ...app, ask };
+  }
+
+  it('asks which meetings to delete for a meeting of a series, and deletes this meeting alone', async () => {
+    const { ask, store } = await openDelete();
+    await userEvent.click(within(ask).getByRole('button', { name: 'This meeting' }));
+    await waitFor(() => expect(store.state.meetings!.mtg_002).toBeUndefined());
+    expect(['mtg_001', 'mtg_003', 'mtg_004'].map((id) => store.state.meetings![id]?.status)).toEqual(['scheduled', 'cancelled', 'scheduled']);
+    expect(await screen.findByText('Meeting deleted.')).toBeInTheDocument();
+  });
+
+  it('deletes this and the later cancelled meetings, never a scheduled one, and takes it all back with Undo', async () => {
+    const { ask, store } = await openDelete();
+    await userEvent.click(within(ask).getByRole('button', { name: 'This and later meetings' }));
+    await waitFor(() => expect(store.state.meetings!.mtg_003).toBeUndefined());
+    expect(store.state.meetings!.mtg_002).toBeUndefined();
+    expect(store.state.meetings!.mtg_004?.status).toBe('scheduled');
+    expect(await screen.findByText('Meetings deleted.')).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(store.state.meetings!.mtg_003?.status).toBe('cancelled'));
+    expect(store.state.meetings!.mtg_002?.status).toBe('cancelled');
+  });
+
+  it('keeps the meeting when the delete question is closed', async () => {
+    const { store } = await openDelete();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete which meetings?' })).toBeNull());
+    expect(store.state.meetings!.mtg_002?.status).toBe('cancelled');
+  });
+
+  it('writes the delete button and question in Arabic', async () => {
+    await renderApp('/meetings?meeting=mtg_002', (state) => {
+      series(state);
+      state.meetings!.mtg_002.status = 'cancelled';
+      state.users.usr_002.preferences.language = 'ar';
+    });
+    const box = await screen.findByRole('dialog', { name: 'Review the facade' });
+    await userEvent.click(await within(box).findByRole('button', { name: 'احذف الاجتماع' }));
+    const ask = await screen.findByRole('dialog', { name: 'أي اجتماعات تريد حذفها؟' });
     expect(within(ask).getByRole('button', { name: 'هذا الاجتماع والاجتماعات اللاحقة' })).toBeInTheDocument();
   });
 
   it('keeps the plain question for a meeting in no series', async () => {
     await renderApp('/meetings?meeting=mtg_001', (state) => client(state));
     const box = await sheet();
-    await userEvent.click(await within(box).findByRole('button', { name: 'Meeting actions' }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Cancel meeting' }));
+    await userEvent.click(await within(box).findByRole('button', { name: 'Cancel meeting' }));
     expect(await screen.findByRole('dialog', { name: 'Cancel this meeting?' })).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: 'Cancel which meetings?' })).toBeNull();
   });

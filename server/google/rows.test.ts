@@ -70,7 +70,7 @@ describe('gcalRows', () => {
 });
 
 describe('the rows of a call', () => {
-  it('writes the sync rows in the transaction of meetings.create, meetings.update, meetings.cancel and events.undo', async () => {
+  it('writes the sync rows in the transaction of meetings.create, meetings.update, meetings.cancel, meetings.delete and events.undo', async () => {
     const t = await googleOffice();
     ok(await t.connect('usr_003'));
     const id = await planMeeting(t, 'usr_003', { startsAt: START });
@@ -79,6 +79,23 @@ describe('the rows of a call', () => {
     ok(await t.call('usr_003', 'events.undo', { eventId: update.id }));
     ok(await t.call('usr_003', 'meetings.cancel', { id }));
     expect((await outboxRows(t, 'gcal.sync')).map((row) => row.payload)).toEqual(Array(4).fill({ userId: 'usr_003', meetingId: id }));
+  });
+
+  it('writes a sync row for a deleted meeting only when a Google event row of it stands (owner, 2026-10-23)', async () => {
+    const t = await googleOffice();
+    ok(await t.connect('usr_003'));
+    const id = await planMeeting(t, 'usr_003', { startsAt: START });
+    ok(await t.call('usr_003', 'meetings.cancel', { id }));
+    const before = (await outboxRows(t, 'gcal.sync')).length;
+    // The sync of the cancel took the row away, so the delete has nothing to send.
+    ok(await t.call('usr_003', 'meetings.delete', { id }));
+    expect((await outboxRows(t, 'gcal.sync')).length).toBe(before);
+    const other = await planMeeting(t, 'usr_003', { startsAt: START, title: 'Other' });
+    ok(await t.call('usr_003', 'meetings.cancel', { id: other }));
+    await t.db.statement('write', "insert or replace into google_events (user_id, meeting_id, event_id, synced_rev, synced_at) values ('usr_003', ?1, 'ev', 1, '2026-10-21T06:00:00.000Z')", [other]);
+    const again = (await outboxRows(t, 'gcal.sync')).length;
+    ok(await t.call('usr_003', 'meetings.delete', { id: other }));
+    expect((await outboxRows(t, 'gcal.sync')).slice(again).map((row) => row.payload)).toEqual([{ userId: 'usr_003', meetingId: other }]);
   });
 
   it('writes one row for each meeting of a new series, for a connected attendee (wave 3)', async () => {

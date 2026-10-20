@@ -10,6 +10,7 @@ import { can, holdsAdminRights, mayViewMeeting, mayViewTask, meetingResource, pr
 import { eventLabel, eventViewOf, mayDeleteTracker, officeResource } from '../views';
 import { involves, onlyTicks } from '../../lib/taskPeople';
 import { isRoleEvent, undoRoleChange } from './roles';
+import type { State } from '../store';
 import { assertCan, roleIn, touch } from './shared';
 
 type Fields = Record<string, unknown>;
@@ -43,15 +44,25 @@ function officeOf(ctx: Ctx, event: Event, undo: boolean, viewer: User = ctx.auth
   return task ? taskResource(ctx.state, task, viewer.id) : officeResource(ctx.state, null, viewer.id);
 }
 
+/** The last copy of a deleted meeting, from its newest delete event that stands. Undefined when no such event is in the state. */
+function lastMeetingCopy(state: State, meetingId: string): Meeting | undefined {
+  let found: Event | undefined;
+  for (const event of Object.values(state.events)) {
+    if (event.verb === 'meeting.deleted' && event.targetId === meetingId && !event.undoneBy && (!found || event.seq > found.seq)) found = event;
+  }
+  return found && found.before !== null && typeof found.before === 'object' ? (found.before as Meeting) : undefined;
+}
+
 /**
  * True when the person sees the change: every change but one of an office task that the person does not see. viewer: another
  * person than the one of the call, for example the owner of a notice.
  */
 export function seesEvent(ctx: Ctx, event: Event, undo = false, viewer: User = ctx.authority): boolean {
   // A change of a meeting with no project shows to the people of that meeting only. The Admin has no extra view (owner, 2026-10-19).
-  // A meeting that is gone shows its changes to nobody, so the History tells nothing of it.
+  // A meeting that is gone shows its changes to nobody, so the History tells nothing of it. An Undo also reads the last copy of a
+  // deleted meeting (meeting.deleted keeps it), so the people of that meeting take the delete back (owner, 2026-10-23).
   if (event.officeMeetingId) {
-    const meeting = ctx.state.meetings?.[event.officeMeetingId];
+    const meeting = ctx.state.meetings?.[event.officeMeetingId] ?? (undo ? lastMeetingCopy(ctx.state, event.officeMeetingId) : undefined);
     return meeting !== undefined && mayViewMeeting(ctx.state, viewer, meeting);
   }
   return !event.officeTaskId || can(viewer, 'task.view', officeOf(ctx, event, undo, viewer));

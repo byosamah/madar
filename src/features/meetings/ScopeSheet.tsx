@@ -5,16 +5,16 @@ import { Sheet } from '../../components/Sheet';
 export type Scope = 'one' | 'later';
 
 /**
- * The question before a change or a cancel of a meeting that repeats (fbk_022, wave 3, owner 2026-10-19): "This meeting" or "This and
- * later meetings". Two plain buttons and nothing else. The focus is on the lesser choice, "This meeting". A new day cannot apply to
+ * The question before a change, a cancel or a delete of a meeting that repeats (fbk_022, wave 3, owner 2026-10-19; the delete 2026-10-23):
+ * "This meeting" or "This and later meetings". Two plain buttons and nothing else. The focus is on the lesser choice, "This meeting". A new day cannot apply to
  * the later meetings, so the form turns the second button off and says why (`laterDisabled`). The Close button and the Escape key
  * leave the meeting as it is.
  */
 export function ScopeSheet({ mode, laterDisabled = false, onPick, onClose }: {
-  mode: 'edit' | 'cancel'; laterDisabled?: boolean; onPick: (scope: Scope) => void; onClose: () => void;
+  mode: 'edit' | 'cancel' | 'delete'; laterDisabled?: boolean; onPick: (scope: Scope) => void; onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const variant = mode === 'cancel' ? 'destructive' : 'secondary';
+  const variant = mode === 'edit' ? 'secondary' : 'destructive';
   return (
     <Sheet
       open

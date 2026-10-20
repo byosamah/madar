@@ -5,7 +5,7 @@ import { Load, type LoadCtx } from './build';
 import { chatMessageCall, chatMessageRows, chatsAll, chatsArchive, chatsMarkRead, chatsMessages, chatsSetNotify, chatsUnread, chatsWaiting } from './chat';
 import { chatsOpenDirect } from './chatOpen';
 import { inboxCount, inboxList } from './inbox';
-import { meetingCall, meetingChange, meetingExtend, meetingMinutes, meetingsList } from './meetings';
+import { meetingCall, meetingChange, meetingDelete, meetingExtend, meetingMinutes, meetingsList } from './meetings';
 import { dashboardGet, eventsList, projectsList, searchQuery, tasksList, templateSyncTasks } from './overview';
 import {
   fileCall, filesList, filesUpload, paymentCall, paymentsOfProject, projectCall, projectsCreate, stagesReplace, trackerCall, trackerExport,
@@ -235,6 +235,8 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'meetings.create': office,
   'meetings.update': meetings(meetingChange),
   'meetings.cancel': meetings(meetingChange),
+  // The delete reads the meeting, and its whole series from today on (the guard that keeps a series ended reads the meetings that stay).
+  'meetings.delete': meetings(meetingDelete),
   // The settle reads the meeting by id (it writes the mark and the Tracker line, which needs no other row). A project is in the office.
   'meetings.settle': meetings(meetingCall),
   // The extension of a series (wave 3) reads the meetings of the series from today on. It writes new rows, which need only the counters.
