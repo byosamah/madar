@@ -35,7 +35,9 @@ export function withOfficeRights(user: User, roles: RoleSettings | undefined): A
  * The rights that open a section of the Admin page (owner, 2026-10-18, fbk_014). sections.ts names one of them for each section that a
  * right opens (a test checks that they agree). The list stays here, because the person menu reads it and must not load the screens.
  */
-export const ADMIN_PAGE_RIGHTS: readonly OfficeRight[] = ['people.manage', 'clients.manage', 'templates.manageAll'];
+export const ADMIN_PAGE_RIGHTS: readonly OfficeRight[] = [
+  'people.manage', 'clients.manage', 'templates.manageAll', 'templates.updateProjects', 'subCompanies.manage', 'feedback.manage',
+];
 
 /**
  * True when the person sees the Admin page: the Admin always, and anyone who holds a right that opens a section. The person menu asks

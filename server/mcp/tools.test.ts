@@ -25,8 +25,9 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
   /** The tools of an agent whose person is not an Admin, and of an agent of an Admin (owner, 2026-10-07). */
   const tools = mcpTools();
   const adminTools = mcpTools({ admin: true });
-  /** The tools that an office right opens (fbk_016): reports.office, for the people who hold the report right. */
+  /** The tools that an office right opens: reports.office (fbk_016) and the 3 tools of requests and bugs (role-rights, 2026-10-23). */
   const rightTools = Object.keys(MCP_BY_RIGHT);
+  const feedbackTools = ['feedback.list', 'feedback.screenshot', 'feedback.setStatus'];
   const allowAndAdmin = [...MCP_ALLOW, ...MCP_ADMIN, ...rightTools];
 
   it('has the 52 tools of the allowlist, each once', () => {
@@ -63,22 +64,41 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     for (const name of ['chats.openDirect', 'chats.send']) expect(tools.find((tool) => tool.name === name)!.annotations.destructiveHint, name).toBe(true);
   });
 
-  it('adds the 3 Admin tools of requests and bugs only to the list of an agent of an Admin: 56 tools (owner, 2026-10-07, fbk_016)', () => {
-    expect([...MCP_ADMIN]).toEqual(['feedback.list', 'feedback.screenshot', 'feedback.setStatus']);
+  it('adds the 3 tools of requests and bugs only to the list of an agent whose person holds the feedback right: 56 tools for an Admin (owner, 2026-10-07; role-rights, 2026-10-23)', () => {
+    // No tool is left on the Admin list: the 3 tools moved to the right list, so a role can hold them.
+    expect([...MCP_ADMIN]).toEqual([]);
+    for (const name of feedbackTools) expect(MCP_BY_RIGHT[name as keyof typeof MCP_BY_RIGHT], name).toBe('feedback.manage');
     expect(tools).toHaveLength(52);
     expect(tools.filter((tool) => tool.name.startsWith('feedback.'))).toEqual([]);
     expect(adminTools).toHaveLength(56);
     expect(adminTools.map((tool) => tool.name).sort()).toEqual([...allowAndAdmin].sort());
-    // The default list is the Admin list without the 3 Admin tools and the right tools, in the same order.
-    const rest = adminTools.map((tool) => tool.name).filter((name) => !(MCP_ADMIN as readonly string[]).includes(name) && !rightTools.includes(name));
+    // The default list is the Admin list without the right tools, in the same order.
+    const rest = adminTools.map((tool) => tool.name).filter((name) => !rightTools.includes(name));
     expect(tools.map((tool) => tool.name)).toEqual(rest);
     // A report comes in from the screens only: an agent never sends one or starts its upload.
     for (const name of ['feedback.send', 'feedback.uploadStart']) expect(MCP_DENY).toContain(name);
   });
 
+  it('gives the 3 tools of requests and bugs to a person with the feedback right and to nobody else (role-rights)', () => {
+    const names = (rights: Parameters<typeof mcpTools>[0]) => mcpTools(rights).map((tool) => tool.name);
+    // The feedback right alone adds exactly the 3 tools to the default list.
+    const holder = names({ rights: ['feedback.manage'] });
+    expect(holder).toHaveLength(55);
+    for (const name of feedbackTools) expect(holder, name).toContain(name);
+    expect(holder).not.toContain('reports.office');
+    // Every other right, and all the rights but this one, leave the 3 tools out.
+    const others = ['people.manage', 'payment.manage', 'report.office', 'gaps.view', 'subCompanies.manage', 'templates.updateProjects', 'project.editAny', 'task.changeAny', 'agents.undoAny'] as const;
+    for (const name of feedbackTools) {
+      expect(names({ rights: [...others] }), name).not.toContain(name);
+      expect(names({}), name).not.toContain(name);
+    }
+    // The Admin list holds them.
+    for (const name of feedbackTools) expect(names({ admin: true }), name).toContain(name);
+  });
+
   // Owner, 2026-10-18 (fbk_016): the office report is for the people who hold the report right (Admin and Management by default).
   it('gives reports.office only to an agent whose person holds the report right, and explains the design guide', () => {
-    expect(rightTools).toEqual(['reports.office']);
+    expect(rightTools).toEqual(['reports.office', ...feedbackTools]);
     expect(MCP_BY_RIGHT['reports.office']).toBe('report.office');
     expect(MCP_ALLOW as readonly string[]).not.toContain('reports.office');
     expect(MCP_DENY as readonly string[]).not.toContain('reports.office');
@@ -89,7 +109,7 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     const management = mcpTools({ rights: ['people.manage', 'payment.manage', 'report.office'] });
     expect(management).toHaveLength(53);
     expect(management.map((tool) => tool.name)).toContain('reports.office');
-    expect(management.map((tool) => tool.name)).toEqual(adminTools.map((tool) => tool.name).filter((name) => !(MCP_ADMIN as readonly string[]).includes(name)));
+    expect(management.map((tool) => tool.name)).toEqual(adminTools.map((tool) => tool.name).filter((name) => !feedbackTools.includes(name)));
     expect(adminTools.map((tool) => tool.name)).toContain('reports.office');
     // The office report is read only, and its agent never gets a storage key or a write.
     expect(adminTools.find((tool) => tool.name === 'reports.office')!.readOnly).toBe(true);
@@ -138,8 +158,8 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     // Each listed name is a real call; the only tool with no call is madar.readFirst.
     expect([...allow, ...admin, ...right, ...deny].filter((name) => name !== READ_FIRST && !callNames.includes(name))).toEqual([]);
     expect(deny.size).toBe(MCP_DENY.length);
-    expect(admin.size).toBe(3);
-    expect(right.size).toBe(1);
+    expect(admin.size).toBe(0);
+    expect(right.size).toBe(4);
   });
 
   it('never allows a call that the server does not run', () => {
@@ -159,7 +179,7 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     expect(mcpTools({ admin: true }).map((tool) => tool.name)).toEqual(adminTools.map((tool) => tool.name));
     // The feedback tools sort between events.undoStory and files.list.
     const names = adminTools.map((tool) => tool.name);
-    expect(names.slice(names.indexOf('events.undoStory'), names.indexOf('files.list') + 1)).toEqual(['events.undoStory', ...MCP_ADMIN, 'files.list']);
+    expect(names.slice(names.indexOf('events.undoStory'), names.indexOf('files.list') + 1)).toEqual(['events.undoStory', ...feedbackTools, 'files.list']);
   });
 
   it('gives each tool a title and a description of 40 to 600 characters', () => {

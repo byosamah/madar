@@ -29,6 +29,27 @@ describe('the Sub-companies section', () => {
     expect(within(await region('Sub-companies')).getByText('No sub-companies yet. Add the first one.')).toBeInTheDocument();
   });
 
+  // role-rights (owner, 2026-10-23): the right subCompanies.manage opens the section and the calls for a person who is not the Admin.
+  it('lets a Member with the sub-company right make a sub-company, and keeps the section from a Member without it', async () => {
+    const holder = (state: State) => {
+      state.settings.roles = { custom: [{ id: 'rol_001', name: 'Companies', nameAr: 'الشركات', rights: ['subCompanies.manage'] }] };
+      state.users.usr_003.roleId = 'rol_001';
+      state.session.currentUserId = 'usr_003';
+    };
+    const { store } = await renderApp('/admin/sub-companies', holder);
+    await addSubCompany('Vado', 'فادو');
+    await waitFor(() => expect(names(store)).toEqual(['Vado']));
+    expect(Object.values(store.state.subCompanies ?? {})[0]).toMatchObject({ createdBy: 'usr_003' });
+  });
+
+  it('sends a Member without the sub-company right away from the section', async () => {
+    await renderApp('/admin/sub-companies', (state) => {
+      state.session.currentUserId = 'usr_003';
+    });
+    expect(screen.queryByRole('region', { name: 'Sub-companies' })).toBeNull();
+    expect((await screen.findAllByText('Office')).length).toBeGreaterThan(0);
+  });
+
   it('makes a sub-company with an English name and an Arabic name, and no logo', async () => {
     const { store } = await renderApp('/admin/sub-companies');
     await addSubCompany('Vado', 'فادو');

@@ -179,7 +179,7 @@ const OFFICE_TASK_HIT = [...OFFICE_TASK_PEOPLE, 'title'] as const;
 export async function eventsList(L: Load, input: Input): Promise<void> {
   if (!L.authority) return;
   const where: Cond[] = [];
-  const hidden = [...(can(L.authority, 'payment.manage') ? [] : ['payment']), ...(can(L.authority, 'admin.manage') ? [] : ['feedback'])];
+  const hidden = [...(can(L.authority, 'payment.manage') ? [] : ['payment']), ...(can(L.authority, 'feedback.manage') ? [] : ['feedback'])];
   if (hidden.length > 0) where.push({ col: 'target_type', notIn: hidden });
   for (const [field, col] of [['projectId', 'project_id'], ['targetType', 'target_type'], ['targetId', 'target_id'], ['correlationId', 'correlation_id']] as const) {
     const value = str(input[field]);

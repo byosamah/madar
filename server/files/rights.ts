@@ -3,10 +3,11 @@ import { canSeeConversation, chatForUpload } from '../../src/api/chatState';
 import { ApiError, forbidden, invalid, notFound } from '../../src/api/errors';
 import { minutesRefusal } from '../../src/api/handlers/meetings';
 import { can, mayViewMeeting, projectRoleOf, taskResource } from '../../src/api/permissions';
+import { withOfficeRights } from '../../src/api/rights';
 import type { State } from '../../src/api/store';
 import type { Db } from '../core/ports';
 import type { OfficeSnapshot } from '../core/types';
-import { readUsers } from './records';
+import { readRoles, readUsers } from './records';
 
 /**
  * The rights check before a signed link (plan 2b, point 7; task F2). runCall already checks the actor of every call
@@ -14,7 +15,7 @@ import { readUsers } from './records';
  * that signs one checks again, right before it signs:
  *
  * - the person, or the person an agent acts for, must be active (else account_off, the refusal of server/core/actor.ts);
- * - then the right itself with can(): project.view for a file, content.post for an upload, admin.manage for a screenshot.
+ * - then the right itself with can(): project.view for a file, content.post for an upload, feedback.manage for a screenshot.
  *
  * can() lets an inactive person through project.view (src/api/permissions.ts), so the active check comes first and never
  * leans on can().
@@ -126,8 +127,14 @@ export function assertMayUploadToMeeting(office: OfficeSnapshot, userId: string,
   return meeting;
 }
 
-export function assertAdmin(authority: User): void {
-  if (!can(authority, 'admin.manage')) throw forbidden('You cannot do this.', { action: 'admin.manage' });
+/**
+ * The right to read the reports of people (feedback.manage), checked in a hook right before a screenshot link is signed. The Admin holds
+ * it, and so does a role that the Admin gave it. A hook has no office snapshot, so the roles come from the settings row. The person is the
+ * person of an agent, as loadAuthority reads it.
+ */
+export async function assertMayReadReports(db: Db, userId: string): Promise<void> {
+  const authority = await loadAuthority(db, userId);
+  if (!can(withOfficeRights(authority, await readRoles(db)), 'feedback.manage')) throw forbidden('You cannot do this.', { action: 'feedback.manage' });
 }
 
 /** The authority of a hook, which has no office snapshot: the person, and for an agent its person, read with SQL. */

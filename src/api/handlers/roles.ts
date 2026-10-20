@@ -26,7 +26,8 @@ const ROLE_VERBS: ReadonlySet<string> = new Set(['role.created', 'role.updated',
 const isBuiltIn = (role: string): role is BuiltIn => (BUILT_IN as readonly string[]).includes(role);
 /** The rights in the order of the rights list, each one once. */
 const inOrder = (rights: readonly string[]): OfficeRight[] => OFFICE_RIGHTS.filter((right) => rights.includes(right));
-const sameRights = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((right, index) => right === b[index]);
+/** True when both lists hold the same rights, in any order: the order of the rights list changed with the sections (role-rights, 2026-10-23). */
+const sameRights = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((right) => b.includes(right));
 const conflict = (message = 'This item changed after that edit. Undo is not available.') => new ApiError('conflict', message);
 
 /** The office roles. An office saved before roles has none, so the first change makes the record. */
@@ -86,7 +87,7 @@ function changeCustom(ctx: Ctx, roles: RoleSettings, id: string, patch: { name?:
   const after: Record<string, unknown> = {};
   for (const key of ['name', 'nameAr', 'rights'] as const) {
     const next = patch[key];
-    if (next === undefined || JSON.stringify(role[key]) === JSON.stringify(next)) continue;
+    if (next === undefined || (key === 'rights' ? sameRights(role.rights, next as OfficeRight[]) : JSON.stringify(role[key]) === JSON.stringify(next))) continue;
     before[key] = structuredClone(role[key]);
     after[key] = structuredClone(next);
     (role as unknown as Record<string, unknown>)[key] = structuredClone(next);

@@ -6,6 +6,7 @@ import { ApiError, forbidden, notFound } from '../errors';
 import { DERIVED, FOLLOW_ON, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../events';
 import { assertHasLead, assertMayFinish, reopenDependents, resyncStage, stageTag } from '../flow';
 import { feedbackNoticeHidden } from '../notify';
+import { withRights } from '../rights';
 import { can, holdsAdminRights, mayViewMeeting, mayViewTask, meetingResource, principalOf, taskResource, type Action, type Resource } from '../permissions';
 import { eventLabel, eventViewOf, mayDeleteTracker, officeResource } from '../views';
 import { involves, onlyTicks } from '../../lib/taskPeople';
@@ -83,8 +84,8 @@ export const eventsList = defineCall({
   run(input, ctx) {
     // A payment event holds an amount, so only the people who may handle payments ever read one.
     const seesPayments = can(ctx.authority, 'payment.manage');
-    // A bug report can be private, so only the Admin, who reads the reports, reads their events (audit 2026-10-03, API-12).
-    const seesFeedback = can(ctx.authority, 'admin.manage');
+    // A bug report can be private, so only a person who reads the reports (feedback.manage) reads their events (audit 2026-10-03, API-12).
+    const seesFeedback = can(ctx.authority, 'feedback.manage');
     // The contract takes any time offset, so "since" compares times, not text (audit 2026-10-03, API-20).
     const since = input.since ? Date.parse(input.since) : null;
     return Object.values(ctx.state.events)
@@ -314,9 +315,13 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
     }
     case 'subCompany':
       // An agent never makes, changes or deletes a sub-company (MCP deny list), so it never takes such a change back either:
-      // an undo of a making deletes the sub-company, and an undo of a change brings an old logo back (INT-27).
-      if (ctx.actor.kind === 'agent') throw forbidden('Only the Admin changes a sub-company, in the Madar screens.', { action: 'admin.manage', reason: 'admin_only' });
-      return need('admin.manage');
+      // an undo of a making deletes the sub-company, and an undo of a change brings an old logo back (INT-27). The agent of a person who
+      // holds subCompanies.manage is refused too: the right opens the screens only.
+      if (ctx.actor.kind === 'agent') throw forbidden('Only a person changes a sub-company, in the Madar screens.', { action: 'subCompanies.manage', reason: 'admin_only' });
+      return need('subCompanies.manage');
+    // A report change follows the right to manage reports, as the report calls do (role-rights, owner 2026-10-23).
+    case 'feedback':
+      return need('feedback.manage');
     default:
       return need('admin.manage');
   }
@@ -476,7 +481,7 @@ function dropNotices(ctx: Ctx, correlationId: string): void {
     // The same for the notice of a meeting that its owner no longer sees (a person taken off the attendees, fbk_022).
     if (owner !== undefined && noticeMeetingHidden(ctx, notice.targetType, notice.targetId, owner)) continue;
     // The same for the notice of a new report that a former Admin holds (owner, 2026-10-07).
-    if (owner !== undefined && feedbackNoticeHidden(notice, owner)) continue;
+    if (owner !== undefined && feedbackNoticeHidden(notice, withRights(ctx.state, owner))) continue;
     let kept: boolean;
     if (notice.targetType === 'feedback' && notice.trigger === 'feedback_done') {
       // A done notice stays only once for each move of its report from open to done that still stands in the story. So done, open,

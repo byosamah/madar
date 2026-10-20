@@ -30,8 +30,9 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 
 ## Tools
 - MCP spec 2026-07-28, stateless. A 2025-era client gets the stateless legacy answer.
-- 52 tools for every agent in `MCP_ALLOW`, plus 3 for an agent of an Admin in `MCP_ADMIN` (`feedback.list`,
-  `feedback.screenshot`, `feedback.setStatus`): 55, with 23 reads and 32 writes. The reads include `subCompanies.list`, which
+- 52 tools for every agent in `MCP_ALLOW`. `MCP_ADMIN` is empty since role-rights (owner, 2026-10-23): `feedback.list`,
+  `feedback.screenshot` and `feedback.setStatus` sit in `MCP_BY_RIGHT` under `feedback.manage`, so an agent whose person holds that right
+  (the Admin, or a custom role) gets 3 more: 55, with 23 reads and 32 writes. The reads include `subCompanies.list`, which
   leaves the logo data out (`run.ts`). `MCP_BY_RIGHT` adds `reports.office` (the office
   report, fbk_016) for an agent whose person holds the report right (Admin and Management by default), so an Admin's agent gets 56.
   `tasks.help` (fbk_035) joins the person to a task as a helper, or takes them off it.

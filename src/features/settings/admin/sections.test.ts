@@ -24,6 +24,7 @@ describe('the Admin section registry', () => {
       expect(section.roles.length).toBeGreaterThan(0);
       // A section that a right opens names a right that opens the Admin page (PersonMenu reads the same list).
       if (section.right !== undefined) expect(ADMIN_PAGE_RIGHTS, section.id).toContain(section.right);
+      for (const right of section.alsoRights ?? []) expect(ADMIN_PAGE_RIGHTS, `${section.id} ${right}`).toContain(right);
     }
     for (const group of ADMIN_GROUPS) {
       expect(typeof word(en, `adminNav.groups.${group}`)).toBe('string');
@@ -58,12 +59,26 @@ describe('the Admin section registry', () => {
     expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['clients.manage'] }, false))).toEqual(['clients']);
   });
 
+  // role-rights (owner, 2026-10-23): the sub-companies, the requests and bugs and the update of projects open for their own rights.
+  it('opens the sub-companies, the requests and bugs, and the project templates for the rights that take the place of the Admin', () => {
+    expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['subCompanies.manage'] }, false))).toEqual(['sub-companies']);
+    expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['feedback.manage'] }, false))).toEqual(['feedback']);
+    // The update of projects opens the project templates only, not the to-do templates: their change right is another right.
+    expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['templates.updateProjects'] }, false))).toEqual(['project-templates']);
+    expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['templates.manageAll', 'templates.updateProjects'] }, false))).toEqual(['project-templates', 'task-templates']);
+  });
+
+  it('keeps the Roles section, the office settings and Usage with the Admin, whatever the rights say', () => {
+    const all = { systemRole: 'member' as const, officeRights: [...rightsOf({ systemRole: 'admin' } as User, undefined)] };
+    for (const id of ['roles', 'office', 'usage']) expect(ids(sectionsFor(all, true)), id).not.toContain(id);
+  });
+
   it('takes the People section away from Management that lost the people right', () => {
     expect(sectionsFor({ systemRole: 'management', officeRights: ['report.office'] }, true)).toEqual([]);
   });
 
   it('opens no section for a right that no section names', () => {
-    expect(sectionsFor({ systemRole: 'member', officeRights: ['payment.manage', 'report.office', 'project.editCode'] }, true)).toEqual([]);
+    expect(sectionsFor({ systemRole: 'member', officeRights: ['payment.manage', 'report.office', 'project.editCode', 'project.editAny', 'task.changeAny', 'gaps.view', 'agents.undoAny'] }, true)).toEqual([]);
   });
 
   it('shows the Roles section to the Admin only, whatever the rights say', () => {

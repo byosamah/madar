@@ -83,7 +83,7 @@ export const DashboardView = z.object({
     tasks: z.array(z.object({ id: TaskId, title: z.string(), projectId: ProjectId.nullable(), projectCode: z.string(), days: Count })),
   })),
   /**
-   * The data gaps of the active projects in the filters, for the Admin only (can admin.manage): open tasks with no due date or no
+   * The data gaps of the active projects in the filters, for a person with the gaps right only (can gaps.view: the Admin, or a role that holds it): open tasks with no due date or no
    * lead, projects with a stage that has no end date, and projects with no area. Each count equals the list it opens. Null for
    * anyone else, and for an agent that acts for anyone else (owner, 2026-10-06).
    */
@@ -293,7 +293,7 @@ export const dashboardGet = defineCall({
           return { reviewer: cardOf(state, id), count: rows.length, oldestDays: ordered[0].days, tasks: ordered };
         })
         .sort((a, b) => b.oldestDays - a.oldestDays || b.count - a.count || a.reviewer.name.localeCompare(b.reviewer.name)),
-      gaps: can(actor, 'admin.manage') ? gapsOf(state, active, activeTasks) : null,
+      gaps: can(actor, 'gaps.view') ? gapsOf(state, active, activeTasks) : null,
       money: can(actor, 'payment.manage') ? moneyOf(state, inFilters, today) : null,
       waitingForUs: active
         .flatMap((p) => { const count = loops.get(p.id)?.us ?? 0; return count > 0 ? [{ project: refOf(p), count }] : []; })

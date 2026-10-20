@@ -70,7 +70,7 @@ const feedbackSend = defineCall({
     };
     feedbackOf(ctx.state)[id] = item;
     recordCreate(ctx, { projectId: null, verb: 'feedback.sent', targetType: 'feedback', targetId: id, entity: item });
-    // Each active Admin hears of the report in the app, never by email. notify skips the sender and the person of an agent (owner, 2026-10-07).
+    // Each active person with the right to manage reports hears of the report in the app, never by email. notify skips the sender and the person of an agent (owner, 2026-10-07).
     notifyIn(ctx, {
       userIds: activeAdmins(ctx.state), trigger: 'feedback_sent', targetType: 'feedback', targetId: id, feedback: { kind: item.kind, excerpt: excerptOf(item.message) },
     });
@@ -78,13 +78,13 @@ const feedbackSend = defineCall({
   },
 });
 
-/** The Admin reads every report, newest first, open ones before done ones. A status gives only the reports with that status (owner, 2026-10-07). */
+/** A person with the right to manage reports (the Admin, or a role with feedback.manage) reads every report, newest first, open ones before done ones. A status gives only the reports with that status (owner, 2026-10-07). */
 const feedbackList = defineCall({
   input: z.object({ status: z.enum(['new', 'done']).optional() }),
   output: z.array(FeedbackRow),
   readOnly: true,
   run(input, ctx) {
-    assertCan(ctx, 'admin.manage');
+    assertCan(ctx, 'feedback.manage');
     return Object.values(feedbackOf(ctx.state))
       .filter((item) => input.status === undefined || item.status === input.status)
       .sort((a, b) => (a.status === b.status ? b.createdAt.localeCompare(a.createdAt) : a.status === 'new' ? -1 : 1))
@@ -95,7 +95,7 @@ const feedbackList = defineCall({
 /** The prototype reads the picture itself; the real build signs a link in its server prepare hook and answers with wire.output. */
 export type ScreenshotPrepared = { blob: Blob | null } | { link: { url: string; expiresAt: string } };
 
-/** One screenshot of a report, for the Admin only. */
+/** One screenshot of a report, for a person with the right to manage reports only. */
 const feedbackScreenshot = defineCall({
   input: z.object({ id: z.string(), index: z.number().int().min(0).max(2) }),
   output: z.object({ blob: z.instanceof(Blob) }),
@@ -106,7 +106,7 @@ const feedbackScreenshot = defineCall({
     return { blob: shot ? await p.persister.getBlob(shot.blobKey) : null };
   },
   run(input, ctx, prepared) {
-    assertCan(ctx, 'admin.manage');
+    assertCan(ctx, 'feedback.manage');
     requireFeedback(ctx, input.id);
     if ('link' in prepared) return prepared.link as unknown as { blob: Blob };
     if (!prepared.blob) throw notFound('Screenshot', `${input.id}#${input.index}`);
@@ -115,14 +115,14 @@ const feedbackScreenshot = defineCall({
 });
 
 /**
- * The Admin marks a report done, or opens it again. Only the move from open to done tells the sender, in the app. Open again
+ * A person with the right to manage reports marks a report done, or opens it again. Only the move from open to done tells the sender, in the app. Open again
  * sends nothing, and the done notice that the sender has stays (owner, 2026-10-07).
  */
 const feedbackSetStatus = defineCall({
   input: z.object({ id: z.string(), status: z.enum(['new', 'done']) }),
   output: Feedback,
   run(input, ctx) {
-    assertCan(ctx, 'admin.manage');
+    assertCan(ctx, 'feedback.manage');
     const item = requireFeedback(ctx, input.id);
     const wasDone = item.status === 'done';
     const done = input.status === 'done';

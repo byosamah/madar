@@ -29,7 +29,7 @@ const TemplateName = z.string().trim().min(1).max(60);
  */
 export const ProjectTemplateRow = ProjectTemplate.extend({
   createdByName: z.string(), createdByNameAr: z.string().optional(), createdByGender: Gender.optional(), canEdit: z.boolean(),
-  /** The open projects that follow the template (ADM-05). Only the Admin, who sends the update, gets the number. */
+  /** The open projects that follow the template (ADM-05). Only a person who sends the update (templates.updateProjects) gets the number. */
   followers: z.number().int().nonnegative().optional(),
 });
 export type ProjectTemplateRow = z.infer<typeof ProjectTemplateRow>;
@@ -41,7 +41,7 @@ function mayChange(ctx: Ctx, template: ProjectTemplate): boolean {
 
 function rowOf(ctx: Ctx, template: ProjectTemplate): ProjectTemplateRow {
   const author = ctx.state.users[template.createdBy];
-  const followers = can(ctx.authority, 'admin.manage')
+  const followers = can(ctx.authority, 'templates.updateProjects')
     ? Object.values(ctx.state.projects).filter((project) => project.templateLink?.templateId === template.id && (project.status === 'active' || project.status === 'on_hold')).length
     : undefined;
   return {
@@ -396,7 +396,7 @@ const projectTemplatesUsage = defineCall({
   output: z.object({ linked: z.array(UsageRow), notLinked: z.array(UsageRow) }),
   readOnly: true,
   run(input, ctx) {
-    assertCan(ctx, 'admin.manage');
+    assertCan(ctx, 'templates.updateProjects');
     const template = templateOf(ctx, input.templateId);
     const row = (project: Project) => ({ project: refOf(project), status: project.status, staleDays: staleDaysOf(ctx.state, project, ctx.today) });
     const open = Object.values(ctx.state.projects).filter((project) => project.status === 'active' || project.status === 'on_hold').sort(byName);
@@ -416,7 +416,7 @@ const projectTemplatesSyncPlan = defineCall({
   output: z.array(z.object({ project: ProjectRef, diff: SyncDiffOut })),
   readOnly: true,
   run(input, ctx) {
-    assertCan(ctx, 'admin.manage');
+    assertCan(ctx, 'templates.updateProjects');
     const template = templateOf(ctx, input.templateId);
     const rows: { project: ReturnType<typeof refOf>; diff: SyncDiff }[] = [];
     for (const projectId of new Set(input.projectIds)) {
@@ -450,7 +450,7 @@ const projectTemplatesSyncApply = defineCall({
   output: SyncCounts,
   run(input, ctx) {
     const applying = input.apply === true && isApplyChoices(input.choices);
-    if (!applying) assertCan(ctx, 'admin.manage');
+    if (!applying) assertCan(ctx, 'templates.updateProjects');
     const template = templateOf(ctx, input.templateId);
     const project = ctx.state.projects[input.projectId];
     if (!project) throw notFound('Project', input.projectId);
@@ -478,7 +478,8 @@ const projectTemplatesSyncApply = defineCall({
     const watch = watchStage(ctx, project.id);
     const counts = { added: 0, broughtBack: 0, removed: 0, text: 0, dates: 0, leads: 0, closed: 0, stages: 0, edited: 0 };
     const restored = new Set<string>();
-    const maySkipReview = can(ctx.authority, 'task.updateAny', { projectRole: roleIn(ctx, project.id) });
+    // "No review" is the review need, which belongs to the reviewer (task.review), not to the right to change a task.
+    const maySkipReview = can(ctx.authority, 'task.review', { projectRole: roleIn(ctx, project.id) });
     const stagePart = new Map(template.stages.map((part) => [part.id, part]));
     const taskPart = new Map(template.tasks.map((part) => [part.id, part]));
     const rolePart = new Map(template.roles.map((role) => [role.id, role]));

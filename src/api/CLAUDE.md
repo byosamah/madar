@@ -88,7 +88,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   one: it first removes the part ids of the old template from the stages and tasks (an event for each, so one Undo of the story brings
   them back), then writes the new link. The same template is refused (`already_linked`): that is an update. The adding is
   `syncApply` with `apply: true` and exactly the picks of `isApplyChoices` (only `bringBack`): the project right is enough. Any other
-  pick, or `apply` without them, needs `admin.manage` as before. In apply mode the added parts start from `shiftAdded`
+  pick, or `apply` without them, needs `templates.updateProjects` (the Admin holds it). In apply mode the added parts start from `shiftAdded`
   (`lib/projectPlan.ts`): when the earliest added part starts before today, all added parts move forward by the same working days so it
   starts today; an old item never moves. The lead of a new task is the role's person from `link.rolePeople` (the sheet sends the
   default person only when active) and gets the `task_assigned` notice. The closing event is `project.template_applied`
@@ -113,7 +113,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 ## Health and the Dashboard (owner, 2026-10-06)
 - `health.ts`: a past-due task puts its project At risk only from `AT_RISK_DAYS_PAST_DUE` (3) calendar days past due.
   `isOverdue` still counts it from day 1 ("Past-due to-dos", the Past due column, `tasks.list` filter `overdue`).
-- `dashboard.get` returns `gaps` only for `can(admin.manage)` and `money` only for `can(payment.manage)`; anyone else, and an
+- `dashboard.get` returns `gaps` only for `can(gaps.view)` (the Admin, or a role with that right) and `money` only for `can(payment.manage)`; anyone else, and an
   agent of anyone else, gets null. Contract changes stay additive: `charts.healthMix` and `charts.throughput` stay for agents.
 - Each Dashboard number has a list that holds the same records: `tasks.list` and `deadlines.list` take `leaderId`, `clientId`
   and `teamId` (`peopleFilter`, `pause.ts`); `tasks.list` `workOf` is the work of one person (open tasks that are not in
@@ -267,7 +267,10 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   the task, the Admin). The avatar of a task row opens its small pop-up for the lead and the helpers only when it is true.
 
 ## Requests and bugs notices (owner, 2026-10-07)
-- `feedback_sent`: a new report tells each active Admin (`activeAdmins`, `notify.ts`). `feedback_done`: a report that goes
+- `feedback_sent`: a new report tells each active person who holds `feedback.manage` (`activeAdmins`, `notify.ts`; it attaches the rights
+  with `withRights`, so it needs `state.settings`). The calls `feedback.list`, `feedback.screenshot` and `feedback.setStatus`, the
+  History of a report (`events.list`, its Undo) and `feedbackNoticeHidden` ask the same right. The viewer of `feedbackNoticeHidden` and
+  `visibleTriggers` must carry the attached rights, or the notice reads as hidden. `feedback_done`: a report that goes
   from open to done tells `principalOf(createdBy)`. The skips of `notify` apply: the actor and the person of an agent actor,
   agents, people who left, and a switch that is off.
 - `Preferences.notifications` is a `partialRecord`: a missing trigger means on. Read a switch only with `inAppOn`
@@ -278,7 +281,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - zod 4 `z.record(enumKey, …)` needs every key, so a new enum value refuses every stored doc. A stored map uses `z.partialRecord`.
 - `IN_APP_ONLY_TRIGGERS` (both) send no email: `emailOn` is false, `notifications.updateSettings` refuses their email switch
   with reason `in_app_only`, and Settings shows no email switch for them. `EMAIL_TRIGGERS` holds the other triggers.
-- `ADMIN_ONLY_TRIGGERS` (`feedback_sent`): `visibleTriggers` shows its switch only with `admin.manage`. The value stays.
+- `ADMIN_ONLY_TRIGGERS` (`feedback_sent`): `visibleTriggers` shows its switch only with `feedback.manage`. The value stays.
 - A report notice carries `feedback: { kind, excerpt }` (`NoticeFeedback`), so its line needs no report row. `excerptOf`
   (`lib/text.ts`) makes the excerpt: one space for each run of white space, 80 code points or fewer, cut at a space, then "…".
 - Only the move from open to done sends a notice. Done on a done report and "Open again" send nothing, and the done notice
@@ -362,7 +365,23 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   - MCP: `TOOL_DOCS` of `projects.update` (600 characters, at the limit) and `projects.get`, and the `Place:` line of `INSTRUCTIONS`.
 
 ## Office rights and roles (owner, 2026-10-18, fbk_014)
-- The seven office rights are in `OfficeRight` (`contract/entities.ts`). The Admin holds all seven.
+- The 17 office rights are in `OfficeRight` (`contract/entities.ts`), in 7 sections (`RIGHT_SECTIONS`, `permissions.ts`; `OFFICE_RIGHTS`
+  follows it, and a test checks that both agree). The Admin holds all of them. A role always keeps what a Member does today; each right adds
+  one power of the Admin (owner, 2026-10-23, role-rights). The defaults of Management, Accounting and Member add none of the ten new rights.
+  - Projects: `project.editAny` (passes `project.edit` and `project.healthOverride` off the team), `project.changeLeaderAny`
+    (`project.changeLeader`), `project.archiveAny` (`project.archive`: pause, resume, status, restart date), `project.delete`, `project.editCode`.
+  - To-dos: `task.reviewAny` (`task.review`), `task.changeAny` (`task.updateAny`, `task.updateOwn`, `task.contribute`, `task.delete` of a
+    project task; never an office task, and `task.delete` only when the resource describes a task, so a file or a Tracker entry stays with the leader).
+  - People: `people.manage`, `clients.manage`, `subCompanies.manage` (`subCompanies.save` and `.delete`, the Undo of a sub-company event;
+    an agent still never makes, changes or undoes a sub-company).
+  - Money: `payment.manage`. Templates: `templates.manageAll`, `templates.updateProjects` (`projectTemplates.usage`, `.syncPlan`, the full
+    `.syncApply`, the follower count; the apply by a project leader keeps `project.edit`).
+  - AI and reports: `report.office`, `agents.undoAny` (`event.undoAgent` on any project; the Undo still asks the right of the change itself).
+  - Office: `feedback.manage` (requests and bugs, see the notices section), `gaps.view` (the gaps of `dashboard.get` and `reports.office`).
+- A right gives only its own power. A rule that stands in for the leader asks the right that fits: "no review" on template tasks asks
+  `task.review`, naming a person outside the team (`ensureOnTeam`) and a to-do template made from a task ask `project.edit`. Before a new
+  right passes an action, grep every use of that action and check what it stands in for.
+- A stored role keeps its own order of rights; a save of the same rights in another order is no change (`sameRights`, `handlers/roles.ts`).
 - `Settings.roles` holds the rights of Management, Accounting and Member, and the custom roles. `rightsOf` (`rights.ts`) reads them.
 - A check of an office right reads the person with the rights attached. A handler gets them in `ctx.authority` (`execute.ts`). A loader
   (`Load.authority`) and a server call use `withRights(state, user)`.
@@ -385,7 +404,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 ## The office report (owner, 2026-10-18, fbk_016)
 - `reports.office { period, start? }` (`handlers/reports.ts`): a week (Sunday to Saturday), a month, a quarter or a year. `periodRange`
   (`reportPeriod.ts`) picks the period that holds `start`; with no start it gives the last full period before today.
-- The right is `report.office` (assertCan). Money needs `payment.manage` (null otherwise); gaps need `admin.manage` (null otherwise).
+- The right is `report.office` (assertCan). Money needs `payment.manage` (null otherwise); gaps need `gaps.view` (null otherwise).
 - The stage moves, completions and pauses come from `state.counts` (`REPORT_KEYS`, the loader counts them in SQL). The reviews come from
   the review events that the loader reads once (`state.events`). The handler counts them for each person by `actingForId`. Without
   `state.counts` it counts `state.events` for the other three too (the prototype). Both give the same numbers (`loaders.test.ts`).
@@ -568,8 +587,8 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 2. If it is server-only: its contract in `contract/server.ts`, its fake in `handlers/serverFakes.ts`, its server body in
    `server/calls/`. There are 13 server-only calls (`usage.get` and `usage.retryEffect` were removed, 2026-10-23); `live.ticket` (exit wave 3) is the 9th, and the four `google.*` calls (fbk_022) follow it.
 3. A loader entry in `server/data/loaders/` (a test fails without it).
-4. The MCP allow list, Admin list (`MCP_ADMIN`, only an agent of an Admin sees it) or deny list in `server/mcp/tools.ts`
-   (a test fails without it). An allowed or Admin tool needs `TOOL_DOCS`. It also needs a sample: add a call to
+4. The MCP allow list, right list (`MCP_BY_RIGHT`, only an agent whose person holds the right sees it; `MCP_ADMIN` is empty) or deny list in `server/mcp/tools.ts`
+   (a test fails without it). An allowed or right tool needs `TOOL_DOCS`. It also needs a sample: add a call to
    `scripts/record-samples.ts`, then run `node --import tsx scripts/record-samples.ts`.
 5. An input in `server/core/everyCall.ts` if the loader sweep does not name it.
 6. Its read kinds in `src/app/readMap.ts` if it is a read.

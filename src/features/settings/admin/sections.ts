@@ -27,6 +27,8 @@ export type AdminSection = {
   roles: readonly SystemRole[];
   /** An office right that opens the section too (owner, 2026-10-18, fbk_014): a person who holds it sees the section, whatever the role. */
   right?: OfficeRight;
+  /** More rights that open the section (role-rights, owner 2026-10-23): the update of the projects of a template opens the templates too. */
+  alsoRights?: readonly OfficeRight[];
   Component: ComponentType;
   /** True for a section that only the real build can fill (it reads data that the prototype does not have). No section uses it now. */
   remoteOnly?: boolean;
@@ -39,7 +41,8 @@ export type SectionViewer = { systemRole: SystemRole; officeRights?: readonly Of
  * Every section of the Admin page. To add a section, add one line here. The list puts each line inside its group, so the place
  * of a line in this array counts only inside its group.
  * A section that a right opens (`right`) shows to every person who holds that right (owner, 2026-10-18, fbk_014). Management holds
- * the people right by default. The Roles section, the office settings, and the requests and bugs stay with the Admin.
+ * the people right by default. The sub-companies and the requests and bugs open for their own rights (role-rights, 2026-10-23). The Roles
+ * section and the office settings stay with the Admin.
  */
 export const ADMIN_SECTIONS: readonly AdminSection[] = [
   { id: 'people', group: 'people', titleKey: 'admin.people', roles: ['admin'], right: 'people.manage', Component: PeopleSection },
@@ -47,10 +50,10 @@ export const ADMIN_SECTIONS: readonly AdminSection[] = [
   { id: 'roles', group: 'people', titleKey: 'roles.title', roles: ['admin'], Component: RolesSection },
   { id: 'office', group: 'office', titleKey: 'admin.office', roles: ['admin'], Component: OfficeSection },
   { id: 'clients', group: 'office', titleKey: 'clientsAdmin.title', roles: ['admin'], right: 'clients.manage', Component: ClientsSection },
-  { id: 'sub-companies', group: 'office', titleKey: 'subCompanies.title', roles: ['admin'], Component: SubCompaniesSection },
-  { id: 'project-templates', group: 'templates', titleKey: 'projectTemplates.title', roles: ['admin'], right: 'templates.manageAll', Component: ProjectTemplatesSection },
+  { id: 'sub-companies', group: 'office', titleKey: 'subCompanies.title', roles: ['admin'], right: 'subCompanies.manage', Component: SubCompaniesSection },
+  { id: 'project-templates', group: 'templates', titleKey: 'projectTemplates.title', roles: ['admin'], right: 'templates.manageAll', alsoRights: ['templates.updateProjects'], Component: ProjectTemplatesSection },
   { id: 'task-templates', group: 'templates', titleKey: 'taskTemplates.title', roles: ['admin'], right: 'templates.manageAll', Component: TaskTemplatesSection },
-  { id: 'feedback', group: 'system', titleKey: 'feedback.adminTitle', roles: ['admin'], Component: FeedbackSection },
+  { id: 'feedback', group: 'system', titleKey: 'feedback.adminTitle', roles: ['admin'], right: 'feedback.manage', Component: FeedbackSection },
 ];
 
 /** True when the viewer sees the section: by the system role, or by a right that opens it. The Admin holds every right. */
@@ -59,7 +62,7 @@ function sees(section: AdminSection, viewer: SectionViewer): boolean {
   if (section.right === undefined) return false;
   // A session with no rights attached holds none, as can() reads it (permissions.ts). The server checks every call anyway.
   const held = viewer.systemRole === 'admin' ? OFFICE_RIGHTS : (viewer.officeRights ?? []);
-  return held.includes(section.right);
+  return [section.right, ...(section.alsoRights ?? [])].some((right) => held.includes(right));
 }
 
 /** The sections that this person sees in this build, in the order of the list: group by group, then in the order of the array. */

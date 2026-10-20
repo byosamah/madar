@@ -8,17 +8,33 @@ export type Action =
   | 'task.view' | 'task.createForAnyone' | 'task.createForSelf' | 'task.updateOwn' | 'task.contribute' | 'task.updateAny' | 'task.review' | 'task.delete'
   | 'task.take' | 'task.help' | 'meeting.view' | 'meeting.create' | 'meeting.edit' | 'meeting.minutes'
   | 'content.post' | 'content.editOwn' | 'chat.project' | 'comment.read'
-  | 'event.undoAgent' | 'admin.manage' | 'people.manage' | 'payment.manage' | 'clients.manage' | 'templates.manageAll' | 'report.office';
+  | 'event.undoAgent' | 'admin.manage' | 'people.manage' | 'payment.manage' | 'clients.manage' | 'templates.manageAll' | 'report.office'
+  // The office rights of role-rights (owner, 2026-10-23). Each one adds a power of the Admin to a role.
+  | 'project.editAny' | 'project.changeLeaderAny' | 'project.archiveAny' | 'task.reviewAny' | 'task.changeAny'
+  | 'subCompanies.manage' | 'templates.updateProjects' | 'agents.undoAny' | 'feedback.manage' | 'gaps.view';
 
 export type ProjectRole = 'leader' | 'team' | 'other';
 
 /**
- * The office rights, with the same names and order as OfficeRight (contract/entities.ts). A test checks that both lists agree.
- * The Admin holds every one of them.
+ * The office rights in their sections (owner, 2026-10-23). The role sheet shows the sections in this order, and OFFICE_RIGHTS follows it.
+ * Every right adds one power of the Admin to a role. A role always keeps what a Member does today. The key of a section is the last
+ * part of its word key: roles.sections.<key>.
  */
-export const OFFICE_RIGHTS: readonly OfficeRight[] = [
-  'people.manage', 'payment.manage', 'project.delete', 'project.editCode', 'clients.manage', 'templates.manageAll', 'report.office',
+export const RIGHT_SECTIONS: readonly { readonly key: string; readonly rights: readonly OfficeRight[] }[] = [
+  { key: 'projects', rights: ['project.editAny', 'project.changeLeaderAny', 'project.archiveAny', 'project.delete', 'project.editCode'] },
+  { key: 'todos', rights: ['task.reviewAny', 'task.changeAny'] },
+  { key: 'people', rights: ['people.manage', 'clients.manage', 'subCompanies.manage'] },
+  { key: 'money', rights: ['payment.manage'] },
+  { key: 'templates', rights: ['templates.manageAll', 'templates.updateProjects'] },
+  { key: 'ai', rights: ['report.office', 'agents.undoAny'] },
+  { key: 'office', rights: ['feedback.manage', 'gaps.view'] },
 ];
+
+/**
+ * The office rights, with the same names and order as OfficeRight (contract/entities.ts) and the same order as RIGHT_SECTIONS. A test
+ * checks that the lists agree. The Admin holds every one of them.
+ */
+export const OFFICE_RIGHTS: readonly OfficeRight[] = RIGHT_SECTIONS.flatMap((section) => section.rights);
 
 /**
  * The rights of each built-in role when the office settings give none (owner, 2026-10-18). They match today's rights. The office report
@@ -41,6 +57,20 @@ export type Actor = User & { readonly officeRights?: readonly OfficeRight[] };
 function heldRights(actor: Actor): readonly OfficeRight[] {
   if (actor.systemRole === 'admin') return OFFICE_RIGHTS;
   return actor.officeRights ?? [];
+}
+
+/** True when the actor holds the right to change any task of a project (task.changeAny). It reads the attached rights only. */
+function changesAny(actor: Actor): boolean {
+  return heldRights(actor).includes('task.changeAny');
+}
+
+/**
+ * True when the resource describes a task: taskResource always names the maker of the task. A file or a Tracker entry of a project asks
+ * task.delete with the project role alone, as a stand-in for "the leader or the Admin". The right to change any to-do must not open
+ * those: it changes to-dos, and it does not delete the files or the Tracker entries of a project (role-rights, owner 2026-10-23).
+ */
+function describesTask(resource: Resource): boolean {
+  return resource.makerId !== undefined;
 }
 
 /**
@@ -235,18 +265,26 @@ export function can(actor: Actor, action: Action, resource: Resource = {}): bool
     // Every active person reads task comments, as the project page shows them to non-members too. The Inbox task threads use the same rule.
     case 'comment.read':
       return true;
+    // The rights of the role sheet (role-rights, owner 2026-10-23) open the action of a project leader on any project, for a person who is
+    // not on the team. Each right opens its own actions and no other: the right to edit a project does not open its archive.
     case 'project.edit':
-    case 'project.changeLeader':
-    case 'project.archive':
     case 'project.healthOverride':
+      return leads || heldRights(actor).includes('project.editAny');
+    case 'project.changeLeader':
+      return leads || heldRights(actor).includes('project.changeLeaderAny');
+    case 'project.archive':
+      return leads || heldRights(actor).includes('project.archiveAny');
     case 'task.review':
+      return leads || heldRights(actor).includes('task.reviewAny');
     case 'event.undoAgent':
-      return leads;
+      return leads || heldRights(actor).includes('agents.undoAny');
+    // The right to change any task opens the four actions of a leader on a task of a project. It never reaches an office task: that
+    // rule returned above, so an office task keeps its own people.
     case 'task.updateAny':
-      return makes;
+      return makes || changesAny(actor);
     // The lead deletes the task too, for a task that went into the wrong project. The call tells the maker (fbk_034, owner 2026-10-20).
     case 'task.delete':
-      return makes || (onProject && resource.ownerId === actor.id);
+      return makes || (onProject && resource.ownerId === actor.id) || (changesAny(actor) && describesTask(resource));
     // The office settings stay with the Admin.
     case 'admin.manage':
       return admin;
@@ -261,6 +299,18 @@ export function can(actor: Actor, action: Action, resource: Resource = {}): bool
     case 'clients.manage':
     case 'templates.manageAll':
     case 'report.office':
+    // The rights that take the place of admin.manage for one job (role-rights, owner 2026-10-23). admin.manage keeps the rest.
+    case 'subCompanies.manage':
+    case 'templates.updateProjects':
+    case 'feedback.manage':
+    case 'gaps.view':
+    // The six "any" rights, asked by their own name: does the person hold the right at all (the Admin screens read this).
+    case 'project.editAny':
+    case 'project.changeLeaderAny':
+    case 'project.archiveAny':
+    case 'task.reviewAny':
+    case 'task.changeAny':
+    case 'agents.undoAny':
       return heldRights(actor).includes(action);
     // A team member adds a task for any team mate (owner, 2026-10-07). Only the leader and the Admin name a person outside the team.
     case 'task.createForAnyone':
@@ -273,10 +323,10 @@ export function can(actor: Actor, action: Action, resource: Resource = {}): bool
     case 'task.help':
       return onProject;
     case 'task.updateOwn':
-      return makes || (onProject && resource.ownerId === actor.id);
+      return makes || (onProject && resource.ownerId === actor.id) || changesAny(actor);
     // A helper ticks checklist items beside the lead. The lead, the maker, the leader and the Admin may do it too.
     case 'task.contribute':
-      return makes || (onProject && (resource.ownerId === actor.id || (resource.helperIds ?? []).includes(actor.id)));
+      return makes || (onProject && (resource.ownerId === actor.id || (resource.helperIds ?? []).includes(actor.id))) || changesAny(actor);
     case 'content.editOwn':
       return onProject && resource.authorId === actor.id;
     default:

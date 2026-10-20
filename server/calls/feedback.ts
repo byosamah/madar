@@ -10,7 +10,7 @@ import { checkIntent, declaredType, insertIntents, intentExpiry, newUploadId, re
 import { screenshotKey, stagingKey } from '../files/keys';
 import { isPictureType } from '../files/links';
 import { readFeedback } from '../files/records';
-import { assertAdmin, authorityOf, loadAuthority } from '../files/rights';
+import { assertMayReadReports, authorityOf } from '../files/rights';
 
 /**
  * The feedback screenshots on the server (plan 5.2; plan 2b, point 7; task F2). The flow of files.upload, with no project:
@@ -70,12 +70,12 @@ export const feedbackSendHooks: ServerHooks<unknown, FeedbackPrepared, Deps> = {
 
 /**
  * feedback.screenshot on the server: a read call, so its preflight signs the download link and runCall passes that value to run()
- * as "prepared" ({ link }). Only the Admin reads reports, so the hook checks that right before it signs (plan 2b, point 7).
+ * as "prepared" ({ link }). Only a person with the right to manage reports (the Admin, or a role with feedback.manage) reads reports, so the hook checks that right before it signs (plan 2b, point 7).
  */
 export const feedbackScreenshotHooks: ServerHooks<unknown, ScreenshotPrepared, Deps> = {
   async preflight(input, { actorId, deps }): Promise<ScreenshotPrepared> {
     const { id, index } = input as { id: string; index: number };
-    assertAdmin(await loadAuthority(deps.db, actorId));
+    await assertMayReadReports(deps.db, actorId);
     const report = await readFeedback(deps.db, id);
     if (!report) throw notFound('Report', id);
     const shot = report.screenshots[index];

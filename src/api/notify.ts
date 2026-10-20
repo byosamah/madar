@@ -3,7 +3,8 @@ import {
   type User,
 } from './contract/entities';
 import { copyForAdmins } from './adminCopies';
-import { can, mayViewMeeting, mayViewTask, principalOf } from './permissions';
+import { can, mayViewMeeting, mayViewTask, principalOf, type Actor } from './permissions';
+import { withRights } from './rights';
 import { nextId, type State } from './store';
 import { addDays, nowStamp, officeClock, weekStartOf } from '../lib/dates';
 import { peopleOfTask } from '../lib/taskPeople';
@@ -47,22 +48,29 @@ export function emailOn(prefs: Preferences, trigger: Trigger): boolean {
   return prefs.email?.[trigger] ?? EMAIL_DEFAULT_ON.has(trigger);
 }
 
-/** Every active human with the Admin right: the people who get the notice of a new report (owner, 2026-10-07). */
-export function activeAdmins(state: Pick<State, 'users'>): string[] {
-  return Object.values(state.users).filter((u) => u.kind === 'human' && u.active && can(u, 'admin.manage')).map((u) => u.id);
-}
-
-/** The switches that the person sees in Settings: the switch of a new report only with the Admin right (owner, 2026-10-07). */
-export function visibleTriggers(user: User): Trigger[] {
-  return can(user, 'admin.manage') ? [...TRIGGERS] : TRIGGERS.filter((trigger) => !ADMIN_ONLY_TRIGGERS.has(trigger));
+/**
+ * Every active human who holds the right to manage reports (feedback.manage, which the Admin holds): the people who get the notice of
+ * a new report (owner, 2026-10-07; role-rights, 2026-10-23). The rights come from the office settings, so the list reads them.
+ */
+export function activeAdmins(state: Pick<State, 'users' | 'settings'>): string[] {
+  return Object.values(state.users).filter((u) => u.kind === 'human' && u.active && can(withRights(state, u), 'feedback.manage')).map((u) => u.id);
 }
 
 /**
- * True for the notice of a new report when the viewer no longer has the Admin right. It reads as gone and names nothing
- * (owner, 2026-10-07). A done notice always shows to its owner: its words are the owner's own message.
+ * The switches that the person sees in Settings: the switch of a new report only with the right to manage reports (owner, 2026-10-07).
+ * The person comes with the office rights attached (session.get), so a person with none attached sees no such switch.
  */
-export function feedbackNoticeHidden(n: Pick<Notification, 'targetType' | 'trigger'>, viewer: User): boolean {
-  return n.targetType === 'feedback' && n.trigger === 'feedback_sent' && !can(viewer, 'admin.manage');
+export function visibleTriggers(user: Actor): Trigger[] {
+  return can(user, 'feedback.manage') ? [...TRIGGERS] : TRIGGERS.filter((trigger) => !ADMIN_ONLY_TRIGGERS.has(trigger));
+}
+
+/**
+ * True for the notice of a new report when the viewer no longer holds the right to manage reports. It reads as gone and names nothing
+ * (owner, 2026-10-07). A done notice always shows to its owner: its words are the owner's own message. The viewer comes with the office
+ * rights attached (withRights); a viewer with none attached holds none, so the notice stays hidden.
+ */
+export function feedbackNoticeHidden(n: Pick<Notification, 'targetType' | 'trigger'>, viewer: Actor): boolean {
+  return n.targetType === 'feedback' && n.trigger === 'feedback_sent' && !can(viewer, 'feedback.manage');
 }
 
 /** True when the person gets the morning summary email. A missing value means on. */

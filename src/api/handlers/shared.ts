@@ -129,7 +129,8 @@ export function ensureOnTeam(ctx: Ctx, projectId: string, userId: string, field:
   const user = requireUser(ctx, userId);
   if (projectRoleOf(ctx.state, projectId, userId) !== 'other') return;
   const message = field === 'ownerId' ? 'The owner must be on the project team.' : 'A helper must be on the project team.';
-  if (!can(ctx.authority, 'task.updateAny', { projectRole: roleIn(ctx, projectId) })) throw invalid(field, message, 'not_on_team');
+  // Putting a person on the team is a change of the team, which belongs to the right to edit the project (not to change a task).
+  if (!can(ctx.authority, 'project.edit', { projectRole: roleIn(ctx, projectId) })) throw invalid(field, message, 'not_on_team');
   if (!user.active || user.kind === 'agent') throw invalid(field, 'This person cannot join the project team.', 'cannot_join');
   addMember(ctx, projectId, userId);
 }
