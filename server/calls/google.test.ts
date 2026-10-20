@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { nowStamp } from '../../src/lib/dates';
 import { googleKeysOf, openToken } from '../google/keys';
+import { KNOWN_SECRETS } from '../google/fakeGoogle';
 import { GOOGLE_KEY, googleOffice, outboxRows, planMeeting, stateOwner, type GoogleOffice } from '../google/testOffice';
 import { challengeOf } from '../google/state';
 
@@ -396,6 +397,64 @@ describe('one calendar for each person (owner test 2026-10-20: a second calendar
     expect(t.google.requests.filter(isGetCalendar)).toEqual([]);
     expect(makes(t)).toHaveLength(1);
     expect((await remembered(t)).map((row) => [row.user_id, row.calendar_id])).toEqual([['usr_003', CAL2], ['usr_004', CAL1]]);
+  });
+});
+
+// fbk_033 (2026-10-20): a connect on production answered google_unreachable, and no log line said which Google call failed or how.
+describe('the log of a failed connect (fbk_033)', () => {
+  const lineOf = (t: GoogleOffice) => t.deps.logs.filter((line) => line.message === 'A Google Calendar connect failed.');
+
+  it('names the step, the code and the HTTP status of the Google call that failed, and nothing more', async () => {
+    const token = await googleOffice();
+    token.google.failAll((request) => request.path === '/token', 503);
+    expect(await token.connect('usr_003')).toMatchObject({ ok: false, error: { details: { reason: 'google_unreachable' } } });
+    expect(lineOf(token)).toEqual([{ level: 'warn', message: 'A Google Calendar connect failed.', fields: { userId: 'usr_003', step: 'token', code: 'server', status: 503 } }]);
+
+    const make = await googleOffice();
+    make.google.failAll((request) => request.path === '/calendar/v3/calendars', 500);
+    await make.connect('usr_003');
+    expect(lineOf(make).map((line) => line.fields)).toEqual([{ userId: 'usr_003', step: 'calendar_make', code: 'server', status: 500 }]);
+
+    const read = await googleOffice();
+    ok(await read.connect('usr_003'));
+    ok(await read.call('usr_003', 'google.disconnect', {}));
+    read.google.failAll(isGetCalendar, 403);
+    expect(await read.connect('usr_003')).toMatchObject({ ok: false, error: { details: { reason: 'google_unreachable' } } });
+    expect(lineOf(read).map((line) => line.fields)).toEqual([{ userId: 'usr_003', step: 'calendar_read', code: 'refused', status: 403 }]);
+
+    // A network error has no status. The text of the error never reaches the line.
+    const lost = await googleOffice();
+    lost.deps.googleFetch = (async () => { throw new TypeError('connect ECONNREFUSED 10.0.0.1'); }) as unknown as typeof fetch;
+    await lost.connect('usr_003');
+    expect(lineOf(lost).map((line) => line.fields)).toEqual([{ userId: 'usr_003', step: 'token', code: 'unreachable' }]);
+    expect(JSON.stringify(lost.deps.logs)).not.toContain('ECONNREFUSED');
+  });
+
+  it('logs a refusal of Google as well (google_denied), and holds no secret', async () => {
+    const t = await googleOffice();
+    t.google.failAll((request) => request.path === '/calendar/v3/calendars', 403, { error: { message: 'rt-SECRET cs-SECRET' } });
+    expect(await t.connect('usr_003')).toMatchObject({ ok: false, error: { details: { reason: 'google_denied' } } });
+    expect(lineOf(t).map((line) => line.fields)).toEqual([{ userId: 'usr_003', step: 'calendar_make', code: 'refused', status: 403 }]);
+    for (const secret of KNOWN_SECRETS) expect(JSON.stringify(t.deps.logs)).not.toContain(secret);
+  });
+
+  it('names a grant with no refresh token or with no calendar scope', async () => {
+    const none = await googleOffice({ fake: { noRefreshToken: true } });
+    await none.connect('usr_003');
+    expect(lineOf(none).map((line) => line.fields)).toEqual([{ userId: 'usr_003', step: 'token', code: 'no_refresh_token' }]);
+    const narrow = await googleOffice({ fake: { scope: 'openid email' } });
+    await narrow.connect('usr_003');
+    expect(lineOf(narrow).map((line) => line.fields)).toEqual([{ userId: 'usr_003', step: 'token', code: 'scope_missing' }]);
+  });
+
+  it('writes no line for a connect that works, also when the remembered calendar is gone (404)', async () => {
+    const t = await googleOffice();
+    ok(await t.connect('usr_003'));
+    expect(lineOf(t)).toEqual([]);
+    ok(await t.call('usr_003', 'google.disconnect', {}));
+    t.google.failAll(isGetCalendar, 404);
+    ok(await t.connect('usr_003'));
+    expect(lineOf(t)).toEqual([]);
   });
 });
 

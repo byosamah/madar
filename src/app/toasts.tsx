@@ -122,8 +122,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, [run]);
   useEffect(() => {
     // Ctrl+Z or Cmd+Z runs the newest Undo, so a keyboard user never has to reach the toast in time.
+    // Chrome sends a keydown with no key when it fills a saved password (fbk_033), so the key can be undefined.
     const onKey = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== 'z' || !(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return;
+      if (typeof event.key !== 'string' || event.key.toLowerCase() !== 'z' || !(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return;
       if (event.defaultPrevented || isTextField(event.target)) return;
       const newest = [...latest.current].reverse().find((toast) => toast.action?.isUndo);
       if (!newest?.action) return;

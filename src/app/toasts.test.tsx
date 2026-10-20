@@ -32,6 +32,29 @@ describe('the toast helpers', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull());
   });
 
+  // fbk_033: Chrome sends a keydown with no key when it fills a saved password. The Ctrl+Z listener threw on it, in Settings.
+  it('a keydown with no key throws nothing, and Ctrl+Z still works after it (fbk_033)', async () => {
+    initI18n('en');
+    const undo = vi.fn();
+    render(<ToastProvider><Buttons undo={undo} /></ToastProvider>);
+    await userEvent.click(screen.getByText('Delete'));
+    const errors: unknown[] = [];
+    const onError = (event: ErrorEvent) => {
+      errors.push(event.error);
+      event.preventDefault();
+    };
+    window.addEventListener('error', onError);
+    try {
+      window.dispatchEvent(new Event('keydown'));
+    } finally {
+      window.removeEventListener('error', onError);
+    }
+    expect(errors).toEqual([]);
+    expect(undo).not.toHaveBeenCalled();
+    await userEvent.keyboard('{Control>}z{/Control}');
+    expect(undo).toHaveBeenCalledOnce();
+  });
+
   it('failed shows the text of the error as an alert, and Retry only for a call that may work again', async () => {
     initI18n('en');
     const retry = vi.fn();

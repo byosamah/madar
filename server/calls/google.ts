@@ -61,6 +61,23 @@ function refusalOf(error: unknown): unknown {
   return error.retry ? unreachable() : denied();
 }
 
+/** The Google step of a connect: the code swap, the read of the remembered calendar, or the new calendar. */
+type ConnectStep = 'token' | 'calendar_read' | 'calendar_make';
+
+/**
+ * One log line for a connect that a Google step ended (fbk_033: production answered google_unreachable, and no line said why). It holds
+ * the person, the step, the code and the HTTP status, never the text of an error or of a Google answer. A code that is no Google error
+ * (no_refresh_token, scope_missing) names a grant that came back without what Madar needs.
+ */
+function logConnectFailure(deps: Deps, userId: string, step: ConnectStep, error: unknown): void {
+  if (typeof error === 'string') {
+    deps.log.warn('A Google Calendar connect failed.', { userId, step, code: error });
+    return;
+  }
+  if (!(error instanceof GoogleError)) return;
+  deps.log.warn('A Google Calendar connect failed.', { userId, step, code: error.code, ...(error.status !== undefined ? { status: error.status } : {}) });
+}
+
 /** Takes the grant back at Google, best effort: the answer to the person is already decided, and a failure here changes nothing. */
 async function dropGrant(ready: GoogleReady, token: string): Promise<void> {
   try {
@@ -104,16 +121,29 @@ async function runAfterCommit(deps: Deps, ids: string[], name: string): Promise<
  * every calendar that Madar made, across links. 200 uses it. 404 or 410 means the person deleted it, so Madar makes a new one. Any other
  * failure (a timeout, a 5xx, a 429, a 401) ends the connect with google_unreachable and makes no calendar: the person presses Connect again.
  */
-async function calendarFor(ready: GoogleReady, known: string | undefined, accessToken: string): Promise<{ calendarId: string; reused: boolean }> {
+async function calendarFor(
+  ready: GoogleReady,
+  known: string | undefined,
+  accessToken: string,
+  fail: (step: ConnectStep, error: unknown) => void,
+): Promise<{ calendarId: string; reused: boolean }> {
   if (known !== undefined) {
     try {
       return { calendarId: await getCalendar(ready.client, accessToken, known), reused: true };
     } catch (error) {
       if (!(error instanceof GoogleError)) throw error;
-      if (error.code !== 'not_found') throw unreachable();
+      if (error.code !== 'not_found') {
+        fail('calendar_read', error);
+        throw unreachable();
+      }
     }
   }
-  return { calendarId: await makeCalendar(ready.client, accessToken), reused: false };
+  try {
+    return { calendarId: await makeCalendar(ready.client, accessToken), reused: false };
+  } catch (error) {
+    fail('calendar_make', error);
+    throw error;
+  }
 }
 
 export const googleConnect: ServerCall<'google.connect'> = async (input, ctx) => {
@@ -137,21 +167,24 @@ export const googleConnect: ServerCall<'google.connect'> = async (input, ctx) =>
   // leaves no grant. It is read on the primary: a row that was missed would make a second calendar.
   const known = await deps.db.tx('write', (q) => rememberedCalendar(q, actorId));
 
+  const fail = (step: ConnectStep, error: unknown) => logConnectFailure(deps, actorId, step, error);
   let tokens: Awaited<ReturnType<typeof exchangeCode>>;
   try {
     tokens = await exchangeCode(ready.client, input.code, read.verifier);
   } catch (error) {
+    fail('token', error);
     throw refusalOf(error);
   }
   // Madar needs the refresh token (it works while the person is away) and the one scope. Else it takes the grant back.
   if (tokens.refreshToken === null || !tokens.scope.split(' ').includes(GOOGLE_SCOPE)) {
+    fail('token', tokens.refreshToken === null ? 'no_refresh_token' : 'scope_missing');
     await dropGrant(ready, tokens.refreshToken ?? tokens.accessToken);
     throw denied();
   }
   let calendarId: string;
   let reused: boolean;
   try {
-    ({ calendarId, reused } = await calendarFor(ready, known, tokens.accessToken));
+    ({ calendarId, reused } = await calendarFor(ready, known, tokens.accessToken, fail));
   } catch (error) {
     await dropGrant(ready, tokens.refreshToken);
     throw refusalOf(error);

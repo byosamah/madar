@@ -146,6 +146,9 @@ The other host stays deployed as the way back. Each area below has its own guide
   once, the event rows go) and the row is done. A timeout, a network error, a 5xx or a rate limit sets `not_synced` and throws, so the outbox tries again
   (5 times, then the Admin sees the row in Usage). Any other refusal sets `not_synced` with `last_error` `refused` and does not retry. An error text, a
   log line and an outbox error hold the code and the ids, never a token, a code, a title or a Google answer (`leaks.test.ts` proves it).
+- A connect that a Google step ends writes one warn line, "A Google Calendar connect failed.", with `userId`, `step` (`token`, `calendar_read`,
+  `calendar_make`), `code` (the GoogleError code, or `no_refresh_token`, `scope_missing`) and `status` (the HTTP status, absent for a timeout or a
+  network error) (fbk_033, 2026-10-20: production answered `google_unreachable`, and no line said which call failed). The answer to the person does not change.
 - `gcal.revoke` takes the refresh token back at Google (a 400 counts as done) and deletes the row. A row that a new connect replaced (`replaced: true`)
   makes no call to Google: its grant is the grant of the new row, and a revoke could take that grant back. The cleanup step deletes every `revoking` row
   older than one day, so a sealed token never stays long in the database. The connect backfills the meetings of the next 60 days, at most 200; a long

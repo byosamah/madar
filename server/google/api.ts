@@ -24,12 +24,15 @@ export class GoogleError extends Error {
   readonly code: GoogleErrorCode;
   /** True when the same call may work later. */
   readonly retry: boolean;
+  /** The HTTP status of the Google answer, for a log line (fbk_033). A timeout or a network error has none. */
+  readonly status: number | undefined;
 
-  constructor(code: GoogleErrorCode) {
+  constructor(code: GoogleErrorCode, status?: number) {
     super(code);
     this.name = 'GoogleError';
     this.code = code;
     this.retry = RETRY.has(code);
+    this.status = status;
   }
 }
 
@@ -76,26 +79,27 @@ const field = (json: unknown, name: string): unknown => (typeof json === 'object
 
 /** The error of the token address: invalid_grant is a grant that is gone; a limit or a server error may work later. */
 function tokenFailure(answer: Answer): GoogleError {
-  if (answer.status === 400 && field(answer.json, 'error') === 'invalid_grant') return new GoogleError('grant_gone');
-  if (answer.status === 429) return new GoogleError('rate_limited');
-  if (answer.status >= 500) return new GoogleError('server');
-  return new GoogleError('refused');
+  const { status } = answer;
+  if (status === 400 && field(answer.json, 'error') === 'invalid_grant') return new GoogleError('grant_gone', status);
+  if (status === 429) return new GoogleError('rate_limited', status);
+  if (status >= 500) return new GoogleError('server', status);
+  return new GoogleError('refused', status);
 }
 
 /** The error of the Calendar API. */
 function calendarFailure(answer: Answer): GoogleError {
   const { status } = answer;
-  if (status === 401) return new GoogleError('unauthorized');
-  if (status === 404 || status === 410) return new GoogleError('not_found');
-  if (status === 409) return new GoogleError('conflict');
-  if (status === 429) return new GoogleError('rate_limited');
-  if (status >= 500) return new GoogleError('server');
+  if (status === 401) return new GoogleError('unauthorized', status);
+  if (status === 404 || status === 410) return new GoogleError('not_found', status);
+  if (status === 409) return new GoogleError('conflict', status);
+  if (status === 429) return new GoogleError('rate_limited', status);
+  if (status >= 500) return new GoogleError('server', status);
   if (status === 403) {
     const errors = field(field(answer.json, 'error'), 'errors');
     const reason = Array.isArray(errors) ? field(errors[0], 'reason') : undefined;
-    if (reason === 'rateLimitExceeded' || reason === 'userRateLimitExceeded') return new GoogleError('rate_limited');
+    if (reason === 'rateLimitExceeded' || reason === 'userRateLimitExceeded') return new GoogleError('rate_limited', status);
   }
-  return new GoogleError('refused');
+  return new GoogleError('refused', status);
 }
 
 /** The sign-in address of Google. The client secret never goes here. */
