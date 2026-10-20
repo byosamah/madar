@@ -1,0 +1,10 @@
+{
+  "whatsNew": {
+    "items": {
+      "2026-10-23-64": {
+        "title": "The chat filter keeps your choice",
+        "body": "Pick People or Projects once. The chat list stays on your choice, also after you close Madar, until you pick another one."
+      }
+    }
+  }
+}

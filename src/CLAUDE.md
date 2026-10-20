@@ -378,7 +378,8 @@ any screen work.
 ## Inbox, groups and What's new (owner 2026-10-18; UX audit 2026-10-19)
 - Inbox list (`features/inbox/ChatList.tsx`): a menu button beside the search shows one kind of chat (owner, 2026-10-20): All,
   Projects (project chats), To-dos (the threads of to-dos) and People (direct chats and groups). The button names the shown kind. The
-  choice holds while the Inbox is open (the list stays mounted under an open chat on a phone); the search and "Archived (n)" look only in
+  choice lasts: it stays after the Inbox closes, after a reload and for the next visit (owner, 2026-10-23; `usePersistentChoice`, key
+  `madar.chatKind`, fallback All); the search and "Archived (n)" look only in
   that kind, and an empty kind says "No chats here.". "Archived (n)" is one quiet row under the search field, only while a chat is archived
   and nothing is typed. The archived view has a back arrow, the title "Archived chats" and its own search words. A search in the
   main list looks in every chat, and an archived match carries the word "Archived". A group matches by its name (only its members
