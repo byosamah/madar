@@ -771,3 +771,21 @@ separate checker. No production change before Friday 2026-10-23. Answers fbk_028
 - [ ] Not run (owner chose speed): test:db, test:it, the deploy suite, the screenshots (the Chrome extension was off)
 - [x] Test copy and production at 3cb6e144 (2026-10-20, the owner's "go production now"). Record: proof.md
 - [ ] Screenshots EN/AR, light/dark, 390 px of the four changes (after the release; needs the Chrome extension or a signed-in browser)
+
+## 2026-10-20: owner batch of 7 items (branch `rb/batch-join` from `rb/small-fixes`, `rb/role-rights`, `rb/admin-reach`)
+Three Sonnet builders, one for each track, no separate checker. Owner rule for this batch: no test suite over 5 minutes; the owner
+tests on the test copy by hand. What's new 2026-10-23-64 to 69.
+
+- [x] Item 1: the chat filter keeps the last choice (`madar.chatKind` in the browser)
+- [x] Item 2: the role rights in 7 sections with an All switch (17 rights, 10 new); a role keeps the Member basics and adds Admin parts. Defaults unchanged
+- [x] Item 2, security fix: the review need of template tasks asks `task.review`, not `task.updateAny`; a right gives only its own power (`roleRightsPower.test.ts`)
+- [x] Item 3 (fbk_037, Faisal): Edit and Cancel meeting in the footer of the meeting sheet; the "..." menu is gone
+- [x] Item 4: the To-dos / Meetings switch sits in its own row, 30 px under the title, as the Projects Filter button (measured in Chrome)
+- [x] Item 5: `meetings.delete` for a cancelled meeting (scope one or later, Undo). Series rule (owner): Madar never ends or restarts a repeat by itself; "Cancel this and later" sets `until` on every meeting of the series; `meetings.extend` adds by `until` only; a delete changes no repeat
+- [x] Item 6: the Admin's "What reaches me" (Only my work, My work and the rest in the list, Everything); in Everything a copy of each office notice goes to the bell, with no push and no mail, never of a private chat
+- [x] Item 7: the usage feature is gone (the Admin section, `usage.get`, `usage.retryEffect`, the meter, the 80% warning). The tables `usage_month` and `usage_warnings` stay unused (a drop needs the owner's OK). Nothing shows a failed outbox row now, only the log
+- [x] Gates run: typecheck, the shared rule and server tests (217 files, 3,170 tests), the touched screen tests (154 files), `npm run build`, `npm run build:server`
+- [ ] Not run (owner rule, over 5 minutes): the full `npm test`, `test:db`, `test:it`, `test:mcp`, the deploy suite, the prototype smoke
+- [ ] The owner tries the 7 items on the test copy
+- [ ] Production (only when the owner says; team live week), then fbk_037 done
+- [ ] Later: the step of `.github/workflows/files-backup.yml` that writes the backup size to `usage_month` (nothing reads it now); remove it when file backups start again
