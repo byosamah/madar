@@ -8,9 +8,9 @@ import { TOOL_DOCS } from './docs';
 /**
  * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). A fixed allowlist of 50 tools for every agent: the
  * reads and writes an agent can use for an office project, with the three message tools (owner, 2026-10-12), the stage dates
- * (fbk_023) and the five meeting tools (fbk_022). The Admin list adds 3
- * tools for an agent whose person is an Admin (requests and bugs, owner 2026-10-07), so that agent gets 53. The right list adds
- * reports.office for an agent whose person holds the report right (owner, 2026-10-18, fbk_016), so an Admin's agent gets 54. Every
+ * (fbk_023) and the five meeting tools (fbk_022). The right list adds tools for an agent whose person holds the right: reports.office
+ * for the report right (owner, 2026-10-18, fbk_016), and the 3 tools of requests and bugs for the feedback right (owner, 2026-10-07;
+ * role-rights, 2026-10-23). The Admin holds every right, so an Admin's agent gets all of them. Every
  * other call stays on the deny list: screen work (uploads, read marks, counts, archives, group changes), the prototype controls, and the
  * other Admin calls. VS Code allows at most 128 tools in one request across all
  * servers, and each tool definition uses model context, so the lists stay short. tools.test.ts fails when a call is in no list.
@@ -37,17 +37,23 @@ export const MCP_ALLOW = [
 ] as const satisfies readonly (typeof READ_FIRST | SharedCallName | ServerCallName)[];
 
 /**
- * The tools that only an agent of an Admin gets (owner, 2026-10-07): it reads the feature requests and bug reports, and marks one
- * done when its person says that the fix is live. app.ts picks the list for each request from the role of the agent's person.
+ * The tools that only an agent of an Admin gets. The list is empty since role-rights (owner, 2026-10-23): the 3 tools of requests and bugs
+ * moved to the right list (MCP_BY_RIGHT), under the feedback right, which a role can hold. The name stays for the code that reads it.
  */
-export const MCP_ADMIN = ['feedback.list', 'feedback.screenshot', 'feedback.setStatus'] as const satisfies readonly SharedCallName[];
+export const MCP_ADMIN = [] as const satisfies readonly SharedCallName[];
 export const ADMIN_TOOLS: ReadonlySet<string> = new Set<string>(MCP_ADMIN);
 
 /**
  * The tools that an office right opens (owner, 2026-10-18, fbk_016). app.ts gives one to an agent only when its person holds the
- * right (rights.ts). The handler checks the same right, so a call without it fails too.
+ * right (rights.ts). The handler checks the same right, so a call without it fails too. The reports of people (feedback.*) need the
+ * feedback right: the Admin holds it, and a role can hold it (owner, 2026-10-23).
  */
-export const MCP_BY_RIGHT = { 'reports.office': 'report.office' } as const satisfies Readonly<Partial<Record<SharedCallName | ServerCallName, OfficeRight>>>;
+export const MCP_BY_RIGHT = {
+  'reports.office': 'report.office',
+  'feedback.list': 'feedback.manage',
+  'feedback.screenshot': 'feedback.manage',
+  'feedback.setStatus': 'feedback.manage',
+} as const satisfies Readonly<Partial<Record<SharedCallName | ServerCallName, OfficeRight>>>;
 const RIGHT_TOOLS = Object.keys(MCP_BY_RIGHT) as (keyof typeof MCP_BY_RIGHT)[];
 
 /** The office right that a tool needs, or undefined for a tool that no right opens. */
@@ -194,12 +200,12 @@ function build(name: McpToolName): ToolDef {
   };
 }
 
-/** All the tools in their fixed order (an Admin's list), built once. */
+/** All the tools in their fixed order (the list of an Admin, who holds every right), built once. */
 let cache: ToolDef[] | null = null;
 
 /**
- * The tools in their fixed order. The list has the 50 tools of the allowlist; an agent of an Admin gets the Admin tools too, and
- * every right tool. Each right tool joins the list when its right is in rights (an Admin holds all of them). It reads sharedCalls and
+ * The tools in their fixed order. The list has the tools of the allowlist; an agent of an Admin gets every right tool too. Each right
+ * tool joins the list when its right is in rights (an Admin holds all of them). It reads sharedCalls and
  * the server contracts, never the server code of a call.
  */
 export function mcpTools({ admin = false, rights = [] }: { admin?: boolean; rights?: readonly OfficeRight[] } = {}): ToolDef[] {

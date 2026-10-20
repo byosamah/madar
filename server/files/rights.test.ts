@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { User } from '../../src/api/contract/entities';
 import { snapshotOf } from '../data/officeCache';
 import { fakeFilesDb } from './fakeFilesDb';
-import { assertAdmin, assertMayPost, assertMayView, authorityOf, loadAuthority } from './rights';
+import { assertMayPost, assertMayReadReports, assertMayView, authorityOf, loadAuthority } from './rights';
 
 /** The rights check before any signed link (plan 2b, point 7; task F2). */
 
@@ -59,12 +59,52 @@ describe('the authority behind a signed link', () => {
     expect(codeOf(() => assertMayPost(office, 'usr_003', 'prj_001'))).toBe('unauthenticated:account_off');
   });
 
-  it('reads the person and the agent\'s person with SQL in a hook, and lets only the Admin through assertAdmin', async () => {
+  it('reads the person and the agent\'s person with SQL in a hook', async () => {
     const db = fakeFilesDb({ users: USERS });
     expect((await loadAuthority(db, 'usr_009')).id).toBe('usr_001');
-    expect(codeOf(() => assertAdmin(USERS.usr_001))).toBe('ok');
-    expect(codeOf(() => assertAdmin(USERS.usr_002))).toBe('forbidden:admin.manage');
     await expect(loadAuthority(db, 'usr_010')).rejects.toMatchObject({ code: 'unauthenticated', details: { reason: 'account_off' } });
     await expect(loadAuthority(db, 'usr_003')).rejects.toMatchObject({ code: 'unauthenticated', details: { reason: 'account_off' } });
+  });
+
+  // role-rights (owner, 2026-10-23): the reports follow feedback.manage, which the Admin holds and a role can hold. A hook reads the
+  // roles from the settings row, because it has no office snapshot.
+  describe('assertMayReadReports: the right to read the reports of people, before a screenshot link is signed', () => {
+    const roles = { custom: [{ id: 'rol_001', name: 'Reports', nameAr: 'بلاغات', rights: ['feedback.manage'] }] };
+    const staff = { ...USERS, usr_005: user('usr_005', { roleId: 'rol_001' }), usr_006: user('usr_006', { kind: 'agent', ownerId: 'usr_005' }) };
+    const answer = async (db: ReturnType<typeof fakeFilesDb>, id: string) => {
+      try {
+        await assertMayReadReports(db, id);
+        return 'ok';
+      } catch (error) {
+        const e = error as { code?: string; details?: { reason?: string; action?: string } };
+        return [e.code, e.details?.reason ?? e.details?.action].filter(Boolean).join(':');
+      }
+    };
+
+    it('lets the Admin and the agent of the Admin through, with no roles in the settings', async () => {
+      const db = fakeFilesDb({ users: staff });
+      expect(await answer(db, 'usr_001')).toBe('ok');
+      expect(await answer(db, 'usr_009')).toBe('ok');
+    });
+
+    it('refuses a Member, and a role that does not hold the right, with the action feedback.manage', async () => {
+      expect(await answer(fakeFilesDb({ users: staff }), 'usr_002')).toBe('forbidden:feedback.manage');
+      expect(await answer(fakeFilesDb({ users: staff }), 'usr_005')).toBe('forbidden:feedback.manage');
+      const other = { custom: [{ id: 'rol_001', name: 'Pay', nameAr: 'دفع', rights: ['payment.manage'] }] };
+      expect(await answer(fakeFilesDb({ users: staff, settings: { roles: other } }), 'usr_005')).toBe('forbidden:feedback.manage');
+    });
+
+    it('lets a person of a role with the right through, and the agent of that person', async () => {
+      const db = fakeFilesDb({ users: staff, settings: { roles } });
+      expect(await answer(db, 'usr_005')).toBe('ok');
+      expect(await answer(db, 'usr_006')).toBe('ok');
+      expect(await answer(db, 'usr_002')).toBe('forbidden:feedback.manage');
+    });
+
+    it('keeps the account-off answer before the right', async () => {
+      const db = fakeFilesDb({ users: staff, settings: { roles } });
+      expect(await answer(db, 'usr_003')).toBe('unauthenticated:account_off');
+      expect(await answer(db, 'usr_010')).toBe('unauthenticated:account_off');
+    });
   });
 });

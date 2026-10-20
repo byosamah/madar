@@ -3,7 +3,7 @@ import { OUTBOX_INSERT_SQL, type OutboxRow } from '../core/effects';
 import type { Db, Query } from '../core/ports';
 import { KEYS_IN_USE_SQL, PROJECT_KEYS_SQL } from './effects';
 import { INTENT_INSERT_SQL, INTENTS_SELECT_SQL, INTENTS_USE_SQL, type Intent } from './intents';
-import { FEEDBACK_DOC_SQL, FILE_DOC_SQL, MEETING_DOC_SQL, TASK_DOC_SQL, TASK_PROJECT_SQL, USERS_SQL } from './records';
+import { FEEDBACK_DOC_SQL, FILE_DOC_SQL, MEETING_DOC_SQL, SETTINGS_SQL, TASK_DOC_SQL, TASK_PROJECT_SQL, USERS_SQL } from './records';
 
 /**
  * A database in memory for the unit tests of track F (task F2). It answers only the statements of server/files and server/calls
@@ -36,6 +36,8 @@ export function fakeFilesDb(o: {
   tasks?: Record<string, { projectId: string | null } & Rec>;
   meetings?: Record<string, Rec>;
   events?: EventDoc[];
+  /** The office settings row. Without it the office has no roles. */
+  settings?: Rec;
 } = {}): FakeFilesDb {
   const intents = new Map<string, Intent>();
   const files = o.files ?? {};
@@ -79,6 +81,8 @@ export function fakeFilesDb(o: {
         return (values[0] as string[]).flatMap((id) => (o.users?.[id] ? [{ doc: o.users[id] }] : []));
       case FILE_DOC_SQL:
         return files[String(values[0])] ? [{ doc: files[String(values[0])] }] : [];
+      case SETTINGS_SQL:
+        return o.settings ? [{ doc: o.settings }] : [];
       case FEEDBACK_DOC_SQL:
         return feedback[String(values[0])] ? [{ doc: feedback[String(values[0])] }] : [];
       case MEETING_DOC_SQL:

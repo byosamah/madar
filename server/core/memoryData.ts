@@ -6,7 +6,7 @@ import { diffState, writeDiff } from '../data/save';
 import { tableOf } from '../data/tables';
 import { PROJECT_KEYS_SQL } from '../files/effects';
 import { INTENTS_SELECT_SQL } from '../files/intents';
-import { FEEDBACK_DOC_SQL, USERS_SQL } from '../files/records';
+import { FEEDBACK_DOC_SQL, SETTINGS_SQL, USERS_SQL } from '../files/records';
 import type { OutboxRow } from './effects';
 import type { KeyRow } from './idempotency';
 import type { Db, Query } from './ports';
@@ -201,6 +201,8 @@ export function memoryData(office: State): MemoryData {
         const doc = (tables.state.feedback ?? {})[String(values[0])];
         return (doc ? [{ doc }] : []) as R[];
       }
+      // The office settings row, which the hook of feedback.screenshot reads for the roles (role-rights).
+      if (text === SETTINGS_SQL) return (tables.state.settings ? [{ doc: tables.state.settings }] : []) as R[];
       if (text === INTENTS_SELECT_SQL) return [];
       return refuse(text);
     },

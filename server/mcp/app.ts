@@ -192,9 +192,9 @@ async function callTool(tool: ToolDef, args: Record<string, unknown>, ctx: Serve
 }
 
 /**
- * The tools of one request (owner, 2026-10-07; rights, 2026-10-18). The Admin tools (tools.ts, MCP_ADMIN) go only to an agent whose
- * person has admin.manage in the office of this request. A right tool (tools.ts, MCP_BY_RIGHT) goes only to an agent whose person
- * holds its right. The check reads the person with the office rights, never the agent user. An agent has the role member
+ * The tools of one request (owner, 2026-10-07; rights, 2026-10-18). The Admin tools (tools.ts, MCP_ADMIN, none today) go only to an agent
+ * whose person has admin.manage in the office of this request. A right tool (tools.ts, MCP_BY_RIGHT) goes only to an agent whose person
+ * holds its right: the report right, or the feedback right for the tools of requests and bugs (role-rights, 2026-10-23). The check reads the person with the office rights, never the agent user. An agent has the role member
  * (agentUser.ts), and the handler checks the same right. With no person, the request gets the 45 tools of the allowlist. A role change
  * shows on the next request. A client can keep its tools/list for 5 minutes. A tools/call of a tool that is not registered fails
  * before runCall.

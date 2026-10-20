@@ -242,6 +242,42 @@ describe('suite 12: the MCP server in process', () => {
       expect((await rpc(w, 'tools/list')).body.result.tools).toHaveLength(56);
     });
 
+    // Owner, 2026-10-23 (role-rights): the 3 tools of requests and bugs go to an agent whose person holds the feedback right, whether the
+    // right comes from the Admin role or from a custom role. A role change shows on the next request.
+    it('lists the 3 feedback tools to an agent whose person holds the feedback right from a custom role, and takes them away with the role', async () => {
+      const state = w.mem.tables.state;
+      const person = state.users.usr_003;
+      const grant = (rights: string[]) => {
+        state.settings.roles = { custom: [{ id: 'rol_001', name: 'Reports reader', nameAr: 'قارئ البلاغات', rights: rights as never }] };
+        state.users.usr_003 = { ...person, roleId: 'rol_001' };
+        w.mem.tables.version += 1;
+      };
+      const names = async () => ((await rpc(w, 'tools/list', {}, { token: await member() })).body.result.tools as { name: string }[]).map((t) => t.name);
+      try {
+        grant(['feedback.manage']);
+        const holder = await names();
+        expect(holder).toHaveLength(55);
+        expect(holder.filter((name) => name.startsWith('feedback.'))).toEqual(['feedback.list', 'feedback.screenshot', 'feedback.setStatus']);
+        // The call runs for the agent, with the rights of its person.
+        const list = await call(w, 'feedback.list', {}, { token: await member() });
+        expect(list.body.error).toBeUndefined();
+        expect(w.ran).toEqual(['feedback.list']);
+        // Another right, not this one: no feedback tool, and a call fails before runCall.
+        grant(['gaps.view', 'subCompanies.manage', 'templates.updateProjects']);
+        const other = await names();
+        expect(other).toHaveLength(52);
+        expect(other.filter((name) => name.startsWith('feedback.'))).toEqual([]);
+        w.ran.length = 0;
+        const refused = await call(w, 'feedback.setStatus', { id: 'fbk_001', status: 'done' }, { token: await member() });
+        expect(refused.body.error?.code).toBe(-32602);
+        expect(w.ran).toEqual([]);
+      } finally {
+        state.users.usr_003 = person;
+        delete state.settings.roles;
+        w.mem.tables.version += 1;
+      }
+    });
+
     // Owner, 2026-10-18 (fbk_016): reports.office goes to an agent whose person holds the report right (Admin and Management by
     // default). An Accounting person and a Member get no such tool, and a call of it fails before runCall.
     it('lists reports.office only to an agent whose person holds the report right, and runs it for that agent', async () => {

@@ -143,9 +143,25 @@ describe('the link hook of feedback.screenshot', () => {
     }
   });
 
+  it('signs the link for a person of a role that holds feedback.manage, and for the agent of that person (role-rights)', async () => {
+    const roles = { custom: [{ id: 'rol_001', name: 'Reports', nameAr: 'بلاغات', rights: ['feedback.manage'] }] };
+    const users = { ...USERS, usr_005: user('usr_005', { roleId: 'rol_001' }), usr_006: user('usr_006', { kind: 'agent', ownerId: 'usr_005' }) };
+    for (const actorId of ['usr_005', 'usr_006']) {
+      const db = fakeFilesDb({ users, settings: { roles }, feedback: { fbk_001: { id: 'fbk_001', screenshots: [{ blobKey: 'feedback/upl-s/file', type: 'image/png' }] } } });
+      const deps = fakeDeps({ db });
+      deps.clock.set(NOW);
+      expect(await feedbackScreenshotHooks.preflight!({ id: 'fbk_001', index: 0 }, { actorId, now: NOW, deps })).toMatchObject({ link: { url: expect.stringContaining('feedback/upl-s/file') } });
+    }
+    // A Member in the same office, with the roles in the settings, is still refused before a link is signed.
+    const db = fakeFilesDb({ users, settings: { roles } });
+    const deps = fakeDeps({ db });
+    await expect(feedbackScreenshotHooks.preflight!({ id: 'fbk_001', index: 0 }, { actorId: 'usr_002', now: NOW, deps })).rejects.toMatchObject({ code: 'forbidden', details: { action: 'feedback.manage' } });
+    expect(deps.files.calls).toEqual([]);
+  });
+
   it('refuses a person who is not the Admin, an inactive person and an agent whose person is off, before it signs', async () => {
     const cases: [string, Record<string, unknown>][] = [
-      ['usr_002', { code: 'forbidden', details: { action: 'admin.manage' } }],
+      ['usr_002', { code: 'forbidden', details: { action: 'feedback.manage' } }],
       ['usr_003', { code: 'unauthenticated', details: { reason: 'account_off' } }],
       ['usr_010', { code: 'unauthenticated', details: { reason: 'account_off' } }],
     ];

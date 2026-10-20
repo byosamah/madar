@@ -1,4 +1,4 @@
-import type { Feedback, FileRec, Meeting, Task, User } from '../../src/api/contract/entities';
+import type { Feedback, FileRec, Meeting, RoleSettings, Settings, Task, User } from '../../src/api/contract/entities';
 import type { Db } from '../core/ports';
 import { sqlFor } from '../data/dialect';
 
@@ -13,6 +13,8 @@ export const TASK_PROJECT_SQL = 'select project_id from tasks where id = $1';
 export const TASK_DOC_SQL = 'select doc from tasks where id = $1';
 export const FEEDBACK_DOC_SQL = 'select doc from feedback where id = $1';
 export const MEETING_DOC_SQL = 'select doc from meetings where id = $1';
+/** The office settings: one row, whose roles give the office rights of each person (role-rights, 2026-10-23). */
+export const SETTINGS_SQL = "select doc from settings where id = 'office'";
 
 // The SQLite forms (Supabase exit, wave 1). The users table is an office table of fewer than 100 rows: json_each is cheap here,
 // and wave 3 reads the users from the office snapshot.
@@ -22,6 +24,7 @@ export const TASK_PROJECT_LITE = 'select project_id from tasks where id = ?1';
 export const TASK_DOC_LITE = 'select doc from tasks where id = ?1';
 export const FEEDBACK_DOC_LITE = 'select doc from feedback where id = ?1';
 export const MEETING_DOC_LITE = 'select doc from meetings where id = ?1';
+export const SETTINGS_LITE = "select doc from settings where id = 'office'";
 
 export async function readUsers(db: Db, ids: string[]): Promise<Map<string, User>> {
   const rows = await db.statement<{ doc: User }>('read', sqlFor(db, USERS_SQL, USERS_LITE), [ids]);
@@ -54,4 +57,10 @@ export async function readMeeting(db: Db, id: string): Promise<Meeting | undefin
 export async function readFeedback(db: Db, id: string): Promise<Feedback | undefined> {
   const [row] = await db.statement<{ doc: Feedback }>('read', sqlFor(db, FEEDBACK_DOC_SQL, FEEDBACK_DOC_LITE), [id]);
   return row?.doc;
+}
+
+/** The roles of the office settings, or undefined when the office has none. A hook has no office snapshot, so it reads them with one statement. */
+export async function readRoles(db: Db): Promise<RoleSettings | undefined> {
+  const [row] = await db.statement<{ doc: Settings }>('read', sqlFor(db, SETTINGS_SQL, SETTINGS_LITE), []);
+  return row?.doc.roles;
 }

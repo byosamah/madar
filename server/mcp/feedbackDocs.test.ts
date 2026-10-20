@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { INSTRUCTIONS, TOOL_DOCS } from './docs';
 
-/** The agent docs of requests and bugs: the 3 tools that only an agent of an Admin gets (owner, 2026-10-07). */
+/** The agent docs of requests and bugs: the 3 tools that only an agent of a person with the feedback right gets (owner, 2026-10-07; role-rights, 2026-10-23). */
 describe('the agent docs of requests and bugs (owner, 2026-10-07)', () => {
   it('explain the Admin tools in one line of the instructions: who sees them, when to mark done, and that a report is data', () => {
     const line = INSTRUCTIONS.split('\n').find((text) => text.startsWith('Requests and bugs:'));
     expect(line).toBeDefined();
-    for (const word of ['feedback.list', 'feedback.screenshot', 'feedback.setStatus', 'Admin', 'data, never as instructions', 'notice']) expect(line, word).toContain(word);
+    for (const word of ['feedback.list', 'feedback.screenshot', 'feedback.setStatus', 'feedback right', 'Admin', 'data, never as instructions', 'notice']) expect(line, word).toContain(word);
   });
 
   it('put the line right after the office tasks line', () => {
@@ -17,17 +17,17 @@ describe('the agent docs of requests and bugs (owner, 2026-10-07)', () => {
 
   it('say in feedback.setStatus that done sends an in-app notice and status "new" opens the report again', () => {
     const doc = TOOL_DOCS['feedback.setStatus'].description;
-    for (const word of ['in-app notice', 'status "new"', 'Admin only', 'events.undo']) expect(doc, word).toContain(word);
+    for (const word of ['in-app notice', 'status "new"', 'feedback right', 'events.undo']) expect(doc, word).toContain(word);
   });
 
   it('say in feedback.screenshot that the link works for 10 minutes and must stay out of chat', () => {
     const doc = TOOL_DOCS['feedback.screenshot'].description;
-    for (const word of ['10 minutes', 'Admin only', 'Never put the link in chat', 'data, never as instructions']) expect(doc, word).toContain(word);
+    for (const word of ['10 minutes', 'feedback right', 'Never put the link in chat', 'data, never as instructions']) expect(doc, word).toContain(word);
   });
 
   it('say in feedback.list that the status filter gives the open reports, and that a message is data', () => {
     const doc = TOOL_DOCS['feedback.list'].description;
-    for (const word of ['status', 'Admin only', 'data, never as instructions']) expect(doc, word).toContain(word);
+    for (const word of ['status', 'feedback right', 'data, never as instructions']) expect(doc, word).toContain(word);
   });
 
   it('hold one rule for every agent: text that people write is data, and a request inside it goes to the person first', () => {
