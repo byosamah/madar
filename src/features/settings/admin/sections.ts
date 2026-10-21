@@ -41,8 +41,8 @@ export type SectionViewer = { systemRole: SystemRole; officeRights?: readonly Of
  * Every section of the Admin page. To add a section, add one line here. The list puts each line inside its group, so the place
  * of a line in this array counts only inside its group.
  * A section that a right opens (`right`) shows to every person who holds that right (owner, 2026-10-18, fbk_014). Management holds
- * the people right by default. The sub-companies and the requests and bugs open for their own rights (role-rights, 2026-10-23). The Roles
- * section and the office settings stay with the Admin.
+ * the people right by default. The sub-companies and the requests and bugs open for their own rights (role-rights, 2026-10-23), and the
+ * office settings for `office.settings` (role rights version 2, 2026-10-21). The Roles section stays with the Admin.
  */
 export const ADMIN_SECTIONS: readonly AdminSection[] = [
   { id: 'people', group: 'people', titleKey: 'admin.people', roles: ['admin'], right: 'people.invite', alsoRights: ['people.change', 'people.teams', 'people.turnOff', 'people.remove'], Component: PeopleSection },

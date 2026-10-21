@@ -1,6 +1,6 @@
 import type { Meeting, OfficeRight, Task, User } from './contract/entities';
 import { memberKey } from './rowKeys';
-import { BASIC_ON, CATALOG_RIGHT_IDS, CATALOG_SECTIONS, DEFAULT_EXTRA, expandRights, type LegacyRightId } from './rightsCatalog';
+import { BASIC_ON, CATALOG_RIGHT_IDS, CATALOG_SECTIONS, DEFAULT_EXTRA } from './rightsCatalog';
 import type { State } from './store';
 
 /**
@@ -42,7 +42,7 @@ export type ProjectRole = 'leader' | 'team' | 'other';
 
 /**
  * The switches in their 13 sections, in the order of the role sheet (rightsCatalog.ts). The key of a section is the last part of its
- * word key: roles.sections.<key>.
+ * word key: roleRights.sections.<key>.
  */
 export const RIGHT_SECTIONS: readonly { readonly key: string; readonly rights: readonly OfficeRight[] }[] = CATALOG_SECTIONS.map((section) => ({
   key: section.key,
@@ -53,34 +53,6 @@ export const RIGHT_SECTIONS: readonly { readonly key: string; readonly rights: r
 export const OFFICE_RIGHTS: readonly OfficeRight[] = CATALOG_RIGHT_IDS;
 
 export { BASIC_ON, DEFAULT_EXTRA };
-
-/**
- * The 17 old rights in their 7 old sections (role-rights, owner 2026-10-23). The role sheet of that time still reads them, and it
- * saves them as stored ids (StoredRight). The sheet track of role rights version 2 replaces that sheet, then these three constants go.
- */
-export const LEGACY_RIGHT_SECTIONS: readonly { readonly key: string; readonly rights: readonly LegacyRightId[] }[] = [
-  { key: 'projects', rights: ['project.editAny', 'project.changeLeaderAny', 'project.archiveAny', 'project.delete', 'project.editCode'] },
-  { key: 'todos', rights: ['task.reviewAny', 'task.changeAny'] },
-  { key: 'people', rights: ['people.manage', 'clients.manage', 'subCompanies.manage'] },
-  { key: 'money', rights: ['payment.manage'] },
-  { key: 'templates', rights: ['templates.manageAll', 'templates.updateProjects'] },
-  { key: 'ai', rights: ['report.office', 'agents.undoAny'] },
-  { key: 'office', rights: ['feedback.manage', 'gaps.view'] },
-];
-export const LEGACY_OFFICE_RIGHTS: readonly LegacyRightId[] = LEGACY_RIGHT_SECTIONS.flatMap((section) => section.rights);
-/**
- * The old rights that a stored list holds, in the old order: an old right is on when every switch it stands for is in the list (an old
- * id or its new ids). The role sheet of before role rights version 2 reads a role this way. It goes with that sheet.
- */
-export function legacyView(stored: readonly string[]): LegacyRightId[] {
-  const held = expandRights(stored);
-  return LEGACY_OFFICE_RIGHTS.filter((right) => expandRights([right]).every((id) => held.includes(id)));
-}
-export const LEGACY_DEFAULT_RIGHTS: Readonly<Record<'management' | 'accounting' | 'member', readonly LegacyRightId[]>> = {
-  management: ['people.manage', 'payment.manage', 'report.office'],
-  accounting: ['payment.manage'],
-  member: [],
-};
 
 /** A person as can() reads it: the user, plus the office rights that the office settings give the person (rights.ts). */
 export type Actor = User & { readonly officeRights?: readonly OfficeRight[] };
