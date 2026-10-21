@@ -5,7 +5,8 @@ import type {
 import { canSeeConversation } from './chatState';
 import { namesPerson, replyRefOf } from './chatNaming';
 import { computeHealth, isOverdue } from './health';
-import { can, leadTookTask, mayViewMeeting, meetingResource, principalOf, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
+import { can, holdsRight, leadTookTask, mayViewMeeting, meetingResource, principalOf, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
+import { mayWriteMinutes } from './meetingGates';
 import { isTaskMaker, mayAssignTask, mayChangeTask, mayDeleteTask, mayTickChecklist } from './taskGates';
 import { commentCountKey, fileCountKey, projectTemplatesOf, type State } from './store';
 import { lineKindOf } from '../lib/commentLine';
@@ -157,7 +158,7 @@ export function eventLabel(state: State, event: Event): { label: string; detail:
 
 /** True when the viewer may edit or delete this post or comment: its author, or the person its agent acted for (spec 7.2). */
 function canEditContent(state: State, projectId: string, authorId: string, viewer: User): boolean {
-  return can(viewer, 'content.editOwn', { projectRole: projectRoleOf(state, projectId, viewer.id), authorId: principalOf(state, authorId) });
+  return can(viewer, 'post.editOwn', { projectRole: projectRoleOf(state, projectId, viewer.id), authorId: principalOf(state, authorId) });
 }
 
 export function updateItemOf(state: State, update: Update, viewer: User): FeedItem {
@@ -201,6 +202,9 @@ export function feedFor(
   return items.sort(newestFirst).slice(0, limit);
 }
 
+/** The six powers that the old post flag stood for. */
+const POST_FLAGS = ['post.create', 'comment.create', 'project.links', 'file.upload', 'file.deliver', 'tracker.log'] as const;
+
 function viewerCanOf(viewer: User, projectRole: ProjectRole): ProjectSummary['viewerCan'] {
   const r = { projectRole };
   return {
@@ -209,9 +213,11 @@ function viewerCanOf(viewer: User, projectRole: ProjectRole): ProjectSummary['vi
     archive: can(viewer, 'project.archive', r),
     delete: can(viewer, 'project.delete', r),
     healthOverride: can(viewer, 'project.healthOverride', r),
-    createTaskForAnyone: can(viewer, 'task.createForAnyone', r),
-    createTaskForSelf: can(viewer, 'task.createForSelf', r),
-    post: can(viewer, 'content.post', r),
+    createTaskForAnyone: can(viewer, 'task.add', r) && can(viewer, 'task.assign'),
+    createTaskForSelf: can(viewer, 'task.add', r),
+    // The old flag of the first release: true only when the person posts, comments, uploads, delivers, logs and adds links here.
+    // The screens read the single flags below (postUpdate, comment, upload, deliver, logTracker, links).
+    post: POST_FLAGS.every((action) => can(viewer, action, r)),
     review: can(viewer, 'task.review', r),
     payments: can(viewer, 'payment.view'),
     editCode: can(viewer, 'project.editCode', r),
@@ -414,7 +420,7 @@ export function commentViewOf(state: State, comment: Comment, viewer: User): Com
     comment,
     author: cardOf(state, comment.authorId),
     canEdit: !target ? false : target.projectId === null
-      ? can(viewer, 'content.editOwn', { ...officeResource(state, target.id, viewer.id), authorId })
+      ? can(viewer, 'post.editOwn', { ...officeResource(state, target.id, viewer.id), authorId })
       : canEditContent(state, target.projectId, comment.authorId, viewer),
     files: attachmentsOf(state, comment.fileIds),
     kind: lineKindOf(comment),
@@ -431,8 +437,8 @@ export function mayDeleteFile(state: State, viewer: User, file: FileRec): boolea
   // A file of a direct chat or a group stays with its messages: nobody deletes it (owner, 2026-10-19). The same for a file of a meeting.
   if (file.conversationId !== undefined || file.meetingId !== undefined) return false;
   const resource = file.projectId === null ? officeResource(state, file.taskId, viewer.id) : { projectRole: projectRoleOf(state, file.projectId, viewer.id) };
-  return can(viewer, 'task.delete', resource)
-    || can(viewer, 'content.editOwn', { ...resource, authorId: principalOf(state, file.versions[0].uploadedBy) });
+  return can(viewer, 'file.deleteAny', resource)
+    || can(viewer, 'file.deleteOwn', { ...resource, authorId: principalOf(state, file.versions[0].uploadedBy) });
 }
 
 /**
@@ -474,8 +480,9 @@ export function fileViewOf(state: State, file: FileRec, viewer: User): FileView 
  */
 export function mayDeleteTracker(state: State, viewer: User, entry: TrackerEntry): boolean {
   if (!viewer.active) return false;
-  if (can(viewer, 'task.delete', { projectRole: projectRoleOf(state, entry.projectId, viewer.id) })) return true;
-  return entry.auto !== 'meeting' && principalOf(state, entry.createdBy) === viewer.id;
+  const projectRole = projectRoleOf(state, entry.projectId, viewer.id);
+  if (can(viewer, 'tracker.deleteAny', { projectRole })) return true;
+  return entry.auto !== 'meeting' && can(viewer, 'tracker.deleteOwn', { projectRole, authorId: principalOf(state, entry.createdBy) });
 }
 
 /** The reply task of an entry. A task that was deleted counts as no task. */
@@ -497,13 +504,16 @@ export function minutesViewOf(state: State, minutes: MeetingMinutes, viewer: Use
 }
 
 export function trackerRowOf(state: State, entry: TrackerEntry, viewer: User): TrackerRow {
-  const mayPost = can(viewer, 'content.post', { projectRole: projectRoleOf(state, entry.projectId, viewer.id) });
+  const mayPost = can(viewer, 'tracker.log', { projectRole: projectRoleOf(state, entry.projectId, viewer.id) });
+  // A close that finishes the open reply to-do also needs the switch to work on to-dos (the call asks the same).
+  const replyTask = entry.replyTaskId ? state.tasks[entry.replyTaskId] : undefined;
+  const mayFinishReply = !replyTask || replyTask.status === 'done' || holdsRight(viewer, 'task.work') || can(viewer, 'task.any', taskResource(state, replyTask, viewer.id));
   // The line that Madar made for a meeting that ended (wave 2) also gives the meeting, the minutes and the right to write them.
   const meeting = entry.auto === 'meeting' && entry.meetingId ? state.meetings?.[entry.meetingId] : undefined;
   const minutesPart = entry.auto === 'meeting' ? {
     meeting: entry.meetingId ? { id: entry.meetingId, title: meeting?.title ?? entry.title } : null,
     minutes: entry.minutes ? minutesViewOf(state, entry.minutes, viewer) : null,
-    canEditMinutes: meeting !== undefined && meeting.status === 'scheduled' && can(viewer, 'meeting.minutes', meetingResource(state, meeting, viewer.id)),
+    canEditMinutes: meeting !== undefined && meeting.status === 'scheduled' && mayWriteMinutes(viewer, meetingResource(state, meeting, viewer.id)),
   } : {};
   return {
     entry,
@@ -512,7 +522,7 @@ export function trackerRowOf(state: State, entry: TrackerEntry, viewer: User): T
     people: entry.peopleIds.map((id) => cardOf(state, id)),
     files: attachmentsOf(state, entry.fileIds),
     replyTask: replyTaskOf(state, entry),
-    canClose: mayPost && entry.waiting !== null && entry.closedAt === null,
+    canClose: mayPost && entry.waiting !== null && entry.closedAt === null && mayFinishReply,
     canEdit: mayPost,
     canDelete: mayDeleteTracker(state, viewer, entry),
     ...minutesPart,

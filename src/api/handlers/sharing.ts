@@ -29,6 +29,8 @@ export const filesShare = defineCall({
     if (file.conversationId !== undefined) throw invalid('target', 'A file of a chat stays in its chat.', 'file_chat');
     // A file of a meeting stays with its meeting (wave 2).
     if (file.meetingId !== undefined) throw invalid('target', 'A file of a meeting stays with its meeting.', 'file_meeting');
+    // Sharing a file needs file.share. A share into a chat also needs the chat switch: postMessage asks it (chat.project or chat.direct).
+    assertCan(ctx, 'file.share');
     const body = input.message || file.name;
     const { target } = input;
     if (target.kind === 'task') {
@@ -36,7 +38,7 @@ export const filesShare = defineCall({
       // A file of an office task goes only into the Conversation of its own task.
       if (file.projectId === null && task.id !== file.taskId) throw invalid('taskId', 'A file of an office task stays on its task.', 'file_office_task');
       if (task.projectId !== file.projectId) throw invalid('taskId', 'This task is not in the project of the file.', 'file_other_project');
-      assertCan(ctx, 'content.post', taskRole(ctx, task));
+      assertCan(ctx, 'comment.create', taskRole(ctx, task));
       insertComment(ctx, 'task', task.id, task.projectId, body, [file.id]);
       touch(ctx, task.projectId);
       return { kind: 'task' as const, id: task.id };

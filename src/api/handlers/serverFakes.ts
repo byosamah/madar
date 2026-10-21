@@ -74,11 +74,11 @@ const filesUploadStart = defineCall({
     } else if (input.projectId === undefined) {
       // A file of an office task: a person who sees the task adds it (owner, 2026-10-06).
       const task = officeTaskOfCall(ctx, input.taskId);
-      assertCan(ctx, 'content.post', taskRole(ctx, task));
+      assertCan(ctx, 'file.upload', taskRole(ctx, task));
       if (input.stageId) throw invalid('stageId', 'An office task belongs to no project, so it has no stage.', 'office_no_stage');
     } else {
       const project = requireProject(ctx, input.projectId);
-      assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, project.id) });
+      assertCan(ctx, 'file.upload', { projectRole: roleIn(ctx, project.id) });
       if (input.stageId) requireStage(ctx, project.id, input.stageId);
       if (input.taskId && ctx.state.tasks[input.taskId]?.projectId !== project.id) throw invalid('taskId', 'This task is not in the project.');
     }

@@ -12,7 +12,7 @@ vi.mock('../permissions', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../permissions')>();
   return {
     ...actual,
-    can: (...args: Parameters<typeof actual.can>) => (rights.denyPost && args[1] === 'content.post' ? false : actual.can(...args)),
+    can: (...args: Parameters<typeof actual.can>) => (rights.denyPost && args[1] === 'tracker.log' ? false : actual.can(...args)),
   };
 });
 

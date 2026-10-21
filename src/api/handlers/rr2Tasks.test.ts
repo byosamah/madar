@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { historyCalls } from './history';
 import { taskCalls } from './tasks';
 import type { RoleSettings } from '../contract/entities';
+import { without as off, withExtra as extra } from '../../test/rr2work';
 import { memberKey } from '../store';
 import { makeTask, makeUser, NOW, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
@@ -30,8 +31,6 @@ function world(roles?: RoleSettings) {
   return t;
 }
 
-const off = (...ids: string[]): RoleSettings => ({ off: { member: ids } });
-const extra = (...ids: string[]): RoleSettings => ({ rights: { member: ids } });
 
 describe('task.dates: the start date, the due date and the schedule', () => {
   it('lets the lead change the dates with the switch on', async () => {
@@ -74,7 +73,7 @@ describe('task.dates: the start date, the due date and the schedule', () => {
   });
 
   it('refuses the leader when task.any.lead is off, and an outsider passes with task.any.all', async () => {
-    const t = world({ off: { member: ['task.any.lead', 'task.dates'] } });
+    const t = world(off('task.any.lead', 'task.dates'));
     t.as('usr_002');
     await expect(t.api.call('tasks.update', { id: 'tsk_002', patch: { dueDate: '2026-10-14' } })).rejects.toMatchObject({ code: 'forbidden' });
     const all = world(extra('task.any.all'));

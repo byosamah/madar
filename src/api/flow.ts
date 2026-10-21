@@ -187,10 +187,10 @@ export function shiftDependents(ctx: Ctx, task: Task, causeEventId: string, fini
 
 /**
  * "This moves the project back to X. Why?" The refusal carries the stage, so the screen can ask. It also says if the person may
- * log the move in the Tracker, so the screen shows the Balady tick box only to a person who may post.
+ * log the move in the Tracker (tracker.log), so the screen shows the Balady tick box only to a person who may log.
  */
 function stageBackError(ctx: Ctx, projectId: string, to: Stage): ApiError {
-  const canLog = can(ctx.authority, 'content.post', { projectRole: roleIn(ctx, projectId) });
+  const canLog = can(ctx.authority, 'tracker.log', { projectRole: roleIn(ctx, projectId) });
   return new ApiError('invalid_input', 'Write why the project moves back.', { fields: ['reason'], reason: 'stage_back_reason', stageId: to.id, stageName: to.name, canLog });
 }
 
@@ -200,7 +200,7 @@ function stageBackError(ctx: Ctx, projectId: string, to: Stage): ApiError {
  * holds 200 characters at most, so a longer reason also goes whole into the note.
  */
 function logStageBack(ctx: Ctx, projectId: string, reason: string): void {
-  assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, projectId) });
+  assertCan(ctx, 'tracker.log', { projectRole: roleIn(ctx, projectId) });
   const long = reason.length > 200;
   addTrackerEntry(ctx, {
     projectId, type: 'balady', direction: 'third_party', title: long ? `${reason.slice(0, 199).trimEnd()}…` : reason, note: long ? reason : '',

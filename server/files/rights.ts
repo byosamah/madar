@@ -15,7 +15,7 @@ import { readRoles, readUsers } from './records';
  * that signs one checks again, right before it signs:
  *
  * - the person, or the person an agent acts for, must be active (else account_off, the refusal of server/core/actor.ts);
- * - then the right itself with can(): project.view for a file, content.post for an upload, feedback.manage for a screenshot.
+ * - then the right itself with can(): project.view for a file, file.upload for an upload, feedback.manage for a screenshot.
  *
  * can() lets an inactive person through project.view (src/api/permissions.ts), so the active check comes first and never
  * leans on can().
@@ -50,10 +50,10 @@ export function assertMayView(office: OfficeSnapshot, userId: string, projectId:
   return authority;
 }
 
-/** The view right, then content.post in the project: the rule of files.upload, checked before its upload link is signed. */
+/** The view right, then file.upload in the project: the rule of files.upload, checked before its upload link is signed. */
 export function assertMayPost(office: OfficeSnapshot, userId: string, projectId: string): Actor {
   const authority = assertMayView(office, userId, projectId);
-  if (!can(authority, 'content.post', { projectRole: roleIn(office, projectId, authority.id) })) throw forbidden('You cannot do this.', { action: 'content.post' });
+  if (!can(authority, 'file.upload', { projectRole: roleIn(office, projectId, authority.id) })) throw forbidden('You cannot do this.', { action: 'file.upload' });
   return authority;
 }
 

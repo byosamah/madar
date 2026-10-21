@@ -121,7 +121,7 @@ describe('files.uploadStart', () => {
 
   it('refuses a person who may not post in the project, a missing project, a stage or a task of another project', async () => {
     const cases: [string, Record<string, unknown>, Record<string, unknown>][] = [
-      ['usr_004', {}, { code: 'forbidden', details: { action: 'content.post' } }],
+      ['usr_004', {}, { code: 'forbidden', details: { action: 'file.upload' } }],
       ['usr_002', { projectId: 'prj_404' }, { code: 'not_found' }],
       ['usr_002', { stageId: 'stg_009' }, { code: 'invalid_input', details: { fields: ['stageId'] } }],
       ['usr_002', { taskId: 'tsk_009' }, { code: 'invalid_input', details: { fields: ['taskId'] } }],
