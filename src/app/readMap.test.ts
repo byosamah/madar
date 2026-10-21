@@ -205,6 +205,12 @@ describe('the read map (plan 5.3, client map 3.2)', () => {
     expect(traced.get('clients.list')?.kinds.has('projectTouched')).toBe(false);
   });
 
+  // Role rights version 2: the rights of a person come from settings.roles, so a role change reloads the session of an open tab.
+  it('reads the settings kind in session.get, as the rights of the person come from the office settings', () => {
+    expect(traced.get('session.get')?.kinds.has('settings')).toBe(true);
+    expect(READS['session.get'].kinds).toContain('settings');
+  });
+
   it('knows the project of each project read from its input or its answer', () => {
     expect(READS['projects.get'].projectOf?.({ id: 'prj_007' }, undefined)).toBe('prj_007');
     expect(READS['tasks.list'].projectOf?.({ projectId: 'prj_002' }, undefined)).toBe('prj_002');

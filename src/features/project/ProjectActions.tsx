@@ -149,10 +149,10 @@ export function ProjectActions({ detail }: { detail: ProjectDetail }) {
     hidden: !viewerCan.archive || project.status === to || (to === 'active' && project.status === 'on_hold'),
   });
   const items: MenuItem[] = [
-    { label: t('project.edit'), onSelect: () => setSheet('edit'), hidden: !viewerCan.edit },
+    { label: t('project.edit'), onSelect: () => setSheet('edit'), hidden: !viewerCan.editDetails },
     { label: t('project.changeLeader'), onSelect: () => setSheet('leader'), hidden: !viewerCan.changeLeader },
-    // A template goes to an open project (active or paused), for the people who may edit it: the leader and the Admin (fbk_020).
-    { label: t('projectTemplates.apply.menu'), onSelect: () => setSheet('template'), hidden: !viewerCan.edit || (project.status !== 'active' && project.status !== 'on_hold') },
+    // A template goes to an open project (active or paused), for the people who hold project.template here (fbk_020).
+    { label: t('projectTemplates.apply.menu'), onSelect: () => setSheet('template'), hidden: !viewerCan.applyTemplate || (project.status !== 'active' && project.status !== 'on_hold') },
     { label: t('project.pause'), onSelect: () => setSheet('pause'), hidden: !viewerCan.archive || project.status !== 'active' },
     // The paused banner has the Resume button, so the menu offers it only when no banner shows (audit 2026-10-03, PRJ-20).
     { label: t('project.resume'), onSelect: () => resume.mutate({ id: project.id }), hidden: !viewerCan.archive || project.status !== 'on_hold' || Boolean(project.pause) },

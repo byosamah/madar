@@ -1,4 +1,5 @@
-import type { Comment, Message, Notification, NotifyLevel, Task, User } from '../../src/api/contract/entities';
+import type { Comment, Message, Notification, NotifyLevel, RoleSettings, Task, User } from '../../src/api/contract/entities';
+import { rightsOf } from '../../src/api/rights';
 import { chatReadKey } from '../../src/api/rowKeys';
 import { isLine } from '../../src/lib/commentLine';
 import type { Query } from '../core/ports';
@@ -45,9 +46,13 @@ select 'comment', k.id, k.target_id, 'task', t.project_id, k.doc, null::jsonb, n
 from comments k join tasks t on t.id = k.target_id left join comments r on r.id = k.doc->>'replyToId'
 where k.id = any($2::text[]) and k.target_type = 'task'`;
 
-/** Every person, with the system role, the owner of an agent and the flag of a push device. */
-export const PUSH_PEOPLE_SQL = `select u.id, u.kind, u.active, u.doc->>'systemRole' as system_role, u.doc->>'ownerId' as owner_id,
-  exists (select 1 from push_devices d where d.user_id = u.id) as device
+/**
+ * Every person, with the system role, the role id, the owner of an agent and the flag of a push device, and the roles of the office
+ * settings (the same value in each row): they give the people who hold task.officeAll (role rights version 2).
+ */
+export const PUSH_PEOPLE_SQL = `select u.id, u.kind, u.active, u.doc->>'systemRole' as system_role, u.doc->>'roleId' as role_id, u.doc->>'ownerId' as owner_id,
+  exists (select 1 from push_devices d where d.user_id = u.id) as device,
+  (select s.doc->'roles' from settings s where s.id = 'office') as roles
 from users u order by u.id`;
 
 /** $1 the chat ids of the message items. The stored "Notify me" choices of those chats. A missing choice means the default of the chat kind. */
@@ -67,7 +72,9 @@ type ItemRow = {
   kind: 'message' | 'comment'; id: string; chat_id: string; chat_kind: string; project_id: string | null; doc: Message | Comment;
   member_ids: string[] | null; team_ids: string[] | null; task: Task | null; reply_author_id: string | null;
 };
-type PersonRow = { id: string; kind: 'human' | 'agent'; active: boolean; system_role: string | null; owner_id: string | null; device: boolean };
+type PersonRow = {
+  id: string; kind: 'human' | 'agent'; active: boolean; system_role: string | null; role_id?: string | null; owner_id: string | null; device: boolean; roles?: RoleSettings | null;
+};
 type LevelRow = { conversation_id: string; user_id: string; notify: NotifyLevel };
 
 const unique = (ids: Iterable<string>): string[] => [...new Set(ids)];
@@ -123,8 +130,14 @@ async function postgresFacts(q: Query, saved: PushSaved, wroteNotices: boolean, 
   return { people, items, levels, notices, undo };
 }
 
+/** True when the person holds task.officeAll: the Admin, or a person whose role gives it. An agent holds nothing of its own. */
+function holdsOfficeAll(person: Pick<User, 'systemRole' | 'roleId'>, roles: RoleSettings | null | undefined): boolean {
+  return rightsOf(person as User, roles ?? undefined).includes('task.officeAll');
+}
+
 const personOf = (row: PersonRow): PushPerson => ({
   id: row.id, kind: row.kind, active: row.active, admin: row.system_role === 'admin', ownerId: row.owner_id, device: row.device,
+  officeAll: row.kind === 'human' && holdsOfficeAll({ systemRole: (row.system_role ?? 'member') as User['systemRole'], roleId: row.role_id ?? undefined }, row.roles),
 });
 
 async function liteFacts(q: Query, saved: PushSaved, wroteNotices: boolean, undo: boolean): Promise<PushFacts> {
@@ -177,6 +190,7 @@ async function liteFacts(q: Query, saved: PushSaved, wroteNotices: boolean, undo
   await devicesOf(allIds);
   const people: PushPerson[] = allIds.map((id) => ({
     id, kind: users[id].kind, active: users[id].active === true, admin: users[id].systemRole === 'admin', ownerId: users[id].ownerId ?? null, device: withDevice.has(id),
+    officeAll: users[id].kind === 'human' && holdsOfficeAll(users[id], (lists as { settings?: { roles?: RoleSettings } }).settings?.roles),
   }));
   const levels: Record<string, NotifyLevel> = {};
   for (const chatId of unique(items.filter((i): i is MessageFact => i.kind === 'message').map((i) => i.chatId))) {

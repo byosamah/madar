@@ -13,6 +13,7 @@ import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
 import { usePrefetchCall } from '../../../app/prefetch';
 import { useAction, useCall, useRuntime } from '../../../app/runtime';
+import { useCan } from '../../../app/useRight';
 import { useToast } from '../../../app/toasts';
 import { Age, AgeRefresh } from '../../../components/Age';
 import { AgentLabel } from '../../../components/AgentLabel';
@@ -63,7 +64,10 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 type ChecklistDraft = { text: string; items: ChecklistItem[] };
 const newItemId = () => `chk_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
-/** edit: add, remove and tick. tick: a helper ticks only. Otherwise the list is plain text. */
+/**
+ * edit: add and remove items (task.details). tick: tick items (task.work). With edit and no tick the boxes show and stay off.
+ * Otherwise the list is plain text (role rights version 2).
+ */
 function Checklist({ task, edit, tick, onChange, draft }: { task: Task; edit: boolean; tick: boolean; onChange: (items: ChecklistItem[]) => void; draft: MutableRefObject<ChecklistDraft> }) {
   const { t } = useTranslation();
   const [text, setText] = useState('');
@@ -98,6 +102,7 @@ function Checklist({ task, edit, tick, onChange, draft }: { task: Task; edit: bo
               aria-label={item.text}
               className="size-5 shrink-0 accent-[var(--c-accent-fill)]"
               checked={item.done}
+              disabled={!tick}
               onChange={(event) => change(items.map((i) => (i.id === item.id ? { ...i, done: event.target.checked } : i)))}
             />
             <span dir="auto" className={`min-w-0 flex-1 ${item.done ? 'text-label-2 line-through' : ''}`}>{item.text}</span>
@@ -303,7 +308,11 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
     if (changes.description !== undefined) sent.current.description = changes.description;
     update.mutate({ id: task.id, patch: changes });
   };
-  const edit = viewerCan.edit;
+  // Role rights version 2: one flag for each kind of change. The details, the dates and the work are three switches.
+  const canDetails = viewerCan.editDetails === true;
+  const canDates = viewerCan.editDates === true;
+  const canWork = viewerCan.work === true;
+  const mayChange = canDetails || canDates || canWork || viewerCan.editAll;
   // Escape, a tap outside on a phone, Back and another task close the panel before a field loses the focus. So the panel saves
   // what the person typed when it closes, by any way, as the X button always did (audit 2026-10-03, F-15).
   // The save goes only as the person who typed, and only for a task that is still there. A change of person (Preview as) and a
@@ -313,7 +322,7 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
   typedBy.current ??= session.data?.user.id;
   const saveTyped = useRef<() => void>(() => undefined);
   saveTyped.current = () => {
-    if (!edit || deleted.current) return;
+    if (!canDetails || deleted.current) return;
     const person = queryClient.getQueryData<{ user: { id: string } }>(['api', 'session.get', {}])?.user.id;
     const taskError = queryClient.getQueryState(['api', 'tasks.get', { id: task.id }])?.error;
     if (person !== typedBy.current || (taskError instanceof ApiError && taskError.code === 'not_found')) return;
@@ -342,13 +351,17 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
   const teamIds = detail ? new Set([...people.map((person) => person.id), ...(detail.leader ? [detail.leader.id] : [])]) : new Set(pickable.map((person) => person.id));
   // The maker of a task who is not the leader picks only from the team: only the leader and the Admin add a person to it
   // (owner, 2026-10-07).
-  const choices = detail && !detail.viewerCan.edit ? pickable.filter((person) => teamIds.has(person.id)) : pickable;
+  // (naming a person outside the team adds them to it, which asks project.team)
+  const choices = detail && !detail.viewerCan.editTeam ? pickable.filter((person) => teamIds.has(person.id)) : pickable;
   const me = session.data?.authority.id;
   // A helper may leave the task with one press at the end of the panel (fbk_035).
   const helping = me !== undefined && helpersOf(task).includes(me);
+  // Undo of the change of another person's AI assistant: ai.undoOthers in this project (the maker of an office to-do).
+  const may = useCan();
+  const undoOthers = detail ? may('ai.undoOthers', { projectRole: detail.viewerRole }) : viewerCan.editAll;
   const canUndoAgent = useCallback(
-    (actingForId: string) => (detail ? detail.viewerCan.review : viewerCan.editAll) || actingForId === me,
-    [detail, viewerCan.editAll, me],
+    (actingForId: string) => undoOthers || actingForId === me,
+    [undoOthers, me],
   );
   // A new object on each render: the ages of the history read the clock on each key, as before the memo (RND-4).
   const refresh = {};
@@ -375,7 +388,8 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
         <TabPanel value="conversation" idPrefix="task-section">
           <CommentThread
             targetType="task" targetId={task.id} projectId={detail?.project.id ?? null} stageId={task.stageId} people={people}
-            canPost={detail ? detail.viewerCan.post : viewerCan.contribute}
+            canPost={viewerCan.comment === true}
+            canAttach={viewerCan.upload === true}
           />
         </TabPanel>
       ) : (
@@ -385,7 +399,7 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
             {!detail && <p className="text-footnote text-label-2">{t('office.sheetNote')}</p>}
             {/* A team member who neither leads nor helps joins as a helper in one press, so their part shows on the task (fbk_035).
                 The leader and the maker name helpers in the people fields, so they get no second way. */}
-            {!edit && !viewerCan.take && (viewerCan.help && !viewerCan.editAll ? (
+            {!mayChange && !viewerCan.take && (viewerCan.help && !viewerCan.editAll ? (
               <section aria-label={t('taskHelp.join')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
                 <p className="text-footnote text-label-2">{t('taskHelp.hint')}</p>
                 <Button disabled={join.isPending} onClick={() => join.mutate({ taskId: task.id, help: true })}>{t('taskHelp.join')}</Button>
@@ -409,7 +423,7 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
                 {noteFirst && <Button disabled={approve.isPending} onClick={() => approve.mutate({ id: task.id })}>{t('taskSheet.approve')}</Button>}
               </section>
             )}
-            {edit ? (
+            {canDetails ? (
               <TextField
                 id="task-title"
                 label={t('taskSheet.title')}
@@ -448,7 +462,7 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
                 </SelectField>
               ) : <Fact label={t('taskSheet.owner')}>{data.owner ? <bdi>{nameOf(data.owner)}</bdi> : t('lead.noLead')}</Fact>}
               {/* An office task has no stage. A stage name is long, so the field takes a full row from 640 px up (its first letters were cut in Arabic). */}
-              {detail && (edit ? (
+              {detail && (canDetails ? (
                 <SelectField id="task-stage" className="sm:col-span-2" label={t('taskSheet.stage')} value={task.stageId ?? ''} onChange={(event) => patch({ stageId: event.target.value })}>
                   {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
                 </SelectField>
@@ -462,12 +476,12 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
               canEdit={viewerCan.editAll}
               onChange={(helperIds) => patch({ helperIds })}
               // Only the leader and the Admin add a person to the team from this list, so only they read that a person joins it.
-              hint={detail?.viewerCan.edit ? undefined : t('office.helpersHint')}
+              hint={detail?.viewerCan.editTeam ? undefined : t('office.helpersHint')}
             />
             {/* An office task waits for no task. */}
-            {detail && <TaskNeeds data={data} canEdit={viewerCan.editAll} onChange={(prerequisiteIds) => patch({ prerequisiteIds })} />}
+            {detail && <TaskNeeds data={data} canEdit={viewerCan.editAll && canDetails} onChange={(prerequisiteIds) => patch({ prerequisiteIds })} />}
             {viewerCan.newVersion && <NewVersion key={task.version ?? 1} task={task} />}
-            {edit ? (
+            {canDates ? (
               <TaskTiming
                 key={`${timingKey}-${failures}`}
                 idPrefix="task"
@@ -482,7 +496,7 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
               </div>
             )}
             <DateNotes data={data} />
-            {edit
+            {canDetails
               ? <Switch id="task-flag" label={t('taskSheet.flag')} description={t('taskSheet.flagHint')} checked={task.flagged} onChange={(on) => patch({ flagged: on })} />
               : task.flagged && <p className="inline-flex items-center gap-2 text-subheadline text-attn"><AnimatedIcon icon={BadgeAlertIcon} size={14} aria-hidden />{t('tasks.flagged')}</p>}
             {/* The maker reviews an office task, so a task that its maker leads has no review to turn on (owner, 2026-10-06). On a
@@ -493,7 +507,7 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
                 checked={task.needsReview} onChange={(on) => patch({ needsReview: on })}
               />
             )}
-            {edit ? (
+            {canDetails ? (
               <TextArea
                 id="task-description"
                 label={t('taskSheet.description')}
@@ -506,7 +520,7 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
                 }}
               />
             ) : task.description && <Fact label={t('taskSheet.description')}><RichText body={task.description} /></Fact>}
-            <Checklist key={failures} task={task} edit={edit} tick={viewerCan.contribute && !edit} onChange={(checklist) => patch({ checklist })} draft={checklistDraft} />
+            <Checklist key={failures} task={task} edit={canDetails} tick={viewerCan.contribute} onChange={(checklist) => patch({ checklist })} draft={checklistDraft} />
             <TaskVersions task={task} />
             <TaskFiles views={files.data ?? EMPTY_FILES} />
             <AgeRefresh.Provider value={refresh}>

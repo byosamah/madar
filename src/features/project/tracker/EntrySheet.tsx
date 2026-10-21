@@ -23,6 +23,7 @@ import { AUTO_KEY, isOpen, activeMembers, sideForType, sidesOf, waitingFor } fro
 import { addWorkingDays } from '../../../lib/workdays';
 import { FileChips } from '../../files/Attachments';
 import { ReplyFields } from './ReplyFields';
+import { repliers, useReplyRights } from './replyRights';
 import { DirectionMark, TypeIcon } from './marks';
 import { taskLink } from '../../../lib/params';
 import { meetingLink } from '../../../lib/meetings';
@@ -134,9 +135,10 @@ function EditForm({ row, detail, onDone }: { row: TrackerRow; detail: ProjectDet
 }
 
 /** "Assign a reply" for an open entry that waits for our reply and has no reply task: who answers, and by which day. */
-function AssignReply({ row, members }: { row: TrackerRow; members: UserCard[] }) {
+function AssignReply({ row, members: everyone, canAssign }: { row: TrackerRow; members: UserCard[]; canAssign: boolean }) {
   const { t } = useTranslation();
   const me = useCall('session.get', {}).data?.user.id;
+  const members = repliers(everyone, me, canAssign);
   const [asking, setAsking] = useState(false);
   const [userId, setUserId] = useState('');
   const [dueDate, setDueDate] = useState(() => addWorkingDays(todayISO(), 2));
@@ -173,6 +175,7 @@ export function EntrySheet({ row, detail, onClose }: { row: TrackerRow; detail: 
   const close = useUndoable('tracker.close', { message: () => t(row.entry.waiting === 'us' ? 'tracker.answeredToast' : 'tracker.receivedToast') });
   const remove = useUndoable('tracker.delete', { message: () => t('tracker.deleted'), onSuccess: onClose });
   const { entry } = row;
+  const { canReply, canAssign } = useReplyRights(detail);
   const open = isOpen(entry);
   const action = t(entry.waiting === 'us' ? 'tracker.answered' : 'tracker.received');
   const footer = !editing && (
@@ -208,7 +211,7 @@ export function EntrySheet({ row, detail, onClose }: { row: TrackerRow; detail: 
               </Link>
             </Block>
           )}
-          {open && entry.waiting === 'us' && row.canEdit && (!row.replyTask || row.replyTask.status === 'done') && <AssignReply row={row} members={activeMembers(detail.members)} />}
+          {open && entry.waiting === 'us' && row.canEdit && canReply && (!row.replyTask || row.replyTask.status === 'done') && <AssignReply row={row} members={activeMembers(detail.members)} canAssign={canAssign} />}
           {!open && entry.waiting !== null && row.closedBy && entry.closedAt && (
             <p className="flex flex-wrap items-center gap-2 pt-3">
               <StatusSign state="completed">{action}</StatusSign>

@@ -112,9 +112,15 @@ describe('custom roles never leak payments', () => {
   it('gives the screens the rights of the person in the session, so the Dashboard money and the payment reads agree', async () => {
     const t = world();
     t.as('usr_011');
-    expect((await t.api.call('session.get', {})).authority.officeRights).toEqual(['payment.manage']);
+    // The session lists the 112 ids only: the basic switches, plus the switches of the role (role rights version 2).
+    const cashier = (await t.api.call('session.get', {})).authority.officeRights ?? [];
+    expect(cashier).toEqual(expect.arrayContaining(['payment.view', 'payment.add', 'payment.change', 'payment.receive']));
+    expect(cashier).not.toContain('payment.manage');
+    expect(cashier).not.toContain('people.invite');
     t.as('usr_012');
-    expect((await t.api.call('session.get', {})).authority.officeRights).toEqual(['people.manage']);
+    const planner = (await t.api.call('session.get', {})).authority.officeRights ?? [];
+    expect(planner).toEqual(expect.arrayContaining(['people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove']));
+    expect(planner).not.toContain('payment.view');
   });
 
   it('takes the payment right from Management when the office settings do not give it', async () => {
@@ -373,10 +379,10 @@ describe('Undo never takes back a role change for an agent (security review 2026
     const change = (await t.api.call('events.list', { limit: 100 })).find((row) => row.event.verb === 'role.updated')!.event;
     t.as('usr_018');
     await expect(t.api.call('events.undo', { eventId: change.id })).rejects.toMatchObject({ code: 'forbidden', details: { reason: 'admin_only' } });
-    expect(t.store.state.settings.roles?.rights?.accounting).toEqual(['payment.manage', 'report.office']);
+    expect(t.store.state.settings.roles?.rights?.accounting).toEqual(['payment.view', 'payment.add', 'payment.change', 'payment.receive', 'report.office']);
     t.as('usr_001');
     await t.api.call('events.undo', { eventId: change.id });
-    expect(t.store.state.settings.roles?.rights?.accounting).toEqual(['payment.manage']);
+    expect(t.store.state.settings.roles?.rights?.accounting).toEqual(['payment.view', 'payment.add', 'payment.change', 'payment.receive']);
   });
 
   it('refuses an agent of the Admin the Undo of the story of a role change, and leaves the whole story as it was', async () => {

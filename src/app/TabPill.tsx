@@ -7,6 +7,7 @@ import { spring } from '../design/motion';
 import { NAV, NOTIFICATIONS_ITEM, SEARCH_ITEM, isNavActive } from './nav';
 import { useCall } from './runtime';
 import { useCompactBars } from './useCompactBars';
+import { useCan, useRight } from './useRight';
 import { useIsPhone } from './useIsPhone';
 
 /** The floating pill (redesign spec 2.5): top center from 640 px, bottom center on a phone. The open tab carries the signature. */
@@ -17,6 +18,8 @@ export function TabPill() {
   const compact = useCompactBars();
   // From 640 px the Inbox is a round icon beside Search and the bell (owner, 2026-10-01). On a phone it stays a tab.
   const phone = useIsPhone();
+  // A tab that needs a switch shows only to a person who holds it. Before the session arrives it shows (the route asks again).
+  const may = useCan(true);
   return (
     <nav
       aria-label={t('nav.main')}
@@ -24,7 +27,7 @@ export function TabPill() {
       data-compact={compact || undefined}
       className={`pill fixed inset-x-0 bottom-[max(16px,env(safe-area-inset-bottom))] z-30 mx-auto flex w-[calc(100vw-32px)] max-w-md items-center gap-0.5 sm:w-max sm:max-w-none rounded-full p-1.5 origin-bottom motion-safe:transition-transform motion-safe:duration-300 sm:bottom-auto sm:top-4 sm:origin-top ${compact ? 'max-sm:motion-safe:scale-[0.94]' : ''}`}
     >
-      {NAV.filter((item) => phone || !item.badge).map((item) => {
+      {NAV.filter((item) => (phone || !item.badge) && (!item.right || may(item.right))).map((item) => {
         const active = isNavActive(item.to, pathname);
         const Moving = item.animated;
         // On a phone each tab is one press area of 48 px with its icon in the centre, and the open tab is a round pill, the
@@ -61,6 +64,9 @@ export function SearchButton({ className = '' }: { className?: string }) {
   const SearchTab = SEARCH_ITEM.animated;
   const { pathname } = useLocation();
   const on = pathname === SEARCH_ITEM.to;
+  // Without search.use the icon is gone on a desk and on a phone (the shortcut and the route are gone too).
+  const allowed = useRight(SEARCH_ITEM.right!, undefined, true);
+  if (!allowed) return null;
   return (
     <Link
       to={SEARCH_ITEM.to}

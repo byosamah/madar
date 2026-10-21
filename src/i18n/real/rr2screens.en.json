@@ -1,0 +1,13 @@
+{
+  "agents": {
+    "off": "The Admin turned off AI assistants for your role."
+  },
+  "chat": {
+    "cannotSend": "The Admin turned off messages for your role."
+  },
+  "errors": {
+    "reasons": {
+      "ai_off": "The Admin turned off AI assistants for your role."
+    }
+  }
+}

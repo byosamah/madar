@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
-import type { FileView } from '../../../api/contract/views';
+import type { FileView, ProjectDetail } from '../../../api/contract/views';
 import { useByPersonName, usePersonName } from '../../../app/personName';
 import { useAction, useCall } from '../../../app/runtime';
+import { useRight } from '../../../app/useRight';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { SelectField, TextArea } from '../../../components/Fields';
@@ -13,11 +14,20 @@ import { taskLink } from '../../../lib/params';
 
 type Kind = 'project_chat' | 'person' | 'task';
 
+/** The places that the person may share into, from the switches (role rights version 2). */
+export function sharePlaces(viewerCan: ProjectDetail['viewerCan'], direct: boolean): Kind[] {
+  return [...(viewerCan.projectChat ? ['project_chat' as const] : []), ...(direct ? ['person' as const] : []), ...(viewerCan.comment ? ['task' as const] : [])];
+}
+
 /**
  * Posts one project file into the project chat, a direct chat or a task conversation.
  * The API decides who may open the file. A refusal shows as a message and the sheet stays open.
+ * Role rights version 2: a place shows only when its switch is on. The project chat needs chat.project, a person needs chat.direct,
+ * and a to-do needs comment.create (the share is a comment there).
  */
-export function ShareFileSheet({ view, projectId, projectName, onClose }: { view: FileView; projectId: string; projectName: string; onClose: () => void }) {
+export function ShareFileSheet({ view, projectId, projectName, viewerCan, onClose }: {
+  view: FileView; projectId: string; projectName: string; viewerCan: ProjectDetail['viewerCan']; onClose: () => void;
+}) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const byName = useByPersonName();
@@ -26,7 +36,8 @@ export function ShareFileSheet({ view, projectId, projectName, onClose }: { view
   const session = useCall('session.get', {});
   const users = useCall('users.list', {});
   const tasks = useCall('tasks.list', { projectId, activeProjectsOnly: false });
-  const [kind, setKind] = useState<Kind>('project_chat');
+  const places = sharePlaces(viewerCan, useRight('chat.direct'));
+  const [kind, setKind] = useState<Kind>(places[0] ?? 'project_chat');
   const [userId, setUserId] = useState('');
   const [taskId, setTaskId] = useState('');
   const [message, setMessage] = useState('');
@@ -69,11 +80,11 @@ export function ShareFileSheet({ view, projectId, projectName, onClose }: { view
           label={t('files.shareWhere')}
           value={kind}
           onChange={setKind}
-          options={[
+          options={([
             { value: 'project_chat', label: t('files.shareChat') },
             { value: 'person', label: t('files.sharePerson') },
             { value: 'task', label: t('files.shareTask') },
-          ]}
+          ] as const).filter((option) => places.includes(option.value))}
         />
         {kind === 'person' && (
           <SelectField id="share-person" label={t('files.pickPerson')} value={userId} onChange={(event) => setUserId(event.target.value)}>

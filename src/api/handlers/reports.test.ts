@@ -52,7 +52,7 @@ function office(): State {
     makeTask({ id: 'tsk_001', ownerId: 'usr_003', status: 'done', dueDate: '2026-09-25', createdAt: at('2026-09-20'), completedAt: at('2026-09-29') }),
     makeTask({ id: 'tsk_002', ownerId: 'usr_003', status: 'todo', dueDate: '2026-10-01', createdAt: at('2026-09-28', '09:00:00') }),
     makeTask({ id: 'tsk_003', ownerId: 'usr_002', status: 'in_progress', dueDate: '2026-10-20', createdAt: at('2026-09-15') }),
-    // Done after the week: open at the end of the week, and past due then.
+    // Done after the week: open now. Due today, so not past due yet (the week has not ended).
     makeTask({ id: 'tsk_004', ownerId: 'usr_003', status: 'done', dueDate: '2026-09-30', createdAt: at('2026-09-10'), completedAt: at('2026-10-06') }),
     // An open task with no due date and no lead.
     makeTask({ id: 'tsk_005', ownerId: null, status: 'todo', dueDate: null, createdAt: at('2026-08-15') }),
@@ -112,8 +112,8 @@ describe('reports.office: who may ask', () => {
     const t = world();
     t.as('usr_006');
     const report = await t.api.call('reports.office', { period: 'week', start: '2026-09-28' });
-    // pay_002 is due on 2 October and unpaid on 3 October, so it is past due at the end of the week too.
-    expect(report.money).toEqual({ received: 1000, dueInPeriod: 500, pastDueAtEnd: 800 });
+    // pay_002 is due on 2 October, after today: due in the week, not past due yet (owner, 2026-10-21).
+    expect(report.money).toEqual({ received: 1000, dueInPeriod: 500, pastDueAtEnd: 300 });
     expect(report.gaps).toBeNull();
   });
 
@@ -143,7 +143,8 @@ describe('reports.office: the numbers of the week of 27 September', () => {
     expect(report.period).toEqual({ kind: 'week', from: '2026-09-27', to: '2026-10-03' });
     expect(report.totals).toEqual({
       projects: { active: 1, started: 0, completed: 0, paused: 0 },
-      tasks: { done: 1, made: 1, pastDueAtEnd: 2 },
+      // tsk_002 is due tomorrow and tsk_004 today: the week has not ended, so neither is past due yet.
+      tasks: { done: 1, made: 1, pastDueAtEnd: 0 },
       deadlines: { met: 0, missed: 1 },
       submissions: 1,
       stageMoves: 2,
@@ -161,7 +162,7 @@ describe('reports.office: the numbers of the week of 27 September', () => {
   it('counts the people: the tasks done, the open tasks and the past-due tasks at the end of the week', async () => {
     const t = world();
     const report = await t.api.call('reports.office', { period: 'week', start: '2026-09-28' });
-    expect(report.people.find((row) => row.user.id === 'usr_003')).toMatchObject({ tasksDone: 1, open: 2, pastDue: 2, reviewsDone: 0 });
+    expect(report.people.find((row) => row.user.id === 'usr_003')).toMatchObject({ tasksDone: 1, open: 2, pastDue: 0, reviewsDone: 0 });
     expect(report.people.find((row) => row.user.id === 'usr_002')).toMatchObject({ tasksDone: 0, open: 1, pastDue: 0 });
   });
 
@@ -174,7 +175,7 @@ describe('reports.office: the numbers of the week of 27 September', () => {
       status: 'active',
       stageAtStart: { id: 'stg_002', name: 'Schematic Design' },
       stageAtEnd: { id: 'stg_002', name: 'Schematic Design' },
-      tasks: { done: 1, made: 1, pastDueAtEnd: 2 },
+      tasks: { done: 1, made: 1, pastDueAtEnd: 0 },
       deadlines: { met: 0, missed: 1 },
       nextDeadline: { name: 'Client handover', date: '2026-10-20' },
     });
@@ -232,6 +233,35 @@ describe('reports.office: the counts of the server and the reviews of a person',
     t.store.state.events.evt_031 = event(31, { verb: 'task.approved', actingForId: 'usr_003', actorId: 'usr_003', createdAt: at('2026-09-29') });
     const withProject = await t.api.call('reports.office', { period: 'week', start: '2026-09-28' });
     expect(withProject.people.find((row) => row.user.id === 'usr_003')?.reviewsDone).toBe(1);
+  });
+});
+
+describe('reports.office: past due in a week that has not ended (owner, 2026-10-21)', () => {
+  it('counts a to-do as past due only after its due day, as of today and not as of the Saturday ahead', async () => {
+    const t = world();
+    // Due yesterday and open: past due today. tsk_002 is due tomorrow and tsk_004 is due today: neither is past due yet.
+    t.store.state.tasks.tsk_006 = makeTask({ id: 'tsk_006', ownerId: 'usr_003', status: 'todo', dueDate: '2026-09-29', createdAt: at('2026-09-20') });
+    const report = await t.api.call('reports.office', { period: 'week', start: '2026-09-28' });
+    expect(report.totals.tasks.pastDueAtEnd).toBe(1);
+    expect(report.people.find((row) => row.user.id === 'usr_003')).toMatchObject({ open: 3, pastDue: 1 });
+    expect(report.projects[0]!.tasks.pastDueAtEnd).toBe(1);
+  });
+
+  it('counts a payment due later in the week as due in the period, and not as past due', async () => {
+    const t = world();
+    t.as('usr_006');
+    const report = await t.api.call('reports.office', { period: 'week', start: '2026-09-28' });
+    // pay_002 is due on 2 October, after today: due in the week, not past due. pay_003 was due on 20 September.
+    expect(report.money).toEqual({ received: 1000, dueInPeriod: 500, pastDueAtEnd: 300 });
+  });
+
+  it('keeps the counts of a week that has ended as of its last day', async () => {
+    const t = world();
+    // The week of 20 to 26 September. tsk_001 was due on 25 September and done on 29 September: past due at the end of that week.
+    const report = await t.api.call('reports.office', { period: 'week', start: '2026-09-22' });
+    expect(report.period).toEqual({ kind: 'week', from: '2026-09-20', to: '2026-09-26' });
+    expect(report.totals.tasks.pastDueAtEnd).toBe(1);
+    expect(report.people.find((row) => row.user.id === 'usr_003')).toMatchObject({ open: 2, pastDue: 1 });
   });
 });
 

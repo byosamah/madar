@@ -12,6 +12,7 @@ import { hashedKey } from '../../auth/rateLimit';
 import type { LiteDb } from '../../data/lite/db';
 import { readLiteOffice } from '../../data/lite/office';
 import { userIdOfAuth } from '../../data/officeCache';
+import { assertMayConnect } from '../aiSwitches';
 import { notApproved } from '../agentUser';
 import { agentRemoved, APPROVAL_DELETE_LITE, APPROVAL_LITE, recordApproval, REMOVED_LINK_LITE } from '../approval';
 import { redirectAllowed, registrable, withQuery } from './redirects';
@@ -119,7 +120,10 @@ export async function authorizationDetails(deps: SigninDeps, input: { authId: st
   return deps.db.tx('write', async (q) => {
     const [request] = await q<RequestRow>(REQUEST_BY_ID, [input.id]);
     if (!open(request, input.authId, now)) throw ended();
-    const ownerId = principalOf(input.authId, await readLiteOffice(deps.db as LiteDb, q)).userId;
+    const office = await readLiteOffice(deps.db as LiteDb, q);
+    const ownerId = principalOf(input.authId, office).userId;
+    // Connect AI assistants off: a new connection is refused, also for an AI app that the person approved before (role rights version 2).
+    assertMayConnect(office, ownerId);
     if (request.auth_id === null) await q(REQUEST_BIND, [request.id, input.authId]);
     const [approved] = await q(APPROVAL_LITE, [request.client_id, ownerId]);
     const [removed] = await q(REMOVED_LINK_LITE, [request.client_id, ownerId]);
@@ -136,7 +140,9 @@ export async function authorizationDetails(deps: SigninDeps, input: { authId: st
 export async function approveClient(deps: SigninDeps, input: { authId: string; id: string }): Promise<{ approved: true }> {
   const now = deps.clock.now();
   await deps.db.tx('write', async (q) => {
-    const ownerId = principalOf(input.authId, await readLiteOffice(deps.db as LiteDb, q)).userId;
+    const office = await readLiteOffice(deps.db as LiteDb, q);
+    const ownerId = principalOf(input.authId, office).userId;
+    assertMayConnect(office, ownerId);
     await recordApproval(q, { authorizationId: input.id, authUserId: input.authId, ownerId, now });
   });
   return { approved: true };
@@ -154,7 +160,9 @@ export async function answerConsent(deps: SigninDeps, input: { authId: string; i
       await q(REQUEST_DENY, [request.id]);
       return { redirect_url: withQuery(request.redirect_uri, { error: 'access_denied', state: request.state }) };
     }
-    const ownerId = principalOf(input.authId, await readLiteOffice(deps.db as LiteDb, q)).userId;
+    const office = await readLiteOffice(deps.db as LiteDb, q);
+    const ownerId = principalOf(input.authId, office).userId;
+    assertMayConnect(office, ownerId);
     // An old approval of an AI app that the person removed gives no code: the link can never link again.
     if ((await q(REMOVED_LINK_LITE, [request.client_id, ownerId])).length > 0) throw agentRemoved();
     if ((await q(APPROVAL_LITE, [request.client_id, ownerId])).length === 0) throw notApproved();

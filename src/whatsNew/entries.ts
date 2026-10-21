@@ -13,6 +13,8 @@ export type WhatsNewEntry = { id: string; day: string; right?: Action; to?: stri
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   { id: '2026-10-23-80', day: '2026-10-23', to: '/inbox' },
+  { id: '2026-10-23-75', day: '2026-10-23', right: 'admin.manage', to: '/admin/roles' },
+  { id: '2026-10-23-74', day: '2026-10-23', right: 'report.office' },
   { id: '2026-10-23-73', day: '2026-10-23', to: '/meetings' },
   { id: '2026-10-23-72', day: '2026-10-23' },
   { id: '2026-10-23-71', day: '2026-10-23', to: '/inbox' },
@@ -35,7 +37,7 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
   { id: '2026-10-23-54', day: '2026-10-23', to: '/meetings' },
   { id: '2026-10-23-32', day: '2026-10-23' },
   { id: '2026-10-23-31', day: '2026-10-23' },
-  { id: '2026-10-23-29', day: '2026-10-23', right: 'templates.manageAll', to: '/admin/project-templates' },
+  { id: '2026-10-23-29', day: '2026-10-23', right: 'templates.projectAny', to: '/admin/project-templates' },
   { id: '2026-10-23-28', day: '2026-10-23', to: '/settings' },
   { id: '2026-10-23-27', day: '2026-10-23', to: '/inbox' },
   { id: '2026-10-23-26', day: '2026-10-23', to: '/tasks' },
@@ -67,7 +69,7 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
   { id: '2026-10-23-7', day: '2026-10-23', right: 'admin.manage', to: '/admin/sub-companies' },
   { id: '2026-10-23-8', day: '2026-10-23', to: '/dashboard?view=map' },
   { id: '2026-10-23-9', day: '2026-10-23', to: '/dashboard/space' },
-  { id: '2026-10-23-10', day: '2026-10-23', right: 'templates.manageAll', to: '/admin/project-templates' },
+  { id: '2026-10-23-10', day: '2026-10-23', right: 'templates.projectAny', to: '/admin/project-templates' },
   { id: '2026-10-23-11', day: '2026-10-23', right: 'admin.manage', to: '/admin/roles' },
   { id: '2026-10-23-12', day: '2026-10-23', right: 'report.office' },
 ];

@@ -5,6 +5,7 @@ import { usePersonName } from '../../../app/personName';
 import { useMeeting } from '../../../app/meeting';
 import { useUndoable } from '../../../app/actions';
 import { useCall } from '../../../app/runtime';
+import { useRight } from '../../../app/useRight';
 import { Button } from '../../../components/Button';
 import { DateField } from '../../../components/DateField';
 import { SelectField, TextField } from '../../../components/Fields';
@@ -101,8 +102,10 @@ export function DecisionsPanel({ projectId }: { projectId: string }) {
   const tasks = useCall('tasks.list', { projectId, activeProjectsOnly: false });
   const me = useCall('session.get', {}).data?.user.id;
   const [picked, setPicked] = useDraft<Kind>(`kind:${projectId}`, () => 'decision');
-  const canDecide = detail.data?.viewerCan.post === true;
-  const canAct = detail.data?.viewerCan.createTaskForAnyone === true;
+  // A decision is a post (post.create). An action is a to-do (task.add); naming another person for it needs task.assign (role rights version 2).
+  const canDecide = detail.data?.viewerCan.postUpdate === true;
+  const canAct = detail.data?.viewerCan.addTask === true;
+  const mayAssign = useRight('task.assign');
   const kind: Kind = picked === 'action' && canAct ? 'action' : canDecide ? 'decision' : 'action';
   const lines = [
     ...(posts.data ?? []).flatMap((item) => (item.kind === 'update' && item.decision && item.at >= startedAt ? [{ id: item.id, at: item.at, text: plainText(item.body) }] : [])),
@@ -112,7 +115,7 @@ export function DecisionsPanel({ projectId }: { projectId: string }) {
   ].sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
   if (!canDecide && !canAct && lines.length === 0) return null;
   // The API refuses a task for an inactive person (API-7), so Who leaves them out (audit 2026-10-03, V-4c).
-  const members = activeMembers(detail.data?.members ?? []);
+  const members = activeMembers(detail.data?.members ?? []).filter((member) => mayAssign || member.id === me);
   const defaultUserId = members.some((member) => member.id === me) ? me ?? '' : members[0]?.id ?? '';
   return (
     <section aria-label={t('dashboard.meeting.decisions')} className="panel flex flex-col gap-3 p-5">

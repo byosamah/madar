@@ -2,6 +2,7 @@ import type { Notification, Trigger, User } from './contract/entities';
 import { adminReachOf, canSeeConversation } from './chatState';
 import { inAppOn, type NotifyInput } from './notify';
 import { mayViewMeeting, mayViewTask } from './permissions';
+import { ensureRights } from './rights';
 import { nextId, type State } from './store';
 import type { Ctx } from './registry';
 
@@ -33,7 +34,7 @@ export function makesCopies(state: Pick<State, 'conversations'>, input: Pick<Not
 function mayView(state: State, admin: User, input: NotifyInput): boolean {
   if (input.targetType === 'task') {
     const task = state.tasks[input.targetId];
-    return task !== undefined && (task.projectId !== null || mayViewTask(state, admin, task));
+    return task !== undefined && (task.projectId !== null || mayViewTask(state, ensureRights(state, admin), task));
   }
   if (input.targetType === 'meeting') {
     const meeting = state.meetings?.[input.targetId];

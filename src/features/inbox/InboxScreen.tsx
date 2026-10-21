@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router';
 import { useByPersonName, usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
+import { useRight } from '../../app/useRight';
 import { PersonFace } from '../../components/PersonFace';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
@@ -32,7 +33,12 @@ function NewMessage({ open, onOpenChange }: { open: boolean; onOpenChange: (open
   const session = useCall('session.get', {}, { enabled: open });
   const meId = session.data?.authority.id;
   const people = (users.data ?? []).filter((user) => user.kind === 'human' && user.id !== meId).sort(byName);
-  const [grouping, setGrouping] = useState(false);
+  // Role rights version 2: a direct chat needs chat.direct and a group needs chat.groupCreate. With one of them off, the sheet opens in
+  // the mode that is left and hides the switch to the other.
+  const mayDirect = useRight('chat.direct');
+  const mayGroup = useRight('chat.groupCreate');
+  const [pickedGroup, setGrouping] = useState(false);
+  const grouping = pickedGroup || (!mayDirect && mayGroup);
   const [picked, setPicked] = useState<string[]>([]);
   const [groupName, setGroupName] = useState('');
   const openChat = useAction('chats.openDirect', {
@@ -89,7 +95,7 @@ function NewMessage({ open, onOpenChange }: { open: boolean; onOpenChange: (open
       footer={footer}
     >
       {users.data && people.length === 0 && <p className="text-subheadline text-ink-2">{t('chat.noPeople')}</p>}
-      {people.length > 0 && (
+      {people.length > 0 && mayDirect && mayGroup && (
         <Button variant="plain" onClick={() => (grouping ? resetGroup() : setGrouping(true))}>
           {grouping ? t('chat.messageOne') : t('chat.groupStart')}
         </Button>
@@ -128,6 +134,10 @@ export function InboxScreen() {
   // A file dropped outside the open conversation never opens in the browser tab, also when no conversation is open (fbk_030).
   useBlockFileDrop();
   const [picking, setPicking] = useState(false);
+  // "New message" opens a direct chat or a group, so it needs chat.direct or chat.groupCreate (role rights version 2).
+  const mayDirect = useRight('chat.direct');
+  const mayGroup = useRight('chat.groupCreate');
+  const mayStart = mayDirect || mayGroup;
   const list = useCall('chats.list', {});
   // "Mark as unread" lives here, so the toast with Undo stays when the open chat closes (fbk_028).
   const markUnread = useMarkUnread();
@@ -138,7 +148,7 @@ export function InboxScreen() {
       <div className={open ? 'max-sm:hidden' : undefined}>
         <ScreenTitle
           title={t('screens.inbox')}
-          action={<Button className="shrink-0" onClick={() => setPicking(true)}>{t('chat.newMessage')}</Button>}
+          action={mayStart ? <Button className="shrink-0" onClick={() => setPicking(true)}>{t('chat.newMessage')}</Button> : undefined}
         />
       </div>
       <div className={`flex gap-4 ${open ? 'h-[calc(100dvh-9.5rem)] sm:h-[calc(100dvh-15rem)]' : 'h-[calc(100dvh-16rem)] sm:h-[calc(100dvh-15rem)]'} min-h-[26rem]`}>

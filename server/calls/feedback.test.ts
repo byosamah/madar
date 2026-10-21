@@ -65,6 +65,22 @@ describe('feedback.uploadStart', () => {
     }
   });
 
+  it('refuses a Member whose role has the request switch off, and the agent of that Member, before it signs or writes anything', async () => {
+    const off = snapshotOf({
+      users: { ...USERS, usr_011: user('usr_011', { kind: 'agent', ownerId: 'usr_002' }) }, teams: {}, settings: { roles: { off: { member: ['feedback.send'] } } } as never, clients: {},
+      stageTemplates: {}, taskTemplates: {}, projects: {}, members: {}, stages: {}, deadlines: {}, conversations: {},
+    }, 1);
+    for (const userId of ['usr_002', 'usr_011']) {
+      const { db, deps, ctx } = setup();
+      const call = { ...ctx(userId), office: off, principal: userId === 'usr_011' ? { userId, agent: { clientId: 'cli-1' } } : { userId } };
+      await expect(feedbackUploadStart({ screenshots: [{ size: 50, mimeType: 'image/png' }] }, call)).rejects.toMatchObject({ code: 'forbidden', details: { action: 'feedback.send' } });
+      expect([deps.files.calls, db.intents.size]).toEqual([[], 0]);
+    }
+    // The Admin keeps it, and so does a Member in an office whose roles stay as they are.
+    const { ctx } = setup();
+    await expect(feedbackUploadStart({ screenshots: [{ size: 50, mimeType: 'image/png' }] }, { ...ctx('usr_001'), office: off })).resolves.toBeTruthy();
+  });
+
   it('refuses a picture type longer than a report keeps (60 characters)', async () => {
     const { ctx } = setup();
     await expect(feedbackUploadStart({ screenshots: [{ size: 50, mimeType: `image/${'x'.repeat(60)}` }] }, ctx('usr_002'))).rejects.toMatchObject({ code: 'invalid_input' });

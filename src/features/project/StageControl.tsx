@@ -45,7 +45,7 @@ function StageDetails({ detail, stage }: { detail: ProjectDetail; stage: Stage }
       {tasks.data && <p className="text-subheadline text-ink-2">{t('project.stageTasks', { done, total: inStage.length })}</p>}
       {alongside.length > 0 && <p dir="auto" className="text-subheadline text-ink-2">{t('project.stageOverlap', { names: list.format(alongside.map(nameOf)) })}</p>}
       {waiting.length > 0 && <p dir="auto" className="text-subheadline font-medium text-ink">{t('project.stageWaiting', { names: list.format(waiting.map((other) => other.name)) })}</p>}
-      {detail.viewerCan.edit ? (
+      {detail.viewerCan.editStages ? (
         <fieldset className="mt-2 flex flex-col">
           <legend className="pb-1 text-footnote font-semibold text-ink-2">{t('project.stageNeeds')}</legend>
           <p className="pb-1 text-footnote text-ink-2">{t('project.stageNeedsHint')}</p>

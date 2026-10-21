@@ -1,3 +1,4 @@
+import type { Action } from '../api/permissions';
 import type { AnimatedIconComponent } from '../components/icons/AnimatedIcon';
 import { BellIcon } from '../components/icons/animated/bell';
 import { ClipboardCheckIcon } from '../components/icons/animated/clipboard-check';
@@ -8,18 +9,22 @@ import { InboxIcon } from '../components/icons/animated/inbox';
 import { SearchIcon } from '../components/icons/animated/search';
 
 /** Every tab has a moving icon (owner, 2026-10-01: all icons come from lucide-animated). */
-export type NavItem = { to: string; key: string; animated: AnimatedIconComponent; badge?: boolean };
+export type NavItem = {
+  to: string; key: string; animated: AnimatedIconComponent; badge?: boolean;
+  /** The switch the tab needs (role rights version 2). A person without it sees no tab and no link to the screen. */
+  right?: Action;
+};
 
 /** The tabs of the floating pill (redesign spec 2.5). Tasks is the person's own task list (owner, 2026-10-01). */
 export const NAV: NavItem[] = [
   { to: '/', key: 'nav.home', animated: HomeIcon },
   { to: '/projects', key: 'nav.projects', animated: FolderKanbanIcon },
   { to: '/work', key: 'nav.tasks', animated: ClipboardCheckIcon },
-  { to: '/dashboard', key: 'nav.dashboard', animated: LayoutGridIcon },
+  { to: '/dashboard', key: 'nav.dashboard', animated: LayoutGridIcon, right: 'dashboard.view' },
   { to: '/inbox', key: 'nav.inbox', animated: InboxIcon, badge: true },
 ];
 
-export const SEARCH_ITEM: NavItem = { to: '/search', key: 'nav.search', animated: SearchIcon };
+export const SEARCH_ITEM: NavItem = { to: '/search', key: 'nav.search', animated: SearchIcon, right: 'search.use' };
 
 /** The bell beside Search opens the notifications (owner, 2026-10-01). The Inbox tab is the chat. */
 export const NOTIFICATIONS_ITEM: NavItem = { to: '/notifications', key: 'nav.notifications', animated: BellIcon };

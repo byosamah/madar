@@ -1,4 +1,5 @@
 import type { Meeting, Task } from '../../src/api/contract/entities';
+import { rightsOf } from '../../src/api/rights';
 import type { State } from '../../src/api/store';
 import type { Query } from '../core/ports';
 import type { ChangeSignal, Kind } from '../core/types';
@@ -423,7 +424,7 @@ export function diffState(before: State, after: State): Diff {
   }
 
   // The people of each office task the change touched, before and after it (a person taken off still gets the signal that
-  // drops the task from their lists), and every active Admin. A deleted task tells its people through its last copy.
+  // drops the task from their lists), and every active holder of task.officeAll (the Admin holds it). A deleted task tells its people through its last copy.
   const privatePeople = new Set<string>();
   const principal = (id: string): string => {
     const user = after.users[id] ?? before.users[id];
@@ -438,7 +439,10 @@ export function diffState(before: State, after: State): Diff {
     }
   }
   if (officeTasks.size > 0) {
-    for (const user of Object.values(after.users)) if (user.kind === 'human' && user.active && user.systemRole === 'admin') privatePeople.add(user.id);
+    // Every active person who holds task.officeAll hears it (role rights version 2). The Admin holds it, so each Admin hears it as before.
+    for (const user of Object.values(after.users)) {
+      if (user.kind === 'human' && user.active && rightsOf(user, after.settings?.roles).includes('task.officeAll')) privatePeople.add(user.id);
+    }
   }
   // The people of each private meeting that the change touched, before and after it: a person taken off still hears the change that
   // drops the meeting from their lists. The Admin is not added: the Admin hears a meeting only as one of its people (owner, 2026-10-19).

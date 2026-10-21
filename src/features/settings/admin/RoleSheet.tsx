@@ -1,71 +1,35 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '../../../api/errors';
-import type { CustomRole, OfficeRight } from '../../../api/contract/entities';
-import { OFFICE_RIGHTS, RIGHT_SECTIONS } from '../../../api/permissions';
+import type { CustomRole } from '../../../api/contract/entities';
+import { CATALOG_RIGHT_IDS, type CatalogRightId } from '../../../api/rightsCatalog';
 import { useUndoable } from '../../../app/actions';
 import { errorMessage, fieldError } from '../../../app/errors';
 import { useLang } from '../../../app/lang';
 import { Button } from '../../../components/Button';
 import { SelectField, TextField } from '../../../components/Fields';
 import { Sheet } from '../../../components/Sheet';
-import { SmallSwitch, Switch } from '../../../components/Switch';
 import { listFormat } from '../../../lib/dates';
-
-/** The word key of each right, without dots: its name is roles.rights.<key>.label and its line roles.rights.<key>.hint. */
-export const RIGHT_KEYS: Readonly<Record<OfficeRight, string>> = {
-  'project.editAny': 'projectEditAny',
-  'project.changeLeaderAny': 'projectChangeLeaderAny',
-  'project.archiveAny': 'projectArchiveAny',
-  'project.delete': 'projectDelete',
-  'project.editCode': 'projectEditCode',
-  'task.reviewAny': 'taskReviewAny',
-  'task.changeAny': 'taskChangeAny',
-  'people.manage': 'peopleManage',
-  'clients.manage': 'clientsManage',
-  'subCompanies.manage': 'subCompaniesManage',
-  'payment.manage': 'paymentManage',
-  'templates.manageAll': 'templatesManageAll',
-  'templates.updateProjects': 'templatesUpdateProjects',
-  'report.office': 'reportOffice',
-  'agents.undoAny': 'agentsUndoAny',
-  'feedback.manage': 'feedbackManage',
-  'gaps.view': 'gapsView',
-};
-
-/** The rights with one of them switched on or off. The result keeps the order of the rights list. */
-export function withRight(rights: readonly OfficeRight[], right: OfficeRight, on: boolean): OfficeRight[] {
-  return OFFICE_RIGHTS.filter((item) => (item === right ? on : rights.includes(item)));
-}
-
-/** The rights with every right of one section switched on or off. The rights of the other sections stay as they are. */
-export function withSection(rights: readonly OfficeRight[], section: readonly OfficeRight[], on: boolean): OfficeRight[] {
-  return OFFICE_RIGHTS.filter((item) => (section.includes(item) ? on : rights.includes(item)));
-}
-
-/** One right: a switch with its name and one short line under it. */
-export function RightSwitch({ id, right, checked, onChange }: { id: string; right: OfficeRight; checked: boolean; onChange: (on: boolean) => void }) {
-  const { t } = useTranslation();
-  const key = RIGHT_KEYS[right];
-  return <Switch id={id} label={t(`roles.rights.${key}.label`)} description={t(`roles.rights.${key}.hint`)} checked={checked} onChange={onChange} />;
-}
+import { RoleRights } from './RoleRights';
+import { holdsLeaderWarning, saveShape } from './roleSheetLogic';
 
 /** The role that a sheet shows: a new role, a built-in role (its rights only), or a custom role (its names, rights and delete). */
 export type RoleTarget =
-  | { kind: 'new' }
-  | { kind: 'built-in'; key: 'management' | 'accounting' | 'member'; name: string; rights: readonly OfficeRight[] }
-  | { kind: 'custom'; role: CustomRole };
+  | { kind: 'new'; held: readonly CatalogRightId[]; standard: readonly CatalogRightId[] }
+  | { kind: 'built-in'; key: 'management' | 'accounting' | 'member'; name: string; held: readonly CatalogRightId[]; standard: readonly CatalogRightId[] }
+  | { kind: 'custom'; role: CustomRole; held: readonly CatalogRightId[]; standard: readonly CatalogRightId[] };
 
 /** A person who holds the role, and a role that the people of a deleted role can take. */
 export type RoleHolder = { id: string; name: string };
 export type RoleChoice = { value: string; label: string };
 
-type Form = { name: string; nameAr: string; rights: OfficeRight[] };
-const EMPTY: Form = { name: '', nameAr: '', rights: [] };
+type Form = { name: string; nameAr: string; held: CatalogRightId[] };
+const EMPTY: Form = { name: '', nameAr: '', held: [] };
 
 /**
  * The sheet of one role (owner, 2026-10-18, fbk_014; ADM-12 to ADM-14): the people who hold it at the top, then its names (a custom
- * role), the rights in seven sections (each section has a heading, and a section of two or more rights an All switch), and one main button, Save role, with Cancel. The switches live only here and save with the button, so the
+ * role), the rights in 13 folded sections (RoleRights.tsx: one open at a time, the count, and an All switch for each), the line "Holds 64 of 112" with
+ * the text button "Back to the standard list", and one main button, Save role, with Cancel. The switches live only here and save with the button, so the
  * page changes the rights of a role by one deliberate step. A custom role also has Delete role. A role that people hold asks one
  * question first: it names the people and the role they take, and "Delete and move" does both in one story, so one Undo brings back the
  * role and the roles of the people. Only the Admin sees this sheet.
@@ -97,8 +61,8 @@ export function RoleSheet({ open, onOpenChange, target, holders, moveChoices }: 
     setAsking(false);
     setMoveTo(moveChoices[0]?.value ?? 'member');
     setForm(
-      target?.kind === 'custom' ? { name: target.role.name, nameAr: target.role.nameAr, rights: [...target.role.rights] }
-        : target?.kind === 'built-in' ? { ...EMPTY, rights: [...target.rights] } : EMPTY,
+      target?.kind === 'custom' ? { name: target.role.name, nameAr: target.role.nameAr, held: [...target.held] }
+        : target ? { ...EMPTY, held: [...target.held] } : EMPTY,
     );
     // The form starts fresh each time it opens; an old refusal must not stay under a field.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -110,10 +74,12 @@ export function RoleSheet({ open, onOpenChange, target, holders, moveChoices }: 
   const nameAr = form.nameAr.trim();
   const valid = !named || (name.length > 0 && nameAr.length > 0);
   const busy = create.isPending || update.isPending || remove.isPending;
+  // The sheet saves the whole list: the switches that are not basic (rights) and the basic switches that are off (off).
   const submit = () => {
-    if (target?.kind === 'custom') update.mutate({ role: target.role.id, name, nameAr, rights: form.rights });
-    else if (target?.kind === 'built-in') update.mutate({ role: target.key, rights: form.rights });
-    else create.mutate({ name, nameAr, rights: form.rights });
+    const shape = saveShape(form.held);
+    if (target?.kind === 'custom') update.mutate({ role: target.role.id, name, nameAr, ...shape });
+    else if (target?.kind === 'built-in') update.mutate({ role: target.key, ...shape });
+    else create.mutate({ name, nameAr, ...shape });
   };
   const title = target?.kind === 'custom' ? (lang === 'ar' ? target.role.nameAr : target.role.name)
     : target?.kind === 'built-in' ? target.name : t('roles.sheet.newTitle');
@@ -184,28 +150,14 @@ export function RoleSheet({ open, onOpenChange, target, holders, moveChoices }: 
             />
           </>
         )}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
           <p className="text-footnote font-medium text-label-2">{t('roles.sheet.rights')}</p>
-          {RIGHT_SECTIONS.map((section) => (
-            <section key={section.key} aria-labelledby={`role-section-${section.key}`} className="flex flex-col">
-              {/* A section of one right needs no All: it would repeat the one switch under it. */}
-              <div className="flex min-h-11 items-center justify-between gap-4">
-                <h3 id={`role-section-${section.key}`} className="field-label">{t(`roles.sections.${section.key}`)}</h3>
-                {section.rights.length > 1 && (
-                  <SmallSwitch
-                    id={`role-all-${section.key}`} label={t('roles.sheet.all')} checked={section.rights.every((right) => form.rights.includes(right))}
-                    onChange={(on) => setForm((current) => ({ ...current, rights: withSection(current.rights, section.rights, on) }))}
-                  />
-                )}
-              </div>
-              {section.rights.map((right) => (
-                <RightSwitch
-                  key={right} id={`role-form-${RIGHT_KEYS[right]}`} right={right} checked={form.rights.includes(right)}
-                  onChange={(on) => setForm((current) => ({ ...current, rights: withRight(current.rights, right, on) }))}
-                />
-              ))}
-            </section>
-          ))}
+          <div className="flex flex-wrap items-center justify-between gap-x-3">
+            <p role="status" className="text-subheadline font-semibold text-ink">{t('roleRights.holds', { on: form.held.length, total: CATALOG_RIGHT_IDS.length })}</p>
+            <Button variant="plain" onClick={() => setForm((current) => ({ ...current, held: [...(target?.standard ?? [])] }))}>{t('roleRights.back')}</Button>
+          </div>
+          {holdsLeaderWarning(form.held) && <p role="status" className="text-footnote font-medium text-ink">{t('roleRights.leaderWarning')}</p>}
+          <RoleRights held={form.held} onChange={(held) => setForm((current) => ({ ...current, held }))} />
         </div>
         {customId !== null && (
           <div className="flex flex-col gap-2">

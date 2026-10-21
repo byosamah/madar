@@ -44,7 +44,7 @@ function PeopleList({ row, mode, anchor, onMode, onClose }: {
   const humans = (everyone.data ?? []).filter((person) => person.kind === 'human');
   // An office task has no team, so nobody joins one.
   const teamIds = detail ? new Set([...detail.members.map((member) => member.user.id), ...(detail.leader ? [detail.leader.id] : [])]) : new Set(humans.map((person) => person.id));
-  const pickable: UserCard[] = detail && !detail.viewerCan.edit ? humans.filter((person) => teamIds.has(person.id)) : humans;
+  const pickable: UserCard[] = detail && !detail.viewerCan.editTeam ? humans.filter((person) => teamIds.has(person.id)) : humans;
   const helperIds = helpersOf(row.task);
   const lead = row.owner;
   const candidates = mode === 'lead'

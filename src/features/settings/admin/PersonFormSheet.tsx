@@ -10,9 +10,8 @@ import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { SelectField, TextField } from '../../../components/Fields';
 import { Sheet } from '../../../components/Sheet';
-import { listFormat } from '../../../lib/dates';
-import { DEFAULT_RIGHTS } from '../../../api/permissions';
-import { RIGHT_KEYS } from './RoleSheet';
+import { heldRightsOfRole } from '../../../api/rights';
+import { roleLineParts } from './roleSheetLogic';
 
 type Form = {
   name: string; nameAr: string; email: string; systemRole: SystemRole; kind: 'human' | 'agent'; ownerId: string; discipline: string;
@@ -47,17 +46,17 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
     return t(`admin.roles.${systemRole}`);
   };
   const viewerLanguage = session?.user.preferences.language ?? 'en';
-  // One line under the Role field says what the chosen role gives (ADM-16): the rights it has on top of a Member.
+  // One line under the Role field says what the chosen role holds, against the standard list of 64 switches (ADM-16; role rights version 2):
+  // "Member: the standard rights.", "Designer: standard rights, plus 2, without 3.", "Admin: everything."
   const roleLine = (value: string): string => {
     if (value === 'admin') return t('roles.line.admin');
-    if (value === 'member') return t('roles.line.member');
     const custom = customRoles.find((role) => role.id === value);
-    const rights = custom ? custom.rights : roleSettings?.rights?.[value as 'management' | 'accounting'] ?? DEFAULT_RIGHTS[value as 'management' | 'accounting'] ?? [];
     const name = custom ? roleName(custom.id, 'member') : t(`admin.roles.${value}`);
-    if (rights.length === 0) return t('roles.line.only', { name });
-    // A role with many rights would make a long line, so the line gives only the count (role-rights, 2026-10-23).
-    if (rights.length > 3) return t('roles.line.many', { name, count: rights.length });
-    return t('roles.line.plus', { name, rights: listFormat(lang).format(rights.map((right) => t(`roles.rights.${RIGHT_KEYS[right]}.label`))) });
+    const { more, less } = roleLineParts(heldRightsOfRole(roleSettings, custom ?? (value as 'member' | 'management' | 'accounting')));
+    if (more > 0 && less > 0) return t('roleRights.line.both', { name, more, less });
+    if (more > 0) return t('roleRights.line.plus', { name, more });
+    if (less > 0) return t('roleRights.line.without', { name, less });
+    return t('roleRights.line.standard', { name });
   };
   const [form, setForm] = useState<Form>(EMPTY);
   const done = (message: string) => {

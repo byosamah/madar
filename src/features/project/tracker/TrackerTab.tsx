@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import { TRACKER_TYPES, TrackerDirection as Sides, type TrackerDirection, type TrackerType } from '../../../api/contract/entities';
 import { useCall } from '../../../app/runtime';
+import { useRight } from '../../../app/useRight';
 import { Button } from '../../../components/Button';
 import { EmptyState } from '../../../components/EmptyState';
 import { FilterButton } from '../../../components/FilterButton';
@@ -18,6 +19,7 @@ import { ExportSheet } from './ExportSheet';
 import { History } from './History';
 import { OpenLoops } from './OpenLoops';
 import { QuickLog } from './QuickLog';
+import { useReplyRights } from './replyRights';
 import { projectKey } from '../../../lib/projectCode';
 
 type Filter = { type: TrackerType | 'all'; direction: TrackerDirection | 'all'; openOnly: boolean };
@@ -76,6 +78,9 @@ export function TrackerTab({ detail }: TabProps) {
     return () => window.clearTimeout(timer);
   }, [openId]);
   const [exporting, setExporting] = useState(false);
+  // Export needs tracker.export, and the reply fields need tracker.reply (role rights version 2).
+  const mayExport = useRight('tracker.export');
+  const { canReply, canAssign } = useReplyRights(detail);
   const open = useCall('tracker.list', { projectId, openOnly: true });
   const history = useCall('tracker.list', {
     projectId,
@@ -89,7 +94,7 @@ export function TrackerTab({ detail }: TabProps) {
     <div ref={root} className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       {/* A list that did not load says so and offers Retry (audit 2026-10-03, PRJ-4). */}
       {open.error && !open.data ? <LoadFailed error={open.error} onRetry={() => void open.refetch()} /> : <OpenLoops rows={open.data ?? []} onOpen={setOpenId} />}
-      {detail.viewerCan.post ? <QuickLog projectId={projectId} members={activeMembers(detail.members)} /> : <p className="text-footnote text-label-2">{t('tracker.cannotLog')}</p>}
+      {detail.viewerCan.logTracker ? <QuickLog projectId={projectId} members={activeMembers(detail.members)} canReply={canReply} canAssign={canAssign} canAttach={detail.viewerCan.upload === true} /> : <p className="text-footnote text-label-2">{t('tracker.cannotLog')}</p>}
       <section aria-label={t('tracker.history')} className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <FilterButton label={t('filter.label')} count={active}>
@@ -114,10 +119,12 @@ export function TrackerTab({ detail }: TabProps) {
               </label>
             </div>
           </FilterButton>
-          <Button onClick={() => setExporting(true)}>
-            <AnimatedIcon icon={DownloadIcon} size={16} aria-hidden />
-            {t('tracker.export.button')}
-          </Button>
+          {mayExport && (
+            <Button onClick={() => setExporting(true)}>
+              <AnimatedIcon icon={DownloadIcon} size={16} aria-hidden />
+              {t('tracker.export.button')}
+            </Button>
+          )}
         </div>
         {history.error && !history.data ? <LoadFailed error={history.error} onRetry={() => void history.refetch()} />
           : history.data && history.data.length === 0
@@ -126,7 +133,7 @@ export function TrackerTab({ detail }: TabProps) {
             : <EmptyState title={t('tracker.emptyTitle')} body={t('tracker.empty')} />
           : <History rows={history.data ?? []} onOpen={setOpenId} />}
       </section>
-      {exporting && (
+      {exporting && mayExport && (
         <ExportSheet
           projectId={projectId}
           code={projectKey(detail.project.code)}

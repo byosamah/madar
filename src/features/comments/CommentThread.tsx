@@ -20,7 +20,10 @@ import { TaskComments } from './TaskComments';
 import { useMarkTaskRead } from './markRead';
 
 /** projectId is null for an office task (owner, 2026-10-06): its files go to the task alone. */
-type CommentThreadProps = { targetType: 'task' | 'update'; targetId: string; projectId: string | null; stageId?: string | null; people: UserCard[]; canPost: boolean };
+type CommentThreadProps = { targetType: 'task' | 'update'; targetId: string; projectId: string | null; stageId?: string | null; people: UserCard[]; canPost: boolean;
+  /** False takes away the Attach button, the paste of pictures and the drop of files (no file.upload, role rights version 2). Default true. */
+  canAttach?: boolean;
+};
 
 /**
  * Comments on a task or a post (spec 7.2): @mentions, #project links, three reactions, and edit or delete for the author.
@@ -38,7 +41,7 @@ export function CommentThread(props: CommentThreadProps) {
  * the panel is open.
  */
 function CommentThreadFor({
-  targetType, targetId, projectId, stageId = null, people, canPost, owner,
+  targetType, targetId, projectId, stageId = null, people, canPost, canAttach = true, owner,
 }: CommentThreadProps & { owner: string }) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -120,18 +123,18 @@ function CommentThreadFor({
             // A paste of only pictures adds them to the picked files, with the rule of the chat box (item 14, fbk_032). Text stays text.
             onPaste={(event) => {
               const pictures = pastedPictures(event.clipboardData);
-              if (pictures.length === 0) return;
+              if (!canAttach || pictures.length === 0) return;
               event.preventDefault();
               attachments.add(pictures);
             }}
           >
-            <DropReceiver onFiles={attachments.add} />
+            {canAttach && <DropReceiver onFiles={attachments.add} />}
             {replyTo && <ComposerReplyStrip replyTo={replyTo} onCancel={() => setReplyTo(null)} />}
             <MentionField id={`comment-${targetId}`} label={t('comments.add')} value={body} onChange={setBody} people={people} placeholder={t('comments.placeholder')} rows={2} inputRef={field} />
             <PickedFiles files={attachments.files} onRemove={attachments.remove} />
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1">
-                <AttachButton onPick={attachments.add} />
+                {canAttach && <AttachButton onPick={attachments.add} />}
                 <EmojiButton onPick={insertEmoji} returnTo={() => field.current} />
               </div>
               <Button variant={body.trim() ? 'primary' : 'secondary'} type="submit" disabled={!body.trim() || create.isPending || uploading}>{t('comments.send')}</Button>

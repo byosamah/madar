@@ -8,12 +8,12 @@ import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
 import { mayFinish, stageTag, watchStage } from '../flow';
 import { notifyIn } from '../notify';
-import { projectRoleOf } from '../permissions';
+import { can, holdsRight, projectRoleOf } from '../permissions';
 import { nextId, trackerOf, type State } from '../store';
 import { attachmentsOf, mayDeleteTracker, namesUnder, trackerRowOf } from '../views';
 import { isOpen, sidesOf } from '../../lib/tracker';
 import { assertFilesInProject } from './attach';
-import { assertActive, assertCan, requireProject, requireUser, roleIn, touch } from './shared';
+import { assertActive, assertCan, requireProject, requireUser, roleIn, taskRole, touch } from './shared';
 import { changeStatus } from './tasks';
 
 const Title = z.string().trim().min(1).max(200);
@@ -29,9 +29,28 @@ function requireEntry(ctx: Ctx, id: string): TrackerEntry {
   return entry;
 }
 
-/** The leader, the team and the Admin log, close and edit. Reading needs only the right to open the project. */
+/** The leader, the team and the Admin log, close and edit (tracker.log). Reading needs only the right to open the project. */
 function assertMayPost(ctx: Ctx, projectId: string): void {
-  assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, projectId) });
+  assertCan(ctx, 'tracker.log', { projectRole: roleIn(ctx, projectId) });
+}
+
+/**
+ * A reply to-do opened from the Tracker is a new to-do for the person who replies: it needs the reply switch, the right to add a
+ * to-do to the project, and the right to name another person (role rights version 2, design 5.7).
+ */
+function assertMayAskReply(ctx: Ctx, projectId: string, replierId: string): void {
+  assertCan(ctx, 'tracker.reply');
+  assertCan(ctx, 'task.add', { projectRole: roleIn(ctx, projectId) });
+  if (replierId !== ctx.authority.id) assertCan(ctx, 'task.assign');
+}
+
+/**
+ * A close or an update that ends the wait also finishes the open reply to-do. That needs the switch to work on to-dos (task.work), or
+ * the right to change any to-do of the project (task.any). A reply to-do that waits for other work only forgets the entry, so it
+ * asks nothing.
+ */
+function assertMayFinishReply(ctx: Ctx, task: Task): void {
+  if (!holdsRight(ctx.authority, 'task.work') && !can(ctx.authority, 'task.any', taskRole(ctx, task))) throw forbidden('You cannot do this.', { action: 'task.work' });
 }
 
 function assertPeople(ctx: Ctx, peopleIds: string[]): void {
@@ -199,6 +218,7 @@ const trackerLog = defineCall({
     assertSide(input.type, input.direction);
     const { replyBy, ...fields } = input;
     if (replyBy) {
+      assertMayAskReply(ctx, project.id, replyBy.userId);
       if (input.waiting !== 'us') throw invalid('replyBy', 'Only an entry that waits for our reply gets a reply task.', 'reply_needs_waiting_us');
       assertReplier(ctx, project.id, replyBy.userId);
     }
@@ -219,6 +239,8 @@ const trackerClose = defineCall({
     // Ending the wait is never refused, the same as an edit that ends it: a reply task that waits for other work only forgets
     // the entry (audit 2026-10-03, V-13). The entry is closed first, so finishing the task logs no second reply.
     const held = heldReplyTask(ctx, entry);
+    const finishing = openReplyTaskOf(ctx.state, entry);
+    if (finishing && !held) assertMayFinishReply(ctx, finishing);
     closeEntry(ctx, entry, held ? { replyTaskId: null } : {});
     if (held) unlinkReply(ctx, held);
     else finishReplyTask(ctx, entry);
@@ -253,6 +275,8 @@ const trackerUpdate = defineCall({
     // Ending the wait is never refused. A reply task that waits for other work cannot finish yet, so it only forgets the entry
     // and stays the person's open task (audit 2026-10-03, V-13).
     const held = replyEnds ? heldReplyTask(ctx, entry) : undefined;
+    const finishing = replyEnds ? openReplyTaskOf(ctx.state, entry) : undefined;
+    if (finishing && !held) assertMayFinishReply(ctx, finishing);
     const unlink = held ? { replyTaskId: null } : {};
     applyPatch(ctx, entry, { type, direction, title, note, date, fileIds, peopleIds, ...loop, ...unlink }, { projectId: entry.projectId, verb: 'tracker.edited', targetType: 'tracker', targetId: entry.id });
     if (held) unlinkReply(ctx, held);
@@ -285,6 +309,7 @@ const trackerAssignReply = defineCall({
   run(input, ctx) {
     const entry = requireEntry(ctx, input.id);
     assertMayPost(ctx, entry.projectId);
+    assertMayAskReply(ctx, entry.projectId, input.userId);
     if (!isOpen(entry) || entry.waiting !== 'us') throw invalid('id', 'Only an open entry that waits for our reply gets a reply task.', 'reply_not_open');
     // A finished reply task does not block a new one: the entry may have been opened again.
     const current = entry.replyTaskId ? ctx.state.tasks[entry.replyTaskId] : undefined;
@@ -320,6 +345,7 @@ const trackerExport = defineCall({
   readOnly: true,
   run(input, ctx) {
     requireProject(ctx, input.projectId);
+    assertCan(ctx, 'tracker.export');
     const events = Object.values(ctx.state.events)
       .filter((e) => e.targetType === 'tracker' && e.projectId === input.projectId)
       .sort((a, b) => a.seq - b.seq);

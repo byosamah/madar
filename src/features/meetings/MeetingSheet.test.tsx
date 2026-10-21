@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { Meeting } from '../../api/contract/entities';
+import type { Meeting, RoleSettings } from '../../api/contract/entities';
 import type { State } from '../../api/store';
 import { formatDay } from '../../lib/dates';
 import { renderApp } from '../../test/render';
+import { without } from '../../test/rr2work';
 import { as, ENDED, SOME_MINUTES, withLine, withMeeting, withSeries } from './testMeetings';
 
 /**
@@ -436,5 +437,52 @@ describe('the sheet of a meeting that repeats (wave 3)', () => {
     await userEvent.click(await within(box).findByRole('button', { name: 'Cancel meeting' }));
     expect(await screen.findByRole('dialog', { name: 'Cancel this meeting?' })).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: 'Cancel which meetings?' })).toBeNull();
+  });
+});
+
+/**
+ * The buttons of the sheet follow the meeting switches (role rights version 2, design 5.3): Edit and Cancel meeting follow
+ * meeting.editOwn (the organizer) or meeting.any (the leader of the project), and Add the minutes follows meeting.minutesOwn (an attendee
+ * or the organizer) or meeting.minutesAny. Faisal (usr_002) organizes the meeting and leads prj_001.
+ */
+describe('the meeting sheet follows its switches', () => {
+  const withRoles = (roles: RoleSettings) => (state: State) => {
+    client(state);
+    state.settings.roles = roles;
+  };
+
+  it('shows Edit and Cancel meeting to the organizer with the switches on', async () => {
+    await renderApp('/meetings?meeting=mtg_001', (state) => client(state));
+    const box = await sheet();
+    expect(await within(box).findByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(within(box).getByRole('button', { name: 'Cancel meeting' })).toBeInTheDocument();
+  });
+
+  it('takes Edit and Cancel meeting away when both the own and the any switches are off', async () => {
+    await renderApp('/meetings?meeting=mtg_001', withRoles(without('meeting.editOwn', 'meeting.any.lead')));
+    const box = await sheet();
+    await within(box).findByText('Client office', { exact: false }).catch(() => undefined);
+    await waitFor(() => expect(within(box).queryByRole('button', { name: 'Edit' })).toBeNull());
+    expect(within(box).queryByRole('button', { name: 'Cancel meeting' })).toBeNull();
+  });
+
+  it('keeps Edit for the organizer who leads no project when only the own switch is on', async () => {
+    await renderApp('/meetings?meeting=mtg_001', (state) => {
+      client(state, { organizerId: 'usr_005' });
+      as('usr_005')(state);
+      state.settings.roles = without('meeting.any.lead');
+    });
+    const box = await sheet();
+    expect(await within(box).findByRole('button', { name: 'Edit' })).toBeInTheDocument();
+  });
+
+  it('takes Add the minutes away when the own and the any minutes switches are off', async () => {
+    await renderApp('/meetings?meeting=mtg_001', (state) => {
+      client(state, { ...ENDED, attendeeIds: ['usr_005'] });
+      state.settings.roles = without('meeting.minutesOwn', 'meeting.minutesAny.lead');
+    });
+    const box = await sheet();
+    await waitFor(() => expect(within(box).queryByRole('button', { name: 'Add the minutes' })).toBeNull());
+    expect(within(box).queryByText('Add the minutes')).toBeNull();
   });
 });

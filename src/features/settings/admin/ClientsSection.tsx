@@ -87,7 +87,7 @@ export function ClientsSection() {
   const [query, setQuery] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
   // The clients of the office are for the people with the client right (fbk_014). The Admin holds it.
-  if (!session.data || !can(session.data.authority, 'clients.manage')) return null;
+  if (!session.data || !can(session.data.authority, 'clients.change')) return null;
 
   const all = clients.data ?? [];
   const byClient = new Map<string, ProjectSummary[]>();

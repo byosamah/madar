@@ -84,7 +84,8 @@ const RULES: Record<string, ReadRule> = {
   'projectTemplates.usage': rule('office', ['projectTemplates', 'projects', 'settings', 'users']),
   'projectTemplates.syncPlan': rule('office', ['projectTemplates', 'projects', 'settings', 'stages', 'tasks', 'users']),
   'feedback.list': rule('office', ['feedback', 'users']),
-  'session.get': rule('person', ['projects', 'users', 'preferences']),
+  // settings: the rights of the person come from settings.roles, so a role change reloads the session (role rights version 2).
+  'session.get': rule('person', ['projects', 'settings', 'users', 'preferences']),
   // No 'feedback': a report notice reads only if its report exists. Only the Undo of the send deletes a report, and that Undo
   // deletes each notice of the send or keeps a hidden one, which reads as gone both before and after (review 2026-10-07).
   'notifications.list': rule('person', ['notifications', 'projects', 'tasks', 'updates', 'users']),

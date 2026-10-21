@@ -9,6 +9,7 @@ import { SubCompanyLogo } from '../../components/SubCompanyLogo';
 import { counted } from '../../lib/grammar';
 import { useCall } from '../../app/runtime';
 import { useDebounced } from '../../app/useDebounced';
+import { useCan } from '../../app/useRight';
 import { Avatar } from '../../components/Avatar';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { normalizeForSearch } from '../../lib/text';
@@ -130,12 +131,14 @@ export function SearchScreen() {
   useQueryInLink(query);
   const [sheet, setSheet] = useState<'task' | 'project' | null>(null);
   const [person, setPerson] = useState<UserCard | null>(null);
+  const may = useCan();
+  // A command shows only when the switch behind it is on (role rights version 2). New to-do makes a to-do of a project.
   const commands = [
-    { id: 'new-task', label: t('search.command.newTask'), run: () => setSheet('task') },
-    { id: 'new-project', label: t('search.command.newProject'), run: () => setSheet('project') },
-    { id: 'dashboard', label: t('search.command.dashboard'), run: () => navigate('/dashboard') },
-    { id: 'my-work', label: t('search.command.myWork'), run: () => navigate('/work') },
-  ].filter((command) => !text.trim() || normalizeForSearch(command.label).includes(normalizeForSearch(text)));
+    { id: 'new-task', label: t('search.command.newTask'), run: () => setSheet('task'), show: may('task.add', { projectRole: 'team' }) },
+    { id: 'new-project', label: t('search.command.newProject'), run: () => setSheet('project'), show: may('project.create') },
+    { id: 'dashboard', label: t('search.command.dashboard'), run: () => navigate('/dashboard'), show: may('dashboard.view') },
+    { id: 'my-work', label: t('search.command.myWork'), run: () => navigate('/work'), show: true },
+  ].filter((command) => command.show).filter((command) => !text.trim() || normalizeForSearch(command.label).includes(normalizeForSearch(text)));
   return (
     <>
       <ScreenTitle title={t('screens.search')} />
@@ -158,7 +161,7 @@ export function SearchScreen() {
         </Command.List>
       </Command>
       <NewTaskSheet open={sheet === 'task'} onOpenChange={(open) => { if (!open) setSheet(null); }} />
-      <NewProjectSheet open={sheet === 'project'} onOpenChange={(open) => { if (!open) setSheet(null); }} />
+      {may('project.create') && <NewProjectSheet open={sheet === 'project'} onOpenChange={(open) => { if (!open) setSheet(null); }} />}
       {person && <PersonSheet person={person} onClose={() => setPerson(null)} />}
     </>
   );

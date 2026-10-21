@@ -71,7 +71,7 @@ export function Composer({ detail }: { detail: ProjectDetail }) {
       />
       <PickedFiles files={attachments.files} onRemove={attachments.remove} />
       <div className="flex items-center justify-between gap-2">
-        <AttachButton onPick={attachments.add} />
+        {detail.viewerCan.upload ? <AttachButton onPick={attachments.add} /> : <span />}
         <Button variant={text.trim() ? 'primary' : 'secondary'} type="submit" disabled={!text.trim() || posting}>{t('overview.post')}</Button>
       </div>
     </form>

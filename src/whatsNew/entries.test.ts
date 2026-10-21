@@ -43,7 +43,7 @@ describe("What's new entries", () => {
   });
 
   it('name a real right and a real address when they have them (chats-14)', () => {
-    const rights = ['admin.manage', 'people.manage', 'payment.manage', 'clients.manage', 'templates.manageAll', 'report.office'];
+    const rights = ['admin.manage', 'people.manage', 'payment.manage', 'clients.manage', 'templates.projectAny', 'report.office'];
     for (const entry of WHATS_NEW) {
       if (entry.right) expect(rights, entry.id).toContain(entry.right);
       if (entry.to) expect(entry.to, entry.id).toMatch(/^\/[a-z-]+(\/[a-z-]+)*(\?[a-z]+=[a-z]+)?$/);
@@ -52,6 +52,20 @@ describe("What's new entries", () => {
     expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-7')?.right).toBe('admin.manage');
     expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-11')?.right).toBe('admin.manage');
     expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-12')?.right).toBe('report.office');
+  });
+
+  // Role rights version 2 (owner, 2026-10-21): the 112 switches. Only the Admin makes roles, so only the Admin reads the entry.
+  it('shows the entry about the 112 switches to the Admin only, and opens the Roles section', () => {
+    expect(WHATS_NEW[0]).toEqual({ id: '2026-10-23-75', day: '2026-10-23', right: 'admin.manage', to: '/admin/roles' });
+    expect(wordAt(en, ['whatsNew', 'items', '2026-10-23-75', 'title'])).toBe('Rights in 112 switches');
+    expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-75', 'body']))).toContain('112');
+  });
+
+  // The two entries about templates moved from the old right templates.manageAll to the power that stands for it.
+  it('names templates.projectAny for the entries about changing any project template', () => {
+    const rights = WHATS_NEW.filter((entry) => ['2026-10-23-29', '2026-10-23-10'].includes(entry.id)).map((entry) => entry.right);
+    expect(rights).toEqual(['templates.projectAny', 'templates.projectAny']);
+    expect(WHATS_NEW.some((entry) => (entry.right as string | undefined) === 'templates.manageAll')).toBe(false);
   });
 
   // role-rights (owner, 2026-10-23): only the Admin makes roles, so only the Admin reads the entry about the sections of rights.

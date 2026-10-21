@@ -74,7 +74,7 @@ export function LinkSheet({ detail, link, open, onOpenChange }: { detail: Projec
     // A location link that holds a point moves the pin, and the Location is the address of the pin (owner, 2026-10-19). The screen
     // looks up the address of the new place first and sends it with the link, so the link, the pin and the address are one write
     // and one Undo. A link that moves nothing sends no address, and a person who may not move the pin asks for no lookup.
-    const place = kind === 'location' && detail.viewerCan.edit ? pinFromLinks([{ kind, url: fields.url }]) : null;
+    const place = kind === 'location' && detail.viewerCan.editDetails ? pinFromLinks([{ kind, url: fields.url }]) : null;
     let address: { location?: string } = {};
     if (place && !samePoint(place, detail.geo)) {
       const mine = ++turn.current;
@@ -189,7 +189,7 @@ export function ProjectLinks({ detail, onEdit }: { detail: ProjectDetail; onEdit
                   <AnimatedIcon icon={ExternalLinkIcon} size={16} className="shrink-0 text-label-2 rtl:-scale-x-100" aria-hidden />
                 </a>
               )}
-              {viewerCan.post && link.id !== MODEL_FOLDER && (
+              {viewerCan.links && link.id !== MODEL_FOLDER && (
                 <button type="button" onClick={() => onEdit(link)} aria-label={t('links.edit', { name })} className="pressable grid size-11 shrink-0 place-items-center rounded-full text-label-2 hover:bg-fill hover:text-ink">
                   <AnimatedIcon icon={SquarePenIcon} size={18} aria-hidden />
                 </button>

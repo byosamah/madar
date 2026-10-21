@@ -61,6 +61,7 @@ const feedbackSend = defineCall({
     return { shots };
   },
   run(input, ctx, prepared) {
+    assertCan(ctx, 'feedback.send');
     if (!ctx.authority.active) throw invalid('message', 'Only an active person can send a report.');
     const id = nextId(ctx.state, 'fbk');
     const item: Feedback = {

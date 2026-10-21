@@ -23,7 +23,7 @@ const DETAIL = {
   project: { id: 'prj_001', name: 'Corniche Office Tower', coverFileId: null },
   stages: [{ id: 'stg_001', name: 'Concept Design' }],
   currentStage: { id: 'stg_001', name: 'Concept Design' },
-  viewerCan: { post: true, edit: true },
+  viewerCan: { upload: true, links: true, deliver: true, editDetails: true },
 } as unknown as ProjectDetail;
 
 /** The Files tab in the real build: files.link signs a new link on each call, session.get names the 50 MB store limit. */

@@ -9,7 +9,11 @@ import { mentionedUserIds } from '../../src/lib/text';
  * test:lite and test:office keep the same rule. The push stays one fixed line with no data (2026-10-08).
  */
 
-export type PushPerson = { id: string; kind: 'human' | 'agent'; active: boolean; admin: boolean; ownerId: string | null; device: boolean };
+/**
+ * "officeAll": the person holds task.officeAll (role rights version 2): reads every office to-do, as the Admin does. The Admin always
+ * does, so a fact that leaves the field out reads as the Admin flag.
+ */
+export type PushPerson = { id: string; kind: 'human' | 'agent'; active: boolean; admin: boolean; ownerId: string | null; device: boolean; officeAll?: boolean };
 /**
  * A chat message of the save. "teamIds": the leader and the team of a project chat (empty for a direct chat and a group).
  * "memberIds": the people of a direct chat or a group. "mentions": the people the message names (an @mention, and the author of the
@@ -58,6 +62,8 @@ export function planPushes(facts: PushFacts): PushPlan {
     return levelFromRead(stored === undefined ? undefined : { notify: stored }, chatKind);
   };
   const admins = facts.people.filter((p) => p.admin).map((p) => p.id);
+  // The people who read every office to-do: the Admins, and each person who holds task.officeAll.
+  const officeReaders = facts.people.filter((p) => p.admin || p.officeAll === true).map((p) => p.id);
 
   // A plain notice (it points to no chat message and no task comment) gives its push at once.
   const now = sorted(facts.notices.filter((n) => !isChatItemNotice(n)).map((n) => n.userId));
@@ -94,8 +100,8 @@ export function planPushes(facts: PushFacts): PushPlan {
     const maker = principal(item.makerId);
     const plain = [item.leadId, ...(item.office ? [maker] : [])].filter((id): id is string => id !== null);
     const named = [...mentionedUserIds(item.body), ...[principal(item.replyAuthorId)].filter((id): id is string => id !== null)];
-    // A project task: any person may read it. An office task: its maker, lead, helpers and the Admins.
-    const mayRead = (userId: string): boolean => !item.office || userId === maker || userId === item.leadId || item.helperIds.includes(userId) || admins.includes(userId);
+    // A project task: any person may read it. An office task: its maker, lead, helpers and the holders of task.officeAll (the Admins).
+    const mayRead = (userId: string): boolean => !item.office || userId === maker || userId === item.leadId || item.helperIds.includes(userId) || officeReaders.includes(userId);
     for (const userId of new Set([...plain, ...named])) {
       if (skip.has(userId) || !mayRead(userId)) continue;
       add(userId, { chatId: item.taskId, itemId: item.id });

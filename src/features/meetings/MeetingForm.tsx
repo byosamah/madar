@@ -21,6 +21,7 @@ import { isLive } from '../../lib/overview';
 import { LENGTHS, REPEATS, defaultSlot, lengthWords, splitStamp, stampOf, type RepeatEvery } from './formModel';
 import { ScopeSheet, type Scope } from './ScopeSheet';
 import { TimeField } from './TimeField';
+import { usePlanRights } from './planRights';
 
 const L = MEETING_LIMITS;
 
@@ -99,8 +100,10 @@ export function MeetingForm({ open, onOpenChange, meeting, project = null }: {
   const edit = meeting !== undefined;
   const session = useCall('session.get', {});
   const me = session.data?.authority.id ?? '';
-  const admin = session.data?.user.systemRole === 'admin';
-  const projects = useCall('projects.list', admin ? { filter: 'all', status: 'all', sort: 'name' } : { filter: 'mine', status: 'all', sort: 'name' }, { enabled: open && !edit });
+  // Role rights version 2: the projects to pick are the ones where the person may plan a meeting (every project with meeting.plan.all,
+  // else the projects of the team), and "No project" shows only with meeting.plan.none.
+  const rights = usePlanRights();
+  const projects = useCall('projects.list', rights.all ? { filter: 'all', status: 'all', sort: 'name' } : { filter: 'mine', status: 'all', sort: 'name' }, { enabled: open && !edit });
   const users = useCall('users.list', {}, { enabled: open });
   const [draft, setDraft] = useState<Draft>(() => draftOf(meeting, project?.id ?? ''));
   const [problem, setProblem] = useState('');
@@ -122,7 +125,13 @@ export function MeetingForm({ open, onOpenChange, meeting, project = null }: {
 
   const organizerId = meeting ? meeting.organizer.id : me;
   const locked = meeting !== undefined && phaseOf(meeting, now()) === 'done';
-  const live = useMemo(() => (projects.data ?? []).filter((summary) => isLive(summary.project.status)), [projects.data]);
+  const live = useMemo(() => (projects.data ?? []).filter((summary) => isLive(summary.project.status) && summary.viewerCan.planMeeting === true), [projects.data]);
+  // A person who may plan only meetings of a project starts on the first project they may plan in (no empty choice).
+  const firstProject = project?.id ?? live[0]?.project.id ?? '';
+  useEffect(() => {
+    if (!open || edit || rights.none || draft.projectId !== '' || firstProject === '') return;
+    setDraft((current) => (current.projectId === '' ? { ...current, projectId: firstProject } : current));
+  }, [open, edit, rights.none, draft.projectId, firstProject]);
   const locationOf = (id: string) => live.find((summary) => summary.project.id === id)?.project.location ?? '';
 
   // The people to tick: every active person except the organizer, and the people already on the meeting.
@@ -236,7 +245,7 @@ export function MeetingForm({ open, onOpenChange, meeting, project = null }: {
               id="meeting-project" label={t('meetings.form.project')} value={draft.projectId}
               hint={draft.projectId === '' ? t('meetings.form.officeHint') : undefined} onChange={(event) => onProject(event.target.value)}
             >
-              <option value="">{t('meetings.form.noProject')}</option>
+              {rights.none && <option value="">{t('meetings.form.noProject')}</option>}
               {project && !live.some((summary) => summary.project.id === project.id) && <option value={project.id}>{project.name}</option>}
               {live.map((summary) => <option key={summary.project.id} value={summary.project.id}>{summary.project.name}</option>)}
             </SelectField>

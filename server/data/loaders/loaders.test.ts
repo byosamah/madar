@@ -1060,6 +1060,29 @@ describe('office tasks (owner, 2026-10-06)', () => {
     for (const id of ids) expect(admin).toContain(id);
   });
 
+  it('gives a holder of task.officeAll the office tasks on the scoped load, as the Admin has them, and a person without the switch none (role rights version 2)', async () => {
+    const traps = trapOffice(seed);
+    traps.settings.roles = { custom: [{ id: 'rol_900', name: 'Office reader', nameAr: 'قارئ المكتب', rights: ['task.officeAll'] }] };
+    traps.users.usr_003 = { ...traps.users.usr_003, roleId: 'rol_900' };
+    const ids = [...Object.values(traps.tasks).filter((t) => t.projectId === null).map((t) => t.id)];
+    expect(ids).toHaveLength(2);
+    const text = async (actor: string, name: SharedCallName, input: unknown) => JSON.stringify((await same(traps, name, input, actor)).outcome.output);
+    for (const [name, input] of [['tasks.list', {}], ['search.query', { text: 'licence' }], ['events.list', { limit: 500 }]] as const) {
+      const holder = await text('usr_003', name, input);
+      const admin = await text(ADMIN, name, input);
+      for (const id of ids) expect(holder.includes(id), `${name} ${id}`).toBe(admin.includes(id));
+      const none = await text('usr_002', name, input);
+      for (const id of ids) expect(none, `${name} ${id}`).not.toContain(id);
+    }
+    expect(await text('usr_003', 'tasks.list', {})).toContain(ids[0]);
+    // The holder changes an office task as its maker does; a person without the switch gets not_found, on both loads.
+    const first = ids[0];
+    const done = await same(traps, 'tasks.update', { id: first, patch: { helperIds: [] } }, 'usr_003');
+    expect(done.outcome.error).toBeUndefined();
+    const refused = await same(traps, 'tasks.update', { id: first, patch: { helperIds: [] } }, 'usr_002');
+    expect(refused.outcome.error).toMatchObject({ code: 'not_found' });
+  });
+
   it('an Undo of a comment change after the delete of its office task stays private on the scoped load (review 2026-10-06)', async () => {
     const traps = trapOffice(seed);
     const task = Object.values(traps.tasks).find((t) => t.projectId === null && t.ownerId !== null)!;
@@ -1714,5 +1737,44 @@ describe('the money of the loaders follows the office rights of Management (fbk_
     const rows = whole.outcome.output as { event: { targetType: string } }[];
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.some((row) => row.event.targetType === 'payment')).toBe(false);
+  });
+});
+
+describe('the Dashboard, Search and money switches on the loaders (role rights version 2)', () => {
+  const MEMBER = 'usr_003';
+  const withMemberOff = (off: string[]) => office((s) => {
+    s.settings.roles = { off: { member: off as never } };
+  });
+
+  it('refuses dashboard.get on both loads and loads no task for a Member without dashboard.view', async () => {
+    const { scoped, whole, loaded } = await runBoth(withMemberOff(['dashboard.view', 'workload.view']), 'dashboard.get', {}, MEMBER, { now: NOW, correlationId: 'cor_test' });
+    expect(scoped).toEqual(whole);
+    expect(whole.outcome.error).toMatchObject({ code: 'forbidden' });
+    expect(Object.keys(loaded.tasks ?? {})).toEqual([]);
+  });
+
+  it('gives the same empty workload on both loads when only workload.view is off, and still loads the tasks of the numbers', async () => {
+    const { scoped, whole, loaded } = await runBoth(withMemberOff(['workload.view']), 'dashboard.get', {}, MEMBER, { now: NOW, correlationId: 'cor_test' });
+    expect(scoped).toEqual(whole);
+    const workload = (whole.outcome.output as { workload: { rows: unknown[]; unassigned: unknown; weeks: unknown[] } }).workload;
+    expect([workload.rows, workload.unassigned, workload.weeks.length]).toEqual([[], null, 4]);
+    expect(Object.keys(loaded.tasks ?? {}).length).toBeGreaterThan(0);
+  });
+
+  it('refuses search.query on both loads and loads no task or file for a Member without search.use', async () => {
+    const { scoped, whole, loaded } = await runBoth(withMemberOff(['search.use']), 'search.query', { text: 'riser' }, MEMBER, { now: NOW, correlationId: 'cor_test' });
+    expect(scoped).toEqual(whole);
+    expect(whole.outcome.error).toMatchObject({ code: 'forbidden' });
+    expect([Object.keys(loaded.tasks ?? {}), Object.keys(loaded.files ?? {})]).toEqual([[], []]);
+  });
+
+  it('loads the open payments for a Member who holds payment.view, and shows the payment events to that Member', async () => {
+    const state = office((s) => {
+      s.settings.roles = { rights: { member: ['payment.view'] } };
+    });
+    const run = await runBoth(state, 'dashboard.get', {}, MEMBER, { now: NOW, correlationId: 'cor_test' });
+    expect(run.scoped).toEqual(run.whole);
+    expect((run.whole.outcome.output as { money: unknown }).money).not.toBeNull();
+    expect(Object.keys(run.loaded.payments ?? {}).length).toBeGreaterThan(0);
   });
 });

@@ -130,7 +130,8 @@ function Decide({ request, leave }: { request: ConsentRequest; leave: (url: stri
       }
       leave(redirect);
     } catch (failure) {
-      if (failure instanceof ApiError && failure.details.reason === 'agent_removed') setRemoved(true);
+      // A person whose role lacks the AI switch gets the same answer on a second press, so Approve goes (as for a removed app).
+      if (failure instanceof ApiError && (failure.details.reason === 'agent_removed' || failure.details.reason === 'ai_off')) setRemoved(true);
       setError(failureText(failure, t));
       setPending(null);
     }

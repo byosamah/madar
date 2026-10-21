@@ -8,6 +8,7 @@ import { errorMessage } from '../../app/errors';
 import { useLang } from '../../app/lang';
 import { usePersonName } from '../../app/personName';
 import { useCall } from '../../app/runtime';
+import { useRight } from '../../app/useRight';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
 import { ProjectTile } from '../../components/ProjectTile';
@@ -86,6 +87,8 @@ export function MeetingSheet({ meetingId, onClose }: { meetingId: string; onClos
   const lang = useLang();
   const query = useCall('meetings.get', { id: meetingId });
   const meeting = query.data;
+  // The team view is a screen of the Dashboard: no link without dashboard.view.
+  const seesDashboard = useRight('dashboard.view');
   const projectId = meeting?.project?.id ?? '';
   // The pin of the project, for the Maps button of a site visit. The read is the one the project page makes.
   const project = useCall('projects.get', { id: projectId }, { enabled: meeting?.kind === 'site_visit' && projectId !== '' });
@@ -186,7 +189,7 @@ export function MeetingSheet({ meetingId, onClose }: { meetingId: string; onClos
           )}
           {meeting.guests && <Fact label={t('meetings.sheet.guests')}><span dir="auto" className="block whitespace-pre-wrap break-words">{meeting.guests}</span></Fact>}
           {meeting.notes && <Fact label={t('meetings.sheet.notes')}><span dir="auto" className="block whitespace-pre-wrap break-words">{meeting.notes}</span></Fact>}
-          {meeting.kind === 'team' && (
+          {meeting.kind === 'team' && seesDashboard && (
             <Link to="/dashboard/meeting" className="flex min-h-11 items-center self-start text-subheadline font-semibold text-link">{t('meetings.sheet.teamView')}</Link>
           )}
         </dl>

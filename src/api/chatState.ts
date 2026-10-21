@@ -2,6 +2,7 @@ import { isLiveMessage } from './chatNaming';
 import type { AdminReach, ChatRead, Conversation, Message, NotifyLevel, User } from './contract/entities';
 import { forbidden, invalid, notFound } from './errors';
 import { can, principalOf, projectRoleOf, type ProjectRole } from './permissions';
+import { ensureRights } from './rights';
 import { chatReadKey, nextId, unreadCountKey, type State } from './store';
 
 /** Makes the chat room of a project. A project has one. */
@@ -43,12 +44,13 @@ export function dropProjectConversation(state: State, projectId: string): void {
  * The one rule of who sees a chat room: a direct chat is for its two people, a group for its people (never the Admin alone),
  * and a project chat for the team and the Admin.
  */
-export function canSeeConversation(state: Pick<State, 'projects' | 'members'>, conversation: Conversation, user: User): boolean {
+export function canSeeConversation(state: Pick<State, 'projects' | 'members' | 'settings'>, conversation: Conversation, user: User): boolean {
   if (!user.active) return false;
   if (conversation.kind !== 'project') return conversation.memberIds.includes(user.id);
   const projectId = conversation.projectId;
   if (!projectId || !state.projects[projectId]) return false;
-  return can(user, 'chat.project', { projectRole: projectRoleOf(state, projectId, user.id) });
+  // The person may be any user of the office (a mention, a recipient): attach the rights, so a Member keeps the project chat (fail closed).
+  return can(ensureRights(state, user), 'chat.project', { projectRole: projectRoleOf(state, projectId, user.id) });
 }
 
 /**
@@ -70,11 +72,13 @@ export function chatMemberIds(state: Pick<State, 'users' | 'projects' | 'members
  * member (an Admin who reads a project chat). The server and the prototype fake both use this one rule.
  */
 export function typingRecipients(
-  state: Pick<State, 'users' | 'projects' | 'members' | 'conversations'>, conversationId: string, userId: string,
+  state: Pick<State, 'users' | 'projects' | 'members' | 'conversations' | 'settings'>, conversationId: string, userId: string,
 ): string[] | null {
   const conversation = state.conversations[conversationId];
   const user = state.users[userId];
   if (!conversation || !user || !canSeeConversation(state, conversation, user)) return null;
+  // A person whose role may not write in a direct or group chat has no message box there, so their typing names nobody (role rights v2).
+  if (conversation.kind !== 'project' && !can(ensureRights(state, user), 'chat.direct')) return [];
   const members = chatMemberIds(state, conversation);
   return members.includes(userId) ? members.filter((id) => id !== userId) : [];
 }
@@ -107,6 +111,8 @@ export function chatForUpload(state: State, conversationId: string, person: User
   const conversation = state.conversations[conversationId];
   if (!conversation || actor.kind === 'agent' || !canSeeConversation(state, conversation, person)) throw notFound('Conversation', conversationId);
   if (conversation.kind === 'project') throw invalid('conversationId', 'A project chat uses the files of its project. Name the project.', 'file_chat');
+  // A file in a direct chat or a group is a message: it needs chat.direct, as a send does (role rights version 2, design 5.6).
+  if (!can(ensureRights(state, person), 'chat.direct')) throw forbidden('You cannot do this.', { action: 'chat.direct' });
   if (personLeft(state, conversation, person)) throw closedChatError(conversation);
   return conversation;
 }

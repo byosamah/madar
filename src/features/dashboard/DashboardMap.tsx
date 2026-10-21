@@ -45,7 +45,7 @@ export function DashboardMap({ filters }: { filters: DashboardFilters }) {
   const unpinned = rows.filter((row) => row.geo === null);
   const current = pinned.find((item) => item.row.project.id === selected);
   const pins = pinned.map(({ row, point }) => ({ id: row.project.id, point, label: row.project.name }));
-  const canEditSome = unpinned.some((row) => row.viewerCan.edit);
+  const canEditSome = unpinned.some((row) => row.viewerCan.editDetails);
   // The card sits in a sheet on a phone, and when the map cannot show it next to the pin.
   const cardInSheet = phone || mapFailed;
 
@@ -133,11 +133,11 @@ export function DashboardMap({ filters }: { filters: DashboardFilters }) {
                     <span className="flex min-w-0 flex-1 flex-col">
                       <bdi dir="auto" className="break-words text-subheadline font-semibold text-ink">{row.project.name}</bdi>
                       <span dir="ltr" className="tabular text-footnote text-ink-2 [text-align:start]">{projectKey(row.project.code)}</span>
-                      {!row.viewerCan.edit && row.leader && (
+                      {!row.viewerCan.editDetails && row.leader && (
                         <span dir="auto" className="text-footnote text-ink-2">{t('dashboard.meeting.leader', { name: nameOf(row.leader) })}</span>
                       )}
                     </span>
-                    {row.viewerCan.edit && (
+                    {row.viewerCan.editDetails && (
                       <Button aria-label={t('map.dashboard.setPinFor', { name: row.project.name })} onClick={() => setEditing(row)}>
                         {t('map.pin.set')}
                       </Button>

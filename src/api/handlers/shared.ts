@@ -12,6 +12,14 @@ export function assertCan(ctx: Ctx, action: Action, resource: Resource = {}): vo
   if (!can(ctx.authority, action, resource)) throw forbidden('You cannot do this.', { action });
 }
 
+/** The five people switches. The list of invitations (users.invites) opens for a person who holds any of them. */
+export const PEOPLE_RIGHTS = ['people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove'] as const;
+
+/** Passes when the person holds any people switch (role rights version 2). The refusal names the first one, the invitation switch. */
+export function assertAnyPeopleRight(ctx: Ctx): void {
+  if (!PEOPLE_RIGHTS.some((right) => can(ctx.authority, right))) throw forbidden('You cannot do this.', { action: PEOPLE_RIGHTS[0] });
+}
+
 export function roleIn(ctx: Ctx, projectId: string | null): ProjectRole {
   return projectRoleOf(ctx.state, projectId, ctx.authority.id);
 }
@@ -129,8 +137,8 @@ export function ensureOnTeam(ctx: Ctx, projectId: string, userId: string, field:
   const user = requireUser(ctx, userId);
   if (projectRoleOf(ctx.state, projectId, userId) !== 'other') return;
   const message = field === 'ownerId' ? 'The owner must be on the project team.' : 'A helper must be on the project team.';
-  // Putting a person on the team is a change of the team, which belongs to the right to edit the project (not to change a task).
-  if (!can(ctx.authority, 'project.edit', { projectRole: roleIn(ctx, projectId) })) throw invalid(field, message, 'not_on_team');
+  // Putting a person on the team is a change of the team, which belongs to the power of the project team (not to change a task).
+  if (!can(ctx.authority, 'project.team', { projectRole: roleIn(ctx, projectId) })) throw invalid(field, message, 'not_on_team');
   if (!user.active || user.kind === 'agent') throw invalid(field, 'This person cannot join the project team.', 'cannot_join');
   addMember(ctx, projectId, userId);
 }

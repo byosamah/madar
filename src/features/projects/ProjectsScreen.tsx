@@ -12,6 +12,7 @@ import { useByPersonName, usePersonName } from '../../app/personName';
 import type { ProjectSummary } from '../../api/contract/views';
 import { useCall } from '../../app/runtime';
 import { useStableHandler } from '../../app/useStableHandler';
+import { useRight } from '../../app/useRight';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { FilterButton } from '../../components/FilterButton';
@@ -107,6 +108,8 @@ export function ProjectsScreen() {
   });
   const [sort, setSort] = usePersistentChoice('madar.projects.sort', SORTS, 'updated');
   const [creating, setCreating] = useState(false);
+  // "New project" needs project.create (role rights version 2).
+  const mayCreate = useRight('project.create');
   const settings = useCall('settings.get', {});
   const teams = useCall('teams.list', {});
   const users = useCall('users.list', {});
@@ -132,12 +135,12 @@ export function ProjectsScreen() {
     <>
       <ScreenTitle
         title={t('screens.projects')}
-        action={(
+        action={mayCreate ? (
           <Button variant="primary" className="shrink-0" onClick={() => setCreating(true)}>
             <AnimatedIcon icon={PlusIcon} size={18} aria-hidden />
             {t('projects.new')}
           </Button>
-        )}
+        ) : undefined}
       />
       <ScreenControls>
         <FilterButton label={t('filter.label')} count={active}>
@@ -216,7 +219,7 @@ export function ProjectsScreen() {
         )}
       </ScreenControls>
       <ProjectsBody rows={list.data} error={list.error} onRetry={retry} onShowAll={showAll} />
-      <NewProjectSheet open={creating} onOpenChange={setCreating} />
+      {mayCreate && <NewProjectSheet open={creating} onOpenChange={setCreating} />}
     </>
   );
 }

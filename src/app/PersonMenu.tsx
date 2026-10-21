@@ -26,6 +26,7 @@ import { SparklesIcon } from '../components/icons/animated/sparkles';
 import { WHATS_NEW } from '../whatsNew/entries';
 import { hasNew, readSeen } from '../whatsNew/seen';
 import { opensAdminPage } from '../api/rights';
+import { can } from '../api/permissions';
 
 /**
  * The person's picture opens their name, the language, light or dark mode and Settings (redesign spec 2.5). The prototype adds
@@ -38,6 +39,8 @@ export function PersonMenu({ id }: { id: string }) {
   const user = session?.user;
   // The Admin page opens to a person with a right that opens a section (Management by default, fbk_014).
   const admin = session !== undefined && opensAdminPage(session.authority);
+  // The item "Request a feature or report a bug" needs feedback.send (role rights version 2).
+  const mayReport = session !== undefined && can(session.authority, 'feedback.send');
   const switchLanguage = useSwitchLanguage();
   const preferences = useAction('me.updatePreferences');
   const { live } = useRuntime();
@@ -113,10 +116,12 @@ export function PersonMenu({ id }: { id: string }) {
               {hasNew(WHATS_NEW, readSeen(user.id)) && <span className="ms-auto text-footnote text-ink-2">{t('whatsNew.newMark')}</span>}
             </Link>
             {/* The focus goes back to the picture first, so the sheet gives it back there when it closes (audit 2026-10-03, SHL-19). */}
-            <button type="button" onClick={() => { close(); setFeedback(true); }} className={row}>
-              <AnimatedIcon icon={MessageSquarePlusIcon} size={18} className="text-ink-2" aria-hidden />
-              {t('feedback.menu')}
-            </button>
+            {mayReport && (
+              <button type="button" onClick={() => { close(); setFeedback(true); }} className={row}>
+                <AnimatedIcon icon={MessageSquarePlusIcon} size={18} className="text-ink-2" aria-hidden />
+                {t('feedback.menu')}
+              </button>
+            )}
             {REMOTE && (
               <button type="button" onClick={() => { setOpen(false); void signOut(); }} className={row}>
                 <AnimatedIcon icon={LogoutIcon} size={18} className="text-ink-2 rtl:-scale-x-100" aria-hidden />

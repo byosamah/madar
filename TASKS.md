@@ -857,6 +857,34 @@ the cover from the small picture that Madar keeps (up to 960 px), as data when i
   (80 px); the chat side time does not wrap. No MCP change: the tools give stamps, never a clock text
 - [x] Gates: typecheck, `npm test` 8,216 passed (733 files), `npm run build`, `build:server`. Shots at 390 px (EN/AR, light/dark):
   the Meetings list and the meeting sheet
+- [x] Test copy at 2701ea7, then production at 2701ea78 (2026-10-21; the owner chose it before the presence batch). Record: proof.md
+
+## Role rights version 2 (owner, 2026-10-21: "make it more customizable rights", branch `rb/rr2`, worktree `~/dev/madar-rb/rr2`)
+Every power is a switch: 112 switches in 13 sections, with places (Projects I lead, My projects, Every project, Office, No project), the
+leader powers and 13 AI assistant switches. Member holds 64, Management 74, Accounting 68, the Admin all. Spec and catalog:
+`docs/superpowers/specs/2026-10-21-madar-role-rights-v2-*`. Approved page: https://claude.ai/artifact/4aPwLVAS7sYUQytJGXCQhN (version 2).
+Sonnet builders, Claude leads (owner, 2026-10-21). What's new 2026-10-23-74.
+
+- [x] Spec and catalog (112 switch ids, defaults, legacy map of the 17 old ids)
+- [x] Core: catalog module, storage (`off` lists, old ids expand on read), `can()` with scopes, the parity record of every call for 8 people
+- [x] Work gates: to-dos field by field, meetings, posts, files, chat, Tracker, office to-dos (leak tests), reviewers, Undo fix
+- [x] Office gates: projects, people, clients, money, templates, Dashboard, Search, settings, requests
+- [x] MCP: one AI switch for each tool, `ai_off`, `ai.connect` stops every agent of the role, texts
+- [x] Role sheet, Roles list, person sheet, words of 112 switches in English and Arabic, What's new
+- [x] Screens: every control follows its switch; the Dashboard and Search tabs and routes; the 26 stand-in actions deleted
+- [x] Merge fixes: a stored switch whose need is off counts as off; the old "edit any project" keeps saving to-do templates;
+  a checklist change that also ticks needs "Work on my to-dos"
+- [x] Gates: typecheck, `npm test` (757 files, 9,198 passed), `npm run build`, `build:server`, `build:remote -- test` (first load 1,216,617 B)
+- [x] Gates: `test:db` (154 files, 2,907 passed), `test:it` (39 files; the summary test passed alone after its fix), `test:mcp` (326 passed,
+  conformance 5 of 32 as normal). Fix found by `test:it`: `reviewersOf` read the settings of an office loaded without them
+- [x] Prototype smoke: 87 of 87 (`npm run smoke`, 7.6 minutes, no rerun)
+- [x] Screenshots (prototype build, claude-in-chrome): EN dark desktop list and sheet; AR light 390 list and AI section; EN light 390 sheet;
+  AR dark 390 sheet with To-dos open; EN dark 390 Home of a Member with the Dashboard and Search off (4 tabs, no search icon)
+- [ ] Test copy (`all.sh test`): the owner chose rr2 first (2026-10-21); `madar-db` takes the two chat-presence migrations off madar-test
+  after its deploy suite, then main moves to rb/rr2; then the owner's hand test; then rb/chat-presence goes back on the test copy
+- [ ] Production: only on the owner's word (team live week ends 2026-10-22)
+- [ ] Owner decisions, later: a stages-only way to rename stages for a role without "Change project details"; the Needs field of a
+  maker without "Give to-dos to other people"; step 2 "See every project"
 - [ ] Test copy, then production after the owner's word
 
 ## 2026-10-21: chat status, Seen, typing and emoji (branch `rb/chat-presence`, worktree `~/dev/madar-rb/chat-presence`)

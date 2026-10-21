@@ -4,12 +4,13 @@ import { UPLOAD_LIFE_MS, serverContracts as c, type SignedPut } from '../contrac
 import { ApiError, forbidden, invalid, notFound } from '../errors';
 import { applyPatch } from '../events';
 import { principalOf } from '../permissions';
+import { withRights } from '../rights';
 import { chatForUpload, typingRecipients } from '../chatState';
 import { mayOpenFile } from '../views';
 import { officeTaskOfCall } from './files';
 import { minutesRefusal, requireMeeting } from './meetings';
 import { nowStamp } from '../../lib/dates';
-import { assertCan, requireProject, requireStage, roleIn, taskRole } from './shared';
+import { assertAnyPeopleRight, assertCan, requireProject, requireStage, roleIn, taskRole } from './shared';
 
 /**
  * Fake versions of the 14 server calls (plan 4.11), so the prototype screens can use the same calls as the real build.
@@ -74,11 +75,11 @@ const filesUploadStart = defineCall({
     } else if (input.projectId === undefined) {
       // A file of an office task: a person who sees the task adds it (owner, 2026-10-06).
       const task = officeTaskOfCall(ctx, input.taskId);
-      assertCan(ctx, 'content.post', taskRole(ctx, task));
+      assertCan(ctx, 'file.upload', taskRole(ctx, task));
       if (input.stageId) throw invalid('stageId', 'An office task belongs to no project, so it has no stage.', 'office_no_stage');
     } else {
       const project = requireProject(ctx, input.projectId);
-      assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, project.id) });
+      assertCan(ctx, 'file.upload', { projectRole: roleIn(ctx, project.id) });
       if (input.stageId) requireStage(ctx, project.id, input.stageId);
       if (input.taskId && ctx.state.tasks[input.taskId]?.projectId !== project.id) throw invalid('taskId', 'This task is not in the project.');
     }
@@ -101,7 +102,8 @@ const filesLink = defineCall({
     if (!file) throw notFound('File', input.id);
     // The same check as the real server (plan 2b.7), before any data is read. Every person views every project (spec 2.3). A file of
     // an office task shows only to the people of that task (owner, 2026-10-06).
-    const viewer = p.state.users[principalOf(p.state, p.actor.id)] ?? p.actor;
+    // The person carries the office rights, so a holder of task.officeAll opens a file of any office to-do (role rights version 2).
+    const viewer = withRights(p.state, p.state.users[principalOf(p.state, p.actor.id)] ?? p.actor);
     // A file of an office task that the person does not see reads as missing (review 2026-10-06). So does a file of a chat, and for an
     // agent, which never opens one (owner, 2026-10-19).
     if (!mayOpenFile(p.state, viewer, p.actor, file)) throw file.projectId === null ? notFound('File', input.id) : forbidden('You cannot do this.', { action: 'project.view' });
@@ -132,6 +134,7 @@ const filesLink = defineCall({
 const feedbackUploadStart = defineCall({
   ...c['feedback.uploadStart'],
   run(input, ctx) {
+    assertCan(ctx, 'feedback.send');
     return { uploads: input.screenshots.map((shot) => {
       const id = uploadId();
       return { uploadId: id, put: fakePut(id, shot.mimeType, ctx.now) };
@@ -142,7 +145,7 @@ const feedbackUploadStart = defineCall({
 const usersInvites = defineCall({
   ...c['users.invites'],
   run(_input, ctx) {
-    assertCan(ctx, 'people.manage');
+    assertAnyPeopleRight(ctx);
     // The prototype has no sign-in, so nobody waits for an invitation.
     return [];
   },
@@ -151,7 +154,7 @@ const usersInvites = defineCall({
 const usersResendInvite = defineCall({
   ...c['users.resendInvite'],
   run(input, ctx) {
-    assertCan(ctx, 'people.manage');
+    assertCan(ctx, 'people.invite');
     const user = ctx.state.users[input.id];
     if (!user) throw notFound('Person', input.id);
     if (user.kind === 'agent') throw invalid('id', 'An agent gets no invitation.');

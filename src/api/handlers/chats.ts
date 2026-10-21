@@ -14,7 +14,7 @@ import { can, mayViewTask, principalOf, projectRoleOf } from '../permissions';
 import { chatReadKey, nextId, unreadCountKey, type State } from '../store';
 import { attachmentsOf, cardOf, mayViewFile } from '../views';
 import { assertFilesForDirect, assertFilesInProject } from './attach';
-import { replyNotHere } from './shared';
+import { assertCan, replyNotHere, roleIn } from './shared';
 import { isLine, lineKindOf } from '../../lib/commentLine';
 import { mentionedUserIds, plainText } from '../../lib/text';
 import { listFormat } from '../../lib/dates';
@@ -44,6 +44,16 @@ function requireGroup(ctx: Ctx, id: string): Conversation {
   const conversation = requireConversation(ctx, id);
   if (conversation.kind !== 'group') throw invalid('conversationId', 'This chat is not a group.');
   return conversation;
+}
+
+/**
+ * The send check, in the one door of send and share (role rights version 2, design 5.6). A project chat asks chat.project (the scope
+ * of the project of the chat); a direct chat or a group asks chat.direct. The same switch guards an edit, a delete, a reaction and a
+ * file of such a chat. Reading, the read marks, archive, Notify me and leaving stay free.
+ */
+export function assertMayWriteIn(ctx: Ctx, conversation: Conversation): void {
+  if (conversation.kind === 'project') assertCan(ctx, 'chat.project', { projectRole: roleIn(ctx, conversation.projectId) });
+  else assertCan(ctx, 'chat.direct');
 }
 
 /** The conversations the person may open. The Admin may open every project chat. */
@@ -350,6 +360,7 @@ function namesIn(ctx: Ctx, conversation: Conversation, body: string, old: Messag
 
 /** Checks the files of a message against the room, then stores the message. A project room takes files of its project. A direct room takes files that both people may open. */
 export function postMessage(ctx: Ctx, conversation: Conversation, body: string, fileIds: string[], replyToId?: string): MessageView {
+  assertMayWriteIn(ctx, conversation);
   // A reply answers a live message of the same chat. Every other case gives one refusal, so the answer never tells that an id exists elsewhere.
   const old = replyToId === undefined ? undefined : ctx.state.messages[replyToId];
   if (replyToId !== undefined && (!old || !isLiveMessage(old) || old.conversationId !== conversation.id)) throw replyNotHere();
@@ -529,6 +540,7 @@ export const chatsOpenDirect = defineCall({
   input: z.object({ userId: UserId }),
   output: z.object({ id: ConversationId }),
   run(input, ctx) {
+    assertCan(ctx, 'chat.direct');
     const chat = directWith(ctx, requireDirectPartner(ctx, input.userId));
     // A chat with no message shows only for the person who opened it, who gets a read mark (chat design 2026-10-19, item 18). An agent
     // writes no mark: its person sees the chat after the first message. A chat with messages, or with a mark, changes nothing.
@@ -563,6 +575,7 @@ export const chatsCreateGroup = defineCall({
   input: z.object({ name: GroupName.optional(), memberIds: z.array(UserId).min(2).max(GROUP_MAX - 1) }),
   output: z.object({ id: ConversationId }),
   run(input, ctx) {
+    assertCan(ctx, 'chat.groupCreate');
     const seen = new Set<string>();
     for (const id of input.memberIds) {
       const user = ctx.state.users[id];
@@ -612,6 +625,8 @@ export const chatsUpdateGroup = defineCall({
     if (kept.length + add.length > GROUP_MAX) throw invalid('add', 'A group holds 50 people at most.', 'group_full');
     if (kept.length + add.length < 2) throw invalid('remove', 'A group keeps at least two people.', 'group_too_small');
     const renamed = input.name !== undefined && input.name !== group.name;
+    // A rename and an add need chat.groupChange. The removal keeps the rule of the maker (above).
+    if (renamed || add.length > 0) assertCan(ctx, 'chat.groupChange');
     const lines: Array<Pick<GroupLogEntry, 'type' | 'personIds'> & { name?: string }> = [
       ...(renamed ? [{ type: 'renamed' as const, personIds: [], name: input.name }] : []),
       ...(add.length > 0 ? [{ type: 'added' as const, personIds: add }] : []),
@@ -819,7 +834,8 @@ export function toggledReactions(current: Record<string, string[]> | undefined, 
  * with no reactions record starts from none.
  */
 export function toggleMessageReaction(ctx: Ctx, messageId: string, emoji: Reaction): MessageView {
-  const { message } = requireMessage(ctx, messageId, { author: false, allowDeleted: false });
+  const { message, conversation } = requireMessage(ctx, messageId, { author: false, allowDeleted: false });
+  assertMayWriteIn(ctx, conversation);
   const reacted: Message = { ...message, reactions: toggledReactions(message.reactions, emoji, ctx.authority.id) };
   ctx.state.messages[message.id] = reacted;
   return messageViewOf(ctx.state, reacted, ctx.authority);
@@ -836,6 +852,7 @@ export const chatsEditMessage = defineCall({
   output: MessageView,
   run(input, ctx) {
     const { message, conversation } = requireMessage(ctx, input.id, { author: true, allowDeleted: false });
+    assertMayWriteIn(ctx, conversation);
     if (input.body === message.body) return messageViewOf(ctx.state, message, ctx.authority);
     const { named, replyOnly, mentions } = namesIn(ctx, conversation, input.body, replyTargetOf(ctx, message));
     const edited: Message = { ...message, body: input.body, mentions, editedAt: ctx.stamp };
@@ -861,6 +878,7 @@ export const chatsDeleteMessage = defineCall({
   output: z.object({ deleted: z.boolean() }),
   run(input, ctx) {
     const { message, conversation } = requireMessage(ctx, input.id, { author: true, allowDeleted: true });
+    assertMayWriteIn(ctx, conversation);
     const gone = !isLiveMessage(message);
     if (input.deleted === gone) return { deleted: gone };
     if (input.deleted) {

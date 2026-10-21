@@ -175,7 +175,7 @@ The other host stays deployed as the way back. Each area below has its own guide
   `person:<id>`). A rollback sends nothing. A failed send only warns, and the sender counts it.
 - A save that changes an office task, its comments or its files (`Diff.privateChange`, `data/save.ts`) sends that part
   only as a person signal, with its own id and no `actorId` or `storyId`, to each person of the task (maker, lead,
-  helpers, before and after) and each active Admin. The office signal tells only the project part (`Diff.publicKinds`),
+  helpers, before and after) and each active holder of `task.officeAll` (the Admin holds it; `rightsOf` reads the roles of the saved state). The office signal tells only the project part (`Diff.publicKinds`),
   with its names, and a save of office tasks alone sends none (review 2026-10-06). The Realtime rules need no change: the
   server sends on any `person:` topic, and each person reads only their own.
 - Typing (`chats.typing`, a server-only read with no lock, `calls/typing.ts`) checks the chat with `typingRecipients` and sends through

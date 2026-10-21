@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { OfficeRight, RoleSettings, User } from '../../../api/contract/entities';
-import { DEFAULT_RIGHTS, OFFICE_RIGHTS } from '../../../api/permissions';
+import type { RoleSettings, User } from '../../../api/contract/entities';
+import { heldRightsOfRole } from '../../../api/rights';
+import { CATALOG_RIGHT_IDS } from '../../../api/rightsCatalog';
 import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
 import { useCall } from '../../../app/runtime';
@@ -9,13 +10,15 @@ import { Button } from '../../../components/Button';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { ChevronRightIcon } from '../../../components/icons/animated/chevron-right';
 import { RoleSheet, type RoleChoice, type RoleHolder, type RoleTarget } from './RoleSheet';
+import { standardListOf } from './roleSheetLogic';
 
 const BUILT_IN = ['management', 'accounting', 'member'] as const;
 
 /**
  * The Admin page section that sets the rights of each role (owner, 2026-10-18, fbk_014; ADM-12). One calm row for each role: its name,
- * how many people hold it and how many rights it has. A press on a row opens the sheet of that role, where the people, the rights and
- * the save are. The Admin holds every right and is a locked row. "New role" is the one main button.
+ * how many people hold it and how many of the 112 rights it holds ("3 people · 64 of 112 rights", from heldRightsOfRole, the one function
+ * that gives the held rights of a role). A press on a row opens the sheet of that role, where the people, the rights and the save are.
+ * The Admin holds every right and is a locked row. "New role" is the one main button; a new role starts as a copy of the Member list.
  */
 export function RolesSection() {
   const { t } = useTranslation();
@@ -25,7 +28,7 @@ export function RolesSection() {
   const users = useCall('users.list', { includeInactive: true });
   const roles: RoleSettings = settings.data?.roles ?? {};
   const [shown, setShown] = useState<RoleTarget | null>(null);
-  const rightsOf = (role: (typeof BUILT_IN)[number]): readonly OfficeRight[] => roles.rights?.[role] ?? DEFAULT_RIGHTS[role];
+  const memberList = heldRightsOfRole(roles, 'member');
   const people = (users.data ?? []).filter((user) => user.kind === 'human' && !user.removed);
   const holdersOf = (match: (user: User) => boolean): RoleHolder[] => people.filter(match).map((user) => ({ id: user.id, name: personName(user) }));
   const builtInHolders = (role: (typeof BUILT_IN)[number]) => holdersOf((user) => user.systemRole === role && (role !== 'member' || !user.roleId));
@@ -35,12 +38,13 @@ export function RolesSection() {
 
   const rows: { id: string; name: string; holders: number; rights: number; target: RoleTarget }[] = [
     ...BUILT_IN.map((role) => ({
-      id: role, name: t(`admin.roles.${role}`), holders: builtInHolders(role).length, rights: rightsOf(role).length,
-      target: { kind: 'built-in' as const, key: role, name: t(`admin.roles.${role}`), rights: rightsOf(role) },
+      id: role, name: t(`admin.roles.${role}`), holders: builtInHolders(role).length, rights: heldRightsOfRole(roles, role).length,
+      target: { kind: 'built-in' as const, key: role, name: t(`admin.roles.${role}`), held: heldRightsOfRole(roles, role), standard: standardListOf(role) },
     })),
-    ...custom.map((role) => ({
-      id: role.id, name: customName(role), holders: customHolders(role.id).length, rights: role.rights.length, target: { kind: 'custom' as const, role },
-    })),
+    ...custom.map((role) => {
+      const held = heldRightsOfRole(roles, role);
+      return { id: role.id, name: customName(role), holders: customHolders(role.id).length, rights: held.length, target: { kind: 'custom' as const, role, held, standard: memberList } };
+    }),
   ];
   const shownId = shown?.kind === 'custom' ? shown.role.id : shown?.kind === 'built-in' ? shown.key : null;
   // The roles that the people of a deleted custom role can take: the built-in roles that are not Admin, and the other custom roles.
@@ -55,7 +59,7 @@ export function RolesSection() {
     <section aria-labelledby="admin-roles" className="surface flex flex-col gap-3 rounded-card p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="admin-roles" className="text-headline">{t('roles.title')}</h2>
-        <Button onClick={() => setShown({ kind: 'new' })}>{t('roles.new')}</Button>
+        <Button onClick={() => setShown({ kind: 'new', held: memberList, standard: memberList })}>{t('roles.new')}</Button>
       </div>
       <p className="text-footnote text-label-2">{t('roles.intro')}</p>
       <ul className="hairline flex flex-col">
@@ -73,7 +77,7 @@ export function RolesSection() {
               <span className="flex min-w-0 flex-1 flex-col">
                 <bdi className="font-semibold text-ink">{row.name}</bdi>
                 <span className="text-footnote text-ink-2">
-                  {t('roles.rowMeta', { people: peopleText(row.holders), rights: t('roles.rightsCount', { count: row.rights, total: OFFICE_RIGHTS.length }) })}
+                  {t('roles.rowMeta', { people: peopleText(row.holders), rights: t('roles.rightsCount', { count: row.rights, total: CATALOG_RIGHT_IDS.length }) })}
                 </span>
               </span>
               <AnimatedIcon icon={ChevronRightIcon} size={18} className="text-ink-2 rtl:-scale-x-100" aria-hidden />

@@ -1,20 +1,25 @@
 import { z } from 'zod';
 import type { ToolAnnotations } from '@modelcontextprotocol/server';
 import type { OfficeRight } from '../../src/api/contract/entities';
+import type { Action } from '../../src/api/permissions';
 import { serverContracts, type ServerCallName } from '../../src/api/contract/server';
 import { sharedCalls, type SharedCallName } from '../../src/api/sharedCalls';
 import { TOOL_DOCS } from './docs';
+import { aiSwitchOf } from './aiSwitches';
 import { PICTURES_GET, PicturesGetInput, WITH_PICTURES_TOOLS, WithPictures } from './pictures';
 
 /**
- * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). A fixed allowlist of 53 tools for every agent: the
- * reads and writes an agent can use for an office project, with the three message tools (owner, 2026-10-12), the stage dates
- * (fbk_023), the five meeting tools (fbk_022) and the picture tool (owner, 2026-10-21). The right list adds tools for an agent
- * whose person holds the right: reports.office for the report right (owner, 2026-10-18, fbk_016), and the 3 tools of requests and bugs for the feedback right (owner, 2026-10-07;
- * role-rights, 2026-10-23). The Admin holds every right, so an Admin's agent gets all of them. Every
- * other call stays on the deny list: screen work (uploads, read marks, counts, archives, group changes), the prototype controls, and the
- * other Admin calls. VS Code allows at most 128 tools in one request across all
+ * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). An allowlist of 47 tools: the reads and writes an agent
+ * can use for an office project, with the three message tools (owner, 2026-10-12), the stage dates (fbk_023), the five meeting tools
+ * (fbk_022) and the picture tool (owner, 2026-10-21). The right list adds 10 tools that a right of the person opens: the 4 payment tools,
+ * the Dashboard and Search (role rights version 2, 2026-10-21), reports.office for the report right (owner, 2026-10-18, fbk_016), and the
+ * 3 tools of requests and bugs for the feedback right (owner, 2026-10-07; role-rights, 2026-10-23). The Admin holds every right, so an
+ * Admin's agent gets all 57. Every other call stays on the deny list: screen work (uploads, read marks, counts, archives, group
+ * changes), the prototype controls, and the other Admin calls. VS Code allows at most 128 tools in one request across all
  * servers, and each tool definition uses model context, so the lists stay short. tools.test.ts fails when a call is in no list.
+ *
+ * Every tool of both lists also belongs to one AI switch of the role sheet (aiSwitches.ts, from the catalog): an agent sees a tool only
+ * when its person holds the AI switch of the tool AND, for a right tool, the right (role rights version 2, design section 5.12).
  */
 
 /** A tool with no call behind it: it gives the written instructions (docs.ts). pictures.get (pictures.ts) is the other one. */
@@ -23,18 +28,18 @@ export const READ_FIRST = 'madar.readFirst';
 export const NO_CALL_TOOLS: ReadonlySet<string> = new Set([READ_FIRST, PICTURES_GET]);
 
 export const MCP_ALLOW = [
-  // Reads (22). chats.list finds a chat, chats.messages reads one page of it, and chats.waiting lists what waits for the reply of
+  // Reads (19). chats.list finds a chat, chats.messages reads one page of it, and chats.waiting lists what waits for the reply of
   // the person (fbk_011, owner 2026-10-18). subCompanies.list gives its logos only with withPictures. meetings.list and meetings.get read
   // the meetings of the person and of a project (fbk_022, owner 2026-10-19). pictures.get gives one picture (owner, 2026-10-21).
   READ_FIRST, PICTURES_GET, 'projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'tracker.list',
-  'payments.list', 'deadlines.list', 'files.list', 'users.list', 'dashboard.get', 'search.query', 'events.list', 'chats.list', 'subCompanies.list',
+  'deadlines.list', 'files.list', 'users.list', 'events.list', 'chats.list', 'subCompanies.list',
   'chats.messages', 'chats.waiting', 'meetings.list', 'meetings.get',
-  // Writes (31). tasks.help joins your person to a task as a helper, or takes them off it (fbk_035). chats.openDirect and chats.send message the team: a direct chat, a group or a project chat (task comments and
+  // Writes (28). tasks.help joins your person to a task as a helper, or takes them off it (fbk_035). chats.openDirect and chats.send message the team: a direct chat, a group or a project chat (task comments and
   // project posts are comments.create and updates.create). stages.setDates sets the dates of one stage, as the Schedule tab does.
   // meetings.create, meetings.update and meetings.cancel tell the attendees, who are real people. meetings.saveMinutes writes the minutes of a meeting
   // that ended (wave 2); it tells nobody.
   'story.start', 'tasks.create', 'tasks.update', 'tasks.take', 'tasks.help', 'tasks.arrange', 'tasks.move', 'tasks.complete', 'tasks.approve', 'tasks.sendBack', 'comments.create',
-  'updates.create', 'tracker.log', 'tracker.update', 'tracker.close', 'payments.create', 'payments.update', 'payments.markReceived',
+  'updates.create', 'tracker.log', 'tracker.update', 'tracker.close',
   'deadlines.create', 'deadlines.update', 'projects.update', 'projects.setStatus', 'events.undo', 'events.undoStory',
   'chats.openDirect', 'chats.send', 'stages.setDates', 'meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.saveMinutes',
 ] as const satisfies readonly (typeof READ_FIRST | typeof PICTURES_GET | SharedCallName | ServerCallName)[];
@@ -47,11 +52,19 @@ export const MCP_ADMIN = [] as const satisfies readonly SharedCallName[];
 export const ADMIN_TOOLS: ReadonlySet<string> = new Set<string>(MCP_ADMIN);
 
 /**
- * The tools that an office right opens (owner, 2026-10-18, fbk_016). app.ts gives one to an agent only when its person holds the
- * right (rights.ts). The handler checks the same right, so a call without it fails too. The reports of people (feedback.*) need the
- * feedback right: the Admin holds it, and a role can hold it (owner, 2026-10-23).
+ * The tools that an office right opens (owner, 2026-10-18, fbk_016; the new ids of role rights version 2, 2026-10-21). app.ts gives one
+ * to an agent only when its person holds the right (rights.ts) and the AI switch of the tool. The handler checks the same right, so a
+ * call without it fails too. The payment tools need the payment switches, the Dashboard and Search their own switches, the office report
+ * the report right, and the reports of people (feedback.*) the feedback right: the Admin holds it, and a role can hold it (owner,
+ * 2026-10-23).
  */
 export const MCP_BY_RIGHT = {
+  'payments.list': 'payment.view',
+  'payments.create': 'payment.add',
+  'payments.update': 'payment.change',
+  'payments.markReceived': 'payment.receive',
+  'dashboard.get': 'dashboard.view',
+  'search.query': 'search.use',
   'reports.office': 'report.office',
   'feedback.list': 'feedback.manage',
   'feedback.screenshot': 'feedback.manage',
@@ -60,8 +73,8 @@ export const MCP_BY_RIGHT = {
 const RIGHT_TOOLS = Object.keys(MCP_BY_RIGHT) as (keyof typeof MCP_BY_RIGHT)[];
 
 /** The office right that a tool needs, or undefined for a tool that no right opens. */
-export function rightOf(name: string): OfficeRight | undefined {
-  return (MCP_BY_RIGHT as Readonly<Record<string, OfficeRight>>)[name];
+export function rightOf(name: string): (OfficeRight & Action) | undefined {
+  return (MCP_BY_RIGHT as Readonly<Record<string, OfficeRight & Action>>)[name];
 }
 
 export type McpToolName = (typeof MCP_ALLOW)[number] | (typeof MCP_ADMIN)[number] | keyof typeof MCP_BY_RIGHT;
@@ -213,16 +226,46 @@ function build(name: McpToolName): ToolDef {
 /** All the tools in their fixed order (the list of an Admin, who holds every right), built once. */
 let cache: ToolDef[] | null = null;
 
-/**
- * The tools in their fixed order. The list has the tools of the allowlist; an agent of an Admin gets every right tool too. Each right
- * tool joins the list when its right is in rights (an Admin holds all of them). It reads sharedCalls and
- * the server contracts, never the server code of a call.
- */
-export function mcpTools({ admin = false, rights = [] }: { admin?: boolean; rights?: readonly OfficeRight[] } = {}): ToolDef[] {
+/** Every tool, in the fixed order. */
+export function allTools(): ToolDef[] {
   cache ??= [...MCP_ALLOW, ...MCP_ADMIN, ...RIGHT_TOOLS].sort(order).map(build);
-  return cache.filter((tool) => {
+  return cache;
+}
+
+/**
+ * The tools that a person sees (role rights version 2, design section 5.12). held answers for the rights of the person: the AI switch
+ * of a tool must be held, and for a right tool the right too. A tool that no AI switch opens is never listed (fail closed). admin: the
+ * person holds admin.manage, which the Admin tools need (none today).
+ */
+export function visibleTools(all: readonly ToolDef[], held: (id: string) => boolean, admin: boolean): ToolDef[] {
+  return all.filter((tool) => {
     if (ADMIN_TOOLS.has(tool.name)) return admin;
+    const aiSwitch = aiSwitchOf(tool.name);
+    if (aiSwitch === undefined || !held(aiSwitch)) return false;
     const right = rightOf(tool.name);
-    return right === undefined || admin || rights.includes(right);
+    return right === undefined || held(right);
   });
+}
+
+/**
+ * The tool that a call names, when it exists and the person lacks its AI switch: the call then fails with ai_off and not as an unknown
+ * tool. A tool that only the right of the person closes stays unknown (the list never named it).
+ */
+export function toolOfOffSwitch(all: readonly ToolDef[], held: (id: string) => boolean, name: string): ToolDef | undefined {
+  const tool = all.find((item) => item.name === name);
+  if (!tool || ADMIN_TOOLS.has(tool.name)) return undefined;
+  const aiSwitch = aiSwitchOf(tool.name);
+  return aiSwitch !== undefined && !held(aiSwitch) ? tool : undefined;
+}
+
+/**
+ * The tools in their fixed order. admin: every tool (an Admin holds every switch and every right). rights: the ids that the person
+ * holds (rightsOf); a tool shows when the person holds its AI switch and, for a right tool, the right. With no rights, the list is the
+ * base list: the tools that no right opens, with the AI switches not asked. It reads sharedCalls and the server contracts, never the
+ * server code of a call.
+ */
+export function mcpTools({ admin = false, rights }: { admin?: boolean; rights?: readonly string[] } = {}): ToolDef[] {
+  if (admin) return [...allTools()];
+  if (rights === undefined) return allTools().filter((tool) => !ADMIN_TOOLS.has(tool.name) && rightOf(tool.name) === undefined);
+  return visibleTools(allTools(), (id) => rights.includes(id), false);
 }

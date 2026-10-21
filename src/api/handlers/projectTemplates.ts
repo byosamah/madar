@@ -34,9 +34,12 @@ export const ProjectTemplateRow = ProjectTemplate.extend({
 });
 export type ProjectTemplateRow = z.infer<typeof ProjectTemplateRow>;
 
-/** The person who saved a template, or a person with the template right, changes and deletes it (owner, 2026-10-18). */
+/**
+ * The person who saved a template changes and deletes it (owner, 2026-10-18). A person with the switch "change any project template"
+ * (templates.projectAny) changes and deletes the templates of others (role rights version 2).
+ */
 function mayChange(ctx: Ctx, template: ProjectTemplate): boolean {
-  return ctx.authority.active && (can(ctx.authority, 'templates.manageAll') || template.createdBy === ctx.authority.id);
+  return ctx.authority.active && (can(ctx.authority, 'templates.projectAny') || template.createdBy === ctx.authority.id);
 }
 
 function rowOf(ctx: Ctx, template: ProjectTemplate): ProjectTemplateRow {
@@ -147,14 +150,17 @@ const projectTemplatesList = defineCall({
   },
 });
 
-/** Saves a new template, or with "id" changes one. Anyone who may create a project may save one (as stage templates). */
+/**
+ * Saves a new template, or with "id" changes one. A new template needs the switch templates.projectCreate (off for a Member by default,
+ * owner 2026-10-21). A change is the right of the saver, or of the switch templates.projectAny.
+ */
 const projectTemplatesSave = defineCall({
   input: Parts.extend({ id: ProjectTemplateId.optional() }),
   output: ProjectTemplateRow,
   run(input, ctx) {
-    assertCan(ctx, 'project.create');
     const templates = projectTemplatesOf(ctx.state);
     const { id: givenId, ...parts } = input;
+    if (givenId === undefined) assertCan(ctx, 'templates.projectCreate');
     if (givenId !== undefined) {
       const template = templates[givenId];
       if (!template) throw notFound('Project template', givenId);
@@ -218,11 +224,11 @@ function assertMatches(field: 'stageMatches' | 'taskMatches', matches: Record<st
 
 /**
  * The apply of a template to one ongoing project (owner, 2026-10-19, fbk_020) is a project matter: the leader of the project and the
- * Admin may do it (project.edit), on an open project (active or paused). A done or archived project is refused. The update of many
+ * Admin may do it (project.template), on an open project (active or paused). A done or archived project is refused. The update of many
  * projects and the template edits stay with the Admin and the template right (ADM-03).
  */
 function assertMayApply(ctx: Ctx, project: Project): void {
-  assertCan(ctx, 'project.edit', { projectRole: roleIn(ctx, project.id) });
+  assertCan(ctx, 'project.template', { projectRole: roleIn(ctx, project.id) });
   if (project.status !== 'active' && project.status !== 'on_hold') {
     throw invalid('projectId', 'This project is closed. A template goes only to an open project.', 'project_closed');
   }

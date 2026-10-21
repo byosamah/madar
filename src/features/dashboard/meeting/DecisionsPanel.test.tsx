@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { RoleSettings } from '../../../api/contract/entities';
 import type { State } from '../../../api/store';
 import { renderApp } from '../../../test/render';
+import { without } from '../../../test/rr2work';
 import { openAgendaSheet } from './steps';
 
 const MEETING = '/dashboard/meeting?mode=projects';
@@ -220,5 +222,46 @@ describe('decisions and actions, in the meeting (owner, 2026-10-02)', () => {
     expect(decisions.getByText('Keep the lobby double height.')).toBeInTheDocument();
     expect(decisions.queryByRole('textbox')).toBeNull();
     expect(decisions.queryByRole('button')).toBeNull();
+  });
+});
+
+// Role rights version 2: a decision is a post (post.create), an action is a to-do (task.add), and naming another person needs task.assign.
+// usr_006 is on the team of Shore Walk Retail Kiosks.
+describe('decisions and actions follow their switches (role rights version 2)', () => {
+  const member = (roles?: RoleSettings) => (state: State) => {
+    shoreWalkFirst(state);
+    state.session.currentUserId = 'usr_006';
+    if (roles) state.settings.roles = roles;
+  };
+
+  it('shows the decision box and the choice between a decision and an action with both switches on', async () => {
+    await renderApp(MEETING, member());
+    const decisions = await panel();
+    expect(decisions.getByRole('textbox', { name: 'Write a decision' })).toBeInTheDocument();
+    expect(decisions.getByRole('radio', { name: 'Action' })).toBeInTheDocument();
+  });
+
+  it('shows only the action form with post.create off', async () => {
+    await renderApp(MEETING, member(without('post.create.team')));
+    const decisions = await panel();
+    expect(await decisions.findByRole('textbox', { name: 'Write an action' })).toBeInTheDocument();
+    expect(decisions.queryByRole('textbox', { name: 'Write a decision' })).toBeNull();
+    expect(decisions.queryByRole('radio', { name: 'Action' })).toBeNull();
+  });
+
+  it('shows only the decision form with task.add off', async () => {
+    await renderApp(MEETING, member(without('task.add.team')));
+    const decisions = await panel();
+    expect(await decisions.findByRole('textbox', { name: 'Write a decision' })).toBeInTheDocument();
+    expect(decisions.queryByRole('radio', { name: 'Action' })).toBeNull();
+    expect(decisions.queryByRole('textbox', { name: 'Write an action' })).toBeNull();
+  });
+
+  it('lists only the person in Who with task.assign off', async () => {
+    await renderApp(MEETING, member(without('task.assign')));
+    const decisions = await panel();
+    await userEvent.click(await decisions.findByRole('radio', { name: 'Action' }));
+    const who = decisions.getByRole('combobox', { name: 'Who' });
+    expect(within(who).getAllByRole('option')).toHaveLength(1);
   });
 });

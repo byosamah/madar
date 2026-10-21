@@ -163,7 +163,7 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
                     range={range}
                     place={index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'later'}
                     tone={tone}
-                    editable={detail.viewerCan.edit}
+                    editable={detail.viewerCan.editStages === true}
                     width={width}
                     onCommit={(next, onError) => setDates.mutate({ stageId: stage.id, startDate: next.start, endDate: next.end }, { onError })}
                   />
@@ -213,7 +213,7 @@ function StageDates({ detail }: TabProps) {
   // A failed or refused save puts the date fields back to the saved dates (audit 2026-10-03, PRJ-7).
   const [failures, setFailures] = useState(0);
   const rollback = { onError: () => setFailures((count) => count + 1) };
-  const edit = detail.viewerCan.edit;
+  const edit = detail.viewerCan.editStages === true;
   const list = listFormat(lang);
   const overlaps = stageOverlaps(detail.stages);
   const name = (stage: Stage) => (
@@ -332,7 +332,7 @@ function Deadlines({ detail }: TabProps) {
             <li key={deadline.id} className="flex min-h-11 items-center gap-3">
               <span aria-hidden className="size-2.5 shrink-0 rotate-45 rounded-sm bg-ink-2" />
               {/* The name opens the deadline to change it, for the people who may (audit 2026-10-03, PRJ-13). */}
-              {detail.viewerCan.edit ? (
+              {detail.viewerCan.editDeadlines ? (
                 <button
                   type="button"
                   aria-label={t('schedule.editDeadline', { name: deadline.name })}
@@ -343,7 +343,7 @@ function Deadlines({ detail }: TabProps) {
                 </button>
               ) : <bdi className="min-w-0 flex-1 truncate text-subheadline">{deadline.name}</bdi>}
               <span className={`tabular text-footnote ${deadline.date < today ? 'text-ink-2' : ''}`}>{formatDay(deadline.date, lang)}</span>
-              {detail.viewerCan.edit && (
+              {detail.viewerCan.editDeadlines && (
                 <IconButton label={t('schedule.deleteDeadline', { name: deadline.name })} onClick={() => remove.mutate({ id: deadline.id })}>
                   <AnimatedIcon icon={DeleteIcon} size={16} aria-hidden />
                 </IconButton>
@@ -352,7 +352,7 @@ function Deadlines({ detail }: TabProps) {
           ))}
         </ul>
       )}
-      {detail.viewerCan.edit && (
+      {detail.viewerCan.editDeadlines && (
         <form
           className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem_12rem_auto] sm:items-end"
           onSubmit={(event) => {
@@ -389,7 +389,7 @@ export function ScheduleTab({ detail }: TabProps) {
       {!dated || !range
         ? <EmptyState title={t('schedule.noDatesTitle')} body={t('schedule.noDates')} />
         : !phone && <Timeline detail={detail} range={range} today={today} />}
-      {(phone || detail.viewerCan.edit) && <StageDates detail={detail} />}
+      {(phone || detail.viewerCan.editStages) && <StageDates detail={detail} />}
       <Deadlines detail={detail} />
     </div>
   );

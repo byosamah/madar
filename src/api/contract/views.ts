@@ -70,6 +70,41 @@ export const ViewerCan = z.object({
   payments: z.boolean(),
   /** The viewer may correct the project code: the Admin only (owner, 2026-10-05). Optional, so older answers still parse. */
   editCode: z.boolean().optional(),
+  // Role rights version 2 (owner, 2026-10-21): one flag for each gate that a screen hides. All optional, so older answers still parse.
+  /** project.details: name, client, place, dates, folder, description, cover, sub-company. */
+  editDetails: z.boolean().optional(),
+  /** project.team: add and remove people, change their discipline. */
+  editTeam: z.boolean().optional(),
+  /** project.stages: add, remove, order and date stages. */
+  editStages: z.boolean().optional(),
+  /** project.deadlines: add and change deadlines. */
+  editDeadlines: z.boolean().optional(),
+  /** project.template: link and apply a template to this project. */
+  applyTemplate: z.boolean().optional(),
+  /** project.links: add, change and remove the links of the project. */
+  links: z.boolean().optional(),
+  /** file.upload: upload a file to the project. */
+  upload: z.boolean().optional(),
+  /** file.deliver: Mark as delivered, Received from the client. */
+  deliver: z.boolean().optional(),
+  /** tracker.log: log, update and close a Tracker entry of the project. */
+  logTracker: z.boolean().optional(),
+  /** post.create: post an update in the project. */
+  postUpdate: z.boolean().optional(),
+  /** comment.create: comment and react in the project. */
+  comment: z.boolean().optional(),
+  /** task.add: add a to-do to the project. */
+  addTask: z.boolean().optional(),
+  /** meeting.plan: plan a meeting of the project. */
+  planMeeting: z.boolean().optional(),
+  /** file.deleteAny: delete any file of the project. */
+  deleteAnyFile: z.boolean().optional(),
+  /** tracker.deleteAny: delete any Tracker entry of the project. */
+  deleteAnyTracker: z.boolean().optional(),
+  /** chat.project: open the project chat. */
+  projectChat: z.boolean().optional(),
+  /** task.any: change and finish any to-do of the project. */
+  changeAnyTask: z.boolean().optional(),
 });
 
 export const ProjectSummary = z.object({
@@ -180,6 +215,17 @@ export const TaskDetail = TaskRow.extend({
     take: z.boolean(),
     /** Joins the task as a helper with one tap: a person on the project team who neither leads nor helps (fbk_035). Optional, so older answers load. */
     help: z.boolean().optional(),
+    // Role rights version 2 (owner, 2026-10-21). All optional, so older answers still parse.
+    /** Changes the title, description, checklist, stage, flag and prerequisites: task.any, or task.details on a to-do the viewer leads or made. */
+    editDetails: z.boolean().optional(),
+    /** Changes the start and due dates: task.any, or task.dates on a to-do the viewer leads or made. */
+    editDates: z.boolean().optional(),
+    /** Completes, moves and opens a new version: task.any, or task.work on a to-do the viewer leads or made. */
+    work: z.boolean().optional(),
+    /** Comments on the to-do and reacts: comment.create. */
+    comment: z.boolean().optional(),
+    /** Uploads a file to the to-do: file.upload. */
+    upload: z.boolean().optional(),
   }),
   history: z.array(EventView),
 });

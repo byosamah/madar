@@ -5,6 +5,7 @@ import type { Language } from '../../api/contract/entities';
 import { REMOTE } from '../../app/mode';
 import { useCall, useRuntime } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
+import { useRight } from '../../app/useRight';
 import { Button } from '../../components/Button';
 import { LoadFailed } from '../../components/LoadFailed';
 import { formatDay, stampDay } from '../../lib/dates';
@@ -50,6 +51,8 @@ function Agents() {
   const { port } = useOAuth();
   const toast = useToast();
   const queryClient = useQueryClient();
+  // Without ai.connect (role rights version 2) the section keeps the list and the Remove button, and shows one plain line in place of the intro.
+  const aiOn = useRight('ai.connect', undefined, true);
   const agents = useCall('agents.list', {});
   const grants = useQuery({ queryKey: ['oauth', 'grants'], queryFn: () => port.listGrants(), retry: false });
   const [busy, setBusy] = useState<string | null>(null);
@@ -108,11 +111,11 @@ function Agents() {
 
   return (
     <Section title={t('agents.title')}>
-      <p className="text-subheadline text-ink-2">{t('agents.intro')}</p>
+      <p className="text-subheadline text-ink-2">{t(aiOn ? 'agents.intro' : 'agents.off')}</p>
       <LoadFailed query={agents} />
       {/* The grants are the only place where an app with access but no approval in Madar shows, so a failed list says so. */}
       <LoadFailed query={grants} />
-      {agents.data && items.length === 0 && grants.isSuccess && <p className="text-body text-ink-2">{t('agents.none')}</p>}
+      {aiOn && agents.data && items.length === 0 && grants.isSuccess && <p className="text-body text-ink-2">{t('agents.none')}</p>}
       {items.length > 0 && (
         <ul className="flex flex-col divide-y divide-hairline">
           {items.map((item) => (

@@ -79,7 +79,7 @@ export const filesUploadStart: ServerCall<'files.uploadStart'> = async (input, c
 
 /**
  * The office task of an upload with no project (owner, 2026-10-06), as files.upload reads it (src/api/handlers/files.ts): a task
- * that the person does not see reads as missing, a project task needs its project, and the person must post there.
+ * that the person does not see reads as missing, a project task needs its project, and the person must upload there (file.upload).
  */
 async function officeTaskOfUpload(ctx: Parameters<ServerCall<'files.uploadStart'>>[1], taskId: string | undefined): Promise<Task> {
   if (!taskId) throw invalid('projectId', 'Name the project, or the office task of the file.', 'office_needs_task');
@@ -87,7 +87,7 @@ async function officeTaskOfUpload(ctx: Parameters<ServerCall<'files.uploadStart'
   const { authority, sees } = mayViewOfficeTask(ctx.office, ctx.principal.userId, task);
   if (!task || !sees) throw notFound('Task', taskId);
   if (task.projectId !== null) throw invalid('projectId', 'This task belongs to a project. Name the project.', 'office_needs_task');
-  if (!can(authority, 'content.post', taskResource(ctx.office.lists as unknown as State, task, authority.id))) throw forbidden('You cannot do this.', { action: 'content.post' });
+  if (!can(authority, 'file.upload', taskResource(ctx.office.lists as unknown as State, task, authority.id))) throw forbidden('You cannot do this.', { action: 'file.upload' });
   return task;
 }
 

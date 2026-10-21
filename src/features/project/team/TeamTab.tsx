@@ -27,7 +27,7 @@ function MemberRow({ member, detail, onMakeLeader }: { member: Member; detail: P
   useEffect(() => setDiscipline(member.discipline), [member.discipline]);
   const save = useAction('members.update', { onSuccess: () => toast.show({ message: t('team.disciplineSaved') }) });
   const remove = useUndoable('members.remove', { message: () => t('team.removed', { name: nameOf(user) }) });
-  const edit = detail.viewerCan.edit;
+  const edit = detail.viewerCan.editTeam === true;
   const items: MenuItem[] = [
     // "Make leader" hands the project over and has no Undo, so it opens the leader sheet: a pick, then Save (audit 2026-10-03, PRJ-21).
     { label: t('team.makeLeader'), onSelect: onMakeLeader, hidden: !detail.viewerCan.changeLeader || member.isLeader },
@@ -134,8 +134,8 @@ export function TeamTab({ detail }: TabProps) {
         <h2 id="team-members" className="px-2 pt-1 text-headline">{t('team.members')}</h2>
         <ul>{members.map((member) => <MemberRow key={member.user.id} member={member} detail={detail} onMakeLeader={() => setNewLeader(member.user.id)} />)}</ul>
       </section>
-      {detail.viewerCan.edit && <AddMember detail={detail} />}
-      {detail.viewerCan.edit && <AddTeam detail={detail} />}
+      {detail.viewerCan.editTeam && <AddMember detail={detail} />}
+      {detail.viewerCan.editTeam && <AddTeam detail={detail} />}
       <LeaderSheet
         detail={detail}
         open={newLeader !== null}

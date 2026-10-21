@@ -77,7 +77,7 @@ export const updatesCreate = defineCall({
   output: FeedItem,
   run(input, ctx) {
     const project = requireProject(ctx, input.projectId);
-    assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, project.id) });
+    assertCan(ctx, 'post.create', { projectRole: roleIn(ctx, project.id) });
     for (const fileId of input.fileIds) {
       if (ctx.state.files[fileId]?.projectId !== project.id) throw invalid('fileIds', 'A file is not in this project.');
     }
@@ -97,7 +97,7 @@ export const updatesUpdate = defineCall({
   output: FeedItem,
   run(input, ctx) {
     const update = requireUpdate(ctx, input.id);
-    assertCan(ctx, 'content.editOwn', { projectRole: roleIn(ctx, update.projectId), authorId: principalOf(ctx.state, update.authorId) });
+    assertCan(ctx, 'post.editOwn', { projectRole: roleIn(ctx, update.projectId), authorId: principalOf(ctx.state, update.authorId) });
     const added = newMentions(ctx, update.body, input.body);
     applyPatch(ctx, update, { body: input.body, editedAt: ctx.stamp }, { projectId: update.projectId, verb: 'update.edited', targetType: 'update', targetId: update.id });
     notifyIn(ctx, { userIds: added, trigger: 'mention', targetType: 'update', targetId: update.id });
@@ -110,7 +110,7 @@ export const updatesDelete = defineCall({
   output: Deleted,
   run(input, ctx) {
     const update = requireUpdate(ctx, input.id);
-    assertCan(ctx, 'content.editOwn', { projectRole: roleIn(ctx, update.projectId), authorId: principalOf(ctx.state, update.authorId) });
+    assertCan(ctx, 'post.editOwn', { projectRole: roleIn(ctx, update.projectId), authorId: principalOf(ctx.state, update.authorId) });
     recordDelete(ctx, { projectId: update.projectId, verb: 'update.deleted', targetType: 'update', targetId: update.id, entity: update });
     delete ctx.state.updates[update.id];
     return { deleted: true as const };
@@ -139,7 +139,7 @@ export const commentsCreate = defineCall({
   output: CommentView,
   run(input, ctx) {
     const { projectId, officeTaskId, resource } = targetOf(ctx, input.targetType, input.targetId);
-    assertCan(ctx, 'content.post', resource);
+    assertCan(ctx, 'comment.create', resource);
     assertFilesInProject(ctx, input.fileIds, projectId, officeTaskId);
     if (input.replyToId !== undefined) requireReplyComment(ctx, input.targetType, input.targetId, input.replyToId);
     const comment = insertComment(ctx, input.targetType, input.targetId, projectId, input.body, input.fileIds, undefined, undefined, input.replyToId);
@@ -154,7 +154,7 @@ export const commentsUpdate = defineCall({
   run(input, ctx) {
     const comment = requireComment(ctx, input.id);
     const { projectId, resource } = targetOf(ctx, comment.targetType, comment.targetId);
-    assertCan(ctx, 'content.editOwn', { ...resource, authorId: principalOf(ctx.state, comment.authorId) });
+    assertCan(ctx, 'post.editOwn', { ...resource, authorId: principalOf(ctx.state, comment.authorId) });
     // Madar wrote the words of its own date message, so nobody changes them. A person may fix the words of their own reason.
     if (comment.dates?.byTaskId) throw forbidden('Madar wrote this message.', { commentId: comment.id });
     const added = newMentions(ctx, comment.body, input.body);
@@ -170,7 +170,7 @@ export const commentsDelete = defineCall({
   run(input, ctx) {
     const comment = requireComment(ctx, input.id);
     const { projectId, resource } = targetOf(ctx, comment.targetType, comment.targetId);
-    assertCan(ctx, 'content.editOwn', { ...resource, authorId: principalOf(ctx.state, comment.authorId) });
+    assertCan(ctx, 'post.editOwn', { ...resource, authorId: principalOf(ctx.state, comment.authorId) });
     // The record of why the dates of a task moved stays in the Conversation (owner, 2026-10-02).
     if (comment.dates) throw forbidden('A message about a date change stays in the Conversation.', { commentId: comment.id });
     recordDelete(ctx, { projectId, verb: 'comment.deleted', targetType: 'comment', targetId: comment.id, entity: comment });
@@ -191,7 +191,7 @@ export const reactionsToggle = defineCall({
     if (input.messageId !== undefined) return toggleMessageReaction(ctx, input.messageId, input.emoji);
     const comment = requireComment(ctx, input.commentId ?? '');
     const { projectId, resource } = targetOf(ctx, comment.targetType, comment.targetId);
-    assertCan(ctx, 'content.post', resource);
+    assertCan(ctx, 'comment.create', resource);
     const next = toggledReactions(comment.reactions, input.emoji, ctx.actor.id);
     // One event for each change, with the agent and the person it acts for (spec 17.2, audit 2026-10-03, API-19).
     applyPatch(ctx, comment, { reactions: next }, { projectId, verb: 'comment.reacted', targetType: 'comment', targetId: comment.id });

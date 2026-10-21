@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import type { UserCard } from '../../api/contract/views';
 import { usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
+import { useRight } from '../../app/useRight';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
@@ -25,7 +26,9 @@ export function PersonSheet({ person, onClose }: { person: UserCard; onClose: ()
       navigate(`/inbox/${id}`);
     },
   });
-  const canMessage = person.kind === 'human' && session.data !== undefined && person.id !== session.data.authority.id;
+  // The Message button needs chat.direct (role rights version 2).
+  const mayChat = useRight('chat.direct');
+  const canMessage = mayChat && person.kind === 'human' && session.data !== undefined && person.id !== session.data.authority.id;
   const user = useCall('users.get', { id: person.id });
   const projects = useCall('projects.list', { status: 'active', sort: 'name' });
   const theirs = (projects.data ?? []).filter((summary) => summary.leader?.id === person.id || summary.team.some((member) => member.id === person.id));

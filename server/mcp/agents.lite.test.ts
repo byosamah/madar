@@ -4,6 +4,7 @@ import type { Deps } from '../core/ports';
 import { liteData } from '../data/lite/callData';
 import { readLiteOffice } from '../data/lite/office';
 import { ensureAgentUser } from './agentUser';
+import { offWith } from './aiRoles.testing';
 import { sqlMcpLimit } from './app';
 import { recordApproval } from './approval';
 import { liteAgentOf } from './oauth/agent';
@@ -130,5 +131,33 @@ describe('the agent rows on SQLite (Supabase exit, wave 2)', () => {
     expect(await t.db.tx('write', (q) => recordApproval(q, { authorizationId: 'req1', authUserId: mine, ownerId: 'usr_002', now }))).toEqual({ clientId: 'c1' });
     t.raw.exec("insert into agent_links (client_id, owner_user_id, agent_user_id, client_name, redirect_host, revoked_at) values ('c1', 'usr_002', 'usr_009', 'Claude', 'claude.ai', '2026-10-17T05:00:00.000Z')");
     await expect(t.db.tx('write', (q) => recordApproval(q, { authorizationId: 'req1', authUserId: mine, ownerId: 'usr_002', now }))).rejects.toMatchObject({ details: { reason: 'agent_removed' } });
+  });
+});
+
+describe('the agent rows and the switch Connect AI assistants (role rights version 2)', () => {
+  const connect = async (t: TestOffice, on: boolean) => {
+    const done = await t.call('usr_001', 'roles.update', { role: 'member', off: on ? [] : offWith('ai.connect') });
+    if (!done.ok) throw new Error(`roles.update failed: ${JSON.stringify(done)}`);
+  };
+
+  it('makes no agent user and no link on the first call of a person whose role has ai.connect off, and links it when the switch is on', async () => {
+    const t = await signinOffice();
+    const { authId, clientId, sessionId } = await approvedClient(t);
+    const deps = t.deps as unknown as Deps;
+    const users = Object.keys((await officeOf(t)()).lists.users).length;
+    await connect(t, false);
+    await expect(liteAgentOf(deps, { token: 'x', authUserId: authId, clientId, sessionId }, officeOf(t))).rejects.toMatchObject({ code: 'forbidden', details: { reason: 'ai_off', right: 'ai.connect' } });
+    expect(t.raw.prepare('select count(*) as n from agent_links').get()).toEqual({ n: 0 });
+    expect(Object.keys((await officeOf(t)()).lists.users)).toHaveLength(users);
+    await connect(t, true);
+    expect(await liteAgentOf(deps, { token: 'x', authUserId: authId, clientId, sessionId }, officeOf(t))).toMatchObject({ ownerId: 'usr_002', linked: true });
+  });
+
+  it('keeps the list and the remove of the agents of a person whose role has ai.connect off (Settings, Agents)', async () => {
+    const t = await signinOffice();
+    const { agentId, clientId } = await linkedAgent(t);
+    await connect(t, false);
+    expect(await t.call('usr_002', 'agents.list', {})).toMatchObject({ ok: true, output: [{ agentId, clientIds: [clientId] }] });
+    expect(await t.call('usr_002', 'agents.remove', { agentId })).toMatchObject({ ok: true, output: { removed: true } });
   });
 });

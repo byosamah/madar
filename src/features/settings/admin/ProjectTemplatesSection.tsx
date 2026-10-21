@@ -4,6 +4,7 @@ import type { ProjectTemplate } from '../../../api/contract/entities';
 import type { ProjectTemplateRow } from '../../../api/handlers/projectTemplates';
 import { useUndoable } from '../../../app/actions';
 import { usePersonName } from '../../../app/personName';
+import { can } from '../../../api/permissions';
 import { useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
@@ -45,7 +46,9 @@ export function ProjectTemplatesSection() {
   const toast = useToast();
   // The update of the projects of a template needs the right templates.updateProjects, which the Admin holds (role-rights, 2026-10-23).
   const authority = useCall('session.get', {}).data?.authority;
-  const mayUpdate = authority !== undefined && (authority.systemRole === 'admin' || (authority.officeRights ?? []).includes('templates.updateProjects'));
+  const mayUpdate = authority !== undefined && can(authority, 'templates.updateProjects');
+  // "New template" and "Duplicate" make a new template, so they need templates.projectCreate (role rights version 2).
+  const mayCreate = authority !== undefined && can(authority, 'templates.projectCreate');
   // The number of projects that follow the template being deleted, for the words of the Undo toast.
   const deletedFollowers = useRef(0);
   const remove = useUndoable('projectTemplates.delete', {
@@ -77,10 +80,12 @@ export function ProjectTemplatesSection() {
     <section aria-labelledby="admin-project-templates" className="surface flex flex-col gap-3 rounded-card p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="admin-project-templates" className="text-headline">{t('projectTemplates.title')}</h2>
-        <Button onClick={() => setEditing({ template: null })}>
-          <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
-          {t('projectTemplates.new')}
-        </Button>
+        {mayCreate && (
+          <Button onClick={() => setEditing({ template: null })}>
+            <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
+            {t('projectTemplates.new')}
+          </Button>
+        )}
       </div>
       <p className="text-footnote text-ink-2">{t('projectTemplates.intro')}</p>
       <LoadFailed query={templates} />
@@ -117,7 +122,7 @@ export function ProjectTemplatesSection() {
                     {
                       label: t('projectTemplates.duplicate'),
                       onSelect: () => setEditing({ template: null, copy: duplicateDraft(template, names, activeIds, copyWord) }),
-                      hidden: !template.canEdit,
+                      hidden: !template.canEdit || !mayCreate,
                     },
                     { label: t('projectTemplates.update.open'), onSelect: () => setUpdating({ template, reviewAll: false }), hidden: !mayUpdate },
                     {

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { RoleSettings } from '../../../api/contract/entities';
 import type { State } from '../../../api/store';
 import { renderApp } from '../../../test/render';
+import { without } from '../../../test/rr2work';
 
 const MEETING = '/dashboard/meeting?mode=projects';
 
@@ -106,5 +108,39 @@ describe('client items on each project, in the meeting (owner, 2026-10-02)', () 
     const items = await panel();
     expect(items.getByText('Client asked for the lease plan')).toBeInTheDocument();
     expect(items.queryByRole('button')).toBeNull();
+  });
+});
+
+// Role rights version 2: Answered and Received need tracker.log, and "Who replies?" needs tracker.reply (a to-do) on top.
+// usr_006 is on the team of Shore Walk Retail Kiosks.
+describe('client items follow their switches (role rights version 2)', () => {
+  const member = (roles?: RoleSettings) => (state: State) => {
+    withItems(state);
+    state.session.currentUserId = 'usr_006';
+    if (roles) state.settings.roles = roles;
+  };
+
+  it('shows Answered, Received and Who replies? with the switches on', async () => {
+    await renderApp(MEETING, member());
+    const items = await panel();
+    expect(await items.findByRole('button', { name: /Answered.*lease plan/ })).toBeInTheDocument();
+    expect(items.getByRole('button', { name: /Received.*signed brief/ })).toBeInTheDocument();
+    expect(items.getAllByRole('button', { name: /Who replies\?/ }).length).toBeGreaterThan(0);
+  });
+
+  it('shows the items and no button with tracker.log off', async () => {
+    await renderApp(MEETING, member(without('tracker.log.team')));
+    const items = await panel();
+    expect(await items.findByText('Client asked for the lease plan')).toBeInTheDocument();
+    expect(items.queryByRole('button', { name: /Answered/ })).toBeNull();
+    expect(items.queryByRole('button', { name: /Received/ })).toBeNull();
+    expect(items.queryByRole('button', { name: /Who replies\?/ })).toBeNull();
+  });
+
+  it('keeps Answered and drops Who replies? with tracker.reply off', async () => {
+    await renderApp(MEETING, member(without('tracker.reply')));
+    const items = await panel();
+    expect(await items.findByRole('button', { name: /Answered.*lease plan/ })).toBeInTheDocument();
+    expect(items.queryByRole('button', { name: /Who replies\?/ })).toBeNull();
   });
 });
