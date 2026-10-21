@@ -58,11 +58,13 @@ async function call(person: Person, name: string, input: unknown, write = false)
 
 function join(person: Person, topic: string, presenceKey?: string): Promise<RealtimeChannel> {
   const channel = person.client.channel(topic, { config: { private: true, ...(presenceKey ? { presence: { key: presenceKey } } : {}) } });
+  // supabase-js asks for presence at the join only when a presence listener is set first, as the screens do.
+  if (presenceKey) channel.on('presence', { event: 'sync' }, () => undefined);
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`${person.label} could not join ${topic} in 10 s.`)), 10_000);
-    channel.subscribe((status) => {
+    channel.subscribe((status, err) => {
       if (status === 'SUBSCRIBED') { clearTimeout(timer); resolve(channel); }
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { clearTimeout(timer); reject(new Error(`${person.label} ${topic}: ${status}`)); }
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { clearTimeout(timer); reject(new Error(`${person.label} ${topic}: ${status} ${err?.message ?? ''}`)); }
     });
   });
 }
@@ -86,7 +88,8 @@ const member = await signIn('member', 'member@madar.test', 'MADAR_TEST_PASSWORD_
 const accounting = await signIn('accounting', 'accounting@madar.test', 'MADAR_TEST_PASSWORD_ACCOUNTING');
 
 // Status: the admin reads the topic of the member; the member tracks on it.
-const watched = await join(admin, `status:${member.id}`);
+// The screens join every status topic with a presence key (src/app/remote/presence.ts); the read policy covers presence only.
+const watched = await join(admin, `status:${member.id}`, 'live-check-admin');
 const stateOf = () => Object.values(watched.presenceState()).flat().map((p) => (p as { state?: string }).state);
 const own = await join(member, `status:${member.id}`, 'live-check');
 try {
