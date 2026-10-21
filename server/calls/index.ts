@@ -10,9 +10,10 @@ import { googleConnect, googleConnectStart, googleDisconnect, googleStatus } fro
 import { usersInvites, usersResendInvite } from './people';
 import { storyStart } from './story';
 import { liveTicket } from './live';
+import { chatsTyping } from './typing';
 
 /**
- * The registry of the 15 server calls (plan 4.11). runCall (C3) finds a server call here; each owner track replaces its file's body,
+ * The registry of the 14 server calls (plan 4.11). runCall (C3) finds a server call here; each owner track replaces its file's body,
  * never this list. The contracts are in src/api/contract/server.ts.
  */
 export const SERVER_CALLS: { [N in ServerCallName]: ServerCall<N> } = {
@@ -29,6 +30,7 @@ export const SERVER_CALLS: { [N in ServerCallName]: ServerCall<N> } = {
   'google.connectStart': googleConnectStart,
   'google.connect': googleConnect,
   'google.disconnect': googleDisconnect,
+  'chats.typing': chatsTyping,
 };
 
 /**

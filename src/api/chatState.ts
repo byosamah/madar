@@ -43,7 +43,7 @@ export function dropProjectConversation(state: State, projectId: string): void {
  * The one rule of who sees a chat room: a direct chat is for its two people, a group for its people (never the Admin alone),
  * and a project chat for the team and the Admin.
  */
-export function canSeeConversation(state: State, conversation: Conversation, user: User): boolean {
+export function canSeeConversation(state: Pick<State, 'projects' | 'members'>, conversation: Conversation, user: User): boolean {
   if (!user.active) return false;
   if (conversation.kind !== 'project') return conversation.memberIds.includes(user.id);
   const projectId = conversation.projectId;
@@ -61,7 +61,22 @@ export function chatMemberIds(state: Pick<State, 'users' | 'projects' | 'members
   if (conversation.kind !== 'project') return conversation.memberIds.filter(isHuman);
   const projectId = conversation.projectId;
   if (!projectId || !state.projects[projectId]) return [];
-  return Object.keys(state.users).filter((id) => isHuman(id) && projectRoleOf(state as State, projectId, id) !== 'other');
+  return Object.keys(state.users).filter((id) => isHuman(id) && projectRoleOf(state, projectId, id) !== 'other');
+}
+
+/**
+ * The people who hear that a person types in a chat (chat presence design B4): the other members. Null when the chat does not exist or
+ * the person may not see it (the call then answers like any hidden chat). An empty list when the person may see the chat and is no
+ * member (an Admin who reads a project chat). The server and the prototype fake both use this one rule.
+ */
+export function typingRecipients(
+  state: Pick<State, 'users' | 'projects' | 'members' | 'conversations'>, conversationId: string, userId: string,
+): string[] | null {
+  const conversation = state.conversations[conversationId];
+  const user = state.users[userId];
+  if (!conversation || !user || !canSeeConversation(state, conversation, user)) return null;
+  const members = chatMemberIds(state, conversation);
+  return members.includes(userId) ? members.filter((id) => id !== userId) : [];
 }
 
 /**

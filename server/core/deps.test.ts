@@ -38,7 +38,7 @@ describe('the real Deps from the environment', () => {
 
   it('builds every port and the config from a full environment, with the defaults of the plan', () => {
     const deps = buildDeps(reader(FULL));
-    expect(Object.keys(deps).sort()).toEqual(['authAdmin', 'clock', 'config', 'db', 'files', 'log', 'mail', 'signal']);
+    expect(Object.keys(deps).sort()).toEqual(['authAdmin', 'clock', 'config', 'db', 'files', 'log', 'mail', 'signal', 'typing']);
     expect(deps.config).toMatchObject({
       appUrl: 'https://madar.example',
       apiUrl: 'https://ref.supabase.co/functions/v1/api',

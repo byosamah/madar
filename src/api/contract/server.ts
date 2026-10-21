@@ -6,14 +6,14 @@ import { MAX_SHOT_BYTES, PASSWORD_SET_MARK } from './limits';
 export { MAX_SHOT_BYTES, PASSWORD_SET_MARK };
 
 /**
- * The 13 calls that only the real build has (plan 4.11; live.ticket from the exit, wave 3; the four google calls of fbk_022; usage.get and
+ * The 14 calls that only the real build has (plan 4.11; live.ticket from the exit, wave 3; the four google calls of fbk_022; chats.typing of the chat presence design; usage.get and
  * usage.retryEffect went with the usage feature, owner 2026-10-23). They carry the work that State cannot hold: story IDs, file links,
  * invitations, agents, the ticket of the live socket and the Google Calendar connect. The server runs its own versions; src/api/handlers/serverFakes.ts gives the prototype fake ones. The MCP tool list
  * (track G) reads these contracts, not the server code.
  */
 export const SERVER_CALL_NAMES = [
   'story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove',
-  'live.ticket', 'google.status', 'google.connectStart', 'google.connect', 'google.disconnect',
+  'live.ticket', 'google.status', 'google.connectStart', 'google.connect', 'google.disconnect', 'chats.typing',
 ] as const;
 export type ServerCallName = (typeof SERVER_CALL_NAMES)[number];
 
@@ -161,6 +161,17 @@ const googleDisconnect = {
   readOnly: false,
 };
 
+/**
+ * chats.typing (chat presence design B, base B5): the typist's screen tells the server that the person types in a chat, or stops. The
+ * server checks that the person may see the chat and is a member, and sends the signal to the other members. It writes nothing, takes
+ * no office lock and answers how many people it told. An agent gets forbidden. A chat the person cannot see answers like any hidden chat.
+ */
+const chatsTyping = {
+  input: z.object({ conversationId: ConversationId, typing: z.boolean() }),
+  output: z.object({ sent: z.number().int().min(0) }),
+  readOnly: true,
+};
+
 export const serverContracts = {
   'story.start': storyStart,
   'files.uploadStart': filesUploadStart,
@@ -171,6 +182,7 @@ export const serverContracts = {
   'agents.list': agentsList,
   'agents.remove': agentsRemove,
   'live.ticket': liveTicket,
+  'chats.typing': chatsTyping,
   'google.status': googleStatus,
   'google.connectStart': googleConnectStart,
   'google.connect': googleConnect,

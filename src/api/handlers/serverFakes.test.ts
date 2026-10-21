@@ -12,9 +12,9 @@ const pdf = (text: string) => new Blob([text], { type: 'application/pdf' });
 const TEN_MINUTES_LATER = '2026-09-30T09:10:00.000+03:00';
 
 describe('the server call contracts', () => {
-  it('name the 13 server calls, and the fakes follow the same contracts', () => {
+  it('name the 14 server calls, and the fakes follow the same contracts', () => {
     expect([...SERVER_CALL_NAMES].sort()).toEqual([
-      'agents.list', 'agents.remove', 'feedback.uploadStart', 'files.link', 'files.uploadStart', 'google.connect', 'google.connectStart', 'google.disconnect', 'google.status',
+      'agents.list', 'agents.remove', 'chats.typing', 'feedback.uploadStart', 'files.link', 'files.uploadStart', 'google.connect', 'google.connectStart', 'google.disconnect', 'google.status',
       'live.ticket', 'story.start', 'users.invites', 'users.resendInvite',
     ]);
     expect(Object.keys(serverFakes).sort()).toEqual([...SERVER_CALL_NAMES].sort());

@@ -1,5 +1,6 @@
 import type { RunCall } from './runCall';
 import type { ServerHost } from './serverHost';
+import type { TypingSignal } from '../../src/api/remote/wire';
 import type { ChangeSignal } from './types';
 
 /**
@@ -135,6 +136,14 @@ export interface LivePort {
   mint(userId: string, now: Date): { ticket: string; expiresAt: string };
 }
 
+/**
+ * The typing signals (chat presence design B, base B5): the same signal to each of the people, on person:<id>, with its own event name.
+ * It is no change signal and is never saved. send never throws: a lost signal ends by itself 6 seconds after the last one.
+ */
+export interface TypingPort {
+  send(people: string[], signal: TypingSignal): Promise<void>;
+}
+
 export type Deps = {
   db: Db;
   clock: Clock;
@@ -154,6 +163,8 @@ export type Deps = {
    * calls then use the global fetch. The office path has no Google yet (docs/superpowers/real-build/exit-handoff.md).
    */
   googleFetch?: typeof globalThis.fetch;
+  /** The typing signals. Left out where the host has no sender (the office object gets its own): chats.typing then tells nobody. */
+  typing?: TypingPort;
   /** The live socket tickets. Only the office object has them; live.ticket answers not_found without them. */
   live?: LivePort;
   /**

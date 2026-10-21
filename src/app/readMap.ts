@@ -95,6 +95,8 @@ const RULES: Record<string, ReadRule> = {
   'chats.waiting': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'preferences', 'projects', 'tasks', 'users']),
   // The ticket of the live socket (exit wave 3): src/api/remote/liveSocket.ts asks for it with api.call, never with useCall.
   'live.ticket': rule('none', []),
+  // The typing signal (chat presence design B): it reads nothing that a screen shows, and no change signal reloads it.
+  'chats.typing': rule('none', []),
   // The Google Calendar connect (fbk_022): the state of a connection is private to its person and changes with no signal. The Settings
   // section reads it again after its own connect and disconnect.
   'google.status': rule('none', []),

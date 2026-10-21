@@ -34,6 +34,13 @@ export type ChangeSignal = {
   actorId?: string;
 };
 
+/**
+ * The typing signal (chat presence design B, base B5). The server sends it on person:<id> of each other member of the chat, with this
+ * event name next to the change signals. It names the chat and the typist, which the server found from the sign-in, and is never saved.
+ */
+export const TYPING_EVENT = 'typing';
+export type TypingSignal = { v: 1; conversationId: string; userId: string; typing: boolean; at: string };
+
 export type WireCall = { i: number; name: string; input: unknown; story?: StoryRef; key?: string };
 export type WireRequest = { v: 1; calls: WireCall[] };
 export type WireEntry =

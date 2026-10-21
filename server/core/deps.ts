@@ -20,6 +20,7 @@ import { outboxMailPort } from '../mail/outboxDriver';
 import { VAPID_NAMES, vapidConfigOf } from '../push/vapid';
 import { resendMailPort } from '../mail/resend';
 import { realtimeSender } from '../signal/realtime';
+import { realtimeTyping } from '../signal/typing';
 import { FILE_STORE_LIMITS, fileStoreKind, type Config, type Db, type Deps, type LogFields, type Logger } from './ports';
 
 /**
@@ -225,6 +226,7 @@ export function depsFrom(values: ServerEnv, o: { db?: Db } = {}): Deps {
       : supabaseStorageFilesPort({ supabaseUrl: config.supabaseUrl, publicUrl: values.files.publicUrl, secretKey: values.secretKey, bucket: values.files.bucket }),
     mail: values.mail.driver === 'resend' ? resendMailPort({ apiKey: values.mail.apiKey, from: config.mailFrom }) : outboxMailPort(db),
     signal: realtimeSender({ log }),
+    typing: realtimeTyping({ db, log }),
     authAdmin: authAdminPort({ supabaseUrl: config.supabaseUrl, secretKey: values.secretKey }),
     config,
     log,

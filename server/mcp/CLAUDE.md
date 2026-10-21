@@ -67,7 +67,7 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   never undoes a sub-company event (`events.undo`, `events.undoStory`).
 - Every other call is in `MCP_DENY` (`tools.ts`). A test fails for a call in no list or in two, so every new shared call goes
   into exactly one of them. The three `push.*` calls (browser push devices) are on it: an agent has no device (owner, 2026-10-08).
-  `live.ticket` (exit wave 3) is on it too: an agent opens no socket.
+  `live.ticket` (exit wave 3) is on it too: an agent opens no socket. `chats.typing` (chat presence design B) is on it as well: an agent never types.
 - What reaches the Admin (owner, 2026-10-23): `chats.list` of an agent of an Admin follows the choice of its person (`adminReachOf`, `mine` leaves
   out the project chats the Admin neither leads nor works on, `all` counts every message). The agent cannot set it: `me.updatePreferences` and
   `notifications.updateSettings` stay on the deny list. The `TOOL_DOCS` of `chats.list` (600 characters at most) and the Messages paragraph of

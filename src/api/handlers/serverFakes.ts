@@ -4,7 +4,7 @@ import { UPLOAD_LIFE_MS, serverContracts as c, type SignedPut } from '../contrac
 import { ApiError, forbidden, invalid, notFound } from '../errors';
 import { applyPatch } from '../events';
 import { principalOf } from '../permissions';
-import { chatForUpload } from '../chatState';
+import { chatForUpload, typingRecipients } from '../chatState';
 import { mayOpenFile } from '../views';
 import { officeTaskOfCall } from './files';
 import { minutesRefusal, requireMeeting } from './meetings';
@@ -12,7 +12,7 @@ import { nowStamp } from '../../lib/dates';
 import { assertCan, requireProject, requireStage, roleIn, taskRole } from './shared';
 
 /**
- * Fake versions of the 15 server calls (plan 4.11), so the prototype screens can use the same calls as the real build.
+ * Fake versions of the 14 server calls (plan 4.11), so the prototype screens can use the same calls as the real build.
  * The prototype keeps files in this browser: files.upload and feedback.send take the blob itself, so the upload links here go nowhere.
  */
 
@@ -191,6 +191,20 @@ const liveTicket = defineCall({
 });
 
 /**
+ * chats.typing in the prototype (chat presence design B): the same checks over the store, with the same members as the server, and the
+ * same answer. It sends nothing: the live adapter of the prototype (L1) posts the signal to the other tabs itself.
+ */
+const chatsTyping = defineCall({
+  ...c['chats.typing'],
+  run(input, ctx) {
+    if (ctx.actor.kind === 'agent') throw forbidden('An agent does not type.', { action: 'chats.typing' });
+    const people = typingRecipients(ctx.state, input.conversationId, ctx.actor.id);
+    if (people === null) throw notFound('Conversation', input.conversationId);
+    return { sent: people.length };
+  },
+});
+
+/**
  * The prototype has no Google (fbk_022): google.status says it is not ready, and the other three refuse with google_not_ready, so the
  * Settings section shows its line for the prototype. An agent gets forbidden, as on the server.
  */
@@ -241,6 +255,7 @@ export const serverFakes = {
   'agents.list': agentsList,
   'agents.remove': agentsRemove,
   'live.ticket': liveTicket,
+  'chats.typing': chatsTyping,
   'google.status': googleStatus,
   'google.connectStart': googleConnectStart,
   'google.connect': googleConnect,

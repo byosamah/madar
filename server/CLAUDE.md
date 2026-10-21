@@ -53,9 +53,10 @@ The other host stays deployed as the way back. Each area below has its own guide
 
 ## Calls
 - `core/serverCallMap.ts` holds every call the server runs: the shared calls of `src/api/sharedCalls.ts` plus the server calls.
-- 13 server-only calls (`calls/index.ts`): `story.start`, `files.uploadStart`, `files.link`, `feedback.uploadStart`,
+- 14 server-only calls (`calls/index.ts`): `story.start`, `files.uploadStart`, `files.link`, `feedback.uploadStart`,
   `users.invites`, `users.resendInvite`, `agents.list`, `agents.remove`, `live.ticket`, and the four Google
-  Calendar calls `google.status`, `google.connectStart`, `google.connect`, `google.disconnect` (fbk_022, `calls/google.ts`, `server/google/`).
+  Calendar calls `google.status`, `google.connectStart`, `google.connect`, `google.disconnect` (fbk_022, `calls/google.ts`, `server/google/`), and `chats.typing` (chat presence design B, `calls/typing.ts`): it saves nothing,
+  takes no lock, and sends a typing signal (`TypingPort`, `server/signal/typing.ts`, event `typing` on `person:<id>`) to the other members of the chat.
 - Server hooks replace the prototype `prepare` of `files.upload`, `feedback.send`, `feedback.screenshot`, `projects.delete`.
 - `SERVER_EXCLUDED` (prototype only): `session.previewAs`, `session.setSimulateErrors`, `session.resetSampleData`, `files.get`.
   runCall answers `not_found` for them.

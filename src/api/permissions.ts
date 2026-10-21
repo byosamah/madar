@@ -89,7 +89,7 @@ export type Resource = {
   meeting?: { organizerId: string; attendeeIds: readonly string[]; noProject: boolean };
 };
 
-export function projectRoleOf(state: State, projectId: string | null, userId: string): ProjectRole {
+export function projectRoleOf(state: Pick<State, 'projects' | 'members'>, projectId: string | null, userId: string): ProjectRole {
   if (projectId === null) return 'other';
   const project = state.projects[projectId];
   if (!project) return 'other';
