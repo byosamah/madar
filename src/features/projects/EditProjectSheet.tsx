@@ -45,7 +45,8 @@ export function EditProjectSheet({ detail, open, onOpenChange }: { detail: Proje
   // The stage names are saved by stages.replace, which asks project.stages (role rights version 2).
   const editStages = detail.viewerCan.editStages === true;
   // The codes of the office, so a corrected code that takes the series of another contract warns (feedback fbk_003).
-  const projects = useCall('projects.list', { status: 'all' }, { enabled: editCode });
+  // A closed sheet reads nothing (DF-5): the menu item starts this read on its press (ProjectActions).
+  const projects = useCall('projects.list', { status: 'all' }, { enabled: editCode && open });
   const form = useProjectForm(valuesOf(detail), { editCode, project: detail.project, projects: projects.data?.map((summary) => summary.project) });
   const [saving, setSaving] = useState(false);
 

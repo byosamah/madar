@@ -20,7 +20,7 @@ import { ScreenControls } from '../../components/ScreenControls';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { clientName } from '../../lib/clientName';
 import { clientParam, oneOf, subCompanyParam, teamParam, userParam } from '../../lib/params';
-import { NewProjectSheet } from './NewProjectSheet';
+import { NewProjectSheet, usePrepareNewProject } from './NewProjectSheet';
 import { ProjectListRow } from './ProjectListRow';
 
 const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
@@ -110,6 +110,7 @@ export function ProjectsScreen() {
   const [creating, setCreating] = useState(false);
   // "New project" needs project.create (role rights version 2).
   const mayCreate = useRight('project.create');
+  const prepareNew = usePrepareNewProject();
   const settings = useCall('settings.get', {});
   const teams = useCall('teams.list', {});
   const users = useCall('users.list', {});
@@ -136,7 +137,7 @@ export function ProjectsScreen() {
       <ScreenTitle
         title={t('screens.projects')}
         action={mayCreate ? (
-          <Button variant="primary" className="shrink-0" onClick={() => setCreating(true)}>
+          <Button variant="primary" className="shrink-0" onPointerDown={prepareNew} onClick={() => setCreating(true)}>
             <AnimatedIcon icon={PlusIcon} size={18} aria-hidden />
             {t('projects.new')}
           </Button>

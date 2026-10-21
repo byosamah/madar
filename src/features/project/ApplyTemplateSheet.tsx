@@ -25,7 +25,8 @@ function useSizeLine() {
  */
 export function ApplyTemplateSheet({ detail, open, onOpenChange }: { detail: ProjectDetail; open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation();
-  const templates = useCall('projectTemplates.list', {});
+  // A closed sheet reads nothing (performance audit 2026-10-21, DF-5): the menu item starts the read on its press (ProjectActions).
+  const templates = useCall('projectTemplates.list', {}, { enabled: open });
   const sizeLine = useSizeLine();
   const [chosen, setChosen] = useState<ProjectTemplate | null>(null);
   const [confirmed, setConfirmed] = useState(false);

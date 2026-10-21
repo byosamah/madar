@@ -244,6 +244,10 @@ any screen work.
 - In the real build, Tasks shows the cached Home answer of `tasks.list {filter:'mine'}` without the done rows while its own
   list loads (`features/work/minePlaceholder.ts`), only when no change marked that answer. `WorkTasks` reads its list with
   `useQuery` under the `useCall` key, so a change to `useCall` must also go there.
+- A closed sheet reads nothing (DF-5, 2026-10-21): `NewProjectSheet`, `ApplyTemplateSheet` and `EditProjectSheet` read with `enabled: open`.
+  The button that opens one starts its reads on pointerdown with `usePrefetchCall`: `usePrepareNewProject` (the New project button of Projects
+  and the Search command), and `MenuItem.onPrepare` (the "Edit project" and "Apply a template" items of `ProjectActions`). `ClosedSheetReads.test.tsx`
+  pins it. A new sheet that reads data follows the same rule.
 - The project To-dos tab asks `taskTemplates.list {}` once, with its `tasks.list`, under the gates of the menu (list view and
   `createTaskForSelf`). Each `TemplateMenu` keeps the templates of its stage with `lib/sameText.ts`, as the handler does.
 - In the real build, a picture hook (`useFileLink`, `useScreenshotLink`) keeps its signed link in the cache for
