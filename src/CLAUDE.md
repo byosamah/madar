@@ -214,6 +214,14 @@ any screen work.
   values (`todayISO`, `officeHour`) and the panel. The body gets plain props and stable handlers (`app/useStableHandler.ts`),
   so a panel that opens or closes renders no row again. Never put a router hook in a row body: a row part that needs one
   is its own small component, as `RowMenu` in `features/projects/ProjectListRow.tsx`.
+- A part that most sessions never open loads in its own chunk through `lazyOverlay` (`app/lazyOverlay.tsx`; audit 2026-10-21, FL-1, FL-4):
+  the Home task panel (`features/home/HomeTaskSheet.tsx`), Focus mode, the feedback sheet and the sheet of an ended session
+  (`app/overlays.tsx`). `warm()` keeps the loaded component in a module variable: a part that mounts after it renders with no Suspense
+  step (a plain `React.lazy` adds about 500 ms to the first press), and a part that mounts before it keeps `React.lazy` for its whole
+  life, so the chunk never remounts it. `useOnceOn` mounts a sheet at its first use and keeps it, so the closing animation stays. Home
+  warms the panel 1 s after it mounts, `main.tsx` warms it at once for `/?task=`, and `warmAtIdle` warms the three shell parts. A failed
+  import at the first use reloads the page once (`reloadOnFailedImport` in `app/screens.ts`). Never import these four files statically
+  from the shell, Home or `AuthGate`: `app/firstLoadImports.test.ts` and the bundle rules of `check-bundles.ts` fail on it.
 - `useLang` (`app/lang.ts`) reads the language with `useSyncExternalStore` over the one i18next instance and its
   `languageChanged` event. It does not call `useTranslation`.
 - `usePrefetchCall` (`app/prefetch.ts`) starts a read early under the exact key of `useCall`, in the remote build only.

@@ -15,12 +15,13 @@ import { useMyState } from './live/hooks';
 import { readEnvironment, resolveAppearance } from './appearance';
 import { PreviewAs } from './PreviewAs';
 import { PROTOTYPE, REMOTE } from './mode';
+import { useOnceOn } from './lazyOverlay';
 import { useSwitchLanguage } from './languageTurn';
+import { LazyFeedbackSheet } from './overlays';
 import { usePersonName } from './personName';
 import { useAction, useCall, useRuntime } from './runtime';
 import { ShieldCheckIcon } from '../components/icons/animated/shield-check';
 import { MessageSquarePlusIcon } from '../components/icons/animated/message-square-plus';
-import { FeedbackSheet } from '../features/feedback/FeedbackSheet';
 import { useSignOut } from '../features/auth/signOut';
 import { SparklesIcon } from '../components/icons/animated/sparkles';
 import { WHATS_NEW } from '../whatsNew/entries';
@@ -48,6 +49,8 @@ export function PersonMenu({ id }: { id: string }) {
   const ref = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [feedback, setFeedback] = useState(false);
+  // The feedback sheet loads in its own chunk (FL-4): it mounts at the first open and stays, so its closing animation stays.
+  const feedbackMounted = useOnceOn(feedback);
   const signOut = useSignOut();
   if (!user) return null;
   const close = () => {
@@ -131,7 +134,7 @@ export function PersonMenu({ id }: { id: string }) {
           </nav>
         </Popover>
       )}
-      <FeedbackSheet open={feedback} onOpenChange={setFeedback} />
+      {feedbackMounted && <LazyFeedbackSheet open={feedback} onOpenChange={setFeedback} />}
     </>
   );
 }

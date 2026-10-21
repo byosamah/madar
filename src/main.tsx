@@ -17,6 +17,7 @@ import { REMOTE } from './app/mode';
 import { hasStoredSession } from './app/remote/authMode';
 import { watchInstall } from './app/remote/install';
 import { createAppRouter, screensAt } from './app/routes';
+import { warmAtIdle, warmForAddress } from './app/overlays';
 import { RuntimeProvider, createQueryClient, type Runtime } from './app/runtime';
 import { loadScreen, prefetchScreens, preloadScreens } from './app/screens';
 import { ToastProvider } from './app/toasts';
@@ -53,6 +54,8 @@ function storedSession(): boolean {
  * screen itself, and reloads the page once if that fails too (src/app/screens.ts).
  */
 function warmFirstScreens(pathname: string): Promise<unknown> {
+  // A push link opens Home with ?task=: the task panel loads next to the first screens (performance audit 2026-10-21, FL-1).
+  warmForAddress(pathname, window.location.search);
   const { screens, gated } = screensAt(pathname);
   const names = gated && !storedSession() ? [...screens, 'signIn' as const] : screens;
   return Promise.all(names.map((name) => loadScreen(name).catch(() => undefined)));
@@ -84,7 +87,11 @@ async function main(): Promise<void> {
   // The other language loads right after the first render, so a language switch almost never waits for its words.
   void loadWords(language === 'ar' ? 'en' : 'ar').catch(() => undefined);
   // The other screens load one at a time at idle, so a later screen change waits for no chunk (remote build only).
-  if (REMOTE) prefetchScreens();
+  if (REMOTE) {
+    prefetchScreens();
+    // The task panel, Focus mode, the feedback sheet and the sheet of an ended session load in their own chunks (FL-1, FL-4).
+    warmAtIdle();
+  }
 }
 
 // www.<host> moves to <host> first (src/app/canonicalHost.ts), so nothing starts on the address that the person leaves.
