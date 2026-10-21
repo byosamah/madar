@@ -1,5 +1,7 @@
-import type { Task } from '../../src/api/contract/entities';
+import type { RoleSettings, Task, User } from '../../src/api/contract/entities';
 import { morningSummaryOn, reviewersOfTask } from '../../src/api/notify';
+import { canReview } from '../../src/api/permissions';
+import { withOfficeRights } from '../../src/api/rights';
 import type { State } from '../../src/api/store';
 import type { Deps, Query } from '../core/ports';
 import { isLite } from '../data/dialect';
@@ -21,18 +23,22 @@ import { renderMail } from './templates';
  * The open tasks follow the screens: a task is open (to do or in progress), in an active project or an office task, and the person
  * leads it or helps with it (the rule of the due reminders, src/api/notify.ts). A review waits for the person when the task
  * is in review in an active project (the review list of tasks.list keeps only active projects) and the person reviews its project:
- * the active leader, or every active Admin when the project has none (reviewersOf). An office task in review waits for its maker
+ * the active leader who holds the right to review (task.review.lead), or every active Admin when the project has no such leader (reviewersOf). An office task in review waits for its maker
  * (the person, or the person of the agent that made it), or for every active Admin when the maker left (reviewersOfTask; owner,
  * 2026-10-06).
  */
 
-/** $1 the person, $2 the day "YYYY-MM-DD". */
+/**
+ * $1 the person, $2 the day "YYYY-MM-DD", $3 the active people who hold the right to review the projects they lead (task.review.lead
+ * or more, role rights version 2): a leader outside the list is no reviewer, so the Admins review that project, as for a project with
+ * no leader (summaryReviewers).
+ */
 export const SUMMARY_COUNTS_SQL = `select
   (select count(*)::integer from tasks t left join projects p on p.id = t.project_id
     where (t.project_id is null or p.status = 'active') and t.due_date = $2 and t.status in ('todo', 'in_progress')
       and (t.owner_id = $1 or t.doc->'helperIds' ? $1)) as due_today,
   (select count(*)::integer from tasks t join projects p on p.id = t.project_id
-    left join users l on l.id = p.leader_id and l.active
+    left join users l on l.id = p.leader_id and l.active and l.id = any($3::text[])
     where p.status = 'active' and t.status = 'in_review'
       and case when l.id is not null then l.id = $1
         else exists (select 1 from users a where a.id = $1 and a.active and a.doc->>'systemRole' = 'admin') end)
@@ -42,6 +48,11 @@ export const SUMMARY_COUNTS_SQL = `select
     where t.project_id is null and t.status = 'in_review'
       and case when m.id is not null then m.id = $1
         else exists (select 1 from users a where a.id = $1 and a.active and a.doc->>'systemRole' = 'admin') end) as reviews_waiting`;
+
+/** The active humans with their role, and the roles of the office settings (the same value in each row): they give who may review as a leader. */
+export const SUMMARY_REVIEWERS_SQL = `select u.id, u.doc->>'systemRole' as system_role, u.doc->>'roleId' as role_id,
+  (select s.doc->'roles' from settings s where s.id = 'office') as roles
+from users u where u.kind = 'human' and u.active`;
 
 /** The people who get the summary: active humans whose Morning summary is on or never set. */
 export const SUMMARY_PEOPLE_SQL = `select id from users
@@ -81,13 +92,23 @@ async function liteSummary(q: Query, userId: string, today: string): Promise<Sum
   };
 }
 
+type ReviewerRow = { id: string; system_role: string | null; role_id: string | null; roles: RoleSettings | null };
+
+/** The ids of the active people who hold the right to review the projects they lead (canReview as a leader). */
+export async function summaryReviewers(q: Query): Promise<string[]> {
+  const rows = await q<ReviewerRow>(SUMMARY_REVIEWERS_SQL);
+  return rows
+    .filter((row) => canReview(withOfficeRights({ id: row.id, systemRole: row.system_role ?? 'member', roleId: row.role_id ?? undefined, active: true } as User, row.roles ?? undefined), 'leader'))
+    .map((row) => row.id);
+}
+
 /** The counts of one person and one day, or null when both are 0. */
 export async function buildSummary(q: Query, user: { id: string }, today: string): Promise<Summary | null> {
   if (isLite(q)) {
     const summary = await liteSummary(q, user.id, today);
     return summary.dueToday > 0 || summary.reviewsWaiting > 0 ? summary : null;
   }
-  const [row] = await q<{ due_today: number; reviews_waiting: number }>(SUMMARY_COUNTS_SQL, [user.id, today]);
+  const [row] = await q<{ due_today: number; reviews_waiting: number }>(SUMMARY_COUNTS_SQL, [user.id, today, await summaryReviewers(q)]);
   const summary = { dueToday: Number(row?.due_today ?? 0), reviewsWaiting: Number(row?.reviews_waiting ?? 0) };
   return summary.dueToday > 0 || summary.reviewsWaiting > 0 ? summary : null;
 }
