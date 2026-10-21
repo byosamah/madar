@@ -216,7 +216,10 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   // The seen time (chat presence design C4) moves only for a look in use: the chat is open, in view, and the person used Madar in the last
   // 10 minutes. An idle screen still reads the chat (no flag), and the first key after the pause sends the flag. The times compare as instants.
   const active = useActive();
-  const seenBehind = newestAt !== undefined && (data?.seenUpTo == null || Date.parse(newestAt) > Date.parse(data.seenUpTo));
+  // Only a message of another person can be unseen: the own message is no news to the person, and `chats.send` marks the chat read in
+  // its own save, so a mark for it was one more request for each message sent (performance audit 2026-10-21, LV-4).
+  const newestOtherAt = data?.messages.findLast((view) => !view.mine)?.message.createdAt;
+  const seenBehind = newestOtherAt !== undefined && (data?.seenUpTo == null || Date.parse(newestOtherAt) > Date.parse(data.seenUpTo));
   useEffect(() => {
     if (!opened || !visible) return;
     const first = !looked.current;
