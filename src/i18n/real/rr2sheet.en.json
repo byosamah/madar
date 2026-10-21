@@ -1,0 +1,388 @@
+{
+  "roleRights": {
+    "all": "All",
+    "nameScope": "{{label}}, {{scope}}",
+    "holds": "Holds {{on}} of {{total}}",
+    "sectionCount": "{{on}} of {{total}} on",
+    "back": "Back to the standard list",
+    "needs": "Needs: {{list}}.",
+    "leaderWarning": "A person who makes a project leads it.",
+    "aiWhat": "What it is: an AI app, such as Claude or ChatGPT, that connects to Madar and works for one person.",
+    "aiRule": "The rule: an assistant never does more than its person may do. These switches only take more away from the assistants of this role.",
+    "aiNever": "An assistant can never: create or delete projects, upload or open files, change people, roles, teams, clients, templates or settings, delete to-dos, edit or delete messages, or send requests and bugs.",
+    "line": {
+      "standard": "{{name}}: the standard rights.",
+      "plus": "{{name}}: standard rights, plus {{more}}.",
+      "without": "{{name}}: standard rights, without {{less}}.",
+      "both": "{{name}}: standard rights, plus {{more}}, without {{less}}."
+    },
+    "sections": {
+      "projects": "Projects",
+      "todos": "To-dos",
+      "meetings": "Meetings",
+      "posts": "Posts and comments",
+      "files": "Files",
+      "chat": "Chat",
+      "tracker": "Client Tracker",
+      "people": "People and clients",
+      "money": "Money",
+      "templates": "Templates",
+      "dashboard": "Dashboard and reports",
+      "ai": "AI assistants (MCP)",
+      "office": "Office"
+    },
+    "scopes": {
+      "lead": "Projects I lead",
+      "team": "My projects",
+      "all": "Every project",
+      "office": "Office",
+      "none": "No project"
+    },
+    "powers": {
+      "projectCreate": {
+        "label": "Create projects",
+        "hint": "Start a new project, also from a template. The person who makes it leads it."
+      },
+      "clientCreate": {
+        "label": "Add clients",
+        "hint": "Add a new client, for example in the New project form."
+      },
+      "projectDetails": {
+        "label": "Change project details",
+        "hint": "Name, client, location, map pin, area, dates, folder, description, cover and sub-company."
+      },
+      "projectTeam": {
+        "label": "Change the team",
+        "hint": "Add and remove people, and change their discipline in the project."
+      },
+      "projectStages": {
+        "label": "Change stages and stage dates",
+        "hint": "Add, remove and order stages. Set their dates and what they wait for."
+      },
+      "projectDeadlines": {
+        "label": "Add and change deadlines",
+        "hint": "Add, change and delete the named deadlines of a project."
+      },
+      "projectTemplate": {
+        "label": "Apply a template",
+        "hint": "Add the stages and to-dos of a project template to an ongoing project."
+      },
+      "projectArchive": {
+        "label": "Pause, finish and archive",
+        "hint": "Pause, resume, finish or archive a project, and set the restart reminder."
+      },
+      "projectLeader": {
+        "label": "Hand over to a new leader",
+        "hint": "Choose a new leader for a project."
+      },
+      "projectHealth": {
+        "label": "Set the health by hand",
+        "hint": "Mark a project On track, At risk or Late by hand."
+      },
+      "projectCode": {
+        "label": "Correct the project code",
+        "hint": "Change the code of a project after it is made."
+      },
+      "projectDelete": {
+        "label": "Delete projects",
+        "hint": "Delete a project and everything in it. This has no Undo. A leader cannot do this today."
+      },
+      "taskAdd": {
+        "label": "Add to-dos",
+        "hint": "Add a to-do for yourself or for a team mate."
+      },
+      "taskAssign": {
+        "label": "Give to-dos to other people",
+        "hint": "Name another person as the lead or a helper of a to-do."
+      },
+      "taskTake": {
+        "label": "Take a to-do with no lead",
+        "hint": "Become the lead of a to-do that has none."
+      },
+      "taskHelp": {
+        "label": "Join as a helper",
+        "hint": "Help on a to-do of your project with one tap."
+      },
+      "taskWork": {
+        "label": "Work on my to-dos",
+        "hint": "Tick, finish, move, order and open a new version of a to-do that you lead or made."
+      },
+      "taskDetails": {
+        "label": "Change my to-do details",
+        "hint": "Change the title, notes, checklist, stage and what a to-do waits for."
+      },
+      "taskDates": {
+        "label": "Change to-do dates",
+        "hint": "Move the start date or the due date of a to-do that you lead or made."
+      },
+      "taskDeleteOwn": {
+        "label": "Delete my to-dos",
+        "hint": "Delete a to-do that you made or lead."
+      },
+      "taskAny": {
+        "label": "Change and finish any to-do",
+        "hint": "Change, finish, move or delete any to-do of a project, by anyone."
+      },
+      "taskReview": {
+        "label": "Review to-dos",
+        "hint": "Approve a to-do or send it back, and choose if a to-do needs a review."
+      },
+      "taskOfficeAll": {
+        "label": "See and manage every office to-do",
+        "hint": "The private office to-dos of other people. Off keeps them private."
+      },
+      "meetingPlan": {
+        "label": "Plan meetings",
+        "hint": "Plan a meeting or a site visit."
+      },
+      "meetingEditOwn": {
+        "label": "Change and cancel my meetings",
+        "hint": "Change, cancel or delete a meeting that you organize."
+      },
+      "meetingMinutesOwn": {
+        "label": "Write the minutes of my meetings",
+        "hint": "Write the minutes of a meeting that you attended or organized, and add its files."
+      },
+      "meetingAny": {
+        "label": "Change and cancel project meetings",
+        "hint": "Change, cancel or delete any meeting of a project, also when another person organized it."
+      },
+      "meetingMinutesAny": {
+        "label": "Write the minutes of project meetings",
+        "hint": "Write the minutes of any meeting of a project."
+      },
+      "postCreate": {
+        "label": "Post updates",
+        "hint": "Post an update or a decision on a project."
+      },
+      "commentCreate": {
+        "label": "Comment and react",
+        "hint": "Comment on a post or a to-do, and react to a comment."
+      },
+      "postEditOwn": {
+        "label": "Edit and delete my posts",
+        "hint": "Edit or delete a post or a comment that you wrote."
+      },
+      "projectLinks": {
+        "label": "Add and change project links",
+        "hint": "The moodboard, the office folder, the map and the client delivery folder."
+      },
+      "fileUpload": {
+        "label": "Upload files",
+        "hint": "Add a file or a new version to a project or a to-do."
+      },
+      "fileDeliver": {
+        "label": "Mark files delivered or received",
+        "hint": "Mark a file as sent to the client or received from the client. This also writes a Tracker line."
+      },
+      "fileShare": {
+        "label": "Share files",
+        "hint": "Share a project file into a chat or a to-do."
+      },
+      "fileDeleteOwn": {
+        "label": "Delete my files",
+        "hint": "Delete a file that you uploaded."
+      },
+      "fileDeleteAny": {
+        "label": "Delete any file",
+        "hint": "Delete any file of a project, by anyone."
+      },
+      "chatDirect": {
+        "label": "Message people",
+        "hint": "Send messages one to one."
+      },
+      "chatGroupCreate": {
+        "label": "Start groups",
+        "hint": "Make a group chat."
+      },
+      "chatGroupChange": {
+        "label": "Change groups",
+        "hint": "Rename a group and add people to it."
+      },
+      "chatProject": {
+        "label": "Use project chats",
+        "hint": "Read and write in the chat of a project."
+      },
+      "trackerLog": {
+        "label": "Log in the Tracker",
+        "hint": "Log, change and close an exchange with the client."
+      },
+      "trackerReply": {
+        "label": "Ask a person to reply",
+        "hint": "Make a reply to-do for a team mate from a Tracker entry. Also needs the to-do rights."
+      },
+      "trackerExport": {
+        "label": "Export the Tracker",
+        "hint": "Copy or download the Tracker of a project."
+      },
+      "trackerDeleteOwn": {
+        "label": "Delete my Tracker entries",
+        "hint": "Delete an entry that you logged."
+      },
+      "trackerDeleteAny": {
+        "label": "Delete any Tracker entry",
+        "hint": "Delete any entry, also a meeting line that Madar made."
+      },
+      "peopleInvite": {
+        "label": "Invite people",
+        "hint": "Add a person and send the sign-in email again."
+      },
+      "peopleChange": {
+        "label": "Change people",
+        "hint": "Change the name, discipline and picture of a person."
+      },
+      "peopleTeams": {
+        "label": "Make and change teams",
+        "hint": "Make, rename and delete the office teams."
+      },
+      "peopleTurnOff": {
+        "label": "Turn people off and on",
+        "hint": "Turn a person off, or on again. Their AI assistants stop too."
+      },
+      "peopleRemove": {
+        "label": "Remove people from the list",
+        "hint": "Remove a person who is off from every list. This has no Undo."
+      },
+      "clientsChange": {
+        "label": "Change client details",
+        "hint": "Change the name and the contact details of a client."
+      },
+      "subCompaniesManage": {
+        "label": "Manage sub-companies",
+        "hint": "Add, change and delete the sub-companies."
+      },
+      "paymentView": {
+        "label": "See payments",
+        "hint": "See the payments of a project and the money numbers on the Dashboard."
+      },
+      "paymentAdd": {
+        "label": "Add payments",
+        "hint": "Add a new payment to a project. Needs \"See payments\"."
+      },
+      "paymentChange": {
+        "label": "Change and delete payments",
+        "hint": "Change the amount, the date or the note, or delete a payment. Needs \"See payments\"."
+      },
+      "paymentReceive": {
+        "label": "Mark payments received",
+        "hint": "Mark a payment as received, with its date. Needs \"See payments\"."
+      },
+      "templatesProjectCreate": {
+        "label": "Make project templates",
+        "hint": "Make a new project template. You can always change your own. Today no screen lets a Member do this."
+      },
+      "templatesProjectAny": {
+        "label": "Change any project template",
+        "hint": "Change or delete a project template that another person made."
+      },
+      "templatesTaskSave": {
+        "label": "Save to-do templates",
+        "hint": "Save a to-do as a template, or make one by hand."
+      },
+      "templatesTaskAny": {
+        "label": "Change any to-do template",
+        "hint": "Rename or delete a to-do template that another person made."
+      },
+      "templatesUpdateProjects": {
+        "label": "Update projects from a template",
+        "hint": "Send a template change to the projects that follow it."
+      },
+      "dashboardView": {
+        "label": "See the Dashboard",
+        "hint": "Open the Dashboard, the meeting view, the map and the Open space."
+      },
+      "workloadView": {
+        "label": "See the workload",
+        "hint": "See how much work each person holds. Needs \"See the Dashboard\"."
+      },
+      "searchUse": {
+        "label": "Use Search",
+        "hint": "Search projects, to-dos, people, files and messages."
+      },
+      "gapsView": {
+        "label": "See the data gaps",
+        "hint": "See what the office has not filled in."
+      },
+      "reportOffice": {
+        "label": "Office report",
+        "hint": "The report of a week, a month, a quarter or a year. Today only an AI assistant reads it for you."
+      },
+      "aiConnect": {
+        "label": "Connect AI assistants",
+        "hint": "Connect an AI app to Madar. Off stops the connected assistants of this role at once."
+      },
+      "aiReadWork": {
+        "label": "AI reads work data",
+        "hint": "Projects, to-dos, comments, posts, meetings, the Tracker, deadlines, file names, people, the Dashboard, the History and Search."
+      },
+      "aiReadChats": {
+        "label": "AI reads chats",
+        "hint": "Direct chats, groups and project chats that the person can open. Off also hides messages in Search."
+      },
+      "aiTodos": {
+        "label": "AI works on to-dos",
+        "hint": "Add, change, finish, move, order, take and join to-dos. Approve and send back."
+      },
+      "aiPosts": {
+        "label": "AI posts and comments",
+        "hint": "Post an update on a project, and comment on a to-do."
+      },
+      "aiMessages": {
+        "label": "AI sends messages",
+        "hint": "Send a chat message as the person, and open a direct chat."
+      },
+      "aiMeetings": {
+        "label": "AI plans meetings",
+        "hint": "Plan, change and cancel meetings, and save the minutes."
+      },
+      "aiTracker": {
+        "label": "AI logs in the Tracker",
+        "hint": "Log, change and close Tracker entries."
+      },
+      "aiProjects": {
+        "label": "AI changes projects",
+        "hint": "Change project details and status, stage dates and deadlines."
+      },
+      "aiPayments": {
+        "label": "AI handles payments",
+        "hint": "See, add and change payments. The person also needs the money rights."
+      },
+      "aiFeedback": {
+        "label": "AI reads requests and bugs",
+        "hint": "Read the reports of the team and mark them done. The person also needs \"Read requests and bugs\"."
+      },
+      "aiReport": {
+        "label": "AI reads the office report",
+        "hint": "The person also needs \"Office report\"."
+      },
+      "aiUndo": {
+        "label": "AI undoes changes",
+        "hint": "Take back a change, or all the changes of one request."
+      },
+      "aiUndoOthers": {
+        "label": "Undo the changes of AI assistants",
+        "hint": "Take back a change that the AI assistant of another person made."
+      },
+      "feedbackSend": {
+        "label": "Send requests and bugs",
+        "hint": "Send a feature request or a bug report."
+      },
+      "feedbackManage": {
+        "label": "Read requests and bugs",
+        "hint": "Read what the team sends, and mark it done."
+      },
+      "officeSettings": {
+        "label": "Change the office settings",
+        "hint": "The default stages, the code start, the workload limit and the stale days."
+      }
+    }
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-73": {
+        "title": "Rights in 112 switches",
+        "body": "Each role now has 112 switches in 13 sections. Turn on only the work that the role needs. The AI assistants of a role follow the same switches. Nothing changes for your roles today."
+      }
+    }
+  }
+}
