@@ -76,7 +76,7 @@ export function opensAdminPage(actor: Actor): boolean {
  * places (the people of a chat, the recipients of a notice, a file check) read other people with can(), so each one calls this first.
  */
 export function ensureRights(state: Pick<State, 'settings'>, user: User): Actor {
-  return 'officeRights' in user ? (user as Actor) : withOfficeRights(user, state.settings.roles);
+  return 'officeRights' in user ? (user as Actor) : withOfficeRights(user, state.settings?.roles);
 }
 
 /**
@@ -84,5 +84,5 @@ export function ensureRights(state: Pick<State, 'settings'>, user: User): Actor 
  * No check then reads the default rights of a role by mistake (owner, 2026-10-18, fbk_014).
  */
 export function withRights(state: Pick<State, 'settings'>, user: User): Actor {
-  return withOfficeRights(user, state.settings.roles);
+  return withOfficeRights(user, state.settings?.roles);
 }
