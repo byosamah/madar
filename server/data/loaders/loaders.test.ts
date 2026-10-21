@@ -1719,3 +1719,42 @@ describe('the money of the loaders follows the office rights of Management (fbk_
     expect(rows.some((row) => row.event.targetType === 'payment')).toBe(false);
   });
 });
+
+describe('the Dashboard, Search and money switches on the loaders (role rights version 2)', () => {
+  const MEMBER = 'usr_003';
+  const withMemberOff = (off: string[]) => office((s) => {
+    s.settings.roles = { off: { member: off as never } };
+  });
+
+  it('refuses dashboard.get on both loads and loads no task for a Member without dashboard.view', async () => {
+    const { scoped, whole, loaded } = await runBoth(withMemberOff(['dashboard.view', 'workload.view']), 'dashboard.get', {}, MEMBER, { now: NOW, correlationId: 'cor_test' });
+    expect(scoped).toEqual(whole);
+    expect(whole.outcome.error).toMatchObject({ code: 'forbidden' });
+    expect(Object.keys(loaded.tasks ?? {})).toEqual([]);
+  });
+
+  it('gives the same empty workload on both loads when only workload.view is off, and still loads the tasks of the numbers', async () => {
+    const { scoped, whole, loaded } = await runBoth(withMemberOff(['workload.view']), 'dashboard.get', {}, MEMBER, { now: NOW, correlationId: 'cor_test' });
+    expect(scoped).toEqual(whole);
+    const workload = (whole.outcome.output as { workload: { rows: unknown[]; unassigned: unknown; weeks: unknown[] } }).workload;
+    expect([workload.rows, workload.unassigned, workload.weeks.length]).toEqual([[], null, 4]);
+    expect(Object.keys(loaded.tasks ?? {}).length).toBeGreaterThan(0);
+  });
+
+  it('refuses search.query on both loads and loads no task or file for a Member without search.use', async () => {
+    const { scoped, whole, loaded } = await runBoth(withMemberOff(['search.use']), 'search.query', { text: 'riser' }, MEMBER, { now: NOW, correlationId: 'cor_test' });
+    expect(scoped).toEqual(whole);
+    expect(whole.outcome.error).toMatchObject({ code: 'forbidden' });
+    expect([Object.keys(loaded.tasks ?? {}), Object.keys(loaded.files ?? {})]).toEqual([[], []]);
+  });
+
+  it('loads the open payments for a Member who holds payment.view, and shows the payment events to that Member', async () => {
+    const state = office((s) => {
+      s.settings.roles = { rights: { member: ['payment.view'] } };
+    });
+    const run = await runBoth(state, 'dashboard.get', {}, MEMBER, { now: NOW, correlationId: 'cor_test' });
+    expect(run.scoped).toEqual(run.whole);
+    expect((run.whole.outcome.output as { money: unknown }).money).not.toBeNull();
+    expect(Object.keys(run.loaded.payments ?? {}).length).toBeGreaterThan(0);
+  });
+});

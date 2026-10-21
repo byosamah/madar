@@ -257,9 +257,12 @@ function subCompanyOfNew(ctx: Ctx, id: string | null | undefined): string | null
   return null;
 }
 
-function requireEditable(ctx: Ctx, projectId: string): Project {
+type ProjectPower = 'project.details' | 'project.team' | 'project.stages' | 'project.deadlines';
+
+/** The project, when the person holds the power for it (role rights version 2): each change of a project asks the power of its own. */
+function requireEditable(ctx: Ctx, projectId: string, power: ProjectPower): Project {
   const project = requireProject(ctx, projectId);
-  assertCan(ctx, 'project.edit', { projectRole: roleIn(ctx, project.id) });
+  assertCan(ctx, power, { projectRole: roleIn(ctx, project.id) });
   return project;
 }
 
@@ -443,7 +446,7 @@ export const projectsUpdate = defineCall({
       coverFileId: FileId.nullable().optional(),
       /** The sub-company (fbk_007). null takes it away; an id the office does not hold is not found. */
       subCompanyId: SubCompanyId.nullable().optional(),
-      /** A correction of the code: the Admin only (right project.editCode). The History records it as project.code_changed. */
+      /** A correction of the code: needs the switch project.code. The History records it as project.code_changed. */
       code: TypedCode.optional(),
     }),
     /** Keeps a corrected code that does not match the office pattern or takes the series of another contract (feedback fbk_003). */
@@ -451,7 +454,7 @@ export const projectsUpdate = defineCall({
   }),
   output: ProjectDetail,
   run(input, ctx) {
-    const project = requireEditable(ctx, input.id);
+    const project = requireEditable(ctx, input.id, 'project.details');
     const { code, ...asked } = input.patch;
     // The rule of the place comes before any change, so a refused write changes nothing.
     const patch = placeRule(project, asked);
@@ -459,7 +462,7 @@ export const projectsUpdate = defineCall({
     const newCode = code !== undefined && code !== project.code ? code : undefined;
     if (newCode !== undefined) {
       // The checks come before any change, so a refused code changes nothing.
-      assertCan(ctx, 'project.editCode', { projectRole: roleIn(ctx, project.id) });
+      assertCan(ctx, 'project.code', { projectRole: roleIn(ctx, project.id) });
       assertTypedCode(ctx, newCode, project.id, input.codeAnyway);
     }
     const start = patch.startDate !== undefined ? patch.startDate : project.startDate;
@@ -485,7 +488,7 @@ export const projectsSetLeader = defineCall({
   output: ProjectDetail,
   run(input, ctx) {
     const project = requireProject(ctx, input.id);
-    assertCan(ctx, 'project.changeLeader', { projectRole: roleIn(ctx, project.id) });
+    assertCan(ctx, 'project.leader', { projectRole: roleIn(ctx, project.id) });
     if (input.leaderId) {
       assertLeader(ctx, input.leaderId);
       addMember(ctx, project.id, input.leaderId);
@@ -603,7 +606,7 @@ function requireLink(project: Project, linkId: string) {
  * edit the project moves the pin: a team member who may only post adds the link alone (security review 2026-10-19).
  */
 function saveLinks(ctx: Ctx, project: Project, links: Project['links'], saved?: { kind: string; url: string }, address?: string) {
-  const mayPin = can(ctx.authority, 'project.edit', { projectRole: roleIn(ctx, project.id) });
+  const mayPin = can(ctx.authority, 'project.details', { projectRole: roleIn(ctx, project.id) });
   const place = saved && mayPin ? pinFromLinks([saved]) : null;
   // A pin that moves takes the address that the screen sends with the link, else it clears the old text (owner, 2026-10-19).
   const moves = place !== null && !samePoint(place, pinOf(project));
@@ -622,7 +625,7 @@ export const projectsAddLink = defineCall({
   output: ProjectDetail,
   run(input, ctx) {
     const project = requireProject(ctx, input.projectId);
-    assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, project.id) });
+    assertCan(ctx, 'project.links', { projectRole: roleIn(ctx, project.id) });
     assertLink(input.kind, input.url);
     const links = project.links ?? [];
     if (links.length >= 20) throw invalid('url', 'A project holds up to 20 links.');
@@ -639,7 +642,7 @@ export const projectsUpdateLink = defineCall({
   output: ProjectDetail,
   run(input, ctx) {
     const project = requireProject(ctx, input.projectId);
-    assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, project.id) });
+    assertCan(ctx, 'project.links', { projectRole: roleIn(ctx, project.id) });
     const link = requireLink(project, input.linkId);
     const next = { ...link, ...(input.kind ? { kind: input.kind } : {}), ...(input.label !== undefined ? { label: input.label } : {}), ...(input.url ? { url: input.url } : {}) };
     assertLink(next.kind, next.url);
@@ -652,7 +655,7 @@ export const projectsRemoveLink = defineCall({
   output: ProjectDetail,
   run(input, ctx) {
     const project = requireProject(ctx, input.projectId);
-    assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, project.id) });
+    assertCan(ctx, 'project.links', { projectRole: roleIn(ctx, project.id) });
     requireLink(project, input.linkId);
     return saveLinks(ctx, project, (project.links ?? []).filter((item) => item.id !== input.linkId));
   },
@@ -678,7 +681,7 @@ export const projectsSetHealthOverride = defineCall({
   output: ProjectDetail,
   run(input, ctx) {
     const project = requireProject(ctx, input.id);
-    assertCan(ctx, 'project.healthOverride', { projectRole: roleIn(ctx, project.id) });
+    assertCan(ctx, 'project.health', { projectRole: roleIn(ctx, project.id) });
     const override = { value: input.value, reason: input.reason, setBy: ctx.actor.id, setAt: ctx.stamp };
     applyPatch(ctx, project, { healthOverride: override }, { projectId: project.id, verb: 'project.health_overridden', targetType: 'project', targetId: project.id });
     touch(ctx, project.id);
@@ -691,7 +694,7 @@ export const projectsClearHealthOverride = defineCall({
   output: ProjectDetail,
   run(input, ctx) {
     const project = requireProject(ctx, input.id);
-    assertCan(ctx, 'project.healthOverride', { projectRole: roleIn(ctx, project.id) });
+    assertCan(ctx, 'project.health', { projectRole: roleIn(ctx, project.id) });
     applyPatch(ctx, project, { healthOverride: null }, { projectId: project.id, verb: 'project.health_cleared', targetType: 'project', targetId: project.id });
     touch(ctx, project.id);
     return detail(ctx, project);
@@ -782,7 +785,7 @@ export const membersAdd = defineCall({
   input: z.object({ projectId: ProjectId, userId: UserId, discipline: z.string().trim().min(1).max(40).optional() }),
   output: ProjectDetail,
   run(input, ctx) {
-    const project = requireEditable(ctx, input.projectId);
+    const project = requireEditable(ctx, input.projectId, 'project.team');
     const user = requireUser(ctx, input.userId);
     if (!user.active) throw invalid('userId', 'This person is not active.');
     if (user.kind === 'agent') throw invalid('userId', 'Agents act for a person. Add the person instead.');
@@ -801,7 +804,7 @@ export const membersAddTeam = defineCall({
   input: z.object({ projectId: ProjectId, teamId: TeamId }),
   output: z.object({ detail: ProjectDetail, added: z.number().int().min(0) }),
   run(input, ctx) {
-    const project = requireEditable(ctx, input.projectId);
+    const project = requireEditable(ctx, input.projectId, 'project.team');
     const team = teamsOf(ctx.state)[input.teamId];
     if (!team) throw notFound('Team', input.teamId);
     let added = 0;
@@ -820,7 +823,7 @@ export const membersRemove = defineCall({
   input: z.object({ projectId: ProjectId, userId: UserId }),
   output: ProjectDetail,
   run(input, ctx) {
-    const project = requireEditable(ctx, input.projectId);
+    const project = requireEditable(ctx, input.projectId, 'project.team');
     const key = memberKey(project.id, input.userId);
     const member = ctx.state.members[key];
     if (!member) throw notFound('Member', key);
@@ -839,7 +842,7 @@ export const membersUpdate = defineCall({
   input: z.object({ projectId: ProjectId, userId: UserId, discipline: z.string().trim().min(1).max(40) }),
   output: ProjectDetail,
   run(input, ctx) {
-    const project = requireEditable(ctx, input.projectId);
+    const project = requireEditable(ctx, input.projectId, 'project.team');
     const key = memberKey(project.id, input.userId);
     const member = ctx.state.members[key];
     if (!member) throw notFound('Member', key);
@@ -861,7 +864,7 @@ export const stagesReplace = defineCall({
   }),
   output: ProjectDetail,
   run(input, ctx) {
-    const project = requireEditable(ctx, input.projectId);
+    const project = requireEditable(ctx, input.projectId, 'project.stages');
     const { state } = ctx;
     const existing = stagesOf(state, project.id);
     const keep = new Set(input.stages.map((s) => s.id).filter((id): id is string => Boolean(id)));
@@ -914,7 +917,7 @@ export const stagesSetDates = defineCall({
   run(input, ctx) {
     const stage = ctx.state.stages[input.stageId];
     if (!stage) throw notFound('Stage', input.stageId);
-    const project = requireEditable(ctx, stage.projectId);
+    const project = requireEditable(ctx, stage.projectId, 'project.stages');
     if (input.startDate && input.endDate && input.endDate < input.startDate) throw invalid('endDate', 'The stage cannot end before it starts.');
     const watch = watchStage(ctx, project.id);
     applyPatch(ctx, stage, { startDate: input.startDate, endDate: input.endDate }, {
@@ -934,7 +937,7 @@ export const stagesSetPrerequisites = defineCall({
   run(input, ctx) {
     const stage = ctx.state.stages[input.stageId];
     if (!stage) throw notFound('Stage', input.stageId);
-    const project = requireEditable(ctx, stage.projectId);
+    const project = requireEditable(ctx, stage.projectId, 'project.stages');
     assertStagePrerequisites(ctx.state, stage, input.prerequisiteIds);
     applyPatch(ctx, stage, { prerequisiteIds: input.prerequisiteIds }, {
       projectId: project.id, verb: 'stage.prerequisites_changed', targetType: 'stage', targetId: stage.id,
@@ -948,7 +951,7 @@ export const deadlinesCreate = defineCall({
   input: z.object({ projectId: ProjectId, name: DeadlineName, date: Day, stageId: StageId.nullable().default(null) }),
   output: ProjectDetail,
   run(input, ctx) {
-    const project = requireEditable(ctx, input.projectId);
+    const project = requireEditable(ctx, input.projectId, 'project.deadlines');
     if (input.stageId) requireStage(ctx, project.id, input.stageId);
     const id = nextId(ctx.state, 'ddl');
     const deadline: Deadline = { id, projectId: project.id, stageId: input.stageId, name: input.name, date: input.date };
@@ -967,7 +970,7 @@ export const deadlinesUpdate = defineCall({
   output: ProjectDetail,
   run(input, ctx) {
     const deadline = requireDeadline(ctx, input.id);
-    const project = requireEditable(ctx, deadline.projectId);
+    const project = requireEditable(ctx, deadline.projectId, 'project.deadlines');
     if (input.patch.stageId) requireStage(ctx, project.id, input.patch.stageId);
     applyPatch(ctx, deadline, input.patch, { projectId: project.id, verb: 'deadline.updated', targetType: 'deadline', targetId: deadline.id });
     touch(ctx, project.id);
@@ -980,7 +983,7 @@ export const deadlinesDelete = defineCall({
   output: ProjectDetail,
   run(input, ctx) {
     const deadline = requireDeadline(ctx, input.id);
-    const project = requireEditable(ctx, deadline.projectId);
+    const project = requireEditable(ctx, deadline.projectId, 'project.deadlines');
     delete ctx.state.deadlines[deadline.id];
     recordDelete(ctx, { projectId: project.id, verb: 'deadline.deleted', targetType: 'deadline', targetId: deadline.id, entity: deadline });
     touch(ctx, project.id);

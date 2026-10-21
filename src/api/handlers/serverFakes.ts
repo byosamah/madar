@@ -10,7 +10,7 @@ import { mayOpenFile } from '../views';
 import { officeTaskOfCall } from './files';
 import { minutesRefusal, requireMeeting } from './meetings';
 import { nowStamp } from '../../lib/dates';
-import { assertCan, requireProject, requireStage, roleIn, taskRole } from './shared';
+import { assertAnyPeopleRight, assertCan, requireProject, requireStage, roleIn, taskRole } from './shared';
 
 /**
  * Fake versions of the 15 server calls (plan 4.11), so the prototype screens can use the same calls as the real build.
@@ -134,6 +134,7 @@ const filesLink = defineCall({
 const feedbackUploadStart = defineCall({
   ...c['feedback.uploadStart'],
   run(input, ctx) {
+    assertCan(ctx, 'feedback.send');
     return { uploads: input.screenshots.map((shot) => {
       const id = uploadId();
       return { uploadId: id, put: fakePut(id, shot.mimeType, ctx.now) };
@@ -144,7 +145,7 @@ const feedbackUploadStart = defineCall({
 const usersInvites = defineCall({
   ...c['users.invites'],
   run(_input, ctx) {
-    assertCan(ctx, 'people.manage');
+    assertAnyPeopleRight(ctx);
     // The prototype has no sign-in, so nobody waits for an invitation.
     return [];
   },
@@ -153,7 +154,7 @@ const usersInvites = defineCall({
 const usersResendInvite = defineCall({
   ...c['users.resendInvite'],
   run(input, ctx) {
-    assertCan(ctx, 'people.manage');
+    assertCan(ctx, 'people.invite');
     const user = ctx.state.users[input.id];
     if (!user) throw notFound('Person', input.id);
     if (user.kind === 'agent') throw invalid('id', 'An agent gets no invitation.');

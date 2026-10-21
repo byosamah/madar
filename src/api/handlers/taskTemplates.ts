@@ -22,7 +22,7 @@ export const TaskTemplateRow = TaskTemplate.extend({
 export type TaskTemplateRow = z.infer<typeof TaskTemplateRow>;
 
 function mayEdit(ctx: Ctx, template: TaskTemplate): boolean {
-  return ctx.authority.active && (can(ctx.authority, 'templates.manageAll') || template.createdBy === ctx.authority.id);
+  return ctx.authority.active && (can(ctx.authority, 'templates.taskAny') || template.createdBy === ctx.authority.id);
 }
 
 const rowOf = (ctx: Ctx, template: TaskTemplate) => ({
@@ -34,9 +34,13 @@ function assertNameFree(ctx: Ctx, name: string, stageName: string, exceptId: str
   if (taken) throw invalid('name', 'A template with this name exists for this stage. Use another name.', 'duplicate_name');
 }
 
-/** Anyone who leads a project, and a person with the template right, saves templates from the project's tasks or by hand. */
+/**
+ * Saves a template by hand (no task). The switch for every project (templates.taskSave.all) needs no project. The switch for the
+ * projects I lead (templates.taskSave.lead) needs a person who leads a project.
+ */
 function assertMayLeadSomething(ctx: Ctx): void {
-  const leads = can(ctx.authority, 'templates.manageAll') || Object.values(ctx.state.projects).some((p) => p.leaderId === ctx.authority.id);
+  const leads = can(ctx.authority, 'templates.taskSave', { projectRole: 'other' })
+    || (Object.values(ctx.state.projects).some((p) => p.leaderId === ctx.authority.id) && can(ctx.authority, 'templates.taskSave', { projectRole: 'leader' }));
   if (!ctx.authority.active || !leads) throw forbidden('Only a project leader, or a person with the template right, can save a task template.');
 }
 
@@ -71,8 +75,8 @@ const taskTemplatesSave = defineCall({
       const task = requireTask(ctx, input.fromTaskId);
       // A template belongs to a stage, so an office task never becomes one (owner, 2026-10-06).
       if (task.stageId === null) throw invalid('fromTaskId', 'An office task belongs to no project, so it has no stage.', 'office_no_stage');
-      // A template of the office is not a change of the task: the person who leads the project (project.edit) makes it.
-      assertCan(ctx, 'project.edit', { projectRole: roleIn(ctx, task.projectId) });
+      // A template of the office is not a change of the task: the person with the switch to save to-do templates in this project makes it.
+      assertCan(ctx, 'templates.taskSave', { projectRole: roleIn(ctx, task.projectId) });
       base = {
         name: task.title, stageName: ctx.state.stages[task.stageId]?.name, description: task.description, checklist: task.checklist.map((item) => item.text),
         needsReview: task.needsReview, schedule: task.schedule ?? 'static', durationDays: task.durationDays ?? null,

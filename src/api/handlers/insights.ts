@@ -10,6 +10,7 @@ import { MESSAGE_HITS, MessageHit, messageHits } from '../messageSearch';
 import { pauseKindOf, peopleFilter, staleDaysOf } from '../pause';
 import { reviewersOfTask } from '../notify';
 import { can, mayViewTask } from '../permissions';
+import { assertCan } from './shared';
 import { sentToReviewOn } from '../review';
 import { paymentsOf, subCompaniesOf, trackerOf, type State } from '../store';
 import { stageTag } from '../flow';
@@ -59,9 +60,10 @@ export const DashboardView = z.object({
     /**
      * The open tasks with no lead (ownerId null), in the same columns as a person (fbk_024, owner 2026-10-19): past due, and due in
      * each week from today. No review part, because a task with no lead cannot go to review. It counts the tasks of the active
-     * projects in the filters and the office tasks that the viewer sees. Optional, so an older answer still parses.
+     * projects in the filters and the office tasks that the viewer sees. Optional, so an older answer still parses. null: the viewer
+     * lacks the switch workload.view, and rows is empty too (role rights version 2).
      */
-    unassigned: z.object({ overdue: Count, counts: z.array(Count).length(4) }).optional(),
+    unassigned: z.object({ overdue: Count, counts: z.array(Count).length(4) }).nullable().optional(),
   }),
   schedule: z.array(z.object({
     project: Ref, currentStageId: StageId, health: HealthValue, stages: z.array(Stage), deadlines: z.array(Deadline),
@@ -90,8 +92,8 @@ export const DashboardView = z.object({
   gaps: z.object({ noDueDate: Count, noLead: Count, projectsStageNoEnd: Count, noArea: Count, noSubCompany: Count.optional() }).nullable(),
   /**
    * The payments not yet received, past due and due in the next 30 days, for the projects of the leader, client and team filters,
-   * whatever their status: a paused or finished project still owes its money. Only for the people who may handle payments (can
-   * payment.manage: Admin, Management, Accounting); null for anyone else, and for an agent that acts for anyone else (owner, 2026-10-06).
+   * whatever their status: a paused or finished project still owes its money. Only for the people who may see payments (can
+   * payment.view: Admin, Management, Accounting); null for anyone else, and for an agent that acts for anyone else (owner, 2026-10-06).
    */
   money: z.object({ pastDue: MoneyRows, next30: MoneyRows }).nullable(),
   /** What needs a look, whatever the status filter says: the paused projects that turned stale (colleague comment 16). */
@@ -151,6 +153,10 @@ export const dashboardGet = defineCall({
   readOnly: true,
   run(input, ctx) {
     const { state, today, authority: actor } = ctx;
+    // The Dashboard switch: a person without it gets a refusal, and so does the agent of that person (role rights version 2).
+    assertCan(ctx, 'dashboard.view');
+    // The People tab needs its own switch. Without it the answer keeps the weeks, and holds no row and no No-lead row.
+    const mayWorkload = can(actor, 'workload.view');
     // The people filters apply to every number, and the lists that the numbers open take the same filters (owner, 2026-10-06).
     const inFilters = peopleFilter(state, input);
     const projects = Object.values(state.projects).filter((p) => (input.status === 'all' || p.status === input.status) && inFilters(p));
@@ -273,7 +279,7 @@ export const dashboardGet = defineCall({
         throughput,
         submissions,
       },
-      workload: { weeks, limit, rows: workloadRows, unassigned },
+      workload: mayWorkload ? { weeks, limit, rows: workloadRows, unassigned } : { weeks, limit, rows: [], unassigned: null },
       attention: {
         stale: Object.values(state.projects)
           .filter(inFilters)
@@ -294,7 +300,7 @@ export const dashboardGet = defineCall({
         })
         .sort((a, b) => b.oldestDays - a.oldestDays || b.count - a.count || a.reviewer.name.localeCompare(b.reviewer.name)),
       gaps: can(actor, 'gaps.view') ? gapsOf(state, active, activeTasks) : null,
-      money: can(actor, 'payment.manage') ? moneyOf(state, inFilters, today) : null,
+      money: can(actor, 'payment.view') ? moneyOf(state, inFilters, today) : null,
       waitingForUs: active
         .flatMap((p) => { const count = loops.get(p.id)?.us ?? 0; return count > 0 ? [{ project: refOf(p), count }] : []; })
         .sort((a, b) => b.count - a.count || a.project.name.localeCompare(b.project.name)),
@@ -324,6 +330,8 @@ export const searchQuery = defineCall({
   readOnly: true,
   run(input, ctx) {
     const { state } = ctx;
+    // The Search switch: a person without it gets a refusal, and so does the agent of that person (role rights version 2).
+    assertCan(ctx, 'search.use');
     // A project link in a post reads "#KH-26-001" and a mention "@Name", so Search drops that first mark (audit PER-3).
     const query = normalizeForSearch(input.text.replace(/^[#@]+/, ''));
     if (!query) return { projects: [], tasks: [], people: [], subCompanies: [], files: [], messages: [] };
@@ -357,7 +365,8 @@ export const searchQuery = defineCall({
         .filter((f) => f.conversationId === undefined && f.meetingId === undefined && (f.projectId !== null || mayViewFile(state, ctx.authority, f)) && hit(f.name))
         .slice(0, 5)
         .map((f) => ({ id: f.id, name: f.name, projectId: f.projectId, projectCode: codeOf(f.projectId), taskId: f.taskId })),
-      messages: messageHits(state, ctx.authority, searchWords(input.text)),
+      // An agent reads chat messages only when its person holds the switch for chats (ai.readChats). A person at the screen reads their own chats.
+      messages: ctx.actor.kind === 'agent' && !can(ctx.authority, 'ai.readChats') ? [] : messageHits(state, ctx.authority, searchWords(input.text)),
     };
   },
 });

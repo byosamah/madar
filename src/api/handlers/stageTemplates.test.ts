@@ -6,7 +6,15 @@ import { setNow } from '../../lib/dates';
 
 beforeEach(() => setNow(NOW));
 
-const world = () => testApi({ ...stageTemplateCalls, ...historyCalls });
+/**
+ * Making a stage or project template is a switch (templates.projectCreate, off for a Member by default, owner 2026-10-21). The people of
+ * these tests make templates, so the Member role holds the switch here. The tests of the switch itself are in rr2Office.test.ts.
+ */
+const world = () => {
+  const t = testApi({ ...stageTemplateCalls, ...historyCalls });
+  t.store.state.settings.roles = { rights: { member: ['templates.projectCreate'] } };
+  return t;
+};
 const STAGES = ['Brief', 'Concept', 'Presentation'];
 
 describe('stage templates', () => {

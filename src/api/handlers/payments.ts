@@ -13,12 +13,13 @@ const Amount = Payment.shape.amount;
 const Note = z.string().max(500);
 
 /**
- * Payments are for the people with the payment right (fbk_014): by default the Admin, Management and Accounting.
+ * Payments are for the people with the payment rights (fbk_014): by default the Admin, Management and Accounting. Each call asks its
+ * own right: see (list), add (create), change (update and delete) and receive (mark as received).
  * No payment call works for anyone else, a project leader and an agent of a member included. None of these calls marks the project
  * as updated, so a member never sees a sign of a change.
  */
-function requireRight(ctx: Ctx): void {
-  assertCan(ctx, 'payment.manage');
+function requireRight(ctx: Ctx, right: 'payment.view' | 'payment.add' | 'payment.change' | 'payment.receive'): void {
+  assertCan(ctx, right);
 }
 
 function requirePayment(ctx: Ctx, id: string): Payment {
@@ -37,7 +38,7 @@ const paymentsList = defineCall({
   output: z.array(PaymentRow),
   readOnly: true,
   run(input, ctx) {
-    requireRight(ctx);
+    requireRight(ctx, 'payment.view');
     requireProject(ctx, input.projectId);
     return Object.values(paymentsOf(ctx.state))
       .filter((p) => p.projectId === input.projectId)
@@ -57,7 +58,7 @@ const paymentsCreate = defineCall({
   }),
   output: PaymentRow,
   run(input, ctx) {
-    requireRight(ctx);
+    requireRight(ctx, 'payment.add');
     const project = requireProject(ctx, input.projectId);
     assertNotFuture(ctx, input.receivedOn);
     const id = nextId(ctx.state, 'pay');
@@ -84,7 +85,7 @@ const paymentsUpdate = defineCall({
   }),
   output: PaymentRow,
   run(input, ctx) {
-    requireRight(ctx);
+    requireRight(ctx, 'payment.change');
     const payment = requirePayment(ctx, input.id);
     assertNotFuture(ctx, input.patch.receivedOn);
     applyPatch(ctx, payment, input.patch, { projectId: payment.projectId, verb: 'payment.updated', targetType: 'payment', targetId: payment.id });
@@ -96,7 +97,7 @@ const paymentsMarkReceived = defineCall({
   input: z.object({ id: PaymentId, receivedOn: Day.optional() }),
   output: PaymentRow,
   run(input, ctx) {
-    requireRight(ctx);
+    requireRight(ctx, 'payment.receive');
     const payment = requirePayment(ctx, input.id);
     if (payment.receivedOn) throw invalid('id', 'This payment is already marked as received.', 'already_received');
     const receivedOn = input.receivedOn ?? ctx.today;
@@ -110,7 +111,7 @@ const paymentsDelete = defineCall({
   input: z.object({ id: PaymentId }),
   output: z.object({ deleted: z.literal(true) }),
   run(input, ctx) {
-    requireRight(ctx);
+    requireRight(ctx, 'payment.change');
     const payment = requirePayment(ctx, input.id);
     recordDelete(ctx, { projectId: payment.projectId, verb: 'payment.deleted', targetType: 'payment', targetId: payment.id, entity: payment });
     delete paymentsOf(ctx.state)[payment.id];
