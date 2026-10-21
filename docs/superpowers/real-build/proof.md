@@ -2007,3 +2007,102 @@ fbk_022). Each suite ran once; a suite ran again only for the files of a fix.
   `build:server`, screenshots in Chrome (EN/AR, 390 and 960). Not run (owner rule, each over 5 minutes): the full `npm test`, `test:db`,
   `test:it`, `test:mcp`, the deploy suite, the prototype smoke.
 - `all.sh test` (149 calls), then `all.sh production`: health from `supabase` with 149 calls, the database check, `POST /mcp` with no token 401.
+
+## Chat presence: the Realtime probe (2026-10-21)
+
+**Result: all facts hold; one is not probed in a real socket.** A person tracks only on the own topic `status:<own Madar id>`, and every
+active person reads every status topic. A track on the topic of another person fails at once. An agent token (with `client_id`) cannot even
+join to read. The typing event on `person:<id>` reaches the person. A dead socket leaves after 49 to 66 s. The cost check says the 50% line
+of the design is passed by the new parts alone, so steps 1 to 3 of the design apply (see "Cost check").
+
+**Project.** `madar-test` only (`qdgwpnesxppnqsaabqzd`). The only change: the migration `20261022000200_platform_presence.sql`, pushed with
+`scripts/deploy/db.sh test` after the CLI showed that this file was the only pending one (24 of 24 older migrations were applied). It adds two
+policies on `realtime.messages`, both `to authenticated`:
+- `madar_status_track` (insert): `extension = 'presence'`, topic = `'status:' || current_madar_user_id()`, no `client_id`.
+- `madar_status_read` (select): `extension = 'presence'`, topic like `'status:%'`, a Madar id exists, no `client_id`.
+
+**Scripts.** `scripts/proof/presence.ts`, run with `set -a; . ~/dev/madar/.env.local; . ~/dev/madar/secrets/test-accounts.env; set +a;
+npx tsx scripts/proof/presence.ts <policies|status|agent|typing|counts|drop|usage|cleanup|all>` (the network needs the sandbox off). It signs in
+with the password grant of the four sample accounts (admin `usr_001`, member `usr_002`, management `usr_010`, accounting `usr_011`), opens real
+Realtime sockets with supabase-js 2.117.2, and counts every frame that the server sends to each socket (the `message` event of the socket).
+
+**Method.**
+1. Track and read: the member joins `status:usr_002` (private, presence key), tracks; the admin joins the same topic and must see the key.
+2. Another topic: the member joins `status:usr_001` and tracks; the admin (owner of that topic) must not see the key. Control: the admin tracks
+   on the own topic and the same listener sees it.
+3. Agent token: a real OAuth 2.1 flow (register a client, authorize with PKCE, consent as the member, code exchange), then a Realtime join with
+   that token. The OAuth client is deleted in the cleanup.
+4. Typing: the member holds two sockets on `person:usr_002`, one that listens to `typing` and one that listens only to `changed`. `realtime.send`
+   runs as `madar_server` (`set local role`) inside a transaction, then commit. Control: the admin tries to join `person:usr_002`.
+5. Drop: a child process (the member) joins and tracks, then the parent freezes it with `SIGSTOP`. The socket stays open and sends nothing: no
+   heartbeat, no close frame (the same as a phone in flight mode, seen from the server). The time runs from the freeze to the `leave` event at the
+   admin. The freeze comes 1 s, 9 s and 17 s after the join, so the three runs sit at three points of the 25 s heartbeat cycle. A fourth run kills
+   the process (the operating system closes the socket).
+6. Counts: 3 listeners (admin, management, accounting) and the member on two sockets. Each step lists the frames to each socket and the supabase-js
+   callbacks.
+7. The same policies run in SQL (`set local role authenticated`, the JWT claims set, inside a transaction that rolls back) for the cases that a
+   socket probe cannot reach without a change of data: a turned-off person (`active` set to false inside the transaction), a person with no Madar
+   user, and a `broadcast` insert on a status topic.
+
+| # | Fact | Result | Numbers |
+|---|---|---|---|
+| 1 | The member tracks on `status:<own id>`; another person reads it | **Pass** | join `SUBSCRIBED`, `track` returns `ok`, the admin sees the key. In SQL: own id allowed; a select sees the row for an active person (1) and none for a `client_id` token, a person with no Madar user, or a turned-off person (0) |
+| 2 | A track on the topic of another person fails | **Pass** | the join of `status:usr_001` as the member works (the read policy allows it), `track` returns `error` at once, the owner sees no key; control track `ok` and seen. In SQL: denied |
+| 3 | A token with `client_id` cannot track | **Pass** (real socket and SQL) | token claims: `client_id` present, `role` authenticated, `aud` is the MCP address of the Pages copy (not `authenticated`). The join of `status:usr_002` (the own topic of its person) gives `CHANNEL_ERROR: Unauthorized: You do not have permissions to read from this Channel topic`; nothing is seen. In SQL a `client_id` claim is denied on insert and on select |
+| 3b | A turned-off person cannot track or read | **Pass in SQL only** | `update ... set doc = jsonb_set(doc, '{active}', 'false')` inside a rolled-back transaction: insert denied, select 0 rows. Not probed on a socket: it needs a real turn-off of a sample account |
+| 4 | `realtime.send(..., 'typing', 'person:<id>', true)` as `madar_server` reaches the member; a listener of only `changed` does not get it | **Pass** | no warning from `realtime.send`; the `typing` listener got 1 event (event `typing`, payload `{v: 1, ...}`) after 312 ms and 348 ms (two runs). The `changed`-only listener got 0 typing events; its control `changed` arrived. The frame itself reaches every socket joined on `person:<id>` (2 binary frames at each socket: typing and changed); the client filter drops it. The admin cannot join `person:usr_002` (`CHANNEL_ERROR`). No new policy was needed: `madar_server_send` already allows `person:%` |
+| 5 | Time from a dead socket to the leave event | **Pass** | 65.0 s, 57.0 s, 48.9 s (freeze 1 s, 9 s, 17 s after the join). A first set with the freeze at one fixed point gave 66.0 s, 66.0 s, 66.0 s. A killed process (socket closed by the operating system): 2.9 s and 3.0 s. So a phone that loses the network shows Offline after at most about 66 s |
+| 6 | Presence frames for one track, one untrack, one join | **Pass** | see the table below |
+
+**Frames (fact 6, and the cost basis).** Every number is the count of frames that Realtime sent to one socket.
+
+| Event | To each of the 3 other listeners | To the person that acts |
+|---|---|---|
+| A listener joins a topic with nobody on it | | `phx_reply` 1 + `presence_state` 1 (2) |
+| A device joins the topic, no track yet | 0 | 2 (`phx_reply`, `presence_state`) |
+| One track (online) | 1 `presence_diff` (callbacks: 1 sync, 1 join) | 2 (`phx_reply` + own `presence_diff`) |
+| A state change (online to away, same key) | 1 `presence_diff` (callbacks: 1 sync, 1 join, 1 leave) | 2 |
+| A second device joins and tracks | 1 `presence_diff` | 1 (its own diff, other socket) |
+| One untrack | 1 `presence_diff` (sync + leave) | 1 |
+| A tracked device leaves the channel (a closed page) | 1 `presence_diff` (sync + leave) | |
+
+So one change is one frame for each socket that is joined on the topic, the changing person included. A state change is one frame, not two.
+A join gives the joiner one `presence_state` frame for each topic and the others nothing. The Supabase page "Manage Realtime Messages usage"
+(read 2026-10-21) says: a broadcast counts as one sent plus one for each receiving client; a database change counts one for each listening
+client; it names Presence among the counted messages but gives no rule for it.
+
+**Usage of the month (step 3): not found by API.** The Management API with the token has no endpoint for the Realtime message count or the
+Edge Function count: `/platform/organizations/<slug>/usage` and `/platform/projects/<ref>/usage` answer 401 "Unsupported access token",
+`/v1/organizations/<slug>/usage` answers 404, the logs endpoint (`analytics/endpoints/logs`) knows only the table `logs` (pooler and database
+lines) and a 24-hour window, and `usage.api-counts` gives only requests of Auth, Realtime (socket connects), REST and Storage. Its numbers for
+the last 7 days: production 170 Realtime requests (2 to 83 a day), 7,594 Auth, 20 REST, 282 Storage; madar-test 5,807 Realtime requests
+(this probe and the earlier work), 32,650 Auth. The count that matters sits only on the dashboard page "Organization, Usage" (one organization,
+MADAR, holds both projects). The owner reads it there. Reads on production were GET only.
+
+**Cost check (design, "Cost and the free plan").** The inputs are the design's own: 15 people, 22 work days, 30 phone opens a day with 3 state
+changes each (1,350 changes a day) plus about 150 computer changes, about 20 open screens, a screen that joins 15 status topics, 3,000 typing
+signals a day to about 4 members. With the measured frames:
+- Status: 33,000 changes x 20 screens = 660,000 frames, plus 600 screen loads a day x 15 topics x 1 `presence_state` x 22 days = 198,000.
+  About 0.86 million (the design said 0.9 million).
+- Typing: 3,000 x 22 x 4 = 264,000 frames for one socket per person, up to about 400,000 for 1.5 sockets per person (every socket on
+  `person:<id>` gets the frame).
+- New parts together: about 1.1 to 1.3 million, which is 56% to 63% of the free 2 million. The 50% line (1 million) is passed by the new parts
+  alone, before the messages that Madar sends today (change signals on `office` and `person:`), which no API gives.
+- Steps of the design: **step 1 (a phone out of view leaves its topic after 1 minute), step 2 (typing every 5 s, not 3 s: typing falls by
+  40% to about 0.16 to 0.24 million) and step 3 (a computer tab out of view for 30 minutes leaves) all apply.** Steps 1 and 3 cut the number of
+  screens that listen. If they bring 20 listening screens down to 12, status falls to about 0.59 million, and the total with step 2 is about
+  0.75 to 0.83 million (38% to 42%). That is an estimate: the real count of listening screens and changes is unknown until the build runs.
+  Step 4 (stop and ask the owner) is not reached on these numbers, but it stays open until someone reads today's use on the dashboard page.
+
+**Other facts for the build.**
+- A track on another person's topic does not fail the join. It fails at the `track` call (`error`). The adapter must read the track result.
+- An agent token reaches the socket (no connect error), but every private join of a status topic is refused.
+- Broadcast frames arrive as binary frames in supabase-js 2.117.2; presence frames arrive as text (`presence_state`, `presence_diff`).
+- The admin login `postgres` cannot `SET ROLE madar_server` (its membership has the SET option off). The probe added its own grant for the run
+  and revoked it. A migration test that sends as `madar_server` must connect as that role.
+
+**Cleanup (verified).** The OAuth client of the agent probe was deleted (101 clients before and after; 48 authorizations, 28 consents and 0
+agent sessions before and after). The typing rows of the run in `realtime.messages` were deleted (0 left). The temporary grant of `madar_server`
+to `postgres` was revoked (only the original grant of `supabase_admin` is left). The four sample users are unchanged (all active). No probe user was
+made. On `realtime.messages` there are five policies: the three of `20261004000200` and the two of this migration. The channels and the
+presence entries live in memory and are gone when the sockets close. Production was not changed.
