@@ -857,4 +857,4 @@ the cover from the small picture that Madar keeps (up to 960 px), as data when i
   (80 px); the chat side time does not wrap. No MCP change: the tools give stamps, never a clock text
 - [x] Gates: typecheck, `npm test` 8,216 passed (733 files), `npm run build`, `build:server`. Shots at 390 px (EN/AR, light/dark):
   the Meetings list and the meeting sheet
-- [ ] Test copy, then production after the owner's word
+- [x] Test copy at 2701ea7, then production at 2701ea78 (2026-10-21; the owner chose it before the presence batch). Record: proof.md

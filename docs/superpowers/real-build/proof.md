@@ -1106,6 +1106,15 @@ walk caught the answer: a whole-batch 500 "Something went wrong" for the Admin, 
   light/dark, 390). The owner asked to skip the full suite and the smoke (each over 5 minutes) for this one-flag change.
 - `all.sh test` (148 calls), then `all.sh production`: health from `supabase` with 148 calls, the database check, `POST /mcp` with no token 401.
 
+### Production at 2701ea78 (2026-10-21, times in AM and PM; the owner chose "AM/PM to production now", Claude ran it)
+- Changes: `clockFormat` (`src/lib/dates.ts`) writes English times on the 12-hour clock ("5:15 PM", the US form); Arabic was already
+  12-hour («5:15 م»). The meeting view summary uses it in place of its own HH:MM. The fixed times in the words follow in both
+  languages (the summary mail, the mail pause line, the Settings hint, the meeting start hint). What's new 2026-10-23-73. No MCP change.
+- Gates: typecheck; `npm test` 8,216 (733 files); `npm run build`, `build:server`; shots at 390 px (EN/AR, light/dark). Not run: `test:db`,
+  `test:it`, `test:mcp`, the prototype smoke, the deploy suite (no SQL, server or MCP change; the mail words have their render test).
+- `all.sh test` at 2701ea7 (the presence session held its test deploy), then Claude's `all.sh production` passed the auto-mode check this
+  time: health from `supabase` with 149 calls, the database check, `POST /mcp` with no token 401, and the live script holds the new clock.
+
 ### Production at 716c0a29 (2026-10-21, pictures for AI agents; the owner said "deploy" and ran it with `!`)
 - Changes (branch `rb/mcp-pictures`): agents read the pictures that their person sees. The rows of `users.list` (`hasPicture`,
   `glow`), `subCompanies.list` (`hasLogo`), `projects.list`, `projects.get` and `reports.office` (`look`: the project color and the tile
