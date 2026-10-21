@@ -184,6 +184,10 @@ any screen work.
   reads, plus one task. The prototype sends the write alone (performance audit FET-3). The Realtime frame of the own write can come
   before the own answer: `connectChanges` keeps its id (`echoes`) until the answer names it, so the pass stays "own" and one save
   sends one request (LV-2, 2026-10-21). A gap of the seq, a join and an id that no own answer names keep the pass mixed.
+- A signal of another person that names `messages` while the Inbox or a chat is on screen (an active `chats.list` or `chats.messages`
+  read) waits 150 ms (`chatMs`), not 1 s, for its twin office and person signals, so a chat message shows 0.85 s sooner (LV-3,
+  2026-10-21). It keeps the full window while an own write is on the wire (`queryClient.isMutating()`): a direct chat signal names no
+  person, so it could be the echo of the own send. `maxMergeMs` stays.
 - A Realtime channel that joins sends its empty list with the origin 'join'. `connectChanges` waits 100 ms after a join
   (`joinMs`) for the other channel and for any signal, then reloads every list in one pass. A change of the prototype store
   still reloads at once.

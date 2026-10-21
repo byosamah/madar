@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { QueryClient, QueryObserver } from '@tanstack/react-query';
+import { MutationObserver, QueryClient, QueryObserver } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
 import type { MadarApi } from '../api/calls';
 import type { ChangeSignal, Kind } from '../api/remote/wire';
@@ -534,6 +534,79 @@ describe('the own pass after a write with reads in its request (performance audi
     app.send([own()], 'own');
     await settle();
     expect(list()).toBe(3);
+    app.stop();
+  });
+});
+
+describe('a chat message of another person shows sooner (performance audit 2026-10-21, LV-3)', () => {
+  it('reloads the chat reads after 150 ms, not 1 s, when a messages signal comes and the Inbox is open', async () => {
+    const app = setup();
+    const list = app.show('chats.list');
+    const messages = app.show('chats.messages', { conversationId: 'cnv_001' });
+    const count = app.show('chats.unreadCount');
+    await settle();
+    // The office signal and the person signal of one message come a few milliseconds apart.
+    const office = sig({ kinds: ['messages'], office: true });
+    app.send([office]);
+    await vi.advanceTimersByTimeAsync(5);
+    app.send([{ ...office, channel: `person:${ME}`, people: [ME] }]);
+    await vi.advanceTimersByTimeAsync(100);
+    expect([list(), messages(), count()]).toEqual([1, 1, 1]);
+    await vi.advanceTimersByTimeAsync(60);
+    // One pass for both signals.
+    expect([list(), messages(), count()]).toEqual([2, 2, 2]);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect([list(), messages(), count()]).toEqual([2, 2, 2]);
+    app.stop();
+  });
+
+  it('keeps the 1 s window when a chat is open but the signal names no message, and when no chat is open', async () => {
+    const quiet = setup();
+    const list = quiet.show('chats.list');
+    quiet.show('tasks.list', { projectId: 'prj_001' });
+    await settle();
+    quiet.send([sig({ kinds: ['tasks'], projects: ['prj_001'] })]);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(list()).toBe(1);
+    await vi.advanceTimersByTimeAsync(600);
+    quiet.stop();
+
+    const none = setup();
+    const tasks = none.show('tasks.list', { projectId: 'prj_001' });
+    none.show('chats.unreadCount');
+    await settle();
+    none.send([sig({ kinds: ['messages', 'tasks'], projects: ['prj_001'] })]);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(tasks()).toBe(1);
+    await vi.advanceTimersByTimeAsync(600);
+    expect(tasks()).toBe(2);
+    none.stop();
+  });
+
+  it('keeps the full window while an own write is on the wire, because the frame can be the echo of that write', async () => {
+    const app = setup();
+    const list = app.show('chats.list');
+    await settle();
+    void new MutationObserver(app.client, { mutationFn: () => new Promise(() => undefined) }).mutate();
+    app.send([sig({ kinds: ['messages'], office: true })]);
+    await vi.advanceTimersByTimeAsync(300);
+    expect(list()).toBe(1);
+    await vi.advanceTimersByTimeAsync(800);
+    expect(list()).toBe(2);
+    app.stop();
+  });
+
+  it('does not move the short window later for a signal that comes inside it', async () => {
+    const app = setup();
+    const list = app.show('chats.list');
+    app.show('tasks.list', { projectId: 'prj_001' });
+    await settle();
+    app.send([sig({ kinds: ['messages'], office: true })]);
+    await vi.advanceTimersByTimeAsync(100);
+    // A signal of another change inside the window never moves the pass later.
+    app.send([sig({ kinds: ['tasks'], projects: ['prj_001'] })]);
+    await vi.advanceTimersByTimeAsync(60);
+    expect(list()).toBe(2);
     app.stop();
   });
 });
