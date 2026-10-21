@@ -231,7 +231,9 @@ any screen work.
   `listFormat`, `clockFormat`). `dates.recorded.json` pins every text in English and Arabic.
 - A list that stops its rows with `React.memo` (the comments, the task history, the Inbox rows and bubbles) wraps them in
   `AgeRefresh.Provider` (`components/Age.tsx`) with a new object on each render, so each `Age` still reads the clock in the
-  same renders as before. The Inbox keeps one Bubble for each message view object (`useBubbles`, `ConversationPane.tsx`).
+  same renders as before. The Inbox keeps one Bubble for each message view object (`useBubbles`, `ConversationPane.tsx`). A chat at its
+  limit of 200 slides its page by one for each new message, so every view is a new object: `useBubbles` also finds a bubble by the key of
+  its message and reuses it when `replaceEqualDeep` says the view is equal (RN-4, 2026-10-21; the key of a message the outbox claimed has `#claimed`).
 - Home keeps the last role it saw for each auth user in localStorage (`madar.homeRole.<auth user id>`,
   `features/home/roleHint.ts`). Before `session.get` answers, the real build asks for the `projects.list` of that role. The
   session answer always decides. The sign-in port gives the auth user id at once (`AuthPort.userId()`, optional).
