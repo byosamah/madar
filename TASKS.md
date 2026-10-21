@@ -873,8 +873,9 @@ Owner: "add some Slack chat features": Online, Away, Offline, "Seen", "typing...
 - [x] Wave 1 base B1 to B6 (reactions with any emoji, seen time, Away switch hidden from others and from History, chats.typing,
   the live port)
 - [x] Wave 2: live L1 to L4, faces F1 to F5, emoji E1 to E4 (three builders in parallel), joined with main at 2701ea78
-- [ ] Owner: read the Realtime messages of this month on the Supabase page Organization, Usage (no API gives it). If that use
-  plus about 0.8 million passes 1 million, cost step 4 applies (ask the owner)
+- [x] Owner read the Realtime messages (2026-10-21, Organization, Usage): 15,878 of 2,000,000 used in the period, at most about
+  2,900 a day. With the new parts (0.75 to 0.83 million after cost steps 1 to 3) the month comes to about 0.85 to 0.92 million
+  (about 45%): under the 50% line, so cost step 4 does not apply
 - [x] Merge gate once (proof.md "Chat presence batch: the merge gate"): all green after 3 small fixes; smoke 87 of 87; screenshots
 - [ ] Test copy: `all.sh test` from `rb/chat-presence` (not main) when session madar-2b says the test copy is free (its AM and PM
   release waits for the owner). It puts 2 migrations on madar-test: until the batch is on main, a test deploy from main fails at

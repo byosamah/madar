@@ -2161,3 +2161,7 @@ presence entries live in memory and are gone when the sockets close. Production 
 - Then both migrations came off madar-test again (the index and the two policies dropped, `migration repair --status reverted`), so
   `rb/rr2` could deploy from main. Next: merge main (rr2 and `a816c42a`, the reports.office fix that the owner wants in the same
   release), the gates, `all.sh test`, the whole deploy suite, the owner's two-phone hand test.
+- 2026-10-21, the owner read the Supabase page Organization, Usage: Realtime Messages 15,878 of 2,000,000 used in the period; the
+  busiest day about 2,900 (19 October, the team week). The page says one broadcast to 4 listeners counts as 5 messages (1 sent, 4
+  received), which is the rule of the cost estimate. Today's use plus the new parts after cost steps 1 to 3 is about 0.85 to 0.92
+  million a month (about 45%): cost step 4 does not apply.
