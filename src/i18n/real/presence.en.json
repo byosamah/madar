@@ -16,5 +16,13 @@
     "typingTwo": "{{a}} and {{b}} are typing...",
     "typingMany": "Several people are typing...",
     "typingRow": "typing..."
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-80": {
+        "title": "Who is here, and who saw it",
+        "body": "The chat shows who is online and who is typing. It also shows who saw your last message. Press the smiley button to add an emoji to a message. Press + on a message to react with any emoji."
+      }
+    }
   }
 }
