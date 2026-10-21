@@ -757,6 +757,11 @@ export const ChatRead = z.object({
    * "named" for a project chat, "all" for a direct chat or a group. Optional, so older read marks load.
    */
   notify: NotifyLevel.optional(),
+  /**
+   * The last time the person looked at the chat while it was open, in view and in use (chat design C4). Only chats.markRead with
+   * seen: true moves it, and only forward. Optional, so older read marks load and no copy of the old read marks is made.
+   */
+  seenAt: Stamp.optional(),
 });
 export type ChatRead = z.infer<typeof ChatRead>;
 

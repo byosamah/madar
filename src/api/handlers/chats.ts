@@ -5,7 +5,7 @@ import { MAX_REACTION_KINDS } from '../contract/emoji';
 import { REACTIONS } from '../contract/limits';
 import { ChatRow, ChatThread, MessageView, WaitingRow, type GroupLine } from '../contract/views';
 import { messagePageAround } from '../chatAround';
-import { adminReachOf, addDirectConversation, addGroupConversation, canSeeConversation, hiddenByReach, closedChatError, isArchived, markedUnread, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, personLeft, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
+import { adminReachOf, addDirectConversation, addGroupConversation, canSeeConversation, chatMemberIds, hiddenByReach, closedChatError, isArchived, markedUnread, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, personLeft, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
 import { forbidden, invalid, notFound } from '../errors';
 import { isLiveMessage, namesPerson, notifyLevelOf, replyRefOf } from '../chatNaming';
 import { readCopiesOf } from '../adminCopies';
@@ -219,6 +219,14 @@ function writeReadMark(ctx: Ctx, conversationId: string, lastAt: string | undefi
   if (ctx.state.counts) ctx.state.counts[unreadCountKey(conversationId, ctx.authority.id)] = 0;
 }
 
+/** Moves the seen time of the person for a chat to now, and never back (chat design C4). The record of writeReadMark is there. */
+function moveSeenTime(ctx: Ctx, conversationId: string): void {
+  const key = chatReadKey(conversationId, ctx.authority.id);
+  const read = ctx.state.chatReads[key];
+  if (!read || (read.seenAt !== undefined && read.seenAt >= ctx.stamp)) return;
+  ctx.state.chatReads[key] = { ...read, seenAt: ctx.stamp };
+}
+
 function markReadNow(ctx: Ctx, conversation: Conversation): void {
   writeReadMark(ctx, conversation.id, messagesOf(ctx.state, conversation.id).at(-1)?.createdAt);
 }
@@ -301,11 +309,26 @@ export const chatsMessages = defineCall({
       lines: conversation.kind === 'group' ? linesOf(ctx.state, conversation) : [],
       // The read time before this read (the read itself marks nothing, but the open of the screen does), for the "New" line.
       readUpTo: ctx.state.chatReads[chatReadKey(conversation.id, ctx.authority.id)]?.lastReadAt ?? null,
+      ...seenInfoOf(ctx.state, conversation, ctx.authority.id),
       notify: notifyLevelOf(ctx.state, conversation, ctx.authority.id),
       newer: around?.newer ?? false,
     };
   },
 });
+
+/**
+ * The seen information of a chat for one reader (chat design C4): the reader's own seen time, the seen times of the other members of
+ * today (newest first), and the count of the other members. Only members count, so a person who left and an Admin who is not on the team
+ * never show.
+ */
+function seenInfoOf(state: State, conversation: Conversation, readerId: string): { seenUpTo: string | null; seen: { userId: string; at: string }[]; others: number } {
+  const others = chatMemberIds(state, conversation).filter((id) => id !== readerId);
+  const seen = others.flatMap((userId) => {
+    const at = state.chatReads[chatReadKey(conversation.id, userId)]?.seenAt;
+    return at === undefined ? [] : [{ userId, at }];
+  }).sort((a, b) => b.at.localeCompare(a.at) || a.userId.localeCompare(b.userId));
+  return { seenUpTo: state.chatReads[chatReadKey(conversation.id, readerId)]?.seenAt ?? null, seen, others: others.length };
+}
 
 /**
  * The people that a message body names (chat design items 4 and 10): the active people of the chat whom the text names with @, and
@@ -391,11 +414,22 @@ function markTaskReadNow(ctx: Ctx, taskId: string): void {
 
 export const chatsMarkRead = defineCall({
   /** A chat, or a task whose comments the Inbox shows as a thread (audit 2026-10-03, SHL-5). */
-  input: z.object({ conversationId: z.union([ConversationId, TaskId]) }),
+  input: z.object({
+    conversationId: z.union([ConversationId, TaskId]),
+    /**
+     * True when the person looked at the chat while it was open, in view and in use (chat design C4). It moves the seen time of the
+     * person, forward only, for a chat the person is a member of. An agent, a task thread and an Admin outside the chat move nothing.
+     */
+    seen: z.boolean().optional(),
+  }),
   output: z.object({ unread: z.number().int().min(0) }),
   run(input, ctx) {
     if (input.conversationId.startsWith('tsk_')) markTaskReadNow(ctx, input.conversationId);
-    else markReadNow(ctx, requireConversation(ctx, input.conversationId));
+    else {
+      const conversation = requireConversation(ctx, input.conversationId);
+      markReadNow(ctx, conversation);
+      if (input.seen === true && ctx.actor.kind === 'human' && chatMemberIds(ctx.state, conversation).includes(ctx.authority.id)) moveSeenTime(ctx, conversation.id);
+    }
     readMentionNotices(ctx, input.conversationId);
     return { unread: totalUnread(ctx.state, ctx.authority) };
   },

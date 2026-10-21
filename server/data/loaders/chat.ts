@@ -203,6 +203,8 @@ export async function chatsMessages(L: Load, input: Input): Promise<void> {
   const conversation = L.office.conversations[id];
   if (!L.authority || !conversation) return;
   await chatsOf(L, L.authority.id, [conversation]);
+  // The seen times of the other members (chat presence design C4, base B2): every read mark of this chat, by conversation_id.
+  await L.select({ c: 'chatReads', where: [{ col: 'conversation_id', in: [id] }] });
   const limit = (input.limit as number | undefined) ?? 200;
   let before: Message | undefined;
   if (typeof input.before === 'string') {

@@ -646,6 +646,26 @@ describe('the 18 places of AM 6', () => {
     }
   });
 
+  // Chat presence base B2: the chat view gives the seen times of the other members, so the scoped load reads every read mark of the chat.
+  it('chats.messages: the scoped load brings the seen times of every member of the chat (chat presence B2)', async () => {
+    const state = office();
+    const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+    const team = Object.values(state.members).filter((m) => m.projectId === 'prj_001').map((m) => m.userId).filter((id) => id !== ADMIN && state.users[id].kind === 'human');
+    const [person, other] = team;
+    if (!person || !other) throw new Error('The sample office needs two team members on prj_001.');
+    for (const [userId, seenAt] of [[person, '2026-10-04T08:00:00.000+03:00'], [other, '2026-10-04T08:30:00.000+03:00']] as const) {
+      state.chatReads[chatReadKey(room.id, userId)] = { conversationId: room.id, userId, lastReadAt: seenAt, seenAt };
+    }
+    for (const actor of [person, other, ADMIN]) {
+      const run = await same(state, 'chats.messages', { conversationId: room.id }, actor);
+      const page = run.outcome.output as { seen: { userId: string; at: string }[]; seenUpTo: string | null; others: number };
+      expect(page.seen.map((entry) => entry.userId), actor).toEqual([person, other].filter((id) => id !== actor).sort((a, b) => (a === other ? -1 : b === other ? 1 : 0)));
+      expect(page.others, actor).toBeGreaterThanOrEqual(1);
+    }
+    // A look in use: the same answer and the same writes on the scoped load, for a member and for an Admin outside the team.
+    for (const actor of [person, ADMIN]) await same(state, 'chats.markRead', { conversationId: room.id, seen: true }, actor);
+  });
+
   it('comments.update and reactions.toggle: the scoped load brings the comment a reply answers (base B5)', async () => {
     const state = office();
     const task = Object.values(state.tasks).find((t) => t.projectId !== null && t.ownerId !== null)!;

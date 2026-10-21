@@ -52,6 +52,19 @@ export function canSeeConversation(state: State, conversation: Conversation, use
 }
 
 /**
+ * The members of a chat today (chat presence design C4): the active people who can send and read in it. A direct chat or a group: its
+ * people who are active. A project chat: the leader and the team. An Admin who is not on the team is not a member, and an agent never is.
+ * One rule for Seen, the count of the others and the typing signal.
+ */
+export function chatMemberIds(state: Pick<State, 'users' | 'projects' | 'members'>, conversation: Conversation): string[] {
+  const isHuman = (id: string): boolean => state.users[id]?.kind === 'human' && state.users[id]?.active === true;
+  if (conversation.kind !== 'project') return conversation.memberIds.filter(isHuman);
+  const projectId = conversation.projectId;
+  if (!projectId || !state.projects[projectId]) return [];
+  return Object.keys(state.users).filter((id) => isHuman(id) && projectRoleOf(state as State, projectId, id) !== 'other');
+}
+
+/**
  * True for a chat that takes no new messages: a direct chat whose other person is no longer active (audit 2026-10-03, SHL-15), or
  * a group with no other active person (UX audit 2026-10-19, chats-11). The history stays readable.
  */

@@ -288,6 +288,12 @@ export const ChatThread = z.object({
   readUpTo: Stamp.nullable().default(null),
   /** The "Notify me" level of the reader for this chat (item 21). */
   notify: z.enum(NOTIFY_LEVELS).default('all'),
+  /** The seen time of the reader for this chat (chat design C4), or null. Not the read mark: only a look in use moves it. */
+  seenUpTo: Stamp.nullable().default(null),
+  /** The other members of today who have a seen time, newest first. An Admin who is not a member and a person who left never show. */
+  seen: z.array(z.object({ userId: UserId, at: Stamp })).default([]),
+  /** The count of the other members of today, for "Seen by everyone". */
+  others: z.number().int().min(0).default(0),
   /** True when newer messages exist after this page: a page that opens at one message (item 17) may end before the newest. */
   newer: z.boolean().default(false),
 });

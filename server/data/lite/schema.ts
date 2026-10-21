@@ -28,8 +28,11 @@ import type { SqlHost } from './host';
  *
  * Version 9 (fbk_022, one calendar for each person): the server table google_calendars, the id of the calendar that Madar made for a person.
  * Its step is in LITE_STEPS.
+ *
+ * Version 10 (chat presence design C4): the index chat_reads_conversation on chat_reads (conversation_id), for the read marks of one chat
+ * that the chat view reads. Its step is in LITE_STEPS (supabase/migrations/20261022000100_chat_reads_conversation.sql).
  */
-export const LITE_SCHEMA_VERSION = 9;
+export const LITE_SCHEMA_VERSION = 10;
 
 export type LiteIndex = { table: string; name: string; columns: string; unique?: true; where?: string };
 
@@ -57,6 +60,7 @@ export const LITE_INDEXES: readonly LiteIndex[] = [
   { table: 'notifications', name: 'notifications_dedupe', columns: 'dedupe_key', unique: true, where: 'dedupe_key is not null' },
   { table: 'messages', name: 'messages_conversation', columns: 'conversation_id, created_at, id' },
   { table: 'chat_reads', name: 'chat_reads_user', columns: 'user_id' },
+  { table: 'chat_reads', name: 'chat_reads_conversation', columns: 'conversation_id' },
   { table: 'events', name: 'events_seq', columns: 'seq', unique: true },
   { table: 'events', name: 'events_target', columns: 'target_type, target_id, seq' },
   { table: 'events', name: 'events_story', columns: 'correlation_id' },
@@ -157,6 +161,7 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
  * Version 7 adds the partial index meetings_to_settle (fbk_022, wave 2): the scheduled meetings with no settled_at, by ends_at.
  * Version 8 adds the two server tables of the Google Calendar connect and their indexes, as in liteSchemaSql.
  * Version 9 adds the server table google_calendars (fbk_022, one calendar for each person), as in liteSchemaSql.
+ * Version 10 adds the index chat_reads_conversation (chat presence design C4), as in liteSchemaSql.
  */
 export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   3: [USAGE_DAY_SQL],
@@ -173,6 +178,7 @@ export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
     ...GOOGLE_INDEXES.map(indexSql),
   ],
   9: [GOOGLE_CALENDARS_SQL],
+  10: ['create index chat_reads_conversation on chat_reads (conversation_id)'],
 };
 
 /** The sign-in tables of wave 2: the import of wave 4 and the restore check copy them with the office. */
