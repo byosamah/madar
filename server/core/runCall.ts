@@ -57,26 +57,27 @@ export interface CallTx {
 
 export interface CallData {
   tx<T>(mode: 'read' | 'write', work: (t: CallTx) => Promise<T>): Promise<T>;
+  /** The steps of a transaction that is already open on q (the sign-in read of a batch, SV-5). Absent: the data cannot join it. */
+  on?(q: Query): CallTx;
   /** The office in a read of its own: for a server call, and for the actor check before a preflight. */
   office(): Promise<OfficeSnapshot>;
 }
 
 /** The data of a call on the database of deps: pgDb, the office cache, the SQL loaders and the diff writer. */
 export function sqlData(deps: Deps): CallData {
+  const on = (q: Query): CallTx => ({
+    q,
+    lock: (key) => takeOfficeLock(q, key),
+    office: () => readOffice(deps, q),
+    source: () => sqlSource(q),
+    save: (before, after, o) => save(q, before, after, o),
+    stories: sqlStories(q),
+    keys: sqlKeys(q),
+    outbox: (rows) => writeOutbox(q, rows),
+  });
   return {
-    tx: (mode, work) =>
-      deps.db.tx(mode, (q) =>
-        work({
-          q,
-          lock: (key) => takeOfficeLock(q, key),
-          office: () => readOffice(deps, q),
-          source: () => sqlSource(q),
-          save: (before, after, o) => save(q, before, after, o),
-          stories: sqlStories(q),
-          keys: sqlKeys(q),
-          outbox: (rows) => writeOutbox(q, rows),
-        }),
-      ),
+    tx: (mode, work) => deps.db.tx(mode, (q) => work(on(q))),
+    on,
     office: () => readOffice(deps),
   };
 }
@@ -91,6 +92,16 @@ export type RunCallOptions = {
 };
 
 export type RunCall = (deps: Deps, req: RunRequest) => Promise<RunResult>;
+
+/**
+ * True for a call that may run inside the open sign-in transaction of its batch (SV-5): a shared read with no preflight hook. A
+ * preflight does network work, which must never hold the one read connection. A server call opens its own transactions, and a
+ * second transaction inside the first is refused.
+ */
+export function joinsFirstRead(name: string, calls: ReadonlyMap<string, CallEntry> = serverCallMap): boolean {
+  const entry = calls.get(name);
+  return entry !== undefined && entry.kind === 'shared' && entry.readOnly && entry.hooks?.preflight === undefined;
+}
 
 /** The signals that the actor's own screen receives: the office signal, and the actor's own person signal. */
 function ownSignals(signals: ChangeSignal[], actorId: string): ChangeSignal[] {
@@ -148,15 +159,25 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
       resolveActor(req.batch.office ?? (await data.office()), req.principal);
       prepared = await entry.hooks.preflight(parsed, { actorId, now, deps });
     }
-    const { output, office } = await data.tx('read', async (t) => {
-      const office = await t.office();
+    // known: the office that the open transaction read already (SV-5), so the call does not read office_meta a second time.
+    const body = async (t: CallTx, known?: OfficeSnapshot) => {
+      const office = known ?? (await t.office());
       resolveActor(office, req.principal);
       const state = await loadFor(entry.name, parsed, { src: t.source(), office, actorId, write: false, now });
       const { authority } = resolveAuthority(state, actorId, entry.def);
       // A read writes no event, so its story is never stored.
       const output = executeParsed(entry.def, entry.name, parsed, state, baseOf(deps, actorId, authority.id, newStoryId(), now), prepared);
       return { output, office };
-    });
+    };
+    let result: { output: unknown; office: OfficeSnapshot };
+    if (req.open) {
+      const known = req.batch.office;
+      if (!data.on || !known || entry.hooks?.preflight) throw new Error(`The call ${entry.name} cannot run inside the open sign-in transaction.`);
+      result = await body(data.on(req.open.q), known);
+    } else {
+      result = await data.tx('read', (t) => body(t));
+    }
+    const { output, office } = result;
     req.batch.office = office;
     return { ok: true, output, changed: false };
   }
@@ -251,6 +272,7 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
       if (!entry) throw new ApiError('not_found', `There is no call named ${req.name}.`);
       const parsed = parseInput(entry, req.input);
       const data = dataOf(deps);
+      if (req.open && !joinsFirstRead(req.name, calls)) throw new Error(`The call ${req.name} cannot run inside the open sign-in transaction.`);
       if (entry.kind === 'server') return await runServerCall(deps, req, entry, parsed, data);
       if (entry.readOnly) return await runRead(deps, req, entry, parsed, data);
       return await runWrite(deps, req, entry, parsed, data);

@@ -214,7 +214,8 @@ export function memoryData(office: State): MemoryData {
   };
 
   return {
-    data: () => ({ tx, office: async () => officeOf() }),
+    // on: the steps of a read transaction that the caller opened (the sign-in read of a batch, SV-5): a copy of the tables, as tx makes.
+    data: () => ({ tx, on: () => txOf(structuredClone(tables)), office: async () => officeOf() }),
     db,
     get tables() {
       return tables;
