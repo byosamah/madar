@@ -69,6 +69,7 @@ server checks the final object, then saves the record.
 - A screenshot link of a report needs `feedback.manage` (`assertMayReadReports`, `rights.ts`). A hook has no office snapshot, so it reads the
   roles from the settings row (`readRoles`, `records.ts`) and attaches the rights with `withOfficeRights`.
 - Never put a signed link in a message or a mail.
+- A run of adjacent `files.link` entries reads its file records with one statement (`readFiles`, `FILES_DOCS_SQL`), before the entries run side by side (SV-11, 2026-10-21). The person check still comes before that read, and the view right and the signing stay in each link.
 
 ## Tests
 - Storage and R2 integration suites need MinIO (`server/it/minio.ts`). CI starts MinIO in `ci-stack.yml`.

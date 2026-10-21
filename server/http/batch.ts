@@ -18,6 +18,8 @@ import { checkBuild, parseBatch, readBody } from './limits';
  *   opens nothing.
  * - SRV-6: a run of adjacent files.link entries (the covers of a screen) runs side by side. Each is a read with no lock, and each
  *   keeps its own error. Every other entry runs alone, in the order sent.
+ * - SV-11: before such a run, one statement reads the files of the whole run (prefetchRun). Each link then finds its record in the
+ *   batch and sends no read of its own. The records are dropped after the run.
  * - SRV-4: on a host with after (core/after.ts), the meter statement runs after the answer. With no after, it runs before it.
  * - SV-5: when the first call is a plain read (joinFirst), it runs in the transaction of the sign-in read: one begin, one
  *   office_meta read and one commit less. Only the first call joins, so a read after a write still opens its own transaction
@@ -34,6 +36,8 @@ export type BatchOptions = {
   hasWrite?: (name: string) => boolean;
   /** True for a first call that may run in the sign-in transaction (joinsFirstRead). Without it, no call joins. */
   joinFirst?: (name: string) => boolean;
+  /** Reads what a run of adjacent files.link entries needs with one statement, before the run (SV-11). Without it, each link reads its own file. */
+  prefetchRun?: (deps: Deps, batch: BatchScope, principal: Principal, run: WireCall[]) => Promise<void>;
 };
 
 /** Thrown inside the sign-in transaction after a first call that failed, to roll it back. handleBatch catches it. */
@@ -57,9 +61,10 @@ function logUnexpected(deps: Deps, message: string, error: unknown, fields: Reco
 }
 
 export async function handleBatch(request: Request, deps: Deps, o: BatchOptions): Promise<Response> {
-  let principal: Principal;
-  let batch: BatchScope;
-  let calls: WireCall[];
+  // Set in the try below, which returns an error answer when it does not finish.
+  let principal!: Principal;
+  let batch!: BatchScope;
+  let calls!: WireCall[];
   let firstEntry = undefined as WireEntry | undefined;
 
   const entry = async (call: WireCall, open?: OpenRead): Promise<WireEntry> => {
@@ -113,7 +118,17 @@ export async function handleBatch(request: Request, deps: Deps, o: BatchOptions)
   for (let at = start; at < calls.length; ) {
     let end = at + 1;
     if (calls[at].name === LINK_CALL) while (end < calls.length && calls[end].name === LINK_CALL) end += 1;
-    results.push(...(end - at === 1 ? [await entry(calls[at])] : await Promise.all(calls.slice(at, end).map((call) => entry(call)))));
+    if (end - at === 1) {
+      results.push(await entry(calls[at]));
+    } else {
+      const run = calls.slice(at, end);
+      await o.prefetchRun?.(deps, batch, principal, run);
+      try {
+        results.push(...(await Promise.all(run.map((call) => entry(call)))));
+      } finally {
+        batch.files = undefined;
+      }
+    }
     at = end;
   }
 
