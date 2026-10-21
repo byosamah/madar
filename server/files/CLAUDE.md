@@ -63,7 +63,8 @@ server checks the final object, then saves the record.
   `files` and no name. It cannot go into another place (`file_meeting`), and it is never deleted or shared.
 - Inline only for pictures, PDF, plain text, video and audio (`INLINE_SAFE`). Every other type is stored as
   `application/octet-stream`.
-- Check `project.view`, and that the person is active, right before you sign any link (`rights.ts`). For a file of an
+- Check `project.view`, and that the person is active, right before you sign any link (`rights.ts`). The start of an upload asks `file.upload` (`assertMayPost`, and
+  `file.upload` on an office task in `server/calls/files.ts`); a chat upload asks `chat.direct` (`chatForUpload`); a meeting upload asks the minutes right (`minutesRefusal`). For a file of an
   office task: `task.view` on that task (`assertMayViewOfficeFile`), which answers not_found, as for a missing file.
 - A screenshot link of a report needs `feedback.manage` (`assertMayReadReports`, `rights.ts`). A hook has no office snapshot, so it reads the
   roles from the settings row (`readRoles`, `records.ts`) and attaches the rights with `withOfficeRights`.

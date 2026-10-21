@@ -59,7 +59,8 @@ after the commit of the call that asked for it.
   Work screen (`weekEndOf` has the same week rule as `workGroupOf`; a test pins both). A group keeps the shared order of the screens
   (a placed task first, then the date). The mail shows at most 8 lines in all, the past due first, then "and N more tasks" and one
   button "Open Madar". It adds the count of the reviews that wait for the person, including those of office tasks that the person
-  made (owner, 2026-10-06). The mail goes when something is past due or due today, or a review waits: a task due later this week alone
+  made (owner, 2026-10-06). A project review waits for its leader only while the leader holds `task.review.lead`; else it waits for the Admins
+  (`SUMMARY_REVIEWERS_SQL` and `summaryReviewers` give the reviewing leaders as `$3` of `SUMMARY_COUNTS_SQL`). The mail goes when something is past due or due today, or a review waits: a task due later this week alone
   makes no mail. The subject, the footer and the idempotency key `summary-<day>-<person>` are as before. No signed link, no file, no
   tracking pixel and no picture but the Madar mark of the header. Tests: `summaryTasks.test.ts`, `summaryBrief.test.ts` (the outbox driver
   on SQLite), `templates/render.test.ts`.
