@@ -4,6 +4,7 @@ import type { RunCall } from '../core/runCall';
 import type { OfficeSnapshot, Principal, RunError, RunResult } from '../core/types';
 import type { RoleSettings } from '../../src/api/contract/entities';
 import { readFirstAnswer, roleNameOf } from './docs';
+import { PICTURES_GET, runPicture, withPictureLooks, WITH_PICTURES_TOOLS, type PictureAnswer } from './pictures';
 import { READ_FIRST, type ToolDef } from './tools';
 
 /**
@@ -18,7 +19,8 @@ import { READ_FIRST, type ToolDef } from './tools';
  *   gives isError with its code, message and details, so the model can correct itself (point 18).
  */
 
-export type ToolRunCtx = { deps: Deps; principal: Principal; office: OfficeSnapshot; runCall: RunCall };
+/** fetch reads the small picture of a cover (pictures.ts). Tests pass a stub; a host leaves it out and gets the global fetch. */
+export type ToolRunCtx = { deps: Deps; principal: Principal; office: OfficeSnapshot; runCall: RunCall; fetch?: typeof globalThis.fetch };
 
 export async function runTool(tool: ToolDef, args: Record<string, unknown>, ctx: ToolRunCtx): Promise<RunResult> {
   if (tool.name === READ_FIRST) {
@@ -27,31 +29,21 @@ export async function runTool(tool: ToolDef, args: Record<string, unknown>, ctx:
     if (!person) return { ok: false, error: { code: 'unauthenticated', message: 'This agent has no active person to act for.', details: { reason: 'account_off' } } };
     return { ok: true, output: readFirstAnswer(person, ctx.office.lists.settings.roles), changed: false };
   }
-  const { storyId, ...input } = args;
+  if (tool.name === PICTURES_GET) return runPicture(args, ctx);
+  // withPictures belongs to the tool, not to the call (owner, 2026-10-21).
+  const { withPictures, ...callArgs } = WITH_PICTURES_TOOLS.has(tool.name) ? args : { withPictures: undefined, ...args };
+  const { storyId, ...input } = callArgs;
   const story = tool.takesStory && typeof storyId === 'string' ? { id: storyId } : undefined;
   const result = await ctx.runCall(ctx.deps, {
     principal: ctx.principal,
     name: tool.name,
-    input: tool.takesStory ? input : args,
+    input: tool.takesStory ? input : callArgs,
     ...(story ? { story } : {}),
     batch: { storyRefs: new Map(), office: ctx.office, overviewCalls: 0 },
   });
   return result.ok
-    ? { ...result, output: withoutStorageKeys(tool.name, withoutPictureData(tool.name, withRoleNames(tool.name, result.output, ctx.office.lists.settings.roles))) }
+    ? { ...result, output: withoutStorageKeys(tool.name, withPictureLooks(tool.name, withRoleNames(tool.name, result.output, ctx.office.lists.settings.roles), ctx.office, withPictures === true)) }
     : result;
-}
-
-/**
- * users.list gives the profile picture of each person as data of up to 24,000 characters (owner item 10, 2026-10-05). An agent
- * has no use for it, and 15 pictures would fill its context, so a picture saved as data leaves the answer (avatarUrl null).
- */
-function withoutPictureData(name: string, output: unknown): unknown {
-  // A sub-company logo is picture data too (fbk_007). An agent gets the names, so the logo leaves the answer as well.
-  if (name === 'subCompanies.list' && Array.isArray(output)) {
-    return output.map((sub: { logo?: unknown }) => (typeof sub.logo === 'string' ? { ...sub, logo: null } : sub));
-  }
-  if (name !== 'users.list' || !Array.isArray(output)) return output;
-  return output.map((user: { avatarUrl?: unknown }) => (typeof user.avatarUrl === 'string' && user.avatarUrl.startsWith('data:') ? { ...user, avatarUrl: null } : user));
 }
 
 /**
@@ -89,6 +81,12 @@ export function errorResult(error: RunError, text?: string): CallToolResult {
 export function toolResult(tool: ToolDef, result: RunResult): CallToolResult {
   if (!result.ok) return errorResult(result.error);
   if (tool.name === READ_FIRST) return { content: [{ type: 'text', text: String(result.output) }] };
+  if (tool.name === PICTURES_GET) {
+    // The picture goes as an image too, so the agent sees it. The JSON keeps the data address of a small picture for a document.
+    const { output, image } = result.output as PictureAnswer;
+    const text = { type: 'text' as const, text: JSON.stringify({ output }) };
+    return { content: image ? [{ type: 'image', data: image.data, mimeType: image.mimeType }, text] : [text], structuredContent: { output } };
+  }
   const structured: Record<string, unknown> = { output: result.output };
   if (result.storyId !== undefined) structured.storyId = result.storyId;
   return { content: [{ type: 'text', text: JSON.stringify(structured) }], structuredContent: structured };

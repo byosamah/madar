@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type JWK, type JWTPayload } from 'jose';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../src/api/errors';
 import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
@@ -14,6 +14,7 @@ import { fakeDeps, type FakeDeps } from '../test/fakes/deps';
 import { mcpApp, serverInfoFor, TOOL_CALLS_PER_MINUTE, type McpAppOptions, type McpLimit } from './app';
 import { agentTokenChecker, type AgentPrincipal, type AgentToken } from './auth';
 import { INSTRUCTIONS } from './docs';
+import { personGlowCss, projectColorLook, tileSvg } from '../../src/lib/pictureLook';
 import { HOP_HEADER, hopHeaderOf, hopKeyFrom } from './forward';
 import { mcpTools } from './tools';
 
@@ -178,12 +179,12 @@ describe('suite 12: the MCP server in process', () => {
     expect(body.result.ttlMs).toBe(300_000);
   });
 
-  it('lists the 56 tools of an agent of an Admin in their fixed order, with ttlMs and cacheScope "private", and the exact schemas of tools.ts', async () => {
+  it('lists the 57 tools of an agent of an Admin in their fixed order, with ttlMs and cacheScope "private", and the exact schemas of tools.ts', async () => {
     const { body } = await rpc(w, 'tools/list');
     const tools = body.result.tools as { name: string; inputSchema: Record<string, unknown>; annotations: Record<string, unknown> }[];
     const admin = mcpTools({ admin: true });
     expect(tools.map((t) => t.name)).toEqual(admin.map((t) => t.name));
-    expect(tools).toHaveLength(56);
+    expect(tools).toHaveLength(57);
     expect(body.result.ttlMs).toBe(300_000);
     expect(body.result.cacheScope).toBe('private');
     const ajv = new Ajv2020({ strict: true, allErrors: true });
@@ -202,13 +203,13 @@ describe('suite 12: the MCP server in process', () => {
     const legacyList = async (target: World, token: string) =>
       (await post(target, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }, { Authorization: `Bearer ${token}`, 'MCP-Protocol-Version': '2025-11-25' })).body;
 
-    it('lists 52 tools and no feedback tool to an agent of a member, in both eras', async () => {
+    it('lists 53 tools and no feedback tool to an agent of a member, in both eras', async () => {
       const modern = await rpc(w, 'tools/list', {}, { token: await member() });
       const legacy = await legacyList(w, await member());
       for (const [era, result] of [['2026-07-28', modern.body.result], ['2025-11-25', legacy.result]] as const) {
         const names = (result.tools as { name: string }[]).map((t) => t.name);
         expect(names, era).toEqual(mcpTools().map((t) => t.name));
-        expect(names, era).toHaveLength(52);
+        expect(names, era).toHaveLength(53);
         expect(names.filter((name) => name.startsWith('feedback.')), era).toEqual([]);
       }
     });
@@ -226,20 +227,20 @@ describe('suite 12: the MCP server in process', () => {
       expect(w.ran).toEqual(['projects.get']);
     });
 
-    it('lists 52 tools on the next request after the Admin becomes a member, and 56 again after the promotion', async () => {
-      expect((await rpc(w, 'tools/list')).body.result.tools).toHaveLength(56);
+    it('lists 53 tools on the next request after the Admin becomes a member, and 57 again after the promotion', async () => {
+      expect((await rpc(w, 'tools/list')).body.result.tools).toHaveLength(57);
       const admin = w.mem.tables.state.users.usr_001;
       w.mem.tables.state.users.usr_001 = { ...admin, systemRole: 'member' };
       w.mem.tables.version += 1;
       const demoted = (await rpc(w, 'tools/list')).body.result.tools as { name: string }[];
-      expect(demoted).toHaveLength(52);
+      expect(demoted).toHaveLength(53);
       expect(demoted.map((t) => t.name).filter((name) => name.startsWith('feedback.'))).toEqual([]);
-      expect((await legacyList(w, await tokenOf())).result.tools).toHaveLength(52);
+      expect((await legacyList(w, await tokenOf())).result.tools).toHaveLength(53);
       const refused = await call(w, 'feedback.list');
       expect(refused.body.error?.code).toBe(-32602);
       w.mem.tables.state.users.usr_001 = admin;
       w.mem.tables.version += 1;
-      expect((await rpc(w, 'tools/list')).body.result.tools).toHaveLength(56);
+      expect((await rpc(w, 'tools/list')).body.result.tools).toHaveLength(57);
     });
 
     // Owner, 2026-10-23 (role-rights): the 3 tools of requests and bugs go to an agent whose person holds the feedback right, whether the
@@ -256,7 +257,7 @@ describe('suite 12: the MCP server in process', () => {
       try {
         grant(['feedback.manage']);
         const holder = await names();
-        expect(holder).toHaveLength(55);
+        expect(holder).toHaveLength(56);
         expect(holder.filter((name) => name.startsWith('feedback.'))).toEqual(['feedback.list', 'feedback.screenshot', 'feedback.setStatus']);
         // The call runs for the agent, with the rights of its person.
         const list = await call(w, 'feedback.list', {}, { token: await member() });
@@ -265,7 +266,7 @@ describe('suite 12: the MCP server in process', () => {
         // Another right, not this one: no feedback tool, and a call fails before runCall.
         grant(['gaps.view', 'subCompanies.manage', 'templates.updateProjects']);
         const other = await names();
-        expect(other).toHaveLength(52);
+        expect(other).toHaveLength(53);
         expect(other.filter((name) => name.startsWith('feedback.'))).toEqual([]);
         w.ran.length = 0;
         const refused = await call(w, 'feedback.setStatus', { id: 'fbk_001', status: 'done' }, { token: await member() });
@@ -289,14 +290,14 @@ describe('suite 12: the MCP server in process', () => {
       try {
         setRole('management');
         const management = (await rpc(w, 'tools/list', {}, { token: await member() })).body.result.tools as { name: string }[];
-        expect(management).toHaveLength(53);
+        expect(management).toHaveLength(54);
         expect(management.map((t) => t.name)).toContain('reports.office');
         const report = await call(w, 'reports.office', { period: 'month' }, { token: await member() });
         expect(report.body.result.structuredContent.output.design.brand.name).toBe('Madar');
         expect(w.ran).toEqual(['reports.office']);
         setRole('accounting');
         const accounting = (await rpc(w, 'tools/list', {}, { token: await member() })).body.result.tools as { name: string }[];
-        expect(accounting).toHaveLength(52);
+        expect(accounting).toHaveLength(53);
         expect(accounting.map((t) => t.name)).not.toContain('reports.office');
         const refused = await call(w, 'reports.office', { period: 'month' }, { token: await member() });
         expect(refused.body.error?.code).toBe(-32602);
@@ -321,11 +322,104 @@ describe('suite 12: the MCP server in process', () => {
     try {
       const { body } = await call(world(), 'users.list');
       const faisal = (body.result.structuredContent.output as { id: string }[]).find((user) => user.id === 'usr_002');
-      expect(faisal).toMatchObject({ name: before.name, nameAr: 'فيصل الحربي', avatarUrl: null });
+      // The rules of the picture stay (owner, 2026-10-21): the person has one, and the glow of the circle behind it.
+      expect(faisal).toMatchObject({ name: before.name, nameAr: 'فيصل الحربي', avatarUrl: null, hasPicture: true, glow: personGlowCss('usr_002') });
       expect(body.result.content[0].text).not.toContain('data:image');
     } finally {
       seed.users.usr_002 = before;
     }
+  });
+
+  describe('the pictures for agents (owner, 2026-10-21)', () => {
+    const AVATAR = `data:image/webp;base64,${'UklGR'.padEnd(4_000, 'A')}`;
+    const WEBP = new Uint8Array([...'RIFF\0\0\0\0WEBPVP8 '].map((c) => c.charCodeAt(0)).concat(new Array(64).fill(9)));
+
+    it('gives the picture data of users.list only with withPictures, and the call itself never gets the argument', async () => {
+      w.mem.tables.state.users.usr_002 = { ...w.mem.tables.state.users.usr_002, avatarUrl: AVATAR };
+      w.mem.tables.version += 1;
+      const lean = await call(w, 'users.list');
+      expect(lean.body.result.content[0].text).not.toContain('data:image');
+      const full = await call(w, 'users.list', { withPictures: true });
+      expect(full.body.result.isError).toBeUndefined();
+      const faisal = (full.body.result.structuredContent.output as { id: string }[]).find((user) => user.id === 'usr_002');
+      expect(faisal).toMatchObject({ avatarUrl: AVATAR, hasPicture: true });
+      expect(w.ran).toEqual(['users.list', 'users.list']);
+    });
+
+    it('gives one profile picture as an image that the agent sees and as a data address in the JSON (pictures.get)', async () => {
+      w.mem.tables.state.users.usr_002 = { ...w.mem.tables.state.users.usr_002, avatarUrl: AVATAR };
+      w.mem.tables.version += 1;
+      const { body } = await call(w, 'pictures.get', { kind: 'person', id: 'usr_002' });
+      expect(body.result.isError).toBeUndefined();
+      const [image, text] = body.result.content as [{ type: string; data: string; mimeType: string }, { type: string; text: string }];
+      expect(image).toEqual({ type: 'image', data: AVATAR.slice(AVATAR.indexOf(',') + 1), mimeType: 'image/webp' });
+      expect(JSON.parse(text.text)).toEqual(body.result.structuredContent);
+      expect(body.result.structuredContent.output).toMatchObject({ kind: 'person', id: 'usr_002', picture: { mimeType: 'image/webp', dataUrl: AVATAR }, glow: personGlowCss('usr_002') });
+      expect(w.ran).toEqual(['users.list']);
+      // A person with no picture: the JSON only, with the glow that the initials sit on.
+      const none = await call(w, 'pictures.get', { kind: 'person', id: 'usr_004' });
+      expect(none.body.result.content).toHaveLength(1);
+      expect(none.body.result.structuredContent.output).toMatchObject({ picture: null, glow: personGlowCss('usr_004') });
+    });
+
+    it('gives each project its color and tile in projects.get and projects.list', async () => {
+      const project = w.mem.tables.state.projects.prj_001;
+      const look = { color: projectColorLook('prj_001'), tile: tileSvg(project) };
+      expect((await call(w, 'projects.get', { id: 'prj_001' })).body.result.structuredContent.output.look).toEqual(look);
+      const rows = (await call(w, 'projects.list', { filter: 'all' })).body.result.structuredContent.output as { project: { id: string }; look: unknown }[];
+      expect(rows.find((row) => row.project.id === 'prj_001')?.look).toEqual(look);
+      expect(rows.every((row) => typeof (row.look as { tile: string }).tile === 'string')).toBe(true);
+    });
+
+    it('reads a cover through files.link, with the rights of the screens, and gives it as an image when it is small', async () => {
+      const covered = Object.values(w.mem.tables.state.projects).find((project) => project.coverFileId !== null)!;
+      const fetch = vi.fn(async () => new Response(WEBP));
+      vi.stubGlobal('fetch', fetch);
+      try {
+        const { body } = await call(w, 'pictures.get', { kind: 'projectCover', id: covered.id });
+        expect(body.result.isError).toBeUndefined();
+        expect(body.result.content[0]).toMatchObject({ type: 'image', mimeType: 'image/webp' });
+        expect(body.result.structuredContent.output).toMatchObject({ kind: 'projectCover', id: covered.id, cover: { fileId: covered.coverFileId, inline: true, bytes: WEBP.length } });
+        expect(w.ran).toEqual(['projects.get', 'files.link']);
+        expect(w.deps.files.calls.filter((c) => c.op === 'presignGet')).toHaveLength(1);
+        expect(fetch).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('never gives a file of a direct or group chat, even when a cover points at one, and names no file in the refusal', async () => {
+      const state = w.mem.tables.state;
+      state.conversations = { ...state.conversations, cnv_900: { id: 'cnv_900', kind: 'direct', projectId: null, memberIds: ['usr_001', 'usr_002'], createdAt: '2026-10-04T09:00:00+03:00' } as never };
+      state.files.fil_900 = {
+        id: 'fil_900', projectId: null, stageId: null, taskId: null, conversationId: 'cnv_900', name: 'Private-photo.jpg',
+        versions: [{ letter: 'A', blobKey: 'chat/cnv-900/upl-a/file', thumbKey: 'chat/cnv-900/upl-a/thumb', mimeType: 'image/jpeg', size: 10, uploadedBy: 'usr_002', uploadedAt: '2026-10-04T09:00:00+03:00' }],
+      } as never;
+      state.projects.prj_001 = { ...state.projects.prj_001, coverFileId: 'fil_900' };
+      w.mem.tables.version += 1;
+      const fetch = vi.fn();
+      vi.stubGlobal('fetch', fetch);
+      try {
+        const { body } = await call(w, 'pictures.get', { kind: 'projectCover', id: 'prj_001' });
+        expect(body.result.isError).toBe(true);
+        expect(body.result.structuredContent.error).toMatchObject({ code: 'not_found', message: 'File fil_900 does not exist.' });
+        expect(body.result.content[0].text).not.toContain('Private');
+        expect(w.deps.files.calls.filter((c) => c.op === 'presignGet')).toEqual([]);
+        expect(fetch).not.toHaveBeenCalled();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('answers a project that does not exist as projects.get does, for the tile and the cover', async () => {
+      for (const kind of ['projectTile', 'projectCover']) {
+        const { body } = await call(w, 'pictures.get', { kind, id: 'prj_404' });
+        expect(body.result.isError, kind).toBe(true);
+        expect(body.result.structuredContent.error.code, kind).toBe('not_found');
+      }
+      const direct = await call(w, 'projects.get', { id: 'prj_404' });
+      expect((await call(w, 'pictures.get', { kind: 'projectTile', id: 'prj_404' })).body.result.structuredContent.error).toEqual(direct.body.result.structuredContent.error);
+    });
   });
 
   it('names the role of each person, so an agent can answer "who are the site supervisors?" (INT-19)', async () => {
@@ -509,7 +603,7 @@ describe('suite 12: the MCP server in process', () => {
     it('gives the legacy answer to a request with no version header', async () => {
       const { status, body } = await post(w, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }, { Authorization: `Bearer ${await tokenOf()}` });
       expect(status).toBe(200);
-      expect(body.result.tools).toHaveLength(56);
+      expect(body.result.tools).toHaveLength(57);
       expect(body.result.resultType).toBeUndefined();
     });
 
@@ -519,7 +613,7 @@ describe('suite 12: the MCP server in process', () => {
       expect(init.body.result.protocolVersion).toBe('2025-11-25');
       expect(init.headers.get('Mcp-Session-Id')).toBeNull();
       const list = await post(w, { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }, auth);
-      expect(list.body.result.tools).toHaveLength(56);
+      expect(list.body.result.tools).toHaveLength(57);
       const read = await post(w, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'projects.get', arguments: { id: 'prj_001' } } }, auth);
       expect(read.body.result.structuredContent.output.project.id).toBe('prj_001');
       // A legacy client cannot answer a question, so a reason comes back as the retry instruction.

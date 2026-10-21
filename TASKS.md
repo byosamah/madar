@@ -820,6 +820,34 @@ Owner: tasks and chat need notifications on the phone. These fixes serve the Hom
 - [ ] Later, with the store app: the plan of 2026-10-20 (one code for both phones with Expo, the shared contract, a "phone" list for
   each call and screen, a lowest app version). Decide the Supabase exit first
 
+## Pictures for AI agents (owner, 2026-10-21)
+
+Owner request: agents read the pictures that their person sees (profile pictures and their glow, sub-company logos, the project
+tile and color, covers), so a report can look like Madar. Owner choices: picture data only on request (`withPictures: true`), and
+the cover from the small picture that Madar keeps (up to 960 px), as data when it is 200 KB or less, else a 10-minute link.
+
+- [x] One glow rule for the screens and the agents (`src/lib/glow.ts`, `markLights`); the screens give the same text as before
+- [x] The light-theme drawing for agents (`src/lib/pictureLook.ts`): person glow CSS, project color, project tile as an SVG
+- [x] The rows: `hasPicture` and `glow` (users.list), `hasLogo` (subCompanies.list), `look` (projects.list, projects.get,
+  reports.office); `withPictures` adds the data (users.list, subCompanies.list, reports.office with `subCompanyLogos`)
+- [x] `pictures.get` (no call of its own; it runs users.list, subCompanies.list, projects.get and files.link with their rights);
+  an MCP image block, and leak tests for a cover that points at a chat file
+- [x] TOOL_DOCS, INSTRUCTIONS (rule 6 names pictures; a Pictures paragraph; the upload note stays), `server/mcp/CLAUDE.md`, samples,
+  What's new 2026-10-23-72
+- [x] Gates: typecheck, `npm test` 8,214 passed (733 files), `npm run build`, `build:server`, `build:remote -- test`
+- [x] `test:db` 2,212 passed (27 skipped), `test:it` 325 passed (39 files), `test:mcp` 278 passed, conformance 5 of 32 (the normal 27
+  expected failures)
+- [x] Test copy from the branch `rb/mcp-pictures` (main stays free for a hotfix in the live week). Live check as the member's agent:
+  53 tools with `pictures.get`, the rows with glow and look, a real cover from R2 as a PNG image (6.9 KB), `prj_404` not_found; the
+  check removed its own agent at the end
+- [x] Side by side in the prototype (light): the screen tile and the agent SVG at 136 px, and 4 person glows, match. Found and fixed:
+  the ring of the SVG grew with its size (`vector-effect="non-scaling-stroke"`)
+- [x] What's new shots: EN light 390 px; EN dark and AR dark at desktop width. The auto-mode check refused the Playwright shots of EN
+  dark, AR light and AR dark at 390 px; a script check found no sideways scroll and no cut text in all 4
+- [x] Test copy at 716c0a2 (main), after the presence proof session took its migration off madar-test; the live check passed again
+- [x] Production at 716c0a29 (2026-10-21; the owner said "deploy" and ran it with `!`). Record: proof.md
+- [ ] What's new phone shots: EN dark, AR light and AR dark at 390 px (the auto-mode check refused the Playwright shots)
+
 ## 2026-10-21: chat status, Seen, typing and emoji (branch `rb/chat-presence`, worktree `~/dev/madar-rb/chat-presence`)
 Owner: "add some Slack chat features": Online, Away, Offline, "Seen", "typing...", and an emoji list. Design
 `docs/superpowers/specs/2026-10-21-madar-chat-presence-design.md`, mockup next to it (owner: "go ahead", dot look A).
@@ -838,3 +866,4 @@ Owner: "add some Slack chat features": Online, Away, Offline, "Seen", "typing...
   plus about 0.8 million passes 1 million, cost step 4 applies (ask the owner)
 - [ ] Merge gate once, screenshots, test copy
 - [ ] What's new line; production only by the owner, not before 2026-10-23
+||||||| 7f115515

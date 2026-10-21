@@ -6,6 +6,7 @@ import { memoryPersister } from '../src/api/persist';
 import { Store, type State } from '../src/api/store';
 import { buildSeed } from '../src/data/seed';
 import { addDays, setNow } from '../src/lib/dates';
+import { PICTURES_GET } from '../server/mcp/pictures';
 import { MCP_ADMIN, MCP_ALLOW, MCP_BY_RIGHT, READ_FIRST } from '../server/mcp/tools';
 
 /**
@@ -77,6 +78,8 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     const task = first(Object.values(s().tasks).filter((t) => t.projectId === project.id), 'task');
     const commented = Object.values(s().comments).find((c) => c.targetType === 'task');
     samples[READ_FIRST] = {};
+    // pictures.get has no call of its own (owner, 2026-10-21): its sample is the tile of the project.
+    samples[PICTURES_GET] = { kind: 'projectTile', id: project.id };
     await run('projects.list', { filter: 'all', sort: 'deadline' });
     await run('projects.get', { id: project.id });
     await run('tasks.list', { projectId: project.id, includeDone: true });

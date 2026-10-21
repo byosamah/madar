@@ -19,6 +19,9 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
 - `all.sh test` removes the record before its first step, so a test deploy that stops part way blocks production. A
   step alone (`db.sh test`, `deploy.yml` on GitHub) records nothing.
 - No switch skips the check. A hotfix also goes through `all.sh test` first (a few minutes).
+- A cloud proof of another session can put a migration on madar-test that no branch holds yet. `all.sh test` then stops at its first
+  step with `DbPushMissingLocalError` ("Remote migration versions not found in local migrations directory"), after it removed the
+  record. Never repair the migration history for it: ask which session holds the proof, and deploy when it is done (2026-10-21).
 - Load the keys first: `set -a; . ./.env.local; set +a`, then `scripts/deploy/all.sh test`.
 - Commit TASKS.md and proof.md before `all.sh test`: any later commit (also a note) needs `all.sh test` again.
 - Another session may leave changes in the main folder. Then deploy from a clean worktree of main: `git fetch . <branch>:main`,

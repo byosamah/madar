@@ -578,6 +578,9 @@ any screen work.
   open tab, the day ring and the timer.
 - The glow (three soft lights) sits only behind "Next for you" and in the logo tile.
 - 8 project hues from a hash of the id. Project pictures are "glow forms" with a unique `mark`.
+- The glow lights of a person and of a project tile come from one rule (`src/lib/glow.ts`, `markLights`). The pictures for AI
+  agents (`src/lib/pictureLook.ts`) draw the same lights in the light colours: `glow.test.ts` pins the screen text, and
+  `pictureLook.test.ts` pins the colours against tokens.css.
 - Status words are shape signs plus an ink word (no tinted pill). The stage steps line takes the status colour.
 - Red only for Late and errors. Gentle words: "3 days past due" in the attention colour, never a red "Overdue".
 - Calm rules (`expectCalm` in the Playwright suites): one title, at most one main button, no filter chip rows (one Filter

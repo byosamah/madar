@@ -98,6 +98,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - Port 5173 on this Mac often runs another project. Start Madar with `npx vite --host 127.0.0.1 --port 5180
   --strictPort` and check that the page title is "Madar". Run it from `deploy-test`: the main folder's `node_modules` can
   lack a new package, and the page then breaks.
+  Another session may hold 5180 too (`lsof -iTCP:5180 -sTCP:LISTEN`): then take a free port, such as 5187.
 - A dev server in a worktree whose `node_modules` links to `deploy-test` answers 403 for the `@fontsource` files (outside
   its root): Arabic screenshots then show a fallback font.
 - `npm run build` and `build:remote` both write `dist/`. In the sandbox, `build:remote` fails with
@@ -137,8 +138,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - A change to a test script in `package.json` also changes `scripts/vite-config.test.ts`: it pins the script texts.
 - Size of an old build: `git archive <sha> | tar -x -C $TMPDIR/base`, link `node_modules` into it, build there.
 - `npx supabase db reset` - after any migration change, from your own worktree, under the lock.
-- Last counts (2026-10-21, the push line, main e361e0cb): unit+server 8,188 passed (730 files); test:db 2,212; test:lite 2,212;
-  test:office 37; test:it 325; test:mcp 242 and prototype smoke 87 of 87 (2026-10-20); deploy suite 206 passed, 13 skipped.
+- Last counts (2026-10-21, MCP pictures, main 716c0a2): unit+server 8,214 passed (733 files); test:db 2,212; test:it 325;
+  test:mcp 278. Older: test:lite 2,212, test:office 37, prototype smoke 87 of 87 (2026-10-20), deploy suite 206 passed, 13 skipped.
 - `grep -c` that counts 0 exits 1, so it stops a `&&` chain: end the count with `; true` or check its number apart.
 
 ## Run the real product locally
@@ -197,7 +198,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   its branch and its `worktree-agent-*` branch (sandbox off). Before `git worktree remove`, run `rm <worktree>/node_modules`
   (it removes the link only): a clean worktree then goes without `--force`.
 - While a release waits on its recorded commit, build the next batch in a worktree branch: production refuses any new commit
-  on main.
+  on main, and any changed file in the folder of main (a guide line too). Edit on a branch, and fast-forward main after the release.
 - A helper that a subagent starts reports to the main session, not to that subagent: forward what the subagent needs.
 - Claude's `git push origin main` is refused by the auto-mode check. Commit on main in `deploy-test`, then hand the owner
   `! git -C /Users/osamakhalil/dev/madar/.claude/worktrees/deploy-test push origin main` (2026-10-08).

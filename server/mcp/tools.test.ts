@@ -5,7 +5,7 @@ import { SERVER_CALL_NAMES, serverContracts } from '../../src/api/contract/serve
 import { sharedCalls } from '../../src/api/sharedCalls';
 import { recordSamples } from '../../scripts/record-samples';
 import { INSTRUCTIONS, TOOL_DOCS, readFirstAnswer } from './docs';
-import { MCP_ADMIN, MCP_ALLOW, MCP_BY_RIGHT, MCP_DENY, READ_FIRST, mcpTools } from './tools';
+import { MCP_ADMIN, MCP_ALLOW, MCP_BY_RIGHT, MCP_DENY, NO_CALL_TOOLS, READ_FIRST, mcpTools } from './tools';
 
 /** The recorded sample input of each tool (scripts/record-samples.ts writes it from runs on the sample office). */
 const samples = JSON.parse(readFileSync(new URL('./samples.json', import.meta.url), 'utf8')) as Record<string, Record<string, unknown>>;
@@ -30,9 +30,9 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
   const feedbackTools = ['feedback.list', 'feedback.screenshot', 'feedback.setStatus'];
   const allowAndAdmin = [...MCP_ALLOW, ...MCP_ADMIN, ...rightTools];
 
-  it('has the 52 tools of the allowlist, each once', () => {
-    expect(MCP_ALLOW).toHaveLength(52);
-    expect(new Set(MCP_ALLOW).size).toBe(52);
+  it('has the 53 tools of the allowlist, each once', () => {
+    expect(MCP_ALLOW).toHaveLength(53);
+    expect(new Set(MCP_ALLOW).size).toBe(53);
     // An agent takes a task with no lead for its person (owner, 2026-10-05).
     expect(MCP_ALLOW).toContain('tasks.take');
     expect(tools.map((tool) => tool.name).sort()).toEqual([...MCP_ALLOW].sort());
@@ -64,13 +64,13 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     for (const name of ['chats.openDirect', 'chats.send']) expect(tools.find((tool) => tool.name === name)!.annotations.destructiveHint, name).toBe(true);
   });
 
-  it('adds the 3 tools of requests and bugs only to the list of an agent whose person holds the feedback right: 56 tools for an Admin (owner, 2026-10-07; role-rights, 2026-10-23)', () => {
+  it('adds the 3 tools of requests and bugs only to the list of an agent whose person holds the feedback right: 57 tools for an Admin (owner, 2026-10-07; role-rights, 2026-10-23)', () => {
     // No tool is left on the Admin list: the 3 tools moved to the right list, so a role can hold them.
     expect([...MCP_ADMIN]).toEqual([]);
     for (const name of feedbackTools) expect(MCP_BY_RIGHT[name as keyof typeof MCP_BY_RIGHT], name).toBe('feedback.manage');
-    expect(tools).toHaveLength(52);
+    expect(tools).toHaveLength(53);
     expect(tools.filter((tool) => tool.name.startsWith('feedback.'))).toEqual([]);
-    expect(adminTools).toHaveLength(56);
+    expect(adminTools).toHaveLength(57);
     expect(adminTools.map((tool) => tool.name).sort()).toEqual([...allowAndAdmin].sort());
     // The default list is the Admin list without the right tools, in the same order.
     const rest = adminTools.map((tool) => tool.name).filter((name) => !rightTools.includes(name));
@@ -83,7 +83,7 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     const names = (rights: Parameters<typeof mcpTools>[0]) => mcpTools(rights).map((tool) => tool.name);
     // The feedback right alone adds exactly the 3 tools to the default list.
     const holder = names({ rights: ['feedback.manage'] });
-    expect(holder).toHaveLength(55);
+    expect(holder).toHaveLength(56);
     for (const name of feedbackTools) expect(holder, name).toContain(name);
     expect(holder).not.toContain('reports.office');
     // Every other right, and all the rights but this one, leave the 3 tools out.
@@ -105,9 +105,9 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     expect(tools.map((tool) => tool.name)).not.toContain('reports.office');
     // Accounting holds only the payment right, so its agent gets the default list.
     expect(mcpTools({ rights: ['payment.manage'] }).map((tool) => tool.name)).toEqual(tools.map((tool) => tool.name));
-    // Management, with its default rights, gets one more tool: 53 in all.
+    // Management, with its default rights, gets one more tool: 54 in all.
     const management = mcpTools({ rights: ['people.manage', 'payment.manage', 'report.office'] });
-    expect(management).toHaveLength(53);
+    expect(management).toHaveLength(54);
     expect(management.map((tool) => tool.name)).toContain('reports.office');
     expect(management.map((tool) => tool.name)).toEqual(adminTools.map((tool) => tool.name).filter((name) => !feedbackTools.includes(name)));
     expect(adminTools.map((tool) => tool.name)).toContain('reports.office');
@@ -155,8 +155,9 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     expect([...allow].filter((name) => deny.has(name) || admin.has(name) || right.has(name))).toEqual([]);
     expect([...admin].filter((name) => deny.has(name) || right.has(name))).toEqual([]);
     expect([...right].filter((name) => deny.has(name))).toEqual([]);
-    // Each listed name is a real call; the only tool with no call is madar.readFirst.
-    expect([...allow, ...admin, ...right, ...deny].filter((name) => name !== READ_FIRST && !callNames.includes(name))).toEqual([]);
+    // Each listed name is a real call; the only tools with no call are madar.readFirst and pictures.get (owner, 2026-10-21).
+    expect([...NO_CALL_TOOLS].sort()).toEqual([READ_FIRST, 'pictures.get']);
+    expect([...allow, ...admin, ...right, ...deny].filter((name) => !NO_CALL_TOOLS.has(name) && !callNames.includes(name))).toEqual([]);
     expect(deny.size).toBe(MCP_DENY.length);
     expect(admin.size).toBe(0);
     expect(right.size).toBe(4);
@@ -194,15 +195,15 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
 
   it('marks reads as read-only and writes as not, from the call contracts', () => {
     for (const tool of adminTools) {
-      const readOnly = tool.name === READ_FIRST ? true : Boolean(allDefs[tool.name].readOnly);
+      const readOnly = NO_CALL_TOOLS.has(tool.name) ? true : Boolean(allDefs[tool.name].readOnly);
       expect(tool.readOnly, tool.name).toBe(readOnly);
       expect(tool.annotations.readOnlyHint, tool.name).toBe(readOnly);
       expect(tool.annotations.openWorldHint, tool.name).toBe(false);
       if (!readOnly) expect(typeof tool.annotations.destructiveHint, tool.name).toBe('boolean');
     }
-    expect(tools.filter((tool) => tool.readOnly)).toHaveLength(21);
+    expect(tools.filter((tool) => tool.readOnly)).toHaveLength(22);
     // feedback.list and feedback.screenshot are reads of an agent of an Admin, and reports.office is a read of the report right.
-    expect(adminTools.filter((tool) => tool.readOnly)).toHaveLength(24);
+    expect(adminTools.filter((tool) => tool.readOnly)).toHaveLength(25);
     for (const name of ['feedback.list', 'feedback.screenshot']) expect(adminTools.find((tool) => tool.name === name)!.annotations.readOnlyHint, name).toBe(true);
     // An undo can remove a record, so the client may ask its person first.
     expect(tools.find((tool) => tool.name === 'events.undo')!.annotations.destructiveHint).toBe(true);
