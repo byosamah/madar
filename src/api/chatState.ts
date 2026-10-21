@@ -81,6 +81,8 @@ export function chatForUpload(state: State, conversationId: string, person: User
   const conversation = state.conversations[conversationId];
   if (!conversation || actor.kind === 'agent' || !canSeeConversation(state, conversation, person)) throw notFound('Conversation', conversationId);
   if (conversation.kind === 'project') throw invalid('conversationId', 'A project chat uses the files of its project. Name the project.', 'file_chat');
+  // A file in a direct chat or a group is a message: it needs chat.direct, as a send does (role rights version 2, design 5.6).
+  if (!can(ensureRights(state, person), 'chat.direct')) throw forbidden('You cannot do this.', { action: 'chat.direct' });
   if (personLeft(state, conversation, person)) throw closedChatError(conversation);
   return conversation;
 }

@@ -45,6 +45,16 @@ describe('planPushes: who gets the push of a chat message or a task comment', ()
     expect(planPushes(facts({ items: [project], levels })).waited.map((w) => w.userId)).toEqual(['usr_001', 'usr_003']);
   });
 
+  it('pushes a project chat to a person outside the team (the holder of chat.project.all) only when the message names the person', () => {
+    // usr_004 is no Admin and no member of the team: a holder of chat.project.all opens the chat but is no candidate of a plain push.
+    const plain = msg({ chatId: 'cnv_p', chatKind: 'project', memberIds: [], teamIds: ['usr_002', 'usr_003'], mentions: [] });
+    const levels = { [chatReadKey('cnv_p', 'usr_004')]: 'all' as const };
+    expect(planPushes(facts({ items: [plain], levels })).waited).toEqual([]);
+    const named = msg({ chatId: 'cnv_p', chatKind: 'project', memberIds: [], teamIds: ['usr_002', 'usr_003'], mentions: ['usr_004'] });
+    const notices = [{ userId: 'usr_004', targetType: 'chat', targetId: 'cnv_p', messageId: 'msg_1' }];
+    expect(planPushes(facts({ items: [named], notices })).waited).toEqual([{ userId: 'usr_004', items: one('cnv_p', 'msg_1') }]);
+  });
+
   it('never pushes the author, the person an agent wrote for, a person with no device or a person who left', () => {
     const group = msg({ chatKind: 'group', memberIds: ['usr_003', 'usr_005', 'usr_006', 'usr_007', 'usr_002'], authorId: 'usr_005', actingForId: 'usr_003' });
     expect(planPushes(facts({ items: [group] })).waited.map((w) => w.userId)).toEqual(['usr_002']);

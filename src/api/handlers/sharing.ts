@@ -52,6 +52,8 @@ export const filesShare = defineCall({
       return { kind: 'project_chat' as const, id: room.id };
     }
     const other = requireDirectPartner(ctx, target.userId);
+    // A share to a person is a direct message (chat.direct), checked before the chat exists, so a refusal leaves no empty chat behind.
+    assertCan(ctx, 'chat.direct');
     // The check runs before the chat exists, so a refusal leaves no empty chat behind.
     assertFilesForDirect(ctx, [file.id], [other.id]);
     const room = directWith(ctx, other);
