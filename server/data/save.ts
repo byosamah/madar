@@ -216,6 +216,23 @@ export function diffState(before: State, after: State): Diff {
   /** A kind of the office task part, which only the people of the task hear (review 2026-10-06). */
   const priv = (kind: Kind) => kinds.add(kind);
 
+  /**
+   * A look that moves the seen time (chat presence design C4, base B3) also signals the authors whose message it made seen: the person
+   * behind the author of each live message of the chat that is newer than the old seen time and not newer than the new one. The kind
+   * stays chatReads (personal), so the office hears nothing. A message of an agent signals the person the agent acts for.
+   */
+  function seenSignal(old: Rec | undefined, rec: Rec): void {
+    const now = typeof rec.seenAt === 'string' ? rec.seenAt : '';
+    const was = old && typeof old.seenAt === 'string' ? old.seenAt : '';
+    if (now === '' || now <= was) return;
+    for (const message of Object.values(after.messages)) {
+      if (message.conversationId !== rec.conversationId || message.deletedAt || message.createdAt <= was || message.createdAt > now) continue;
+      const author = after.users[message.authorId] ?? before.users[message.authorId];
+      const principal = author?.kind === 'agent' && author.ownerId ? author.ownerId : message.authorId;
+      if (principal !== rec.userId) people.add(principal);
+    }
+  }
+
   /** Kinds, projects, people and the office flag of one changed record (old: before the call; rec: after it). */
   function touched(spec: TableSpec, old: Rec | undefined, rec: Rec | undefined, row: Row | undefined): void {
     const sides = [old, rec].filter((side): side is Rec => side !== undefined);
@@ -250,6 +267,7 @@ export function diffState(before: State, after: State): Diff {
           (officeSide || privateMeeting ? priv : pub)(spec.collection);
           people.add(side.userId as string);
         }
+        if (spec.collection === 'chatReads' && rec) seenSignal(old, rec);
         return;
       case 'meetings':
         for (const side of sides) {

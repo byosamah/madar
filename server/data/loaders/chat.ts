@@ -170,6 +170,22 @@ async function mentionNoticesOf(L: Load, chatId: string): Promise<void> {
   await L.select({ c: 'notifications', where: [{ col: 'user_id', eq: L.authority.id }, { col: 'read', eq: false }, { col: 'target_id', eq: chatId }] });
 }
 
+/**
+ * A look with seen: true (chat presence design C4, base B3): the save signals the authors whose message the look made seen (save.ts,
+ * seenSignal). They are the authors of the messages after the old seen time of the reader, so the load brings the read mark of the
+ * reader and the newest SEEN_AUTHORS_MAX live messages after its seenAt (all of them when it has none).
+ */
+const SEEN_AUTHORS_MAX = 200;
+async function seenAuthors(L: Load, chatId: string): Promise<void> {
+  if (!L.authority || !L.office.conversations[chatId]) return;
+  await L.byKey('chatReads', [chatReadKey(chatId, L.authority.id)]);
+  const since = L.get<ChatRead>('chatReads', chatReadKey(chatId, L.authority.id))?.seenAt ?? '';
+  await L.select({
+    c: 'messages', where: [{ bounds: { col: 'conversation_id', by: { [chatId]: { gt: since } } } }, LIVE],
+    order: { col: 'created_at', desc: true, id: true }, limit: SEEN_AUTHORS_MAX,
+  });
+}
+
 /** chats.markRead: as chats.list (it returns the full unread count), and the newest comment of a task thread it marks. */
 export async function chatsMarkRead(L: Load, input: Input): Promise<void> {
   await everyChat(L, { inWrite: true });
@@ -180,7 +196,10 @@ export async function chatsMarkRead(L: Load, input: Input): Promise<void> {
   const hidden = visible(L).find((c) => c.id === id && !listed(L).some((l) => l.id === id));
   if (hidden) await chatsOf(L, L.authority.id, [hidden], { inWrite: true });
   await mentionNoticesOf(L, id);
-  if (!id.startsWith('tsk_')) return;
+  if (!id.startsWith('tsk_')) {
+    if (input.seen === true) await seenAuthors(L, id);
+    return;
+  }
   await L.byKey('tasks', [id]);
   await L.byKey('chatReads', [chatReadKey(id, L.authority.id)]);
   await L.select({
