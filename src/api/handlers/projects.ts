@@ -446,7 +446,7 @@ export const projectsUpdate = defineCall({
       coverFileId: FileId.nullable().optional(),
       /** The sub-company (fbk_007). null takes it away; an id the office does not hold is not found. */
       subCompanyId: SubCompanyId.nullable().optional(),
-      /** A correction of the code: the Admin only (right project.editCode). The History records it as project.code_changed. */
+      /** A correction of the code: needs the switch project.code. The History records it as project.code_changed. */
       code: TypedCode.optional(),
     }),
     /** Keeps a corrected code that does not match the office pattern or takes the series of another contract (feedback fbk_003). */
