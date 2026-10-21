@@ -6,6 +6,7 @@ import type { ChangeSignal } from '../../api/remote/wire';
 import type { AuthPort, AuthStatus } from '../auth';
 import type { ChangeListener, ChangeSource } from '../signals';
 import { bootstrapRemote, firstLanguage, liveKindOf, liveSourceOf, personChangeSource, remoteConfig } from './bootstrap';
+import { switchedLive } from './presence';
 
 // The file adapters of track F (src/app/files.ts), replaced by markers so the test sees which adapters the bootstrap hands RemoteApi.
 const fileAdapters = vi.hoisted(() => ({
@@ -391,6 +392,60 @@ describe('the live updates of the remote build (exit wave 3)', () => {
     expect(ticket).toHaveBeenCalledTimes(1);
     expect(realtime).not.toHaveBeenCalled();
     stop();
+  });
+
+  it('gives the live port the status and the typing of the office socket, and sends the state of this device (chat presence design, L4)', async () => {
+    class FakeWs {
+      static all: FakeWs[] = [];
+      readyState = 0;
+      sent: string[] = [];
+      onopen: ((event: unknown) => void) | null = null;
+      onmessage: ((event: { data: unknown }) => void) | null = null;
+      onclose: ((event: { code: number }) => void) | null = null;
+      onerror: ((event: unknown) => void) | null = null;
+      constructor(readonly url: string) {
+        FakeWs.all.push(this);
+      }
+      send(data: string) {
+        this.sent.push(data);
+      }
+      close() {
+        this.readyState = 3;
+      }
+    }
+    vi.stubGlobal('WebSocket', FakeWs);
+    try {
+      const live = switchedLive();
+      live.setMine('online');
+      const heard: string[] = [];
+      live.subscribeTyping((signal) => heard.push(`${signal.userId}:${signal.typing}`));
+      const ticket = vi.fn(async () => ({ ticket: 't1', expiresAt: '2026-10-21T09:00:00.000+03:00' }));
+      const source = liveSourceOf('socket', { realtime: vi.fn(quiet), ticket, apiUrl: '/api', page: 'https://madar.vado.sa/', live })('usr_005');
+      const stop = source.subscribe(() => undefined);
+      await vi.waitFor(() => expect(FakeWs.all).toHaveLength(1));
+      const ws = FakeWs.all[0];
+      ws.readyState = 1;
+      ws.onopen?.({});
+      // The device state waits for the open and goes out with it.
+      expect(ws.sent).toEqual([JSON.stringify({ t: 'state', state: 'online' })]);
+      live.setMine('away');
+      expect(ws.sent.at(-1)).toBe(JSON.stringify({ t: 'state', state: 'away' }));
+      ws.onmessage?.({ data: JSON.stringify({ event: 'presence', payload: { v: 1, states: { usr_002: 'online', usr_005: 'away' } } }) });
+      expect(live.stateOf('usr_002')).toBe('online');
+      ws.onmessage?.({ data: JSON.stringify({ event: 'presence', payload: { v: 1, userId: 'usr_002', state: 'away' } }) });
+      expect(live.stateOf('usr_002')).toBe('away');
+      ws.onmessage?.({ data: JSON.stringify({ event: 'typing', payload: { v: 1, conversationId: 'cnv_1', userId: 'usr_002', typing: true, at: '2026-10-21T08:00:00.000Z' } }) });
+      ws.onmessage?.({ data: JSON.stringify({ event: 'typing', payload: { v: 1, conversationId: 'cnv_1', userId: 'usr_005', typing: true, at: '2026-10-21T08:00:00.000Z' } }) });
+      expect(heard).toEqual(['usr_002:true']);
+      // The socket drops: the marks it fed may be old, so they go until a new snapshot comes.
+      ws.readyState = 3;
+      ws.onclose?.({ code: 1006 });
+      expect(live.stateOf('usr_002')).toBe('offline');
+      stop();
+      expect(live.stateOf('usr_005')).toBe('offline');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('opens the socket for the Madar sign-in, which has no Supabase client; the Supabase build keeps Realtime unless it says socket', () => {

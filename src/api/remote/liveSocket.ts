@@ -11,11 +11,24 @@ import type { ChangeSignal, TypingSignal } from './wire';
  * - A drop opens again after 1, 2, 5, 10, then 30 s, each time with a new ticket. A tab that shows again pings at once.
  * - Only a signal of its own two channels passes. This file imports nothing from src/app (root rule): its listener matches the
  *   ChangeListener of src/app/signals.ts.
+ * - Status and typing (chat presence design, L4) ride on the same socket. sendState(state) sends { "t": "state", "state": ... } when the
+ *   socket is open, and again after each open (a new socket knows nothing). The events "presence" and "typing" go to onPresence and
+ *   onTyping, never to the change listeners. onDrop tells that the socket is gone, so the marks it fed may be old.
  */
 
 export type LiveOrigin = 'channel' | 'join';
 export type LiveListener = (signals: ChangeSignal[], origin?: LiveOrigin) => void;
-export type LiveSource = { subscribe(listener: LiveListener): () => void; status(): 'open' | 'closed' };
+export type LiveSource = {
+  subscribe(listener: LiveListener): () => void;
+  status(): 'open' | 'closed';
+  /** Tells the office object the state of this device. The last state is sent again after each open. */
+  sendState?(state: 'online' | 'away'): void;
+};
+
+/** The presence event of the office object: the states of all (the first event of a socket), or the change of one person. */
+export type PresencePayload =
+  | { v: 1; userId: string; state: 'online' | 'away' | 'offline' }
+  | { v: 1; states: Record<string, 'online' | 'away' | 'offline'> };
 
 /** The part of a browser WebSocket that the source uses, so a test can pass a fake. */
 export type LiveWebSocket = {
@@ -34,6 +47,9 @@ export type LiveSocketOptions = {
   url: (ticket: string) => string;
   open?: (url: string) => LiveWebSocket;
   page?: { visible(): boolean; onVisible(listener: () => void): () => void };
+  onPresence?(payload: PresencePayload): void;
+  onTyping?(signal: TypingSignal): void;
+  onDrop?(): void;
 };
 
 export const LIVE_PING_MS = 30_000;
@@ -56,6 +72,18 @@ export function isTypingSignal(value: unknown): value is TypingSignal {
   if (typeof value !== 'object' || value === null) return false;
   const s = value as Record<string, unknown>;
   return s.v === 1 && typeof s.conversationId === 'string' && typeof s.userId === 'string' && typeof s.typing === 'boolean' && typeof s.at === 'string';
+}
+
+const isPersonState = (value: unknown): value is 'online' | 'away' | 'offline' => value === 'online' || value === 'away' || value === 'offline';
+
+/** True for a presence payload of the office object: one change of a person, or the states of all. */
+export function isPresencePayload(value: unknown): value is PresencePayload {
+  if (typeof value !== 'object' || value === null) return false;
+  const p = value as Record<string, unknown>;
+  if (p.v !== 1) return false;
+  if (typeof p.userId === 'string') return isPersonState(p.state);
+  const states = p.states;
+  return typeof states === 'object' && states !== null && !Array.isArray(states) && Object.values(states).every(isPersonState);
 }
 
 /** The socket address for a ticket: the api address of the build (the page's own /api) on the page host, with ws or wss. */
@@ -96,6 +124,7 @@ export function liveSocketSource(o: LiveSocketOptions): LiveSource {
   let pongWait: ReturnType<typeof setTimeout> | undefined;
   let retry: ReturnType<typeof setTimeout> | undefined;
   let stopPage: (() => void) | undefined;
+  let lastState: 'online' | 'away' | undefined;
 
   const tell = (signals: ChangeSignal[], origin: LiveOrigin = 'channel') => {
     for (const listener of [...listeners]) listener(signals, origin);
@@ -113,7 +142,15 @@ export function liveSocketSource(o: LiveSocketOptions): LiveSource {
     if (socket !== ws) return;
     socket = undefined;
     clearTimers();
+    o.onDrop?.();
     if (running) schedule();
+  }
+
+  /** Sends the last state of this device on the socket, when there is an open one. */
+  function pushState(): void {
+    const ws = socket;
+    if (lastState === undefined || !ws || ws.readyState !== OPEN) return;
+    ws.send(JSON.stringify({ t: 'state', state: lastState }));
   }
 
   function ping(): void {
@@ -149,6 +186,7 @@ export function liveSocketSource(o: LiveSocketOptions): LiveSource {
           tries = 0;
           clearTimers();
           pinger = setInterval(ping, LIVE_PING_MS);
+          pushState();
           tell([], 'join');
         };
         ws.onmessage = (event) => {
@@ -165,7 +203,13 @@ export function liveSocketSource(o: LiveSocketOptions): LiveSource {
           } catch {
             return;
           }
-          if (message?.event === 'changed' && isChangeSignal(message.payload, topics)) tell([message.payload]);
+          if (message?.event === 'changed') {
+            if (isChangeSignal(message.payload, topics)) tell([message.payload]);
+          } else if (message?.event === 'presence') {
+            if (isPresencePayload(message.payload)) o.onPresence?.(message.payload);
+          } else if (message?.event === 'typing') {
+            if (isTypingSignal(message.payload)) o.onTyping?.(message.payload);
+          }
         };
         ws.onclose = () => dropped(ws);
         ws.onerror = () => dropped(ws);
@@ -206,5 +250,9 @@ export function liveSocketSource(o: LiveSocketOptions): LiveSource {
       };
     },
     status: () => (running && socket?.readyState === OPEN ? 'open' : 'closed'),
+    sendState(state) {
+      lastState = state;
+      pushState();
+    },
   };
 }
