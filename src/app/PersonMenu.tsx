@@ -9,12 +9,15 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { PersonFace } from '../components/PersonFace';
 import { Popover } from '../components/Popover';
+import { Switch } from '../components/Switch';
+import { actorContext } from '../lib/grammar';
+import { useMyState } from './live/hooks';
 import { readEnvironment, resolveAppearance } from './appearance';
 import { PreviewAs } from './PreviewAs';
 import { PROTOTYPE, REMOTE } from './mode';
 import { useSwitchLanguage } from './languageTurn';
 import { usePersonName } from './personName';
-import { useAction, useCall } from './runtime';
+import { useAction, useCall, useRuntime } from './runtime';
 import { ShieldCheckIcon } from '../components/icons/animated/shield-check';
 import { MessageSquarePlusIcon } from '../components/icons/animated/message-square-plus';
 import { FeedbackSheet } from '../features/feedback/FeedbackSheet';
@@ -37,6 +40,8 @@ export function PersonMenu({ id }: { id: string }) {
   const admin = session !== undefined && opensAdminPage(session.authority);
   const switchLanguage = useSwitchLanguage();
   const preferences = useAction('me.updatePreferences');
+  const { live } = useRuntime();
+  const myState = useMyState();
   const ref = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [feedback, setFeedback] = useState(false);
@@ -63,7 +68,10 @@ export function PersonMenu({ id }: { id: string }) {
             <PersonFace user={user} size={40} mine />
             <span className="min-w-0">
               <span className="block truncate text-headline text-ink">{nameOf(user)}</span>
-              <span className="block truncate text-footnote text-ink-2">{user.email}</span>
+              {/* With a live port the line under the name is the own state, as others see it (chat presence design A2 and A6). */}
+              <span className="block truncate text-footnote text-ink-2">
+                {live ? t(user.preferences.awayByHand ? 'presence.awayByYou' : `presence.${myState}`, { context: actorContext(user) }) : user.email}
+              </span>
             </span>
           </div>
           {PROTOTYPE && <PreviewAs id={`preview-as-${id}`} />}
@@ -82,6 +90,16 @@ export function PersonMenu({ id }: { id: string }) {
                 <AnimatedIcon icon={ShieldCheckIcon} size={18} className="text-ink-2" aria-hidden />
                 {session?.authority.systemRole === 'admin' ? t('nav.admin') : t('adminPage.officeTitle')}
               </Link>
+            )}
+            {live && (
+              <div className="px-2">
+                <Switch
+                  id="away-by-hand"
+                  label={t('presence.showAway', { context: actorContext(user) })}
+                  checked={user.preferences.awayByHand === true}
+                  onChange={(next) => preferences.mutate({ awayByHand: next })}
+                />
+              </div>
             )}
             <Link to="/settings" onClick={close} className={row}>
               <AnimatedIcon icon={SettingsIcon} size={18} className="text-ink-2" aria-hidden />

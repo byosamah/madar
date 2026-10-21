@@ -9,7 +9,8 @@ import type { ChatRow, CommentView, GroupLine, MessageView, ReplyRef, UserCard }
 import { useUndoable } from '../../app/actions';
 import { usePageVisible } from '../../app/usePageVisible';
 import { usePersonName } from '../../app/personName';
-import { useAction, useCall } from '../../app/runtime';
+import { usePersonState } from '../../app/live/hooks';
+import { useAction, useCall, useRuntime } from '../../app/runtime';
 import { useStableHandler } from '../../app/useStableHandler';
 import { PersonFace } from '../../components/PersonFace';
 import { EmptyState } from '../../components/EmptyState';
@@ -60,6 +61,12 @@ function Header({ lead, title, subtitle, action, twoLines = false }: { lead: Rea
   );
 }
 
+/** The state of the other person of a direct chat, in words (chat presence design A4). It reads this person alone. */
+function PersonStateLine({ person }: { person: UserCard }) {
+  const { t } = useTranslation();
+  return <>{t(`presence.${usePersonState(person.id)}`, { context: actorContext(person) })}</>;
+}
+
 function bubbleOfMessage(view: MessageView): Bubble {
   return {
     id: view.message.id, author: view.author, actingFor: view.actingFor, body: view.message.body, files: view.files,
@@ -102,6 +109,7 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const navigate = useNavigate();
+  const { live } = useRuntime();
   const session = useCall('session.get', {});
   const [sheet, setSheet] = useState<GroupMode | null>(null);
   const thread = useCall('chats.messages', { conversationId: id, ...(focusFromRoute ? { around: focusFromRoute } : {}) });
@@ -218,7 +226,10 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
         {t('chat.people', { count: data.people.length + 1 })}
       </button>
     )
-    : chat.kind === 'project' ? t('chat.projectChat') : chat.personLeft ? t('chat.inactive', { context }) : t('chat.directChat');
+    : chat.kind === 'project' ? t('chat.projectChat')
+      : chat.personLeft ? t('chat.inactive', { context })
+        // With a live port the line says whether the person is here. Without one the old line stays, because every person would read Offline.
+        : live && chat.person ? <PersonStateLine person={chat.person} /> : t('chat.directChat');
   const title = chat.kind === 'direct' && chat.person ? nameOf(chat.person) : chat.title;
   // The window of an old message ends before the newest message: the newest page is the chat without the mark in its link.
   const newer = data.newer;
