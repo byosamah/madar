@@ -912,5 +912,5 @@ Owner: "add some Slack chat features": Online, Away, Offline, "Seen", "typing...
 - [x] Test copy at 1eddb950 (2026-10-21): live check 8 of 8 passed; deploy suite stopped at 15 of 17 files (181 passed, 0 failed)
   when the owner put role rights first; both migrations taken off madar-test again
 - [ ] After the owner's rr2 hand test: merge main (rr2, a816c42a), gates again, `all.sh test`, the live check, the whole deploy suite
-- [ ] Owner hand test with two phones; production not before Friday 2026-10-23 and only by the owner (main gets the batch then)
+- [x] Production at faaa6f76 (2026-10-21, the owner said "go to production"; Claude ran it). The owner skipped the two-phone test and the browser suite
 - [ ] What's new line; production only by the owner, not before 2026-10-23

@@ -2198,3 +2198,14 @@ presence entries live in memory and are gone when the sockets close. Production 
   busiest day about 2,900 (19 October, the team week). The page says one broadcast to 4 listeners counts as 5 messages (1 sent, 4
   received), which is the rule of the cost estimate. Today's use plus the new parts after cost steps 1 to 3 is about 0.85 to 0.92
   million a month (about 45%): cost step 4 does not apply.
+
+### Chat presence: the release (merge lead, 2026-10-21)
+- The owner asked for production in chat ("go to production"), with role rights and the report fix in the same main. Main was
+  fast-forwarded to `rb/chat-presence` at faaa6f76 (it holds main 00f26fa6). After the merge of role rights v2: typing names nobody
+  for a person whose role may not write in a direct or group chat; the What's new test finds the role rights entry by its id; the
+  api bundle bound is 850,000 (803,793 now). Gate on the merged code: `npm test` 9,498 passed and 3 failed, fixed (48 passed again);
+  builds, `test:db`, `test:it` 325, `test:mcp` 326 (conformance normal), `test:lite`, `test:office` 40: all passed.
+- `all.sh test` put faaa6f7 on the test copy with both migrations. The live check passed 8 of 8 (Online 305 ms, typing 560 ms, the
+  seen signal 644 ms; no typing leak; an outsider's typing call answered `not_found`). The owner chose no browser suite this time.
+- `all.sh production` from deploy-test applied `20261022000100` and `20261022000200` on production and passed the quick checks
+  (health from supabase, 149 calls).
