@@ -38,19 +38,20 @@ describe('the agent docs of the Dashboard batch (owner, 2026-10-06)', () => {
     expect(TOOL_DOCS['dashboard.get'].description).toContain('inReview');
   });
 
-  it('say that the gaps need the gaps right (the Admin has it), and name the filters that list them', () => {
-    expect(TOOL_DOCS['dashboard.get'].description).toMatch(/gaps[^.]*gaps right[^.]*null/);
+  it('say that the gaps need the switch gaps.view (the Admin has it), and name the filters that list them', () => {
+    expect(TOOL_DOCS['dashboard.get'].description).toMatch(/gaps \([^)]*needs gaps\.view\)[\s\S]*null/);
     for (const field of ['noDueDate', 'noLead', 'projectsStageNoEnd', 'noArea']) expect(TOOL_DOCS['dashboard.get'].description, field).toContain(field);
     expect(TOOL_DOCS['tasks.list'].description).toContain('no_date');
     for (const word of ['no_area', 'stage_no_end']) expect(TOOL_DOCS['projects.list'].description).toContain(word);
   });
 
-  it('say that the money is for people with the payment right, else null (fbk_014)', () => {
-    expect(TOOL_DOCS['dashboard.get'].description).toMatch(/money[^.]*payment right[^.]*null/);
+  it('say that the money is for people with the switch payment.view, else null (fbk_014)', () => {
+    expect(TOOL_DOCS['dashboard.get'].description).toMatch(/money[^.]*payment\.view[^.]*null/);
   });
 
-  it('say in the instructions that the Admin decides what each role may do (fbk_014)', () => {
-    expect(INSTRUCTIONS).toContain('The Admin decides what each role may do. A call that the role of your person may not make fails for you too.');
+  it('say in the instructions that the Admin decides what each role and its AI assistants may do, and what a closed call does (role rights version 2)', () => {
+    expect(INSTRUCTIONS).toContain('The Admin decides what each role and its AI assistants may do, with the switches of the role sheet.');
+    expect(INSTRUCTIONS).toContain('A call that is off fails with the reason ai_off or forbidden. Tell your person. Never try another way.');
   });
 });
 

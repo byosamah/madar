@@ -9,7 +9,8 @@ import { snapshotOf } from '../data/officeCache';
 import { apiApp } from '../http/app';
 import { ROUTES } from '../http/routes';
 import { fakeDeps } from '../test/fakes/deps';
-import { CLIENT_SQL, ensureAgentUser, LINK_SQL } from './agentUser';
+import { CLIENT_SQL, ensureAgentUser, LINK_INSERT_SQL, LINK_SQL, SAME_APP_SQL } from './agentUser';
+import { roleWithout } from './aiRoles.testing';
 import { APPROVAL_INSERT_SQL, APPROVAL_SQL, APPROVE_PATH, approveRoute, AUTHORIZATION_SQL, REMOVED_LINK_SQL, withApproveRoute } from './approval';
 
 /**
@@ -38,7 +39,7 @@ beforeAll(async () => {
 const personToken = (sub = HALA_AUTH) => sign({ sub, role: 'authenticated', aud: ['authenticated'], session_id: 's1' });
 const agentToken = (sub = HALA_AUTH) => sign({ sub, role: 'authenticated', aud: MCP_AUD, client_id: CLIENT, session_id: 's2' });
 
-function setup(o: { pending?: Record<string, { clientId: string; authUserId: string }>; off?: string[]; removed?: { client_id: string; owner_user_id: string }[] } = {}) {
+function setup(o: { pending?: Record<string, { clientId: string; authUserId: string }>; off?: string[]; removed?: { client_id: string; owner_user_id: string }[]; connectOff?: string[] } = {}) {
   const pending = o.pending ?? { 'auth-1': { clientId: CLIENT, authUserId: HALA_AUTH } };
   const approvals: { client_id: string; owner_user_id: string }[] = [];
   const q = (async (text: string, values: unknown[] = []) => {
@@ -57,6 +58,9 @@ function setup(o: { pending?: Record<string, { clientId: string; authUserId: str
   const deps = fakeDeps({ db });
   const lists = structuredClone(seed);
   for (const id of o.off ?? []) lists.users[id].active = false;
+  // A person whose role has Connect AI assistants off (the role sheet turns the other AI switches off with it).
+  if ((o.connectOff ?? []).length > 0) lists.settings.roles = { custom: [roleWithout(['ai.connect'])] };
+  for (const id of o.connectOff ?? []) lists.users[id] = { ...lists.users[id], systemRole: 'member', roleId: 'rol_001' };
   const office = snapshotOf(lists, 1, new Map([[HALA_AUTH, 'usr_001'], [SARA_AUTH, 'usr_005']]));
   const route = approveRoute({ verifyToken: browserTokenChecker({ issuer: ISSUER, jwks }), readOffice: async () => office });
   const app = apiApp(deps, { routes: withApproveRoute(ROUTES, route) });
@@ -100,6 +104,30 @@ describe('POST /agents/approve: the approval that the person records in Madar', 
   });
 });
 
+describe('POST /agents/approve and the switch Connect AI assistants (role rights version 2)', () => {
+  it('refuses a person whose role has ai.connect off with 403 ai_off, and records nothing', async () => {
+    const { approvals, approve } = setup({ pending: { 'auth-1': { clientId: CLIENT, authUserId: SARA_AUTH } }, connectOff: ['usr_005'] });
+    const answer = await approve(await personToken(SARA_AUTH));
+    expect(answer.status).toBe(403);
+    expect(answer.body.error).toMatchObject({ code: 'forbidden', details: { reason: 'ai_off', right: 'ai.connect' } });
+    expect(approvals).toEqual([]);
+  });
+
+  it('records the approval of a person whose role has ai.connect on (a Member by default), and of the Admin', async () => {
+    const member = setup({ pending: { 'auth-1': { clientId: CLIENT, authUserId: SARA_AUTH } } });
+    expect((await member.approve(await personToken(SARA_AUTH))).status).toBe(200);
+    expect(member.approvals).toEqual([{ client_id: CLIENT, owner_user_id: 'usr_005' }]);
+    const admin = setup();
+    expect((await admin.approve(await personToken())).status).toBe(200);
+  });
+
+  it('refuses before it reads the pending authorization, so an off person learns nothing about the client', async () => {
+    const { approve } = setup({ connectOff: ['usr_005'] });
+    const answer = await approve(await personToken(SARA_AUTH), { authorizationId: 'auth-gone' });
+    expect(answer.body.error).toMatchObject({ code: 'forbidden', details: { reason: 'ai_off' } });
+  });
+});
+
 describe('POST /agents/approve after the person removed the agent of this client (review of G4)', () => {
   it('refuses with 403 agent_removed and records nothing, so the screen never asks Auth to approve a client that can never link again', async () => {
     const { approvals, approve } = setup({ removed: [{ client_id: CLIENT, owner_user_id: 'usr_001' }] });
@@ -117,21 +145,44 @@ describe('POST /agents/approve after the person removed the agent of this client
 });
 
 describe('ensureAgentUser and the recorded approval', () => {
-  function tx(answers: { approved: boolean }) {
+  function tx(answers: { approved: boolean; client?: boolean; lists?: State }) {
     const asked: string[] = [];
     const q = (async (text: string) => {
       asked.push(text);
       if (text === LINK_SQL) return [];
       if (text === APPROVAL_SQL) return answers.approved ? [{ approved: 1 }] : [];
-      if (text === CLIENT_SQL) return [];
+      if (text === CLIENT_SQL) return answers.client ? [{ client_name: 'Claude Code', redirect_uris: 'https://claude.ai/cb' }] : [];
+      if (text === SAME_APP_SQL) return [];
       throw new Error(`No answer for: ${text.slice(0, 80)}`);
     }) as Query;
+    const office = async () => snapshotOf(answers.lists ?? seed, 1);
     const data: CallData = {
-      tx: (_mode, work) => work({ q, lock: async () => undefined } as unknown as CallTx),
-      office: async () => snapshotOf(seed, 1),
+      tx: (_mode, work) => work({ q, lock: async () => undefined, office } as unknown as CallTx),
+      office,
     };
     return { asked, data };
   }
+
+  // Role rights version 2: a first call of a person whose role has ai.connect off makes no agent user and no link.
+  it('makes no agent user and no link for a person whose role has ai.connect off: forbidden, ai_off, and nothing written', async () => {
+    const lists = structuredClone(seed);
+    lists.settings.roles = { custom: [roleWithout(['ai.connect'])] };
+    lists.users.usr_005 = { ...lists.users.usr_005, systemRole: 'member', roleId: 'rol_001' };
+    const { asked, data } = tx({ approved: true, client: true, lists });
+    const error = await ensureAgentUser(fakeDeps(), { ownerId: 'usr_005', clientId: CLIENT, data }).then(() => null, (e: unknown) => e);
+    expect(error).toMatchObject({ code: 'forbidden', details: { reason: 'ai_off', right: 'ai.connect' } });
+    expect(asked).toEqual([LINK_SQL, APPROVAL_SQL, CLIENT_SQL]);
+    expect(asked).not.toContain(LINK_INSERT_SQL);
+    expect(Object.keys(lists.users).filter((id) => lists.users[id].kind === 'agent').length).toBe(Object.keys(seed.users).filter((id) => seed.users[id].kind === 'agent').length);
+  });
+
+  it('goes on to the search for an earlier agent of the same app for a person whose role has ai.connect on', async () => {
+    const { asked, data } = tx({ approved: true, client: true });
+    // The memory transaction has no office save step, so the new user fails there; the point is that the switch did not stop it.
+    const error = await ensureAgentUser(fakeDeps(), { ownerId: 'usr_001', clientId: CLIENT, data }).then(() => null, (e: unknown) => e);
+    expect(error).not.toMatchObject({ details: { reason: 'ai_off' } });
+    expect(asked.slice(0, 4)).toEqual([LINK_SQL, APPROVAL_SQL, CLIENT_SQL, SAME_APP_SQL]);
+  });
 
   it('makes no link for a client that the person did not approve in Madar: forbidden, agent_not_approved', async () => {
     const { asked, data } = tx({ approved: false });

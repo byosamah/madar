@@ -11,6 +11,7 @@ import { sqlData, type CallData } from '../core/runCall';
 import { resolveStory } from '../core/story';
 import { isLite } from '../data/dialect';
 import { loadFor } from '../data/loaders/index';
+import { assertMayConnect } from './aiSwitches';
 import { APPROVAL_LITE, APPROVAL_SQL } from './approval';
 import { signInAgain } from './auth';
 
@@ -30,6 +31,7 @@ import { signInAgain } from './auth';
  *   address of its own never takes over an agent user, its name and its History (security review of G3). The earlier clients'
  *   addresses come from Auth; a client that Auth no longer has matches nothing. A removed agent stays off: its app gets a new one.
  * - A link that exists stays as it is: a removed link never links again here (server/mcp/auth.ts).
+ * - The switch ai.connect: a person whose role lacks it gets forbidden with the reason ai_off, and no link (aiSwitches.ts).
  * - None: a new users row (kind agent, the person as owner, the name "<first name> <app name> Agent" and its Arabic twin
  *   (agentNamesOf, owner 2026-10-12), the address <agentId>@agents.madar.invalid, which no mail reaches) and the user.created event with the person as the actor, through the save step, so the History, the change
  *   signal and the office cache see it as any other new person.
@@ -146,6 +148,8 @@ export async function ensureAgentUser(deps: Deps, o: { ownerId: string; clientId
     if (!owner || owner.kind !== 'human' || !owner.active) {
       throw new ApiError('unauthenticated', 'This account is turned off in Madar.', { reason: 'account_off' });
     }
+    // Connect AI assistants off: no agent user, no link (role rights version 2). Nothing is written before this line.
+    assertMayConnect(office, owner.id);
 
     const addresses = redirectSetOf(uris);
     const found = await t.q<{ agent_user_id: string; redirect_uris: string; approved_at?: string }>(lite ? SAME_APP_LITE : SAME_APP_SQL, [owner.id, name, host]);

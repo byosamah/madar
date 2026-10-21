@@ -3,8 +3,9 @@ import {
   type McpHttpHandler, type RequestStateCodec, type ServerContext, type StandardSchemaWithJSON,
 } from '@modelcontextprotocol/server';
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { ApiError } from '../../src/api/errors';
-import { can } from '../../src/api/permissions';
+import { can, holdsRight } from '../../src/api/permissions';
 import { withRights } from '../../src/api/rights';
 import { RATE_LITE, RATE_SQL, type LimitResult } from '../auth/rateLimit';
 import { requestHost } from '../core/after';
@@ -13,15 +14,17 @@ import { runCall as realRunCall, type RunCall } from '../core/runCall';
 import type { OfficeSnapshot, Principal } from '../core/types';
 import { isLite } from '../data/dialect';
 import { readOffice } from '../data/officeCache';
+import { runErrorOf } from '../http/errors';
 import { readBody } from '../http/limits';
 import { ensureAgentUser } from './agentUser';
+import { aiOffError, aiSwitchOf, assertMayConnect } from './aiSwitches';
 import { agentPrincipalResolver, agentTokenCheckerOf, authIssuerOf, type AgentPrincipal, type AgentToken, type AgentTokenChecker } from './auth';
 import { INSTRUCTIONS } from './docs';
 import { forwardOnce, hopKeyFrom } from './forward';
 import { challengeOf, METADATA_PATH, metadataResponse } from './metadata';
 import { argsDigest, askFor, canElicit, ReasonAnswer, reasonCodec, reasonFor, retryText, stateKeyFrom, type ReasonAnswers, type ReasonState } from './reasons';
 import { errorResult, runTool, toolResult } from './run';
-import { ADMIN_TOOLS, mcpTools, rightOf, type ToolDef } from './tools';
+import { allTools, toolOfOffSwitch, visibleTools, type ToolDef } from './tools';
 
 /**
  * The MCP 2026-07-28 server (plan 5.6; task G3), on @modelcontextprotocol/server 2.3.0. The entries mount it at /mcp: the mcp
@@ -32,14 +35,15 @@ import { ADMIN_TOOLS, mcpTools, rightOf, type ToolDef } from './tools';
  *   3. GET /mcp/oauth-protected-resource: the metadata (metadata.ts), with no token.
  *   4. Only POST reaches the MCP endpoint: GET and DELETE get 405 (no sessions, no GET stream).
  *   5. The token (auth.ts): aud = MCP_URL, client_id required. Any refusal is 401 with WWW-Authenticate.
- *   6. The agent: the agent link with one statement, ensureAgentUser on the first call of a new approval, the session check.
+ *   6. The agent: the agent link with one statement, ensureAgentUser on the first call of a new approval, the session check. A person
+ *      without the switch ai.connect stops here: 403, reason ai_off (aiSwitches.ts).
  *   7. The body (256 KB at most). A 2025-era batch with more than one tools/call gets 400 (-32600): the limit counts one hit for
  *      each request, and 2025-06-18 and 2026-07-28 have no batches. A tools/call counts against 60 tool calls a minute for each
  *      person, over all the person's agents (rate_limits); the 61st gets 429 with Retry-After. The same statement notes when the
  *      agent link was last used.
- *   8. The SDK handler (createMcpHandler, legacy 'stateless', JSON answers): server/discover, tools/list (37 tools, or 40 for an
- *      agent of an Admin; fixed order, 5 minutes, private), tools/call (run.ts, reasons.ts). A 2025-era client gets the stateless
- *      legacy answer.
+ *   8. The SDK handler (createMcpHandler, legacy 'stateless', JSON answers): server/discover, tools/list (the tools of the AI switches
+ *      and rights of the person: 57 for an Admin; fixed order, 5 minutes, private), tools/call (run.ts, reasons.ts). A 2025-era
+ *      client gets the stateless legacy answer.
  */
 
 /** Set by vite.server.config.ts (releaseVersion): "1.0.<number of commits>". Tests and scripts run without the build. */
@@ -70,8 +74,11 @@ export function serverInfoFor(mcpUrl: string): ServerInfo {
 export const TOOL_CALLS_PER_MINUTE = 60;
 const MINUTE_MS = 60_000;
 
-/** What app.ts puts in AuthInfo.extra for the tools of one request. */
-type RequestExtra = { userId: string; ownerId: string; principal: Principal; office: OfficeSnapshot };
+/**
+ * What app.ts puts in AuthInfo.extra for the tools of one request. callName: the tool that the request calls, when it is a tools/call
+ * (a call of a tool with an AI switch that is off gets the ai_off answer, not the answer of an unknown tool).
+ */
+type RequestExtra = { userId: string; ownerId: string; principal: Principal; office: OfficeSnapshot; callName?: string };
 
 export type McpLimit = (deps: Deps, o: { ownerId: string; clientId: string; now: Date }) => Promise<LimitResult>;
 
@@ -189,30 +196,45 @@ async function callTool(tool: ToolDef, args: Record<string, unknown>, ctx: Serve
   return toolResult(tool, result);
 }
 
+/** The test of one switch or right for the person of the request: the rights of the person in the office of this request. */
+function heldOf(extra: RequestExtra | undefined): { held: (id: string) => boolean; admin: boolean } | undefined {
+  const person = extra ? extra.office.lists.users[extra.ownerId] : undefined;
+  if (!extra || person === undefined) return undefined;
+  const actor = withRights(extra.office.lists, person);
+  return { held: (id) => holdsRight(actor, id), admin: can(actor, 'admin.manage') };
+}
+
 /**
- * The tools of one request (owner, 2026-10-07; rights, 2026-10-18). The Admin tools (tools.ts, MCP_ADMIN, none today) go only to an agent
- * whose person has admin.manage in the office of this request. A right tool (tools.ts, MCP_BY_RIGHT) goes only to an agent whose person
- * holds its right: the report right, or the feedback right for the tools of requests and bugs (role-rights, 2026-10-23). The check reads the person with the office rights, never the agent user. An agent has the role member
- * (agentUser.ts), and the handler checks the same right. With no person, the request gets the 45 tools of the allowlist. A role change
- * shows on the next request. A client can keep its tools/list for 5 minutes. A tools/call of a tool that is not registered fails
- * before runCall.
+ * The tools of one request (owner, 2026-10-07; rights, 2026-10-18; role rights version 2, 2026-10-21). A tool goes to an agent only when
+ * its person holds the AI switch of the tool (aiSwitches.ts) and, for a right tool (tools.ts, MCP_BY_RIGHT), its right: the payment
+ * switches, the Dashboard, Search, the report right, or the feedback right for the tools of requests and bugs (role-rights, 2026-10-23).
+ * The Admin tools (MCP_ADMIN, none today) go only to an agent whose person has admin.manage. The check reads the person with the office
+ * rights, never the agent user. An agent has the role member (agentUser.ts), and the handler checks the same right. With no person, the
+ * request gets no tool. A role change shows on the next request. A client can keep its tools/list for 5 minutes. A tools/call of a
+ * tool that is not registered fails before runCall.
  */
 function toolsFor(all: ToolDef[], extra: RequestExtra | undefined): ToolDef[] {
-  const person = extra ? extra.office.lists.users[extra.ownerId] : undefined;
-  const actor = extra && person !== undefined ? withRights(extra.office.lists, person) : undefined;
-  return all.filter((tool) => {
-    if (ADMIN_TOOLS.has(tool.name)) return actor !== undefined && can(actor, 'admin.manage');
-    const right = rightOf(tool.name);
-    return right === undefined || (actor !== undefined && can(actor, right));
-  });
+  const who = heldOf(extra);
+  return who ? visibleTools(all, who.held, who.admin) : [];
+}
+
+/**
+ * The tool of a tools/call whose AI switch is off for the person, or undefined. The server registers it as a stub for this call only,
+ * so the answer is forbidden with the reason ai_off, which names the switch. It never shows in a list.
+ */
+function offToolOf(all: ToolDef[], extra: RequestExtra | undefined): ToolDef | undefined {
+  const who = heldOf(extra);
+  return who && extra?.callName !== undefined ? toolOfOffSwitch(all, who.held, extra.callName) : undefined;
 }
 
 function handlerOf(deps: Deps, run: RunCall, codec: Promise<RequestStateCodec<ReasonState>>): McpHttpHandler {
-  const all = mcpTools({ admin: true });
+  const all = allTools();
   const info = serverInfoFor(deps.config.mcpUrl);
   // The SDK calls the factory once for each request, in both eras, with the authInfo of that request.
   return createMcpHandler(async ({ authInfo }) => {
-    const tools = toolsFor(all, authInfo?.extra as RequestExtra | undefined);
+    const extra = authInfo?.extra as RequestExtra | undefined;
+    const tools = toolsFor(all, extra);
+    const off = offToolOf(all, extra);
     const stateCodec = await codec;
     const server = new McpServer({ ...info }, {
       instructions: INSTRUCTIONS,
@@ -231,6 +253,15 @@ function handlerOf(deps: Deps, run: RunCall, codec: Promise<RequestStateCodec<Re
         ((args: Record<string, unknown>, ctx: ServerContext) => callTool(tool, args ?? {}, ctx, deps, run, stateCodec)) as never,
       );
     }
+    if (off) {
+      // The arguments are not read: a switch that is off refuses the call whatever it holds.
+      const refused = errorResult(runErrorOf(aiOffError(aiSwitchOf(off.name)!)));
+      server.registerTool(
+        off.name,
+        { title: off.title, description: off.description, inputSchema: argumentsOf({ ...off, input: z.looseObject({}) }), annotations: off.annotations },
+        (() => refused) as never,
+      );
+    }
     return server;
   }, {
     legacy: 'stateless',
@@ -240,11 +271,12 @@ function handlerOf(deps: Deps, run: RunCall, codec: Promise<RequestStateCodec<Re
 }
 
 /** The tools/call entries of a body: one JSON-RPC message, or a 2025-era batch. */
-function toolCallsIn(body: unknown): { count: number; id: unknown } {
+function toolCallsIn(body: unknown): { count: number; id: unknown; name?: string } {
   const messages = Array.isArray(body) ? body : [body];
   const calls = messages.filter((m) => m && typeof m === 'object' && (m as { method?: unknown }).method === 'tools/call');
   const first = messages[0] as { id?: unknown } | undefined;
-  return { count: calls.length, id: first && typeof first === 'object' ? (first.id ?? null) : null };
+  const name = (calls[0] as { params?: { name?: unknown } } | undefined)?.params?.name;
+  return { count: calls.length, id: first && typeof first === 'object' ? (first.id ?? null) : null, ...(typeof name === 'string' ? { name } : {}) };
 }
 
 export function mcpApp(deps: Deps, o: McpAppOptions = {}): Hono {
@@ -274,7 +306,7 @@ export function mcpApp(deps: Deps, o: McpAppOptions = {}): Hono {
     if (error instanceof ApiError) {
       if (error.code === 'unauthenticated' && error.details.reason === 'account_off') return jsonRpcError(403, error.message, { reason: 'account_off' });
       if (error.code === 'unauthenticated') return unauthorized(error, tokenCame);
-      if (error.code === 'forbidden') return jsonRpcError(403, error.message);
+      if (error.code === 'forbidden') return jsonRpcError(403, error.message, typeof error.details.reason === 'string' ? { reason: error.details.reason } : {});
     }
     deps.log.error('The MCP sign-in check failed.', { error: error instanceof Error ? error.message : String(error) });
     return jsonRpcError(500, 'Something went wrong. Try again.');
@@ -309,6 +341,8 @@ export function mcpApp(deps: Deps, o: McpAppOptions = {}): Hono {
       // A new agent user changed the office: read it again, so the actor check sees the agent.
       if (agent.linked) office = undefined;
       await officeOnce();
+      // Connect AI assistants off: every request of every agent of this person stops here, at once (role rights version 2).
+      assertMayConnect(office!, agent.ownerId);
     } catch (error) {
       return refusal(error, header !== null);
     }
@@ -338,7 +372,10 @@ export function mcpApp(deps: Deps, o: McpAppOptions = {}): Hono {
       }
     }
 
-    const extra: RequestExtra = { userId: agent.principal.userId, ownerId: agent.ownerId, principal: agent.principal, office: office! };
+    const extra: RequestExtra = {
+      userId: agent.principal.userId, ownerId: agent.ownerId, principal: agent.principal, office: office!,
+      ...(calls.name !== undefined ? { callName: calls.name } : {}),
+    };
     const response = await handler.fetch(new Request(request.url, { method: 'POST', headers: request.headers, body: text }), {
       authInfo: {
         token: token.token, clientId: token.clientId, scopes: [], resource: new URL(config.mcpUrl),

@@ -6,6 +6,7 @@ import { signAgentToken, signBrowserToken } from '../../auth/own/keys';
 import { ownApiRoutes } from '../../auth/own/routes';
 import type { Deps } from '../../core/ports';
 import { apiApp } from '../../http/app';
+import { offWith } from '../aiRoles.testing';
 import { oauthApp, TEST_MCP_URL } from './testApp';
 
 const CALLBACK = 'http://127.0.0.1:33418/callback';
@@ -147,5 +148,50 @@ describe('the consent with the Madar approval inside (server/mcp/oauth/ops.ts)',
     expect(w.t.raw.prepare("select revoked_at from auth_sessions where id = 's-o'").get()).toEqual({ revoked_at: null });
     await call('/oauth/grants/revoke', hala.token, { body: { client_id: 'c-h' } });
     expect((await call('/oauth/grants', hala.token)).body).toEqual([]);
+  });
+});
+
+describe('the consent and the switch Connect AI assistants (role rights version 2)', () => {
+  /** The Admin turns ai.connect off for the Member role (the other AI switches go with it), or on again. The office object is the writer. */
+  const setConnect = async (w: Awaited<ReturnType<typeof world>>['w'], on: boolean) => {
+    const done = await w.t.call('usr_001', 'roles.update', { role: 'member', off: on ? [] : offWith('ai.connect') });
+    if (!done.ok) throw new Error(`roles.update failed: ${JSON.stringify(done)}`);
+  };
+
+  it('refuses the Madar approval of a person whose role has ai.connect off: 403 ai_off, and no approval row', async () => {
+    const { w, person, call, request } = await world();
+    const hala = await person('usr_002');
+    const { id } = await request();
+    await setConnect(w, false);
+    expect(await call('/agents/approve', hala.token, { body: { authorizationId: id } })).toMatchObject({ status: 403, body: { error: { code: 'forbidden', details: { reason: 'ai_off', right: 'ai.connect' } } } });
+    expect(w.t.raw.prepare('select count(*) as n from agent_approvals').get()).toEqual({ n: 0 });
+  });
+
+  it('refuses the consent too, also with an old approval of the same person, and leaves the request pending', async () => {
+    const { w, person, call, request } = await world();
+    const hala = await person('usr_002');
+    const { clientId, id } = await request();
+    await call(`/oauth/authorizations/${id}`, hala.token, { method: 'GET' });
+    await call('/agents/approve', hala.token, { body: { authorizationId: id } });
+    await setConnect(w, false);
+    expect(await call(`/oauth/authorizations/${id}/consent`, hala.token, { body: { action: 'approve' } })).toMatchObject({ status: 403, body: { error: { details: { reason: 'ai_off' } } } });
+    expect(w.t.raw.prepare('select status from oauth_requests where id = ?').get(id)).toEqual({ status: 'pending' });
+    expect(w.t.raw.prepare('select count(*) as n from agent_approvals where client_id = ?').get(clientId)).toEqual({ n: 1 });
+  });
+
+  it('gives no code at once to a known client of a person whose role has ai.connect off, and a code again when it is on', async () => {
+    const { w, person, call, request } = await world();
+    const hala = await person('usr_002');
+    const { clientId, id } = await request();
+    await call(`/oauth/authorizations/${id}`, hala.token, { method: 'GET' });
+    await call('/agents/approve', hala.token, { body: { authorizationId: id } });
+    const ask = async () => new URL((await w.root.request(`/mcp/oauth/authorize?${new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: CALLBACK, code_challenge: CHALLENGE, code_challenge_method: 'S256' })}`)).headers.get('location')!).searchParams.get('authorization_id')!;
+    await setConnect(w, false);
+    const refused = await call(`/oauth/authorizations/${await ask()}`, hala.token, { method: 'GET' });
+    expect(refused).toMatchObject({ status: 403, body: { error: { details: { reason: 'ai_off' } } } });
+    expect(refused.body.redirect_url).toBeUndefined();
+    // The Member role holds ai.connect again: the known client gets its code at once.
+    await setConnect(w, true);
+    expect((await call(`/oauth/authorizations/${await ask()}`, hala.token, { method: 'GET' })).body.redirect_url).toMatch(/^http:\/\/127\.0\.0\.1:33418\/callback\?code=/);
   });
 });
