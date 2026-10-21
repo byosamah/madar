@@ -337,10 +337,11 @@ describe('a right gives only its own power', () => {
     t.as(CHANGE);
     expect(await code(() => t.api.call('taskTemplates.save', { fromTaskId: id }))).toBe('forbidden');
     expect((await t.api.call('tasks.get', { id })).viewerCan.saveTemplate).toBe(false);
-    // The right to edit any project does not give it (role rights version 2: templates.taskSave is its own switch).
+    // An old role with the right to edit any project kept this power (it passed project.edit): the legacy map gives it
+    // templates.taskSave.all, so nobody loses a power on release day.
     t.as(EDIT);
-    expect(await code(() => t.api.call('taskTemplates.save', { fromTaskId: id }))).toBe('forbidden');
-    expect((await t.api.call('tasks.get', { id })).viewerCan.saveTemplate).toBe(false);
+    expect((await t.api.call('tasks.get', { id })).viewerCan.saveTemplate).toBe(true);
+    expect(await code(() => t.api.call('taskTemplates.save', { fromTaskId: id }))).toBe('ok');
     // The leader and the Admin, as before.
     t.as(LEADER);
     expect((await t.api.call('tasks.get', { id })).viewerCan.saveTemplate).toBe(true);

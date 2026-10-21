@@ -687,7 +687,7 @@ export const DEFAULT_EXTRA: Readonly<Record<'management' | 'accounting' | 'membe
 
 /** The 17 old rights of 2026-10-23 and the switches that each one stands for. A stored list may still hold an old right (expandRights). */
 export const LEGACY_RIGHTS: Readonly<Record<string, readonly CatalogRightId[]>> = {
-  'project.editAny': ['project.details.all', 'project.team.all', 'project.stages.all', 'project.deadlines.all', 'project.template.all', 'project.health.all'],
+  'project.editAny': ['project.details.all', 'project.team.all', 'project.stages.all', 'project.deadlines.all', 'project.template.all', 'project.health.all', 'templates.taskSave.all'],
   'project.changeLeaderAny': ['project.leader.all'],
   'project.archiveAny': ['project.archive.all'],
   'project.delete': ['project.delete.all'],

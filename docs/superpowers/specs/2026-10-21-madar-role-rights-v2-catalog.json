@@ -2309,7 +2309,8 @@
       "project.stages.all",
       "project.deadlines.all",
       "project.template.all",
-      "project.health.all"
+      "project.health.all",
+      "templates.taskSave.all"
     ],
     "project.changeLeaderAny": [
       "project.leader.all"

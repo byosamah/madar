@@ -329,15 +329,15 @@ describe('money', () => {
     expect(await attempt(world({ [TEAM]: { rights: ['payment.view'] } }), TEAM_AGENT, 'payments.list', { projectId: 'prj_001' })).toBe('ok');
   });
 
-  it('adds a payment with payment.add (which needs payment.view) and refuses a holder of the other money switches', async () => {
-    expect(await attempt(world({ [TEAM]: { rights: ['payment.add'] } }), TEAM, 'payments.create', NEW_PAYMENT)).toBe('ok');
-    expect(await attempt(world({ [TEAM]: { rights: ['payment.add'] } }), TEAM_AGENT, 'payments.create', NEW_PAYMENT)).toBe('ok');
+  it('adds a payment with payment.add and payment.view, and refuses a holder of the other money switches', async () => {
+    expect(await attempt(world({ [TEAM]: { rights: ['payment.view', 'payment.add'] } }), TEAM, 'payments.create', NEW_PAYMENT)).toBe('ok');
+    expect(await attempt(world({ [TEAM]: { rights: ['payment.view', 'payment.add'] } }), TEAM_AGENT, 'payments.create', NEW_PAYMENT)).toBe('ok');
     expect(await attempt(world({ [TEAM]: { rights: ['payment.view', 'payment.change', 'payment.receive'] } }), TEAM, 'payments.create', NEW_PAYMENT)).toBe('forbidden');
     expect(await attempt(world(), TEAM_AGENT, 'payments.create', NEW_PAYMENT)).toBe('forbidden');
   });
 
   it('changes and deletes a payment with payment.change only', async () => {
-    const on = await withPayment({ [TEAM]: { rights: ['payment.change'] } });
+    const on = await withPayment({ [TEAM]: { rights: ['payment.view', 'payment.change'] } });
     expect(await attempt(on.t, TEAM, 'payments.update', { id: on.id, patch: { note: 'Moved' } })).toBe('ok');
     expect(await attempt(on.t, TEAM_AGENT, 'payments.delete', { id: on.id })).toBe('ok');
     const off = await withPayment({ [TEAM]: { rights: ['payment.view', 'payment.add', 'payment.receive'] } });
@@ -347,7 +347,7 @@ describe('money', () => {
   });
 
   it('marks a payment as received with payment.receive only', async () => {
-    const on = await withPayment({ [TEAM]: { rights: ['payment.receive'] } });
+    const on = await withPayment({ [TEAM]: { rights: ['payment.view', 'payment.receive'] } });
     expect(await attempt(on.t, TEAM_AGENT, 'payments.markReceived', { id: on.id })).toBe('ok');
     const off = await withPayment({ [TEAM]: { rights: ['payment.view', 'payment.add', 'payment.change'] } });
     expect(await attempt(off.t, TEAM, 'payments.markReceived', { id: off.id })).toBe('forbidden');
@@ -547,10 +547,10 @@ describe('the Dashboard', () => {
     expect(view.workload.unassigned).not.toBeNull();
   });
 
-  it('keeps dashboard.view on while workload.view is on: a stored list never holds a dependant without its need', async () => {
-    // The role sheet sends both ids off. A list that turns off only the need gets the need back from rightsOf.
+  it('turns workload.view off with dashboard.view: a stored switch whose need is off counts as off', async () => {
+    // The role sheet sends both ids off. A stored list that turns off only the need loses the dependant too (fail closed).
     const t = world({ [TEAM]: { off: ['dashboard.view'] } });
-    expect(await attempt(t, TEAM, 'dashboard.get', {})).toBe('ok');
+    expect(await attempt(t, TEAM, 'dashboard.get', {})).toBe('forbidden');
   });
 });
 
