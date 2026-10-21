@@ -5,7 +5,7 @@ import type {
 import { canSeeConversation } from './chatState';
 import { namesPerson, replyRefOf } from './chatNaming';
 import { computeHealth, isOverdue } from './health';
-import { can, leadTookTask, mayViewMeeting, meetingResource, principalOf, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
+import { can, holdsRight, leadTookTask, mayViewMeeting, meetingResource, principalOf, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
 import { commentCountKey, fileCountKey, projectTemplatesOf, type State } from './store';
 import { lineKindOf } from '../lib/commentLine';
 import { diffDays } from '../lib/dates';
@@ -203,17 +203,20 @@ export function feedFor(
 function viewerCanOf(viewer: User, projectRole: ProjectRole): ProjectSummary['viewerCan'] {
   const r = { projectRole };
   return {
-    edit: can(viewer, 'project.edit', r),
-    changeLeader: can(viewer, 'project.changeLeader', r),
+    // The old flag "edit" stays for the screens of today: all six powers of a project change (role rights version 2).
+    edit: (['project.details', 'project.team', 'project.stages', 'project.deadlines', 'project.template', 'project.health'] as const).every((power) => can(viewer, power, r)),
+    changeLeader: can(viewer, 'project.leader', r),
     archive: can(viewer, 'project.archive', r),
     delete: can(viewer, 'project.delete', r),
-    healthOverride: can(viewer, 'project.healthOverride', r),
+    healthOverride: can(viewer, 'project.health', r),
     createTaskForAnyone: can(viewer, 'task.createForAnyone', r),
     createTaskForSelf: can(viewer, 'task.createForSelf', r),
     post: can(viewer, 'content.post', r),
     review: can(viewer, 'task.review', r),
     payments: can(viewer, 'payment.view'),
-    editCode: can(viewer, 'project.editCode', r),
+    // The switch alone, as before: the code field sits inside the edit sheet, which opens only where editDetails is true. The call
+    // projects.update asks project.code, which also needs the details scope.
+    editCode: holdsRight(viewer, 'project.code'),
     // Role rights version 2: one flag for each gate that a screen hides.
     editDetails: can(viewer, 'project.details', r),
     editTeam: can(viewer, 'project.team', r),
@@ -372,7 +375,7 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
       newVersion: task.status === 'done' && can(viewer, 'task.updateOwn', r),
       // A template belongs to a stage, so an office task never becomes one. It serves the whole office, so the leader and the
       // Admin save it, never the maker alone (the rule of taskTemplates.save).
-      saveTemplate: task.stageId !== null && can(viewer, 'project.edit', { projectRole: r.projectRole }),
+      saveTemplate: task.stageId !== null && can(viewer, 'templates.taskSave', { projectRole: r.projectRole }),
       take: task.ownerId === null && task.status !== 'done' && can(viewer, 'task.take', r),
       // Joins as a helper with one tap: a person on the team who neither leads nor helps, on a project task (fbk_035).
       help: task.projectId !== null && task.ownerId !== viewer.id && !helpersOf(task).includes(viewer.id) && can(viewer, 'task.help', r),

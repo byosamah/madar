@@ -204,7 +204,7 @@ any screen work.
 - The read lists sit next to the parts that mount them: `taskPanelReads` (`features/project/tasks/TaskSheet.tsx`), `tabReads`
   (`features/project/tabs.tsx`, next to `TAB_BODY`) and `meetingProjectReads` (`features/dashboard/MeetingProjects.tsx`).
   `features/project/reads.ts` holds `prefetchReads` and `sessionSeesPayments`: only a cached session with
-  `can(user, 'payment.manage')` prefetches `payments.list`. A change to a `useCall` key in one of these parts changes its list
+  `can(user, 'payment.view')` prefetches `payments.list`. A change to a `useCall` key in one of these parts changes its list
   in the same commit; `tabs.test.tsx`, `TaskSheetPrefetch.test.tsx` and `MeetingPrefetch.test.tsx` pin the lists.
 - The Overview tab owns the open Tracker read (`tracker.list {projectId, openOnly: true}`) and gives it to Attention. In the
   meeting (remote build), `PrefetchNextProject` starts the reads of the next project once no `['api']` read is in flight. The

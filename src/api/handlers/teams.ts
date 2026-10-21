@@ -56,7 +56,7 @@ const teamsCreate = defineCall({
   input: z.object({ name: TeamName, memberIds: MemberIds.default([]) }),
   output: TeamRow,
   run(input, ctx) {
-    assertCan(ctx, 'people.manage');
+    assertCan(ctx, 'people.teams');
     assertNameFree(ctx, input.name, null);
     const id = nextId(ctx.state, 'tm');
     const team: Team = { id, name: input.name, memberIds: checkedMembers(ctx, input.memberIds) };
@@ -70,7 +70,7 @@ const teamsUpdate = defineCall({
   input: z.object({ id: TeamId, name: TeamName.optional(), memberIds: MemberIds.optional() }),
   output: TeamRow,
   run(input, ctx) {
-    assertCan(ctx, 'people.manage');
+    assertCan(ctx, 'people.teams');
     const team = requireTeam(ctx, input.id);
     if (input.name !== undefined) assertNameFree(ctx, input.name, team.id);
     const memberIds = input.memberIds ? checkedMembers(ctx, input.memberIds) : undefined;
@@ -84,7 +84,7 @@ const teamsDelete = defineCall({
   input: z.object({ id: TeamId }),
   output: z.object({ deleted: z.literal(true) }),
   run(input, ctx) {
-    assertCan(ctx, 'people.manage');
+    assertCan(ctx, 'people.teams');
     const team = requireTeam(ctx, input.id);
     delete teamsOf(ctx.state)[team.id];
     recordDelete(ctx, { projectId: null, verb: 'team.deleted', targetType: 'team', targetId: team.id, entity: team });

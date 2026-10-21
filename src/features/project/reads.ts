@@ -16,10 +16,10 @@ export function prefetchReads(prefetch: <N extends CallName>(name: N, input: Cal
 }
 
 /**
- * True when the person of the cached session may manage payments: the rule of viewerCan.payments (src/api/views.ts), so only
+ * True when the person of the cached session may see payments: the rule of viewerCan.payments (src/api/views.ts), so only
  * the payment roles prefetch payments.list. False while the session is not cached: the payments part then asks as before.
  */
 export function sessionSeesPayments(queryClient: QueryClient): boolean {
   const session = queryClient.getQueryData<{ authority?: User }>(['api', 'session.get', {}]);
-  return session?.authority ? can(session.authority, 'payment.manage') : false;
+  return session?.authority ? can(session.authority, 'payment.view') : false;
 }

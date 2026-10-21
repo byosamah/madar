@@ -185,6 +185,40 @@ describe('users.invites and users.resendInvite read the office rights of the per
   });
 });
 
+describe('the five people switches of role rights version 2', () => {
+  const officeWith = (rights: readonly string[], users: Record<string, Partial<User>> = {}) => snapshotOf({
+    ...seed, settings: { ...seed.settings, roles: { custom: [{ id: 'rol_001', name: 'Planner', nameAr: 'المخطط', rights }] } as RoleSettings },
+    users: { ...seed.users, ...Object.fromEntries(Object.entries(users).map(([id, patch]) => [id, { ...seed.users[id], ...patch }])) },
+  }, 3);
+  const SWITCHES = ['people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove'];
+
+  it('lists the invitations for a person who holds any one of the five, and for the agent of that person', async () => {
+    const { ctx } = setup();
+    for (const right of SWITCHES) {
+      const office = officeWith([right], { usr_002: { roleId: 'rol_001' }, usr_009: { ownerId: 'usr_002' } });
+      for (const userId of ['usr_002', 'usr_009']) {
+        await expect(usersInvites({}, ctx(userId, { office })), `${right} ${userId}`).resolves.toMatchObject({ changed: false });
+      }
+    }
+  });
+
+  it('refuses the list for a person who holds none of the five, and for the agent of that person', async () => {
+    const { ctx } = setup();
+    const office = officeWith(['payment.view', 'client.create'], { usr_002: { roleId: 'rol_001' }, usr_009: { ownerId: 'usr_002' } });
+    for (const userId of ['usr_002', 'usr_009']) {
+      expect((await refusal(usersInvites({}, ctx(userId, { office })))).code, userId).toBe('forbidden');
+    }
+  });
+
+  it('sends an invitation again only for a holder of people.invite, not for a holder of the other four', async () => {
+    const { resend, ctx } = setup();
+    const invite = officeWith(['people.invite'], { usr_002: { roleId: 'rol_001' }, usr_009: { ownerId: 'usr_002' } });
+    for (const userId of ['usr_002', 'usr_009']) await expect(resend({ id: 'usr_003' }, ctx(userId, { office: invite })), userId).resolves.toMatchObject({ changed: false });
+    const others = officeWith(SWITCHES.filter((right) => right !== 'people.invite'), { usr_002: { roleId: 'rol_001' }, usr_009: { ownerId: 'usr_002' } });
+    for (const userId of ['usr_002', 'usr_009']) expect((await refusal(resend({ id: 'usr_003' }, ctx(userId, { office: others })))).code, userId).toBe('forbidden');
+  });
+});
+
 describe('users.resendInvite', () => {
   it('writes one auth.invite row in its transaction, runs it after the commit, and gives the time in office time', async () => {
     const { db, ran, resend, ctx } = setup();

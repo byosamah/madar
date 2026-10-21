@@ -48,7 +48,8 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   stay valid. Two projects of one contract share one code, so the projects table has no unique rule on the code.
 - `projects.create` takes `codeParts`, `code` or `sameContractAs` (at most one); with none, the old automatic code. A typed
   code whose YYMMSS belongs to another contract fails with `code_taken`. `codeParts` initials go onto a client with none.
-- Only the Admin corrects a code (`project.editCode`, `projects.update` `patch.code`, verb `project.code_changed`).
+- Only a person with the switch `project.code` corrects a code (`projects.update` `patch.code`, verb `project.code_changed`). The switch
+  passes only where `project.details` passes, so a holder who is not the leader and has no `project.details.all` is refused.
 - A person may keep a code of their own (feedback fbk_003, 2026-10-12). A new or changed code is visible text of 1 to 60
   characters (`FREE_CODE_PATTERN`): only visible characters and the plain space, nothing outside the basic plane, so a code
   always shows as it is saved. A new building type passes `TYPE_PATTERN`. The record takes that or any code of the office
@@ -64,8 +65,8 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 ## Project templates (owner, 2026-10-05, item 6a)
 - `ProjectTemplate` (`ptp_`): roles (a name and a default person), stages, and tasks with a start day and a length in working
   days (Sunday to Thursday, day 0 is the project start) and `flexible`. Ids inside a template (`r1`, `s1`, `t1`) are unique in it.
-- `projectTemplates.list`, `.save` (no `id` makes one, an `id` changes one) and `.delete`. Saving needs `project.create`; a change
-  or a delete needs the person who saved it or the template right (`templates.manageAll`). MCP: deny list.
+- `projectTemplates.list`, `.save` (no `id` makes one, an `id` changes one) and `.delete`. A new template needs `templates.projectCreate`
+  (off for a Member by default, owner 2026-10-21). A change or a delete needs the person who saved it, or `templates.projectAny`. MCP: deny list.
 - `projects.create` takes `template: { templateId, startDate, endDate?, roles, fixedTaskIds }`, never with `stages`, `startDate`
   or `targetEndDate`. The plan comes from `lib/projectPlan.ts`, the same function as the screen. Locked tasks that do not fit
   refuse with reason `template_too_short` (`names` holds the days they need). A role person joins the team; a role with no
@@ -82,7 +83,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - Link an older project (fbk_008 item 4): `projectTemplates.matchPlan` reads the matches by name (`matchByNames`,
   `src/lib/templateMatch.ts`). `projectTemplates.link` writes one story: the `templateLink`, each matched part id, and `droppedPartIds`
   for each part with no pick. A second link is refused (`already_linked`). Both calls are on the MCP deny list.
-- Apply a template to an ongoing project (owner, 2026-10-19, fbk_020): `matchPlan`, `link` and the adding need `project.edit` on the
+- Apply a template to an ongoing project (owner, 2026-10-19, fbk_020): `matchPlan`, `link` and the adding need `project.template` on the
   target project (the leader and the Admin), and the project must be open (`active` or `on_hold`; else reason `project_closed`),
   `assertMayApply`. A project holds one `templateLink`. `link` with `replace: true` takes another template for a project that follows
   one: it first removes the part ids of the old template from the stages and tasks (an event for each, so one Undo of the story brings
@@ -113,7 +114,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 ## Health and the Dashboard (owner, 2026-10-06)
 - `health.ts`: a past-due task puts its project At risk only from `AT_RISK_DAYS_PAST_DUE` (3) calendar days past due.
   `isOverdue` still counts it from day 1 ("Past-due to-dos", the Past due column, `tasks.list` filter `overdue`).
-- `dashboard.get` returns `gaps` only for `can(gaps.view)` (the Admin, or a role with that right) and `money` only for `can(payment.manage)`; anyone else, and an
+- `dashboard.get` returns `gaps` only for `can(gaps.view)` (the Admin, or a role with that right) and `money` only for `can(payment.view)`; anyone else, and an
   agent of anyone else, gets null. Contract changes stay additive: `charts.healthMix` and `charts.throughput` stay for agents.
 - Each Dashboard number has a list that holds the same records: `tasks.list` and `deadlines.list` take `leaderId`, `clientId`
   and `teamId` (`peopleFilter`, `pause.ts`); `tasks.list` `workOf` is the work of one person (open tasks that are not in
@@ -253,7 +254,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   History, tasks, comments and messages keep the name (`cardOf` still finds it), and the email stays reserved (`assertEmailFree`).
   `users.list` (also with `includeInactive`) leaves removed users out, `detailOf` leaves them out of a project team, and `users.update` and
   `users.reactivate` refuse them (reason `removed`). `users.get` still gives the record.
-- The rules: `people.manage`, `assertMayTouch` (Management never removes an Admin or the agent of an Admin), never yourself, and only a
+- The rules: `people.remove`, `assertMayTouch` (Management never removes an Admin or the agent of an Admin), never yourself, and only a
   person who is off (reason `still_active`). The agents of a removed person go with them, turned off first. A second call is harmless
   and writes no second event. Event verb `user.removed`. No screen brings a removed person back, so the sheet asks first and has no Undo.
 - MCP: deny list (people work is in the screens). The sweep (`everyCall.ts`) runs it after `users.deactivate`, because it is a remover.
@@ -401,6 +402,21 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   event expands its old ids. MCP: deny list.
 - `roles.delete` takes `moveTo` (ADM-14): a built-in role (not Admin) or another custom role. The people of the deleted role move to it
   (`user.updated` events) before the role goes, all in one story. Without `moveTo`, a role that people hold is still refused (`role_in_use`).
+- The gates of the office calls (track gates-office). Projects: `projects.update` asks `project.details` (the code field also `project.code`;
+  the map pin of a link also `project.details`), `members.*` and `ensureOnTeam` ask `project.team`, `stages.*` ask `project.stages`,
+  `deadlines.*` ask `project.deadlines`, the template calls ask `project.template`, `setLeader` asks `project.leader`, the health override
+  asks `project.health`, the links ask `project.links`, the delete asks `project.delete`. People: `users.create` and `users.resendInvite`
+  ask `people.invite`, `users.update` asks `people.change`, `teams.*` ask `people.teams`, deactivate and reactivate ask `people.turnOff`,
+  `users.remove` asks `people.remove`, and `users.invites` passes for any of the five. `clients.create` asks `client.create`,
+  `clients.update` asks `clients.change`. Money: `payments.list` asks `payment.view`, create `payment.add`, update and delete
+  `payment.change`, `markReceived` `payment.receive`; the money of `dashboard.get` and `reports.office` asks `payment.view`.
+  Templates: a new project or stage template asks `templates.projectCreate`; the change of another person's one asks `templates.projectAny`
+  (the saver always changes their own); a to-do template saved from a to-do asks `templates.taskSave` on the project of the to-do, by hand it
+  asks `templates.taskSave.all`, or `.lead` for a person who leads a project; another person's to-do template asks `templates.taskAny`.
+  `dashboard.get` asks `dashboard.view`; without `workload.view` its `workload` has `rows: []` and `unassigned: null`. `search.query` asks
+  `search.use`, and an agent whose person lacks `ai.readChats` gets no message hits. `settings.update` asks `office.settings`.
+  `feedback.send` and `feedback.uploadStart` ask `feedback.send`. The loaders (`overview.ts`, `report.ts`) mirror the Dashboard, Search and
+  money gates. `rr2Office.test.ts` tests each gate: on, off, scope, and the agent of a person without the switch.
 - `viewerCan` (`contract/views.ts`) has one optional flag for each new gate of a project (`editDetails`, `editTeam`, `editStages`,
   `editDeadlines`, `applyTemplate`, `links`, `upload`, `deliver`, `logTracker`, `postUpdate`, `comment`, `addTask`, `planMeeting`,
   `deleteAnyFile`, `deleteAnyTracker`, `projectChat`, `changeAnyTask`) and of a to-do (`editDetails`, `editDates`, `work`, `comment`, `upload`).
@@ -408,7 +424,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 ## The office report (owner, 2026-10-18, fbk_016)
 - `reports.office { period, start? }` (`handlers/reports.ts`): a week (Sunday to Saturday), a month, a quarter or a year. `periodRange`
   (`reportPeriod.ts`) picks the period that holds `start`; with no start it gives the last full period before today.
-- The right is `report.office` (assertCan). Money needs `payment.manage` (null otherwise); gaps need `gaps.view` (null otherwise).
+- The right is `report.office` (assertCan). Money needs `payment.view` (null otherwise); gaps need `gaps.view` (null otherwise).
 - The stage moves, completions and pauses come from `state.counts` (`REPORT_KEYS`, the loader counts them in SQL). The reviews come from
   the review events that the loader reads once (`state.events`). The handler counts them for each person by `actingForId`. Without
   `state.counts` it counts `state.events` for the other three too (the prototype). Both give the same numbers (`loaders.test.ts`).

@@ -1,5 +1,7 @@
 import { MAX_SHOT_BYTES } from '../../src/api/contract/server';
-import { invalid, notFound } from '../../src/api/errors';
+import { forbidden, invalid, notFound } from '../../src/api/errors';
+import { can } from '../../src/api/permissions';
+import { withRights } from '../../src/api/rights';
 import type { FeedbackPrepared, ScreenshotPrepared } from '../../src/api/handlers/feedback';
 import type { ServerHooks } from '../../src/api/registry';
 import type { Deps } from '../core/ports';
@@ -24,7 +26,9 @@ const SHOT_TYPE_LIMIT = 60;
 export const feedbackUploadStart: ServerCall<'feedback.uploadStart'> = async (input, ctx) => {
   const { deps, office, now } = ctx;
   const userId = ctx.principal.userId;
-  authorityOf((id) => office.lists.users[id], userId);
+  // The report right (role rights version 2): the person, or the person of the agent, with the office rights attached.
+  const person = withRights(office.lists, authorityOf((id) => office.lists.users[id], userId));
+  if (!can(person, 'feedback.send')) throw forbidden('You cannot do this.', { action: 'feedback.send' });
   // The inline-safe pictures only (server/files/links.ts), so the Admin's inline link shows the picture; and a type a report keeps.
   if (input.screenshots.some((shot) => !isPictureType(shot.mimeType) || shot.mimeType.length > SHOT_TYPE_LIMIT)) {
     throw invalid('screenshots', 'A screenshot must be a PNG, JPEG, GIF, WebP or AVIF picture.');

@@ -183,7 +183,7 @@ export const usersCreate = defineCall({
   }),
   output: User,
   run(input, ctx) {
-    assertCan(ctx, 'people.manage');
+    assertCan(ctx, 'people.invite');
     assertMayTouch(ctx, null, input.systemRole, input.kind === 'agent');
     assertMayChangeRole(ctx, null, { systemRole: input.systemRole, roleId: input.roleId });
     assertCustomRole(ctx, input.systemRole, input.roleId);
@@ -230,7 +230,7 @@ export const usersUpdate = defineCall({
   }),
   output: User,
   run(input, ctx) {
-    assertCan(ctx, 'people.manage');
+    assertCan(ctx, 'people.change');
     const user = requireUser(ctx, input.id);
     assertNotRemoved(user);
     assertMayTouch(ctx, user, input.patch.systemRole);
@@ -268,7 +268,7 @@ export const usersDeactivate = defineCall({
   input: z.object({ id: UserId }),
   output: User,
   run(input, ctx) {
-    assertCan(ctx, 'people.manage');
+    assertCan(ctx, 'people.turnOff');
     const user = requireUser(ctx, input.id);
     assertMayTouch(ctx, user, undefined);
     if (user.id === ctx.authority.id) throw invalid('id', 'You cannot turn off your own account.');
@@ -285,7 +285,7 @@ export const usersReactivate = defineCall({
   input: z.object({ id: UserId }),
   output: User,
   run(input, ctx) {
-    assertCan(ctx, 'people.manage');
+    assertCan(ctx, 'people.turnOff');
     const user = requireUser(ctx, input.id);
     assertNotRemoved(user);
     assertMayTouch(ctx, user, undefined);
@@ -311,7 +311,7 @@ export const usersRemove = defineCall({
   input: z.object({ id: UserId }),
   output: User,
   run(input, ctx) {
-    assertCan(ctx, 'people.manage');
+    assertCan(ctx, 'people.remove');
     const user = requireUser(ctx, input.id);
     assertMayTouch(ctx, user, undefined);
     if (user.id === ctx.authority.id) throw invalid('id', 'You cannot remove your own account.');
@@ -384,7 +384,7 @@ export const clientsCreate = defineCall({
   }),
   output: Client,
   run(input, ctx) {
-    assertCan(ctx, 'project.create');
+    assertCan(ctx, 'client.create');
     assertClientNamed(input);
     const id = nextId(ctx.state, 'cli');
     const { initials, ...rest } = input;
@@ -407,7 +407,7 @@ export const clientsUpdate = defineCall({
   output: Client,
   run(input, ctx) {
     // A client change needs the client right (fbk_014). The Admin holds it. The office can give it to a role.
-    assertCan(ctx, 'clients.manage');
+    assertCan(ctx, 'clients.change');
     const client = ctx.state.clients[input.id];
     if (!client) throw notFound('Client', input.id);
     assertClientNamed({ ...client, ...input.patch });
@@ -434,7 +434,7 @@ export const settingsUpdate = defineCall({
   }),
   output: Settings,
   run(input, ctx) {
-    assertCan(ctx, 'admin.manage');
+    assertCan(ctx, 'office.settings');
     applyPatch(ctx, ctx.state.settings, input, { projectId: null, verb: 'settings.updated', targetType: 'settings', targetId: 'settings' });
     return ctx.state.settings;
   },

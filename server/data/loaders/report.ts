@@ -34,7 +34,7 @@ export async function reportsOffice(L: Load, input: Input): Promise<void> {
 
   await tasksOf(L, ids, DASHBOARD_TASK_FIELDS);
   await L.select({ c: 'tracker', where: [{ col: 'project_id', in: ids }] });
-  if (can(L.authority, 'payment.manage')) await L.select({ c: 'payments', where: [{ col: 'project_id', in: ids }] });
+  if (can(L.authority, 'payment.view')) await L.select({ c: 'payments', where: [{ col: 'project_id', in: ids }] });
 
   // The events of the period: created on or after the first instant of the first day, and before the first instant of the day after.
   const time: Cond[] = [{ col: 'created_at', atOrAfter: from }, { col: 'created_at', atBefore: until }];

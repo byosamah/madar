@@ -53,12 +53,16 @@ function authorityOf(ctx: ServerCallCtx): Actor {
   return withRights(ctx.office.lists, actor.kind === 'agent' ? ctx.office.lists.users[actor.ownerId!] : actor);
 }
 
-function assertManagesPeople(authority: User): void {
-  if (!can(authority, 'people.manage')) throw forbidden('Only a person with the right to manage people does this.', { action: 'people.manage' });
+/** The list of invitations opens for any people switch. The invitation itself needs the invitation switch (role rights version 2). */
+const PEOPLE_RIGHTS = ['people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove'] as const;
+
+function assertManagesPeople(authority: Actor, right: 'any' | 'people.invite'): void {
+  const holds = right === 'any' ? PEOPLE_RIGHTS.some((item) => can(authority, item)) : can(authority, right);
+  if (!holds) throw forbidden('Only a person with the right to manage people does this.', { action: right === 'any' ? PEOPLE_RIGHTS[0] : right });
 }
 
 export const usersInvites: ServerCall<'users.invites'> = async (_input, ctx) => {
-  assertManagesPeople(authorityOf(ctx));
+  assertManagesPeople(authorityOf(ctx), 'any');
   const { deps } = ctx;
   const people = Object.values(ctx.office.lists.users).filter((user) => user.kind === 'human').sort((a, b) => a.id.localeCompare(b.id));
   const { links, sent } = await deps.db.tx('read', async (q) => ({
@@ -82,7 +86,7 @@ export function createUsersResendInvite(o: { afterCommit?: (deps: Deps, ids: str
   const afterCommit = o.afterCommit ?? processOutbox;
   return async (input, ctx) => {
     const authority = authorityOf(ctx);
-    assertManagesPeople(authority);
+    assertManagesPeople(authority, 'people.invite');
     const target = ctx.office.lists.users[input.id];
     if (!target) throw notFound('Person', input.id);
     if (target.kind === 'agent') throw invalid('id', 'An agent gets no invitation. It signs in through its person.', 'invite_agent');

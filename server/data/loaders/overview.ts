@@ -59,6 +59,8 @@ export async function projectsList(L: Load, input: Input): Promise<void> {
  * the payments not yet received (owner, 2026-10-06).
  */
 export async function dashboardGet(L: Load, input: Input): Promise<void> {
+  // The handler refuses a person without the Dashboard switch, so the loader reads nothing for that person (role rights version 2).
+  if (!L.authority || !can(L.authority, 'dashboard.view')) return;
   const inFilters = peopleFilter(officeState(L), { leaderId: str(input.leaderId), clientId: str(input.clientId), teamId: str(input.teamId), subCompanyId: str(input.subCompanyId) });
   const status = str(input.status) ?? 'active';
   const inPeople = Object.values(L.office.projects).filter(inFilters);
@@ -79,7 +81,7 @@ export async function dashboardGet(L: Load, input: Input): Promise<void> {
   });
   // The money panel: the payments not yet received of every project in the people filters, whatever its status, for the people
   // who may handle payments only (owner, 2026-10-06).
-  if (L.authority && can(L.authority, 'payment.manage')) {
+  if (L.authority && can(L.authority, 'payment.view')) {
     await L.select({ c: 'payments', where: [{ col: 'project_id', in: inPeople.map((p) => p.id) }, { field: 'receivedOn', null: true }] });
   }
 }
@@ -122,7 +124,8 @@ export async function tasksList(L: Load, input: Input): Promise<void> {
 /** search.query: the first 5 tasks of active projects and the first 5 files whose search text holds the query (AM 4.9). */
 export async function searchQuery(L: Load, input: Input): Promise<void> {
   const query = normalizeForSearch(String(input.text ?? '').replace(/^[#@]+/, ''));
-  if (!query) return;
+  // The handler refuses a person without the Search switch, so the loader reads nothing for that person (role rights version 2).
+  if (!query || !L.authority || !can(L.authority, 'search.use')) return;
   const active = Object.values(L.office.projects).filter((p) => p.status === 'active').map((p) => p.id);
   // The first 5 of each kind hold the first 5 of both together, which the handler cuts again (owner, 2026-10-06).
   await L.select({ c: 'tasks', where: [{ col: 'project_id', in: active }, { col: 'search_text', contains: query }], limit: 5 });
@@ -179,7 +182,7 @@ const OFFICE_TASK_HIT = [...OFFICE_TASK_PEOPLE, 'title'] as const;
 export async function eventsList(L: Load, input: Input): Promise<void> {
   if (!L.authority) return;
   const where: Cond[] = [];
-  const hidden = [...(can(L.authority, 'payment.manage') ? [] : ['payment']), ...(can(L.authority, 'feedback.manage') ? [] : ['feedback'])];
+  const hidden = [...(can(L.authority, 'payment.view') ? [] : ['payment']), ...(can(L.authority, 'feedback.manage') ? [] : ['feedback'])];
   if (hidden.length > 0) where.push({ col: 'target_type', notIn: hidden });
   for (const [field, col] of [['projectId', 'project_id'], ['targetType', 'target_type'], ['targetId', 'target_id'], ['correlationId', 'correlation_id']] as const) {
     const value = str(input[field]);
