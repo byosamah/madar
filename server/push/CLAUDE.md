@@ -86,6 +86,11 @@ message from a notice, and the server cannot know that a window is open. The fix
    2026-10-20). One day of life: a phone with no signal for some hours still gets the line, and the topic keeps only the newest
    unsent push for each device. High: Android holds a normal push while the phone is in sleep mode (Doze) until it wakes.
    These fixes serve the Home Screen app until the store app comes.
+   **Apple gets no Topic** (`topicFor`, 2026-10-21). Apple answers `400 {"reason":"BadWebPushTopic"}` to a push with
+   `Topic: madar`, and the sender logs it only as "A push service refused a push" with the host. So no iPhone got a push from
+   2026-10-08 to 2026-10-21. A probe on the test copy posted to a real iPhone: with the Topic 400 (also with the old TTL 3600,
+   Urgency normal and a 1-hour token), with no Topic 201 (also with Urgency high and TTL 86400). A "refused" warning for
+   `web.push.apple.com` in the function logs is the first sign of this kind of fault; the answer body of Apple names the reason.
    The sender sets no `Content-Length`: a fetch POST with no body sends `Content-Length: 0` by itself. The token has `aud` = the origin of the endpoint, `exp` under 12 hours (11 hours) and `sub` = VAPID_SUBJECT.
    The fetch never follows a redirect.
 6. On the office object (exit wave 3), `sendPush` signs the VAPID token in the object and posts through `deps.pushFetch`, the
@@ -128,4 +133,5 @@ message from a notice, and the server cannot know that a window is open. The fix
   rules, the effect, the registration). The SQL itself runs on the local database in `server/it/push.it.test.ts`.
 - The Docker lock and `test:it` run the integration suite. On 2026-10-08 the SQL and the migration were also run once on an
   in-memory Postgres 18 (pglite, outside the repo), because Docker was off. The local stack runs Postgres 17, so `test:it` stays the proof.
-- Not proven on a real push service yet: only the owner's test on the test copy shows a notification on a device.
+- Proven on a real push service: desktop Chrome (team report fbk_028, 2026-10-19) and, after the Topic fix, Apple on an iPhone
+  (201 from web.push.apple.com, 2026-10-21). The phone itself shows the line only on the owner's device check.

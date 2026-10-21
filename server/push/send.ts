@@ -19,7 +19,7 @@ export type PushOutcome = 'sent' | 'gone' | 'refused';
 
 /**
  * The push service holds an unsent message for one day (the phone is off or has no signal, as on a site visit), and then drops it
- * (owner, 2026-10-20). The topic "madar" keeps only the newest unsent push for each device, so a phone that comes back gets one line.
+ * (owner, 2026-10-20). On the push services that take a topic, the topic "madar" keeps only the newest unsent push for each device.
  */
 export const PUSH_TTL_SECONDS = 86_400;
 /**
@@ -27,6 +27,15 @@ export const PUSH_TTL_SECONDS = 86_400;
  * is in sleep mode (Doze) until the phone wakes, and sends a high push at once.
  */
 const PUSH_URGENCY = 'high';
+
+/**
+ * The Topic header for one push service. Apple refuses a push with "Topic: madar" (400 {"reason":"BadWebPushTopic"}, probe on the
+ * test copy, 2026-10-21), so no iPhone got a push from 2026-10-08 to that day. Apple gets no Topic; the others keep it. The service
+ * worker shows one line for each push either way (tag madar-new).
+ */
+function topicFor(host: string): { Topic?: string } {
+  return host === 'push.apple.com' || host.endsWith('.push.apple.com') ? {} : { Topic: 'madar' };
+}
 const DEFAULT_TIMEOUT_MS = 3_000;
 
 /** A send that may work later. */
@@ -62,7 +71,7 @@ export async function sendPush(config: VapidConfig | undefined, endpoint: string
   try {
     response = await (o.fetch ?? globalThis.fetch)(endpoint, {
       method: 'POST',
-      headers: { Authorization: authorization, TTL: String(PUSH_TTL_SECONDS), Urgency: PUSH_URGENCY, Topic: 'madar' },
+      headers: { Authorization: authorization, TTL: String(PUSH_TTL_SECONDS), Urgency: PUSH_URGENCY, ...topicFor(host) },
       // A push service never needs a redirect. A redirect answer is a refusal, so the server never follows it to another host.
       redirect: 'manual',
       signal: AbortSignal.timeout(o.timeoutMs ?? DEFAULT_TIMEOUT_MS),

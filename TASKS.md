@@ -799,6 +799,11 @@ Owner: tasks and chat need notifications on the phone. These fixes serve the Hom
 - [x] Server: every push with `Urgency: high` (Android sends it at once in sleep mode) and a TTL of 1 day (was 1 hour)
 - [x] Gates: typecheck, `npm test` 8,149 passed (726 files), `npm run build`, `build:server`, `build:remote -- test`, `test:db`
   2,205 passed (27 skipped), `test:it` 325 passed (39 files)
+- [x] Test copy at 68e209d; deploy suite 206 passed, 0 failed, 13 skipped by design; phone shots EN/AR, light/dark, 390 px
+- [x] Found in the owner's hand test (2026-10-21): no iPhone ever got a push. Apple answers `400 BadWebPushTopic` to `Topic: madar`
+  (function log "A push service refused a push", host web.push.apple.com; a direct probe gave the reason). Fix: no Topic for Apple
+  (`topicFor`, `server/push/send.ts`). Probe with the fixed headers: 201. Gates: typecheck, the server project 2,745 passed;
+  `test:db` and `test:it` not run again (one header in one file, no SQL)
 - [ ] Not approved yet (owner): the push line names the kind ("New message", "A task for you") and a tap opens that chat or task.
   It changes the rule of 2026-10-08 (one fixed line with no data) and needs the encryption of the push text (RFC 8291)
 - [ ] Found: What's new shows the day "23 October" for the entries of 2026-10-20 (ids `2026-10-23-*`). Ask the owner before a change:

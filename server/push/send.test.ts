@@ -42,6 +42,19 @@ describe('sendPush', () => {
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 
+  // Probe on the test copy, 2026-10-21: Apple answered 400 {"reason":"BadWebPushTopic"} to every push with "Topic: madar", so no
+  // iPhone got a push since 2026-10-08. The same push with no Topic answered 201, with Urgency high and TTL 86400 too.
+  it('sends no Topic to Apple, which refuses one, and keeps the other headers', async () => {
+    const { fetch, seen } = stub(() => reply(201));
+    const apple = 'https://web.push.apple.com/QGuQyavXutnMHHzNLY-secret-endpoint-token';
+    expect(await sendPush(await keys(), apple, { fetch, now: () => NOW })).toBe('sent');
+    const headers = new Headers(seen[0].init.headers);
+    expect(headers.has('topic')).toBe(false);
+    expect(headers.get('urgency')).toBe('high');
+    expect(headers.get('ttl')).toBe(String(PUSH_TTL_SECONDS));
+    expect(headers.get('authorization')).toMatch(/^vapid t=/);
+  });
+
   it('counts 201 and 202 as sent', async () => {
     for (const status of [201, 202]) expect(await sendPush(await keys(), ENDPOINT, { fetch: stub(() => reply(status)).fetch, now: () => NOW }), String(status)).toBe('sent');
   });
