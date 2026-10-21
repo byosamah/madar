@@ -469,7 +469,8 @@ describe('custom roles and the office report (fbk_016)', () => {
     await t.api.call('payments.create', NEW);
     t.as('usr_017');
     const report = await t.api.call('reports.office', { period: 'year', start: '2026-01-01' });
-    expect(report.money).toEqual({ received: 0, dueInPeriod: 120000, pastDueAtEnd: 120000 });
+    // The payment is due on 10 October, after today (30 September): due in the year, not past due yet (owner, 2026-10-21).
+    expect(report.money).toEqual({ received: 0, dueInPeriod: 120000, pastDueAtEnd: 0 });
     expect(report.gaps).toBeNull();
   });
 
