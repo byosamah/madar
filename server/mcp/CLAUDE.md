@@ -157,6 +157,7 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 - Open risk (owner decision, Z7): an agent token has the person's full rights on the own endpoints of Auth.
 
 ## Tests
+- The MCP layer refuses no unknown tool argument: the zod object of the call drops it. Test a refusal on the call, not on MCP.
 - `npm run test:mcp`: the MCP tests, then the official conformance runner (`conformance.ts`, known gaps in
   `conformance-baseline.yml`).
 - The runner serves its own mcp function. Never run a shared `supabase functions serve` next to it.
