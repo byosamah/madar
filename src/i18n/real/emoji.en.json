@@ -28,5 +28,10 @@
   },
   "chat": {
     "addReaction": "Add a reaction"
+  },
+  "errors": {
+    "reasons": {
+      "reactions_full": "This message has 20 kinds of reactions. Pick one of them."
+    }
   }
 }

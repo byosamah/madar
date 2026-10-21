@@ -112,8 +112,8 @@ describe('the + of the message menu', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: 'Add a reaction' }));
     const list = await screen.findByRole('dialog', { name: 'Add a reaction' });
     await userEvent.click((await within(list).findAllByRole('button', { name: 'grinning face' }))[0]);
-    // The app shows its usual toast of a refused write (the text of the field error is the server's, the toast says it in the app's words).
-    expect(await screen.findByText('Some fields are not valid.')).toBeInTheDocument();
+    // The refusal has the reason reactions_full, so the toast says the rule (src/app/errors.ts), not only that the write failed.
+    expect(await screen.findByText('This message has 20 kinds of reactions. Pick one of them.')).toBeInTheDocument();
     expect(within(row()).queryByRole('button', { name: /React with 😀/ })).toBeNull();
   });
 

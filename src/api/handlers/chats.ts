@@ -807,7 +807,7 @@ export function toggledReactions(current: Record<string, string[]> | undefined, 
   const now: Record<string, string[]> = { ...emptyReactions(), ...current };
   const list = now[emoji] ?? [];
   if (list.length === 0 && Object.values(now).filter((ids) => ids.length > 0).length >= MAX_REACTION_KINDS) {
-    throw invalid('emoji', 'This message has the most reactions.');
+    throw invalid('emoji', 'This message has the most reactions.', 'reactions_full');
   }
   now[emoji] = list.includes(me) ? list.filter((id) => id !== me) : [...list, me];
   return Object.fromEntries(Object.entries(now).filter(([key, ids]) => ids.length > 0 || (REACTIONS as readonly string[]).includes(key)));

@@ -62,7 +62,7 @@ describe('reactions with any one emoji', () => {
     t.as('usr_003');
     for (const emoji of kinds) await t.api.call('reactions.toggle', { messageId: MESSAGE, emoji });
     const error = await failureOf(t.api.call('reactions.toggle', { messageId: MESSAGE, emoji: '🦄' }));
-    expect(error).toMatchObject({ code: 'invalid_input', message: 'This message has the most reactions.' });
+    expect(error).toMatchObject({ code: 'invalid_input', message: 'This message has the most reactions.', details: { reason: 'reactions_full' } });
     expect(t.store.state.messages[MESSAGE].reactions).not.toHaveProperty('🦄');
     // A kind that is there still toggles, and a second person joins it.
     t.as('usr_002');
