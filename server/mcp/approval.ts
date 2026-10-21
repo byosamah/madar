@@ -9,6 +9,7 @@ import { readOffice as realReadOffice } from '../data/officeCache';
 import { errorResponse, runErrorOf } from '../http/errors';
 import { readBody } from '../http/limits';
 import type { RouteDef } from '../http/routes';
+import { assertMayConnect } from './aiSwitches';
 
 /**
  * The approval that a person records in Madar for an AI app (plan 5.6; task G4; proof.md Z0a item 2 and section G4).
@@ -24,6 +25,7 @@ import type { RouteDef } from '../http/routes';
  * - The client: never from the browser. The route reads it from Auth's pending authorization of this person
  *   (madar_private.agent_authorization, 20261004000402_platform_agent_approvals.sql). An authorization that Auth already approved,
  *   denied or let expire, or that belongs to someone else, gives invalid_input with the reason authorization_ended.
+ * - The switch ai.connect: a person whose role lacks it records no approval (forbidden, reason ai_off; aiSwitches.ts).
  * - A removed agent: when the person removed the link of this client (Settings, Agents, or agents.revokeAll), the route refuses
  *   with forbidden, reason agent_removed. A removed link never links again, so the AI app must register a new client.
  *
@@ -99,6 +101,8 @@ export async function handleApprove(request: Request, deps: Deps, o: ApproveOpti
     if (!parsed.success) throw invalid('authorizationId', 'Send the authorization id of the consent screen.');
     const office = await o.readOffice(deps);
     const principal = o.principalOf(authUserId, office);
+    // Connect AI assistants off: the approval of a new connection is refused (role rights version 2).
+    assertMayConnect(office, principal.userId);
     await deps.db.tx('write', (q) => recordApproval(q, { authorizationId: parsed.data.authorizationId, authUserId, ownerId: principal.userId }));
     return Response.json({ approved: true });
   } catch (error) {
