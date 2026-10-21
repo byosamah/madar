@@ -31,6 +31,9 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
   `~/dev/madar-rb/gcal-reuse`, because `deploy-test` sat on `rb/phone-bar`). `git worktree list | grep '\[main\]'` finds it.
   `all.sh test` also ran with the sandbox off and `< /dev/null`: the prompt took yes, and the record was written.
 - After production: commit the record on main, then `git push origin main` (GitHub holds each release).
+- 2026-10-20: after the owner asked, Claude's own `echo production | scripts/deploy/all.sh production` (sandbox off, in the
+  background) passed the auto-mode check. While it ran, the check refused an unrelated read-only Bash call as
+  "Production Deploy": wait for the run to end. The push still needs the owner's `!`.
 - After a production release, tell every session that waits on main (`SendMessage`) and give it the new commit of the record.
 - The test copy keeps every mail in `mail_outbox` and sends none. Show the owner a mail change from that table.
 - Each seed empties the test copy: only the 4 sample accounts and the sample office stay. Trial data does not survive. Push

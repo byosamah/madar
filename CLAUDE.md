@@ -92,6 +92,9 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   run: run the failed files alone (`--no-file-parallelism --testTimeout=60000`) before you call a test broken.
 - Put `-u` after the test files: `vitest run -u <file>` reads the file name as the value of `-u` and runs every test in update
   mode (2026-10-20). Under a load average far above the core count, run only the folders that your change touches.
+- A gate under 5 minutes (owner rule for fast batches): `npx vitest run src/api server/mcp server/core server/data/loaders
+  server/push server/mail server/google server/jobs server/http/health.test.ts --testTimeout=60000` (217 files, about 35 s),
+  then the screen folders that the change touches (10 folders, about 90 s).
 - Port 5173 on this Mac often runs another project. Start Madar with `npx vite --host 127.0.0.1 --port 5180
   --strictPort` and check that the page title is "Madar". Run it from `deploy-test`: the main folder's `node_modules` can
   lack a new package, and the page then breaks.
@@ -217,6 +220,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   starts it again from its brief. Start a finisher in the same worktree with the commit list and the transcript
   (`subagents/workflows/<run>/agent-*.jsonl`; `agent-*.meta.json` names the label).
 - Ask each builder to write its report to a file in its worktree before it returns it, so a dropped last call loses nothing.
+- A builder that sends the same report again ("waiting on its own background work") after its work is merged: stop it with
+  `TaskStop` (2026-10-20).
 - A Workflow `scriptPath` must be inside the repo (a path in /tmp is refused): keep it untracked in the worktree, delete it after.
 - Brief parallel builders to run their test files with `--no-file-parallelism --testTimeout=60000`.
 - `npm install` in a worktree whose `node_modules` is a link puts a full folder in place of the link, so the folder behind

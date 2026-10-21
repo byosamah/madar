@@ -168,6 +168,9 @@ any screen work.
   them (`app/signals.ts`, `app/remote/channel.ts`). An answer that no screen shows stays for an hour (`keepAnswers`,
   `app/runtime.tsx`). A read of rule scope 'none', `search.query`, and an answer that a change marked go 5 minutes after
   their last screen closed. Every unseen answer goes when the office day changes.
+- A read that starts to read a new collection needs that kind in its `readMap.ts` line (2026-10-20: the chat reads read
+  `preferences`, the Admin's "What reaches me"). `readMap.test.ts` fails without it. Check the tests that use that kind as one a
+  read does not read (`signals.test.tsx`).
 - In the real build, `useAction` and `useUndoable` load the active reads that the write will change (`readsAfterWrite`,
   `app/signals.ts`, from `WRITE_KINDS` in `app/writeKinds.ts`) in the request of the write, right after it (`writeWithReads`,
   `app/runtime.tsx`). The read that shows the record of the write goes first. At most 11 reads and one overview read go. The
