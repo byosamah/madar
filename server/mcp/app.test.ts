@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type JWK, type JWTPayload } from 'jose';
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../src/api/errors';
 import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
@@ -16,6 +16,9 @@ import { agentTokenChecker, type AgentPrincipal, type AgentToken } from './auth'
 import { INSTRUCTIONS } from './docs';
 import { personGlowCss, projectColorLook, tileSvg } from '../../src/lib/pictureLook';
 import { HOP_HEADER, hopHeaderOf, hopKeyFrom } from './forward';
+import { heldRightsOfRole } from '../../src/api/rights';
+import { AI_SWITCHES, toolsOfAiSwitch } from './aiSwitches';
+import { builtInWithout, giveRole, roleWithout } from './aiRoles.testing';
 import { mcpTools } from './tools';
 
 /**
@@ -203,13 +206,13 @@ describe('suite 12: the MCP server in process', () => {
     const legacyList = async (target: World, token: string) =>
       (await post(target, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }, { Authorization: `Bearer ${token}`, 'MCP-Protocol-Version': '2025-11-25' })).body;
 
-    it('lists 53 tools and no feedback tool to an agent of a member, in both eras', async () => {
+    it('lists 49 tools and no feedback tool to an agent of a member, in both eras', async () => {
       const modern = await rpc(w, 'tools/list', {}, { token: await member() });
       const legacy = await legacyList(w, await member());
       for (const [era, result] of [['2026-07-28', modern.body.result], ['2025-11-25', legacy.result]] as const) {
         const names = (result.tools as { name: string }[]).map((t) => t.name);
-        expect(names, era).toEqual(mcpTools().map((t) => t.name));
-        expect(names, era).toHaveLength(53);
+        expect(names, era).toEqual(mcpTools({ rights: heldRightsOfRole(undefined, 'member') }).map((t) => t.name));
+        expect(names, era).toHaveLength(49);
         expect(names.filter((name) => name.startsWith('feedback.')), era).toEqual([]);
       }
     });
@@ -227,15 +230,15 @@ describe('suite 12: the MCP server in process', () => {
       expect(w.ran).toEqual(['projects.get']);
     });
 
-    it('lists 53 tools on the next request after the Admin becomes a member, and 57 again after the promotion', async () => {
+    it('lists 49 tools on the next request after the Admin becomes a member, and 57 again after the promotion', async () => {
       expect((await rpc(w, 'tools/list')).body.result.tools).toHaveLength(57);
       const admin = w.mem.tables.state.users.usr_001;
       w.mem.tables.state.users.usr_001 = { ...admin, systemRole: 'member' };
       w.mem.tables.version += 1;
       const demoted = (await rpc(w, 'tools/list')).body.result.tools as { name: string }[];
-      expect(demoted).toHaveLength(53);
+      expect(demoted).toHaveLength(49);
       expect(demoted.map((t) => t.name).filter((name) => name.startsWith('feedback.'))).toEqual([]);
-      expect((await legacyList(w, await tokenOf())).result.tools).toHaveLength(53);
+      expect((await legacyList(w, await tokenOf())).result.tools).toHaveLength(49);
       const refused = await call(w, 'feedback.list');
       expect(refused.body.error?.code).toBe(-32602);
       w.mem.tables.state.users.usr_001 = admin;
@@ -257,7 +260,7 @@ describe('suite 12: the MCP server in process', () => {
       try {
         grant(['feedback.manage']);
         const holder = await names();
-        expect(holder).toHaveLength(56);
+        expect(holder).toHaveLength(52);
         expect(holder.filter((name) => name.startsWith('feedback.'))).toEqual(['feedback.list', 'feedback.screenshot', 'feedback.setStatus']);
         // The call runs for the agent, with the rights of its person.
         const list = await call(w, 'feedback.list', {}, { token: await member() });
@@ -266,7 +269,7 @@ describe('suite 12: the MCP server in process', () => {
         // Another right, not this one: no feedback tool, and a call fails before runCall.
         grant(['gaps.view', 'subCompanies.manage', 'templates.updateProjects']);
         const other = await names();
-        expect(other).toHaveLength(53);
+        expect(other).toHaveLength(49);
         expect(other.filter((name) => name.startsWith('feedback.'))).toEqual([]);
         w.ran.length = 0;
         const refused = await call(w, 'feedback.setStatus', { id: 'fbk_001', status: 'done' }, { token: await member() });
@@ -306,6 +309,279 @@ describe('suite 12: the MCP server in process', () => {
         w.mem.tables.state.users.usr_003 = owner;
         w.mem.tables.version += 1;
       }
+    });
+  });
+
+  // Role rights version 2 (design section 5.12): each AI switch opens a group of tools. A tool whose switch the person lacks is not listed,
+  // and a call of it fails with forbidden and the reason ai_off. ai.connect off stops every request of the agents of the person.
+  describe('the AI switches of the role (role rights version 2)', () => {
+    const member = () => tokenOf({ client_id: CLIENT.member });
+    const memberHeld = heldRightsOfRole(undefined, 'member');
+    const state = () => w.mem.tables.state;
+    let restore: (() => void) | undefined;
+    /** Gives the member usr_003 a role, and bumps the office so the next request reads it. */
+    const use = (role: Parameters<typeof giveRole>[2]) => {
+      restore = giveRole(state(), 'usr_003', role);
+      w.mem.tables.version += 1;
+    };
+    afterEach(() => {
+      restore?.();
+      restore = undefined;
+      w.mem.tables.version += 1;
+    });
+    const namesOf = async (token: string) => ((await rpc(w, 'tools/list', {}, { token })).body.result.tools as { name: string }[]).map((t) => t.name);
+    const legacyCall = async (token: string, name: string, args: Record<string, unknown> = {}) =>
+      (await post(w, { jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name, arguments: args } }, { Authorization: `Bearer ${token}`, 'MCP-Protocol-Version': '2025-11-25' })).body;
+    const SWITCHES_WITH_TOOLS = AI_SWITCHES.filter((id) => id !== 'ai.connect');
+
+    it('lists the tools of a default Member and hides the tools of one AI switch that is off, for each of the 12 switches with tools', async () => {
+      const token = await member();
+      const full = await namesOf(token);
+      expect(full).toEqual(mcpTools({ rights: memberHeld }).map((t) => t.name));
+      for (const id of SWITCHES_WITH_TOOLS) {
+        use(roleWithout([id]));
+        const list = await namesOf(token);
+        const closed = toolsOfAiSwitch(id);
+        expect(closed.length, id).toBeGreaterThan(0);
+        expect(list.filter((name) => closed.includes(name)), id).toEqual([]);
+        // Only the tools of that switch go: the rest of the Member list stays, in the same order.
+        expect(list, id).toEqual(full.filter((name) => !closed.includes(name)));
+        // The tools of the other switches still run.
+        restore?.();
+        restore = undefined;
+      }
+    });
+
+    it('refuses a call of a tool whose AI switch is off with forbidden and the reason ai_off, before runCall, for each switch', async () => {
+      const token = await member();
+      for (const id of SWITCHES_WITH_TOOLS) {
+        use(roleWithout([id]));
+        const [tool] = toolsOfAiSwitch(id);
+        // No arguments at all: the switch refuses before the arguments are read.
+        const { status, body } = await call(w, tool, {}, { token });
+        expect(status, id).toBe(200);
+        expect(body.result.isError, id).toBe(true);
+        expect(body.result.structuredContent.error, id).toMatchObject({ code: 'forbidden', details: { reason: 'ai_off', right: id } });
+        expect(body.result.structuredContent.error.message, id).toContain(id);
+        expect(JSON.parse(body.result.content[0].text), id).toEqual(body.result.structuredContent);
+        restore?.();
+        restore = undefined;
+      }
+      expect(w.ran).toEqual([]);
+    });
+
+    it('names the switch in plain words, and tells the agent to stop and tell its person, in both eras', async () => {
+      use(roleWithout(['ai.todos']));
+      const token = await member();
+      const modern = (await call(w, 'tasks.create', { projectId: 'prj_001', title: 'X' }, { token })).body.result;
+      const legacy = (await legacyCall(token, 'tasks.create', { projectId: 'prj_001', title: 'X' })).result;
+      for (const [era, result] of [['2026-07-28', modern], ['2025-11-25', legacy]] as const) {
+        expect(result.isError, era).toBe(true);
+        const error = result.structuredContent.error;
+        expect(error, era).toMatchObject({ code: 'forbidden', details: { reason: 'ai_off', right: 'ai.todos' } });
+        expect(error.message, era).toContain('"AI works on to-dos" (ai.todos)');
+        expect(error.message, era).toContain('Tell your person.');
+        expect(error.message, era).toContain('Do not try another way.');
+        expect(error.message, era).not.toMatch(/[\u2013\u2014]/);
+      }
+      // A tool of another switch still runs for the same agent.
+      const read = await call(w, 'projects.get', { id: 'prj_001' }, { token });
+      expect(read.body.result.structuredContent.output.project.id).toBe('prj_001');
+      expect(w.ran).toEqual(['projects.get']);
+      // The tool was never in the list.
+      expect(await namesOf(token)).not.toContain('tasks.create');
+    });
+
+    it('lets the agent of the Admin and of a Member who holds every switch run the tool of each switch', async () => {
+      const list = await namesOf(await tokenOf());
+      for (const id of SWITCHES_WITH_TOOLS) for (const tool of toolsOfAiSwitch(id)) expect(list, tool).toContain(tool);
+      const none = await call(w, 'tasks.take', { id: 'tsk_001' });
+      expect(none.body.result.structuredContent?.error?.details?.reason).not.toBe('ai_off');
+    });
+
+    it('shows a role change on the next request: the switch back on gives the tools back', async () => {
+      const token = await member();
+      use(roleWithout(['ai.messages']));
+      expect(await namesOf(token)).not.toContain('chats.send');
+      restore?.();
+      restore = undefined;
+      w.mem.tables.version += 1;
+      expect(await namesOf(token)).toContain('chats.send');
+    });
+
+    it('hides the chat tools with ai.readChats off, keeps Search, and refuses a chat read with ai_off', async () => {
+      use(roleWithout(['ai.readChats']));
+      const token = await member();
+      const list = await namesOf(token);
+      for (const name of ['chats.list', 'chats.messages', 'chats.waiting']) expect(list, name).not.toContain(name);
+      for (const name of ['chats.send', 'chats.openDirect', 'search.query', 'comments.list']) expect(list, name).toContain(name);
+      const refused = await call(w, 'chats.waiting', {}, { token });
+      expect(refused.body.result.structuredContent.error.details).toMatchObject({ reason: 'ai_off', right: 'ai.readChats' });
+      expect(w.ran).toEqual([]);
+    });
+
+    it('closes the Undo tools with ai.undo off and keeps the History read', async () => {
+      use(roleWithout(['ai.undo']));
+      const token = await member();
+      const list = await namesOf(token);
+      expect(list).not.toContain('events.undo');
+      expect(list).not.toContain('events.undoStory');
+      expect(list).toContain('events.list');
+      const refused = await call(w, 'events.undoStory', { correlationId: 'sty_1' }, { token });
+      expect(refused.body.result.structuredContent.error.details).toMatchObject({ reason: 'ai_off', right: 'ai.undo' });
+    });
+
+    it('needs the AI switch and the right of a right tool: the payment tools of a person with the money switches and ai.payments off', async () => {
+      const token = await member();
+      // The money switches, with the AI switch on: the 4 payment tools show.
+      use(roleWithout([], ['payment.manage']));
+      const holder = await namesOf(token);
+      for (const name of ['payments.list', 'payments.create', 'payments.update', 'payments.markReceived']) expect(holder, name).toContain(name);
+      expect(holder).toHaveLength(53);
+      restore?.();
+      // The money switches, with ai.payments off: no payment tool, and a call fails with ai_off (not as an unknown tool).
+      use(roleWithout(['ai.payments'], ['payment.manage']));
+      const closed = await namesOf(token);
+      for (const name of ['payments.list', 'payments.create', 'payments.update', 'payments.markReceived']) expect(closed, name).not.toContain(name);
+      const refused = await call(w, 'payments.list', { projectId: 'prj_001' }, { token });
+      expect(refused.body.result.structuredContent.error.details).toMatchObject({ reason: 'ai_off', right: 'ai.payments' });
+      restore?.();
+      // ai.payments on, but a role without the money switches: the tool is unknown to this agent.
+      use(roleWithout([]));
+      const none = await call(w, 'payments.list', { projectId: 'prj_001' }, { token });
+      expect(none.body.error?.code).toBe(-32602);
+      expect(w.ran).toEqual([]);
+    });
+
+    it('needs the Dashboard and Search switches for their tools, and the report switch for the office report', async () => {
+      const token = await member();
+      use(roleWithout(['dashboard.view', 'workload.view', 'search.use']));
+      const list = await namesOf(token);
+      expect(list).not.toContain('dashboard.get');
+      expect(list).not.toContain('search.query');
+      expect(list).toContain('projects.list');
+      expect((await call(w, 'dashboard.get', {}, { token })).body.error?.code).toBe(-32602);
+      restore?.();
+      use(roleWithout([], ['report.office']));
+      expect(await namesOf(token)).toContain('reports.office');
+      restore?.();
+      use(roleWithout(['ai.report'], ['report.office']));
+      const off = await namesOf(token);
+      expect(off).not.toContain('reports.office');
+      const refused = await call(w, 'reports.office', { period: 'month' }, { token });
+      expect(refused.body.result.structuredContent.error.details).toMatchObject({ reason: 'ai_off', right: 'ai.report' });
+    });
+
+    it('gives the feedback tools only with the right and ai.feedback together', async () => {
+      const token = await member();
+      use(roleWithout([], ['feedback.manage']));
+      expect(await namesOf(token)).toContain('feedback.list');
+      restore?.();
+      use(roleWithout(['ai.feedback'], ['feedback.manage']));
+      expect(await namesOf(token)).not.toContain('feedback.list');
+      const refused = await call(w, 'feedback.list', {}, { token });
+      expect(refused.body.result.structuredContent.error.details).toMatchObject({ reason: 'ai_off', right: 'ai.feedback' });
+      expect(w.ran).toEqual([]);
+    });
+
+    it('gives a built-in role the same rule: Management with ai.payments off gets no payment tool but keeps the report', async () => {
+      const owner = state().users.usr_003;
+      state().users.usr_003 = { ...owner, systemRole: 'management' };
+      const undo = builtInWithout(state(), 'management', ['ai.payments']);
+      w.mem.tables.version += 1;
+      try {
+        const list = await namesOf(await member());
+        expect(list).toContain('reports.office');
+        for (const name of ['payments.list', 'payments.create', 'payments.update', 'payments.markReceived']) expect(list, name).not.toContain(name);
+        expect(list).toHaveLength(50);
+      } finally {
+        undo();
+        state().users.usr_003 = owner;
+        w.mem.tables.version += 1;
+      }
+    });
+
+    describe('Connect AI assistants off', () => {
+      it('stops every request of every agent of the person at once: discover, tools/list and tools/call, in both eras, with a clear error', async () => {
+        use(roleWithout(['ai.connect']));
+        const token = await member();
+        const answers = [
+          await rpc(w, 'server/discover', {}, { token }),
+          await rpc(w, 'tools/list', {}, { token }),
+          await call(w, 'projects.get', { id: 'prj_001' }, { token }),
+          await post(w, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }, { Authorization: `Bearer ${token}`, 'MCP-Protocol-Version': '2025-11-25' }),
+          await post(w, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'projects.get', arguments: { id: 'prj_001' } } }, { Authorization: `Bearer ${token}`, 'MCP-Protocol-Version': '2025-11-25' }),
+        ];
+        for (const [i, answer] of answers.entries()) {
+          expect(answer.status, String(i)).toBe(403);
+          expect(answer.body.error.data, String(i)).toEqual({ reason: 'ai_off' });
+          expect(answer.body.error.message, String(i)).toContain('"Connect AI assistants" (ai.connect)');
+          expect(answer.body.error.message, String(i)).toContain('Tell your person.');
+        }
+        // No call ran, and no tool call counted against the limit.
+        expect(w.ran).toEqual([]);
+        expect(w.limit.hits.size).toBe(0);
+      });
+
+      it('does not touch the agents of other people: the agent of the Admin still lists 57 tools', async () => {
+        use(roleWithout(['ai.connect']));
+        expect(await namesOf(await tokenOf())).toHaveLength(57);
+      });
+
+      it('gives the tools back when the switch is on again', async () => {
+        use(roleWithout(['ai.connect']));
+        expect((await rpc(w, 'tools/list', {}, { token: await member() })).status).toBe(403);
+        restore?.();
+        restore = undefined;
+        w.mem.tables.version += 1;
+        expect(await namesOf(await member())).toHaveLength(49);
+      });
+
+      it('refuses a person who is not in the office with no switch at all', async () => {
+        const owner = state().users.usr_003;
+        delete (state().users as Record<string, unknown>).usr_003;
+        w.mem.tables.version += 1;
+        try {
+          const answer = await rpc(w, 'tools/list', {}, { token: await member() });
+          expect(answer.status).toBe(403);
+        } finally {
+          state().users.usr_003 = owner;
+          w.mem.tables.version += 1;
+        }
+      });
+    });
+
+    describe('madar.readFirst', () => {
+      const readFirst = async (token: string) => {
+        const { body } = await call(w, 'madar.readFirst', {}, { token });
+        return body.result.content[0].text as string;
+      };
+
+      it('lists the AI switches of a default Member: all on, none off, and the Undo of other agents on the projects the person leads', async () => {
+        const text = await readFirst(await member());
+        expect(text.startsWith(INSTRUCTIONS)).toBe(true);
+        expect(text).toContain('AI switches that are on: Connect AI assistants (ai.connect), AI reads work data (ai.readWork)');
+        expect(text).toContain('AI undoes changes (ai.undo).');
+        expect(text).toContain('AI switches that are off: none.');
+        expect(text).toContain('You take back the changes of the agents of other people on: the projects your person leads.');
+      });
+
+      it('lists the switches that are off with the tools that each one closes', async () => {
+        use(roleWithout(['ai.payments', 'ai.undo', 'ai.undoOthers.lead']));
+        const text = await readFirst(await member());
+        expect(text).toContain('AI handles payments (ai.payments), which closes payments.list, payments.create, payments.update, payments.markReceived');
+        expect(text).toContain('AI undoes changes (ai.undo), which closes events.undo, events.undoStory');
+        expect(text).toContain('Do not try a tool that is closed. Tell your person.');
+        expect(text).not.toContain('AI switches that are off: none.');
+        expect(text).toContain('on: none.');
+        expect(text).not.toMatch(/AI switches that are on:[^\n]*AI handles payments/);
+      });
+
+      it('says every project to the agent of the Admin', async () => {
+        const text = await readFirst(await tokenOf());
+        expect(text).toContain('You take back the changes of the agents of other people on: every project.');
+        expect(text).toContain('AI switches that are off: none.');
+      });
     });
   });
 

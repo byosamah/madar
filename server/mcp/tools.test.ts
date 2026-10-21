@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { SERVER_CALL_NAMES, serverContracts } from '../../src/api/contract/server';
 import { sharedCalls } from '../../src/api/sharedCalls';
 import { recordSamples } from '../../scripts/record-samples';
-import { INSTRUCTIONS, TOOL_DOCS, readFirstAnswer } from './docs';
+import { AI_SWITCH_LABELS, AI_SWITCHES } from './aiSwitches';
+import { INSTRUCTIONS, TOOL_DOCS, aiSwitchLines, readFirstAnswer } from './docs';
+import { heldRightsOfRole } from '../../src/api/rights';
 import { expandRights } from '../../src/api/rightsCatalog';
 import { MCP_ADMIN, MCP_ALLOW, MCP_BY_RIGHT, MCP_DENY, NO_CALL_TOOLS, READ_FIRST, mcpTools } from './tools';
 
@@ -23,20 +25,30 @@ function makeAjv(): Ajv2020 {
 }
 
 describe('the MCP tool list (plan 5.6, change 20)', () => {
-  /** The tools of an agent whose person is not an Admin, and of an agent of an Admin (owner, 2026-10-07). */
-  const tools = mcpTools();
+  /** The rights of a default Member: the tools of an agent of a Member, and of an agent of an Admin (owner, 2026-10-07). */
+  const memberHeld = heldRightsOfRole(undefined, 'member');
+  const tools = mcpTools({ rights: memberHeld });
   const adminTools = mcpTools({ admin: true });
-  /** The tools that an office right opens: reports.office (fbk_016) and the 3 tools of requests and bugs (role-rights, 2026-10-23). */
+  /** The tools that an office right opens (role rights version 2, 2026-10-21; the feedback right, role-rights 2026-10-23). */
   const rightTools = Object.keys(MCP_BY_RIGHT);
+  const paymentTools = ['payments.list', 'payments.create', 'payments.update', 'payments.markReceived'];
   const feedbackTools = ['feedback.list', 'feedback.screenshot', 'feedback.setStatus'];
   const allowAndAdmin = [...MCP_ALLOW, ...MCP_ADMIN, ...rightTools];
+  /** The rights of a default Member plus more ids (an old id expands to its new ids). */
+  const heldPlus = (...extra: string[]) => [...memberHeld, ...expandRights(extra)];
 
-  it('has the 53 tools of the allowlist, each once', () => {
-    expect(MCP_ALLOW).toHaveLength(53);
-    expect(new Set(MCP_ALLOW).size).toBe(53);
+  it('has the 47 tools of the allowlist, each once', () => {
+    expect(MCP_ALLOW).toHaveLength(47);
+    expect(new Set(MCP_ALLOW).size).toBe(47);
     // An agent takes a task with no lead for its person (owner, 2026-10-05).
     expect(MCP_ALLOW).toContain('tasks.take');
-    expect(tools.map((tool) => tool.name).sort()).toEqual([...MCP_ALLOW].sort());
+    // The base list (no right asked) is the allowlist.
+    expect(mcpTools().map((tool) => tool.name).sort()).toEqual([...MCP_ALLOW].sort());
+  });
+
+  it('gives an agent of a default Member 49 tools: the allowlist, the Dashboard and Search (role rights version 2)', () => {
+    expect(tools).toHaveLength(49);
+    expect(tools.map((tool) => tool.name).sort()).toEqual([...MCP_ALLOW, 'dashboard.get', 'search.query'].sort());
   });
 
   it('keeps live.ticket from every agent (exit wave 3): an agent opens no socket', () => {
@@ -69,12 +81,12 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     // No tool is left on the Admin list: the 3 tools moved to the right list, so a role can hold them.
     expect([...MCP_ADMIN]).toEqual([]);
     for (const name of feedbackTools) expect(MCP_BY_RIGHT[name as keyof typeof MCP_BY_RIGHT], name).toBe('feedback.manage');
-    expect(tools).toHaveLength(53);
     expect(tools.filter((tool) => tool.name.startsWith('feedback.'))).toEqual([]);
     expect(adminTools).toHaveLength(57);
     expect(adminTools.map((tool) => tool.name).sort()).toEqual([...allowAndAdmin].sort());
-    // The default list is the Admin list without the right tools, in the same order.
-    const rest = adminTools.map((tool) => tool.name).filter((name) => !rightTools.includes(name));
+    // The list of a Member is the Admin list without the tools of the rights that a Member lacks, in the same order.
+    const lacking = [...paymentTools, 'reports.office', ...feedbackTools];
+    const rest = adminTools.map((tool) => tool.name).filter((name) => !lacking.includes(name));
     expect(tools.map((tool) => tool.name)).toEqual(rest);
     // A report comes in from the screens only: an agent never sends one or starts its upload.
     for (const name of ['feedback.send', 'feedback.uploadStart']) expect(MCP_DENY).toContain(name);
@@ -83,31 +95,36 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
   it('gives the 3 tools of requests and bugs to a person with the feedback right and to nobody else (role-rights)', () => {
     const names = (rights: Parameters<typeof mcpTools>[0]) => mcpTools(rights).map((tool) => tool.name);
     // The feedback right alone adds exactly the 3 tools to the default list.
-    const holder = names({ rights: ['feedback.manage'] });
-    expect(holder).toHaveLength(56);
+    const holder = names({ rights: heldPlus('feedback.manage') });
+    expect(holder).toHaveLength(52);
     for (const name of feedbackTools) expect(holder, name).toContain(name);
     expect(holder).not.toContain('reports.office');
     // Every other right, and all the rights but this one, leave the 3 tools out.
-    const others = expandRights(['people.manage', 'payment.manage', 'report.office', 'gaps.view', 'subCompanies.manage', 'templates.updateProjects', 'project.editAny', 'task.changeAny', 'agents.undoAny']);
+    const others = heldPlus('people.manage', 'payment.manage', 'report.office', 'gaps.view', 'subCompanies.manage', 'templates.updateProjects', 'project.editAny', 'task.changeAny', 'agents.undoAny');
     for (const name of feedbackTools) {
       expect(names({ rights: others }), name).not.toContain(name);
       expect(names({}), name).not.toContain(name);
     }
+    // The AI switch also counts: the feedback right without ai.feedback gives no tool.
+    expect(names({ rights: heldPlus('feedback.manage').filter((id) => id !== 'ai.feedback') })).not.toContain('feedback.list');
     // The Admin list holds them.
     for (const name of feedbackTools) expect(names({ admin: true }), name).toContain(name);
   });
 
   // Owner, 2026-10-18 (fbk_016): the office report is for the people who hold the report right (Admin and Management by default).
   it('gives reports.office only to an agent whose person holds the report right, and explains the design guide', () => {
-    expect(rightTools).toEqual(['reports.office', ...feedbackTools]);
+    expect(rightTools).toEqual([...paymentTools, 'dashboard.get', 'search.query', 'reports.office', ...feedbackTools]);
     expect(MCP_BY_RIGHT['reports.office']).toBe('report.office');
     expect(MCP_ALLOW as readonly string[]).not.toContain('reports.office');
     expect(MCP_DENY as readonly string[]).not.toContain('reports.office');
     expect(tools.map((tool) => tool.name)).not.toContain('reports.office');
-    // Accounting holds only the payment right, so its agent gets the default list.
-    expect(mcpTools({ rights: expandRights(['payment.manage']) }).map((tool) => tool.name)).toEqual(tools.map((tool) => tool.name));
-    // Management, with its default rights, gets one more tool: 54 in all.
-    const management = mcpTools({ rights: expandRights(['people.manage', 'payment.manage', 'report.office']) });
+    // Accounting holds the payment switches and no report right: the Member list plus the 4 payment tools, 53 in all.
+    const accounting = mcpTools({ rights: heldRightsOfRole(undefined, 'accounting') });
+    expect(accounting).toHaveLength(53);
+    expect(accounting.map((tool) => tool.name)).not.toContain('reports.office');
+    expect(accounting.map((tool) => tool.name)).toEqual(adminTools.map((tool) => tool.name).filter((name) => !feedbackTools.includes(name) && name !== 'reports.office'));
+    // Management, with its default rights, gets the report too: 54 in all.
+    const management = mcpTools({ rights: heldRightsOfRole(undefined, 'management') });
     expect(management).toHaveLength(54);
     expect(management.map((tool) => tool.name)).toContain('reports.office');
     expect(management.map((tool) => tool.name)).toEqual(adminTools.map((tool) => tool.name).filter((name) => !feedbackTools.includes(name)));
@@ -116,7 +133,7 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     expect(adminTools.find((tool) => tool.name === 'reports.office')!.readOnly).toBe(true);
     expect(adminTools.find((tool) => tool.name === 'reports.office')!.takesStory).toBe(false);
     const doc = TOOL_DOCS['reports.office'].description;
-    for (const word of ['design', 'white page', 'payment right']) expect(doc, word).toContain(word);
+    for (const word of ['design', 'white page', 'payment.view', 'report.office']) expect(doc, word).toContain(word);
     expect(doc).not.toMatch(/[\u2013\u2014]/);
     const line = INSTRUCTIONS.split('\n').find((text) => text.startsWith('Reports: '));
     expect(line).toBeDefined();
@@ -161,7 +178,7 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     expect([...allow, ...admin, ...right, ...deny].filter((name) => !NO_CALL_TOOLS.has(name) && !callNames.includes(name))).toEqual([]);
     expect(deny.size).toBe(MCP_DENY.length);
     expect(admin.size).toBe(0);
-    expect(right.size).toBe(4);
+    expect(right.size).toBe(10);
   });
 
   it('never allows a call that the server does not run', () => {
@@ -177,7 +194,7 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
       const rest = names.slice(2);
       expect(rest).toEqual([...rest].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
     }
-    expect(mcpTools().map((tool) => tool.name)).toEqual(tools.map((tool) => tool.name));
+    expect(mcpTools({ rights: memberHeld }).map((tool) => tool.name)).toEqual(tools.map((tool) => tool.name));
     expect(mcpTools({ admin: true }).map((tool) => tool.name)).toEqual(adminTools.map((tool) => tool.name));
     // The feedback tools sort between events.undoStory and files.list.
     const names = adminTools.map((tool) => tool.name);
@@ -202,8 +219,8 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
       expect(tool.annotations.openWorldHint, tool.name).toBe(false);
       if (!readOnly) expect(typeof tool.annotations.destructiveHint, tool.name).toBe('boolean');
     }
-    expect(tools.filter((tool) => tool.readOnly)).toHaveLength(22);
-    // feedback.list and feedback.screenshot are reads of an agent of an Admin, and reports.office is a read of the report right.
+    expect(tools.filter((tool) => tool.readOnly)).toHaveLength(21);
+    // payments.list, feedback.list and feedback.screenshot are reads of an agent of an Admin, and reports.office is a read of the report right.
     expect(adminTools.filter((tool) => tool.readOnly)).toHaveLength(25);
     for (const name of ['feedback.list', 'feedback.screenshot']) expect(adminTools.find((tool) => tool.name === name)!.annotations.readOnlyHint, name).toBe(true);
     // An undo can remove a record, so the client may ask its person first.
@@ -217,9 +234,9 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
       expect(tool.annotations.destructiveHint, tool.name).toBe(!additive.includes(tool.name));
     }
     for (const name of ['payments.update', 'projects.setStatus', 'tasks.update', 'tracker.close']) {
-      expect(tools.find((tool) => tool.name === name)!.annotations.destructiveHint, name).toBe(true);
+      expect(adminTools.find((tool) => tool.name === name)!.annotations.destructiveHint, name).toBe(true);
     }
-    expect(tools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(23);
+    expect(tools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(21);
     expect(adminTools.filter((tool) => !tool.readOnly && tool.annotations.destructiveHint)).toHaveLength(24);
     expect(tools.find((tool) => tool.name === 'tasks.take')!.annotations.destructiveHint).toBe(true);
     // A done change sends the sender a notice, so the client may ask its person first.
@@ -295,6 +312,29 @@ describe('the written instructions (plan 5.6; spec 1, section 17)', () => {
     expect(added).toContain('Accounting');
     expect(added).toContain('act for');
     expect(readFirstAnswer({ name: 'Omar', systemRole: 'admin' })).toContain('Admin');
+  });
+
+  it('adds the AI switches of the person to the answer of madar.readFirst, in three short lines (role rights version 2)', () => {
+    const person = { name: 'Sara Ali', systemRole: 'member' as const };
+    const member = heldRightsOfRole(undefined, 'member');
+    const answer = readFirstAnswer(person, undefined, member);
+    const added = answer.slice(INSTRUCTIONS.length).trim().split('\n');
+    expect(added).toHaveLength(4);
+    expect(added[0]).toContain('You act for Sara Ali');
+    expect(added[1]).toBe('AI switches that are on: ' + AI_SWITCHES.map((id) => `${AI_SWITCH_LABELS[id]} (${id})`).join(', ') + '.');
+    expect(added[2]).toBe('AI switches that are off: none.');
+    expect(added[3]).toBe('You take back the changes of the agents of other people on: the projects your person leads.');
+    // A switch that is off shows with the tools that it closes. The Undo scopes change the last line.
+    const without = member.filter((id) => id !== 'ai.todos' && id !== 'ai.undoOthers.lead');
+    const text = aiSwitchLines(without);
+    expect(text).toContain('AI works on to-dos (ai.todos), which closes tasks.create, tasks.update, tasks.complete');
+    expect(text).toContain('Do not try a tool that is closed. Tell your person.');
+    expect(text.split('\n')[2]).toBe('You take back the changes of the agents of other people on: none.');
+    expect(aiSwitchLines(heldRightsOfRole(undefined, 'member').concat(['ai.undoOthers.all'])).split('\n')[2]).toContain('every project');
+    expect(aiSwitchLines([])).toContain('AI switches that are on: none.');
+    for (const line of [answer, text]) expect(line).not.toMatch(/[\u2013\u2014]/);
+    // The answer of a call with no rights is the old answer.
+    expect(readFirstAnswer(person).split('\n').slice(-1)[0]).toContain('whose role in Madar is Member.');
   });
 
   it('names the custom role of a Member with the name of that role, and the built-in role otherwise (fbk_014)', () => {

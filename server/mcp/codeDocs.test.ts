@@ -16,13 +16,13 @@ describe('the agent docs of the project code (owner, 2026-10-05, item 6b)', () =
     }
   });
 
-  it('say in projects.update that the code right corrects the code, by default only the Admin (fbk_014)', () => {
-    expect(TOOL_DOCS['projects.update'].description).toContain('needs the code right (by default only the Admin)');
+  it('say in projects.update that the switch project.code corrects the code, by default only the Admin (fbk_014)', () => {
+    expect(TOOL_DOCS['projects.update'].description).toContain('"code" needs project.code (by default only the Admin)');
   });
 
-  it('say in the instructions that the code right corrects the code, by default only the Admin (fbk_014)', () => {
+  it('say in the instructions that the switch project.code corrects the code, by default only the Admin (fbk_014)', () => {
     const line = INSTRUCTIONS.split('\n').find((text) => text.startsWith('Project codes:'))!;
-    expect(line).toContain('needs the code right (by default only the Admin)');
+    expect(line).toContain('needs the switch "Correct the project code" (project.code), which only the Admin holds by default');
   });
 
   it('give the agent the code field in the projects.update schema, with both forms and a code of its own', () => {

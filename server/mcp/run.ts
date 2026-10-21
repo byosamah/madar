@@ -3,6 +3,7 @@ import type { Deps } from '../core/ports';
 import type { RunCall } from '../core/runCall';
 import type { OfficeSnapshot, Principal, RunError, RunResult } from '../core/types';
 import type { RoleSettings } from '../../src/api/contract/entities';
+import { rightsOf } from '../../src/api/rights';
 import { readFirstAnswer, roleNameOf } from './docs';
 import { PICTURES_GET, runPicture, withPictureLooks, WITH_PICTURES_TOOLS, type PictureAnswer } from './pictures';
 import { READ_FIRST, type ToolDef } from './tools';
@@ -27,7 +28,7 @@ export async function runTool(tool: ToolDef, args: Record<string, unknown>, ctx:
     const agent = ctx.office.lists.users[ctx.principal.userId];
     const person = agent?.ownerId ? ctx.office.lists.users[agent.ownerId] : undefined;
     if (!person) return { ok: false, error: { code: 'unauthenticated', message: 'This agent has no active person to act for.', details: { reason: 'account_off' } } };
-    return { ok: true, output: readFirstAnswer(person, ctx.office.lists.settings.roles), changed: false };
+    return { ok: true, output: readFirstAnswer(person, ctx.office.lists.settings.roles, rightsOf(person, ctx.office.lists.settings.roles)), changed: false };
   }
   if (tool.name === PICTURES_GET) return runPicture(args, ctx);
   // withPictures belongs to the tool, not to the call (owner, 2026-10-21).
