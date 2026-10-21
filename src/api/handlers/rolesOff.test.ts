@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setNow } from '../../lib/dates';
 import { makeUser, NOW, testApi } from '../../test/factories';
-import type { Event } from '../contract/entities';
+import type { Event, RoleSettings } from '../contract/entities';
 import { rightsOf } from '../rights';
 import { BASIC_ON, DEFAULT_EXTRA } from '../rightsCatalog';
 import { historyCalls } from './history';
@@ -164,9 +164,9 @@ describe('the Undo of a role change', () => {
 
 describe('the old stored forms', () => {
   it('reads a built-in role stored with people.manage, a custom role with no off, and a Member with extras', () => {
-    const roles = {
+    const roles: RoleSettings = {
       rights: { management: ['people.manage', 'payment.manage'], member: ['project.editCode'] },
-      custom: [{ id: 'rol_001', name: 'Cashier', nameAr: 'أمين الصندوق', rights: ['payment.manage'] as never }],
+      custom: [{ id: 'rol_001', name: 'Cashier', nameAr: 'أمين الصندوق', rights: ['payment.manage'] }],
     };
     const management = makeUser('usr_006', { systemRole: 'management' });
     expect(rightsOf(management, roles)).toHaveLength(64 + 9);
