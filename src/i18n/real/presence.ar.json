@@ -11,5 +11,17 @@
     "showAway": "أظهرني بعيدًا عن الشاشة",
     "showAway_female": "أظهرني بعيدةً عن الشاشة",
     "faceLabel": "{{name}}، {{state}}"
+  },
+  "chat": {
+    "seen": "قرأها",
+    "seen_female": "قرأتها",
+    "seenBy_one": "قرأها شخص واحد",
+    "seenBy_two": "قرأها شخصان",
+    "seenBy_few": "قرأها {{count}} أشخاص",
+    "seenBy_many": "قرأها {{count}} شخصًا",
+    "seenBy_other": "قرأها {{count}} شخص",
+    "seenByAll": "قرأها الجميع",
+    "seenByTitle": "من قرأها",
+    "seenBy": "قرأها {{count}} شخص"
   }
 }

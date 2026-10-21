@@ -6,5 +6,11 @@
     "awayByYou": "Away (set by you)",
     "showAway": "Show me as Away",
     "faceLabel": "{{name}}, {{state}}"
+  },
+  "chat": {
+    "seen": "Seen",
+    "seenByAll": "Seen by everyone",
+    "seenByTitle": "Seen by",
+    "seenBy": "Seen by {{count}}"
   }
 }

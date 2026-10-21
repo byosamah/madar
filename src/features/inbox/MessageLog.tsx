@@ -10,6 +10,7 @@ import { MessageBubble, type Bubble } from './MessageBubble';
 import { isNearBottom, scrollTopFor } from './logScroll';
 import { firstUnreadId } from './newLine';
 import { runStarts } from './runs';
+import { SeenLine, type SeenInfo } from './SeenLine';
 
 /**
  * The label of a day in a log: Today, Yesterday, or the long day in the screen language. The message log and the task panel both use it.
@@ -45,6 +46,8 @@ export type MessageLogProps = {
   focusId?: string | null;
   /** Runs once, right after the log scrolled to the focus message. */
   onFocused?: () => void;
+  /** The seen information of a chat (chat presence design C). A task thread leaves it out and shows no Seen line. */
+  seen?: SeenInfo;
 };
 
 /** How long the soft frame of the focus message stays. */
@@ -55,7 +58,7 @@ export const FRAME_MS = 1000;
  * the log has an "Earlier messages" control; its page goes above the shown messages, and the scroll keeps its distance from the
  * bottom, so the message the person reads stays in place.
  */
-export function MessageLog({ bubbles, resetKey, emptyText, earlier, readUpTo, unreadAtOpen, focusId, onFocused }: MessageLogProps) {
+export function MessageLog({ bubbles, resetKey, emptyText, earlier, readUpTo, unreadAtOpen, focusId, onFocused, seen }: MessageLogProps) {
   const { t } = useTranslation();
   const dayLabel = useDayLabel();
   const region = useRef<HTMLDivElement>(null);
@@ -92,6 +95,11 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier, readUpTo, un
   }, [bubbles, sentSinceOpen, unreadAtOpen, readUpTo, newestAtFirst]);
   // The messages of one person within 5 minutes form a run (design item 2): only the first shows the face and the name.
   const starts = useMemo(() => runStarts(bubbles, newLineId), [bubbles, newLineId]);
+  // The Seen line sits under the last own message, and only when that message is saved (design C3). A message that waits shows none.
+  const seenId = useMemo(() => {
+    const last = seen ? bubbles.findLast((b) => b.mine && !b.line && !b.reason) : undefined;
+    return last && last.status === undefined ? last.id : null;
+  }, [bubbles, seen]);
   const focusPresent = focusId != null && bubbles.some((b) => b.id === focusId);
   const toBottom = (log: HTMLElement) => {
     log.scrollTop = log.scrollHeight;
@@ -205,6 +213,7 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier, readUpTo, un
               )]
               : []),
             <MessageBubble key={bubble.id} bubble={bubble} runStart={starts.has(bubble.id)} namesMe={bubble.namesMe ?? false} framed={bubble.id === framedId} fresh={!first.has(bubble.id) && Date.parse(bubble.createdAt) > newestAtFirst} />,
+            ...(seen && bubble.id === seenId ? [<SeenLine key="seen-line" info={seen} since={bubble.createdAt} />] : []),
           ]),
         ])}
       </ol>

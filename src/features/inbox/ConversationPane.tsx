@@ -9,6 +9,7 @@ import type { ChatRow, CommentView, GroupLine, MessageView, ReplyRef, UserCard }
 import { useUndoable } from '../../app/actions';
 import { usePageVisible } from '../../app/usePageVisible';
 import { usePersonName } from '../../app/personName';
+import { useActive } from '../../app/live/activity';
 import { usePersonState } from '../../app/live/hooks';
 import { useAction, useCall, useRuntime } from '../../app/runtime';
 import { useStableHandler } from '../../app/useStableHandler';
@@ -37,6 +38,7 @@ import { ChatDropArea } from './ChatDrop';
 import { bubbleOfOutgoing, cardOfUser, newOutboxKey, refusedByOutbox, useOutbox, usePaneOpen } from './outbox';
 import { nowStamp } from '../../lib/dates';
 import { NewerMessages } from './NewerMessages';
+import type { SeenInfo } from './SeenLine';
 
 /**
  * The head of a pane. The title is a plain string: the `<bdi>` inside the heading is the element that cuts (`block truncate`), never the
@@ -196,14 +198,18 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   // open, a mark from its menu or from another device stays, also when the tab shows again: after the first look, only a message that is
   // newer than the read time marks the chat read.
   const looked = useRef(false);
+  // The seen time (chat presence design C4) moves only for a look in use: the chat is open, in view, and the person used Madar in the last
+  // 10 minutes. An idle screen still reads the chat (no flag), and the first key after the pause sends the flag. The times compare as instants.
+  const active = useActive();
+  const seenBehind = newestAt !== undefined && (data?.seenUpTo == null || Date.parse(newestAt) > Date.parse(data.seenUpTo));
   useEffect(() => {
     if (!opened || !visible) return;
     const first = !looked.current;
     looked.current = true;
-    if (behind || (first && unread > 0)) markRead.mutate({ conversationId: id });
-    // The mutation object changes on every render. Only a new count of unread messages, a newer message than the read time, or the tab
-    // that shows, matters here.
-  }, [id, unread, opened, visible, behind]);
+    if (behind || (first && unread > 0) || (active && seenBehind)) markRead.mutate({ conversationId: id, ...(active ? { seen: true } : {}) });
+    // The mutation object changes on every render. Only a new count of unread messages, a newer message than the read time, a newer one
+    // than the seen time, the tab that shows, or the person who is in use again, matters here.
+  }, [id, unread, opened, visible, behind, active, seenBehind]);
   if (thread.error) return <div className="p-4"><LoadFailed error={thread.error} onRetry={() => void thread.refetch()} /></div>;
   if (!data || !mark) return <div className="flex-1" aria-busy="true" />;
   const { chat } = data;
@@ -233,6 +239,10 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   const title = chat.kind === 'direct' && chat.person ? nameOf(chat.person) : chat.title;
   // The window of an old message ends before the newest message: the newest page is the chat without the mark in its link.
   const newer = data.newer;
+  // The Seen line under the last own message (chat presence design C). A person who left closes the chat, so a direct chat shows it still.
+  const seen: SeenInfo | undefined = chat.kind === 'task' ? undefined : {
+    kind: chat.kind, readers: data.seen, others: data.others, people: data.people, ...(chat.kind === 'direct' && actorContext(chat.person) ? { context: 'female' as const } : {}),
+  };
   const showNewest = () => navigate(chatLink(id), { replace: true });
   return (
     <ChatDropArea note={chat.kind === 'project' ? t('chat.dropProject') : t('chat.dropChat')}>
@@ -246,7 +256,7 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
       />
       <BubbleActionsContext.Provider value={actions}>
         <EditingContext.Provider value={editingId}>
-          <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} readUpTo={mark.readUpTo} unreadAtOpen={mark.unread} focusId={focusId} onFocused={() => setFocusId(null)} />
+          <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} readUpTo={mark.readUpTo} unreadAtOpen={mark.unread} focusId={focusId} onFocused={() => setFocusId(null)} seen={seen} />
         </EditingContext.Provider>
       </BubbleActionsContext.Provider>
       {newer && <NewerMessages onShow={showNewest} />}
