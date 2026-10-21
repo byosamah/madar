@@ -181,7 +181,9 @@ any screen work.
   `app/signals.ts`, from `WRITE_KINDS` in `app/writeKinds.ts`) in the request of the write, right after it (`writeWithReads`,
   `app/runtime.tsx`). The read that shows the record of the write goes first. At most 11 reads and one overview read go. The
   own pass of `connectChanges` does not reload a read that answered there. The success steps of the action run after those
-  reads, plus one task. The prototype sends the write alone (performance audit FET-3).
+  reads, plus one task. The prototype sends the write alone (performance audit FET-3). The Realtime frame of the own write can come
+  before the own answer: `connectChanges` keeps its id (`echoes`) until the answer names it, so the pass stays "own" and one save
+  sends one request (LV-2, 2026-10-21). A gap of the seq, a join and an id that no own answer names keep the pass mixed.
 - A Realtime channel that joins sends its empty list with the origin 'join'. `connectChanges` waits 100 ms after a join
   (`joinMs`) for the other channel and for any signal, then reloads every list in one pass. A change of the prototype store
   still reloads at once.

@@ -538,6 +538,108 @@ describe('the own pass after a write with reads in its request (performance audi
   });
 });
 
+describe('the echo of the own write that comes before the own answer (performance audit 2026-10-21, LV-2)', () => {
+  const TASK = { id: 'tsk_001' };
+  const LIST = { projectId: 'prj_001' };
+  const kinds: Kind[] = ['tasks', 'events'];
+  /** The office signal and the own person signal of one save: the same id, as the server sends them. */
+  const save = () => {
+    const office = sig({ kinds, projects: ['prj_001'], actorId: ME });
+    const person: ChangeSignal = { ...office, channel: `person:${ME}`, people: [ME] };
+    return { office, person };
+  };
+  /** A read that ran after the write in its request, with the tag of its follow step. */
+  async function followed(app: ReturnType<typeof setup>) {
+    const task = app.show('tasks.get', TASK, { task: { projectId: 'prj_001' } });
+    const list = app.show('tasks.list', LIST);
+    await settle();
+    const tag = {};
+    await app.follow('tasks.get', TASK, tag);
+    await app.follow('tasks.list', LIST, tag);
+    const fresh = { tag, reads: [{ name: 'tasks.get', input: TASK }, { name: 'tasks.list', input: LIST }] };
+    return { task, list, fresh };
+  }
+
+  it('does not reload the reads of the follow step when the signals of Realtime come before the own answer', async () => {
+    const app = setup();
+    const { task, list, fresh } = await followed(app);
+    const { office, person } = save();
+    app.send([office], 'channel');
+    app.send([person], 'channel');
+    app.send([office, person], 'own', fresh);
+    await settle();
+    expect([task(), list()]).toEqual([2, 2]);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect([task(), list()]).toEqual([2, 2]);
+    app.stop();
+  });
+
+  it('does the same when only the office signal came first, and when the signals come after the own answer', async () => {
+    const app = setup();
+    const { task, list, fresh } = await followed(app);
+    const first = save();
+    app.send([first.office], 'channel');
+    app.send([first.office, first.person], 'own', fresh);
+    await settle();
+    expect([task(), list()]).toEqual([2, 2]);
+    // The echo after the answer names nothing new: it neither reloads nor blocks the next own pass.
+    app.send([first.office], 'channel');
+    app.send([first.person], 'channel');
+    const second = save();
+    const tag = {};
+    await app.follow('tasks.list', LIST, tag);
+    app.send([second.office, second.person], 'own', { tag, reads: [{ name: 'tasks.list', input: LIST }] });
+    await settle();
+    expect(list()).toBe(3);
+    app.stop();
+  });
+
+  it('reloads every read the signals name when a signal of another change waits in the same pass', async () => {
+    const app = setup();
+    const { task, list, fresh } = await followed(app);
+    const { office, person } = save();
+    app.send([sig({ kinds: ['tasks'], projects: ['prj_001'] })], 'channel');
+    app.send([office, person], 'channel');
+    app.send([office, person], 'own', fresh);
+    await settle();
+    expect([task(), list()]).toEqual([3, 3]);
+    app.stop();
+  });
+
+  it('reloads every read the signals name after a gap of the seq, or a channel that joined', async () => {
+    const gap = setup();
+    const a = await followed(gap);
+    const one = save();
+    // The office channel counted 1, and the echo of the own write comes with 5: signals were lost, so every list reloads.
+    gap.send([{ ...sig({ kinds: ['clients'], office: true }), seq: 1 }], 'channel');
+    gap.send([{ ...one.office, seq: 5 }], 'channel');
+    gap.send([{ ...one.office, seq: 5 }], 'own', a.fresh);
+    await settle();
+    expect(a.list()).toBe(3);
+    gap.stop();
+
+    const joined = setup();
+    const b = await followed(joined);
+    const two = save();
+    joined.send([two.office], 'channel');
+    joined.send([], 'join');
+    joined.send([two.office, two.person], 'own', b.fresh);
+    await settle();
+    expect([b.task(), b.list()]).toEqual([3, 3]);
+    joined.stop();
+  });
+
+  it('reloads a read when the own answer names another save than the signal of Realtime', async () => {
+    const app = setup();
+    const { list, fresh } = await followed(app);
+    app.send([save().office], 'channel');
+    app.send([save().office, save().person], 'own', fresh);
+    await settle();
+    expect(list()).toBe(3);
+    app.stop();
+  });
+});
+
 describe('the reads that a write will change (performance audit FET-3)', () => {
   const ROW = (id: string) => ({ task: { id, projectId: 'prj_001' } });
 

@@ -31,7 +31,7 @@ import { WRITE_KINDS } from './writeKinds';
  * rule and the screens, over a fake server that runs the prototype handlers of each request in order, as the batch route does.
  */
 
-type Office = { userId: string; refuse?: (name: string) => boolean };
+type Office = { userId: string; refuse?: (name: string) => boolean; echoFirst?: boolean };
 
 /** The real build of the screens over a fake server on the sample office. requests: the call names of each request, in order. */
 async function remoteOffice(o: Office) {
@@ -61,6 +61,8 @@ async function remoteOffice(o: Office) {
             people: [o.userId], storyId: result.storyId, actorId: o.userId,
           };
           entry.signals = [signal];
+          // Realtime tells the own screen too, and its frame can come before the answer (performance audit 2026-10-21, LV-2).
+          if (o.echoFirst) for (const listener of [...listeners]) listener([signal], 'channel');
         }
         results.push(entry);
       } catch (error) {
@@ -152,6 +154,31 @@ describe('a save shows its result with its own answer (performance audit FET-3)'
     // The own signals reload nothing more: both reads already hold the answer of after the write.
     expect(office.requests).toHaveLength(2);
     expect(screen.getByText(`Detail: ${after}`)).toBeInTheDocument();
+  });
+
+  it('asks nothing more also when the signal of Realtime comes before the own answer (LV-2: one save, one request)', async () => {
+    const office = await remoteOffice({ userId: 'usr_002', echoFirst: true });
+    const task = tickable(office.state, 'usr_002');
+    const LIST = { projectId: task.projectId, activeProjectsOnly: false };
+    function Panel() {
+      const detail = useCall('tasks.get', { id: task.id });
+      const list = useCall('tasks.list', LIST);
+      const complete = useAction('tasks.complete');
+      return (
+        <>
+          <p>Detail: {detail.data?.task.status}</p>
+          <p>Rows: {list.data?.length}</p>
+          <button type="button" onClick={() => complete.mutate({ id: task.id })}>Finish</button>
+        </>
+      );
+    }
+    render(office.wrap(<Panel />));
+    expect(await screen.findByText(/^Detail: (todo|in_progress)$/)).toBeInTheDocument();
+    await quiet();
+    fireEvent.click(screen.getByRole('button', { name: 'Finish' }));
+    await waitFor(() => expect(office.requests).toHaveLength(2));
+    await quiet();
+    expect(office.requests).toEqual([['tasks.get', 'tasks.list'], ['tasks.complete', 'tasks.get', 'tasks.list']]);
   });
 
   it('keeps the filled circle of a ticked row until the row leaves the list (the circle no longer goes empty first)', async () => {
