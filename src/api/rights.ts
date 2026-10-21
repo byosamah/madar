@@ -1,20 +1,20 @@
 import type { CustomRole, OfficeRight, RoleSettings, User } from './contract/entities';
 import { type Actor, OFFICE_RIGHTS } from './permissions';
-import { BASIC_ON, DEFAULT_EXTRA, expandRights, withNeeds } from './rightsCatalog';
+import { BASIC_ON, DEFAULT_EXTRA, dropUnmetNeeds, expandRights } from './rightsCatalog';
 import type { State } from './store';
 
 /**
  * The office rights of each person (owner, 2026-10-18, fbk_014; 112 switches since role rights version 2, 2026-10-21). The Admin holds
  * every switch. Management, Accounting and Member hold BASIC_ON, minus the switches that the office settings turn off (`off`), plus the
  * extra switches that the settings give the role (`rights`, or the defaults of rightsCatalog.ts). A custom role holds what its record
- * says. A switch that needs another switch brings it (withNeeds), so a stored list never holds a dependant without its need.
+ * says. A stored switch whose need is off counts as off (dropUnmetNeeds, fail closed): "Connect AI assistants" off turns every AI switch off.
  */
 
 export type BuiltInRole = 'management' | 'accounting' | 'member';
 
-/** The switches that a list of stored ids and a list of turned-off basics give: BASIC_ON minus off, plus the expanded extras, plus needs. */
+/** The switches that a list of stored ids and a list of turned-off basics give: BASIC_ON minus off, plus the expanded extras, minus the switches whose need is off. */
 function heldFrom(off: readonly string[], extra: readonly string[]): OfficeRight[] {
-  return withNeeds([...BASIC_ON.filter((id) => !off.includes(id)), ...expandRights(extra)]);
+  return dropUnmetNeeds([...BASIC_ON.filter((id) => !off.includes(id)), ...expandRights(extra)]);
 }
 
 /** The switches that a built-in role holds, from the office settings. A role without a setting holds its default. */
@@ -30,7 +30,7 @@ function builtInRights(role: BuiltInRole, roles: RoleSettings | undefined): Offi
 export function heldRightsOfRole(roles: RoleSettings | undefined, role: BuiltInRole | CustomRole): readonly OfficeRight[] {
   if (typeof role === 'string') return builtInRights(role, roles);
   if (role.off !== undefined) return heldFrom(role.off, role.rights);
-  return withNeeds([...builtInRights('member', roles), ...expandRights(role.rights)]);
+  return dropUnmetNeeds([...builtInRights('member', roles), ...expandRights(role.rights)]);
 }
 
 /** The office rights of one person, from the office settings. */

@@ -764,6 +764,25 @@ export function expandRights(stored: readonly string[]): CatalogRightId[] {
 }
 
 /** The ids with the switches they need added, transitively. Each id once, in the order of the catalog. */
+/**
+ * The switches that stay when a stored list is read: a switch whose need on ANOTHER power is not in the list counts as off, again and again
+ * until no switch drops (fail closed). Example: "Connect AI assistants" off turns every AI switch off. A need between two scopes of one power
+ * ("Every project" needs "Projects I lead") does not drop: "Every project" covers the projects the person leads, and an old role with the
+ * right to delete any project holds only "Every project". The role sheet uses withNeeds when a person turns a switch on.
+ */
+function crossNeed(id: CatalogRightId, need: CatalogRightId): boolean {
+  return RIGHT_INFO[id].power !== RIGHT_INFO[need].power;
+}
+
+export function dropUnmetNeeds(ids: readonly CatalogRightId[]): CatalogRightId[] {
+  const out = new Set<CatalogRightId>(ids);
+  for (let again = true; again; ) {
+    again = false;
+    for (const id of [...out]) if (RIGHT_NEEDS[id].some((need) => crossNeed(id, need) && !out.has(need))) { out.delete(id); again = true; }
+  }
+  return CATALOG_RIGHT_IDS.filter((id) => out.has(id));
+}
+
 export function withNeeds(ids: readonly CatalogRightId[]): CatalogRightId[] {
   const out = new Set<CatalogRightId>(ids);
   for (let again = true; again; ) {

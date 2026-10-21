@@ -91,21 +91,24 @@ describe('rightsOf: the office rights of each person (role rights version 2)', (
     expect(rights).toContain('task.add.office');
   });
 
-  it('adds the switches that a held switch needs, so a stored list never holds a dependant alone', () => {
-    // payment.add needs payment.view. task.any.all needs task.any.lead, which `off` turned off: the need brings it back.
+  it('drops a stored switch whose need on another power is off, and keeps a scope whose narrower sibling is off', () => {
+    // payment.add needs payment.view, which the role does not hold: payment.add counts as off. task.any.all stays without task.any.lead:
+    // "Every project" covers the projects the person leads.
     const roles: RoleSettings = { rights: { member: ['payment.add', 'task.any.all'] }, off: { member: ['task.any.lead'] } };
     const rights = rightsOf(member, roles);
-    expect(rights).toContain('payment.view');
-    expect(rights).toContain('task.any.lead');
-    // Every ai switch needs ai.connect, and ai.undoOthers.all needs ai.undoOthers.lead too.
+    expect(rights).not.toContain('payment.add');
+    expect(rights).not.toContain('payment.view');
+    expect(rights).toContain('task.any.all');
+    expect(rights).not.toContain('task.any.lead');
+    // Every ai switch needs ai.connect: with ai.connect off, no AI switch stays.
     const second: RoleSettings = { rights: { member: ['ai.undoOthers.all'] }, off: { member: ['ai.connect'] } };
-    expect(rightsOf(member, second)).toEqual(expect.arrayContaining(['ai.connect', 'ai.undoOthers.lead', 'ai.undoOthers.all']));
+    expect(rightsOf(member, second).filter((id) => id.startsWith('ai.'))).toEqual([]);
   });
 
   it('gives a custom role with no `off` the Member switches and its own: the meaning of before', () => {
     const roles: RoleSettings = { custom: [customRole] };
     const rights = rightsOf({ ...member, roleId: 'rol_001' }, roles);
-    expect(sorted(rights)).toEqual(sorted([...BASIC_ON, ...PAY, 'project.delete.lead', 'project.delete.all']));
+    expect(sorted(rights)).toEqual(sorted([...BASIC_ON, ...PAY, 'project.delete.all']));
     // A change of the Member list reaches this kind of role.
     const withMember: RoleSettings = { custom: [customRole], rights: { member: ['clients.change'] }, off: { member: ['chat.direct'] } };
     const next = rightsOf({ ...member, roleId: 'rol_001' }, withMember);
@@ -183,7 +186,7 @@ describe('resolveAuthority and executeParsed give the rights of the person the c
     state.users.usr_003 = { ...state.users.usr_003, roleId: 'rol_001' };
     return state;
   };
-  const expected = sorted([...BASIC_ON, ...PAY, 'project.delete.lead', 'project.delete.all']);
+  const expected = sorted([...BASIC_ON, ...PAY, 'project.delete.all']);
 
   it('attaches the rights of the authority from the office settings', () => {
     const { authority } = resolveAuthority(roleState(), 'usr_003', probe);
@@ -211,5 +214,31 @@ describe('resolveAuthority and executeParsed give the rights of the person the c
     const actor = withOfficeRights({ ...management }, undefined);
     expect(actor.id).toBe('usr_006');
     expect(can(actor, 'report.office')).toBe(true);
+  });
+});
+
+describe('a stored switch whose need is off counts as off (fail closed, role rights version 2)', () => {
+  it('turns off every AI switch when Connect AI assistants is off, also when the other AI switches stay stored as on', () => {
+    const roles: RoleSettings = { off: { member: ['ai.connect'] } };
+    const held = heldRightsOfRole(roles, 'member');
+    expect(held).not.toContain('ai.connect');
+    expect(held.filter((id) => id.startsWith('ai.'))).toEqual([]);
+  });
+
+  it('drops a payment switch whose need See payments is off', () => {
+    const role: CustomRole = { id: 'rol_900', name: 'Clerk', nameAr: '', rights: ['payment.add', 'payment.receive'], off: [] };
+    const held = heldRightsOfRole(undefined, role);
+    expect(held).not.toContain('payment.add');
+    expect(held).not.toContain('payment.receive');
+  });
+
+  it('keeps a switch whose need is held', () => {
+    const role: CustomRole = { id: 'rol_901', name: 'Cashier', nameAr: '', rights: ['payment.view', 'payment.add'], off: [] };
+    expect(heldRightsOfRole(undefined, role)).toEqual(expect.arrayContaining(['payment.view', 'payment.add']));
+  });
+
+  it('keeps an "Every project" switch whose "Projects I lead" switch is off: it covers the projects the person leads', () => {
+    const role: CustomRole = { id: 'rol_902', name: 'Coordinator', nameAr: '', rights: ['task.any.all'], off: ['task.any.lead'] };
+    expect(heldRightsOfRole(undefined, role)).toContain('task.any.all');
   });
 });
