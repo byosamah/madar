@@ -9,9 +9,12 @@ import type { ChatRow, CommentView, GroupLine, MessageView, ReplyRef, UserCard }
 import { useUndoable } from '../../app/actions';
 import { usePageVisible } from '../../app/usePageVisible';
 import { usePersonName } from '../../app/personName';
-import { useAction, useCall } from '../../app/runtime';
+import { useActive } from '../../app/live/activity';
+import { usePersonState } from '../../app/live/hooks';
+import { useTypingSender } from '../../app/live/typing';
+import { useAction, useCall, useRuntime } from '../../app/runtime';
 import { useStableHandler } from '../../app/useStableHandler';
-import { Avatar } from '../../components/Avatar';
+import { PersonFace } from '../../components/PersonFace';
 import { EmptyState } from '../../components/EmptyState';
 import { LoadFailed } from '../../components/LoadFailed';
 import { Menu, type MenuItem } from '../../components/Menu';
@@ -36,6 +39,8 @@ import { ChatDropArea } from './ChatDrop';
 import { bubbleOfOutgoing, cardOfUser, newOutboxKey, refusedByOutbox, useOutbox, usePaneOpen } from './outbox';
 import { nowStamp } from '../../lib/dates';
 import { NewerMessages } from './NewerMessages';
+import type { SeenInfo } from './SeenLine';
+import { TypingLine } from './TypingLine';
 
 /**
  * The head of a pane. The title is a plain string: the `<bdi>` inside the heading is the element that cuts (`block truncate`), never the
@@ -58,6 +63,12 @@ function Header({ lead, title, subtitle, action, twoLines = false }: { lead: Rea
       {action}
     </header>
   );
+}
+
+/** The state of the other person of a direct chat, in words (chat presence design A4). It reads this person alone. */
+function PersonStateLine({ person }: { person: UserCard }) {
+  const { t } = useTranslation();
+  return <>{t(`presence.${usePersonState(person.id)}`, { context: actorContext(person) })}</>;
 }
 
 function bubbleOfMessage(view: MessageView): Bubble {
@@ -102,6 +113,7 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const navigate = useNavigate();
+  const { live } = useRuntime();
   const session = useCall('session.get', {});
   const [sheet, setSheet] = useState<GroupMode | null>(null);
   const thread = useCall('chats.messages', { conversationId: id, ...(focusFromRoute ? { around: focusFromRoute } : {}) });
@@ -110,6 +122,8 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   const editMessage = useAction('chats.editMessage');
   const deleteMessage = useStableHandler(useDeleteMessage());
   const archive = useArchive();
+  // The typing signal of the person for this chat (chat presence design B6). A task thread has none.
+  const typing = useTypingSender(id);
   const data = thread.data;
   const people = data?.people ?? NO_PEOPLE;
   const meId = session.data?.authority.id ?? '';
@@ -188,14 +202,18 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   // open, a mark from its menu or from another device stays, also when the tab shows again: after the first look, only a message that is
   // newer than the read time marks the chat read.
   const looked = useRef(false);
+  // The seen time (chat presence design C4) moves only for a look in use: the chat is open, in view, and the person used Madar in the last
+  // 10 minutes. An idle screen still reads the chat (no flag), and the first key after the pause sends the flag. The times compare as instants.
+  const active = useActive();
+  const seenBehind = newestAt !== undefined && (data?.seenUpTo == null || Date.parse(newestAt) > Date.parse(data.seenUpTo));
   useEffect(() => {
     if (!opened || !visible) return;
     const first = !looked.current;
     looked.current = true;
-    if (behind || (first && unread > 0)) markRead.mutate({ conversationId: id });
-    // The mutation object changes on every render. Only a new count of unread messages, a newer message than the read time, or the tab
-    // that shows, matters here.
-  }, [id, unread, opened, visible, behind]);
+    if (behind || (first && unread > 0) || (active && seenBehind)) markRead.mutate({ conversationId: id, ...(active ? { seen: true } : {}) });
+    // The mutation object changes on every render. Only a new count of unread messages, a newer message than the read time, a newer one
+    // than the seen time, the tab that shows, or the person who is in use again, matters here.
+  }, [id, unread, opened, visible, behind, active, seenBehind]);
   if (thread.error) return <div className="p-4"><LoadFailed error={thread.error} onRetry={() => void thread.refetch()} /></div>;
   if (!data || !mark) return <div className="flex-1" aria-busy="true" />;
   const { chat } = data;
@@ -208,7 +226,7 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
         <GroupPicture id={chat.id} size={40} />
       </button>
     )
-    : chat.person ? <Avatar user={chat.person} size={40} /> : null;
+    : chat.person ? <PersonFace user={{ ...chat.person, active: !chat.personLeft }} size={40} /> : null;
   // A direct chat with an inactive person says so and takes no new messages (audit 2026-10-03, SHL-15).
   // "Inactive" is the word Admin uses for the same state (audit 2026-10-03, V-25).
   const context = actorContext(chat.person);
@@ -218,10 +236,17 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
         {t('chat.people', { count: data.people.length + 1 })}
       </button>
     )
-    : chat.kind === 'project' ? t('chat.projectChat') : chat.personLeft ? t('chat.inactive', { context }) : t('chat.directChat');
+    : chat.kind === 'project' ? t('chat.projectChat')
+      : chat.personLeft ? t('chat.inactive', { context })
+        // With a live port the line says whether the person is here. Without one the old line stays, because every person would read Offline.
+        : live && chat.person ? <PersonStateLine person={chat.person} /> : t('chat.directChat');
   const title = chat.kind === 'direct' && chat.person ? nameOf(chat.person) : chat.title;
   // The window of an old message ends before the newest message: the newest page is the chat without the mark in its link.
   const newer = data.newer;
+  // The Seen line under the last own message (chat presence design C). A person who left closes the chat, so a direct chat shows it still.
+  const seen: SeenInfo | undefined = chat.kind === 'task' ? undefined : {
+    kind: chat.kind, readers: data.seen, others: data.others, people: data.people, ...(chat.kind === 'direct' && actorContext(chat.person) ? { context: 'female' as const } : {}),
+  };
   const showNewest = () => navigate(chatLink(id), { replace: true });
   return (
     <ChatDropArea note={chat.kind === 'project' ? t('chat.dropProject') : t('chat.dropChat')}>
@@ -235,32 +260,37 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
       />
       <BubbleActionsContext.Provider value={actions}>
         <EditingContext.Provider value={editingId}>
-          <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} readUpTo={mark.readUpTo} unreadAtOpen={mark.unread} focusId={focusId} onFocused={() => setFocusId(null)} />
+          <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} readUpTo={mark.readUpTo} unreadAtOpen={mark.unread} focusId={focusId} onFocused={() => setFocusId(null)} seen={seen} />
         </EditingContext.Provider>
       </BubbleActionsContext.Provider>
       {newer && <NewerMessages onShow={showNewest} />}
       {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{isGroup ? t('chat.groupAlone') : t('chat.closed')}</p> : (
-        <Composer
-          id={id}
-          people={data.people}
-          pending={false}
-          // A project chat joins the files of its project. A direct chat or a group keeps its files in the chat (owner, 2026-10-19).
-          upload={chat.kind === 'project' ? (chat.project ? { projectId: chat.project.id } : undefined) : { projectId: null, conversationId: id }}
-          replyTo={replyTo}
-          onCancelReply={() => setReplyTo(null)}
-          onEditLast={editLast}
-          onSend={(body, fileIds, clear) => {
-            const input = { conversationId: id, body, fileIds, ...(replyTo ? { replyToId: replyTo.id } : {}) };
-            const key = newOutboxKey();
-            outbox.add({ key, input, body, replyTo, at: nowStamp(), seen: new Set(messages.map((view) => view.message.id)), failed: false });
-            // The box is free at once: the next message does not wait for this one.
-            clear();
-            setReplyTo(null);
-            // A chat opened at an old message goes to its newest messages, where the sent message shows (item 17).
-            if (newer) showNewest();
-            send.mutate(input, { onSuccess: (view) => outbox.markSaved(key, view.message.id) });
-          }}
-        />
+        <>
+          {live && <TypingLine conversationId={id} />}
+          <Composer
+            id={id}
+            people={data.people}
+            pending={false}
+            // A project chat joins the files of its project. A direct chat or a group keeps its files in the chat (owner, 2026-10-19).
+            upload={chat.kind === 'project' ? (chat.project ? { projectId: chat.project.id } : undefined) : { projectId: null, conversationId: id }}
+            replyTo={replyTo}
+            onCancelReply={() => setReplyTo(null)}
+            onEditLast={editLast}
+            onTextChange={typing.changed}
+            onSend={(body, fileIds, clear) => {
+              const input = { conversationId: id, body, fileIds, ...(replyTo ? { replyToId: replyTo.id } : {}) };
+              const key = newOutboxKey();
+              typing.stop();
+              outbox.add({ key, input, body, replyTo, at: nowStamp(), seen: new Set(messages.map((view) => view.message.id)), failed: false });
+              // The box is free at once: the next message does not wait for this one.
+              clear();
+              setReplyTo(null);
+              // A chat opened at an old message goes to its newest messages, where the sent message shows (item 17).
+              if (newer) showNewest();
+              send.mutate(input, { onSuccess: (view) => outbox.markSaved(key, view.message.id) });
+            }}
+          />
+        </>
       )}
       {isGroup && <GroupSheets id={id} mode={sheet} onMode={setSheet} name={chat.title} people={data.people} me={session.data?.authority} makerId={chat.makerId} />}
     </ChatDropArea>

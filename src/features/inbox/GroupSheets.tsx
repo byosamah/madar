@@ -5,7 +5,7 @@ import type { UserCard } from '../../api/contract/views';
 import { useByPersonName, usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
-import { Avatar } from '../../components/Avatar';
+import { PersonFace } from '../../components/PersonFace';
 import { Button } from '../../components/Button';
 import { TextField } from '../../components/Fields';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
@@ -53,7 +53,7 @@ function PeopleSheet({ id, people, me, makerId, onMode, onClose }: {
           return (
             <li key={person.id} className="flex items-center gap-1">
               <div className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-1.5">
-                <Avatar user={person} size={36} />
+                <PersonFace user={person} size={36} />
                 <span className="flex min-w-0 flex-col">
                   <bdi className="truncate text-subheadline font-medium text-ink">{nameOf(person)}</bdi>
                   {notes.length > 0 && <span className="truncate text-footnote text-ink-2">{notes.join(' · ')}</span>}
@@ -123,7 +123,7 @@ function AddSheet({ id, people, meId, onClose }: { id: string; people: UserCard[
               onClick={() => toggle(person.id)}
               className={`pressable flex min-h-11 w-full items-center gap-3 rounded-xl px-2 py-1.5 text-start hover:bg-fill/50 ${picked.includes(person.id) ? 'bg-fill' : ''}`}
             >
-              <Avatar user={person} size={36} />
+              <PersonFace user={person} size={36} />
               <bdi className="truncate text-subheadline font-medium text-ink">{nameOf(person)}</bdi>
               {picked.includes(person.id) && <AnimatedIcon icon={CheckIcon} size={20} aria-hidden className="ms-auto size-5 shrink-0 text-accent" />}
             </button>

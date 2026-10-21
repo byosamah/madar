@@ -1,0 +1,41 @@
+{
+  "presence": {
+    "online": "متصل",
+    "online_female": "متصلة",
+    "away": "بعيد عن الشاشة",
+    "away_female": "بعيدة عن الشاشة",
+    "offline": "غير متصل",
+    "offline_female": "غير متصلة",
+    "awayByYou": "بعيد عن الشاشة، باختيارك",
+    "awayByYou_female": "بعيدة عن الشاشة، باختيارك",
+    "showAway": "أظهرني بعيدًا عن الشاشة",
+    "showAway_female": "أظهرني بعيدةً عن الشاشة",
+    "faceLabel": "{{name}}، {{state}}"
+  },
+  "chat": {
+    "seen": "قرأها",
+    "seen_female": "قرأتها",
+    "seenBy_one": "قرأها شخص واحد",
+    "seenBy_two": "قرأها شخصان",
+    "seenBy_few": "قرأها {{count}} أشخاص",
+    "seenBy_many": "قرأها {{count}} شخصًا",
+    "seenBy_other": "قرأها {{count}} شخص",
+    "seenByAll": "قرأها الجميع",
+    "seenByTitle": "من قرأها",
+    "seenBy": "قرأها {{count}} شخص",
+    "typingOne": "{{name}} يكتب...",
+    "typingOne_female": "{{name}} تكتب...",
+    "typingTwo": "{{a}} و{{b}} يكتبان...",
+    "typingMany": "عدة أشخاص يكتبون...",
+    "typingRow": "يكتب...",
+    "typingRow_female": "تكتب..."
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-80": {
+        "title": "من هنا، ومن قرأ رسالتك",
+        "body": "تعرض المحادثة من هو متصل ومن يكتب الآن. وتعرض من قرأ رسالتك الأخيرة. اضغط زر الوجه الضاحك لتضيف إيموجي إلى رسالتك. اضغط + على رسالة لتتفاعل معها بأي إيموجي."
+      }
+    }
+  }
+}

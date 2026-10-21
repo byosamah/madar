@@ -1,0 +1,28 @@
+{
+  "presence": {
+    "online": "Online",
+    "away": "Away",
+    "offline": "Offline",
+    "awayByYou": "Away (set by you)",
+    "showAway": "Show me as Away",
+    "faceLabel": "{{name}}, {{state}}"
+  },
+  "chat": {
+    "seen": "Seen",
+    "seenByAll": "Seen by everyone",
+    "seenByTitle": "Seen by",
+    "seenBy": "Seen by {{count}}",
+    "typingOne": "{{name}} is typing...",
+    "typingTwo": "{{a}} and {{b}} are typing...",
+    "typingMany": "Several people are typing...",
+    "typingRow": "typing..."
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-80": {
+        "title": "Who is here, and who saw it",
+        "body": "The chat shows who is online and who is typing. It also shows who saw your last message. Press the smiley button to add an emoji to a message. Press + on a message to react with any emoji."
+      }
+    }
+  }
+}

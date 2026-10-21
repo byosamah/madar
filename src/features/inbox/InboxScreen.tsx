@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router';
 import { useByPersonName, usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
-import { Avatar } from '../../components/Avatar';
+import { PersonFace } from '../../components/PersonFace';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
@@ -104,7 +104,7 @@ function NewMessage({ open, onOpenChange }: { open: boolean; onOpenChange: (open
               onClick={() => (grouping ? toggle(person.id) : openChat.mutate({ userId: person.id }))}
               className={`pressable flex min-h-11 w-full items-center gap-3 rounded-xl px-2 py-1.5 text-start hover:bg-fill/50 ${grouping && picked.includes(person.id) ? 'bg-fill' : ''}`}
             >
-              <Avatar user={person} size={36} />
+              <PersonFace user={person} size={36} />
               <span className="flex min-w-0 flex-col">
                 <bdi className="truncate text-subheadline font-medium text-ink">{nameOf(person)}</bdi>
                 <span className="truncate text-footnote text-ink-2">{person.discipline}</span>
