@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FEED_VERBS } from '../../src/api/views';
 import type { Query } from '../core/ports';
 import type { Select } from '../data/loaders/query';
-import { selectSql, sqlSource } from '../data/loaders/sqlSource';
+import { countSql, selectSql, sqlSource } from '../data/loaders/sqlSource';
 import { grantServerRole } from '../test/global-setup';
 import { applyMigrations, dropSchema, localClient } from './migrate';
 
@@ -61,12 +61,25 @@ from generate_series(1, 500) i;
 insert into comments (id, doc, project_id)
 select pid('cmt', i), jsonb_build_object('id', pid('cmt', i), 'body', 'Check item ' || i, 'authorId', hum(i * 7), 'targetType', 'task',
   'targetId', pid('tsk', 1 + (i * 7919) % 1000), 'createdAt', stamp(timestamptz '2026-06-01 09:00+03' + ((i * 37) % 150000 || ' minutes')::interval)), null
-from generate_series(1, 6000) i;
+from generate_series(1, 20000) i;
 insert into messages (id, doc)
 select pid('msg', i), jsonb_build_object('id', pid('msg', i), 'body', 'Message ' || i, 'authorId', hum(i * 11), 'actingForId', hum(i * 11),
-  'mentions', '[]'::jsonb, 'fileIds', '[]'::jsonb, 'conversationId', pid('cnv', 1 + i % 100),
+  'mentions', '[]'::jsonb, 'fileIds', '[]'::jsonb, 'conversationId', pid('cnv', 1 + i % 75),
   'createdAt', stamp(timestamptz '2026-06-01 09:00+03' + ((i * 35) % 150000 || ' minutes')::interval))
-from generate_series(1, 6000) i;
+from generate_series(1, 15000) i;
+-- The notices of the Inbox: 2,000 for each of 15 people, one in ten unread (performance audit DB-9, perf2).
+insert into notifications (id, doc)
+select pid('ntf', i), jsonb_build_object('id', pid('ntf', i), 'userId', hum(i), 'read', (i % 10) <> 0, 'trigger', 'task_assigned', 'targetType', 'task',
+  'targetId', pid('tsk', 1 + i % 1000), 'createdAt', stamp(timestamptz '2026-01-01 09:00+03' + ((i * 17) % 400000 || ' minutes')::interval), 'correlationId', 'sty_n' || i)
+from generate_series(1, 30000) i;
+-- The report verbs of the Reports screen, a few in every hundred events (performance audit DB-10, perf2).
+insert into events (id, doc)
+select pid('evt', 100000 + i), jsonb_build_object('id', pid('evt', 100000 + i), 'seq', 100000 + i,
+  'verb', (array['project.stage_changed', 'project.status_changed', 'project.paused', 'task.approved', 'task.sent_back'])[1 + i % 5],
+  'after', jsonb_build_object('status', 'completed'), 'before', null, 'actorId', hum(i), 'actingForId', hum(i), 'actorKind', 'human',
+  'targetType', 'project', 'targetId', pid('prj', 1 + i % 50), 'projectId', pid('prj', 1 + i % 50), 'undoneBy', null,
+  'createdAt', stamp(timestamptz '2026-01-01 10:00+03' + (i * 5 || ' hours')::interval), 'correlationId', 'sty_r' || i)
+from generate_series(1, 1200) i;
 analyze;
 `;
 
@@ -129,6 +142,7 @@ describe('the read indexes on growth data', () => {
     const { rows: indexes } = await db.query('select indexname from pg_indexes where schemaname = $1', [schema]);
     expect(indexes.map((row) => row.indexname)).toEqual(expect.arrayContaining([
       'events_created_c', 'events_project_created', 'messages_conversation_newest', 'comments_target_id', 'events_target_id',
+      'comments_author_task', 'notifications_inbox_c', 'events_report_verbs',
     ]));
   });
 
@@ -175,5 +189,45 @@ describe('the read indexes on growth data', () => {
     const nodes = await planOf(lookup);
     expect(nodes.some((n) => n['Index Name'] === 'comments_target_id' || n['Index Name'] === 'comments_target')).toBe(true);
     expect(scans(nodes, 'comments')).toBe(false);
+  });
+
+  it('DB-5 (perf2): counts the unread messages of each chat with one index read for each key, never a scan of every message', async () => {
+    const chats = Array.from({ length: 40 }, (_, i) => `cnv_${String(i + 1).padStart(3, '0')}`);
+    const by = Object.fromEntries(chats.map((id) => [id, { gt: '2026-06-02T00:00:00' }]));
+    const count = countSql({
+      c: 'messages', per: 'conversation_id',
+      where: [{ bounds: { col: 'conversation_id', by } }, { field: 'deletedAt', null: true }, { field: 'authorId', notIn: ['usr_005'] }, { field: 'actingForId', notIn: ['usr_005'] }],
+    });
+    const nodes = await planOf(count);
+    expect(scans(nodes, 'messages')).toBe(false);
+    expect(nodes.some((n) => n['Index Name'] === 'messages_conversation_newest')).toBe(true);
+  });
+
+  it('DB-6 (perf2): finds the comments of the person in the thread statement on comments_author_task, with no scan of every comment', async () => {
+    const [threads] = await statementsOf((s) => s.threads({ owner: 'usr_005', led: ['prj_005'], me: ['usr_005'], limit: 100, admin: false }));
+    const nodes = await planOf(threads);
+    expect(uses(nodes, 'comments_author_task')).toBe(true);
+  });
+
+  it('DB-9 (perf2): reads the newest 100 read notices of a person on notifications_inbox_c, with no sort of every notice', async () => {
+    const list = selectSql({
+      c: 'notifications', where: [{ col: 'user_id', in: ['usr_005'] }, { col: 'read', eq: true }], order: { col: 'created_at', desc: true, id: true }, limit: 100,
+    });
+    const nodes = await planOf(list);
+    expect(uses(nodes, 'notifications_inbox_c')).toBe(true);
+    expect(scans(nodes, 'notifications')).toBe(false);
+    // The one sort left is the last "order by ord" of the 100 rows that the read keeps.
+    expect(nodes.slice(1).filter((n) => n['Node Type'] === 'Sort')).toEqual([]);
+    const unread = await planOf(selectSql({ c: 'notifications', where: [{ col: 'user_id', in: ['usr_005'] }, { col: 'read', eq: false }] }));
+    expect(uses(unread, 'notifications_inbox_c')).toBe(true);
+  });
+
+  it('DB-10 (perf2): counts the report verbs of a year on the partial index events_report_verbs', async () => {
+    const year = [{ col: 'created_at', atOrAfter: '2026-01-01T00:00:00+03:00' }, { col: 'created_at', atBefore: '2027-01-01T00:00:00+03:00' }] as const;
+    const stage = await planOf(countSql({ c: 'events', per: 'verb', where: [{ col: 'verb', in: ['project.stage_changed'] }, ...year] }));
+    expect(uses(stage, 'events_report_verbs')).toBe(true);
+    const reviews = await planOf(selectSql({ c: 'events', where: [{ col: 'verb', in: ['task.approved', 'task.sent_back'] }, ...year], pick: ['id', 'verb'] }));
+    expect(uses(reviews, 'events_report_verbs')).toBe(true);
+    expect(scans(reviews, 'events')).toBe(false);
   });
 });

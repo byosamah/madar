@@ -96,12 +96,19 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - A Select with `per`, a limit and a top-level in-list on the `per` column reads each key with a LATERAL subquery on the index
   of that key (`fetch first n rows with ties` for ties, else `limit n`). Every other Select with a limit keeps the `rank()` or
   `row_number()` window form. Both forms give the same rows in the same order (`sqlSource.ts`, `selectSql`).
+- A Select with a limit, no `per`, no ties and an order that ends with the id (`order.id`) takes the plain LIMIT form: one key of an
+  in-list reads as an equality, the order is the order columns and the id (no `t.ord`), and the outer `order by x.ord` keeps the row
+  order. An index in that order then gives the first rows with no sort (the Inbox list, `notifications_inbox_c`; perf2 DB-9).
+- The perf2 indexes (`20261022000300_read_indexes_perf2.sql`): `comments_author_task` (the threads statement), `notifications_inbox_c`
+  (it replaces `notifications_inbox`: the unread read and the newest read ones, in text order), and the partial index
+  `events_report_verbs` (the five report verbs, for `reports.office`). `readIndexes.it.test.ts` pins each plan.
 - A field pick (`Select.pick`) builds the doc with `jsonb_build_object` of the picked keys minus the keys that the doc does not
   hold, so an absent field stays absent. The key names go in one array parameter, never in the SQL text. A pick of more than
   50 keys keeps `jsonb_each` (Postgres takes at most 100 arguments in a function call).
 - `atOrAfter` (`events.list` since) adds a text lower bound on `created_at collate "C"`: the UTC text of the time minus 36
   hours. The timestamptz test still decides, so the bound never removes a row. A count with a bounds condition on its `per`
-  column joins the bound rows to the table on that column.
+  column counts each key in a LATERAL subquery on that column (a plain join let Postgres scan every message at 15,000 messages;
+  `readIndexes.it.test.ts` pins the plan, perf2 DB-5).
 - `after` is the mirror of `before`, and `order.asc` reads oldest first (no ties); `chats.messages` with `around` uses both.
   `contains` sends an escaped LIKE on Postgres (`likeOf`, `sqlSource.ts`), so a trigram index serves it; memory and SQLite keep
   the substring test.

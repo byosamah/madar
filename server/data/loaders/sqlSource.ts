@@ -39,7 +39,7 @@ const BOUND_TERMS = `t.created_at ${C} > b.gt ${C} and (b.ge is null or t.create
  * The table and the where clause of a Select or a count: $1 and up are its values. "conds" holds each condition alone. "joined"
  * is a bounds condition whose rows "b" the statement joins (countSql), so its terms name b directly.
  */
-function whereSql(s: Select | CountSelect, values: unknown[], joined?: Cond): { col: (name: string) => string; conds: string[]; where: string } {
+function whereSql(s: Select | CountSelect, values: unknown[], joined?: Cond, single = false): { col: (name: string) => string; conds: string[]; where: string } {
   const param = (value: unknown, type: string) => {
     values.push(value);
     return `$${values.length}::${type}`;
@@ -78,7 +78,12 @@ function whereSql(s: Select | CountSelect, values: unknown[], joined?: Cond): { 
     }
     const column = col(one.col);
     const type = columnOf(s.c, one.col).type;
-    if ('in' in one) return `${column} = any(${param(one.in, type === 'int' ? 'int[]' : 'text[]')})`;
+    // One key reads as an equality when "single" is set: an ordered read of one key (the newest notices of a person) then walks an index
+    // in order, which an any() test over an array does not allow (performance audit DB-9, perf2).
+    if ('in' in one) {
+      if (single && one.in.length === 1) return `${column} = ${param(one.in[0], type === 'int' ? 'int' : 'text')}`;
+      return `${column} = any(${param(one.in, type === 'int' ? 'int[]' : 'text[]')})`;
+    }
     if ('notIn' in one) return `(${column} is null or not (${column} = any(${param(one.notIn, 'text[]')})))`;
     if ('eq' in one) return one.eq === null ? `${column} is null` : `${column} = ${param(one.eq, type === 'bool' ? 'boolean' : type === 'int' ? 'int' : 'text')}`;
     if ('contains' in one) return `${column} like ${param(likeOf(one.contains), 'text')}`;
@@ -144,7 +149,11 @@ export function selectSql(s: Select): { text: string; values: unknown[] } {
   // <= N the same rows as LIMIT N, because that order ends with t.ord and is total. DISTINCT reads a repeated key once.
   const perList = perListOf(s);
   const keys = perList ? param(perList.in, columnOf(s.c, perList.col).type === 'int' ? 'int[]' : 'text[]') : '';
-  const { col, conds, where } = whereSql(perList ? { ...s, where: s.where.filter((one) => one !== perList) } : s, values);
+  // The plain LIMIT form (performance audit DB-9, perf2): an ordered read with no "per" and no ties, whose order ends with the id. The
+  // id is unique, so the order is total with no t.ord, and an index on the order columns can give the first rows with no sort. One key
+  // of a list reads as an equality for the same reason.
+  const plain = s.limit !== undefined && !perList && !s.per && !s.ties && s.order?.id === true;
+  const { col, conds, where } = whereSql(perList ? { ...s, where: s.where.filter((one) => one !== perList) } : s, values, undefined, plain);
   const doc = s.pick ? pickSql(s.pick, param) : 't.doc';
   if (s.limit === undefined) return { text: `select t.ord, ${doc} as doc from ${table} t${where} order by t.ord`, values };
 
@@ -152,9 +161,13 @@ export function selectSql(s: Select): { text: string; values: unknown[] } {
   const columnType = order ? columnOf(s.c, order.col).type : 'text';
   const way = order && isAscending(order) ? 'asc' : 'desc';
   const ordering = order
-    ? [`${col(order.col)}${columnType === 'text' ? ` ${C}` : ''} ${way}`, ...(order.id ? [`t.id ${C} ${way}`] : []), ...(s.ties ? [] : [`t.ord ${way}`])].join(', ')
+    ? [`${col(order.col)}${columnType === 'text' ? ` ${C}` : ''} ${way}`, ...(order.id ? [`t.id ${C} ${way}`] : []), ...(s.ties || plain ? [] : [`t.ord ${way}`])].join(', ')
     : 't.ord';
   const limit = param(s.limit, 'int');
+  if (plain) {
+    // The outer order by ord keeps the order of the rows that the window form gave.
+    return { text: `select x.ord, x.doc from (select t.ord, ${doc} as doc from ${table} t${where} order by ${ordering} limit ${limit}) x order by x.ord`, values };
+  }
   if (perList) {
     const inner = [`${col(perList.col)} = p.k`, ...conds].join(' and ');
     const cut = s.ties ? `fetch first (${limit}) rows with ties` : `limit ${limit}`;
@@ -174,8 +187,8 @@ export function selectSql(s: Select): { text: string; values: unknown[] } {
 
 /**
  * The SQL of one count: one grouped count over the rows that the conditions match. With a bounds condition on the column "per"
- * (the unread counts), the bounds join the table on that column, so each key reads its own rows on the index of the column
- * (performance audit DB-6). Its keys come from an object, so each one is unique, and the count of each key stays the same.
+ * (the unread counts), each key counts its own rows in a LATERAL subquery on the index of that column (performance audit DB-6,
+ * DB-5 of perf2). Its keys come from an object, so each one is unique, and the count of each key stays the same.
  */
 export function countSql(s: CountSelect): { text: string; values: unknown[] } {
   const values: unknown[] = [];
@@ -184,9 +197,12 @@ export function countSql(s: CountSelect): { text: string; values: unknown[] } {
     columnOf(s.c, s.per);
     values.push(boundRows(joined.bounds.by));
     const { conds } = whereSql(s, values, joined);
+    // One count for each key in a LATERAL subquery: the key reads its own rows on the index of the column, whatever the size of the
+    // table. A join let Postgres choose a hash join and a scan of every message at 15,000 messages (performance audit DB-5, perf2).
+    // A key with no row gives no row, as the grouped join did.
     return {
-      text: `select b.k as v, count(*)::integer as n from jsonb_to_recordset($1::jsonb) as b(k text, gt text, ge text, aat text, aid text) `
-        + `join ${tableOf(s.c).table} t on t.${s.per} = b.k where ${conds.join(' and ')} group by b.k`,
+      text: `select b.k as v, x.n from jsonb_to_recordset($1::jsonb) as b(k text, gt text, ge text, aat text, aid text) `
+        + `cross join lateral (select count(*)::integer as n from ${tableOf(s.c).table} t where t.${s.per} = b.k and ${conds.join(' and ')}) x where x.n > 0`,
       values,
     };
   }

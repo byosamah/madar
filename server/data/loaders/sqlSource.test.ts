@@ -37,8 +37,10 @@ describe('the rows after one row, oldest first, and contains as a LIKE (chat des
       order: { col: 'created_at', asc: true, id: true }, limit: 479,
     });
     expect(text).toContain('(t.created_at collate "C" > $2::text or (t.created_at = $2::text and t.id collate "C" > $3::text))');
-    expect(text).toContain('row_number() over (order by t.created_at collate "C" asc, t.id collate "C" asc, t.ord asc)');
-    expect(values).toEqual([['cnv_001'], '2026-10-04T10:00:00.000+03:00', 'msg_010', 479]);
+    // The order ends with the id, so the read takes the plain LIMIT form of DB-9 (perf2): one key is an equality and the id makes the order total.
+    expect(text).toContain('order by t.created_at collate "C" asc, t.id collate "C" asc limit $4::int) x order by x.ord');
+    expect(text).toContain('t.conversation_id = $1::text');
+    expect(values).toEqual(['cnv_001', '2026-10-04T10:00:00.000+03:00', 'msg_010', 479]);
   });
 
   it('sends contains as LIKE with its wildcards escaped, so a trigram index can serve it', () => {
@@ -54,6 +56,39 @@ describe('the rows after one row, oldest first, and contains as a LIKE (chat des
   it('gives a per read the ascending order in its LATERAL form too', () => {
     const { text } = selectSql({ c: 'messages', where: [{ col: 'conversation_id', in: ['cnv_001'] }], order: { col: 'created_at', asc: true, id: true }, per: 'conversation_id', limit: 3 });
     expect(text).toContain('order by t.created_at collate "C" asc, t.id collate "C" asc, t.ord asc limit $2::int) x order by x.ord');
+  });
+});
+
+describe('the plain LIMIT form of an ordered read with a total order (DB-9 of perf2)', () => {
+  const inbox: Select = {
+    c: 'notifications', where: [{ col: 'user_id', in: ['usr_005'] }, { col: 'read', eq: true }], order: { col: 'created_at', desc: true, id: true }, limit: 100,
+  };
+
+  it('reads one key as an equality and cuts with LIMIT on the order columns and the id, with the order by ord outside', () => {
+    const { text, values } = selectSql(inbox);
+    expect(text).toBe(
+      'select x.ord, x.doc from (select t.ord, t.doc as doc from notifications t where t.user_id = $1::text and t.read = $2::boolean '
+        + 'order by t.created_at collate "C" desc, t.id collate "C" desc limit $3::int) x order by x.ord',
+    );
+    expect(values).toEqual(['usr_005', true, 100]);
+  });
+
+  it('keeps a list of keys as any(), because the equality is for one key only', () => {
+    const { text, values } = selectSql({ ...inbox, where: [{ col: 'user_id', in: ['usr_005', 'usr_006'] }, { col: 'read', eq: true }] });
+    expect(text).toContain('t.user_id = any($1::text[])');
+    expect(text).toContain('limit $3::int) x order by x.ord');
+    expect(values).toEqual([['usr_005', 'usr_006'], true, 100]);
+  });
+
+  it('keeps the window form with ties, with no id in the order, and with no order', () => {
+    expect(selectSql({ ...inbox, ties: true }).text).toContain('rank() over (order by t.created_at collate "C" desc, t.id collate "C" desc)');
+    expect(selectSql({ ...inbox, order: { col: 'created_at', desc: true } }).text).toContain('row_number() over (order by t.created_at collate "C" desc, t.ord desc)');
+    expect(selectSql({ ...inbox, order: undefined }).text).toContain('row_number() over (order by t.ord)');
+  });
+
+  it('leaves a read with no limit as it was, with any() for one key', () => {
+    expect(selectSql({ c: 'notifications', where: [{ col: 'user_id', in: ['usr_005'] }, { col: 'read', eq: false }] }).text)
+      .toBe('select t.ord, t.doc as doc from notifications t where t.user_id = any($1::text[]) and t.read = $2::boolean order by t.ord');
   });
 });
 
@@ -112,14 +147,14 @@ describe('the unread counts and the task threads of the badge (DB-6)', () => {
   const bounds = { col: 'target_id', by: { tsk_001: { gt: '' }, tsk_002: { gt: '2026-10-01', ge: '2026-10-02', after: { at: '2026-10-03', id: 'cmt_009' } } } };
   const unread: CountSelect = { c: 'comments', per: 'target_id', where: [{ col: 'target_type', eq: 'task' }, { bounds }, { field: 'authorId', notIn: ['usr_001'] }] };
 
-  it('joins the bounds to the table on the key, so each key reads its own rows on the index', () => {
+  it('counts each key in a LATERAL subquery on the key, so each key reads its own rows on the index (DB-5 of perf2)', () => {
     const { text, values } = countSql(unread);
     expect(text).toBe(
-      'select b.k as v, count(*)::integer as n from jsonb_to_recordset($1::jsonb) as b(k text, gt text, ge text, aat text, aid text) '
-        + 'join comments t on t.target_id = b.k where t.target_type = $2::text and '
+      'select b.k as v, x.n from jsonb_to_recordset($1::jsonb) as b(k text, gt text, ge text, aat text, aid text) '
+        + 'cross join lateral (select count(*)::integer as n from comments t where t.target_id = b.k and t.target_type = $2::text and '
         + '(t.created_at collate "C" > b.gt collate "C" and (b.ge is null or t.created_at collate "C" >= b.ge collate "C") '
         + 'and (b.aat is null or t.created_at collate "C" > b.aat collate "C" or (t.created_at = b.aat and t.id collate "C" > b.aid collate "C"))) '
-        + `and (t.doc->>'authorId' is null or not (t.doc->>'authorId' = any($3::text[]))) group by b.k`,
+        + `and (t.doc->>'authorId' is null or not (t.doc->>'authorId' = any($3::text[])))) x where x.n > 0`,
     );
     expect(JSON.parse(values[0] as string)).toEqual([
       { k: 'tsk_001', gt: '', ge: null, aat: null, aid: null }, { k: 'tsk_002', gt: '2026-10-01', ge: '2026-10-02', aat: '2026-10-03', aid: 'cmt_009' },
