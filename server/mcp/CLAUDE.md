@@ -30,11 +30,10 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 
 ## Tools
 - MCP spec 2026-07-28, stateless. A 2025-era client gets the stateless legacy answer.
-- 52 tools for every agent in `MCP_ALLOW`. `MCP_ADMIN` is empty since role-rights (owner, 2026-10-23): `feedback.list`,
+- 53 tools for every agent in `MCP_ALLOW`. `MCP_ADMIN` is empty since role-rights (owner, 2026-10-23): `feedback.list`,
   `feedback.screenshot` and `feedback.setStatus` sit in `MCP_BY_RIGHT` under `feedback.manage`, so an agent whose person holds that right
-  (the Admin, or a custom role) gets 3 more: 55, with 23 reads and 32 writes. The reads include `subCompanies.list`, which
-  leaves the logo data out (`run.ts`). `MCP_BY_RIGHT` adds `reports.office` (the office
-  report, fbk_016) for an agent whose person holds the report right (Admin and Management by default), so an Admin's agent gets 56.
+  (the Admin, or a custom role) gets 3 more: 56, with 24 reads and 32 writes. `MCP_BY_RIGHT` adds `reports.office` (the office
+  report, fbk_016) for an agent whose person holds the report right (Admin and Management by default), so an Admin's agent gets 57.
   `tasks.help` (fbk_035) joins the person to a task as a helper, or takes them off it.
   The factory in `app.ts` picks the list for each request from the office rights of the owner, never the agent user. A 2026-07-28 client can keep tools/list for 5 minutes, and a
   2025-era client keeps it until it connects again (the server says listChanged but never sends that notice). So a role change
@@ -115,7 +114,21 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 - claude.ai ignores both today (2026-10-06): its connector list shows Google's favicon of the main domain
   (`/s2/favicons?domain=vado.sa`), so the Madar connector shows the vado.sa icon. A new connector or a reconnect does not
   change it. Only a change of the vado.sa icon or an MCP address on another main domain would.
-- `users.list` gives both names (`name`, `nameAr`), leaves picture data out of `avatarUrl`, and adds `roleName` to each row, the role name that the screens show (`run.ts`, INT-19).
+- `users.list` gives both names (`name`, `nameAr`) and adds `roleName` to each row, the role name that the screens show (`run.ts`, INT-19).
+- Pictures (owner, 2026-10-21; `pictures.ts`): an agent reads the pictures its person sees, so a report can look like Madar. The rows give
+  the rules of each picture, never its data by default: `users.list` adds `hasPicture` and `glow` (the CSS of the round picture), and
+  leaves picture data out of `avatarUrl`; `subCompanies.list` adds `hasLogo` and leaves `logo` null; `projects.list` and `projects.get` add
+  `look` (`color` and `tile`, an SVG of 34 px); `reports.office` adds the same to its rows. One profile picture is up to 16 KB, about
+  4,000 to 8,000 tokens as text, so 15 of them would fill the context of an agent. `withPictures: true` (an argument of the tool only:
+  `run.ts` takes it out before the call) adds the data on `users.list`, `subCompanies.list` and `reports.office` (each logo once, in
+  `subCompanyLogos`). The colors are the light theme (`src/lib/pictureLook.ts`, checked against tokens.css), for a white page. The glow and
+  the tile come from the same rules as the screens (`src/lib/glow.ts`, `markLights`).
+- `pictures.get` has no call of its own (`NO_CALL_TOOLS`, as `madar.readFirst`). It runs the calls of the screens inside it, with their
+  rights: `users.list`, `subCompanies.list`, `projects.get`, and `files.link` for a cover. An answer with a picture holds an MCP image
+  block (the agent sees it) and the JSON; a profile picture or a logo also as a data address. A cover is the small picture of the upload
+  (up to 960 px): the server reads it from the signed link and gives it as data when it is 200 KB or less (`COVER_MAX_BYTES`), else the
+  link only. The server makes no picture smaller: the free Worker plan gives 10 ms of processor time. Only PNG, JPEG, GIF and WebP go out
+  as an image (by the first bytes). No picture of a direct or group chat: `files.link` refuses an agent a chat file (not_found, no name).
 - 60 tool calls a minute for each person (`TOOL_CALLS_PER_MINUTE`, `app.ts`).
 - Stage dates (owner, fbk_023): `stages.setDates` is on `MCP_ALLOW`. It sets both dates of one stage, as the Schedule tab does, for the
   project leader and the Admin (`project.edit`); an agent of a team member or an outsider gets `forbidden`. It needs no reason: the
@@ -144,11 +157,17 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 - Open risk (owner decision, Z7): an agent token has the person's full rights on the own endpoints of Auth.
 
 ## Tests
+- The MCP layer refuses no unknown tool argument: the zod object of the call drops it. Test a refusal on the call, not on MCP.
 - `npm run test:mcp`: the MCP tests, then the official conformance runner (`conformance.ts`, known gaps in
   `conformance-baseline.yml`).
 - The runner serves its own mcp function. Never run a shared `supabase functions serve` next to it.
 - The runner leaves its agent in the public office. Run `npx supabase db reset` after it, before `test:it`.
 - The deploy suite (`tests/e2e-deploy/agents.spec.ts`) needs `MADAR_E2E_MCP_URL`. It removes its grant at the end.
+- A live check of a tool on the test copy needs no browser (2026-10-21): a one-off script signs in the sample member with the
+  password grant (`secrets/test-accounts.env`, never printed), registers a client, sends the authorize step, then the steps of the
+  consent screen (GET `/auth/v1/oauth/authorizations/<id>`, POST `api/agents/approve`, POST `.../consent` with `approve`), and
+  trades the code for the agent token. At the end it revokes the grant (DELETE `/auth/v1/user/oauth/grants?client_id=`) and runs
+  `agents.remove` through `api/batch` (with `X-Madar-Build`), so no agent stays in Settings, Agents.
 
 ## The own OAuth server (Supabase exit, wave 2)
 - `oauth/`: the documents (issuer = MCP_URL; the same document at `/mcp/.well-known/oauth-authorization-server` and

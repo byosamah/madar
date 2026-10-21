@@ -1106,6 +1106,22 @@ walk caught the answer: a whole-batch 500 "Something went wrong" for the Admin, 
   light/dark, 390). The owner asked to skip the full suite and the smoke (each over 5 minutes) for this one-flag change.
 - `all.sh test` (148 calls), then `all.sh production`: health from `supabase` with 148 calls, the database check, `POST /mcp` with no token 401.
 
+### Production at 716c0a29 (2026-10-21, pictures for AI agents; the owner said "deploy" and ran it with `!`)
+- Changes (branch `rb/mcp-pictures`): agents read the pictures that their person sees. The rows of `users.list` (`hasPicture`,
+  `glow`), `subCompanies.list` (`hasLogo`), `projects.list`, `projects.get` and `reports.office` (`look`: the project color and the tile
+  as an SVG) give the drawing rules; `withPictures: true` adds the picture data. The new tool `pictures.get` (no call of its own) gives
+  one profile picture, logo, project tile or cover, as an MCP image block. One glow rule for the screens and the agents
+  (`src/lib/glow.ts`). What's new 2026-10-23-72. In the team live week, on the owner's word.
+- Gates: typecheck; `npm test` 8,214 (733 files); `npm run build`, `build:server`, `build:remote -- test`; `test:db` 2,212; `test:it` 325;
+  `test:mcp` 278 (conformance 5 of 32, the normal result). Not run: `test:lite`, `test:office`, the prototype smoke, the deploy suite.
+- Live check on the test copy at 716c0a2, as the member's agent (a script, no browser; `server/mcp/CLAUDE.md`): 53 tools with
+  `pictures.get`, a real cover from R2 as a PNG image of 6,919 bytes, `prj_404` not_found; the script removed its agent.
+- The second `all.sh test` stopped at the migration step: the chat presence proof had pushed `20261022000200_platform_presence.sql` to
+  madar-test. Its session took the migration off (two policies dropped, `migration repair --status reverted`), then `all.sh test` at
+  716c0a2 passed. Its later test deploy pushes the migration again.
+- The auto-mode check refused Claude's `all.sh production`; the owner ran it with `!`: migrations up to date, settings and secrets,
+  functions, the Worker, the screens; health from `supabase` with 149 calls, the database check, `POST /mcp` with no token 401.
+
 ### Production at e361e0cb (2026-10-21, the push line "Like WhatsApp"; the owner said "deploy", Claude ran it)
 - Changes: the push carries a line encrypted for each browser (RFC 8291, `server/push/encrypt.ts`, the vector of Appendix A in its
   test): the name and the first words of a chat message, or the bell sentence of a notice, in the person's language. The server makes
