@@ -387,7 +387,8 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - Storage (additive, no migration): `RoleSettings.rights[role]` and `CustomRole.rights` are the held switches beyond `BASIC_ON`, and may
   still hold the 17 old ids (`StoredRight`; `expandRights` maps them with the `legacy` map). New `RoleSettings.off[role]` and
   `CustomRole.off` list the `BASIC_ON` switches the role does not hold. `rightsOf` (`rights.ts`): a built-in role = (`BASIC_ON` minus
-  `off`) plus the expanded `rights` (or `DEFAULT_EXTRA`), plus the needs (`withNeeds`); a custom role with no `off` = the Member switches
+  `off`) plus the expanded `rights` (or `DEFAULT_EXTRA`), minus each switch whose need on another power is off (`dropUnmetNeeds`, fail
+  closed: `ai.connect` off turns every AI switch off; the sheet turns needs on with `withNeeds`); a custom role with no `off` = the Member switches
   plus its own (the meaning of before); with `off` = its own full list; a deleted role leaves the Member switches. `heldRightsOfRole` gives
   the list to the screens. `session.get` and every output give the 112 ids only. A save writes new ids only (`roles.*` expand old ids).
   Caps: `rights` 120, `off` 70.

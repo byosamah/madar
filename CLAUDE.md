@@ -180,6 +180,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - A feature that hides a record from some people gets leak tests from its own builder: probes as an outsider on
   every read path, error texts and Realtime signals included (office tasks, 2026-10-06). No separate leak review
   (owner, 2026-10-07).
+- Every new power is a switch (owner, 2026-10-21): a line in the catalog JSON and `rightsCatalog.ts`, its action in `can()`, a
+  `viewerCan` flag for its control, words in `rr2sheet`, and its MCP tool in one AI switch. `rightsParity.test.ts` stays equal unless the owner approves.
 
 ## Build process
 - One worktree per track at `~/dev/madar-rb/<track>` (branch `rb/<track>`, `node_modules` symlinked to `deploy-test/node_modules`,
@@ -233,6 +235,9 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - The Z steps (plan Track Z): Z0a, Z0b, Z1 done; Z2 R2 waits; Z3 sender vado.sa; Z4 Pages and madar.vado.sa done; Z5
   database backups run nightly, file backups wait for the owner's Backblaze B2 (the workflow is paused); Z6 seed done; Z7 security review; Z8
   first Admin done, then a 2-week pilot.
+- A branch that holds track merges takes main with `git merge main`: `git rebase main` replays every track commit and its conflicts (2026-10-21).
+- At a merge, read `git diff --stat main...<track> -- '*CLAUDE.md'`: a builder cut 66 lines of `server/mcp/CLAUDE.md` while it added its own (2026-10-21).
+- Take the next What's new id at the merge, not in the build: parallel sessions took the same id twice (2026-10-21).
 
 ## Owner decisions (history, newest wins)
 - 2026-09-30: web app, English and Arabic, roles Admin and Member plus project leaders; tasks with review, 7 design

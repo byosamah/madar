@@ -683,6 +683,8 @@ any screen work.
   (`innerWidth` is 390). Switch the language or theme in the outer tab, then load the frame again (they share IndexedDB).
   Measure a phone text fit at 360 px and 390 px in both languages: Arabic buttons («إرسال») are wider. To check a press area, use
   `elementFromPoint` on a grid around the element: a box measure misses an `after:` press strip.
+- Shots from a branch worktree: `npx vite build --outDir test-results/proto-<x>`, then `python3 -m http.server <port> --bind 127.0.0.1`
+  there (sandbox off); no `@fontsource` 403. A new port keeps its own saved office: run `indexedDB.deleteDatabase('madar')` and reload first.
 - To set the prototype person, language or theme, or add a sample record, without clicks: edit the saved office (IndexedDB
   `madar`, store `data`, key `state`: `session.currentUserId`, `users[id].preferences.language` and `.theme`), then reload.
 
