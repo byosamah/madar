@@ -138,8 +138,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - A change to a test script in `package.json` also changes `scripts/vite-config.test.ts`: it pins the script texts.
 - Size of an old build: `git archive <sha> | tar -x -C $TMPDIR/base`, link `node_modules` into it, build there.
 - `npx supabase db reset` - after any migration change, from your own worktree, under the lock.
-- Last counts (2026-10-21, MCP pictures, main 716c0a2): unit+server 8,214 passed (733 files); test:db 2,212; test:it 325;
-  test:mcp 278. Older: test:lite 2,212, test:office 37, prototype smoke 87 of 87 (2026-10-20), deploy suite 206 passed, 13 skipped.
+- Last counts (2026-10-21, chat presence gate): unit+server 8,515 passed (761 files); test:db 2,260 (27 skipped); test:lite 2,260; test:it 325;
+  test:office 40; test:mcp normal (5 of 32); prototype smoke 87 of 87. Older: deploy suite 206 passed, 13 skipped (2026-10-20).
 - `grep -c` that counts 0 exits 1, so it stops a `&&` chain: end the count with `; true` or check its number apart.
 
 ## Run the real product locally
