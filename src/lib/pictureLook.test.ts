@@ -51,7 +51,8 @@ describe('the pictures for agents in the light theme (owner, 2026-10-21)', () =>
     expect(svg.indexOf('fill="#FFFFFF"')).toBeLessThan(svg.indexOf('url(#t-prj_003-b)'));
     expect(svg.indexOf('fill="url(#t-prj_003-b)"')).toBeLessThan(svg.indexOf('fill="url(#t-prj_003-a)"'));
     expect(svg).toContain('rx="10.2"');
-    expect(svg).toContain('stroke="#1D1D1F" stroke-opacity="0.1"');
+    // The ring stays 1 px at any size, as the ring of the screens (ring-1), also when a document draws the tile larger.
+    expect(svg).toContain('stroke="#1D1D1F" stroke-opacity="0.1" vector-effect="non-scaling-stroke"');
     expect(svg).toContain(`<path d="${formPath(form, 9.35, 9.35, 15.3)}" transform="rotate(${form.turn * 90} 17 17)" fill="#1D1D1F" fill-opacity="0.86"/>`);
     expect(svg.endsWith('</svg>')).toBe(true);
     expect(svg).not.toContain('var(');

@@ -65,7 +65,8 @@ export function tileSvg(project: { id: string; mark?: number }): string {
     return `<radialGradient id="${id}" cx="${light.x / 100}" cy="${light.y / 100}" r="${light.size / 100}">`
       + `<stop offset="0" stop-color="${fg}" stop-opacity="${alphaOf(light)}"/><stop offset="1" stop-color="${fg}" stop-opacity="0"/></radialGradient>`;
   };
-  // Rounded by 30% of the side, as rounded-[30%]. The ring is 1 px inside the edge, ink at 10%. The form is 45% of the side, in the middle.
+  // Rounded by 30% of the side, as rounded-[30%]. The ring is 1 px inside the edge, ink at 10%, at any size of the drawing.
+  // The form is 45% of the side, in the middle.
   const radius = round(TILE * 0.3);
   const box = (fill: string) => `<rect width="${TILE}" height="${TILE}" rx="${radius}" fill="${fill}"/>`;
   const side = round(TILE * 0.45);
@@ -74,7 +75,7 @@ export function tileSvg(project: { id: string; mark?: number }): string {
     + `<defs>${gradient(first, `${key}-a`)}${gradient(second, `${key}-b`)}</defs>`
     // CSS paints its first light on top, so the drawing paints it last.
     + `${box(LIGHT_LOOK.panel)}${box(`url(#${key}-b)`)}${box(`url(#${key}-a)`)}`
-    + `<rect x="0.5" y="0.5" width="${TILE - 1}" height="${TILE - 1}" rx="${round(radius - 0.5)}" fill="none" stroke="${LIGHT_LOOK.ink}" stroke-opacity="0.1"/>`
+    + `<rect x="0.5" y="0.5" width="${TILE - 1}" height="${TILE - 1}" rx="${round(radius - 0.5)}" fill="none" stroke="${LIGHT_LOOK.ink}" stroke-opacity="0.1" vector-effect="non-scaling-stroke"/>`
     + `<path d="${formPath(form, start, start, side)}" transform="rotate(${form.turn * 90} ${TILE / 2} ${TILE / 2})" fill="${LIGHT_LOOK.ink}" fill-opacity="0.86"/>`
     + '</svg>';
 }
