@@ -6,6 +6,7 @@ import type { ChangeSignal } from '../../api/remote/wire';
 import type { AuthPort, AuthStatus } from '../auth';
 import type { ChangeListener, ChangeSource } from '../signals';
 import { bootstrapRemote, firstLanguage, liveKindOf, liveSourceOf, personChangeSource, remoteConfig } from './bootstrap';
+import { switchedLive } from './presence';
 
 // The file adapters of track F (src/app/files.ts), replaced by markers so the test sees which adapters the bootstrap hands RemoteApi.
 const fileAdapters = vi.hoisted(() => ({
@@ -300,6 +301,76 @@ describe('the remote runtime (plan R2)', () => {
   });
 });
 
+describe('the live port of the remote build on Supabase (chat presence design, L2)', () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+  });
+  const config = { supabaseUrl: 'https://ref.supabase.co', publishableKey: 'sb_publishable_x', apiUrl: 'https://ref.supabase.co/functions/v1/api', build: '2026.10.4', auth: 'supabase' as const };
+  const sessionFetch = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as { calls: { i: number; name: string }[] };
+    const results = body.calls.map((call) => ({ i: call.i, ok: true, output: { user: { id: 'usr_001' } }, storyId: 'cor_srv_1', changed: false }));
+    return new Response(JSON.stringify({ v: 1, serverTime: '', results }), { status: 200 });
+  }) as unknown as typeof globalThis.fetch;
+  function recordingSupabase() {
+    const topics: string[] = [];
+    const removed: string[] = [];
+    const supabase = {
+      realtime: { setAuth: vi.fn(async () => undefined) },
+      channel: (topic: string) => {
+        topics.push(topic);
+        const channel = {
+          topic, on: () => channel, subscribe: () => channel, presenceState: () => ({}), track: async () => 'ok', untrack: async () => 'ok',
+        };
+        return channel;
+      },
+      removeChannel: async (channel: { topic: string }) => {
+        removed.push(channel.topic);
+        return 'ok';
+      },
+      auth: { refreshSession: vi.fn(async () => ({ data: {}, error: null })) },
+    } as unknown as SupabaseClient;
+    return { supabase, topics, removed };
+  }
+
+  it('gives the runtime a live port that shows everybody Offline until the person signs in', async () => {
+    const { supabase, topics } = recordingSupabase();
+    const runtime = await bootstrapRemote({ config, supabase, auth: stubAuth(false).auth, fetch: sessionFetch });
+    expect(runtime.live).toBeDefined();
+    runtime.live!.watch(['usr_001', 'usr_002']);
+    runtime.live!.setMine('online');
+    expect(runtime.live!.stateOf('usr_002')).toBe('offline');
+    expect(topics).toEqual([]);
+  });
+
+  it('joins the status topics with the sign-in, beside the change channels, and leaves them with the sign-out', async () => {
+    const { supabase, topics, removed } = recordingSupabase();
+    const signIn = stubAuth(true);
+    const runtime = await bootstrapRemote({ config, supabase, auth: signIn.auth, fetch: sessionFetch });
+    runtime.live!.watch(['usr_001', 'usr_002']);
+    runtime.changes.subscribe(() => undefined);
+    await vi.waitFor(() => expect(topics).toContain('status:usr_002'));
+    expect(topics).toEqual(expect.arrayContaining(['office', 'person:usr_001', 'status:usr_001', 'status:usr_002']));
+    signIn.set('signed_out');
+    await vi.waitFor(() => expect(removed).toEqual(expect.arrayContaining(['status:usr_001', 'status:usr_002', 'office', 'person:usr_001'])));
+    expect(runtime.live!.stateOf('usr_001')).toBe('offline');
+  });
+
+  it('moves the adapter to the next person at a sign-in as someone else', async () => {
+    const { supabase, topics, removed } = recordingSupabase();
+    const signIn = stubAuth(true);
+    const runtime = await bootstrapRemote({ config, supabase, auth: signIn.auth, fetch: sessionFetch });
+    runtime.live!.watch(['usr_001', 'usr_002']);
+    runtime.changes.subscribe(() => undefined);
+    await vi.waitFor(() => expect(topics).toContain('status:usr_002'));
+    signIn.set('signed_out');
+    await vi.waitFor(() => expect(removed).toContain('status:usr_002'));
+    topics.length = 0;
+    signIn.set('signed_in');
+    // The list the screen gave is replayed to the adapter of the next sign-in.
+    await vi.waitFor(() => expect(topics).toContain('status:usr_002'));
+  });
+});
+
 describe('the live updates of the remote build (exit wave 3)', () => {
   const quiet = () => ({ subscribe: () => () => undefined, status: () => 'closed' as const });
 
@@ -321,6 +392,60 @@ describe('the live updates of the remote build (exit wave 3)', () => {
     expect(ticket).toHaveBeenCalledTimes(1);
     expect(realtime).not.toHaveBeenCalled();
     stop();
+  });
+
+  it('gives the live port the status and the typing of the office socket, and sends the state of this device (chat presence design, L4)', async () => {
+    class FakeWs {
+      static all: FakeWs[] = [];
+      readyState = 0;
+      sent: string[] = [];
+      onopen: ((event: unknown) => void) | null = null;
+      onmessage: ((event: { data: unknown }) => void) | null = null;
+      onclose: ((event: { code: number }) => void) | null = null;
+      onerror: ((event: unknown) => void) | null = null;
+      constructor(readonly url: string) {
+        FakeWs.all.push(this);
+      }
+      send(data: string) {
+        this.sent.push(data);
+      }
+      close() {
+        this.readyState = 3;
+      }
+    }
+    vi.stubGlobal('WebSocket', FakeWs);
+    try {
+      const live = switchedLive();
+      live.setMine('online');
+      const heard: string[] = [];
+      live.subscribeTyping((signal) => heard.push(`${signal.userId}:${signal.typing}`));
+      const ticket = vi.fn(async () => ({ ticket: 't1', expiresAt: '2026-10-21T09:00:00.000+03:00' }));
+      const source = liveSourceOf('socket', { realtime: vi.fn(quiet), ticket, apiUrl: '/api', page: 'https://madar.vado.sa/', live })('usr_005');
+      const stop = source.subscribe(() => undefined);
+      await vi.waitFor(() => expect(FakeWs.all).toHaveLength(1));
+      const ws = FakeWs.all[0];
+      ws.readyState = 1;
+      ws.onopen?.({});
+      // The device state waits for the open and goes out with it.
+      expect(ws.sent).toEqual([JSON.stringify({ t: 'state', state: 'online' })]);
+      live.setMine('away');
+      expect(ws.sent.at(-1)).toBe(JSON.stringify({ t: 'state', state: 'away' }));
+      ws.onmessage?.({ data: JSON.stringify({ event: 'presence', payload: { v: 1, states: { usr_002: 'online', usr_005: 'away' } } }) });
+      expect(live.stateOf('usr_002')).toBe('online');
+      ws.onmessage?.({ data: JSON.stringify({ event: 'presence', payload: { v: 1, userId: 'usr_002', state: 'away' } }) });
+      expect(live.stateOf('usr_002')).toBe('away');
+      ws.onmessage?.({ data: JSON.stringify({ event: 'typing', payload: { v: 1, conversationId: 'cnv_1', userId: 'usr_002', typing: true, at: '2026-10-21T08:00:00.000Z' } }) });
+      ws.onmessage?.({ data: JSON.stringify({ event: 'typing', payload: { v: 1, conversationId: 'cnv_1', userId: 'usr_005', typing: true, at: '2026-10-21T08:00:00.000Z' } }) });
+      expect(heard).toEqual(['usr_002:true']);
+      // The socket drops: the marks it fed may be old, so they go until a new snapshot comes.
+      ws.readyState = 3;
+      ws.onclose?.({ code: 1006 });
+      expect(live.stateOf('usr_002')).toBe('offline');
+      stop();
+      expect(live.stateOf('usr_005')).toBe('offline');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('opens the socket for the Madar sign-in, which has no Supabase client; the Supabase build keeps Realtime unless it says socket', () => {

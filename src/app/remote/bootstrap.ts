@@ -13,6 +13,8 @@ import { createSupabaseAuth } from './auth';
 import { authModeOf, type AuthMode } from './authMode';
 import { supabaseChangeSource } from './channel';
 import { createMadarAuth } from './madarAuth';
+import { officeLive } from './officeLive';
+import { attachLive, supabaseLive, switchedLive, type SwitchedLive } from './presence';
 import { createSupabase } from './supabase';
 
 /**
@@ -150,11 +152,34 @@ export function personChangeSource(o: {
  */
 export function liveSourceOf(
   kind: string | undefined,
-  o: { realtime: (me: string) => ChangeSource; ticket: () => Promise<{ ticket: string; expiresAt: string }>; apiUrl: string; page: string },
+  o: {
+    realtime: (me: string) => ChangeSource;
+    ticket: () => Promise<{ ticket: string; expiresAt: string }>;
+    apiUrl: string;
+    page: string;
+    /** The live port of the runtime (chat presence design). With it, the socket also carries the status and the typing. */
+    live?: SwitchedLive;
+  },
 ): (me: string) => ChangeSource {
+  // The Realtime branch joins the live port itself (bootstrapRemote makes the status adapter beside the change source).
   if (kind !== 'socket') return o.realtime;
   const url = liveUrl(o.apiUrl, o.page);
-  return (me) => liveSocketSource({ me, ticket: o.ticket, url });
+  return (me) => {
+    const live = o.live;
+    if (!live) return liveSocketSource({ me, ticket: o.ticket, url });
+    // The socket and the port know each other: the socket feeds the port with the events, the port gives the socket the device state.
+    let status: ReturnType<typeof officeLive> | undefined;
+    const socket = liveSocketSource({
+      me,
+      ticket: o.ticket,
+      url,
+      onPresence: (payload) => status?.presence(payload),
+      onTyping: (signal) => status?.typing(signal),
+      onDrop: () => status?.reset(),
+    });
+    status = officeLive({ sendState: (state) => socket.sendState?.(state) }, me);
+    return attachLive(live, status, socket);
+  };
 }
 
 /**
@@ -209,18 +234,22 @@ export async function bootstrapRemote(o: {
     headers: config.publishableKey ? { apikey: config.publishableKey } : {},
     onSignals: (signals, fresh) => changes?.own(signals, fresh),
   });
+  // Status and typing (chat presence design). The port exists now; its adapter comes with each sign-in and goes with the sign-out.
+  const live = switchedLive();
   changes = personChangeSource({
     auth,
     person: async () => (await api.call('session.get', {})).user.id,
     open: liveSourceOf(liveKindOf(config.auth, import.meta.env.VITE_MADAR_LIVE), {
       realtime: (me) => {
         if (!supabase) throw new Error('The Madar sign-in has no Supabase Realtime: its build opens the live socket (liveKindOf).');
-        return supabaseChangeSource(supabase, me);
+        const status = supabaseLive(supabase, me);
+        return attachLive(live, status, supabaseChangeSource(supabase, me, { onTyping: status.typing }));
       },
       ticket: () => api.call('live.ticket', {}),
       apiUrl: config.apiUrl,
       page: window.location.href,
+      live,
     }),
   });
-  return { api, auth, changes, mode: 'remote' };
+  return { api, auth, changes, live, mode: 'remote' };
 }

@@ -182,6 +182,47 @@ describe('the office parts (server/office/parts.ts)', () => {
     expect(sockets.all.map((one) => one.tags)).toEqual([['office', 'person:usr_005']]);
   });
 
+  it('takes the state of a device from the socket and tells the office, also after the person closes the last socket (chat presence design)', async () => {
+    const { parts, sockets } = await office();
+    const at = Date.parse(NOW);
+    const watcher = openFor(sockets, 'usr_002', at);
+    const phone = openFor(sockets, 'usr_003', at);
+    parts.message(phone, JSON.stringify({ t: 'state', state: 'online' }));
+    // A ping still gets its pong and is no state.
+    parts.message(phone, 'ping');
+    expect(phone.sent).toContain('pong');
+    const presence = () => watcher.sent.map((text) => JSON.parse(text) as { event: string; payload: { userId: string; state: string } }).filter((m) => m.event === 'presence').map((m) => m.payload.state);
+    expect(presence()).toEqual(['online']);
+    parts.closed(phone, 1000);
+    expect(presence()).toEqual(['online', 'offline']);
+    expect(phone.closed?.code).toBe(1000);
+  });
+
+  it('sends the typing of chats.typing to the sockets of the other members only, never to an outsider or the typist', async () => {
+    const { sockets, batch } = await office();
+    const at = Date.parse(NOW);
+    // cnv_015 is the group of usr_002, usr_001, usr_005 and usr_003; usr_004 is in no chat of the sample office.
+    const typist = openFor(sockets, 'usr_005', at);
+    const typistPhone = openFor(sockets, 'usr_005', at);
+    const member = openFor(sockets, 'usr_002', at);
+    const other = openFor(sockets, 'usr_003', at);
+    const outsider = openFor(sockets, 'usr_004', at);
+    const { answer } = ok(await batch('usr_005', [{ name: 'chats.typing', input: { conversationId: 'cnv_015', typing: true } }]));
+    expect(answer.results[0]).toMatchObject({ ok: true, output: { sent: 3 } });
+    const typed = (socket: typeof member) => socket.sent.map((text) => JSON.parse(text) as { event: string; payload: { userId: string; conversationId: string; typing: boolean } }).filter((m) => m.event === 'typing');
+    expect(typed(member)).toEqual([{ event: 'typing', payload: expect.objectContaining({ v: 1, userId: 'usr_005', conversationId: 'cnv_015', typing: true }) }]);
+    expect(typed(other)).toHaveLength(1);
+    expect(typed(typist)).toEqual([]);
+    expect(typed(typistPhone)).toEqual([]);
+    expect(outsider.sent).toEqual([]);
+    // A chat that the person cannot see answers like a chat that never was, and sends nothing.
+    const hidden = ok(await batch('usr_004', [{ name: 'chats.typing', input: { conversationId: 'cnv_015', typing: true } }, { name: 'chats.typing', input: { conversationId: 'cnv_999', typing: true } }]));
+    const [seen, never] = hidden.answer.results as { ok: false; error: { code: string; message: string } }[];
+    expect(seen.error.code).toBe('not_found');
+    expect(seen.error.message.replace('cnv_015', 'X')).toBe(never.error.message.replace('cnv_999', 'X'));
+    expect(typed(member)).toHaveLength(1);
+  });
+
   it('runs the job steps on a Cron call, adds the meter counts, and closes a stale socket', async () => {
     const { parts, sockets, raw, net } = await office();
     const stale = openFor(sockets, 'usr_002', Date.parse(NOW) - 10 * 60_000);

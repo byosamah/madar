@@ -5,6 +5,7 @@ import type { ChangeSignal, OfficeSnapshot, RunError } from '../core/types';
 import { onCommit } from '../data/lite/db';
 import { errorResponse, runErrorOf } from '../http/errors';
 import { SIGNAL_EVENT } from '../signal/realtime';
+import { announceChanges, officeStates, retire, sendStates, type DeviceState } from './presence';
 
 /**
  * Live updates on the sockets of the office object (exit wave 3; spec section 2, "Live updates"). The object holds every browser
@@ -18,6 +19,8 @@ import { SIGNAL_EVENT } from '../signal/realtime';
  *   broke with no close frame stays in getWebSockets (wave 0: 17.7 minutes), so each delivery and each Cron run close a socket with
  *   no pong for LIVE_STALE_MS. The client pings each 30 s (src/api/remote/liveSocket.ts), so 150 s is 5 missed pings.
  * - The commit that turns a person off closes that person's sockets (closeOff), so no signal reaches a person who is off.
+ * - The status of people rides on the same sockets (server/office/presence.ts, chat presence design): a socket keeps the state that its
+ *   screen sent in its attachment, and a close of any kind (sweep, closeOff, the socket itself) tells the office when a person goes.
  */
 
 export const LIVE_PING = 'ping';
@@ -51,11 +54,14 @@ export type Sockets = {
   upgraded(client: unknown): Response;
 };
 
-export type SocketNote = { userId: string; openedAt: number };
+/** The note of a socket (its attachment): the person and the open time from the ticket, then the device state that the screen sent. */
+export type SocketNote = { userId: string; openedAt: number; state?: DeviceState };
 
 export function noteOf(socket: LiveSocket): SocketNote | undefined {
   const note = socket.deserializeAttachment() as Partial<SocketNote> | null;
-  return note && typeof note.userId === 'string' && typeof note.openedAt === 'number' ? { userId: note.userId, openedAt: note.openedAt } : undefined;
+  return note && typeof note.userId === 'string' && typeof note.openedAt === 'number'
+    ? { userId: note.userId, openedAt: note.openedAt, ...(note.state === 'online' || note.state === 'away' ? { state: note.state } : {}) }
+    : undefined;
 }
 
 export class LiveTickets implements LivePort {
@@ -83,34 +89,24 @@ export class LiveTickets implements LivePort {
 
 /** Closes each socket with no auto pong (or, if it never pinged, no open) for staleMs. Gives the count it closed. */
 export function sweep(sockets: Sockets, now: Date, staleMs: number): number {
-  let closed = 0;
+  const victims: { socket: LiveSocket; code: number; reason: string }[] = [];
   for (const socket of sockets.list()) {
     const last = sockets.lastPong(socket)?.getTime() ?? noteOf(socket)?.openedAt ?? 0;
     if (now.getTime() - last <= staleMs) continue;
-    try {
-      socket.close(CLOSE_STALE, 'No pong for a long time.');
-    } catch {
-      // The socket is closed already.
-    }
-    closed += 1;
+    victims.push({ socket, code: CLOSE_STALE, reason: 'No pong for a long time.' });
   }
-  return closed;
+  return retire(sockets, victims);
 }
 
 /** Closes each socket whose person is not an active user of the office. Gives the count it closed. */
 export function closeOff(sockets: Sockets, office: OfficeSnapshot): number {
-  let closed = 0;
+  const victims: { socket: LiveSocket; code: number; reason: string }[] = [];
   for (const socket of sockets.list()) {
     const userId = noteOf(socket)?.userId;
     if (userId !== undefined && office.lists.users[userId]?.active === true) continue;
-    try {
-      socket.close(CLOSE_OFF, 'The account is off.');
-    } catch {
-      // The socket is closed already.
-    }
-    closed += 1;
+    victims.push({ socket, code: CLOSE_OFF, reason: 'The account is off.' });
   }
-  return closed;
+  return retire(sockets, victims);
 }
 
 export type LiveOptions = { sockets: Sockets; log: Logger; now: () => Date; staleMs: number };
@@ -158,7 +154,13 @@ export async function acceptLive(
     return errorResponse(runErrorOf(error));
   }
   const { client, server } = o.sockets.pair();
+  const before = officeStates(o.sockets);
   o.sockets.accept(server, ['office', `person:${held.userId}`]);
   server.serializeAttachment({ userId: held.userId, openedAt: o.now().getTime() } satisfies SocketNote);
+  // The new socket gets the states of all in one event; the others hear of its person if that person was not here before (a socket
+  // with no state yet counts as Away, and the state message that follows gives Online).
+  const after = officeStates(o.sockets);
+  sendStates(server, after);
+  announceChanges(o.sockets, before, after, server);
   return o.sockets.upgraded(client);
 }

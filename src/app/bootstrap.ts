@@ -1,5 +1,6 @@
 import { calls } from '../api/calls';
 import { createApi, type Api, type CallMap } from '../api/client';
+import { typingRecipients } from '../api/chatState';
 import { runScheduledTriggers } from '../api/notify';
 import { memoryPersister, openPersister, type Persister } from '../api/persist';
 import { STATE_VERSION, Store } from '../api/store';
@@ -12,6 +13,7 @@ import { settleFuture, shiftState } from '../data/shift';
 import { diffDays, now, todayISO } from '../lib/dates';
 import { dueToSettle, seriesToExtend } from '../api/handlers/meetings';
 import { alwaysSignedIn } from './auth';
+import { prototypeLive } from './live/prototypeLive';
 import type { ChangeSource, Runtime } from './runtime';
 
 /** The prototype runtime always has its store. */
@@ -55,7 +57,15 @@ export async function bootstrap(options: { persister?: Persister; latencyMs?: nu
     latencyMs: options.latencyMs,
     failureRate: () => (store.state.session.simulateErrors ? 0.2 : 0),
   });
-  return { store, api, auth: alwaysSignedIn(), changes: storeChangeSource(store), mode: 'prototype' };
+  // Status and typing between the tabs of this browser (chat presence design). A tab shows a typing line only for a chat where its
+  // person is a member, with the same rule as the server (typingRecipients), so a tab that previews an outsider shows nothing.
+  const me = () => store.state.session.currentUserId;
+  const live = prototypeLive({
+    me,
+    subscribeMe: (listener) => store.subscribe(listener),
+    accepts: (signal) => typingRecipients(store.state, signal.conversationId, signal.userId)?.includes(me()) === true,
+  });
+  return { store, api, auth: alwaysSignedIn(), changes: storeChangeSource(store), mode: 'prototype', live };
 }
 
 /**

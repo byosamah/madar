@@ -17,6 +17,19 @@ describe('bootstrap', () => {
     expect(second.store.state.projects.prj_001.name).toBe('Corniche Tower');
   });
 
+  it('gives the runtime a live port: sample states, and the state of this tab for its own person (chat presence)', async () => {
+    setNow(NOW);
+    const runtime = await bootstrap({ persister: memoryPersister(), latencyMs: 0 });
+    const live = runtime.live!;
+    expect(live.stateOf('usr_002')).toBe('online');
+    expect(live.stateOf('usr_007')).toBe('away');
+    expect(live.stateOf('usr_005')).toBe('offline');
+    const me = runtime.store.state.session.currentUserId;
+    live.setMine('online');
+    expect(live.stateOf(me)).toBe('online');
+    live.stop();
+  });
+
   it('shifts saved dates when the day changes', async () => {
     setNow(NOW);
     const persister = memoryPersister();

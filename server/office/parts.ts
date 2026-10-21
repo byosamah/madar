@@ -32,6 +32,7 @@ import { EffectLedger, officeData, runOfficeBatch, runOfficeEntries, type Office
 import { runOfficeJobs } from './jobs';
 import { LIVE_PING, LIVE_PONG, LIVE_STALE_MS, LiveTickets, acceptLive, closeOff, liveSignals, sweep, type LiveSocket, type Sockets } from './live';
 import { DAY_ROW_LITE, OfficeMeter } from './meter';
+import { officeTyping, socketClosed, stateMessage } from './presence';
 import { importBegin, importFinish, importPart, importStepOf, type ImportStep } from './import';
 import { netPorts, type NetApi } from './net';
 import { EXPORT_TABLES, exportPage, exportStepOf, META_ROW_LITE, OfficeHold, peek, testToolsOn, writesIn, type ExportStep } from './ops';
@@ -192,6 +193,8 @@ export function officeParts(o: PartsInput): OfficeParts {
       log,
       pushFetch: ports.pushFetch,
       live: tickets,
+      // The typing signal of chats.typing goes to the sockets of the members (server/office/presence.ts).
+      typing: officeTyping({ sockets: o.sockets }),
       // A job step that runs a normal call (the meetings step) runs it on the SQLite data of this object.
       runCall: run,
     };
@@ -431,9 +434,16 @@ export function officeParts(o: PartsInput): OfficeParts {
     },
     message(socket, message) {
       // The runtime answers "ping" itself (setWebSocketAutoResponse). This covers a ping that reaches the object while it is awake.
-      if (message === LIVE_PING) socket.send(LIVE_PONG);
+      if (message === LIVE_PING) {
+        socket.send(LIVE_PONG);
+        return;
+      }
+      // The state of the device (chat presence design). Any other text is ignored.
+      stateMessage(o.sockets, socket, message);
     },
     closed(socket, code) {
+      // The person may have left (their last socket), so the office hears of it before the socket closes.
+      socketClosed(o.sockets, socket);
       try {
         socket.close(RESERVED_CLOSE.has(code) ? 1000 : code, 'Closed.');
       } catch {

@@ -82,7 +82,8 @@ describe('the batch call into the office object on local workerd', () => {
     const { body } = await live.batch('usr_005', [{ name: 'projects.delete', input: { id: 'prj_001' } }]);
     expect(body.results[0]).toMatchObject({ ok: false });
     await new Promise((resolve) => setTimeout(resolve, 300));
-    expect(socket.got).toEqual([]);
+    // The presence snapshot of a new socket (chat presence design) is no signal; a change signal never came.
+    expect(socket.got.filter((text) => (JSON.parse(text) as { event?: string }).event === 'changed')).toEqual([]);
     expect(await live.rows('select count(*) as n from outbox')).toEqual(outbox);
     socket.ws.close();
   });

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { LIVE_PING_MS, LIVE_PONG_WAIT_MS, LIVE_RETRY_MS, liveSocketSource, liveUrl, type LiveWebSocket } from './liveSocket';
-import type { ChangeSignal } from './wire';
+import { LIVE_PING_MS, LIVE_PONG_WAIT_MS, LIVE_RETRY_MS, isPresencePayload, liveSocketSource, liveUrl, type LiveWebSocket, type PresencePayload } from './liveSocket';
+import type { ChangeSignal, TypingSignal } from './wire';
 
 class FakeSocket implements LiveWebSocket {
   readyState = 0;
@@ -159,5 +159,134 @@ describe('the address of the live socket', () => {
   it('is the page host with ws or wss, the api path and the ticket', () => {
     expect(liveUrl('/api', 'https://madar.vado.sa/projects')('t1')).toBe('wss://madar.vado.sa/api/live?ticket=t1');
     expect(liveUrl('/api/', 'http://127.0.0.1:4174/')('t2')).toBe('ws://127.0.0.1:4174/api/live?ticket=t2');
+  });
+});
+
+const typing = (o: Partial<TypingSignal> = {}): TypingSignal => ({ v: 1, conversationId: 'cnv_1', userId: 'usr_002', typing: true, at: '2026-10-21T08:00:00.000Z', ...o });
+
+/** A source with the presence and typing hooks of chat presence (L4). */
+function setupLive() {
+  const sockets: FakeSocket[] = [];
+  const presence: PresencePayload[] = [];
+  const typed: TypingSignal[] = [];
+  const changes: { signals: ChangeSignal[]; origin?: string }[] = [];
+  const log: string[] = [];
+  const source = liveSocketSource({
+    me: 'usr_005',
+    ticket: async () => ({ ticket: `t${sockets.length + 1}`, expiresAt: '2026-10-04T09:01:00.000+03:00' }),
+    url: (t) => `wss://madar.test/api/live?ticket=${t}`,
+    open: (url) => {
+      const socket = new FakeSocket(url);
+      sockets.push(socket);
+      return socket;
+    },
+    page: { visible: () => true, onVisible: () => () => undefined },
+    onPresence: (payload) => presence.push(payload),
+    onTyping: (signal) => typed.push(signal),
+    onDrop: () => log.push('drop'),
+  });
+  const stop = source.subscribe((signals, origin) => changes.push({ signals, origin }));
+  return { sockets, presence, typed, changes, log, source, stop };
+}
+
+describe('the status and the typing on the live socket (chat presence design, L4)', () => {
+  it('sends the state when the socket opens, and again after a new open', async () => {
+    const { sockets, source } = setupLive();
+    // A state set before the socket opens waits for the open.
+    source.sendState?.('online');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sockets[0].sent).toEqual([]);
+    sockets[0].accept();
+    expect(sockets[0].sent).toEqual([JSON.stringify({ t: 'state', state: 'online' })]);
+    // A change goes out at once while the socket is open.
+    source.sendState?.('away');
+    expect(sockets[0].sent.at(-1)).toBe(JSON.stringify({ t: 'state', state: 'away' }));
+    // The socket breaks: the new socket gets the last state, not the first.
+    sockets[0].drop();
+    await vi.advanceTimersByTimeAsync(LIVE_RETRY_MS[0]);
+    sockets[1].accept();
+    expect(sockets[1].sent).toEqual([JSON.stringify({ t: 'state', state: 'away' })]);
+  });
+
+  it('sends no state before one is set, and nothing on a socket that is not open', async () => {
+    const { sockets, source } = setupLive();
+    await vi.advanceTimersByTimeAsync(0);
+    sockets[0].accept();
+    expect(sockets[0].sent).toEqual([]);
+    sockets[0].drop();
+    source.sendState?.('online');
+    expect(sockets[0].sent).toEqual([]);
+  });
+
+  it('takes a snapshot and then each change', async () => {
+    const { sockets, presence, changes } = setupLive();
+    await vi.advanceTimersByTimeAsync(0);
+    sockets[0].accept();
+    sockets[0].message(JSON.stringify({ event: 'presence', payload: { v: 1, states: { usr_002: 'online', usr_003: 'away' } } }));
+    sockets[0].message(JSON.stringify({ event: 'presence', payload: { v: 1, userId: 'usr_003', state: 'offline' } }));
+    expect(presence).toEqual([
+      { v: 1, states: { usr_002: 'online', usr_003: 'away' } },
+      { v: 1, userId: 'usr_003', state: 'offline' },
+    ]);
+    // A presence event is no change signal.
+    expect(changes.map((c) => c.origin)).toEqual(['join']);
+  });
+
+  it('drops a presence payload of a wrong shape', async () => {
+    const { sockets, presence } = setupLive();
+    await vi.advanceTimersByTimeAsync(0);
+    sockets[0].accept();
+    const bad: unknown[] = [
+      null, 'x', { v: 2, states: {} }, { v: 1 }, { v: 1, states: [] }, { v: 1, states: { usr_002: 'busy' } }, { v: 1, states: { usr_002: 3 } },
+      { v: 1, userId: 'usr_002' }, { v: 1, userId: 5, state: 'online' }, { v: 1, userId: 'usr_002', state: 'busy' },
+    ];
+    for (const payload of bad) sockets[0].message(JSON.stringify({ event: 'presence', payload }));
+    expect(presence).toEqual([]);
+    expect(bad.map(isPresencePayload)).toEqual(bad.map(() => false));
+  });
+
+  it('passes a typing signal on, and drops a payload that is not one', async () => {
+    const { sockets, typed, changes } = setupLive();
+    await vi.advanceTimersByTimeAsync(0);
+    sockets[0].accept();
+    sockets[0].message(JSON.stringify({ event: 'typing', payload: typing() }));
+    sockets[0].message(JSON.stringify({ event: 'typing', payload: typing({ typing: false }) }));
+    for (const payload of [null, 'typing', { v: 2 }, { ...typing(), typing: 'yes' }, signal('office')]) sockets[0].message(JSON.stringify({ event: 'typing', payload }));
+    expect(typed).toEqual([typing(), typing({ typing: false })]);
+    expect(changes.map((c) => c.origin)).toEqual(['join']);
+  });
+
+  it('the change listener still gets only changed signals', async () => {
+    const { sockets, changes } = setupLive();
+    await vi.advanceTimersByTimeAsync(0);
+    sockets[0].accept();
+    sockets[0].message(JSON.stringify({ event: 'changed', payload: signal('office') }));
+    sockets[0].message(JSON.stringify({ event: 'presence', payload: { v: 1, userId: 'usr_003', state: 'online' } }));
+    sockets[0].message(JSON.stringify({ event: 'typing', payload: typing() }));
+    sockets[0].message(JSON.stringify({ event: 'changed', payload: typing() }));
+    expect(changes.map((c) => [c.origin, c.signals.length])).toEqual([['join', 0], ['channel', 1]]);
+  });
+
+  it('works with no hooks: a source made as before ignores presence and typing', async () => {
+    const { sockets, heard } = setup();
+    await vi.advanceTimersByTimeAsync(0);
+    sockets[0].accept();
+    sockets[0].message(JSON.stringify({ event: 'presence', payload: { v: 1, userId: 'usr_003', state: 'online' } }));
+    sockets[0].message(JSON.stringify({ event: 'typing', payload: typing() }));
+    expect(heard).toEqual([{ signals: [], origin: 'join' }]);
+  });
+
+  it('tells onDrop when the socket drops or times out, and not when the source stops by itself', async () => {
+    const { sockets, log, stop } = setupLive();
+    await vi.advanceTimersByTimeAsync(0);
+    sockets[0].accept();
+    sockets[0].drop();
+    expect(log).toEqual(['drop']);
+    await vi.advanceTimersByTimeAsync(LIVE_RETRY_MS[0]);
+    sockets[1].accept();
+    await vi.advanceTimersByTimeAsync(LIVE_PING_MS + LIVE_PONG_WAIT_MS);
+    expect(log).toEqual(['drop', 'drop']);
+    stop();
+    expect(log).toEqual(['drop', 'drop']);
   });
 });

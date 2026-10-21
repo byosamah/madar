@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { ChangeSignal } from '../../api/remote/wire';
+import { TYPING_EVENT, type ChangeSignal, type TypingSignal } from '../../api/remote/wire';
 import { supabaseChangeSource } from './channel';
 
 type Status = 'SUBSCRIBED' | 'CHANNEL_ERROR' | 'TIMED_OUT' | 'CLOSED';
@@ -16,6 +16,7 @@ function stubSupabase(o: { holdLeave?: boolean } = {}) {
     topic: string;
     config: unknown;
     broadcast?: (message: { payload: unknown }) => void;
+    typing?: (message: { payload: unknown }) => void;
     status?: (status: Status, error?: Error) => void;
     removed: boolean;
     channel: { topic: string };
@@ -36,7 +37,8 @@ function stubSupabase(o: { holdLeave?: boolean } = {}) {
       const channel = {
         on(type: string, filter: { event: string }, callback: (message: { payload: unknown }) => void) {
           steps.push(`on:${topic}:${type}:${filter.event}`);
-          entry.broadcast = callback;
+          if (filter.event === TYPING_EVENT) entry.typing = callback;
+          else entry.broadcast = callback;
           return channel;
         },
         subscribe(callback: (status: Status, error?: Error) => void) {
@@ -273,5 +275,59 @@ describe('the Realtime change source (plan 5.3, client map 7.3)', () => {
     stopB();
     await vi.advanceTimersByTimeAsync(0);
     expect(stub.channels.every((c) => c.removed)).toBe(true);
+  });
+});
+
+const typingSignal = (o: Partial<TypingSignal> = {}): TypingSignal => ({ v: 1, conversationId: 'cnv_1', userId: 'usr_002', typing: true, at: '2026-10-21T08:00:00.000Z', ...o });
+
+describe('the typing signal beside the change signals (chat presence design, L2)', () => {
+  it('listens to the typing event on the person channel only, and only when it is asked to', async () => {
+    const quiet = stubSupabase();
+    supabaseChangeSource(quiet.client, 'usr_001').subscribe(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(quiet.steps.filter((step) => step.includes(TYPING_EVENT))).toEqual([]);
+
+    const stub = stubSupabase();
+    supabaseChangeSource(stub.client, 'usr_001', { onTyping: () => undefined }).subscribe(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(stub.steps.filter((step) => step.includes(TYPING_EVENT))).toEqual([`on:person:usr_001:broadcast:${TYPING_EVENT}`]);
+    expect(stub.live('office')?.typing).toBeUndefined();
+    expect(stub.live('person:usr_001')?.typing).toBeTypeOf('function');
+  });
+
+  it('hands a typing signal to onTyping, and drops a payload that is not one', async () => {
+    const stub = stubSupabase();
+    const heard: TypingSignal[] = [];
+    supabaseChangeSource(stub.client, 'usr_001', { onTyping: (s) => heard.push(s) }).subscribe(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    const typing = stub.live('person:usr_001')!.typing!;
+    typing({ payload: typingSignal() });
+    typing({ payload: typingSignal({ typing: false }) });
+    for (const payload of [null, 'typing', { v: 2 }, { ...typingSignal(), typing: 'yes' }, { ...typingSignal(), conversationId: 5 }, signal()]) typing({ payload });
+    expect(heard).toEqual([typingSignal(), typingSignal({ typing: false })]);
+  });
+
+  it('the change source still ignores a typing payload on the changed listener', async () => {
+    const stub = stubSupabase();
+    const changes: unknown[] = [];
+    supabaseChangeSource(stub.client, 'usr_001', { onTyping: () => undefined }).subscribe((signals) => changes.push(signals));
+    await vi.advanceTimersByTimeAsync(0);
+    stub.live('person:usr_001')?.broadcast?.({ payload: typingSignal() });
+    expect(changes).toEqual([]);
+    // The usual change signal still passes.
+    stub.live('person:usr_001')?.broadcast?.({ payload: signal({ channel: 'person:usr_001', people: ['usr_001'] }) });
+    expect(changes).toHaveLength(1);
+  });
+
+  it('keeps the typing listener when a channel joins again after a close', async () => {
+    const stub = stubSupabase();
+    const heard: TypingSignal[] = [];
+    supabaseChangeSource(stub.client, 'usr_001', { onTyping: (s) => heard.push(s) }).subscribe(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    stub.live('person:usr_001')?.status?.('SUBSCRIBED');
+    stub.live('person:usr_001')?.status?.('CLOSED');
+    await vi.advanceTimersByTimeAsync(1000);
+    stub.live('person:usr_001')?.typing?.({ payload: typingSignal() });
+    expect(heard).toEqual([typingSignal()]);
   });
 });
