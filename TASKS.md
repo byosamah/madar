@@ -819,3 +819,15 @@ Owner: tasks and chat need notifications on the phone. These fixes serve the Hom
   a new id marks an entry as new again
 - [ ] Later, with the store app: the plan of 2026-10-20 (one code for both phones with Expo, the shared contract, a "phone" list for
   each call and screen, a lowest app version). Decide the Supabase exit first
+
+## 2026-10-21: chat status, Seen, typing and emoji (branch `rb/chat-presence`, worktree `~/dev/madar-rb/chat-presence`)
+Owner: "add some Slack chat features": Online, Away, Offline, "Seen", "typing...", and an emoji list. Design
+`docs/superpowers/specs/2026-10-21-madar-chat-presence-design.md`, mockup next to it (owner: "go ahead", dot look A).
+
+- [x] Owner answers: status automatic plus an Away switch; "Seen" and "Seen by N"; the full emoji list with search; reactions keep
+  👍 ✅ 👀 and get a + for any emoji
+- [x] Mockup, then the design
+- [ ] Builder check of the design, then the plan (Opus, `superpowers:writing-plans`)
+- [ ] Proof task on madar-test: presence and typing policies, the drop time, the message count
+- [ ] Build (Sonnet builders), merge gate once, screenshots, test copy
+- [ ] What's new line; production only by the owner, not before 2026-10-23
