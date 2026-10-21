@@ -425,6 +425,12 @@ export function dateMoveOf(task: Task, changes: Partial<Task>): DateMove | null 
 const DETAIL_FIELDS = ['title', 'description', 'stageId', 'flagged'] as const;
 const DATE_FIELDS = ['startDate', 'dueDate', 'schedule', 'durationDays'] as const;
 
+/** True when a new checklist ticks or unticks an item that stays, or brings a new item that is already ticked. */
+function ticksIn(current: ChecklistItem[], next: ChecklistItem[]): boolean {
+  const before = new Map(current.map((item) => [item.id, item.done]));
+  return next.some((item) => (before.has(item.id) ? before.get(item.id) !== item.done : item.done));
+}
+
 /**
  * The gate of tasks.update, field by field (role rights version 2, design 5.2). A person who may change any to-do of the project
  * (task.any) passes every field. Any other person passes each field with the switch of its kind, for a to-do that the person leads
@@ -448,6 +454,9 @@ function assertMayPatch(ctx: Ctx, task: Task, patch: Partial<Record<string, unkn
       // A helper can tick items but not add, remove or change them.
       if (mayTickChecklist(who, resource)) assertTicksOnly(task.checklist, patch.checklist);
       refuse('task.details');
+    } else if (ticksIn(task.checklist, patch.checklist) && !mayTickChecklist(who, resource)) {
+      // A change of the items may not carry a tick past task.work (security review, role rights version 2).
+      refuse('task.work');
     }
   }
   // A call with no change asks for a person who works on the task: its lead, its maker, the leader or the Admin.

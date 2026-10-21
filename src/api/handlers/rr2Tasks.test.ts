@@ -317,3 +317,34 @@ describe('the flags of a to-do follow the same gates', () => {
     expect(flags).toMatchObject({ editDetails: true, editDates: false, work: false, complete: false, contribute: false, edit: false });
   });
 });
+
+describe('a checklist change that adds or renames items AND ticks needs task.work too (security review of the gates-work commit)', () => {
+  it('refuses a patch that adds an item and ticks another one when task.work is off', async () => {
+    const t = world(off('task.work'));
+    t.as('usr_003');
+    const patch = { checklist: [{ id: 'chk_1', text: 'One', done: true }, { id: 'chk_2', text: 'Two', done: false }] };
+    await expect(t.api.call('tasks.update', { id: 'tsk_001', patch })).rejects.toMatchObject({ code: 'forbidden' });
+    expect(t.store.state.tasks.tsk_001.checklist).toHaveLength(1);
+  });
+
+  it('refuses a new item that arrives already ticked when task.work is off', async () => {
+    const t = world(off('task.work'));
+    t.as('usr_003');
+    const patch = { checklist: [{ id: 'chk_1', text: 'One', done: false }, { id: 'chk_2', text: 'Two', done: true }] };
+    await expect(t.api.call('tasks.update', { id: 'tsk_001', patch })).rejects.toMatchObject({ code: 'forbidden' });
+  });
+
+  it('lets the lead add an item with no tick when task.work is off', async () => {
+    const t = world(off('task.work'));
+    t.as('usr_003');
+    await t.api.call('tasks.update', { id: 'tsk_001', patch: { checklist: [{ id: 'chk_1', text: 'One', done: false }, { id: 'chk_2', text: 'Two', done: false }] } });
+    expect(t.store.state.tasks.tsk_001.checklist).toHaveLength(2);
+  });
+
+  it('lets the lead add an item and tick another one with both switches on', async () => {
+    const t = world();
+    t.as('usr_003');
+    await t.api.call('tasks.update', { id: 'tsk_001', patch: { checklist: [{ id: 'chk_1', text: 'One', done: true }, { id: 'chk_2', text: 'Two', done: false }] } });
+    expect(t.store.state.tasks.tsk_001.checklist[0].done).toBe(true);
+  });
+});
