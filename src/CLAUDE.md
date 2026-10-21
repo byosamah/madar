@@ -248,6 +248,8 @@ any screen work.
   The button that opens one starts its reads on pointerdown with `usePrefetchCall`: `usePrepareNewProject` (the New project button of Projects
   and the Search command), and `MenuItem.onPrepare` (the "Edit project" and "Apply a template" items of `ProjectActions`). `ClosedSheetReads.test.tsx`
   pins it. A new sheet that reads data follows the same rule.
+- Home starts `meetings.list` with `todayMeetingsInput(today)` in an effect (`usePrefetchCall`, DF-6), so the Meetings card, which mounts after three answers,
+  finds the answer and the read goes in the first request.
 - The project To-dos tab asks `taskTemplates.list {}` once, with its `tasks.list`, under the gates of the menu (list view and
   `createTaskForSelf`). Each `TemplateMenu` keeps the templates of its stage with `lib/sameText.ts`, as the handler does.
 - In the real build, a picture hook (`useFileLink`, `useScreenshotLink`) keeps its signed link in the cache for

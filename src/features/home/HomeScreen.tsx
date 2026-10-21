@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import { useLang } from '../../app/lang';
+import { usePrefetchCall } from '../../app/prefetch';
 import { usePersonName } from '../../app/personName';
 import type { CallOutput } from '../../api/calls';
 import type { ProjectSummary, TaskRow } from '../../api/contract/views';
@@ -15,6 +16,7 @@ import { formatDay, todayISO } from '../../lib/dates';
 import { counted } from '../../lib/grammar';
 import { comingUp, dayRing, dueByToday, greetingKey, nextForYou, officeHour } from '../../lib/home';
 import { useFocusLink } from '../focus/focusLink';
+import { todayMeetingsInput } from '../meetings/readInputs';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 import { ProjectListRow } from '../projects/ProjectListRow';
 import { DayRing } from './DayRing';
@@ -104,6 +106,9 @@ export function HomeScreen() {
   const session = useCall('session.get', {});
   const mine = useCall('tasks.list', { filter: 'mine' });
   const review = useCall('tasks.list', { filter: 'review_for_me' });
+  // The Meetings card mounts only after three answers. Its read starts now, under its key, so it goes in the first request (DF-6).
+  const prefetch = usePrefetchCall();
+  useEffect(() => prefetch('meetings.list', todayMeetingsInput(today)), [prefetch, today]);
   // The Admin sees every active project; anyone else sees the projects they lead or work on, the paused ones too:
   // a paused or stale project still needs its people, and its row says Paused or Stale (audit PER-13).
   // Before session.get answers, the real build takes the role that this device saw last for this auth user, so the Admin's list
