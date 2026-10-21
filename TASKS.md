@@ -879,6 +879,8 @@ Owner: "add some Slack chat features": Online, Away, Offline, "Seen", "typing...
 - [ ] Test copy: `all.sh test` from `rb/chat-presence` (not main) when session madar-2b says the test copy is free (its AM and PM
   release waits for the owner). It puts 2 migrations on madar-test: until the batch is on main, a test deploy from main fails at
   db push; the merge lead takes them off again on request
-- [ ] Live check on the test copy: `node --import tsx scripts/proof/presence-live.ts` (sandbox off), then the deploy suite
+- [x] Test copy at 1eddb950 (2026-10-21): live check 8 of 8 passed; deploy suite stopped at 15 of 17 files (181 passed, 0 failed)
+  when the owner put role rights first; both migrations taken off madar-test again
+- [ ] After the owner's rr2 hand test: merge main (rr2, a816c42a), gates again, `all.sh test`, the live check, the whole deploy suite
 - [ ] Owner hand test with two phones; production not before Friday 2026-10-23 and only by the owner (main gets the batch then)
 - [ ] What's new line; production only by the owner, not before 2026-10-23

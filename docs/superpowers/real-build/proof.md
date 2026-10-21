@@ -2146,3 +2146,18 @@ presence entries live in memory and are gone when the sockets close. Production 
 - Screenshots (prototype, a Node Playwright script in the scratchpad): the chat with dots, Online, Seen and typing in English and
   Arabic, light and dark, 390 px and a computer; the chat list with typing; Seen by 2 with its names; the emoji panel and sheet;
   the + of a reaction; the Away switch. The Arabic forms show as planned (قرأتها, ريم تكتب..., قرأها شخصان, متصلة).
+
+### Chat presence batch: the test copy (merge lead, 2026-10-21, branch rb/chat-presence at 1eddb950)
+- `all.sh test` from the branch (not main) applied `20261022000100` and `20261022000200` and passed its checks (health from supabase,
+  149 calls; remote first load 1,218,106 B).
+- Live check (`scripts/proof/presence-live.ts`, admin and member and accounting, no browser): status Online after 1,526 ms, Away after
+  3,019 ms, Offline 2,990 ms after a leave; a typing signal 617 ms from the call to the event; the accounting account got no typing
+  event and its `chats.typing` answered `not_found`; the seen signal reached the author 648 ms after the look, and the chat view held
+  the seen time. A presence join needs a presence listener set before the subscribe (supabase-js asks for presence only then); the
+  screens do it (`src/app/remote/presence.ts`).
+- Deploy suite, stopped by the owner's choice (role rights first on the test copy): 15 of 17 files ran, 181 passed, 0 failed, 3
+  skipped by design (acceptance 1, menus 2). `walk.spec.ts` was cut mid-run and `full.spec.ts` did not run. Both run again before
+  the release.
+- Then both migrations came off madar-test again (the index and the two policies dropped, `migration repair --status reverted`), so
+  `rb/rr2` could deploy from main. Next: merge main (rr2 and `a816c42a`, the reports.office fix that the owner wants in the same
+  release), the gates, `all.sh test`, the whole deploy suite, the owner's two-phone hand test.
