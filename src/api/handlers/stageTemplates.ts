@@ -19,7 +19,7 @@ export const StageTemplateRow = StageTemplate.extend({
 });
 
 function mayDelete(ctx: Ctx, template: StageTemplate): boolean {
-  return ctx.authority.active && (can(ctx.authority, 'templates.manageAll') || template.createdBy === ctx.authority.id);
+  return ctx.authority.active && (can(ctx.authority, 'templates.projectAny') || template.createdBy === ctx.authority.id);
 }
 
 const stageTemplatesList = defineCall({
@@ -37,7 +37,7 @@ const stageTemplatesSave = defineCall({
   input: z.object({ name: TemplateName, stages: z.array(StageName).min(1).max(20) }),
   output: StageTemplateRow,
   run(input, ctx) {
-    assertCan(ctx, 'project.create');
+    assertCan(ctx, 'templates.projectCreate');
     const templates = stageTemplatesOf(ctx.state);
     const key = input.name.toLowerCase();
     if (Object.values(templates).some((t) => t.name.toLowerCase() === key)) {

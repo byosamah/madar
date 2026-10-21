@@ -331,15 +331,16 @@ describe('a right gives only its own power', () => {
     expect(await code(() => t.api.call('members.remove', { projectId: 'prj_001', userId: TEAM } as never))).toBe('forbidden');
   });
 
-  it('makes a template of the office from a task only for a person who may edit the project', async () => {
+  it('makes a template of the office from a task only for a person with the switch to save to-do templates', async () => {
     const t = world();
     const id = await taskInReview(t);
     t.as(CHANGE);
     expect(await code(() => t.api.call('taskTemplates.save', { fromTaskId: id }))).toBe('forbidden');
     expect((await t.api.call('tasks.get', { id })).viewerCan.saveTemplate).toBe(false);
+    // The right to edit any project does not give it (role rights version 2: templates.taskSave is its own switch).
     t.as(EDIT);
-    expect(await code(() => t.api.call('taskTemplates.save', { fromTaskId: id }))).toBe('ok');
-    expect((await t.api.call('tasks.get', { id })).viewerCan.saveTemplate).toBe(true);
+    expect(await code(() => t.api.call('taskTemplates.save', { fromTaskId: id }))).toBe('forbidden');
+    expect((await t.api.call('tasks.get', { id })).viewerCan.saveTemplate).toBe(false);
     // The leader and the Admin, as before.
     t.as(LEADER);
     expect((await t.api.call('tasks.get', { id })).viewerCan.saveTemplate).toBe(true);

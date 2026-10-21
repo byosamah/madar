@@ -16,7 +16,15 @@ beforeEach(() => setNow(NOW));
  * The test world: usr_001 is the Admin, usr_002 leads Test Tower (prj_001), usr_003 is on its team, usr_004 is on no team, and usr_005
  * is an agent of usr_003. Today is Wednesday 2026-09-30.
  */
-const world = () => testApi({ ...projectCalls, ...projectTemplateCalls, ...taskCalls, ...historyCalls });
+/**
+ * Making a stage or project template is a switch (templates.projectCreate, off for a Member by default, owner 2026-10-21). The people of
+ * these tests make templates, so the Member role holds the switch here. The tests of the switch itself are in rr2Office.test.ts.
+ */
+const world = () => {
+  const t = testApi({ ...projectCalls, ...projectTemplateCalls, ...taskCalls, ...historyCalls });
+  t.store.state.settings.roles = { rights: { member: ['templates.projectCreate'] } };
+  return t;
+};
 type World = ReturnType<typeof world>;
 
 const TEMPLATE = {
