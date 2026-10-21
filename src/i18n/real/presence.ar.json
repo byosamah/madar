@@ -1,0 +1,15 @@
+{
+  "presence": {
+    "online": "متصل",
+    "online_female": "متصلة",
+    "away": "بعيد عن الشاشة",
+    "away_female": "بعيدة عن الشاشة",
+    "offline": "غير متصل",
+    "offline_female": "غير متصلة",
+    "awayByYou": "بعيد عن الشاشة، باختيارك",
+    "awayByYou_female": "بعيدة عن الشاشة، باختيارك",
+    "showAway": "أظهرني بعيدًا عن الشاشة",
+    "showAway_female": "أظهرني بعيدةً عن الشاشة",
+    "faceLabel": "{{name}}، {{state}}"
+  }
+}

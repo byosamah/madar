@@ -7,7 +7,7 @@ import { LogoutIcon } from '../features/auth/LogoutIcon';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import { Avatar } from '../components/Avatar';
+import { PersonFace } from '../components/PersonFace';
 import { Popover } from '../components/Popover';
 import { readEnvironment, resolveAppearance } from './appearance';
 import { PreviewAs } from './PreviewAs';
@@ -55,12 +55,12 @@ export function PersonMenu({ id }: { id: string }) {
   return (
     <>
       <button ref={ref} type="button" aria-label={nameOf(user)} aria-expanded={open} onClick={() => setOpen((value) => !value)} className="pressable grid size-11 place-items-center rounded-full">
-        <Avatar user={user} size={36} />
+        <PersonFace user={user} size={36} mine />
       </button>
       {open && ref.current && (
         <Popover anchor={ref.current} label={nameOf(user)} onClose={close}>
           <div className="flex items-center gap-3">
-            <Avatar user={user} size={40} />
+            <PersonFace user={user} size={40} mine />
             <span className="min-w-0">
               <span className="block truncate text-headline text-ink">{nameOf(user)}</span>
               <span className="block truncate text-footnote text-ink-2">{user.email}</span>

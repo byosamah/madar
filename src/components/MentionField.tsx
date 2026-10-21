@@ -4,7 +4,7 @@ import type { UserCard } from '../api/contract/views';
 import { usePersonName } from '../app/personName';
 import { rankedMatches } from '../lib/personName';
 import { activeMention } from '../lib/text';
-import { Avatar } from './Avatar';
+import { PersonFace } from './PersonFace';
 
 /**
  * A text box with an @mention picker (spec 5.2 and 7.2). The arrow keys move through the names, Enter picks one, Escape closes the list.
@@ -113,7 +113,7 @@ export function MentionField({
               }}
               className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 ${i === active ? 'bg-fill' : ''}`}
             >
-              <span aria-hidden><Avatar user={person} size={24} /></span>
+              <span aria-hidden><PersonFace user={person} size={24} /></span>
               <bdi>{nameOf(person)}</bdi>
             </li>
           ))}

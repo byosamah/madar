@@ -7,7 +7,7 @@ import { usePictureTest } from '../../app/files';
 import { useLang } from '../../app/lang';
 import { usePersonName } from '../../app/personName';
 import { AgentLabel } from '../../components/AgentLabel';
-import { Avatar } from '../../components/Avatar';
+import { PersonFace } from '../../components/PersonFace';
 import { RichText } from '../../components/RichText';
 import { spring } from '../../design/motion';
 import { clockFormat, listFormat, type Lang } from '../../lib/dates';
@@ -147,7 +147,7 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh, runSta
         className={`group flex max-w-[88%] items-end gap-2 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none] sm:max-w-[75%] ${mine ? 'self-end' : 'self-start'} ${runStart ? 'mt-1.5' : ''} ${framed ? FRAME_CLASS : ''}`}
       >
         {mine && side}
-        {!mine && (runStart ? <Avatar user={author} size={28} /> : <span aria-hidden className="w-7 shrink-0" />)}
+        {!mine && (runStart ? <PersonFace user={author} size={28} /> : <span aria-hidden className="w-7 shrink-0" />)}
         <div className="flex min-w-0 flex-col gap-0.5">
           {runStart && (!mine || author.kind === 'agent') && (
             <p className="flex flex-wrap items-center gap-x-2 px-1 text-footnote text-ink-2">

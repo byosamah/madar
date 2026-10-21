@@ -11,7 +11,7 @@ import { usePageVisible } from '../../app/usePageVisible';
 import { usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
 import { useStableHandler } from '../../app/useStableHandler';
-import { Avatar } from '../../components/Avatar';
+import { PersonFace } from '../../components/PersonFace';
 import { EmptyState } from '../../components/EmptyState';
 import { LoadFailed } from '../../components/LoadFailed';
 import { Menu, type MenuItem } from '../../components/Menu';
@@ -208,7 +208,7 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
         <GroupPicture id={chat.id} size={40} />
       </button>
     )
-    : chat.person ? <Avatar user={chat.person} size={40} /> : null;
+    : chat.person ? <PersonFace user={{ ...chat.person, active: !chat.personLeft }} size={40} /> : null;
   // A direct chat with an inactive person says so and takes no new messages (audit 2026-10-03, SHL-15).
   // "Inactive" is the word Admin uses for the same state (audit 2026-10-03, V-25).
   const context = actorContext(chat.person);
