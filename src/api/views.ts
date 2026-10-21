@@ -6,6 +6,7 @@ import { canSeeConversation } from './chatState';
 import { namesPerson, replyRefOf } from './chatNaming';
 import { computeHealth, isOverdue } from './health';
 import { can, leadTookTask, mayViewMeeting, meetingResource, principalOf, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
+import { isTaskMaker, mayAssignTask, mayChangeTask, mayDeleteTask, mayTickChecklist } from './taskGates';
 import { commentCountKey, fileCountKey, projectTemplatesOf, type State } from './store';
 import { lineKindOf } from '../lib/commentLine';
 import { diffDays } from '../lib/dates';
@@ -339,8 +340,8 @@ export function taskRowOf(state: State, task: Task, today: string, viewer: User)
     commentCount: countComments(state, 'task', task.id),
     fileCount: countFiles(state, task.id),
     overdue: isOverdue(task, today),
-    canMove: can(viewer, 'task.updateOwn', resource),
-    canEditPeople: can(viewer, 'task.updateAny', resource),
+    canMove: mayChangeTask(viewer, 'work', resource),
+    canEditPeople: mayAssignTask(viewer, resource),
     waitingFor: waitingOf(state, task),
   };
 }
@@ -361,25 +362,27 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
     needsFirst: tasksChrono(inProject.filter((t) => ids.has(t.id)), stages).map(link),
     unlocks: tasksChrono(inProject.filter((t) => (t.prerequisiteIds ?? []).includes(task.id)), stages).map(link),
     viewerCan: {
-      edit: can(viewer, 'task.updateOwn', r),
-      editAll: can(viewer, 'task.updateAny', r),
-      complete: can(viewer, 'task.updateOwn', r) && task.status !== 'done',
+      // edit: the old flag for the person who changes every kind of field; the flags editDetails, editDates and work below split it.
+      edit: mayChangeTask(viewer, 'details', r) && mayChangeTask(viewer, 'dates', r) && mayChangeTask(viewer, 'work', r),
+      editAll: mayAssignTask(viewer, r),
+      complete: mayChangeTask(viewer, 'work', r) && task.status !== 'done',
       review: can(viewer, 'task.review', r) && task.status === 'in_review',
       setNeedsReview: can(viewer, 'task.review', r),
       // A lead who took the task themselves does not delete it (security review 2026-10-20).
-      delete: can(viewer, 'task.delete', r) && (can(viewer, 'task.updateAny', r) || !leadTookTask(state, task)),
-      contribute: can(viewer, 'task.contribute', r),
-      newVersion: task.status === 'done' && can(viewer, 'task.updateOwn', r),
+      delete: mayDeleteTask(viewer, r) && (can(viewer, 'task.any', r) || isTaskMaker(viewer, r) || !leadTookTask(state, task)),
+      contribute: mayTickChecklist(viewer, r),
+      newVersion: task.status === 'done' && mayChangeTask(viewer, 'work', r),
       // A template belongs to a stage, so an office task never becomes one. It serves the whole office, so the leader and the
       // Admin save it, never the maker alone (the rule of taskTemplates.save).
+      // Stays on project.edit with the call taskTemplates.save (gates-office track): both move to templates.taskSave together.
       saveTemplate: task.stageId !== null && can(viewer, 'project.edit', { projectRole: r.projectRole }),
       take: task.ownerId === null && task.status !== 'done' && can(viewer, 'task.take', r),
       // Joins as a helper with one tap: a person on the team who neither leads nor helps, on a project task (fbk_035).
       help: task.projectId !== null && task.ownerId !== viewer.id && !helpersOf(task).includes(viewer.id) && can(viewer, 'task.help', r),
       // Role rights version 2: one flag for each gate of the task panel. A change of any to-do (task.any) passes every kind of change.
-      editDetails: can(viewer, 'task.any', r) || can(viewer, 'task.details', r),
-      editDates: can(viewer, 'task.any', r) || can(viewer, 'task.dates', r),
-      work: can(viewer, 'task.any', r) || can(viewer, 'task.work', r),
+      editDetails: mayChangeTask(viewer, 'details', r),
+      editDates: mayChangeTask(viewer, 'dates', r),
+      work: mayChangeTask(viewer, 'work', r),
       comment: can(viewer, 'comment.create', r),
       upload: can(viewer, 'file.upload', r),
     },
