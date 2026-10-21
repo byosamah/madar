@@ -65,8 +65,9 @@ The kinds: P = project chat, D = direct chat, G = group chat. Task threads (T) g
 2. **Away by hand.** The person menu gets one switch: "Show me as Away". It holds on every device of the person and after a
    sign-out, until the person turns it off. While it is on, each open device of the person shows Away, whatever the use.
    With no device open, the person shows Offline (*My call:* every mark is true). The person's own face shows the Away mark
-   and the menu line says "Away (set by you)". Others see only "Away", and never read the switch itself: it is a personal
-   setting, stored on the server, read only by the person's own devices. Pushes, typing and Seen work as before.
+   and the menu line says "Away (set by you)". Others see only "Away": the switch is a field of the person's preferences
+   (next to the language and the theme, saved with `me.updatePreferences`), and only the person's own devices act on it.
+   No other screen shows it. Pushes, typing and Seen work as before.
 3. **The look (dot look A, like Slack).** A green filled dot = Online. An empty ring in the Ink 2 color = Away. No dot =
    Offline. The dot sits on the end-bottom corner of the face, with a ring of the panel color. It never moves or blinks.
    Shape and color differ, so the state does not depend on color alone.
@@ -120,8 +121,8 @@ The kinds: P = project chat, D = direct chat, G = group chat. Task threads (T) g
 
 ### D. The emoji list
 
-1. **Button.** A smiley button between the clip and the box, in every box that sends a chat message (P, D, G) and in the box
-   of a task thread and the task panel (the box is shared). Label "Add an emoji".
+1. **Button.** A smiley button between the clip and the text, in the two message boxes of Madar: the chat box of the Inbox
+   (P, D, G and task threads) and the comment box (the task panel and post comments). Label "Add an emoji".
 2. **Computer.** A panel opens above the button: a search field, a row of group buttons, "Recent", then the groups of the
    Unicode list. A click puts the emoji in the box where the cursor is. The panel stays open for a second emoji. Esc, a
    click outside, or Send closes it, and the cursor goes back to the box. Arrow keys move in the grid, Enter picks.
@@ -144,9 +145,9 @@ The kinds: P = project chat, D = direct chat, G = group chat. Task threads (T) g
    a + button ("Add a reaction"). The + opens the emoji list of D. One pick sets that reaction and closes the list.
    *My call:* on a phone, the message sheet closes first and then the emoji sheet opens (a sheet inside a sheet fails in
    Vaul).
-2. **Where.** Everywhere the three reactions exist today: chat messages and task comments (one look, one rule).
-3. **Pills.** One pill for each emoji in use, as today. The order: 👍 ✅ 👀 first, then the others in the order of the emoji
-   list (*My call:* stable after a reload, with no new stored order).
+2. **Where.** Everywhere the three reactions exist today: chat messages, task comments and post comments (one look, one rule).
+3. **Pills.** One pill for each emoji in use, as today. The order: 👍 ✅ 👀 first, then the others in the order of their
+   Unicode code points (*My call:* stable after a reload, with no new stored order and no load of the emoji list).
 4. **Rules that stay.** A press on a pill toggles the reaction of the reader. No push for a reaction. Only 👍 and ✅ count
    as an answer for "Waits for your reply".
 5. **Limits.** A reaction is one emoji of the standard list, never text. *My call:* at most 20 different emoji on one message.
@@ -155,8 +156,9 @@ The kinds: P = project chat, D = direct chat, G = group chat. Task threads (T) g
 
 Status and typing are live signals that Madar does not save. Seen is saved data (the seen time) on the normal write path.
 
-- **Seen.** The screen calls a write when the chat is open, in view and the person is active, and the seen time is older than
-  the newest message. The chat view gives the seen times of the other members. The save signals the authors whose message
+- **Seen.** The screen calls the read write that exists (`chats.markRead`) with a new flag `seen: true` when the chat is open,
+  in view and the person is active, and the seen time is older than the newest message. The archive and the Undo of "Mark as
+  unread" never send the flag. The chat view gives the seen times of the other members. The save signals the authors whose message
   became seen (today the signal of a read goes only to the reader, `server/data/save.ts`).
 - **Status on Supabase (the live copies today).** One private Realtime Presence topic for each person, `status:<Madar id>`.
   Only that person may track on it: a new insert policy for the `presence` extension allows the topic of the caller's own id
@@ -166,15 +168,16 @@ Status and typing are live signals that Madar does not save. Seen is saved data 
   active people: 15 today. Realtime allows 100 channels for each connection, so this holds to about 95 people.
   (*My call*, builder check question 3: the policy checks the topic at the join, so no screen can track for another person.
   One shared topic would be cheaper, but any screen could fake any status there.)
-- **Typing on Supabase.** Through the Madar server, never screen to screen. The typist's screen sends a small server call
+- **Typing.** Through the Madar server on every host, never screen to screen. The typist's screen sends a small server call
   (no save, no office lock). The server finds the person from the token, checks that the person may see the chat and is a
   member of it, and sends the signal (the chat, the typist, start or stop) to `person:<id>` of each other member, with its
-  own event name next to the change signals. Only the server writes on `person:` topics today, and that stays true. The
-  receiving screen trusts the server, so it needs no check of its own. The prototype rule: the same membership check in
-  `src/api`, so both builds name the same members.
+  own event name next to the change signals (on Supabase: `realtime.send`, as the change signals; on the office host: the
+  sockets of those people). Only the server writes on `person:` topics today, and that stays true. The receiving screen
+  trusts the server, so it needs no check of its own. The prototype rule: the same membership check in `src/api`, so both
+  builds name the same members.
 - **The office path (Cloudflare office object, paused exit, on main).** The same rules over the one socket: the screen sends
-  its state and its typing on the socket, the object knows the person of each socket, checks the chat members in its own
-  data, and sends to their sockets. The state must outlive the hibernation of a socket. Keep `test:lite` and `test:office`
+  its state on the socket, the object knows the person of each socket and sends the states to the office sockets. Typing
+  comes through the same server call, and the object sends it to the sockets of the members. The state must outlive the hibernation of a socket. Keep `test:lite` and `test:office`
   green.
 - **The prototype.** No server. Tabs of the same browser share status and typing through a BroadcastChannel, so two tabs that
   preview two people show each other. The sample people with no open tab get fixed sample states (some Online, one Away, the
@@ -249,14 +252,15 @@ The emoji names and keywords come from the Unicode CLDR annotations (English and
 ## Constraints
 
 - Free plans only. No new vendor, no paid plan, no font or image of emoji.
-- Every write goes through `runCall`: the Away switch and the seen time are writes. Status and typing are not writes and never
-  touch the Madar tables. Handlers stay synchronous and pure. Contract changes are additive: the reaction schema takes any
+- Every write goes through `runCall`: the Away switch (`me.updatePreferences`) and the seen time (`chats.markRead`) are
+  writes. Status and typing are not writes and never touch the Madar tables. Handlers stay synchronous and pure. Contract changes are additive: the reaction schema takes any
   emoji and still reads the old three-key records.
-- The new-call checklist of `src/api/CLAUDE.md` for each new call. A new stored field (the seen time, the Away switch) gets its
-  migration, `tables.ts` line and `STATE_VERSION` step, and its `_LITE` twin where a module has its own SQL.
+- The new-call checklist of `src/api/CLAUDE.md` for the one new call (typing). The seen time and the Away switch are optional
+  fields in the stored record (no column). The chat view reads the read marks of a chat by `conversation_id`, so that column
+  gets an index (a migration and its SQLite step).
 - MCP in the same commit as each change (`server/mcp/tools.ts`, `TOOL_DOCS`, `INSTRUCTIONS`):
-  - The Away call, the seen call and the typing call go on the deny list (personal or live, like "Notify me" and the push
-    calls). Agents see no live status, move no seen time and make no typing signal.
+  - The typing call goes on the deny list (live, like the push calls). `chats.markRead` stays there. Agents see no live
+    status, move no seen time and make no typing signal.
   - `chats.messages`: `TOOL_DOCS` says what the new seen information means. `reactions.toggle` stays on the deny list;
     `TOOL_DOCS` of `chats.messages` and `comments.list` say that a reaction key can be any emoji.
 - Leak tests from each builder: an outsider on every read path (`chats.list`, `chats.messages`, `comments.list`, MCP), the
@@ -285,8 +289,7 @@ The emoji names and keywords come from the Unicode CLDR annotations (English and
 
 ## Left to the builder
 
-- The names and shapes of the new calls and fields: the Away switch, the seen time, the typing call and the seen
-  information in the chat view.
+- Small shapes inside the names that the plan fixes.
 - The picker: a maintained library or a small own grid over the CLDR data, within the rules of D (no runtime fetch from a
   CDN, both themes, right to left, keyboard, lazy load).
 - How the office object keeps the state of a socket across hibernation, and how the presence of many devices of one person
