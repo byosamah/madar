@@ -2,6 +2,7 @@ import type { Ctx } from '../registry';
 import type { FileRec } from '../contract/entities';
 import { invalid } from '../errors';
 import { can, projectRoleOf } from '../permissions';
+import { ensureRights } from '../rights';
 import { mayViewFile } from '../views';
 
 /** The files by id. A file of an office task that the person does not see reads as missing, before any other rule (review 2026-10-06). */
@@ -16,7 +17,7 @@ function requireFiles(ctx: Ctx, fileIds: string[]): FileRec[] {
 /** The people who may share a project file: the leader, the team and the Admin. These are the people of the project chat. */
 export function mayShareProjectFile(ctx: Ctx, projectId: string, userId: string): boolean {
   const user = ctx.state.users[userId];
-  return user !== undefined && can(user, 'chat.project', { projectRole: projectRoleOf(ctx.state, projectId, userId) });
+  return user !== undefined && can(ensureRights(ctx.state, user), 'chat.project', { projectRole: projectRoleOf(ctx.state, projectId, userId) });
 }
 
 /** A file of an office task stays on its task: no chat and no other task carries it (owner, 2026-10-06). */

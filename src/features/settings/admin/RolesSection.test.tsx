@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { DEFAULT_RIGHTS, OFFICE_RIGHTS, RIGHT_SECTIONS } from '../../../api/permissions';
+import { LEGACY_DEFAULT_RIGHTS as DEFAULT_RIGHTS, LEGACY_OFFICE_RIGHTS as OFFICE_RIGHTS, LEGACY_RIGHT_SECTIONS as RIGHT_SECTIONS, legacyView } from '../../../api/permissions';
 import type { State } from '../../../api/store';
 import { renderApp } from '../../../test/render';
 
@@ -53,10 +53,10 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014)', () => {
     const sheet = await screen.findByRole('dialog', { name: 'Cashier' });
     expect(within(sheet).getByText('Omar Haddad')).toBeInTheDocument();
     await userEvent.click(within(sheet).getByRole('switch', { name: 'Manage clients' }));
-    expect(store.state.settings.roles?.custom?.[0].rights).toEqual(['payment.manage']);
+    expect(legacyView(store.state.settings.roles?.custom?.[0].rights ?? [])).toEqual(['payment.manage']);
     await userEvent.click(within(sheet).getByRole('button', { name: 'Save role' }));
     // The rights keep the order of the sections: People comes before Money.
-    await waitFor(() => expect(store.state.settings.roles?.custom?.[0].rights).toEqual(['clients.manage', 'payment.manage']));
+    await waitFor(() => expect(legacyView(store.state.settings.roles?.custom?.[0].rights ?? [])).toEqual(['clients.manage', 'payment.manage']));
   });
 
   // role-rights (owner, 2026-10-23): the rights sit in seven sections. A section of two or more rights has an All switch.
@@ -108,9 +108,9 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014)', () => {
       expect(group(sheet, 'Money').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
       expect(group(sheet, 'To-dos').getByRole('switch', { name: 'All' })).toHaveAttribute('aria-checked', 'false');
       // Nothing is saved before Save role.
-      expect(store.state.settings.roles?.custom?.[0].rights).toEqual(['payment.manage']);
+      expect(legacyView(store.state.settings.roles?.custom?.[0].rights ?? [])).toEqual(['payment.manage']);
       await userEvent.click(within(sheet).getByRole('button', { name: 'Save role' }));
-      await waitFor(() => expect(store.state.settings.roles?.custom?.[0].rights).toEqual([...RIGHT_SECTIONS[0].rights, 'payment.manage']));
+      await waitFor(() => expect(legacyView(store.state.settings.roles?.custom?.[0].rights ?? [])).toEqual([...RIGHT_SECTIONS[0].rights, 'payment.manage']));
     });
 
     it('turns off every right of a section with All, and only the rights of that section', async () => {
@@ -122,7 +122,7 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014)', () => {
       for (const right of RIGHT_SECTIONS[5].rights) expect(within(sheet).getByRole('switch', { name: new RegExp(`^${labelOf(right)}`) })).toHaveAttribute('aria-checked', 'false');
       for (const right of RIGHT_SECTIONS[6].rights) expect(within(sheet).getByRole('switch', { name: new RegExp(`^${labelOf(right)}`) })).toHaveAttribute('aria-checked', 'true');
       await userEvent.click(within(sheet).getByRole('button', { name: 'Save role' }));
-      await waitFor(() => expect(store.state.settings.roles?.custom?.[0].rights).toEqual(['payment.manage', 'feedback.manage', 'gaps.view']));
+      await waitFor(() => expect(legacyView(store.state.settings.roles?.custom?.[0].rights ?? [])).toEqual(['payment.manage', 'feedback.manage', 'gaps.view']));
     });
 
     it('makes a role with only the rights of two sections from the New role sheet', async () => {
@@ -135,7 +135,7 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014)', () => {
       await userEvent.click(group(sheet, 'Templates').getByRole('switch', { name: 'All' }));
       await userEvent.click(within(sheet).getByRole('button', { name: 'Save role' }));
       await waitFor(() => expect(store.state.settings.roles?.custom).toHaveLength(3));
-      expect(store.state.settings.roles?.custom?.[2].rights).toEqual(['task.reviewAny', 'task.changeAny', 'templates.manageAll', 'templates.updateProjects']);
+      expect(legacyView(store.state.settings.roles?.custom?.[2].rights ?? [])).toEqual(['task.reviewAny', 'task.changeAny', 'templates.manageAll', 'templates.updateProjects']);
     });
 
     it('opens a built-in role with the same sections, and the Management defaults on', async () => {
@@ -156,7 +156,7 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014)', () => {
     await userEvent.click(within(sheet).getByRole('switch', { name: 'Manage clients' }));
     await userEvent.click(within(sheet).getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Cashier' })).toBeNull());
-    expect(store.state.settings.roles?.custom?.[0].rights).toEqual(['payment.manage']);
+    expect(legacyView(store.state.settings.roles?.custom?.[0].rights ?? [])).toEqual(['payment.manage']);
   });
 
   it('changes one right of a built-in role, which has no name to change, and keeps the other rights', async () => {
@@ -179,7 +179,8 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014)', () => {
     await userEvent.click(within(sheet).getByRole('switch', { name: 'Manage clients' }));
     await userEvent.click(within(sheet).getByRole('button', { name: 'Save role' }));
     await waitFor(() => expect(store.state.settings.roles?.custom).toHaveLength(3));
-    expect(store.state.settings.roles?.custom?.[2]).toMatchObject({ id: 'rol_003', name: 'Site lead', nameAr: 'مسؤول الموقع', rights: ['clients.manage'] });
+    expect(store.state.settings.roles?.custom?.[2]).toMatchObject({ id: 'rol_003', name: 'Site lead', nameAr: 'مسؤول الموقع' });
+    expect(legacyView(store.state.settings.roles?.custom?.[2].rights ?? [])).toEqual(['clients.manage']);
   });
 
   it('shows the name of another role under the name field, and saves nothing', async () => {

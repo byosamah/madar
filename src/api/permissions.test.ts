@@ -5,9 +5,10 @@ import type { User } from './contract/entities';
 import { makeUser, makeWorld } from '../test/factories';
 
 const admin = makeUser('usr_001', { systemRole: 'admin' });
-const leader = makeUser('usr_002');
-const team = makeUser('usr_003');
-const other = makeUser('usr_004');
+// The people carry the office rights of a Member (rights.ts): a person with none attached holds none (fail closed).
+const leader = withOfficeRights(makeUser('usr_002'), undefined);
+const team = withOfficeRights(makeUser('usr_003'), undefined);
+const other = withOfficeRights(makeUser('usr_004'), undefined);
 const actors: [string, User, ProjectRole][] = [
   ['admin', admin, 'other'],
   ['leader', leader, 'leader'],

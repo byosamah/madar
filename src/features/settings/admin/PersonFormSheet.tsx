@@ -11,7 +11,7 @@ import { Button } from '../../../components/Button';
 import { SelectField, TextField } from '../../../components/Fields';
 import { Sheet } from '../../../components/Sheet';
 import { listFormat } from '../../../lib/dates';
-import { DEFAULT_RIGHTS } from '../../../api/permissions';
+import { LEGACY_DEFAULT_RIGHTS, legacyView } from '../../../api/permissions';
 import { RIGHT_KEYS } from './RoleSheet';
 
 type Form = {
@@ -52,7 +52,7 @@ export function PersonFormSheet({ open, onOpenChange, person }: { open: boolean;
     if (value === 'admin') return t('roles.line.admin');
     if (value === 'member') return t('roles.line.member');
     const custom = customRoles.find((role) => role.id === value);
-    const rights = custom ? custom.rights : roleSettings?.rights?.[value as 'management' | 'accounting'] ?? DEFAULT_RIGHTS[value as 'management' | 'accounting'] ?? [];
+    const rights = legacyView(custom ? custom.rights : roleSettings?.rights?.[value as 'management' | 'accounting'] ?? LEGACY_DEFAULT_RIGHTS[value as 'management' | 'accounting'] ?? []);
     const name = custom ? roleName(custom.id, 'member') : t(`admin.roles.${value}`);
     if (rights.length === 0) return t('roles.line.only', { name });
     // A role with many rights would make a long line, so the line gives only the count (role-rights, 2026-10-23).

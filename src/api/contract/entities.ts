@@ -5,6 +5,7 @@ import {
   NOTIFY_LEVELS, PICTURE_DATA, REACTIONS,
 } from './limits';
 import { PUSH_ENDPOINT_MAX, PUSH_LABEL_MAX, isPushEndpoint } from './push';
+import { CATALOG_RIGHT_IDS, STORED_RIGHT_IDS } from '../rightsCatalog';
 
 // The plain limits live in limits.ts, with no zod, for the screens of the first load (performance audit BND-6).
 export {
@@ -137,43 +138,50 @@ export const SystemRole = z.enum(['admin', 'management', 'accounting', 'member']
 export type SystemRole = z.infer<typeof SystemRole>;
 
 /**
- * The office rights (owner, 2026-10-18, fbk_014; 17 rights in 7 sections since 2026-10-23). A right opens some actions for a person. The
- * Admin holds every right. The order follows the sections of the role sheet.
- * permissions.ts holds the same names as plain constants (OFFICE_RIGHTS), because it loads with the screens and takes no zod.
+ * The office rights (owner, 2026-10-18, fbk_014). Role rights version 2 (owner, 2026-10-21): 112 switches in 13 sections, one id for each
+ * switch (rightsCatalog.ts, the plain copy of the catalog JSON in docs). A switch opens one power for a person. The Admin holds every
+ * switch. A power with scopes has one id for each scope: `<power>.<scope>`.
+ * permissions.ts and rightsCatalog.ts hold the same names as plain constants, because they load with the screens and take no zod.
  */
-export const OfficeRight = z.enum([
-  // Projects
-  'project.editAny', 'project.changeLeaderAny', 'project.archiveAny', 'project.delete', 'project.editCode',
-  // To-dos
-  'task.reviewAny', 'task.changeAny',
-  // People
-  'people.manage', 'clients.manage', 'subCompanies.manage',
-  // Money
-  'payment.manage',
-  // Templates
-  'templates.manageAll', 'templates.updateProjects',
-  // AI and reports
-  'report.office', 'agents.undoAny',
-  // Office
-  'feedback.manage', 'gaps.view',
-]);
+export const OfficeRight = z.enum(CATALOG_RIGHT_IDS);
 export type OfficeRight = z.infer<typeof OfficeRight>;
 
-/** A role that the Admin makes. A person with the role holds the Member rights and the rights of the role. */
+/**
+ * A right as a stored list holds it: the 112 ids, and the 17 old ids of 2026-10-23 (project.editAny, people.manage, payment.manage and
+ * so on). Only RoleSettings.rights, CustomRole.rights and the roles.* inputs take it, so old stored data still parses. rightsOf and the
+ * roles calls expand an old id to its new ids (expandRights). Every output gives the 112 ids only.
+ */
+export const StoredRight = z.enum(STORED_RIGHT_IDS);
+export type StoredRight = z.infer<typeof StoredRight>;
+
+/** The most rights in one stored list: the 112 ids, with room for old ids. */
+export const MAX_STORED_RIGHTS = 120;
+/** The most `off` ids in one stored list: the 64 basic switches, with room. */
+export const MAX_OFF_RIGHTS = 70;
+
+/**
+ * A role that the Admin makes. rights: the switches the role holds beyond BASIC_ON (it may still hold old ids). off: the BASIC_ON
+ * switches the role does not hold. A role saved before role rights version 2 has no `off`, and a person with it holds the Member
+ * switches and the switches of the role. A role with `off` holds its own full list (rights.ts, rightsOf).
+ */
 export const CustomRole = z.object({
   id: RoleId,
   name: z.string().trim().min(1).max(40),
   nameAr: z.string().trim().min(1).max(40),
-  rights: z.array(OfficeRight).max(20),
+  rights: z.array(StoredRight).max(MAX_STORED_RIGHTS),
+  off: z.array(OfficeRight).max(MAX_OFF_RIGHTS).optional(),
 });
 export type CustomRole = z.infer<typeof CustomRole>;
 
 /**
- * The office roles (owner, 2026-10-18). rights replaces the default rights of a built-in role. A built-in role that has no entry keeps
- * its default. custom lists the roles the Admin makes. Optional, so an office saved before roles reads the defaults.
+ * The office roles (owner, 2026-10-18). rights replaces the extra switches of a built-in role (the held switches beyond BASIC_ON). off
+ * lists the BASIC_ON switches that a built-in role does not hold. A built-in role that has no entry keeps its default. custom lists the
+ * roles the Admin makes. Optional, so an office saved before roles reads the defaults.
  */
+const BuiltInRole = z.enum(['management', 'accounting', 'member']);
 export const RoleSettings = z.object({
-  rights: z.partialRecord(z.enum(['management', 'accounting', 'member']), z.array(OfficeRight)).optional(),
+  rights: z.partialRecord(BuiltInRole, z.array(StoredRight).max(MAX_STORED_RIGHTS)).optional(),
+  off: z.partialRecord(BuiltInRole, z.array(OfficeRight).max(MAX_OFF_RIGHTS)).optional(),
   custom: z.array(CustomRole).max(20).optional(),
 });
 export type RoleSettings = z.infer<typeof RoleSettings>;

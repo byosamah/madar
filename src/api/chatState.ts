@@ -2,6 +2,7 @@ import { isLiveMessage } from './chatNaming';
 import type { AdminReach, ChatRead, Conversation, Message, NotifyLevel, User } from './contract/entities';
 import { forbidden, invalid, notFound } from './errors';
 import { can, principalOf, projectRoleOf, type ProjectRole } from './permissions';
+import { ensureRights } from './rights';
 import { chatReadKey, nextId, unreadCountKey, type State } from './store';
 
 /** Makes the chat room of a project. A project has one. */
@@ -48,7 +49,8 @@ export function canSeeConversation(state: State, conversation: Conversation, use
   if (conversation.kind !== 'project') return conversation.memberIds.includes(user.id);
   const projectId = conversation.projectId;
   if (!projectId || !state.projects[projectId]) return false;
-  return can(user, 'chat.project', { projectRole: projectRoleOf(state, projectId, user.id) });
+  // The person may be any user of the office (a mention, a recipient): attach the rights, so a Member keeps the project chat (fail closed).
+  return can(ensureRights(state, user), 'chat.project', { projectRole: projectRoleOf(state, projectId, user.id) });
 }
 
 /**

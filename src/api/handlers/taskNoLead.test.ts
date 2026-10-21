@@ -6,6 +6,7 @@ import { trackerCalls } from './tracker';
 import { makeTask, makeUser, NOW, testApi } from '../../test/factories';
 import type { Store } from '../store';
 import { can } from '../permissions';
+import { withOfficeRights } from '../rights';
 import { setNow } from '../../lib/dates';
 import { runScheduledTriggers } from '../notify';
 import { peopleOfTask, involves } from '../../lib/taskPeople';
@@ -300,7 +301,8 @@ describe('tasks.take', () => {
   });
 
   it('has its own right in can()', () => {
-    const member = makeUser('usr_006');
+    // The person carries the rights of a Member: a person with none attached holds none (role rights version 2).
+    const member = withOfficeRights(makeUser('usr_006'), undefined);
     expect(can(member, 'task.take', { projectRole: 'team' })).toBe(true);
     expect(can(member, 'task.take', { projectRole: 'leader' })).toBe(true);
     expect(can(member, 'task.take', { projectRole: 'other' })).toBe(false);

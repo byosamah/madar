@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '../../../api/errors';
-import type { CustomRole, OfficeRight } from '../../../api/contract/entities';
-import { OFFICE_RIGHTS, RIGHT_SECTIONS } from '../../../api/permissions';
+import type { CustomRole, StoredRight as OfficeRight } from '../../../api/contract/entities';
+import { LEGACY_OFFICE_RIGHTS, LEGACY_RIGHT_SECTIONS, legacyView } from '../../../api/permissions';
 import { useUndoable } from '../../../app/actions';
 import { errorMessage, fieldError } from '../../../app/errors';
 import { useLang } from '../../../app/lang';
@@ -13,7 +13,7 @@ import { SmallSwitch, Switch } from '../../../components/Switch';
 import { listFormat } from '../../../lib/dates';
 
 /** The word key of each right, without dots: its name is roles.rights.<key>.label and its line roles.rights.<key>.hint. */
-export const RIGHT_KEYS: Readonly<Record<OfficeRight, string>> = {
+export const RIGHT_KEYS: Readonly<Record<string, string>> = {
   'project.editAny': 'projectEditAny',
   'project.changeLeaderAny': 'projectChangeLeaderAny',
   'project.archiveAny': 'projectArchiveAny',
@@ -35,12 +35,12 @@ export const RIGHT_KEYS: Readonly<Record<OfficeRight, string>> = {
 
 /** The rights with one of them switched on or off. The result keeps the order of the rights list. */
 export function withRight(rights: readonly OfficeRight[], right: OfficeRight, on: boolean): OfficeRight[] {
-  return OFFICE_RIGHTS.filter((item) => (item === right ? on : rights.includes(item)));
+  return LEGACY_OFFICE_RIGHTS.filter((item) => (item === right ? on : rights.includes(item)));
 }
 
 /** The rights with every right of one section switched on or off. The rights of the other sections stay as they are. */
 export function withSection(rights: readonly OfficeRight[], section: readonly OfficeRight[], on: boolean): OfficeRight[] {
-  return OFFICE_RIGHTS.filter((item) => (section.includes(item) ? on : rights.includes(item)));
+  return LEGACY_OFFICE_RIGHTS.filter((item) => (section.includes(item) ? on : rights.includes(item)));
 }
 
 /** One right: a switch with its name and one short line under it. */
@@ -97,7 +97,7 @@ export function RoleSheet({ open, onOpenChange, target, holders, moveChoices }: 
     setAsking(false);
     setMoveTo(moveChoices[0]?.value ?? 'member');
     setForm(
-      target?.kind === 'custom' ? { name: target.role.name, nameAr: target.role.nameAr, rights: [...target.role.rights] }
+      target?.kind === 'custom' ? { name: target.role.name, nameAr: target.role.nameAr, rights: legacyView(target.role.rights) }
         : target?.kind === 'built-in' ? { ...EMPTY, rights: [...target.rights] } : EMPTY,
     );
     // The form starts fresh each time it opens; an old refusal must not stay under a field.
@@ -186,7 +186,7 @@ export function RoleSheet({ open, onOpenChange, target, holders, moveChoices }: 
         )}
         <div className="flex flex-col gap-4">
           <p className="text-footnote font-medium text-label-2">{t('roles.sheet.rights')}</p>
-          {RIGHT_SECTIONS.map((section) => (
+          {LEGACY_RIGHT_SECTIONS.map((section) => (
             <section key={section.key} aria-labelledby={`role-section-${section.key}`} className="flex flex-col">
               {/* A section of one right needs no All: it would repeat the one switch under it. */}
               <div className="flex min-h-11 items-center justify-between gap-4">

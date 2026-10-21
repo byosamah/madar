@@ -1,20 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { type CustomRole, OfficeRight, type RoleSettings } from './contract/entities';
-import { type Action, can, DEFAULT_RIGHTS, OFFICE_RIGHTS, type Actor } from './permissions';
-import { ADMIN_PAGE_RIGHTS, opensAdminPage, rightsOf, withOfficeRights } from './rights';
+import { type Action, can, OFFICE_RIGHTS, type Actor } from './permissions';
+import { ADMIN_PAGE_RIGHTS, heldRightsOfRole, opensAdminPage, rightsOf, withOfficeRights } from './rights';
+import { BASIC_ON, DEFAULT_EXTRA, expandRights } from './rightsCatalog';
 import { executeParsed, resolveAuthority } from './execute';
 import type { AnyCall } from './registry';
 import { makeUser, makeWorld } from '../test/factories';
 
-// Every office right: the seven of fbk_014 and the ten of role-rights (2026-10-23).
 const ALL = [...OFFICE_RIGHTS] as string[];
 const sorted = (rights: readonly string[]) => [...rights].sort();
+const PAY = ['payment.view', 'payment.add', 'payment.change', 'payment.receive'];
 
 const admin = makeUser('usr_001', { systemRole: 'admin' });
 const management = makeUser('usr_006', { systemRole: 'management' });
 const accounting = makeUser('usr_007', { systemRole: 'accounting' });
 const member = makeUser('usr_008');
+// A custom role saved before role rights version 2: old ids, and no `off`.
 const customRole: CustomRole = { id: 'rol_001', name: 'Payments', nameAr: 'المدفوعات', rights: ['project.delete', 'payment.manage'] };
 
 // A call that only returns the rights of the authority it sees. The output check accepts any value.
@@ -24,7 +26,7 @@ const probe = {
 } as unknown as AnyCall;
 
 describe('opensAdminPage: who sees the Admin page (owner, 2026-10-18, fbk_014)', () => {
-  it('opens the page to the Admin, and to Management by its default people right', () => {
+  it('opens the page to the Admin, and to Management by its default people switches', () => {
     expect(opensAdminPage(admin)).toBe(true);
     expect(opensAdminPage(withOfficeRights(management, undefined))).toBe(true);
   });
@@ -33,87 +35,144 @@ describe('opensAdminPage: who sees the Admin page (owner, 2026-10-18, fbk_014)',
     expect(opensAdminPage(management)).toBe(false);
   });
 
-  it('keeps the page from Accounting and from a Member with no right that a section names', () => {
+  it('keeps the page from Accounting and from a Member with no switch that a section names', () => {
     expect(opensAdminPage(withOfficeRights(accounting, undefined))).toBe(false);
     expect(opensAdminPage(withOfficeRights(member, undefined))).toBe(false);
-    expect(opensAdminPage({ ...member, officeRights: ['payment.manage', 'report.office'] })).toBe(false);
+    expect(opensAdminPage({ ...member, officeRights: ['payment.view', 'report.office'] })).toBe(false);
   });
 
-  it('opens the page to a Member with a custom role that holds a section right', () => {
-    const planner = { ...member, officeRights: ['people.manage'] as const };
-    expect(opensAdminPage(planner)).toBe(true);
+  it('opens the page to a Member with a switch that a section names', () => {
+    expect(opensAdminPage({ ...member, officeRights: ['people.invite'] })).toBe(true);
+    expect(opensAdminPage({ ...member, officeRights: ['people.teams'] })).toBe(true);
+    expect(opensAdminPage({ ...member, officeRights: ['office.settings'] })).toBe(true);
+    expect(opensAdminPage({ ...member, officeRights: ['templates.taskAny'] })).toBe(true);
     expect(opensAdminPage({ ...management, officeRights: ['report.office'] })).toBe(false);
   });
 
-  it('names the rights that open a section, and only those', () => {
-    expect(sorted(ADMIN_PAGE_RIGHTS)).toEqual([
-      'clients.manage', 'feedback.manage', 'people.manage', 'subCompanies.manage', 'templates.manageAll', 'templates.updateProjects',
-    ]);
+  it('names the switches that open a section, and only those', () => {
+    expect(sorted(ADMIN_PAGE_RIGHTS)).toEqual(sorted([
+      'people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove', 'clients.change', 'templates.projectCreate',
+      'templates.projectAny', 'templates.updateProjects', 'templates.taskAny', 'subCompanies.manage', 'office.settings', 'feedback.manage',
+    ]));
+    for (const right of ADMIN_PAGE_RIGHTS) expect(ALL).toContain(right);
   });
 });
 
-describe('rightsOf: the office rights of each person', () => {
-  it('gives the default rights when the office has no settings', () => {
+describe('rightsOf: the office rights of each person (role rights version 2)', () => {
+  it('gives the default switches when the office has no settings', () => {
     expect(sorted(rightsOf(admin, undefined))).toEqual(sorted(ALL));
-    expect(sorted(rightsOf(management, undefined))).toEqual(sorted(['people.manage', 'payment.manage', 'report.office']));
-    expect(sorted(rightsOf(accounting, undefined))).toEqual(['payment.manage']);
-    expect(sorted(rightsOf(member, undefined))).toEqual([]);
+    expect(rightsOf(admin, undefined)).toHaveLength(112);
+    expect(sorted(rightsOf(member, undefined))).toEqual(sorted(BASIC_ON));
+    expect(sorted(rightsOf(management, undefined))).toEqual(sorted([...BASIC_ON, ...DEFAULT_EXTRA.management]));
+    expect(sorted(rightsOf(accounting, undefined))).toEqual(sorted([...BASIC_ON, ...PAY]));
+    expect(rightsOf(member, undefined)).toHaveLength(64);
+    expect(rightsOf(management, undefined)).toHaveLength(74);
+    expect(rightsOf(accounting, undefined)).toHaveLength(68);
   });
 
-  it('takes the rights that the settings give a role, in place of the defaults', () => {
-    const roles: RoleSettings = { rights: { management: ['clients.manage'] } };
-    expect(rightsOf(management, roles)).toEqual(['clients.manage']);
-    expect(rightsOf(accounting, roles)).toEqual(['payment.manage']);
+  it('takes the extra switches that the settings give a role, in place of the default extras', () => {
+    const roles: RoleSettings = { rights: { management: ['clients.change'] } };
+    expect(sorted(rightsOf(management, roles))).toEqual(sorted([...BASIC_ON, 'clients.change']));
+    expect(sorted(rightsOf(accounting, roles))).toEqual(sorted([...BASIC_ON, ...PAY]));
   });
 
-  it('gives a custom role its own rights, with the rights of the Member role', () => {
+  it('reads an old stored list: an old id stands for the new switches it names', () => {
+    const roles: RoleSettings = { rights: { management: ['people.manage', 'payment.manage', 'report.office'], member: ['project.editCode'] } };
+    expect(sorted(rightsOf(management, roles))).toEqual(sorted([...BASIC_ON, ...DEFAULT_EXTRA.management]));
+    expect(rightsOf(member, roles)).toContain('project.code');
+  });
+
+  it('takes away the basic switches that `off` names', () => {
+    const roles: RoleSettings = { off: { member: ['task.add.team', 'chat.direct'] } };
+    const rights = rightsOf(member, roles);
+    expect(rights).not.toContain('task.add.team');
+    expect(rights).not.toContain('chat.direct');
+    expect(rights).toHaveLength(62);
+    expect(rights).toContain('task.add.office');
+  });
+
+  it('adds the switches that a held switch needs, so a stored list never holds a dependant alone', () => {
+    // payment.add needs payment.view. task.any.all needs task.any.lead, which `off` turned off: the need brings it back.
+    const roles: RoleSettings = { rights: { member: ['payment.add', 'task.any.all'] }, off: { member: ['task.any.lead'] } };
+    const rights = rightsOf(member, roles);
+    expect(rights).toContain('payment.view');
+    expect(rights).toContain('task.any.lead');
+    // Every ai switch needs ai.connect, and ai.undoOthers.all needs ai.undoOthers.lead too.
+    const second: RoleSettings = { rights: { member: ['ai.undoOthers.all'] }, off: { member: ['ai.connect'] } };
+    expect(rightsOf(member, second)).toEqual(expect.arrayContaining(['ai.connect', 'ai.undoOthers.lead', 'ai.undoOthers.all']));
+  });
+
+  it('gives a custom role with no `off` the Member switches and its own: the meaning of before', () => {
     const roles: RoleSettings = { custom: [customRole] };
-    expect(sorted(rightsOf({ ...member, roleId: 'rol_001' }, roles))).toEqual(['payment.manage', 'project.delete']);
-    const withMember: RoleSettings = { custom: [customRole], rights: { member: ['clients.manage'] } };
-    expect(sorted(rightsOf({ ...member, roleId: 'rol_001' }, withMember))).toEqual(['clients.manage', 'payment.manage', 'project.delete']);
+    const rights = rightsOf({ ...member, roleId: 'rol_001' }, roles);
+    expect(sorted(rights)).toEqual(sorted([...BASIC_ON, ...PAY, 'project.delete.lead', 'project.delete.all']));
+    // A change of the Member list reaches this kind of role.
+    const withMember: RoleSettings = { custom: [customRole], rights: { member: ['clients.change'] }, off: { member: ['chat.direct'] } };
+    const next = rightsOf({ ...member, roleId: 'rol_001' }, withMember);
+    expect(next).toContain('clients.change');
+    expect(next).not.toContain('chat.direct');
   });
 
-  it('gives the Member rights to a person whose custom role is gone', () => {
-    expect(rightsOf({ ...member, roleId: 'rol_009' }, undefined)).toEqual([]);
-    expect(rightsOf({ ...member, roleId: 'rol_009' }, { custom: [customRole], rights: { member: ['report.office'] } })).toEqual(['report.office']);
+  it('gives a custom role with `off` its own full list, which a change of the Member list does not reach', () => {
+    const role: CustomRole = { id: 'rol_002', name: 'Site', nameAr: 'موقع', rights: ['payment.view'], off: ['chat.direct'] };
+    const roles: RoleSettings = { custom: [role], rights: { member: ['clients.change'] }, off: { member: ['task.add.team'] } };
+    const rights = rightsOf({ ...member, roleId: 'rol_002' }, roles);
+    expect(sorted(rights)).toEqual(sorted([...BASIC_ON.filter((id) => id !== 'chat.direct'), 'payment.view']));
+    expect(rights).toContain('task.add.team');
+    expect(rights).not.toContain('clients.change');
   });
 
-  it('gives the Admin every right, whatever the settings say', () => {
-    const roles: RoleSettings = { rights: { management: [] }, custom: [{ ...customRole, rights: [] }] };
+  it('gives the Member switches to a person whose custom role is gone', () => {
+    expect(sorted(rightsOf({ ...member, roleId: 'rol_009' }, undefined))).toEqual(sorted(BASIC_ON));
+    expect(rightsOf({ ...member, roleId: 'rol_009' }, { custom: [customRole], rights: { member: ['report.office'] } })).toContain('report.office');
+  });
+
+  it('gives the Admin every switch, whatever the settings say', () => {
+    const roles: RoleSettings = { rights: { management: [] }, off: { member: [...BASIC_ON] }, custom: [{ ...customRole, rights: [] }] };
     expect(sorted(rightsOf(admin, roles))).toEqual(sorted(ALL));
     expect(sorted(rightsOf({ ...admin, roleId: 'rol_001' }, roles))).toEqual(sorted(ALL));
   });
 
-  it('lists the same office rights as the contract', () => {
+  it('lists the same switches as the contract', () => {
     expect([...OFFICE_RIGHTS]).toEqual(OfficeRight.options);
-    expect(Object.keys(DEFAULT_RIGHTS).sort()).toEqual(['accounting', 'management', 'member']);
+  });
+
+  it('gives the held list of a role to the screens with one function', () => {
+    expect(heldRightsOfRole(undefined, 'member')).toHaveLength(64);
+    expect(heldRightsOfRole(undefined, 'management')).toHaveLength(74);
+    expect(heldRightsOfRole({ custom: [customRole] }, customRole)).toEqual(rightsOf({ ...member, roleId: 'rol_001' }, { custom: [customRole] }));
+  });
+
+  it('expands old ids to the new switches they stand for', () => {
+    expect(expandRights(['payment.manage'])).toEqual(PAY);
   });
 });
 
 describe('can() reads the office rights of the actor', () => {
   it('reads the rights attached to the actor', () => {
-    expect(can({ ...member, officeRights: ['project.delete'] }, 'project.delete')).toBe(true);
-    expect(can({ ...management, officeRights: ['clients.manage'] }, 'people.manage')).toBe(false);
+    expect(can({ ...member, officeRights: ['project.delete.all'] }, 'project.delete')).toBe(true);
+    expect(can({ ...management, officeRights: ['clients.change'] }, 'people.manage')).toBe(false);
     expect(can({ ...management, officeRights: [] }, 'people.manage')).toBe(false);
   });
 
   it('gives no office right to a person with no rights attached, so a path that forgot them fails closed', () => {
+    const actions: Action[] = ['people.invite', 'payment.view', 'report.office', 'client.create', 'chat.direct', 'dashboard.view', 'search.use', 'ai.connect'];
     for (const person of [management, accounting, member]) {
-      for (const right of ALL) expect(can(person, right as Action), `${person.systemRole} ${right}`).toBe(false);
+      for (const action of actions) expect(can(person, action), `${person.systemRole} ${action}`).toBe(false);
     }
   });
 
-  it('reads the default rights of the role when withOfficeRights attaches them', () => {
+  it('reads the default switches of the role when withOfficeRights attaches them', () => {
     expect(can(withOfficeRights(management, undefined), 'people.manage')).toBe(true);
     expect(can(withOfficeRights(accounting, undefined), 'payment.manage')).toBe(true);
     expect(can(withOfficeRights(accounting, undefined), 'people.manage')).toBe(false);
-    expect(can(withOfficeRights(member, undefined), 'project.delete')).toBe(false);
+    expect(can(withOfficeRights(member, undefined), 'project.delete', { projectRole: 'leader' })).toBe(false);
   });
 
   it('lets the Admin do every office action, whatever the attached rights are, or when none are attached', () => {
     expect(can({ ...admin, officeRights: [] }, 'project.delete')).toBe(true);
     expect(can({ ...admin, officeRights: [] }, 'people.manage')).toBe(true);
-    for (const right of ALL) expect(can(admin, right as Action), right).toBe(true);
+    for (const right of ['people.invite', 'payment.view', 'report.office', 'gaps.view', 'search.use'] as const) expect(can(admin, right), right).toBe(true);
   });
 });
 
@@ -124,15 +183,16 @@ describe('resolveAuthority and executeParsed give the rights of the person the c
     state.users.usr_003 = { ...state.users.usr_003, roleId: 'rol_001' };
     return state;
   };
+  const expected = sorted([...BASIC_ON, ...PAY, 'project.delete.lead', 'project.delete.all']);
 
   it('attaches the rights of the authority from the office settings', () => {
     const { authority } = resolveAuthority(roleState(), 'usr_003', probe);
-    expect(sorted(authority.officeRights ?? [])).toEqual(['payment.manage', 'project.delete']);
+    expect(sorted(authority.officeRights ?? [])).toEqual(expected);
   });
 
   it('gives an agent the rights of the person it acts for', () => {
     const { authority } = resolveAuthority(roleState(), 'usr_005', probe);
-    expect(sorted(authority.officeRights ?? [])).toEqual(['payment.manage', 'project.delete']);
+    expect(sorted(authority.officeRights ?? [])).toEqual(expected);
   });
 
   it('shows the same rights to the handler in its context', () => {
@@ -140,7 +200,7 @@ describe('resolveAuthority and executeParsed give the rights of the person the c
     const output = executeParsed(probe, 'probe', {}, state, {
       actorId: 'usr_003', authorityId: 'usr_003', correlationId: 'cor_test', now: new Date('2026-10-18T08:00:00Z'), persistent: false,
     }, undefined);
-    expect(sorted(output as string[])).toEqual(['payment.manage', 'project.delete']);
+    expect(sorted(output as string[])).toEqual(expected);
   });
 
   it('withOfficeRights keeps the person and adds its rights', () => {

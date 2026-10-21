@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { ToolAnnotations } from '@modelcontextprotocol/server';
 import type { OfficeRight } from '../../src/api/contract/entities';
+import type { Action } from '../../src/api/permissions';
 import { serverContracts, type ServerCallName } from '../../src/api/contract/server';
 import { sharedCalls, type SharedCallName } from '../../src/api/sharedCalls';
 import { TOOL_DOCS } from './docs';
@@ -60,8 +61,8 @@ export const MCP_BY_RIGHT = {
 const RIGHT_TOOLS = Object.keys(MCP_BY_RIGHT) as (keyof typeof MCP_BY_RIGHT)[];
 
 /** The office right that a tool needs, or undefined for a tool that no right opens. */
-export function rightOf(name: string): OfficeRight | undefined {
-  return (MCP_BY_RIGHT as Readonly<Record<string, OfficeRight>>)[name];
+export function rightOf(name: string): (OfficeRight & Action) | undefined {
+  return (MCP_BY_RIGHT as Readonly<Record<string, OfficeRight & Action>>)[name];
 }
 
 export type McpToolName = (typeof MCP_ALLOW)[number] | (typeof MCP_ADMIN)[number] | keyof typeof MCP_BY_RIGHT;

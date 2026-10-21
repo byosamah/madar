@@ -5,6 +5,7 @@ import { SERVER_CALL_NAMES, serverContracts } from '../../src/api/contract/serve
 import { sharedCalls } from '../../src/api/sharedCalls';
 import { recordSamples } from '../../scripts/record-samples';
 import { INSTRUCTIONS, TOOL_DOCS, readFirstAnswer } from './docs';
+import { expandRights } from '../../src/api/rightsCatalog';
 import { MCP_ADMIN, MCP_ALLOW, MCP_BY_RIGHT, MCP_DENY, NO_CALL_TOOLS, READ_FIRST, mcpTools } from './tools';
 
 /** The recorded sample input of each tool (scripts/record-samples.ts writes it from runs on the sample office). */
@@ -87,9 +88,9 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     for (const name of feedbackTools) expect(holder, name).toContain(name);
     expect(holder).not.toContain('reports.office');
     // Every other right, and all the rights but this one, leave the 3 tools out.
-    const others = ['people.manage', 'payment.manage', 'report.office', 'gaps.view', 'subCompanies.manage', 'templates.updateProjects', 'project.editAny', 'task.changeAny', 'agents.undoAny'] as const;
+    const others = expandRights(['people.manage', 'payment.manage', 'report.office', 'gaps.view', 'subCompanies.manage', 'templates.updateProjects', 'project.editAny', 'task.changeAny', 'agents.undoAny']);
     for (const name of feedbackTools) {
-      expect(names({ rights: [...others] }), name).not.toContain(name);
+      expect(names({ rights: others }), name).not.toContain(name);
       expect(names({}), name).not.toContain(name);
     }
     // The Admin list holds them.
@@ -104,9 +105,9 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     expect(MCP_DENY as readonly string[]).not.toContain('reports.office');
     expect(tools.map((tool) => tool.name)).not.toContain('reports.office');
     // Accounting holds only the payment right, so its agent gets the default list.
-    expect(mcpTools({ rights: ['payment.manage'] }).map((tool) => tool.name)).toEqual(tools.map((tool) => tool.name));
+    expect(mcpTools({ rights: expandRights(['payment.manage']) }).map((tool) => tool.name)).toEqual(tools.map((tool) => tool.name));
     // Management, with its default rights, gets one more tool: 54 in all.
-    const management = mcpTools({ rights: ['people.manage', 'payment.manage', 'report.office'] });
+    const management = mcpTools({ rights: expandRights(['people.manage', 'payment.manage', 'report.office']) });
     expect(management).toHaveLength(54);
     expect(management.map((tool) => tool.name)).toContain('reports.office');
     expect(management.map((tool) => tool.name)).toEqual(adminTools.map((tool) => tool.name).filter((name) => !feedbackTools.includes(name)));

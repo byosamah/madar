@@ -45,14 +45,14 @@ export type SectionViewer = { systemRole: SystemRole; officeRights?: readonly Of
  * section and the office settings stay with the Admin.
  */
 export const ADMIN_SECTIONS: readonly AdminSection[] = [
-  { id: 'people', group: 'people', titleKey: 'admin.people', roles: ['admin'], right: 'people.manage', Component: PeopleSection },
-  { id: 'teams', group: 'people', titleKey: 'teams.title', roles: ['admin'], right: 'people.manage', Component: TeamsSection },
+  { id: 'people', group: 'people', titleKey: 'admin.people', roles: ['admin'], right: 'people.invite', alsoRights: ['people.change', 'people.teams', 'people.turnOff', 'people.remove'], Component: PeopleSection },
+  { id: 'teams', group: 'people', titleKey: 'teams.title', roles: ['admin'], right: 'people.teams', Component: TeamsSection },
   { id: 'roles', group: 'people', titleKey: 'roles.title', roles: ['admin'], Component: RolesSection },
-  { id: 'office', group: 'office', titleKey: 'admin.office', roles: ['admin'], Component: OfficeSection },
-  { id: 'clients', group: 'office', titleKey: 'clientsAdmin.title', roles: ['admin'], right: 'clients.manage', Component: ClientsSection },
+  { id: 'office', group: 'office', titleKey: 'admin.office', roles: ['admin'], right: 'office.settings', Component: OfficeSection },
+  { id: 'clients', group: 'office', titleKey: 'clientsAdmin.title', roles: ['admin'], right: 'clients.change', Component: ClientsSection },
   { id: 'sub-companies', group: 'office', titleKey: 'subCompanies.title', roles: ['admin'], right: 'subCompanies.manage', Component: SubCompaniesSection },
-  { id: 'project-templates', group: 'templates', titleKey: 'projectTemplates.title', roles: ['admin'], right: 'templates.manageAll', alsoRights: ['templates.updateProjects'], Component: ProjectTemplatesSection },
-  { id: 'task-templates', group: 'templates', titleKey: 'taskTemplates.title', roles: ['admin'], right: 'templates.manageAll', Component: TaskTemplatesSection },
+  { id: 'project-templates', group: 'templates', titleKey: 'projectTemplates.title', roles: ['admin'], right: 'templates.projectCreate', alsoRights: ['templates.projectAny', 'templates.updateProjects'], Component: ProjectTemplatesSection },
+  { id: 'task-templates', group: 'templates', titleKey: 'taskTemplates.title', roles: ['admin'], right: 'templates.taskAny', Component: TaskTemplatesSection },
   { id: 'feedback', group: 'system', titleKey: 'feedback.adminTitle', roles: ['admin'], right: 'feedback.manage', Component: FeedbackSection },
 ];
 

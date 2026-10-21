@@ -2,8 +2,8 @@ import type { Conversation, Meeting, Task, User } from '../../src/api/contract/e
 import { canSeeConversation, chatForUpload } from '../../src/api/chatState';
 import { ApiError, forbidden, invalid, notFound } from '../../src/api/errors';
 import { minutesRefusal } from '../../src/api/handlers/meetings';
-import { can, mayViewMeeting, projectRoleOf, taskResource } from '../../src/api/permissions';
-import { withOfficeRights } from '../../src/api/rights';
+import { type Actor, can, mayViewMeeting, projectRoleOf, taskResource } from '../../src/api/permissions';
+import { withOfficeRights, withRights } from '../../src/api/rights';
 import type { State } from '../../src/api/store';
 import type { Db } from '../core/ports';
 import type { OfficeSnapshot } from '../core/types';
@@ -41,8 +41,9 @@ const officeUsers = (office: OfficeSnapshot): UserLookup => (id) => office.lists
 const roleIn = (office: OfficeSnapshot, projectId: string, userId: string) => projectRoleOf(office.lists as unknown as State, projectId, userId);
 
 /** assertCan(ctx, 'project.view', { projectRole: roleIn(ctx, projectId) }) on the office snapshot. */
-export function assertMayView(office: OfficeSnapshot, userId: string, projectId: string): User {
-  const authority = authorityOf(officeUsers(office), userId);
+export function assertMayView(office: OfficeSnapshot, userId: string, projectId: string): Actor {
+  // The person carries the office rights, so a Member keeps the upload (role rights version 2: a person with none attached holds none).
+  const authority = withRights(office.lists, authorityOf(officeUsers(office), userId));
   if (!authority.active || !can(authority, 'project.view', { projectRole: roleIn(office, projectId, authority.id) })) {
     throw forbidden('You cannot do this.', { action: 'project.view' });
   }
@@ -50,7 +51,7 @@ export function assertMayView(office: OfficeSnapshot, userId: string, projectId:
 }
 
 /** The view right, then content.post in the project: the rule of files.upload, checked before its upload link is signed. */
-export function assertMayPost(office: OfficeSnapshot, userId: string, projectId: string): User {
+export function assertMayPost(office: OfficeSnapshot, userId: string, projectId: string): Actor {
   const authority = assertMayView(office, userId, projectId);
   if (!can(authority, 'content.post', { projectRole: roleIn(office, projectId, authority.id) })) throw forbidden('You cannot do this.', { action: 'content.post' });
   return authority;
@@ -60,8 +61,8 @@ export function assertMayPost(office: OfficeSnapshot, userId: string, projectId:
  * The view right on an office task, for a file of that task (owner, 2026-10-06): its maker, its lead, its helpers and the Admin.
  * A task that is gone leaves its files to the Admin. The person check comes first, as for a project.
  */
-export function mayViewOfficeTask(office: OfficeSnapshot, userId: string, task: Task | undefined): { authority: User; sees: boolean } {
-  const authority = authorityOf(officeUsers(office), userId);
+export function mayViewOfficeTask(office: OfficeSnapshot, userId: string, task: Task | undefined): { authority: Actor; sees: boolean } {
+  const authority = withRights(office.lists, authorityOf(officeUsers(office), userId));
   const resource = task ? taskResource(office.lists as unknown as State, task, authority.id) : { office: true };
   return { authority, sees: can(authority, 'task.view', resource) };
 }
@@ -82,7 +83,7 @@ export function assertMayViewOfficeFile(office: OfficeSnapshot, userId: string, 
  * gone, get the answer of a missing file, with no file name. An agent never opens a chat file, though it acts with its person's rights.
  */
 export function assertMayViewChatFile(office: OfficeSnapshot, userId: string, conversationId: string, fileId: string): User {
-  const authority = authorityOf(officeUsers(office), userId);
+  const authority = withRights(office.lists, authorityOf(officeUsers(office), userId));
   const conversation = office.lists.conversations[conversationId];
   const actor = office.lists.users[userId];
   if (!conversation || actor?.kind === 'agent' || !canSeeConversation(office.lists as unknown as State, conversation, authority)) throw notFound('File', fileId);
@@ -91,7 +92,7 @@ export function assertMayViewChatFile(office: OfficeSnapshot, userId: string, co
 
 /** The chat that a person may start an upload for: chatForUpload on the office snapshot, after the person check. */
 export function assertMayUploadToChat(office: OfficeSnapshot, userId: string, conversationId: string): Conversation {
-  const authority = authorityOf(officeUsers(office), userId);
+  const authority = withRights(office.lists, authorityOf(officeUsers(office), userId));
   const actor = office.lists.users[userId];
   return chatForUpload(office.lists as unknown as State, conversationId, authority, actor ?? authority);
 }
@@ -105,7 +106,7 @@ const withMeeting = (office: OfficeSnapshot, meeting: Meeting): State => ({ ...(
  * of a missing file, with no file name. An agent never opens a meeting file, though it acts with its person's rights.
  */
 export function assertMayViewMeetingFile(office: OfficeSnapshot, userId: string, meeting: Meeting | undefined, fileId: string): User {
-  const authority = authorityOf(officeUsers(office), userId);
+  const authority = withRights(office.lists, authorityOf(officeUsers(office), userId));
   const actor = office.lists.users[userId];
   if (!meeting || actor?.kind === 'agent' || !mayViewMeeting(withMeeting(office, meeting), authority, meeting)) throw notFound('File', fileId);
   return authority;
@@ -117,7 +118,7 @@ export function assertMayViewMeetingFile(office: OfficeSnapshot, userId: string,
  * files.upload on the State (src/api/handlers/files.ts), checked before any link is signed.
  */
 export function assertMayUploadToMeeting(office: OfficeSnapshot, userId: string, meeting: Meeting | undefined, meetingId: string, at: Date): Meeting {
-  const authority = authorityOf(officeUsers(office), userId);
+  const authority = withRights(office.lists, authorityOf(officeUsers(office), userId));
   if (!meeting) throw notFound('Meeting', meetingId);
   const state = withMeeting(office, meeting);
   if (!mayViewMeeting(state, authority, meeting)) throw notFound('Meeting', meetingId);

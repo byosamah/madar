@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { CustomRole, OfficeRight, RoleId, RoleSettings, type Event } from '../contract/entities';
+import { CustomRole, MAX_OFF_RIGHTS, MAX_STORED_RIGHTS, OfficeRight, RoleId, RoleSettings, StoredRight, type Event } from '../contract/entities';
 import { ApiError, invalid } from '../errors';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
-import { DEFAULT_RIGHTS, OFFICE_RIGHTS } from '../permissions';
+import { BASIC_ON, DEFAULT_EXTRA, expandRights } from '../rightsCatalog';
 import { nextId, type State } from '../store';
 import { assertCan } from './shared';
 
@@ -20,14 +20,29 @@ type BuiltIn = (typeof BUILT_IN)[number];
 const MAX_CUSTOM = 20;
 
 const RoleName = z.string().trim().min(1).max(40);
-const Rights = z.array(OfficeRight).max(20);
+/** The rights of a save: the 112 ids, and the old ids of 2026-10-23 (they expand to new ids when the role is saved). */
+const Rights = z.array(StoredRight).max(MAX_STORED_RIGHTS);
+/** The basic switches that the role does not hold (role rights version 2). */
+const Off = z.array(OfficeRight).max(MAX_OFF_RIGHTS);
 const ROLE_VERBS: ReadonlySet<string> = new Set(['role.created', 'role.updated', 'role.deleted']);
 
 const isBuiltIn = (role: string): role is BuiltIn => (BUILT_IN as readonly string[]).includes(role);
-/** The rights in the order of the rights list, each one once. */
-const inOrder = (rights: readonly string[]): OfficeRight[] => OFFICE_RIGHTS.filter((right) => rights.includes(right));
-/** True when both lists hold the same rights, in any order: the order of the rights list changed with the sections (role-rights, 2026-10-23). */
-const sameRights = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((right) => b.includes(right));
+/**
+ * The rights of a save, as the store holds them: the new ids only (an old id expands to the switches it stands for), each one once, in
+ * the order of the catalog, and without the basic switches. A basic switch is on by default, so only `off` can change it.
+ */
+const inOrder = (rights: readonly string[]): OfficeRight[] => expandRights(rights).filter((right) => !BASIC_ON.includes(right));
+/** The turned-off basic switches of a save: only basic ids, each one once, in the order of the catalog. */
+const offInOrder = (off: readonly string[]): OfficeRight[] => BASIC_ON.filter((right) => off.includes(right));
+/**
+ * True when both lists mean the same switches, in any order and in any form: an old id and the new ids it stands for are the same
+ * (role rights version 2). A save that changes nothing writes no event.
+ */
+const sameRights = (a: readonly string[], b: readonly string[]): boolean => {
+  const left = expandRights(a);
+  const right = expandRights(b);
+  return left.length === right.length && left.every((id) => right.includes(id));
+};
 const conflict = (message = 'This item changed after that edit. Undo is not available.') => new ApiError('conflict', message);
 
 /** The office roles. An office saved before roles has none, so the first change makes the record. */
@@ -52,7 +67,7 @@ function assertNamesFree(custom: readonly CustomRole[], name: string, nameAr: st
 }
 
 export const rolesCreate = defineCall({
-  input: z.object({ name: RoleName, nameAr: RoleName, rights: Rights }),
+  input: z.object({ name: RoleName, nameAr: RoleName, rights: Rights, off: Off.optional() }),
   output: CustomRole,
   run(input, ctx) {
     assertCan(ctx, 'admin.manage');
@@ -60,35 +75,62 @@ export const rolesCreate = defineCall({
     const custom = roles.custom ?? [];
     if (custom.length >= MAX_CUSTOM) throw invalid('name', 'The office has the most roles it can hold. Delete a role first.', 'role_limit');
     assertNamesFree(custom, input.name, input.nameAr, '');
-    const role: CustomRole = { id: nextId(ctx.state, 'rol'), name: input.name, nameAr: input.nameAr, rights: inOrder(input.rights) };
+    // A role made with `off` holds its own full list. A role made without it (the sheet of before role rights version 2) holds the Member
+    // switches and its own.
+    const role: CustomRole = {
+      id: nextId(ctx.state, 'rol'), name: input.name, nameAr: input.nameAr, rights: inOrder(input.rights),
+      ...(input.off !== undefined ? { off: offInOrder(input.off) } : {}),
+    };
     roles.custom = [...custom, role];
     recordCreate(ctx, { projectId: null, verb: 'role.created', targetType: 'settings', targetId: role.id, entity: role });
     return role;
   },
 });
 
-/** A built-in role takes new rights. It has no name, so a name in the change refuses. No change writes no event. */
-function changeBuiltIn(ctx: Ctx, roles: RoleSettings, role: BuiltIn, rights: readonly OfficeRight[]): void {
-  const before = [...(roles.rights?.[role] ?? DEFAULT_RIGHTS[role])];
-  if (sameRights(before, rights)) return;
-  const next = { ...roles.rights };
-  next[role] = [...rights];
-  roles.rights = next;
-  writeEvent(ctx, { projectId: null, verb: 'role.updated', targetType: 'settings', targetId: role, before: { rights: before }, after: { rights: [...rights] } });
+/**
+ * A built-in role takes new rights or new turned-off basics. It has no name, so a name in the change refuses. No change writes no event.
+ * The event keeps the old and the new value of each field that changed (rights, off).
+ */
+function changeBuiltIn(ctx: Ctx, roles: RoleSettings, role: BuiltIn, patch: { rights?: OfficeRight[]; off?: OfficeRight[] }): void {
+  const before: Record<string, unknown> = {};
+  const after: Record<string, unknown> = {};
+  if (patch.rights !== undefined) {
+    const was = [...(roles.rights?.[role] ?? DEFAULT_EXTRA[role])];
+    if (!sameRights(was, patch.rights)) {
+      before.rights = was;
+      after.rights = [...patch.rights];
+      roles.rights = { ...roles.rights, [role]: [...patch.rights] };
+    }
+  }
+  if (patch.off !== undefined) {
+    const was = [...(roles.off?.[role] ?? [])];
+    if (!sameRights(was, patch.off)) {
+      before.off = was;
+      after.off = [...patch.off];
+      roles.off = { ...roles.off, [role]: [...patch.off] };
+    }
+  }
+  if (Object.keys(after).length > 0) writeEvent(ctx, { projectId: null, verb: 'role.updated', targetType: 'settings', targetId: role, before, after });
 }
 
-/** A custom role takes a new name, new names or new rights. Only the fields that change are written, in one event. */
-function changeCustom(ctx: Ctx, roles: RoleSettings, id: string, patch: { name?: string; nameAr?: string; rights?: OfficeRight[] }): void {
+/** A custom role takes a new name, new names, new rights or new turned-off basics. Only the fields that change are written, in one event. */
+function changeCustom(ctx: Ctx, roles: RoleSettings, id: string, patch: { name?: string; nameAr?: string; rights?: OfficeRight[]; off?: OfficeRight[] }): void {
   const custom = roles.custom ?? [];
   const role = custom.find((item) => item.id === id);
   if (!role) throw invalid('role', 'This role does not exist.', 'role_missing');
   if (patch.name !== undefined || patch.nameAr !== undefined) assertNamesFree(custom, patch.name ?? role.name, patch.nameAr ?? role.nameAr, role.id);
   const before: Record<string, unknown> = {};
   const after: Record<string, unknown> = {};
-  for (const key of ['name', 'nameAr', 'rights'] as const) {
+  for (const key of ['name', 'nameAr', 'rights', 'off'] as const) {
     const next = patch[key];
-    if (next === undefined || (key === 'rights' ? sameRights(role.rights, next as OfficeRight[]) : JSON.stringify(role[key]) === JSON.stringify(next))) continue;
-    before[key] = structuredClone(role[key]);
+    if (next === undefined) continue;
+    // A role without `off` keeps its old meaning. A first `off` changes the meaning, so it is always a change.
+    const same = key === 'rights' ? sameRights(role.rights, next as OfficeRight[])
+      : key === 'off' ? role.off !== undefined && sameRights(role.off, next as OfficeRight[])
+        : JSON.stringify(role[key]) === JSON.stringify(next);
+    if (same) continue;
+    // `null` in the old side says "the role had no `off`": the Undo takes the field away again.
+    before[key] = key === 'off' ? (role.off === undefined ? null : structuredClone(role.off)) : structuredClone(role[key]);
     after[key] = structuredClone(next);
     (role as unknown as Record<string, unknown>)[key] = structuredClone(next);
   }
@@ -101,17 +143,20 @@ export const rolesUpdate = defineCall({
     name: RoleName.optional(),
     nameAr: RoleName.optional(),
     rights: Rights.optional(),
+    /** The basic switches that the role does not hold. A built-in role with no `off` keeps the one it has. */
+    off: Off.optional(),
   }),
   output: RoleSettings,
   run(input, ctx) {
     assertCan(ctx, 'admin.manage');
     const roles = rolesOf(ctx.state);
     const rights = input.rights ? inOrder(input.rights) : undefined;
+    const off = input.off ? offInOrder(input.off) : undefined;
     if (isBuiltIn(input.role)) {
       if (input.name !== undefined || input.nameAr !== undefined) throw invalid('name', 'A built-in role has no name to change.', 'built_in_name');
-      if (rights) changeBuiltIn(ctx, roles, input.role, rights);
+      changeBuiltIn(ctx, roles, input.role, { rights, off });
     } else {
-      changeCustom(ctx, roles, input.role, { name: input.name, nameAr: input.nameAr, rights });
+      changeCustom(ctx, roles, input.role, { name: input.name, nameAr: input.nameAr, rights, off });
     }
     return roles;
   },
@@ -188,24 +233,43 @@ export function undoRoleChange(ctx: Ctx, event: Event): Event {
     const keys = Object.keys(event.after as Record<string, unknown>);
     const clash = later.some((e) => e.after === null || Object.keys((e.after ?? {}) as object).some((key) => keys.includes(key)));
     if (clash) throw conflict();
+    // An old event may hold old ids (project.editAny and so on): the Undo writes the new ids they stand for.
     if (isBuiltIn(event.targetId)) {
-      const current = [...(roles.rights?.[event.targetId] ?? DEFAULT_RIGHTS[event.targetId])];
-      const rights = [...(restore.rights as OfficeRight[])];
-      const next = { ...roles.rights };
-      next[event.targetId] = rights;
-      roles.rights = next;
-      undo = writeEvent(ctx, { ...meta, before: { rights: current }, after: { rights: [...rights] } });
+      const before: Record<string, unknown> = {};
+      const after: Record<string, unknown> = {};
+      if ('rights' in restore) {
+        const current = [...(roles.rights?.[event.targetId] ?? DEFAULT_EXTRA[event.targetId])];
+        const rights = inOrder(restore.rights as string[]);
+        roles.rights = { ...roles.rights, [event.targetId]: rights };
+        before.rights = current;
+        after.rights = [...rights];
+      }
+      if ('off' in restore) {
+        const current = [...(roles.off?.[event.targetId] ?? [])];
+        const off = offInOrder((restore.off ?? []) as string[]);
+        roles.off = { ...roles.off, [event.targetId]: off };
+        before.off = current;
+        after.off = [...off];
+      }
+      undo = writeEvent(ctx, { ...meta, before, after });
     } else {
       const role = custom.find((item) => item.id === event.targetId);
       if (!role) throw conflict();
       const names = restore as { name?: string; nameAr?: string };
       if (nameTaken(custom, names.name ?? role.name, names.nameAr ?? role.nameAr, role.id)) throw conflict();
       const before: Record<string, unknown> = {};
+      const after: Record<string, unknown> = {};
       for (const key of Object.keys(restore)) {
-        before[key] = structuredClone((role as unknown as Record<string, unknown>)[key]);
-        (role as unknown as Record<string, unknown>)[key] = structuredClone(restore[key]);
+        const value = key === 'rights' ? inOrder(restore.rights as string[])
+          : key === 'off' ? (restore.off === null ? undefined : offInOrder(restore.off as string[]))
+            : structuredClone(restore[key]);
+        const current = (role as unknown as Record<string, unknown>)[key];
+        before[key] = key === 'off' && current === undefined ? null : structuredClone(current);
+        after[key] = value === undefined ? null : structuredClone(value);
+        if (value === undefined) delete (role as unknown as Record<string, unknown>)[key];
+        else (role as unknown as Record<string, unknown>)[key] = value;
       }
-      undo = writeEvent(ctx, { ...meta, before, after: structuredClone(restore) });
+      undo = writeEvent(ctx, { ...meta, before, after });
     }
   }
   event.undoneBy = undo.id;

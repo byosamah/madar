@@ -37,10 +37,14 @@ function roleEvents(t: ReturnType<typeof world>, verb?: string): Event[] {
 }
 
 describe('roles.create', () => {
-  it('makes a custom role with its names, and its rights in the order of the rights list', async () => {
+  it('makes a custom role with its names, and its rights as new ids in the order of the catalog', async () => {
     const t = world();
     const role = await t.api.call('roles.create', { name: 'Site lead', nameAr: 'مسؤول الموقع', rights: ['clients.manage', 'people.manage'] });
-    expect(role).toEqual({ id: 'rol_002', name: 'Site lead', nameAr: 'مسؤول الموقع', rights: ['people.manage', 'clients.manage'] });
+    // An old id expands to the new ids it stands for (role rights version 2). A role made with old ids has no `off`.
+    expect(role).toEqual({
+      id: 'rol_002', name: 'Site lead', nameAr: 'مسؤول الموقع',
+      rights: ['people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove', 'clients.change'],
+    });
     expect(t.store.state.settings.roles?.custom?.map((item) => item.id)).toEqual(['rol_001', 'rol_002']);
     expect(roleEvents(t, 'role.created')).toMatchObject([{ projectId: null, targetType: 'settings', targetId: 'rol_002', before: null }]);
   });
@@ -78,9 +82,9 @@ describe('roles.update', () => {
   it('changes the rights of a built-in role, and records the old and the new rights in one event', async () => {
     const t = world();
     const roles = await t.api.call('roles.update', { role: 'management', rights: ['payment.manage'] });
-    expect(roles.rights?.management).toEqual(['payment.manage']);
+    expect(roles.rights?.management).toEqual(['payment.view', 'payment.add', 'payment.change', 'payment.receive']);
     expect(roleEvents(t, 'role.updated')).toMatchObject([
-      { targetId: 'management', before: { rights: ['people.manage', 'payment.manage', 'report.office'] }, after: { rights: ['payment.manage'] } },
+      { targetId: 'management', before: { rights: ['people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove', 'payment.view', 'payment.add', 'payment.change', 'payment.receive', 'report.office'] }, after: { rights: ['payment.view', 'payment.add', 'payment.change', 'payment.receive'] } },
     ]);
   });
 
@@ -223,7 +227,7 @@ describe('the Undo of a role change', () => {
     const t = world();
     await t.api.call('roles.update', { role: 'management', rights: ['payment.manage'] });
     await t.api.call('events.undo', { eventId: eventOf(t, 'role.updated').id });
-    expect(t.store.state.settings.roles?.rights?.management).toEqual(['people.manage', 'payment.manage', 'report.office']);
+    expect(t.store.state.settings.roles?.rights?.management).toEqual(['people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove', 'payment.view', 'payment.add', 'payment.change', 'payment.receive', 'report.office']);
   });
 
   it('takes back a rename of a custom role', async () => {
@@ -259,7 +263,8 @@ describe('the order of the rights in 17 rights (role-rights)', () => {
       rights: ['gaps.view', 'feedback.manage', 'agents.undoAny', 'templates.updateProjects', 'subCompanies.manage', 'task.changeAny', 'project.archiveAny', 'project.editAny'],
     });
     expect(role.rights).toEqual([
-      'project.editAny', 'project.archiveAny', 'task.changeAny', 'subCompanies.manage', 'templates.updateProjects', 'agents.undoAny', 'feedback.manage', 'gaps.view',
+      'project.details.all', 'project.team.all', 'project.stages.all', 'project.deadlines.all', 'project.template.all', 'project.archive.all',
+      'project.health.all', 'task.any.all', 'subCompanies.manage', 'templates.updateProjects', 'gaps.view', 'ai.undoOthers.all', 'feedback.manage',
     ]);
   });
 
@@ -281,9 +286,9 @@ describe('the order of the rights in 17 rights (role-rights)', () => {
   it('writes one event when a right is added, and the Undo gives the old rights back', async () => {
     const t = world();
     await t.api.call('roles.update', { role: 'rol_001', rights: ['payment.manage', 'feedback.manage'] }, { correlationId: 'cor_add' });
-    expect(t.store.state.settings.roles?.custom?.[0].rights).toEqual(['payment.manage', 'feedback.manage']);
+    expect(t.store.state.settings.roles?.custom?.[0].rights).toEqual(['payment.view', 'payment.add', 'payment.change', 'payment.receive', 'feedback.manage']);
     const [event] = roleEvents(t, 'role.updated');
     await t.api.call('events.undo', { eventId: event.id });
-    expect(t.store.state.settings.roles?.custom?.[0].rights).toEqual(['payment.manage']);
+    expect(t.store.state.settings.roles?.custom?.[0].rights).toEqual(['payment.view', 'payment.add', 'payment.change', 'payment.receive']);
   });
 });

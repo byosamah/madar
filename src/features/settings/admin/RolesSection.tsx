@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { OfficeRight, RoleSettings, User } from '../../../api/contract/entities';
-import { DEFAULT_RIGHTS, OFFICE_RIGHTS } from '../../../api/permissions';
+import type { RoleSettings, StoredRight, User } from '../../../api/contract/entities';
+import { LEGACY_DEFAULT_RIGHTS, LEGACY_OFFICE_RIGHTS, legacyView } from '../../../api/permissions';
 import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
 import { useCall } from '../../../app/runtime';
@@ -25,7 +25,7 @@ export function RolesSection() {
   const users = useCall('users.list', { includeInactive: true });
   const roles: RoleSettings = settings.data?.roles ?? {};
   const [shown, setShown] = useState<RoleTarget | null>(null);
-  const rightsOf = (role: (typeof BUILT_IN)[number]): readonly OfficeRight[] => roles.rights?.[role] ?? DEFAULT_RIGHTS[role];
+  const rightsOf = (role: (typeof BUILT_IN)[number]): readonly StoredRight[] => legacyView(roles.rights?.[role] ?? LEGACY_DEFAULT_RIGHTS[role]);
   const people = (users.data ?? []).filter((user) => user.kind === 'human' && !user.removed);
   const holdersOf = (match: (user: User) => boolean): RoleHolder[] => people.filter(match).map((user) => ({ id: user.id, name: personName(user) }));
   const builtInHolders = (role: (typeof BUILT_IN)[number]) => holdersOf((user) => user.systemRole === role && (role !== 'member' || !user.roleId));
@@ -39,7 +39,7 @@ export function RolesSection() {
       target: { kind: 'built-in' as const, key: role, name: t(`admin.roles.${role}`), rights: rightsOf(role) },
     })),
     ...custom.map((role) => ({
-      id: role.id, name: customName(role), holders: customHolders(role.id).length, rights: role.rights.length, target: { kind: 'custom' as const, role },
+      id: role.id, name: customName(role), holders: customHolders(role.id).length, rights: legacyView(role.rights).length, target: { kind: 'custom' as const, role },
     })),
   ];
   const shownId = shown?.kind === 'custom' ? shown.role.id : shown?.kind === 'built-in' ? shown.key : null;
@@ -73,7 +73,7 @@ export function RolesSection() {
               <span className="flex min-w-0 flex-1 flex-col">
                 <bdi className="font-semibold text-ink">{row.name}</bdi>
                 <span className="text-footnote text-ink-2">
-                  {t('roles.rowMeta', { people: peopleText(row.holders), rights: t('roles.rightsCount', { count: row.rights, total: OFFICE_RIGHTS.length }) })}
+                  {t('roles.rowMeta', { people: peopleText(row.holders), rights: t('roles.rightsCount', { count: row.rights, total: LEGACY_OFFICE_RIGHTS.length }) })}
                 </span>
               </span>
               <AnimatedIcon icon={ChevronRightIcon} size={18} className="text-ink-2 rtl:-scale-x-100" aria-hidden />

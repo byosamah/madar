@@ -54,9 +54,11 @@ describe('the Admin section registry', () => {
   });
 
   it('opens a section for a person with the right that the section names, whatever the role', () => {
-    expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['people.manage'] }, false))).toEqual(['people', 'teams']);
-    expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['templates.manageAll'] }, false))).toEqual(['project-templates', 'task-templates']);
-    expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['clients.manage'] }, false))).toEqual(['clients']);
+    expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['people.invite'] }, false))).toEqual(['people']);
+    expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['people.teams'] }, false))).toEqual(['people', 'teams']);
+    expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['templates.projectCreate', 'templates.taskAny'] }, false))).toEqual(['project-templates', 'task-templates']);
+    expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['clients.change'] }, false))).toEqual(['clients']);
+    expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['office.settings'] }, false))).toEqual(['office']);
   });
 
   // role-rights (owner, 2026-10-23): the sub-companies, the requests and bugs and the update of projects open for their own rights.
@@ -65,12 +67,12 @@ describe('the Admin section registry', () => {
     expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['feedback.manage'] }, false))).toEqual(['feedback']);
     // The update of projects opens the project templates only, not the to-do templates: their change right is another right.
     expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['templates.updateProjects'] }, false))).toEqual(['project-templates']);
-    expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['templates.manageAll', 'templates.updateProjects'] }, false))).toEqual(['project-templates', 'task-templates']);
+    expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['templates.projectAny', 'templates.taskAny'] }, false))).toEqual(['project-templates', 'task-templates']);
   });
 
-  it('keeps the Roles section, the office settings and Usage with the Admin, whatever the rights say', () => {
+  it('keeps the Roles section and Usage with the Admin, whatever the rights say', () => {
     const all = { systemRole: 'member' as const, officeRights: [...rightsOf({ systemRole: 'admin' } as User, undefined)] };
-    for (const id of ['roles', 'office', 'usage']) expect(ids(sectionsFor(all, true)), id).not.toContain(id);
+    for (const id of ['roles', 'usage']) expect(ids(sectionsFor(all, true)), id).not.toContain(id);
   });
 
   it('takes the People section away from Management that lost the people right', () => {
@@ -78,12 +80,12 @@ describe('the Admin section registry', () => {
   });
 
   it('opens no section for a right that no section names', () => {
-    expect(sectionsFor({ systemRole: 'member', officeRights: ['payment.manage', 'report.office', 'project.editCode', 'project.editAny', 'task.changeAny', 'gaps.view', 'agents.undoAny'] }, true)).toEqual([]);
+    expect(sectionsFor({ systemRole: 'member', officeRights: ['payment.view', 'report.office', 'project.code', 'project.details.all', 'task.any.all', 'gaps.view', 'ai.undoOthers.all'] }, true)).toEqual([]);
   });
 
   it('shows the Roles section to the Admin only, whatever the rights say', () => {
-    expect(ids(sectionsFor({ systemRole: 'management', officeRights: ['people.manage'] }, false))).not.toContain('roles');
-    expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['people.manage', 'clients.manage', 'templates.manageAll'] }, false))).not.toContain('roles');
+    expect(ids(sectionsFor({ systemRole: 'management', officeRights: ['people.invite'] }, false))).not.toContain('roles');
+    expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['people.invite', 'clients.change', 'templates.projectAny'] }, false))).not.toContain('roles');
   });
 
   it('orders the sections by group, whatever the place of a line in the list', () => {
