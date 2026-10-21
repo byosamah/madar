@@ -93,10 +93,5 @@ describe('the Cron of the office object on local workerd', () => {
     pinged.ws.close();
   });
 
-  it('warns the Admins when a day meter of the run day reaches 80%', async () => {
-    await live.fresh(await seedOf());
-    await live.exec("insert into usage_day (day, rows_written) values ('2026-10-04', 90000)");
-    await cron(new Date('2026-10-04T02:45:00Z'));
-    await vi.waitFor(async () => expect((await live.net()).mails.map((m) => m.idempotencyKey)).toContain('limit-warning-2026-10-04-rowsWrittenDay-usr_001'), { timeout: 10_000 });
-  });
+  // The 80% warning of the day meters went with the usage feature (b62c3787, owner batch of 2026-10-20), so its test went too.
 });
