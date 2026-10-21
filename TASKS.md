@@ -828,6 +828,13 @@ Owner: "add some Slack chat features": Online, Away, Offline, "Seen", "typing...
   👍 ✅ 👀 and get a + for any emoji
 - [x] Mockup, then the design
 - [ ] Builder check of the design, then the plan (Opus, `superpowers:writing-plans`)
-- [ ] Proof task on madar-test: presence and typing policies, the drop time, the message count
-- [ ] Build (Sonnet builders), merge gate once, screenshots, test copy
+- [x] Proof task on madar-test (P1): every policy fact holds; a dead socket shows Offline after 49 to 66 s; the new parts were
+  56% to 63% of the free 2 million, so cost steps 1 to 3 are in (typing every 5 s, rest out of view). The migration went off
+  madar-test again for another release; the test deploy pushes it again
+- [x] Wave 1 base B1 to B6 (reactions with any emoji, seen time, Away switch hidden from others and from History, chats.typing,
+  the live port)
+- [ ] Wave 2: live L1 to L4, faces F1 to F5, emoji E1 to E4 (three builders in parallel)
+- [ ] Owner: read the Realtime messages of this month on the Supabase page Organization, Usage (no API gives it). If that use
+  plus about 0.8 million passes 1 million, cost step 4 applies (ask the owner)
+- [ ] Merge gate once, screenshots, test copy
 - [ ] What's new line; production only by the owner, not before 2026-10-23
