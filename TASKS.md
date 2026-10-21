@@ -965,3 +965,9 @@ Branch `rb/perf2` (worktree `~/dev/madar-rb/perf2`). Sonnet agents, the Opus ses
 - [ ] Wave 2 after the wave 1 merge: DF-14 and SV-7 (both touch files of wave 1), plus the gap critic findings that hold
 - [ ] Owner: the removal of the probe function probe-reuse of track 6 on madar-test (a 404 stub after the probe)
 - [ ] Not asked, recorded only: LV-1 one font preload (first visit of a new device only)
+- [ ] Safari on iPhone (owner, 2026-10-21: "we have safari users on iphone"). Every iPhone browser is WebKit, and every check
+  of this audit ran on Chromium. At the merge: no requestIdleCallback, scheduler or navigator.connection without the fallback
+  (the idle helper of src/app/screens.ts waits 200 ms in Safari). After the merge: the screenshots and the live numbers also on
+  WebKit with an iPhone profile (Playwright webkit 26.6 installed 2026-10-21): cold load, one save, chat delivery
+- [ ] Wave 2, Safari: measure the CORS preflight cache of WebKit (DF-12, LV-6: Chromium keeps it 2 h, WebKit much less), then
+  decide on the same-origin /api path for WebKit only; DF-14 must fall back to a plain load when iOS evicted or blocks IndexedDB
