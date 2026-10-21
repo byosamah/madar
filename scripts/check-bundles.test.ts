@@ -369,3 +369,16 @@ describe('the map library (fbk_017): MapLibre loads only at Set pin, never in th
     expect(result.text).toMatch(/FAIL: no map library \('maplibregl-'\) in the first-load scripts: found in vendor-v1\.js\./);
   });
 });
+
+describe('the emoji data (chat presence design D8): the panel loads at its first open, never with the page', () => {
+  it('fails a remote first load that holds the emoji data, so the list would load with the page', () => {
+    const result = checkRemote((files) => { files['assets/vendor-v1.js'] += 'const c={en:"grinning face"};'; });
+    expect(result.ok).toBe(false);
+    expect(result.text).toMatch(/FAIL: no emoji data \('grinning face'\) in the first-load scripts: found in vendor-v1\.js\./);
+  });
+
+  it('passes a remote first load with the emoji data in a lazy chunk of its own', () => {
+    const result = checkRemote((files) => { files['assets/EmojiPanel-abc.js'] = 'export default {en:"grinning face"};'; });
+    expect(result.ok).toBe(true);
+  });
+});

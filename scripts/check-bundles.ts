@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
  * remote: no sample office and no relative ./assets/ path in index.html, because path links need base '/'.
  * The sample office check looks for names from src/data/seed.ts: minification renames buildSeed, but string literals stay.
  * remote, the first load (performance audit 2026-10-07): the scripts that index.html starts hold no chart code, no zod
- * schemas and no words, and stay under FIRST_LOAD_MAX_BYTES. index.html starts the bootstrap chunk, the three Thmanyah
+ * schemas, no words and no emoji data, and stay under FIRST_LOAD_MAX_BYTES. index.html starts the bootstrap chunk, the three Thmanyah
  * files and a connection to each Supabase origin. The vendor and supabase chunks import no app chunk, so their names stay
  * the same over a release that changes only app code.
  * prototype: no Supabase code, no _headers file, one script file, and none of the links of the remote build, so the
@@ -49,6 +49,8 @@ export const CHART_MARKER = 'recharts-wrapper';
 export const ZOD_MARKER = '$ZodObject';
 /** Text that only the map library (MapLibre) holds: its CSS class names survive the minifier (owner, 2026-10-18, fbk_017). */
 export const MAP_LIBRARY_MARKER = 'maplibregl-';
+/** Text that only the data of the emoji panel holds (chat presence design D8, track emoji E2): the panel loads at its first open. */
+export const EMOJI_MARKER = 'grinning face';
 export const WORD_MARKERS = {
   en: 'Something went wrong on this page. Go to Home and try again.',
   ar: 'حدث خطأ في هذه الصفحة. انتقل إلى الرئيسية وحاول مرة أخرى.',
@@ -178,6 +180,8 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
     none('words of a language', [WORD_MARKERS.en, WORD_MARKERS.ar]);
     // MapLibre loads only at Set pin, in a chunk of its own: the first load holds none of it (fbk_017).
     none("map library ('maplibregl-')", [MAP_LIBRARY_MARKER]);
+    // The emoji panel and its data (about 360 KB) load at its first open, in a chunk of its own (chat presence design D8).
+    none("emoji data ('grinning face')", [EMOJI_MARKER]);
     rule(
       `the first-load scripts stay at ${FIRST_LOAD_MAX_BYTES} B or less`,
       bytes > FIRST_LOAD_MAX_BYTES ? [`${closure.length} files hold ${bytes} B`] : [],

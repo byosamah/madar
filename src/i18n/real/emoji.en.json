@@ -1,0 +1,32 @@
+{
+  "emoji": {
+    "add": "Add an emoji",
+    "search": "Search emoji",
+    "recent": "Recent",
+    "skinTone": "Skin tone",
+    "none": "No emoji has this name.",
+    "wait": "One moment.",
+    "groups": "Groups of emoji",
+    "group": {
+      "people": "Smileys and people",
+      "nature": "Animals and nature",
+      "food": "Food and drink",
+      "activities": "Activities",
+      "travel": "Travel and places",
+      "objects": "Objects",
+      "symbols": "Symbols",
+      "flags": "Flags"
+    },
+    "tone": {
+      "0": "Default",
+      "1": "Light",
+      "2": "Medium light",
+      "3": "Medium",
+      "4": "Medium dark",
+      "5": "Dark"
+    }
+  },
+  "chat": {
+    "addReaction": "Add a reaction"
+  }
+}
