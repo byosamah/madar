@@ -46,7 +46,7 @@ describe('the Meetings view of the Tasks screen', () => {
   it('writes the time, the kind and the project, or the word Office, on each row', async () => {
     await renderApp('/meetings', office);
     const project = (await screen.findByText('Review the facade')).closest('li')!;
-    expect(within(project).getByText('14:00')).toBeInTheDocument();
+    expect(within(project).getByText('2:00 PM')).toBeInTheDocument();
     expect(within(project).getByText(/Client meeting/)).toBeInTheDocument();
     expect(within(project).getByText(/Corniche Office Tower/)).toBeInTheDocument();
     const team = screen.getByText('Weekly team meeting').closest('li')!;

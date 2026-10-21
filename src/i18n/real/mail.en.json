@@ -6,7 +6,7 @@
       "open": "Open Madar",
       "linkHelp": "If the button does not work, copy this link into your browser:",
       "footerNotice": "You get this email because the Email switch of this notice is on. You can change it in Settings, Notifications.",
-      "footerSummary": "You get this summary on working days at 07:30 Riyadh time. You can turn it off in Settings, Notifications.",
+      "footerSummary": "You get this summary on working days at 7:30 AM Riyadh time. You can turn it off in Settings, Notifications.",
       "footerAuto": "Madar sent this email. Do not reply to it."
     },
     "invite": {
@@ -55,7 +55,7 @@
     "quota": {
       "subject": "Notice emails stopped for today",
       "stopped": "Madar sent {{limit}} emails today. That is the daily limit for notice emails on the free plan.",
-      "stayInApp": "New notices stay in the app. Emails start again at 03:00 Riyadh time.",
+      "stayInApp": "New notices stay in the app. Emails start again at 3:00 AM Riyadh time.",
       "signinStill": "Invitations and password resets still go by email.",
       "noAction": "No action is needed."
     }

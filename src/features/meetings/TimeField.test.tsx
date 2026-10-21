@@ -10,14 +10,14 @@ describe('TimeField', () => {
     const select = screen.getByRole('combobox', { name: 'Time' });
     const options = [...select.querySelectorAll('option')];
     expect(options).toHaveLength(65);
-    expect(options[0]).toHaveTextContent(/^6:00$/);
-    expect(options.at(-1)).toHaveTextContent(/^22:00$/);
+    expect(options[0]).toHaveTextContent(/^6:00 AM$/);
+    expect(options.at(-1)).toHaveTextContent(/^10:00 PM$/);
     expect(select).toHaveValue('10:00');
   });
 
   it('keeps a time outside the steps while it is the value', async () => {
     await renderWithRuntime(<TimeField id="t" label="Time" value="10:05" onChange={() => undefined} />);
-    expect(screen.getByRole('combobox', { name: 'Time' })).toHaveDisplayValue('10:05');
+    expect(screen.getByRole('combobox', { name: 'Time' })).toHaveDisplayValue('10:05 AM');
     expect(screen.getByRole('combobox', { name: 'Time' }).querySelectorAll('option')).toHaveLength(66);
   });
 

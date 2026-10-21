@@ -22,7 +22,7 @@ describe('the Meetings card on Home', () => {
     const card = await screen.findByRole('region', { name: 'Meetings today' });
     const rows = within(card).getAllByRole('link').filter((link) => link.getAttribute('href')?.includes('meeting='));
     // The earlier meeting comes first.
-    expect(rows.map((row) => row.textContent)).toEqual(['11:00Weekly team meeting', '14:00Review the facade']);
+    expect(rows.map((row) => row.textContent)).toEqual(['11:00 AMWeekly team meeting', '2:00 PMReview the facade']);
     expect(rows[0]).toHaveAttribute('href', '#/meetings?meeting=mtg_002');
     expect(within(card).getByRole('link', { name: 'All meetings' })).toHaveAttribute('href', '#/meetings');
   });

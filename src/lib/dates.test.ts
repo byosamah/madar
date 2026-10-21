@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clockTime } from '../features/inbox/Thread';
-import { addDays, dayOfWeek, diffDays, formatDay, formatMonth, formatMonthYear, formatNumber, formatWeekday, formatWeekdayHead, maxDay, minDay, now, nowStamp, officeClock, setNow, stampDay, todayISO, weekStartOf } from './dates';
+import { addDays, clockFormat, dayOfWeek, diffDays, formatDay, formatMonth, formatMonthYear, formatNumber, formatWeekday, formatWeekdayHead, maxDay, minDay, now, nowStamp, officeClock, setNow, stampDay, todayISO, weekStartOf } from './dates';
 import recorded from './dates.recorded.json';
 import { waitingNames } from './waiting';
 
@@ -54,6 +54,24 @@ describe('office dates', () => {
     expect(arabic).toContain('12');
     expect(arabic).not.toMatch(/[٠-٩]/);
     expect(formatNumber(48300.5, 'ar', 1)).toBe('48,300.5');
+  });
+});
+
+describe('clockFormat (owner, 2026-10-21: "make the time in AM PM style not 24")', () => {
+  const clock = (lang: 'en' | 'ar', stamp: string) => clockFormat(lang).format(new Date(stamp));
+
+  it('writes an English time on the 12-hour clock, with AM and PM', () => {
+    expect(clock('en', '2026-10-20T17:15:00+03:00')).toBe('5:15 PM');
+    expect(clock('en', '2026-10-20T09:05:00+03:00')).toBe('9:05 AM');
+    expect(clock('en', '2026-10-20T12:00:00+03:00')).toBe('12:00 PM');
+    expect(clock('en', '2026-10-20T00:30:00+03:00')).toBe('12:30 AM');
+    // Office time, whatever offset the stamp has.
+    expect(clock('en', '2026-10-20T14:15:00Z')).toBe('5:15 PM');
+  });
+
+  it('keeps the Arabic time on the 12-hour clock, with ص and م and Western digits', () => {
+    expect(clock('ar', '2026-10-20T17:15:00+03:00')).toBe('5:15 م');
+    expect(clock('ar', '2026-10-20T09:05:00+03:00')).toBe('9:05 ص');
   });
 });
 

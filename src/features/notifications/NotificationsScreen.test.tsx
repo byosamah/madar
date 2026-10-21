@@ -271,10 +271,10 @@ describe('the notices of a meeting', () => {
       meetingNotice('ntf_911', 'meeting_invited', 'new'), meetingNotice('ntf_912', 'meeting_invited', 'moved'), meetingNotice('ntf_913', 'meeting_invited', 'cancelled'),
       meetingNotice('ntf_914', 'meeting_soon', undefined, null),
     ]));
-    expect(plain(await screen.findByText(/invited you to/))).toBe('Faisal Al-Harbi invited you to Review the facade, Thu 1 Oct at 10:00');
-    expect(plain(screen.getByText(/moved .Review/))).toBe('Faisal Al-Harbi moved Review the facade to Thu 1 Oct at 10:00');
-    expect(plain(screen.getByText(/cancelled .Review/))).toBe('Faisal Al-Harbi cancelled Review the facade, which was planned for Thu 1 Oct at 10:00');
-    expect(plain(screen.getByText(/starts soon/))).toBe('Review the facade starts soon, at 10:00');
+    expect(plain(await screen.findByText(/invited you to/))).toBe('Faisal Al-Harbi invited you to Review the facade, Thu 1 Oct at 10:00 AM');
+    expect(plain(screen.getByText(/moved .Review/))).toBe('Faisal Al-Harbi moved Review the facade to Thu 1 Oct at 10:00 AM');
+    expect(plain(screen.getByText(/cancelled .Review/))).toBe('Faisal Al-Harbi cancelled Review the facade, which was planned for Thu 1 Oct at 10:00 AM');
+    expect(plain(screen.getByText(/starts soon/))).toBe('Review the facade starts soon, at 10:00 AM');
   });
 
   it('puts the title between the isolate marks, so a title in another direction keeps its own end', async () => {
