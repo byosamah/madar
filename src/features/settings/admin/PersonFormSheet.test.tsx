@@ -71,4 +71,70 @@ describe('the role of a person in the Admin sheet (owner, 2026-10-18, fbk_014)',
     await waitFor(() => expect(Object.values(store.state.users).find((user) => user.name === 'Nora Salem')).toMatchObject({ systemRole: 'member' }));
     expect(Object.values(store.state.users).find((user) => user.name === 'Nora Salem')?.roleId ?? null).toBeNull();
   });
+
+  // Role rights version 2: the line under the Role field counts the switches beyond and below the standard list of 64.
+  describe('the line under the Role field', () => {
+    /** Opens the Add person sheet. One render for each test. */
+    const open = async (prepare: (state: State) => void, words = { people: 'People', add: 'Add person', role: 'Role' }) => {
+      await renderApp('/admin', prepare);
+      await userEvent.click(within(await screen.findByRole('region', { name: words.people })).getByRole('button', { name: words.add }));
+      const sheet = within(await screen.findByRole('dialog', { name: words.add }));
+      const pick = (role: string) => userEvent.selectOptions(sheet.getByLabelText(words.role), role);
+      return { sheet, pick };
+    };
+    const cashier = (extra: { rights: string[]; off?: string[] }) => (state: State) => {
+      withRoles(state);
+      state.settings.roles = { ...state.settings.roles, custom: [{ id: 'rol_001', name: 'Cashier', nameAr: 'أمين الصندوق', ...extra }] } as never;
+    };
+
+    it('says the standard rights for Member, and everything for the Admin', async () => {
+      const { sheet, pick } = await open(withRoles);
+      expect(sheet.getByText('Member: the standard rights.')).toBeInTheDocument();
+      await pick('admin');
+      expect(sheet.getByText('Admin: everything.')).toBeInTheDocument();
+    });
+
+    it('says the standard rights for a role that holds exactly the standard list', async () => {
+      const { sheet, pick } = await open(cashier({ rights: [], off: [] }));
+      await pick('rol_001');
+      expect(sheet.getByText('Cashier: the standard rights.')).toBeInTheDocument();
+    });
+
+    it('counts the switches beyond the standard list for Management and for a role saved before version 2', async () => {
+      const { sheet, pick } = await open(withRoles);
+      await pick('management');
+      expect(sheet.getByText('Management: standard rights, plus 10.')).toBeInTheDocument();
+      await pick('rol_001');
+      expect(sheet.getByText('Cashier: standard rights, plus 4.')).toBeInTheDocument();
+    });
+
+    it('counts the switches below the standard list too', async () => {
+      const { sheet, pick } = await open(cashier({ rights: ['people.invite'], off: ['task.work', 'file.share', 'search.use'] }));
+      await pick('rol_001');
+      expect(sheet.getByText('Cashier: standard rights, plus 1, without 3.')).toBeInTheDocument();
+    });
+
+    it('says only "without" for a role that holds less and nothing more', async () => {
+      const { sheet, pick } = await open(cashier({ rights: [], off: ['task.work'] }));
+      await pick('rol_001');
+      expect(sheet.getByText('Cashier: standard rights, without 1.')).toBeInTheDocument();
+    });
+
+    it('follows a Member list that the Admin changed', async () => {
+      const { sheet } = await open((state) => {
+        withRoles(state);
+        state.settings.roles = { ...state.settings.roles, off: { member: ['search.use'] } };
+      });
+      expect(sheet.getByText('Member: standard rights, without 1.')).toBeInTheDocument();
+    });
+
+    it('shows the line in Arabic', async () => {
+      const { sheet, pick } = await open((state) => {
+        withRoles(state);
+        state.users.usr_001.preferences.language = 'ar';
+      }, { people: 'الأشخاص', add: 'أضف شخصًا', role: 'الدور' });
+      await pick('management');
+      expect(sheet.getByText('الإدارة العليا: الصلاحيات المعتادة، وزيادة 10.')).toBeInTheDocument();
+    });
+  });
 });

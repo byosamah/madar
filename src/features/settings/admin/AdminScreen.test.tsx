@@ -395,7 +395,7 @@ describe('the Admin page for Management and Accounting', () => {
     // One line under the field says what the chosen role gives (ADM-16).
     expect(within(sheet).getByText('Member: the standard rights.')).toBeInTheDocument();
     await userEvent.selectOptions(role, 'management');
-    expect(within(sheet).getByText(/^Management: Member rights plus /)).toBeInTheDocument();
+    expect(within(sheet).getByText('Management: standard rights, plus 10.')).toBeInTheDocument();
     await userEvent.selectOptions(role, 'member');
     await userEvent.type(within(sheet).getByLabelText('Name in English'), 'Nora Salem');
     await userEvent.type(within(sheet).getByLabelText('Name in Arabic'), 'نورة سالم');

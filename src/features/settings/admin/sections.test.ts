@@ -70,6 +70,17 @@ describe('the Admin section registry', () => {
     expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['templates.projectAny', 'templates.taskAny'] }, false))).toEqual(['project-templates', 'task-templates']);
   });
 
+  // Role rights version 2: the Office settings section opens for office.settings alone, and for no other switch.
+  it('opens the Office settings section for office.settings only', () => {
+    expect(ids(sectionsFor({ systemRole: 'member', officeRights: ['office.settings'] }, true))).toEqual(['office']);
+    expect(ADMIN_SECTIONS.find((section) => section.id === 'office')).toMatchObject({ right: 'office.settings' });
+    for (const [id, rights] of [['people', ['project.create']], ['clients', ['client.create']], ['teams', ['people.invite']]] as const) {
+      expect(ids(sectionsFor({ systemRole: 'member', officeRights: [...rights] }, true)), id).not.toContain('office');
+    }
+    // Management holds no office settings switch by default.
+    expect(ids(sectionsFor(as('management'), true))).not.toContain('office');
+  });
+
   it('keeps the Roles section and Usage with the Admin, whatever the rights say', () => {
     const all = { systemRole: 'member' as const, officeRights: [...rightsOf({ systemRole: 'admin' } as User, undefined)] };
     for (const id of ['roles', 'usage']) expect(ids(sectionsFor(all, true)), id).not.toContain(id);

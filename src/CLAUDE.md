@@ -260,7 +260,7 @@ any screen work.
 - Admin: a grouped side list, one section at a time. The sections, their groups and roles are in one registry,
   `features/settings/admin/sections.ts`; a new section is one line there. A section with `right` opens for each person who holds
   that right (owner, 2026-10-18, fbk_014): `sectionsFor` reads the viewer, and `opensAdminPage` (`api/rights.ts`) decides the person
-  menu. The Roles section is the Admin's only: `RolesSection.tsx` is one row for each role (people and rights), `RoleSheet.tsx` is the sheet of one role (people, names, switches, Save role, Delete with a move). A desk opens the first section at `/admin`; a
+  menu. The Roles section is the Admin's only: `RolesSection.tsx` is one row for each role (people and rights), `RoleSheet.tsx` is the sheet of one role (people, names, the 112 switches in 13 folded sections, Save role, Delete with a move). A desk opens the first section at `/admin`; a
   phone shows the list there. An unknown or forbidden section goes back to `/admin`.
 - Project templates: the Admin section (`ProjectTemplatesSection.tsx`) and "Start from a template" in the new-project form
   (`features/projects/TemplateUse.tsx`, `templateForm.ts`; the picker sits right under the Name, and the people of the roles are ticked
@@ -335,13 +335,19 @@ any screen work.
   Only the Admin changes a role. Management reads the role of a person as text in the person sheet (owner, 2026-10-18, fbk_014).
   The rights are 112 switches in 13 sections (role rights version 2, owner 2026-10-21; the list is `api/rightsCatalog.ts`, a plain copy of
   `docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json`; `RIGHT_SECTIONS` in `permissions.ts` gives the sections). The
-  role sheet of before still shows the 17 old rights in 7 sections (`LEGACY_RIGHT_SECTIONS`, saved as stored ids, `legacyView` reads a role
-  for it). The sheet track of role rights version 2 replaces it, and then the three `LEGACY_*` constants go. The Admin sections of
-  sub-companies and requests and bugs open for `subCompanies.manage` and `feedback.manage`; People for any of the five `people.*`
-  switches, Teams for `people.teams`, Clients for `clients.change`, the project templates for `templates.projectCreate`,
-  `templates.projectAny` or `templates.updateProjects`, the to-do templates for `templates.taskAny`, the office settings for
-  `office.settings` (`right` and `alsoRights` in `sections.ts`). The words are in `real/rolerights.*`. A role with many rights shows only the
-  count in the person sheet (`roles.line.many`).
+  role sheet (`RoleSheet.tsx`, with `RoleRights.tsx` and `roleSheetLogic.ts`) shows the 13 sections of the catalog, folded, one open at a time.
+  The heading row holds the name, the count ("4 of 9 on") and an All switch (on, off or mixed). A power row holds the label, the line and one
+  small switch for each scope (`RoleToggle.tsx`, 44 px press area), or one switch. A switch brings the switches it needs; turning a need off
+  turns its dependants off (`withRight`, `withSection`). The sheet holds the list of held ids and saves it with one button: the ids that are
+  not basic go in `rights`, the basic ids that are off go in `off` (`saveShape`). "Holds 64 of 112" is live, "Back to the standard list" gives
+  the default of a built-in role and the Member list for a custom role, and a new role starts as a copy of the Member list. The AI section opens
+  with three approved lines. A line "A person who makes a project leads it." shows when Create projects is on and three or more "Projects I
+  lead" switches are off. The Roles list ("3 people · 64 of 112 rights") and the person sheet line ("Designer: standard rights, plus 2,
+  without 3.") both read `heldRightsOfRole`. The Admin sections of sub-companies and requests and bugs open for `subCompanies.manage` and
+  `feedback.manage`; People for any of the five `people.*` switches, Teams for `people.teams`, Clients for `clients.change`, the project
+  templates for `templates.projectCreate`, `templates.projectAny` or `templates.updateProjects`, the to-do templates for `templates.taskAny`,
+  the office settings for `office.settings` (`right` and `alsoRights` in `sections.ts`). The words are in `real/rr2sheet.*` (key tree
+  `roleRights`: the labels and lines of the 84 powers, the sections, the scope words, the sheet texts).
 - Home (`features/home/`): the day ring shows its words, "11 of 14 done today" (owner, 2026-10-19, fbk_026); the text wraps under the date on a
   narrow phone. The Today panel lists my tasks due today or past due. With none, it is "Coming up": my next 3 open
   tasks with a due date (`comingUp`, `lib/home.ts`, owner 2026-10-07). With neither, it says that nothing is due today. Home

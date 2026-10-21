@@ -23,36 +23,6 @@
       "back": "Back",
       "moveBody": "These people hold this role. Delete the role and give them this role instead:"
     },
-    "rights": {
-      "peopleManage": {
-        "label": "Manage people",
-        "hint": "Add, change and turn off people. Manage the teams too. Only the Admin changes a role."
-      },
-      "paymentManage": {
-        "label": "See and change payments",
-        "hint": "See and change the payments of every project."
-      },
-      "projectDelete": {
-        "label": "Delete projects",
-        "hint": "Delete any project of the office."
-      },
-      "projectEditCode": {
-        "label": "Change project codes",
-        "hint": "Correct the code of any project."
-      },
-      "clientsManage": {
-        "label": "Manage clients",
-        "hint": "Change the name and the details of each client."
-      },
-      "templatesManageAll": {
-        "label": "Change any template",
-        "hint": "Change or delete a template that another person made."
-      },
-      "reportOffice": {
-        "label": "Office report for AI assistants",
-        "hint": "The AI assistant (MCP) of this person can make the week, month or year report."
-      }
-    },
     "rowMeta": "{{people}} · {{rights}}",
     "noPeople": "No one yet",
     "peopleCount_one": "1 person",
@@ -61,10 +31,7 @@
     "deletedMoved_one": "Role deleted. 1 person moved.",
     "deletedMoved_other": "Role deleted. {{count}} people moved.",
     "line": {
-      "admin": "Admin: everything.",
-      "member": "Member: the standard rights.",
-      "plus": "{{name}}: Member rights plus {{rights}}.",
-      "only": "{{name}}: Member rights only."
+      "admin": "Admin: everything."
     },
     "officeRoles": "Office roles",
     "deletedMoved": "Role deleted. {{count}} people moved.",
