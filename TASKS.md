@@ -960,5 +960,8 @@ Branch `rb/perf2` (worktree `~/dev/madar-rb/perf2`). Sonnet agents, the Opus ses
 - [ ] What's new line (one for the speed release); no MCP change (no call, input, output or rule changes)
 - [ ] Test copy (`all.sh test` from main after the merge), then the live numbers again
 - [ ] Production: only on the owner's word, after the team week (not before 2026-10-23)
-- [ ] Owner decisions: DF-14 instant Home from the device, SV-7 chat signals to members only, DB-13 outbox clean-up, LV-1 one
-  font preload, the removal of the probe function of track 6 on madar-test
+- [x] Owner decisions (2026-10-21): DF-14 instant Home from the device: yes (clear at sign-out and on a role change); SV-7 and
+  DF-2 direct and group chat signals to the members only: yes (with leak tests); DB-13 outbox clean-up: no, keep the rows
+- [ ] Wave 2 after the wave 1 merge: DF-14 and SV-7 (both touch files of wave 1), plus the gap critic findings that hold
+- [ ] Owner: the removal of the probe function probe-reuse of track 6 on madar-test (a 404 stub after the probe)
+- [ ] Not asked, recorded only: LV-1 one font preload (first visit of a new device only)

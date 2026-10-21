@@ -66,6 +66,8 @@ Six tracks, one Sonnet builder each. Each fix comes with its test first. The mer
 
 ## 4. Waits for the owner
 
+Owner answers (2026-10-21): DF-14 yes, SV-7 and DF-2 yes, DB-13 no. LV-1 and the probe function are still open.
+
 - **DF-14, instant Home after a relaunch.** Keep the last lists of each person on the device and show them at once; the fresh
   lists replace them about a second later. A phone shows Home 0.6 to 1.5 s sooner. A done task can show as open for that second,
   and the data rests on the device until sign-out.
