@@ -301,10 +301,11 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       }
       // Logging and deleting undo each other, so both follow the delete rule. Closing and editing follow the rule of logging.
       if (event.verb === 'tracker.reply_assigned') return need('tracker.reply');
-      // The Undo of your own new entry asks the right to log. An entry of another person's agent needs the right that deletes it.
-      if (event.verb === 'tracker.logged' && isOwnChange(ctx, event)) return need('tracker.log');
       if (event.verb !== 'tracker.logged' && event.verb !== 'tracker.deleted') return need('tracker.log');
       const entry = (ctx.state.tracker?.[event.targetId] ?? event.before ?? event.after) as TrackerEntry;
+      // The Undo of your own new entry asks the right to log. The line that Madar made for a meeting (auto 'meeting') has no author delete, so
+      // its Undo never takes this way (security fix, 2026-10-19). An entry of another person's agent needs the right that deletes it.
+      if (event.verb === 'tracker.logged' && isOwnChange(ctx, event) && entry.auto !== 'meeting') return need('tracker.log');
       if (!mayDeleteTracker(ctx.state, ctx.authority, entry)) throw forbidden('Only the person who logged this, the project leader or the Admin can undo this.');
       return;
     }
