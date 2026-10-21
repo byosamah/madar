@@ -118,7 +118,7 @@ tokenizer, fed by the save, and lower the `search.query` pins (`server/office/te
   the owner decisions).
 - Plans: `docs/superpowers/plans/2026-10-17-madar-cloudflare-exit-plan.md` (the roadmap, wave 1, Track R),
   `...-exit-wave2-signin-plan.md`, `...-exit-wave3-live-plan.md`, `...-exit-wave4-ops-plan.md` (Part 2: the wave 5 runbook).
-- Track R note: `docs/superpowers/specs/2026-10-17-madar-read-cost-design.md` on branch `rb/read-cost`.
+- Track R note: `docs/superpowers/specs/2026-10-17-madar-read-cost-design.md` (on main since 2026-10-21; it was on branch `rb/read-cost`).
 - Records: `docs/superpowers/real-build/proof.md` (the sections of section 2), `TASKS.md`.
 - Guides: `server/CLAUDE.md` ("The office object"), `scripts/deploy/CLAUDE.md` ("The server host", the Workers lines),
   `.github/CLAUDE.md` (CI by hand, backups, the Mac backup), `functions/CLAUDE.md`, `server/auth/CLAUDE.md`, `tests/CLAUDE.md`.
