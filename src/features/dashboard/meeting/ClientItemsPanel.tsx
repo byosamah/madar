@@ -5,6 +5,7 @@ import { useUndoable } from '../../../app/actions';
 import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
 import { useCall } from '../../../app/runtime';
+import { useReplyRights, repliers } from '../../project/tracker/replyRights';
 import { Button } from '../../../components/Button';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { CheckIcon } from '../../../components/icons/animated/check';
@@ -45,7 +46,7 @@ function AssignSheet({ row, members, onClose }: { row: TrackerRow; members: User
   );
 }
 
-function Item({ row, canAct, onAssign }: { row: TrackerRow; canAct: boolean; onAssign: (id: string) => void }) {
+function Item({ row, canAssign, onAssign }: { row: TrackerRow; canAssign: boolean; onAssign: (id: string) => void }) {
   const { t } = useTranslation();
   const lang = useLang();
   const nameOf = usePersonName();
@@ -65,13 +66,16 @@ function Item({ row, canAct, onAssign }: { row: TrackerRow; canAct: boolean; onA
           {t('dashboard.meeting.replyLine', { name: replying.owner ? nameOf(replying.owner) : t('lead.noLead'), date: replying.dueDate ? formatDay(replying.dueDate, lang) : '' })}
         </p>
       )}
-      {canAct && (
+      {/* Role rights version 2: "Who replies?" needs tracker.reply (and a to-do), Answered and Received need tracker.log (row.canClose). */}
+      {(row.canClose || (canAssign && entry.waiting === 'us' && !replying)) && (
         <div className="flex flex-wrap gap-2">
-          {entry.waiting === 'us' && !replying && <Button onClick={() => onAssign(entry.id)}>{t('tracker.replyWho')}</Button>}
-          <Button variant="secondary" aria-label={t('tracker.closeLabel', { action, title: entry.title })} disabled={close.isPending} onClick={() => close.mutate({ id: entry.id })}>
-            <AnimatedIcon icon={CheckIcon} size={16} aria-hidden />
-            {action}
-          </Button>
+          {canAssign && entry.waiting === 'us' && !replying && <Button onClick={() => onAssign(entry.id)}>{t('tracker.replyWho')}</Button>}
+          {row.canClose && (
+            <Button variant="secondary" aria-label={t('tracker.closeLabel', { action, title: entry.title })} disabled={close.isPending} onClick={() => close.mutate({ id: entry.id })}>
+              <AnimatedIcon icon={CheckIcon} size={16} aria-hidden />
+              {action}
+            </Button>
+          )}
         </div>
       )}
     </li>
@@ -86,6 +90,8 @@ export function ClientItemsPanel({ projectId }: { projectId: string }) {
   const { t } = useTranslation();
   const open = useCall('tracker.list', { projectId, openOnly: true });
   const detail = useCall('projects.get', { id: projectId });
+  const me = useCall('session.get', {}).data?.user.id;
+  const { canReply, canAssign } = useReplyRights(detail.data);
   const [assigning, setAssigning] = useState<string | null>(null);
   const rows = open.data ?? [];
   if (rows.length === 0) return null;
@@ -93,7 +99,6 @@ export function ClientItemsPanel({ projectId }: { projectId: string }) {
   const groups = (['us', 'client'] as const)
     .map((waiting) => ({ waiting, rows: oldestFirst.filter((row) => row.entry.waiting === waiting) }))
     .filter((group) => group.rows.length > 0);
-  const canAct = detail.data?.viewerCan.post === true;
   const shown = rows.find((row) => row.entry.id === assigning);
   return (
     <section aria-label={t('dashboard.meeting.clientItems')} className="panel flex flex-col gap-2 p-5">
@@ -104,12 +109,12 @@ export function ClientItemsPanel({ projectId }: { projectId: string }) {
           <div key={group.waiting} role="group" aria-labelledby={id}>
             <h4 id={id} className="pt-1 text-[15px] font-semibold text-ink-2">{t(group.waiting === 'us' ? 'tracker.waitingUs' : 'tracker.waitingClient')}</h4>
             <ul className="divide-y divide-hairline">
-              {group.rows.map((row) => <Item key={row.entry.id} row={row} canAct={canAct} onAssign={setAssigning} />)}
+              {group.rows.map((row) => <Item key={row.entry.id} row={row} canAssign={canReply && row.canEdit} onAssign={setAssigning} />)}
             </ul>
           </div>
         );
       })}
-      {shown && detail.data && <AssignSheet key={shown.entry.id} row={shown} members={activeMembers(detail.data.members)} onClose={() => setAssigning(null)} />}
+      {shown && detail.data && <AssignSheet key={shown.entry.id} row={shown} members={repliers(activeMembers(detail.data.members), me, canAssign)} onClose={() => setAssigning(null)} />}
     </section>
   );
 }

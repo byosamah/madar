@@ -11,6 +11,7 @@ import { downloadFile, isRemote, tooLargeText, uploadErrorMessage, useFileLimit,
 import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
 import { useCall, useRuntime } from '../../../app/runtime';
+import { useRight } from '../../../app/useRight';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { EmptyState } from '../../../components/EmptyState';
@@ -21,7 +22,7 @@ import { formatDay, formatNumber, stampDay } from '../../../lib/dates';
 import type { TabProps } from '../tabs';
 import { canPreview, PreviewSheet } from './PreviewSheet';
 import { LinkSheet, ProjectLinks, projectLinkRows } from './ProjectLinks';
-import { ShareFileSheet } from './ShareFileSheet';
+import { ShareFileSheet, sharePlaces } from './ShareFileSheet';
 
 function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail: ProjectDetail; onPreview: () => void; onShare: () => void }) {
   const { t } = useTranslation();
@@ -41,6 +42,8 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
   const isCover = detail.project.coverFileId === file.id;
   // The API says who may delete the file, so the screen keeps no rule of its own (audit 2026-10-03, PRJ-16, V-20).
   const canDelete = view.canDelete;
+  // Share needs file.share and one place to share into (role rights version 2).
+  const mayShare = useRight('file.share') && sharePlaces(detail.viewerCan, useRight('chat.direct')).length > 0;
   const size = latest.size < 1024 * 1024
     ? t('files.kb', { n: formatNumber(Math.max(1, Math.round(latest.size / 1024)), lang) })
     : t('files.mb', { n: formatNumber(latest.size / (1024 * 1024), lang, 1) });
@@ -50,9 +53,9 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
   const items: MenuItem[] = [
     { label: t('files.preview'), onSelect: onPreview, hidden: !canPreview(latest.mimeType) },
     { label: t('files.download'), onSelect: () => download() },
-    { label: t('files.share'), onSelect: onShare, hidden: !detail.viewerCan.post },
-    { label: t('files.markDelivered'), onSelect: () => delivered.mutate({ id: file.id }), hidden: !detail.viewerCan.post },
-    { label: t('files.setCover'), onSelect: () => cover.mutate({ id: detail.project.id, patch: { coverFileId: file.id } }), hidden: !image || !detail.viewerCan.edit || isCover },
+    { label: t('files.share'), onSelect: onShare, hidden: !mayShare },
+    { label: t('files.markDelivered'), onSelect: () => delivered.mutate({ id: file.id }), hidden: !detail.viewerCan.deliver },
+    { label: t('files.setCover'), onSelect: () => cover.mutate({ id: detail.project.id, patch: { coverFileId: file.id } }), hidden: !image || !detail.viewerCan.editDetails || isCover },
     { label: t('files.delete'), onSelect: () => remove.mutate({ id: file.id }), hidden: !canDelete, destructive: true },
   ];
   return (
@@ -117,7 +120,9 @@ export function FilesTab({ detail }: TabProps) {
   const [editing, setEditing] = useState<ProjectLink | null>(null);
   const [linkOpen, setLinkOpen] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
-  const canUpload = detail.viewerCan.post;
+  const canUpload = detail.viewerCan.upload === true;
+  const canLink = detail.viewerCan.links === true;
+  const canDeliver = detail.viewerCan.deliver === true;
   // A link with "file" (from Search) opens that file's preview once. The link part goes, so Back does not open it again.
   const [params, setParams] = useSearchParams();
   const linked = params.get('file');
@@ -171,7 +176,7 @@ export function FilesTab({ detail }: TabProps) {
 
   // A tab with no files and no links shows one empty state, and the one Add button moves into it (it shows once, never twice).
   const empty = Boolean(files.data) && groups.length === 0 && !hasLinks;
-  const add = canUpload && (
+  const add = (canUpload || canLink) && (
     <Menu
       label={t('files.add')}
       text={t('files.add')}
@@ -179,8 +184,8 @@ export function FilesTab({ detail }: TabProps) {
       align="start"
       triggerClassName="bg-fill text-ink hover:bg-fill-strong"
       items={[
-        { label: t('files.uploadOne'), onSelect: () => picker.current?.click(), hidden: uploading },
-        { label: t('links.addTitle'), onSelect: () => openLink(null) },
+        { label: t('files.uploadOne'), onSelect: () => picker.current?.click(), hidden: uploading || !canUpload },
+        { label: t('links.addTitle'), onSelect: () => openLink(null), hidden: !canLink },
       ]}
     />
   );
@@ -203,18 +208,21 @@ export function FilesTab({ detail }: TabProps) {
       }}
       className={`flex flex-col gap-4 rounded-card ${dragging ? 'outline-2 outline-offset-4 outline-dashed outline-accent' : ''}`}
     >
-      {canUpload && (
+      {(canUpload || canLink) && (
         <div className="flex flex-wrap items-end gap-3">
           {!empty && add}
-          <SelectField id="upload-stage" label={t('files.uploadStage')} value={stageId} onChange={(event) => setStageId(event.target.value)}>
+          {canUpload && <SelectField id="upload-stage" label={t('files.uploadStage')} value={stageId} onChange={(event) => setStageId(event.target.value)}>
             {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
             <option value="">{t('files.noStage')}</option>
-          </SelectField>
-          <label className="flex min-h-11 items-center gap-2 text-subheadline text-ink">
-            <input type="checkbox" checked={received} onChange={(event) => setReceived(event.target.checked)} className="size-5 accent-[var(--sig-from)]" />
-            {t('files.receivedFromClient')}
-          </label>
-          <p className="pb-3 text-footnote text-label-2">{t('files.drop')}</p>
+          </SelectField>}
+          {/* "Received from the client" also writes a Tracker line, so it needs file.deliver (role rights version 2). */}
+          {canUpload && canDeliver && (
+            <label className="flex min-h-11 items-center gap-2 text-subheadline text-ink">
+              <input type="checkbox" checked={received} onChange={(event) => setReceived(event.target.checked)} className="size-5 accent-[var(--sig-from)]" />
+              {t('files.receivedFromClient')}
+            </label>
+          )}
+          {canUpload && <p className="pb-3 text-footnote text-label-2">{t('files.drop')}</p>}
         </div>
       )}
       {/* The file chooser opens from the menu item "Upload a file". The input stays here, out of the tab order, so a file that is dropped
@@ -249,7 +257,7 @@ export function FilesTab({ detail }: TabProps) {
       })}
       <LinkSheet detail={detail} link={editing} open={linkOpen} onOpenChange={setLinkOpen} />
       {preview && <PreviewSheet views={[preview]} index={0} onIndex={() => undefined} onClose={() => setPreview(null)} />}
-      {sharing && <ShareFileSheet view={sharing} projectId={detail.project.id} projectName={detail.project.name} onClose={() => setSharing(null)} />}
+      {sharing && <ShareFileSheet view={sharing} projectId={detail.project.id} projectName={detail.project.name} viewerCan={detail.viewerCan} onClose={() => setSharing(null)} />}
     </div>
   );
 }

@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import type { Stage } from '../../../api/contract/entities';
 import type { ProjectDetail } from '../../../api/contract/views';
 import { useByPersonName, usePersonName } from '../../../app/personName';
-import { useAction } from '../../../app/runtime';
+import { useAction, useCall } from '../../../app/runtime';
+import { useRight } from '../../../app/useRight';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { DateField } from '../../../components/DateField';
@@ -45,7 +46,10 @@ export function NewTaskSheet({ detail, stage, open, onOpenChange, onOpen }: {
   }, [open]);
   const team = new Map(detail.members.map((member) => [member.user.id, member.user]));
   if (detail.leader) team.set(detail.leader.id, detail.leader);
-  const people = [...team.values()].filter((person) => person.kind === 'human').sort(byName);
+  // Naming another person as the lead needs task.assign (role rights version 2): without it the lead is the person or nobody.
+  const mayAssign = useRight('task.assign');
+  const me = useCall('session.get', {}).data?.authority.id;
+  const people = [...team.values()].filter((person) => person.kind === 'human' && (mayAssign || person.id === me)).sort(byName);
   return (
     <>
       <Sheet

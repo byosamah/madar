@@ -83,7 +83,7 @@ export function TaskList({ detail, rows, filtered, onOpen, doneCounts }: {
             <h3 id={`stage-${stage.id}`} dir="auto" className="text-headline">{stage.name}</h3>
             <span className="tabular text-footnote text-label-2">{t('tasks.count', { n: stageRows.length })}</span>
           </header>
-          {detail.viewerCan.createTaskForSelf && <QuickAdd detail={detail} stage={stage} onOpen={onOpen} />}
+          {detail.viewerCan.addTask && <QuickAdd detail={detail} stage={stage} onOpen={onOpen} />}
           <SortableTaskRows rows={arranged(stageRows)} me={me} onOpen={(row, thread) => onOpen(row.task.id, thread)} />
           {stageRows.length === 0 && (
             <p className="px-4 pb-2 text-footnote text-label-2">{(doneCounts[stage.id] ?? 0) > 0 ? t('tasks.allDone') : t('tasks.empty')}</p>

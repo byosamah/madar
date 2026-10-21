@@ -16,6 +16,7 @@ import { sideForType, sidesOf, waitingFor } from '../../../lib/tracker';
 import { addWorkingDays } from '../../../lib/workdays';
 import { AttachButton, PickedFiles, useAttachments } from '../../files/Attachments';
 import { ReplyFields } from './ReplyFields';
+import { repliers } from './replyRights';
 import { TypeIcon } from './marks';
 import { arrowStep } from '../../../lib/keys';
 
@@ -24,7 +25,15 @@ import { arrowStep } from '../../../lib/keys';
  * sensible defaults, so Enter saves. The type and the side stay as set for the next entry. The side follows the type: only a message,
  * a file or an "Other" entry asks for it. An entry that needs a reply also asks who replies and by which day.
  */
-export function QuickLog({ projectId, members }: { projectId: string; members: UserCard[] }) {
+export function QuickLog({ projectId, members: everyone, canReply = true, canAssign = true, canAttach = true }: {
+  projectId: string; members: UserCard[];
+  /** False when the person lacks tracker.reply (or task.add here): the entry can wait, but no reply to-do is asked for. */
+  canReply?: boolean;
+  /** False when the person lacks task.assign: only the person can be the one who replies. */
+  canAssign?: boolean;
+  /** False when the person lacks file.upload: no Attach button. */
+  canAttach?: boolean;
+}) {
   const { t } = useTranslation();
   const phone = useIsPhone();
   const toast = useToast();
@@ -40,6 +49,7 @@ export function QuickLog({ projectId, members }: { projectId: string; members: U
   const [date, setDate] = useState(todayISO());
   const [wait, setWait] = useState(false);
   const me = useCall('session.get', {}).data?.user.id;
+  const members = repliers(everyone, me, canAssign);
   const [replier, setReplier] = useState('');
   const [replyDate, setReplyDate] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -92,7 +102,7 @@ export function QuickLog({ projectId, members }: { projectId: string; members: U
       }
     }
     const waiting = wait ? waitingFor(direction) : null;
-    const replyBy = waiting === 'us' && who ? { userId: who, dueDate: replyDate || addWorkingDays(todayISO(), 2) } : undefined;
+    const replyBy = canReply && waiting === 'us' && who ? { userId: who, dueDate: replyDate || addWorkingDays(todayISO(), 2) } : undefined;
     log.mutate({ projectId, type, direction, title, date: date || todayISO(), waiting, fileIds, replyBy });
   };
 
@@ -172,10 +182,10 @@ export function QuickLog({ projectId, members }: { projectId: string; members: U
             className="field min-h-11 !w-auto"
           />
         </span>
-        <AttachButton onPick={attachments.add} disabled={attachments.full} />
+        {canAttach && <AttachButton onPick={attachments.add} disabled={attachments.full} />}
         <Switch id="tracker-wait" label={t(waitingFor(direction) === 'us' ? 'tracker.needsReply' : 'tracker.waitingToggle')} checked={wait} onChange={setWait} />
       </div>
-      {needsReply && members.length > 0 && (
+      {needsReply && canReply && members.length > 0 && (
         <ReplyFields id="tracker-reply" members={members} userId={who} dueDate={replyDate || addWorkingDays(todayISO(), 2)} onUser={setReplier} onDueDate={setReplyDate} />
       )}
       <PickedFiles files={attachments.files} onRemove={attachments.remove} />

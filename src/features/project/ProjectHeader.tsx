@@ -30,12 +30,18 @@ export function HeaderShell({ id, name, mark }: { id: string; name: string; mark
   );
 }
 
+/** True when the person holds no switch that changes this project: the tag "View only" then shows (role rights version 2). */
+export function isViewOnly(can: ProjectDetail['viewerCan']): boolean {
+  return !(can.postUpdate || can.comment || can.editDetails || can.editTeam || can.editStages || can.editDeadlines || can.applyTemplate
+    || can.links || can.upload || can.deliver || can.logTracker || can.addTask || can.planMeeting || can.archive || can.changeLeader || can.healthOverride);
+}
+
 /** The calm header (redesign spec 3.4): back, tile, name, client, one stage line, one main button and the "…" menu. */
 export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPost: () => void }) {
   const { t } = useTranslation();
   const lang = useLang();
   const { project } = detail;
-  const viewOnly = !detail.viewerCan.post && !detail.viewerCan.edit;
+  const viewOnly = isViewOnly(detail.viewerCan);
   const index = detail.stages.findIndex((stage) => stage.id === detail.currentStage.id);
   return (
     <header className="flex flex-col gap-3">
@@ -56,7 +62,7 @@ export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPos
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {detail.viewerCan.post && <Button variant="primary" onClick={onPost}>{t('projects.postUpdate')}</Button>}
+          {detail.viewerCan.postUpdate && <Button variant="primary" onClick={onPost}>{t('projects.postUpdate')}</Button>}
           {/* The project chat, for the people who may open it (chat design 2026-10-19, item 18). A grey button, never the main one. */}
           {detail.chatId && (
             <Link to={`/inbox/${detail.chatId}`} className="pressable inline-flex min-h-11 items-center gap-2 rounded-full bg-fill px-4 text-subheadline font-semibold text-ink hover:bg-fill-strong">

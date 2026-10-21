@@ -4,6 +4,7 @@ import type { PaymentRow } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
 import { fieldError } from '../../../app/errors';
 import { useAction } from '../../../app/runtime';
+import { useRight } from '../../../app/useRight';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { DateField } from '../../../components/DateField';
@@ -72,6 +73,12 @@ export function PaymentSheet({ projectId, row, onClose, drafts }: { projectId: s
   const update = useAction('payments.update', { onSuccess: () => done(t('payments.saved')) });
   const mark = useUndoable('payments.markReceived', { message: () => t('payments.receivedToast'), onSuccess: close });
   const remove = useUndoable('payments.delete', { message: () => t('payments.deleted'), onSuccess: close });
+  // Role rights version 2: a new payment needs payment.add, a change and a delete need payment.change, and Mark as received needs
+  // payment.receive. A person who holds none of them for this payment reads the sheet and changes nothing.
+  const mayAdd = useRight('payment.add');
+  const mayChange = useRight('payment.change');
+  const mayReceive = useRight('payment.receive');
+  const mayEdit = saved ? mayChange : mayAdd;
   const error = saved ? update.error : create.error;
   const problem = (field: keyof Problems, fallback: string) => problems[field] ?? fieldError(error, field, t, fallback);
 
@@ -96,10 +103,10 @@ export function PaymentSheet({ projectId, row, onClose, drafts }: { projectId: s
   const busy = create.isPending || update.isPending || mark.isPending || remove.isPending;
   const footer = (
     <>
-      {saved && <Button variant="destructive" disabled={busy} onClick={() => remove.mutate({ id: saved.id })}>{t('common.delete')}</Button>}
-      {saved && !saved.receivedOn && <Button disabled={busy} onClick={() => mark.mutate({ id: saved.id })}>{t('payments.markReceived')}</Button>}
-      <Button variant="plain" onClick={close}>{t('common.cancel')}</Button>
-      <Button variant="primary" disabled={busy} onClick={submit}>{t('common.save')}</Button>
+      {saved && mayChange && <Button variant="destructive" disabled={busy} onClick={() => remove.mutate({ id: saved.id })}>{t('common.delete')}</Button>}
+      {saved && !saved.receivedOn && mayReceive && <Button disabled={busy} onClick={() => mark.mutate({ id: saved.id })}>{t('payments.markReceived')}</Button>}
+      <Button variant="plain" onClick={close}>{mayEdit ? t('common.cancel') : t('common.close')}</Button>
+      {mayEdit && <Button variant="primary" disabled={busy} onClick={submit}>{t('common.save')}</Button>}
     </>
   );
   return (
@@ -112,14 +119,14 @@ export function PaymentSheet({ projectId, row, onClose, drafts }: { projectId: s
           submit();
         }}
       >
-        <TextField id="payment-name" label={t('payments.name')} dir="auto" maxLength={120} value={name} error={problem('name', t('payments.errors.name'))} onChange={(event) => set({ name: event.target.value })} />
-        <TextField id="payment-amount" label={t('payments.amountField')} inputMode="decimal" dir="ltr" value={amount} error={problem('amount', t('payments.errors.amount'))} onChange={(event) => set({ amount: event.target.value })} />
+        <TextField id="payment-name" label={t('payments.name')} dir="auto" maxLength={120} readOnly={!mayEdit} value={name} error={problem('name', t('payments.errors.name'))} onChange={(event) => set({ name: event.target.value })} />
+        <TextField id="payment-amount" label={t('payments.amountField')} inputMode="decimal" dir="ltr" readOnly={!mayEdit} value={amount} error={problem('amount', t('payments.errors.amount'))} onChange={(event) => set({ amount: event.target.value })} />
         {/* The due date is needed, so it changes but never goes empty: no clear control. The received date is empty until the money comes. */}
         <div className="grid grid-cols-2 gap-4">
-          <DateField id="payment-due" label={t('payments.dueDate')} clearable={false} value={dueDate} error={problem('dueDate', t('payments.errors.dueDate'))} onChange={(day) => set({ dueDate: day })} />
-          <DateField id="payment-received" label={t('payments.receivedOn')} max={todayISO()} value={receivedOn} error={problem('receivedOn', t('payments.errors.futureReceived'))} onChange={(day) => set({ receivedOn: day })} />
+          <DateField id="payment-due" label={t('payments.dueDate')} clearable={false} disabled={!mayEdit} value={dueDate} error={problem('dueDate', t('payments.errors.dueDate'))} onChange={(day) => set({ dueDate: day })} />
+          <DateField id="payment-received" label={t('payments.receivedOn')} max={todayISO()} disabled={!mayEdit} value={receivedOn} error={problem('receivedOn', t('payments.errors.futureReceived'))} onChange={(day) => set({ receivedOn: day })} />
         </div>
-        <TextArea id="payment-note" label={t('payments.note')} dir="auto" maxLength={500} value={note} onChange={(event) => set({ note: event.target.value })} />
+        <TextArea id="payment-note" label={t('payments.note')} dir="auto" maxLength={500} readOnly={!mayEdit} value={note} onChange={(event) => set({ note: event.target.value })} />
       </form>
     </Sheet>
   );

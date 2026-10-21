@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State, Store } from '../../../api/store';
 import { renderApp } from '../../../test/render';
+import { without } from '../../../test/rr2work';
 
 // A switch that takes away only the Tracker posting right. Today every person who may move a stage back also has it, so the
 // test needs the switch to reach the case where the two rights differ.
@@ -97,5 +98,22 @@ describe('the Balady tick box on the move-back sheet (owner, 2026-10-03, API-14)
     await userEvent.click(within(ask).getByRole('button', { name: 'Move back' }));
     await waitFor(() => expect(store.state.tasks.tsk_003.status).toBe('todo'));
     expect(logged(store, 'The client changed the brief')).toHaveLength(0);
+  });
+
+  // Role rights version 2: the tick box needs tracker.log, and the server says so in the refusal (canLog).
+  it('does not show with the switch tracker.log off, and shows with it on', async () => {
+    const off = await renderApp(TASK, (state) => {
+      state.session.currentUserId = 'usr_002';
+      state.settings.roles = without('tracker.log.team');
+    });
+    const ask = await reopen();
+    expect(within(ask).queryByRole('checkbox')).toBeNull();
+    off.unmount();
+  });
+
+  it('shows the box with the switch tracker.log on', async () => {
+    await renderApp(TASK, as('usr_002'));
+    const ask = await reopen();
+    expect(within(ask).getByRole('checkbox', { name: BOX })).toBeInTheDocument();
   });
 });

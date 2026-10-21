@@ -15,8 +15,8 @@ const ROWS = 2;
 
 /**
  * The Meetings panel of the project Overview (fbk_022, owner 2026-10-19): the next two meetings of the project and one text button,
- * "Plan a meeting". It shows for a project that has a meeting, and for a person who may plan one: the team, the leader and the Admin
- * (`viewerCan.post`, the right of `meeting.create`) on a project that is open. A cancelled meeting and one that is over do not count.
+ * "Plan a meeting". It shows for a project that has a meeting, and for a person who may plan one here
+ * (`viewerCan.planMeeting`, the switch meeting.plan) on a project that is open. A cancelled meeting and one that is over do not count.
  */
 export function ProjectMeetings({ detail }: TabProps) {
   const { t } = useTranslation();
@@ -30,7 +30,7 @@ export function ProjectMeetings({ detail }: TabProps) {
     const phase = phaseOf(row, at);
     return phase === 'upcoming' || phase === 'now';
   }).slice(0, ROWS);
-  const mayPlan = detail.viewerCan.post && isLive(project.status);
+  const mayPlan = detail.viewerCan.planMeeting === true && isLive(project.status);
   if (next.length === 0 && !mayPlan) return null;
   return (
     <section aria-labelledby="overview-meetings" className="panel flex flex-col gap-2 p-5">

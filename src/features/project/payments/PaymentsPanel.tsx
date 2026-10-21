@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router';
 import type { PaymentRow } from '../../../api/contract/views';
 import { useLang } from '../../../app/lang';
 import { useCall } from '../../../app/runtime';
+import { useRight } from '../../../app/useRight';
 import { Button } from '../../../components/Button';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../../components/icons/animated/plus';
@@ -40,6 +41,8 @@ export function PaymentsPanel({ projectId }: { projectId: string }) {
   const lang = useLang();
   const [params] = useSearchParams();
   const list = useCall('payments.list', { projectId });
+  // Add payment needs payment.add (role rights version 2). The sheet asks the other money switches for itself.
+  const mayAdd = useRight('payment.add');
   const rows = list.data ?? [];
   const openId = params.get('payment');
   // Open adds one history step and Close goes back over it, so a sheet costs no extra Back (audit 2026-10-03, PRJ-9, V-36).
@@ -59,10 +62,12 @@ export function PaymentsPanel({ projectId }: { projectId: string }) {
             <p className="tabular pt-1 text-footnote text-ink-2">{t('payments.summary', { received: amountText(t, lang, received), total: amountText(t, lang, total) })}</p>
           )}
         </div>
-        <Button onClick={() => setOpen('new')}>
-          <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
-          {t('payments.add')}
-        </Button>
+        {mayAdd && (
+          <Button onClick={() => setOpen('new')}>
+            <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
+            {t('payments.add')}
+          </Button>
+        )}
       </div>
       {/* A list that did not load says so and offers Retry (audit 2026-10-03, PRJ-4). */}
       <LoadFailed query={list} />
@@ -90,7 +95,7 @@ export function PaymentsPanel({ projectId }: { projectId: string }) {
           ))}
         </ul>
       )}
-      {openId === 'new' && <PaymentSheet key="new" projectId={projectId} row={null} onClose={() => setOpen(null)} drafts={drafts.current} />}
+      {openId === 'new' && mayAdd && <PaymentSheet key="new" projectId={projectId} row={null} onClose={() => setOpen(null)} drafts={drafts.current} />}
       {open && <PaymentSheet key={open.payment.id} projectId={projectId} row={open} onClose={() => setOpen(null)} drafts={drafts.current} />}
     </section>
   );

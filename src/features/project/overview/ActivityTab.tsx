@@ -39,7 +39,7 @@ export function ActivityTab({ detail }: TabProps) {
   return (
     <div className="mx-auto w-full max-w-3xl">
       <section aria-label={t('overview.feed')} className="flex min-w-0 flex-col gap-4">
-        {detail.viewerCan.post ? <Composer detail={detail} /> : <p className="text-footnote text-label-2">{t('overview.cannotPost')}</p>}
+        {detail.viewerCan.postUpdate ? <Composer detail={detail} /> : <p className="text-footnote text-label-2">{t('overview.cannotPost')}</p>}
         <div>
           <FilterButton label={t('filter.label')} count={filter === 'all' ? 0 : 1}>
             <fieldset className="flex flex-col">
@@ -63,7 +63,8 @@ export function ActivityTab({ detail }: TabProps) {
               item={item}
               projectId={detail.project.id}
               people={detail.members.map((member) => member.user)}
-              canPost={detail.viewerCan.post}
+              canPost={detail.viewerCan.comment === true}
+              canAttach={detail.viewerCan.upload === true}
               startOpen={item.id === openUpdate}
             />
           ))}</ol>}
