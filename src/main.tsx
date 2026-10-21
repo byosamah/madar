@@ -24,6 +24,7 @@ import { loadScreen, prefetchScreens, preloadScreens } from './app/screens';
 import { ToastProvider } from './app/toasts';
 import { applyLanguage, initI18n, loadWords } from './i18n';
 import { browserLanguage } from './i18n/firstLanguage';
+import { loadOtherLanguageLater } from './i18n/otherLanguage';
 
 /**
  * The runtime of this build (client map 8). The flag is fixed at build time, so each build keeps only its own branch: the
@@ -86,8 +87,11 @@ async function main(): Promise<void> {
       </RuntimeProvider>
     </StrictMode>,
   );
-  // The other language loads right after the first render, so a language switch almost never waits for its words.
-  void loadWords(language === 'ar' ? 'en' : 'ar').catch(() => undefined);
+  // The other language loads after the first reads of the screen settled, plus a quiet gap of 3 s (performance audit 2026-10-21,
+  // FL-7), so a person who never switches language does not pay for it at the start. A switch before that waits for its words
+  // (`withWords`). The prototype holds both languages in its one script file, so it loads at once as before.
+  if (REMOTE) loadOtherLanguageLater({ queryClient, language });
+  else void loadWords(language === 'ar' ? 'en' : 'ar').catch(() => undefined);
   // The other screens load one at a time at idle, so a later screen change waits for no chunk (remote build only).
   if (REMOTE) {
     // The sign-in screens stay out for a stored session, and Admin for a person who cannot open it (performance audit 2026-10-21, FL-8).
