@@ -872,8 +872,13 @@ Owner: "add some Slack chat features": Online, Away, Offline, "Seen", "typing...
   madar-test again for another release; the test deploy pushes it again
 - [x] Wave 1 base B1 to B6 (reactions with any emoji, seen time, Away switch hidden from others and from History, chats.typing,
   the live port)
-- [ ] Wave 2: live L1 to L4, faces F1 to F5, emoji E1 to E4 (three builders in parallel)
+- [x] Wave 2: live L1 to L4, faces F1 to F5, emoji E1 to E4 (three builders in parallel), joined with main at 2701ea78
 - [ ] Owner: read the Realtime messages of this month on the Supabase page Organization, Usage (no API gives it). If that use
   plus about 0.8 million passes 1 million, cost step 4 applies (ask the owner)
-- [ ] Merge gate once, screenshots, test copy
+- [x] Merge gate once (proof.md "Chat presence batch: the merge gate"): all green after 3 small fixes; smoke 87 of 87; screenshots
+- [ ] Test copy: `all.sh test` from `rb/chat-presence` (not main) when session madar-2b says the test copy is free (its AM and PM
+  release waits for the owner). It puts 2 migrations on madar-test: until the batch is on main, a test deploy from main fails at
+  db push; the merge lead takes them off again on request
+- [ ] Live check on the test copy: `node --import tsx scripts/proof/presence-live.ts` (sandbox off), then the deploy suite
+- [ ] Owner hand test with two phones; production not before Friday 2026-10-23 and only by the owner (main gets the batch then)
 - [ ] What's new line; production only by the owner, not before 2026-10-23

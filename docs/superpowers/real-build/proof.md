@@ -2128,3 +2128,21 @@ presence entries live in memory and are gone when the sockets close. Production 
   another session ran `all.sh test` from a main that does not have the file. The test deploy of the chat presence batch pushes
   it again. Cost steps 1, 2 and 3 of the design are in the build (base report: typing every 5 s, shown for 8 s; rest after 1
   minute out of view on a phone and 30 minutes on a computer).
+
+### Chat presence batch: the merge gate (merge lead, 2026-10-21, branch rb/chat-presence)
+
+- Joined: base B1 to B6, proof P1, live L1 to L4, faces F1 to F5, emoji E1 to E4, and main at 2701ea78 (AM and PM). Merge lead
+  fixes after the join: the 21st reaction kind gives the reason `reactions_full` (its own toast); the MCP text of `chats.messages`
+  keeps every word its tests ask for (561 characters); on a phone the Send button is a round icon and the row is tighter, so the
+  empty box keeps one line next to the emoji button (the owner's rule of 2026-10-20).
+- `npm run typecheck`: pass. `npm test`: 8,509 passed, 3 failed (the MCP text), fixed; `server/mcp` again: 278 passed. The later
+  fixes: their files again (42 and 341 passed).
+- `npm run build`, `npm run build:server`, `npm run build:remote -- test`: pass (remote first load 1,207,911 B of 1,350,000; the
+  emoji panel is a lazy chunk of 347,560 B, 93,390 B gzip; the prototype script grows by about 356 kB).
+- Under the Docker lock: `db reset` with both new migrations, `test:db` 2,260 passed (27 skipped), `test:it` 325 passed, `test:mcp`
+  "5 of 32 scenarios pass; 27 expected failures" (the normal result). `test:lite` 2,260 passed (27 skipped). `test:office` 40 passed
+  (no rows pin moved).
+- `npm run smoke`: 87 of 87.
+- Screenshots (prototype, a Node Playwright script in the scratchpad): the chat with dots, Online, Seen and typing in English and
+  Arabic, light and dark, 390 px and a computer; the chat list with typing; Seen by 2 with its names; the emoji panel and sheet;
+  the + of a reaction; the Away switch. The Arabic forms show as planned (قرأتها, ريم تكتب..., قرأها شخصان, متصلة).
