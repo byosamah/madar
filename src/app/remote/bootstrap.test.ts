@@ -300,6 +300,76 @@ describe('the remote runtime (plan R2)', () => {
   });
 });
 
+describe('the live port of the remote build on Supabase (chat presence design, L2)', () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+  });
+  const config = { supabaseUrl: 'https://ref.supabase.co', publishableKey: 'sb_publishable_x', apiUrl: 'https://ref.supabase.co/functions/v1/api', build: '2026.10.4', auth: 'supabase' as const };
+  const sessionFetch = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as { calls: { i: number; name: string }[] };
+    const results = body.calls.map((call) => ({ i: call.i, ok: true, output: { user: { id: 'usr_001' } }, storyId: 'cor_srv_1', changed: false }));
+    return new Response(JSON.stringify({ v: 1, serverTime: '', results }), { status: 200 });
+  }) as unknown as typeof globalThis.fetch;
+  function recordingSupabase() {
+    const topics: string[] = [];
+    const removed: string[] = [];
+    const supabase = {
+      realtime: { setAuth: vi.fn(async () => undefined) },
+      channel: (topic: string) => {
+        topics.push(topic);
+        const channel = {
+          topic, on: () => channel, subscribe: () => channel, presenceState: () => ({}), track: async () => 'ok', untrack: async () => 'ok',
+        };
+        return channel;
+      },
+      removeChannel: async (channel: { topic: string }) => {
+        removed.push(channel.topic);
+        return 'ok';
+      },
+      auth: { refreshSession: vi.fn(async () => ({ data: {}, error: null })) },
+    } as unknown as SupabaseClient;
+    return { supabase, topics, removed };
+  }
+
+  it('gives the runtime a live port that shows everybody Offline until the person signs in', async () => {
+    const { supabase, topics } = recordingSupabase();
+    const runtime = await bootstrapRemote({ config, supabase, auth: stubAuth(false).auth, fetch: sessionFetch });
+    expect(runtime.live).toBeDefined();
+    runtime.live!.watch(['usr_001', 'usr_002']);
+    runtime.live!.setMine('online');
+    expect(runtime.live!.stateOf('usr_002')).toBe('offline');
+    expect(topics).toEqual([]);
+  });
+
+  it('joins the status topics with the sign-in, beside the change channels, and leaves them with the sign-out', async () => {
+    const { supabase, topics, removed } = recordingSupabase();
+    const signIn = stubAuth(true);
+    const runtime = await bootstrapRemote({ config, supabase, auth: signIn.auth, fetch: sessionFetch });
+    runtime.live!.watch(['usr_001', 'usr_002']);
+    runtime.changes.subscribe(() => undefined);
+    await vi.waitFor(() => expect(topics).toContain('status:usr_002'));
+    expect(topics).toEqual(expect.arrayContaining(['office', 'person:usr_001', 'status:usr_001', 'status:usr_002']));
+    signIn.set('signed_out');
+    await vi.waitFor(() => expect(removed).toEqual(expect.arrayContaining(['status:usr_001', 'status:usr_002', 'office', 'person:usr_001'])));
+    expect(runtime.live!.stateOf('usr_001')).toBe('offline');
+  });
+
+  it('moves the adapter to the next person at a sign-in as someone else', async () => {
+    const { supabase, topics, removed } = recordingSupabase();
+    const signIn = stubAuth(true);
+    const runtime = await bootstrapRemote({ config, supabase, auth: signIn.auth, fetch: sessionFetch });
+    runtime.live!.watch(['usr_001', 'usr_002']);
+    runtime.changes.subscribe(() => undefined);
+    await vi.waitFor(() => expect(topics).toContain('status:usr_002'));
+    signIn.set('signed_out');
+    await vi.waitFor(() => expect(removed).toContain('status:usr_002'));
+    topics.length = 0;
+    signIn.set('signed_in');
+    // The list the screen gave is replayed to the adapter of the next sign-in.
+    await vi.waitFor(() => expect(topics).toContain('status:usr_002'));
+  });
+});
+
 describe('the live updates of the remote build (exit wave 3)', () => {
   const quiet = () => ({ subscribe: () => () => undefined, status: () => 'closed' as const });
 

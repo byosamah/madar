@@ -13,6 +13,7 @@ import { createSupabaseAuth } from './auth';
 import { authModeOf, type AuthMode } from './authMode';
 import { supabaseChangeSource } from './channel';
 import { createMadarAuth } from './madarAuth';
+import { attachLive, supabaseLive, switchedLive } from './presence';
 import { createSupabase } from './supabase';
 
 /**
@@ -209,18 +210,21 @@ export async function bootstrapRemote(o: {
     headers: config.publishableKey ? { apikey: config.publishableKey } : {},
     onSignals: (signals, fresh) => changes?.own(signals, fresh),
   });
+  // Status and typing (chat presence design). The port exists now; its adapter comes with each sign-in and goes with the sign-out.
+  const live = switchedLive();
   changes = personChangeSource({
     auth,
     person: async () => (await api.call('session.get', {})).user.id,
     open: liveSourceOf(liveKindOf(config.auth, import.meta.env.VITE_MADAR_LIVE), {
       realtime: (me) => {
         if (!supabase) throw new Error('The Madar sign-in has no Supabase Realtime: its build opens the live socket (liveKindOf).');
-        return supabaseChangeSource(supabase, me);
+        const status = supabaseLive(supabase, me);
+        return attachLive(live, status, supabaseChangeSource(supabase, me, { onTyping: status.typing }));
       },
       ticket: () => api.call('live.ticket', {}),
       apiUrl: config.apiUrl,
       page: window.location.href,
     }),
   });
-  return { api, auth, changes, mode: 'remote' };
+  return { api, auth, changes, live, mode: 'remote' };
 }

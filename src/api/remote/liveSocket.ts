@@ -1,4 +1,4 @@
-import type { ChangeSignal } from './wire';
+import type { ChangeSignal, TypingSignal } from './wire';
 
 /**
  * The live updates of the real build on the office object (exit wave 3; spec section 2, "Live updates"). One socket carries the
@@ -49,6 +49,13 @@ export function isChangeSignal(value: unknown, topics: readonly string[]): value
   return s.v === 1 && typeof s.id === 'string' && typeof s.channel === 'string' && topics.includes(s.channel)
     && typeof s.seq === 'number' && Number.isFinite(s.seq) && strings(s.projects) && typeof s.office === 'boolean'
     && strings(s.kinds) && strings(s.people);
+}
+
+/** True for a typing signal of the wire form (src/api/remote/wire.ts). The server wrote it, so only the shape is checked. */
+export function isTypingSignal(value: unknown): value is TypingSignal {
+  if (typeof value !== 'object' || value === null) return false;
+  const s = value as Record<string, unknown>;
+  return s.v === 1 && typeof s.conversationId === 'string' && typeof s.userId === 'string' && typeof s.typing === 'boolean' && typeof s.at === 'string';
 }
 
 /** The socket address for a ticket: the api address of the build (the page's own /api) on the page host, with ws or wss. */

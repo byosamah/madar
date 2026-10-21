@@ -1,5 +1,6 @@
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
-import type { ChangeSignal } from '../../api/remote/wire';
+import { isTypingSignal } from '../../api/remote/liveSocket';
+import { TYPING_EVENT, type ChangeSignal, type TypingSignal } from '../../api/remote/wire';
 import type { ChangeListener, ChangeOrigin, ChangeSource } from '../signals';
 
 /**
@@ -19,12 +20,38 @@ import type { ChangeListener, ChangeOrigin, ChangeSource } from '../signals';
  *   another person on the same client).
  * - Realtime joins a channel again by itself after an error or a time-out. A channel that the server closed (for example at the
  *   end of a token) does not, so this source makes a new one after a short wait, and waits longer after each try.
+ * - With onTyping, the person channel also listens to the typing event (chat presence design B). The server sends it on person:<id>
+ *   next to the change signals; this source passes a valid signal on and never mixes it with the change signals.
  */
 const TOPICS = (me: string) => ['office', `person:${me}`];
-const REJOIN_MS = [1000, 2000, 5000, 10_000, 30_000];
+/** The waits before a new channel after a close, shared with the status topics (src/app/remote/presence.ts). */
+export const REJOIN_MS = [1000, 2000, 5000, 10_000, 30_000];
 
 /** The leaves that the server has not answered yet, for each client and topic. */
 const leaving = new WeakMap<SupabaseClient, Map<string, Promise<void>>>();
+
+/**
+ * Leaves a channel and keeps the wait for its answer, so the next join of the topic on this client waits for it (realtime-js gives
+ * back the channel of a topic until its leave is answered). after: work that must end before the leave starts (an untrack).
+ */
+export function leaveChannel(supabase: SupabaseClient, topic: string, channel: RealtimeChannel, after?: Promise<unknown>): Promise<void> {
+  const waits = leaving.get(supabase) ?? new Map<string, Promise<void>>();
+  leaving.set(supabase, waits);
+  const start = after ? after.then(() => undefined, () => undefined).then(() => supabase.removeChannel(channel)) : supabase.removeChannel(channel);
+  const done: Promise<void> = start.then(
+    () => undefined,
+    () => undefined,
+  ).finally(() => {
+    if (waits.get(topic) === done) waits.delete(topic);
+  });
+  waits.set(topic, done);
+  return done;
+}
+
+/** The leave of this topic that the client has not had answered yet, or nothing. */
+export function leaveWait(supabase: SupabaseClient, topic: string): Promise<void> | undefined {
+  return leaving.get(supabase)?.get(topic);
+}
 
 type Joined = { channel: RealtimeChannel; subscribed: boolean; joinedBefore: boolean; tries: number; timer?: ReturnType<typeof setTimeout> };
 
@@ -37,7 +64,7 @@ function isSignal(value: unknown, topic: string): value is ChangeSignal {
     && strings(s.projects) && typeof s.office === 'boolean' && strings(s.kinds) && strings(s.people);
 }
 
-export function supabaseChangeSource(supabase: SupabaseClient, me: string): ChangeSource {
+export function supabaseChangeSource(supabase: SupabaseClient, me: string, o: { onTyping?: (signal: TypingSignal) => void } = {}): ChangeSource {
   const listeners = new Set<ChangeListener>();
   const joined = new Map<string, Joined>();
   let running = false;
@@ -50,19 +77,7 @@ export function supabaseChangeSource(supabase: SupabaseClient, me: string): Chan
     for (const listener of [...listeners]) listener(signals, origin);
   };
 
-  /** Leaves a channel, and keeps the wait for its answer, so the next join of the topic on this client waits for it. */
-  function remove(topic: string, channel: RealtimeChannel): Promise<void> {
-    const waits = leaving.get(supabase) ?? new Map<string, Promise<void>>();
-    leaving.set(supabase, waits);
-    const done: Promise<void> = supabase.removeChannel(channel).then(
-      () => undefined,
-      () => undefined,
-    ).finally(() => {
-      if (waits.get(topic) === done) waits.delete(topic);
-    });
-    waits.set(topic, done);
-    return done;
-  }
+  const remove = (topic: string, channel: RealtimeChannel): Promise<void> => leaveChannel(supabase, topic, channel);
 
   const allJoined = () => TOPICS(me).every((topic) => joined.get(topic)?.subscribed);
 
@@ -72,10 +87,16 @@ export function supabaseChangeSource(supabase: SupabaseClient, me: string): Chan
     const entry: Joined = { channel, subscribed: false, joinedBefore: before?.joinedBefore ?? false, tries: before?.tries ?? 0 };
     joined.set(topic, entry);
     const current = () => running && joined.get(topic) === entry;
+    channel.on('broadcast', { event: 'changed' }, (message: { payload?: unknown }) => {
+      if (current() && isSignal(message.payload, topic)) tell([message.payload]);
+    });
+    if (o.onTyping && topic === `person:${me}`) {
+      const onTyping = o.onTyping;
+      channel.on('broadcast', { event: TYPING_EVENT }, (message: { payload?: unknown }) => {
+        if (current() && isTypingSignal(message.payload)) onTyping(message.payload);
+      });
+    }
     channel
-      .on('broadcast', { event: 'changed' }, (message: { payload?: unknown }) => {
-        if (current() && isSignal(message.payload, topic)) tell([message.payload]);
-      })
       .subscribe((status: string) => {
         if (!current()) return;
         if (status === 'SUBSCRIBED') {
@@ -113,7 +134,7 @@ export function supabaseChangeSource(supabase: SupabaseClient, me: string): Chan
     opened = false;
     const mine = ++generation;
     void (async () => {
-      await Promise.all(TOPICS(me).map((topic) => leaving.get(supabase)?.get(topic)));
+      await Promise.all(TOPICS(me).map((topic) => leaveWait(supabase, topic)));
       if (!running || mine !== generation) return;
       await supabase.realtime.setAuth().catch(() => undefined);
       if (!running || mine !== generation) return;
