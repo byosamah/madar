@@ -13,6 +13,7 @@ export type WhatsNewEntry = { id: string; day: string; right?: Action; to?: stri
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   { id: '2026-10-23-80', day: '2026-10-23', to: '/inbox' },
+  { id: '2026-10-23-73', day: '2026-10-23', to: '/meetings' },
   { id: '2026-10-23-72', day: '2026-10-23' },
   { id: '2026-10-23-71', day: '2026-10-23', to: '/inbox' },
   { id: '2026-10-23-70', day: '2026-10-23', to: '/settings' },

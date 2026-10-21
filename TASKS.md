@@ -848,6 +848,17 @@ the cover from the small picture that Madar keeps (up to 960 px), as data when i
 - [x] Production at 716c0a29 (2026-10-21; the owner said "deploy" and ran it with `!`). Record: proof.md
 - [ ] What's new phone shots: EN dark, AR light and AR dark at 390 px (the auto-mode check refused the Playwright shots)
 
+## Times in AM and PM (owner, 2026-10-21: "make the time in AM PM style not 24")
+
+- [x] One clock formatter (`clockFormat`, `src/lib/dates.ts`): English on the 12-hour clock with AM and PM ("5:15 PM", the US form);
+  Arabic was already 12-hour («5:15 م») and stays. The meeting view summary used its own "HH:MM": it uses the formatter now
+- [x] The fixed times in words, both languages: the summary mail footer and the mail pause line (7:30 AM, 3:00 AM; «صباحًا»), the
+  summary hint of Settings, the meeting start hint (10:00 AM; «ص»). Wider time columns: Home meetings card and the meeting summary
+  (80 px); the chat side time does not wrap. No MCP change: the tools give stamps, never a clock text
+- [x] Gates: typecheck, `npm test` 8,216 passed (733 files), `npm run build`, `build:server`. Shots at 390 px (EN/AR, light/dark):
+  the Meetings list and the meeting sheet
+- [ ] Test copy, then production after the owner's word
+
 ## 2026-10-21: chat status, Seen, typing and emoji (branch `rb/chat-presence`, worktree `~/dev/madar-rb/chat-presence`)
 Owner: "add some Slack chat features": Online, Away, Offline, "Seen", "typing...", and an emoji list. Design
 `docs/superpowers/specs/2026-10-21-madar-chat-presence-design.md`, mockup next to it (owner: "go ahead", dot look A).
@@ -866,4 +877,3 @@ Owner: "add some Slack chat features": Online, Away, Offline, "Seen", "typing...
   plus about 0.8 million passes 1 million, cost step 4 applies (ask the owner)
 - [ ] Merge gate once, screenshots, test copy
 - [ ] What's new line; production only by the owner, not before 2026-10-23
-||||||| 7f115515

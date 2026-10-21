@@ -117,8 +117,12 @@ const numberFormat = (lang: Lang, fractionDigits: number) => once(`number|${lang
 /** The list of names in the interface language: "A, B and C". */
 export const listFormat = (lang: Lang) => once(`list|${lang}`, () => new Intl.ListFormat(LOCALES[lang], { type: 'conjunction' }));
 
-/** The office clock time of a moment, for the chat times. */
-export const clockFormat = (lang: Lang) => once(`clock|${lang}`, () => new Intl.DateTimeFormat(LOCALES[lang], { hour: 'numeric', minute: '2-digit', timeZone: OFFICE_TZ }));
+/**
+ * The office clock time of a moment, on the 12-hour clock in both languages (owner, 2026-10-21): "5:15 PM" and «5:15 م». English takes
+ * the US form, so AM and PM come in capitals; the other English texts keep the British forms of LOCALES.
+ */
+const CLOCK_LOCALES: Record<Lang, string> = { en: 'en-US-u-ca-gregory-nu-latn', ar: LOCALES.ar };
+export const clockFormat = (lang: Lang) => once(`clock|${lang}`, () => new Intl.DateTimeFormat(CLOCK_LOCALES[lang], { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: OFFICE_TZ }));
 
 export function formatDay(day: string, lang: Lang, style: DayStyle = 'short'): string {
   return dayFormat(lang, style).format(new Date(toMs(day)));

@@ -1,0 +1,10 @@
+{
+  "whatsNew": {
+    "items": {
+      "2026-10-23-73": {
+        "title": "Times in AM and PM",
+        "body": "Madar now shows every time on the 12-hour clock, for example 5:15 PM in place of 17:15."
+      }
+    }
+  }
+}

@@ -6,6 +6,6 @@
     "switchEmail": "{{trigger}}, by email",
     "emailNeedsApp": "No email while the in-app notice is off.",
     "summary": "Morning summary",
-    "summaryHint": "An email on working days at 07:30 with your to-dos due today and the reviews that wait for you."
+    "summaryHint": "An email on working days at 7:30 AM with your to-dos due today and the reviews that wait for you."
   }
 }
