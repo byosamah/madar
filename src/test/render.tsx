@@ -11,6 +11,7 @@ import { buildSeed } from '../data/seed';
 import { sampleOffice } from '../data/sampleOffice';
 import { AppearanceSync } from '../app/AppearanceSync';
 import { createAppRouter } from '../app/routes';
+import type { LivePort } from '../app/live/types';
 import { RuntimeProvider, createQueryClient } from '../app/runtime';
 import { preloadScreens } from '../app/screens';
 import { ToastProvider } from '../app/toasts';
@@ -24,7 +25,7 @@ await preloadScreens();
 
 /** Renders the whole app over the sample office, at a hash route, with no latency. "prepare" may change the office first. */
 /** failFirst makes the first call of that name fail, as the "Simulate errors" switch can. */
-export async function renderApp(path = '/', prepare?: (state: State) => void, options: { latencyMs?: number; failFirst?: string | ((name: string, input: unknown) => boolean) } = {}) {
+export async function renderApp(path = '/', prepare?: (state: State) => void, options: { latencyMs?: number; failFirst?: string | ((name: string, input: unknown) => boolean); live?: LivePort } = {}) {
   setNow(NOW);
   const state = await buildSeed(TODAY, async () => undefined);
   prepare?.(state);
@@ -49,7 +50,7 @@ export async function renderApp(path = '/', prepare?: (state: State) => void, op
   onTestFinished(() => router.dispose());
   const queryClient = createQueryClient();
   const view = render(
-    <RuntimeProvider runtime={{ store, api }} queryClient={queryClient}>
+    <RuntimeProvider runtime={{ store, api, ...(options.live ? { live: options.live } : {}) }} queryClient={queryClient}>
       <ToastProvider>
         <AppearanceSync />
         <RouterProvider router={router} />
@@ -60,7 +61,7 @@ export async function renderApp(path = '/', prepare?: (state: State) => void, op
 }
 
 /** Renders one component with the API, the toasts and the sample office, for hook tests. */
-export async function renderWithRuntime(ui: ReactElement, prepare?: (state: State) => void, options: { failureRate?: () => number; path?: string } = {}) {
+export async function renderWithRuntime(ui: ReactElement, prepare?: (state: State) => void, options: { failureRate?: () => number; path?: string; live?: LivePort } = {}) {
   setNow(NOW);
   const state = await buildSeed(TODAY, async () => undefined);
   prepare?.(state);
@@ -71,7 +72,7 @@ export async function renderWithRuntime(ui: ReactElement, prepare?: (state: Stat
     ? ui
     : <RouterProvider router={createMemoryRouter([{ path: '*', element: ui }], { initialEntries: [options.path] })} />;
   const view = render(
-    <RuntimeProvider runtime={{ store, api }} queryClient={createQueryClient()}>
+    <RuntimeProvider runtime={{ store, api, ...(options.live ? { live: options.live } : {}) }} queryClient={createQueryClient()}>
       <ToastProvider>{content}</ToastProvider>
     </RuntimeProvider>,
   );

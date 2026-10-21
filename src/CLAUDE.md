@@ -498,6 +498,17 @@ any screen work.
 - Upload progress: `CallMeta.onProgress` reaches `xhrPut` through the upload adapter (screen only, never on the wire; the small picture reports nothing). `useAttachments` keeps a whole percent for each file (`progress`), `PickedFiles` draws a 3 px grey bar for each file and locks Remove while the uploads run; the uploads still start at Send, and `onSend(body, fileIds, clear)` keeps its order.
 - Drop and paste (`ChatDrop.tsx`): `ChatDropArea` wraps a loaded chat or task thread (and the comments of the task panel, see above) and shows its frame only while the box registered a receiver (`useChatDropReceiver`); it still stops the browser from opening a dropped file. Files go to the picked chips; nothing sends until Send. A paste with text stays text; a paste of only pictures adds them. Picked files wait in memory for each chat (`app/drafts.ts`), so a test that picks files calls `keepDraftsOf('')` after it.
 
+## Who is here and who types (chat presence design, 2026-10-21)
+- `src/app/live/` holds the screen side. `types.ts` is the live port (`LivePort`, fixed after wave 1; the three adapters are in the track live) and `combineStates`.
+  `Runtime.live` is optional: with no port every person is Offline and no typing shows. `RuntimeProvider` mounts `LiveProvider` when the port is set,
+  and stops the port when the runtime goes.
+- `activity.ts`: a device is Online while the page is in view and the person used it in the last `ACTIVE_MS` (10 min). A page out of view is Away at once.
+  `restingOf` and `useResting`: a page out of view for `REST_PHONE_MS` (60 s) or `REST_COMPUTER_MS` (30 min) rests, and `LiveProvider` calls `live.setResting`.
+- `typing.ts`: the board (`createTypingBoard`) keeps who types in which chat for `TYPING_SHOW_MS` (8 s) after the last signal. `useTypers`, `useTypingRows`,
+  and `useTypingSender` (one signal each `TYPING_SEND_MS` (5 s), one stop). The sender calls `chats.typing` and ignores its errors.
+- `hooks.ts`: `usePersonState(userId)` renders only when the state of that person changes. Tests use `src/test/fakeLive.ts` and the `live` option of `renderApp`.
+- `Composer` takes `onTextChange`; its inner `change(next)` is the one door of the text (the field, the clear after a send, and later the emoji panel).
+
 ## Meetings screens (owner, 2026-10-19, fbk_022)
 - `/meetings` is the second view of the Tasks tab (`features/meetings/`, `MeetingsScreen.tsx`). The tab pill keeps 5 tabs: `isNavActive` keeps
   Tasks open on `/meetings`, and `screenKey` (`AppShell.tsx`) gives both views one entrance. The switch `WorkSwitch`

@@ -8,6 +8,8 @@ import { AttemptKeys } from '../api/remote/keys';
 import type { Store } from '../api/store';
 import { addDays, todayISO } from '../lib/dates';
 import type { AuthPort } from './auth';
+import { LiveProvider } from './live/LiveProvider';
+import type { LivePort } from './live/types';
 import { READS } from './readMap';
 import { connectChanges, followMeta, readsAfterWrite, type ChangeSource } from './signals';
 import { useToast } from './toasts';
@@ -22,7 +24,11 @@ export type { ChangeListener, ChangeOrigin, ChangeSource } from './signals';
  * The prototype fills every part. The real build has no store (src/app/remote/bootstrap.ts). A test may pass only { store, api }:
  * the store then sends the change signals, as in the prototype.
  */
-export type Runtime = { store?: Store; api: MadarApi; auth?: AuthPort; changes?: ChangeSource; mode?: 'prototype' | 'remote' };
+export type Runtime = {
+  store?: Store; api: MadarApi; auth?: AuthPort; changes?: ChangeSource; mode?: 'prototype' | 'remote';
+  /** Who is here and who types (chat presence design). Left out: every person shows Offline and no typing shows. */
+  live?: LivePort;
+};
 
 const RuntimeContext = createContext<Runtime | null>(null);
 
@@ -165,9 +171,11 @@ export function RuntimeProvider({ runtime, queryClient, children }: { runtime: R
       stopKeep?.();
     };
   }, [runtime, queryClient]);
+  // The live port ends with the runtime.
+  useEffect(() => () => runtime.live?.stop(), [runtime]);
   return (
     <RuntimeContext.Provider value={runtime}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>{runtime.live ? <LiveProvider>{children}</LiveProvider> : children}</QueryClientProvider>
     </RuntimeContext.Provider>
   );
 }

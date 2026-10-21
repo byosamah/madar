@@ -27,6 +27,8 @@ type ComposerProps = {
   onCancelReply?: () => void;
   /** The Up key in an empty box asks the pane to open the edit of the newest own message. True: the pane did, and the key is spent. */
   onEditLast?: () => boolean;
+  /** Called with the new text at each change of the field that a key or a paste made (chat presence design B1). A restored draft calls nothing. */
+  onTextChange?: (text: string) => void;
 };
 
 /**
@@ -44,7 +46,7 @@ export function Composer(props: ComposerProps) {
  * Search unmounts the box; its draft waits until the person comes back or sends it (audit 2026-10-03, SHL-4). The text uses the
  * keys of the comment box (CommentThread), so a task thread and the comments of its task share one draft.
  */
-function ComposerBox({ id, people, pending, onSend, upload, owner, replyTo, onCancelReply, onEditLast }: ComposerProps & { owner: string }) {
+function ComposerBox({ id, people, pending, onSend, upload, owner, replyTo, onCancelReply, onEditLast, onTextChange }: ComposerProps & { owner: string }) {
   const { t } = useTranslation();
   const toast = useToast();
   // On a phone, Enter makes a new line and only the Send button sends (chat design 2026-10-19, item 7).
@@ -55,6 +57,11 @@ function ComposerBox({ id, people, pending, onSend, upload, owner, replyTo, onCa
   const attachments = useAttachments(MAX_ATTACHMENTS, readDraftFiles(owner, draftKey));
   const [uploading, setUploading] = useState(false);
   const [text, setText] = useDraftText(owner, draftKey);
+  // The one door of a change of the text: the field, the emoji panel and the clear after a send all use it.
+  const change = (next: string) => {
+    setText(next);
+    onTextChange?.(next);
+  };
   useEffect(() => {
     writeDraftFiles(owner, draftKey, attachments.files);
   }, [owner, draftKey, attachments.files]);
@@ -87,7 +94,7 @@ function ComposerBox({ id, people, pending, onSend, upload, owner, replyTo, onCa
       }
     }
     onSend(body, fileIds, () => {
-      setText('');
+      change('');
       attachments.clear();
       field.current?.focus();
     });
@@ -137,7 +144,7 @@ function ComposerBox({ id, people, pending, onSend, upload, owner, replyTo, onCa
           id={`composer-${id}`}
           label={t('chat.composer')}
           value={text}
-          onChange={setText}
+          onChange={change}
           people={people}
           rows={1}
           inputRef={field}
