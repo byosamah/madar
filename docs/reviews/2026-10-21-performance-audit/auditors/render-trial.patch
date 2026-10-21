@@ -1,0 +1,184 @@
+--- a/src/features/projects/ProjectListRow.tsx
++++ b/src/features/projects/ProjectListRow.tsx
+@@ -1,3 +1,4 @@
++import { memo } from 'react';
+ import { motion } from 'motion/react';
+ import { useTranslation } from 'react-i18next';
+ import { Link } from 'react-router';
+@@ -36,7 +37,7 @@
+ }
+ 
+ /** One project as one calm row: picture, name and client, the stage column (name and steps), the next deadline, and a sign only when needed. */
+-export function ProjectListRow({ summary, source }: { summary: ProjectSummary; source: 'home' | 'projects' }) {
++export const ProjectListRow = memo(function ProjectListRow({ summary, source }: { summary: ProjectSummary; source: 'home' | 'projects' }) {
+   const { t } = useTranslation();
+   const lang = useLang();
+   const { project } = summary;
+@@ -97,4 +98,4 @@
+       <RowMenu summary={summary} point={menu.point} onClose={menu.close} />
+     </motion.li>
+   );
+-}
++});
+--- a/src/features/notifications/NotificationsScreen.tsx
++++ b/src/features/notifications/NotificationsScreen.tsx
+@@ -1,7 +1,7 @@
+ import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+ import { BellIcon } from '../../components/icons/animated/bell';
+ import { motion } from 'motion/react';
+-import { useEffect, useRef } from 'react';
++import { memo, useEffect, useRef } from 'react';
+ import { useTranslation } from 'react-i18next';
+ import { Link } from 'react-router';
+ import type { CallOutput } from '../../api/calls';
+@@ -25,7 +25,7 @@
+ 
+ type NoticeView = CallOutput<'notifications.list'>[number];
+ 
+-function InboxItem({ view }: { view: NoticeView }) {
++const InboxItem = memo(function InboxItem({ view }: { view: NoticeView }) {
+   const { t } = useTranslation();
+   const lang = useLang();
+   const phone = useIsPhone();
+@@ -135,7 +135,7 @@
+       )}
+     </motion.li>
+   );
+-}
++});
+ 
+ /** My notifications by day, with an unread dot. A press on a row opens it (spec 7.1, redesign spec 3.7). */
+ export function NotificationsScreen() {
+--- a/src/features/project/tasks/SortableTaskRows.tsx
++++ b/src/features/project/tasks/SortableTaskRows.tsx
+@@ -1,7 +1,7 @@
+ import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors, type Announcements, type DragEndEvent, type UniqueIdentifier } from '@dnd-kit/core';
+ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+ import { AnimatePresence } from 'motion/react';
+-import { useEffect, useRef, useState } from 'react';
++import { memo, useEffect, useMemo, useRef, useState } from 'react';
+ import { useTranslation } from 'react-i18next';
+ import type { User } from '../../../api/contract/entities';
+ import type { TaskRow } from '../../../api/contract/views';
+@@ -11,12 +11,14 @@
+ import { TaskRowItem } from './TaskRowItem';
+ 
+ type Open = (row: TaskRow, thread?: boolean) => void;
++const POINTER_OPTIONS = { activationConstraint: { distance: 4 } };
++const KEYBOARD_OPTIONS = { coordinateGetter: sortableKeyboardCoordinates };
+ 
+ /**
+  * One row of a sortable list. Only a person who may change the task gets the grip; the other rows keep a blank of its size.
+  * A list with one task, or with no task of the person, shows no grip at all.
+  */
+-function SortableRow({ row, me, onOpen, still, sortable, showProject }: {
++const SortableRow = memo(function SortableRow({ row, me, onOpen, still, sortable, showProject }: {
+   row: TaskRow; me: User | undefined; onOpen: Open; still: boolean; sortable: boolean; showProject: boolean;
+ }) {
+   const { t } = useTranslation();
+@@ -47,7 +49,7 @@
+       drag={{ ref: setNodeRef, style, lifted: isDragging, still, grip }}
+     />
+   );
+-}
++}, (a, b) => a.row === b.row && a.me === b.me && a.still === b.still && a.sortable === b.sortable && a.showProject === b.showProject);
+ 
+ /**
+  * The rows of one list that a person drags into a new order (owner, 2026-10-07). The order belongs to the tasks, so everyone who
+@@ -71,11 +73,12 @@
+   useEffect(() => {
+     if (order && order.key !== key) setOrder(null);
+   }, [key, order]);
+-  const ids = shown.map((row) => row.task.id);
++  const idsKey = shown.map((row) => row.task.id).join(',');
++  const ids = useMemo(() => (idsKey === '' ? [] : idsKey.split(',')), [idsKey]);
+   const sortable = draggable && rows.length > 1 && rows.some((row) => row.canMove);
+   const sensors = useSensors(
+-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
++    useSensor(PointerSensor, POINTER_OPTIONS),
++    useSensor(KeyboardSensor, KEYBOARD_OPTIONS),
+   );
+   const start = () => {
+     window.clearTimeout(settle.current);
+--- a/src/features/project/tasks/TaskRowItem.tsx
++++ b/src/features/project/tasks/TaskRowItem.tsx
+@@ -2,7 +2,7 @@
+ import { CircleCheckIcon } from '../../../components/icons/animated/circle-check';
+ import { MessageCircleIcon } from '../../../components/icons/animated/message-circle';
+ import { motion } from 'motion/react';
+-import { useState, type CSSProperties, type ReactNode } from 'react';
++import { memo, useState, type CSSProperties, type ReactNode } from 'react';
+ import { useTranslation } from 'react-i18next';
+ import type { User } from '../../../api/contract/entities';
+ import type { TaskRow } from '../../../api/contract/views';
+@@ -54,7 +54,7 @@
+  * "me" is the person who looks at the list (the authority of session.get). The list asks for it once and gives it to each row,
+  * so a long list does not hold one session.get for each row (cleanup 2026-10-06).
+  */
+-export function TaskRowItem({ row, me, onOpen, showProject = false, drag }: {
++export const TaskRowItem = memo(function TaskRowItem({ row, me, onOpen, showProject = false, drag }: {
+   row: TaskRow; me: User | undefined; onOpen: (taskId: string, thread?: boolean) => void; showProject?: boolean; drag?: RowDrag;
+ }) {
+   const { t } = useTranslation();
+@@ -181,4 +181,4 @@
+       </div>
+     </motion.li>
+   );
+-}
++}, (a, b) => a.row === b.row && a.me === b.me && a.showProject === b.showProject && a.drag === b.drag);
+--- a/src/features/inbox/bubbles.ts
++++ b/src/features/inbox/bubbles.ts
+@@ -1,4 +1,5 @@
+ import { useRef } from 'react';
++import { replaceEqualDeep } from '@tanstack/react-query';
+ import type { CommentView } from '../../api/contract/views';
+ import type { Bubble } from './MessageBubble';
+ 
+@@ -7,18 +8,28 @@
+  * holds (performance audit 2026-10-07, RND-5). An edited message gets a new view, so a new bubble. The panes of the Inbox and the task
+  * panel both use it.
+  */
+-export function useBubbles<V extends object>(views: V[], toBubble: (view: V) => Bubble, resetKey?: string): Bubble[] {
+-  const kept = useRef<{ key: string | undefined; map: WeakMap<V, Bubble> }>({ key: resetKey, map: new WeakMap() });
+-  if (kept.current.key !== resetKey) kept.current = { key: resetKey, map: new WeakMap() };
+-  const { map } = kept.current;
+-  return views.map((view) => {
++export function useBubbles<V extends object>(views: V[], toBubble: (view: V) => Bubble, resetKey?: string, idOf?: (view: V) => string): Bubble[] {
++  const kept = useRef<{ key: string | undefined; map: WeakMap<V, Bubble>; byId: Map<string, { view: V; bubble: Bubble }> }>({ key: resetKey, map: new WeakMap(), byId: new Map() });
++  if (kept.current.key !== resetKey) kept.current = { key: resetKey, map: new WeakMap(), byId: new Map() };
++  const { map, byId } = kept.current;
++  const out = views.map((view) => {
+     let bubble = map.get(view);
+-    if (!bubble) {
+-      bubble = toBubble(view);
+-      map.set(view, bubble);
++    if (!bubble && idOf) {
++      // A page of messages slides by one when a new message comes, so the views are new objects with the same content: the id finds the bubble.
++      const id = idOf(view);
++      const hit = byId.get(id);
++      if (hit && replaceEqualDeep(hit.view, view) === hit.view) bubble = hit.bubble;
+     }
++    if (!bubble) bubble = toBubble(view);
++    map.set(view, bubble);
++    if (idOf) byId.set(idOf(view), { view, bubble });
+     return bubble;
+   });
++  if (idOf && byId.size > views.length + 1000) {
++    const live = new Set(views.map(idOf));
++    for (const id of byId.keys()) if (!live.has(id)) byId.delete(id);
++  }
++  return out;
+ }
+ 
+ /**
+--- a/src/features/inbox/ConversationPane.tsx
++++ b/src/features/inbox/ConversationPane.tsx
+@@ -180,6 +180,7 @@
+     messages,
+     (view) => ({ ...bubbleOfMessage(view), ...(canSend ? {} : { canEdit: false }), ...(outbox.claimed.has(view.message.id) ? { fromOutbox: true as const } : {}) }),
+     canSend ? undefined : 'read',
++    (view) => view.message.id,
+   );
+   const lineBubbles = useBubbles(data?.lines ?? NO_LINES, bubbleOfLine);
+   const unsentBubbles = useBubbles(me ? outbox.unsent : NO_UNSENT, (entry) => bubbleOfOutgoing(entry, me!), meId);

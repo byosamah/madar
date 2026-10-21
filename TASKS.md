@@ -947,3 +947,18 @@ Owner: "add some Slack chat features": Online, Away, Offline, "Seen", "typing...
   Madar report with guide: true (from the owner's Claude skill "madar-office-report"); INSTRUCTIONS sends every report request to it
 - [x] Test copy and production at 7b0ea2ce (2026-10-21, the owner said "merge to main and deploy to production")
 - [x] The Claude skill "madar-office-report" is gone from the owner's AI app (checked 2026-10-21: not in the claude.ai list, not on the Mac)
+
+## Speed audit 2 (owner, 2026-10-21: "audit the performance of the full product and make the best")
+Branch `rb/perf2` (worktree `~/dev/madar-rb/perf2`). Sonnet agents, the Opus session leads. Report:
+`docs/reviews/2026-10-21-performance-audit/` (README, findings, auditor reports). Fix rule: speed and size only.
+- [x] Baseline: first load 50 files, 384 KB gzip (318 KB on 2026-10-08); api.js 827 KB
+- [x] Audit workflow wf_cd6fb185-8e4: 7 auditors and 7 skeptics, 113 findings; the gap critic runs
+- [ ] Build, 6 tracks on Sonnet: 1 first load, 2 lists, 3 calls, 4 server, 5 database, 6 instance reuse probe
+- [ ] Gap critic findings: a second wave if any holds
+- [ ] Merge into rb/perf2, then the gates once: typecheck, npm test, test:lite, test:office, build, build:server,
+  build:remote test, test:db, test:it, test:mcp, the prototype smoke; screenshots of the touched screens (EN/AR, light/dark, 390 px)
+- [ ] What's new line (one for the speed release); no MCP change (no call, input, output or rule changes)
+- [ ] Test copy (`all.sh test` from main after the merge), then the live numbers again
+- [ ] Production: only on the owner's word, after the team week (not before 2026-10-23)
+- [ ] Owner decisions: DF-14 instant Home from the device, SV-7 chat signals to members only, DB-13 outbox clean-up, LV-1 one
+  font preload, the removal of the probe function of track 6 on madar-test
