@@ -11,7 +11,7 @@ import { isChatItemNotice, type CommentFact, type MessageFact, type PushFacts, t
 
 /**
  * The fact readers of the push producer (chat design items 19 to 21). They read what planPushes (chatRule.ts) needs, in the
- * transaction of the call: on Postgres four statements at most, on SQLite the office lists in memory plus reads by key. The rule
+ * transaction of the call: on Postgres two statements at most (the new notices, then the items, the people and the levels in one), on SQLite the office lists in memory plus reads by key. The rule
  * itself holds no SQL, so both databases keep one rule.
  */
 
@@ -55,8 +55,23 @@ export const PUSH_PEOPLE_SQL = `select u.id, u.kind, u.active, u.doc->>'systemRo
   (select s.doc->'roles' from settings s where s.id = 'office') as roles
 from users u order by u.id`;
 
-/** $1 the chat ids of the message items. The stored "Notify me" choices of those chats. A missing choice means the default of the chat kind. */
-export const PUSH_LEVELS_SQL = "select r.conversation_id, r.user_id, r.doc->>'notify' as notify from chat_reads r where r.conversation_id = any($1::text[]) and r.doc ? 'notify'";
+/**
+ * The stored "Notify me" choices of the chats of the message items (the CTE "items" of PUSH_FACTS_SQL). A missing choice means the
+ * default of the chat kind. A chat of a deleted message comes along and is never looked up: planPushes asks only for the chats of its items.
+ */
+export const PUSH_LEVELS_SQL = "select r.conversation_id, r.user_id, r.doc->>'notify' as notify from chat_reads r where r.conversation_id in (select chat_id from items where kind = 'message') and r.doc ? 'notify'";
+
+/**
+ * The items, the people and the levels in ONE statement (performance audit SV-9; it was three). $1 the message ids, $2 the comment ids.
+ * One row with three lists, each a json array of the rows of its part. The people keep the order of their ids. The parts are the
+ * constants above, so each keeps its own rules.
+ */
+export const PUSH_FACTS_SQL = `with items as (${PUSH_ITEMS_SQL}),
+people as (${PUSH_PEOPLE_SQL}),
+levels as (${PUSH_LEVELS_SQL})
+select (select coalesce(jsonb_agg(to_jsonb(items)), '[]'::jsonb) from items) as items,
+  (select coalesce(jsonb_agg(to_jsonb(people) order by people.id), '[]'::jsonb) from people) as people,
+  (select coalesce(jsonb_agg(to_jsonb(levels)), '[]'::jsonb) from levels) as levels`;
 
 // SQLite forms (exit wave 3 and chat design items 19 to 21): the tables hold id and doc, so the fields come from doc, and the people
 // of a chat come from the office lists in memory.
@@ -115,18 +130,17 @@ async function postgresFacts(q: Query, saved: PushSaved, wroteNotices: boolean, 
   const notices: PushNotice[] = rows.map((n) => ({ userId: n.user_id, targetType: n.target_type, targetId: n.target_id, messageId: n.message_id }));
   const ids = itemIdsOf(saved, notices, undo);
   if (ids.messages.length === 0 && ids.comments.length === 0) return { people: [], items: [], levels: {}, notices, undo };
-  const itemRows = await q<ItemRow>(PUSH_ITEMS_SQL, [ids.messages, ids.comments]);
+  const [row] = await q<{ items: ItemRow[]; people: PersonRow[]; levels: LevelRow[] }>(PUSH_FACTS_SQL, [ids.messages, ids.comments]);
   const newMessages = new Set(saved.messageIds ?? []);
   const newComments = new Set(saved.commentIds ?? []);
   const items: PushFacts['items'] = [];
-  for (const row of itemRows) {
-    const fact = row.kind === 'message' ? messageFact(row, newMessages.has(row.id)) : commentFact(row, newComments.has(row.id));
+  for (const itemRow of row.items) {
+    const fact = itemRow.kind === 'message' ? messageFact(itemRow, newMessages.has(itemRow.id)) : commentFact(itemRow, newComments.has(itemRow.id));
     if (fact) items.push(fact);
   }
-  const people = (await q<PersonRow>(PUSH_PEOPLE_SQL)).map(personOf);
-  const chatIds = unique(items.filter((i): i is MessageFact => i.kind === 'message').map((i) => i.chatId));
+  const people = row.people.map(personOf);
   const levels: Record<string, NotifyLevel> = {};
-  if (chatIds.length > 0) for (const r of await q<LevelRow>(PUSH_LEVELS_SQL, [chatIds])) levels[chatReadKey(r.conversation_id, r.user_id)] = r.notify;
+  for (const r of row.levels) levels[chatReadKey(r.conversation_id, r.user_id)] = r.notify;
   return { people, items, levels, notices, undo };
 }
 

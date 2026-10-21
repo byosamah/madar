@@ -87,7 +87,7 @@ message from a notice, and the server cannot know that a window is open. The fix
 
 ## The path
 1. After the save of a write call, the producer (`pushRows`, registered for every shared write except `PUSH_FREE_CALLS`) reads the
-   facts of the save (`chatFacts.ts`: at most five statements on Postgres, in the transaction of the call; the office lists and
+   facts of the save (`chatFacts.ts`: at most two statements on Postgres, in the transaction of the call: the new notices, then `PUSH_FACTS_SQL`, which reads the items, the people with the device flag and the stored levels in one statement (SV-9, 2026-10-21; it was three); the office lists and
    reads by key on SQLite), asks `planPushes`, and writes one outbox row for each person (`push.notify` or `push.chat`). A rollback
    sends nothing. A new notice is a row whose `xmin` is the id of the open transaction (the rule of `NEW_NOTICES_SQL` in the mail
    guide). A new message and a new comment are `SaveResult.messageIds` and `SaveResult.commentIds` (the ids that the save inserted).
