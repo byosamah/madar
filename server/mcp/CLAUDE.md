@@ -162,6 +162,11 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 - The runner serves its own mcp function. Never run a shared `supabase functions serve` next to it.
 - The runner leaves its agent in the public office. Run `npx supabase db reset` after it, before `test:it`.
 - The deploy suite (`tests/e2e-deploy/agents.spec.ts`) needs `MADAR_E2E_MCP_URL`. It removes its grant at the end.
+- A live check of a tool on the test copy needs no browser (2026-10-21): a one-off script signs in the sample member with the
+  password grant (`secrets/test-accounts.env`, never printed), registers a client, sends the authorize step, then the steps of the
+  consent screen (GET `/auth/v1/oauth/authorizations/<id>`, POST `api/agents/approve`, POST `.../consent` with `approve`), and
+  trades the code for the agent token. At the end it revokes the grant (DELETE `/auth/v1/user/oauth/grants?client_id=`) and runs
+  `agents.remove` through `api/batch` (with `X-Madar-Build`), so no agent stays in Settings, Agents.
 
 ## The own OAuth server (Supabase exit, wave 2)
 - `oauth/`: the documents (issuer = MCP_URL; the same document at `/mcp/.well-known/oauth-authorization-server` and

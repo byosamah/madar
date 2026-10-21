@@ -835,5 +835,13 @@ the cover from the small picture that Madar keeps (up to 960 px), as data when i
 - [x] TOOL_DOCS, INSTRUCTIONS (rule 6 names pictures; a Pictures paragraph; the upload note stays), `server/mcp/CLAUDE.md`, samples,
   What's new 2026-10-23-72
 - [x] Gates: typecheck, `npm test` 8,214 passed (733 files), `npm run build`, `build:server`, `build:remote -- test`
-- [ ] Test copy from the branch `rb/mcp-pictures` (main stays free for a hotfix in the live week), then `test:db`, `test:it`, `test:mcp`
+- [x] `test:db` 2,212 passed (27 skipped), `test:it` 325 passed (39 files), `test:mcp` 278 passed, conformance 5 of 32 (the normal 27
+  expected failures)
+- [x] Test copy from the branch `rb/mcp-pictures` (main stays free for a hotfix in the live week). Live check as the member's agent:
+  53 tools with `pictures.get`, the rows with glow and look, a real cover from R2 as a PNG image (6.9 KB), `prj_404` not_found; the
+  check removed its own agent at the end
+- [x] Side by side in the prototype (light): the screen tile and the agent SVG at 136 px, and 4 person glows, match. Found and fixed:
+  the ring of the SVG grew with its size (`vector-effect="non-scaling-stroke"`)
+- [x] What's new shots: EN light 390 px; EN dark and AR dark at desktop width. The auto-mode check refused the Playwright shots of EN
+  dark, AR light and AR dark at 390 px; a script check found no sideways scroll and no cut text in all 4
 - [ ] Production after the live week and the owner's OK: merge `rb/mcp-pictures` into main, `all.sh test`, then `all.sh production`
