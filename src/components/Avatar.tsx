@@ -3,28 +3,15 @@ import { SparklesIcon } from './icons/animated/sparkles';
 import type { UserCard } from '../api/contract/views';
 import { usePersonName } from '../app/personName';
 import { usePicture } from '../app/pictures';
-import { HUES } from '../lib/projectColor';
+import { personLights, screenGlow } from '../lib/glow';
 import { safePicture } from '../lib/picture';
-
-function hashOf(id: string): number {
-  let hash = 0;
-  for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-  return hash;
-}
 
 /**
  * One color per person (owner, 2026-10-01: "one color instead of two"): two soft lights of the same project hue,
  * placed from the id, so the picture keeps its depth. The strength comes from --avatar-glow, lower in dark mode.
  */
 export function glowOf(id: string): string {
-  const n = hashOf(id);
-  const hue = HUES[n % HUES.length];
-  const light = (strength: string) => `color-mix(in srgb, var(--p-${hue}-fg) ${strength}, transparent)`;
-  return [
-    `radial-gradient(75% 75% at ${20 + (n % 20)}% ${15 + ((n >>> 4) % 25)}%, ${light('var(--avatar-glow)')} 0%, transparent 100%)`,
-    `radial-gradient(70% 70% at ${85 - ((n >>> 2) % 20)}% ${90 - ((n >>> 6) % 25)}%, ${light('calc(var(--avatar-glow) * 0.6)')} 0%, transparent 100%)`,
-    'var(--c-panel)',
-  ].join(', ');
+  return screenGlow(personLights(id));
 }
 
 const ARABIC_LETTER = /^[؀-ۿ]/;

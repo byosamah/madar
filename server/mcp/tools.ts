@@ -4,26 +4,29 @@ import type { OfficeRight } from '../../src/api/contract/entities';
 import { serverContracts, type ServerCallName } from '../../src/api/contract/server';
 import { sharedCalls, type SharedCallName } from '../../src/api/sharedCalls';
 import { TOOL_DOCS } from './docs';
+import { PICTURES_GET, PicturesGetInput, WITH_PICTURES_TOOLS, WithPictures } from './pictures';
 
 /**
- * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). A fixed allowlist of 50 tools for every agent: the
+ * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). A fixed allowlist of 53 tools for every agent: the
  * reads and writes an agent can use for an office project, with the three message tools (owner, 2026-10-12), the stage dates
- * (fbk_023) and the five meeting tools (fbk_022). The right list adds tools for an agent whose person holds the right: reports.office
- * for the report right (owner, 2026-10-18, fbk_016), and the 3 tools of requests and bugs for the feedback right (owner, 2026-10-07;
+ * (fbk_023), the five meeting tools (fbk_022) and the picture tool (owner, 2026-10-21). The right list adds tools for an agent
+ * whose person holds the right: reports.office for the report right (owner, 2026-10-18, fbk_016), and the 3 tools of requests and bugs for the feedback right (owner, 2026-10-07;
  * role-rights, 2026-10-23). The Admin holds every right, so an Admin's agent gets all of them. Every
  * other call stays on the deny list: screen work (uploads, read marks, counts, archives, group changes), the prototype controls, and the
  * other Admin calls. VS Code allows at most 128 tools in one request across all
  * servers, and each tool definition uses model context, so the lists stay short. tools.test.ts fails when a call is in no list.
  */
 
-/** The one tool with no call behind it: it gives the written instructions (docs.ts). */
+/** A tool with no call behind it: it gives the written instructions (docs.ts). pictures.get (pictures.ts) is the other one. */
 export const READ_FIRST = 'madar.readFirst';
+/** The tools with no call of their own. pictures.get runs the calls of the screens inside it, with their rights. */
+export const NO_CALL_TOOLS: ReadonlySet<string> = new Set([READ_FIRST, PICTURES_GET]);
 
 export const MCP_ALLOW = [
-  // Reads (21). chats.list finds a chat, chats.messages reads one page of it, and chats.waiting lists what waits for the reply of
-  // the person (fbk_011, owner 2026-10-18). subCompanies.list gives no logos. meetings.list and meetings.get read the meetings of the
-  // person and of a project (fbk_022, owner 2026-10-19).
-  READ_FIRST, 'projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'tracker.list',
+  // Reads (22). chats.list finds a chat, chats.messages reads one page of it, and chats.waiting lists what waits for the reply of
+  // the person (fbk_011, owner 2026-10-18). subCompanies.list gives its logos only with withPictures. meetings.list and meetings.get read
+  // the meetings of the person and of a project (fbk_022, owner 2026-10-19). pictures.get gives one picture (owner, 2026-10-21).
+  READ_FIRST, PICTURES_GET, 'projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'tracker.list',
   'payments.list', 'deadlines.list', 'files.list', 'users.list', 'dashboard.get', 'search.query', 'events.list', 'chats.list', 'subCompanies.list',
   'chats.messages', 'chats.waiting', 'meetings.list', 'meetings.get',
   // Writes (31). tasks.help joins your person to a task as a helper, or takes them off it (fbk_035). chats.openDirect and chats.send message the team: a direct chat, a group or a project chat (task comments and
@@ -34,7 +37,7 @@ export const MCP_ALLOW = [
   'updates.create', 'tracker.log', 'tracker.update', 'tracker.close', 'payments.create', 'payments.update', 'payments.markReceived',
   'deadlines.create', 'deadlines.update', 'projects.update', 'projects.setStatus', 'events.undo', 'events.undoStory',
   'chats.openDirect', 'chats.send', 'stages.setDates', 'meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.saveMinutes',
-] as const satisfies readonly (typeof READ_FIRST | SharedCallName | ServerCallName)[];
+] as const satisfies readonly (typeof READ_FIRST | typeof PICTURES_GET | SharedCallName | ServerCallName)[];
 
 /**
  * The tools that only an agent of an Admin gets. The list is empty since role-rights (owner, 2026-10-23): the 3 tools of requests and bugs
@@ -62,7 +65,7 @@ export function rightOf(name: string): OfficeRight | undefined {
 }
 
 export type McpToolName = (typeof MCP_ALLOW)[number] | (typeof MCP_ADMIN)[number] | keyof typeof MCP_BY_RIGHT;
-type CallToolName = Exclude<McpToolName, typeof READ_FIRST>;
+type CallToolName = Exclude<McpToolName, typeof READ_FIRST | typeof PICTURES_GET>;
 
 export const MCP_DENY = [
   // The session and the person's own settings.
@@ -148,7 +151,7 @@ export type ToolDef = {
 };
 
 const calls: Record<CallToolName, { input: z.ZodType; readOnly?: boolean; wire?: { input?: z.ZodType } }> = Object.fromEntries(
-  [...MCP_ALLOW, ...MCP_ADMIN, ...RIGHT_TOOLS].filter((name) => name !== READ_FIRST).map((name) => {
+  [...MCP_ALLOW, ...MCP_ADMIN, ...RIGHT_TOOLS].filter((name) => !NO_CALL_TOOLS.has(name)).map((name) => {
     const def = (sharedCalls as Record<string, unknown>)[name] ?? (serverContracts as Record<string, unknown>)[name];
     return [name, def];
   }),
@@ -156,6 +159,7 @@ const calls: Record<CallToolName, { input: z.ZodType; readOnly?: boolean; wire?:
 
 function inputOf(name: McpToolName): { input: z.ZodObject; readOnly: boolean } {
   if (name === READ_FIRST) return { input: z.strictObject({}), readOnly: true };
+  if (name === PICTURES_GET) return { input: PicturesGetInput, readOnly: true };
   const def = calls[name];
   if (!def) throw new Error(`The MCP tool ${name} has no call.`);
   // The form on the wire, when it differs from the form the screens pass (files.upload, feedback.send).
@@ -182,7 +186,9 @@ function order(a: string, b: string): number {
 function build(name: McpToolName): ToolDef {
   const { input: callInput, readOnly } = inputOf(name);
   const takesStory = !readOnly && name !== 'story.start';
-  const input = takesStory ? callInput.extend({ storyId: StoryId.optional() }) : callInput;
+  // withPictures is an argument of the tool only (owner, 2026-10-21): run.ts takes it out before the call, and adds the picture data.
+  const withPictures = WITH_PICTURES_TOOLS.has(name) ? callInput.extend({ withPictures: WithPictures }) : callInput;
+  const input = takesStory ? withPictures.extend({ storyId: StoryId.optional() }) : withPictures;
   const { $schema: _dialect, ...schema } = z.toJSONSchema(input, { io: 'input', override: shortDates }) as Record<string, unknown>;
   const doc = TOOL_DOCS[name];
   return {

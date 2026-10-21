@@ -6,7 +6,7 @@ import { diffState, writeDiff } from '../data/save';
 import { tableOf } from '../data/tables';
 import { PROJECT_KEYS_SQL } from '../files/effects';
 import { INTENTS_SELECT_SQL } from '../files/intents';
-import { FEEDBACK_DOC_SQL, SETTINGS_SQL, USERS_SQL } from '../files/records';
+import { FEEDBACK_DOC_SQL, FILE_DOC_SQL, SETTINGS_SQL, USERS_SQL } from '../files/records';
 import type { OutboxRow } from './effects';
 import type { KeyRow } from './idempotency';
 import type { Db, Query } from './ports';
@@ -199,6 +199,11 @@ export function memoryData(office: State): MemoryData {
       if (text === USERS_SQL) return (values[0] as string[]).flatMap((id) => (tables.state.users[id] ? [{ doc: tables.state.users[id] }] : [])) as R[];
       if (text === FEEDBACK_DOC_SQL) {
         const doc = (tables.state.feedback ?? {})[String(values[0])];
+        return (doc ? [{ doc }] : []) as R[];
+      }
+      // One file record, which files.link reads before it signs (the cover of pictures.get, owner 2026-10-21).
+      if (text === FILE_DOC_SQL) {
+        const doc = tables.state.files[String(values[0])];
         return (doc ? [{ doc }] : []) as R[];
       }
       // The office settings row, which the hook of feedback.screenshot reads for the roles (role-rights).

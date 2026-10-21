@@ -125,6 +125,10 @@
     },
     "storyId": "cor_sample_022"
   },
+  "pictures.get": {
+    "kind": "projectTile",
+    "id": "prj_001"
+  },
   "projects.get": {
     "id": "prj_001"
   },

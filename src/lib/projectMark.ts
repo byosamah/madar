@@ -1,3 +1,4 @@
+import { screenGlow, type GlowLight } from './glow';
 import { HUES, projectHue, type Hue } from './projectColor';
 
 /**
@@ -100,12 +101,15 @@ export function formPath(form: Form, x: number, y: number, s: number): string {
 }
 
 /** The two soft lights behind the form: the project's own color and the mark's second light, placed from the id. */
-export function markGlow(id: string, mark: number): string {
+export function markLights(id: string, mark: number): GlowLight[] {
   const n = mixOf(id);
-  const light = (hue: Hue) => `color-mix(in srgb, var(--p-${hue}-fg) var(--avatar-glow), transparent)`;
   return [
-    `radial-gradient(75% 75% at ${20 + (n % 20)}% ${15 + ((n >>> 5) % 25)}%, ${light(projectHue(id))} 0%, transparent 100%)`,
-    `radial-gradient(70% 70% at ${85 - ((n >>> 10) % 20)}% ${90 - ((n >>> 15) % 25)}%, ${light(decodeMark(mark).light)} 0%, transparent 100%)`,
-    'var(--c-panel)',
-  ].join(', ');
+    { hue: projectHue(id), x: 20 + (n % 20), y: 15 + ((n >>> 5) % 25), size: 75, share: 1 },
+    { hue: decodeMark(mark).light, x: 85 - ((n >>> 10) % 20), y: 90 - ((n >>> 15) % 25), size: 70, share: 1 },
+  ];
+}
+
+/** The background of the project tile in the screens. */
+export function markGlow(id: string, mark: number): string {
+  return screenGlow(markLights(id, mark));
 }

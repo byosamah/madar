@@ -819,3 +819,21 @@ Owner: tasks and chat need notifications on the phone. These fixes serve the Hom
   a new id marks an entry as new again
 - [ ] Later, with the store app: the plan of 2026-10-20 (one code for both phones with Expo, the shared contract, a "phone" list for
   each call and screen, a lowest app version). Decide the Supabase exit first
+
+## Pictures for AI agents (owner, 2026-10-21)
+
+Owner request: agents read the pictures that their person sees (profile pictures and their glow, sub-company logos, the project
+tile and color, covers), so a report can look like Madar. Owner choices: picture data only on request (`withPictures: true`), and
+the cover from the small picture that Madar keeps (up to 960 px), as data when it is 200 KB or less, else a 10-minute link.
+
+- [x] One glow rule for the screens and the agents (`src/lib/glow.ts`, `markLights`); the screens give the same text as before
+- [x] The light-theme drawing for agents (`src/lib/pictureLook.ts`): person glow CSS, project color, project tile as an SVG
+- [x] The rows: `hasPicture` and `glow` (users.list), `hasLogo` (subCompanies.list), `look` (projects.list, projects.get,
+  reports.office); `withPictures` adds the data (users.list, subCompanies.list, reports.office with `subCompanyLogos`)
+- [x] `pictures.get` (no call of its own; it runs users.list, subCompanies.list, projects.get and files.link with their rights);
+  an MCP image block, and leak tests for a cover that points at a chat file
+- [x] TOOL_DOCS, INSTRUCTIONS (rule 6 names pictures; a Pictures paragraph; the upload note stays), `server/mcp/CLAUDE.md`, samples,
+  What's new 2026-10-23-72
+- [x] Gates: typecheck, `npm test` 8,214 passed (733 files), `npm run build`, `build:server`, `build:remote -- test`
+- [ ] Test copy from the branch `rb/mcp-pictures` (main stays free for a hotfix in the live week), then `test:db`, `test:it`, `test:mcp`
+- [ ] Production after the live week and the owner's OK: merge `rb/mcp-pictures` into main, `all.sh test`, then `all.sh production`
