@@ -41,7 +41,7 @@ function FocusPage({ data, onExit }: { data: TaskDetail; onExit: (done?: boolean
   const waiting = isWaiting(data);
   const canDone = data.canMove && !waiting && task.status !== 'done' && task.status !== 'in_review';
   // A helper may tick the checklist, as in the task panel (spec 5.1, audit PER-6).
-  const edit = data.viewerCan.edit || data.viewerCan.contribute;
+  const edit = data.viewerCan.contribute;
   // One clear state word when there is no Done: done, in review, waiting, or who finishes it (a helper sees the lead).
   const state = task.status === 'done' ? t('taskStatus.done')
     : task.status === 'in_review' ? t('taskStatus.in_review')

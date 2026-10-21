@@ -42,6 +42,8 @@ export function EditProjectSheet({ detail, open, onOpenChange }: { detail: Proje
   const toast = useToast();
   // Only the Admin corrects the code (owner, 2026-10-05). For everyone else the code is not in the form.
   const editCode = detail.viewerCan.editCode === true;
+  // The stage names are saved by stages.replace, which asks project.stages (role rights version 2).
+  const editStages = detail.viewerCan.editStages === true;
   // The codes of the office, so a corrected code that takes the series of another contract warns (feedback fbk_003).
   const projects = useCall('projects.list', { status: 'all' }, { enabled: editCode });
   const form = useProjectForm(valuesOf(detail), { editCode, project: detail.project, projects: projects.data?.map((summary) => summary.project) });
@@ -86,7 +88,7 @@ export function EditProjectSheet({ detail, open, onOpenChange }: { detail: Proje
       }, meta);
       const before = JSON.stringify(detail.stages.map((stage) => [stage.id, stage.name]));
       const after = JSON.stringify(v.stages.map((stage) => [stage.id ?? null, stage.name.trim()]));
-      if (before !== after) {
+      if (editStages && before !== after) {
         await api.call('stages.replace', {
           projectId: detail.project.id,
           stages: v.stages.map((stage) => {
@@ -118,7 +120,7 @@ export function EditProjectSheet({ detail, open, onOpenChange }: { detail: Proje
       )}
     >
       <form id="edit-project" noValidate autoComplete="off" onSubmit={submit} className="pt-2">
-        <ProjectFields form={form} mode="edit" editCode={editCode} />
+        <ProjectFields form={form} mode="edit" editCode={editCode} editStages={editStages} />
       </form>
     </Sheet>
   );

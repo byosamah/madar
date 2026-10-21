@@ -3,7 +3,7 @@ import { PlusIcon } from '../../../components/icons/animated/plus';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { User } from '../../../api/contract/entities';
-import { holdsAdminRights } from '../../../api/permissions';
+import { can, holdsAdminRights } from '../../../api/permissions';
 import { useUndoable } from '../../../app/actions';
 import { useLang } from '../../../app/lang';
 import { useByPersonName, usePersonName } from '../../../app/personName';
@@ -52,16 +52,20 @@ export function PeopleSection() {
   const people = { users: Object.fromEntries((users.data ?? []).map((user) => [user.id, user])) };
   // Management cannot change an Admin, so an Admin's row has no actions for it.
   const viewerIsAdmin = session.data?.authority.systemRole === 'admin';
+  // Role rights version 2: each button asks the switch of its own power. The section opens for any of the five.
+  const may = (action: 'people.invite' | 'people.change' | 'people.turnOff' | 'people.remove') => session.data !== undefined && can(session.data.authority, action);
   // An agent acts with the rights of its person, so the agent of an Admin holds Admin rights too. The screen asks the API rule
   // itself (audit 2026-10-03, SHL-9).
   return (
     <section aria-labelledby="admin-people" className="surface flex flex-col gap-3 rounded-card p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="admin-people" className="text-headline">{t('admin.people')}</h2>
-        <Button onClick={() => setAdding(true)}>
-          <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
-          {t('admin.addPerson')}
-        </Button>
+        {may('people.invite') && (
+          <Button onClick={() => setAdding(true)}>
+            <AnimatedIcon icon={PlusIcon} size={16} aria-hidden />
+            {t('admin.addPerson')}
+          </Button>
+        )}
       </div>
       <LoadFailed query={users} />
       <ul className="flex flex-col">
@@ -86,16 +90,16 @@ export function PeopleSection() {
             {(viewerIsAdmin || !holdsAdminRights(people, user)) && <Menu
               label={t('admin.actions', { name: nameOf(user) })}
               items={[
-                { label: t('admin.edit'), onSelect: () => setEditing(user) },
+                { label: t('admin.edit'), onSelect: () => setEditing(user), hidden: !may('people.change') },
                 {
                   label: t('people.resend'),
                   onSelect: () => resend.mutate({ id: user.id }, { onSuccess: () => toast.show({ message: t('people.onItsWay', { name: nameOf(user) }) }) }),
-                  hidden: !user.active || !invited.has(user.id),
+                  hidden: !user.active || !invited.has(user.id) || !may('people.invite'),
                 },
-                { label: t('admin.deactivate'), onSelect: () => deactivate.ask(user), hidden: !user.active || user.id === me, destructive: true },
+                { label: t('admin.deactivate'), onSelect: () => deactivate.ask(user), hidden: !user.active || user.id === me || !may('people.turnOff'), destructive: true },
                 // An agent comes back only while its person is active, as the API asks.
-                { label: t('admin.reactivate'), onSelect: () => reactivate.mutate({ id: user.id }), hidden: user.active || (user.kind === 'agent' && !people.users[user.ownerId ?? '']?.active) },
-                { label: t('admin.remove'), onSelect: () => remove.ask(user), hidden: user.active || user.id === me, destructive: true },
+                { label: t('admin.reactivate'), onSelect: () => reactivate.mutate({ id: user.id }), hidden: user.active || (user.kind === 'agent' && !people.users[user.ownerId ?? '']?.active) || !may('people.turnOff') },
+                { label: t('admin.remove'), onSelect: () => remove.ask(user), hidden: user.active || user.id === me || !may('people.remove'), destructive: true },
               ]}
             />}
           </li>

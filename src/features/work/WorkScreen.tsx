@@ -5,6 +5,7 @@ import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../components/icons/animated/plus';
 import { ScreenControls } from '../../components/ScreenControls';
 import { ScreenTitle } from '../../components/ScreenTitle';
+import { useRight } from '../../app/useRight';
 import { NewOfficeTaskSheet } from './NewOfficeTaskSheet';
 import { WorkSwitch } from './WorkSwitch';
 import { WorkTasks } from './WorkTasks';
@@ -17,22 +18,24 @@ import { WorkTasks } from './WorkTasks';
 export function WorkScreen() {
   const { t } = useTranslation();
   const [adding, setAdding] = useState(false);
+  // "New office to-do" needs the office switch of task.add (role rights version 2).
+  const mayAdd = useRight('task.add', { office: true });
   return (
     <div className="flex flex-col">
       <ScreenTitle
         title={t('screens.myWork')}
-        action={(
+        action={mayAdd ? (
           <Button variant="primary" className="shrink-0" onClick={() => setAdding(true)}>
             <AnimatedIcon icon={PlusIcon} size={18} aria-hidden />
             {t('office.new')}
           </Button>
-        )}
+        ) : undefined}
       />
       <ScreenControls>
         <WorkSwitch />
       </ScreenControls>
       <WorkTasks />
-      <NewOfficeTaskSheet open={adding} onOpenChange={setAdding} />
+      {mayAdd && <NewOfficeTaskSheet open={adding} onOpenChange={setAdding} />}
     </div>
   );
 }

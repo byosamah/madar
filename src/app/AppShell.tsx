@@ -12,6 +12,7 @@ import { PicturesProvider } from './pictures';
 import { SubCompaniesProvider } from './subCompanies';
 import { PushSync } from './remote/PushSync';
 import { StorageBanner } from './StorageBanner';
+import { useRight } from './useRight';
 import { BellButton, SearchButton, TabPill } from './TabPill';
 import { AnimatedIcon } from '../components/icons/AnimatedIcon';
 import { ChevronLeftIcon } from '../components/icons/animated/chevron-left';
@@ -108,7 +109,10 @@ function Shell() {
   // person before, for example the project update box (audit 2026-10-03, V-22).
   const personTurn = usePersonTurn();
 
+  // Without search.use the shortcut does nothing (role rights version 2). Before the session arrives it works, as the icon shows.
+  const mayFind = useRight('search.use', undefined, true);
   useEffect(() => {
+    if (!mayFind) return;
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
@@ -117,7 +121,7 @@ function Shell() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [navigate]);
+  }, [navigate, mayFind]);
 
   return (
     <div className="min-h-dvh text-ink">

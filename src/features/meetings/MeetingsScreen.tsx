@@ -18,6 +18,7 @@ import { groupMeetings, type MeetingGroup } from './groups';
 import { MeetingForm } from './MeetingForm';
 import { MeetingListRow } from './MeetingRow';
 import { MeetingSheet } from './MeetingSheet';
+import { usePlanRights } from './planRights';
 
 /** The Meetings view looks 7 days back and 60 days ahead (fbk_022). */
 const DAYS_BACK = 7;
@@ -85,16 +86,18 @@ export function MeetingsScreen() {
   const open = useStableHandler((id: string) => setParams((current) => openMeeting(current, id)));
   const close = useCallback(() => setParams((current) => closeMeeting(current)), [setParams]);
   const meetingId = meetingParam(params.get('meeting'));
+  // "New meeting" shows when the person may plan at least one kind of meeting (role rights version 2).
+  const mayPlan = usePlanRights().any;
   return (
     <div className="flex flex-col">
       <ScreenTitle
         title={t('screens.myWork')}
-        action={(
+        action={mayPlan ? (
           <Button variant="primary" className="shrink-0" onClick={() => setPlanning(true)}>
             <AnimatedIcon icon={PlusIcon} size={18} aria-hidden />
             {t('meetings.new')}
           </Button>
-        )}
+        ) : undefined}
       />
       <ScreenControls>
         <WorkSwitch />
@@ -102,7 +105,7 @@ export function MeetingsScreen() {
       {list.error && !list.data && <LoadFailed error={list.error} onRetry={() => void list.refetch()} />}
       {list.data && <MeetingsBody rows={list.data} today={today} onOpen={open} />}
       {meetingId && <MeetingSheet key={meetingId} meetingId={meetingId} onClose={close} />}
-      <MeetingForm open={planning} onOpenChange={setPlanning} />
+      {mayPlan && <MeetingForm open={planning} onOpenChange={setPlanning} />}
     </div>
   );
 }

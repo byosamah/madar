@@ -10,6 +10,7 @@ import { useUndoable } from '../../app/actions';
 import { usePageVisible } from '../../app/usePageVisible';
 import { usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
+import { useRight } from '../../app/useRight';
 import { useStableHandler } from '../../app/useStableHandler';
 import { Avatar } from '../../components/Avatar';
 import { EmptyState } from '../../components/EmptyState';
@@ -82,11 +83,13 @@ function GroupMenu({ id, archived, unread, title, onPick, onArchive, onMarkUnrea
   onMarkUnread: (id: string) => void; extra: MenuItem[];
 }) {
   const { t } = useTranslation();
+  // Rename needs chat.groupChange (role rights version 2).
+  const mayChange = useRight('chat.groupChange');
   return (
     <Menu
       label={t('chat.optionsFor', { title })}
       items={[
-        { label: t('chat.rename'), onSelect: () => onPick('rename') },
+        ...(mayChange ? [{ label: t('chat.rename'), onSelect: () => onPick('rename') }] : []),
         ...chatMenuItems(t, { id, archived, unread, onArchive, onMarkUnread }),
         ...extra,
       ]}
@@ -115,7 +118,11 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   const meId = session.data?.authority.id ?? '';
   // The message that the next send answers (chat design 2026-10-19, item 10). A closed chat takes no reply.
   const [replyTo, setReplyTo] = useState<ReplyRef | null>(null);
-  const canReply = data !== undefined && !data.chat.personLeft;
+  // Role rights version 2: a direct chat and a group take messages with chat.direct. A project chat opens only for a person who holds
+  // chat.project there, so that person may write in it.
+  const mayDirect = useRight('chat.direct');
+  const canSend = data?.chat.kind === 'project' || mayDirect;
+  const canReply = data !== undefined && !data.chat.personLeft && canSend;
   // The message in edit (item 11). The box takes the focus back when the edit ends.
   const [editingId, setEditingId] = useState<string | null>(null);
   const endEdit = useStableHandler(() => {
@@ -146,16 +153,20 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   });
   // One stable object for all the bubbles (chat design 2026-10-19, item 9): a bubble renders again only when its own Bubble changes.
   const actions = useMemo<BubbleActions>(() => ({
-    menuLabel: t('chat.messageActions'), canReact: true, meId, people,
+    menuLabel: t('chat.messageActions'), canReact: canSend, meId, people,
     react: (bubble, emoji) => react.mutate({ messageId: bubble.id, emoji }),
     canReply, reply: (bubble) => setReplyTo(replyRefOfBubble(bubble)),
     edit: (bubble) => setEditingId(bubble.id),
     remove: (bubble) => deleteMessage(bubble.id),
     saveEdit: (bubble, body) => editMessage.mutate({ id: bubble.id, body }, { onSuccess: endEdit }),
     endEdit, retry: retrySend, focusMessage,
-  }), [t, meId, people, canReply, react.mutate, editMessage.mutate, deleteMessage, endEdit, retrySend, focusMessage]);
+  }), [t, meId, people, canSend, canReply, react.mutate, editMessage.mutate, deleteMessage, endEdit, retrySend, focusMessage]);
   const me = session.data ? cardOfUser(session.data.authority) : undefined;
-  const messageBubbles = useBubbles(messages, (view) => ({ ...bubbleOfMessage(view), ...(outbox.claimed.has(view.message.id) ? { fromOutbox: true as const } : {}) }));
+  const messageBubbles = useBubbles(
+    messages,
+    (view) => ({ ...bubbleOfMessage(view), ...(canSend ? {} : { canEdit: false }), ...(outbox.claimed.has(view.message.id) ? { fromOutbox: true as const } : {}) }),
+    canSend ? undefined : 'read',
+  );
   const lineBubbles = useBubbles(data?.lines ?? NO_LINES, bubbleOfLine);
   const unsentBubbles = useBubbles(me ? outbox.unsent : NO_UNSENT, (entry) => bubbleOfOutgoing(entry, me!), meId);
   // The quiet lines of a group go between the messages by time. A message comes before a line of the same moment. A message that waits
@@ -239,7 +250,7 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
         </EditingContext.Provider>
       </BubbleActionsContext.Provider>
       {newer && <NewerMessages onShow={showNewest} />}
-      {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{isGroup ? t('chat.groupAlone') : t('chat.closed')}</p> : (
+      {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{isGroup ? t('chat.groupAlone') : t('chat.closed')}</p> : !canSend ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{t('chat.cannotSend')}</p> : (
         <Composer
           id={id}
           people={data.people}
@@ -298,7 +309,8 @@ export function TaskPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   const me = session.data?.authority.id;
   const [replyTo, setReplyTo] = useState<ReplyRef | null>(null);
   const where = task.data?.project ?? null;
-  const canPost = task.data ? (where ? project.data?.viewerCan.post ?? false : task.data.viewerCan.contribute) : false;
+  // A comment needs comment.create (role rights version 2): the flag of the to-do covers a project to-do and an office to-do.
+  const canPost = task.data ? task.data.viewerCan.comment === true : false;
   // The people a name in a comment can point to: the team of the project, or the people of an office task (owner, 2026-10-06).
   const people = useMemo(() => {
     if (!task.data) return NO_PEOPLE;
@@ -385,7 +397,7 @@ export function TaskPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
           id={id}
           people={people}
           pending={false}
-          upload={{ projectId: where?.id ?? null, stageId: task.data.task.stageId, taskId: id }}
+          upload={task.data.viewerCan.upload ? { projectId: where?.id ?? null, stageId: task.data.task.stageId, taskId: id } : undefined}
           replyTo={replyTo}
           onCancelReply={() => setReplyTo(null)}
           onEditLast={editLast}

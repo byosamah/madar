@@ -35,7 +35,7 @@ export function useCardMenu(summary: ProjectSummary): MenuItem[] {
   const href = useHref(path);
   return [
     { label: t('projects.open'), onSelect: () => navigate(path) },
-    { label: t('projects.postUpdate'), onSelect: () => navigate(`${path}?compose=1`), hidden: !viewerCan.post },
+    { label: t('projects.postUpdate'), onSelect: () => navigate(`${path}?compose=1`), hidden: !viewerCan.postUpdate },
     { label: t('projects.copyLink'), onSelect: () => copyLink(href, toast.show, t) },
     {
       label: t('projects.archive'),

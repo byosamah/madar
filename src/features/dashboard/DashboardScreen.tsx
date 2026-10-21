@@ -4,6 +4,7 @@ import { errorMessage } from '../../app/errors';
 import { useLang } from '../../app/lang';
 import { usePersonName } from '../../app/personName';
 import { useCall } from '../../app/runtime';
+import { useRight } from '../../app/useRight';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { FilterButton } from '../../components/FilterButton';
@@ -42,6 +43,8 @@ export function DashboardScreen() {
   const { t } = useTranslation();
   const lang = useLang();
   const nameOf = usePersonName();
+  // The Workload block needs workload.view (role rights version 2). dashboard.get gives empty rows without it.
+  const mayWorkload = useRight('workload.view');
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const status = oneOf(params.get('status'), STATUSES, 'active');
@@ -165,7 +168,7 @@ export function DashboardScreen() {
             {section === 'people' && (
               <div className="flex flex-col gap-4">
                 <ReviewWaits view={view} />
-                <Workload view={view} filters={filters} />
+                {mayWorkload && <Workload view={view} filters={filters} />}
               </div>
             )}
             {section === 'schedule' && scheduled.error && <EmptyState title={t('dashboard.schedule')} body={errorMessage(scheduled.error, t)} action={<Button onClick={() => void scheduled.refetch()}>{t('common.retry')}</Button>} />}

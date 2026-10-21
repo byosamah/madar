@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { emptyReactions } from '../../api/contract/entities';
 import type { State } from '../../api/store';
 import { renderApp } from '../../test/render';
@@ -33,7 +33,12 @@ describe('a reason in the task thread of the Inbox (fbk_027)', () => {
     const setup = withThread((state, taskId) => line(taskId, 'cmt_902', 'The client sent the survey late', '2026-09-30T08:00:00.000+03:00', { dates: MOVE })(state));
     const { store } = await renderApp('/inbox/' + (await taskIdOf(setup)), setup);
     expect(store.state.comments.cmt_902).toBeDefined();
-    const sentence = await screen.findByText(/ changed the due date: .*The client sent the survey late/);
+    // The chat list shows the same short line as its preview, so the test takes the line of the thread: the one in a centered row.
+    const sentence = await waitFor(() => {
+      const found = screen.getAllByText(/ changed the due date: .*The client sent the survey late/).find((node) => node.closest('li')?.classList.contains('self-center'));
+      expect(found).toBeDefined();
+      return found!;
+    });
     const row = sentence.closest('li') as HTMLElement;
     // A line has the grey centered look of a group line: no bubble, no clock, no sender name.
     expect(row).toHaveClass('self-center');

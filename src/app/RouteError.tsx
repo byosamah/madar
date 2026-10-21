@@ -30,8 +30,8 @@ function PageProblem({ missing, framed = false }: { missing: boolean; framed?: b
 }
 
 /** A link that matches no screen. It shows inside the shell, so the tabs stay. */
-export function NotFound() {
-  return <PageProblem missing />;
+export function NotFound({ framed = false }: { framed?: boolean } = {}) {
+  return <PageProblem missing framed={framed} />;
 }
 
 /** The error page of a route: a screen that broke while it drew or loaded. */

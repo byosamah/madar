@@ -7,6 +7,7 @@ import type { TaskRow } from '../../api/contract/views';
 import { useLang } from '../../app/lang';
 import { usePersonName } from '../../app/personName';
 import { useCall } from '../../app/runtime';
+import { useRight } from '../../app/useRight';
 import { useScope } from '../../app/useScope';
 import { useStableHandler } from '../../app/useStableHandler';
 import { EmptyState } from '../../components/EmptyState';
@@ -30,6 +31,8 @@ function Subtitle({ text }: { text: string }) {
 /** The way back from a list the Dashboard opened. */
 function BackToDashboard() {
   const { t } = useTranslation();
+  // No link to a screen the person may not open (role rights version 2).
+  if (!useRight('dashboard.view')) return null;
   return <Link to="/dashboard" className="flex min-h-11 items-center text-subheadline font-semibold text-link">{t('taskList.backToDashboard')}</Link>;
 }
 

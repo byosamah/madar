@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router';
 import type { UserCard } from '../../api/contract/views';
 import { useByPersonName, usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
+import { useRight } from '../../app/useRight';
 import { useToast } from '../../app/toasts';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
@@ -30,6 +31,8 @@ function PeopleSheet({ id, people, me, makerId, onMode, onClose }: {
   const toast = useToast();
   const update = useAction('chats.updateGroup');
   const isMaker = me !== undefined && me.id === makerId;
+  // Add people needs chat.groupChange (role rights version 2). Remove and Leave keep the rule of the maker.
+  const mayChange = useRight('chat.groupChange');
   const members: Array<Me | UserCard> = [...(me ? [me] : []), ...people];
   const remove = (person: UserCard) => {
     update.mutate({ conversationId: id, remove: [person.id] }, {
@@ -44,7 +47,7 @@ function PeopleSheet({ id, people, me, makerId, onMode, onClose }: {
       description={t('chat.people', { count: members.length })}
       footer={<Button variant="destructive" onClick={() => onMode('leave')}>{t('chat.leaveGroup')}</Button>}
     >
-      <Button variant="plain" onClick={() => onMode('add')}>{t('chat.addPeople')}</Button>
+      {mayChange && <Button variant="plain" onClick={() => onMode('add')}>{t('chat.addPeople')}</Button>}
       <ul className="flex flex-col">
         {members.map((person) => {
           const mine = person.id === me?.id;

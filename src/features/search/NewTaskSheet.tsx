@@ -22,7 +22,7 @@ export function NewTaskSheet({ open, onOpenChange }: { open: boolean; onOpenChan
   const toast = useToast();
   const navigate = useNavigate();
   const projects = useCall('projects.list', { status: 'active', sort: 'name' });
-  const options = (projects.data ?? []).filter((summary) => summary.viewerCan.createTaskForSelf);
+  const options = (projects.data ?? []).filter((summary) => summary.viewerCan.addTask);
   const [projectId, setProjectId] = useState('');
   const [title, setTitle] = useState('');
   const [stageId, setStageId] = useState('');

@@ -7,6 +7,8 @@ speaker, so write it as natural Arabic, not as a word-for-word copy of the Engli
 - Base words: `en.json` and `ar.json`.
 - Track files: `real/<track>.en.json` and `real/<track>.ar.json`, one pair for each build track (agents, auth, core,
   files, h, mail, notices, p, people, q, s, dash, office, fbnotices, fbadmin, push, teama, meetings, rr2sheet).
+  `rr2screens` holds the few words of the screens track of role rights version 2 (2026-10-21): `agents.off` (Settings, Agents without `ai.connect`),
+  `errors.reasons.ai_off` (the consent screen) and `chat.cannotSend` (a chat without `chat.direct`).
   `rr2sheet` holds the words of the role sheet of role rights version 2 (2026-10-21): the key tree `roleRights` (13 sections, the label and the line
   of each of the 84 powers, the scope words, the sheet texts, the lines of a role in the person sheet) and the What's new entry `2026-10-23-73`.
   The English labels and lines come word for word from the catalog JSON; the Arabic labels too; the Arabic lines are written for the sheet.

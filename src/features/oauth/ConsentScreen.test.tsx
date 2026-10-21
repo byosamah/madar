@@ -238,3 +238,20 @@ describe('the agent consent screen (plan 5.6; task G4)', () => {
     }
   });
 });
+
+describe('the consent screen for a role without Connect AI assistants (role rights version 2)', () => {
+  it('shows the words of the ai_off refusal and takes Approve away, with Deny left', async () => {
+    const { port } = await open({ tools: tools({ record: () => Promise.reject(new ApiError('forbidden', 'Off.', { reason: 'ai_off', right: 'ai.connect' })) }) });
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('The Admin turned off AI assistants for your role.');
+    expect(port.approve).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Deny' })).toBeInTheDocument();
+  });
+
+  it('shows the same words in Arabic', async () => {
+    await open({ language: 'ar', tools: tools({ record: () => Promise.reject(new ApiError('forbidden', 'Off.', { reason: 'ai_off' })) }) });
+    await userEvent.click(await screen.findByRole('button', { name: 'وافق' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('أوقف المدير المساعدين الذكيين لدورك.');
+  });
+});

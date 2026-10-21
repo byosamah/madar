@@ -7,6 +7,7 @@ import type { Client, GeoPoint, ProjectTemplate, SubCompany, User } from '../../
 import { useLang } from '../../app/lang';
 import { useByPersonName, usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
+import { useRight } from '../../app/useRight';
 import { useToast } from '../../app/toasts';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
@@ -75,6 +76,8 @@ function ClientPicker({ value, onChange, clients }: { value: string; onChange: (
   const toast = useToast();
   const lang = useLang();
   const [adding, setAdding] = useState(false);
+  // "New client" needs client.create (role rights version 2).
+  const mayAddClient = useRight('client.create');
   const form = useClientForm(emptyClientDraft());
   const create = useAction('clients.create', {
     onSuccess: (client) => {
@@ -96,9 +99,9 @@ function ClientPicker({ value, onChange, clients }: { value: string; onChange: (
           <option value="">{t('projectForm.noClient')}</option>
           {clients.map((client) => <option key={client.id} value={client.id}>{clientName(client, lang)}</option>)}
         </SelectField>
-        <Button aria-expanded={adding} onClick={() => setAdding((open) => !open)}>{t('projectForm.newClient')}</Button>
+        {mayAddClient && <Button aria-expanded={adding} onClick={() => setAdding((open) => !open)}>{t('projectForm.newClient')}</Button>}
       </div>
-      {adding && (
+      {adding && mayAddClient && (
         // An outline, not a fill: the grey fields on a grey box looked faint (2026-10-05). The same look as the template cards.
         <div role="group" aria-label={t('projectForm.newClient')} className="flex flex-col gap-3 rounded-2xl border border-separator p-3">
           <ClientForm form={form} idPrefix="client" clients={clients} onEnter={add} />
@@ -222,8 +225,8 @@ function TeamPicker({ people, value, onChange, locked }: { people: User[]; value
  * takes the place of the stage list, and the start date becomes required.
  */
 export function ProjectFields({
-  form, mode, editCode = false, templates = [],
-}: { form: ProjectForm; mode: 'create' | 'edit'; editCode?: boolean; templates?: readonly ProjectTemplate[] }) {
+  form, mode, editCode = false, editStages = true, templates = [],
+}: { form: ProjectForm; mode: 'create' | 'edit'; editCode?: boolean; editStages?: boolean; templates?: readonly ProjectTemplate[] }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const byName = useByPersonName();
@@ -371,7 +374,7 @@ export function ProjectFields({
       </div>
       {template
         ? <TemplateDetails form={form} template={template} people={humans} />
-        : <StageList stages={values.stages} onChange={(stages) => set('stages', stages)} onBlur={() => touch('stages')} error={error('stages')} />}
+        : (mode === 'create' || editStages) && <StageList stages={values.stages} onChange={(stages) => set('stages', stages)} onBlur={() => touch('stages')} error={error('stages')} />}
       {mode === 'create' && <TeamPicker people={people} value={values.teamIds} onChange={(ids) => set('teamIds', ids)} locked={rolePeople} />}
       <TextField
         id="project-folder"

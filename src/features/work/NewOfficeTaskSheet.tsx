@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router';
 import { useByPersonName, usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
+import { useRight } from '../../app/useRight';
 import { Button } from '../../components/Button';
 import { DateField } from '../../components/DateField';
 import { SelectField, TextField } from '../../components/Fields';
@@ -23,7 +24,9 @@ export function NewOfficeTaskSheet({ open, onOpenChange }: { open: boolean; onOp
   const [, setParams] = useSearchParams();
   const me = useCall('session.get', {}).data?.authority.id ?? '';
   const users = useCall('users.list', {});
-  const people = (users.data ?? []).filter((user) => user.kind === 'human' && user.active).sort(byName);
+  // Naming another person as the lead needs task.assign (role rights version 2). Without it the person leads the to-do.
+  const mayAssign = useRight('task.assign');
+  const people = (users.data ?? []).filter((user) => user.kind === 'human' && user.active && (mayAssign || user.id === me)).sort(byName);
   const [title, setTitle] = useState('');
   const [lead, setLead] = useState('');
   // '' is no date, as DateField gives it.

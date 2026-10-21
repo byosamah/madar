@@ -3,15 +3,17 @@
  * at its start, the track at its end. `state` is true, false, or 'mixed' (the All switch of a section where some switches are on).
  * The button carries the accessible name; the word is only for the eye. The track is plain: green when on, grey when off, grey with
  * the knob in the middle when mixed. No tinted pill (calm design rules).
+ * `all` marks the All switch of a section. It is a checkbox (role="checkbox"), because ARIA allows aria-checked="mixed" on a checkbox and
+ * not on a switch. It looks the same as the other switches (role rights version 2, screens track).
  */
-export function RoleToggle({ id, name, word, state, describedBy, onChange }: {
-  id: string; name: string; word?: string; state: boolean | 'mixed'; describedBy?: string; onChange: (on: boolean) => void;
+export function RoleToggle({ id, name, word, state, describedBy, all = false, onChange }: {
+  id: string; name: string; word?: string; state: boolean | 'mixed'; describedBy?: string; all?: boolean; onChange: (on: boolean) => void;
 }) {
   return (
     <button
       id={id}
       type="button"
-      role="switch"
+      role={all ? 'checkbox' : 'switch'}
       aria-checked={state}
       aria-label={name}
       aria-describedby={describedBy}

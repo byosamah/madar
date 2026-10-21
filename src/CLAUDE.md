@@ -150,7 +150,8 @@ any screen work.
 - **The Files & Links tab (owner, 2026-10-19).** The project tab `?tab=files` keeps its key and shows "Files & Links". The links of the project
   (`ProjectLinks`, with the model folder) sit above the files. The About panel does not show them. One "Add" menu button (`Menu` with
   `text` and `align="start"`) offers "Upload a file" and "Add a link"; "Add a link" opens the same `LinkSheet` that edits a link. Who sees
-  the button is `viewerCan.post`, for both choices. With no file and no link the tab shows one empty state, and the Add button sits in it
+  the button is `viewerCan.upload` for "Upload a file" and `viewerCan.links` for "Add a link" (the button shows when one of them holds; the
+  drop zone, the stage pick and "Received from the client" need `upload`, and the last also needs `deliver`). With no file and no link the tab shows one empty state, and the Add button sits in it
   (never twice). A link with the kind Location still sets the pin, as above.
 - **One gate for Nominatim.** `src/lib/nominatimGate.ts` (`gated`) runs every request to Nominatim one at a time and at least 1 s after the
   last start, for the place search and the address lookup together. No header and no referrer of our own (`Referrer-Policy: no-referrer`).
@@ -189,6 +190,22 @@ any screen work.
   a new socket and a reload of every list when no pong comes in 10 s. A build with `VITE_MADAR_AUTH=madar` has no Supabase
   client, so it always opens the socket (`liveKindOf`). Every other build keeps Supabase Realtime (`app/remote/channel.ts`).
 - A screen never checks a right by itself. It asks `can()` (see `api/CLAUDE.md`).
+- **Hide every control that the call would refuse (role rights version 2, 2026-10-21).** A control of a project or a to-do reads a `viewerCan`
+  flag of that project or to-do (one flag for each gate, `contract/views.ts`). A control with no project or to-do reads the rights of the
+  session: `useRight(action, resource?, whileLoading?)` and `useCan()` (`app/useRight.tsx`) call `can()` on `session.get -> authority`, which
+  carries the held switches (`officeRights`). Before the session arrives a button is hidden (fail closed); a tab of the tab bar shows
+  (`whileLoading` true), so the bar does not jump. `RequireRight` guards a route: without the switch the address shows the page of a wrong
+  link (`NotFound`, with the way Home) and the screen never mounts. `routes.tsx` names the switch of a route in `right`: `/dashboard`,
+  `/dashboard/meeting` and `/dashboard/space` need `dashboard.view`, `/search` needs `search.use`. `NAV` items carry `right`, so the tab bar
+  has four tabs without `dashboard.view`. The Search icon, the Ctrl+K shortcut, the phone top bar and the Search commands follow
+  `search.use`, `project.create`, `task.add` and `dashboard.view`. A link to the Dashboard (the lists behind its numbers, the team meeting
+  sheet, the entries of What's new) is left out without `dashboard.view`. Without `workload.view` the Workload block is left out. A control
+  that a screen shows with a person's choice (the lead of a new to-do, the one who replies, the people of a meeting) offers only the person
+  when `task.assign` is off.
+  Without `ai.connect`, Settings, Agents shows one line ("The Admin turned off AI assistants for your role.", `agents.off`) in place of the
+  intro, and keeps the list of the person's agents with the Remove button. The consent screen shows the same words when the approval
+  answers `forbidden` with the reason `ai_off` (`errors.reasons.ai_off`) and then takes Approve away, as it does for a removed app. The new
+  words of this work are in `i18n/real/rr2screens.*.json`.
 - Theme: a new person starts light (`defaultPreferences`). The screens before sign-in take the theme saved on the device
   (`madar.theme`, written at each sign-in by `app/AppearanceSync.tsx`), else light. The sample office keeps System.
 
@@ -282,7 +299,7 @@ any screen work.
   placed again): it goes where Add task would put it in the new stage. The list stays grouped by stage: the moved task goes after the last task of
   its new stage. `fresh` lives in the draft only; `draftInput` and `draftOf` never carry it.
 - Apply a template (owner, 2026-10-19, fbk_020): "Apply a template" in the "More actions" menu of the project header
-  (`features/project/ApplyTemplateSheet.tsx`), for `viewerCan.edit` (the leader and the Admin) on an active or paused project. Step 1 is a
+  (`features/project/ApplyTemplateSheet.tsx`), for `viewerCan.applyTemplate` (`project.template`) on an active or paused project. Step 1 is a
   list of the office templates (name, stages, tasks); one press opens step 2, `LinkProjectSheet` in `mode="apply"` over it (same matching,
   "Add them to the project" chosen, main button "Apply template", Undo toast). A project that follows a template shows one line and a confirm
   tick before the list works; the new template then replaces the link (`replace`). The sheet says the lead rule and the dates of the new
@@ -336,7 +353,7 @@ any screen work.
   The rights are 112 switches in 13 sections (role rights version 2, owner 2026-10-21; the list is `api/rightsCatalog.ts`, a plain copy of
   `docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json`; `RIGHT_SECTIONS` in `permissions.ts` gives the sections). The
   role sheet (`RoleSheet.tsx`, with `RoleRights.tsx` and `roleSheetLogic.ts`) shows the 13 sections of the catalog, folded, one open at a time.
-  The heading row holds the name, the count ("4 of 9 on") and an All switch (on, off or mixed). A power row holds the label, the line and one
+  The heading row holds the name, the count ("4 of 9 on") and an All control (on, off or mixed; `role="checkbox"` with `aria-checked="mixed"`, because ARIA allows mixed on a checkbox and not on a switch; it looks like the other switches). A power row holds the label, the line and one
   small switch for each scope (`RoleToggle.tsx`, 44 px press area), or one switch. A switch brings the switches it needs; turning a need off
   turns its dependants off (`withRight`, `withSection`). The sheet holds the list of held ids and saves it with one button: the ids that are
   not basic go in `rights`, the basic ids that are off go in `off` (`saveShape`). "Holds 64 of 112" is live, "Back to the standard list" gives
@@ -560,7 +577,7 @@ any screen work.
   shows one quiet line under the time: "Repeats every week", with ", until <day>" when the rule has a last day. Tests: `ScopeSheet.test.tsx`, `MeetingForm.test.tsx`,
   `MeetingSheet.test.tsx` (`withSeries` in `testMeetings.ts`).
 - Home: `home/MeetingsCard.tsx` ("Meetings today", only my meetings that are on or still to come, three rows). Project Overview:
-  `project/overview/ProjectMeetings.tsx` (the next two meetings; the button "Plan a meeting" for `viewerCan.post` on an open project). Both read
+  `project/overview/ProjectMeetings.tsx` (the next two meetings; the button "Plan a meeting" for `viewerCan.planMeeting` on an open project). Both read
   through `meetings/readInputs.ts`, and `tabReads` (`project/tabs.tsx`, now with `today`) prefetches the panel read with the same input.
 - `public/privacy.html` is the public privacy page at `/privacy` (English and Arabic, no script, no outside file). The Google Auth Platform
   needs its link to publish the app. It names the one calendar scope and says Madar writes only the title, the time and the place: a change

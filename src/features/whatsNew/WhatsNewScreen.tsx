@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import { can } from '../../api/permissions';
+import { can, type Action } from '../../api/permissions';
 import { useLang } from '../../app/lang';
 import { useCall } from '../../app/runtime';
 import { ScreenTitle } from '../../components/ScreenTitle';
@@ -19,6 +19,9 @@ function groupByDay(entries: readonly WhatsNewEntry[]): { day: string; entries: 
   }
   return groups;
 }
+
+/** The switch that a screen needs. An entry keeps its news, and drops its link "Open" for a person without the switch. */
+const LINK_RIGHTS: readonly (readonly [string, Action])[] = [['/dashboard', 'dashboard.view'], ['/search', 'search.use']];
 
 /**
  * What's new (fbk_018): the changes of each release, in plain words for the team. The page shows a person only the entries that the
@@ -60,7 +63,7 @@ export function WhatsNewScreen() {
                     {isNew && <span className="text-footnote font-medium text-ink-2">{t('whatsNew.newMark')}</span>}
                   </h3>
                   <p className="text-body text-ink-2">{t(`whatsNew.items.${entry.id}.body`)}</p>
-                  {entry.to && (
+                  {entry.to && LINK_RIGHTS.every(([prefix, right]) => !entry.to!.startsWith(prefix) || (session !== undefined && can(session.authority, right))) && (
                     <Link to={entry.to} aria-label={t('whatsNew.openItem', { title })} className="pressable -my-2 self-start py-2 text-subheadline font-medium text-link hover:underline">
                       {t('whatsNew.open')}
                     </Link>

@@ -81,9 +81,9 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014; 112 switches sinc
     expect(SHEET_SECTIONS).toHaveLength(13);
     const sections = within(sheet).getAllByRole('region').filter((region) => region.getAttribute('aria-labelledby')?.startsWith('role-section-'));
     expect(sections).toHaveLength(13);
-    // Folded: the headings and the 13 All switches show, and no power switch.
-    expect(within(sheet).getAllByRole('switch')).toHaveLength(13);
-    expect(within(sheet).queryByRole('switch', { name: 'Create projects' })).toBeNull();
+    // Folded: the headings and the 13 All checkboxes show, and no power switch.
+    expect(within(sheet).getAllByRole('checkbox')).toHaveLength(13);
+    expect(within(sheet).queryByRole('switch')).toBeNull();
     // The main button stays the only primary action.
     expect(within(sheet).getByRole('button', { name: 'Save role' })).toBeInTheDocument();
   });
@@ -142,6 +142,18 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014; 112 switches sinc
   });
 
   describe('the All switch', () => {
+    // ARIA allows aria-checked="mixed" on a checkbox and not on a switch, so the All control is a checkbox (role rights version 2).
+    it('is a checkbox that reads mixed, and a power row stays a switch', async () => {
+      const { sheet } = await openSheet('Cashier');
+      const all = allSwitch(sheet, 'projects');
+      expect(all).toHaveAttribute('role', 'checkbox');
+      expect(all).toHaveAttribute('aria-checked', 'mixed');
+      await userEvent.click(all);
+      await userEvent.click(within(sheet).getByRole('button', { name: /^Projects/ }));
+      expect(within(sheet).getAllByRole('switch').length).toBeGreaterThan(0);
+      expect(within(sheet).getAllByRole('checkbox', { checked: true }).length).toBeGreaterThan(0);
+    });
+
     it('reads mixed, on and off, and turns a whole section on and off', async () => {
       const { sheet } = await openSheet('Cashier');
       // A Member list holds 10 of the 21 switches of Projects.

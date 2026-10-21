@@ -90,7 +90,7 @@ export function RoleRights({ held, onChange }: { held: readonly CatalogRightId[]
           </h3>
           {item.ids.length > 1 && (
             <RoleToggle
-              id={`role-all-${item.key}`} name={t('roleRights.all')} word={t('roleRights.all')} state={state === 'mixed' ? 'mixed' : state === 'on'}
+              id={`role-all-${item.key}`} name={t('roleRights.all')} word={t('roleRights.all')} state={state === 'mixed' ? 'mixed' : state === 'on'} all
               onChange={(next) => onChange(withSection(held, item.ids, next))}
             />
           )}

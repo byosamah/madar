@@ -336,7 +336,7 @@ describe('the Admin section Project templates', () => {
 
   it('hides "Projects using this template" from a person who has the template right but is not the Admin (ADM-03)', async () => {
     await renderApp('/admin/project-templates', (state) => {
-      state.settings.roles = { custom: [{ id: 'rol_001', name: 'Keeper', nameAr: 'أمين القوالب', rights: ['templates.manageAll'] }] };
+      state.settings.roles = { custom: [{ id: 'rol_001', name: 'Keeper', nameAr: 'أمين القوالب', rights: ['templates.manageAll', 'templates.projectCreate'] }] };
       state.users.usr_003.roleId = 'rol_001';
       state.session.currentUserId = 'usr_003';
     });
