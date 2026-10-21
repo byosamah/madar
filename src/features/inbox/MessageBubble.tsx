@@ -128,7 +128,7 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh, runSta
   // (item 9), and a next message of a run keeps its time here at opacity 0 until hover or focus (opacity, not visibility, so a screen
   // reader still reads it). The time sits next to the bubble, the button outside it.
   const time = !runStart && (
-    <time dateTime={bubble.createdAt} className="tabular text-caption text-ink-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
+    <time dateTime={bubble.createdAt} className="tabular whitespace-nowrap text-caption text-ink-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
       {clockTime(bubble.createdAt, lang)}
     </time>
   );

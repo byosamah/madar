@@ -844,7 +844,17 @@ the cover from the small picture that Madar keeps (up to 960 px), as data when i
   the ring of the SVG grew with its size (`vector-effect="non-scaling-stroke"`)
 - [x] What's new shots: EN light 390 px; EN dark and AR dark at desktop width. The auto-mode check refused the Playwright shots of EN
   dark, AR light and AR dark at 390 px; a script check found no sideways scroll and no cut text in all 4
-- [ ] Redeploy the test copy from this branch (the ring fix 12babff0 is not on it yet). The second `all.sh test` stopped at the
-  migration step: the chat presence proof put its uncommitted migration `20261022000200_platform_presence.sql` on madar-test. Run it
-  when that session is done with the test database. The test record is empty until then
-- [ ] Production after the live week and the owner's OK: merge `rb/mcp-pictures` into main, `all.sh test`, then `all.sh production`
+- [x] Test copy at 716c0a2 (main), after the presence proof session took its migration off madar-test; the live check passed again
+- [x] Production at 716c0a29 (2026-10-21; the owner said "deploy" and ran it with `!`). Record: proof.md
+- [ ] What's new phone shots: EN dark, AR light and AR dark at 390 px (the auto-mode check refused the Playwright shots)
+
+## Times in AM and PM (owner, 2026-10-21: "make the time in AM PM style not 24")
+
+- [x] One clock formatter (`clockFormat`, `src/lib/dates.ts`): English on the 12-hour clock with AM and PM ("5:15 PM", the US form);
+  Arabic was already 12-hour («5:15 م») and stays. The meeting view summary used its own "HH:MM": it uses the formatter now
+- [x] The fixed times in words, both languages: the summary mail footer and the mail pause line (7:30 AM, 3:00 AM; «صباحًا»), the
+  summary hint of Settings, the meeting start hint (10:00 AM; «ص»). Wider time columns: Home meetings card and the meeting summary
+  (80 px); the chat side time does not wrap. No MCP change: the tools give stamps, never a clock text
+- [x] Gates: typecheck, `npm test` 8,216 passed (733 files), `npm run build`, `build:server`. Shots at 390 px (EN/AR, light/dark):
+  the Meetings list and the meeting sheet
+- [x] Test copy at 2701ea7, then production at 2701ea78 (2026-10-21; the owner chose it before the presence batch). Record: proof.md

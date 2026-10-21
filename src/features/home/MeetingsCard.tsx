@@ -31,7 +31,7 @@ export function MeetingsCard() {
         {rows.slice(0, ROWS).map((row) => (
           <li key={row.id}>
             <Link to={meetingLink(row.id)} className="pressable flex min-h-11 items-center gap-3 rounded-xl px-2 py-1.5 transition-colors hover:bg-fill/50">
-              <span className="tabular w-16 shrink-0 text-subheadline font-semibold text-ink">{clockFormat(lang).format(new Date(row.startsAt))}</span>
+              <span className="tabular w-20 shrink-0 text-subheadline font-semibold text-ink">{clockFormat(lang).format(new Date(row.startsAt))}</span>
               <bdi className="min-w-0 flex-1 truncate text-subheadline text-ink">{row.title}</bdi>
             </Link>
           </li>

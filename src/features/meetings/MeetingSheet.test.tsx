@@ -27,7 +27,7 @@ describe('the meeting sheet', () => {
     const box = await sheet();
     expect(within(box).getByText('Client meeting')).toBeInTheDocument();
     expect(within(box).getByText(formatDay('2026-09-30', 'en', 'withWeekday'))).toBeInTheDocument();
-    expect(within(box).getByText('14:00 to 15:00')).toBeInTheDocument();
+    expect(within(box).getByText('2:00 PM to 3:00 PM')).toBeInTheDocument();
     expect(within(box).getByText('Client office, Al Khobar')).toBeInTheDocument();
     expect(within(box).getByRole('link', { name: /Corniche Office Tower/ })).toHaveAttribute('href', '#/projects/prj_001');
     // Faisal is the organizer: his name shows once. Any attendee writes the minutes (owner, 2026-10-19).

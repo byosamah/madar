@@ -2,7 +2,7 @@
   "errors": {
     "reasons": {
       "in_the_past": "A meeting cannot start more than 14 days ago.",
-      "start_not_on_five": "A meeting starts on a multiple of 5 minutes, for example 10:00 or 10:05.",
+      "start_not_on_five": "A meeting starts on a multiple of 5 minutes, for example 10:00 AM or 10:05 AM.",
       "minutes_not_attending": "The person for the minutes must be the organizer or an attendee.",
       "attendee_agent": "An agent cannot attend a meeting. Choose a person.",
       "title_hidden": "Write the title on one line, with visible characters only.",

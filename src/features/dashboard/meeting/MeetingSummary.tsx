@@ -6,7 +6,7 @@ import { useLang } from '../../../app/lang';
 import { useCall, useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
-import { formatDay, listFormat, todayISO, type Lang } from '../../../lib/dates';
+import { clockFormat, formatDay, listFormat, todayISO, type Lang } from '../../../lib/dates';
 import { actorContext, counted } from '../../../lib/grammar';
 import { localName, personName } from '../../../lib/personName';
 import { plainText } from '../../../lib/text';
@@ -135,7 +135,7 @@ export function MeetingSummary({ agendaIds, names, startedAt, shared, onShared, 
       const reason = view.event.verb === 'task.updated' ? reasons.get(view.event.correlationId) : undefined;
       const what = reason ? t('dashboard.meeting.summary.withReason', { line: sentence, reason }) : sentence;
       const owner = view.event.verb === 'task.created' ? localName(view.detail, 'lead', lang) : undefined;
-      byProject.set(projectId, [...(byProject.get(projectId) ?? []), { id: view.event.id, who: personName(view.actor, lang), what, time: view.event.createdAt.slice(11, 16), owner }]);
+      byProject.set(projectId, [...(byProject.get(projectId) ?? []), { id: view.event.id, who: personName(view.actor, lang), what, time: clockFormat(lang).format(new Date(view.event.createdAt)), owner }]);
     }
     const nameOf = (id: string) => names.get(id) ?? everyProject.data?.find((row) => row.project.id === id)?.project.name ?? id;
     return agendaIds.filter((id) => byProject.has(id)).map((id) => ({ projectId: id, name: nameOf(id), lines: byProject.get(id)! }));
@@ -205,7 +205,7 @@ export function MeetingSummary({ agendaIds, names, startedAt, shared, onShared, 
         <div className="me-auto">
           <h2 className="text-[26px] font-bold text-ink">{t('dashboard.meeting.summary.title')}</h2>
           {/* The start of the meeting in office time. A new day starts a new meeting, so the summary never reaches into yesterday. */}
-          <p className="tabular text-[17px] text-ink-2">{t('dashboard.meeting.summary.since', { time: startedAt.slice(11, 16) })}</p>
+          <p className="tabular text-[17px] text-ink-2">{t('dashboard.meeting.summary.since', { time: clockFormat(lang).format(new Date(startedAt)) })}</p>
         </div>
         {groups.length > 0 && (
           <>
@@ -225,7 +225,7 @@ export function MeetingSummary({ agendaIds, names, startedAt, shared, onShared, 
           <ul className="flex flex-col gap-1.5">
             {group.lines.map((line) => (
               <li key={line.id} className="flex items-baseline gap-3 text-[18px]">
-                <bdi dir="ltr" className="tabular w-12 shrink-0 text-ink-2">{line.time}</bdi>
+                <bdi className="tabular w-20 shrink-0 whitespace-nowrap text-ink-2">{line.time}</bdi>
                 <span className="min-w-0 flex-1">{line.owner === undefined && <><bdi className="font-semibold text-ink">{line.who}</bdi> </>}<span className="text-ink-2">{line.what}</span></span>
               </li>
             ))}

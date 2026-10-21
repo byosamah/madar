@@ -4,7 +4,7 @@ import { SelectField } from '../../components/Fields';
 import { clockFormat } from '../../lib/dates';
 import { TIME_SLOTS } from './formModel';
 
-/** The word of a time of the day in the screen language: "14:00", or "2:00 م" in Arabic. Office time has no daylight saving. */
+/** The word of a time of the day in the screen language: "2:00 PM", or "2:00 م" in Arabic. Office time has no daylight saving. */
 function clockWord(time: string, lang: 'en' | 'ar'): string {
   return clockFormat(lang).format(new Date(`2026-01-01T${time}:00+03:00`));
 }
