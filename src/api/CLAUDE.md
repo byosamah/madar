@@ -463,6 +463,8 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - The stage moves, completions and pauses come from `state.counts` (`REPORT_KEYS`, the loader counts them in SQL). The reviews come from
   the review events that the loader reads once (`state.events`). The handler counts them for each person by `actingForId`. Without
   `state.counts` it counts `state.events` for the other three too (the prototype). Both give the same numbers (`loaders.test.ts`).
+- Past due (the tasks and the money) counts to today while the period has not ended (`dueEnd`, owner 2026-10-21): on a Wednesday, a
+  to-do due on Thursday is not past due yet. A period that has ended counts to its last day, as before.
 - Office tasks stay out of the report. The MCP tool is `reports.office`, on the right list `MCP_BY_RIGHT` (`server/mcp/tools.ts`): an agent
   gets it only when its person holds `report.office`.
 - The answer carries `design`: the design guide `REPORT_DESIGN` (`reportDesign.ts`). Its colors and sizes copy `tokens.css`, and

@@ -21,7 +21,8 @@ import { assertCan } from './shared';
  * Counting rules. The report reads the office as it is now, with the dates of each record.
  * - A task is made on the day it was created. It is done on the day it was completed.
  * - A task is open at the end of a day when it was created on or before that day, and was not completed by then.
- * - A task is past due at the end when it is open at the end and its due date is before the end.
+ * - A task is past due at the end when it is open at the end and its due date is before the end. For the past-due counts (tasks
+ *   and payments), the end is today while the period has not ended.
  * - Tasks, deadlines, payments and reviews count for the projects of the office. Office tasks stay out, because they are private.
  * - A deadline counts when its day is in the period and is not after today. It is missed when a task of its project, due on or
  *   before the deadline day, is open at the end of the period. Otherwise it is met.
@@ -69,7 +70,10 @@ function buildReport(ctx: Ctx, input: { period: ReportPeriodKind; start?: string
     const completedDay = dayOf(task.completedAt);
     return stampDay(task.createdAt) <= range.to && (completedDay === null || completedDay > range.to);
   };
-  const pastDueAtEnd = (task: Task) => openAtEnd(task) && task.dueDate !== null && task.dueDate < range.to;
+  // The day of the past-due counts: the last day of the period, or today when the period has not ended. On a Wednesday, a task
+  // due on Thursday is not past due yet (owner, 2026-10-21).
+  const dueEnd = range.to < today ? range.to : today;
+  const pastDueAtEnd = (task: Task) => openAtEnd(task) && task.dueDate !== null && task.dueDate < dueEnd;
 
   /** A count from State.counts when a loader put one there, else a scan of the events of the state. */
   const count = (key: string, scan: () => number): number => state.counts?.[key] ?? scan();
@@ -143,7 +147,7 @@ function buildReport(ctx: Ctx, input: { period: ReportPeriodKind; start?: string
     }));
 
   const officeName = input.subCompanyId ? subCompanies[input.subCompanyId]?.name ?? OFFICE_NAME : OFFICE_NAME;
-  const money = can(actor, 'payment.view') ? moneyOf(payments, range) : null;
+  const money = can(actor, 'payment.view') ? moneyOf(payments, range, dueEnd) : null;
   const gaps = can(actor, 'gaps.view') ? gapsOf(state, tasks, projects) : null;
 
   return {
@@ -171,14 +175,14 @@ function buildReport(ctx: Ctx, input: { period: ReportPeriodKind; start?: string
   };
 }
 
-/** The money of the period, in Saudi riyals (only for the people who handle payments). */
-function moneyOf(payments: Payment[], range: DayRange) {
+/** The money of the period, in Saudi riyals (only for the people who handle payments). dueEnd is the day of the past-due sum. */
+function moneyOf(payments: Payment[], range: DayRange, dueEnd: string) {
   const sum = (list: Payment[]) => list.reduce((total, payment) => total + payment.amount, 0);
   const receivedByEnd = (payment: Payment) => payment.receivedOn !== null && payment.receivedOn <= range.to;
   return {
     received: sum(payments.filter((payment) => payment.receivedOn !== null && payment.receivedOn >= range.from && payment.receivedOn <= range.to)),
     dueInPeriod: sum(payments.filter((payment) => payment.dueDate >= range.from && payment.dueDate <= range.to && !receivedByEnd(payment))),
-    pastDueAtEnd: sum(payments.filter((payment) => payment.dueDate < range.to && !receivedByEnd(payment))),
+    pastDueAtEnd: sum(payments.filter((payment) => payment.dueDate < dueEnd && !receivedByEnd(payment))),
   };
 }
 

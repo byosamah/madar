@@ -324,7 +324,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'reports.office': {
     title: 'Get the office report',
-    description: 'Gives the office report of one period: a week, a month, a quarter or a year. Send period, and start (YYYY-MM-DD, any day in the period) to pick it. subCompanyId makes the report of one sub-company only. The answer has the data and the design guide (design). Each project row has subCompany (or null) and look. Build a clean document on a white page with design: its colors, type and rules. money needs payment.view, else null. withPictures: true adds the pictures (see Pictures). Needs the switch "Office report" (report.office): by default the Admin and Management.',
+    description: 'Gives the office report of one period: a week (Sunday to Saturday), a month, a quarter or a year. Send period, and start (YYYY-MM-DD, any day in the period). subCompanyId gives one sub-company only. The answer has the data and the design guide (design): build a clean document on a white page with its colors, type and rules. Each project row has subCompany (or null) and look. While the period runs, past due counts as of today. money needs payment.view, else null. withPictures: true adds the pictures (see Pictures). Needs the switch report.office (by default the Admin and Management).',
   },
   'users.list': {
     title: 'List people',

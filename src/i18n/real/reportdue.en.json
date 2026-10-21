@@ -1,0 +1,10 @@
+{
+  "whatsNew": {
+    "items": {
+      "2026-10-23-74": {
+        "title": "Past due in the office report",
+        "body": "The office report now counts a to-do or a payment as past due only after its due day, also in the week that has not ended. Before, a to-do due later that week showed as past due."
+      }
+    }
+  }
+}
