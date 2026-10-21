@@ -10,8 +10,8 @@ import { EmojiLazy } from './EmojiLazy';
 
 /** What a screen can ask of the button from outside. */
 export type EmojiButtonHandle = {
-  /** Closes the panel, for the Send path. The focus stays where the screen put it. */
-  close: () => void;
+  /** Closes the panel, for the Send path and for a pick that ends it. The focus stays where the screen put it, unless `restoreFocus` is true. */
+  close: (restoreFocus?: boolean) => void;
 };
 
 /**
@@ -51,7 +51,7 @@ export function EmojiButton({ onPick, label, icon = 'smile', returnTo, ref }: {
     setMode(null);
     if (restoreFocus) requestAnimationFrame(() => (returnTo?.() ?? button.current)?.focus());
   }, [returnTo]);
-  useImperativeHandle(ref, () => ({ close: () => close(false) }), [close]);
+  useImperativeHandle(ref, () => ({ close: (restoreFocus = false) => close(restoreFocus) }), [close]);
   const toggle = () => {
     if (mode) {
       close(false);

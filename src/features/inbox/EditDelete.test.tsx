@@ -116,7 +116,9 @@ describe('edit a message', () => {
     await rowShows(id);
     await userEvent.click(within(row(id)).getByRole('button', { name: 'Actions for this message' }));
     const mine = screen.getByRole('menu', { name: 'Actions for this message' });
-    expect(within(mine).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Reply', 'Edit', 'Delete']);
+    // The + of the head ("Add a reaction", chat presence E1) is a menu item with a label and no text.
+    expect(within(mine).getAllByRole('menuitem').filter((item) => !item.hasAttribute('aria-label')).map((item) => item.textContent)).toEqual(['Reply', 'Edit', 'Delete']);
+    expect(within(mine).getByRole('menuitem', { name: 'Add a reaction' })).toBeInTheDocument();
     expect(within(mine).getByRole('menuitem', { name: 'Delete' })).toHaveClass('text-late');
   });
 });
