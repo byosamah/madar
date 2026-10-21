@@ -7,6 +7,8 @@ import { readDraftFiles, useDraftOwner, useDraftText, writeDraftFiles } from '..
 import { useToast } from '../../app/toasts';
 import { useIsPhone } from '../../app/useIsPhone';
 import { Button } from '../../components/Button';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { SendIcon } from '../../components/icons/animated/send';
 import { MentionField } from '../../components/MentionField';
 import { withMentionMarkup } from '../../lib/text';
 import { EmojiButton, type EmojiButtonHandle } from '../emoji/EmojiButton';
@@ -122,7 +124,8 @@ function ComposerBox({ id, people, pending, onSend, upload, owner, replyTo, onCa
     >
       {replyTo && onCancelReply && <ComposerReplyStrip replyTo={replyTo} onCancel={onCancelReply} />}
       {upload && <PickedFiles files={attachments.files} onRemove={attachments.remove} progress={attachments.progress} busy={uploading} />}
-      <div className="flex items-end gap-2">
+      {/* On a phone the row is tighter and Send is a round icon, so the box keeps the width it had before the emoji button (chat presence, 2026-10-21). */}
+      <div className={`flex items-end ${phone ? 'gap-1' : 'gap-2'}`}>
       {upload && <AttachButton compact onPick={attachments.add} />}
       <EmojiButton ref={emoji} onPick={insertEmoji} returnTo={() => field.current} />
       <div
@@ -167,7 +170,15 @@ function ComposerBox({ id, people, pending, onSend, upload, owner, replyTo, onCa
           className="[&_textarea]:max-h-40 [&_textarea]:min-h-11 [&_textarea]:resize-none [&_textarea]:[field-sizing:content]"
         />
       </div>
-      <Button variant="primary" type="submit" className="shrink-0" disabled={(!text.trim() && files.length === 0) || pending || uploading}>{t('chat.send')}</Button>
+      <Button
+        variant="primary"
+        type="submit"
+        aria-label={phone ? t('chat.send') : undefined}
+        className={phone ? 'size-11 shrink-0 rounded-full p-0' : 'shrink-0'}
+        disabled={(!text.trim() && files.length === 0) || pending || uploading}
+      >
+        {phone ? <AnimatedIcon icon={SendIcon} size={20} className="rtl:-scale-x-100" aria-hidden /> : t('chat.send')}
+      </Button>
       </div>
     </form>
   );

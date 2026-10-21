@@ -57,3 +57,27 @@ describe('the hint in the message box (owner, 2026-10-20)', () => {
     expect(await screen.findByRole('textbox', { name: 'Message' })).toHaveAttribute('placeholder', 'Write a message. Type @ to mention someone.');
   });
 });
+
+describe('the Send button on a phone (chat presence, 2026-10-21)', () => {
+  // The emoji button took 52 px of the row. A round Send icon on a phone gives the width back, so the empty box keeps one line.
+  it('is a round icon button with the name Send on a phone', async () => {
+    phone();
+    await renderApp('/inbox');
+    await userEvent.click(await rowLink(/Corniche Office Tower/));
+    const send = await screen.findByRole('button', { name: 'Send' });
+    expect(send).toHaveTextContent(/^$/);
+    expect(send.className).toContain('size-11');
+  });
+  it('keeps the word Send on a computer', async () => {
+    await renderApp('/inbox');
+    await userEvent.click(await rowLink(/Corniche Office Tower/));
+    expect(await screen.findByRole('button', { name: 'Send' })).toHaveTextContent('Send');
+  });
+  it('has the Arabic name on a phone', async () => {
+    phone();
+    await renderApp('/inbox', (state) => { state.users.usr_001.preferences.language = 'ar'; });
+    await waitFor(() => expect(document.documentElement.dir).toBe('rtl'));
+    await userEvent.click(await within(await screen.findByRole('list', { name: 'المحادثات' })).findByRole('link', { name: /Corniche Office Tower|برج/ }));
+    expect(await screen.findByRole('button', { name: 'أرسل' })).toHaveTextContent(/^$/);
+  });
+});
