@@ -112,6 +112,21 @@ export function sameKey(subscription: PushSubscription, key: string): boolean {
 
 const labelOfThisDevice = (): string => deviceLabel(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
 
+/**
+ * The two keys of a subscription (owner, 2026-10-21): the server encrypts each push line with them, so only this browser reads it.
+ * A browser that gives no keys gets the empty push and the fixed line.
+ */
+export function keysOf(subscription: PushSubscription): { p256dh: string; auth: string } | undefined {
+  const keys = (subscription.toJSON?.() as { keys?: { p256dh?: unknown; auth?: unknown } } | undefined)?.keys;
+  return typeof keys?.p256dh === 'string' && typeof keys.auth === 'string' ? { p256dh: keys.p256dh, auth: keys.auth } : undefined;
+}
+
+/** The input of push.register for this browser. */
+function deviceOf(subscription: PushSubscription): { endpoint: string; label: string; keys?: { p256dh: string; auth: string } } {
+  const keys = keysOf(subscription);
+  return { endpoint: subscription.endpoint, label: labelOfThisDevice(), ...(keys ? { keys } : {}) };
+}
+
 /** Registers the worker, with the whole site as its scope, and waits until it is ready. */
 async function registerWorker(): Promise<ServiceWorkerRegistration> {
   await navigator.serviceWorker.register('/sw.js', { scope: '/' });
@@ -145,7 +160,7 @@ export async function isSubscribed(): Promise<boolean> {
 async function subscribeAndSave(api: PushApi, key: string): Promise<void> {
   const subscription = await subscribeOn(await registerWorker(), key);
   try {
-    await api.call('push.register', { endpoint: subscription.endpoint, label: labelOfThisDevice() });
+    await api.call('push.register', deviceOf(subscription));
   } catch (error) {
     await subscription.unsubscribe().catch(() => undefined);
     throw error;
@@ -178,6 +193,7 @@ export async function turnOff(api: PushApi): Promise<void> {
  * A browser that holds a subscription gets its endpoint saved again when the server does not list it (the browser renewed it). A
  * subscription made with another key (the keys changed) is made again with the key of this build. A browser that has the permission
  * and no subscription (after a sign-out, or for the next person) gets push turned on, unless this person turned it off here.
+ * A device that the server lists without keys (saved before 2026-10-21) is saved again with the keys of this browser.
  */
 export async function syncThisDevice(api: PushApi, key: string, userId: string): Promise<'none' | 'same' | 'registered'> {
   const env = readEnv();
@@ -190,9 +206,11 @@ export async function syncThisDevice(api: PushApi, key: string, userId: string):
     return 'registered';
   }
   const subscription = sameKey(found, key) ? found : await subscribeOn(registration, key);
-  const mine = (await api.call('push.mine', {})) as { endpoint: string }[];
-  if (mine.some((device) => device.endpoint === subscription.endpoint)) return 'same';
-  await api.call('push.register', { endpoint: subscription.endpoint, label: labelOfThisDevice() });
+  const mine = (await api.call('push.mine', {})) as { endpoint: string; hasKeys?: boolean }[];
+  const listed = mine.find((device) => device.endpoint === subscription.endpoint);
+  // A browser with no keys to give never makes this a loop: the listed device is the best it can be.
+  if (listed && (listed.hasKeys === true || keysOf(subscription) === undefined)) return 'same';
+  await api.call('push.register', deviceOf(subscription));
   return 'registered';
 }
 

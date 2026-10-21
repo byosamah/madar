@@ -1,9 +1,12 @@
+import type { PushKeys } from '../../src/api/contract/entities';
 import { nowStamp } from '../../src/lib/dates';
 import { isLite } from '../data/dialect';
 import type { OutboxRow } from '../core/effects';
 import type { Deps, Query } from '../core/ports';
 import { MESSAGE_LITE, PUSH_COMMENT_LITE, readPushFacts, type PushSaved } from './chatFacts';
 import { planPushes, type ChatPushItem } from './chatRule';
+import { encryptPush, PushTextError } from './encrypt';
+import { chatLine, noticeLine, type LineOptions, type PushLine } from './line';
 import { sendPush, PushSendError } from './send';
 import { PushConfigError } from './vapid';
 
@@ -17,9 +20,12 @@ import { PushConfigError } from './vapid';
  *   sends nothing. The 15-minute job calls pushRows() after its own save, where it calls noticeRows().
  *   A new notice is a row whose xmin is the id of the open transaction (the same rule as NEW_NOTICES_SQL in server/mail/notices.ts).
  *   A new message or comment is one of the ids that the save step names (SaveResult.messageIds, SaveResult.commentIds).
- * - The effects: sendPushNotify() reads the devices of the person again after the commit, and posts an empty push to each one
- *   (send.ts). sendChatPush() first asks which items the person has not read on any device and which are not deleted. The browser
- *   shows one fixed line (public/sw.js). The push carries no client data and no person.
+ * - The effects: sendPushNotify() reads the devices of the person again after the commit, and posts a push to each one (send.ts).
+ *   sendChatPush() first asks which items the person has not read on any device and which are not deleted.
+ * - The line (owner, 2026-10-21, "Like WhatsApp"): when a device has keys, the effect reads AS THE PERSON (line.ts) and posts the
+ *   line encrypted for that device alone (encrypt.ts): the bell sentence of a notice, or "Name: words" of a chat. A device with no
+ *   keys, or a line that cannot be made, gets the empty push, and the browser shows the fixed line (public/sw.js). The log of the
+ *   server never holds the words of a line.
  * - A device that the push service calls gone (404, 410) is removed. A device that took the push gets lastPushAt. A 429, a 5xx or
  *   a network error throws after the other devices were handled, so the outbox tries the row again. A retry posts to every device
  *   of the person again; the tag of the notification (madar-new) makes the browser show one line only.
@@ -54,8 +60,8 @@ order by 1`;
 // The SQLite forms of PUSH_STILL_NEW_SQL: one message or comment and one read mark at a time, then the same test in JavaScript.
 export const CHAT_READ_LITE = 'select doc from chat_reads where conversation_id = ?1 and user_id = ?2';
 
-/** $1 the person. The push addresses of an active human, oldest device first. */
-export const PUSH_DEVICES_SQL = `select d.endpoint
+/** $1 the person. The push addresses of an active human, with the keys of each browser (null before 2026-10-21), oldest device first. */
+export const PUSH_DEVICES_SQL = `select d.endpoint, d.doc->'keys' as keys
 from push_devices d join users u on u.id = d.user_id
 where d.user_id = $1 and u.kind = 'human' and u.active
 order by d.ord`;
@@ -67,15 +73,54 @@ export const PUSH_SENT_SQL = "update push_devices set doc = jsonb_set(doc, '{las
 export const PUSH_GONE_SQL = 'delete from push_devices where endpoint = any($1::text[])';
 
 // SQLite forms (exit wave 3). The person of a device is read from the users doc; a list of endpoints goes one statement each.
-export const PUSH_DEVICES_LITE = 'select d.rowid as ord, d.endpoint as endpoint, u.doc as doc from push_devices d join users u on u.id = d.user_id where d.user_id = ?1';
+export const PUSH_DEVICES_LITE = "select d.rowid as ord, d.endpoint as endpoint, json_extract(d.doc, '$.keys') as keys, u.doc as doc from push_devices d join users u on u.id = d.user_id where d.user_id = ?1";
 export const PUSH_SENT_LITE = "update push_devices set doc = json_set(doc, '$.lastPushAt', ?2) where endpoint = ?1";
 export const PUSH_GONE_LITE = 'delete from push_devices where endpoint = ?1';
 
-/** The push addresses of an active human, oldest device first, on both databases. */
-async function devicesOf(deps: Deps, userId: string): Promise<{ endpoint: string }[]> {
-  if (!isLite(deps.db)) return deps.db.statement<{ endpoint: string }>('write', PUSH_DEVICES_SQL, [userId]);
-  const rows = await deps.db.statement<{ ord: number; endpoint: string; doc: { kind?: string; active?: boolean } }>('read', PUSH_DEVICES_LITE, [userId]);
-  return rows.filter((row) => row.doc.kind === 'human' && row.doc.active === true).sort((a, b) => a.ord - b.ord).map((row) => ({ endpoint: row.endpoint }));
+type Device = { endpoint: string; keys: PushKeys | null };
+
+/** The keys of a device as the database gives them: an object (jsonb), JSON text (SQLite), or nothing. */
+function keysOf(value: unknown): PushKeys | null {
+  const keys = typeof value === 'string' ? (JSON.parse(value) as unknown) : value;
+  if (typeof keys !== 'object' || keys === null) return null;
+  const { p256dh, auth } = keys as { p256dh?: unknown; auth?: unknown };
+  return typeof p256dh === 'string' && typeof auth === 'string' ? { p256dh, auth } : null;
+}
+
+/** The push addresses of an active human, with their keys, oldest device first, on both databases. */
+async function devicesOf(deps: Deps, userId: string): Promise<Device[]> {
+  if (!isLite(deps.db)) {
+    const rows = await deps.db.statement<{ endpoint: string; keys?: unknown }>('write', PUSH_DEVICES_SQL, [userId]);
+    return rows.map((row) => ({ endpoint: row.endpoint, keys: keysOf(row.keys) }));
+  }
+  const rows = await deps.db.statement<{ ord: number; endpoint: string; keys?: unknown; doc: { kind?: string; active?: boolean } }>('read', PUSH_DEVICES_LITE, [userId]);
+  return rows.filter((row) => row.doc.kind === 'human' && row.doc.active === true).sort((a, b) => a.ord - b.ord)
+    .map((row) => ({ endpoint: row.endpoint, keys: keysOf(row.keys) }));
+}
+
+/**
+ * The line, or null. A failure to make it never stops the push: the person gets the fixed line. The log names the kind of error
+ * only, never its text, which may quote the words of a message.
+ */
+async function lineOrNull(deps: Deps, devices: Device[], make: () => Promise<PushLine | null>): Promise<PushLine | null> {
+  if (!devices.some((device) => device.keys !== null)) return null;
+  try {
+    return await make();
+  } catch (error) {
+    deps.log.warn('The push line could not be made. The fixed line goes.', { error: error instanceof Error ? error.name : 'unknown' });
+    return null;
+  }
+}
+
+/** The encrypted line for one device, or no body (no keys, no line, or keys of a wrong form). */
+async function bodyFor(device: Device, line: PushLine | null): Promise<Uint8Array<ArrayBuffer> | undefined> {
+  if (!line || !device.keys) return undefined;
+  try {
+    return await encryptPush(new TextEncoder().encode(JSON.stringify(line)), device.keys);
+  } catch (error) {
+    if (error instanceof PushTextError) return undefined;
+    throw error;
+  }
 }
 
 /**
@@ -120,29 +165,42 @@ async function stillNewItems(deps: Deps, userId: string, items: ChatPushItem[]):
  * The push.chat effect (chat design item 20): it runs 10 seconds after the answer (WAITED_KINDS), asks which items the person has
  * not read on any device and which are not deleted, and sends the one empty push only when one is left.
  */
-export async function sendChatPush(payload: Record<string, unknown>, deps: Deps): Promise<void> {
+export async function sendChatPush(payload: Record<string, unknown>, deps: Deps, o: LineOptions = {}): Promise<void> {
   const userId = String(payload.userId ?? '');
   const items = Array.isArray(payload.items) ? (payload.items as ChatPushItem[]) : [];
   if (items.length === 0) return;
-  if ((await stillNewItems(deps, userId, items)).length === 0) return;
-  await sendPushNotify({ userId }, deps);
+  const fresh = await stillNewItems(deps, userId, items);
+  if (fresh.length === 0) return;
+  // The line shows the chat of the newest item that is still new.
+  const newest = [...items].reverse().find((item) => fresh.includes(item.itemId));
+  const devices = await devicesOf(deps, userId);
+  if (devices.length === 0) return;
+  const line = newest ? await lineOrNull(deps, devices, () => chatLine(deps, userId, newest.chatId, o)) : null;
+  await postToDevices(deps, devices, line);
 }
 
-/** The push.notify effect: one push to each device of one person. */
-export async function sendPushNotify(payload: Record<string, unknown>, deps: Deps): Promise<void> {
+/** The push.notify effect: one push to each device of one person, with the line of the newest unread notice. */
+export async function sendPushNotify(payload: Record<string, unknown>, deps: Deps, o: LineOptions = {}): Promise<void> {
   const userId = String(payload.userId ?? '');
   // The primary, never a read copy: the effect runs right after the commit that wrote the notice or the device.
   const devices = await devicesOf(deps, userId);
   if (devices.length === 0) return;
+  await postToDevices(deps, devices, await lineOrNull(deps, devices, () => noticeLine(deps, userId, o)));
+}
+
+/** One push to each device: the encrypted line where the device has keys, else the empty push. */
+async function postToDevices(deps: Deps, devices: Device[], line: PushLine | null): Promise<void> {
   const config = deps.config.push;
   const sent: string[] = [];
   const gone: string[] = [];
   const retries: PushSendError[] = [];
   const off: PushConfigError[] = [];
-  await Promise.all(devices.map(async ({ endpoint }) => {
+  await Promise.all(devices.map(async (device) => {
+    const { endpoint } = device;
     try {
+      const body = await bodyFor(device, line);
       // deps.pushFetch: the office object posts through the network port of the Worker (server/office/net.ts).
-      const outcome = await sendPush(config, endpoint, { now: () => deps.clock.now(), ...(deps.pushFetch ? { fetch: deps.pushFetch } : {}) });
+      const outcome = await sendPush(config, endpoint, { now: () => deps.clock.now(), ...(deps.pushFetch ? { fetch: deps.pushFetch } : {}), ...(body ? { body } : {}) });
       if (outcome === 'sent') sent.push(endpoint);
       else if (outcome === 'gone') gone.push(endpoint);
       else deps.log.warn('A push service refused a push. Nothing is tried again.', { host: new URL(endpoint).hostname });

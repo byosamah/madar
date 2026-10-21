@@ -7,7 +7,6 @@ import { Link } from 'react-router';
 import type { CallOutput } from '../../api/calls';
 import { useUndoable } from '../../app/actions';
 import { useLang } from '../../app/lang';
-import { usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { useIsPhone } from '../../app/useIsPhone';
@@ -16,62 +15,21 @@ import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { ScreenTitle } from '../../components/ScreenTitle';
-import { addDays, clockFormat, formatDay, listFormat, stampDay, todayISO } from '../../lib/dates';
-import { actorContext, counted } from '../../lib/grammar';
+import { addDays, formatDay, stampDay, todayISO } from '../../lib/dates';
+import { counted } from '../../lib/grammar';
 import { groupByDay } from '../../lib/group';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ProjectTile } from '../../components/ProjectTile';
 import { GroupPicture } from '../inbox/GroupPicture';
+import { noticeSentence } from '../../lib/noticeSentence';
 
 type NoticeView = CallOutput<'notifications.list'>[number];
-
-/** The sentence of a report notice (owner, 2026-10-07). A hidden one has no words of its report, so it names nothing. */
-function reportKey(n: NoticeView['notification']): string {
-  if (!n.feedback) return 'inbox.feedback.hidden';
-  const bug = n.feedback.kind === 'bug';
-  if (n.trigger === 'feedback_sent') return bug ? 'inbox.feedback.sentBug' : 'inbox.feedback.sentFeature';
-  return bug ? 'inbox.feedback.doneBug' : 'inbox.feedback.doneFeature';
-}
-
-/** The sentence of a group notice: a mention or an add, with the name of the group, or with "a group" when the person has left it. */
-function groupKey(trigger: string, named: boolean): string {
-  if (trigger === 'mention') return named ? 'inbox.mentionGroup' : 'inbox.mentionGroupGone';
-  return named ? `inbox.trigger.${trigger}` : 'inbox.addedGroupGone';
-}
-
-/**
- * The sentence of a meeting notice (fbk_022): new, moved or cancelled for meeting_invited, and the reminder. A meeting that the person
- * no longer sees has no title and no time, so its sentence names neither.
- */
-function meetingKey(n: NoticeView['notification'], gone: boolean): string {
-  if (gone) return 'inbox.meetingGone';
-  if (n.trigger === 'meeting_soon') return 'inbox.trigger.meeting_soon';
-  if (n.meeting?.change === 'moved') return 'inbox.trigger.meeting_invited_moved';
-  if (n.meeting?.change === 'cancelled') return 'inbox.trigger.meeting_invited_cancelled';
-  return 'inbox.trigger.meeting_invited';
-}
-
-/**
- * The sentence of a copy for an Admin who picked "Everything" (owner, 2026-10-23). It names the actor and the people that the original
- * went to. A copy of an item that the viewer no longer sees names nobody, and says so in one line.
- */
-function copyKey(view: NoticeView): string {
-  const n = view.notification;
-  if (view.forPeople.length === 0) return 'adminReach.copyGone';
-  if (n.trigger === 'mention') return `adminReach.copy.${n.reply === true ? 'reply' : 'mention'}_${n.targetType === 'chat' ? 'chat' : 'task'}`;
-  if (n.trigger === 'meeting_invited') return `adminReach.copy.meeting_${n.meeting?.change ?? 'new'}`;
-  return `adminReach.copy.${n.trigger}`;
-}
-
-/** Up to 3 names in one list ("A, B and C"). With more people: the first 2 names, then the number of the others. */
-const MOST_NAMES = 3;
 
 function InboxItem({ view }: { view: NoticeView }) {
   const { t } = useTranslation();
   const lang = useLang();
-  const nameOf = usePersonName();
   const phone = useIsPhone();
-  const { notification: n, actor, target, project, link, canApprove, gone, dueDate, startsAt } = view;
+  const { notification: n, actor, target, project, link, canApprove, gone } = view;
   const markRead = useAction('notifications.markRead');
   const read = () => {
     if (!n.read) markRead.mutate({ ids: [n.id] });
@@ -91,38 +49,12 @@ function InboxItem({ view }: { view: NoticeView }) {
   // A swipe on a phone must not also open the item.
   const swiped = useRef(false);
   const report = n.targetType === 'feedback';
-  // A group notice names the group, so it never reads as a direct message (UX audit 2026-10-19, INT-03). A group the person has left
-  // has no name here, and its sentence says "a group".
+  // A group notice shows the picture of the group (UX audit 2026-10-19, INT-03).
   const group = n.targetType === 'chat' && view.chatKind === 'group';
-  // A chat with no project and no group is a direct chat: its sentence names no place (audit 2026-10-03, SHL-14).
-  const direct = n.trigger === 'mention' && n.targetType === 'chat' && !project && !group;
-  // A restart reminder says "is today" on its day and "was <day>" after it (fbk_025). Its project name keeps its own direction.
-  const restart = n.trigger === 'resume_due';
-  const restartPast = restart && dueDate !== null && dueDate < todayISO();
-  const meeting = n.targetType === 'meeting';
-  // A reply to a message of the person says "replied to you" (chat design 2026-10-19, item 10). The place is named as for a mention.
-  const reply = n.trigger === 'mention' && n.reply === true;
-  // A copy for an Admin who picked "Everything" (owner, 2026-10-23) has its own sentences, with the people of the original.
-  const copy = n.forUserIds !== undefined;
-  const names = view.forPeople.map((person) => `\u2068${nameOf(person)}\u2069`);
-  const people = names.length <= MOST_NAMES
-    ? listFormat(lang).format(names)
-    : t('adminReach.andOthers', { names: names.slice(0, 2).join(', '), others: t('adminReach.others', { count: names.length - 2 }) });
-  const sentenceKey = copy ? copyKey(view) : meeting ? meetingKey(n, gone) : report ? reportKey(n)
-    : reply ? (direct ? 'notices.repliedDirect' : group && target === '' ? 'notices.repliedGroupGone' : 'notices.repliedToYou')
-      : direct ? 'inbox.mentionDirect' : group ? groupKey(n.trigger, target !== '') : restartPast ? 'inbox.trigger.resume_due_past' : `inbox.trigger.${n.trigger}`;
   // A done report names no person, so its row shows the bell and not the Admin who marked it. A group notice shows the group.
   const face = report && n.trigger === 'feedback_done' ? null : actor;
-  const sentence = t(sentenceKey, {
-    actor: actor ? nameOf(actor) : t('inbox.someone'),
-    context: actorContext(actor),
-    // The excerpt of a report, the name of a group and the title of a meeting keep their own direction (FSI and PDI), so an English "…" or "?" stays at its end in Arabic.
-    people,
-    target: report || group || restart || meeting ? `\u2068${target}\u2069` : target,
-    // A reminder names its due day, which can be days away after a weekend (audit 2026-10-03, API-11). A meeting notice names the day and the time of the start (fbk_022).
-    day: startsAt ? formatDay(stampDay(startsAt), lang, 'withWeekday') : dueDate ? formatDay(dueDate, lang, 'weekday') : '',
-    time: startsAt ? clockFormat(lang).format(new Date(startsAt)) : '',
-  });
+  // The sentence is shared with the push line of the server (src/lib/noticeSentence.ts, owner 2026-10-21).
+  const sentence = noticeSentence(view, (key, params) => t(key, params), lang);
   const body = (
     <>
       <span aria-hidden className={`mt-3 size-2.5 shrink-0 rounded-full ${n.read ? '' : 'bg-link'}`} />

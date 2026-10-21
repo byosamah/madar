@@ -17,6 +17,9 @@ speaker, so write it as natural Arabic, not as a word-for-word copy of the Engli
   (`adminReach.copy.*`, with `_female` forms), the plural `adminReach.others`, and the What's new entry `2026-10-23-69`.
 - A task adds new words only to its own track files.
 - Server code reads the word files with plain JSON imports (no `import.meta.glob`).
+- The push line (2026-10-21) writes the bell sentences on the server: `server/push/words.ts` imports the `inbox`, `notices` and `push`
+  parts of the base files and of the track files that hold them, by name. A new bell sentence (`inbox.*`) in a new track file needs
+  a line there too: `server/push/words.test.ts` fails without it.
 - `words.en.ts` and `words.ar.ts` each merge one language (the base file plus the track files). `trees.ts` gives both trees,
   for the server and the tests. `index.ts` loads one language on demand (`loadWords`, `withWords`, `addWords`) and exports no
   word trees: tests and the server import `en` and `ar` from `i18n/trees`. `firstWords.ts` starts the words of the first

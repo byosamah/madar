@@ -12,6 +12,8 @@ import {
 // A made-up public key of the right size: the first byte is 4, as for every uncompressed P-256 point.
 const KEY = `BA${'a'.repeat(85)}`;
 const ENDPOINT = 'https://fcm.googleapis.com/fcm/send/sample-token';
+// The keys that a browser gives with its subscription (owner, 2026-10-21): the server encrypts each push line with them.
+const BROWSER_KEYS = { p256dh: `B${'p'.repeat(86)}`, auth: 'q'.repeat(22) };
 const ME = 'usr_001';
 const OTHER = 'usr_002';
 
@@ -105,9 +107,10 @@ function browser(o: { permission?: NotificationPermission; asked?: NotificationP
   let permission: NotificationPermission = o.permission ?? 'default';
   let current: PushSubscription | null = o.subscription ?? null;
   const steps: string[] = [];
-  const subscription = (endpoint = ENDPOINT, key = KEY): PushSubscription => ({
+  const subscription = (endpoint = ENDPOINT, key = KEY, keys: typeof BROWSER_KEYS | null = BROWSER_KEYS): PushSubscription => ({
     endpoint,
     options: { applicationServerKey: keyBytes(key).buffer },
+    toJSON: () => (keys ? { endpoint, keys } : { endpoint }),
     unsubscribe: vi.fn(async () => {
       steps.push('unsubscribe');
       current = null;
@@ -148,7 +151,7 @@ function browser(o: { permission?: NotificationPermission; asked?: NotificationP
   return { steps, pushManager, worker, subscription, setCurrent: (value: PushSubscription | null) => { current = value; } };
 }
 
-function apiOf(o: { mine?: { endpoint: string }[]; failRegister?: boolean; failRemove?: boolean } = {}) {
+function apiOf(o: { mine?: { endpoint: string; hasKeys?: boolean }[]; failRegister?: boolean; failRemove?: boolean } = {}) {
   const sent: [string, unknown][] = [];
   const api = {
     call: vi.fn(async (name: string, input: unknown) => {
@@ -189,7 +192,7 @@ describe('turnOn', () => {
     expect(await turnOn(api, KEY)).toBe('on');
     expect(b.steps).toEqual(['ask permission', 'register worker', 'subscribe']);
     expect(b.worker.register).toHaveBeenCalledWith('/sw.js', { scope: '/' });
-    expect(sent).toEqual([['push.register', { endpoint: ENDPOINT, label: expect.any(String) }]]);
+    expect(sent).toEqual([['push.register', { endpoint: ENDPOINT, label: expect.any(String), keys: BROWSER_KEYS }]]);
     expect((sent[0][1] as { label: string }).label.length).toBeGreaterThan(0);
   });
 
@@ -265,7 +268,24 @@ describe('syncThisDevice: the check at the start of the app', () => {
   it('does nothing more when the server already lists this endpoint', async () => {
     const b = browser({ permission: 'granted' });
     b.setCurrent(b.subscription());
-    const { api, sent } = apiOf({ mine: [{ endpoint: ENDPOINT }] });
+    const { api, sent } = apiOf({ mine: [{ endpoint: ENDPOINT, hasKeys: true }] });
+    expect(await syncThisDevice(api, KEY, ME)).toBe('same');
+    expect(sent).toEqual([['push.mine', {}]]);
+  });
+
+  // A device saved before 2026-10-21 has no keys on the server: the first start of the app after the release sends them.
+  it('registers the endpoint again with the keys when the server lists it without keys', async () => {
+    const b = browser({ permission: 'granted' });
+    b.setCurrent(b.subscription());
+    const { api, sent } = apiOf({ mine: [{ endpoint: ENDPOINT, hasKeys: false }] });
+    expect(await syncThisDevice(api, KEY, ME)).toBe('registered');
+    expect(sent).toEqual([['push.mine', {}], ['push.register', { endpoint: ENDPOINT, label: expect.any(String), keys: BROWSER_KEYS }]]);
+  });
+
+  it('does not register again and again when the browser gives no keys', async () => {
+    const b = browser({ permission: 'granted' });
+    b.setCurrent(b.subscription(ENDPOINT, KEY, null));
+    const { api, sent } = apiOf({ mine: [{ endpoint: ENDPOINT, hasKeys: false }] });
     expect(await syncThisDevice(api, KEY, ME)).toBe('same');
     expect(sent).toEqual([['push.mine', {}]]);
   });
@@ -294,7 +314,7 @@ describe('syncThisDevice: the check at the start of the app', () => {
     const { api, sent } = apiOf();
     expect(await syncThisDevice(api, KEY, ME)).toBe('registered');
     expect(b.steps).toEqual(['register worker', 'subscribe']);
-    expect(sent).toEqual([['push.register', { endpoint: ENDPOINT, label: expect.any(String) }]]);
+    expect(sent).toEqual([['push.register', { endpoint: ENDPOINT, label: expect.any(String), keys: BROWSER_KEYS }]]);
     expect(Notification.requestPermission).not.toHaveBeenCalled();
   });
 

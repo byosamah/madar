@@ -60,6 +60,11 @@ any screen work.
   stays in Google. The words are in `src/i18n/real/gcal.*.json`. The privacy page (`public/privacy.html`, `src/app/privacy.test.ts`) says what a disconnect does.
 
 ## Browser push in the screens (owner, 2026-10-08)
+- The push line (owner, 2026-10-21, "Like WhatsApp"): `push.register` takes the keys of the browser (`keysOf`, from
+  `subscription.toJSON().keys`), and `syncThisDevice` saves a listed device again when `push.mine` says `hasKeys: false`. A browser that
+  gives no keys never loops. `public/sw.js` shows the line of the push (`lineOf`; the fixed line for an empty push or a line it cannot
+  trust) and keeps its link in `data.url`; a press moves an open window there (`navigate`) or opens a new one, and `safeUrl` keeps every
+  link a path of this site. The bell sentence lives in `lib/noticeSentence.ts`, shared with the server (`server/push/CLAUDE.md`).
 - Real build only. `app/remote/push.ts` (no React, no zod): the state of the switch (`statusOf`), `turnOn`, `turnOff`, the check at the
   start (`syncThisDevice`, run by `app/remote/PushSync.tsx` in the shell) and `removeThisDevice` (the sign-out step in
   `features/auth/signOut.ts`, 4 s at most). Settings has `features/settings/PushSection.tsx`: one switch, "Notify me on this device",

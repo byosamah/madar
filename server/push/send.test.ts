@@ -42,6 +42,17 @@ describe('sendPush', () => {
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 
+  // The push line (owner, 2026-10-21): an encrypted body of RFC 8291 goes with its content coding.
+  it('posts an encrypted body with the content coding aes128gcm', async () => {
+    const { fetch, seen } = stub(() => reply(201));
+    const body = new Uint8Array([1, 2, 3]);
+    expect(await sendPush(await keys(), ENDPOINT, { fetch, now: () => NOW, body })).toBe('sent');
+    const headers = new Headers(seen[0].init.headers);
+    expect(headers.get('content-encoding')).toBe('aes128gcm');
+    expect(headers.get('content-type')).toBe('application/octet-stream');
+    expect(seen[0].init.body).toBe(body);
+  });
+
   // Probe on the test copy, 2026-10-21: Apple answered 400 {"reason":"BadWebPushTopic"} to every push with "Topic: madar", so no
   // iPhone got a push since 2026-10-08. The same push with no Topic answered 201, with Urgency high and TTL 86400 too.
   it('sends no Topic to Apple, which refuses one, and keeps the other headers', async () => {

@@ -200,7 +200,8 @@ describe('browser push on the local database, as madar_server', () => {
     expect(posted).toEqual([]);
     // The device of an active human is the only one the effect reads.
     expect(await office.sql(PUSH_DEVICES_SQL, [sara.id])).toEqual([]);
-    expect(await office.sql(PUSH_DEVICES_SQL, [omar.id])).toEqual([{ endpoint: endpointOf(omar.id) }]);
+    // A device saved with no keys reads keys null: it gets the empty push (owner, 2026-10-21).
+    expect(await office.sql(PUSH_DEVICES_SQL, [omar.id])).toEqual([{ endpoint: endpointOf(omar.id), keys: null }]);
   });
 
   it('leaves no push row after a call that fails', async () => {

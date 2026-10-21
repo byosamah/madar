@@ -587,6 +587,16 @@ export type ProjectTemplate = z.infer<typeof ProjectTemplate>;
  * endpoint is the address of the push service of the browser (limits.ts, isPushEndpoint). One row for each endpoint.
  */
 export const PushEndpoint = z.string().max(PUSH_ENDPOINT_MAX).refine(isPushEndpoint, 'Expected the https address of a browser push service.');
+/**
+ * The keys of a browser for the message encryption of Web Push (owner, 2026-10-21; RFC 8291): p256dh, its P-256 public key of
+ * 65 bytes, and auth, a secret of 16 bytes, in base64url. The server encrypts the line of each push with them, so only that
+ * browser reads it. A browser may give them with base64 padding (push.register takes it off); the record keeps them without it.
+ */
+export const PushKeys = z.object({
+  p256dh: z.string().regex(/^[A-Za-z0-9_-]{87}$/, 'Expected a P-256 public key of 65 bytes in base64url.'),
+  auth: z.string().regex(/^[A-Za-z0-9_-]{22}$/, 'Expected a secret of 16 bytes in base64url.'),
+});
+export type PushKeys = z.infer<typeof PushKeys>;
 export const PushDevice = z.object({
   id: PushDeviceId,
   userId: UserId,
@@ -594,6 +604,8 @@ export const PushDevice = z.object({
   label: z.string().trim().min(1).max(PUSH_LABEL_MAX),
   createdAt: Stamp,
   lastPushAt: Stamp.nullable(),
+  /** Missing on a device saved before 2026-10-21: it gets the empty push (the fixed line) until its browser sends the keys. */
+  keys: PushKeys.optional(),
 });
 export type PushDevice = z.infer<typeof PushDevice>;
 

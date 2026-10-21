@@ -73,9 +73,23 @@ describe('a device is private to its person', () => {
     // The one way to take an endpoint is to register it from that very browser. Then the first person loses it, and nobody else learns it.
     t.as('usr_004');
     const taken = await t.api.call('push.register', { endpoint: SECRET_ENDPOINT, label: 'Shared browser' });
-    expect(Object.keys(taken).sort()).toEqual(['createdAt', 'endpoint', 'id', 'label']);
+    expect(Object.keys(taken).sort()).toEqual(['createdAt', 'endpoint', 'hasKeys', 'id', 'label']);
     t.as('usr_003');
     expect((await t.api.call('push.mine', {})).map((d) => d.endpoint)).toEqual([SECOND_ENDPOINT]);
+  });
+
+  // The keys of a browser (owner, 2026-10-21) encrypt its push lines. No read path gives them, the person's own included.
+  it('gives the keys of a browser to nobody: not the person, not the Admin, not the History', async () => {
+    const t = await world();
+    const keys = { p256dh: `B${'K'.repeat(86)}`, auth: 'Q'.repeat(22) };
+    t.as('usr_003');
+    expect(await t.api.call('push.register', { endpoint: SECRET_ENDPOINT, label: 'Chrome on Mac', keys })).toMatchObject({ hasKeys: true });
+    for (const userId of ['usr_001', 'usr_002', 'usr_003', 'usr_004']) {
+      t.as(userId);
+      const seen = JSON.stringify([await t.api.call('push.mine', {}), await t.api.call('events.list', { limit: 500 }), await t.api.call('notifications.list', {})]);
+      expect(seen, userId).not.toContain(keys.auth);
+      expect(seen, userId).not.toContain(keys.p256dh);
+    }
   });
 
   it('gives an agent no way to learn or change a device: all three calls refuse it', async () => {

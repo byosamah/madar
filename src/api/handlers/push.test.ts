@@ -21,8 +21,9 @@ describe('push.register (owner, 2026-10-08)', () => {
     const device = await t.api.call('push.register', { endpoint: FCM, label: 'Chrome on Mac' });
     expect(device).toMatchObject({ id: 'pdv_001', endpoint: FCM, label: 'Chrome on Mac' });
     expect(devicesOf(t)).toEqual([expect.objectContaining({ id: 'pdv_001', userId: 'usr_003', endpoint: FCM, label: 'Chrome on Mac', lastPushAt: null })]);
-    // The view of the device holds nothing of the person.
-    expect(Object.keys(device).sort()).toEqual(['createdAt', 'endpoint', 'id', 'label']);
+    // The view of the device holds nothing of the person, and never its keys: only whether it has them.
+    expect(Object.keys(device).sort()).toEqual(['createdAt', 'endpoint', 'hasKeys', 'id', 'label']);
+    expect(device.hasKeys).toBe(false);
   });
 
   it('keeps one row for one endpoint: the same person registering again changes the label only', async () => {
@@ -135,6 +136,68 @@ describe('push.register (owner, 2026-10-08)', () => {
     t.as('usr_004');
     await expect(t.api.call('push.register', { endpoint: FCM, label: 'Chrome on Mac' })).rejects.toBeTruthy();
     expect(devicesOf(t)).toEqual([]);
+  });
+});
+
+// The keys of the browser (owner, 2026-10-21): the server encrypts the line of each push for this browser only (RFC 8291).
+// p256dh is a P-256 public key (65 bytes, 87 characters), auth a secret of 16 bytes (22 characters), both in base64url.
+const KEYS = { p256dh: `B${'A'.repeat(86)}`, auth: 'C'.repeat(22) };
+const OTHER_KEYS = { p256dh: `B${'D'.repeat(86)}`, auth: 'E'.repeat(22) };
+
+describe('push.register with the keys of the browser (owner, 2026-10-21)', () => {
+  it('keeps the keys in the record, and the view tells only that it has them', async () => {
+    const t = world();
+    t.as('usr_003');
+    const device = await t.api.call('push.register', { endpoint: APPLE, label: 'Safari on iPhone', keys: KEYS });
+    expect(device.hasKeys).toBe(true);
+    expect(JSON.stringify(device)).not.toContain(KEYS.auth);
+    expect(devicesOf(t)).toEqual([expect.objectContaining({ endpoint: APPLE, keys: KEYS })]);
+    expect(await t.api.call('push.mine', {})).toEqual([expect.objectContaining({ endpoint: APPLE, hasKeys: true })]);
+    expect(JSON.stringify(await t.api.call('push.mine', {}))).not.toContain(KEYS.p256dh);
+  });
+
+  it('keeps the old keys when the same browser registers again without them, and takes new ones when it sends them', async () => {
+    const t = world();
+    t.as('usr_003');
+    await t.api.call('push.register', { endpoint: APPLE, label: 'Safari on iPhone', keys: KEYS });
+    await t.api.call('push.register', { endpoint: APPLE, label: 'Safari on iPhone' });
+    expect(devicesOf(t)[0].keys).toEqual(KEYS);
+    await t.api.call('push.register', { endpoint: APPLE, label: 'Safari on iPhone', keys: OTHER_KEYS });
+    expect(devicesOf(t)[0].keys).toEqual(OTHER_KEYS);
+  });
+
+  it('gives a device with no keys its keys when the browser sends them later (a device saved before 2026-10-21)', async () => {
+    const t = world();
+    t.as('usr_003');
+    const old = await t.api.call('push.register', { endpoint: FCM, label: 'Chrome on Android' });
+    expect(old.hasKeys).toBe(false);
+    const again = await t.api.call('push.register', { endpoint: FCM, label: 'Chrome on Android', keys: KEYS });
+    expect(again).toMatchObject({ id: old.id, hasKeys: true });
+  });
+
+  it('takes keys with base64 padding and keeps them without it', async () => {
+    const t = world();
+    t.as('usr_003');
+    await t.api.call('push.register', { endpoint: FCM, label: 'Chrome on Mac', keys: { p256dh: `${KEYS.p256dh}=`, auth: `${KEYS.auth}==` } });
+    expect(devicesOf(t)[0].keys).toEqual(KEYS);
+  });
+
+  it('refuses keys of the wrong form', async () => {
+    const t = world();
+    t.as('usr_003');
+    for (const keys of [{ p256dh: KEYS.auth, auth: KEYS.auth }, { p256dh: KEYS.p256dh, auth: KEYS.p256dh }, { p256dh: `${KEYS.p256dh.slice(1)}+`, auth: KEYS.auth }]) {
+      await expect(t.api.call('push.register', { endpoint: FCM, label: 'Chrome on Mac', keys }), JSON.stringify(keys)).rejects.toBeTruthy();
+    }
+    expect(devicesOf(t)).toEqual([]);
+  });
+
+  it('moves the keys with a shared browser to the person who registers it', async () => {
+    const t = world();
+    t.as('usr_003');
+    await t.api.call('push.register', { endpoint: FCM, label: 'Chrome on Mac', keys: KEYS });
+    t.as('usr_004');
+    await t.api.call('push.register', { endpoint: FCM, label: 'Chrome on Mac', keys: OTHER_KEYS });
+    expect(devicesOf(t)).toEqual([expect.objectContaining({ userId: 'usr_004', keys: OTHER_KEYS })]);
   });
 });
 

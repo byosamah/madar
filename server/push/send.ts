@@ -2,9 +2,10 @@ import { isPushEndpoint } from '../../src/api/contract/push';
 import { PushConfigError, VAPID_NAMES, vapidAuthorization, type VapidConfig } from './vapid';
 
 /**
- * One push (owner, 2026-10-08). The server posts an EMPTY message to the push address of a browser, with the VAPID header. The
- * browser then wakes its service worker (public/sw.js), which shows one fixed line. Nothing about a task, a project, a client or
- * a person travels through the push service, so no message encryption is needed.
+ * One push (owner, 2026-10-08). The server posts to the push address of a browser, with the VAPID header. Since 2026-10-21 the
+ * body is the push line, encrypted for that browser only (encrypt.ts, RFC 8291): the push service carries bytes it cannot read. A
+ * browser with no keys gets an EMPTY message. The browser then wakes its service worker (public/sw.js), which shows the line, or
+ * the fixed line for an empty message.
  *
  *   201 or 202   sent
  *   404 or 410   the subscription is gone: the caller removes the device
@@ -59,6 +60,8 @@ export type SendOptions = {
   fetch?: typeof globalThis.fetch;
   now?: () => Date;
   timeoutMs?: number;
+  /** The encrypted push line (encrypt.ts). Without it the message is empty, and the browser shows the fixed line. */
+  body?: Uint8Array<ArrayBuffer>;
 };
 
 export async function sendPush(config: VapidConfig | undefined, endpoint: string, o: SendOptions = {}): Promise<PushOutcome> {
@@ -69,9 +72,15 @@ export async function sendPush(config: VapidConfig | undefined, endpoint: string
   const authorization = await vapidAuthorization(config, endpoint, (o.now ?? (() => new Date()))());
   let response: Response;
   try {
+    const headers: Record<string, string> = { Authorization: authorization, TTL: String(PUSH_TTL_SECONDS), Urgency: PUSH_URGENCY, ...topicFor(host) };
+    if (o.body) {
+      headers['Content-Encoding'] = 'aes128gcm';
+      headers['Content-Type'] = 'application/octet-stream';
+    }
     response = await (o.fetch ?? globalThis.fetch)(endpoint, {
       method: 'POST',
-      headers: { Authorization: authorization, TTL: String(PUSH_TTL_SECONDS), Urgency: PUSH_URGENCY, ...topicFor(host) },
+      headers,
+      ...(o.body ? { body: o.body } : {}),
       // A push service never needs a redirect. A redirect answer is a refusal, so the server never follows it to another host.
       redirect: 'manual',
       signal: AbortSignal.timeout(o.timeoutMs ?? DEFAULT_TIMEOUT_MS),

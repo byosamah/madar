@@ -274,3 +274,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - 2026-10-18: R2 alone for the files (no Backblaze B2); the test copy on the same Cloudflare account with a 50% day cap; the
   GitHub tests start only by hand, so the free minutes go to the backups; the database backup runs from the Mac until GitHub
   runs it again; the exit pauses after wave 5 R5 for a feature of the team (`docs/superpowers/real-build/exit-handoff.md`).
+- 2026-10-20: the Home Screen app is the phone app until the official iPhone and Android app (one code for both phones, later):
+  the Home card shows the steps to the Home Screen on an iPhone and one install button on Android; every push is urgent and lives
+  one day. 2026-10-21: Apple gets no Topic header (it refused every iPhone push); the push line is "Like WhatsApp" (the name and the
+  first words of a message, the bell sentence of a notice, encrypted for each browser; a press opens it). It replaces the fixed line
+  with no data of 2026-10-08. Record: `server/push/CLAUDE.md`.

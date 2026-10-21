@@ -2,7 +2,7 @@
   "push": {
     "title": "Notifications on this device",
     "switch": "Notify me on this device",
-    "hint": "Madar sends one short line when you have a new notice or message. The line shows no to-do, project or person.",
+    "hint": "Madar sends one short line when you have a new notice or message: who sent it and the first words. A person who sees your locked phone can read it.",
     "ask": "Get one short line on this device when you have a new notice or message.",
     "askButton": "Turn on notifications",
     "unsupported": "This browser cannot show Madar notifications. Use a recent Chrome, Edge, Firefox or Safari.",
@@ -23,6 +23,10 @@
   },
   "whatsNew": {
     "items": {
+      "2026-10-23-71": {
+        "title": "Notifications say who and what",
+        "body": "A notification now shows who wrote and the first words, as in WhatsApp. A notice shows the same sentence as the bell. Tap it, and Madar opens that chat or task. Open Madar once on each phone, so it can start."
+      },
       "2026-10-23-70": {
         "title": "Notifications on your phone",
         "body": "On an iPhone, Home now shows 3 steps that add Madar to the Home Screen. An iPhone gets notifications only from there. On Android, Home shows one button that adds Madar to the Home Screen. Notifications now reach a phone in sleep mode at once. They also reach a phone that had no signal for some hours."

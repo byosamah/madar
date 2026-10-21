@@ -4,10 +4,25 @@ Madar sends a push to the browsers of its people (owner, 2026-10-08). It is free
 push service of the browser). There is no email, no WhatsApp, no SMS and no account with a vendor. It works in Chrome, Edge,
 Firefox and Safari on a computer, on Android, and on an iPhone once Madar is on the Home Screen.
 
-The push is EMPTY. The server posts no text and no data, so it needs no message encryption. The service worker
-(`public/sw.js`) shows ONE fixed line (except in front of a window of Madar that has the focus, see "Quiet while Madar is in front"): title "Madar" and body "You have something new in Madar." (Arabic: "مدار" and
-"لديك جديد في مدار."). The line carries no task, project, client or person, like the notice mail. A press on it focuses an open
-Madar window, or opens `/`.
+## The push line (owner, 2026-10-21, "Like WhatsApp"; it replaces the empty push of 2026-10-08)
+- The push carries a line: a title, a body, a link in Madar, a tag and a language. A chat gives the name of the sender (a direct
+  chat), of the group or of the project as the title, and "Name: first words" as the body (the words alone in a direct chat). A task
+  comment gives the task title and "Name: words". A notice gives its project (or "Madar") and the sentence of the bell. The person's
+  own language, with the Arabic name on Arabic screens. The body stops at 180 characters. A press opens that chat, task thread or
+  notice. The lock screen shows it: the Settings hint says so.
+- `line.ts` makes the line by reading AS THE PERSON who gets the push, with the read calls of the screens (`session.get`,
+  `notifications.list`, `chats.list`, and `comments.list` with `tasks.get` for a task thread with no Inbox row): a chat or a task
+  that the person may not open gives no line. The run is `deps.runCall ?? runCall`, as in the job steps. The bell sentence is one
+  function for the bell and the line (`src/lib/noticeSentence.ts`). The words are `words.ts` (see "Files").
+- `encrypt.ts` encrypts the line for that browser alone (RFC 8291 with aes128gcm, WebCrypto only; the test holds the vector of
+  Appendix A). The push service carries bytes it cannot read. The browser gives its keys (p256dh, auth) at `push.register`.
+- A device with no keys (saved before 2026-10-21), a line that cannot be made (`lineOrNull` logs the error name only, never its
+  text), or keys of a wrong form get the EMPTY push, and the service worker (`public/sw.js`) shows ONE fixed line: title "Madar"
+  and body "You have something new in Madar." (Arabic: "مدار" and "لديك جديد في مدار."). The worker also shows the fixed line for a
+  line it cannot trust (a missing title or body, a tag that does not start with `madar-`, a link that is not a path of this site).
+- The start check of the screens (`syncThisDevice`) saves a device again with its keys when the server lists it without them, so each
+  phone gets the line after its first open of Madar after the release.
+- Every push shows a line, except in front of a window of Madar that has the focus (see "Quiet while Madar is in front").
 
 ## Quiet while Madar is in front (owner, 2026-10-23, fbk_028)
 Request: "each reply creates a desktop notification, even when the dm window is open". The push has no data, so the worker cannot tell a chat
@@ -39,8 +54,15 @@ message from a notice, and the server cannot know that a window is open. The fix
 ## Files
 - `vapid.ts`: the ES256 token (RFC 8292) with WebCrypto only, so it runs on Deno Edge Functions and on Workers. No Node API and
   no package. `vapidConfigOf` reads the three secrets. `makeVapidKeys` makes a pair.
-- `send.ts`: one push to one endpoint. `sendPush` tells `sent`, `gone` or `refused`, or throws `PushSendError` for a retry.
-- `notify.ts`: the producer `pushRows`, the effects `sendPushNotify` and `sendChatPush`, and their SQL texts.
+- `send.ts`: one push to one endpoint. `sendPush` tells `sent`, `gone` or `refused`, or throws `PushSendError` for a retry. With
+  `body` it posts the encrypted line with `Content-Encoding: aes128gcm`.
+- `encrypt.ts`: `encryptPush` (RFC 8291). `line.ts`: `noticeLine` and `chatLine`, the line as the person reads it.
+- `words.ts`: the words of the line in an i18next instance of its own (as `server/mail/templates/words.ts`). It imports only the
+  `inbox`, `notices` and `push` parts of the word files BY NAME, so the bundle keeps those parts only (the api bundle has a bound of
+  800,000 bytes; 774,427 after this change). `words.test.ts` checks that its `inbox` words are all the `inbox` words of the screens:
+  a track that adds a bell sentence in a new word file adds that file to `words.ts`.
+- `notify.ts`: the producer `pushRows`, the effects `sendPushNotify` and `sendChatPush` (each takes `LineOptions` for tests), and
+  their SQL texts. `PUSH_DEVICES_SQL` reads the keys of each device (`d.doc->'keys'`, null when none).
 - `chatRule.ts`: the pure rule `planPushes` and its facts. `chatFacts.ts`: the fact readers with their SQL texts, Postgres and SQLite.
 - `register.ts`, `effects.ts`: the registration, like `server/mail/register.ts` and `effects.ts`. `deps.ts` imports `effects.ts`.
 - The calls (`push.register`, `push.remove`, `push.mine`) are in `src/api/handlers/push.ts`. The record is `PushDevice`.
@@ -74,7 +96,9 @@ message from a notice, and the server cannot know that a window is open. The fix
    A `push.chat` row (a chat message, a task comment, or a mention or reply notice of one) waits 10 s after the answer
    (`WAITED_KINDS`). Then `sendChatPush` asks `PUSH_STILL_NEW_SQL` which items the person has not read on any device
    (`chat_reads.lastReadAt`) and which are not deleted, and sends one push only when one is left.
-4. The effect `sendPushNotify` reads the devices of the person again from the primary, and posts to each device at once.
+4. The effect `sendPushNotify` reads the devices of the person again from the primary (with their keys). When one has keys, it
+   makes the line (`noticeLine`; `sendChatPush` makes `chatLine` for the chat of the newest item that is still new), then posts to
+   each device at once: the encrypted line to a device with keys, the empty push to the others.
    - 201 or 202: sent. The effect sets `lastPushAt` of the device.
    - 404 or 410: the browser dropped the subscription. The effect deletes the device.
    - 429, 5xx, a network error or a timeout (3 s): the effect handles the other devices, then throws `PushSendError`, and the
@@ -111,6 +135,10 @@ message from a notice, and the server cannot know that a window is open. The fix
   a line in `PUSH_HOSTS`.
 - An error text names the host and the status, never the address, the token or a key. The endpoint is a capability of that
   browser.
+- The keys of a browser (owner, 2026-10-21) are as private as its endpoint: no view gives them, the person's own included
+  (`PushDeviceView.hasKeys` only says that they exist; `pushLeaks.test.ts`). The log never holds the words of a line.
+- The line of a person comes only from reads AS that person (`line.ts`). Never build a line from SQL or from the state of another
+  person: the read calls carry the rules of who may see a chat, an office task or a meeting.
 - At most 10 devices for each person (`PUSH_DEVICES_PER_PERSON`). A new one pushes the oldest out.
 - A sign-out removes the device of the browser and unsubscribes the browser (`removeThisDevice`, `src/app/remote/push.ts`), so the
   person who signed out gets no push. Push is on by default (owner, 2026-10-09): the permission stays in the browser, so the next
@@ -131,6 +159,9 @@ message from a notice, and the server cannot know that a window is open. The fix
 ## Tests
 - `vapid.test.ts` (the token, checked with the public key), `send.test.ts` (a stub fetch), `notify.test.ts` (the producer, the SQL
   rules, the effect, the registration). The SQL itself runs on the local database in `server/it/push.it.test.ts`.
+- The line (2026-10-21): `encrypt.test.ts` (the vector of RFC 8291, Appendix A), `line.test.ts` (the real calls on the sample office
+  in memory: a direct chat, a group, an outsider who gets null, a task comment for a helper, an office task, a notice, Arabic),
+  `notifyLine.test.ts` (the effects; the test decrypts the body as the browser does), `words.test.ts`.
 - The Docker lock and `test:it` run the integration suite. On 2026-10-08 the SQL and the migration were also run once on an
   in-memory Postgres 18 (pglite, outside the repo), because Docker was off. The local stack runs Postgres 17, so `test:it` stays the proof.
 - Proven on a real push service: desktop Chrome (team report fbk_028, 2026-10-19) and, after the Topic fix, Apple on an iPhone

@@ -74,11 +74,62 @@ describe('public/sw.js: the text of the push', () => {
     expect(pushText('ar')).toEqual({ title: pushWords.ar.notificationTitle, body: pushWords.ar.notificationBody });
   });
 
-  it('carries no task, project, client or person: the worker never reads the data of the push', async () => {
+  // The push line (owner, 2026-10-21, "Like WhatsApp"): the server sends the line, encrypted for this browser; the browser opens it.
+  it('shows the line of the push: its title, body, tag, language and link', async () => {
+    const line = { title: 'Site team', body: 'Hala Nasser: please check the stairs.', url: '/inbox/cnv_013', tag: 'madar-chat-cnv_013', lang: 'en' };
+    const worker = load({ language: 'ar-SA' });
+    await worker.fire('push', { data: { json: () => line } });
+    expect(worker.shown).toEqual([{ title: 'Site team', options: expect.objectContaining({ body: line.body, tag: line.tag, lang: 'en', dir: 'ltr', renotify: true, data: { url: line.url } }) }]);
+  });
+
+  it('shows an Arabic line from right to left', async () => {
     const worker = load();
-    await worker.fire('push', { data: { json: () => { throw new Error('The worker read the data.'); }, text: () => { throw new Error('The worker read the data.'); } } });
-    expect(worker.shown).toHaveLength(1);
-    expect(source).not.toMatch(/event\.data/);
+    await worker.fire('push', { data: { json: () => ({ title: 'مدار', body: 'هالة ناصر: جاهز؟', url: '/notifications', tag: 'madar-task-tsk_064', lang: 'ar' }) } });
+    expect(worker.shown[0].options).toMatchObject({ lang: 'ar', dir: 'rtl' });
+  });
+
+  it('shows the fixed line when the push has no line, or a line it cannot trust', async () => {
+    const good = { title: 'T', body: 'B', url: '/inbox/cnv_013', tag: 'madar-chat-cnv_013', lang: 'en' };
+    const bad: Record<string, unknown>[] = [
+      { data: null },
+      { data: { json: () => { throw new SyntaxError('Not JSON.'); } } },
+      { data: { json: () => 'just text' } },
+      { data: { json: () => ({ ...good, url: 'https://evil.example/' }) } },
+      { data: { json: () => ({ ...good, url: '//evil.example/' }) } },
+      { data: { json: () => ({ ...good, title: '' }) } },
+      { data: { json: () => ({ ...good, tag: 'other' }) } },
+      { data: { json: () => ({ ...good, body: 42 }) } },
+    ];
+    for (const event of bad) {
+      const worker = load();
+      await worker.fire('push', event);
+      expect(worker.shown, JSON.stringify(event)).toEqual([{ title: 'Madar', options: expect.objectContaining({ body: 'You have something new in Madar.', tag: 'madar-new', data: { url: '/' } }) }]);
+    }
+  });
+
+  it('opens the link of the line on a press: it moves an open Madar window there, or opens a new window at it', async () => {
+    const navigate = vi.fn(async () => undefined);
+    const open = { url: 'https://madar.vado.sa/projects', focus: vi.fn(async () => open), navigate } as unknown as Client;
+    const worker = load({ clients: [open] });
+    await worker.fire('notificationclick', { notification: { close: vi.fn(), data: { url: '/inbox/cnv_013' } } });
+    expect(navigate).toHaveBeenCalledWith('/inbox/cnv_013');
+    expect(worker.opened).toEqual([]);
+    const none = load({ clients: [] });
+    await none.fire('notificationclick', { notification: { close: vi.fn(), data: { url: '/inbox/cnv_013' } } });
+    expect(none.opened).toEqual(['/inbox/cnv_013']);
+  });
+
+  it('opens a new window at the link when the open window cannot move', async () => {
+    const open = { url: 'https://madar.vado.sa/', focus: vi.fn(async () => open), navigate: vi.fn(async () => { throw new TypeError('Not controlled.'); }) } as unknown as Client;
+    const worker = load({ clients: [open] });
+    await worker.fire('notificationclick', { notification: { close: vi.fn(), data: { url: '/notifications' } } });
+    expect(worker.opened).toEqual(['/notifications']);
+  });
+
+  it('never opens a link to another site, whatever the notification holds', async () => {
+    const worker = load({ clients: [] });
+    await worker.fire('notificationclick', { notification: { close: vi.fn(), data: { url: 'https://evil.example/' } } });
+    expect(worker.opened).toEqual(['/']);
   });
 });
 
