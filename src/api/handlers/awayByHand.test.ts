@@ -88,5 +88,26 @@ describe('Away by hand stays private', () => {
     expect((await t.api.call('users.list', {})).find((user) => user.id === 'usr_003')?.preferences.awayByHand).toBe(true);
     expect((await t.api.call('users.get', { id: 'usr_003' })).preferences.awayByHand).toBe(true);
   });
-});
 
+  it('hides Away by hand of another person in every answer that returns a person', async () => {
+    const t = testApi(calls);
+    t.as('usr_003');
+    await t.api.call('me.updatePreferences', { awayByHand: true });
+    t.as('usr_001');
+    const answers = [
+      (await t.api.call('users.get', { id: 'usr_003' })),
+      (await t.api.call('users.list', {})).find((user) => user.id === 'usr_003')!,
+      await t.api.call('users.update', { id: 'usr_003', patch: { discipline: 'Engineer' } }),
+      await t.api.call('users.deactivate', { id: 'usr_003' }),
+      await t.api.call('users.reactivate', { id: 'usr_003' }),
+    ];
+    for (const answer of answers) {
+      expect(answer.id).toBe('usr_003');
+      expect(JSON.stringify(answer)).not.toContain('awayByHand');
+    }
+    // The stored record keeps it, and the person still reads it.
+    expect(t.store.state.users.usr_003.preferences.awayByHand).toBe(true);
+    t.as('usr_003');
+    expect((await t.api.call('users.get', { id: 'usr_003' })).preferences.awayByHand).toBe(true);
+  });
+});

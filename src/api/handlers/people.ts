@@ -219,7 +219,7 @@ export const usersCreate = defineCall({
     };
     ctx.state.users[id] = user;
     recordCreate(ctx, { projectId: null, verb: 'user.created', targetType: 'user', targetId: id, entity: user });
-    return user;
+    return forReader(ctx, user);
   },
 });
 
@@ -270,7 +270,7 @@ export const usersUpdate = defineCall({
     const { roleId: _patchRoleId, ...fields } = input.patch;
     const changes = { ...fields, ...(roleId !== undefined && roleId !== (user.roleId ?? null) ? { roleId } : {}) };
     applyPatch(ctx, user, changes, { projectId: null, verb: 'user.updated', targetType: 'user', targetId: user.id });
-    return user;
+    return forReader(ctx, user);
   },
 });
 
@@ -283,7 +283,7 @@ export const usersDeactivate = defineCall({
     assertMayTouch(ctx, user, undefined);
     if (user.id === ctx.authority.id) throw invalid('id', 'You cannot turn off your own account.');
     applyPatch(ctx, user, { active: false }, { projectId: null, verb: 'user.deactivated', targetType: 'user', targetId: user.id });
-    return user;
+    return forReader(ctx, user);
   },
 });
 
@@ -302,7 +302,7 @@ export const usersReactivate = defineCall({
     const owner = user.ownerId ? ctx.state.users[user.ownerId] : undefined;
     if (user.kind === 'agent' && !owner?.active) throw invalid('id', 'An agent needs an active person to act for.');
     applyPatch(ctx, user, { active: true }, { projectId: null, verb: 'user.reactivated', targetType: 'user', targetId: user.id });
-    return user;
+    return forReader(ctx, user);
   },
 });
 
@@ -335,7 +335,7 @@ export const usersRemove = defineCall({
         applyPatch(ctx, agent, { active: false, removed: true }, { ...meta, targetId: agent.id });
       }
     }
-    return user;
+    return forReader(ctx, user);
   },
 });
 
