@@ -30,7 +30,8 @@ the config, the heartbeat of one run stays and the next run fails.
   transaction pooler). `withClient` of `tests/e2e-deploy/mail.ts` then reads madar-test from a one-off script (sandbox off).
 - A script that acts as a sample account on the test copy: the Supabase password grant, then `POST <SUPABASE_URL>/functions/v1/
   api/batch?forceFunctionRegion=eu-central-1` with `X-Madar-Build: buildId(new Date())` (`scripts/build-remote.ts`). With no
-  build header the server answers 409 `client_outdated`.
+  build header the server answers 409 `client_outdated`. The body is `{ v: 1, calls: [{ i, name, input }] }`; each answer is
+  `results[i].output` or `results[i].error`. `https://preview.madar-46r.pages.dev/api/batch` takes it too.
 - On the office path (exit wave 4): set `MADAR_E2E_OFFICE_URL` (the local office `http://127.0.0.1:8792`, or
   `https://preview.madar-46r.pages.dev`) and `MADAR_E2E_OPS_SECRET` (the `MADAR_OPS_SECRET` of that copy). The specs then read
   `mail_outbox` and the walk's checks through the peek route (`tests/e2e-deploy/office.ts`, the SQLite form of each walk text in

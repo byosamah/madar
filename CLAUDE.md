@@ -219,6 +219,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - When no folder holds main, check it out in a clean worktree (`git switch main`) and `git merge --ff-only <branch>` there.
   `git update-ref refs/heads/main` was refused by the auto-mode check as Git Destructive (2026-10-20).
 - Never send a message to a running Workflow agent: it starts a duplicate copy in the same worktree.
+- Before you move main or run `all.sh`, tell the peer sessions (ListAgents, SendMessage) and send "released" after: two releases
+  on one main and one test copy break each other (2026-10-21). ListAgents does not name the branch of a session; ask by branch name.
 - A Workflow agent that stopped (an API error) keeps its commits, but SendMessage cannot resume it, and a re-run
   starts it again from its brief. Start a finisher in the same worktree with the commit list and the transcript
   (`subagents/workflows/<run>/agent-*.jsonl`; `agent-*.meta.json` names the label).

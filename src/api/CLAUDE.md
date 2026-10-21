@@ -40,6 +40,8 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - The Batcher (`remote/batcher.ts`) places a read with `after` (a read of a follow step) in the request of that write, right
   after it, while the request has fewer than 12 calls and no second overview call. Else the read goes as any other call, and
   RemoteApi does not name it as fresh. A read that goes again after a lost answer goes alone and drops `after`.
+- A rule over two input fields: chain `.refine(fn, { path, message })` on the `z.object` of `defineCall`. zod 4 keeps a ZodObject,
+  so the MCP inputSchema still builds, and `invalidInput` lists each path in `details.fields` (`reports.office`).
 - `Store.runIf(fn)` saves and tells the listeners only when fn returns true; on an error it puts the state back, as `run()`
   does. The prototype minute timer (`startScheduler`, `src/app/bootstrap.ts`) uses it.
 

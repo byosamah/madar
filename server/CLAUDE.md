@@ -87,6 +87,8 @@ The other host stays deployed as the way back. Each area below has its own guide
 - `vite.server.config.ts` minifies the four bundles with `output.keepNames: true`. The names matter: the jose and SDK
   error classes name themselves from their constructor, and check-bundles finds a leaked `settleFuture` by its name.
   `entries/bundles.test.ts` checks this on fixtures.
+- `entries/bundles.test.ts` bounds the minified api bundle (850,000 characters since 2026-10-21). A long text constant in `src/api`
+  counts (the report guide: about 17,000). Raise the bound with one history line in the test.
 - Supabase serves each request with a new worker: about one cold start for each request, each worker lives 75 s and then
   stops (`EarlyDrop`), and none takes a second request (function logs of madar-test, 2026-10-16). So the pools close an idle
   connection after 1 s (`IDLE_TIMEOUT_MS`, `data/sql.ts`), and each entry also closes its pools on `beforeunload`

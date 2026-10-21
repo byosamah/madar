@@ -22,6 +22,9 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
 - A cloud proof of another session can put a migration on madar-test that no branch holds yet. `all.sh test` then stops at its first
   step with `DbPushMissingLocalError` ("Remote migration versions not found in local migrations directory"), after it removed the
   record. Never repair the migration history for it: ask which session holds the proof, and deploy when it is done (2026-10-21).
+- Before `all.sh test`, check the record: `git merge-base --is-ancestor $(cat "$(git rev-parse --git-common-dir)/madar-test-deploy") main`.
+  A record off main is another session's branch on the test copy (2026-10-21: `rb/chat-presence`, 2 migrations). A deploy from main
+  then fails at db push and removes its record: ask that session first, or ship both in one release.
 - Load the keys first: `set -a; . ./.env.local; set +a`, then `scripts/deploy/all.sh test`.
 - Commit TASKS.md and proof.md before `all.sh test`: any later commit (also a note) needs `all.sh test` again.
 - Another session may leave changes in the main folder. Then deploy from a clean worktree of main: `git fetch . <branch>:main`,

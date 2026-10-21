@@ -507,6 +507,8 @@ any screen work.
   (`GroupLineItem` in `Thread.tsx`), in the screen language. They are no messages: never unread, no push.
 - The mention list of the Inbox box opens above the box (`MentionField placement="above"`) and ranks the names that start with
   the typed letters first (`rankedMatches`, `lib/personName.ts`).
+- A What's new id: take a number above the newest id on main and on every open `rb/*` branch (`git show rb/<x>:src/whatsNew/entries.ts`).
+  A test finds its entry by id, never by `WHATS_NEW[0]`.
 - What's new (`whatsNew/entries.ts`): an entry may have `right` (the page shows it only to a person who holds it, by `can()`) and
   `to` (one quiet link "Open"). An entry newer than the last one the person saw has the word "New". The person menu shows the word
   "New" after the item, and Home ends its date line with the link "See what's new", until the person opens the page. There is no dot
