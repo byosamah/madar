@@ -2223,3 +2223,5 @@ presence entries live in memory and are gone when the sockets close. Production 
 - `all.sh production` passed the quick checks (health from supabase, 149 calls). A live call through the owner's Claude connector, which
   still held the old tool list, with period range for 18 to 21 October answered the kind range, the trend and the 8 design colors.
 - An AI app keeps its tool list for a while: a new chat in Claude Desktop gets the new tool text.
+- 2026-10-21, later: on the owner's "deploy to production", `all.sh test` and `all.sh production` took 23b2c902 (only TASKS.md and
+  proof.md notes on top of 7b0ea2ce, no shipped file changed). Both quick checks passed (health from supabase, 149 calls).
