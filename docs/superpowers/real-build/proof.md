@@ -2209,3 +2209,17 @@ presence entries live in memory and are gone when the sockets close. Production 
   seen signal 644 ms; no typing leak; an outsider's typing call answered `not_found`). The owner chose no browser suite this time.
 - `all.sh production` from deploy-test applied `20261022000100` and `20261022000200` on production and passed the quick checks
   (health from supabase, 149 calls).
+
+### The Madar report from the AI assistant: the release (2026-10-21)
+- The owner asked to make his Claude skill "madar-office-report" part of the MCP, then "merge to main and deploy to production". Main
+  was fast-forwarded to `rb/report-guide` at 7b0ea2ce, on top of the chat presence release (f27d6e5f).
+- Gates: typecheck. `npm test` on the earlier base: 9,217 passed and 1 failed (the api bundle bound of 800,000; chat presence raised it
+  to 850,000 at the same time, and the api bundle is 826,972 bytes now). After the rebase on f27d6e5f: the touched tests (21 files,
+  366 tests), `test:lite` of the report tests (53), `build:server`, `npm run build`. Not run: `test:db` and `test:it` (the chat presence
+  gate held Docker; the loader reads the same rows as before, only the days change).
+- `all.sh test` put 7b0ea2c on the test copy. A read-only check as admin@madar.test: a range of 1 to 21 October answered with the kind
+  range, 6 trend weeks and the guide (16,888 characters); a week with from and to was refused (`invalid_input`, fields from and to);
+  a plain week came without the guide.
+- `all.sh production` passed the quick checks (health from supabase, 149 calls). A live call through the owner's Claude connector, which
+  still held the old tool list, with period range for 18 to 21 October answered the kind range, the trend and the 8 design colors.
+- An AI app keeps its tool list for a while: a new chat in Claude Desktop gets the new tool text.

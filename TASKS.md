@@ -919,5 +919,5 @@ Owner: "add some Slack chat features": Online, Away, Offline, "Seen", "typing...
 - [x] Past due of the office report counts to today while the period runs (a816c42a, b84b0212)
 - [x] reports.office: a range from one day to another (400 days at most), the 6-week trend, the status colors in design, and the guide of the
   Madar report with guide: true (from the owner's Claude skill "madar-office-report"); INSTRUCTIONS sends every report request to it
-- [ ] Test copy, then production with the owner's OK; then the owner removes or replaces the Claude skill in his AI app, so two recipes
-  do not disagree
+- [x] Test copy and production at 7b0ea2ce (2026-10-21, the owner said "merge to main and deploy to production")
+- [ ] The owner removes the Claude skill "madar-office-report" from his AI app, so two recipes do not disagree
