@@ -1,5 +1,6 @@
-import { memo, useState } from 'react';
+import { memo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { orderReactions } from '../../api/contract/emoji';
 import { REACTIONS } from '../../api/contract/limits';
 import type { CommentView, UserCard } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
@@ -14,6 +15,7 @@ import { MentionField } from '../../components/MentionField';
 import { Menu } from '../../components/Menu';
 import { RichText } from '../../components/RichText';
 import { editedBody, plainText } from '../../lib/text';
+import { EmojiButton, type EmojiButtonHandle } from '../emoji/EmojiButton';
 import { AttachmentList } from '../files/PictureAttachments';
 import { DateMoveLines } from '../project/tasks/DateReason';
 import { reasonLineText, type ReasonKind } from './ReasonLine';
@@ -33,6 +35,7 @@ export const CommentItem = memo(function CommentItem({ view, people, canPost }: 
   const update = useAction('comments.update', { onSuccess: () => setEditing(false) });
   const remove = useUndoable('comments.delete', { message: () => t('comments.deleted') });
   const react = useAction('reactions.toggle');
+  const picker = useRef<EmojiButtonHandle>(null);
   const me = session.data?.user.id;
   // A quiet line of a reason (fbk_027, owner 2026-10-19; the dates since owner 2026-10-02): no avatar, no bubble, no reactions. The
   // person who gave a date reason may fix its words. A reopening and a Madar shift stay as they were written, and no line is deleted.
@@ -102,8 +105,9 @@ export const CommentItem = memo(function CommentItem({ view, people, canPost }: 
         )}
         <AttachmentList files={files} />
         <div className="mt-1 flex flex-wrap items-center gap-1">
-          {REACTIONS.map((emoji) => {
-            const ids = comment.reactions[emoji];
+          {/* The three quick ones always, then every other emoji in use, in the order of the chat pills (chat presence design E3). */}
+          {orderReactions([...REACTIONS, ...Object.keys(comment.reactions).filter((key) => comment.reactions[key].length > 0)]).map((emoji) => {
+            const ids = comment.reactions[emoji] ?? [];
             if (!canPost) {
               return ids.length > 0 ? (
                 <span key={emoji} className="inline-flex min-h-8 items-center gap-1 rounded-full bg-fill px-2 text-footnote">
@@ -127,6 +131,18 @@ export const CommentItem = memo(function CommentItem({ view, people, canPost }: 
               </button>
             );
           })}
+          {canPost && (
+            <EmojiButton
+              ref={picker}
+              icon="plus"
+              label={t('chat.addReaction')}
+              onPick={(emoji) => {
+                // One pick sets that reaction and ends the list.
+                picker.current?.close(true);
+                react.mutate({ commentId: comment.id, emoji });
+              }}
+            />
+          )}
           {canEdit && !editing && actions.length > 0 && <span ref={focus.actions} className="contents"><Menu label={t('comments.actions')} items={actions} /></span>}
         </div>
       </div>

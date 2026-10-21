@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ReplyRef, UserCard } from '../../api/contract/views';
 import { newStoryId } from '../../app/actions';
@@ -11,6 +11,8 @@ import { MentionField } from '../../components/MentionField';
 import { withMentionMarkup } from '../../lib/text';
 import { LoadFailed } from '../../components/LoadFailed';
 import { AttachButton, PickedFiles, pastedPictures, useAttachments, useBlockFileDrop } from '../files/Attachments';
+import { EmojiButton } from '../emoji/EmojiButton';
+import { insertAt } from '../emoji/insert';
 import { ChatDropArea, useChatDropReceiver } from '../inbox/ChatDrop';
 import { ComposerReplyStrip } from '../inbox/ReplyStrip';
 import { CommentItem } from './CommentItem';
@@ -46,6 +48,16 @@ function CommentThreadFor({
   useMarkTaskRead(targetType === 'task' ? targetId : null, comments.data, owner);
   const draftKey = `${targetType}:${targetId}`;
   const [body, setBody] = useDraftText(owner, draftKey);
+  // The emoji panel puts a pick at the caret of the field. The panel keeps the focus for a second pick, so the caret goes back after the emoji
+  // without the focus (the focus returns to the field when the panel closes with Escape).
+  const field = useRef<HTMLTextAreaElement>(null);
+  const insertEmoji = (symbol: string) => {
+    const box = field.current;
+    if (!box) return;
+    const { next, caret } = insertAt(box.value, box.selectionStart ?? box.value.length, box.selectionEnd ?? box.value.length, symbol);
+    setBody(next);
+    requestAnimationFrame(() => box.setSelectionRange(caret, caret));
+  };
   // The comment that the next send answers (chat design 2026-10-19, item 10): only a task comment takes a reply. The strip sits above the
   // field, and the focus goes into the field, so the person types the answer at once.
   const [replyTo, setReplyTo] = useState<ReplyRef | null>(null);
@@ -115,10 +127,13 @@ function CommentThreadFor({
           >
             <DropReceiver onFiles={attachments.add} />
             {replyTo && <ComposerReplyStrip replyTo={replyTo} onCancel={() => setReplyTo(null)} />}
-            <MentionField id={`comment-${targetId}`} label={t('comments.add')} value={body} onChange={setBody} people={people} placeholder={t('comments.placeholder')} rows={2} />
+            <MentionField id={`comment-${targetId}`} label={t('comments.add')} value={body} onChange={setBody} people={people} placeholder={t('comments.placeholder')} rows={2} inputRef={field} />
             <PickedFiles files={attachments.files} onRemove={attachments.remove} />
             <div className="flex items-center justify-between gap-2">
-              <AttachButton onPick={attachments.add} />
+              <div className="flex items-center gap-1">
+                <AttachButton onPick={attachments.add} />
+                <EmojiButton onPick={insertEmoji} returnTo={() => field.current} />
+              </div>
               <Button variant={body.trim() ? 'primary' : 'secondary'} type="submit" disabled={!body.trim() || create.isPending || uploading}>{t('comments.send')}</Button>
             </div>
           </form>
