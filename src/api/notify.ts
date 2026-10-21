@@ -4,7 +4,7 @@ import {
 } from './contract/entities';
 import { copyForAdmins } from './adminCopies';
 import { can, mayViewMeeting, mayViewTask, principalOf, type Actor } from './permissions';
-import { withRights } from './rights';
+import { ensureRights, withRights } from './rights';
 import { nextId, type State } from './store';
 import { addDays, nowStamp, officeClock, weekStartOf } from '../lib/dates';
 import { peopleOfTask } from '../lib/taskPeople';
@@ -97,7 +97,8 @@ export function notify(state: State, actor: User | null, stamp: string, input: N
   for (const userId of new Set(input.userIds)) {
     const user = state.users[userId];
     if (!user || !user.active || user.kind === 'agent') continue;
-    if (task && task.projectId === null && !mayViewTask(state, user, task)) continue;
+    // The person comes from the office list with no rights attached: attach them, so a holder of task.officeAll still hears the notice.
+    if (task && task.projectId === null && !mayViewTask(state, ensureRights(state, user), task)) continue;
     // A meeting with no project tells only the people who may see it (owner, 2026-10-19).
     if (meeting && !mayViewMeeting(state, user, meeting)) continue;
     if (actor && (user.id === actor.id || user.id === actor.ownerId)) continue;

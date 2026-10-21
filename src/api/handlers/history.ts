@@ -518,14 +518,16 @@ function dropNotices(ctx: Ctx, correlationId: string): void {
   // never keeps it, so a kept notice tells nothing of that task (review 2026-10-06).
   for (const notice of notices) {
     const id = notice.id;
-    const owner = ctx.state.users[notice.userId];
+    // The owner comes with the office rights attached, so a holder of task.officeAll keeps the notice of an office to-do.
+    const person = ctx.state.users[notice.userId];
+    const owner = person === undefined ? undefined : withRights(ctx.state, person);
     // A notice of an office task that its owner no longer sees already reads as gone and names nothing. It stays, so an Undo never
     // changes the list or the count of a person who left the task (final check 3, review 2026-10-06).
     if (owner !== undefined && noticeTaskHidden(ctx, notice.targetType, notice.targetId, owner)) continue;
     // The same for the notice of a meeting that its owner no longer sees (a person taken off the attendees, fbk_022).
     if (owner !== undefined && noticeMeetingHidden(ctx, notice.targetType, notice.targetId, owner)) continue;
     // The same for the notice of a new report that a former Admin holds (owner, 2026-10-07).
-    if (owner !== undefined && feedbackNoticeHidden(notice, withRights(ctx.state, owner))) continue;
+    if (owner !== undefined && feedbackNoticeHidden(notice, owner)) continue;
     let kept: boolean;
     if (notice.targetType === 'feedback' && notice.trigger === 'feedback_done') {
       // A done notice stays only once for each move of its report from open to done that still stands in the story. So done, open,

@@ -368,6 +368,26 @@ describe('the signals of an office task (review 2026-10-06)', () => {
     expect(sql.find((s) => s.text.includes('update office_meta'))?.values?.[1] ?? 0).toBe(0);
   });
 
+  it('sends the change to each active holder of task.officeAll, and not to a person whose role lacks it (role rights version 2)', async () => {
+    const humans = Object.values(seed.users).filter((u) => u.kind === 'human' && u.active && u.systemRole === 'member' && !['usr_004', 'usr_005', 'usr_006'].includes(u.id));
+    const [holder, plain] = humans;
+    const before = copy();
+    before.settings.roles = { custom: [{ id: 'rol_900', name: 'Office reader', nameAr: 'قارئ المكتب', rights: ['task.officeAll'] }] };
+    before.users[holder.id] = { ...before.users[holder.id], roleId: 'rol_900' };
+    const after = officeChange(structuredClone(before));
+    const { q } = recorder();
+    const result = await writeDiff(q, diffState(before, after));
+    const channels = result.signals.map((signal) => signal.channel);
+    expect(channels).toContain(`person:${holder.id}`);
+    expect(channels).not.toContain(`person:${plain.id}`);
+    for (const id of admins()) expect(channels).toContain(`person:${id}`);
+    // The role without the switch: the same person hears nothing.
+    before.settings.roles = { custom: [{ id: 'rol_900', name: 'Office reader', nameAr: 'قارئ المكتب', rights: [] }] };
+    const noSwitch = officeChange(structuredClone(before));
+    const second = await writeDiff(recorder().q, diffState(before, noSwitch));
+    expect(second.signals.map((signal) => signal.channel)).not.toContain(`person:${holder.id}`);
+  });
+
   it('sends a comment of an office task only to the people of the task, with no lookup of its project', async () => {
     const before = officeChange();
     const after = structuredClone(before);

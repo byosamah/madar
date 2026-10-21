@@ -100,6 +100,18 @@ describe('pushRows: who gets a push after a save', () => {
     expect(seen).toContainEqual(['levels', [['cnv_001']]]);
   });
 
+  it('lets a person of a role with task.officeAll hear a mention in an office comment, and not a person of another role', async () => {
+    const roles = { custom: [{ id: 'rol_001', name: 'Office reader', nameAr: 'قارئ', rights: ['task.officeAll'] }] };
+    const office = taskComment({
+      task: { id: 'tsk_001', projectId: null, ownerId: 'usr_003', createdBy: 'usr_002', helperIds: [] },
+      doc: { id: 'cmt_9', targetType: 'task', targetId: 'tsk_001', authorId: 'usr_003', body: '@[Omar](usr_004) @[Ola](usr_005) see' },
+    });
+    const people = [person('usr_002'), person('usr_003'), person('usr_004', { role_id: 'rol_001', roles }), person('usr_005', { roles })];
+    const { q } = producerDb({ [PUSH_ITEMS_SQL]: [office], [PUSH_PEOPLE_SQL]: people });
+    const rows = await pushRows(q, { kinds: new Set(['comments']), people: new Set(), commentIds: ['cmt_9'] });
+    expect(rows.map((row) => (row.payload as { userId: string }).userId)).toEqual(['usr_002', 'usr_004']);
+  });
+
   it('reads the task and the reply author of a new comment and pushes the lead of the task, with no level read', async () => {
     const { q, statements } = producerDb({ [PUSH_ITEMS_SQL]: [taskComment()], [PUSH_PEOPLE_SQL]: PEOPLE_ROWS });
     const rows = await pushRows(q, { kinds: new Set(['comments']), people: new Set(), commentIds: ['cmt_9'] });

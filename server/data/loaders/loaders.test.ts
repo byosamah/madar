@@ -1040,6 +1040,29 @@ describe('office tasks (owner, 2026-10-06)', () => {
     for (const id of ids) expect(admin).toContain(id);
   });
 
+  it('gives a holder of task.officeAll the office tasks on the scoped load, as the Admin has them, and a person without the switch none (role rights version 2)', async () => {
+    const traps = trapOffice(seed);
+    traps.settings.roles = { custom: [{ id: 'rol_900', name: 'Office reader', nameAr: 'قارئ المكتب', rights: ['task.officeAll'] }] };
+    traps.users.usr_003 = { ...traps.users.usr_003, roleId: 'rol_900' };
+    const ids = [...Object.values(traps.tasks).filter((t) => t.projectId === null).map((t) => t.id)];
+    expect(ids).toHaveLength(2);
+    const text = async (actor: string, name: SharedCallName, input: unknown) => JSON.stringify((await same(traps, name, input, actor)).outcome.output);
+    for (const [name, input] of [['tasks.list', {}], ['search.query', { text: 'licence' }], ['events.list', { limit: 500 }]] as const) {
+      const holder = await text('usr_003', name, input);
+      const admin = await text(ADMIN, name, input);
+      for (const id of ids) expect(holder.includes(id), `${name} ${id}`).toBe(admin.includes(id));
+      const none = await text('usr_002', name, input);
+      for (const id of ids) expect(none, `${name} ${id}`).not.toContain(id);
+    }
+    expect(await text('usr_003', 'tasks.list', {})).toContain(ids[0]);
+    // The holder changes an office task as its maker does; a person without the switch gets not_found, on both loads.
+    const first = ids[0];
+    const done = await same(traps, 'tasks.update', { id: first, patch: { helperIds: [] } }, 'usr_003');
+    expect(done.outcome.error).toBeUndefined();
+    const refused = await same(traps, 'tasks.update', { id: first, patch: { helperIds: [] } }, 'usr_002');
+    expect(refused.outcome.error).toMatchObject({ code: 'not_found' });
+  });
+
   it('an Undo of a comment change after the delete of its office task stays private on the scoped load (review 2026-10-06)', async () => {
     const traps = trapOffice(seed);
     const task = Object.values(traps.tasks).find((t) => t.projectId === null && t.ownerId !== null)!;

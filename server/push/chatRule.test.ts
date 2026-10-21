@@ -77,6 +77,13 @@ describe('planPushes: who gets the push of a chat message or a task comment', ()
     expect(planPushes(facts({ items: [cmt({ office: true, body: '@[Omar](usr_004) see' })] })).waited.map((w) => w.userId)).toEqual(['usr_001', 'usr_003']);
   });
 
+  it('pushes a named person who holds task.officeAll, and still no named person without it, for an office comment', () => {
+    const holder = PEOPLE.map((one) => (one.id === 'usr_004' ? { ...one, officeAll: true } : one));
+    const named = cmt({ office: true, body: '@[Omar](usr_004) see' });
+    expect(planPushes(facts({ people: holder, items: [named] })).waited.map((w) => w.userId)).toEqual(['usr_001', 'usr_003', 'usr_004']);
+    expect(planPushes(facts({ items: [named] })).waited.map((w) => w.userId)).toEqual(['usr_001', 'usr_003']);
+  });
+
   it('pushes nobody for a quiet line, or for a comment that an Undo brings back', () => {
     expect(planPushes(facts({ items: [cmt({ line: true })] })).waited).toEqual([]);
     expect(planPushes(facts({ items: [cmt()], undo: true })).waited).toEqual([]);
