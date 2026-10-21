@@ -10,7 +10,7 @@ speaker, so write it as natural Arabic, not as a word-for-word copy of the Engli
   `rr2screens` holds the few words of the screens track of role rights version 2 (2026-10-21): `agents.off` (Settings, Agents without `ai.connect`),
   `errors.reasons.ai_off` (the consent screen) and `chat.cannotSend` (a chat without `chat.direct`).
   `rr2sheet` holds the words of the role sheet of role rights version 2 (2026-10-21): the key tree `roleRights` (13 sections, the label and the line
-  of each of the 84 powers, the scope words, the sheet texts, the lines of a role in the person sheet) and the What's new entry `2026-10-23-73`.
+  of each of the 84 powers, the scope words, the sheet texts, the lines of a role in the person sheet) and the What's new entry `2026-10-23-75`.
   The English labels and lines come word for word from the catalog JSON; the Arabic labels too; the Arabic lines are written for the sheet.
   `teama` holds the words of the team-requests batch of 2026-10-19 (fbk_024, fbk_025, fbk_027). `meetings` holds the words of the meetings
   (fbk_022): the refusals, the notices, the screens, and `feed.meeting.*`.

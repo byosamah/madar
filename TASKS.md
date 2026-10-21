@@ -880,8 +880,9 @@ Sonnet builders, Claude leads (owner, 2026-10-21). What's new 2026-10-23-74.
 - [x] Prototype smoke: 87 of 87 (`npm run smoke`, 7.6 minutes, no rerun)
 - [x] Screenshots (prototype build, claude-in-chrome): EN dark desktop list and sheet; AR light 390 list and AI section; EN light 390 sheet;
   AR dark 390 sheet with To-dos open; EN dark 390 Home of a Member with the Dashboard and Search off (4 tabs, no search icon)
-- [ ] Test copy (`all.sh test`): the owner chose rr2 first (2026-10-21); `madar-db` takes the two chat-presence migrations off madar-test
-  after its deploy suite, then main moves to rb/rr2; then the owner's hand test; then rb/chat-presence goes back on the test copy
-- [ ] Production: only on the owner's word (team live week ends 2026-10-22)
+- [x] Test copy: `all.sh test` at 90fd705 and b84b021 (the chat presence session stopped its suite and took its migrations off first)
+- [x] Production at b84b0212 (2026-10-21; the owner ran `all.sh production` with `!`). Record: proof.md
+- [x] The MCP guide got back the sections that the mcp track cut (Meetings to Pictures), with the switch text
+- [ ] The deploy suite on the test copy (not run before this release); then rb/chat-presence goes back on the test copy
 - [ ] Owner decisions, later: a stages-only way to rename stages for a role without "Change project details"; the Needs field of a
   maker without "Give to-dos to other people"; step 2 "See every project"

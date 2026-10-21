@@ -1106,6 +1106,30 @@ walk caught the answer: a whole-batch 500 "Something went wrong" for the Admin, 
   light/dark, 390). The owner asked to skip the full suite and the smoke (each over 5 minutes) for this one-flag change.
 - `all.sh test` (148 calls), then `all.sh production`: health from `supabase` with 148 calls, the database check, `POST /mcp` with no token 401.
 
+### Production at b84b0212 (2026-10-21, role rights version 2 and the past-due count of the office report; the owner ran it with `!` after the auto-mode check refused Claude)
+- Changes (branch `rb/rr2`, spec `docs/superpowers/specs/2026-10-21-madar-role-rights-v2-*`): every power is a switch, 112 switches in
+  13 sections, with places (Projects I lead, My projects, Every project, Office, No project), the leader powers and 13 AI assistant
+  switches (one for each group of MCP tools; `ai_off`; `ai.connect` off stops every agent of the role). Member 64, Management 74,
+  Accounting 68, the Admin all. Stored roles keep their meaning: an optional `off` list for the basics, the 17 old ids expand on read
+  (`LEGACY_RIGHTS`), no migration. The 26 stand-in actions of `can()` are gone; every call and every control asks its own power.
+  What's new 2026-10-23-75. Also in this release: a816c42a (session madar-e9), the office report counts past due to today while the
+  period runs, with its test fix b84b0212.
+- Proof that nobody gained or lost a power: `server/core/rightsParity.test.ts` records every shared call for 8 people (Admin,
+  Management, Accounting, Member, an old custom role, a leader, a team member, an outsider) and the viewerCan flags, before the change;
+  the record stayed equal, except the rows the owner approved (a new project or stage template is off for everyone but the Admin).
+- Fixes found while building: the automatic security review (the Undo of another person's agent change needs the delete right; a
+  checklist change that also ticks needs task.work); the merge (a stored switch whose need is off counts as off; the old "edit any
+  project" keeps saving to-do templates); `test:it` (`reviewersOf` on an office loaded with no settings).
+- Gates at 35a506ec (before the merge of main): typecheck, `npm test` 9,198 (757 files), the three builds (first load 1,216,617 B),
+  `test:db` 2,907 (154 files), `test:it` 325 (the summary test after its fix), `test:mcp` 326 with conformance 5 of 32, the prototype
+  smoke 87 of 87, screenshots EN/AR, light/dark, 390 px. After the merge of main: typecheck and 636 tests of the merged areas. Not run:
+  the deploy suite (the owner chose the test copy now; the chat presence session stopped its own suite and took its two migrations off
+  madar-test first).
+- `all.sh test` at 90fd705, then at b84b021 (149 calls), then `all.sh production` by the owner: health from `supabase` with 149 calls,
+  the database check, `POST /mcp` with no token 401, the page 200 with the title Madar, `/favicon.ico` 200; the live first-load script
+  `permissions-*.js` holds the new switch ids.
+- Rollback: after the first role save in the new form, the code before this release cannot read the new ids. A problem needs a fix.
+
 ### Production at 2701ea78 (2026-10-21, times in AM and PM; the owner chose "AM/PM to production now", Claude ran it)
 - Changes: `clockFormat` (`src/lib/dates.ts`) writes English times on the 12-hour clock ("5:15 PM", the US form); Arabic was already
   12-hour («5:15 م»). The meeting view summary uses it in place of its own HH:MM. The fixed times in the words follow in both
