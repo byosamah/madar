@@ -134,6 +134,8 @@ function goodRemote(): Record<string, string> {
     'assets/rolldown-runtime-r1.js': 'var e=Object.create;',
     'assets/vendor-v1.js': 'import"./rolldown-runtime-r1.js";export const a=1;',
     'assets/supabase-s1.js': 'import{a as e}from"./vendor-v1.js";import"./rolldown-runtime-r1.js";export const s=1;',
+    // The sheet packages (FL-3): a chunk of its own that the first load never starts.
+    'assets/overlay-o1.js': 'import{a as e}from"./vendor-v1.js";import"./rolldown-runtime-r1.js";export const o=1;',
     'assets/bootstrap-b1.js': 'import{s as e}from"./supabase-s1.js";import{t as n}from"./index-abc.js";export const b=1;',
     // The screens and the words load on demand, so their text is not in the first load.
     'assets/DashboardScreen-d1.js': `const c="${CHART_MARKER}",z="${ZOD_MARKER}";`,
@@ -265,6 +267,17 @@ describe('the first-load rules of the remote build (performance audit 2026-10-07
   it('skip the preconnect rule with a line when no origin is known', () => {
     const result = checkRemote(() => undefined, []);
     expect(result.text).toContain('skip: no Supabase origin given');
+  });
+
+  it('fail when the overlay chunk (the sheet packages) imports an app chunk, or is missing (FL-3)', () => {
+    const app = checkRemote((files) => { files['assets/overlay-o1.js'] = `import"./index-abc.js";${files['assets/overlay-o1.js']}`; });
+    expect(app.ok).toBe(false);
+    expect(app.text).toContain('FAIL: the overlay chunk imports only rolldown-runtime-* and vendor-*: it imports index-abc.js.');
+    const gone = checkRemote((files) => { delete files['assets/overlay-o1.js']; });
+    expect(gone.ok).toBe(false);
+    expect(gone.text).toContain('FAIL: one overlay chunk: assets/ holds 0.');
+    const fine = checkRemote(() => undefined);
+    expect(fine.text).toContain('ok: the overlay chunk imports only rolldown-runtime-* and vendor-*: overlay-o1.js.');
   });
 
   it('fail when the vendor or supabase chunk imports an app chunk, or is missing (BND-5)', () => {

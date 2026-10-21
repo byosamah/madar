@@ -21,9 +21,13 @@ any screen work.
   idle. A failed import at a screen change reloads the page once (session mark `madar.screenReload`). A new screen needs a
   loader in both `screenLoaders.ts` and `screenLoaders.static.ts` (the prototype takes the plain imports through an alias in
   `vite.config.ts`, so its one file stays small; `screenLoaders.test.ts` keeps the lists the same).
-- `vite.config.ts` (remote modes): the first-screen packages go into a `vendor` chunk and `@supabase` into a `supabase` chunk
-  (`REMOTE_CHUNKS`), so a release that changes only app code keeps their names in the browser cache. zod stays out of
-  `vendor`. The plugin `earlyLinks` adds the modulepreload, font preload and preconnect links. The prototype gets none.
+- `vite.config.ts` (remote modes): the first-screen packages go into a `vendor` chunk, the sheet packages (vaul, Radix, the scroll lock)
+  into an `overlay` chunk (FL-3, 2026-10-21) and `@supabase` into a `supabase` chunk (`REMOTE_CHUNKS`), so a release that changes only
+  app code keeps their names in the browser cache. zod stays out of `vendor`. A static import of `Sheet` in a first-load module brings
+  the overlay chunk back into the first load: `check-bundles.ts` fails on the vaul marker. The remote modes also alias
+  `@supabase/storage-js`, `postgrest-js` and `functions-js` to `src/stubs/unusedClients.ts` (FL-5: 12 KB gz less). The screens use only
+  `auth`, `channel`, `removeChannel` and `realtime.setAuth` of the client; `app/remote/unusedClients.test.ts` fails on `.from(`, `.rpc(`,
+  `.storage` or `.functions`, and on a name that a supabase-js upgrade imports and the stub lacks. The plugin `earlyLinks` adds the modulepreload, font preload and preconnect links. The prototype gets none.
 - The prototype uses `createHashRouter` (links `#/...`, base `./`, one script file). The remote build uses
   `createBrowserRouter` (path links, base `/`). Screen tests use the hash router.
 - The remote build moves `www.<host>` to `<host>` before it starts (`app/canonicalHost.ts`).
@@ -40,7 +44,7 @@ any screen work.
 - `scripts/check-bundles.ts <remote|prototype|server> [folder]`: the remote build holds no sample names. Its first load (the
   scripts of index.html, their static imports and the modulepreload links) holds no chart code, no zod schemas and no words,
   and stays at 1,350,000 B or less. Its index.html preloads the bootstrap chunk and its imports, the three Thmanyah files and
-  a connection to each Supabase origin. The vendor and supabase chunks import no app chunk. The prototype build holds no
+  a connection to each Supabase origin. The vendor, overlay and supabase chunks import no app chunk. The prototype build holds no
   "supabase", is one script file, and its index.html has no early link. The preconnect rule runs only with `VITE_SUPABASE_URL`
   or a full `VITE_API_URL` set (`build:remote` sets them; the page's own `/api` needs no preconnect). A red "no zod schemas" line: a first-load file imports from
   `contract/entities.ts` or `server.ts`; take the limit from `contract/limits.ts` or use a type-only import.

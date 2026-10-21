@@ -233,9 +233,9 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
     }
   }
 
-  /** BND-5: the package chunks import no app chunk, so an app change keeps their names. */
+  /** BND-5, FL-3: the package chunks (vendor, overlay, supabase) import no app chunk, so an app change keeps their names. */
   function checkStableChunks(): void {
-    for (const [group, allowed] of [['vendor', ['rolldown-runtime-']], ['supabase', ['rolldown-runtime-', 'vendor-']]] as const) {
+    for (const [group, allowed] of [['vendor', ['rolldown-runtime-']], ['overlay', ['rolldown-runtime-', 'vendor-']], ['supabase', ['rolldown-runtime-', 'vendor-']]] as const) {
       const chunks = [...scripts.keys()].filter((name) => name.startsWith(`${group}-`));
       if (chunks.length !== 1) {
         rule(`one ${group} chunk`, [`assets/ holds ${chunks.length}`], '');

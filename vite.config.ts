@@ -79,7 +79,7 @@ export function workerOnlyInRemote(remote: boolean): Plugin {
 
 /**
  * The chunk groups of the remote build (performance audit BND-5). The packages of the first screen go into one vendor chunk,
- * and the Supabase packages into one supabase chunk. Neither imports app code, so a release that changes only app code keeps
+ * the sheet packages into one overlay chunk (FL-3), and the Supabase packages into one supabase chunk. Neither imports app code, so a release that changes only app code keeps
  * their names, and the browser keeps them in its cache. zod is not in the list: it stays with the screens that parse, so the
  * first load holds no zod schemas (BND-6). A package that is in no group goes into an automatic chunk (a change of size only).
  */
@@ -87,11 +87,24 @@ const REMOTE_CHUNKS = {
   groups: [
     {
       name: 'vendor',
-      test: /node_modules[\\/](react|react-dom|scheduler|react-router|@tanstack|i18next|react-i18next|html-parse-stringify|void-elements|motion|motion-dom|motion-utils|framer-motion|vaul|@radix-ui|react-remove-scroll|react-remove-scroll-bar|react-style-singleton|use-callback-ref|use-sidecar|aria-hidden|tslib|use-sync-external-store|detect-node-es|get-nonce)[\\/]/,
+      test: /node_modules[\\/](react|react-dom|scheduler|react-router|@tanstack|i18next|react-i18next|html-parse-stringify|void-elements|motion|motion-dom|motion-utils|framer-motion|tslib|use-sync-external-store)[\\/]/,
+    },
+    // The sheet packages (vaul, Radix and the scroll lock) load with the first sheet, not with the first screen (FL-3). Like
+    // vendor and supabase, the chunk imports no app chunk, so its name stays over a release that changes only app code.
+    {
+      name: 'overlay',
+      test: /node_modules[\\/](vaul|@radix-ui|react-remove-scroll|react-remove-scroll-bar|react-style-singleton|use-callback-ref|use-sidecar|aria-hidden|detect-node-es|get-nonce)[\\/]/,
     },
     { name: 'supabase', test: /node_modules[\\/](@supabase|iceberg-js)[\\/]/ },
   ],
 };
+
+/**
+ * Supabase client packages that the screens never call (FL-5): the screens use only the sign-in and Realtime parts of supabase-js.
+ * The remote build gives their names an empty stand-in (src/stubs/unusedClients.ts); src/app/remote/unusedClients.test.ts fails
+ * when a screen starts to use one of them.
+ */
+const UNUSED_SUPABASE_CLIENTS = ['@supabase/storage-js', '@supabase/postgrest-js', '@supabase/functions-js'];
 
 export default defineConfig(({ mode }) => ({
   // The prototype build is one script file, so the prototype artifact holds every script. The remote modes keep code splitting.
@@ -99,10 +112,13 @@ export default defineConfig(({ mode }) => ({
   base: mode.startsWith('remote') ? '/' : './',
   // The prototype takes the screen list with plain imports: in its one script file, an on-demand import costs extra start-up
   // code for each screen (performance audit BND-1). The remote modes split the screens, and the tests keep the on-demand list.
+  // The remote modes point three Supabase client packages that the screens never call at an empty stand-in (FL-5).
   resolve: {
-    alias: mode.startsWith('remote') || mode === 'test'
-      ? []
-      : [{ find: /^\.\/screenLoaders$/, replacement: fileURLToPath(new URL('./src/app/screenLoaders.static.ts', import.meta.url)) }],
+    alias: mode.startsWith('remote')
+      ? UNUSED_SUPABASE_CLIENTS.map((find) => ({ find, replacement: fileURLToPath(new URL('./src/stubs/unusedClients.ts', import.meta.url)) }))
+      : mode === 'test'
+        ? []
+        : [{ find: /^\.\/screenLoaders$/, replacement: fileURLToPath(new URL('./src/app/screenLoaders.static.ts', import.meta.url)) }],
   },
   define: { 'import.meta.env.VITE_MADAR_API': JSON.stringify(MADAR_API) },
   plugins: [react(), tailwindcss(), workerOnlyInRemote(mode.startsWith('remote')), ...(mode.startsWith('remote') ? [earlyLinks()] : [])],
