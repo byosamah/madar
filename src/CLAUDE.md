@@ -507,7 +507,17 @@ any screen work.
 - `typing.ts`: the board (`createTypingBoard`) keeps who types in which chat for `TYPING_SHOW_MS` (8 s) after the last signal. `useTypers`, `useTypingRows`,
   and `useTypingSender` (one signal each `TYPING_SEND_MS` (5 s), one stop). The sender calls `chats.typing` and ignores its errors.
 - `hooks.ts`: `usePersonState(userId)` renders only when the state of that person changes. Tests use `src/test/fakeLive.ts` and the `live` option of `renderApp`.
-- `Composer` takes `onTextChange`; its inner `change(next)` is the one door of the text (the field, the clear after a send, and later the emoji panel).
+- `Composer` takes `onTextChange`; its inner `change(next)` is the one door of the text (the field, the clear after a send, and the emoji panel).
+- The three adapters: `live/prototypeLive.ts` (a BroadcastChannel `madar-live` between the tabs of one browser, and `SAMPLE_STATES` for the sample
+  people), `app/remote/presence.ts` (`supabaseLive`: one private Presence topic `status:<id>` for each active person, joined by every screen and
+  tracked only by its owner; typing comes on `person:<me>` with the event `typing`), and `app/remote/officeLive.ts` (the state and typing on the
+  office socket). `switchedLive` and `attachLive` let the runtime make the port before the sign-in and plug in one adapter at each sign-in.
+- A `track()` on another person's status topic answers `error` (the policy `madar_status_track`): the adapter warns once and never tries again.
+  A topic that has not synced since its last join shows its person Offline, so a stale mark never shows.
+- Emoji (`src/features/emoji/`): `data.generated.json` comes from `scripts/emoji/build-data.ts` (Emojibase 17.0.0 and CLDR 48.2.0, installed outside
+  the repo; the header has the command). The script drops U+FE0F after an `Emoji_Presentation` character, so 👍 from the panel equals the quick 👍.
+  `EmojiButton` loads the panel with `import()` at the first open (`check-bundles` refuses `grinning face` in the first load). A phone gets a
+  sheet, except inside a dialog, where the panel floats (`EmojiFloat`: 8 columns of 44 px; `Popover` is too narrow).
 
 ## Meetings screens (owner, 2026-10-19, fbk_022)
 - `/meetings` is the second view of the Tasks tab (`features/meetings/`, `MeetingsScreen.tsx`). The tab pill keeps 5 tabs: `isNavActive` keeps

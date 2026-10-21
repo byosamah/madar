@@ -178,6 +178,11 @@ The other host stays deployed as the way back. Each area below has its own guide
   helpers, before and after) and each active Admin. The office signal tells only the project part (`Diff.publicKinds`),
   with its names, and a save of office tasks alone sends none (review 2026-10-06). The Realtime rules need no change: the
   server sends on any `person:` topic, and each person reads only their own.
+- Typing (`chats.typing`, a server-only read with no lock, `calls/typing.ts`) checks the chat with `typingRecipients` and sends through
+  `Deps.typing`: `signal/typing.ts` (`realtime.send` with the event `typing` on `person:<id>` of each other member; it never throws) on
+  Supabase and Workers, and `officeTyping` on the office object. The screens' change listener takes only the event `changed`.
+- Status needs no server code on Supabase: each person's screens track on the Presence topic `status:<id>`
+  (`20261022000200_platform_presence.sql`). A dead socket leaves after 49 to 66 s, a closed one after about 3 s (`proof.md`).
 - A save that changes a meeting with no project, its notices or its events (fbk_022, owner 2026-10-19; `officeMeetings` in `data/save.ts`) is
   private in the same way: its signals are person signals with no names, to the organizer (the person behind an agent) and the attendees,
   before and after the change. The Admin gets one only as one of those people. A save that touches office tasks and a private meeting
@@ -222,6 +227,10 @@ The other host stays deployed as the way back. Each area below has its own guide
 - Signals go out on the object sockets after the commit (`office/live.ts`, tags `office` and `person:<id>`). The socket opens with
   `live.ticket` (60 s, one use, in memory). Each delivery and each Cron run close a socket with no pong for 150 s; the commit that
   turns a person off closes that person's sockets.
+- Status on the office path (`office/presence.ts`): a socket sends `{"t":"state","state":"online"|"away"}`; the state lives in the socket
+  note (`serializeAttachment`), so it outlives a hibernation. A change of a person's joined state goes to every `office` socket as the
+  event `presence`; a new socket gets one snapshot of all. `sweep` and `closeOff` close through `retire()`. A test that reads raw socket
+  messages filters the `changed` events, because the snapshot comes first.
 - The Cron Trigger (`[triggers]`, every 15 minutes, UTC) gives the job steps to the object in one call (`office/jobs.ts`); the
   usage step runs in the first run of each hour. A Worker without `MADAR_DATA` returns at once. After the steps, the same call adds
   the meter counts, sweeps the sockets and gives back the day row.

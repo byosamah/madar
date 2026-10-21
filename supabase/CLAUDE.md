@@ -19,6 +19,10 @@ Two hosted projects, both in Frankfurt (eu-central-1): `madar-test` = `qdgwpnesx
 - `pg_trgm` lives in the schema `extensions` (`20261020000200_message_search.sql`), so an index names `extensions.gin_trgm_ops`. The
   function `search_fold` must stay in step with `bodySearchText` (`src/lib/searchMatch.ts`); `server/it/messageSearch.it.test.ts`
   checks that they agree.
+- `20261022000100_chat_reads_conversation.sql` indexes `chat_reads (conversation_id)`: the chat view reads every read mark of one chat
+  (the seen times). Its SQLite twin is `LITE_SCHEMA_VERSION` 10. `20261022000200_platform_presence.sql` adds the Presence policies
+  `madar_status_track` (insert, only the topic `status:<own id>`) and `madar_status_read` (select, any `status:` topic), never for an agent
+  token or a turned-off person.
 - The office object has one SQLite schema (`server/data/lite/schema.ts`), not these migrations. Until the switch (wave 6), a
   new table or column needs both: a migration here and the SQLite schema with a new version.
 
