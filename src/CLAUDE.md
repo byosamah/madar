@@ -18,7 +18,8 @@ any screen work.
   for each screen, and `app/screens.ts` the module cache. A route in `app/routes.tsx` names its screen and never imports a
   screen file. The frame, the sign-in gate, Home and the error pages stay in the first script. `main.tsx` loads the screens of
   the first address (plus Sign in when no session is stored) before it makes the router, then the others one at a time at
-  idle. A failed import at a screen change reloads the page once (session mark `madar.screenReload`). A new screen needs a
+  idle. The idle step skips the five sign-in screens when a session is stored, and Admin when the cached `session.get` cannot open
+  it (`app/prefetchRules.ts`, FL-8 2026-10-21); a skipped screen loads at its first use. A failed import at a screen change reloads the page once (session mark `madar.screenReload`). A new screen needs a
   loader in both `screenLoaders.ts` and `screenLoaders.static.ts` (the prototype takes the plain imports through an alias in
   `vite.config.ts`, so its one file stays small; `screenLoaders.test.ts` keeps the lists the same).
 - `vite.config.ts` (remote modes): the first-screen packages go into a `vendor` chunk, the sheet packages (vaul, Radix, the scroll lock)

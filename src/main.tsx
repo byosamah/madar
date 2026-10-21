@@ -18,6 +18,7 @@ import { hasStoredSession } from './app/remote/authMode';
 import { watchInstall } from './app/remote/install';
 import { createAppRouter, screensAt } from './app/routes';
 import { warmAtIdle, warmForAddress } from './app/overlays';
+import { prefetchSkip } from './app/prefetchRules';
 import { RuntimeProvider, createQueryClient, type Runtime } from './app/runtime';
 import { loadScreen, prefetchScreens, preloadScreens } from './app/screens';
 import { ToastProvider } from './app/toasts';
@@ -72,9 +73,10 @@ async function main(): Promise<void> {
   await loadWords(language);
   initI18n(language);
   applyLanguage(document.documentElement, language);
+  const queryClient = createQueryClient({ remote: REMOTE });
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
-      <RuntimeProvider runtime={runtime} queryClient={createQueryClient({ remote: REMOTE })}>
+      <RuntimeProvider runtime={runtime} queryClient={queryClient}>
         <MotionConfig reducedMotion="user">
           <ToastProvider>
             <AppearanceSync />
@@ -88,7 +90,8 @@ async function main(): Promise<void> {
   void loadWords(language === 'ar' ? 'en' : 'ar').catch(() => undefined);
   // The other screens load one at a time at idle, so a later screen change waits for no chunk (remote build only).
   if (REMOTE) {
-    prefetchScreens();
+    // The sign-in screens stay out for a stored session, and Admin for a person who cannot open it (performance audit 2026-10-21, FL-8).
+    prefetchScreens(undefined, undefined, prefetchSkip({ storedSession: storedSession(), session: () => queryClient.getQueryData(['api', 'session.get', {}]) }));
     // The task panel, Focus mode, the feedback sheet and the sheet of an ended session load in their own chunks (FL-1, FL-4).
     warmAtIdle();
   }

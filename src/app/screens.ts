@@ -131,15 +131,18 @@ export function screenCache<N extends string>(loaders: Record<N, () => Promise<C
     /**
      * Loads the other screens one at a time, one at each idle moment, after the first screen shows. So a later screen change
      * waits for no chunk, and a release that removes the old chunks finds them already in memory. A failure is ignored: the
-     * screen change tries the import again. A prefetch never reloads the page.
+     * screen change tries the import again. A prefetch never reloads the page. `skip` names a screen that this person has no use
+     * for: it is asked at the step of that screen, and a skipped screen loads on its first use, as an unlisted one does.
      */
-    prefetchScreens(list: readonly N[] = names, idle: (run: () => void) => void = whenIdle): void {
+    prefetchScreens(list: readonly N[] = names, idle: (run: () => void) => void = whenIdle, skip?: (name: N) => boolean): void {
       const queue = list.filter((name) => !loaded.has(name));
       const next = (): void => {
         const name = queue.shift();
         if (name === undefined) return;
         idle(() => {
-          loadScreen(name).then(next, next);
+          // The rule answers at the step, not at the start, so it reads what the first answers brought (audit 2026-10-21, FL-8).
+          if (skip?.(name)) next();
+          else loadScreen(name).then(next, next);
         });
       };
       next();
