@@ -877,9 +877,11 @@ Sonnet builders, Claude leads (owner, 2026-10-21). What's new 2026-10-23-74.
 - [x] Gates: typecheck, `npm test` (757 files, 9,198 passed), `npm run build`, `build:server`, `build:remote -- test` (first load 1,216,617 B)
 - [x] Gates: `test:db` (154 files, 2,907 passed), `test:it` (39 files; the summary test passed alone after its fix), `test:mcp` (326 passed,
   conformance 5 of 32 as normal). Fix found by `test:it`: `reviewersOf` read the settings of an office loaded without them
+- [x] Prototype smoke: 87 of 87 (`npm run smoke`, 7.6 minutes, no rerun)
 - [x] Screenshots (prototype build, claude-in-chrome): EN dark desktop list and sheet; AR light 390 list and AI section; EN light 390 sheet;
   AR dark 390 sheet with To-dos open; EN dark 390 Home of a Member with the Dashboard and Search off (4 tabs, no search icon)
-- [ ] Test copy (`all.sh test`) after the other sessions' releases are done; then the owner's hand test
+- [ ] Test copy (`all.sh test`): the owner chose rr2 first (2026-10-21); `madar-db` takes the two chat-presence migrations off madar-test
+  after its deploy suite, then main moves to rb/rr2; then the owner's hand test; then rb/chat-presence goes back on the test copy
 - [ ] Production: only on the owner's word (team live week ends 2026-10-22)
 - [ ] Owner decisions, later: a stages-only way to rename stages for a role without "Change project details"; the Needs field of a
   maker without "Give to-dos to other people"; step 2 "See every project"
