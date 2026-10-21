@@ -760,6 +760,22 @@ describe('the office signal of a private chat message', () => {
     expect(JSON.stringify(result.signals)).not.toContain('usr_003');
   });
 
+  // Role rights version 2 (chat.project.all): a project chat opens for a person of any project through a switch. Its signal stays what it was:
+  // the kinds and the project, which every person of the office sees; it holds no message text, no chat id and no word of the message.
+  it('holds no text and no chat id in the signal of a project chat message, whoever may open that chat', async () => {
+    const after = copy();
+    const projectId = Object.keys(after.projects)[0];
+    after.conversations.cnv_902 = { id: 'cnv_902', kind: 'project', projectId, memberIds: [], createdAt: '2026-10-04T10:00:00.000+03:00' } as State['conversations'][string];
+    after.messages.msg_902 = { ...Object.values(after.messages)[0], id: 'msg_902', conversationId: 'cnv_902', authorId: 'usr_003', actingForId: 'usr_003', body: 'Secret riser 7714' };
+    const result = await writeDiff(recorder({ officeSeq: 4 }).q, diffState(seed, after), { story: { storyId: 'sty_p', actorId: 'usr_003' } });
+    const text = JSON.stringify(result.signals);
+    expect(result.signals.length).toBeGreaterThan(0);
+    expect(text).not.toContain('7714');
+    expect(text).not.toContain('cnv_902');
+    expect(text).not.toContain('msg_902');
+    for (const signal of result.signals) expect(signal.kinds).not.toContain('tasks');
+  });
+
   it('names no actor and no story for a group made, renamed or changed in its people', async () => {
     const after = groupAfter();
     delete after.messages.msg_901;
