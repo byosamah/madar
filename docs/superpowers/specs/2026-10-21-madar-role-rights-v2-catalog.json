@@ -1,0 +1,2371 @@
+{
+  "version": 2,
+  "date": "2026-10-21",
+  "scopes": {
+    "one": {
+      "en": "On",
+      "ar": ""
+    },
+    "lead": {
+      "en": "Projects I lead",
+      "ar": "مشاريع أقودها"
+    },
+    "team": {
+      "en": "My projects",
+      "ar": "مشاريعي"
+    },
+    "all": {
+      "en": "Every project",
+      "ar": "كل المشاريع"
+    },
+    "office": {
+      "en": "Office",
+      "ar": "المكتب"
+    },
+    "none": {
+      "en": "No project",
+      "ar": "بلا مشروع"
+    }
+  },
+  "sections": [
+    {
+      "key": "projects",
+      "en": "Projects",
+      "ar": "المشاريع",
+      "powers": [
+        {
+          "power": "project.create",
+          "en": "Create projects",
+          "ar": "إنشاء المشاريع",
+          "hint": "Start a new project, also from a template. The person who makes it leads it.",
+          "switches": [
+            {
+              "id": "project.create",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "client.create",
+          "en": "Add clients",
+          "ar": "إضافة العملاء",
+          "hint": "Add a new client, for example in the New project form.",
+          "switches": [
+            {
+              "id": "client.create",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "project.details",
+          "en": "Change project details",
+          "ar": "تعديل بيانات المشروع",
+          "hint": "Name, client, location, map pin, area, dates, folder, description, cover and sub-company.",
+          "switches": [
+            {
+              "id": "project.details.lead",
+              "scope": "lead",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "project.details.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "project.details.lead"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "project.team",
+          "en": "Change the team",
+          "ar": "تعديل فريق المشروع",
+          "hint": "Add and remove people, and change their discipline in the project.",
+          "switches": [
+            {
+              "id": "project.team.lead",
+              "scope": "lead",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "project.team.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "project.team.lead"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "project.stages",
+          "en": "Change stages and stage dates",
+          "ar": "تعديل المراحل ومواعيدها",
+          "hint": "Add, remove and order stages. Set their dates and what they wait for.",
+          "switches": [
+            {
+              "id": "project.stages.lead",
+              "scope": "lead",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "project.stages.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "project.stages.lead"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "project.deadlines",
+          "en": "Add and change deadlines",
+          "ar": "إضافة المواعيد النهائية وتعديلها",
+          "hint": "Add, change and delete the named deadlines of a project.",
+          "switches": [
+            {
+              "id": "project.deadlines.lead",
+              "scope": "lead",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "project.deadlines.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "project.deadlines.lead"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "project.template",
+          "en": "Apply a template",
+          "ar": "تطبيق قالب على المشروع",
+          "hint": "Add the stages and to-dos of a project template to an ongoing project.",
+          "switches": [
+            {
+              "id": "project.template.lead",
+              "scope": "lead",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "project.template.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "project.template.lead"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "project.archive",
+          "en": "Pause, finish and archive",
+          "ar": "إيقاف المشروع وإنهاؤه وأرشفته",
+          "hint": "Pause, resume, finish or archive a project, and set the restart reminder.",
+          "switches": [
+            {
+              "id": "project.archive.lead",
+              "scope": "lead",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "project.archive.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "project.archive.lead"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "project.leader",
+          "en": "Hand over to a new leader",
+          "ar": "تسليم المشروع لقائد جديد",
+          "hint": "Choose a new leader for a project.",
+          "switches": [
+            {
+              "id": "project.leader.lead",
+              "scope": "lead",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "project.leader.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "project.leader.lead"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "project.health",
+          "en": "Set the health by hand",
+          "ar": "تحديد حالة المشروع يدويًا",
+          "hint": "Mark a project On track, At risk or Late by hand.",
+          "switches": [
+            {
+              "id": "project.health.lead",
+              "scope": "lead",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "project.health.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "project.health.lead"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "project.code",
+          "en": "Correct the project code",
+          "ar": "تصحيح رمز المشروع",
+          "hint": "Change the code of a project after it is made.",
+          "switches": [
+            {
+              "id": "project.code",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "project.delete",
+          "en": "Delete projects",
+          "ar": "حذف المشاريع",
+          "hint": "Delete a project and everything in it. This has no Undo. A leader cannot do this today.",
+          "switches": [
+            {
+              "id": "project.delete.lead",
+              "scope": "lead",
+              "basic": false,
+              "newPower": true,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": []
+            },
+            {
+              "id": "project.delete.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": true,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "project.delete.lead"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "todos",
+      "en": "To-dos",
+      "ar": "المهام",
+      "powers": [
+        {
+          "power": "task.add",
+          "en": "Add to-dos",
+          "ar": "إضافة المهام",
+          "hint": "Add a to-do for yourself or for a team mate.",
+          "switches": [
+            {
+              "id": "task.add.office",
+              "scope": "office",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "task.add.team",
+              "scope": "team",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "task.add.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "task.add.team"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "task.assign",
+          "en": "Give to-dos to other people",
+          "ar": "إسناد المهام لآخرين",
+          "hint": "Name another person as the lead or a helper of a to-do.",
+          "switches": [
+            {
+              "id": "task.assign",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "task.take",
+          "en": "Take a to-do with no lead",
+          "ar": "استلام مهمة بلا مسؤول",
+          "hint": "Become the lead of a to-do that has none.",
+          "switches": [
+            {
+              "id": "task.take",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "task.help",
+          "en": "Join as a helper",
+          "ar": "الانضمام مساعدًا",
+          "hint": "Help on a to-do of your project with one tap.",
+          "switches": [
+            {
+              "id": "task.help",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "task.work",
+          "en": "Work on my to-dos",
+          "ar": "العمل على مهامي",
+          "hint": "Tick, finish, move, order and open a new version of a to-do that you lead or made.",
+          "switches": [
+            {
+              "id": "task.work",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "task.details",
+          "en": "Change my to-do details",
+          "ar": "تعديل تفاصيل مهامي",
+          "hint": "Change the title, notes, checklist, stage and what a to-do waits for.",
+          "switches": [
+            {
+              "id": "task.details",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "task.dates",
+          "en": "Change to-do dates",
+          "ar": "تغيير مواعيد المهام",
+          "hint": "Move the start date or the due date of a to-do that you lead or made.",
+          "switches": [
+            {
+              "id": "task.dates",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "task.deleteOwn",
+          "en": "Delete my to-dos",
+          "ar": "حذف مهامي",
+          "hint": "Delete a to-do that you made or lead.",
+          "switches": [
+            {
+              "id": "task.deleteOwn",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "task.any",
+          "en": "Change and finish any to-do",
+          "ar": "تعديل أي مهمة وإنهاؤها",
+          "hint": "Change, finish, move or delete any to-do of a project, by anyone.",
+          "switches": [
+            {
+              "id": "task.any.lead",
+              "scope": "lead",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "task.any.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "task.any.lead"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "task.review",
+          "en": "Review to-dos",
+          "ar": "مراجعة المهام",
+          "hint": "Approve a to-do or send it back, and choose if a to-do needs a review.",
+          "switches": [
+            {
+              "id": "task.review.lead",
+              "scope": "lead",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "task.review.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "task.review.lead"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "task.officeAll",
+          "en": "See and manage every office to-do",
+          "ar": "رؤية كل مهام المكتب وإدارتها",
+          "hint": "The private office to-dos of other people. Off keeps them private.",
+          "switches": [
+            {
+              "id": "task.officeAll",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "meetings",
+      "en": "Meetings",
+      "ar": "الاجتماعات",
+      "powers": [
+        {
+          "power": "meeting.plan",
+          "en": "Plan meetings",
+          "ar": "تحديد الاجتماعات",
+          "hint": "Plan a meeting or a site visit.",
+          "switches": [
+            {
+              "id": "meeting.plan.none",
+              "scope": "none",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "meeting.plan.team",
+              "scope": "team",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "meeting.plan.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "meeting.plan.team"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "meeting.editOwn",
+          "en": "Change and cancel my meetings",
+          "ar": "تعديل اجتماعاتي وإلغاؤها",
+          "hint": "Change, cancel or delete a meeting that you organize.",
+          "switches": [
+            {
+              "id": "meeting.editOwn",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "meeting.minutesOwn",
+          "en": "Write the minutes of my meetings",
+          "ar": "كتابة محاضر اجتماعاتي",
+          "hint": "Write the minutes of a meeting that you attended or organized, and add its files.",
+          "switches": [
+            {
+              "id": "meeting.minutesOwn",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "meeting.any",
+          "en": "Change and cancel project meetings",
+          "ar": "تعديل اجتماعات المشاريع وإلغاؤها",
+          "hint": "Change, cancel or delete any meeting of a project, also when another person organized it.",
+          "switches": [
+            {
+              "id": "meeting.any.lead",
+              "scope": "lead",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "meeting.any.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "meeting.any.lead"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "meeting.minutesAny",
+          "en": "Write the minutes of project meetings",
+          "ar": "كتابة محاضر اجتماعات المشاريع",
+          "hint": "Write the minutes of any meeting of a project.",
+          "switches": [
+            {
+              "id": "meeting.minutesAny.lead",
+              "scope": "lead",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "meeting.minutesAny.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "meeting.minutesAny.lead"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "posts",
+      "en": "Posts and comments",
+      "ar": "المنشورات والتعليقات",
+      "powers": [
+        {
+          "power": "post.create",
+          "en": "Post updates",
+          "ar": "نشر التحديثات",
+          "hint": "Post an update or a decision on a project.",
+          "switches": [
+            {
+              "id": "post.create.team",
+              "scope": "team",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "post.create.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "post.create.team"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "comment.create",
+          "en": "Comment and react",
+          "ar": "التعليق والتفاعل",
+          "hint": "Comment on a post or a to-do, and react to a comment.",
+          "switches": [
+            {
+              "id": "comment.create.team",
+              "scope": "team",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "comment.create.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "comment.create.team"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "post.editOwn",
+          "en": "Edit and delete my posts",
+          "ar": "تعديل منشوراتي وحذفها",
+          "hint": "Edit or delete a post or a comment that you wrote.",
+          "switches": [
+            {
+              "id": "post.editOwn",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "project.links",
+          "en": "Add and change project links",
+          "ar": "إضافة روابط المشروع وتعديلها",
+          "hint": "The moodboard, the office folder, the map and the client delivery folder.",
+          "switches": [
+            {
+              "id": "project.links.team",
+              "scope": "team",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "project.links.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "project.links.team"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "files",
+      "en": "Files",
+      "ar": "الملفات",
+      "powers": [
+        {
+          "power": "file.upload",
+          "en": "Upload files",
+          "ar": "رفع الملفات",
+          "hint": "Add a file or a new version to a project or a to-do.",
+          "switches": [
+            {
+              "id": "file.upload.team",
+              "scope": "team",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "file.upload.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "file.upload.team"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "file.deliver",
+          "en": "Mark files delivered or received",
+          "ar": "تسجيل تسليم الملفات واستلامها",
+          "hint": "Mark a file as sent to the client or received from the client. This also writes a Tracker line.",
+          "switches": [
+            {
+              "id": "file.deliver.team",
+              "scope": "team",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "file.deliver.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "file.deliver.team"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "file.share",
+          "en": "Share files",
+          "ar": "مشاركة الملفات",
+          "hint": "Share a project file into a chat or a to-do.",
+          "switches": [
+            {
+              "id": "file.share",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "file.deleteOwn",
+          "en": "Delete my files",
+          "ar": "حذف ملفاتي",
+          "hint": "Delete a file that you uploaded.",
+          "switches": [
+            {
+              "id": "file.deleteOwn",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "file.deleteAny",
+          "en": "Delete any file",
+          "ar": "حذف أي ملف",
+          "hint": "Delete any file of a project, by anyone.",
+          "switches": [
+            {
+              "id": "file.deleteAny.lead",
+              "scope": "lead",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "file.deleteAny.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "file.deleteAny.lead"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "chat",
+      "en": "Chat",
+      "ar": "المحادثات",
+      "powers": [
+        {
+          "power": "chat.direct",
+          "en": "Message people",
+          "ar": "مراسلة الأشخاص",
+          "hint": "Send messages one to one.",
+          "switches": [
+            {
+              "id": "chat.direct",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "chat.groupCreate",
+          "en": "Start groups",
+          "ar": "إنشاء المجموعات",
+          "hint": "Make a group chat.",
+          "switches": [
+            {
+              "id": "chat.groupCreate",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "chat.groupChange",
+          "en": "Change groups",
+          "ar": "تعديل المجموعات",
+          "hint": "Rename a group and add people to it.",
+          "switches": [
+            {
+              "id": "chat.groupChange",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "chat.project",
+          "en": "Use project chats",
+          "ar": "استخدام محادثات المشاريع",
+          "hint": "Read and write in the chat of a project.",
+          "switches": [
+            {
+              "id": "chat.project.team",
+              "scope": "team",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "chat.project.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "chat.project.team"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "tracker",
+      "en": "Client Tracker",
+      "ar": "المتابعة",
+      "powers": [
+        {
+          "power": "tracker.log",
+          "en": "Log in the Tracker",
+          "ar": "التسجيل في المتابعة",
+          "hint": "Log, change and close an exchange with the client.",
+          "switches": [
+            {
+              "id": "tracker.log.team",
+              "scope": "team",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "tracker.log.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "tracker.log.team"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "tracker.reply",
+          "en": "Ask a person to reply",
+          "ar": "تكليف شخص بالرد",
+          "hint": "Make a reply to-do for a team mate from a Tracker entry. Also needs the to-do rights.",
+          "switches": [
+            {
+              "id": "tracker.reply",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "tracker.export",
+          "en": "Export the Tracker",
+          "ar": "تصدير المتابعة",
+          "hint": "Copy or download the Tracker of a project.",
+          "switches": [
+            {
+              "id": "tracker.export",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "tracker.deleteOwn",
+          "en": "Delete my Tracker entries",
+          "ar": "حذف سجلاتي في المتابعة",
+          "hint": "Delete an entry that you logged.",
+          "switches": [
+            {
+              "id": "tracker.deleteOwn",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "tracker.deleteAny",
+          "en": "Delete any Tracker entry",
+          "ar": "حذف أي سجل في المتابعة",
+          "hint": "Delete any entry, also a meeting line that Madar made.",
+          "switches": [
+            {
+              "id": "tracker.deleteAny.lead",
+              "scope": "lead",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "tracker.deleteAny.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "tracker.deleteAny.lead"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "people",
+      "en": "People and clients",
+      "ar": "الأشخاص والعملاء",
+      "powers": [
+        {
+          "power": "people.invite",
+          "en": "Invite people",
+          "ar": "دعوة الأشخاص",
+          "hint": "Add a person and send the sign-in email again.",
+          "switches": [
+            {
+              "id": "people.invite",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": true,
+                "accounting": false
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "people.change",
+          "en": "Change people",
+          "ar": "تعديل بيانات الأشخاص",
+          "hint": "Change the name, discipline and picture of a person.",
+          "switches": [
+            {
+              "id": "people.change",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": true,
+                "accounting": false
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "people.teams",
+          "en": "Make and change teams",
+          "ar": "إنشاء الفرق وتعديلها",
+          "hint": "Make, rename and delete the office teams.",
+          "switches": [
+            {
+              "id": "people.teams",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": true,
+                "accounting": false
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "people.turnOff",
+          "en": "Turn people off and on",
+          "ar": "إيقاف الأشخاص وإعادتهم",
+          "hint": "Turn a person off, or on again. Their AI assistants stop too.",
+          "switches": [
+            {
+              "id": "people.turnOff",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": true,
+                "accounting": false
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "people.remove",
+          "en": "Remove people from the list",
+          "ar": "إزالة الأشخاص من القائمة",
+          "hint": "Remove a person who is off from every list. This has no Undo.",
+          "switches": [
+            {
+              "id": "people.remove",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": true,
+                "accounting": false
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "clients.change",
+          "en": "Change client details",
+          "ar": "تعديل بيانات العملاء",
+          "hint": "Change the name and the contact details of a client.",
+          "switches": [
+            {
+              "id": "clients.change",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "subCompanies.manage",
+          "en": "Manage sub-companies",
+          "ar": "إدارة الشركات الفرعية",
+          "hint": "Add, change and delete the sub-companies.",
+          "switches": [
+            {
+              "id": "subCompanies.manage",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "money",
+      "en": "Money",
+      "ar": "المال",
+      "powers": [
+        {
+          "power": "payment.view",
+          "en": "See payments",
+          "ar": "رؤية الدفعات",
+          "hint": "See the payments of a project and the money numbers on the Dashboard.",
+          "switches": [
+            {
+              "id": "payment.view",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "payment.add",
+          "en": "Add payments",
+          "ar": "إضافة الدفعات",
+          "hint": "Add a new payment to a project. Needs \"See payments\".",
+          "switches": [
+            {
+              "id": "payment.add",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": true,
+                "accounting": true
+              },
+              "needs": [
+                "payment.view"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "payment.change",
+          "en": "Change and delete payments",
+          "ar": "تعديل الدفعات وحذفها",
+          "hint": "Change the amount, the date or the note, or delete a payment. Needs \"See payments\".",
+          "switches": [
+            {
+              "id": "payment.change",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": true,
+                "accounting": true
+              },
+              "needs": [
+                "payment.view"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "payment.receive",
+          "en": "Mark payments received",
+          "ar": "تسجيل استلام الدفعات",
+          "hint": "Mark a payment as received, with its date. Needs \"See payments\".",
+          "switches": [
+            {
+              "id": "payment.receive",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": true,
+                "accounting": true
+              },
+              "needs": [
+                "payment.view"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "templates",
+      "en": "Templates",
+      "ar": "القوالب",
+      "powers": [
+        {
+          "power": "templates.projectCreate",
+          "en": "Make project templates",
+          "ar": "إنشاء قوالب المشاريع",
+          "hint": "Make a new project template. You can always change your own. Today no screen lets a Member do this.",
+          "switches": [
+            {
+              "id": "templates.projectCreate",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "templates.projectAny",
+          "en": "Change any project template",
+          "ar": "تعديل أي قالب مشروع",
+          "hint": "Change or delete a project template that another person made.",
+          "switches": [
+            {
+              "id": "templates.projectAny",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "templates.taskSave",
+          "en": "Save to-do templates",
+          "ar": "حفظ قوالب المهام",
+          "hint": "Save a to-do as a template, or make one by hand.",
+          "switches": [
+            {
+              "id": "templates.taskSave.lead",
+              "scope": "lead",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "templates.taskSave.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "templates.taskSave.lead"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "templates.taskAny",
+          "en": "Change any to-do template",
+          "ar": "تعديل أي قالب مهمة",
+          "hint": "Rename or delete a to-do template that another person made.",
+          "switches": [
+            {
+              "id": "templates.taskAny",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "templates.updateProjects",
+          "en": "Update projects from a template",
+          "ar": "تحديث المشاريع من قالب",
+          "hint": "Send a template change to the projects that follow it.",
+          "switches": [
+            {
+              "id": "templates.updateProjects",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "dashboard",
+      "en": "Dashboard and reports",
+      "ar": "لوحة المعلومات والتقارير",
+      "powers": [
+        {
+          "power": "dashboard.view",
+          "en": "See the Dashboard",
+          "ar": "رؤية لوحة المعلومات",
+          "hint": "Open the Dashboard, the meeting view, the map and the Open space.",
+          "switches": [
+            {
+              "id": "dashboard.view",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "workload.view",
+          "en": "See the workload",
+          "ar": "رؤية عبء العمل",
+          "hint": "See how much work each person holds. Needs \"See the Dashboard\".",
+          "switches": [
+            {
+              "id": "workload.view",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": [
+                "dashboard.view"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "search.use",
+          "en": "Use Search",
+          "ar": "استخدام البحث",
+          "hint": "Search projects, to-dos, people, files and messages.",
+          "switches": [
+            {
+              "id": "search.use",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "gaps.view",
+          "en": "See the data gaps",
+          "ar": "رؤية البيانات الناقصة",
+          "hint": "See what the office has not filled in.",
+          "switches": [
+            {
+              "id": "gaps.view",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "report.office",
+          "en": "Office report",
+          "ar": "تقرير المكتب",
+          "hint": "The report of a week, a month, a quarter or a year. Today only an AI assistant reads it for you.",
+          "switches": [
+            {
+              "id": "report.office",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": true,
+                "accounting": false
+              },
+              "needs": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "ai",
+      "en": "AI assistants (MCP)",
+      "ar": "مساعدو الذكاء الاصطناعي",
+      "powers": [
+        {
+          "power": "ai.connect",
+          "en": "Connect AI assistants",
+          "ar": "ربط مساعدي الذكاء الاصطناعي",
+          "hint": "Connect an AI app to Madar. Off stops the connected assistants of this role at once.",
+          "switches": [
+            {
+              "id": "ai.connect",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "ai.readWork",
+          "en": "AI reads work data",
+          "ar": "يقرأ المساعد بيانات العمل",
+          "hint": "Projects, to-dos, comments, posts, meetings, the Tracker, deadlines, file names, people, the Dashboard, the History and Search.",
+          "mcpTools": [
+            "projects.list",
+            "projects.get",
+            "tasks.list",
+            "tasks.get",
+            "comments.list",
+            "updates.list",
+            "meetings.list",
+            "meetings.get",
+            "tracker.list",
+            "deadlines.list",
+            "files.list",
+            "users.list",
+            "subCompanies.list",
+            "dashboard.get",
+            "events.list",
+            "search.query"
+          ],
+          "switches": [
+            {
+              "id": "ai.readWork",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": [
+                "ai.connect"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "ai.readChats",
+          "en": "AI reads chats",
+          "ar": "يقرأ المساعد المحادثات",
+          "hint": "Direct chats, groups and project chats that the person can open. Off also hides messages in Search.",
+          "mcpTools": [
+            "chats.list",
+            "chats.messages",
+            "chats.waiting"
+          ],
+          "switches": [
+            {
+              "id": "ai.readChats",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": [
+                "ai.connect"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "ai.todos",
+          "en": "AI works on to-dos",
+          "ar": "يعمل المساعد على المهام",
+          "hint": "Add, change, finish, move, order, take and join to-dos. Approve and send back.",
+          "mcpTools": [
+            "tasks.create",
+            "tasks.update",
+            "tasks.complete",
+            "tasks.move",
+            "tasks.arrange",
+            "tasks.take",
+            "tasks.help",
+            "tasks.approve",
+            "tasks.sendBack"
+          ],
+          "switches": [
+            {
+              "id": "ai.todos",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": [
+                "ai.connect"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "ai.posts",
+          "en": "AI posts and comments",
+          "ar": "ينشر المساعد التحديثات والتعليقات",
+          "hint": "Post an update on a project, and comment on a to-do.",
+          "mcpTools": [
+            "updates.create",
+            "comments.create"
+          ],
+          "switches": [
+            {
+              "id": "ai.posts",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": [
+                "ai.connect"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "ai.messages",
+          "en": "AI sends messages",
+          "ar": "يرسل المساعد الرسائل",
+          "hint": "Send a chat message as the person, and open a direct chat.",
+          "mcpTools": [
+            "chats.send",
+            "chats.openDirect"
+          ],
+          "switches": [
+            {
+              "id": "ai.messages",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": [
+                "ai.connect"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "ai.meetings",
+          "en": "AI plans meetings",
+          "ar": "يدير المساعد الاجتماعات",
+          "hint": "Plan, change and cancel meetings, and save the minutes.",
+          "mcpTools": [
+            "meetings.create",
+            "meetings.update",
+            "meetings.cancel",
+            "meetings.saveMinutes"
+          ],
+          "switches": [
+            {
+              "id": "ai.meetings",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": [
+                "ai.connect"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "ai.tracker",
+          "en": "AI logs in the Tracker",
+          "ar": "يسجل المساعد في المتابعة",
+          "hint": "Log, change and close Tracker entries.",
+          "mcpTools": [
+            "tracker.log",
+            "tracker.update",
+            "tracker.close"
+          ],
+          "switches": [
+            {
+              "id": "ai.tracker",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": [
+                "ai.connect"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "ai.projects",
+          "en": "AI changes projects",
+          "ar": "يعدّل المساعد المشاريع",
+          "hint": "Change project details and status, stage dates and deadlines.",
+          "mcpTools": [
+            "projects.update",
+            "projects.setStatus",
+            "stages.setDates",
+            "deadlines.create",
+            "deadlines.update"
+          ],
+          "switches": [
+            {
+              "id": "ai.projects",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": [
+                "ai.connect"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "ai.payments",
+          "en": "AI handles payments",
+          "ar": "يدير المساعد الدفعات",
+          "hint": "See, add and change payments. The person also needs the money rights.",
+          "mcpTools": [
+            "payments.list",
+            "payments.create",
+            "payments.update",
+            "payments.markReceived"
+          ],
+          "switches": [
+            {
+              "id": "ai.payments",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": [
+                "ai.connect"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "ai.feedback",
+          "en": "AI reads requests and bugs",
+          "ar": "يقرأ المساعد الطلبات والبلاغات",
+          "hint": "Read the reports of the team and mark them done. The person also needs \"Read requests and bugs\".",
+          "mcpTools": [
+            "feedback.list",
+            "feedback.screenshot",
+            "feedback.setStatus"
+          ],
+          "switches": [
+            {
+              "id": "ai.feedback",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": [
+                "ai.connect"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "ai.report",
+          "en": "AI reads the office report",
+          "ar": "يقرأ المساعد تقرير المكتب",
+          "hint": "The person also needs \"Office report\".",
+          "mcpTools": [
+            "reports.office"
+          ],
+          "switches": [
+            {
+              "id": "ai.report",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": [
+                "ai.connect"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "ai.undo",
+          "en": "AI undoes changes",
+          "ar": "يتراجع المساعد عن التغييرات",
+          "hint": "Take back a change, or all the changes of one request.",
+          "mcpTools": [
+            "events.undo",
+            "events.undoStory"
+          ],
+          "switches": [
+            {
+              "id": "ai.undo",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": [
+                "ai.connect"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "ai.undoOthers",
+          "en": "Undo the changes of AI assistants",
+          "ar": "التراجع عن تغييرات المساعدين",
+          "hint": "Take back a change that the AI assistant of another person made.",
+          "switches": [
+            {
+              "id": "ai.undoOthers.lead",
+              "scope": "lead",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": [
+                "ai.connect"
+              ]
+            },
+            {
+              "id": "ai.undoOthers.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "ai.connect",
+                "ai.undoOthers.lead"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "office",
+      "en": "Office",
+      "ar": "المكتب",
+      "powers": [
+        {
+          "power": "feedback.send",
+          "en": "Send requests and bugs",
+          "ar": "إرسال الطلبات والبلاغات",
+          "hint": "Send a feature request or a bug report.",
+          "switches": [
+            {
+              "id": "feedback.send",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "feedback.manage",
+          "en": "Read requests and bugs",
+          "ar": "قراءة الطلبات والبلاغات",
+          "hint": "Read what the team sends, and mark it done.",
+          "switches": [
+            {
+              "id": "feedback.manage",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "office.settings",
+          "en": "Change the office settings",
+          "ar": "تعديل إعدادات المكتب",
+          "hint": "The default stages, the code start, the workload limit and the stale days.",
+          "switches": [
+            {
+              "id": "office.settings",
+              "scope": null,
+              "basic": false,
+              "newPower": false,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "legacy": {
+    "project.editAny": [
+      "project.details.all",
+      "project.team.all",
+      "project.stages.all",
+      "project.deadlines.all",
+      "project.template.all",
+      "project.health.all"
+    ],
+    "project.changeLeaderAny": [
+      "project.leader.all"
+    ],
+    "project.archiveAny": [
+      "project.archive.all"
+    ],
+    "project.delete": [
+      "project.delete.all"
+    ],
+    "project.editCode": [
+      "project.code"
+    ],
+    "task.reviewAny": [
+      "task.review.all"
+    ],
+    "task.changeAny": [
+      "task.any.all"
+    ],
+    "people.manage": [
+      "people.invite",
+      "people.change",
+      "people.teams",
+      "people.turnOff",
+      "people.remove"
+    ],
+    "clients.manage": [
+      "clients.change"
+    ],
+    "payment.manage": [
+      "payment.view",
+      "payment.add",
+      "payment.change",
+      "payment.receive"
+    ],
+    "templates.manageAll": [
+      "templates.projectAny",
+      "templates.taskAny",
+      "templates.taskSave.all"
+    ],
+    "agents.undoAny": [
+      "ai.undoOthers.all"
+    ],
+    "subCompanies.manage": [
+      "subCompanies.manage"
+    ],
+    "templates.updateProjects": [
+      "templates.updateProjects"
+    ],
+    "report.office": [
+      "report.office"
+    ],
+    "feedback.manage": [
+      "feedback.manage"
+    ],
+    "gaps.view": [
+      "gaps.view"
+    ]
+  }
+}
