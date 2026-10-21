@@ -104,7 +104,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'chats.messages': {
     title: 'Read a chat',
-    description: 'Reads a page of a chat your person may open: newest messages, oldest first. limit: 200 (at most 500); before: a message id, the page before; around: a message id, the page with it. A message has author, actingFor, files (id, name, type; name only in direct and group chats), reactions (any emoji: user ids), editedAt, replyTo (id, author, firstLine, deleted) and namesMe. Deleted ones are left out. readUpTo, seenUpTo: read and seen time of your person; notify: all or named. seen: who looked at the chat (userId, at); others: count of other members. A group has lines. Reading marks nothing read.',
+    description: 'Reads a page of a chat your person may open: newest messages, oldest first; limit 200 (500 at most); before or around: a message id. A message has author, actingFor, files (id, name, type; a name only in a direct or group chat), reactions (any emoji: user ids), editedAt, replyTo (id, author, firstLine, deleted), namesMe. Deleted messages are left out. readUpTo, seenUpTo: read and seen times of your person; seen: members who looked (userId, at); others: count of other members; notify: all or named. A group gives its quiet lines. Reading marks nothing read.',
   },
   'chats.waiting': {
     title: 'List what waits for a reply',
