@@ -555,7 +555,7 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
         ],
       },
       {
-        power: 'ai.readWork', mcpTools: ['projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'meetings.list', 'meetings.get', 'tracker.list', 'deadlines.list', 'files.list', 'users.list', 'subCompanies.list', 'dashboard.get', 'events.list', 'search.query'],
+        power: 'ai.readWork', mcpTools: ['projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'meetings.list', 'meetings.get', 'tracker.list', 'deadlines.list', 'files.list', 'users.list', 'subCompanies.list', 'pictures.get', 'dashboard.get', 'events.list', 'search.query'],
         switches: [
           { id: 'ai.readWork', scope: null, basic: true, needs: ['ai.connect'] },
         ],

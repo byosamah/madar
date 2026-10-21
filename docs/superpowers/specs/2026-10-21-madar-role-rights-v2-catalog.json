@@ -1871,6 +1871,7 @@
             "files.list",
             "users.list",
             "subCompanies.list",
+            "pictures.get",
             "dashboard.get",
             "events.list",
             "search.query"
