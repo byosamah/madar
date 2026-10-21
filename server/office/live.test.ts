@@ -6,7 +6,8 @@ import { liteSave } from '../data/lite/save';
 import { freshLite } from '../data/lite/testDb';
 import { liteWriteState } from '../data/lite/whole';
 import { CLOSE_OFF, CLOSE_STALE, LIVE_STALE_MS, LiveTickets, TICKET_CAP, TICKET_MS, acceptLive, closeOff, liveSignals, sweep } from './live';
-import { fakeSockets, openFor } from './test/fakes';
+import { PRESENCE_EVENT, officeStates, officeTyping, socketClosed, stateMessage } from './presence';
+import { fakeSockets, openFor, type FakeSocket } from './test/fakes';
 
 const NOW = new Date('2026-10-04T06:00:00Z');
 const later = (ms: number) => new Date(NOW.getTime() + ms);
@@ -163,5 +164,184 @@ describe('the sweep and the turned-off people', () => {
     expect(closeOff(sockets, await db.tx('read', (q) => readLiteOffice(db, q)))).toBe(1);
     expect(off.closed?.code).toBe(CLOSE_OFF);
     expect(on.closed).toBeUndefined();
+  });
+});
+
+type Presence = { event: string; payload: { v: 1; userId?: string; state?: string; states?: Record<string, string> } };
+/** The presence events a fake socket got, in order. */
+const presenceOf = (socket: FakeSocket): Presence[] => socket.sent.map((text) => JSON.parse(text) as Presence).filter((m) => m.event === PRESENCE_EVENT);
+const stateText = (state: string) => JSON.stringify({ t: 'state', state });
+
+describe('the status of people on the sockets of the office object (chat presence design, L3)', () => {
+  it('stores the state of a socket and tells the office', async () => {
+    const { sockets } = await liveOffice();
+    const a = openFor(sockets, 'usr_002', NOW.getTime());
+    const b = openFor(sockets, 'usr_003', NOW.getTime());
+    expect(stateMessage(sockets, b, stateText('online'))).toBe(true);
+    expect((b.deserializeAttachment() as { state?: string }).state).toBe('online');
+    // A socket with no state counts as away, so Online is a change for the office.
+    expect(presenceOf(a)).toEqual([{ event: 'presence', payload: { v: 1, userId: 'usr_003', state: 'online' } }]);
+    expect(presenceOf(b)).toHaveLength(1);
+    expect(officeStates(sockets)).toEqual({ usr_002: 'away', usr_003: 'online' });
+  });
+
+  it('keeps the userId and the open time in the note when it stores a state', async () => {
+    const { sockets } = await liveOffice();
+    const a = openFor(sockets, 'usr_002', NOW.getTime());
+    stateMessage(sockets, a, stateText('away'));
+    expect(a.deserializeAttachment()).toMatchObject({ userId: 'usr_002', openedAt: NOW.getTime(), state: 'away' });
+  });
+
+  it('tells nothing when a state message leaves the state of the person as it was', async () => {
+    const { sockets } = await liveOffice();
+    const a = openFor(sockets, 'usr_002', NOW.getTime());
+    const b = openFor(sockets, 'usr_003', NOW.getTime());
+    stateMessage(sockets, b, stateText('away'));
+    stateMessage(sockets, b, stateText('away'));
+    expect(presenceOf(a)).toEqual([]);
+  });
+
+  it('a closed socket makes its person offline for the office', async () => {
+    const { sockets } = await liveOffice();
+    const a = openFor(sockets, 'usr_002', NOW.getTime());
+    const b = openFor(sockets, 'usr_003', NOW.getTime());
+    stateMessage(sockets, b, stateText('online'));
+    a.sent.length = 0;
+    // The runtime has taken the socket out of the list already when the close handler runs.
+    b.close(1000, 'Closed.');
+    socketClosed(sockets, b);
+    expect(presenceOf(a)).toEqual([{ event: 'presence', payload: { v: 1, userId: 'usr_003', state: 'offline' } }]);
+    expect(officeStates(sockets)).toEqual({ usr_002: 'away' });
+  });
+
+  it('tells the office also when the runtime still lists the closing socket', async () => {
+    const { sockets } = await liveOffice();
+    const a = openFor(sockets, 'usr_002', NOW.getTime());
+    const b = openFor(sockets, 'usr_003', NOW.getTime());
+    stateMessage(sockets, b, stateText('online'));
+    a.sent.length = 0;
+    // The socket stays in the list (it has not closed yet): its note says it is closing.
+    socketClosed(sockets, b);
+    expect(b.closed).toBeUndefined();
+    expect(presenceOf(a).map((m) => m.payload.state)).toEqual(['offline']);
+    expect(officeStates(sockets)).toEqual({ usr_002: 'away' });
+  });
+
+  it('joins two devices of one person: Online wins, then Away, then Offline, and tells only a change', async () => {
+    const { sockets } = await liveOffice();
+    const watcher = openFor(sockets, 'usr_002', NOW.getTime());
+    const phone = openFor(sockets, 'usr_003', NOW.getTime());
+    const desk = openFor(sockets, 'usr_003', NOW.getTime());
+    stateMessage(sockets, phone, stateText('away'));
+    stateMessage(sockets, desk, stateText('online'));
+    expect(officeStates(sockets).usr_003).toBe('online');
+    // The phone goes Online: the person was Online already.
+    stateMessage(sockets, phone, stateText('online'));
+    stateMessage(sockets, desk, stateText('away'));
+    expect(officeStates(sockets).usr_003).toBe('online');
+    stateMessage(sockets, phone, stateText('away'));
+    expect(officeStates(sockets).usr_003).toBe('away');
+    socketClosed(sockets, phone);
+    expect(officeStates(sockets).usr_003).toBe('away');
+    socketClosed(sockets, desk);
+    expect(officeStates(sockets).usr_003).toBeUndefined();
+    expect(presenceOf(watcher).map((m) => m.payload.state)).toEqual(['online', 'away', 'offline']);
+  });
+
+  it('tells the office when the sweep closes the last socket of a person, and when the account is turned off', async () => {
+    const { db, seed, sockets } = await liveOffice();
+    const watcher = openFor(sockets, 'usr_002', NOW.getTime() + LIVE_STALE_MS);
+    const quiet = openFor(sockets, 'usr_003', NOW.getTime());
+    const off = openFor(sockets, 'usr_007', NOW.getTime() + LIVE_STALE_MS);
+    sockets.pongs.set(watcher, later(LIVE_STALE_MS));
+    sockets.pongs.set(off, later(LIVE_STALE_MS));
+    stateMessage(sockets, quiet, stateText('online'));
+    watcher.sent.length = 0;
+    expect(sweep(sockets, later(LIVE_STALE_MS + 1_000), LIVE_STALE_MS)).toBe(1);
+    expect(quiet.closed?.code).toBe(CLOSE_STALE);
+    expect(presenceOf(watcher)).toEqual([{ event: 'presence', payload: { v: 1, userId: 'usr_003', state: 'offline' } }]);
+    watcher.sent.length = 0;
+    const after = structuredClone(seed);
+    after.users.usr_007 = { ...after.users.usr_007, active: false };
+    await db.tx('write', (q) => liteSave(q, seed, after));
+    closeOff(sockets, await db.tx('read', (q) => readLiteOffice(db, q)));
+    expect(off.closed?.code).toBe(CLOSE_OFF);
+    expect(presenceOf(watcher)).toEqual([{ event: 'presence', payload: { v: 1, userId: 'usr_007', state: 'offline' } }]);
+  });
+
+  it('gives a new socket the states of all, and tells the others about its person', async () => {
+    const { sockets, tickets, accept } = await liveOffice();
+    const a = openFor(sockets, 'usr_002', NOW.getTime());
+    const b = openFor(sockets, 'usr_003', NOW.getTime());
+    stateMessage(sockets, a, stateText('online'));
+    stateMessage(sockets, b, stateText('away'));
+    a.sent.length = 0;
+    b.sent.length = 0;
+    const { ticket } = tickets.mint('usr_005', NOW);
+    expect((await accept(upgrade(ticket))).status).toBe(101);
+    const fresh = sockets.all.at(-1)!.socket;
+    expect(presenceOf(fresh)).toEqual([{ event: 'presence', payload: { v: 1, states: { usr_002: 'online', usr_003: 'away', usr_005: 'away' } } }]);
+    // The others hear that usr_005 is here (a socket with no state yet counts as away), and the new socket hears it only in its snapshot.
+    expect(presenceOf(a)).toEqual([{ event: 'presence', payload: { v: 1, userId: 'usr_005', state: 'away' } }]);
+    expect(presenceOf(b)).toHaveLength(1);
+  });
+
+  it('ignores a message that is not a state', async () => {
+    const { sockets } = await liveOffice();
+    const a = openFor(sockets, 'usr_002', NOW.getTime());
+    const b = openFor(sockets, 'usr_003', NOW.getTime());
+    const bad: (string | ArrayBuffer)[] = [
+      'ping', 'hello', '', '{', 'null', '[]', '1', JSON.stringify({ t: 'state' }), JSON.stringify({ t: 'state', state: 'busy' }),
+      JSON.stringify({ t: 'state', state: 'offline' }), JSON.stringify({ t: 'state', state: ['online'] }), JSON.stringify({ t: 'typing', state: 'online' }),
+      JSON.stringify({ t: 'state', state: 'online', userId: 'usr_002' }).replace('"state"', '"stat"'), new ArrayBuffer(8),
+      JSON.stringify({ t: 'state', state: 'online', pad: 'x'.repeat(500) }),
+    ];
+    for (const message of bad) expect(stateMessage(sockets, b, message)).toBe(false);
+    expect(presenceOf(a)).toEqual([]);
+    expect(b.deserializeAttachment()).not.toHaveProperty('state');
+  });
+
+  it('never lets one socket set the state of another person: the person is the one of its ticket', async () => {
+    const { sockets } = await liveOffice();
+    const a = openFor(sockets, 'usr_002', NOW.getTime());
+    const b = openFor(sockets, 'usr_003', NOW.getTime());
+    stateMessage(sockets, b, JSON.stringify({ t: 'state', state: 'online', userId: 'usr_002' }));
+    expect(officeStates(sockets)).toEqual({ usr_002: 'away', usr_003: 'online' });
+    expect(a.deserializeAttachment()).not.toHaveProperty('state');
+  });
+
+  it('counts a socket with a broken note for nobody', async () => {
+    const { sockets } = await liveOffice();
+    const a = openFor(sockets, 'usr_002', NOW.getTime());
+    a.serializeAttachment({ userId: 7 });
+    openFor(sockets, 'usr_003', NOW.getTime()).serializeAttachment({ userId: 'usr_003', openedAt: NOW.getTime(), state: 'busy' });
+    expect(officeStates(sockets)).toEqual({ usr_003: 'away' });
+  });
+});
+
+describe('the typing signal on the sockets of the office object (chat presence design, L3)', () => {
+  it('sends the typing event to the sockets of the named people only', async () => {
+    const { sockets } = await liveOffice();
+    const a = openFor(sockets, 'usr_002', NOW.getTime());
+    const a2 = openFor(sockets, 'usr_002', NOW.getTime());
+    const b = openFor(sockets, 'usr_003', NOW.getTime());
+    const outsider = openFor(sockets, 'usr_008', NOW.getTime());
+    const signal = { v: 1 as const, conversationId: 'cnv_1', userId: 'usr_005', typing: true, at: '2026-10-21T08:00:00.000Z' };
+    await officeTyping({ sockets }).send(['usr_002', 'usr_003'], signal);
+    const typed = (socket: FakeSocket) => socket.sent.map((text) => JSON.parse(text) as { event: string; payload: unknown }).filter((m) => m.event === 'typing');
+    expect(typed(a)).toEqual([{ event: 'typing', payload: signal }]);
+    expect(typed(a2)).toEqual([{ event: 'typing', payload: signal }]);
+    expect(typed(b)).toEqual([{ event: 'typing', payload: signal }]);
+    expect(outsider.sent).toEqual([]);
+  });
+
+  it('sends nothing for no people, and never throws when a send fails', async () => {
+    const { sockets } = await liveOffice();
+    const a = openFor(sockets, 'usr_002', NOW.getTime());
+    a.failSend = true;
+    const signal = { v: 1 as const, conversationId: 'cnv_1', userId: 'usr_005', typing: false, at: '2026-10-21T08:00:00.000Z' };
+    await expect(officeTyping({ sockets }).send([], signal)).resolves.toBeUndefined();
+    await expect(officeTyping({ sockets }).send(['usr_002'], signal)).resolves.toBeUndefined();
+    expect(a.sent).toEqual([]);
   });
 });

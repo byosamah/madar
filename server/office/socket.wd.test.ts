@@ -12,8 +12,11 @@ const seedOf = () => buildSeed(TODAY, async () => undefined);
  * in_progress, and the seed task is in_progress already, so on a fresh seed that move changes nothing and sends no signal.
  */
 const writeOf = (seed: State) => everyCall(seed).find((c) => c.name === 'tasks.update')!;
-const signalsOf = (socket: SocketClient): ChangeSignal[] =>
-  socket.got.filter((text) => text !== 'pong').map((text) => (JSON.parse(text) as { payload: ChangeSignal }).payload);
+type Message = { event: string; payload: Record<string, unknown> };
+const messagesOf = (socket: SocketClient): Message[] => socket.got.filter((text) => text !== 'pong').map((text) => JSON.parse(text) as Message);
+/** The change signals only: the presence events and the typing events (chat presence design) come on the same socket. */
+const signalsOf = (socket: SocketClient): ChangeSignal[] => messagesOf(socket).filter((m) => m.event === 'changed').map((m) => m.payload as unknown as ChangeSignal);
+const eventsOf = (socket: SocketClient, event: string): Message['payload'][] => messagesOf(socket).filter((m) => m.event === event).map((m) => m.payload);
 
 describe('the live sockets of the office object on local workerd', () => {
   let live: Awaited<ReturnType<typeof startLive>>;
@@ -85,6 +88,60 @@ describe('the live sockets of the office object on local workerd', () => {
     await live.batch(write.actorId, [{ name: write.name, input: write.input }]);
     await vi.waitFor(() => expect(signalsOf(socket).length).toBeGreaterThan(0));
     socket.ws.close();
+  });
+
+  it('gives a new socket the states of all, takes the state of a device, and tells the office when a socket closes (chat presence design)', async () => {
+    await live.fresh(await seedOf());
+    const watcher = await socketOf('usr_002');
+    await vi.waitFor(() => expect(eventsOf(watcher, 'presence')[0]).toEqual({ v: 1, states: { usr_002: 'away' } }));
+    const phone = await socketOf('usr_003');
+    phone.ws.send(JSON.stringify({ t: 'state', state: 'online' }));
+    await vi.waitFor(() => expect(eventsOf(watcher, 'presence')).toContainEqual({ v: 1, userId: 'usr_003', state: 'online' }));
+    // Rubbish on the socket changes nothing and does not close it.
+    phone.ws.send(JSON.stringify({ t: 'state', state: 'busy' }));
+    phone.ws.send('{');
+    phone.ws.close();
+    await vi.waitFor(() => expect(eventsOf(watcher, 'presence')).toContainEqual({ v: 1, userId: 'usr_003', state: 'offline' }));
+    watcher.ws.close();
+  });
+
+  it('keeps the state of a socket across a hibernation', async () => {
+    await live.fresh(await seedOf());
+    const online = await socketOf('usr_002');
+    online.ws.send(JSON.stringify({ t: 'state', state: 'online' }));
+    await vi.waitFor(() => expect(eventsOf(online, 'presence')).toContainEqual({ v: 1, userId: 'usr_002', state: 'online' }));
+    const away = await socketOf('usr_003');
+    away.ws.send(JSON.stringify({ t: 'state', state: 'away' }));
+    // The state message of an Away socket changes nothing: the person was Away already (no state counts as Away).
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    await live.evict();
+    const fresh = await socketOf('usr_005');
+    await vi.waitFor(() => expect(eventsOf(fresh, 'presence').length).toBeGreaterThan(0));
+    expect(eventsOf(fresh, 'presence')[0]).toEqual({ v: 1, states: { usr_002: 'online', usr_003: 'away', usr_005: 'away' } });
+    // The object is awake again and still tells a change.
+    away.ws.send(JSON.stringify({ t: 'state', state: 'online' }));
+    await vi.waitFor(() => expect(eventsOf(fresh, 'presence')).toContainEqual({ v: 1, userId: 'usr_003', state: 'online' }));
+    for (const socket of [online, away, fresh]) socket.ws.close();
+  });
+
+  it("a person's typing reaches only the sockets of the named people", async () => {
+    await live.fresh(await seedOf());
+    // cnv_015 is the group of usr_002, usr_001, usr_005 and usr_003; usr_004 is in no chat of the sample office.
+    const [typist, typistPhone, member, other, outsider] = await Promise.all(['usr_005', 'usr_005', 'usr_002', 'usr_003', 'usr_004'].map((id) => socketOf(id)));
+    const { body } = await live.batch('usr_005', [{ name: 'chats.typing', input: { conversationId: 'cnv_015', typing: true } }]);
+    expect(body.results[0]).toMatchObject({ ok: true, output: { sent: 3 } });
+    await vi.waitFor(() => {
+      for (const socket of [member, other]) expect(eventsOf(socket, 'typing')).toHaveLength(1);
+    });
+    expect(eventsOf(member, 'typing')[0]).toMatchObject({ v: 1, conversationId: 'cnv_015', userId: 'usr_005', typing: true });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    for (const socket of [typist, typistPhone, outsider]) expect(eventsOf(socket, 'typing')).toEqual([]);
+    // The outsider gets the answer of a chat that never was, and no signal.
+    const hidden = await live.batch('usr_004', [{ name: 'chats.typing', input: { conversationId: 'cnv_015', typing: true } }]);
+    expect(hidden.body.results[0]).toMatchObject({ ok: false, error: { code: 'not_found' } });
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(eventsOf(member, 'typing')).toHaveLength(1);
+    for (const socket of [typist, typistPhone, member, other, outsider]) socket.ws.close();
   });
 
   it('closes the socket of a person whom the Admin turns off', async () => {
