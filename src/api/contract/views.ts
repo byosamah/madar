@@ -524,5 +524,12 @@ export const OfficeReport = z.object({
   gaps: z.array(z.string().max(120)).max(5).nullable(),
   /** The design guide for the agent that builds the document (reportDesign.ts). The same for every person who may ask. */
   design: ReportDesign,
+  /**
+   * The to-dos made and done in each of the 6 weeks (Sunday to Saturday) up to the week that holds the last day (owner, 2026-10-21):
+   * the one chart of the Madar report. Optional, so an older answer still parses.
+   */
+  trend: z.array(z.object({ from: Day, to: Day, made: ReportCount, done: ReportCount })).max(6).optional(),
+  /** The guide of the Madar report (reportGuide.ts), only when the call sends guide: true. */
+  guide: z.string().max(20_000).optional(),
 });
 export type OfficeReport = z.infer<typeof OfficeReport>;

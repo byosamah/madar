@@ -469,6 +469,15 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   gets it only when its person holds `report.office`.
 - The answer carries `design`: the design guide `REPORT_DESIGN` (`reportDesign.ts`). Its colors and sizes copy `tokens.css`, and
   `reportDesign.test.ts` checks them. The guide is the same for every person who may ask.
+- A range (owner, 2026-10-21): `period: 'range'` with `from` and `to`, both days included, at most `REPORT_RANGE_MAX_DAYS` (400). The
+  input refuses each wrong mix by its field: a range with `start`, a named period with `from` or `to`, `to` before `from`. `reportRange`
+  (`reportPeriod.ts`) gives the days to the handler and the loader alike.
+- `trend` (owner, 2026-10-21): the to-dos made and done in each of the 6 weeks (Sunday to Saturday, `trendWeeks`) up to the week that holds
+  the last day. It reads the tasks that the loader already loads, so it needs no SQL.
+- `guide: true` adds `guide`: `REPORT_GUIDE` (`reportGuide.ts`), the steps, pages, numbers rules, design and checks of the Madar report. It
+  started as the owner's Claude skill "madar-office-report". Only on request, because it is about 17,000 characters. A change of a tool name,
+  a field or a color that the guide names fails `server/mcp/reportGuide.test.ts`. `design.colors` holds the status colors too (`onTrack`,
+  `atRisk`, `late`, `muted`).
 
 ## The restart reminder of a pause (owner, 2026-10-19, fbk_025)
 - The restart date of a pause (`pause.resumeOn`) is a reminder. Madar never restarts a project by itself: a person resumes it.

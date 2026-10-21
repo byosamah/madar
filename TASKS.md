@@ -914,3 +914,10 @@ Owner: "add some Slack chat features": Online, Away, Offline, "Seen", "typing...
 - [ ] After the owner's rr2 hand test: merge main (rr2, a816c42a), gates again, `all.sh test`, the live check, the whole deploy suite
 - [x] Production at faaa6f76 (2026-10-21, the owner said "go to production"; Claude ran it). The owner skipped the two-phone test and the browser suite
 - [ ] What's new line; production only by the owner, not before 2026-10-23
+
+## The Madar report from the AI assistant (owner, 2026-10-21)
+- [x] Past due of the office report counts to today while the period runs (a816c42a, b84b0212)
+- [x] reports.office: a range from one day to another (400 days at most), the 6-week trend, the status colors in design, and the guide of the
+  Madar report with guide: true (from the owner's Claude skill "madar-office-report"); INSTRUCTIONS sends every report request to it
+- [ ] Test copy, then production with the owner's OK; then the owner removes or replaces the Claude skill in his AI app, so two recipes
+  do not disagree

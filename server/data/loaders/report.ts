@@ -1,6 +1,6 @@
 import { can } from '../../../src/api/permissions';
 import {
-  periodRange, periodStamps, REPORT_COMPLETED_VERB, REPORT_KEYS, REPORT_PAUSED_VERB, REPORT_REVIEW_VERBS, REPORT_STAGE_VERB, type ReportPeriodKind,
+  periodStamps, REPORT_COMPLETED_VERB, REPORT_KEYS, REPORT_PAUSED_VERB, REPORT_REVIEW_VERBS, REPORT_STAGE_VERB, reportRange, type ReportPick,
 } from '../../../src/api/reportPeriod';
 import { todayISO } from '../../../src/lib/dates';
 import type { Cond } from './query';
@@ -8,7 +8,7 @@ import type { Load } from './build';
 import { DASHBOARD_TASK_FIELDS } from './overview';
 import { tasksOf } from './steps';
 
-type Input = { period: ReportPeriodKind; start?: string; subCompanyId?: string };
+type Input = ReportPick & { subCompanyId?: string };
 
 /**
  * reports.office (owner, 2026-10-18, fbk_016). The loader reads the rows and the counts of the period of the call.
@@ -27,7 +27,7 @@ type Input = { period: ReportPeriodKind; start?: string; subCompanyId?: string }
 export async function reportsOffice(L: Load, input: Input): Promise<void> {
   if (!L.authority || !can(L.authority, 'report.office')) return;
   if (!L.now) throw new Error('reports.office needs the time of the call (LoadCtx.now).');
-  const range = periodRange(input.period, input.start, todayISO(L.now));
+  const range = reportRange(input, todayISO(L.now));
   const { from, until } = periodStamps(range);
   // A sub-company filter reads only its projects (INT-09). Without it, every project.
   const ids = Object.values(L.office.projects).filter((project) => !input.subCompanyId || project.subCompanyId === input.subCompanyId).map((project) => project.id);

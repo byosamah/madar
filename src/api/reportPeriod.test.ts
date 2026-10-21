@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { periodRange, periodStamps } from './reportPeriod';
+import { periodRange, periodStamps, reportRange, trendWeeks } from './reportPeriod';
 
 /** The periods of the office report (owner, 2026-10-18, fbk_016): a week runs Sunday to Saturday, a quarter starts in Jan, Apr, Jul or Oct. */
 describe('periodRange: the week', () => {
@@ -82,5 +82,26 @@ describe('periodStamps', () => {
       from: '2026-09-27T00:00:00+03:00',
       until: '2026-10-04T00:00:00+03:00',
     });
+  });
+});
+
+describe('reportRange: a free range and the named periods (owner, 2026-10-21)', () => {
+  it('keeps the two days of a range as they are', () => {
+    expect(reportRange({ period: 'range', from: '2026-10-01', to: '2026-10-15' }, '2026-10-21')).toEqual({ from: '2026-10-01', to: '2026-10-15' });
+  });
+
+  it('gives the period of periodRange for a week, a month, a quarter or a year', () => {
+    expect(reportRange({ period: 'week', start: '2026-10-01' }, '2026-10-18')).toEqual({ from: '2026-09-27', to: '2026-10-03' });
+    expect(reportRange({ period: 'month' }, '2026-10-18')).toEqual({ from: '2026-09-01', to: '2026-09-30' });
+  });
+});
+
+describe('trendWeeks: the weeks of the trend chart (owner, 2026-10-21)', () => {
+  it('gives 6 weeks from Sunday to Saturday, oldest first, up to the week that holds the day', () => {
+    const weeks = trendWeeks('2026-10-15');
+    expect(weeks).toHaveLength(6);
+    expect(weeks[0]).toEqual({ from: '2026-09-06', to: '2026-09-12' });
+    expect(weeks[5]).toEqual({ from: '2026-10-11', to: '2026-10-17' });
+    for (let i = 1; i < weeks.length; i += 1) expect(weeks[i]!.from > weeks[i - 1]!.to).toBe(true);
   });
 });

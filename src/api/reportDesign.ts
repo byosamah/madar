@@ -22,6 +22,11 @@ export const REPORT_DESIGN: ReportDesign = {
     inkSecondary: '#636366',
     hairline: '#F0F0F2',
     accent: '#1F2A55',
+    // The status colors (owner, 2026-10-21): only on the status signs and the step line, as StatusSign draws them.
+    onTrack: '#1E7A34',
+    atRisk: '#C93400',
+    late: '#D70015',
+    muted: '#8E8E93',
   },
   type: {
     family: 'Thmanyah Sans',

@@ -235,3 +235,9 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 - `server/mcp/oauth/sdk.test.ts` runs the whole flow with `@modelcontextprotocol/sdk` 1.32.0 on node:sqlite.
 - Words (owner, 2026-10-20): `INSTRUCTIONS` has a "Words:" paragraph. The screens call a task a "to-do", and the Tasks tab holds To-dos and Meetings. The calls and
   the tools keep the word "tasks". Test: `officeDocs.test.ts`.
+- The Madar report (owner, 2026-10-21): the "Reports:" line of `INSTRUCTIONS` sends every request for a Madar report (an office report, a
+  weekly report, a report from one day to another) to `reports.office` with `guide: true`, and the agent follows that guide
+  (`src/api/reportGuide.ts`, from the owner's Claude skill "madar-office-report"). So the report needs no skill in the AI app, and every
+  person with the report right gets the same report. No new tool: the count stays 57. Tests: `reportGuide.test.ts` (the tools, fields and
+  colors that the guide names) and `tools.test.ts` (the words of the tool text and the line). After a change of the guide, tell the owner
+  that a Claude skill with the old text in his AI app can disagree with it.

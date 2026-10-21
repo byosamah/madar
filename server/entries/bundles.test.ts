@@ -154,6 +154,7 @@ describe('the minified function bundles (performance audit SRV-11)', () => {
     // The Google Calendar sync and its client (fbk_022) added about 26,000 on their own branch (713,337 there). Both together after the join of 2026-10-20: 748,238.
     // The join as a helper and the lead delete (fbk_034, fbk_035) on top of the later fixes: 760,035, so the bound is 800,000.
     // Role rights version 2 and chat presence (typing, seen, any emoji) together, 2026-10-21: 803,793, so the bound is 850,000.
+    // The guide of the Madar report (reportGuide.ts, 2026-10-21) adds about 17,000 characters of plain text on top.
     expect(text.length).toBeLessThan(850_000);
     expect(text.includes('JWTExpired')).toBe(true);
     expect(text.includes('@param {import(')).toBe(false);

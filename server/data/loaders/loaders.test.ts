@@ -1645,6 +1645,12 @@ describe('the office report (owner, 2026-10-18, fbk_016)', () => {
     expect(year.outcome.error).toBeUndefined();
   });
 
+  it('gives the same answer on both loads for a range from one day to another, with the guide (owner, 2026-10-21)', async () => {
+    const range = await same(office(), 'reports.office', { period: 'range', from: '2026-09-28', to: '2026-10-02', guide: true }, ADMIN);
+    expect(range.outcome.error).toBeUndefined();
+    expect((range.outcome.output as { period: unknown }).period).toEqual({ kind: 'range', from: '2026-09-28', to: '2026-10-02' });
+  });
+
   it('gives the same refusal on both loads for a Member, and loads no payment for a person without the payment right', async () => {
     const member = await same(office(), 'reports.office', { period: 'month' }, 'usr_003');
     expect(member.outcome.error?.code).toBe('forbidden');

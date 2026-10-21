@@ -112,4 +112,11 @@ describe("What's new entries", () => {
       for (const key of ['newMark', 'seeNew', 'open', 'openItem']) expect(typeof wordAt(tree, ['whatsNew', key]), key).toBe('string');
     }
   });
+
+  // The Madar report from the AI assistant (owner, 2026-10-21): only the people with the report right can ask for it.
+  it('shows the entry about the Madar report to the people with the report right', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-81')).toEqual({ id: '2026-10-23-81', day: '2026-10-23', right: 'report.office' });
+    expect(String(wordAt(en, ['whatsNew', 'items', '2026-10-23-81', 'body']))).toContain('from 1 to 15 October');
+    expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-81', 'title']))).toBe('تقرير مدار من مساعدك الذكي');
+  });
 });

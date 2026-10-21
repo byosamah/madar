@@ -1,13 +1,15 @@
 import { z } from 'zod';
-import { stampDay } from '../../lib/dates';
+import { addDays, stampDay } from '../../lib/dates';
 import { markOf } from '../../lib/projectMark';
 import { Day, SubCompanyId, type Event, type Payment, type Project, type Task, type TrackerEntry } from '../contract/entities';
 import { OfficeReport, type ReportPerson, type ReportProject } from '../contract/views';
 import { computeHealth } from '../health';
 import { can } from '../permissions';
 import { REPORT_DESIGN } from '../reportDesign';
+import { REPORT_GUIDE } from '../reportGuide';
 import {
-  periodRange, REPORT_COMPLETED_VERB, REPORT_KEYS, REPORT_PAUSED_VERB, REPORT_REVIEW_VERBS, REPORT_STAGE_VERB, ReportPeriodKind, type DayRange,
+  REPORT_COMPLETED_VERB, REPORT_KEYS, REPORT_PAUSED_VERB, REPORT_RANGE_MAX_DAYS, REPORT_REVIEW_VERBS, REPORT_STAGE_VERB, reportRange, ReportPeriodKind,
+  trendWeeks, type DayRange, type ReportPick,
 } from '../reportPeriod';
 import { defineCall, type Ctx } from '../registry';
 import { paymentsOf, subCompaniesOf, trackerOf, type State } from '../store';
@@ -47,9 +49,9 @@ function statusAfter(event: Event): unknown {
 }
 
 /** The report of one period, from the State of the call. */
-function buildReport(ctx: Ctx, input: { period: ReportPeriodKind; start?: string; subCompanyId?: string }) {
+function buildReport(ctx: Ctx, input: ReportPick & { subCompanyId?: string; guide?: boolean }) {
   const { state, today, authority: actor } = ctx;
-  const range: DayRange = periodRange(input.period, input.start, today);
+  const range: DayRange = reportRange(input, today);
   const inDays = (day: string | null | undefined): boolean => typeof day === 'string' && day >= range.from && day <= range.to;
   const dayOf = (stamp: string | null): string | null => (stamp === null ? null : stampDay(stamp));
 
@@ -172,6 +174,16 @@ function buildReport(ctx: Ctx, input: { period: ReportPeriodKind; start?: string
     money,
     gaps,
     design: REPORT_DESIGN,
+    trend: trendWeeks(range.to).map((week) => {
+      const inWeek = (day: string | null) => day !== null && day >= week.from && day <= week.to;
+      return {
+        ...week,
+        made: tasks.filter((task) => inWeek(stampDay(task.createdAt))).length,
+        done: tasks.filter((task) => inWeek(dayOf(task.completedAt))).length,
+      };
+    }),
+    // The guide is long, so it comes only when the agent asks: once for each report, not with every call (owner, 2026-10-21).
+    ...(input.guide ? { guide: REPORT_GUIDE } : {}),
   };
 }
 
@@ -220,8 +232,30 @@ function gapsOf(state: State, tasks: Task[], projects: Project[]): string[] {
   return counts.filter(([, n]) => n > 0).map(([label, n]) => `${label}: ${n}`);
 }
 
+/**
+ * The input of the report. A named period takes start; a range takes from and to, at most REPORT_RANGE_MAX_DAYS days. Each wrong
+ * mix names its field, so one input never means two periods (owner, 2026-10-21).
+ */
+const ReportInput = z.object({
+  period: ReportPeriodKind,
+  start: Day.optional(),
+  from: Day.optional(),
+  to: Day.optional(),
+  subCompanyId: SubCompanyId.optional(),
+  guide: z.boolean().optional(),
+})
+  .refine((input) => input.period !== 'range' || input.from !== undefined, { path: ['from'], message: 'A range report needs from (YYYY-MM-DD).' })
+  .refine((input) => input.period !== 'range' || input.to !== undefined, { path: ['to'], message: 'A range report needs to (YYYY-MM-DD).' })
+  .refine((input) => input.period !== 'range' || input.start === undefined, { path: ['start'], message: 'start goes with a week, a month, a quarter or a year. A range takes from and to.' })
+  .refine((input) => input.period === 'range' || input.from === undefined, { path: ['from'], message: 'from goes only with the period range.' })
+  .refine((input) => input.period === 'range' || input.to === undefined, { path: ['to'], message: 'to goes only with the period range.' })
+  .refine((input) => input.from === undefined || input.to === undefined || input.from <= input.to, { path: ['to'], message: 'to is on or after from.' })
+  .refine((input) => input.from === undefined || input.to === undefined || input.to <= addDays(input.from, REPORT_RANGE_MAX_DAYS - 1), {
+    path: ['to'], message: `A range report covers ${REPORT_RANGE_MAX_DAYS} days at most.`,
+  });
+
 export const reportsOffice = defineCall({
-  input: z.object({ period: ReportPeriodKind, start: Day.optional(), subCompanyId: SubCompanyId.optional() }),
+  input: ReportInput,
   output: OfficeReport,
   readOnly: true,
   run(input, ctx) {

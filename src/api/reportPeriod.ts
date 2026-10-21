@@ -4,11 +4,20 @@ import { addDays, weekStartOf } from '../lib/dates';
 /**
  * The periods of the office report (owner, 2026-10-18, fbk_016). A week runs from Sunday to Saturday, and a quarter starts in
  * January, April, July or October. A start day picks the period that holds it. With no start, the period is the last full one
- * before today, so a period that is still open never shows.
+ * before today, so a period that is still open never shows. A range (owner, 2026-10-21) is any first and last day, for "a Madar
+ * report from 1 to 15 October".
  */
 
-export const ReportPeriodKind = z.enum(['week', 'month', 'quarter', 'year']);
+export const ReportPeriodKind = z.enum(['week', 'month', 'quarter', 'year', 'range']);
 export type ReportPeriodKind = z.infer<typeof ReportPeriodKind>;
+/** The named periods: every kind but the range, which takes its own two days. */
+export type NamedPeriodKind = Exclude<ReportPeriodKind, 'range'>;
+
+/** The longest range, in days, both ends included (owner, 2026-10-21). A year has 366 days at most. */
+export const REPORT_RANGE_MAX_DAYS = 400;
+
+/** The number of weeks of the trend of the to-dos (owner, 2026-10-21): the one chart of the Madar report. */
+export const TREND_WEEKS = 6;
 
 /** The first and the last day of a period, both inclusive, in the office days (Riyadh). */
 export type DayRange = { from: string; to: string };
@@ -38,7 +47,7 @@ function yearRange(year: number): DayRange {
  * The days of one period. With a start, the period that holds the start day. Without one, the last full period before today.
  * It is the week before the week of today, the month before this one, the quarter before this one, or the year before this one.
  */
-export function periodRange(period: ReportPeriodKind, start: string | undefined, today: string): DayRange {
+export function periodRange(period: NamedPeriodKind, start: string | undefined, today: string): DayRange {
   if (period === 'week') {
     const first = start !== undefined ? weekStartOf(start) : addDays(weekStartOf(today), -7);
     return { from: first, to: addDays(first, 6) };
@@ -56,6 +65,28 @@ export function periodRange(period: ReportPeriodKind, start: string | undefined,
     return quarter === 0 ? quarterRange(year - 1, 3) : quarterRange(year, quarter - 1);
   }
   return start !== undefined ? yearRange(year) : yearRange(year - 1);
+}
+
+/** What picks the days of a report: a named period with an optional start, or a range with its two days. */
+export type ReportPick = { period: ReportPeriodKind; start?: string; from?: string; to?: string };
+
+/**
+ * The days of a report. A range keeps its two days, which the input schema of reports.office checked. A named period gives the
+ * days of periodRange.
+ */
+export function reportRange(pick: ReportPick, today: string): DayRange {
+  if (pick.period !== 'range') return periodRange(pick.period, pick.start, today);
+  if (pick.from === undefined || pick.to === undefined) throw new Error('A range report needs from and to.');
+  return { from: pick.from, to: pick.to };
+}
+
+/** The weeks of the trend, Sunday to Saturday, oldest first: TREND_WEEKS weeks up to and with the week that holds the day. */
+export function trendWeeks(day: string, count: number = TREND_WEEKS): DayRange[] {
+  const last = weekStartOf(day);
+  return Array.from({ length: count }, (_, i) => {
+    const from = addDays(last, -7 * (count - 1 - i));
+    return { from, to: addDays(from, 6) };
+  });
 }
 
 /**

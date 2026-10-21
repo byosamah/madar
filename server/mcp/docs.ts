@@ -47,7 +47,7 @@ export const INSTRUCTIONS = [
   '',
   'Words: the Madar screens call a task a "to-do", and the Tasks tab holds To-dos and Meetings. The calls and the tools keep the word "tasks".',
   '',
-  'Reports: reports.office gives the data of one week, month, quarter or year, and the design guide of the report. Build the report from that guide: a white page, the Madar colors, and no money part unless the answer has one.',
+  'Reports: when your person asks for a Madar report (an office report, a weekly report, or a report from one day to another), call reports.office with guide: true and follow its guide exactly. So every report has the same pages, numbers rules, design and checks. Build no report without the guide.',
   '',
   'Pauses: a paused project may hold a restart date (project.pause.resumeOn). The date is a reminder only: on that day the person who paused the project and its leader get a notice, and Madar never restarts the project by itself. The person pauses, resumes and moves the date in the Madar screens.',
   '',
@@ -324,7 +324,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'reports.office': {
     title: 'Get the office report',
-    description: 'Gives the office report of one period: a week (Sunday to Saturday), a month, a quarter or a year. Send period, and start (YYYY-MM-DD, any day in the period). subCompanyId gives one sub-company only. The answer has the data and the design guide (design): build a clean document on a white page with its colors, type and rules. Each project row has subCompany (or null) and look. While the period runs, past due counts as of today. money needs payment.view, else null. withPictures: true adds the pictures (see Pictures). Needs the switch report.office (by default the Admin and Management).',
+    description: 'Gives the office report of one period: week (Sunday to Saturday), month, quarter or year with start (YYYY-MM-DD, a day in it), or range with from and to (400 days at most). subCompanyId: one sub-company. guide: true adds guide, the steps, pages and checks of the Madar report: ask on the first call and follow it. The answer has the data, trend (to-dos made and done, 6 weeks) and design: build the document on a white page. While the period runs, past due counts as of today. money needs payment.view. withPictures: true adds pictures. Needs report.office.',
   },
   'users.list': {
     title: 'List people',

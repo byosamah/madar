@@ -21,6 +21,11 @@ const COLOR_TOKENS: Record<string, string> = {
   inkSecondary: '--c-ink-2',
   hairline: '--c-hairline',
   accent: '--sig-from',
+  // The status colors of the signs and the step line (owner, 2026-10-21): the shapes of StatusSign carry them.
+  onTrack: '--c-green-text',
+  atRisk: '--c-orange-text',
+  late: '--c-red-text',
+  muted: '--c-chart-muted',
 };
 
 /** Each size of the guide, with the desktop token it copies. */

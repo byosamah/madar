@@ -133,12 +133,14 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
     expect(adminTools.find((tool) => tool.name === 'reports.office')!.readOnly).toBe(true);
     expect(adminTools.find((tool) => tool.name === 'reports.office')!.takesStory).toBe(false);
     const doc = TOOL_DOCS['reports.office'].description;
-    for (const word of ['design', 'white page', 'payment.view', 'report.office']) expect(doc, word).toContain(word);
+    for (const word of ['design', 'white page', 'payment.view', 'report.office', 'guide: true', 'range', 'trend']) expect(doc, word).toContain(word);
     expect(doc).not.toMatch(/[\u2013\u2014]/);
     const line = INSTRUCTIONS.split('\n').find((text) => text.startsWith('Reports: '));
     expect(line).toBeDefined();
     expect(line).toContain('reports.office');
     expect(line).toContain('design');
+    // A request for a Madar report goes to the guide (owner, 2026-10-21), so every report has the same form.
+    expect(line).toContain('guide: true');
     expect(line).not.toMatch(/[\u2013\u2014]/);
   });
 

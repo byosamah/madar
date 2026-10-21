@@ -6,6 +6,7 @@ import { ReportTotals } from '../contract/views';
 import type { Ctx } from '../registry';
 import { withRights } from '../rights';
 import { REPORT_DESIGN } from '../reportDesign';
+import { REPORT_GUIDE } from '../reportGuide';
 import { REPORT_KEYS } from '../reportPeriod';
 import type { State } from '../store';
 import { reportsCalls, reportsOffice } from './reports';
@@ -274,5 +275,80 @@ describe('reports.office: a project that ends or pauses in the period', () => {
     const report = await t.api.call('reports.office', { period: 'week', start: '2026-09-28' });
     expect(report.totals.projects).toEqual({ active: 0, started: 0, completed: 1, paused: 1 });
     expect(report.projects[0]).toMatchObject({ status: 'completed', health: null });
+  });
+});
+
+describe('reports.office: a report from one day to another (owner, 2026-10-21)', () => {
+  it('counts the days of a range: the to-dos made and done, the stage moves and the past due', async () => {
+    const t = world();
+    const report = await t.api.call('reports.office', { period: 'range', from: '2026-09-28', to: '2026-09-30' });
+    expect(report.period).toEqual({ kind: 'range', from: '2026-09-28', to: '2026-09-30' });
+    // tsk_002 was made on 28 September and tsk_001 was done on 29 September. evt_001 is the one stage move in the days.
+    expect(report.totals).toMatchObject({ tasks: { done: 1, made: 1, pastDueAtEnd: 0 }, stageMoves: 1 });
+  });
+
+  it('takes a range of 400 days, and refuses a range of 401 days', async () => {
+    const t = world();
+    const longest = await t.api.call('reports.office', { period: 'range', from: '2025-09-01', to: '2026-10-05' });
+    expect(longest.period).toEqual({ kind: 'range', from: '2025-09-01', to: '2026-10-05' });
+    await expect(t.api.call('reports.office', { period: 'range', from: '2025-09-01', to: '2026-10-06' }))
+      .rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['to'] } });
+  });
+
+  it('refuses a range with no end, and a range that ends before it starts', async () => {
+    const t = world();
+    await expect(t.api.call('reports.office', { period: 'range', from: '2026-09-28' }))
+      .rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['to'] } });
+    await expect(t.api.call('reports.office', { period: 'range', to: '2026-09-28' }))
+      .rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['from'] } });
+    await expect(t.api.call('reports.office', { period: 'range', from: '2026-09-30', to: '2026-09-28' }))
+      .rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['to'] } });
+  });
+
+  it('refuses from and to with a named period, and start with a range, so one input never means two periods', async () => {
+    const t = world();
+    await expect(t.api.call('reports.office', { period: 'week', from: '2026-09-28', to: '2026-09-30' }))
+      .rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['from', 'to'] } });
+    await expect(t.api.call('reports.office', { period: 'range', start: '2026-09-28', from: '2026-09-28', to: '2026-09-30' }))
+      .rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['start'] } });
+  });
+});
+
+describe('reports.office: the guide of the Madar report (owner, 2026-10-21)', () => {
+  it('gives the guide only when the call asks for it, so the later calls of one report stay small', async () => {
+    const t = world();
+    const plain = await t.api.call('reports.office', { period: 'week', start: '2026-09-28' });
+    expect(plain.guide).toBeUndefined();
+    const guided = await t.api.call('reports.office', { period: 'week', start: '2026-09-28', guide: true });
+    expect(guided.guide).toBe(REPORT_GUIDE);
+  });
+
+  it('gives the same guide to Management as to the Admin', async () => {
+    const t = world();
+    t.as('usr_006');
+    const report = await t.api.call('reports.office', { period: 'month', guide: true });
+    expect(report.guide).toBe(REPORT_GUIDE);
+  });
+});
+
+describe('reports.office: the trend of the to-dos (owner, 2026-10-21)', () => {
+  it('gives the to-dos made and done in each of the 6 weeks up to the week that holds the last day', async () => {
+    const t = world();
+    const report = await t.api.call('reports.office', { period: 'week', start: '2026-09-28' });
+    expect(report.trend).toEqual([
+      { from: '2026-08-23', to: '2026-08-29', made: 0, done: 0 },
+      { from: '2026-08-30', to: '2026-09-05', made: 0, done: 0 },
+      { from: '2026-09-06', to: '2026-09-12', made: 1, done: 0 },
+      { from: '2026-09-13', to: '2026-09-19', made: 1, done: 0 },
+      { from: '2026-09-20', to: '2026-09-26', made: 1, done: 0 },
+      { from: '2026-09-27', to: '2026-10-03', made: 1, done: 1 },
+    ]);
+  });
+
+  it('counts the trend of one sub-company only, as every other number of the report', async () => {
+    const state = office();
+    state.subCompanies = { sub_001: { id: 'sub_001', name: 'Vado', nameAr: 'فادو', logo: null, createdBy: 'usr_001', createdAt: '2026-09-01T09:00:00.000+03:00' } };
+    const report = await testApi(reportsCalls, state).api.call('reports.office', { period: 'week', start: '2026-09-28', subCompanyId: 'sub_001' });
+    expect(report.trend!.every((week) => week.made === 0 && week.done === 0)).toBe(true);
   });
 });
