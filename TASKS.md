@@ -811,8 +811,10 @@ Owner: tasks and chat need notifications on the phone. These fixes serve the Hom
   `server/push/encrypt.ts`, the RFC vector in its test), the line as the person reads it (`server/push/line.ts`), the bell sentence
   shared (`src/lib/noticeSentence.ts`), the server words (`server/push/words.ts`), the worker (`public/sw.js`: the line, a safe link,
   a press opens it), the Settings hint, What's new 2026-10-23-71. No MCP change: the push calls stay on the deny list
-- [ ] After the release: each phone gets the line after its first open of Madar (the start check sends the keys). Ask the owner to
-  try a direct message, a group message and a task notice on his iPhone
+- [x] Hand test on the test copy (owner's iPhone, 2026-10-21): three lines, each press opened its place. Production at e361e0cb
+  (the owner said "deploy"; Claude ran it). Record: proof.md
+- [ ] Android: the owner tries the line on production (not tried by hand before the release)
+- [ ] Each phone gets the line after its first open of Madar after the release (the start check sends the keys)
 - [ ] Found: What's new shows the day "23 October" for the entries of 2026-10-20 (ids `2026-10-23-*`). Ask the owner before a change:
   a new id marks an entry as new again
 - [ ] Later, with the store app: the plan of 2026-10-20 (one code for both phones with Expo, the shared contract, a "phone" list for

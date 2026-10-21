@@ -1106,6 +1106,23 @@ walk caught the answer: a whole-batch 500 "Something went wrong" for the Admin, 
   light/dark, 390). The owner asked to skip the full suite and the smoke (each over 5 minutes) for this one-flag change.
 - `all.sh test` (148 calls), then `all.sh production`: health from `supabase` with 148 calls, the database check, `POST /mcp` with no token 401.
 
+### Production at e361e0cb (2026-10-21, the push line "Like WhatsApp"; the owner said "deploy", Claude ran it)
+- Changes: the push carries a line encrypted for each browser (RFC 8291, `server/push/encrypt.ts`, the vector of Appendix A in its
+  test): the name and the first words of a chat message, or the bell sentence of a notice, in the person's language. The server makes
+  it by reading as the person (`server/push/line.ts`). `push.register` takes the keys of the browser; the start check sends them for a
+  device saved before. `public/sw.js` shows the line and a press opens its link. What's new 2026-10-23-71. The stale office test of
+  the 80% day meter warning went (its code went with the usage feature, b62c3787).
+- Hand test on the test copy (owner's iPhone, member account): his phone sent its keys at the first open; a direct message, a group
+  message and a task from the Admin gave three lines ("Hala Nasser" with the words, "Push test group" with "Hala Nasser: words", the
+  project with "Hala Nasser gave you “Stair details”"), and each press opened its place. A second, older registration of the same
+  person had no keys and got the empty push. Android was not tried by hand; the owner tries it on production.
+- Gates: typecheck; `npm test` 8,188 (730 files); `npm run build`, `build:server` (the api bundle 774,427 of the bound 800,000),
+  `build:remote -- test` (in `all.sh test`); `test:db` 2,212; `test:it` 325; `test:lite` 2,212; `test:office` 37 of 38, the one failure
+  the stale test above (removed, then the file 4 of 4). The first `all.sh test` stopped at the screens build: `check-rtl` found raw
+  direction marks that the Write tool saved in `src/lib/noticeSentence.ts`; the escapes fixed it (fbe62d77).
+- `all.sh test` at e361e0c (149 calls), then `all.sh production`: health from `supabase` with 149 calls, the database check,
+  `POST /mcp` with no token 401, the page 200 with the title Madar, `/favicon.ico` 200, and `/sw.js` holds the new `lineOf`.
+
 ### Production at fe21858a (2026-10-21, phone notifications for the Home Screen app, and the Apple fix; the owner said "Release now", Claude ran it)
 - Changes (branch `rb/push-reach`): the Home card shows the 3 steps to the Home Screen on an iPhone or iPad in a browser tab; on Android
   one button opens the install box of Chrome (`src/app/remote/install.ts`); every push goes with `Urgency: high` and `TTL: 86400`;

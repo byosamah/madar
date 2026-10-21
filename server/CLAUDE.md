@@ -108,7 +108,10 @@ The other host stays deployed as the way back. Each area below has its own guide
   writes a State table (`push_devices`) outside `runCall` (`push/CLAUDE.md`).
 - Lock order: the office lock, then the mail lock. The mail reserve takes only the mail lock, in its own transaction.
 - A preflight hook does network work before the transaction and never holds the lock.
-- Every network call has a 3 s timeout. The one exception: the Google calls of `google.connect` share a budget of 15 s, at most 10 s
+- Every network call has a 3 s timeout.
+- An effect or a job step that needs what a person may see runs a read call as that person: `(deps.runCall ?? runCall)(deps,
+  { principal: { userId }, name, input, batch: { storyRefs: new Map(), overviewCalls: 0 } })`. It works on both databases
+  (`server/push/line.ts`, `jobs/steps/meetings.ts`). The one exception: the Google calls of `google.connect` share a budget of 15 s, at most 10 s
   for one call (`GOOGLE_CONNECT_BUDGET_MS`, `GOOGLE_CONNECT_CALL_MS`; fbk_033), because the person waits on the screen and the first call
   took about 3 s on production. The budget and the 3 s revoke of a failure stay under the 20 s of the screen.
 - Only `set local` on the pooler: `data/sql.ts` refuses a plain SET.

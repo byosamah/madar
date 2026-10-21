@@ -67,5 +67,6 @@ Two hosted projects, both in Frankfurt (eu-central-1): `madar-test` = `qdgwpnesx
 - A new database password works on the pooler only after a few seconds.
 - A read-only SQL check without the pooler: `POST /v1/projects/{ref}/database/query` with `{"query": "..."}` and the token.
   `GET /config/auth | jq .jwt_exp` shows the token life (900).
-- Management API logs: `analytics/endpoints/logs.all` is gone (2026-09-23). `analytics/endpoints/logs` takes ClickHouse
-  SQL (`from logs where source_name = 'auth_logs'`). On 2026-10-05 it answered "Backend error", so it is not proven yet.
+- Management API logs: `analytics/endpoints/logs.all` is gone (2026-09-23). `analytics/endpoints/logs` works (2026-10-21):
+  `select timestamp, event_message from logs where event_message ilike '%push%'` with `iso_timestamp_start` and `_end`, token
+  `SUPABASE_ACCESS_TOKEN`. The field `source_name` does not exist there.

@@ -580,6 +580,8 @@ any screen work.
   rows, labels and buttons, Regular for body text.
 - RTL: logical classes only (`start/end`, `ms/me`, `ps/pe`). `scripts/check-rtl.ts` fails on left or right styles.
 - Write a direction mark as an escape (`\u2068`), never as the raw character: GitHub flags hidden bidi characters.
+  The Write tool can save a typed `\u2068` as the raw mark. After a new file with one, run `npx tsx scripts/check-rtl.ts`
+  before `all.sh test`: the check stops it at the screens build, after the server step (2026-10-21).
   `check-rtl.ts` (`findRawDirectionMark`) stops the build on a raw mark in `src`; it does not read test files or word files.
   An escape typed into a tool command can arrive as the raw character (2026-10-20): build the backslash apart (Python `chr(92)`),
   then check the file with `git grep -nP '[\x{2066}-\x{2069}\x{200E}\x{200F}]'`.
