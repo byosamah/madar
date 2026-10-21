@@ -121,10 +121,15 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   with a text column in `query.ts` (`columnOfField`). A list or nested path keeps `jsonb_path_exists`.
 - Leak rule for picks: `chats.unreadCount` has its own loader (`chatsUnread`), with `THREAD_TASK_FIELDS` and
   `THREAD_COMMENT_FIELDS` (`chat.ts`). `notifications.count` reads its targets with `INBOX_TASK_FIELDS` (`inbox.ts`), and posts
-  and reports with the id only. Each task pick must hold every field that a view rule reads (`mayViewTask`, `taskResource`,
+  and reports with the id only, and its own unread notices with `INBOX_COUNT_NOTICE_FIELDS` (count mode only: the list and the writes keep whole rows;
+  perf2 DB-8). Each task pick must hold every field that a view rule reads (`mayViewTask`, `taskResource`,
   `hiddenTask`: projectId, ownerId, helperIds, createdBy). `chats.list`, `chats.markRead` and the notification writes keep
   whole rows. `pickedByKey` (`steps.ts`) is only for a read that never saves and loads nothing else of that table, because a
   later `byKey` keeps the picked copy.
+- Picks of perf2 (all reads that never save a row): the jobs loader reads each open task with `JOB_TASK_FIELDS` and only the tasks past due or due
+  within `JOB_DUE_AHEAD_DAYS` (4) days of the run (`atBefore` on `due_date`; with no run time it reads every open task); `reports.office` reads
+  the Tracker lines with `REPORT_TRACKER_FIELDS`; `tasks.list` reads the tasks of a waiting project a second time only when its first read had a
+  narrowing condition. `perf2.test.ts` pins each one against the whole office.
 - The unread count and the reply that waits of a task thread read the messages only (fbk_027): the chat loader adds `MESSAGES_ONLY`
   (`dates` and `kind` null) to the count, to the newest message and to the own newest message, and keeps the reads of the newest item of any
   kind (the preview, the order, who is in the thread). Change `taskUnread` and `waitingThread` (`src/api/handlers/chats.ts`) with it.
