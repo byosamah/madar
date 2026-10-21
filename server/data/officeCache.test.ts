@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { emptyState, type State } from '../../src/api/store';
 import type { Db, Query } from '../core/ports';
 import { OFFICE_COLLECTIONS } from '../core/types';
-import { AUTH_LINK_SQL, createOfficeCache, META_SQL, OFFICE_DELETES_KEEP_DAYS, OFFICE_DELETES_SQL, OFFICE_ROWS_SQL, readOffice, setAuthUserId, snapshotOf, userIdOfAuth } from './officeCache';
+import { AUTH_LINK_SQL, createOfficeCache, META_COUNTERS_SQL, META_SQL, OFFICE_DELETES_KEEP_DAYS, OFFICE_DELETES_SQL, OFFICE_ROWS_SQL, readOffice, setAuthUserId, snapshotOf, userIdOfAuth } from './officeCache';
 import { tableOf } from './tables';
 
 /**
@@ -41,6 +41,7 @@ function fakeOffice() {
   const q: Query = async <R,>(sql: string, values?: unknown[]) => {
     db.asked.push({ sql, values });
     if (sql === META_SQL) return [{ version: String(db.version), at: new Date(db.now), own: db.own }] as R[];
+    if (sql === META_COUNTERS_SQL) return [{ version: String(db.version), at: new Date(db.now), own: db.own, counters: { tsk: 7, msg: 3 } }] as R[];
     if (sql === AUTH_LINK_SQL) {
       db.version += 1;
       const row = db.rows.find((r) => r.c === 'users' && r.id === values![0]);
@@ -99,6 +100,28 @@ describe('the office cache', () => {
     const second = await cache.read(deps, q);
     expect(second).toBe(first);
     expect(rowsAsked()).toEqual([-1]);
+  });
+
+  it('gives the counters in the same statement as the version, and the cache works as before (DB-12)', async () => {
+    const { db, q, rowsAsked } = seeded();
+    const cache = createOfficeCache();
+    const first = await cache.readWithCounters(deps, q);
+    expect(first.counters).toEqual({ tsk: 7, msg: 3 });
+    expect(first.office.version).toBe(1);
+    expect(rowsAsked()).toEqual([-1]);
+    // The counters come with every read, so a warm cache still sends one statement and still gives the same snapshot.
+    const second = await cache.readWithCounters(deps, q);
+    expect(second.office).toBe(first.office);
+    expect(second.counters).toEqual({ tsk: 7, msg: 3 });
+    expect(rowsAsked()).toEqual([-1]);
+    expect(db.asked.filter((ask) => ask.sql === META_COUNTERS_SQL)).toHaveLength(2);
+    expect(db.asked.filter((ask) => ask.sql === META_SQL)).toHaveLength(0);
+  });
+
+  it('keeps the plain read of office_meta for a read: no counters in its statement', () => {
+    expect(META_SQL).not.toContain('counters');
+    expect(META_COUNTERS_SQL).toContain(META_SQL.replace(/ from office_meta$/, ''));
+    expect(META_COUNTERS_SQL).toContain('from counters');
   });
 
   it('reloads only the rows above its version: a change of one project is one row', async () => {

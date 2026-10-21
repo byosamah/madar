@@ -195,7 +195,11 @@ export function countSql(s: CountSelect): { text: string; values: unknown[] } {
   return { text: `select ${per} as v, count(*)::integer as n from ${tableOf(s.c).table} t${where} group by ${per}`, values };
 }
 
-export function sqlSource(q: Query): Source {
+/**
+ * o.counters: the counters that the office read of this call already holds (DB-12: one statement with office_meta, under the
+ * office lock). When it gives numbers, counters() sends no statement.
+ */
+export function sqlSource(q: Query, o: { counters?: () => Record<string, number> | undefined } = {}): Source {
   const read = async <R,>(text: string, values: unknown[]): Promise<R[]> => q<R>(text, values);
 
   return {
@@ -267,6 +271,8 @@ export function sqlSource(q: Query): Source {
     },
 
     async counters() {
+      const held = o.counters?.();
+      if (held) return { ...held };
       const rows = await read<{ prefix: string; n: number | string }>(COUNTERS_SELECT_SQL, []);
       return Object.fromEntries(rows.map((row) => [row.prefix, Number(row.n)]));
     },

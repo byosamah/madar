@@ -39,6 +39,11 @@ type Cached = { version: number; syncedAt: number; tables: Tables; snapshot: Off
 export type OfficeCacheDeps = Pick<Deps, 'db'>;
 export type OfficeCache = {
   read(deps: OfficeCacheDeps, q?: Query): Promise<OfficeSnapshot>;
+  /**
+   * The same read, and the counters of the office from the same statement (DB-12). For a write after the lock: the loader then needs
+   * no statement of its own for the counters. q is required: the counters are only true under the office lock.
+   */
+  readWithCounters(deps: OfficeCacheDeps, q: Query): Promise<{ office: OfficeSnapshot; counters: Record<string, number> }>;
   /** The version the cache holds, or null when it is cold. */
   version(): number | null;
   clear(): void;
@@ -50,6 +55,14 @@ export type OfficeCache = {
  */
 export const META_SQL =
   "select version, now() as at, coalesce(xmin::text::bigint = (pg_current_xact_id_if_assigned()::text::bigint % 4294967296), false) as own from office_meta";
+
+/**
+ * META_SQL and the counters of the office (performance audit DB-12): one more column, a json object of prefix and number. A write
+ * sends it as its first statement after the office lock, so the loader does not select the counters again (it was one statement
+ * of every write). The counters are final under the lock: only a write under the lock changes them. A read keeps META_SQL.
+ */
+export const META_COUNTERS_SQL =
+  "select version, now() as at, coalesce(xmin::text::bigint = (pg_current_xact_id_if_assigned()::text::bigint % 4294967296), false) as own, (select coalesce(jsonb_object_agg(prefix, n), '{}'::jsonb) from counters) as counters from office_meta";
 
 /**
  * The one statement that writes the sign-in link of a person (plan 5.1): it raises office_meta.version and gives the users row
@@ -140,19 +153,31 @@ export function createOfficeCache(o: { keepMs?: number } = {}): OfficeCache {
     return snapshot;
   }
 
+  type Meta = { version: string | number; at: Date | string; own: boolean | null; counters?: Record<string, number | string> };
+
+  /** The snapshot for one office_meta row: the cached one while the version stays, else a refresh. */
+  async function snapshotFor(deps: OfficeCacheDeps, q: Query, meta: Meta): Promise<OfficeSnapshot> {
+    const version = Number(meta.version);
+    const at = new Date(meta.at).getTime();
+    const own = meta.own === true;
+    if (!own && cached && cached.version === version) {
+      // Still current at this time, so no delete above the version happened before it.
+      if (at > cached.syncedAt) cached.syncedAt = at;
+      return cached.snapshot;
+    }
+    return refresh(deps, q, version, at, own);
+  }
+
   const cache: OfficeCache = {
     async read(deps, q) {
       if (!q) return deps.db.tx('read', (inner) => cache.read(deps, inner));
-      const [meta] = await q<{ version: string | number; at: Date | string; own: boolean | null }>(META_SQL);
-      const version = Number(meta.version);
-      const at = new Date(meta.at).getTime();
-      const own = meta.own === true;
-      if (!own && cached && cached.version === version) {
-        // Still current at this time, so no delete above the version happened before it.
-        if (at > cached.syncedAt) cached.syncedAt = at;
-        return cached.snapshot;
-      }
-      return refresh(deps, q, version, at, own);
+      const [meta] = await q<Meta>(META_SQL);
+      return snapshotFor(deps, q, meta);
+    },
+    async readWithCounters(deps, q) {
+      const [meta] = await q<Meta>(META_COUNTERS_SQL);
+      const office = await snapshotFor(deps, q, meta);
+      return { office, counters: Object.fromEntries(Object.entries(meta.counters ?? {}).map(([prefix, n]) => [prefix, Number(n)])) };
     },
     version: () => cached?.version ?? null,
     clear() {
@@ -181,6 +206,11 @@ function cacheOf(deps: Deps): OfficeCache {
  */
 export function readOffice(deps: Deps, q?: Query): Promise<OfficeSnapshot> {
   return cacheOf(deps).read(deps, q);
+}
+
+/** readOffice for a write under the office lock, with the counters from the same statement (DB-12). */
+export function readOfficeWithCounters(deps: Deps, q: Query): Promise<{ office: OfficeSnapshot; counters: Record<string, number> }> {
+  return cacheOf(deps).readWithCounters(deps, q);
 }
 
 /** Forgets every cached office. The db-mode harness calls it when a test transaction rolls back (plan 7.2). */

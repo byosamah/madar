@@ -8,6 +8,36 @@ import { countSql, selectSql, sqlSource } from './sqlSource';
  * rows of the memory form; these tests pin which form a Select gets, and that every value goes as a parameter.
  */
 
+describe('the counters of a write (DB-12)', () => {
+  it('reads the counters with a statement of its own when the call has none', async () => {
+    const asked: string[] = [];
+    const q = (async (text: string) => {
+      asked.push(text);
+      return [{ prefix: 'tsk', n: 7 }];
+    }) as unknown as Query;
+    expect(await sqlSource(q).counters()).toEqual({ tsk: 7 });
+    expect(asked).toEqual(['select prefix, n from counters']);
+  });
+
+  it('gives the counters that the office read of the call already holds, with no statement', async () => {
+    const q = (async () => {
+      throw new Error('no statement expected');
+    }) as unknown as Query;
+    const held = { tsk: 7, msg: 3 };
+    const source = sqlSource(q, { counters: () => held });
+    const first = await source.counters();
+    expect(first).toEqual({ tsk: 7, msg: 3 });
+    // A copy: the caller owns what it gets, and a change to it never reaches the held numbers.
+    first.tsk = 99;
+    expect(await source.counters()).toEqual({ tsk: 7, msg: 3 });
+  });
+
+  it('falls back to the statement when the office read held no counters', async () => {
+    const q = (async () => [{ prefix: 'cmt', n: '4' }]) as unknown as Query;
+    expect(await sqlSource(q, { counters: () => undefined }).counters()).toEqual({ cmt: 4 });
+  });
+});
+
 describe('the time bound of atOrAfter (DB-1)', () => {
   const since = (value: string): Select => ({ c: 'events', where: [{ col: 'created_at', atOrAfter: value }], order: { col: 'seq', desc: true }, limit: 50 });
 

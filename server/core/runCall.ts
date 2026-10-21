@@ -2,7 +2,7 @@ import { invalidInput } from '../../src/api/client';
 import { ApiError } from '../../src/api/errors';
 import { executeParsed, resolveAuthority } from '../../src/api/execute';
 import type { State } from '../../src/api/store';
-import { readOffice } from '../data/officeCache';
+import { readOffice, readOfficeWithCounters } from '../data/officeCache';
 import { beforeOf } from '../data/loaders/build';
 import { loadFor, sqlSource, type Source } from '../data/loaders/index';
 import { save, type SaveOptions, type SaveResult } from '../data/save';
@@ -47,7 +47,8 @@ export interface CallTx {
   /** The query of the transaction, for the prepare hooks and the outbox producers. */
   readonly q: Query;
   lock(key: number): Promise<void>;
-  office(): Promise<OfficeSnapshot>;
+  /** counters: a write under the lock asks for the office counters in the same statement (DB-12); source() then reads none. */
+  office(o?: { counters: true }): Promise<OfficeSnapshot>;
   source(): Source;
   save(before: State, after: State, o: SaveOptions): Promise<SaveResult>;
   readonly stories: StoryStore;
@@ -65,16 +66,24 @@ export interface CallData {
 
 /** The data of a call on the database of deps: pgDb, the office cache, the SQL loaders and the diff writer. */
 export function sqlData(deps: Deps): CallData {
-  const on = (q: Query): CallTx => ({
-    q,
-    lock: (key) => takeOfficeLock(q, key),
-    office: () => readOffice(deps, q),
-    source: () => sqlSource(q),
-    save: (before, after, o) => save(q, before, after, o),
-    stories: sqlStories(q),
-    keys: sqlKeys(q),
-    outbox: (rows) => writeOutbox(q, rows),
-  });
+  const on = (q: Query): CallTx => {
+    let counters: Record<string, number> | undefined;
+    return {
+      q,
+      lock: (key) => takeOfficeLock(q, key),
+      office: async (o) => {
+        if (!o?.counters) return readOffice(deps, q);
+        const read = await readOfficeWithCounters(deps, q);
+        counters = read.counters;
+        return read.office;
+      },
+      source: () => sqlSource(q, { counters: () => counters }),
+      save: (before, after, o) => save(q, before, after, o),
+      stories: sqlStories(q),
+      keys: sqlKeys(q),
+      outbox: (rows) => writeOutbox(q, rows),
+    };
+  };
   return {
     tx: (mode, work) => deps.db.tx(mode, (q) => work(on(q))),
     on,
@@ -201,7 +210,7 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
       lockedAt = performance.now();
       // The time of the call is taken under the lock, so the stamps of records and events follow the commit order.
       const now = deps.clock.now();
-      const office = await t.office();
+      const office = await t.office({ counters: true });
       resolveActor(office, req.principal);
       if (req.key !== undefined && digest !== undefined) {
         const stored = replay(await t.keys.get(actorId, req.key), digest);
