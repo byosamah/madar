@@ -18,8 +18,8 @@ type Fields = Record<string, unknown>;
 const fieldsOf = (value: unknown): Fields => (value !== null && typeof value === 'object' ? (value as Fields) : {});
 
 /** A template change is taken back by the person who saved the template, or by a person with the template right (owner, 2026-10-18). */
-const mayUndoTemplate = (ctx: Ctx, createdBy: string | undefined): boolean =>
-  can(ctx.authority, 'templates.manageAll') || createdBy === ctx.authority.id;
+const mayUndoTemplate = (ctx: Ctx, createdBy: string | undefined, right: Action): boolean =>
+  can(ctx.authority, right) || createdBy === ctx.authority.id;
 
 /**
  * True when a change to a person sets a role: a systemRole or a custom role that the change moves (owner, 2026-10-18). A new person
@@ -83,7 +83,7 @@ export const eventsList = defineCall({
   readOnly: true,
   run(input, ctx) {
     // A payment event holds an amount, so only the people who may handle payments ever read one.
-    const seesPayments = can(ctx.authority, 'payment.manage');
+    const seesPayments = can(ctx.authority, 'payment.view');
     // A bug report can be private, so only a person who reads the reports (feedback.manage) reads their events (audit 2026-10-03, API-12).
     const seesFeedback = can(ctx.authority, 'feedback.manage');
     // The contract takes any time offset, so "since" compares times, not text (audit 2026-10-03, API-20).
@@ -173,7 +173,18 @@ function projectTaskOf(ctx: Ctx, event: Event, projectRole: Resource['projectRol
   return task ? taskResource(ctx.state, task, ctx.authority.id) : { projectRole };
 }
 
-/** An undo is a new change: the person must have the right to make it now, under the same rules as the original call. */
+/** The fields of a to-do that belong to the date switch, and to the work switch (role rights version 2). The rest belong to the details switch. */
+const DATE_FIELDS = ['startDate', 'dueDate', 'schedule', 'durationDays', 'dateNotes'];
+const WORK_FIELDS = ['status', 'completedAt', 'rank', 'version', 'versions'];
+
+/** The project verbs of a pause, a finish and an archive: the power to pause, finish and archive (project.archive). */
+const ARCHIVE_VERBS = new Set(['project.status_changed', 'project.paused', 'project.restart_moved', 'project.resumed']);
+
+/**
+ * An undo is a new change: the person must have the right to make it now, under the same rules as the original call. Role rights
+ * version 2: each event asks the right of its own act, never the right of a neighbour (design section 6.5). The Undo of a new to-do
+ * asks the right to add one, and the Undo of a delete asks the right to delete.
+ */
 function assertMayUndo(ctx: Ctx, event: Event): void {
   const projectRole = event.projectId ? roleIn(ctx, event.projectId) : 'other';
   // A change of an office task follows the rights of the people of that task (owner, 2026-10-06). A change of a project task
@@ -183,28 +194,35 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
   const record = { ...fieldsOf(event.before), ...fieldsOf(event.after) };
   switch (event.targetType) {
     case 'project':
-      if (event.verb === 'project.leader_changed') return need('project.changeLeader');
-      if (event.verb === 'project.code_changed') return need('project.editCode');
+      if (event.verb === 'project.leader_changed') return need('project.leader');
+      if (event.verb === 'project.code_changed') return need('project.code');
       // Deleting the cover file also clears the cover. Whoever may bring that file back may bring the cover back with it.
       if (event.verb === 'project.cover_changed' && coverComesBackWithFile(ctx, event)) return;
-      if (event.verb === 'project.status_changed') return need('project.archive');
-      if (event.verb.startsWith('project.health_')) return need('project.healthOverride');
+      if (ARCHIVE_VERBS.has(event.verb)) return need('project.archive');
+      if (event.verb.startsWith('project.health_')) return need('project.health');
+      if (event.verb === 'project.template_linked') return need('project.template');
       // A team member adds, edits and removes links, so they may take back their own link change (audit 2026-10-03, API-6).
-      if (event.verb === 'project.updated' && Object.keys(fieldsOf(event.after)).every((key) => key === 'links')) return need('content.post');
-      return need('project.edit');
+      if (event.verb === 'project.updated' && Object.keys(fieldsOf(event.after)).every((key) => key === 'links')) return need('project.links');
+      return need('project.details');
     case 'member':
-      need('project.edit');
+      need('project.team');
       return assertMemberUndo(ctx, event);
     case 'stage':
+      return need('project.stages');
     case 'deadline':
-      return need('project.edit');
+      return need('project.deadlines');
     case 'task': {
       // A reply task belongs to the Tracker entry it answers, so the people who may post there may take back its making and its finish.
       const replyTask = ctx.state.tasks[event.targetId]?.trackerEntryId;
-      if (replyTask && (event.verb === 'task.created' || event.verb === 'task.status_changed')) return need('content.post');
+      if (replyTask && (event.verb === 'task.created' || event.verb === 'task.status_changed')) return need('tracker.log');
       // The link of a reply task to its entry is part of the Tracker loop, so the people who may post there may bring it back (audit 2026-10-03, V-13).
-      if (event.verb === 'task.reply_unlinked') return need('content.post');
-      if (event.verb === 'task.created' || event.verb === 'task.deleted') return need('task.delete');
+      if (event.verb === 'task.reply_unlinked') return need('tracker.log');
+      // The Undo of a new to-do asks the right to add one. The Undo of a delete asks the right to delete (the lead's delete, or any).
+      if (event.verb === 'task.created') return need('task.add');
+      if (event.verb === 'task.deleted') {
+        if (can(ctx.authority, 'task.any', { ...base })) return;
+        return need('task.deleteOwn');
+      }
       if (event.verb === 'task.approved') return need('task.review');
       // The person who took a task with no lead may give it back (owner, 2026-10-05). Any other change of lead keeps the rule below.
       if (isOwnTake(ctx, event)) return need('task.take');
@@ -215,21 +233,33 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       const current = ctx.state.tasks[event.targetId];
       // A helper may take back a tick. Any other checklist change (an item added, removed, renamed or moved) follows the rule of the lead.
       if (isTickOnly(event)) return need('task.contribute', { ownerId: current?.ownerId, helperIds: current?.helperIds });
-      return need('task.updateOwn', { ownerId: current?.ownerId });
+      // Any change of a to-do (task.any) takes back every kind of change. The lead and the maker take back each kind with its own switch.
+      const resource = { ownerId: current?.ownerId };
+      if (can(ctx.authority, 'task.any', { ...base, ...resource })) return;
+      const fields = Object.keys(fieldsOf(event.after));
+      if (fields.some((field) => DATE_FIELDS.includes(field))) need('task.dates', resource);
+      if (fields.some((field) => WORK_FIELDS.includes(field))) need('task.work', resource);
+      if (fields.some((field) => !DATE_FIELDS.includes(field) && !WORK_FIELDS.includes(field)) || fields.length === 0) need('task.details', resource);
+      return;
     }
     case 'update':
     case 'comment': {
       // A person who may react may take back their own reaction (audit 2026-10-03, API-19).
-      if (event.verb === 'comment.reacted') return need('content.post');
+      if (event.verb === 'comment.reacted') return need('comment.create');
+      // The Undo of a new post or comment asks the right to write one. The Undo of an edit or a delete asks the right to edit your own.
+      if (event.verb === 'update.posted') return need('post.create');
+      if (event.verb === 'comment.created') return need('comment.create');
       const current = event.targetType === 'update' ? ctx.state.updates[event.targetId] : ctx.state.comments[event.targetId];
       const authorId = String(current?.authorId ?? record.authorId);
-      return need('content.editOwn', { authorId: principalOf(ctx.state, authorId) });
+      return need('post.editOwn', { authorId: principalOf(ctx.state, authorId) });
     }
     case 'file': {
       const file = (ctx.state.files[event.targetId] ?? event.before) as FileRec | null;
       const uploader = file?.versions?.[0]?.uploadedBy ?? '';
-      const allowed = can(ctx.authority, 'task.delete', base)
-        || can(ctx.authority, 'content.editOwn', { ...base, authorId: principalOf(ctx.state, uploader) });
+      // The Undo of an upload asks the right to upload. The Undo of a delete asks the right to delete: any file, or your own.
+      if (event.verb !== 'file.deleted') return need('file.upload');
+      const allowed = can(ctx.authority, 'file.deleteAny', base)
+        || can(ctx.authority, 'file.deleteOwn', { ...base, authorId: principalOf(ctx.state, uploader) });
       if (!allowed) throw forbidden('Only the uploader or the project leader can undo this.');
       return;
     }
@@ -242,39 +272,40 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
         if (!meeting) throw forbidden('You cannot do this.', { action: 'meeting.minutes' });
         return need('meeting.minutes', meetingResource(ctx.state, meeting, ctx.authority.id));
       }
-      // Logging and deleting undo each other, so both follow the delete rule. Closing and editing follow the rule of posting.
-      if (event.verb !== 'tracker.logged' && event.verb !== 'tracker.deleted') return need('content.post');
+      // Logging and deleting undo each other, so both follow the delete rule. Closing and editing follow the rule of logging.
+      if (event.verb === 'tracker.reply_assigned') return need('tracker.reply');
+      if (event.verb !== 'tracker.logged' && event.verb !== 'tracker.deleted') return need('tracker.log');
       const entry = (ctx.state.tracker?.[event.targetId] ?? event.before ?? event.after) as TrackerEntry;
       if (!mayDeleteTracker(ctx.state, ctx.authority, entry)) throw forbidden('Only the person who logged this, the project leader or the Admin can undo this.');
       return;
     }
     case 'payment':
-      return need('payment.manage');
+      // The Undo of a payment event asks the right of that change.
+      return need(event.verb === 'payment.created' ? 'payment.add' : event.verb === 'payment.received' ? 'payment.receive' : 'payment.change');
     case 'team':
-      return need('people.manage');
+      return need('people.teams');
     case 'stageTemplate': {
-      // Undoing a save deletes the template, so every undo follows the delete rule: the person who saved it, or the template right.
-      if (event.verb === 'stageTemplate.created') need('project.create');
+      // Undoing a save deletes the template, so every undo follows the delete rule: the person who saved it (they made it with their own
+      // switch), or the template right.
       const saved = (event.before ?? event.after) as { createdBy?: string } | null;
-      if (!mayUndoTemplate(ctx, saved?.createdBy)) throw forbidden('Only the person who saved it, or a person with the template right, can undo this.');
+      if (!mayUndoTemplate(ctx, saved?.createdBy, 'templates.projectAny')) throw forbidden('Only the person who saved it, or a person with the template right, can undo this.');
       return;
     }
     case 'taskTemplate': {
       // Undoing a save deletes the template, so every undo follows the delete rule: the person who saved it, or the template right.
       const saved = (event.before ?? event.after) as { createdBy?: string } | null;
-      if (!mayUndoTemplate(ctx, saved?.createdBy)) throw forbidden('Only the person who saved it, or a person with the template right, can undo this.');
+      if (!mayUndoTemplate(ctx, saved?.createdBy, 'templates.taskAny')) throw forbidden('Only the person who saved it, or a person with the template right, can undo this.');
       return;
     }
     case 'projectTemplate': {
       // Every undo of a project template follows the rule of a change: the person who saved it, or the template right. A change keeps
       // no author in its event, so the template itself names the author (owner, 2026-10-05, item 6a).
-      need('project.create');
       const saved = (ctx.state.projectTemplates?.[event.targetId] ?? event.before ?? event.after) as { createdBy?: string } | null;
-      if (!mayUndoTemplate(ctx, saved?.createdBy)) throw forbidden('Only the person who saved it, or a person with the template right, can undo this.');
+      if (!mayUndoTemplate(ctx, saved?.createdBy, 'templates.projectAny')) throw forbidden('Only the person who saved it, or a person with the template right, can undo this.');
       return;
     }
     case 'client':
-      return need(event.verb === 'client.created' ? 'project.create' : 'clients.manage');
+      return need(event.verb === 'client.created' ? 'client.create' : 'clients.change');
     case 'user':
       if (event.verb === 'user.profile_changed' || event.verb === 'user.preferences_changed') {
         if (principalOf(ctx.state, event.targetId) !== ctx.authority.id) throw forbidden('You can undo changes to your own profile only.');
@@ -288,7 +319,8 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       // either: an undo of an email change gives the sign-in email back to the old mailbox (security scan 2026-10-07, F1).
       if (ctx.actor.kind === 'agent') throw forbidden('Only a person undoes a change to people, in the Madar screens.');
       // Management may undo its own changes to people, but never a change that makes or touches an Admin, and never a change of a role.
-      need('people.manage');
+      // Each event asks the people right of its own act (invite, change, turn off or on, remove).
+      need(PEOPLE_VERB_RIGHT[event.verb] ?? 'people.change');
       if (ctx.authority.systemRole !== 'admin' && changesRole(event)) {
         throw forbidden('Only an Admin changes the role of a person.', { action: 'people.manage', reason: 'admin_only' });
       }
@@ -303,7 +335,8 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       if (isRoleEvent(event) && ctx.actor.kind === 'agent') {
         throw forbidden('Only the Admin changes a role, in the Madar screens.', { action: 'admin.manage', reason: 'admin_only' });
       }
-      return need('admin.manage');
+      // A role event keeps the Admin only. A change of the office settings asks its own switch (role rights version 2).
+      return need(isRoleEvent(event) ? 'admin.manage' : event.verb === 'settings.updated' ? 'office.settings' : 'admin.manage');
     case 'meeting': {
       // A change of a meeting is taken back by the people who may change that meeting now (fbk_022). The record is the live meeting,
       // or the whole meeting that a create event keeps.
@@ -311,6 +344,8 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       if (!meeting) return need('admin.manage');
       // The minutes of a meeting with no line (wave 2) follow the right to write them, not the right to change the meeting.
       if (event.verb === 'meeting.minutes_saved') return need('meeting.minutes', meetingResource(ctx.state, meeting, ctx.authority.id));
+      // The Undo of a new meeting asks the right to plan one. Any other change asks the right to change that meeting.
+      if (event.verb === 'meeting.created' || event.verb === 'meeting.added') return need('meeting.plan', meetingResource(ctx.state, meeting, ctx.authority.id));
       return need('meeting.edit', meetingResource(ctx.state, meeting, ctx.authority.id));
     }
     case 'subCompany':
@@ -326,6 +361,15 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       return need('admin.manage');
   }
 }
+
+/** The people right of each event that a call on people writes (role rights version 2). Any other event of a person asks people.change. */
+const PEOPLE_VERB_RIGHT: Readonly<Record<string, Action>> = {
+  'user.created': 'people.invite',
+  'user.updated': 'people.change',
+  'user.deactivated': 'people.turnOff',
+  'user.reactivated': 'people.turnOff',
+  'user.removed': 'people.remove',
+};
 
 /** True when a preferences change touched an email switch or the morning summary. A missing switch reads as its default. */
 function changesEmail(event: Event): boolean {

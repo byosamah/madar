@@ -17,7 +17,21 @@ import { nowStamp, todayISO } from '../lib/dates';
  */
 export function resolveAuthority(state: State, actorId: string, def: AnyCall): { actor: Actor; authority: Actor } {
   const who = whoActs(state, actorId, def);
-  return { actor: withRightsOf(state, who.actor), authority: withRightsOf(state, who.authority) };
+  return actorsOf(state, who.actor, who.authority);
+}
+
+/**
+ * The actor and the authority with the office rights attached. An agent never holds more than its person, and it holds no less: the
+ * actor of an agent carries the rights of its person, not the Member rights of its own user. A check that reads the actor by mistake
+ * then fails safe (role rights version 2, design section 5.12).
+ */
+function actorsOf(state: State, actor: User, authority: User): { actor: Actor; authority: Actor } {
+  const person = withRightsOf(state, authority);
+  // A missing person stays missing, as withRightsOf leaves it.
+  if (!actor || !authority) return { actor: withRightsOf(state, actor), authority: person };
+  if (actor.id === authority.id) return { actor: person, authority: person };
+  if (actor.kind !== 'agent') return { actor: withRightsOf(state, actor), authority: person };
+  return { actor: Object.create(actor, { officeRights: { value: person.officeRights, enumerable: true } }) as Actor, authority: person };
 }
 
 /** The person who acts, and the person whose rights apply, before the office rights are attached. */
@@ -48,7 +62,7 @@ export type ExecuteBase = {
 /** Runs a call on input that already passed its input check. The output is checked inside the change, so a wrong shape rolls it back. */
 export function executeParsed(def: AnyCall, name: string, parsed: unknown, state: State, base: ExecuteBase, prepared: unknown): unknown {
   const result = def.run(parsed, {
-    state, actor: withRightsOf(state, state.users[base.actorId]), authority: withRightsOf(state, state.users[base.authorityId]),
+    state, ...actorsOf(state, state.users[base.actorId], state.users[base.authorityId]),
     correlationId: base.correlationId,
     stamp: nowStamp(base.now), today: todayISO(base.now), now: base.now, persistent: base.persistent,
     ...(base.limits ? { limits: base.limits } : {}),

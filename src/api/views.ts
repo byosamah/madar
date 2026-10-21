@@ -212,8 +212,26 @@ function viewerCanOf(viewer: User, projectRole: ProjectRole): ProjectSummary['vi
     createTaskForSelf: can(viewer, 'task.createForSelf', r),
     post: can(viewer, 'content.post', r),
     review: can(viewer, 'task.review', r),
-    payments: can(viewer, 'payment.manage'),
+    payments: can(viewer, 'payment.view'),
     editCode: can(viewer, 'project.editCode', r),
+    // Role rights version 2: one flag for each gate that a screen hides.
+    editDetails: can(viewer, 'project.details', r),
+    editTeam: can(viewer, 'project.team', r),
+    editStages: can(viewer, 'project.stages', r),
+    editDeadlines: can(viewer, 'project.deadlines', r),
+    applyTemplate: can(viewer, 'project.template', r),
+    links: can(viewer, 'project.links', r),
+    upload: can(viewer, 'file.upload', r),
+    deliver: can(viewer, 'file.deliver', r),
+    logTracker: can(viewer, 'tracker.log', r),
+    postUpdate: can(viewer, 'post.create', r),
+    comment: can(viewer, 'comment.create', r),
+    addTask: can(viewer, 'task.add', r),
+    planMeeting: can(viewer, 'meeting.plan', { projectRole, meeting: { organizerId: viewer.id, attendeeIds: [], noProject: false } }),
+    deleteAnyFile: can(viewer, 'file.deleteAny', r),
+    deleteAnyTracker: can(viewer, 'tracker.deleteAny', r),
+    projectChat: can(viewer, 'chat.project', r),
+    changeAnyTask: can(viewer, 'task.any', r),
   };
 }
 
@@ -358,6 +376,12 @@ export function taskDetailOf(state: State, task: Task, today: string, viewer: Us
       take: task.ownerId === null && task.status !== 'done' && can(viewer, 'task.take', r),
       // Joins as a helper with one tap: a person on the team who neither leads nor helps, on a project task (fbk_035).
       help: task.projectId !== null && task.ownerId !== viewer.id && !helpersOf(task).includes(viewer.id) && can(viewer, 'task.help', r),
+      // Role rights version 2: one flag for each gate of the task panel. A change of any to-do (task.any) passes every kind of change.
+      editDetails: can(viewer, 'task.any', r) || can(viewer, 'task.details', r),
+      editDates: can(viewer, 'task.any', r) || can(viewer, 'task.dates', r),
+      work: can(viewer, 'task.any', r) || can(viewer, 'task.work', r),
+      comment: can(viewer, 'comment.create', r),
+      upload: can(viewer, 'file.upload', r),
     },
     history,
   };
