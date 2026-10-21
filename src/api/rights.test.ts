@@ -190,9 +190,13 @@ describe('resolveAuthority and executeParsed give the rights of the person the c
     expect(sorted(authority.officeRights ?? [])).toEqual(expected);
   });
 
-  it('gives an agent the rights of the person it acts for', () => {
-    const { authority } = resolveAuthority(roleState(), 'usr_005', probe);
+  it('gives an agent the rights of the person it acts for, in the authority and in the actor', () => {
+    const { authority, actor } = resolveAuthority(roleState(), 'usr_005', probe);
     expect(sorted(authority.officeRights ?? [])).toEqual(expected);
+    // The actor is the agent record, and it carries the rights of its person: a check that reads the actor by mistake fails safe.
+    expect(actor.id).toBe('usr_005');
+    expect(actor.kind).toBe('agent');
+    expect(sorted(actor.officeRights ?? [])).toEqual(expected);
   });
 
   it('shows the same rights to the handler in its context', () => {

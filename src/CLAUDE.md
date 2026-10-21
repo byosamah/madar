@@ -333,10 +333,15 @@ any screen work.
   Everyone sees all projects. Payments only for the payment right (by default Admin, Management, Accounting; fbk_014). Agents never join a team. The person who adds a
   project task changes and deletes it like the leader while on the team; the review stays with the leader (owner, 2026-10-07).
   Only the Admin changes a role. Management reads the role of a person as text in the person sheet (owner, 2026-10-18, fbk_014).
-  The role sheet shows 17 rights in 7 sections (`RIGHT_SECTIONS`, `permissions.ts`): a heading, an All switch for a section of two or
-  more rights, and one switch for each right. The Admin sections of sub-companies and requests and bugs open for `subCompanies.manage` and
-  `feedback.manage`; the project templates open for `templates.manageAll` or `templates.updateProjects` (`alsoRights` in `sections.ts`).
-  The words are in `real/rolerights.*`. A role with many rights shows only the count in the person sheet (`roles.line.many`).
+  The rights are 112 switches in 13 sections (role rights version 2, owner 2026-10-21; the list is `api/rightsCatalog.ts`, a plain copy of
+  `docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json`; `RIGHT_SECTIONS` in `permissions.ts` gives the sections). The
+  role sheet of before still shows the 17 old rights in 7 sections (`LEGACY_RIGHT_SECTIONS`, saved as stored ids, `legacyView` reads a role
+  for it). The sheet track of role rights version 2 replaces it, and then the three `LEGACY_*` constants go. The Admin sections of
+  sub-companies and requests and bugs open for `subCompanies.manage` and `feedback.manage`; People for any of the five `people.*`
+  switches, Teams for `people.teams`, Clients for `clients.change`, the project templates for `templates.projectCreate`,
+  `templates.projectAny` or `templates.updateProjects`, the to-do templates for `templates.taskAny`, the office settings for
+  `office.settings` (`right` and `alsoRights` in `sections.ts`). The words are in `real/rolerights.*`. A role with many rights shows only the
+  count in the person sheet (`roles.line.many`).
 - Home (`features/home/`): the day ring shows its words, "11 of 14 done today" (owner, 2026-10-19, fbk_026); the text wraps under the date on a
   narrow phone. The Today panel lists my tasks due today or past due. With none, it is "Coming up": my next 3 open
   tasks with a due date (`comingUp`, `lib/home.ts`, owner 2026-10-07). With neither, it says that nothing is due today. Home

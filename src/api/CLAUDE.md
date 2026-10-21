@@ -364,42 +364,46 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   - `search.query` does not read `location`.
   - MCP: `TOOL_DOCS` of `projects.update` (600 characters, at the limit) and `projects.get`, and the `Place:` line of `INSTRUCTIONS`.
 
-## Office rights and roles (owner, 2026-10-18, fbk_014)
-- The 17 office rights are in `OfficeRight` (`contract/entities.ts`), in 7 sections (`RIGHT_SECTIONS`, `permissions.ts`; `OFFICE_RIGHTS`
-  follows it, and a test checks that both agree). The Admin holds all of them. A role always keeps what a Member does today; each right adds
-  one power of the Admin (owner, 2026-10-23, role-rights). The defaults of Management, Accounting and Member add none of the ten new rights.
-  - Projects: `project.editAny` (passes `project.edit` and `project.healthOverride` off the team), `project.changeLeaderAny`
-    (`project.changeLeader`), `project.archiveAny` (`project.archive`: pause, resume, status, restart date), `project.delete`, `project.editCode`.
-  - To-dos: `task.reviewAny` (`task.review`), `task.changeAny` (`task.updateAny`, `task.updateOwn`, `task.contribute`, `task.delete` of a
-    project task; never an office task, and `task.delete` only when the resource describes a task, so a file or a Tracker entry stays with the leader).
-  - People: `people.manage`, `clients.manage`, `subCompanies.manage` (`subCompanies.save` and `.delete`, the Undo of a sub-company event;
-    an agent still never makes, changes or undoes a sub-company).
-  - Money: `payment.manage`. Templates: `templates.manageAll`, `templates.updateProjects` (`projectTemplates.usage`, `.syncPlan`, the full
-    `.syncApply`, the follower count; the apply by a project leader keeps `project.edit`).
-  - AI and reports: `report.office`, `agents.undoAny` (`event.undoAgent` on any project; the Undo still asks the right of the change itself).
-  - Office: `feedback.manage` (requests and bugs, see the notices section), `gaps.view` (the gaps of `dashboard.get` and `reports.office`).
-- A right gives only its own power. A rule that stands in for the leader asks the right that fits: "no review" on template tasks asks
-  `task.review`, naming a person outside the team (`ensureOnTeam`) and a to-do template made from a task ask `project.edit`. Before a new
-  right passes an action, grep every use of that action and check what it stands in for.
-- A stored role keeps its own order of rights; a save of the same rights in another order is no change (`sameRights`, `handlers/roles.ts`).
-- `Settings.roles` holds the rights of Management, Accounting and Member, and the custom roles. `rightsOf` (`rights.ts`) reads them.
-- A check of an office right reads the person with the rights attached. A handler gets them in `ctx.authority` (`execute.ts`). A loader
-  (`Load.authority`) and a server call use `withRights(state, user)`.
+## Office rights and roles (owner, 2026-10-18, fbk_014; role rights version 2, 2026-10-21)
+- The rights are 112 switches in 13 sections (`OfficeRight`, `contract/entities.ts`). The one source is the catalog JSON in
+  `docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json`; `rightsCatalog.ts` is its plain copy (no zod), and
+  `rightsCatalog.test.ts` checks that the two agree. The Admin holds all of them. A switch id is `<power>.<scope>` for a power with
+  scopes (`lead`, `team`, `all`, `office`, `none`), or the power name for a power with one switch. `BASIC_ON` is the 64 switches a Member holds.
+- A power with scopes asks `scopeAllows` (`permissions.ts`): hold `<power>.all`, or `<power>.lead` and lead the project, or
+  `<power>.team` and be on the team (the leader counts as on the team). An "own" power keeps the people rule (maker, lead, author,
+  organizer) and needs its switch. `project.code` passes only where `project.details` passes. The Admin holds every `.all`.
+- Storage (additive, no migration): `RoleSettings.rights[role]` and `CustomRole.rights` are the held switches beyond `BASIC_ON`, and may
+  still hold the 17 old ids (`StoredRight`; `expandRights` maps them with the `legacy` map). New `RoleSettings.off[role]` and
+  `CustomRole.off` list the `BASIC_ON` switches the role does not hold. `rightsOf` (`rights.ts`): a built-in role = (`BASIC_ON` minus
+  `off`) plus the expanded `rights` (or `DEFAULT_EXTRA`), plus the needs (`withNeeds`); a custom role with no `off` = the Member switches
+  plus its own (the meaning of before); with `off` = its own full list; a deleted role leaves the Member switches. `heldRightsOfRole` gives
+  the list to the screens. `session.get` and every output give the 112 ids only. A save writes new ids only (`roles.*` expand old ids).
+  Caps: `rights` 120, `off` 70.
+- The actions of `can()` are the power names. The old action names stay as a compat layer ("compat: delete after the call sites move"):
+  they answer from the new switches, and with the default settings they give the answer of before (`server/core/rightsParity.test.ts`
+  proves it against a record made on the code before this release). A compat action that stands for many powers asks all of them.
+  The pure power actions are in `rightSwitches.test.ts`, one group of tests for each of the 112 switches.
+- A right gives only its own power. Before a right passes an action, grep every use of that action and check what it stands in for.
+- A check of an office right reads the person with the rights attached. A handler gets them in `ctx.authority` (`execute.ts`); the
+  `ctx.actor` of an agent carries the rights of its person. A loader (`Load.authority`) and a server call use `withRights(state, user)`.
+  A place that asks `can()` for another person of the office uses `ensureRights(state, user)` first (`canSeeConversation`, `attach.ts`,
+  `server/files/rights.ts`).
 - `can()` fails closed: a person other than the Admin, with no `officeRights` attached, holds no office right. A path that forgets
-  `withRights` then denies, and never gives the default of a role. A test that calls `can()` for Management needs `withOfficeRights`.
-  The Admin screens (`sections.ts`, `opensAdminPage`) read the rights the same way.
+  `withRights` then denies. A test that calls `can()` for a Member needs `withOfficeRights`.
 - Only the Admin changes a role: `systemRole` or `roleId`. The reason is `admin_only`. A save with the same value is no change.
-- The undo of a role change follows the same rule (`handlers/history.ts`). An agent never takes back a role change, also the agent
-  of an Admin: `assertMayUndo` refuses a role event (`settings`) and a `user` event for an agent. `rolesLeaks.test.ts` proves it for
-  `events.undo` and `events.undoStory`. The MCP deny list holds `roles.*`, `users.create` and `users.update`.
+- The Undo asks the right of its own act (`handlers/history.ts`, `assertMayUndo`): the Undo of a new to-do asks `task.add`, the Undo of
+  a delete asks the delete switch. Role events keep `admin.manage`; a `settings.updated` event asks `office.settings`. An agent never takes
+  back a role change, also the agent of an Admin (`rolesLeaks.test.ts`). The MCP deny list holds `roles.*`, `users.create`, `users.update`.
 - `admin.manage` reads only the Admin role, so it needs no office right.
-- `session.get` returns the authority with its `officeRights`, so a screen reads the same rights.
 - `roles.create`, `roles.update` and `roles.delete` (`handlers/roles.ts`) need `admin.manage`. Each change writes one settings event:
-  `role.created`, `role.updated` or `role.deleted`. Its target is the role id, or `management`, `accounting` or `member` for a built-in
-  role. `handlers/history.ts` (`undoOne`) takes these back with `undoRoleChange`, not with `undoEvent`. MCP: deny list.
+  `role.created`, `role.updated` or `role.deleted`; the event keeps `rights` and `off` (an `off: null` on the old side says the role had
+  none). Its target is the role id, or `management`, `accounting` or `member`. `undoRoleChange` takes these back; an Undo of an old
+  event expands its old ids. MCP: deny list.
 - `roles.delete` takes `moveTo` (ADM-14): a built-in role (not Admin) or another custom role. The people of the deleted role move to it
-  (`user.updated` events) before the role goes, all in one story, so one Undo brings the role and the people back. Without `moveTo`,
-  a role that people hold is still refused (`role_in_use`).
+  (`user.updated` events) before the role goes, all in one story. Without `moveTo`, a role that people hold is still refused (`role_in_use`).
+- `viewerCan` (`contract/views.ts`) has one optional flag for each new gate of a project (`editDetails`, `editTeam`, `editStages`,
+  `editDeadlines`, `applyTemplate`, `links`, `upload`, `deliver`, `logTracker`, `postUpdate`, `comment`, `addTask`, `planMeeting`,
+  `deleteAnyFile`, `deleteAnyTracker`, `projectChat`, `changeAnyTask`) and of a to-do (`editDetails`, `editDates`, `work`, `comment`, `upload`).
 
 ## The office report (owner, 2026-10-18, fbk_016)
 - `reports.office { period, start? }` (`handlers/reports.ts`): a week (Sunday to Saturday), a month, a quarter or a year. `periodRange`

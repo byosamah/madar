@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { User } from '../../src/api/contract/entities';
+import { memberKey } from '../../src/api/rowKeys';
 import { snapshotOf } from '../data/officeCache';
 import { fakeFilesDb } from './fakeFilesDb';
 import { assertMayPost, assertMayReadReports, assertMayView, authorityOf, loadAuthority } from './rights';
@@ -33,6 +34,27 @@ const codeOf = (work: () => unknown) => {
     return [e.code, e.details?.reason ?? e.details?.action].filter(Boolean).join(':');
   }
 };
+
+/** An office where usr_004 is on the team of prj_001 and the roles come from the office settings (role rights version 2). */
+const officeWith = (roles?: unknown) => snapshotOf({
+  users: USERS, teams: {}, settings: (roles ? { roles } : {}) as never, clients: {}, stageTemplates: {}, taskTemplates: {},
+  projects: { prj_001: { id: 'prj_001', leaderId: 'usr_002' } as never }, members: { [memberKey('prj_001', 'usr_004')]: { projectId: 'prj_001', userId: 'usr_004', discipline: 'Architect' } },
+  stages: {}, deadlines: {}, conversations: {},
+}, 1);
+
+describe('a Member keeps the upload (fail closed, role rights version 2)', () => {
+  it('lets a team member start an upload with the default switches, and refuses a person outside the team', () => {
+    expect(assertMayPost(officeWith(), 'usr_004', 'prj_001').id).toBe('usr_004');
+    expect(codeOf(() => assertMayPost(officeWith(), 'usr_002', 'prj_001'))).toBe('ok');
+  });
+
+  it('follows the upload switch of the office', () => {
+    const closed = officeWith({ off: { member: ['file.upload.team'] } });
+    expect(codeOf(() => assertMayPost(closed, 'usr_004', 'prj_001'))).toBe('forbidden:content.post');
+    const open = officeWith({ rights: { member: ['file.upload.all'] } });
+    expect(assertMayPost(open, 'usr_004', 'prj_001').id).toBe('usr_004');
+  });
+});
 
 describe('the authority behind a signed link', () => {
   it('is the person, or the person an agent acts for', () => {
