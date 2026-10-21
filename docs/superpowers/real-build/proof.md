@@ -2106,3 +2106,9 @@ agent sessions before and after). The typing rows of the run in `realtime.messag
 to `postgres` was revoked (only the original grant of `supabase_admin` is left). The four sample users are unchanged (all active). No probe user was
 made. On `realtime.messages` there are five policies: the three of `20261004000200` and the two of this migration. The channels and the
 presence entries live in memory and are gone when the sockets close. Production was not changed.
+
+- 2026-10-21 (merge lead): the migration `20261022000200_platform_presence.sql` was taken off madar-test after this probe (the
+  two policies dropped, `migration repair --status reverted 20261022000200`), because the release of `rb/mcp-pictures` from
+  another session ran `all.sh test` from a main that does not have the file. The test deploy of the chat presence batch pushes
+  it again. Cost steps 1, 2 and 3 of the design are in the build (base report: typing every 5 s, shown for 8 s; rest after 1
+  minute out of view on a phone and 30 minutes on a computer).

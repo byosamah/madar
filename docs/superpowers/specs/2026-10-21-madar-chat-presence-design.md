@@ -57,9 +57,11 @@ The kinds: P = project chat, D = direct chat, G = group chat. Task threads (T) g
    - **Online**: at least one device has Madar open and in view, and the person used it (a key, a click, a touch, a scroll)
      in the last 10 minutes. This test is "active" in the rest of this document.
    - **Away**: Madar is open on at least one device, and no device is active; or Madar is open and the person set Away by hand.
-   - **Offline**: no device has Madar open. A closed tab shows Offline at once. A device that loses the network shows
-     Offline when the live connection of Realtime times out (*My call:* no extra "still here" signals, see Cost; the plan
-     measures the time and reports it to the owner when it is more than 2 minutes).
+   - **Offline**: no device has Madar open. A closed tab shows Offline in about 3 seconds. A device that loses the network
+     shows Offline when the live connection of Realtime times out: 49 to 66 seconds (measured on madar-test, 2026-10-21)
+     (*My call:* no extra "still here" signals, see Cost).
+   - **Rest (cost step, 2026-10-21).** A phone whose Madar page is out of view for 1 minute, and a computer tab out of view
+     for 30 minutes, stops its live status: that device counts as closed until the page shows again.
    - A tab that goes out of view (another tab, a phone screen that locks) makes that device Away at once.
    - Agents, turned-off people and people who left the office have no status and no dot.
 2. **Away by hand.** The person menu gets one switch: "Show me as Away". It holds on every device of the person and after a
@@ -88,14 +90,14 @@ The kinds: P = project chat, D = direct chat, G = group chat. Task threads (T) g
      typing..." (3 or more). The line has a fixed height, so the messages never jump when it comes and goes.
    - In the chat list, the row's last message line changes to "typing..." (D) or "Reem is typing..." (P, G), in the link
      color.
-3. **When it stops.** At Send, when the box becomes empty, when the chat closes, when the tab goes out of view, and 6 seconds
+3. **When it stops.** At Send, when the box becomes empty, when the chat closes, when the tab goes out of view, and 8 seconds
    after the last signal (a lost "stop" never leaves the line on). The new message of that person also ends it.
 4. **Who sees it.** Only the members of the chat, never the typist's own other devices, never an Admin who reads a chat that
    they are not a member of. The server checks the membership and names the typist, so no screen can fake it. Agents never
    make a typing signal.
 5. **Motion.** Three small dots fade one after the other. With "reduce motion" on, they stand still. *My call:* a fade, not
    a bounce (the calm rules).
-6. **Rate.** A typist sends at most one signal every 3 seconds for one chat, and one "stop".
+6. **Rate.** A typist sends at most one signal every 5 seconds for one chat, and one "stop" (cost step 2, 2026-10-21).
 
 ### C. Seen
 
@@ -218,6 +220,11 @@ takes these steps in order, and tells the owner which ones it took:
 2. The typing interval goes from 3 to 5 seconds.
 3. A computer tab that stays out of view for 30 minutes leaves its status topic.
 4. If the total still passes 50%, the plan stops and asks the owner.
+
+**The proof (2026-10-21, `proof.md` "Chat presence: the Realtime probe").** Each receiving socket counts. The new parts come
+to about 1.1 to 1.3 million a month (56% to 63%), so steps 1, 2 and 3 are in the build. With them the estimate is about 0.75
+to 0.83 million (38% to 42%). No API gives the use of today: the owner reads it on the Supabase page Organization, Usage. If
+the use of today plus 0.8 million passes 1 million, step 4 applies.
 
 ## New words (proposed; the builder may adjust them to the STE and Thmanyah rules)
 
