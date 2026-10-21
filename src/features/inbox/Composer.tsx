@@ -9,6 +9,8 @@ import { useIsPhone } from '../../app/useIsPhone';
 import { Button } from '../../components/Button';
 import { MentionField } from '../../components/MentionField';
 import { withMentionMarkup } from '../../lib/text';
+import { EmojiButton, type EmojiButtonHandle } from '../emoji/EmojiButton';
+import { insertAt } from '../emoji/insert';
 import { AttachButton, pastedPictures, PickedFiles, useAttachments, type UploadTarget } from '../files/Attachments';
 import { useChatDropReceiver } from './ChatDrop';
 import { ComposerReplyStrip } from './ReplyStrip';
@@ -57,15 +59,25 @@ function ComposerBox({ id, people, pending, onSend, upload, owner, replyTo, onCa
   const attachments = useAttachments(MAX_ATTACHMENTS, readDraftFiles(owner, draftKey));
   const [uploading, setUploading] = useState(false);
   const [text, setText] = useDraftText(owner, draftKey);
+  const field = useRef<HTMLTextAreaElement>(null);
   // The one door of a change of the text: the field, the emoji panel and the clear after a send all use it.
   const change = (next: string) => {
     setText(next);
     onTextChange?.(next);
   };
+  // The emoji panel puts a pick at the caret of the field, through the one door `change`. The panel keeps the focus for a second pick, so the
+  // caret goes back after the emoji without the focus (the focus returns to the field when the panel closes with Escape).
+  const emoji = useRef<EmojiButtonHandle>(null);
+  const insertEmoji = (symbol: string) => {
+    const box = field.current;
+    if (!box) return;
+    const { next, caret } = insertAt(box.value, box.selectionStart ?? box.value.length, box.selectionEnd ?? box.value.length, symbol);
+    change(next);
+    requestAnimationFrame(() => box.setSelectionRange(caret, caret));
+  };
   useEffect(() => {
     writeDraftFiles(owner, draftKey, attachments.files);
   }, [owner, draftKey, attachments.files]);
-  const field = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     field.current?.focus();
   }, [id]);
@@ -81,6 +93,7 @@ function ComposerBox({ id, people, pending, onSend, upload, owner, replyTo, onCa
   const submit = async () => {
     const body = withMentionMarkup(text.trim(), people) || files.map((file) => file.name).join(', ').slice(0, MESSAGE_MAX);
     if (!body || pending || uploading) return;
+    emoji.current?.close();
     let fileIds: string[] = [];
     if (upload && attachments.files.length > 0) {
       setUploading(true);
@@ -111,6 +124,7 @@ function ComposerBox({ id, people, pending, onSend, upload, owner, replyTo, onCa
       {upload && <PickedFiles files={attachments.files} onRemove={attachments.remove} progress={attachments.progress} busy={uploading} />}
       <div className="flex items-end gap-2">
       {upload && <AttachButton compact onPick={attachments.add} />}
+      <EmojiButton ref={emoji} onPick={insertEmoji} returnTo={() => field.current} />
       <div
         className="min-w-0 flex-1"
         onPaste={(event) => {
