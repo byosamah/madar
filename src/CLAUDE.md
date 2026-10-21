@@ -12,8 +12,8 @@ any screen work.
 ## Two builds from one source
 - `VITE_MADAR_API` (`fake` default, `remote`) is fixed at build time. Use `PROTOTYPE`/`REMOTE` from `app/mode.ts`.
 - `main.tsx` loads only one bootstrap. Its first import is `app/zodConfig.ts` (zod runs jitless, so the CSP holds), and its
-  second is `i18n/firstWords.ts`. `zodConfig.ts` imports only `config` from `zod/v4/core`. Never import `z` from `zod` there:
-  that puts the zod schemas into the first load.
+  second is `i18n/firstWords.ts`. `zodConfig.ts` imports nothing from zod: it sets `jitless` in place on the one object that
+  zod keeps on `globalThis.__zod_globalConfig` (FL-10, 2026-10-21). Never import from `zod` there: that puts zod code into the first load.
 - The remote build splits each screen into its own chunk (performance audit BND-1). `app/screenLoaders.ts` holds one loader
   for each screen, and `app/screens.ts` the module cache. A route in `app/routes.tsx` names its screen and never imports a
   screen file. The frame, the sign-in gate, Home and the error pages stay in the first script. `main.tsx` loads the screens of
