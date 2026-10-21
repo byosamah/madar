@@ -12,6 +12,7 @@ import { notifyIn, reviewersOfTask } from '../notify';
 import { peopleFilter } from '../pause';
 import { sentToReviewOn } from '../review';
 import { can, leadTookTask, mayViewTask, principalOf } from '../permissions';
+import { isTaskMaker, mayAssignTask, mayChangePrerequisites, mayChangeTask, mayDeleteTask, mayTickChecklist } from '../taskGates';
 import { nextId, taskTemplatesOf } from '../store';
 import { stagesOf, taskDetailOf, taskRowOf } from '../views';
 import { arrangeRanks } from '../../lib/arrange';
@@ -107,6 +108,11 @@ function officeNoStage(): ApiError {
 /** A helper ticks items. Adding, removing, renaming or moving an item is for the lead, the leader and the Admin. */
 function assertTicksOnly(current: ChecklistItem[], next: ChecklistItem[]): void {
   if (!onlyTicks(current, next)) throw forbidden('A helper can tick checklist items but not add, remove or change them.');
+}
+
+/** Ticks, completing, moving, arranging and a new version of a to-do: task.work for its lead and maker, task.any for the leader and the Admin. */
+function assertMayWork(ctx: Ctx, task: Task): void {
+  if (!mayChangeTask(ctx.authority, 'work', taskRole(ctx, task))) throw forbidden('You cannot do this.', { action: 'task.work' });
 }
 
 const detail = (ctx: Ctx, task: Task) => taskDetailOf(ctx.state, task, ctx.today, ctx.authority);
@@ -272,7 +278,8 @@ function createOfficeTask(ctx: Ctx, input: NewTask): Task {
   if ((input.prerequisiteIds ?? []).length > 0) throw invalid('prerequisiteIds', 'An office task waits for no other task.', 'office_no_prerequisites');
   const maker = ctx.authority.id;
   const ownerId = input.ownerId ?? null;
-  assertCan(ctx, ownerId === null || ownerId === maker ? 'task.createForSelf' : 'task.createForAnyone', { office: true, makerId: maker });
+  assertCan(ctx, 'task.add', { office: true, makerId: maker });
+  assertMayName(ctx, ownerId, input.helperIds ?? []);
   if (ownerId !== null) assertPerson(ctx, ownerId, 'ownerId');
   for (const helperId of input.helperIds ?? []) assertPerson(ctx, helperId, 'helperIds');
   if (ownerId !== null) assertActive(ctx, ownerId, 'ownerId');
@@ -296,6 +303,15 @@ function createOfficeTask(ctx: Ctx, input: NewTask): Task {
   return task;
 }
 
+/**
+ * Naming another person as the lead or as a helper of a new to-do needs task.assign (role rights version 2). A to-do for yourself, with
+ * no other person on it, needs only the switch to add one. Before, only the lead was checked; the helpers need the switch too.
+ */
+function assertMayName(ctx: Ctx, ownerId: string | null, helperIds: string[]): void {
+  const me = ctx.authority.id;
+  if ((ownerId !== null && ownerId !== me) || helperIds.some((id) => id !== me)) assertCan(ctx, 'task.assign');
+}
+
 /** One way to make a task, for tasks.create and tasks.createFromTemplate. The rules live here. */
 function createTask(ctx: Ctx, input: NewTask): Task {
   if (input.projectId === undefined) return createOfficeTask(ctx, input);
@@ -305,7 +321,8 @@ function createTask(ctx: Ctx, input: NewTask): Task {
   // as its lead and helpers, because its maker holds the leader's rights on it (owner, 2026-10-07). Only the leader and the Admin
   // name a person outside the team (ensureOnTeam). An agent names the person it acts for as itself.
   const ownerId = input.ownerId ?? null;
-  assertCan(ctx, ownerId === null || ownerId === ctx.authority.id ? 'task.createForSelf' : 'task.createForAnyone', { projectRole: role });
+  assertCan(ctx, 'task.add', { projectRole: role });
+  assertMayName(ctx, ownerId, input.helperIds ?? []);
   // Only "no review" needs the reviewer's right. The default value is safe for anyone to send (audit 2026-10-03, API-21).
   if (input.needsReview === false && !input.fromTemplate) assertCan(ctx, 'task.review', { projectRole: role });
   // Only the leader or the Admin may skip the review step. A template's "no review" applies to them alone, so a team
@@ -404,6 +421,40 @@ export function dateMoveOf(task: Task, changes: Partial<Task>): DateMove | null 
   return moved('startDate') || moved('dueDate') ? { from, to } : null;
 }
 
+/** The fields of a change that need task.details, task.dates and task.assign (design 5.2). The review need asks task.review. */
+const DETAIL_FIELDS = ['title', 'description', 'stageId', 'flagged'] as const;
+const DATE_FIELDS = ['startDate', 'dueDate', 'schedule', 'durationDays'] as const;
+
+/**
+ * The gate of tasks.update, field by field (role rights version 2, design 5.2). A person who may change any to-do of the project
+ * (task.any) passes every field. Any other person passes each field with the switch of its kind, for a to-do that the person leads
+ * or made. Dates: task.dates. Title, description, stage, flag and the checklist itself: task.details. A tick: task.work (a helper
+ * ticks too, but changes no item). Lead and helpers: task.assign, for the maker. Prerequisites: the maker with task.details.
+ */
+function assertMayPatch(ctx: Ctx, task: Task, patch: Partial<Record<string, unknown>> & { checklist?: ChecklistItem[] }, resource: ReturnType<typeof taskRole>): void {
+  const who = ctx.authority;
+  const given = (key: string) => patch[key] !== undefined;
+  const refuse = (action: Parameters<typeof assertCan>[1]): never => { throw forbidden('You cannot do this.', { action }); };
+  if (patch.ownerId !== undefined || patch.helperIds !== undefined) {
+    if (!mayAssignTask(who, resource)) refuse('task.assign');
+  }
+  if (patch.prerequisiteIds !== undefined && !mayChangePrerequisites(who, resource)) refuse('task.details');
+  if (DETAIL_FIELDS.some(given) && !mayChangeTask(who, 'details', resource)) refuse('task.details');
+  if (DATE_FIELDS.some(given) && !mayChangeTask(who, 'dates', resource)) refuse('task.dates');
+  if (patch.checklist) {
+    if (onlyTicks(task.checklist, patch.checklist)) {
+      if (!mayTickChecklist(who, resource)) refuse('task.work');
+    } else if (!mayChangeTask(who, 'details', resource)) {
+      // A helper can tick items but not add, remove or change them.
+      if (mayTickChecklist(who, resource)) assertTicksOnly(task.checklist, patch.checklist);
+      refuse('task.details');
+    }
+  }
+  // A call with no change asks for a person who works on the task: its lead, its maker, the leader or the Admin.
+  const keys = Object.keys(patch).filter(given);
+  if (keys.length === 0 && !(mayChangeTask(who, 'work', resource) || mayChangeTask(who, 'details', resource) || mayChangeTask(who, 'dates', resource))) refuse('task.work');
+}
+
 export const tasksUpdate = defineCall({
   input: z.object({
     id: TaskId,
@@ -432,16 +483,9 @@ export const tasksUpdate = defineCall({
     const task = requireTask(ctx, input.id);
     const { patch } = input;
     const resource = taskRole(ctx, task);
-    const needsAny = patch.ownerId !== undefined || patch.helperIds !== undefined || patch.prerequisiteIds !== undefined;
-    const given = Object.keys(patch).filter((key) => patch[key as keyof typeof patch] !== undefined);
     // The review need belongs to the reviewer: the leader and the Admin, or the maker of an office task (owner, 2026-10-07).
     if (patch.needsReview !== undefined) assertCan(ctx, 'task.review', resource);
-    if (needsAny) assertCan(ctx, 'task.updateAny', resource);
-    else if (given.length > 0 && given.every((key) => key === 'checklist')) {
-      // A helper may tick items. Only the lead, the leader and the Admin may change the list itself.
-      assertCan(ctx, 'task.contribute', resource);
-      if (!can(ctx.authority, 'task.updateOwn', resource) && patch.checklist) assertTicksOnly(task.checklist, patch.checklist);
-    } else assertCan(ctx, 'task.updateOwn', resource);
+    assertMayPatch(ctx, task, patch, resource);
     if (task.projectId === null && patch.stageId !== undefined) throw officeNoStage();
     if (patch.stageId && task.projectId !== null) requireStage(ctx, task.projectId, patch.stageId);
     if (patch.prerequisiteIds !== undefined) {
@@ -558,7 +602,7 @@ export const MAX_ARRANGE = 200;
 
 /**
  * The shared order of the tasks inside a date group of the Tasks screen and Home (owner, 2026-10-07). `ids` is the new order,
- * top first; `moved` names the task that the person dragged. Each task needs the right to change it (`task.updateOwn`): its
+ * top first; `moved` names the task that the person dragged. Each task needs the right to work on it (`task.work`, or `task.any`): its
  * lead, its maker, the leader or the Admin. Only the place numbers change (`lib/arrange.ts`), never a date, a status or a lead.
  */
 export const tasksArrange = defineCall({
@@ -569,7 +613,7 @@ export const tasksArrange = defineCall({
   output: z.array(z.object({ id: TaskId, rank: z.number() })),
   run(input, ctx) {
     const tasks = input.ids.map((id) => requireTask(ctx, id));
-    for (const task of tasks) assertCan(ctx, 'task.updateOwn', taskRole(ctx, task));
+    for (const task of tasks) assertMayWork(ctx, task);
     if (input.moved !== undefined && !input.ids.includes(input.moved)) throw invalid('moved', 'The moved task is not in the list.', 'not_in_list');
     const ranks = arrangeRanks(tasks.map((task) => task.rank), input.moved === undefined ? undefined : input.ids.indexOf(input.moved));
     tasks.forEach((task, i) => {
@@ -599,7 +643,7 @@ export const tasksNewVersion = defineCall({
   output: TaskDetail,
   run(input, ctx) {
     const task = requireTask(ctx, input.id);
-    assertCan(ctx, 'task.updateOwn', taskRole(ctx, task));
+    assertMayWork(ctx, task);
     if (task.status !== 'done') throw invalid('id', 'Only a finished task gets a new version.', 'not_done');
     const { startDate, schedule, durationDays, dueDate } = input;
     const when = resolveWhen(task, { startDate, schedule, durationDays, dueDate });
@@ -648,7 +692,7 @@ export const tasksComplete = defineCall({
   output: Moved,
   run(input, ctx) {
     const task = requireTask(ctx, input.id);
-    assertCan(ctx, 'task.updateOwn', taskRole(ctx, task));
+    assertMayWork(ctx, task);
     if (task.status === 'done') throw invalid('id', 'This task is already done.');
     const result = landingStatus(ctx, task);
     if (result === 'done' && reviews(ctx, task)) approve(ctx, task);
@@ -666,7 +710,7 @@ export const tasksMove = defineCall({
   output: Moved,
   run(input, ctx) {
     const task = requireTask(ctx, input.id);
-    assertCan(ctx, 'task.updateOwn', taskRole(ctx, task));
+    assertMayWork(ctx, task);
     const result = input.status === 'done' ? landingStatus(ctx, task) : input.status;
     if (result === 'done' && reviews(ctx, task)) approve(ctx, task);
     else {
@@ -718,9 +762,9 @@ export const tasksDelete = defineCall({
   run(input, ctx) {
     const task = requireTask(ctx, input.id);
     const resource = taskRole(ctx, task);
-    assertCan(ctx, 'task.delete', resource);
+    if (!mayDeleteTask(ctx.authority, resource)) throw forbidden('You cannot do this.', { action: 'task.deleteOwn' });
     // A lead who took the task with no lead themselves does not delete it: its maker, the leader or the Admin does (security review).
-    if (!can(ctx.authority, 'task.updateAny', resource) && leadTookTask(ctx.state, task)) {
+    if (!can(ctx.authority, 'task.any', resource) && !isTaskMaker(ctx.authority, resource) && leadTookTask(ctx.state, task)) {
       throw forbidden('You took this task yourself, so its maker or the project leader deletes it.');
     }
     const watch = watchStage(ctx, task.projectId);

@@ -72,7 +72,9 @@ message from a notice, and the server cannot know that a window is open. The fix
   once (the notices of requests, bugs and meetings too, fbk_022). A new chat message, a new task comment, and a mention or reply notice of one give a `push.chat` row, after the 10-second wait.
   `planPushes` (`chatRule.ts`) decides: a direct chat or a group pushes its members; a project chat pushes the people its message
   names (an @mention or a reply); a person who picked All messages (`ChatRead.notify`) gets every message; a task comment pushes the
-  task lead and the maker of an office task, and other people only when named. Never the author or the person an agent writes for;
+  task lead and the maker of an office task, and other people only when named. A named person gets the push of an office task comment only when the person reads the
+  task: the maker, the lead, a helper, or a holder of `task.officeAll` (`PushPerson.officeAll`, from the roles of the office settings in `PUSH_PEOPLE_SQL`). A holder
+  of `chat.project.all` outside the team is no candidate of a project chat: the person gets a push only when a message names the person. Never the author or the person an agent writes for;
   never for a reaction, a delete, a quiet line or an Undo; an edit pushes only a person it names for the first time. One row for each
   person for each save: a `push.notify` row wins over a `push.chat` row. The mention switch of Settings does not stop a push that
   names a person.

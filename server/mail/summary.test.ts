@@ -3,7 +3,7 @@ import { defaultPreferences, type Preferences } from '../../src/api/contract/ent
 import { fakeDeps } from '../test/fakes/deps';
 import { memoryMailDb } from './memoryMailDb';
 import { ADMINS_SQL, USER_MAIL_SQL } from './notices';
-import { SUMMARY_COUNTS_SQL, SUMMARY_PEOPLE_SQL, SUMMARY_TASKS_SQL, buildMorning, buildSummary, sendSummary, summaryPeople } from './summary';
+import { SUMMARY_COUNTS_SQL, SUMMARY_PEOPLE_SQL, SUMMARY_REVIEWERS_SQL, SUMMARY_TASKS_SQL, buildMorning, buildSummary, sendSummary, summaryPeople } from './summary';
 
 /**
  * The morning summary (plan 5.4, 5.5; task N2.2; fbk_021, owner 2026-10-19): the open tasks of the person in three groups (past due,
@@ -19,13 +19,18 @@ type TaskRowOf = { id: string; title: string; due_date: string; rank: number | n
 const row = (id: string, title: string, due_date: string, more: Partial<TaskRowOf> = {}): TaskRowOf => ({ id, title, due_date, rank: null, project_code: '260902AZT-RES-Villa', ...more });
 const TWO_TASKS = [row('tsk_001', 'Check the setback', TODAY), row('tsk_002', 'Send the survey', '2026-10-01')];
 
-function setup(o: { counts?: { due_today: number; reviews_waiting: number }; person?: Partial<Person>; tasks?: TaskRowOf[] } = {}) {
+type ReviewerRow = { id: string; system_role: string; role_id: string | null; roles: unknown };
+const MEMBER = (id: string, role_id: string | null = null, roles: unknown = null): ReviewerRow => ({ id, system_role: 'member', role_id, roles });
+
+function setup(o: { counts?: { due_today: number; reviews_waiting: number }; person?: Partial<Person>; tasks?: TaskRowOf[]; reviewers?: ReviewerRow[] } = {}) {
+  const reviewers = o.reviewers ?? [MEMBER('usr_002'), MEMBER('usr_003')];
   const counts = o.counts ?? { due_today: 2, reviews_waiting: 1 };
   const tasks = o.tasks ?? TWO_TASKS;
   const askedTasks: unknown[][] = [];
   const who: Person = { kind: 'human', active: true, preferences: defaultPreferences(), ...o.person };
   const asked: unknown[][] = [];
   const mem = memoryMailDb((text, values) => {
+    if (text === SUMMARY_REVIEWERS_SQL) return reviewers;
     if (text === SUMMARY_COUNTS_SQL) {
       asked.push(values);
       return [counts];
@@ -47,12 +52,23 @@ describe('buildSummary', () => {
   it('counts the tasks due today and the reviews that wait, for one person and one day', async () => {
     const { mem, asked } = setup({ counts: { due_today: 3, reviews_waiting: 0 } });
     expect(await buildSummary(mem.q, { id: 'usr_002' }, TODAY)).toEqual({ dueToday: 3, reviewsWaiting: 0 });
-    expect(asked).toEqual([['usr_002', TODAY]]);
+    expect(asked).toEqual([['usr_002', TODAY, ['usr_002', 'usr_003']]]);
   });
 
   it('gives null when there is nothing to say', async () => {
     const { mem } = setup({ counts: { due_today: 0, reviews_waiting: 0 } });
     expect(await buildSummary(mem.q, { id: 'usr_002' }, TODAY)).toBeNull();
+  });
+
+  it('gives the SQL only the leaders who may review: a leader without task.review.lead is out, so the Admins review that project', async () => {
+    const roles = { off: { member: ['task.review.lead'] } };
+    const { mem, asked } = setup({ reviewers: [MEMBER('usr_002', null, roles), MEMBER('usr_003', 'rol_001', { custom: [{ id: 'rol_001', name: 'Lead', nameAr: 'قائد', rights: ['task.review.lead'], off: [] }] }), { id: 'usr_001', system_role: 'admin', role_id: null, roles }] });
+    await buildSummary(mem.q, { id: 'usr_001' }, TODAY);
+    expect(asked).toEqual([['usr_001', TODAY, ['usr_003', 'usr_001']]]);
+  });
+
+  it('reads the leader condition in the SQL: the leader joins only when the list holds the leader', () => {
+    expect(SUMMARY_COUNTS_SQL).toContain('l.id = any($3::text[])');
   });
 
   it('counts only open tasks of active projects that the person leads or helps with, and the reviews of the reviewer', () => {
@@ -89,7 +105,7 @@ describe('buildMorning', () => {
       },
       reviewsWaiting: 2,
     });
-    expect(asked).toEqual([['usr_002', TODAY]]);
+    expect(asked).toEqual([['usr_002', TODAY, ['usr_002', 'usr_003']]]);
     // The statement takes the person and the last day of This week (the Saturday after Sunday 4 October).
     expect(askedTasks).toEqual([['usr_002', '2026-10-10']]);
   });

@@ -9,6 +9,8 @@ import { feedbackNoticeHidden } from '../notify';
 import { withRights } from '../rights';
 import { can, holdsAdminRights, mayViewMeeting, mayViewTask, meetingResource, principalOf, taskResource, type Action, type Resource } from '../permissions';
 import { eventLabel, eventViewOf, mayDeleteTracker, officeResource } from '../views';
+import { mayEditMeeting, mayWriteMinutes } from '../meetingGates';
+import { isTaskMaker, mayAssignTask, mayChangePrerequisites, mayDeleteTask, mayTickChecklist } from '../taskGates';
 import { involves, onlyTicks } from '../../lib/taskPeople';
 import { isRoleEvent, undoRoleChange } from './roles';
 import type { State } from '../store';
@@ -113,7 +115,9 @@ function assertMemberUndo(ctx: Ctx, event: Event): void {
   if (openTasks) throw new ApiError('conflict', 'This person now has open tasks here. Undo is not available.');
 }
 
-const ANY_TASK_FIELDS = ['ownerId', 'needsReview', 'helperIds'];
+/** The fields that the review switch and the assign switch guard. A change of only these fields asks no other switch. */
+const ASSIGN_FIELDS = ['ownerId', 'helperIds'];
+const ANY_TASK_FIELDS = ['ownerId', 'needsReview', 'helperIds', 'prerequisiteIds'];
 
 /** The cover comes back with its file only for a person who may undo that file delete. */
 function coverComesBackWithFile(ctx: Ctx, event: Event): boolean {
@@ -177,6 +181,13 @@ function projectTaskOf(ctx: Ctx, event: Event, projectRole: Resource['projectRol
 const DATE_FIELDS = ['startDate', 'dueDate', 'schedule', 'durationDays', 'dateNotes'];
 const WORK_FIELDS = ['status', 'completedAt', 'rank', 'version', 'versions'];
 
+/**
+ * True when the event is a change of the caller (or of the caller's own agent): the event names the caller as the person it acted for.
+ * Only then may the Undo of a CREATE event use the create right (security review of role rights version 2). A create by another
+ * person's agent, which the caller may undo through ai.undoOthers, needs the right that deletes the item directly.
+ */
+const isOwnChange = (ctx: Ctx, event: Event): boolean => event.actingForId === ctx.authority.id;
+
 /** The project verbs of a pause, a finish and an archive: the power to pause, finish and archive (project.archive). */
 const ARCHIVE_VERBS = new Set(['project.status_changed', 'project.paused', 'project.restart_moved', 'project.resumed']);
 
@@ -214,11 +225,16 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
     case 'task': {
       // A reply task belongs to the Tracker entry it answers, so the people who may post there may take back its making and its finish.
       const replyTask = ctx.state.tasks[event.targetId]?.trackerEntryId;
-      if (replyTask && (event.verb === 'task.created' || event.verb === 'task.status_changed')) return need('tracker.log');
+      if (replyTask && (event.verb === 'task.status_changed' || (event.verb === 'task.created' && isOwnChange(ctx, event)))) return need('tracker.log');
       // The link of a reply task to its entry is part of the Tracker loop, so the people who may post there may bring it back (audit 2026-10-03, V-13).
       if (event.verb === 'task.reply_unlinked') return need('tracker.log');
       // The Undo of a new to-do asks the right to add one. The Undo of a delete asks the right to delete (the lead's delete, or any).
-      if (event.verb === 'task.created') return need('task.add');
+      // A to-do of another person's agent (taken back through ai.undoOthers) needs the right that deletes it: task.any, or task.deleteOwn.
+      if (event.verb === 'task.created') {
+        if (isOwnChange(ctx, event)) return need('task.add');
+        if (!mayDeleteTask(ctx.authority, base)) throw forbidden('You cannot do this.', { action: 'task.deleteOwn' });
+        return;
+      }
       if (event.verb === 'task.deleted') {
         if (can(ctx.authority, 'task.any', { ...base })) return;
         return need('task.deleteOwn');
@@ -229,12 +245,21 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       // The person who joined a task as a helper, or left it, may take that back (fbk_035).
       if (isOwnHelp(ctx, event)) return need('task.help');
       if ('needsReview' in fieldsOf(event.after)) need('task.review');
-      if (Object.keys(fieldsOf(event.after)).some((field) => ANY_TASK_FIELDS.includes(field))) return need('task.updateAny');
       const current = ctx.state.tasks[event.targetId];
+      const people = { ...base, ownerId: current?.ownerId, helperIds: current?.helperIds };
+      const after = Object.keys(fieldsOf(event.after));
+      // The lead and the helpers follow task.assign (the maker, or task.any). The waits keep their old rule: task.any, or the maker with task.details.
+      if (after.some((field) => ASSIGN_FIELDS.includes(field)) && !mayAssignTask(ctx.authority, people)) throw forbidden('You cannot do this.', { action: 'task.assign' });
+      if (after.includes('prerequisiteIds') && !mayChangePrerequisites(ctx.authority, people)) throw forbidden('You cannot do this.', { action: 'task.details' });
+      if (after.length > 0 && after.every((field) => ANY_TASK_FIELDS.includes(field))) return;
       // A helper may take back a tick. Any other checklist change (an item added, removed, renamed or moved) follows the rule of the lead.
-      if (isTickOnly(event)) return need('task.contribute', { ownerId: current?.ownerId, helperIds: current?.helperIds });
+      if (isTickOnly(event)) {
+        if (!mayTickChecklist(ctx.authority, people)) throw forbidden('You cannot do this.', { action: 'task.work' });
+        return;
+      }
       // Any change of a to-do (task.any) takes back every kind of change. The lead and the maker take back each kind with its own switch.
       const resource = { ownerId: current?.ownerId };
+      if (after.includes('prerequisiteIds') && after.length === 1) return;
       if (can(ctx.authority, 'task.any', { ...base, ...resource })) return;
       const fields = Object.keys(fieldsOf(event.after));
       if (fields.some((field) => DATE_FIELDS.includes(field))) need('task.dates', resource);
@@ -247,8 +272,9 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       // A person who may react may take back their own reaction (audit 2026-10-03, API-19).
       if (event.verb === 'comment.reacted') return need('comment.create');
       // The Undo of a new post or comment asks the right to write one. The Undo of an edit or a delete asks the right to edit your own.
-      if (event.verb === 'update.posted') return need('post.create');
-      if (event.verb === 'comment.created') return need('comment.create');
+      // A post or a comment of another person's agent keeps the old rule: only its author takes it back.
+      if (event.verb === 'update.posted' && isOwnChange(ctx, event)) return need('post.create');
+      if (event.verb === 'comment.created' && isOwnChange(ctx, event)) return need('comment.create');
       const current = event.targetType === 'update' ? ctx.state.updates[event.targetId] : ctx.state.comments[event.targetId];
       const authorId = String(current?.authorId ?? record.authorId);
       return need('post.editOwn', { authorId: principalOf(ctx.state, authorId) });
@@ -257,7 +283,7 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       const file = (ctx.state.files[event.targetId] ?? event.before) as FileRec | null;
       const uploader = file?.versions?.[0]?.uploadedBy ?? '';
       // The Undo of an upload asks the right to upload. The Undo of a delete asks the right to delete: any file, or your own.
-      if (event.verb !== 'file.deleted') return need('file.upload');
+      if (event.verb !== 'file.deleted' && isOwnChange(ctx, event)) return need('file.upload');
       const allowed = can(ctx.authority, 'file.deleteAny', base)
         || can(ctx.authority, 'file.deleteOwn', { ...base, authorId: principalOf(ctx.state, uploader) });
       if (!allowed) throw forbidden('Only the uploader or the project leader can undo this.');
@@ -269,13 +295,17 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       if (event.verb === 'tracker.minutes_saved') {
         const entry = ctx.state.tracker?.[event.targetId];
         const meeting = entry?.meetingId ? ctx.state.meetings?.[entry.meetingId] : undefined;
-        if (!meeting) throw forbidden('You cannot do this.', { action: 'meeting.minutes' });
-        return need('meeting.minutes', meetingResource(ctx.state, meeting, ctx.authority.id));
+        if (!meeting) throw forbidden('You cannot do this.', { action: 'meeting.minutesOwn' });
+        if (!mayWriteMinutes(ctx.authority, meetingResource(ctx.state, meeting, ctx.authority.id))) throw forbidden('You cannot do this.', { action: 'meeting.minutesOwn' });
+        return;
       }
       // Logging and deleting undo each other, so both follow the delete rule. Closing and editing follow the rule of logging.
       if (event.verb === 'tracker.reply_assigned') return need('tracker.reply');
       if (event.verb !== 'tracker.logged' && event.verb !== 'tracker.deleted') return need('tracker.log');
       const entry = (ctx.state.tracker?.[event.targetId] ?? event.before ?? event.after) as TrackerEntry;
+      // The Undo of your own new entry asks the right to log. The line that Madar made for a meeting (auto 'meeting') has no author delete, so
+      // its Undo never takes this way (security fix, 2026-10-19). An entry of another person's agent needs the right that deletes it.
+      if (event.verb === 'tracker.logged' && isOwnChange(ctx, event) && entry.auto !== 'meeting') return need('tracker.log');
       if (!mayDeleteTracker(ctx.state, ctx.authority, entry)) throw forbidden('Only the person who logged this, the project leader or the Admin can undo this.');
       return;
     }
@@ -343,10 +373,16 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       const meeting = ctx.state.meetings?.[event.targetId] ?? (event.after as Meeting | null) ?? (event.before as Meeting | null);
       if (!meeting) return need('admin.manage');
       // The minutes of a meeting with no line (wave 2) follow the right to write them, not the right to change the meeting.
-      if (event.verb === 'meeting.minutes_saved') return need('meeting.minutes', meetingResource(ctx.state, meeting, ctx.authority.id));
-      // The Undo of a new meeting asks the right to plan one. Any other change asks the right to change that meeting.
-      if (event.verb === 'meeting.created' || event.verb === 'meeting.added') return need('meeting.plan', meetingResource(ctx.state, meeting, ctx.authority.id));
-      return need('meeting.edit', meetingResource(ctx.state, meeting, ctx.authority.id));
+      const resource = meetingResource(ctx.state, meeting, ctx.authority.id);
+      if (event.verb === 'meeting.minutes_saved') {
+        if (!mayWriteMinutes(ctx.authority, resource)) throw forbidden('You cannot do this.', { action: 'meeting.minutesOwn' });
+        return;
+      }
+      // The Undo of your own new meeting asks the right to plan one. Any other change, and a meeting of another person's agent, asks the
+      // right to change that meeting (meeting.editOwn or meeting.any).
+      if ((event.verb === 'meeting.created' || event.verb === 'meeting.added') && isOwnChange(ctx, event)) return need('meeting.plan', resource);
+      if (!mayEditMeeting(ctx.authority, resource)) throw forbidden('You cannot do this.', { action: 'meeting.editOwn' });
+      return;
     }
     case 'subCompany':
       // An agent never makes, changes or deletes a sub-company (MCP deny list), so it never takes such a change back either:
@@ -387,8 +423,8 @@ function assertUndoRight(ctx: Ctx, event: Event): void {
   const own = event.actingForId === ctx.authority.id;
   // The maker of an office task holds the leader's place there (owner, 2026-10-06).
   const agentChange = event.actorKind === 'agent' && (event.officeTaskId
-    ? can(ctx.authority, 'event.undoAgent', officeOf(ctx, event, true))
-    : event.projectId !== null && can(ctx.authority, 'event.undoAgent', { projectRole: roleIn(ctx, event.projectId) }));
+    ? isTaskMaker(ctx.authority, officeOf(ctx, event, true))
+    : event.projectId !== null && can(ctx.authority, 'ai.undoOthers', { projectRole: roleIn(ctx, event.projectId) }));
   if (!own && !agentChange) throw forbidden('You can undo changes by you or your agent, and agent changes on a project you lead.');
 }
 
@@ -518,14 +554,16 @@ function dropNotices(ctx: Ctx, correlationId: string): void {
   // never keeps it, so a kept notice tells nothing of that task (review 2026-10-06).
   for (const notice of notices) {
     const id = notice.id;
-    const owner = ctx.state.users[notice.userId];
+    // The owner comes with the office rights attached, so a holder of task.officeAll keeps the notice of an office to-do.
+    const person = ctx.state.users[notice.userId];
+    const owner = person === undefined ? undefined : withRights(ctx.state, person);
     // A notice of an office task that its owner no longer sees already reads as gone and names nothing. It stays, so an Undo never
     // changes the list or the count of a person who left the task (final check 3, review 2026-10-06).
     if (owner !== undefined && noticeTaskHidden(ctx, notice.targetType, notice.targetId, owner)) continue;
     // The same for the notice of a meeting that its owner no longer sees (a person taken off the attendees, fbk_022).
     if (owner !== undefined && noticeMeetingHidden(ctx, notice.targetType, notice.targetId, owner)) continue;
     // The same for the notice of a new report that a former Admin holds (owner, 2026-10-07).
-    if (owner !== undefined && feedbackNoticeHidden(notice, withRights(ctx.state, owner))) continue;
+    if (owner !== undefined && feedbackNoticeHidden(notice, owner)) continue;
     let kept: boolean;
     if (notice.targetType === 'feedback' && notice.trigger === 'feedback_done') {
       // A done notice stays only once for each move of its report from open to done that still stands in the story. So done, open,

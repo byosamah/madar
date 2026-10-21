@@ -3,8 +3,8 @@ import {
   type User,
 } from './contract/entities';
 import { copyForAdmins } from './adminCopies';
-import { can, mayViewMeeting, mayViewTask, principalOf, type Actor } from './permissions';
-import { withRights } from './rights';
+import { can, canReview, mayViewMeeting, mayViewTask, principalOf, type Actor } from './permissions';
+import { ensureRights, withRights } from './rights';
 import { nextId, type State } from './store';
 import { addDays, nowStamp, officeClock, weekStartOf } from '../lib/dates';
 import { peopleOfTask } from '../lib/taskPeople';
@@ -97,7 +97,8 @@ export function notify(state: State, actor: User | null, stamp: string, input: N
   for (const userId of new Set(input.userIds)) {
     const user = state.users[userId];
     if (!user || !user.active || user.kind === 'agent') continue;
-    if (task && task.projectId === null && !mayViewTask(state, user, task)) continue;
+    // The person comes from the office list with no rights attached: attach them, so a holder of task.officeAll still hears the notice.
+    if (task && task.projectId === null && !mayViewTask(state, ensureRights(state, user), task)) continue;
     // A meeting with no project tells only the people who may see it (owner, 2026-10-19).
     if (meeting && !mayViewMeeting(state, user, meeting)) continue;
     if (actor && (user.id === actor.id || user.id === actor.ownerId)) continue;
@@ -128,11 +129,29 @@ export function notifyIn(ctx: Ctx, input: Omit<NotifyInput, 'correlationId'>): N
   return notify(ctx.state, ctx.actor, ctx.stamp, { ...input, correlationId: ctx.correlationId });
 }
 
-/** The leader reviews. A project with no active leader goes to every active Admin (audit 2026-10-03, API-7). */
+/** Every active Admin. */
+const activeAdminIds = (state: Pick<State, 'users'>): string[] => Object.values(state.users).filter((u) => u.systemRole === 'admin' && u.active).map((u) => u.id);
+
+/** The active leader of a project, or null. The person answers for the project: the review, the restart, the notices of its team. */
+export function activeLeaderOf(state: Pick<State, 'users' | 'projects'>, projectId: string): string | null {
+  const leaderId = state.projects[projectId]?.leaderId;
+  return leaderId && state.users[leaderId]?.active ? leaderId : null;
+}
+
+/** The people who answer for a project: its active leader, or every active Admin when it has none. The restart notice goes to them. */
+function leaderOrAdmins(state: Pick<State, 'users' | 'projects'>, projectId: string): string[] {
+  const leaderId = activeLeaderOf(state, projectId);
+  return leaderId ? [leaderId] : activeAdminIds(state);
+}
+
+/**
+ * The leader reviews, when the leader holds the right to review the projects they lead (task.review.lead, role rights version 2). A
+ * project with no active leader, or with a leader who lacks that right, goes to every active Admin (audit 2026-10-03, API-7).
+ */
 export function reviewersOf(state: State, projectId: string): string[] {
-  const project = state.projects[projectId];
-  if (project?.leaderId && state.users[project.leaderId]?.active) return [project.leaderId];
-  return Object.values(state.users).filter((u) => u.systemRole === 'admin' && u.active).map((u) => u.id);
+  const leaderId = activeLeaderOf(state, projectId);
+  if (leaderId && canReview(ensureRights(state, state.users[leaderId]), 'leader')) return [leaderId];
+  return activeAdminIds(state);
 }
 
 /**
@@ -143,7 +162,7 @@ export function reviewersOfTask(state: State, task: Pick<Task, 'projectId' | 'cr
   if (task.projectId !== null) return reviewersOf(state, task.projectId);
   const maker = principalOf(state, task.createdBy);
   if (state.users[maker]?.active) return [maker];
-  return Object.values(state.users).filter((u) => u.systemRole === 'admin' && u.active).map((u) => u.id);
+  return activeAdminIds(state);
 }
 
 export function projectPeople(state: State, projectId: string): string[] {
@@ -193,7 +212,7 @@ export function runScheduledTriggers(state: State, at: Date, options: NotifyOpti
     const day = project.status === 'on_hold' ? project.pause?.resumeOn : null;
     if (!day || day > today || !project.pause) continue;
     count += notify(state, null, stamp, {
-      userIds: [...reviewersOf(state, project.id), principalOf(state, project.pause.by)], trigger: 'resume_due', targetType: 'project', targetId: project.id,
+      userIds: [...leaderOrAdmins(state, project.id), principalOf(state, project.pause.by)], trigger: 'resume_due', targetType: 'project', targetId: project.id,
       dedupeKey: `resume_due:${project.id}:${day}`, dueDate: day,
     }, options).length;
   }

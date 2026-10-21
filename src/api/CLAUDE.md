@@ -209,7 +209,12 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   member too. Every project file is open to every person, so its row stays. The chat rules keep an office file out of a message;
   the rule is a guard for data that gets in by another way. The loader `chats.messages` brings the office task of each file
   (`attachedFiles`), so the scoped load gives the same rows.
-- Review: only when the maker is not the lead; `reviewersOfTask` (`notify.ts`) gives the maker, or the Admins when the maker left.
+- Review: only when the maker is not the lead; `reviewersOfTask` (`notify.ts`) gives the maker, or the Admins when the maker left. For a project, `reviewersOf`
+  gives the active leader only while the leader holds `task.review.lead` (`canReview`). Else the active Admins review, as for a project with no leader. The
+  Dashboard `inReview`, the `review_for_me` filter and the morning summary (`SUMMARY_COUNTS_SQL` takes the reviewing leaders as `$3`) follow the same rule.
+- `task.officeAll` gives a person the place of the Admin on every office task: the view rule, the loaders (`officeTaskConds`), the private signals
+  (`Diff.privatePeople`), the push (`PushPerson.officeAll`) and the rights of the maker. `notify`, `adminCopies` and the notice rules attach the rights of the
+  person first (`ensureRights`), so a holder keeps its notices.
 - Office tasks count in the lists of a person, `overdueTasks`, the workload, `inReview` and the gaps of `dashboard.get`, only
   with no people filter. They never count in a project number.
 - Three functions hold the rule of a hidden notice: `hiddenTask` (`notifications.ts`) and `noticeTaskHidden`
@@ -218,9 +223,15 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 
 ## Task makers (owner, 2026-10-07)
 - The person who adds a project task (`principalOf(createdBy)`, so the task of an agent belongs to its person) holds the
-  leader's rights on it while on the team: `task.updateAny` (lead, helpers, prerequisites), `task.updateOwn` (title, dates,
-  stage, status, checklist) and `task.delete`. `taskResource` names `makerId` for a project task too.
-- The lead of a project task holds `task.delete` too (fbk_034, owner 2026-10-20): a task can go into the wrong project. A delete
+  leader's rights on it while on the team: the lead and the helpers (`task.assign`), the prerequisites (`task.details`), the other fields (`task.details`,
+  `task.dates`, `task.work`) and the delete (`task.deleteOwn`). `taskResource` names `makerId` for a project task too. The gates of one kind of change are
+  in `taskGates.ts` (`mayChangeTask`, `mayAssignTask`, `mayChangePrerequisites`, `mayTickChecklist`, `mayDeleteTask`); `meetingGates.ts` holds the two
+  of a meeting (`mayEditMeeting`, `mayWriteMinutes`). A person who may change any task of the project (`task.any`) passes every kind.
+- `tasks.update` asks one gate for each field: `startDate`, `dueDate`, `schedule` and `durationDays` ask `task.dates`; `title`, `description`, `stageId`, `flagged`
+  and the checklist itself ask `task.details`; a tick asks `task.work` (a helper ticks too); `ownerId` and `helperIds` ask `task.assign` (the maker) or `task.any`;
+  `prerequisiteIds` ask `task.any`, or the maker with `task.details` (the lead alone does not change them); `needsReview` asks `task.review`. Complete, move, arrange
+  and a new version ask `task.work`. Naming another person as the lead or as a helper of a new task asks `task.assign`.
+- The lead of a project task holds `task.deleteOwn` too (fbk_034, owner 2026-10-20): a task can go into the wrong project. A delete
   by anyone but the maker sends the maker the in-app notice `task_deleted`. An office task stays with its maker and the Admin.
 - `tasks.help` (fbk_035, owner 2026-10-20): a person on the team (`task.help`) joins a project task as a helper, or leaves it,
   with one tap. The lead gets the in-app notice `helper_joined`; a leave tells nobody. Nobody joins an office task (`office_help`);
@@ -229,20 +240,20 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   `isOwnHelp`, `history.ts`). Without it, Undo asks for the right of the general change, and the toast fails.
 - The review stays with the leader and the Admin: `task.review` (approve, send back) and the review need (`needsReview` in
   `tasks.update`, and `needsReview: false` in `tasks.create`). `TaskDetail.viewerCan.setNeedsReview` shows the switch.
-- `task.createForAnyone` equals `task.createForSelf` on a project: a team member names any team mate as lead and helpers.
+- A new task asks `task.add` (the team scope for a project, the office switch for an office task). Naming another person asks `task.assign` on top: a team member names any team mate as lead and helpers.
   Only the leader and the Admin name a person outside the team (`ensureOnTeam` asks with the project role alone), so the
   task panel offers a maker only the team.
 - An Undo of a change of a project task reads the rights on that task, or on the last copy of a deleted one
   (`projectTaskOf`, `handlers/history.ts`). An Undo of a review-need change asks `task.review`.
 - The rights that pass the project role alone stay with the leader: the files and comments of others, Tracker deletes,
-  `taskTemplates.save` (and `saveTemplate`), `event.undoAgent`.
+  `taskTemplates.save` (and `saveTemplate`), and the undo of an agent change (`ai.undoOthers`).
 
 ## The shared order of tasks (owner, 2026-10-07)
 - `Task.rank` (a number, null or missing) is the place of a task inside a date group of the Tasks screen (`groupMyTasks`) and
   Home (`lib/home.ts`). A lower number sits higher. A task with no number sits under the placed ones, in the old order. The
   number belongs to the task, so everyone who sees two tasks in one group sees them in the same order.
-- `tasks.arrange { ids, moved? }` takes the new order of one group, top first. Each task needs `task.updateOwn` (its lead, its
-  maker, the leader, the Admin). `arrangeRanks` (`lib/arrange.ts`) keeps the numbers that already go up and gives new ones only
+- `tasks.arrange { ids, moved? }` takes the new order of one group, top first. Each task needs `task.work` (its lead, its
+  maker) or `task.any` (the leader, the Admin). `arrangeRanks` (`lib/arrange.ts`) keeps the numbers that already go up and gives new ones only
   to the others, so one drag writes one `task.arranged` event. The first order of a group writes one event for each task.
 - An order never changes a date, a status or a lead. The meeting summary and the project feed leave `task.arranged` out.
 - On the Tasks screen the tasks the person may move come first, then the tasks they only help with (no grip, and no drop
@@ -263,7 +274,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   reads) of an active project. It is null with no end date or with a project that is not active. A row shows it as "Stage ends"
   while `nextDeadline` (a named deadline) is null. The sort `deadline` of `projects.list` uses `nextDeadline`, then `stageEnd`.
   The field is optional, so older answers still parse. MCP: `TOOL_DOCS` of `projects.get` and `projects.list` name it.
-- `TaskRow.canEditPeople` is `can('task.updateAny')`, the rule of `viewerCan.editAll` in the task panel (the leader, the maker of
+- `TaskRow.canEditPeople` is `mayAssignTask`, the rule of `viewerCan.editAll` in the task panel (the leader, the maker of
   the task, the Admin). The avatar of a task row opens its small pop-up for the lead and the helpers only when it is true.
 
 ## Requests and bugs notices (owner, 2026-10-07)
@@ -394,6 +405,20 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - The Undo asks the right of its own act (`handlers/history.ts`, `assertMayUndo`): the Undo of a new to-do asks `task.add`, the Undo of
   a delete asks the delete switch. Role events keep `admin.manage`; a `settings.updated` event asks `office.settings`. An agent never takes
   back a role change, also the agent of an Admin (`rolesLeaks.test.ts`). The MCP deny list holds `roles.*`, `users.create`, `users.update`.
+- The Undo of a CREATE event (a to-do, a file or a version, a post, a comment, a Tracker entry, a meeting) uses the create right only when the
+  event is the change of the caller (`isOwnChange`: `actingForId` is the caller, also through the caller's own agent). An item that another
+  person's agent made, which the leader takes back through `ai.undoOthers`, needs the right that deletes the item: `task.any` or `task.deleteOwn`,
+  `file.deleteAny` or `file.deleteOwn`, `tracker.deleteAny` or `tracker.deleteOwn`, `meeting.any` or `meeting.editOwn`; a post or a comment stays with its
+  author (`post.editOwn`). `assertUndoRight` asks `ai.undoOthers` on a project, and the place of the maker (`isTaskMaker`) on an office task.
+  Tests: `handlers/rr2Undo.test.ts`.
+- The chat send check is in `postMessage` (`handlers/chats.ts`, `assertMayWriteIn`), the one door of `chats.send` and `files.share`: a project chat asks
+  `chat.project`, a direct chat or a group asks `chat.direct`. An edit, a delete, a reaction and a file (`chatForUpload`) of a direct chat or a group ask
+  `chat.direct` too. `chats.openDirect` asks `chat.direct`, `chats.createGroup` asks `chat.groupCreate`, a rename or an add of `chats.updateGroup` asks
+  `chat.groupChange`. Reading, the read marks, archive, Notify me and leaving stay free. A holder of `chat.project.all` outside the team opens every
+  project chat, and the Inbox counts it as it counts the Admin's other chats: only the messages that name the person (`countsNamedOnly`), unless the
+  person picks All messages. The push of such a chat goes to the person only when a message names the person (`planPushes`).
+- `ProjectSummary.viewerCan.post` is the old flag of the first release. It is true only when the person posts, comments, adds links, uploads, delivers and
+  logs here (all six switches). The screens read the single flags (`postUpdate`, `comment`, `links`, `upload`, `deliver`, `logTracker`).
 - `admin.manage` reads only the Admin role, so it needs no office right.
 - `roles.create`, `roles.update` and `roles.delete` (`handlers/roles.ts`) need `admin.manage`. Each change writes one settings event:
   `role.created`, `role.updated` or `role.deleted`; the event keeps `rights` and `off` (an `off: null` on the old side says the role had
@@ -420,7 +445,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 ## The restart reminder of a pause (owner, 2026-10-19, fbk_025)
 - The restart date of a pause (`pause.resumeOn`) is a reminder. Madar never restarts a project by itself: a person resumes it.
 - `runScheduledTriggers` (`notify.ts`) sends `resume_due` on the planned day, or in the first run after it. It goes to the leader
-  (`reviewersOf`: the Admins when the leader is off) and to the person who paused (`principalOf(pause.by)`), once for each person and each
+  (`leaderOrAdmins`: the Admins when the leader is off; a leader who lacks the review switch still gets it) and to the person who paused (`principalOf(pause.by)`), once for each person and each
   date, because the dedupe key holds the day. The notice keeps the planned day in `dueDate`. `notifications.list` gives it, and for a notice
   made before it holds the day it made. The screen says "is today" on that day and "was <day>" after it (`inbox.trigger.resume_due`
   and `resume_due_past`).
@@ -470,9 +495,9 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   not active or on hold), `minutes_not_attending` (wave 1 only: no call raises it since wave 2, but an old answer can name it), `attendee_agent`, `person_inactive`, `title_hidden`, `project_fixed` (a meeting never
   changes its project), `window_too_long`, `window_reversed`, `project_needed`; `conflict`: `meeting_cancelled`, `meeting_over` (after the end
   only `notes` change, and a cancel is refused), `meeting_not_cancelled` (a delete of a meeting that is not cancelled).
-- Rights (`permissions.ts`): `meeting.view`, `meeting.create`, `meeting.edit`, with `meetingResource` and `mayViewMeeting`. A project meeting is
-  read by everyone, planned by the team, the leader and the Admin (the right to post), and changed or cancelled by its organizer, the leader and
-  the Admin. A meeting with no project is read by its organizer and its attendees only, and changed by its organizer only. The Admin has no
+- Rights (`permissions.ts`): `meeting.view`, `meeting.plan`, `meeting.editOwn`, `meeting.any`, `meeting.minutesOwn`, `meeting.minutesAny`, with `meetingResource`
+  and `mayViewMeeting`. A project meeting is read by everyone, planned with `meeting.plan` (the team, or every project), and changed or cancelled by its organizer
+  (`meeting.editOwn`) or by the leader or every project (`meeting.any`). A meeting with no project is planned with `meeting.plan.none`. A meeting with no project is read by its organizer and its attendees only, and changed by its organizer only. The Admin has no
   extra right there (owner, 2026-10-19, Q4: this differs from an office task). The organizer of an agent is its person (`organizerId` is always
   a person; `createdBy` is the agent).
 - `rev` starts at 1 and grows with a change of the start, the end or the place, and with a cancel. It is not in the event: an Undo of a meeting
@@ -524,11 +549,11 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   after the last day, or after today when the series ran dry, copy the title, kind, project, place, guests, notes, organizer, people, length and time of day, get
   `createdBy` of the caller, and have no notice. One mark `meeting.extended` (target: the last meeting, not undoable, `NOT_UNDOABLE`) and one `meeting.added` for each
   new meeting with the mark as its cause. The call counts every meeting of the series, also those that the caller does not see; the caller must see the
-  last meeting and may change it (`meeting.edit`: the organizer, or the leader and the Admin of a project meeting; review 2026-10-20), else `not_found` or `forbidden`. `seriesToExtend(state, at)` is the rule of the job read for the
+  last meeting and may change it (`meeting.editOwn` for the organizer, `meeting.any` for the leader or every project; review 2026-10-20), else `not_found` or `forbidden`. `seriesToExtend(state, at)` is the rule of the job read for the
   prototype timer.
 - Reasons added: `until_before_start`, `until_too_far`, `series_day_one_only`.
 - Delete (owner, 2026-10-23; `meetings.delete { id, scope? } -> { deleted }`, handlers/meetings.ts): only a cancelled meeting (else `conflict` `meeting_not_cancelled`), by the right
-  `meeting.edit` (the organizer, the leader and the Admin of a project meeting; the organizer of a meeting with no project); a hidden meeting answers `not_found`. It writes
+  `meeting.editOwn` or `meeting.any` (the organizer, the leader and the Admin of a project meeting; the organizer of a meeting with no project); a hidden meeting answers `not_found`. It writes
   `meeting.deleted` with the whole record in `before` (`recordDelete`; a meeting with no project carries `officeMeetingId`), so the Undo of the toast (`events.undoStory`) brings it
   back (`rev` grows once more). Scope "later" deletes this meeting and every later CANCELLED meeting of the series that the person sees, never a scheduled one; the later events
   name the first as their cause, all in one story. A delete changes NO repeat rule (the cancel did that). It sends no notice; a notice of the meeting then reads as gone
@@ -555,8 +580,8 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   meeting with no project takes one: a project meeting, also a team meeting, uses the files of its project, and an upload with its id fails with
   `invalid_input`, reason `file_meeting` (so does a `meetingId` next to a project, a chat, a stage, a task, a cover or a client mark). Who uploads:
   `minutesRefusal(state, meeting, viewer, at)` (`handlers/meetings.ts`) must be null. In this order: `not_found` Meeting (the viewer does not see it; the
-  text of an unknown id), `conflict` `meeting_cancelled`, `conflict` `minutes_not_yet` (before `endsAt`), `forbidden` (no `meeting.minutes`: the
-  organizer and the attendees; for a project meeting the leader and the Admin too), and `conflict` `minutes_line_gone` (a Tracker line meeting whose
+  text of an unknown id), `conflict` `meeting_cancelled`, `conflict` `minutes_not_yet` (before `endsAt`), `forbidden` (no `meeting.minutesOwn` for the
+  organizer and the attendees, and no `meeting.minutesAny` for the leader or every project), and `conflict` `minutes_line_gone` (a Tracker line meeting whose
   settled line is gone). `mayViewFile` is `mayViewMeeting` of the meeting: the people who see it, the Admin only when invited, and nobody once the
   meeting is gone. `mayOpenFile` keeps an agent from opening one (`files.get`, the `files.link` fake). The upload writes no event (`uploadMeetingFile`).
   `assertFilesForMeeting` (`attach.ts`) takes only a file of the meeting itself, and reads any other file as `file_missing`. Every other carrier (a task
@@ -565,7 +590,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   `search.query` finds no meeting file, and `files.list` never lists one. The leak tests: `handlers/meetingFiles.test.ts`, `server/calls/meetingFiles.test.ts`.
 - The minutes (wave 2, owner 2026-10-19; `meetings.saveMinutes { id, text, fileIds, since? }` in `handlers/meetings.ts`): any attendee of a meeting that
   ended writes them, as one text of at most 10,000 letters (`MEETING_LIMITS.minutesMax`) with files (`MAX_ATTACHMENTS`), replaced as a whole. The right is
-  `meeting.minutes` (`permissions.ts`): the organizer and the attendees; for a project meeting the leader and the Admin too (the minutes join the project
+  `meeting.minutesOwn` (the organizer and the attendees) or `meeting.minutesAny` (`permissions.ts`; for a project meeting the leader and the Admin too, because the minutes join the project
   record that the leader answers for); a team member who did not attend only reads them. For a meeting with no project the Admin writes only when invited.
   `minutesRefusal` checks the phase and the right (see the files above). Where they live (`minutesOf`): a project meeting that is not a team meeting
   (`hasTrackerLine`) keeps them on its Tracker line (`TrackerEntry.minutes`, event verb `tracker.minutes_saved`); a team meeting and a meeting with no project
@@ -575,7 +600,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   minutes only and never meets the mark that has no Undo. `files` of a project meeting are files of its project (`assertFilesInProject`); a meeting with no
   project takes only its own files (`assertFilesForMeeting`). `since` is the `updatedAt` that the screen opened (null for no minutes yet): another value gives
   `conflict`, reason `minutes_changed`, so a late save never replaces what another attendee wrote. An empty text with no files writes `minutes: null`. The
-  same text and files write nothing. No notice, no push, no badge and no task. The Undo of either verb needs `meeting.minutes` on its meeting
+  same text and files write nothing. No notice, no push, no badge and no task. The Undo of either verb needs the same minutes right on its meeting
   (`assertMayUndo`, `handlers/history.ts`), and the change stays the person's own (`assertUndoRight`). `MeetingDetail` gives `minutes`, `minutesPlace` and
   `viewerCan.minutes`; `TrackerRow` of an auto meeting line gives `meeting`, `minutes` and `canEditMinutes` (other rows leave the three out).
   `tracker.log` and `tracker.update` never take `minutes` or `meetingId`: zod strips the keys. MCP: `meetings.saveMinutes` is on the allow list, not additive.

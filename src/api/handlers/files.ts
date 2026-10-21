@@ -113,7 +113,7 @@ function addVersion(ctx: Ctx, place: { projectId: string | null; stageId: string
  */
 function uploadOfficeFile(ctx: Ctx, input: { name: string; stageId: string | null; taskId: string | null; asCover: boolean; receivedFromClient: boolean }, prepared: UploadPrepared): FileView {
   const task = officeTaskOfCall(ctx, input.taskId);
-  assertCan(ctx, 'content.post', taskRole(ctx, task));
+  assertCan(ctx, 'file.upload', taskRole(ctx, task));
   if (input.stageId) throw invalid('stageId', 'An office task belongs to no project, so it has no stage.', 'office_no_stage');
   if (input.asCover || input.receivedFromClient) throw invalid(input.asCover ? 'asCover' : 'receivedFromClient', 'A file of an office task stays on its task.', 'file_office_task');
   const version: Version = {
@@ -205,8 +205,10 @@ export const filesUpload = defineCall({
     if (input.projectId === undefined) return uploadOfficeFile(ctx, input, prepared);
     const project = requireProject(ctx, input.projectId);
     const role = roleIn(ctx, project.id);
-    assertCan(ctx, 'content.post', { projectRole: role });
-    if (input.asCover) assertCan(ctx, 'project.edit', { projectRole: role });
+    assertCan(ctx, 'file.upload', { projectRole: role });
+    // "Received from the client" also writes a Tracker line, so it needs the delivery switch. The cover changes the project details.
+    if (input.receivedFromClient) assertCan(ctx, 'file.deliver', { projectRole: role });
+    if (input.asCover) assertCan(ctx, 'project.details', { projectRole: role });
     if (input.stageId) requireStage(ctx, project.id, input.stageId);
     if (input.taskId && ctx.state.tasks[input.taskId]?.projectId !== project.id) throw invalid('taskId', 'This task is not in the project.');
     if (input.asCover && !prepared.mimeType.startsWith('image/')) throw invalid('asCover', 'The cover must be an image.', 'cover_not_image');
@@ -239,7 +241,7 @@ export const filesMarkDelivered = defineCall({
     if (file.meetingId !== undefined) throw invalid('id', 'A file of a meeting stays with its meeting.', 'file_meeting');
     // An office task has no client, so its files are never delivered (owner, 2026-10-06).
     if (file.projectId === null) throw invalid('id', 'A file of an office task stays on its task.', 'file_office_task');
-    assertCan(ctx, 'content.post', { projectRole: roleIn(ctx, file.projectId) });
+    assertCan(ctx, 'file.deliver', { projectRole: roleIn(ctx, file.projectId) });
     const letter = file.versions[file.versions.length - 1].letter;
     const entry = addTrackerEntry(ctx, {
       projectId: file.projectId, type: 'file', direction: 'out', title: file.name, note: `Version ${letter}`, fileIds: [file.id], auto: 'delivered',

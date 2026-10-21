@@ -4,7 +4,8 @@ import { Day, FileId, MAX_ATTACHMENTS, MEETING_LIMITS, Meeting, MeetingId, Meeti
 import { MeetingDetail, MeetingRow } from '../contract/views';
 import { ApiError, forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
-import { can, mayViewMeeting, meetingResource, type Actor } from '../permissions';
+import { mayViewMeeting, meetingResource, type Actor } from '../permissions';
+import { mayEditMeeting, mayWriteMinutes } from '../meetingGates';
 import { notifyIn } from '../notify';
 import { meetingsOf, nextId, type State } from '../store';
 import { cardOf, minutesViewOf } from '../views';
@@ -61,14 +62,14 @@ const conflict = (message: string, reason: string) => new ApiError('conflict', m
 /**
  * What stops a person from writing the minutes of a meeting now, or null when nothing does (fbk_022, wave 2). The same rule serves
  * the upload of a meeting file and the save of the minutes. In this order: a meeting that the person does not see reads as missing;
- * a cancelled meeting has none; none before the end; the person must be one who writes them (meeting.minutes); and a project meeting
+ * a cancelled meeting has none; none before the end; the person must be one who writes them (meeting.minutesOwn or meeting.minutesAny); and a project meeting
  * whose Tracker line is gone waits until someone brings the line back, because its minutes live on that line.
  */
 export function minutesRefusal(state: State, meeting: Meeting, viewer: Actor, at: Date): ApiError | null {
   if (!mayViewMeeting(state, viewer, meeting)) return notFound('Meeting', meeting.id);
   if (meeting.status === 'cancelled') return conflict('This meeting is cancelled. It has no minutes.', 'meeting_cancelled');
   if (phaseOf(meeting, at) !== 'done') return conflict('You can write the minutes after the meeting ends.', 'minutes_not_yet');
-  if (!can(viewer, 'meeting.minutes', meetingResource(state, meeting, viewer.id))) return forbidden('You cannot do this.', { action: 'meeting.minutes' });
+  if (!mayWriteMinutes(viewer, meetingResource(state, meeting, viewer.id))) return forbidden('You cannot do this.', { action: 'meeting.minutesOwn' });
   if (hasTrackerLine(meeting) && meeting.settledAt && !(meeting.trackerEntryId && state.tracker?.[meeting.trackerEntryId])) {
     return conflict('Someone deleted the Tracker line of this meeting. Undo the delete in the History first.', 'minutes_line_gone');
   }
@@ -80,7 +81,12 @@ const takesPart = (meeting: Pick<Meeting, 'organizerId' | 'attendeeIds'>, person
   meeting.organizerId === personId || meeting.attendeeIds.includes(personId);
 
 function viewerMayEdit(state: State, viewer: Actor, meeting: Meeting): boolean {
-  return can(viewer, 'meeting.edit', meetingResource(state, meeting, viewer.id));
+  return mayEditMeeting(viewer, meetingResource(state, meeting, viewer.id));
+}
+
+/** The change, cancel, delete and extend of a meeting: meeting.editOwn for its organizer, meeting.any for the leader or every project. */
+function assertMayEdit(ctx: Ctx, meeting: Meeting): void {
+  if (!viewerMayEdit(ctx.state, ctx.authority, meeting)) throw forbidden('You cannot do this.', { action: 'meeting.editOwn' });
 }
 
 /** One meeting in a list. */
@@ -203,11 +209,11 @@ function checkStart(startsAt: string, at: Date, current?: string): string {
 function assertMayPlan(ctx: Ctx, projectId: string | null): void {
   const people = { organizerId: ctx.authority.id, attendeeIds: [] as string[], noProject: projectId === null };
   if (projectId === null) {
-    assertCan(ctx, 'meeting.create', { meeting: people });
+    assertCan(ctx, 'meeting.plan', { meeting: people });
     return;
   }
   const project = requireProject(ctx, projectId);
-  assertCan(ctx, 'meeting.create', { projectRole: roleIn(ctx, projectId), meeting: people });
+  assertCan(ctx, 'meeting.plan', { projectRole: roleIn(ctx, projectId), meeting: people });
   if (project.status !== 'active' && project.status !== 'on_hold') throw invalid('projectId', 'This project is closed. A meeting goes only to an open project.', 'project_closed');
 }
 
@@ -280,7 +286,7 @@ const meetingsUpdate = defineCall({
   output: MeetingDetail,
   run(input, ctx) {
     const meeting = requireMeeting(ctx, input.id);
-    assertCan(ctx, 'meeting.edit', meetingResource(ctx.state, meeting, ctx.authority.id));
+    assertMayEdit(ctx, meeting);
     if (meeting.status === 'cancelled') throw conflict('This meeting is cancelled. It cannot change.', 'meeting_cancelled');
     const later = input.scope === 'later' && meeting.seriesId ? laterOf(ctx, meeting) : [];
     // A meeting stays in its project, or stays private. A call may repeat the project that the meeting has.
@@ -350,7 +356,7 @@ const meetingsCancel = defineCall({
   output: MeetingDetail,
   run(input, ctx) {
     const meeting = requireMeeting(ctx, input.id);
-    assertCan(ctx, 'meeting.edit', meetingResource(ctx.state, meeting, ctx.authority.id));
+    assertMayEdit(ctx, meeting);
     // A second cancel changes nothing and writes no event.
     if (meeting.status === 'cancelled') return meetingDetailOf(ctx.state, meeting, ctx.authority, ctx.now);
     if (phaseOf(meeting, ctx.now) === 'done') throw conflict('This meeting is over. It cannot be cancelled.', 'meeting_over');
@@ -397,7 +403,7 @@ const meetingsDelete = defineCall({
   output: z.object({ deleted: z.number().int().min(1) }),
   run(input, ctx) {
     const meeting = requireMeeting(ctx, input.id);
-    assertCan(ctx, 'meeting.edit', meetingResource(ctx.state, meeting, ctx.authority.id));
+    assertMayEdit(ctx, meeting);
     if (meeting.status !== 'cancelled') throw conflict('Only a cancelled meeting can be deleted. Cancel it first.', 'meeting_not_cancelled');
     const from = Date.parse(meeting.startsAt);
     const later = input.scope === 'later' && meeting.seriesId
@@ -511,7 +517,7 @@ const meetingsExtend = defineCall({
     const last = rows[rows.length - 1];
     // A series that the caller cannot see reads as missing, with the text of an unknown id.
     if (!last || !mayViewMeeting(ctx.state, ctx.authority, last)) throw notFound('Meeting', input.seriesId);
-    assertCan(ctx, 'meeting.edit', meetingResource(ctx.state, last, ctx.authority.id));
+    assertMayEdit(ctx, last);
     if (!last.repeat) return { added: 0 };
     // A project that is completed or archived holds no new meeting: its series stops (a paused project goes on).
     if (last.projectId !== null && !seriesProjectIsOpen(ctx.state, last.projectId)) return { added: 0 };
