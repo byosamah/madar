@@ -813,7 +813,7 @@ Owner: tasks and chat need notifications on the phone. These fixes serve the Hom
   a press opens it), the Settings hint, What's new 2026-10-23-71. No MCP change: the push calls stay on the deny list
 - [x] Hand test on the test copy (owner's iPhone, 2026-10-21): three lines, each press opened its place. Production at e361e0cb
   (the owner said "deploy"; Claude ran it). Record: proof.md
-- [ ] Android: the owner tries the line on production (not tried by hand before the release)
+- [x] Android: the owner tried the line on production and it worked (2026-10-21)
 - [ ] Each phone gets the line after its first open of Madar after the release (the start check sends the keys)
 - [ ] Found: What's new shows the day "23 October" for the entries of 2026-10-20 (ids `2026-10-23-*`). Ask the owner before a change:
   a new id marks an entry as new again
