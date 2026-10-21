@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { OfficeRight } from './contract/entities';
 import { type Action, type Actor, can, type ProjectRole, type Resource } from './permissions';
 import { BASIC_ON, CATALOG_RIGHT_IDS, RIGHT_INFO, withNeeds } from './rightsCatalog';
+import { mayAssignTask, mayChangeTask, mayDeleteTask, mayTickChecklist, type TaskKind } from './taskGates';
 import { makeUser } from '../test/factories';
 
 /**
@@ -244,11 +245,21 @@ describe('what a switch opens besides its own power', () => {
 
   it('lets the change of any to-do pass every kind of change on a project, and never an office to-do', () => {
     const holder = person(['task.any.lead']);
-    for (const action of ['task.updateAny', 'task.updateOwn', 'task.contribute', 'task.delete'] as Action[]) {
-      expect(can(holder, action, { projectRole: 'leader', makerId: OTHER, ownerId: OTHER }), action).toBe(true);
-      expect(can(holder, action, { projectRole: 'team', makerId: OTHER, ownerId: OTHER }), `team ${action}`).toBe(false);
-      expect(can(holder, action, { office: true, makerId: OTHER, ownerId: OTHER }), `office ${action}`).toBe(false);
+    const kinds: TaskKind[] = ['details', 'dates', 'work'];
+    const led = { projectRole: 'leader' as const, makerId: OTHER, ownerId: OTHER };
+    const team = { projectRole: 'team' as const, makerId: OTHER, ownerId: OTHER };
+    const office = { office: true, makerId: OTHER, ownerId: OTHER };
+    expect(can(holder, 'task.any', led)).toBe(true);
+    expect(can(holder, 'task.any', team)).toBe(false);
+    expect(can(holder, 'task.any', office)).toBe(false);
+    for (const kind of kinds) {
+      expect(mayChangeTask(holder, kind, led), kind).toBe(true);
+      expect(mayChangeTask(holder, kind, team), `team ${kind}`).toBe(false);
+      expect(mayChangeTask(holder, kind, office), `office ${kind}`).toBe(false);
     }
+    expect(mayAssignTask(holder, led)).toBe(true);
+    expect(mayDeleteTask(holder, led)).toBe(true);
+    expect(mayTickChecklist(holder, led)).toBe(true);
   });
 
   it('keeps the people rule of an own power: a switch does not open the to-do of another person', () => {
@@ -262,16 +273,17 @@ describe('what a switch opens besides its own power', () => {
 
   it('lets a helper tick with the work switch, and refuses the tick without it', () => {
     const resource: Resource = { projectRole: 'team', makerId: OTHER, ownerId: OTHER, helperIds: [ME] };
-    expect(can(person(['task.work']), 'task.contribute', resource)).toBe(true);
+    expect(mayTickChecklist(person(['task.work']), resource)).toBe(true);
     // A Member with every basic switch but the work switch: no all switch opens the project.
-    expect(can(person(BASIC_ON.filter((id) => id !== 'task.work')), 'task.contribute', resource)).toBe(false);
+    expect(mayTickChecklist(person(BASIC_ON.filter((id) => id !== 'task.work')), resource)).toBe(false);
   });
 
   it('asks the assign switch for a to-do made for another person', () => {
-    expect(can(person(['task.add.team', 'task.assign']), 'task.createForAnyone', { projectRole: 'team' })).toBe(true);
-    expect(can(person(['task.add.team']), 'task.createForAnyone', { projectRole: 'team' })).toBe(false);
-    expect(can(person(['task.add.team']), 'task.createForSelf', { projectRole: 'team' })).toBe(true);
-    expect(can(person(['task.add.office', 'task.assign']), 'task.createForAnyone', { office: true })).toBe(true);
+    const forAnyone = (holder: Actor, resource: Resource) => can(holder, 'task.add', resource) && can(holder, 'task.assign');
+    expect(forAnyone(person(['task.add.team', 'task.assign']), { projectRole: 'team' })).toBe(true);
+    expect(forAnyone(person(['task.add.team']), { projectRole: 'team' })).toBe(false);
+    expect(can(person(['task.add.team']), 'task.add', { projectRole: 'team' })).toBe(true);
+    expect(forAnyone(person(['task.add.office', 'task.assign']), { office: true })).toBe(true);
   });
 
   it('gives the Admin every power on every spec, whatever is attached', () => {

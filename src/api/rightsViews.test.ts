@@ -100,9 +100,9 @@ describe('viewerCan of a project: one flag for each new gate', () => {
     expect((await t.api.call('projects.get', { id: 'prj_001' })).viewerCan.payments).toBe(true);
     t.as('usr_003');
     expect((await t.api.call('projects.get', { id: 'prj_001' })).viewerCan.payments).toBe(false);
-    t.store.state.settings.roles = { rights: { accounting: ['payment.add'] } };
+    t.store.state.settings.roles = { rights: { accounting: ['payment.view', 'payment.add'] } };
     t.as('usr_006');
-    // payment.add needs payment.view, so the view switch comes with it.
+    // payment.add needs payment.view: the sheet sends both, and a stored list without the view switch counts payment.add as off.
     expect((await t.api.call('projects.get', { id: 'prj_001' })).viewerCan.payments).toBe(true);
     t.store.state.settings.roles = { rights: { accounting: [] } };
     expect((await t.api.call('projects.get', { id: 'prj_001' })).viewerCan.payments).toBe(false);
@@ -165,10 +165,10 @@ describe('the Undo asks the right of its own act', () => {
     t.as('usr_006');
     const made = await t.api.call('payments.create', { projectId: 'prj_001', name: 'Fee', amount: 1000, dueDate: '2026-10-10' });
     const created = Object.values(t.store.state.events).find((event) => event.verb === 'payment.created' && event.targetId === made.payment.id)!;
-    t.store.state.settings.roles = { rights: { accounting: ['payment.change', 'payment.receive'] } };
-    // payment.view comes with payment.change; payment.add is off: the Undo of the making is refused.
+    t.store.state.settings.roles = { rights: { accounting: ['payment.view', 'payment.change', 'payment.receive'] } };
+    // payment.add is off: the Undo of the making is refused.
     await expect(t.api.call('events.undo', { eventId: created.id })).rejects.toMatchObject({ code: 'forbidden' });
-    t.store.state.settings.roles = { rights: { accounting: ['payment.add'] } };
+    t.store.state.settings.roles = { rights: { accounting: ['payment.view', 'payment.add'] } };
     await expect(t.api.call('events.undo', { eventId: created.id })).resolves.toBeDefined();
   });
 

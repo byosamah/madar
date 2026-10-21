@@ -6,22 +6,17 @@ import type { State } from './store';
 /**
  * The actions that can() answers. Role rights version 2 (owner, 2026-10-21): one action for every power of the catalog
  * (rightsCatalog.ts), named like the power. A power with scopes (lead, team, all, office, none) asks the scope rule of scopeAllows.
- * The first block holds the old actions. They stay with today's meaning, computed from the new switches ("compat"): each one is
- * deleted when the last call site has moved to the new actions.
+ * The first block holds the old names that are also the name of a power. The stand-ins that covered many powers are gone: every call
+ * site asks the action of its own power (role rights version 2, screens track).
  */
 export type Action =
-  // The old actions (compat: delete after the call sites move). Some old names are also the name of a power: project.create,
-  // project.archive, project.delete, task.take, task.help, task.review, chat.project, report.office, subCompanies.manage,
-  // templates.updateProjects, feedback.manage, gaps.view. They follow the new switch.
-  | 'project.view' | 'project.create' | 'project.edit' | 'project.changeLeader' | 'project.archive'
-  | 'project.delete' | 'project.healthOverride' | 'project.editCode'
-  | 'task.view' | 'task.createForAnyone' | 'task.createForSelf' | 'task.updateOwn' | 'task.contribute' | 'task.updateAny' | 'task.review' | 'task.delete'
-  | 'task.take' | 'task.help' | 'meeting.view' | 'meeting.create' | 'meeting.edit' | 'meeting.minutes'
-  | 'content.post' | 'content.editOwn' | 'chat.project' | 'comment.read'
-  | 'event.undoAgent' | 'admin.manage' | 'people.manage' | 'payment.manage' | 'clients.manage' | 'templates.manageAll' | 'report.office'
-  | 'project.editAny' | 'project.changeLeaderAny' | 'project.archiveAny' | 'task.reviewAny' | 'task.changeAny'
-  | 'subCompanies.manage' | 'templates.updateProjects' | 'agents.undoAny' | 'feedback.manage' | 'gaps.view'
-  // The new powers (one action for each power of the catalog that the old list did not name).
+  // The old names that are also the name of a power. They follow the switch of the same name: project.create, project.archive,
+  // project.delete, task.take, task.help, task.review, chat.project, report.office, subCompanies.manage, templates.updateProjects,
+  // feedback.manage, gaps.view.
+  | 'project.view' | 'project.create' | 'project.archive' | 'project.delete'
+  | 'task.view' | 'task.review' | 'task.take' | 'task.help' | 'meeting.view' | 'chat.project' | 'comment.read'
+  | 'admin.manage' | 'report.office' | 'subCompanies.manage' | 'templates.updateProjects' | 'feedback.manage' | 'gaps.view'
+  // The powers of the catalog (one action for each power that the old list did not name).
   | 'client.create' | 'project.details' | 'project.team' | 'project.stages' | 'project.deadlines' | 'project.template' | 'project.leader'
   | 'project.health' | 'project.code'
   | 'task.add' | 'task.assign' | 'task.work' | 'task.details' | 'task.dates' | 'task.deleteOwn' | 'task.any' | 'task.officeAll'
@@ -93,12 +88,6 @@ export function scopeAllows(actor: Actor, power: string, role: ProjectRole): boo
   return false;
 }
 
-/** The powers behind a compat action that stands for many (compat: delete after the call sites move). */
-const EDIT_POWERS = ['project.details', 'project.team', 'project.stages', 'project.deadlines', 'project.template', 'project.health'] as const;
-const POST_POWERS = ['post.create', 'comment.create', 'project.links', 'file.upload', 'file.deliver', 'tracker.log'] as const;
-const PEOPLE_SWITCHES = ['people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove'] as const;
-const PAYMENT_SWITCHES = ['payment.view', 'payment.add', 'payment.change', 'payment.receive'] as const;
-
 /** The actions that one switch of the same name answers, with no scope and no people rule. */
 const SIMPLE: ReadonlySet<Action> = new Set<Action>([
   'project.create', 'client.create', 'task.assign', 'task.officeAll', 'file.share', 'chat.direct', 'chat.groupCreate', 'chat.groupChange',
@@ -108,15 +97,6 @@ const SIMPLE: ReadonlySet<Action> = new Set<Action>([
   'ai.connect', 'ai.readWork', 'ai.readChats', 'ai.todos', 'ai.posts', 'ai.messages', 'ai.meetings', 'ai.tracker', 'ai.projects',
   'ai.payments', 'ai.feedback', 'ai.report', 'ai.undo', 'feedback.send', 'feedback.manage', 'office.settings',
 ]);
-
-/**
- * True when the resource describes a task: taskResource always names the maker of the task. A file or a Tracker entry of a project asks
- * task.delete with the project role alone, as a stand-in for "the leader or the Admin". The right to change any to-do must not open
- * those: it changes to-dos, and it does not delete the files or the Tracker entries of a project (role-rights, owner 2026-10-23).
- */
-function describesTask(resource: Resource): boolean {
-  return resource.makerId !== undefined;
-}
 
 /**
  * ownerId is the lead of a task. Null: the task has no lead, so nobody holds the rights of its lead.
@@ -213,21 +193,13 @@ function canOnOfficeTask(actor: Actor, action: Action, resource: Resource): bool
   const authored = sees && resource.authorId === actor.id;
   switch (action) {
     case 'task.add':
-    case 'task.createForSelf':
       return held('task.add.office');
-    case 'task.createForAnyone':
-      return held('task.add.office') && held('task.assign');
     case 'task.view':
     case 'comment.read':
       return sees;
-    // compat: delete after the call sites move
-    case 'content.post':
-      return team('comment.create') && team('file.upload');
     case 'comment.create':
     case 'file.upload':
       return team(action);
-    case 'task.contribute':
-      return sees && held('task.work');
     case 'task.take':
     // A helper leaves an office task. Nobody joins one: its maker names its people (fbk_035, the call refuses a join).
     case 'task.help':
@@ -236,27 +208,15 @@ function canOnOfficeTask(actor: Actor, action: Action, resource: Resource): bool
     case 'task.details':
     case 'task.dates':
       return leads && held(action);
-    // compat: delete after the call sites move
-    case 'task.updateOwn':
-      return leads && held('task.work') && held('task.details') && held('task.dates');
-    // compat: delete after the call sites move
-    case 'task.updateAny':
-      return maker && held('task.assign');
     case 'task.review':
-    case 'event.undoAgent':
     // The office has no switch for deleting a file of an office to-do: its maker does it, as today.
     case 'file.deleteAny':
       return maker;
     case 'task.deleteOwn':
-    // compat: delete after the call sites move
-    case 'task.delete':
       return maker && held('task.deleteOwn');
     case 'post.editOwn':
     case 'file.deleteOwn':
       return authored && held(action);
-    // compat: delete after the call sites move
-    case 'content.editOwn':
-      return authored && held('post.editOwn') && held('file.deleteOwn');
     case 'task.officeAll':
     case 'task.assign':
     case 'file.share':
@@ -303,16 +263,10 @@ function canOnMeeting(actor: Actor, action: Action, resource: Resource): boolean
       case 'meeting.view':
         return attends;
       case 'meeting.plan':
-      // compat: delete after the call sites move
-      case 'meeting.create':
         return held('meeting.plan.none');
       case 'meeting.editOwn':
-      // compat: delete after the call sites move
-      case 'meeting.edit':
         return organizer && held('meeting.editOwn');
       case 'meeting.minutesOwn':
-      // compat: delete after the call sites move
-      case 'meeting.minutes':
         return attends && held('meeting.minutesOwn');
       default:
         return false;
@@ -325,23 +279,15 @@ function canOnMeeting(actor: Actor, action: Action, resource: Resource): boolean
     case 'meeting.view':
       return true;
     case 'meeting.plan':
-    // compat: delete after the call sites move
-    case 'meeting.create':
       return scopeAllows(actor, 'meeting.plan', role);
     case 'meeting.editOwn':
       return own;
     case 'meeting.any':
       return scopeAllows(actor, 'meeting.any', role);
-    // compat: delete after the call sites move
-    case 'meeting.edit':
-      return scopeAllows(actor, 'meeting.any', role) || own;
     case 'meeting.minutesOwn':
       return ownMinutes;
     case 'meeting.minutesAny':
       return scopeAllows(actor, 'meeting.minutesAny', role);
-    // compat: delete after the call sites move
-    case 'meeting.minutes':
-      return scopeAllows(actor, 'meeting.minutesAny', role) || ownMinutes;
     default:
       return false;
   }
@@ -403,32 +349,11 @@ export function can(actor: Actor, action: Action, resource: Resource = {}): bool
     case 'chat.project':
     case 'task.add':
       return scope(action);
-    // compat: delete after the call sites move (the old names of powers with new names)
-    case 'project.edit':
-      return EDIT_POWERS.every((power) => scope(power));
-    case 'project.changeLeader':
-      return scope('project.leader');
-    case 'project.healthOverride':
-      return scope('project.health');
-    case 'event.undoAgent':
-      return scope('ai.undoOthers');
     case 'ai.undoOthers':
       return scope('ai.undoOthers');
     // The code is fixed after create. Only a person with the right corrects it (owner, 2026-10-05), and only where the details pass.
     case 'project.code':
       return held('project.code') && scope('project.details');
-    // compat: delete after the call sites move. The code call also asks project.edit, so no scope here.
-    case 'project.editCode':
-      return held('project.code');
-    // A team member adds a task for any team mate (owner, 2026-10-07). Only the leader and the Admin name a person outside the team.
-    // compat: delete after the call sites move
-    case 'task.createForSelf':
-      return scope('task.add');
-    case 'task.createForAnyone':
-      return scope('task.add') && held('task.assign');
-    // compat: delete after the call sites move
-    case 'content.post':
-      return POST_POWERS.every((power) => scope(power));
     // A person on the team takes the lead of a task with no lead (owner, 2026-10-05). The call checks that the task has none.
     case 'task.take':
     // A person on the team joins a task as a helper, or leaves it, with one tap (fbk_035, owner 2026-10-20).
@@ -439,55 +364,16 @@ export function can(actor: Actor, action: Action, resource: Resource = {}): bool
     case 'task.details':
     case 'task.dates':
       return own && held(action);
-    // compat: delete after the call sites move
-    case 'task.updateOwn':
-      return anyTask || (own && held('task.work') && held('task.details') && held('task.dates'));
-    // A helper ticks checklist items beside the lead. The lead, the maker, the leader and the Admin may do it too.
-    case 'task.contribute':
-      return anyTask || ((own || (onProject && (resource.helperIds ?? []).includes(actor.id))) && held('task.work'));
-    // compat: delete after the call sites move
-    case 'task.updateAny':
-      return anyTask || (maker && held('task.assign'));
     // The lead deletes the task too, for a task that went into the wrong project. The call tells the maker (fbk_034, owner 2026-10-20).
     case 'task.deleteOwn':
       return own && held('task.deleteOwn');
-    // compat: delete after the call sites move. A file or a Tracker entry asks this with the project role alone, as a stand-in for
-    // "the leader or the Admin"; it asks the delete switches of the files and of the Tracker.
-    case 'task.delete':
-      return describesTask(resource)
-        ? anyTask || (own && held('task.deleteOwn'))
-        : scope('file.deleteAny') && scope('tracker.deleteAny');
     case 'post.editOwn':
     case 'file.deleteOwn':
     case 'tracker.deleteOwn':
       return authored && held(action);
-    // compat: delete after the call sites move
-    case 'content.editOwn':
-      return authored && held('post.editOwn') && held('file.deleteOwn');
     // The office settings stay with the Admin.
     case 'admin.manage':
       return admin;
-    // The old office rights, asked by their own name (compat: delete after the call sites move): does the person hold the right at all.
-    case 'people.manage':
-      return PEOPLE_SWITCHES.every(held);
-    case 'payment.manage':
-      return PAYMENT_SWITCHES.every(held);
-    case 'clients.manage':
-      return held('clients.change');
-    case 'templates.manageAll':
-      return held('templates.projectAny') && held('templates.taskAny') && held('templates.taskSave.all');
-    case 'project.editAny':
-      return EDIT_POWERS.every((power) => held(`${power}.all`));
-    case 'project.changeLeaderAny':
-      return held('project.leader.all');
-    case 'project.archiveAny':
-      return held('project.archive.all');
-    case 'task.reviewAny':
-      return held('task.review.all');
-    case 'task.changeAny':
-      return held('task.any.all');
-    case 'agents.undoAny':
-      return held('ai.undoOthers.all');
     default:
       return false;
   }

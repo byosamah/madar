@@ -154,8 +154,8 @@ describe('rightsOf: the office rights of each person (role rights version 2)', (
 describe('can() reads the office rights of the actor', () => {
   it('reads the rights attached to the actor', () => {
     expect(can({ ...member, officeRights: ['project.delete.all'] }, 'project.delete')).toBe(true);
-    expect(can({ ...management, officeRights: ['clients.change'] }, 'people.manage')).toBe(false);
-    expect(can({ ...management, officeRights: [] }, 'people.manage')).toBe(false);
+    expect(can({ ...management, officeRights: ['clients.change'] }, 'people.invite')).toBe(false);
+    expect(can({ ...management, officeRights: [] }, 'people.invite')).toBe(false);
   });
 
   it('gives no office right to a person with no rights attached, so a path that forgot them fails closed', () => {
@@ -166,15 +166,15 @@ describe('can() reads the office rights of the actor', () => {
   });
 
   it('reads the default switches of the role when withOfficeRights attaches them', () => {
-    expect(can(withOfficeRights(management, undefined), 'people.manage')).toBe(true);
-    expect(can(withOfficeRights(accounting, undefined), 'payment.manage')).toBe(true);
-    expect(can(withOfficeRights(accounting, undefined), 'people.manage')).toBe(false);
+    expect(can(withOfficeRights(management, undefined), 'people.invite')).toBe(true);
+    expect(can(withOfficeRights(accounting, undefined), 'payment.view')).toBe(true);
+    expect(can(withOfficeRights(accounting, undefined), 'people.invite')).toBe(false);
     expect(can(withOfficeRights(member, undefined), 'project.delete', { projectRole: 'leader' })).toBe(false);
   });
 
   it('lets the Admin do every office action, whatever the attached rights are, or when none are attached', () => {
     expect(can({ ...admin, officeRights: [] }, 'project.delete')).toBe(true);
-    expect(can({ ...admin, officeRights: [] }, 'people.manage')).toBe(true);
+    expect(can({ ...admin, officeRights: [] }, 'people.invite')).toBe(true);
     for (const right of ['people.invite', 'payment.view', 'report.office', 'gaps.view', 'search.use'] as const) expect(can(admin, right), right).toBe(true);
   });
 });

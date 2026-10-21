@@ -63,11 +63,12 @@ describe('the authority of a load holds the office rights of its person (fbk_014
     state.users.usr_052 = { ...state.users.usr_003, id: 'usr_052', email: 'agent@madar.test', kind: 'agent', ownerId: 'usr_050' };
     const office = officeOf(state);
     const own = new Load({ src: memorySource(structuredClone(state)), office, actorId: 'usr_050', write: false });
-    expect(can(own.authority!, 'payment.manage')).toBe(true);
-    expect(can(own.authority!, 'people.manage')).toBe(false);
+    expect(can(own.authority!, 'payment.view')).toBe(true);
+    expect(can(own.authority!, 'payment.add')).toBe(true);
+    expect(can(own.authority!, 'people.invite')).toBe(false);
     const agent = new Load({ src: memorySource(structuredClone(state)), office, actorId: 'usr_052', write: false });
     expect(agent.authority?.id).toBe('usr_050');
-    expect(can(agent.authority!, 'payment.manage')).toBe(true);
+    expect(can(agent.authority!, 'payment.view')).toBe(true);
   });
 });
 

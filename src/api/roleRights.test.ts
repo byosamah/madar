@@ -19,14 +19,14 @@ const outsider: Resource = { projectRole: 'other', makerId: 'usr_002', ownerId: 
 
 /** Each new right, the actions it passes on a project the person is not on, and actions it must not pass. */
 const NEW_RIGHTS: [StoredRight, Action[], Action[]][] = [
-  ['project.editAny', ['project.edit', 'project.healthOverride'], ['project.changeLeader', 'project.archive', 'project.delete', 'project.editCode', 'task.review', 'task.updateAny', 'event.undoAgent', 'admin.manage']],
-  ['project.changeLeaderAny', ['project.changeLeader'], ['project.edit', 'project.archive', 'project.healthOverride', 'task.review']],
-  ['project.archiveAny', ['project.archive'], ['project.edit', 'project.changeLeader', 'project.healthOverride', 'project.delete']],
-  ['task.reviewAny', ['task.review'], ['task.updateAny', 'task.updateOwn', 'task.delete', 'project.edit', 'event.undoAgent']],
-  ['task.changeAny', ['task.updateAny', 'task.updateOwn', 'task.contribute', 'task.delete'], ['task.review', 'project.edit', 'event.undoAgent', 'content.post', 'task.createForSelf']],
-  ['agents.undoAny', ['event.undoAgent'], ['task.review', 'project.edit', 'admin.manage']],
-  ['subCompanies.manage', ['subCompanies.manage'], ['admin.manage', 'feedback.manage', 'gaps.view', 'people.manage']],
-  ['templates.updateProjects', ['templates.updateProjects'], ['templates.manageAll', 'admin.manage', 'project.edit']],
+  ['project.editAny', ['project.details', 'project.team', 'project.stages', 'project.deadlines', 'project.template', 'project.health'], ['project.leader', 'project.archive', 'project.delete', 'project.code', 'task.review', 'task.any', 'ai.undoOthers', 'admin.manage']],
+  ['project.changeLeaderAny', ['project.leader'], ['project.details', 'project.archive', 'project.health', 'task.review']],
+  ['project.archiveAny', ['project.archive'], ['project.details', 'project.leader', 'project.health', 'project.delete']],
+  ['task.reviewAny', ['task.review'], ['task.any', 'task.work', 'task.deleteOwn', 'project.details', 'ai.undoOthers']],
+  ['task.changeAny', ['task.any'], ['task.review', 'project.details', 'ai.undoOthers', 'post.create', 'task.add']],
+  ['agents.undoAny', ['ai.undoOthers'], ['task.review', 'project.details', 'admin.manage']],
+  ['subCompanies.manage', ['subCompanies.manage'], ['admin.manage', 'feedback.manage', 'gaps.view', 'people.invite']],
+  ['templates.updateProjects', ['templates.updateProjects'], ['templates.projectAny', 'admin.manage', 'project.details']],
   ['feedback.manage', ['feedback.manage'], ['admin.manage', 'gaps.view', 'subCompanies.manage']],
   ['gaps.view', ['gaps.view'], ['admin.manage', 'feedback.manage', 'report.office']],
 ];
@@ -68,33 +68,36 @@ describe('the new office rights in can() (role-rights)', () => {
     const holder = withRights(['task.changeAny', 'task.reviewAny', 'agents.undoAny', 'project.editAny']);
     // The task of another person, which the holder neither made, nor leads, nor helps with.
     const office: Resource = { office: true, makerId: 'usr_002', ownerId: 'usr_003', helperIds: [] };
-    const actions: Action[] = ['task.view', 'task.updateAny', 'task.updateOwn', 'task.contribute', 'task.delete', 'task.review', 'event.undoAgent', 'comment.read', 'content.post'];
+    const actions: Action[] = ['task.view', 'task.any', 'task.work', 'task.details', 'task.dates', 'task.deleteOwn', 'task.review', 'ai.undoOthers', 'comment.read', 'comment.create', 'file.upload'];
     for (const action of actions) expect(can(holder, action, office), action).toBe(false);
     // The Admin sees it, as before.
     expect(can(admin, 'task.view', office)).toBe(true);
   });
 
-  it('does not let task.changeAny delete a file or a Tracker entry: task.delete without a task is the leader stand-in, and it stays with the leader', () => {
+  it('does not let task.changeAny delete a file or a Tracker entry: those have their own switches, and they stay with the leader', () => {
     const holder = withRights(['task.changeAny']);
-    // mayDeleteFile and mayDeleteTracker ask task.delete with the project role alone.
-    expect(can(holder, 'task.delete', { projectRole: 'other' })).toBe(false);
-    expect(can(holder, 'task.delete', outsider)).toBe(true);
-    expect(can(admin, 'task.delete', { projectRole: 'other' })).toBe(true);
+    expect(can(holder, 'file.deleteAny', { projectRole: 'other' })).toBe(false);
+    expect(can(holder, 'tracker.deleteAny', { projectRole: 'other' })).toBe(false);
+    expect(can(holder, 'task.any', outsider)).toBe(true);
+    expect(can(admin, 'file.deleteAny', { projectRole: 'other' })).toBe(true);
+    expect(can(admin, 'tracker.deleteAny', { projectRole: 'other' })).toBe(true);
   });
 
   it('opens no action that stays tied to a person', () => {
     const holder = withRights(['task.changeAny', 'project.editAny']);
-    // content.editOwn stays with the author on the team. A right of the sheet does not open it.
-    expect(can(holder, 'content.editOwn', { projectRole: 'other', authorId: holder.id })).toBe(false);
+    // post.editOwn stays with the author on the team. A right of the sheet does not open it.
+    expect(can(holder, 'post.editOwn', { projectRole: 'other', authorId: holder.id })).toBe(false);
     // The meeting rules do not read these rights.
-    expect(can(holder, 'meeting.edit', { projectRole: 'other', meeting: { organizerId: 'usr_002', attendeeIds: [], noProject: false } })).toBe(false);
+    const meeting = { projectRole: 'other' as const, meeting: { organizerId: 'usr_002', attendeeIds: [], noProject: false } };
+    expect(can(holder, 'meeting.editOwn', meeting)).toBe(false);
+    expect(can(holder, 'meeting.any', meeting)).toBe(false);
   });
 
   it('keeps the rights of a team member who holds no right', () => {
     const team = withOfficeRights(member, undefined);
-    expect(can(team, 'project.edit', { projectRole: 'team' })).toBe(false);
-    expect(can(team, 'task.updateAny', { projectRole: 'team' })).toBe(false);
-    expect(can(team, 'task.createForSelf', { projectRole: 'team' })).toBe(true);
+    expect(can(team, 'project.details', { projectRole: 'team' })).toBe(false);
+    expect(can(team, 'task.any', { projectRole: 'team' })).toBe(false);
+    expect(can(team, 'task.add', { projectRole: 'team' })).toBe(true);
   });
 });
 
@@ -144,8 +147,10 @@ describe('the defaults: nobody gets a new power from this release', () => {
   it('gives a custom role with the old rights the same powers as before', () => {
     const role = { id: 'rol_001', name: 'Payments', nameAr: 'المدفوعات', rights: ['project.delete', 'payment.manage'] as StoredRight[] };
     const held = rightsOf({ ...member, roleId: 'rol_001' }, { custom: [role] });
-    expect(held).toEqual(expect.arrayContaining(['payment.view', 'payment.add', 'payment.change', 'payment.receive', 'project.delete.all', 'project.delete.lead']));
-    expect(held).toHaveLength(BASIC_ON.length + 6);
+    // The old right project.delete stands for the switch of every project only (the sibling for the projects the person leads stays off).
+    expect(held).toEqual(expect.arrayContaining(['payment.view', 'payment.add', 'payment.change', 'payment.receive', 'project.delete.all']));
+    expect(held).not.toContain('project.delete.lead');
+    expect(held).toHaveLength(BASIC_ON.length + 5);
   });
 
   it('gives the Admin all 112 switches, the old ones and the new ones', () => {
@@ -158,7 +163,7 @@ describe('the defaults: nobody gets a new power from this release', () => {
     const role = { id: 'rol_002', name: 'Lead', nameAr: 'قيادة', rights: ['project.editAny', 'feedback.manage'] as StoredRight[] };
     const roles = { custom: [role] };
     const person = withOfficeRights({ ...member, roleId: 'rol_002' }, roles);
-    expect(can(person, 'project.edit', outsider)).toBe(true);
+    expect(can(person, 'project.details', outsider)).toBe(true);
     expect(can(person, 'feedback.manage')).toBe(true);
     expect(can(person, 'project.archive', outsider)).toBe(false);
     expect(can(person, 'gaps.view')).toBe(false);

@@ -391,10 +391,17 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   plus its own (the meaning of before); with `off` = its own full list; a deleted role leaves the Member switches. `heldRightsOfRole` gives
   the list to the screens. `session.get` and every output give the 112 ids only. A save writes new ids only (`roles.*` expand old ids).
   Caps: `rights` 120, `off` 70.
-- The actions of `can()` are the power names. The old action names stay as a compat layer ("compat: delete after the call sites move"):
-  they answer from the new switches, and with the default settings they give the answer of before (`server/core/rightsParity.test.ts`
-  proves it against a record made on the code before this release). A compat action that stands for many powers asks all of them.
-  The pure power actions are in `rightSwitches.test.ts`, one group of tests for each of the 112 switches.
+- The actions of `can()` are the power names. The stand-ins of the first release are gone (`project.edit`, `project.changeLeader`,
+  `project.healthOverride`, `project.editCode`, `content.post`, `content.editOwn`, `task.createForSelf`, `task.createForAnyone`,
+  `task.updateOwn`, `task.updateAny`, `task.contribute`, `task.delete`, `meeting.create`, `meeting.edit`, `meeting.minutes`,
+  `event.undoAgent`, and the 10 old office rights as actions): every call site asks the action of its own power. What stays is the old
+  name that is also the name of a power (`project.create`, `project.archive`, `project.delete`, `task.take`, `task.help`, `task.review`,
+  `chat.project`, `report.office`, `subCompanies.manage`, `templates.updateProjects`, `feedback.manage`, `gaps.view`) and `admin.manage`
+  (the Roles section and the role events). With the default settings the answers equal the answers of before
+  (`server/core/rightsParity.test.ts` proves it against a record made on the code before this release). A stored list may still hold an
+  old id (`LEGACY_RIGHTS` of `rightsCatalog.ts`); that is a stored right, never an action. The pure power actions are in
+  `rightSwitches.test.ts`, one group of tests for each of the 112 switches. A to-do rule that combines the own power and `task.any` lives
+  in `taskGates.ts` (`mayChangeTask`, `mayAssignTask`, `mayDeleteTask`, `mayTickChecklist`).
 - A right gives only its own power. Before a right passes an action, grep every use of that action and check what it stands in for.
 - A check of an office right reads the person with the rights attached. A handler gets them in `ctx.authority` (`execute.ts`); the
   `ctx.actor` of an agent carries the rights of its person. A loader (`Load.authority`) and a server call use `withRights(state, user)`.
@@ -418,8 +425,11 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   `chat.groupChange`. Reading, the read marks, archive, Notify me and leaving stay free. A holder of `chat.project.all` outside the team opens every
   project chat, and the Inbox counts it as it counts the Admin's other chats: only the messages that name the person (`countsNamedOnly`), unless the
   person picks All messages. The push of such a chat goes to the person only when a message names the person (`planPushes`).
-- `ProjectSummary.viewerCan.post` is the old flag of the first release. It is true only when the person posts, comments, adds links, uploads, delivers and
-  logs here (all six switches). The screens read the single flags (`postUpdate`, `comment`, `links`, `upload`, `deliver`, `logTracker`).
+- `ProjectSummary.viewerCan.post` and `.edit` are the old flags of the first release, kept in the contract. `post` is true only when the person
+  posts, comments, adds links, uploads, delivers and logs here (all six switches), `edit` only when all six project powers hold. No screen
+  reads them for a split power any more: the screens read the single flags (`postUpdate`, `comment`, `links`, `upload`, `deliver`,
+  `logTracker`, `editDetails`, `editTeam`, `editStages`, `editDeadlines`, `applyTemplate`). A control that has no project or to-do reads the
+  rights of the session (`useRight` and `useCan` in `app/useRight.tsx`, which call `can()` with `session.get -> authority`).
 - `admin.manage` reads only the Admin role, so it needs no office right.
 - `roles.create`, `roles.update` and `roles.delete` (`handlers/roles.ts`) need `admin.manage`. Each change writes one settings event:
   `role.created`, `role.updated` or `role.deleted`; the event keeps `rights` and `off` (an `off: null` on the old side says the role had

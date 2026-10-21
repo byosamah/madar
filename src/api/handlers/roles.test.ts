@@ -264,7 +264,7 @@ describe('the order of the rights in 17 rights (role-rights)', () => {
     });
     expect(role.rights).toEqual([
       'project.details.all', 'project.team.all', 'project.stages.all', 'project.deadlines.all', 'project.template.all', 'project.archive.all',
-      'project.health.all', 'task.any.all', 'subCompanies.manage', 'templates.updateProjects', 'gaps.view', 'ai.undoOthers.all', 'feedback.manage',
+      'project.health.all', 'task.any.all', 'subCompanies.manage', 'templates.taskSave.all', 'templates.updateProjects', 'gaps.view', 'ai.undoOthers.all', 'feedback.manage',
     ]);
   });
 
