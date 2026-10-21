@@ -6,7 +6,8 @@ import { loadForNavigation, screenFor, type ScreenName } from './screens';
 import { HomeOrRedirect } from '../features/home/HomeOrRedirect';
 import { AuthGate } from '../features/auth/AuthGate';
 import { NotFound, RouteError } from './RouteError';
-import { RequireRight } from './useRight';
+import { GUARD_READS } from './guardReads';
+import { RequireRight, StartReads } from './useRight';
 import type { Action } from '../api/permissions';
 
 /**
@@ -69,9 +70,13 @@ function routeTable(remote: boolean): Entry[] {
   ];
 }
 
-/** A screen that needs a switch: the person without it sees the page of a wrong link, and the screen never mounts. */
-function guarded(Screen: ComponentType, right: Action, framed: boolean): ComponentType {
-  const Guarded = () => <RequireRight action={right} framed={framed}><Screen /></RequireRight>;
+/** A screen that needs a switch: the person without it sees the page of a wrong link, and the screen never mounts. A screen with a read list (guardReads.ts) also starts its reads with the session. */
+function guarded(Screen: ComponentType, right: Action | undefined, framed: boolean, reads: (typeof GUARD_READS)[ScreenName]): ComponentType {
+  const Guarded = () => {
+    const inside = right ? <RequireRight action={right} framed={framed}><Screen /></RequireRight> : <Screen />;
+    // The reads of the screen start with the session, before the guard lets the screen mount (performance audit 2026-10-21, DF-7).
+    return reads ? <StartReads reads={reads} action={right}>{inside}</StartReads> : inside;
+  };
   // The guard carries the name of its screen, so the route table reads the same for a tool that lists the screens.
   Object.defineProperty(Guarded, 'name', { value: Screen.name });
   return Guarded;
@@ -82,7 +87,8 @@ function toRoute({ screen, gate: _gate, right, children, ...rest }: Entry): Rout
   const Component = screen ? screenFor(screen) : undefined;
   // A screen outside the shell shows the page of a wrong link with its own margins.
   const framed = rest.path?.startsWith('/dashboard/') === true;
-  const guard = (Screen: ComponentType) => (right ? guarded(Screen, right, framed) : Screen);
+  const reads = screen ? GUARD_READS[screen] : undefined;
+  const guard = (Screen: ComponentType) => (right || reads ? guarded(Screen, right, framed, reads) : Screen);
   return {
     ...rest,
     ...(screen ? (Component ? { Component: guard(Component) } : { lazy: async () => ({ Component: guard(await loadForNavigation(screen)) }) }) : {}),

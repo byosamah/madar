@@ -250,6 +250,11 @@ any screen work.
   pins it. A new sheet that reads data follows the same rule.
 - Home starts `meetings.list` with `todayMeetingsInput(today)` in an effect (`usePrefetchCall`, DF-6), so the Meetings card, which mounts after three answers,
   finds the answer and the read goes in the first request.
+- A guarded route starts the reads of its screen with the session (DF-7, 2026-10-21). `RequireRight` and the Admin page draw nothing until
+  `session.get` answers, so `app/guardReads.ts` (`GUARD_READS`: `dashboard`, `meeting`, `space`, `admin`) lists the reads of each screen as
+  a function of the link, and `StartReads` (`app/useRight.tsx`, put around the screen by `routes.tsx`) starts them once at the mount with
+  `usePrefetchCall`. It starts none when the cached session lacks the switch of the route. A change to a read of one of these screens
+  changes its line in `guardReads.ts` in the same commit; `GuardReads.test.tsx` holds every answer and fails on a key that the list missed.
 - The project To-dos tab asks `taskTemplates.list {}` once, with its `tasks.list`, under the gates of the menu (list view and
   `createTaskForSelf`). Each `TemplateMenu` keeps the templates of its stage with `lib/sameText.ts`, as the handler does.
 - In the real build, a picture hook (`useFileLink`, `useScreenshotLink`) keeps its signed link in the cache for
