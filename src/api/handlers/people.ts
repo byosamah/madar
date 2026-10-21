@@ -7,7 +7,7 @@ import {
 } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
-import { applyPatch, recordCreate } from '../events';
+import { applyPatch, recordCreate, savePreferences } from '../events';
 import { nextId } from '../store';
 import { userCard } from '../views';
 import { holdsAdminRights } from '../permissions';
@@ -96,13 +96,23 @@ export const sessionSetSimulateErrors = defineCall({
   },
 });
 
+/**
+ * The record of a person for a reader. Away by hand (chat presence design A2) is a private choice: only the person reads the switch, so
+ * the record of another person goes without it. The list is open to every signed-in person (and to an agent of one).
+ */
+function forReader(ctx: Ctx, user: User): User {
+  if (user.preferences.awayByHand === undefined || user.id === ctx.authority.id) return user;
+  const { awayByHand: _hidden, ...preferences } = user.preferences;
+  return { ...user, preferences };
+}
+
 export const usersList = defineCall({
   input: z.object({ includeInactive: z.boolean().default(false) }),
   output: z.array(User),
   readOnly: true,
   run(input, ctx) {
     // A removed person is in no list (owner, 2026-10-12). users.get still gives the record, for the name in the History.
-    return Object.values(ctx.state.users).filter((u) => !u.removed && (input.includeInactive || u.active)).sort(byName);
+    return Object.values(ctx.state.users).filter((u) => !u.removed && (input.includeInactive || u.active)).sort(byName).map((u) => forReader(ctx, u));
   },
 });
 
@@ -111,7 +121,7 @@ export const usersGet = defineCall({
   output: User,
   readOnly: true,
   run(input, ctx) {
-    return requireUser(ctx, input.id);
+    return forReader(ctx, requireUser(ctx, input.id));
   },
 });
 
@@ -341,13 +351,17 @@ export const meUpdateProfile = defineCall({
 });
 
 export const meUpdatePreferences = defineCall({
-  input: z.object({ language: Language.optional(), theme: Theme.optional(), glass: Glass.optional(), hatchOverlap: z.boolean().optional(), adminReach: AdminReach.optional() }),
+  input: z.object({ language: Language.optional(), theme: Theme.optional(), glass: Glass.optional(), hatchOverlap: z.boolean().optional(), adminReach: AdminReach.optional(), awayByHand: z.boolean().optional() }),
   output: User,
   run(input, ctx) {
     // What reaches the Admin is the choice of an Admin (owner, 2026-10-23). Any other person gets a refusal, so a stored value never exists
     // for a Member. The agent of an Admin may not set it: the choice changes what the person sees, so only the person sets it.
     if (input.adminReach !== undefined && (ctx.actor.systemRole !== 'admin' || ctx.actor.kind === 'agent')) {
       throw forbidden('Only an Admin picks what reaches the Admin.', { action: 'me.adminReach' });
+    }
+    // Away by hand is the choice of the person (chat presence design A2): an agent may not set it, as it may not set adminReach.
+    if (input.awayByHand !== undefined && ctx.actor.kind === 'agent') {
+      throw forbidden('Only the person sets Away.', { action: 'me.away' });
     }
     const current = ctx.actor.preferences;
     // The email switches and the morning summary stay as they are: this call never names them (review 2026-10-03).
@@ -358,10 +372,11 @@ export const meUpdatePreferences = defineCall({
       glass: input.glass ?? current.glass,
       ...(input.hatchOverlap !== undefined && { hatchOverlap: input.hatchOverlap }),
       ...(input.adminReach !== undefined && { adminReach: input.adminReach }),
+      ...(input.awayByHand !== undefined && { awayByHand: input.awayByHand }),
     };
     // The stored record takes the change. A change to the context copy is lost, because the copy holds the office rights.
     const me = ctx.state.users[ctx.actor.id];
-    applyPatch(ctx, me, { preferences: next }, { projectId: null, verb: 'user.preferences_changed', targetType: 'user', targetId: ctx.actor.id });
+    savePreferences(ctx, me, next, { projectId: null, verb: 'user.preferences_changed', targetType: 'user', targetId: ctx.actor.id });
     return me;
   },
 });

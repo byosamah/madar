@@ -4,7 +4,7 @@ import { Day, isEmailTrigger, Notification, NotificationId, Stamp, Trigger, User
 import { UserCard } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { canSeeConversation } from '../chatState';
-import { applyPatch } from '../events';
+import { savePreferences } from '../events';
 import { feedbackNoticeHidden } from '../notify';
 import type { State } from '../store';
 import { can, mayViewMeeting, mayViewTask, taskResource } from '../permissions';
@@ -309,7 +309,7 @@ export const notificationsUpdateSettings = defineCall({
         : { ...prefs, notifications: { ...prefs.notifications, [input.trigger!]: input.on! } };
     // The stored record takes the change. A change to the context copy is lost, because the copy holds the office rights.
     const me = ctx.state.users[ctx.authority.id];
-    applyPatch(ctx, me, { preferences: next }, { projectId: null, verb: 'user.preferences_changed', targetType: 'user', targetId: ctx.authority.id });
+    savePreferences(ctx, me, next, { projectId: null, verb: 'user.preferences_changed', targetType: 'user', targetId: ctx.authority.id });
     return me;
   },
 });

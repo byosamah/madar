@@ -125,6 +125,12 @@ export const Preferences = z.object({
   hatchOverlap: z.boolean().optional(),
   /** What reaches the Admin. A missing value means "mixed". Read it with adminReachOf (chatState.ts), which also checks the Admin role. */
   adminReach: AdminReach.optional(),
+  /**
+   * The person set Away by hand (chat presence design A2). A missing value means off. While it is on, each open device of the person
+   * shows Away, whatever the use. Only the person sets it (never an agent), and only the devices of the person act on it. Others see
+   * only "Away": no screen shows this field to another person.
+   */
+  awayByHand: z.boolean().optional(),
 });
 export type Preferences = z.infer<typeof Preferences>;
 

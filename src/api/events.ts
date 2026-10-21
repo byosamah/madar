@@ -1,4 +1,4 @@
-import type { Event, EventTarget, Task, User } from './contract/entities';
+import type { Event, EventTarget, Preferences, Task, User } from './contract/entities';
 import { ApiError, notFound } from './errors';
 import { isReferenced } from './references';
 import { nextId, type State } from './store';
@@ -79,6 +79,29 @@ export function lastTaskCopy(state: State, taskId: string): Task | undefined {
 }
 
 /**
+ * Away by hand (chat presence design A2) is a private choice, and the History is open to every signed-in person, so no event of a person
+ * holds the switch: it is taken out of any preferences in the before and the after of an event about a person.
+ */
+function withoutAway(side: unknown): unknown {
+  const prefs = fieldsOf(fieldsOf(side)?.preferences);
+  if (!prefs || !('awayByHand' in prefs)) return side;
+  const { awayByHand: _hidden, ...rest } = prefs;
+  return { ...(side as Fields), preferences: rest };
+}
+
+/**
+ * Saves the preferences of a person with one event (verb user.preferences_changed). The switch Away by hand is saved, but the event never
+ * sees it: a change of the switch alone writes no event, so the History does not tell when a person set Away.
+ */
+export function savePreferences(ec: EventContext, me: User, next: Preferences, meta: EventMeta): void {
+  const { awayByHand, ...rest } = next;
+  const { awayByHand: _old, ...kept } = me.preferences;
+  me.preferences = kept;
+  applyPatch(ec, me, { preferences: rest }, meta);
+  if (awayByHand !== undefined) me.preferences = { ...me.preferences, awayByHand };
+}
+
+/**
  * Writes one event. An event about an office record names its office task: the one the caller gives (an undo takes the office
  * task of the event it undoes), else the one its record shows. The same for a meeting with no project (officeMeetingId).
  */
@@ -93,7 +116,9 @@ export function writeEvent(
     // Two names on every change (spec 17): who acted, and the person they acted for.
     actingForId: ec.authority?.id ?? ec.actor.ownerId ?? ec.actor.id,
     correlationId: ec.correlationId ?? `cor_${id}`,
-    verb: input.verb, targetType: input.targetType, targetId: input.targetId, before: input.before, after: input.after,
+    verb: input.verb, targetType: input.targetType, targetId: input.targetId,
+    before: input.targetType === 'user' ? withoutAway(input.before) : input.before,
+    after: input.targetType === 'user' ? withoutAway(input.after) : input.after,
     createdAt: ec.stamp, undoneBy: null,
     ...(input.causeEventId ? { causeEventId: input.causeEventId } : {}),
     ...(input.undoes ? { undoes: input.undoes } : {}),
@@ -193,6 +218,9 @@ export function undoEvent(ec: EventContext, eventId: string, options: { derived?
     for (const field of Object.keys(restore)) {
       before[field] = structuredClone(current[field]);
       current[field] = structuredClone(restore[field]);
+      // The event never held Away by hand (withoutAway), so an undo of preferences keeps the switch that the person has now.
+      const away = event.targetType === 'user' && field === 'preferences' ? fieldsOf(before[field])?.awayByHand : undefined;
+      if (away !== undefined) current[field] = { ...(current[field] as Fields), awayByHand: away };
     }
     undo = writeEvent(ec, { ...meta, before, after: structuredClone(restore) });
   }
