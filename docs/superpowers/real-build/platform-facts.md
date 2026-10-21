@@ -531,6 +531,28 @@ Spec 2, section 6 says "no policy for the browser roles" on Madar tables. That s
 | Broadcast payload | 256 KB | same |
 | Messages per month | 2 million | https://supabase.com/docs/guides/platform/billing-on-supabase |
 
+### 4.4 Presence on a private topic, and the typing event (proved on madar-test, 2026-10-21; proof.md, "Chat presence")
+
+- **Policies for Presence.** A private Presence channel needs a select policy with `realtime.messages.extension = 'presence'` to join and read,
+  and an insert policy with the same extension to track. `20261022000200_platform_presence.sql`: a person tracks only on
+  `status:<own Madar id>`, every active person reads every `status:%` topic, a token with `client_id`, a turned-off person and a person with no
+  Madar user do neither.
+- **A foreign track.** The join of the topic of another person works (the read policy allows it). The `track` call returns `error` at once and no
+  entry appears for the other members. A token with `client_id` cannot join at all (`CHANNEL_ERROR`, "Unauthorized: You do not have permissions
+  to read from this Channel topic"). The agent token of the OAuth flow carries `aud` = the MCP address, not `authenticated`, and Realtime still
+  accepted the socket.
+- **Typing.** `realtime.send('{"v":1}'::jsonb, 'typing', 'person:<id>', true)` as `madar_server` reaches a socket joined on `person:<id>` in about 0.3 s.
+  The frame goes to every socket joined on that topic. supabase-js filters by the event name, so a listener of only `changed` drops it. No new
+  policy: `madar_server_send` allows `person:%`.
+- **Dead sockets.** A socket that stops sending (no heartbeat, no close frame) leaves the presence after 49 to 66 s (65.0, 57.0, 48.9 s at three
+  points of the 25 s heartbeat cycle). A socket that the operating system closes leaves after about 3 s.
+- **Frames.** Every presence change is one `presence_diff` frame for each joined socket of the topic, the changer included. A state change with the
+  same key is one frame. A topic join gives the joiner one `presence_state` frame (and a `phx_reply`). Broadcast frames are binary, presence
+  frames are text.
+- **Counting.** The Supabase billing page counts a broadcast as one sent plus one for each receiving client, and a database change as one for each
+  listening client. The Management API has no endpoint for the message count; only the dashboard usage page shows it.
+- `postgres` on the hosted project cannot `SET ROLE madar_server` (the membership granted by `supabase_admin` has the SET option off).
+
 ---
 
 ## 5. pg_cron and pg_net: call `jobs` every 15 minutes
