@@ -1,7 +1,7 @@
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { SearchIcon } from '../../components/icons/animated/search';
 import { motion } from 'motion/react';
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
@@ -14,6 +14,9 @@ import { isFinePointer } from '../../lib/calendar';
 import { usePersonName } from '../../app/personName';
 import { usePersistentChoice } from '../../app/choices';
 import { useStableHandler } from '../../app/useStableHandler';
+import { useTypers } from '../../app/live/typing';
+import { useCall } from '../../app/runtime';
+import { actorContext } from '../../lib/grammar';
 import { useIsPhone } from '../../app/useIsPhone';
 import { Menu, type MenuItem } from '../../components/Menu';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
@@ -96,6 +99,25 @@ const SWIPE_PX = 80;
  * The menu button of a row shows only while the pointer is on the row or the keyboard is in it (UX audit 2026-10-19, chats-06).
  * On a phone, or where the pointer is a finger, the button is gone and a swipe archives the row, with the toast and its Undo.
  */
+/**
+ * The line that takes the place of the last message while somebody types in the chat (chat presence design B2): "typing..." in a direct
+ * chat, "Reem is typing..." in a project chat or a group (the first typist). Only a row where somebody types holds it, so the other rows
+ * do not watch the office list. While the name of a typist is not known yet, the last message stays.
+ */
+function TypingPreview({ row, typers, fallback }: { row: Row; typers: string[]; fallback: ReactNode }) {
+  const { t } = useTranslation();
+  const nameOf = usePersonName();
+  const forPerson = row.kind === 'direct' && row.person !== null;
+  const users = useCall('users.list', {}, { enabled: !forPerson });
+  let text: string | null = null;
+  if (forPerson) text = t('chat.typingRow', { context: actorContext(row.person) });
+  else {
+    const typist = users.data?.find((user) => user.id === typers[0]);
+    if (typist) text = t('chat.typingOne', { name: nameOf(typist).split(' ')[0], context: actorContext(typist) });
+  }
+  return text === null ? <>{fallback}</> : <bdi dir="auto" className="min-w-0 truncate text-link">{text}</bdi>;
+}
+
 const ChatRowItem = memo(function ChatRowItem({ row, selected, swipe, showArchived, onArchive, onMarkUnread }: {
   row: Row; selected: boolean; swipe: boolean; showArchived: boolean; onArchive: (id: string, archived: boolean) => void; onMarkUnread: (id: string) => void;
 }) {
@@ -106,11 +128,19 @@ const ChatRowItem = memo(function ChatRowItem({ row, selected, swipe, showArchiv
   const by = row.previewMine ? t('chat.you') : row.previewAuthor ? nameOf(row.previewAuthor).split(' ')[0] : '';
   // A direct chat shows the other person's words without a name, unless the words are mine.
   const showBy = row.preview !== '' && by !== '' && (row.kind !== 'direct' || row.previewMine);
+  // A row reads the typists of its own chat alone, so a signal in another chat renders no other row.
+  const typers = useTypers(row.id);
   // The newest item of a task thread can be a quiet line of a reason: the row then shows its short line, "Faisal changed the due date: ..."
   // (fbk_027). It names the person by the first name, also when the person is the viewer.
   const reasonText = row.previewKind
     ? reasonLineText(t, { kind: row.previewKind, body: row.preview }, row.previewAuthor ? { name: nameOf(row.previewAuthor).split(' ')[0], gender: row.previewAuthor.gender } : null, true)
     : null;
+  const preview = (
+    <>
+      {reasonText === null && showBy && <bdi className="shrink-0">{by}:</bdi>}
+      <bdi dir="auto" className="min-w-0 truncate">{reasonText ?? row.preview}</bdi>
+    </>
+  );
   // A swipe on a phone must not also open the chat.
   const swiped = useRef(false);
   return (
@@ -151,8 +181,7 @@ const ChatRowItem = memo(function ChatRowItem({ row, selected, swipe, showArchiv
                 the side of the page (owner, 2026-10-05). */}
             <span className={`flex min-w-0 gap-1 text-footnote ${row.unread > 0 ? 'text-ink' : 'text-ink-2'}`}>
               {/* The name and its colon are one unit in the direction of the name: "Faisal:" also in an Arabic row. */}
-              {reasonText === null && showBy && <bdi className="shrink-0">{by}:</bdi>}
-              <bdi dir="auto" className="min-w-0 truncate">{reasonText ?? row.preview}</bdi>
+              {typers.length === 0 ? preview : <TypingPreview row={row} typers={typers} fallback={preview} />}
             </span>
             {row.unread > 0 && (
               <span className="signature tabular inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-caption font-semibold">

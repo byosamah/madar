@@ -11,6 +11,10 @@
     "seen": "Seen",
     "seenByAll": "Seen by everyone",
     "seenByTitle": "Seen by",
-    "seenBy": "Seen by {{count}}"
+    "seenBy": "Seen by {{count}}",
+    "typingOne": "{{name}} is typing...",
+    "typingTwo": "{{a}} and {{b}} are typing...",
+    "typingMany": "Several people are typing...",
+    "typingRow": "typing..."
   }
 }

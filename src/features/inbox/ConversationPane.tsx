@@ -11,6 +11,7 @@ import { usePageVisible } from '../../app/usePageVisible';
 import { usePersonName } from '../../app/personName';
 import { useActive } from '../../app/live/activity';
 import { usePersonState } from '../../app/live/hooks';
+import { useTypingSender } from '../../app/live/typing';
 import { useAction, useCall, useRuntime } from '../../app/runtime';
 import { useStableHandler } from '../../app/useStableHandler';
 import { PersonFace } from '../../components/PersonFace';
@@ -39,6 +40,7 @@ import { bubbleOfOutgoing, cardOfUser, newOutboxKey, refusedByOutbox, useOutbox,
 import { nowStamp } from '../../lib/dates';
 import { NewerMessages } from './NewerMessages';
 import type { SeenInfo } from './SeenLine';
+import { TypingLine } from './TypingLine';
 
 /**
  * The head of a pane. The title is a plain string: the `<bdi>` inside the heading is the element that cuts (`block truncate`), never the
@@ -120,6 +122,8 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   const editMessage = useAction('chats.editMessage');
   const deleteMessage = useStableHandler(useDeleteMessage());
   const archive = useArchive();
+  // The typing signal of the person for this chat (chat presence design B6). A task thread has none.
+  const typing = useTypingSender(id);
   const data = thread.data;
   const people = data?.people ?? NO_PEOPLE;
   const meId = session.data?.authority.id ?? '';
@@ -261,27 +265,32 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
       </BubbleActionsContext.Provider>
       {newer && <NewerMessages onShow={showNewest} />}
       {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{isGroup ? t('chat.groupAlone') : t('chat.closed')}</p> : (
-        <Composer
-          id={id}
-          people={data.people}
-          pending={false}
-          // A project chat joins the files of its project. A direct chat or a group keeps its files in the chat (owner, 2026-10-19).
-          upload={chat.kind === 'project' ? (chat.project ? { projectId: chat.project.id } : undefined) : { projectId: null, conversationId: id }}
-          replyTo={replyTo}
-          onCancelReply={() => setReplyTo(null)}
-          onEditLast={editLast}
-          onSend={(body, fileIds, clear) => {
-            const input = { conversationId: id, body, fileIds, ...(replyTo ? { replyToId: replyTo.id } : {}) };
-            const key = newOutboxKey();
-            outbox.add({ key, input, body, replyTo, at: nowStamp(), seen: new Set(messages.map((view) => view.message.id)), failed: false });
-            // The box is free at once: the next message does not wait for this one.
-            clear();
-            setReplyTo(null);
-            // A chat opened at an old message goes to its newest messages, where the sent message shows (item 17).
-            if (newer) showNewest();
-            send.mutate(input, { onSuccess: (view) => outbox.markSaved(key, view.message.id) });
-          }}
-        />
+        <>
+          {live && <TypingLine conversationId={id} />}
+          <Composer
+            id={id}
+            people={data.people}
+            pending={false}
+            // A project chat joins the files of its project. A direct chat or a group keeps its files in the chat (owner, 2026-10-19).
+            upload={chat.kind === 'project' ? (chat.project ? { projectId: chat.project.id } : undefined) : { projectId: null, conversationId: id }}
+            replyTo={replyTo}
+            onCancelReply={() => setReplyTo(null)}
+            onEditLast={editLast}
+            onTextChange={typing.changed}
+            onSend={(body, fileIds, clear) => {
+              const input = { conversationId: id, body, fileIds, ...(replyTo ? { replyToId: replyTo.id } : {}) };
+              const key = newOutboxKey();
+              typing.stop();
+              outbox.add({ key, input, body, replyTo, at: nowStamp(), seen: new Set(messages.map((view) => view.message.id)), failed: false });
+              // The box is free at once: the next message does not wait for this one.
+              clear();
+              setReplyTo(null);
+              // A chat opened at an old message goes to its newest messages, where the sent message shows (item 17).
+              if (newer) showNewest();
+              send.mutate(input, { onSuccess: (view) => outbox.markSaved(key, view.message.id) });
+            }}
+          />
+        </>
       )}
       {isGroup && <GroupSheets id={id} mode={sheet} onMode={setSheet} name={chat.title} people={data.people} me={session.data?.authority} makerId={chat.makerId} />}
     </ChatDropArea>

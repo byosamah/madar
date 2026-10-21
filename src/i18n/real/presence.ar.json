@@ -22,6 +22,12 @@
     "seenBy_other": "قرأها {{count}} شخص",
     "seenByAll": "قرأها الجميع",
     "seenByTitle": "من قرأها",
-    "seenBy": "قرأها {{count}} شخص"
+    "seenBy": "قرأها {{count}} شخص",
+    "typingOne": "{{name}} يكتب...",
+    "typingOne_female": "{{name}} تكتب...",
+    "typingTwo": "{{a}} و{{b}} يكتبان...",
+    "typingMany": "عدة أشخاص يكتبون...",
+    "typingRow": "يكتب...",
+    "typingRow_female": "تكتب..."
   }
 }
