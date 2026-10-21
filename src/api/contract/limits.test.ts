@@ -30,10 +30,10 @@ describe('the plain limits of the contract (performance audit BND-6)', () => {
     expect(limits.GROUP_NAME_MAX).toBe(60);
   });
 
-  it('keep the reaction rule of the contract: the same three reactions, and no other', () => {
+  it('keep the reaction rule of the contract: the three quick reactions, any other one emoji, and no text', () => {
     for (const reaction of limits.REACTIONS) expect(entities.Reaction.parse(reaction)).toBe(reaction);
-    expect(entities.Reaction.safeParse('🎉').success).toBe(false);
-    expect(entities.Reaction.options).toEqual([...limits.REACTIONS]);
+    expect(entities.Reaction.safeParse('🎉').success).toBe(true);
+    expect(entities.Reaction.safeParse('ok').success).toBe(false);
   });
 
   it('keep the rule and the prototype store free of schema values, so a screen that calls can() loads no schema', () => {

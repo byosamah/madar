@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { REACTIONS } from '../../api/contract/limits';
+import { orderReactions } from '../../api/contract/emoji';
 import { useLang } from '../../app/lang';
 import { usePersonName } from '../../app/personName';
 import { useCall } from '../../app/runtime';
@@ -15,7 +15,7 @@ import type { Bubble } from './MessageBubble';
  * `title` and, on a touch screen, with a long press. No faces. Where the reader may not react, a pill is plain text.
  */
 export function ReactionPills({ bubble }: { bubble: Bubble }) {
-  const used = REACTIONS.filter((emoji) => (bubble.reactions?.[emoji] ?? []).length > 0);
+  const used = orderReactions(Object.keys(bubble.reactions ?? {}).filter((emoji) => (bubble.reactions?.[emoji] ?? []).length > 0));
   return used.length === 0 ? null : <PillRow bubble={bubble} used={used} />;
 }
 
@@ -28,7 +28,7 @@ function useNames(ids: readonly string[]): string {
   return listFormat(lang).format(ids.flatMap((id) => (known.has(id) ? [nameOf(known.get(id)!)] : [])));
 }
 
-function PillRow({ bubble, used }: { bubble: Bubble; used: (typeof REACTIONS)[number][] }) {
+function PillRow({ bubble, used }: { bubble: Bubble; used: string[] }) {
   const { t } = useTranslation();
   const actions = useBubbleActions();
   // The pill whose names show in a small tip after a long press. The next press anywhere puts the tip away.
@@ -48,7 +48,7 @@ function PillRow({ bubble, used }: { bubble: Bubble; used: (typeof REACTIONS)[nu
   );
 }
 
-function Pill({ bubble, emoji, actions, tipped, onTip }: { bubble: Bubble; emoji: (typeof REACTIONS)[number]; actions: BubbleActions | null; tipped: boolean; onTip: () => void }) {
+function Pill({ bubble, emoji, actions, tipped, onTip }: { bubble: Bubble; emoji: string; actions: BubbleActions | null; tipped: boolean; onTip: () => void }) {
   const { t } = useTranslation();
   const ids = bubble.reactions?.[emoji] ?? [];
   const names = useNames(ids);

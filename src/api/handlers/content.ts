@@ -8,7 +8,7 @@ import { notifyIn } from '../notify';
 import { mayViewTask, principalOf, type Resource } from '../permissions';
 import { nextId } from '../store';
 import { commentViewOf, feedFor, updateItemOf } from '../views';
-import { toggleMessageReaction } from './chats';
+import { toggledReactions, toggleMessageReaction } from './chats';
 import { mayUndoAgentChange } from './history';
 import { activeMentions, assertCan, insertComment, requireProject, requireReplyComment, requireTask, roleIn, taskRole, touch } from './shared';
 import { mentionedUserIds } from '../../lib/text';
@@ -192,10 +192,9 @@ export const reactionsToggle = defineCall({
     const comment = requireComment(ctx, input.commentId ?? '');
     const { projectId, resource } = targetOf(ctx, comment.targetType, comment.targetId);
     assertCan(ctx, 'content.post', resource);
-    const list = comment.reactions[input.emoji];
-    const next = list.includes(ctx.actor.id) ? list.filter((id) => id !== ctx.actor.id) : [...list, ctx.actor.id];
+    const next = toggledReactions(comment.reactions, input.emoji, ctx.actor.id);
     // One event for each change, with the agent and the person it acts for (spec 17.2, audit 2026-10-03, API-19).
-    applyPatch(ctx, comment, { reactions: { ...comment.reactions, [input.emoji]: next } }, { projectId, verb: 'comment.reacted', targetType: 'comment', targetId: comment.id });
+    applyPatch(ctx, comment, { reactions: next }, { projectId, verb: 'comment.reacted', targetType: 'comment', targetId: comment.id });
     return commentViewOf(ctx.state, comment, ctx.authority);
   },
 });

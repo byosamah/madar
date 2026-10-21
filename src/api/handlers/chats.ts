@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import { ConversationId, FileId, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MESSAGE_MAX, MessageId, NotifyLevel, TaskId, UserId, emptyReactions, type Comment, type Conversation, type GroupLogEntry, type Message, type Project, type Reaction, type Task, type User } from '../contract/entities';
+import { MAX_REACTION_KINDS } from '../contract/emoji';
+import { REACTIONS } from '../contract/limits';
 import { ChatRow, ChatThread, MessageView, WaitingRow, type GroupLine } from '../contract/views';
 import { messagePageAround } from '../chatAround';
 import { adminReachOf, addDirectConversation, addGroupConversation, canSeeConversation, hiddenByReach, closedChatError, isArchived, markedUnread, MESSAGE_PAGE, MESSAGE_PAGE_MAX, messagePage, messagesOf, personLeft, TASK_THREAD_LIMIT, unreadIn } from '../chatState';
@@ -631,7 +633,7 @@ const daysSince = (at: string, now: Date): number => Math.max(0, Math.floor((now
  * True when the viewer put a 👍 or a ✅ on the message or comment that waits (chat design item 22): that counts as the answer. A reaction
  * of an agent of the viewer counts as the viewer's own. A 👀 is no answer: it says "seen", not "done".
  */
-export function answeredByReaction(state: State, reactions: Partial<Record<Reaction, string[]>> | undefined, viewerId: string): boolean {
+export function answeredByReaction(state: State, reactions: Readonly<Record<string, string[]>> | undefined, viewerId: string): boolean {
   return (['👍', '✅'] as const).some((emoji) => (reactions?.[emoji] ?? []).some((id) => principalOf(state, id) === viewerId));
 }
 
@@ -764,16 +766,27 @@ function dropMessageNotices(ctx: Ctx, message: Message, userIds?: readonly strin
 }
 
 /**
+ * The reactions of a message or a comment after a toggle (chat presence design E5). The three quick keys always stay, the other keys stay
+ * only with people. A toggle that adds a new kind to a record that has the most kinds is refused.
+ */
+export function toggledReactions(current: Record<string, string[]> | undefined, emoji: Reaction, me: string): Record<string, string[]> {
+  const now: Record<string, string[]> = { ...emptyReactions(), ...current };
+  const list = now[emoji] ?? [];
+  if (list.length === 0 && Object.values(now).filter((ids) => ids.length > 0).length >= MAX_REACTION_KINDS) {
+    throw invalid('emoji', 'This message has the most reactions.');
+  }
+  now[emoji] = list.includes(me) ? list.filter((id) => id !== me) : [...list, me];
+  return Object.fromEntries(Object.entries(now).filter(([key, ids]) => ids.length > 0 || (REACTIONS as readonly string[]).includes(key)));
+}
+
+/**
  * Toggles the reaction of the person behind the call on a chat message (chat design item 12). Any person who may open the chat reacts, in
  * a closed chat too. It writes no event and no notice and leaves "createdAt" alone, so it makes no unread mark and no push. A message
  * with no reactions record starts from none.
  */
 export function toggleMessageReaction(ctx: Ctx, messageId: string, emoji: Reaction): MessageView {
   const { message } = requireMessage(ctx, messageId, { author: false, allowDeleted: false });
-  const now = { ...emptyReactions(), ...message.reactions };
-  const me = ctx.authority.id;
-  const next = now[emoji].includes(me) ? now[emoji].filter((id) => id !== me) : [...now[emoji], me];
-  const reacted: Message = { ...message, reactions: { ...now, [emoji]: next } };
+  const reacted: Message = { ...message, reactions: toggledReactions(message.reactions, emoji, ctx.authority.id) };
   ctx.state.messages[message.id] = reacted;
   return messageViewOf(ctx.state, reacted, ctx.authority);
 }

@@ -39,13 +39,15 @@ describe('entity schemas', () => {
     expect(prefs.glass).toBe('frosted');
   });
 
-  it('needs all three reaction lists on a comment', () => {
+  it('takes a comment with the three reaction lists, with fewer, or with any one emoji, and refuses a key that is not one emoji', () => {
     const comment = {
       id: 'cmt_001', targetType: 'task', targetId: 'tsk_001', authorId: 'usr_001', body: 'Looks good',
       reactions: emptyReactions(), createdAt: '2026-09-30T08:00:00.000+03:00', editedAt: null,
     };
     expect(Comment.safeParse(comment).success).toBe(true);
-    expect(Comment.safeParse({ ...comment, reactions: { '👍': [] } }).success).toBe(false);
+    expect(Comment.safeParse({ ...comment, reactions: { '👍': [] } }).success).toBe(true);
+    expect(Comment.safeParse({ ...comment, reactions: { '🎉': ['usr_001'] } }).success).toBe(true);
+    expect(Comment.safeParse({ ...comment, reactions: { ok: ['usr_001'] } }).success).toBe(false);
   });
 
   it('checks project codes', () => {

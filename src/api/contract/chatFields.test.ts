@@ -57,8 +57,9 @@ describe('chat fields of reply, reactions, delete and Notify me (base B1)', () =
     expect(NotifyLevel.safeParse('none').success).toBe(false);
   });
 
-  it('refuses a message reaction record that lacks a reaction key, and a bad reply or message id', () => {
-    expect(Message.safeParse({ ...OLD_MESSAGE, reactions: { '👍': [] } }).success).toBe(false);
+  it('takes a message reaction record with a key missing, refuses a key that is not one emoji, and refuses a bad reply or message id', () => {
+    expect(Message.safeParse({ ...OLD_MESSAGE, reactions: { '👍': [] } }).success).toBe(true);
+    expect(Message.safeParse({ ...OLD_MESSAGE, reactions: { ok: [] } }).success).toBe(false);
     expect(Message.safeParse({ ...OLD_MESSAGE, replyToId: 'cmt_001' }).success).toBe(false);
     expect(Comment.safeParse({ ...OLD_COMMENT, replyToId: 'msg_001' }).success).toBe(false);
     expect(Notification.safeParse({ ...OLD_NOTICE, messageId: '' }).success).toBe(false);

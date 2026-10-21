@@ -4,7 +4,7 @@
  * names, so the server, the handlers and MCP see no change.
  */
 
-/** The reactions on a comment or a chat message (entities.ts, Reaction). */
+/** The three quick reactions of a comment or a chat message. Any other emoji also works (emoji.ts, isReactionEmoji). */
 export const REACTIONS = ['👍', '✅', '👀'] as const;
 
 /**

@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import { memo, useContext, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { DateMove, Reaction } from '../../api/contract/entities';
+import type { DateMove } from '../../api/contract/entities';
 import type { Attachment, GroupLine, ReplyRef, UserCard } from '../../api/contract/views';
 import { usePictureTest } from '../../app/files';
 import { useLang } from '../../app/lang';
@@ -38,7 +38,7 @@ export type Bubble = {
   /** True when the message names the reader (an @mention, or a reply to the reader). Another person's bubble then gets the names-you mark (item 4). */
   namesMe?: boolean;
   /** The people behind each reaction (chat design item 12). Missing means none. */
-  reactions?: Record<Reaction, string[]>;
+  reactions?: Record<string, string[]>;
   /**
    * A message of the person that the server has not saved (instant send, item 13): faded while it goes, and with "Not sent" and "Send again"
    * when it failed. It has no menu, no pills and no sheet. Missing: a saved message.

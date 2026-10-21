@@ -1,5 +1,4 @@
 import { createContext, useContext } from 'react';
-import type { Reaction } from '../../api/contract/entities';
 import type { UserCard } from '../../api/contract/views';
 import type { Bubble } from './MessageBubble';
 
@@ -15,7 +14,7 @@ export type BubbleActions = {
   canReact: boolean;
   /** The id of the person who reads: the reaction of this person has the ring. */
   meId: string;
-  react(bubble: Bubble, emoji: Reaction): void;
+  react(bubble: Bubble, emoji: string): void;
   /** True where the box shows (a chat that is open; a task thread for a person who may post): the menu then offers Reply. */
   canReply: boolean;
   /** Starts a reply to this bubble: the strip shows in the box and the focus goes into the field. */

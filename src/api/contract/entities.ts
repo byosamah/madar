@@ -4,6 +4,7 @@ import {
   DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, MEETING_KINDS, MEETING_LIMITS,
   NOTIFY_LEVELS, PICTURE_DATA, REACTIONS,
 } from './limits';
+import { isReactionEmoji } from './emoji';
 import { PUSH_ENDPOINT_MAX, PUSH_LABEL_MAX, isPushEndpoint } from './push';
 
 // The plain limits live in limits.ts, with no zod, for the screens of the first load (performance audit BND-6).
@@ -81,8 +82,12 @@ export const EMAIL_TRIGGERS: readonly EmailTrigger[] = TRIGGERS.filter(isEmailTr
 /** The switches that only a person with admin.manage sees (owner, 2026-10-07). */
 export const ADMIN_ONLY_TRIGGERS: ReadonlySet<Trigger> = new Set<Trigger>(['feedback_sent']);
 
-export const Reaction = z.enum(REACTIONS);
-export type Reaction = z.infer<typeof Reaction>;
+/**
+ * A reaction is one emoji (chat presence design E5). A string key, so a stored three-key record and any new key load. The quick three
+ * are in REACTIONS (limits.ts); emoji.ts holds the rule and the order.
+ */
+export const Reaction = z.string().refine(isReactionEmoji, { message: 'A reaction is one emoji.' });
+export type Reaction = string;
 
 /** The "Notify me" level of a person for one chat: every message, or only a message that names the person (limits.ts, NOTIFY_LEVELS). */
 export const NotifyLevel = z.enum(NOTIFY_LEVELS);
@@ -723,8 +728,8 @@ export const Message = z.object({
    */
   replyToId: MessageId.optional(),
   /**
-   * The reactions on this message (item 12), as on a comment. A written record holds all three keys (emptyReactions). A missing
-   * record means no reactions. Optional, so older messages load.
+   * The reactions on this message (item 12), as on a comment. A written record holds the three quick keys (emptyReactions) and the
+   * other emoji that have people. A missing record means no reactions. Optional, so older messages load.
    */
   reactions: z.record(Reaction, z.array(UserId)).optional(),
   /**
