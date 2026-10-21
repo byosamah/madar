@@ -1106,6 +1106,23 @@ walk caught the answer: a whole-batch 500 "Something went wrong" for the Admin, 
   light/dark, 390). The owner asked to skip the full suite and the smoke (each over 5 minutes) for this one-flag change.
 - `all.sh test` (148 calls), then `all.sh production`: health from `supabase` with 148 calls, the database check, `POST /mcp` with no token 401.
 
+### Production at fe21858a (2026-10-21, phone notifications for the Home Screen app, and the Apple fix; the owner said "Release now", Claude ran it)
+- Changes (branch `rb/push-reach`): the Home card shows the 3 steps to the Home Screen on an iPhone or iPad in a browser tab; on Android
+  one button opens the install box of Chrome (`src/app/remote/install.ts`); every push goes with `Urgency: high` and `TTL: 86400`;
+  What's new 2026-10-23-70. These serve the Home Screen app until the store app comes (owner, 2026-10-20).
+- **Apple fix.** In the owner's hand test on the test copy (2026-10-21), his iPhone (Home Screen app, Allow given) got no line. The
+  outbox rows were done with no error, but the device had no `lastPushAt`, and the function logs (Management API
+  `analytics/endpoints/logs`, ClickHouse SQL on the one `logs` table) showed "A push service refused a push" for `web.push.apple.com`.
+  A direct post to his iPhone gave the reason: `400 {"reason":"BadWebPushTopic"}` for `Topic: madar`, also with the old headers
+  (TTL 3600, Urgency normal) and a 1-hour token; `201` with no Topic, also with Urgency high and TTL 86400. So no iPhone got a
+  Madar push from 2026-10-08 to this release. Apple now gets no Topic (`topicFor`, `server/push/send.ts`); the other services keep it.
+  After the fix on the test copy, a message from the Admin reached the owner's iPhone.
+- Gates: typecheck, `npm test` 8,149 (726 files), the three builds, `test:db` 2,205 (27 skipped), `test:it` 325, screenshots EN/AR,
+  light/dark, 390 px (iPhone and Android, on the test copy), the deploy suite on the test copy at 68e209d: 206 passed, 0 failed,
+  13 skipped by design. For the Apple fix (one header): typecheck and the server project 2,745.
+- `all.sh test` at fe21858 (149 calls), then `all.sh production`: health from `supabase` with 149 calls, the database check,
+  `POST /mcp` with no token 401, the page 200 with the title Madar, `/favicon.ico` 200.
+
 ## Performance audit (2026-10-07 to 2026-10-08)
 Seven builders, one per track, on branches perf/track-<key> from perf/audit (8753a11). Each section is the proof of one track.
 

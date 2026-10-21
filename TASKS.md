@@ -804,8 +804,10 @@ Owner: tasks and chat need notifications on the phone. These fixes serve the Hom
   (function log "A push service refused a push", host web.push.apple.com; a direct probe gave the reason). Fix: no Topic for Apple
   (`topicFor`, `server/push/send.ts`). Probe with the fixed headers: 201. Gates: typecheck, the server project 2,745 passed;
   `test:db` and `test:it` not run again (one header in one file, no SQL)
-- [ ] Not approved yet (owner): the push line names the kind ("New message", "A task for you") and a tap opens that chat or task.
-  It changes the rule of 2026-10-08 (one fixed line with no data) and needs the encryption of the push text (RFC 8291)
+- [x] Production at fe21858a (2026-10-21, the owner said "Release now"; Claude ran it). Record: proof.md
+- [ ] Owner choice (2026-10-21, "Like WhatsApp"): the push line shows the bell sentence, and for a chat or a comment the name and the
+  first words of the message; a tap opens that chat or task. It replaces the rule of 2026-10-08 (one fixed line with no data). Needs
+  the device keys at `push.register` and the encryption of the push text (RFC 8291). Branch `rb/push-text`
 - [ ] Found: What's new shows the day "23 October" for the entries of 2026-10-20 (ids `2026-10-23-*`). Ask the owner before a change:
   a new id marks an entry as new again
 - [ ] Later, with the store app: the plan of 2026-10-20 (one code for both phones with Expo, the shared contract, a "phone" list for
