@@ -56,7 +56,8 @@ describe("What's new entries", () => {
 
   // Role rights version 2 (owner, 2026-10-21): the 112 switches. Only the Admin makes roles, so only the Admin reads the entry.
   it('shows the entry about the 112 switches to the Admin only, and opens the Roles section', () => {
-    expect(WHATS_NEW[0]).toEqual({ id: '2026-10-23-75', day: '2026-10-23', right: 'admin.manage', to: '/admin/roles' });
+    // The chat presence entry (2026-10-23-80) came after it, so the entry is found by its id, not by its place.
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-75')).toEqual({ id: '2026-10-23-75', day: '2026-10-23', right: 'admin.manage', to: '/admin/roles' });
     expect(wordAt(en, ['whatsNew', 'items', '2026-10-23-75', 'title'])).toBe('Rights in 112 switches');
     expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-75', 'body']))).toContain('112');
   });

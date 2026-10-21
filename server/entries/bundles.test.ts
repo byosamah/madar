@@ -153,7 +153,8 @@ describe('the minified function bundles (performance audit SRV-11)', () => {
     // edit and delete, Notify me) took the minified bundle from about 688,000 to 711,111 characters, so the bound is 760,000.
     // The Google Calendar sync and its client (fbk_022) added about 26,000 on their own branch (713,337 there). Both together after the join of 2026-10-20: 748,238.
     // The join as a helper and the lead delete (fbk_034, fbk_035) on top of the later fixes: 760,035, so the bound is 800,000.
-    expect(text.length).toBeLessThan(800_000);
+    // Role rights version 2 and chat presence (typing, seen, any emoji) together, 2026-10-21: 803,793, so the bound is 850,000.
+    expect(text.length).toBeLessThan(850_000);
     expect(text.includes('JWTExpired')).toBe(true);
     expect(text.includes('@param {import(')).toBe(false);
     expect(checkBundles('server', dirname(file)).ok).toBe(true);
