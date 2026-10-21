@@ -920,4 +920,4 @@ Owner: "add some Slack chat features": Online, Away, Offline, "Seen", "typing...
 - [x] reports.office: a range from one day to another (400 days at most), the 6-week trend, the status colors in design, and the guide of the
   Madar report with guide: true (from the owner's Claude skill "madar-office-report"); INSTRUCTIONS sends every report request to it
 - [x] Test copy and production at 7b0ea2ce (2026-10-21, the owner said "merge to main and deploy to production")
-- [ ] The owner removes the Claude skill "madar-office-report" from his AI app, so two recipes do not disagree
+- [x] The Claude skill "madar-office-report" is gone from the owner's AI app (checked 2026-10-21: not in the claude.ai list, not on the Mac)
