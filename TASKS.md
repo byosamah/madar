@@ -883,9 +883,35 @@ Sonnet builders, Claude leads (owner, 2026-10-21). What's new 2026-10-23-74.
 - [x] Test copy: `all.sh test` at 90fd705 and b84b021 (the chat presence session stopped its suite and took its migrations off first)
 - [x] Production at b84b0212 (2026-10-21; the owner ran `all.sh production` with `!`). Record: proof.md
 - [x] The MCP guide got back the sections that the mcp track cut (Meetings to Pictures), with the switch text
-- [ ] The deploy suite on the test copy (not run before this release); then rb/chat-presence goes back on the test copy
-- [ ] Owner decisions, later: a stages-only way to rename stages for a role without "Change project details"; the Needs field of a
-  maker without "Give to-dos to other people"; step 2 "See every project"
+- [x] rb/chat-presence went back on the test copy and released on top of role rights (production faaa6f76, then 7b0ea2ce)
+
+### Open items of role rights version 2 (noted 2026-10-21, after the release; none breaks anything today)
+- [ ] **Owner decision: rename stages without "Change project details".** A role with "Change stages and stage dates" (`project.stages`)
+  but without "Change project details" (`project.details`) cannot rename stages: the stage names live in the edit sheet of the project
+  (`src/features/projects/EditProjectSheet.tsx`, saved by `stages.replace`), and that sheet opens only with `viewerCan.editDetails`.
+  The server allows it (`stages.replace` asks `project.stages`). Options: (a) a small "Edit stages" sheet of its own on the Schedule tab
+  for `viewerCan.editStages`; (b) open the edit sheet with only the stage part when the person holds `project.stages` alone. Today every
+  role holds both by default, so nobody meets it until the Admin turns one off.
+- [ ] **Small fix: the Needs field of a maker without "Give to-dos to other people".** The "waits for" field of a to-do (`TaskNeeds` in
+  `src/features/project/tasks/TaskSheet.tsx`, line about 482) shows only with `viewerCan.editAll && canDetails`. The server rule of
+  prerequisites is `task.any`, or the maker with `task.details` (`tasks.update`, `mayChangePrerequisites`). So a maker whose role has
+  `task.assign` off sees no field, although the call would pass. Fix: a new additive flag `viewerCan.editPrerequisites` from the same rule
+  (`src/api/views.ts`, `contract/views.ts`), read by the sheet. The parity record compares the old keys only, so a new key is safe.
+- [ ] **Step 2: "See every project" (owner chose it as a later step, 2026-10-21).** A switch that limits a role to the projects where the
+  person is on the team. A hidden project answers `not_found` on every path, as office to-dos do today. Read paths it touches:
+  `projects.list`, `projects.get`, `deadlines.list` and loader `overview.ts`; `tasks.list` and `get`, `updates.list`, `files.list` and
+  `link`, `tracker.list` and `export`, project `meetings.list` and `get`, project comments and chat threads; `search.query`,
+  `dashboard.get` (tiles, workload, schedule, map), `reports.office`, `events.list`, the client counts; the `project.view` action and
+  `mayViewTask`, `mayViewFile`, `mayViewMeeting`; the Realtime signals (`server/data/save.ts`), notices, push and the morning summary
+  SQL; Home, the meeting form, the code fields, the new-project sheet, the Clients section, the project-by-code route, the template
+  follower counts; the MCP tools with a project id. It needs leak tests on every path (root CLAUDE.md rule). Size: about as big as step 1.
+- [ ] **Check not run before the release: the deploy suite on the test copy.** `npx playwright test -c playwright.deploy.config.ts`
+  against the test copy, about 45 minutes, in a delegated Playwright subagent (Haiku). It seeds the sample office again at its end, so
+  run it when nobody tests by hand on the test copy.
+- [ ] **Small polish: the Dashboard tab shows for a moment.** For a role without "See the Dashboard" (`dashboard.view`), the tab shows for
+  about half a second while `session.get` loads, then goes. Cause: `useCan` in `src/app/useRight.tsx` gives a tab `whileLoading: true`
+  on purpose, so the bar does not jump for the many people who hold it; the route asks again and refuses. Fix: keep the last rights of
+  the person in localStorage (as `features/home/roleHint.ts` keeps the role) and use them before the session answers.
 - [ ] Test copy, then production after the owner's word
 
 ## 2026-10-21: chat status, Seen, typing and emoji (branch `rb/chat-presence`, worktree `~/dev/madar-rb/chat-presence`)
