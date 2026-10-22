@@ -1061,3 +1061,15 @@ Plan and answers: memory and the two design files below. fbk_039 (12-hour clock)
   224 of 224 alone); test:db 3,178; test:it 333; screenshots EN and AR, light and dark, 390 px, and the What's new page with 4 dates.
 - [x] Production at f90bd7e7 (owner: "Production now"; the first run hit a Supabase 500, the second passed). fbk_049 marked done.
 - [ ] Note: an office that already saved Work hours in Admin keeps its saved hours; the 8 to 5 default applies only where none is saved.
+
+## fbk_050 and fbk_051 (owner, 2026-10-22; one release)
+- [x] fbk_050 (Anas Emam, "Download all attachments"): a quiet "Download all (N)" under every message, to-do comment and post comment with
+  2 or more files, and on the Files tab one for each stage group and "Download all files (N)" for the project (hidden when one group holds
+  every file). One ZIP made in the browser (`src/lib/zip.ts`: store method, CRC-32, UTF-8 names, no new package; the R2 CORS GET was there).
+  "Preparing n of N..." while it runs. What's new 97. Built by a Sonnet builder; the Arabic "preparing" word moved from «نجهّز» to «يجهّز مدار».
+- [x] fbk_051 (Faisal): the two times of "When Madar notifies you" read in the order of the quiet line: "Quiet from" (end of work), then
+  "Until" (start). Same saved data; the Admin block keeps its order. What's new 98.
+- [x] Gates on main d2476c8a plus both: typecheck; npm test 10,385 passed, 0 failed; both builds (first load 950,885 B, 285,936 B gzip);
+  screenshots 390 px (the chat button EN light, the Files tab AR dark, the quiet fields EN light and AR dark); the ZIP read back in the
+  page (4 names, Arabic intact, "Preparing 2 of 4" to "4 of 4"). Not run: test:db and test:it (no server or SQL change).
+- [ ] Owner: production. Then mark fbk_050 and fbk_051 done. Check one real ZIP on the live site (the R2 GET runs only there).
