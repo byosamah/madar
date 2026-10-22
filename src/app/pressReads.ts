@@ -1,6 +1,10 @@
 import { useCallback } from 'react';
+import { meetingsListInput } from '../features/meetings/readInputs';
 import { PROJECT_SORT_KEY, PROJECT_SORTS } from '../features/projects/sort';
+import { MINE_OPEN, REVIEW_FOR_ME } from '../features/work/readInputs';
+import { todayISO } from '../lib/dates';
 import { GUARD_READS, read, type GuardRead } from './guardReads';
+import { REMOTE } from './mode';
 import { usePrefetchCall } from './prefetch';
 
 /**
@@ -8,7 +12,9 @@ import { usePrefetchCall } from './prefetch';
  * first open of a screen finds its answers in the cache and does not wait for a full trip after the click. Never on hover: a hover on a
  * tab that nobody opens would cost quota. The lists follow the screen file, with the keys of the screen at its link with no filter;
  * `PressReads.test.tsx` holds the keys. Only the remote build starts them (`usePrefetchCall`). A cached answer is not asked again.
- * Home and Tasks start nothing: they show at once from the cache.
+ * Home starts nothing: it shows at once from the cache. The Work tab of a phone starts the two to-do lists, the Meetings view starts its list, and
+ * the Me tab starts the settings (and the Google status, in the real build). On a desk the Tasks tab starts the two to-do lists too: Home holds
+ * them, so a cached answer is not asked again.
  */
 function storedSort(): (typeof PROJECT_SORTS)[number] {
   try {
@@ -31,6 +37,9 @@ function projects(): GuardRead[] {
 export const PRESS_READS: Record<string, () => GuardRead[]> = {
   '/projects': projects,
   '/dashboard': () => GUARD_READS.dashboard!(new URLSearchParams(), undefined),
+  '/work': () => [read('tasks.list', MINE_OPEN), read('tasks.list', REVIEW_FOR_ME)],
+  '/meetings': () => [read('meetings.list', meetingsListInput(todayISO()))],
+  '/me': () => [read('settings.get', {}), ...(REMOTE ? [read('google.status', {})] : [])],
   '/inbox': () => [read('chats.list', {})],
   '/notifications': () => [read('notifications.list', {})],
 };

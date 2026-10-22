@@ -34,16 +34,20 @@ describe('Dashboard (dashboard.view)', () => {
     for (const name of ['Home', 'Projects', 'Inbox']) expect(within(nav).getByRole('link', { name })).toBeInTheDocument();
   });
 
-  it('shows five tabs on a phone with the switch on, and four with the switch off', async () => {
+  it('shows the same four tabs on a phone with the switch on and off', async () => {
     atPhoneWidth();
     const on = await renderApp('/', as());
     const bar = await pill();
     const tabs = () => within(screen.getByRole('navigation', { name: 'Main navigation' })).getAllByRole('link').filter((link) => link.className.includes('flex-1'));
-    await waitFor(() => expect(tabs().map((link) => link.textContent)).toEqual(['Home', 'Projects', 'Tasks', 'Dashboard', 'Inbox']));
+    await waitFor(() => expect(tabs().map((link) => link.getAttribute('aria-label') ?? link.textContent)).toEqual([expect.stringMatching(/^Today/), expect.stringMatching(/^Inbox/), expect.stringMatching(/^Work/), expect.stringMatching(/^Me/)]));
     expect(bar).toBeInTheDocument();
     on.unmount();
     await renderApp('/', as(without('dashboard.view')));
-    await waitFor(() => expect(tabs().map((link) => link.textContent)).toEqual(['Home', 'Projects', 'Tasks', 'Inbox']));
+    await waitFor(() => expect(tabs()).toHaveLength(4));
+    expect(within(screen.getByRole('navigation', { name: 'Main navigation' })).getByRole('link', { name: 'Today' })).toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: 'Main navigation' })).getByRole('link', { name: /^Inbox/ })).toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: 'Main navigation' })).getByRole('link', { name: 'Work' })).toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: 'Main navigation' })).getByRole('link', { name: 'Me' })).toBeInTheDocument();
   });
 
   it('opens /dashboard with the switch on', async () => {

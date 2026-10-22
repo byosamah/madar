@@ -16,3 +16,12 @@ export function projectMeetingsInput(projectId: string, today: string) {
 export function todayMeetingsInput(today: string) {
   return { from: today, to: today, mine: true };
 }
+
+/** The Meetings view looks 7 days back and 60 days ahead (fbk_022). */
+export const MEETINGS_DAYS_BACK = 7;
+export const MEETINGS_DAYS_AHEAD = 60;
+
+/** The list of the Meetings view: my meetings, 7 days back and 60 days ahead. The screen and the press on a tab send this input. */
+export function meetingsListInput(today: string) {
+  return { from: addDays(today, -MEETINGS_DAYS_BACK), to: addDays(today, MEETINGS_DAYS_AHEAD), mine: true };
+}

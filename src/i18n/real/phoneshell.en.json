@@ -5,6 +5,7 @@
       "inbox": "Inbox",
       "work": "Work",
       "me": "Me"
-    }
+    },
+    "inboxBoth": "{{name}}, {{chats}}, {{notices}}"
   }
 }

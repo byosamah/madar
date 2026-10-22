@@ -5,6 +5,7 @@
       "inbox": "الوارد",
       "work": "العمل",
       "me": "أنا"
-    }
+    },
+    "inboxBoth": "{{name}}، {{chats}}، {{notices}}"
   }
 }

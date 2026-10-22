@@ -11,7 +11,7 @@ import { PlusIcon } from '../../components/icons/animated/plus';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenControls } from '../../components/ScreenControls';
 import { ScreenTitle } from '../../components/ScreenTitle';
-import { addDays, todayISO, type DayStyle } from '../../lib/dates';
+import { todayISO, type DayStyle } from '../../lib/dates';
 import { closeMeeting, meetingParam, openMeeting } from '../../lib/params';
 import { WorkSwitch } from '../work/WorkSwitch';
 import { groupMeetings, type MeetingGroup } from './groups';
@@ -19,10 +19,7 @@ import { MeetingForm } from './MeetingForm';
 import { MeetingListRow } from './MeetingRow';
 import { MeetingSheet } from './MeetingSheet';
 import { usePlanRights } from './planRights';
-
-/** The Meetings view looks 7 days back and 60 days ahead (fbk_022). */
-const DAYS_BACK = 7;
-const DAYS_AHEAD = 60;
+import { meetingsListInput } from './readInputs';
 
 /** The day above the time of a row, by group. The Today group shows the time alone. */
 const DAY_STYLE: Record<MeetingGroup, DayStyle | undefined> = { today: undefined, week: 'weekdayDay', later: 'short' };
@@ -82,7 +79,7 @@ export function MeetingsScreen() {
   const [params, setParams] = useSearchParams();
   const [planning, setPlanning] = useState(false);
   const today = todayISO();
-  const list = useCall('meetings.list', { from: addDays(today, -DAYS_BACK), to: addDays(today, DAYS_AHEAD), mine: true });
+  const list = useCall('meetings.list', meetingsListInput(today));
   const open = useStableHandler((id: string) => setParams((current) => openMeeting(current, id)));
   const close = useCallback(() => setParams((current) => closeMeeting(current)), [setParams]);
   const meetingId = meetingParam(params.get('meeting'));

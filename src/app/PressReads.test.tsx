@@ -3,6 +3,7 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import type { QueryClient } from '@tanstack/react-query';
 import type { State } from '../api/store';
 import { renderHeldRemoteApp, type Asked } from '../test/heldRemoteApp';
+import { phoneMedia } from '../test/phoneMedia';
 
 /**
  * A press on a main tab starts the main read of its screen (performance audit 2026-10-21, LV-9). A first open of a screen waited one
@@ -69,5 +70,44 @@ describe('a press on a main tab starts the read of its screen (LV-9)', () => {
     fireEvent.pointerDown(link);
     await flush();
     expect(timesAsked(app.asked, 'projects.list', { status: 'active', sort: 'deadline', filter: 'all' })).toBe(1);
+  }, 60_000);
+});
+
+describe('a press on a phone tab starts the reads of its target', () => {
+  const PHONE_CASES: [string, string, string, { name: string; input: unknown }[]][] = [
+    ['Work', '^Work', '/work', [
+      { name: 'tasks.list', input: { filter: 'mine', includeDone: false } },
+      { name: 'tasks.list', input: { filter: 'review_for_me' } },
+    ]],
+    ['Inbox', '^Inbox', '/inbox', [{ name: 'chats.list', input: {} }]],
+  ];
+
+  it.each(PHONE_CASES)('%s: pointerdown starts the reads once, and the screen asks for nothing again', async (_label, pattern, path, reads) => {
+    phoneMedia(true);
+    const app = await openAt('/whats-new');
+    for (const read of reads) expect(timesAsked(app.asked, read.name, read.input)).toBe(0);
+    const link = (await screen.findAllByRole('link', { name: new RegExp(pattern) }))[0];
+    fireEvent.pointerDown(link);
+    await flush();
+    for (const read of reads) expect(timesAsked(app.asked, read.name, read.input)).toBe(1);
+    await act(async () => { await app.router.navigate(path); });
+    app.release();
+    await waitFor(() => expect(observed(app.queryClient, reads[0].name, reads[0].input)).toBeGreaterThan(0), { timeout: 10_000 });
+    await flush(100);
+    for (const read of reads) expect(timesAsked(app.asked, read.name, read.input)).toBe(1);
+  }, 60_000);
+
+  it('Me: pointerdown starts settings.get once', async () => {
+    phoneMedia(true);
+    const app = await openAt('/whats-new');
+    const before = timesAsked(app.asked, 'settings.get', {});
+    const link = (await screen.findAllByRole('link', { name: /^Me/ }))[0];
+    fireEvent.pointerDown(link);
+    await flush();
+    expect(timesAsked(app.asked, 'settings.get', {})).toBeLessThanOrEqual(Math.max(before, 1));
+    await act(async () => { await app.router.navigate('/me'); });
+    app.release();
+    await flush(100);
+    expect(timesAsked(app.asked, 'settings.get', {})).toBeLessThanOrEqual(Math.max(before, 1));
   }, 60_000);
 });

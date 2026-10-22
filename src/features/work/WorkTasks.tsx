@@ -18,6 +18,7 @@ import { openTask } from '../../lib/params';
 import { doneWindow } from './boardRows';
 import { homePlaceholder } from './minePlaceholder';
 import { lazyWorkBoard } from './WorkBoardLazy';
+import { MINE_OPEN, REVIEW_FOR_ME } from './readInputs';
 import type { WorkView } from './workView';
 
 type Open = (row: TaskRow, thread?: boolean) => void;
@@ -72,8 +73,6 @@ const WorkBody = memo(function WorkBody({ mine, review, me, today, onOpen }: {
   );
 });
 
-const MINE_OPEN = { filter: 'mine', includeDone: false } as const;
-
 /**
  * My open tasks: useCall('tasks.list', MINE_OPEN), with the same key and function. In the real build, while the list loads, it
  * shows the open rows of the list that Home holds, when no change marked that list. The answer then puts back the same rows
@@ -97,7 +96,7 @@ function useMyOpenTasks() {
 export function WorkTasks({ view = 'list' }: { view?: WorkView }) {
   const [params, setParams] = useSearchParams();
   const mine = useMyOpenTasks();
-  const review = useCall('tasks.list', { filter: 'review_for_me' });
+  const review = useCall('tasks.list', REVIEW_FOR_ME);
   const board = view === 'board';
   const today = todayISO();
   const donePlan = useMemo(() => doneWindow(today), [today]);

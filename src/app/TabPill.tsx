@@ -10,9 +10,15 @@ import { useCall } from './runtime';
 import { useCompactBars } from './useCompactBars';
 import { useCan, useRight } from './useRight';
 import { useIsPhone } from './useIsPhone';
+import { PhoneTabBar } from './PhoneTabBar';
 
-/** The floating pill (redesign spec 2.5): top center from 640 px, bottom center on a phone. The open tab carries the signature. */
+/** The floating pill (redesign spec 2.5): top center from 640 px. A phone gets its own bar with four tabs (PhoneTabBar). */
 export function TabPill() {
+  return useIsPhone() ? <PhoneTabBar /> : <DeskPill />;
+}
+
+/** The desk pill. The open tab carries the signature. */
+function DeskPill() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
   const unreadChats = useCall('chats.unreadCount', {}).data?.unread ?? 0;

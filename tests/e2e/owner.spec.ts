@@ -14,13 +14,13 @@ async function previewAs(page: Page, label: string): Promise<void> {
   await expect(page.getByRole('button', { name: label.split(' · ')[0], exact: true })).toBeVisible();
 }
 
-test('the phone tab bar has exactly five tabs and no sideways scroll at 390', async ({ page }) => {
+test('the phone tab bar has exactly four tabs with words and no sideways scroll at 390', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/#/');
   const pill = page.getByRole('navigation', { name: 'Main navigation' });
   await expect(pill).toBeVisible();
-  await expect(pill.getByRole('link')).toHaveCount(5);
-  for (const name of ['Home', 'Projects', 'Tasks', 'Dashboard', 'Inbox']) await expect(pill.getByRole('link', { name: new RegExp(`^${name}`) })).toBeVisible();
+  await expect(pill.getByRole('link')).toHaveCount(4);
+  for (const name of ['Today', 'Inbox', 'Work', 'Me']) await expect(pill.getByRole('link', { name: new RegExp(`^${name}`) })).toBeVisible();
   // Search and the bell sit in the top row on a phone, outside the tab bar.
   await expect(page.getByRole('link', { name: 'Search' })).toBeVisible();
   await expect(page.getByRole('link', { name: /^Notifications/ })).toBeVisible();
