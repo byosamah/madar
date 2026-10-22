@@ -138,10 +138,12 @@ function PauseSheet({ detail, open, onOpenChange }: SheetProps) {
   );
 }
 
+/** The sheets that the "…" menu opens. The header owns this choice, so a phone turned to a wide screen keeps its open sheet (phone D). */
+export type ProjectSheetName = 'edit' | 'leader' | 'delete' | 'pause' | 'template' | null;
+
 /** The "…" menu next to the main button: Edit, Change leader, Apply a template, the status changes and Delete (spec 5.1). */
-export function ProjectActions({ detail }: { detail: ProjectDetail }) {
+export function ProjectActions({ detail, onSheet }: { detail: ProjectDetail; onSheet: (sheet: ProjectSheetName) => void }) {
   const { t } = useTranslation();
-  const [sheet, setSheet] = useState<'edit' | 'leader' | 'delete' | 'pause' | 'template' | null>(null);
   const prefetch = usePrefetchCall();
   const status = useUndoable('projects.setStatus', { message: () => t('project.statusChanged') });
   const resume = useUndoable('projects.resume', { message: () => t('project.resumedToast') });
@@ -153,24 +155,28 @@ export function ProjectActions({ detail }: { detail: ProjectDetail }) {
     hidden: !viewerCan.archive || project.status === to || (to === 'active' && project.status === 'on_hold'),
   });
   const items: MenuItem[] = [
-    { label: t('project.edit'), onSelect: () => setSheet('edit'), onPrepare: viewerCan.editCode === true ? () => prefetch('projects.list', { status: 'all' }) : undefined, hidden: !viewerCan.editDetails },
-    { label: t('project.changeLeader'), onSelect: () => setSheet('leader'), hidden: !viewerCan.changeLeader },
+    { label: t('project.edit'), onSelect: () => onSheet('edit'), onPrepare: viewerCan.editCode === true ? () => prefetch('projects.list', { status: 'all' }) : undefined, hidden: !viewerCan.editDetails },
+    { label: t('project.changeLeader'), onSelect: () => onSheet('leader'), hidden: !viewerCan.changeLeader },
     // A template goes to an open project (active or paused), for the people who hold project.template here (fbk_020).
-    { label: t('projectTemplates.apply.menu'), onSelect: () => setSheet('template'), onPrepare: () => prefetch('projectTemplates.list', {}), hidden: !viewerCan.applyTemplate || (project.status !== 'active' && project.status !== 'on_hold') },
-    { label: t('project.pause'), onSelect: () => setSheet('pause'), hidden: !viewerCan.archive || project.status !== 'active' },
+    { label: t('projectTemplates.apply.menu'), onSelect: () => onSheet('template'), onPrepare: () => prefetch('projectTemplates.list', {}), hidden: !viewerCan.applyTemplate || (project.status !== 'active' && project.status !== 'on_hold') },
+    { label: t('project.pause'), onSelect: () => onSheet('pause'), hidden: !viewerCan.archive || project.status !== 'active' },
     // The paused banner has the Resume button, so the menu offers it only when no banner shows (audit 2026-10-03, PRJ-20).
     { label: t('project.resume'), onSelect: () => resume.mutate({ id: project.id }), hidden: !viewerCan.archive || project.status !== 'on_hold' || Boolean(project.pause) },
     statusItem('active'),
     statusItem('completed'),
     statusItem('archived'),
-    { label: t('project.delete'), onSelect: () => setSheet('delete'), hidden: !viewerCan.delete, destructive: true },
+    { label: t('project.delete'), onSelect: () => onSheet('delete'), hidden: !viewerCan.delete, destructive: true },
   ];
+  return <Menu label={t('project.more')} items={items} triggerClassName="bg-fill text-ink hover:bg-fill-strong" sheetOnPhone />;
+}
+
+/** The sheets of the "…" menu, one open at a time. */
+export function ProjectSheets({ detail, sheet, onSheet }: { detail: ProjectDetail; sheet: ProjectSheetName; onSheet: (sheet: ProjectSheetName) => void }) {
   const onOpenChange = (open: boolean) => {
-    if (!open) setSheet(null);
+    if (!open) onSheet(null);
   };
   return (
     <>
-      <Menu label={t('project.more')} items={items} triggerClassName="bg-fill text-ink hover:bg-fill-strong" sheetOnPhone />
       <EditProjectSheet detail={detail} open={sheet === 'edit'} onOpenChange={onOpenChange} />
       <LeaderSheet detail={detail} open={sheet === 'leader'} onOpenChange={onOpenChange} />
       <DeleteProjectSheet detail={detail} open={sheet === 'delete'} onOpenChange={onOpenChange} />

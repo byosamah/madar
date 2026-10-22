@@ -77,4 +77,16 @@ describe('the sheets of the project header (phone D, P3)', () => {
     const popover = await screen.findByRole('dialog', { name: 'Stages' });
     expect(popover.querySelector('[data-sheet-title]')).toBeNull();
   });
+
+  it('keeps a sheet of More actions, with its typed text, when the phone turns sideways', async () => {
+    const view = phoneMedia(true);
+    await renderApp('/projects/prj_001', as('usr_001'));
+    await userEvent.click(await screen.findByRole('button', { name: 'More actions' }));
+    await userEvent.click(await screen.findByText('Pause project'));
+    const sheet = await screen.findByRole('dialog', { name: 'Pause this project?' });
+    await userEvent.type(within(sheet).getByLabelText('Reason'), 'Waiting for the client');
+    act(() => view.set(false));
+    const again = await screen.findByRole('dialog', { name: 'Pause this project?' });
+    expect(within(again).getByLabelText('Reason')).toHaveValue('Waiting for the client');
+  });
 });

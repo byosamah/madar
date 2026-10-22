@@ -2,6 +2,7 @@ import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { MessageCircleIcon } from '../../components/icons/animated/message-circle';
 import { motion } from 'motion/react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation } from 'react-router';
 import { projectsListLink } from '../../app/lastList';
@@ -16,7 +17,7 @@ import { NextDeadlineLabel } from '../projects/ProjectCard';
 import { HealthControl } from './HealthControl';
 import { phoneMainButton } from './mainButton';
 import { usePostDraft } from './overview/postDraft';
-import { ProjectActions } from './ProjectActions';
+import { ProjectActions, ProjectSheets, type ProjectSheetName } from './ProjectActions';
 import { StageControl } from './StageControl';
 import type { ProjectTab } from './tabs';
 import { clientName } from '../../lib/clientName';
@@ -40,6 +41,16 @@ export function isViewOnly(can: ProjectDetail['viewerCan']): boolean {
     || can.links || can.upload || can.deliver || can.logTracker || can.addTask || can.planMeeting || can.archive || can.changeLeader || can.healthOverride);
 }
 
+/**
+ * What the header keeps for its controls. The header owns the open choices, so a phone turned to a wide screen swaps the layout
+ * without closing the sheet that a person works in (phone D).
+ */
+type Controls = {
+  onSheet: (sheet: ProjectSheetName) => void;
+  stage: boolean; onStage: (open: boolean) => void;
+  health: boolean; onHealth: (open: boolean) => void;
+};
+
 /** The chat button and the opener it sends: Back from the chat returns to this screen (phone D, lead amendment 6). */
 function ChatLink({ chatId, className }: { chatId: string; className: string }) {
   const { t } = useTranslation();
@@ -56,7 +67,7 @@ function ChatLink({ chatId, className }: { chatId: string; className: string }) 
  * The header of a phone (phone D, P5): the identity row, the stage row with the health sign, a full width stage line, and the action
  * row. The deadline label leaves the header: Overview shows it. The navy goes to one button for each tab (`phoneMainButton`).
  */
-function PhoneHeader({ detail, onPost, tab }: { detail: ProjectDetail; onPost: () => void; tab: ProjectTab }) {
+function PhoneHeader({ detail, onPost, tab, controls }: { detail: ProjectDetail; onPost: () => void; tab: ProjectTab; controls: Controls }) {
   const { t } = useTranslation();
   const lang = useLang();
   const { project } = detail;
@@ -79,12 +90,12 @@ function PhoneHeader({ detail, onPost, tab }: { detail: ProjectDetail; onPost: (
             {viewOnly && <span className="rounded-full bg-fill px-2.5 text-caption font-semibold text-ink-2">{t('project.viewOnly')}</span>}
           </p>
         </div>
-        <ProjectActions detail={detail} />
+        <ProjectActions detail={detail} onSheet={controls.onSheet} />
       </div>
       <div className="flex items-center gap-x-3">
-        <StageControl detail={detail} />
+        <StageControl detail={detail} open={controls.stage} onOpenChange={controls.onStage} />
         <span className="text-footnote text-ink-2">{count}</span>
-        <span className="ms-auto"><HealthControl detail={detail} /></span>
+        <span className="ms-auto"><HealthControl detail={detail} open={controls.health} onOpenChange={controls.onHealth} /></span>
       </div>
       <ProgressLine
         index={index}
@@ -112,15 +123,13 @@ function PhoneHeader({ detail, onPost, tab }: { detail: ProjectDetail; onPost: (
   );
 }
 
-/** The calm header (redesign spec 3.4): back, tile, name, client, one stage line, one main button and the "…" menu. */
-export function ProjectHeader({ detail, onPost, tab }: { detail: ProjectDetail; onPost: () => void; tab: ProjectTab }) {
+/** The header of a desk (redesign spec 3.4): back, tile, name, client, one stage line, one main button and the "…" menu. */
+function DeskHeader({ detail, onPost, controls }: { detail: ProjectDetail; onPost: () => void; controls: Controls }) {
   const { t } = useTranslation();
-  const phone = useIsPhone();
   const lang = useLang();
   const { project } = detail;
   const viewOnly = isViewOnly(detail.viewerCan);
   const index = detail.stages.findIndex((stage) => stage.id === detail.currentStage.id);
-  if (phone) return <PhoneHeader detail={detail} onPost={onPost} tab={tab} />;
   return (
     <header className="flex flex-col gap-3">
       <Link to={projectsListLink()} className="pressable -ms-2 inline-flex min-h-11 items-center gap-0.5 self-start rounded-full pe-3 ps-1 text-subheadline font-semibold text-link max-sm:hidden">
@@ -145,11 +154,11 @@ export function ProjectHeader({ detail, onPost, tab }: { detail: ProjectDetail; 
           {detail.chatId && (
             <ChatLink chatId={detail.chatId} className="pressable inline-flex min-h-11 items-center gap-2 rounded-full bg-fill px-4 text-subheadline font-semibold text-ink hover:bg-fill-strong" />
           )}
-          <ProjectActions detail={detail} />
+          <ProjectActions detail={detail} onSheet={controls.onSheet} />
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        <StageControl detail={detail} />
+        <StageControl detail={detail} open={controls.stage} onOpenChange={controls.onStage} />
         <ProgressLine
           index={index}
           total={detail.stages.length}
@@ -159,8 +168,23 @@ export function ProjectHeader({ detail, onPost, tab }: { detail: ProjectDetail; 
           className="w-28 sm:w-36"
         />
         <NextDeadlineLabel deadline={detail.nextDeadline} stageEnd={detail.stageEnd} />
-        <HealthControl detail={detail} />
+        <HealthControl detail={detail} open={controls.health} onOpenChange={controls.onHealth} />
       </div>
     </header>
+  );
+}
+
+/** The calm header: the phone layout under 640 px, the desk layout from there. The sheets of the "…" menu stay mounted across the swap. */
+export function ProjectHeader({ detail, onPost, tab }: { detail: ProjectDetail; onPost: () => void; tab: ProjectTab }) {
+  const phone = useIsPhone();
+  const [sheet, setSheet] = useState<ProjectSheetName>(null);
+  const [stage, setStage] = useState(false);
+  const [health, setHealth] = useState(false);
+  const controls: Controls = { onSheet: setSheet, stage, onStage: setStage, health, onHealth: setHealth };
+  return (
+    <>
+      {phone ? <PhoneHeader detail={detail} onPost={onPost} tab={tab} controls={controls} /> : <DeskHeader detail={detail} onPost={onPost} controls={controls} />}
+      <ProjectSheets detail={detail} sheet={sheet} onSheet={setSheet} />
+    </>
   );
 }

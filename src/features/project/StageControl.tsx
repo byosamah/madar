@@ -1,7 +1,7 @@
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { CheckIcon } from '../../components/icons/animated/check';
 import { ChevronDownIcon } from '../../components/icons/animated/chevron-down';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import type { Stage } from '../../api/contract/entities';
@@ -78,22 +78,26 @@ function StageDetails({ detail, stage }: { detail: ProjectDetail; stage: Stage }
  * The current stage as one quiet button. It opens the stages in time order, each with its dates, tasks and prerequisites.
  * The current stage follows the tasks (the earliest stage with an open task), so nobody picks it here (owner, 2026-10-02).
  */
-export function StageControl({ detail }: { detail: ProjectDetail }) {
+export function StageControl({ detail, open: shown, onOpenChange }: { detail: ProjectDetail; open?: boolean; onOpenChange?: (open: boolean) => void }) {
   const { t } = useTranslation();
   const phone = useIsPhone();
-  const ref = useRef<HTMLButtonElement>(null);
-  const [open, setOpen] = useState(false);
+  // The header may own the open choice, so a phone turned to a wide screen keeps the list open (phone D). The button is the anchor of
+  // the desk panel: a state, so the panel draws when the button of the new layout has mounted.
+  const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
+  const [own, setOwn] = useState(false);
+  const open = shown ?? own;
+  const setOpen = onOpenChange ?? setOwn;
   const [picked, setPicked] = useState(detail.currentStage.id);
   const currentIndex = detail.stages.findIndex((stage) => stage.id === detail.currentStage.id);
   const selected = detail.stages.find((stage) => stage.id === picked) ?? detail.currentStage;
   const toggle = () => {
     setPicked(detail.currentStage.id);
-    setOpen((value) => !value);
+    setOpen(!open);
   };
   return (
     <>
       <button
-        ref={ref}
+        ref={setAnchor}
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -103,7 +107,7 @@ export function StageControl({ detail }: { detail: ProjectDetail }) {
         <bdi>{detail.currentStage.name}</bdi>
         <AnimatedIcon icon={ChevronDownIcon} size={16} className="text-ink-2" aria-hidden />
       </button>
-      <SheetOrPopover open={open} onOpenChange={setOpen} anchor={ref.current} title={t('project.stages')}>
+      <SheetOrPopover open={open} onOpenChange={setOpen} anchor={anchor} title={t('project.stages')}>
         <div className="flex flex-col gap-3">
           {/* The sheet of a phone draws the title itself. */}
           {!phone && <p className="text-headline text-ink">{t('project.stages')}</p>}
