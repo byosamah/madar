@@ -74,7 +74,7 @@ and the lock (Sunday to Thursday, 9 AM to 5 PM, on by default): nobody is quiet 
 - `encrypt.ts`: `encryptPush` (RFC 8291). `line.ts`: `noticeLine` and `chatLine`, the line as the person reads it.
 - `words.ts`: the words of the line in an i18next instance of its own (as `server/mail/templates/words.ts`). It imports only the
   `inbox`, `notices` and `push` parts of the word files BY NAME, so the bundle keeps those parts only (the api bundle has a bound of
-  800,000 bytes; 774,427 after this change). `words.test.ts` checks that its `inbox` words are all the `inbox` words of the screens:
+  850,000 characters; 843,575 on 2026-10-22 after quiet hours and @everyone). `words.test.ts` checks that its `inbox` words are all the `inbox` words of the screens:
   a track that adds a bell sentence in a new word file adds that file to `words.ts`.
 - `notify.ts`: the producer `pushRows`, the effects `sendPushNotify` and `sendChatPush` (each takes `LineOptions` for tests), and
   their SQL texts. `PUSH_DEVICES_SQL` reads the keys of each device (`d.doc->'keys'`, null when none).
@@ -93,6 +93,8 @@ and the lock (Sunday to Thursday, 9 AM to 5 PM, on by default): nobody is quiet 
   never for a reaction, a delete, a quiet line or an Undo; an edit pushes only a person it names for the first time. One row for each
   person for each save: a `push.notify` row wins over a `push.chat` row. The mention switch of Settings does not stop a push that
   names a person.
+- An @everyone notice (`Notification.everyone`, 2026-10-22) gives the push like any mention notice of a new item: `planPushes` adds the person from the
+  notice. It sends no mail. A person in quiet hours gets it later ("Quiet hours" above).
 - A copy for an Admin who picked "Everything" (`Notification.forUserIds`, owner 2026-10-23) gives no push: `PUSH_NEW_NOTICES_SQL` and the SQLite
   reader skip it. The choice does not change the push of a chat message either: `planPushes` reads the stored "Notify me" level and the default
   "named" of a project chat, never the Admin choice. Tests: `adminCopies.test.ts`.

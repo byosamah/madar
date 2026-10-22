@@ -139,3 +139,22 @@ describe("What's new entries", () => {
     expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-82', 'title']))).toBe('صار مدار أسرع');
   });
 });
+
+// Quiet hours and @everyone (owner, 2026-10-22, fbk_048 and fbk_041). The entries are found by id, never by place.
+describe("the What's new entries of quiet hours and @everyone", () => {
+  it('have the three ids, for everyone, with a screen to open', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-88')).toEqual({ id: '2026-10-23-88', day: '2026-10-23', to: '/settings' });
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-89')).toEqual({ id: '2026-10-23-89', day: '2026-10-23', to: '/inbox' });
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-90')).toEqual({ id: '2026-10-23-90', day: '2026-10-23', to: '/settings' });
+  });
+
+  it('say how to change the hours, the three words, and the new time of the summary, in both languages', () => {
+    const text = (tree: unknown, id: string) => `${wordAt(tree, ['whatsNew', 'items', id, 'title'])} ${wordAt(tree, ['whatsNew', 'items', id, 'body'])}`;
+    expect(text(en, '2026-10-23-88')).toContain('Settings, Quiet hours');
+    expect(text(en, '2026-10-23-89')).toContain('@everyone');
+    expect(text(en, '2026-10-23-90')).toContain('start of your work hours');
+    expect(text(ar, '2026-10-23-88')).toContain('ساعات الهدوء');
+    expect(text(ar, '2026-10-23-89')).toContain('@الجميع');
+    expect(text(ar, '2026-10-23-90')).toContain('بداية ساعات عملك');
+  });
+});

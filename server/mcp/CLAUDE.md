@@ -241,3 +241,9 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   person with the report right gets the same report. No new tool: the count stays 57. Tests: `reportGuide.test.ts` (the tools, fields and
   colors that the guide names) and `tools.test.ts` (the words of the tool text and the line). After a change of the guide, tell the owner
   that a Claude skill with the old text in his AI app can disagree with it.
+
+## Quiet hours and @everyone (owner, 2026-10-22)
+- `me.updatePreferences` and `settings.update` stay on the deny list: only a person sets quiet hours, only the Admin sets the office. The new switch
+  "Mention everyone" (`chat.mentionEveryone`) is a Chat switch, not an AI switch, and opens no tool. An agent writes `@everyone` with the rights of its
+  person. `INSTRUCTIONS` has the line "Quiet hours:" and `TOOL_DOCS` of `chats.send` (599 characters) and `comments.create` (571) name the words, the
+  switch, "a notice and a push, no email" and the quiet hours hold. Test: `quietEveryone.test.ts`.

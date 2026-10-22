@@ -50,6 +50,9 @@ after the commit of the call that asked for it.
 - A copy of a notice for an Admin who picked "Everything" (`Notification.forUserIds`) sends no mail: `NEW_NOTICES_SQL` and the SQLite reader
   (`liteNoticeRows`) skip it, so no `mail.notice` and no `mail.chatNotice` row exists for it. Tests: `server/push/adminCopies.test.ts`.
 
+- A notice from @everyone (`Notification.everyone`, owner 2026-10-22, fbk_041) sends no mail either: `NEW_NOTICES_SQL` and `liteNoticeRows` skip it. The
+  Resend free plan sends 100 mails a day. Test: `everyoneMail.test.ts`.
+
 ## Content
 - Notice mail carries no client data: no task, project or comment text. The morning summary is the one exception (owner, 2026-10-19,
   fbk_021): it lists the open tasks of its reader, and each line holds the task title, the project key (`projectKey`, or "Office" for an

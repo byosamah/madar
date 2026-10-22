@@ -219,7 +219,9 @@ The other host stays deployed as the way back. Each area below has its own guide
 - pg_cron calls `jobs/run` of the Supabase jobs function every 15 minutes, in both host settings (owner, 2026-10-16), with the
   secret header `x-madar-jobs-secret`. The Worker keeps `/jobs` mounted, but nothing calls it: pg_cron and the Vault
   `project_url` do not change. Steps (`jobs/steps/`):
-  heartbeat, triggers, meetings, summary, outbox, cleanup, uploads. Each step is idempotent. The triggers step also sends `resume_due`
+  heartbeat, triggers, meetings, summary, quietEnd, outbox, cleanup, uploads. Each step is idempotent. `summary` sends the morning summary at
+  the start of the work hours of each person (a job_runs row `summary:<day>:<person>` closes one person for one day). `quietEnd` sends the one push
+  to a person whose push was held in quiet hours (`push/held.ts`; `server/push/CLAUDE.md`). `core/quiet.ts` reads the work hours for the effects. The triggers step also sends `resume_due`
   (the planned restart day of a paused project) to the leader and to the person who paused it (`src/api/CLAUDE.md`).
 - The meetings step (fbk_022, wave 2; `jobs/steps/meetings.ts`) settles the meetings that ended. One read (`SETTLE_SQL`, `SETTLE_LITE`, served by the
   partial index `meetings_to_settle`) gives at most 20 due meetings, the oldest end first: scheduled, not settled, ended in the last 14 days. For each

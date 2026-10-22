@@ -381,10 +381,10 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   - MCP: `TOOL_DOCS` of `projects.update` (600 characters, at the limit) and `projects.get`, and the `Place:` line of `INSTRUCTIONS`.
 
 ## Office rights and roles (owner, 2026-10-18, fbk_014; role rights version 2, 2026-10-21)
-- The rights are 112 switches in 13 sections (`OfficeRight`, `contract/entities.ts`). The one source is the catalog JSON in
+- The rights are 113 switches in 13 sections (`OfficeRight`, `contract/entities.ts`; 85 powers; "Mention everyone" joined the Chat section on 2026-10-22). The one source is the catalog JSON in
   `docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json`; `rightsCatalog.ts` is its plain copy (no zod), and
   `rightsCatalog.test.ts` checks that the two agree. The Admin holds all of them. A switch id is `<power>.<scope>` for a power with
-  scopes (`lead`, `team`, `all`, `office`, `none`), or the power name for a power with one switch. `BASIC_ON` is the 64 switches a Member holds.
+  scopes (`lead`, `team`, `all`, `office`, `none`), or the power name for a power with one switch. `BASIC_ON` is the 65 switches a Member holds.
 - A power with scopes asks `scopeAllows` (`permissions.ts`): hold `<power>.all`, or `<power>.lead` and lead the project, or
   `<power>.team` and be on the team (the leader counts as on the team). An "own" power keeps the people rule (maker, lead, author,
   organizer) and needs its switch. `project.code` passes only where `project.details` passes. The Admin holds every `.all`.
@@ -394,7 +394,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   `off`) plus the expanded `rights` (or `DEFAULT_EXTRA`), minus each switch whose need on another power is off (`dropUnmetNeeds`, fail
   closed: `ai.connect` off turns every AI switch off; the sheet turns needs on with `withNeeds`); a custom role with no `off` = the Member switches
   plus its own (the meaning of before); with `off` = its own full list; a deleted role leaves the Member switches. `heldRightsOfRole` gives
-  the list to the screens. `session.get` and every output give the 112 ids only. A save writes new ids only (`roles.*` expand old ids).
+  the list to the screens. `session.get` and every output give the 113 ids only. A save writes new ids only (`roles.*` expand old ids).
   Caps: `rights` 120, `off` 70.
 - The actions of `can()` are the power names. The stand-ins of the first release are gone (`project.edit`, `project.changeLeader`,
   `project.healthOverride`, `project.editCode`, `content.post`, `content.editOwn`, `task.createForSelf`, `task.createForAnyone`,
@@ -405,7 +405,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   (the Roles section and the role events). With the default settings the answers equal the answers of before
   (`server/core/rightsParity.test.ts` proves it against a record made on the code before this release). A stored list may still hold an
   old id (`LEGACY_RIGHTS` of `rightsCatalog.ts`); that is a stored right, never an action. The pure power actions are in
-  `rightSwitches.test.ts`, one group of tests for each of the 112 switches. A to-do rule that combines the own power and `task.any` lives
+  `rightSwitches.test.ts`, one group of tests for each of the 113 switches. A to-do rule that combines the own power and `task.any` lives
   in `taskGates.ts` (`mayChangeTask`, `mayAssignTask`, `mayDeleteTask`, `mayTickChecklist`).
 - A right gives only its own power. Before a right passes an action, grep every use of that action and check what it stands in for.
 - A check of an office right reads the person with the rights attached. A handler gets them in `ctx.authority` (`execute.ts`); the
@@ -694,3 +694,23 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   never "the newest event".
 - `npm test` runs the rule tests on the store in memory. `npm run test:db` runs them again on the local Postgres (one
   schema for each worker, as madar_server).
+
+## Quiet hours and @everyone (owner, 2026-10-22, fbk_048 and fbk_041)
+- Contract (all additive): `Preferences.workHours` (`{ quiet, days, from, to }`; days 0 = Sunday to 6, at least one, `from` before `to` on a
+  30-minute step) and `Settings.workHours` (`{ days, from, to, lock: { on, days, from, to } }`). A missing value means Sunday to Thursday, 9 AM to
+  5 PM, the lock on with the same days and hours, and quiet hours on (`DEFAULT_OFFICE_WORK_HOURS`, `src/lib/quietHours.ts`: the one pure rule
+  `isQuiet`, `workHoursOf`, `workStartOn`, `coversLock`). `Notification.everyone`, `Comment.mentions`, `PushDevice.heldAt`, `ChatThread.everyone` and
+  `TaskDetail.everyone` are optional.
+- `me.updatePreferences` takes `workHours`: only the person (an agent gets `forbidden`, action `me.workHours`), and a range with quiet on must
+  hold the lock (`work_hours_lock`). `settings.update` takes `workHours` (`office.settings`): the default range must hold the lock
+  (`work_hours_default_lock`). A stored range that no longer holds a moved lock is not changed; `isQuiet` adds the lock at read time. An agent
+  may not undo a change of the work hours (`changesEmail` in `history.ts`). Both calls stay on the MCP deny list.
+- @everyone: `mentionsEveryone(body)` (`lib/text.ts`: `@everyone`, `@all`, `@الجميع` as a whole word) and `handlers/everyone.ts` (`everyoneOfChat`,
+  `everyoneOfTask`, `namedByEveryone`). A group: its members. A project chat: `chatMemberIds` (the leader and the team: an Admin or a holder
+  of `chat.project.all` outside the team is not named). A to-do thread: lead, helpers, maker and project leader (an office to-do has no
+  leader). A direct chat names nobody. Never the sender, an agent or a person who is off, and only a writer who holds `chat.mentionEveryone`
+  (basic switch, on for every role). A person named by name or by a reply gets that notice, not a second one. The people join
+  `Message.mentions` and `Comment.mentions`; each gets one `mention` notice with `everyone: true` (`NotifyInput.everyone`). An edit names
+  a person for the first time only. An @everyone notice makes no Admin copy (`makesCopies`) and no email (`NEW_NOTICES_SQL`,
+  `liteNoticeRows`); it gives the push through the normal notice path. `chats.messages` and `tasks.get` give the count for the mention
+  list row (`everyone`, missing when it is 0). Tests: `handlers/everyone.test.ts`, `server/push/everyoneLeaks.test.ts` (the leak probes).

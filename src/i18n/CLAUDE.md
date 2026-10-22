@@ -21,6 +21,9 @@ speaker, so write it as natural Arabic, not as a word-for-word copy of the Engli
   (`adminReach.copy.*`, with `_female` forms), the plural `adminReach.others`, and the What's new entry `2026-10-23-69`.
   `batchc` holds the words of the Board view of Tasks (fbk_042): `workView.label` (the View button) and `workView.yourReview`, and the What's new entry `2026-10-23-91`
   sits in `whatsnew`.
+  `batchb` holds the words of quiet hours and @everyone (2026-10-22): the `quietHours` section, the Admin block `admin.workHours`, the reasons
+  `work_hours_lock` and `work_hours_default_lock`, the bell sentences `inbox.mentionEveryone*` (also read by the push line), `mentionEveryone.*` (the
+  row of the mention list), `roleRights.powers.chatMentionEveryone` and the What's new entries `2026-10-23-88` to `-90`.
 - A task adds new words only to its own track files.
 - Server code reads the word files with plain JSON imports (no `import.meta.glob`).
 - The push line (2026-10-21) writes the bell sentences on the server: `server/push/words.ts` imports the `inbox`, `notices` and `push`

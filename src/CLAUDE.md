@@ -379,7 +379,7 @@ any screen work.
 - Admin: a grouped side list, one section at a time. The sections, their groups and roles are in one registry,
   `features/settings/admin/sections.ts`; a new section is one line there. A section with `right` opens for each person who holds
   that right (owner, 2026-10-18, fbk_014): `sectionsFor` reads the viewer, and `opensAdminPage` (`api/rights.ts`) decides the person
-  menu. The Roles section is the Admin's only: `RolesSection.tsx` is one row for each role (people and rights), `RoleSheet.tsx` is the sheet of one role (people, names, the 112 switches in 13 folded sections, Save role, Delete with a move). A desk opens the first section at `/admin`; a
+  menu. The Roles section is the Admin's only: `RolesSection.tsx` is one row for each role (people and rights), `RoleSheet.tsx` is the sheet of one role (people, names, the 113 switches in 13 folded sections, Save role, Delete with a move). A desk opens the first section at `/admin`; a
   phone shows the list there. An unknown or forbidden section goes back to `/admin`.
 - Project templates: the Admin section (`ProjectTemplatesSection.tsx`) and "Start from a template" in the new-project form
   (`features/projects/TemplateUse.tsx`, `templateForm.ts`; the picker sits right under the Name, and the people of the roles are ticked
@@ -473,16 +473,16 @@ any screen work.
   Everyone sees all projects. Payments only for the payment right (by default Admin, Management, Accounting; fbk_014). Agents never join a team. The person who adds a
   project task changes and deletes it like the leader while on the team; the review stays with the leader (owner, 2026-10-07).
   Only the Admin changes a role. Management reads the role of a person as text in the person sheet (owner, 2026-10-18, fbk_014).
-  The rights are 112 switches in 13 sections (role rights version 2, owner 2026-10-21; the list is `api/rightsCatalog.ts`, a plain copy of
+  The rights are 113 switches in 13 sections (role rights version 2, owner 2026-10-21; the list is `api/rightsCatalog.ts`, a plain copy of
   `docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json`; `RIGHT_SECTIONS` in `permissions.ts` gives the sections). The
   role sheet (`RoleSheet.tsx`, with `RoleRights.tsx` and `roleSheetLogic.ts`) shows the 13 sections of the catalog, folded, one open at a time.
   The heading row holds the name, the count ("4 of 9 on") and an All control (on, off or mixed; `role="checkbox"` with `aria-checked="mixed"`, because ARIA allows mixed on a checkbox and not on a switch; it looks like the other switches). A power row holds the label, the line and one
   small switch for each scope (`RoleToggle.tsx`, 44 px press area), or one switch. A switch brings the switches it needs; turning a need off
   turns its dependants off (`withRight`, `withSection`). The sheet holds the list of held ids and saves it with one button: the ids that are
-  not basic go in `rights`, the basic ids that are off go in `off` (`saveShape`). "Holds 64 of 112" is live, "Back to the standard list" gives
+  not basic go in `rights`, the basic ids that are off go in `off` (`saveShape`). "Holds 65 of 113" is live, "Back to the standard list" gives
   the default of a built-in role and the Member list for a custom role, and a new role starts as a copy of the Member list. The AI section opens
   with three approved lines. A line "A person who makes a project leads it." shows when Create projects is on and three or more "Projects I
-  lead" switches are off. The Roles list ("3 people · 64 of 112 rights") and the person sheet line ("Designer: standard rights, plus 2,
+  lead" switches are off. The Roles list ("3 people · 65 of 113 rights") and the person sheet line ("Designer: standard rights, plus 2,
   without 3.") both read `heldRightsOfRole`. The Admin sections of sub-companies and requests and bugs open for `subCompanies.manage` and
   `feedback.manage`; People for any of the five `people.*` switches, Teams for `people.teams`, Clients for `clients.change`, the project
   templates for `templates.projectCreate`, `templates.projectAny` or `templates.updateProjects`, the to-do templates for `templates.taskAny`,
@@ -870,3 +870,16 @@ any screen work.
 - A dnd-kit keyboard drag in jsdom needs `getBoundingClientRect` mocked for each row
   (`features/work/WorkOrder.test.tsx`). The place message (`onDragOver`) replaces the pick-up message at once, so assert
   the place message. Await the place message after Space and after the arrow key before the next key, or the drop never happens.
+
+## Quiet hours and the Everyone row (owner, 2026-10-22, fbk_048 and fbk_041)
+- Settings has the section "Quiet hours" after the push section (`settings/QuietHoursSection.tsx`, for every role). One switch "Quiet outside my
+  work hours" (on by default), then the seven day toggles from Sunday and "From" and "To" (30-minute steps from 6:00 AM to 11:30 PM, on the
+  12-hour words of `clockFormat`; `WorkRangeFields.tsx`, `workRange.ts`). While the Admin keeps the lock on, the days of the lock are ticked and
+  locked, the times cannot cut the lock, and one line names it. Each change saves at once with `me.updatePreferences` and a toast. With the
+  switch off, the day and time controls hide. A range the Admin's later lock no longer holds is shown widened to the lock.
+- The Admin block "Work hours" is in `admin/OfficeSection.tsx` (`office.settings`): the default range of a person who chose none, and "Keep
+  notifications on" (switch, days, from, to). A change of the lock widens the default range at once, and Save refuses a default that misses the lock.
+- `MentionField` takes `everyone` (the count). With it the list starts with the row "Everyone · N people" when nothing is typed after the "@" or
+  the letters start `everyone`, `all` or `الجميع`; a pick puts `@everyone` (English screens) or `@الجميع` (Arabic screens) into the box. The count
+  comes from `chats.messages` and `tasks.get`; no count (a direct chat, no right) means no row. `RichText everyone` draws the three words as a mention
+  chip when the message or the comment named people. The words are `batchb.en.json` and `batchb.ar.json`.
