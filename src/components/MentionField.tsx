@@ -115,7 +115,7 @@ export function MentionField({
         className="field resize-y"
       />
       {open && (
-        <ul id={listId} role="listbox" aria-label={t('overview.mentionList')} className={`float absolute inset-x-0 z-30 flex flex-col rounded-2xl p-1.5 ${placement === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+        <ul id={listId} role="listbox" aria-label={t('overview.mentionList')} className={`float absolute end-0 z-30 flex w-[max(100%,min(18rem,calc(100vw_-_2rem)))] flex-col rounded-2xl p-1.5 ${placement === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
           {entries.map((row, i) => (
             <li
               key={rowId(row)}

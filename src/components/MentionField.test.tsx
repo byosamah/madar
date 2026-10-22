@@ -103,6 +103,16 @@ describe('the mention list: place and order', () => {
     expect(screen.getByRole('listbox')).toHaveClass('top-full');
   });
 
+  it('stays wide enough for one line a name beside a narrow box, and grows into the free space on the end side (owner, 2026-10-22)', async () => {
+    render(<Rank placement="above" />);
+    await userEvent.type(screen.getByRole('textbox', { name: 'Box' }), '@');
+    const list = screen.getByRole('listbox');
+    // A chat box on a phone sits between the Attach, emoji and Send buttons, so the list took its narrow width and long names wrapped.
+    // The list is at least 18rem wide (never wider than the screen less 2rem) and lines up with the end of the box.
+    expect(list).toHaveClass('end-0', 'w-[max(100%,min(18rem,calc(100vw_-_2rem)))]');
+    expect(list).not.toHaveClass('inset-x-0');
+  });
+
   it('shows at most five names', async () => {
     const many = Array.from({ length: 8 }, (_, i) => person(`usr_0${20 + i}`, `Sami Person${i}`));
     function Many() {
