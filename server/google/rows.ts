@@ -2,7 +2,7 @@ import type { User } from '../../src/api/contract/entities';
 import type { OutboxRow } from '../core/effects';
 import type { Query } from '../core/ports';
 import type { SaveResult } from '../data/save';
-import { deleteEventsOfUser, eventPairsOf, forgetCalendar, meetingsOf, startRevoking, syncingPeople } from './store';
+import { deleteEventsOfUser, eventPairsOf, forgetCalendar, meetingIdsOfProjects, meetingsOf, startRevoking, syncingPeople } from './store';
 
 /**
  * The outbox rows of the Google Calendar sync (fbk_022): the producers that runCall asks after the save of GCAL_CALLS and of
@@ -18,9 +18,14 @@ export const TIDY_EFFECT = 'gcal.tidy';
  * One gcal.sync { userId, meetingId } for each pair: a person with a live connection (ok or not_synced) who is now the organizer or an
  * attendee of a meeting that the save inserted or changed, plus each person who has a Google event for a meeting that the save inserted,
  * changed or deleted (a person taken off, a cancelled or deleted meeting). It asks the database only when the save touched a meeting.
+ *
+ * A save that touched no meeting but touched a project that not every active person views (hidden projects, owner 2026-10-22: a change of
+ * who sees the project, a person taken off the team, a new leader) names the scheduled meetings of that project instead: gcal.sync
+ * checks again whether each person still views the project, and takes the Google event away when the person does not.
  */
-export async function gcalRows(q: Query, saved: Pick<SaveResult, 'meetingIds'>): Promise<OutboxRow[]> {
-  const ids = saved.meetingIds ?? [];
+export async function gcalRows(q: Query, saved: Pick<SaveResult, 'meetingIds' | 'hiddenProjects'>): Promise<OutboxRow[]> {
+  let ids = saved.meetingIds ?? [];
+  if (ids.length === 0 && (saved.hiddenProjects?.length ?? 0) > 0) ids = await meetingIdsOfProjects(q, saved.hiddenProjects!);
   if (ids.length === 0) return [];
   const meetings = await meetingsOf(q, ids);
   const people = [...new Set(meetings.flatMap((meeting) => [meeting.organizerId, ...meeting.attendeeIds]))].sort();

@@ -135,6 +135,11 @@ export type SaveResult = {
   signals: ChangeSignal[];
   /** The new office_meta.version when the save raised it. runCall then drops BatchScope.office (plan 4.7). */
   officeVersion?: number;
+  /**
+   * The projects that not every active person views and that the save touched (hidden projects, owner 2026-10-22). They are no part of
+   * `projects`, which names the public ones. The Google Calendar sync reads them. Left out when there are none.
+   */
+  hiddenProjects?: string[];
 };
 
 export type SaveOptions = { story?: SignalMeta; signals?: boolean };
@@ -634,6 +639,7 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
     ...(diff.commentIds.length > 0 ? { commentIds: diff.commentIds } : {}),
     ...(diff.noticeIds.length > 0 ? { noticeIds: diff.noticeIds } : {}),
     ...(diff.meetingIds.length > 0 ? { meetingIds: diff.meetingIds } : {}),
+    ...(diff.hidden.size > 0 ? { hiddenProjects: [...diff.hidden.keys()].sort() } : {}),
     ...fields,
   });
   if (!changed) return result();

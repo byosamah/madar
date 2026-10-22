@@ -1,4 +1,7 @@
-import type { Meeting } from '../../src/api/contract/entities';
+import type { Meeting, Project, RoleSettings, User } from '../../src/api/contract/entities';
+import { mayViewProject } from '../../src/api/permissions';
+import { memberKey } from '../../src/api/rowKeys';
+import type { State } from '../../src/api/store';
 import type { Query } from '../core/ports';
 import { sqlFor } from '../data/dialect';
 
@@ -189,6 +192,40 @@ export async function meetingsOf(q: Query, ids: string[]): Promise<Meeting[]> {
 export async function meetingOf(q: Query, id: string): Promise<Meeting | undefined> {
   const [row] = await q<{ doc: Meeting }>(sqlFor(q, 'select doc from meetings where id = $1', 'select doc from meetings where id = ?1'), [id]);
   return row?.doc;
+}
+
+/** The scheduled meetings of these projects (hidden projects, owner 2026-10-22): the sync reads them when a save changes who views a project. */
+export async function meetingIdsOfProjects(q: Query, projectIds: string[]): Promise<string[]> {
+  if (projectIds.length === 0) return [];
+  const rows = await q<{ id: string }>(
+    sqlFor(
+      q,
+      "select id from meetings where project_id = any($1::text[]) and status = 'scheduled' order by id",
+      "select id from meetings where project_id in (select value from json_each(?1)) and status = 'scheduled' order by id",
+    ),
+    [projectIds],
+  );
+  return rows.map((row) => row.id);
+}
+
+/**
+ * True when the person views the project: the one view rule of a project (mayViewProject), asked on the rows of the project, the team, the
+ * person and the roles. A project that is gone is viewed by nobody. It is the check of gcal.sync for a meeting of a project.
+ */
+export async function viewsProject(q: Query, userId: string, projectId: string): Promise<boolean> {
+  const [project] = await q<{ doc: Project }>(sqlFor(q, 'select doc from projects where id = $1', 'select doc from projects where id = ?1'), [projectId]);
+  const [user] = await q<{ doc: User }>(sqlFor(q, 'select doc from users where id = $1', 'select doc from users where id = ?1'), [userId]);
+  if (!project || !user) return false;
+  const [member] = await q<{ id: string }>(sqlFor(q, 'select id from members where id = $1', 'select id from members where id = ?1'), [memberKey(projectId, userId)]);
+  const [settings] = await q<{ roles: RoleSettings | null }>(
+    sqlFor(q, "select doc->'roles' as roles from settings where id = 'office'", "select json_extract(doc, '$.roles') as roles from settings where id = 'office'"),
+  );
+  const roles = typeof settings?.roles === 'string' ? (JSON.parse(settings.roles) as RoleSettings) : settings?.roles ?? undefined;
+  const state = {
+    projects: { [projectId]: project.doc }, users: { [userId]: user.doc }, settings: { roles },
+    members: member ? { [memberKey(projectId, userId)]: { projectId, userId, discipline: '' } } : {},
+  } as unknown as State;
+  return mayViewProject(state, project.doc, user.doc);
 }
 
 /** The part of the record of a person that the sync reads: whether the person may still get events. */

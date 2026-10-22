@@ -185,6 +185,12 @@ The other host stays deployed as the way back. Each area below has its own guide
   starts with `MADAR_EVENT_PREFIX` (the hex of `madar:mtg_`). It never deletes an event without that prefix. It writes no row: the `google_events` rows come
   only from `gcal.sync`. A revoked grant, a 401 after a new access token, a seal that does not open, a calendar that is gone or a refusal ends it quietly (the next
   sync finds the same fault and ends the connection as today); a timeout, a network error, a 5xx or a 429 throws, and the outbox tries again.
+- Hidden projects (owner, 2026-10-22, wave D3): a meeting of a project syncs only for a person who views the project. `gcal.sync` asks
+  `viewsProject` (`google/store.ts`, the one rule `mayViewProject` on the rows of the project, the team, the person and the roles) and takes the Google event away
+  from a person who does not (state `deleted`). `GCAL_CALLS` gains `projects.setAccess`, `members.remove` and `projects.setLeader`: a save that touched no
+  meeting but touched a project that not every active person views (`SaveResult.hiddenProjects`) makes `gcalRows` name the scheduled meetings of that
+  project (`meetingIdsOfProjects`), so each pair with an event or a connection gets a `gcal.sync` row and the person who lost the view loses the event.
+  Tests: `google/hiddenProject.test.ts`.
 - Tests use `google/fakeGoogle.ts` (a stand-in for the token address, the revoke address and the Calendar API) behind `Deps.googleFetch`, and
   `google/testOffice.ts` (the sample office on node:sqlite). `server/it/google.it.test.ts` runs the SQL on Postgres.
 
