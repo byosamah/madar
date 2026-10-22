@@ -29,9 +29,9 @@ export const THREADS_LITE = `with mine as (select distinct target_id from commen
 cand as (select k.id from tasks k
   where (k.owner_id = ?1 or k.project_id in (select value from json_each(?2)) or k.id in (select target_id from mine)
       or (k.project_id is null and json_extract(k.doc, '$.createdBy') in (select value from json_each(?3))))
-    and (k.project_id is not null or ?4 or k.owner_id = ?1
+    and (k.project_id in (select value from json_each(?5)) or (k.project_id is null and (?4 or k.owner_id = ?1
       or (json_type(k.doc, '$.helperIds') = 'array' and exists (select 1 from json_each(k.doc, '$.helperIds') h where h.value = ?1))
-      or json_extract(k.doc, '$.createdBy') in (select value from json_each(?3)))),
+      or json_extract(k.doc, '$.createdBy') in (select value from json_each(?3)))))),
 threads as (
   select c.target_id as id, max(c.created_at) as last,
          max(case when json_extract(c.doc, '$.authorId') in (select value from json_each(?3)) then c.created_at end) as mine
@@ -199,7 +199,7 @@ export function liteSource(q: Query): Source {
     },
 
     async threads(o) {
-      const found = await q<{ id: string; last: string; mine: string | null }>(THREADS_LITE, [o.owner, JSON.stringify(o.led), JSON.stringify(o.me), o.admin ? 1 : 0]);
+      const found = await q<{ id: string; last: string; mine: string | null }>(THREADS_LITE, [o.owner, JSON.stringify(o.led), JSON.stringify(o.me), o.admin ? 1 : 0, JSON.stringify(o.seen)]);
       found.sort((a, b) => textOrder(b.last, a.last) || textOrder(b.id, a.id));
       const edge = found[o.limit - 1]?.last;
       return edge === undefined ? found : found.filter((thread) => thread.last >= edge);

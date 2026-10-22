@@ -193,7 +193,7 @@ export function memorySource(state: State): Source {
           const sees = o.admin || task.ownerId === o.owner || (task.helperIds ?? []).includes(o.owner) || made;
           if (!sees || (task.ownerId !== o.owner && !made && mine.length === 0)) continue;
         } else {
-          if (!state.projects[task.projectId]) continue;
+          if (!state.projects[task.projectId] || !o.seen.includes(task.projectId)) continue;
           if (task.ownerId !== o.owner && !o.led.includes(task.projectId) && mine.length === 0) continue;
         }
         const last = comments.map((comment) => String(comment.createdAt)).reduce((a, b) => (b > a ? b : a));

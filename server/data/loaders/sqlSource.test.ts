@@ -272,7 +272,7 @@ describe('the unread counts and the task threads of the badge (DB-6)', () => {
       sent.push(text);
       return [] as R[];
     };
-    await sqlSource(q).threads({ owner: 'usr_005', led: [], me: ['usr_005'], limit: 100, admin: false });
+    await sqlSource(q).threads({ owner: 'usr_005', led: [], me: ['usr_005'], limit: 100, admin: false, seen: ['prj_005'] });
     const text = sent[0].replace(/\s+/g, ' ');
     expect(text).toContain('cand as (select k.id from tasks k where');
     expect(text).toContain("from comments c where c.target_type = 'task' and c.target_id in (select id from cand)");
@@ -313,7 +313,7 @@ describe('several reads in one statement (SV-10 of perf2)', () => {
   const chatReads: Select = { c: 'chatReads', where: [{ col: 'id', in: ['cr_1', 'cr_2'] }] };
   const picked: Select = { c: 'tasks', where: [{ col: 'id', in: ['tsk_001'] }], pick: ['id', 'ownerId'] };
   const unread: CountSelect = { c: 'messages', per: 'conversation_id', where: [{ bounds: { col: 'conversation_id', by: { cnv_001: { gt: '' } } } }] };
-  const threads = { owner: 'usr_001', led: ['prj_001'], me: ['usr_001'], limit: 30, admin: false };
+  const threads = { owner: 'usr_001', led: ['prj_001'], me: ['usr_001'], limit: 30, admin: false, seen: ['prj_001'] };
   const reads: Read[] = [{ select: chatReads }, { select: picked }, { count: unread }, { threads }];
 
   /** A Query that writes down what it gets and answers with the rows given. */
@@ -330,7 +330,7 @@ describe('several reads in one statement (SV-10 of perf2)', () => {
     const { text, values } = batchSql(reads);
     expect(text.match(/ union all /g)).toHaveLength(3);
     expect(text).toMatch(/^select u\.i, jsonb_agg\(u\.j order by u\.o\) as j from \([\s\S]*\) u group by u\.i order by u\.i$/);
-    const sizes = [selectSql(chatReads).values, selectSql(picked).values, countSql(unread).values, [0, 0, 0, 0, 0]].map((one) => one.length);
+    const sizes = [selectSql(chatReads).values, selectSql(picked).values, countSql(unread).values, [0, 0, 0, 0, 0, 0]].map((one) => one.length);
     expect(values).toHaveLength(sizes.reduce((a, b) => a + b, 0));
     // The values of the first two selects and the count come first, in the order of the reads.
     expect(values.slice(0, 1)).toEqual(selectSql(chatReads).values.slice(0, 1));

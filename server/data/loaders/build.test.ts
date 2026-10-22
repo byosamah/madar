@@ -105,7 +105,7 @@ describe('Load.batch (SV-10 of perf2)', () => {
   }
   const comments = { c: 'comments' as const, where: [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: ['tsk_001'] }] };
   const unread = { s: { c: 'messages' as const, per: 'conversation_id', where: [{ bounds: { col: 'conversation_id', by: { cnv_001: { gt: '' } } } }] }, values: ['cnv_001', 'cnv_002'], keyOf: (id: string) => `unread:${id}` };
-  const asked = { owner: 'usr_001', led: [] as string[], me: ['usr_001'], limit: 30, admin: true };
+  const asked = { owner: 'usr_001', led: [] as string[], me: ['usr_001'], limit: 30, admin: true, seen: ['prj_001', 'prj_002', 'prj_003'] };
   const steps = () => [
     { byKey: { c: 'tasks' as const, keys: ['tsk_001', 'tsk_002', 'tsk_001', null, ''] } },
     { select: comments },

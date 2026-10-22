@@ -10,6 +10,7 @@ import { forbidden, invalid, notFound } from '../errors';
 import { isLiveMessage, namesPerson, notifyLevelOf, replyRefOf } from '../chatNaming';
 import { readCopiesOf } from '../adminCopies';
 import { notifyIn } from '../notify';
+import { projectViewer } from '../projectView';
 import { can, mayViewTask, principalOf, projectRoleOf } from '../permissions';
 import { chatReadKey, nextId, unreadCountKey, type State } from '../store';
 import { attachmentsOf, cardOf, mayViewFile } from '../views';
@@ -148,6 +149,8 @@ type TaskThread = { task: Task; project: Project | null; comments: Comment[] };
 function taskThreads(state: State, viewer: User): TaskThread[] {
   // Only an active person reads threads. Each task is checked on its own below (mayViewTask), so a hidden project shows nothing.
   if (!viewer.active) return [];
+  // A thread of a project task shows only when the person sees the project (hidden projects, owner 2026-10-22).
+  const sees = projectViewer(state, viewer);
   const byTask = new Map<string, Comment[]>();
   for (const c of Object.values(state.comments)) {
     if (c.targetType !== 'task') continue;
@@ -160,7 +163,8 @@ function taskThreads(state: State, viewer: User): TaskThread[] {
     const task = state.tasks[taskId];
     if (!task) continue;
     const project = task.projectId === null ? null : state.projects[task.projectId];
-    if (project === undefined || (task.projectId === null && !mayViewTask(state, viewer, task))) continue;
+    // Every task is checked: an office task by its people, a project task by the view of its project (hidden projects, owner 2026-10-22).
+    if (project === undefined || !mayViewTask(state, viewer, task) || (project !== null && !sees(project))) continue;
     const leads = project ? project.leaderId === viewer.id : principalOf(state, task.createdBy) === viewer.id;
     const involved = task.ownerId === viewer.id || leads
       || comments.some((c) => principalOf(state, c.authorId) === viewer.id);
