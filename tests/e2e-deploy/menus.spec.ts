@@ -37,14 +37,22 @@ async function expectEveryItemReachable(page: Page, menu: Locator): Promise<stri
   return labels;
 }
 
+/**
+ * The header menu. From 640 px it is a pop-up menu (role "menu"). On a phone it is a bottom sheet: a dialog that holds a
+ * group of 44 px buttons, each with the role "menuitem" (Menu sheetOnPhone, Direction D). The returned locator is the box
+ * that holds the items.
+ */
 async function openHeaderMenu(page: Page, width: number, height: number): Promise<Locator> {
   await page.setViewportSize({ width, height });
   await goto(page, '/projects/prj_001');
   await expect(page.getByRole('heading', { level: 1, name: 'Corniche Office Tower' })).toBeVisible();
   await openMenu(page.getByRole('button', { name: 'More actions' }));
-  const menu = page.getByRole('menu', { name: 'More actions' });
+  const phone = width < 640;
+  const menu = phone
+    ? page.getByRole('dialog', { name: 'More actions' }).getByRole('group', { name: 'More actions' })
+    : page.getByRole('menu', { name: 'More actions' });
   await expect(menu).toBeVisible();
-  await page.waitForTimeout(400); // the open spring settles
+  await page.waitForTimeout(phone ? 800 : 400); // the open spring settles
   return menu;
 }
 
@@ -61,9 +69,14 @@ test('header menu reaches every item at 390', async ({ page }) => {
   const menu = await openHeaderMenu(page, 390, 844);
   const labels = await expectEveryItemReachable(page, menu);
   expect(labels).toContain('Delete project');
+  // The sheet holds one row for every item, and each row is at least 44 px high.
+  const rows = menu.getByRole('menuitem');
+  for (const box of await rows.evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().height))) {
+    expect(box).toBeGreaterThanOrEqual(44);
+  }
   await page.screenshot({ path: `${SHOTS}/header-menu-390.png` });
   await page.keyboard.press('Escape');
-  await expect(menu).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'More actions' })).toHaveCount(0);
 });
 
 test('board Move menu on the last Done card reaches every item', async ({ page }) => {
