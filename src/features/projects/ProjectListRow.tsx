@@ -1,4 +1,5 @@
 import { motion } from 'motion/react';
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { ProjectSummary } from '../../api/contract/views';
@@ -35,8 +36,12 @@ function RowMenu({ summary, point, onClose }: { summary: ProjectSummary; point: 
   return <ContextMenu label={t('projects.menu', { name: summary.project.name })} items={items} point={point} onClose={onClose} />;
 }
 
-/** One project as one calm row: picture, name and client, the stage column (name and steps), the next deadline, and a sign only when needed. */
-export function ProjectListRow({ summary, source }: { summary: ProjectSummary; source: 'home' | 'projects' }) {
+/**
+ * One project as one calm row: picture, name and client, the stage column (name and steps), the next deadline, and a sign only when needed.
+ * The row is memoized (performance audit 2026-10-21, RN-6): a list that reloads for one changed project renders only that row. The row reads
+ * no clock (the days left come with the summary), and the summary keeps its object when its data is equal.
+ */
+export const ProjectListRow = memo(function ProjectListRow({ summary, source }: { summary: ProjectSummary; source: 'home' | 'projects' }) {
   const { t } = useTranslation();
   const lang = useLang();
   const { project } = summary;
@@ -97,4 +102,4 @@ export function ProjectListRow({ summary, source }: { summary: ProjectSummary; s
       <RowMenu summary={summary} point={menu.point} onClose={menu.close} />
     </motion.li>
   );
-}
+});
