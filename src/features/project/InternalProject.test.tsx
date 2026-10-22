@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { addSampleInternalProject } from '../../data/sampleInternalProject';
 import { TODAY } from '../../test/factories';
 import type { State } from '../../api/store';
@@ -73,5 +74,17 @@ describe('the About panel of an internal project', () => {
       expect(within(about).queryByText(label), label).toBeNull();
     }
     expect(within(about).getByText('Start date')).toBeInTheDocument();
+  });
+});
+
+describe('the pause sheet of an internal project', () => {
+  it('asks only for the reason, because there is no client to wait for', async () => {
+    await renderApp('/projects/prj_013', withInternal);
+    await screen.findByRole('heading', { level: 1, name: /Portfolio 2026/ });
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Pause project' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Pause this project?' });
+    expect(within(sheet).queryByRole('radiogroup', { name: 'Why?' })).toBeNull();
+    expect(within(sheet).getByLabelText('Reason')).toBeInTheDocument();
   });
 });

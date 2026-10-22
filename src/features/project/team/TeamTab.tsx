@@ -13,6 +13,7 @@ import { Menu, type MenuItem } from '../../../components/Menu';
 import { formatNumber } from '../../../lib/dates';
 import { LeaderSheet } from '../ProjectActions';
 import type { TabProps } from '../tabs';
+import { AccessBlock } from './AccessBlock';
 import { AddTeam } from './AddTeam';
 
 type Member = ProjectDetail['members'][number];
@@ -126,6 +127,7 @@ export function TeamTab({ detail }: TabProps) {
   const [newLeader, setNewLeader] = useState<string | null>(null);
   return (
     <div className="flex flex-col gap-5">
+      <AccessBlock detail={detail} />
       <section aria-labelledby="team-leader" className="surface rounded-card p-2">
         <h2 id="team-leader" className="px-2 pt-1 text-headline">{t('team.leader')}</h2>
         {leader ? <ul><MemberRow member={leader} detail={detail} onMakeLeader={() => setNewLeader(leader.user.id)} /></ul> : <p className="px-2 pb-2 text-footnote text-label-2">{t('team.noLeader')}</p>}
