@@ -28,8 +28,10 @@ the config, the heartbeat of one run stays and the next run fails.
   `MADAR_E2E_SUPABASE_URL`, `MADAR_E2E_PUBLISHABLE_KEY` (from `config/remote.test.env`), `MADAR_E2E_DATABASE_URL`
   (madar-test session pooler) and `MADAR_E2E_MCP_URL=https://preview.madar-46r.pages.dev/mcp`. Seed before and after the run.
   The seed also revokes the AI app grants of the 4 accounts, so an app that a one-off check approved does not stay.
-- `MADAR_E2E_DATABASE_URL`: the `DATABASE_URL` line of `secrets/test.env` with port 6543 changed to 5432 (the line is the
-  transaction pooler). `withClient` of `tests/e2e-deploy/mail.ts` then reads madar-test from a one-off script (sandbox off).
+- `MADAR_E2E_DATABASE_URL`: the host of the `DATABASE_URL` line of `secrets/test.env` with port 5432 (the line is the
+  transaction pooler, port 6543), and the role `postgres.<ref>` with `MADAR_TEST_DB_PASSWORD` of `.env.local`. The role of
+  that line is `madar_server`, and the walk then fails its sign-in and email steps with "permission denied for schema auth"
+  (2026-10-22). `withClient` of `tests/e2e-deploy/mail.ts` reads madar-test from a one-off script (sandbox off).
 - A script that acts as a sample account on the test copy: the Supabase password grant, then `POST <SUPABASE_URL>/functions/v1/
   api/batch?forceFunctionRegion=eu-central-1` with `X-Madar-Build: buildId(new Date())` (`scripts/build-remote.ts`). With no
   build header the server answers 409 `client_outdated`. The body is `{ v: 1, calls: [{ i, name, input }] }`; each answer is

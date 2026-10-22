@@ -17,6 +17,9 @@ async function sweep(page: Page, folder: string): Promise<void> {
     await settle(page);
     const name = route === '/' ? 'home' : route.slice(1).replace(/[/?=&]/g, '-');
     await page.screenshot({ path: `test-results/e2e-deploy-shots/full/${folder}/${name}.png`, fullPage: true });
+    // The full-page screenshot sets the window to 1 px and back. Below 640 px the phone layout mounts, so on return the desk layout
+    // mounts again and its entrance plays again: axe then reads half-faded text.
+    await settle(page);
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
     const serious = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
     expect.soft(serious.map((v) => `${route}: ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
@@ -67,9 +70,9 @@ test('reduce motion stops the project row from growing', async ({ page }) => {
 test('reduce motion keeps the bars still while the page scrolls', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 390, height: 844 });
-  await goto(page, '/');
-  // Home has no project list at 390 px (Direction D): wait for the card Next for you.
-  await expect(page.getByRole('region', { name: 'Next for you' })).toBeVisible();
+  // Home fits one screen at 390 px (Direction D has no project list there), so it does not scroll. The Projects list does.
+  await goto(page, '/projects');
+  await expect(page.getByRole('list', { name: 'Projects' }).getByRole('link').first()).toBeVisible();
   await page.mouse.wheel(0, 600);
   await page.waitForTimeout(500);
   const moved = await page.evaluate(() => [...document.querySelectorAll('[data-compact]')].map((el) => {

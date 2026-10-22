@@ -418,7 +418,11 @@ for (const { lang, width } of VARIANTS) {
       // The preview must show the picture's own pixels: a blank or broken picture shows the white panel behind it.
       await openMenu(page.getByRole('button', { name: w('files.actions', { name: `${fileBase}.png` }) }));
       await page.getByRole('menuitem', { name: w('files.preview') }).click();
-      const picture = page.getByRole('dialog').last().getByRole('img', { name: `${fileBase}.png` });
+      // Under 640 px the picture opens in the full screen viewer (Direction D): its title names the file, and the big picture (the
+      // last one, over the small one) has an empty alt.
+      const picture = width < 640
+        ? page.getByRole('dialog', { name: `${fileBase}.png` }).locator('[data-zoom-layer] img').last()
+        : page.getByRole('dialog').last().getByRole('img', { name: `${fileBase}.png` });
       await expect(picture).toBeVisible();
       await expect.poll(() => picture.evaluate((img: HTMLImageElement, width) => img.complete && img.naturalWidth === width, WALK_PICTURE.width), { timeout: 15_000 }).toBe(true);
       const shown = await shownColors(browser, picture, WALK_PICTURE.quarters);
