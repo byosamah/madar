@@ -1,20 +1,15 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSwitchLanguage } from '../../app/languageTurn';
 import { PROTOTYPE } from '../../app/mode';
-import { PreviewAs } from '../../app/PreviewAs';
 import { useAction, useCall } from '../../app/runtime';
-import { useToast } from '../../app/toasts';
-import { Button } from '../../components/Button';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { SegmentedControl } from '../../components/SegmentedControl';
-import { Sheet } from '../../components/Sheet';
-import { Switch } from '../../components/Switch';
 import { AdminReachSection } from './AdminReachSection';
 import { AgentsSection } from './AgentsSection';
 import { GoogleCalendarSection } from './GoogleCalendarSection';
 import { NotificationsSection } from './NotificationsSection';
 import { PasswordSection } from './PasswordSection';
+import { PrototypeTools } from './PrototypeTools';
 import { PushSection } from './PushSection';
 import { QuietHoursSection } from './QuietHoursSection';
 import { ProfileSection } from './ProfileSection';
@@ -22,19 +17,9 @@ import { SettingsSection as Section } from './Section';
 
 export function SettingsScreen() {
   const { t } = useTranslation();
-  const toast = useToast();
   const session = useCall('session.get', {});
   const preferences = useAction('me.updatePreferences');
   const switchLanguage = useSwitchLanguage();
-  const simulate = useAction('session.setSimulateErrors');
-  // Reset wipes the whole office in this browser and has no Undo, so it asks first, like Delete project (audit 2026-10-03, SHL-8).
-  const [askReset, setAskReset] = useState(false);
-  const reset = useAction('session.resetSampleData', {
-    onSuccess: () => {
-      setAskReset(false);
-      toast.show({ message: t('settings.resetDone') });
-    },
-  });
   const user = session.data?.user;
 
   if (!session.data || !user) return <ScreenTitle title={t('screens.settings')} />;
@@ -79,33 +64,7 @@ export function SettingsScreen() {
       <AgentsSection />
 
       {/* The prototype controls stay out of the real build (client map 6). */}
-      {PROTOTYPE && <Section title={t('settings.prototype')}>
-        <PreviewAs id="preview-as-settings" />
-        <Switch
-          id="simulate-errors"
-          label={t('settings.simulateErrors')}
-          description={t('settings.simulateErrorsHint')}
-          checked={session.data.simulateErrors}
-          onChange={(on) => simulate.mutate({ on })}
-        />
-        <div>
-          <Button onClick={() => setAskReset(true)}>{t('settings.reset')}</Button>
-        </div>
-        <Sheet
-          open={askReset}
-          onOpenChange={setAskReset}
-          title={t('settings.resetTitle')}
-          description={t('settings.resetBody')}
-          footer={(
-            <>
-              <Button onClick={() => setAskReset(false)}>{t('common.cancel')}</Button>
-              <Button variant="destructive" disabled={reset.isPending} onClick={() => reset.mutate({})}>{t('settings.reset')}</Button>
-            </>
-          )}
-        >
-          {null}
-        </Sheet>
-      </Section>}
+      {PROTOTYPE && <Section title={t('settings.prototype')}><PrototypeTools /></Section>}
     </div>
   );
 }
