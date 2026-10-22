@@ -108,9 +108,8 @@ describe('press and hold on a Board card', () => {
       task.ownerId = null;
       task.status = 'todo';
     });
-    await userEvent.click(await screen.findByRole('button', { name: /^Filter/ }));
-    await userEvent.click(within(screen.getByRole('dialog', { name: 'Filter' })).getByRole('radio', { name: 'Board' }));
-    await userEvent.keyboard('{Escape}');
+    // On a phone the project To-dos tab switches List and Board with one press of its View button (track P).
+    await userEvent.click(await screen.findByRole('button', { name: /^View/ }));
     await screen.findByRole('region', { name: /^To do/ });
     const card = cardOf('Specifications draft', /^To do/);
     layout(card);
