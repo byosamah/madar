@@ -661,6 +661,7 @@ any screen work.
 - The mention list of the Inbox box opens above the box (`MentionField placement="above"`) and ranks the names that start with
   the typed letters first (`rankedMatches`, `lib/personName.ts`).
 - A What's new id: take a number above the newest id on main and on every open `rb/*` branch (`git show rb/<x>:src/whatsNew/entries.ts`).
+  Sort the ids as numbers (`sort -t- -k4 -n`): a text sort puts `2026-10-23-9` above `-82` (2026-10-22).
   A test finds its entry by id, never by `WHATS_NEW[0]`.
 - What's new (`whatsNew/entries.ts`): an entry may have `right` (the page shows it only to a person who holds it, by `can()`) and
   `to` (one quiet link "Open"). An entry newer than the last one the person saw has the word "New". The person menu shows the word
@@ -857,6 +858,8 @@ any screen work.
   there (sandbox off); no `@fontsource` 403. A new port keeps its own saved office: run `indexedDB.deleteDatabase('madar')` and reload first.
 - To set the prototype person, language or theme, or add a sample record, without clicks: edit the saved office (IndexedDB
   `madar`, store `data`, key `state`: `session.currentUserId`, `users[id].preferences.language` and `.theme`), then reload.
+- Prototype data with no clicks in the 390 px frame: attach a file with `input.files = dataTransfer.files` and a `change` event; pick a
+  mention with Enter (a synthetic click picks nothing); set the box to '' before '@' (a stored draft can hold the same text, and React then sees no change).
 
 ## Screen test gotchas
 - Links are `#/...` (hash router).

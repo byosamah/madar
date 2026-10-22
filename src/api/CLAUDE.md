@@ -783,6 +783,9 @@ Design: `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design
   never "the newest event".
 - `npm test` runs the rule tests on the store in memory. `npm run test:db` runs them again on the local Postgres (one
   schema for each worker, as madar_server).
+- `test:db` refuses a test that edits the state by hand and breaks a foreign key ("db mode: the test's own edits break a database rule"):
+  a deleted project takes its members, stages, deadlines, tasks, updates, files, conversations, tracker and payments rows. A long leak
+  sweep needs its own timeout there (about 11 ms a call).
 
 ## Quiet hours and @everyone (owner, 2026-10-22, fbk_048 and fbk_041)
 - Contract (all additive): `Preferences.workHours` (`{ quiet, days, from, to }`; days 0 = Sunday to 6, at least one, `from` before `to` on a

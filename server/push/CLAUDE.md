@@ -79,6 +79,7 @@ and the lock (Sunday to Thursday, 9 AM to 5 PM, on by default): nobody is quiet 
   a track that adds a bell sentence in a new word file adds that file to `words.ts`.
 - `notify.ts`: the producer `pushRows`, the effects `sendPushNotify` and `sendChatPush` (each takes `LineOptions` for tests), and
   their SQL texts. `PUSH_DEVICES_SQL` reads the keys of each device (`d.doc->'keys'`, null when none).
+- `server/it/push.it.test.ts` pins the exact row of `PUSH_DEVICES_SQL`: a new column fails only `test:it` (2026-10-22, the work hours).
 - `chatRule.ts`: the pure rule `planPushes` and its facts. `chatFacts.ts`: the fact readers with their SQL texts, Postgres and SQLite.
 - `register.ts`, `effects.ts`: the registration, like `server/mail/register.ts` and `effects.ts`. `deps.ts` imports `effects.ts`.
 - The calls (`push.register`, `push.remove`, `push.mine`) are in `src/api/handlers/push.ts`. The record is `PushDevice`.

@@ -235,6 +235,11 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   `TaskStop` (2026-10-20).
 - A Workflow `scriptPath` must be inside the repo (a path in /tmp is refused): keep it untracked in the worktree, delete it after.
 - Brief parallel builders to run their test files with `--no-file-parallelism --testTimeout=60000`.
+- Parallel waves on one rule: the first builder makes a checkpoint commit of the core (rule, data, rights) that it never rewrites; the
+  next wave branches from it. A wave that changes another batch's files starts from that batch's branch plus the cherry-picked core (2026-10-22).
+- A join picks one commit at a time (`git -c merge.conflictStyle=diff3 cherry-pick <hash>`) and reads each pinned count from a failing
+  run, never by adding deltas.
+- A background security review of a builder's commit goes back to that builder with a test-first fix; the lead does not patch it beside the builder.
 - `npm install` in a worktree whose `node_modules` is a link puts a full folder in place of the link, so the folder behind
   the link lacks the new package. The main folder follows its own branch: after a new package, give `deploy-test` its own
   folder (`rm node_modules` removes only the link, then `npm install` there) before `all.sh` (2026-10-07).
