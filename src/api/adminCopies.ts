@@ -1,5 +1,6 @@
 import type { Notification, Trigger, User } from './contract/entities';
 import { adminReachOf, canSeeConversation } from './chatState';
+import { noticeProjectHidden } from './hiddenNotice';
 import { inAppOn, type NotifyInput } from './notify';
 import { mayViewMeeting, mayViewTask } from './permissions';
 import { ensureRights } from './rights';
@@ -34,6 +35,8 @@ export function makesCopies(state: Pick<State, 'conversations'>, input: Pick<Not
 
 /** True when the Admin may see the target of the notice, by the rules that notify uses for the people it tells. */
 function mayView(state: State, admin: User, input: NotifyInput): boolean {
+  // An item of a project that the Admin may not view (hidden projects): the Admin holds "See hidden projects", so this stays true by default.
+  if (noticeProjectHidden(state, input.targetType, input.targetId, admin)) return false;
   if (input.targetType === 'task') {
     const task = state.tasks[input.targetId];
     return task !== undefined && (task.projectId !== null || mayViewTask(state, ensureRights(state, admin), task));

@@ -5,6 +5,7 @@ import { EventLineView, EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
 import { DERIVED, FOLLOW_ON, lastProjectCopy, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../events';
 import { assertHasLead, assertMayFinish, reopenDependents, resyncStage, stageTag } from '../flow';
+import { noticeProjectHidden } from '../hiddenNotice';
 import { feedbackNoticeHidden } from '../notify';
 import { eventProjectViewer } from '../projectView';
 import { ensureRights, withRights } from '../rights';
@@ -586,6 +587,8 @@ function dropNotices(ctx: Ctx, correlationId: string): void {
     if (owner !== undefined && noticeTaskHidden(ctx, notice.targetType, notice.targetId, owner)) continue;
     // The same for the notice of a meeting that its owner no longer sees (a person taken off the attendees, fbk_022).
     if (owner !== undefined && noticeMeetingHidden(ctx, notice.targetType, notice.targetId, owner)) continue;
+    // The same for the notice of an item of a project that its owner no longer sees (hidden projects, owner 2026-10-22).
+    if (owner !== undefined && noticeProjectHidden(ctx.state, notice.targetType, notice.targetId, owner)) continue;
     // The same for the notice of a new report that a former Admin holds (owner, 2026-10-07).
     if (owner !== undefined && feedbackNoticeHidden(notice, owner)) continue;
     let kept: boolean;

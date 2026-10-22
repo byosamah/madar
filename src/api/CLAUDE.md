@@ -224,7 +224,10 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   with no people filter. They never count in a project number.
 - Three functions hold the rule of a hidden notice: `hiddenTask` (`notifications.ts`) and `noticeTaskHidden`
   (`handlers/history.ts`) for an office task, and `feedbackNoticeHidden` (`notify.ts`) for a report. Change them together. A fourth,
-  `hiddenMeeting` (`notifications.ts`) with `noticeMeetingHidden` (`history.ts`), holds the rule of a meeting with no project (fbk_022).
+  `hiddenMeeting` (`notifications.ts`) with `noticeMeetingHidden` (`history.ts`), holds the rule of a meeting with no project (fbk_022). A fifth,
+  `noticeProjectHidden` (`hiddenNotice.ts`), holds the rule of an item of a project that the person may not view (hidden projects, wave D3): the
+  notice view (`hiddenProject` in `notifications.ts`: `isGone`, `viewOf`, `peopleOfCopy`), `dropNotices` (`history.ts`) and `mayView` of
+  `adminCopies.ts` all call it. A deleted hidden project reads from its last copy (leader, chosen people, holders of `project.hidden`).
 
 ## Task makers (owner, 2026-10-07)
 - The person who adds a project task (`principalOf(createdBy)`, so the task of an agent belongs to its person) holds the
@@ -707,6 +710,12 @@ Design: `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design
   chat, and `taskThreads` drops a thread of a project task that the person does not see (so `chats.list`, `chats.unreadCount` and
   `chats.waiting` never count it). `events.list` drops the changes of a project that the person does not see. The changes of a deleted
   project that was hidden (the `before` of its `project.deleted` event holds `access`) show only to a holder of `project.hidden`.
+- Wave D3, the signals and the outside (owner, 2026-10-22):
+  - Realtime: a project that someone may not view tells only its people (`server/CLAUDE.md`, `data/projectAudience.ts`). A notice whose item
+    belongs to a project the person does not view reads as gone: no words, no names, no link, no badge (`noticeProjectHidden`). An Undo
+    keeps such a notice.
+  - The push, the morning summary and Google Calendar skip a person who does not view the project (`server/push/CLAUDE.md`,
+    `server/mail/CLAUDE.md`, `server/google/`). `settleActorOf` and `extendActorOf` fall back to an Admin.
 
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.
