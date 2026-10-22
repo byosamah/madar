@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { AnimatedIcon } from '../components/icons/AnimatedIcon';
-import { NAV, NOTIFICATIONS_ITEM, SEARCH_ITEM } from './nav';
+import { NAV, NOTIFICATIONS_ITEM, PHONE_NAV, SEARCH_ITEM } from './nav';
 
 /**
  * The icon of the active tab plays when the tab becomes active (playWhen), and nothing stops it later. An icon that repeats for
@@ -9,7 +9,7 @@ import { NAV, NOTIFICATIONS_ITEM, SEARCH_ITEM } from './nav';
  * waiting screen test query the page again, so a test on the Tasks tab ran out of time under load (track Q, item 4).
  */
 it('plays each tab icon once, then rests', async () => {
-  const items = [...NAV, SEARCH_ITEM, NOTIFICATIONS_ITEM];
+  const items = [...NAV, ...PHONE_NAV, SEARCH_ITEM, NOTIFICATIONS_ITEM];
   const { container } = render(
     <>{items.map((item) => <span key={item.key} data-tab={item.key}><AnimatedIcon icon={item.animated} size={20} playWhen aria-hidden /></span>)}</>,
   );

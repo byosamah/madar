@@ -1,0 +1,10 @@
+{
+  "phoneShell": {
+    "tab": {
+      "today": "Today",
+      "inbox": "Inbox",
+      "work": "Work",
+      "me": "Me"
+    }
+  }
+}
