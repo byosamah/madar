@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { calls } from '../calls';
 import { Task } from '../contract/entities';
 import { can, taskResource } from '../permissions';
+import { withRights } from '../rights';
 import type { Store } from '../store';
 import { makeUser, NOW, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
@@ -96,12 +97,12 @@ describe('the rights on an office task', () => {
   it('gives the view to the maker, the lead, a helper and the Admin only', async () => {
     const t = world();
     const task = await officeTask(t);
-    const sees = (id: string) => can(t.store.state.users[id], 'task.view', taskResource(t.store.state, task, id));
+    const sees = (id: string) => can(withRights(t.store.state, t.store.state.users[id]), 'task.view', taskResource(t.store.state, task, id));
     expect(['usr_001', 'usr_002', 'usr_003', 'usr_004', 'usr_006'].map(sees)).toEqual([true, false, true, true, true]);
     // A project task stays open to everyone.
     t.as('usr_002');
     const project = (await t.api.call('tasks.create', { projectId: 'prj_001', title: 'Plan' })).task;
-    expect(can(t.store.state.users.usr_004, 'task.view', taskResource(t.store.state, project, 'usr_004'))).toBe(true);
+    expect(can(withRights(t.store.state, t.store.state.users.usr_004), 'task.view', taskResource(t.store.state, project, 'usr_004'))).toBe(true);
   });
 
   it('refuses every task call of a person who does not see it with not_found', async () => {

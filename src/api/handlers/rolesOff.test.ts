@@ -78,7 +78,7 @@ describe('roles.update with off', () => {
     expect(roles.off?.member).toEqual(['task.add.team', 'chat.direct']);
     expect(roles.rights?.member).toBeUndefined();
     const person = rightsOf(t.store.state.users.usr_005, t.store.state.settings.roles);
-    expect(person).toHaveLength(63);
+    expect(person).toHaveLength(65);
     expect(person).not.toContain('chat.direct');
     expect(roleEvents(t, 'role.updated')).toMatchObject([{ targetId: 'member', before: { off: [] }, after: { off: ['task.add.team', 'chat.direct'] } }]);
   });
@@ -101,11 +101,11 @@ describe('roles.update with off', () => {
   it('turns an old custom role into a role with its own full list when a save names off', async () => {
     const t = world();
     // Before: Member switches plus the payment switches. After: the full list of the role, with `off`.
-    expect(rightsOf(t.store.state.users.usr_011, t.store.state.settings.roles)).toHaveLength(65 + 4);
+    expect(rightsOf(t.store.state.users.usr_011, t.store.state.settings.roles)).toHaveLength(67 + 4);
     const roles = await t.api.call('roles.update', { role: 'rol_001', off: ['chat.direct'] });
     expect(roles.custom?.[0].off).toEqual(['chat.direct']);
     const person = rightsOf(t.store.state.users.usr_011, t.store.state.settings.roles);
-    expect(person).toHaveLength(65 + 4 - 1);
+    expect(person).toHaveLength(67 + 4 - 1);
     expect(roleEvents(t, 'role.updated')).toMatchObject([{ targetId: 'rol_001', before: { off: null }, after: { off: ['chat.direct'] } }]);
   });
 
@@ -124,7 +124,7 @@ describe('the Undo of a role change', () => {
     await t.api.call('roles.update', { role: 'member', off: ['chat.direct'] });
     await t.api.call('events.undo', { eventId: roleEvents(t, 'role.updated')[0].id });
     expect(t.store.state.settings.roles?.off?.member).toEqual([]);
-    expect(rightsOf(t.store.state.users.usr_005, t.store.state.settings.roles)).toHaveLength(65);
+    expect(rightsOf(t.store.state.users.usr_005, t.store.state.settings.roles)).toHaveLength(67);
   });
 
   it('takes back the first off of an old custom role: the role has no off again', async () => {
@@ -135,7 +135,7 @@ describe('the Undo of a role change', () => {
     expect(role).not.toHaveProperty('off');
     // The old rights come back as new ids.
     expect(role?.rights).toEqual(['payment.view', 'payment.add', 'payment.change', 'payment.receive']);
-    expect(rightsOf(t.store.state.users.usr_011, t.store.state.settings.roles)).toHaveLength(65 + 4);
+    expect(rightsOf(t.store.state.users.usr_011, t.store.state.settings.roles)).toHaveLength(67 + 4);
   });
 
   it('expands the old ids of an event that an older build wrote', async () => {
@@ -169,10 +169,10 @@ describe('the old stored forms', () => {
       custom: [{ id: 'rol_001', name: 'Cashier', nameAr: 'أمين الصندوق', rights: ['payment.manage'] }],
     };
     const management = makeUser('usr_006', { systemRole: 'management' });
-    expect(rightsOf(management, roles)).toHaveLength(65 + 9);
+    expect(rightsOf(management, roles)).toHaveLength(67 + 9);
     expect(rightsOf(makeUser('usr_008'), roles)).toContain('project.code');
     // The cashier holds the Member switches (with the code) and the four payment switches.
-    expect(rightsOf(makeUser('usr_011', { roleId: 'rol_001' }), roles)).toHaveLength(65 + 1 + 4);
+    expect(rightsOf(makeUser('usr_011', { roleId: 'rol_001' }), roles)).toHaveLength(67 + 1 + 4);
   });
 
   it('parses the settings of an office saved before this release', async () => {
@@ -180,6 +180,6 @@ describe('the old stored forms', () => {
     const settings = await t.api.call('roles.update', { role: 'accounting', rights: ['payment.manage'] });
     expect(settings.custom?.[0].rights).toEqual(['payment.manage']);
     expect(DEFAULT_EXTRA.accounting).toHaveLength(4);
-    expect(BASIC_ON).toHaveLength(65);
+    expect(BASIC_ON).toHaveLength(67);
   });
 });

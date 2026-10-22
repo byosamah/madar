@@ -4,7 +4,7 @@ import { BASIC_ON, DEFAULT_EXTRA, dropUnmetNeeds, expandRights } from './rightsC
 import type { State } from './store';
 
 /**
- * The office rights of each person (owner, 2026-10-18, fbk_014; 113 switches since role rights version 2, 2026-10-21). The Admin holds
+ * The office rights of each person (owner, 2026-10-18, fbk_014; 117 switches since role rights version 2 (113 before hidden projects), 2026-10-21). The Admin holds
  * every switch. Management, Accounting and Member hold BASIC_ON, minus the switches that the office settings turn off (`off`), plus the
  * extra switches that the settings give the role (`rights`, or the defaults of rightsCatalog.ts). A custom role holds what its record
  * says. A stored switch whose need is off counts as off (dropUnmetNeeds, fail closed): "Connect AI assistants" off turns every AI switch off.

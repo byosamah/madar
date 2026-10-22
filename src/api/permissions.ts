@@ -1,5 +1,6 @@
-import type { Meeting, OfficeRight, Task, User } from './contract/entities';
+import type { Meeting, OfficeRight, Project, Task, User } from './contract/entities';
 import { memberKey } from './rowKeys';
+import { ensureRights } from './rights';
 import { BASIC_ON, CATALOG_RIGHT_IDS, CATALOG_SECTIONS, DEFAULT_EXTRA } from './rightsCatalog';
 import type { State } from './store';
 
@@ -19,6 +20,8 @@ export type Action =
   // The powers of the catalog (one action for each power that the old list did not name).
   | 'client.create' | 'project.details' | 'project.team' | 'project.stages' | 'project.deadlines' | 'project.template' | 'project.leader'
   | 'project.health' | 'project.code'
+  // Hidden projects (owner, 2026-10-22): see every open project, choose who sees a project (a scope power), see the hidden projects.
+  | 'project.seeAll' | 'project.access' | 'project.hidden'
   | 'task.add' | 'task.assign' | 'task.work' | 'task.details' | 'task.dates' | 'task.deleteOwn' | 'task.any' | 'task.officeAll'
   | 'meeting.plan' | 'meeting.editOwn' | 'meeting.minutesOwn' | 'meeting.any' | 'meeting.minutesAny'
   | 'post.create' | 'comment.create' | 'post.editOwn' | 'project.links'
@@ -44,7 +47,7 @@ export const RIGHT_SECTIONS: readonly { readonly key: string; readonly rights: r
   rights: section.powers.flatMap((power) => power.switches.map((item) => item.id)),
 }));
 
-/** The 113 switches, in the order of the sections. The Admin holds every one of them. */
+/** The 117 switches, in the order of the sections. The Admin holds every one of them. */
 export const OFFICE_RIGHTS: readonly OfficeRight[] = CATALOG_RIGHT_IDS;
 
 export { BASIC_ON, DEFAULT_EXTRA };
@@ -90,7 +93,7 @@ export function scopeAllows(actor: Actor, power: string, role: ProjectRole): boo
 
 /** The actions that one switch of the same name answers, with no scope and no people rule. */
 const SIMPLE: ReadonlySet<Action> = new Set<Action>([
-  'project.create', 'client.create', 'task.assign', 'task.officeAll', 'file.share', 'chat.direct', 'chat.groupCreate', 'chat.groupChange', 'chat.mentionEveryone',
+  'project.create', 'client.create', 'project.seeAll', 'project.hidden', 'task.assign', 'task.officeAll', 'file.share', 'chat.direct', 'chat.groupCreate', 'chat.groupChange', 'chat.mentionEveryone',
   'tracker.reply', 'tracker.export', 'people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove', 'clients.change',
   'subCompanies.manage', 'payment.view', 'payment.add', 'payment.change', 'payment.receive', 'templates.projectCreate', 'templates.projectAny',
   'templates.taskAny', 'templates.updateProjects', 'dashboard.view', 'workload.view', 'search.use', 'gaps.view', 'report.office',
@@ -107,6 +110,11 @@ export type Resource = {
   projectRole?: ProjectRole; ownerId?: string | null; helperIds?: string[]; authorId?: string; targetUserId?: string;
   office?: boolean; makerId?: string;
   /**
+   * The facts of the project that its view rule reads (hidden projects, owner 2026-10-22): hidden is true for a project kept for its team,
+   * chosen is true when the viewer is in its list of chosen people. A resource with a projectRole and no access reads as an open project.
+   */
+  access?: ProjectAccessFacts;
+  /**
    * A meeting (fbk_022). organizerId is the person behind the organizer (an agent organizer is its person). noProject: the meeting has
    * no project, so only its organizer and its attendees read it, the Admin too only as an attendee (owner, 2026-10-19). A project
    * meeting reads like its project and carries projectRole.
@@ -114,12 +122,34 @@ export type Resource = {
   meeting?: { organizerId: string; attendeeIds: readonly string[]; noProject: boolean };
 };
 
+/** What the view rule of a project reads about the project and the viewer (hidden projects, owner 2026-10-22). */
+export type ProjectAccessFacts = { readonly hidden: boolean; readonly chosen: boolean };
+
+export function projectAccessOf(project: Pick<Project, 'access'> | undefined, viewerId: string): ProjectAccessFacts {
+  return { hidden: project?.access?.hidden === true, chosen: project?.access?.viewerIds.includes(viewerId) === true };
+}
+
 export function projectRoleOf(state: Pick<State, 'projects' | 'members'>, projectId: string | null, userId: string): ProjectRole {
   if (projectId === null) return 'other';
   const project = state.projects[projectId];
   if (!project) return 'other';
   if (project.leaderId === userId) return 'leader';
   return state.members[memberKey(projectId, userId)] ? 'team' : 'other';
+}
+
+/** The resource of a project for the rules of one person: their role in it, and the facts that its view rule reads. */
+export function projectResource(state: Pick<State, 'projects' | 'members'>, projectId: string | null, viewerId: string): Resource {
+  if (projectId === null) return { projectRole: 'other' };
+  return { projectRole: projectRoleOf(state, projectId, viewerId), access: projectAccessOf(state.projects[projectId], viewerId) };
+}
+
+/**
+ * The one view rule of a project (hidden projects, owner 2026-10-22): true for a holder of "See hidden projects", for the leader, a team
+ * member or a chosen person, and for a holder of "See every project" when the project is open. A project that this rule hides answers
+ * every call as a missing project (requireProject). The viewer carries the office rights (ensureRights does it here).
+ */
+export function mayViewProject(state: State, project: Pick<Project, 'id' | 'access'>, viewer: User): boolean {
+  return can(ensureRights(state, viewer), 'project.view', projectResource(state, project.id, viewer.id));
 }
 
 /** The person behind a user: an agent's owner, or the person. */
@@ -149,7 +179,7 @@ export function taskResource(state: State, task: TaskPeople, viewerId: string): 
   const people = { ownerId: task.ownerId, helperIds: task.helperIds ?? [] };
   const makerId = principalOf(state, task.createdBy);
   if (task.projectId === null) return { office: true, makerId, ...people };
-  return { projectRole: projectRoleOf(state, task.projectId, viewerId), makerId, ...people };
+  return { ...projectResource(state, task.projectId, viewerId), makerId, ...people };
 }
 
 /** The fields of an event side as a plain record. */
@@ -173,9 +203,22 @@ export function leadTookTask(state: State, task: Pick<Task, 'id' | 'ownerId'>): 
 
 /** The one view rule of a task: everyone sees a project task; an office task shows to its maker, lead, helpers and the Admin. */
 export function mayViewTask(state: State, viewer: User, task: TaskPeople): boolean {
-  return can(viewer, 'task.view', taskResource(state, task, viewer.id));
+  return can(ensureRights(state, viewer), 'task.view', taskResource(state, task, viewer.id));
 }
 
+
+/**
+ * The view rule of a project as can() reads it (hidden projects, owner 2026-10-22). The facts come from projectResource: the role of the
+ * person and, for a hidden project, the list of chosen people. A holder of "See hidden projects" sees every project. The leader, the team and
+ * a chosen person see their project. Any other person needs "See every project" and an open project. A resource with neither a role nor
+ * access facts names no project, so the plain question "may this person read" answers true.
+ */
+function viewsProject(actor: Actor, resource: Resource): boolean {
+  if (resource.projectRole === undefined && resource.access === undefined) return true;
+  const role = resource.projectRole ?? 'other';
+  if (holdsRight(actor, 'project.hidden') || role === 'leader' || role === 'team' || resource.access?.chosen === true) return true;
+  return resource.access?.hidden !== true && holdsRight(actor, 'project.seeAll');
+}
 
 /**
  * The rules of an office task (owner, 2026-10-06). Its maker holds the rights a project leader holds on a project task: the lead,
@@ -236,12 +279,12 @@ type MeetingPeople = Pick<Meeting, 'projectId' | 'organizerId' | 'attendeeIds'>;
 export function meetingResource(state: State, meeting: MeetingPeople, viewerId: string): Resource {
   const people = { organizerId: principalOf(state, meeting.organizerId), attendeeIds: meeting.attendeeIds, noProject: meeting.projectId === null };
   if (meeting.projectId === null) return { meeting: people };
-  return { projectRole: projectRoleOf(state, meeting.projectId, viewerId), meeting: people };
+  return { ...projectResource(state, meeting.projectId, viewerId), meeting: people };
 }
 
 /** The one view rule of a meeting: everyone sees a project meeting; a meeting with no project shows to its organizer and its attendees only. */
 export function mayViewMeeting(state: State, viewer: User, meeting: MeetingPeople): boolean {
-  return can(viewer, 'meeting.view', meetingResource(state, meeting, viewer.id));
+  return can(ensureRights(state, viewer), 'meeting.view', meetingResource(state, meeting, viewer.id));
 }
 
 /**
@@ -276,8 +319,9 @@ function canOnMeeting(actor: Actor, action: Action, resource: Resource): boolean
   const own = organizer && held('meeting.editOwn');
   const ownMinutes = attends && held('meeting.minutesOwn');
   switch (action) {
+    // A project meeting reads like its project: a person who does not see the project does not see the meeting (hidden projects).
     case 'meeting.view':
-      return true;
+      return viewsProject(actor, resource);
     case 'meeting.plan':
       return scopeAllows(actor, 'meeting.plan', role);
     case 'meeting.editOwn':
@@ -303,7 +347,8 @@ export function can(actor: Actor, action: Action, resource: Resource = {}): bool
   // A person who left the office reads and changes no meeting.
   if (resource.meeting) return actor.active && canOnMeeting(actor, action, resource);
   // A project task reads like its project. An office task stays with its people.
-  if (!actor.active) return action === 'project.view' || (action === 'task.view' && !resource.office);
+  // A hidden project never shows to a person who left the office (owner, 2026-10-22).
+  if (!actor.active) return !resource.access?.hidden && (action === 'project.view' || (action === 'task.view' && !resource.office));
   if (resource.office) return canOnOfficeTask(actor, action, resource);
   const admin = actor.systemRole === 'admin';
   const role = resource.projectRole ?? 'other';
@@ -319,12 +364,12 @@ export function can(actor: Actor, action: Action, resource: Resource = {}): bool
   const authored = onProject && resource.authorId === actor.id;
   if (SIMPLE.has(action)) return held(action);
   switch (action) {
+    // A project task and its comments read like their project (hidden projects, owner 2026-10-22). The Inbox task threads use the same rule.
+    // A resource with no project facts is the plain question "may this person read at all", and answers true.
     case 'project.view':
-    // Every person sees every project task (spec 2.3).
     case 'task.view':
-    // Every active person reads task comments, as the project page shows them to non-members too. The Inbox task threads use the same rule.
     case 'comment.read':
-      return true;
+      return viewsProject(actor, resource);
     // The powers of a project: the leader, or a person with the all switch. Each power opens its own action and no other.
     case 'project.details':
     case 'project.team':
@@ -343,6 +388,7 @@ export function can(actor: Actor, action: Action, resource: Resource = {}): bool
     case 'post.create':
     case 'comment.create':
     case 'project.links':
+    case 'project.access':
     case 'file.upload':
     case 'file.deliver':
     case 'tracker.log':

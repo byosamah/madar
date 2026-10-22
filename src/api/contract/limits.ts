@@ -25,6 +25,9 @@ export const MAX_PREREQUISITES = 20;
 /** The most helpers one task has. */
 export const MAX_HELPERS = 10;
 
+/** The most chosen people who see one hidden project (hidden projects, owner 2026-10-22). */
+export const MAX_PROJECT_VIEWERS = 50;
+
 /** The most files one comment or one chat message carries. */
 export const MAX_ATTACHMENTS = 10;
 

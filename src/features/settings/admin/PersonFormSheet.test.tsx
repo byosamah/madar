@@ -72,7 +72,7 @@ describe('the role of a person in the Admin sheet (owner, 2026-10-18, fbk_014)',
     expect(Object.values(store.state.users).find((user) => user.name === 'Nora Salem')?.roleId ?? null).toBeNull();
   });
 
-  // Role rights version 2: the line under the Role field counts the switches beyond and below the standard list of 64.
+  // Role rights version 2: the line under the Role field counts the switches beyond and below the standard list of 66.
   describe('the line under the Role field', () => {
     /** Opens the Add person sheet. One render for each test. */
     const open = async (prepare: (state: State) => void, words = { people: 'People', add: 'Add person', role: 'Role' }) => {

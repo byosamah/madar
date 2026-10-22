@@ -6,7 +6,7 @@ import { mayAssignTask, mayChangeTask, mayDeleteTask, mayTickChecklist, type Tas
 import { makeUser } from '../test/factories';
 
 /**
- * One test group for each of the 113 switches of role rights version 2 (design section 8): the switch on passes, the switch off
+ * One test group for each of the 117 switches of role rights version 2 (design section 8): the switch on passes, the switch off
  * refuses, and the switch opens its own scope only. A lead switch does not open a project the person only works on. A team switch
  * does not open a project the person is not on. The person in each case holds the switch (with the switches it needs) and nothing else.
  */
@@ -24,10 +24,15 @@ function allWithout(id: OfficeRight): OfficeRight[] {
       if (!dependants.has(other) && RIGHT_INFO[other].needs.some((need) => dependants.has(need))) { dependants.add(other); again = true; }
     }
   }
+  // See hidden projects also opens an open project, so a person without See every project must not hold it.
+  if (id === 'project.seeAll') dependants.add('project.hidden');
   return CATALOG_RIGHT_IDS.filter((other) => !dependants.has(other));
 }
 
 type Where = 'leader' | 'team' | 'other';
+/** The facts of an open project and of a hidden one, for a person who is not chosen. */
+const OPEN = { hidden: false, chosen: false };
+const HIDDEN = { hidden: true, chosen: false };
 
 /** The action of a power, and the resource where the person's own rule is met. `where` is the place of the person in the project. */
 type Spec = { action: Action; resource: (where: Where) => Resource; extra?: readonly OfficeRight[] };
@@ -56,6 +61,10 @@ const SPECS: Readonly<Record<string, Spec>> = {
   // The code passes only where the details pass: the person holds project.details.lead too.
   'project.code': { ...project('project.code'), extra: ['project.details.lead'] },
   'project.delete': project('project.delete'),
+  // Hidden projects (owner, 2026-10-22): the three powers answer the view of a project, the choice of who sees it, and the hidden ones.
+  'project.seeAll': project('project.view'),
+  'project.access': project('project.access'),
+  'project.hidden': project('project.view'),
   'task.add': project('task.add'),
   'task.assign': plain('task.assign'),
   'task.take': project('task.take'),
@@ -145,6 +154,8 @@ function casesOf(id: OfficeRight): { pass: Resource[]; refuse: Resource[] } {
   if (power === 'meeting.plan' && scope === 'none') {
     return { pass: [{ meeting: { organizerId: OTHER, attendeeIds: [], noProject: true } }], refuse: [at('team'), at('leader'), at('other')] };
   }
+  if (power === 'project.seeAll') return { pass: [{ projectRole: 'other', access: OPEN }], refuse: [{ projectRole: 'other', access: HIDDEN }] };
+  if (power === 'project.hidden') return { pass: [{ projectRole: 'other', access: HIDDEN }], refuse: [] };
   if (power === 'meeting.editOwn' || power === 'meeting.minutesOwn') {
     // Own powers: the people rule must hold too. A meeting of another organizer refuses.
     const other: Resource = { ...at('team'), meeting: { organizerId: OTHER, attendeeIds: [], noProject: false } };
@@ -173,7 +184,7 @@ function actionOf(id: OfficeRight): Action {
   return RIGHT_INFO[id].power === 'task.officeAll' ? 'task.view' : SPECS[RIGHT_INFO[id].power].action;
 }
 
-describe('the 113 switches of role rights version 2', () => {
+describe('the 117 switches of role rights version 2', () => {
   it('has a spec for each power of the catalog', () => {
     for (const id of CATALOG_RIGHT_IDS) expect(SPECS[RIGHT_INFO[id].power], id).toBeDefined();
   });

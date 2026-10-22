@@ -381,10 +381,10 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   - MCP: `TOOL_DOCS` of `projects.update` (600 characters, at the limit) and `projects.get`, and the `Place:` line of `INSTRUCTIONS`.
 
 ## Office rights and roles (owner, 2026-10-18, fbk_014; role rights version 2, 2026-10-21)
-- The rights are 113 switches in 13 sections (`OfficeRight`, `contract/entities.ts`; 85 powers; "Mention everyone" joined the Chat section on 2026-10-22). The one source is the catalog JSON in
+- The rights are 117 switches in 13 sections (`OfficeRight`, `contract/entities.ts`; 88 powers; "Mention everyone" joined the Chat section on 2026-10-22; the four hidden-project rights joined the Projects section on 2026-10-22). The one source is the catalog JSON in
   `docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json`; `rightsCatalog.ts` is its plain copy (no zod), and
   `rightsCatalog.test.ts` checks that the two agree. The Admin holds all of them. A switch id is `<power>.<scope>` for a power with
-  scopes (`lead`, `team`, `all`, `office`, `none`), or the power name for a power with one switch. `BASIC_ON` is the 65 switches a Member holds.
+  scopes (`lead`, `team`, `all`, `office`, `none`), or the power name for a power with one switch. `BASIC_ON` is the 67 switches a Member holds.
 - A power with scopes asks `scopeAllows` (`permissions.ts`): hold `<power>.all`, or `<power>.lead` and lead the project, or
   `<power>.team` and be on the team (the leader counts as on the team). An "own" power keeps the people rule (maker, lead, author,
   organizer) and needs its switch. `project.code` passes only where `project.details` passes. The Admin holds every `.all`.
@@ -394,7 +394,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   `off`) plus the expanded `rights` (or `DEFAULT_EXTRA`), minus each switch whose need on another power is off (`dropUnmetNeeds`, fail
   closed: `ai.connect` off turns every AI switch off; the sheet turns needs on with `withNeeds`); a custom role with no `off` = the Member switches
   plus its own (the meaning of before); with `off` = its own full list; a deleted role leaves the Member switches. `heldRightsOfRole` gives
-  the list to the screens. `session.get` and every output give the 113 ids only. A save writes new ids only (`roles.*` expand old ids).
+  the list to the screens. `session.get` and every output give the 117 ids only. A save writes new ids only (`roles.*` expand old ids).
   Caps: `rights` 120, `off` 70.
 - The actions of `can()` are the power names. The stand-ins of the first release are gone (`project.edit`, `project.changeLeader`,
   `project.healthOverride`, `project.editCode`, `content.post`, `content.editOwn`, `task.createForSelf`, `task.createForAnyone`,
@@ -405,7 +405,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   (the Roles section and the role events). With the default settings the answers equal the answers of before
   (`server/core/rightsParity.test.ts` proves it against a record made on the code before this release). A stored list may still hold an
   old id (`LEGACY_RIGHTS` of `rightsCatalog.ts`); that is a stored right, never an action. The pure power actions are in
-  `rightSwitches.test.ts`, one group of tests for each of the 113 switches. A to-do rule that combines the own power and `task.any` lives
+  `rightSwitches.test.ts`, one group of tests for each of the 117 switches. A to-do rule that combines the own power and `task.any` lives
   in `taskGates.ts` (`mayChangeTask`, `mayAssignTask`, `mayDeleteTask`, `mayTickChecklist`).
 - A right gives only its own power. Before a right passes an action, grep every use of that action and check what it stands in for.
 - A check of an office right reads the person with the rights attached. A handler gets them in `ctx.authority` (`execute.ts`); the
@@ -653,6 +653,21 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - The sample office (`data/sampleMeetings.ts`, only the prototype and `sampleOffice`, as the sample sub-companies): one client meeting of an open
   project and one meeting with no project for the Admin and a leader. The prototype day shift moves `startsAt` and `endsAt` (`PLANNED_FIELDS`,
   `data/shift.ts`) and never pulls them back before now.
+
+## Hidden projects (owner, 2026-10-22)
+Design: `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design.md`. Wave D1 builds the core.
+- Four rights in the catalog (117 switches, 88 powers): `project.seeAll` (See every project) and `project.access.lead` (Choose who sees a
+  project, Projects I lead) are basic and on for every role. `project.access.all` and `project.hidden` (See hidden projects) are for the
+  Admin only. The Admin always holds every switch (`heldSet`), so an Admin without `project.hidden` cannot exist. Management can get it.
+- `Project.access` is `{ hidden, viewerIds }`, optional, at most `MAX_PROJECT_VIEWERS` (50). Missing means open with no chosen people.
+  No migration and no `STATE_VERSION` step.
+- One rule: `mayViewProject(state, project, viewer)` = `can(viewer, 'project.view', projectResource(state, projectId, viewerId))`. True for a
+  holder of `project.hidden`, the leader, a team member, a chosen person, and a holder of `project.seeAll` when the project is open.
+  `project.view`, `task.view` and `comment.read` of a project resource, and `meeting.view` of a project meeting, all read it. A resource
+  with no project facts (`can(actor, 'comment.read')`) is the plain question "may this person read" and answers true. A person who left the
+  office never sees a hidden project. `projectResource` carries `projectRole` and `access`; `taskResource` and `meetingResource` use it.
+- `mayViewProject`, `mayViewTask` and `mayViewMeeting` attach the office rights (`ensureRights`). A bare `can()` on a raw user holds no
+  `project.seeAll` (it fails closed), so a test that asks `can()` for a Member needs `withRights`.
 
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.
