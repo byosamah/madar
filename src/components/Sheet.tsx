@@ -24,8 +24,17 @@ type SheetProps = {
   headerAction?: ReactNode;
   /** A required step: a press outside does not close it. Escape and the sheet's own buttons still do (audit 2026-10-03, F-16). */
   keepOnOutsidePress?: boolean;
+  /** On a phone the sheet takes the full free height, not only the height of its content. A desk ignores it. */
+  tall?: boolean;
+  /** On a phone this replaces the visible title text. The real title stays as sr-only text. The headerAction and Close stay in the row. A desk ignores it. */
+  phoneHeader?: ReactNode;
+  /** Runs once when the close animation ends, also when the parent closed the sheet. It does not run when the sheet opens again first. */
+  onClosed?: () => void;
   children: ReactNode;
 };
+
+/** The close animation of a bottom sheet (vaul: 0.5 s). */
+const CLOSE_MS = 500;
 
 const TITLE = 'text-section text-ink [text-wrap:balance]';
 const DESCRIPTION = 'text-footnote text-label-2';
@@ -125,6 +134,8 @@ const DESK_EDGE = 'top-3 [:root:has([data-pill])_&]:top-[5.25rem] bottom-3 end-3
  * Undo is 62 px high and sits 12 px from the top, so 10 px stay free between the toast and the sheet.
  */
 const PHONE_HEIGHT = 'max-h-[calc(100dvh_-_5.25rem_-_env(safe-area-inset-top))]';
+/** A tall sheet (Direction D: the task panel, the project More tab) takes all of that free height. */
+const PHONE_TALL = 'h-[calc(100dvh_-_5.25rem_-_env(safe-area-inset-top))]';
 
 /** The inside of a sheet or a panel: the title row with its Close button, the content, and the footer. */
 function Frame({ heading, onClose, headerAction, footer, children }: { heading: ReactNode; onClose: () => void; headerAction?: ReactNode; footer?: ReactNode; children: ReactNode }) {
@@ -214,7 +225,7 @@ function SidePanel({ open, onOpenChange, title, description, wide = false, full 
  * A blocking sheet dims the page and holds the focus. A non-blocking panel (the task panel) leaves the page usable.
  */
 export function Sheet(props: SheetProps) {
-  const { open, onOpenChange, title, description, blocking = true, wide = false, full = false, footer, headerAction, keepOnOutsidePress = false, children } = props;
+  const { open, onOpenChange, title, description, blocking = true, wide = false, full = false, footer, headerAction, keepOnOutsidePress = false, tall = false, phoneHeader, onClosed, children } = props;
   const phone = useIsPhone();
   const direction = phone ? 'bottom' : isRtl() ? 'left' : 'right'; // rtl-ok: Vaul names the screen edge
   const modal = phone || blocking;
@@ -224,12 +235,30 @@ export function Sheet(props: SheetProps) {
   const content = useRef<HTMLDivElement>(null);
   // Radix skips onOpenAutoFocus when a field inside took the focus first (autoFocus), so the note is taken as the sheet opens.
   const giveFocusBack = useFocusReturn(open && modal, content);
+  // onClosed follows the close of the sheet, whoever closed it. Vaul calls its own end callback only for a close that starts inside
+  // vaul, not when the parent sets open to false, so the sheet times the animation itself.
+  const lastClosed = useRef(onClosed);
+  lastClosed.current = onClosed;
+  const wasOpen = useRef(open);
+  useEffect(() => {
+    if (open) {
+      wasOpen.current = true;
+      return undefined;
+    }
+    if (!wasOpen.current) return undefined;
+    wasOpen.current = false;
+    const timer = window.setTimeout(() => lastClosed.current?.(), CLOSE_MS);
+    return () => {
+      window.clearTimeout(timer);
+      wasOpen.current = true;
+    };
+  }, [open]);
   if (!modal) return <SidePanel {...props} />;
   // Vaul draws a strip in the colour of the sheet on the side of the screen edge, for a pull past the end. The bottom sheet keeps
   // it. A side sheet floats 12 px from the edge and has no pull, so there the strip only filled the gap beside the rounded
   // corners (owner, 2026-10-05, item 5).
   const shape = phone
-    ? `inset-x-0 bottom-0 ${PHONE_HEIGHT} rounded-t-sheet pb-[env(safe-area-inset-bottom)]`
+    ? `inset-x-0 bottom-0 ${PHONE_HEIGHT} ${tall ? PHONE_TALL : ''} rounded-t-sheet pb-[env(safe-area-inset-bottom)]`
     : `${DESK_EDGE} rounded-sheet after:hidden ${widthOf(wide, full)}`;
   const described = description ? {} : { 'aria-describedby': undefined };
   return (
@@ -263,7 +292,8 @@ export function Sheet(props: SheetProps) {
           <Frame
             heading={(
               <>
-                <Drawer.Title data-sheet-title tabIndex={-1} className={`${TITLE} outline-none`}>{title}</Drawer.Title>
+                <Drawer.Title data-sheet-title tabIndex={-1} className={phone && phoneHeader ? 'sr-only' : `${TITLE} outline-none`}>{title}</Drawer.Title>
+                {phone && phoneHeader}
                 {description && <Drawer.Description className={DESCRIPTION}>{description}</Drawer.Description>}
               </>
             )}
