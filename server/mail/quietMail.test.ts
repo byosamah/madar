@@ -76,12 +76,12 @@ describe('the notice mail in quiet hours (SQLite)', () => {
 });
 
 describe('the notice mail in quiet hours (the Postgres statements)', () => {
-  const person = { id: 'usr_002', trigger: 'task_assigned', user_id: 'usr_002', kind: 'human', active: true, email: 'a@madar.test', preferences: defaultPreferences(), gender: null };
+  const person = { trigger: 'task_assigned', user_id: 'usr_002', kind: 'human', active: true, email: 'a@madar.test', preferences: defaultPreferences(), gender: null };
 
   function setup(quiet: boolean) {
     const mem = memoryMailDb((text) => {
       if (text === NOTICE_UNREAD_SQL) return [{ id: 'ntf_1' }];
-      if (text === NOTICE_MAIL_SQL) return [{ id: 'ntf_1', ...person }];
+      if (text === NOTICE_MAIL_SQL) return [{ ...person, id: 'ntf_1' }];
       if (text === QUIET_SQL) return [{ person: quiet ? null : { quiet: false, days: [0], from: '09:00', to: '10:00' }, office: null }];
       if (text === ADMINS_SQL) return [];
       return undefined;
