@@ -17,7 +17,7 @@ import { todayISO } from '../../lib/dates';
 import { HeaderShell, ProjectHeader } from './ProjectHeader';
 import { PausedBanner } from './PausedBanner';
 import { prefetchReads, sessionMayAddTask, sessionSeesPayments } from './reads';
-import { FILTER_PARAMS, PROJECT_TABS, TAB_BODY, tabReads, type ProjectTab } from './tabs';
+import { FILTER_PARAMS, PROJECT_TABS, TAB_BODY, tabReads, tabsOf, type ProjectTab } from './tabs';
 
 /** One project with the tabs Overview, Tasks, Schedule, Files & Links and Team (spec 5). The tab lives in the link. */
 export function ProjectScreen() {
@@ -61,7 +61,10 @@ export function ProjectScreen() {
       .flatMap(([, list]) => list ?? []).find((item) => item.project.id === projectId);
     return summary ? <LayoutGroup id={sharedSource()}><HeaderShell id={summary.project.id} name={summary.project.name} mark={summary.project.mark} /></LayoutGroup> : null;
   }
-  const Body = TAB_BODY[tab];
+  // The tabs of this project: an internal project has no Tracker, so the address of that tab opens the Overview.
+  const shown = tabsOf(detail.data.project);
+  const current: ProjectTab = shown.includes(tab) ? tab : 'overview';
+  const Body = TAB_BODY[current];
   return (
     <div className="flex flex-col gap-5">
       <LayoutGroup id={sharedSource()}>
@@ -70,7 +73,7 @@ export function ProjectScreen() {
       <PausedBanner detail={detail.data} />
       <Tabs
         label={t('project.tabs')}
-        value={tab}
+        value={current}
         onChange={(next) => setParams((current) => {
           // A trip to another tab keeps the filters of the tabs, and drops an open panel (audit 2026-10-03, PRJ-22).
           const value = new URLSearchParams({ tab: next });
@@ -80,10 +83,10 @@ export function ProjectScreen() {
           }
           return value;
         })}
-        options={PROJECT_TABS.map((value) => ({ value, label: t(`project.tab.${value}`) }))}
+        options={shown.map((value) => ({ value, label: t(`project.tab.${value}`) }))}
       />
-      <TabPanel value={tab}>
-        {Body ? <Body detail={detail.data} /> : <EmptyState title={t(`project.tab.${tab}`)} body={t('project.comingSoon')} />}
+      <TabPanel value={current}>
+        {Body ? <Body detail={detail.data} /> : <EmptyState title={t(`project.tab.${current}`)} body={t('project.comingSoon')} />}
       </TabPanel>
     </div>
   );

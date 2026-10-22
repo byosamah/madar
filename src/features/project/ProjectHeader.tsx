@@ -7,6 +7,7 @@ import { Link } from 'react-router';
 import { projectsListLink } from '../../app/lastList';
 import type { ProjectDetail } from '../../api/contract/views';
 import { Button } from '../../components/Button';
+import { HiddenMark } from '../../components/HiddenMark';
 import { ProgressLine } from '../../components/ProgressLine';
 import { ProjectTile } from '../../components/ProjectTile';
 import { signOfProject } from '../../components/StatusSign';
@@ -16,6 +17,7 @@ import { HealthControl } from './HealthControl';
 import { ProjectActions } from './ProjectActions';
 import { StageControl } from './StageControl';
 import { clientName } from '../../lib/clientName';
+import { isHiddenProject, isInternalProject, shownCode } from '../../lib/projectLabel';
 import { useLang } from '../../app/lang';
 
 /** The tile and the name alone, drawn at once while the project loads, so the tapped row grows into them (motion moment 1). */
@@ -54,9 +56,11 @@ export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPos
         <div className="min-w-0 flex-1 basis-60">
           <h1 dir="auto" className="text-page-title text-ink [text-wrap:balance]">
             <motion.span layoutId={`name-${project.id}`} transition={spring.expand} className="inline-block">{project.name}</motion.span>
+            {isHiddenProject(project) && <HiddenMark size={18} className="ms-2" />}
           </h1>
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-subheadline text-ink-2">
-            <span dir="ltr" className="tabular break-all">{project.code}</span>
+            {/* An internal project shows the word Internal in place of its code (fbk_044). */}
+            <span dir={isInternalProject(project) ? 'auto' : 'ltr'} className="tabular break-all">{shownCode(project, t)}</span>
             {detail.client && <><span aria-hidden>·</span><bdi>{clientName(detail.client, lang)}</bdi></>}
             {viewOnly && <span className="rounded-full bg-fill px-2.5 text-caption font-semibold text-ink-2">{t('project.viewOnly')}</span>}
           </p>

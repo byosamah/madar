@@ -74,7 +74,7 @@ export function countFiles(state: State, taskId: string): number {
 
 /** Events that show in the project feed and on the card. Posts show as "update" items. */
 export const FEED_VERBS = new Set([
-  'project.created', 'project.stage_changed', 'project.leader_changed', 'project.code_changed', 'task.created', 'task.status_changed',
+  'project.created', 'project.stage_changed', 'project.leader_changed', 'project.code_changed', 'project.access_changed', 'task.created', 'task.status_changed',
   'task.approved', 'task.sent_back', 'task.version_opened', 'task.reopened', 'task.dates_shifted', 'file.added', 'file.version_added', 'member.added',
   'project.template_synced', 'project.template_applied', 'meeting.created', 'meeting.updated', 'meeting.cancelled',
   // The minutes of a meeting (wave 2): on the Tracker line of a project meeting, or on the meeting itself. The mark "meeting.settled" stays out.

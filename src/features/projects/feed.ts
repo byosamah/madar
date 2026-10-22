@@ -8,7 +8,7 @@ import { plainText } from '../../lib/text';
 const SIMPLE = new Set(['project.created', 'task.created', 'task.approved', 'task.sent_back', 'task.version_opened', 'task.reopened', 'task.dates_shifted', 'file.added', 'member.added']);
 
 /** The verbs that feedText writes a sentence for. Any other verb falls back to "made a change". */
-export const FEED_EVENT_VERBS = new Set([...SIMPLE, 'meeting.created', 'meeting.updated', 'meeting.cancelled', 'meeting.minutes_saved', 'tracker.minutes_saved', 'task.status_changed', 'project.stage_changed', 'project.leader_changed', 'project.code_changed', 'file.version_added', 'project.template_synced', 'project.template_applied']);
+export const FEED_EVENT_VERBS = new Set([...SIMPLE, 'meeting.created', 'meeting.updated', 'meeting.cancelled', 'meeting.minutes_saved', 'tracker.minutes_saved', 'task.status_changed', 'project.stage_changed', 'project.leader_changed', 'project.code_changed', 'project.access_changed', 'file.version_added', 'project.template_synced', 'project.template_applied']);
 
 /**
  * One line for a feed item, without the author's name: the text of a post, or a sentence for an event (spec 5.2).
@@ -42,6 +42,8 @@ export function feedText(item: FeedItem, t: TFunction, lang: Lang = i18n.languag
       template: detail.template ?? '', added: added.length > 0 ? listFormat(lang).format(added) : t('projectTemplates.apply.addedNothing'), context,
     });
   }
+  // The sentence names no state: a person who reads it sees the project, and the Team tab says who sees it (fbk_044).
+  if (item.verb === 'project.access_changed') return t('feed.project.access_changed', { context });
   if (item.verb === 'project.code_changed') return t('feed.project.code_changed', { code: detail.code ?? '', context });
   if (item.verb === 'file.version_added') return t('feed.file.version_added', { label, version: detail.version ?? '', context });
   if (SIMPLE.has(item.verb)) return t(`feed.${item.verb}`, { label, context });

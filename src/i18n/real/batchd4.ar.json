@@ -29,5 +29,11 @@
     "savedTeam": "صار المشروع للفريق والأشخاص المختارين فقط.",
     "personAdded": "أُضيف إلى من يرى المشروع: {{name}}",
     "personRemoved": "أُزيل ممن يرى المشروع: {{name}}"
+  },
+  "feed": {
+    "project": {
+      "access_changed": "غيّر من يرى هذا المشروع",
+      "access_changed_female": "غيّرت من يرى هذا المشروع"
+    }
   }
 }

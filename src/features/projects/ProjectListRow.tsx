@@ -5,6 +5,7 @@ import { Link } from 'react-router';
 import type { ProjectSummary } from '../../api/contract/views';
 import { ContextMenu, useContextMenu } from '../../components/Menu';
 import { AvatarStack } from '../../components/AvatarStack';
+import { HiddenMark } from '../../components/HiddenMark';
 import { ProgressLine } from '../../components/ProgressLine';
 import { ProjectTile } from '../../components/ProjectTile';
 import { ProjectSign } from '../../components/ProjectSign';
@@ -15,6 +16,7 @@ import { usePrefetchCall } from '../../app/prefetch';
 import { useCardMenu } from './cardMenu';
 import { NextDeadlineLabel } from './ProjectCard';
 import { clientName } from '../../lib/clientName';
+import { isHiddenProject, isInternalProject } from '../../lib/projectLabel';
 import { useLang } from '../../app/lang';
 
 /** The word a row shows only when there is something to say: Late, At risk, or the status of a project that is not active. */
@@ -69,9 +71,12 @@ export const ProjectListRow = memo(function ProjectListRow({ summary, source }: 
         <span className="min-w-0">
           <span className="flex min-w-0 items-center gap-2">
             <motion.span layoutId={`name-${project.id}`} transition={spring.expand} dir="auto" className="truncate text-[calc(15px*var(--boost))] font-semibold text-ink">{project.name}</motion.span>
+            {isHiddenProject(project) && <HiddenMark />}
             <ProjectStateWord summary={summary} />
           </span>
+          {/* An internal project has no client: the word Internal stands where a code or a client shows (fbk_044). */}
           {summary.client && <bdi dir="auto" className="block truncate text-footnote text-ink-2">{clientName(summary.client, lang)}</bdi>}
+          {!summary.client && isInternalProject(project) && <span className="block truncate text-footnote text-ink-2">{t('project.internal')}</span>}
         </span>
         {/* The row follows its own width: stage and deadline under the name, then in one end column, then in two.
             The stage is a column of its own: its name with the stage steps under it (colleague's comment 1, 2026-10-01). */}

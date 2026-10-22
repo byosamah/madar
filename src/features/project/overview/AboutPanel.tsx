@@ -8,6 +8,7 @@ import { SubCompanyLogo } from '../../../components/SubCompanyLogo';
 import { formatDay, formatNumber } from '../../../lib/dates';
 import { googleMapsUrl } from '../../../lib/geo';
 import { parseProjectCode } from '../../../lib/projectCode';
+import { isInternalProject } from '../../../lib/projectLabel';
 import { ProjectPlace } from './ProjectPlace';
 
 /**
@@ -56,13 +57,19 @@ export function AboutPanel({ detail }: { detail: ProjectDetail }) {
       )}
     </>
   );
-  const facts: [string, ReactNode][] = [
+  // An internal project has no code on the screens, no place, no area and no contract date (fbk_044). It keeps its start and end.
+  const internal = isInternalProject(project);
+  const clientFacts: [string, ReactNode][] = internal ? [] : [
     [t('projectCode.group'), code],
-    ...(subCompanyLine ? [[t('subCompanies.label'), subCompanyLine] as [string, ReactNode]] : []),
-    ...(templateName ? [[t('projectTemplates.aboutLabel'), <bdi key="template" dir="auto">{templateName}</bdi>] as [string, ReactNode]] : []),
     [t('projectForm.location'), locationLine],
     [t('projectForm.area'), project.areaM2 === null ? none : formatNumber(project.areaM2, lang)],
     [t('projectForm.contractStartDate'), project.contractStartDate ? formatDay(project.contractStartDate, lang, 'long') : none],
+  ];
+  const facts: [string, ReactNode][] = [
+    ...clientFacts.slice(0, 1),
+    ...(subCompanyLine ? [[t('subCompanies.label'), subCompanyLine] as [string, ReactNode]] : []),
+    ...(templateName ? [[t('projectTemplates.aboutLabel'), <bdi key="template" dir="auto">{templateName}</bdi>] as [string, ReactNode]] : []),
+    ...clientFacts.slice(1),
     [t('projectForm.startDate'), project.startDate ? formatDay(project.startDate, lang, 'long') : none],
     [t('projectForm.endDate'), project.targetEndDate ? formatDay(project.targetEndDate, lang, 'long') : none],
   ];

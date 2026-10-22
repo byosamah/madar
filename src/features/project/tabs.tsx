@@ -15,6 +15,14 @@ import { TrackerTab } from './tracker/TrackerTab';
 
 export const PROJECT_TABS = ['overview', 'tasks', 'activity', 'tracker', 'schedule', 'files', 'team'] as const;
 export type ProjectTab = (typeof PROJECT_TABS)[number];
+
+/**
+ * The tabs that a project shows. An internal project has no client, so it has no Tracker tab (fbk_044, owner 2026-10-22). An address
+ * that names the missing tab opens the Overview.
+ */
+export function tabsOf(project: { kind?: 'client' | 'internal' }): readonly ProjectTab[] {
+  return project.kind === 'internal' ? PROJECT_TABS.filter((tab) => tab !== 'tracker') : PROJECT_TABS;
+}
 export type TabProps = { detail: ProjectDetail };
 
 /** The filter choices of the tabs. They live in the link and stay there across tabs (audit 2026-10-03, PRJ-22). */

@@ -11,6 +11,16 @@ function internal(source: CodeSource): boolean {
   return source.kind === 'internal' || isInternalCode(source.code);
 }
 
+/** True when only the team and the chosen people see the project (the lock mark). A missing `access` is an open project. */
+export function isHiddenProject(project: { access?: { hidden: boolean } }): boolean {
+  return project.access?.hidden === true;
+}
+
+/** True for an internal project, by its kind or its INT code. */
+export function isInternalProject(source: CodeSource): boolean {
+  return internal(source);
+}
+
 /**
  * The short key that a row shows where a code shows (fbk_044). An internal project has no code on the screens: the word "Internal" takes
  * its place. The INT code stays in the data and never shows.

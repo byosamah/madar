@@ -29,5 +29,10 @@
     "savedTeam": "Only the team and chosen people see this project now.",
     "personAdded": "{{name}} sees this project now.",
     "personRemoved": "{{name}} no longer sees this project."
+  },
+  "feed": {
+    "project": {
+      "access_changed": "changed who sees this project"
+    }
   }
 }
