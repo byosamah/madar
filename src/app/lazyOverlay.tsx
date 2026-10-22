@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, type ComponentType } from 'react';
-import { reloadOnFailedImport } from './screens';
+import { reloadOnFailedImport } from './importReload';
 
 /**
  * A part that most sessions never open (the task panel on Home, Focus mode, the feedback sheet) loads in its own chunk

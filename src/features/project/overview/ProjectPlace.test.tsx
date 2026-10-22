@@ -8,6 +8,9 @@ import { ProjectPlace } from './ProjectPlace';
 // The real build loads the street map. These tests run the real-build branch, with the map itself replaced by a double.
 vi.hoisted(() => vi.stubEnv('VITE_MADAR_API', 'remote'));
 
+// The loader still imports the library: the real one makes a Worker, which jsdom has not.
+vi.mock('maplibre-gl', () => import('../../../test/fakeMapLib'));
+
 vi.mock('../../map/MapCanvas', async () => {
   const React = await import('react');
   type Pin = { id: string; label?: string };

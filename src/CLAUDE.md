@@ -138,7 +138,9 @@ any screen work.
   makes its lazy canvas with `lazyMapCanvas()`, which starts the library request with the chunk request of `MapCanvas`. A pointer
   down on the Dashboard Map tab calls `warmMap()` (through `Tabs` `onTabPointerDown`). The map never joins the idle prefetch: the
   library is about 300 KB gz. `loadMapLib` folds the flag `VITE_MADAR_API === 'remote'` itself, because its `?url` imports would
-  put a second script file into the prototype build (`check-bundles` fails that). A test that runs the loader sets the flag.
+  put a second script file into the prototype build (`check-bundles` fails that). A test that runs the loader sets the flag and replaces
+  the library: `vi.mock('maplibre-gl', () => import('<path>/test/fakeMapLib'))`. The real one makes a Worker, which jsdom has not, and
+  `npm test` then ends with exit code 1 while every test passes (`mapTestRule.test.ts` holds the rule).
 - **Zero cost (owner, 2026-10-19): a map service has no account, no key and no bill.** OpenFreeMap (tiles and glyphs) and OpenStreetMap
   Nominatim (the place search) pass. `mapStyle.test.ts` pins the one host in the style. A paid or keyed service (Mapbox, Google Maps JS,
   MapTiler, Stadia) never goes in. The own map file (`functions/map`, `server/http/pagesMap.ts`, `scripts/map/build-basemap.sh`) stays in the
@@ -280,11 +282,12 @@ any screen work.
   is its own small component, as `RowMenu` in `features/projects/ProjectListRow.tsx`.
 - A part that most sessions never open loads in its own chunk through `lazyOverlay` (`app/lazyOverlay.tsx`; audit 2026-10-21, FL-1, FL-4):
   the Home task panel (`features/home/HomeTaskSheet.tsx`), Focus mode, the feedback sheet and the sheet of an ended session
-  (`app/overlays.tsx`). `warm()` keeps the loaded component in a module variable: a part that mounts after it renders with no Suspense
+  (`app/overlays.tsx`). `lazyOverlay.tsx` takes `reloadOnFailedImport` from `app/importReload.ts`, which imports nothing: an import of `screens.ts`
+  there made a loop through every screen in the prototype dev server, and plain `npx vite` showed an empty page (`importCycle.test.ts`). `warm()` keeps the loaded component in a module variable: a part that mounts after it renders with no Suspense
   step (a plain `React.lazy` adds about 500 ms to the first press), and a part that mounts before it keeps `React.lazy` for its whole
   life, so the chunk never remounts it. `useOnceOn` mounts a sheet at its first use and keeps it, so the closing animation stays. Home
   warms the panel 1 s after its three first reads answered (not after the mount, and a stored Home answer does not count; `HomeWarm.test.tsx`), `main.tsx` warms it at once for `/?task=`, and `warmAtIdle` warms the three shell parts after the first data (`app/idlePrefetch.ts`). A failed
-  import at the first use reloads the page once (`reloadOnFailedImport` in `app/screens.ts`). Never import these four files statically
+  import at the first use reloads the page once (`reloadOnFailedImport` in `app/importReload.ts`). Never import these four files statically
   from the shell, Home or `AuthGate`: `app/firstLoadImports.test.ts` and the bundle rules of `check-bundles.ts` fail on it.
 - `useLang` (`app/lang.ts`) reads the language with `useSyncExternalStore` over the one i18next instance and its
   `languageChanged` event. It does not call `useTranslation`.

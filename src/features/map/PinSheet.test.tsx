@@ -10,6 +10,9 @@ vi.hoisted(() => {
   vi.stubEnv('VITE_MADAR_API', 'remote');
 });
 
+// The loader still imports the library: the real one makes a Worker, which jsdom has not.
+vi.mock('maplibre-gl', () => import('../../test/fakeMapLib'));
+
 vi.mock('./MapCanvas', async () => {
   const React = await import('react');
   return { default: () => React.createElement('div', { role: 'region', 'aria-label': 'Map' }) };

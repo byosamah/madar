@@ -16,6 +16,9 @@ const mapState = vi.hoisted(() => {
   return { failed: false };
 });
 
+// The loader still imports the library: the real one makes a Worker, which jsdom has not.
+vi.mock('maplibre-gl', () => import('../../test/fakeMapLib'));
+
 vi.mock('../map/MapCanvas', async () => {
   const React = await import('react');
   type Pin = { id: string; label?: string };
