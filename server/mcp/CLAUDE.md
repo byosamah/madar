@@ -228,7 +228,7 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   request of `/mcp` itself as a write and the OAuth routes as reads (`server/office/cap.ts`). No tool, `TOOL_DOCS` line or
   `INSTRUCTIONS` rule changed in wave 4.
 - Reminders and lines (owner, 2026-10-19): `INSTRUCTIONS` has a "Pauses:" line (the restart date `project.pause.resumeOn` is a reminder, and
-  Madar never restarts a project by itself) and `projects.setStatus` says it. `projects.setRestart` is on the deny list with Pause and Resume.
+  Madar never restarts a project by itself) and `projects.setStatus` says it. `projects.setRestart` is on the deny list with Pause and Resume. `projects.setAccess` (who sees a project) is on the deny list too: people work happens in the screens. `TOOL_DOCS` of `projects.get` and `projects.list` name `access`, and `INSTRUCTIONS` says that a project or task that answers `not_found` may be hidden from the person (hidden projects, 2026-10-22).
   `comments.list` gives `kind` (`message`, `due_date`, `start_date`, `shifted`, `reopened`) and `chats.list` gives `previewKind`: a line is
   no message and never waits for a reply. `dashboard.get` gives `workload.unassigned` (the No lead row). Tests: `pauseDocs.test.ts`,
   `dashboardDocs.test.ts`.

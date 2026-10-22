@@ -1,4 +1,10 @@
 {
+  "errors": {
+    "reasons": {
+      "viewer_agent": "الوكيل يعمل لصالح شخص. اختر الشخص نفسه.",
+      "not_in_project_audience": "هذا الشخص لا يرى مشروع الاجتماع. اختر شخصًا يراه."
+    }
+  },
   "roleRights": {
     "powers": {
       "projectSeeAll": {

@@ -666,6 +666,14 @@ Design: `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design
   `project.view`, `task.view` and `comment.read` of a project resource, and `meeting.view` of a project meeting, all read it. A resource
   with no project facts (`can(actor, 'comment.read')`) is the plain question "may this person read" and answers true. A person who left the
   office never sees a hidden project. `projectResource` carries `projectRole` and `access`; `taskResource` and `meetingResource` use it.
+- The rule fails closed. `can()` reads `project.view`, `task.view`, `comment.read` and a project `meeting.view` from the facts of
+  `projectResource`. A resource with no `access` facts, or with no project at all, denies everyone except a holder of `project.hidden`,
+  the leader and the team (those two by role). Never write `{ projectRole }` alone for a view check: build the resource with
+  `projectResource`. A check that only asks "is this person active" tests `actor.active`, not `comment.read`.
+- `projects.setAccess { id, hidden, viewerIds }` (needs `project.access` with its scope on the project): writes the event
+  `project.access_changed` (before and after of `access`, Undo asks `project.access`), keeps the chosen people also while the project is
+  open, sends `added_to_project` to a new chosen person who is not on the team, and writes nothing when the value is the same. A new
+  person must be active and human (reasons `person_inactive`, `viewer_agent`). MCP: deny list. `WRITE_KINDS`: `events`, `projects`.
 - `mayViewProject`, `mayViewTask` and `mayViewMeeting` attach the office rights (`ensureRights`). A bare `can()` on a raw user holds no
   `project.seeAll` (it fails closed), so a test that asks `can()` for a Member needs `withRights`.
 

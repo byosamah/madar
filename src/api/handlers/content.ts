@@ -5,7 +5,7 @@ import { CommentView, FeedItem, MessageView } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, lastTaskCopy, recordCreate, recordDelete } from '../events';
 import { notifyIn } from '../notify';
-import { mayViewTask, principalOf, type Resource } from '../permissions';
+import { mayViewTask, principalOf, projectResource, type Resource } from '../permissions';
 import { nextId } from '../store';
 import { commentViewOf, feedFor, updateItemOf } from '../views';
 import { toggledReactions, toggleMessageReaction } from './chats';
@@ -49,7 +49,7 @@ function targetOf(ctx: Ctx, targetType: 'task' | 'update', targetId: string): { 
   }
   const update = ctx.state.updates[targetId];
   if (!update) throw notFound('Update', targetId);
-  return { projectId: update.projectId, resource: { projectRole: roleIn(ctx, update.projectId) } };
+  return { projectId: update.projectId, resource: projectResource(ctx.state, update.projectId, ctx.authority.id) };
 }
 
 function newMentions(ctx: Ctx, before: string, after: string): string[] {

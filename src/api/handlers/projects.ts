@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
-  ClientId, ClientInitials, Day, DeadlineId, FileId, GeoPoint, HealthValue, LinkKind, linkUrlOk, MAX_PREREQUISITES, PauseKind, ProjectId, ProjectStatus, ProjectTemplateId, StageId,
+  ClientId, ClientInitials, Day, DeadlineId, FileId, GeoPoint, HealthValue, LinkKind, linkUrlOk, MAX_PREREQUISITES, MAX_PROJECT_VIEWERS, PauseKind, ProjectId, ProjectStatus, ProjectTemplateId, StageId,
   SubCompanyId, TeamId, UserId, type Deadline, type Project, type ProjectTemplate, type Task,
 } from '../contract/entities';
 import { DeadlineRow, ProjectDetail, ProjectSummary } from '../contract/views';
@@ -9,7 +9,7 @@ import { ApiError, invalid, notFound } from '../errors';
 import { addProjectConversation, dropProjectConversation } from '../chatState';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { assertStagePrerequisites, watchStage } from '../flow';
-import { notify, projectPeople } from '../notify';
+import { notify, notifyIn, projectPeople } from '../notify';
 import { peopleFilter, teamFilter } from '../pause';
 import { can, projectRoleOf } from '../permissions';
 import { meetingsOf, memberKey, nextId, paymentsOf, projectTemplatesOf, subCompaniesOf, teamsOf, trackerOf, type State } from '../store';
@@ -585,6 +585,39 @@ export const projectsSetRestart = defineCall({
   },
 });
 
+/**
+ * Who sees a project (hidden projects, owner 2026-10-22). "hidden" keeps the project for its leader, its team, the chosen people and the
+ * holders of "See hidden projects"; not hidden opens it to every person who may see every project. The chosen people stay in the list
+ * also while the project is open, so a later hide brings the same people back. It needs project.access on the project (the leader by
+ * default, the Admin for every project). One event with the old and the new value, so Undo works. A person who is new in the list and
+ * is no member gets the notice added_to_project. A person who loses the view gets nothing more about the project.
+ */
+export const projectsSetAccess = defineCall({
+  input: z.object({ id: ProjectId, hidden: z.boolean(), viewerIds: z.array(UserId).max(MAX_PROJECT_VIEWERS) }),
+  output: ProjectDetail,
+  run(input, ctx) {
+    const project = requireProject(ctx, input.id);
+    assertCan(ctx, 'project.access', { projectRole: roleIn(ctx, project.id) });
+    const viewerIds = [...new Set(input.viewerIds)];
+    const was = project.access?.viewerIds ?? [];
+    const added = viewerIds.filter((userId) => !was.includes(userId));
+    // A person who is new in the list must be an active person. A person already in the list may have left since.
+    for (const userId of added) {
+      const user = requireUser(ctx, userId);
+      if (user.kind === 'agent') throw invalid('viewerIds', 'Agents act for a person. Choose the person instead.', 'viewer_agent');
+      if (!user.active) throw invalid('viewerIds', 'This person is no longer active. Pick someone else.', 'person_inactive');
+    }
+    const unchanged = (project.access?.hidden ?? false) === input.hidden && JSON.stringify(was) === JSON.stringify(viewerIds);
+    if (!unchanged) {
+      applyPatch(ctx, project, { access: { hidden: input.hidden, viewerIds } }, { projectId: project.id, verb: 'project.access_changed', targetType: 'project', targetId: project.id });
+      // The list is saved first, so notify sees the new person as a viewer. A leader and a team member already see the project.
+      const told = added.filter((userId) => userId !== project.leaderId && ctx.state.members[memberKey(project.id, userId)] === undefined);
+      notifyIn(ctx, { userIds: told, trigger: 'added_to_project', targetType: 'project', targetId: project.id });
+    }
+    return detail(ctx, project);
+  },
+});
+
 const LinkLabel = z.string().trim().max(80);
 const LinkUrl = z.string().trim().min(1, 'Paste the link.').max(500);
 
@@ -1035,6 +1068,7 @@ export const projectCalls = {
   'projects.setStatus': projectsSetStatus,
   'projects.pause': projectsPause,
   'projects.setRestart': projectsSetRestart,
+  'projects.setAccess': projectsSetAccess,
   'projects.resume': projectsResume,
   'projects.addLink': projectsAddLink,
   'projects.updateLink': projectsUpdateLink,

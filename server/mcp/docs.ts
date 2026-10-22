@@ -70,6 +70,8 @@ export const INSTRUCTIONS = [
   '',
   'Sub-companies are the companies of the office group, for example Vado and Bunah. subCompanies.list gives their names and project counts. projects.list, tasks.list, deadlines.list, dashboard.get and reports.office take subCompanyId, the sub-company of a project. projects.list filter no_sub_company lists the projects with none.',
   '',
+  'Hidden projects: a project can be hidden from people who do not work on it. A project or a task that answers not_found may be hidden from your person. Never guess its content, and tell your person that you cannot see it.',
+  '',
   'Google Calendar: a person connects Google Calendar in the Madar Settings screen. You cannot connect, disconnect or read a connection. Madar then writes the meetings of that person to their own Google Calendar, with the title, the time and the place only.',
 ].join('\n');
 
@@ -234,11 +236,11 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.get': {
     title: 'Get a project',
-    description: 'Returns one project by id: its code, stages and current stage, team, leader, client, dates, health, deadlines and links. The code is 260902AZT-RES-Villa (new) or KH-26-014 (old). nextDeadline is the next named deadline. stageEnd (date, daysLeft) ends the current stage of an active project, or null. subCompanyId: the sub-company, or null. geo is the pin ({ lat, lng }) or null; with no pin, the location link gives it. location is the address of the pin. templateId: the template it came from, or null. chatId: the project chat your person may open, or null. look: color and tile (see Pictures).',
+    description: 'Returns one project by id: its code, stages and current stage, team, leader, client, dates, health, deadlines and links. The code is 260902AZT-RES-Villa (new) or KH-26-014 (old). nextDeadline is the next named deadline. stageEnd (date, daysLeft) ends the current stage of an active project, or null. subCompanyId: the sub-company, or null. geo is the pin ({ lat, lng }) or null. location is the address of the pin. templateId: the template it came from, or null. chatId: the project chat, or null. access: { hidden, viewerIds }, who sees the project. look: color and tile.',
   },
   'projects.list': {
     title: 'List projects',
-    description: 'Lists the projects, with their code, stage, health and leader. A code is 260902AZT-RES-Villa (new form, key 260902AZT) or KH-26-014 (old form). Filters: status, filter (all, mine, at_risk, no_area, stage_no_end: a stage with no end date, no_sub_company), stageName, health, leaderId, clientId, teamId, subCompanyId (see subCompanies.list); sort by updated, deadline (the next named deadline, else the end of the current stage) or name. Each project gives nextDeadline, stageEnd, subCompanyId, geo and look, as projects.get does. templateId: the template it came from, or null.',
+    description: 'Lists the projects, with their code, stage, health and leader. A code is 260902AZT-RES-Villa (new form, key 260902AZT) or KH-26-014 (old form). Filters: status, filter (all, mine, at_risk, no_area, stage_no_end: a stage with no end date, no_sub_company), stageName, health, leaderId, clientId, teamId, subCompanyId (see subCompanies.list); sort by updated, deadline (the next named deadline, else the end of the current stage) or name. Each project gives nextDeadline, stageEnd, subCompanyId, geo, access and look, as projects.get does. templateId: the template it came from, or null.',
   },
   'projects.setStatus': {
     title: 'Set the project status',

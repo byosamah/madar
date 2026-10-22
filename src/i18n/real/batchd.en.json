@@ -1,4 +1,10 @@
 {
+  "errors": {
+    "reasons": {
+      "viewer_agent": "An agent acts for a person. Choose the person instead.",
+      "not_in_project_audience": "This person does not see the project of the meeting. Choose a person who sees it."
+    }
+  },
   "roleRights": {
     "powers": {
       "projectSeeAll": {

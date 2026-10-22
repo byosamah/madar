@@ -79,6 +79,7 @@ function rest(office: State): Record<string, [unknown, string?]> {
     'deadlines.list': [{}],
     'projects.create': [{ name: 'A new villa', clientId: 'cli_001', leaderId: 'usr_002', stageTemplateId: 'stt_001' }],
     'projects.setLeader': [{ id: 'prj_001', leaderId: 'usr_005' }],
+    'projects.setAccess': [{ id: 'prj_001', hidden: false, viewerIds: ['usr_011'] }],
     'projects.addLink': [{ projectId: 'prj_001', kind: 'moodboard', label: 'Board', url: 'https://example.com/board' }],
     'projects.updateLink': [{ projectId: 'prj_001', linkId: 'lnk_001', patch: { label: 'Drawings' } }],
     'projects.removeLink': [{ projectId: 'prj_001', linkId: 'lnk_001' }],
