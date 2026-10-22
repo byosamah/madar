@@ -4,7 +4,9 @@ import { useNavigate } from 'react-router';
 import type { PauseKind, ProjectStatus } from '../../api/contract/entities';
 import type { ProjectDetail } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
+import { projectsListLink } from '../../app/lastList';
 import { usePrefetchCall } from '../../app/prefetch';
+import { isPhoneNow } from '../../app/useIsPhone';
 import { useByPersonName, usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
@@ -67,7 +69,7 @@ function DeleteProjectSheet({ detail, open, onOpenChange }: SheetProps) {
     onSuccess: () => {
       toast.show({ message: t('project.deleted') });
       onOpenChange(false);
-      navigate('/projects');
+      navigate(isPhoneNow() ? projectsListLink() : '/projects');
     },
   });
   return (
@@ -168,7 +170,7 @@ export function ProjectActions({ detail }: { detail: ProjectDetail }) {
   };
   return (
     <>
-      <Menu label={t('project.more')} items={items} triggerClassName="bg-fill text-ink hover:bg-fill-strong" />
+      <Menu label={t('project.more')} items={items} triggerClassName="bg-fill text-ink hover:bg-fill-strong" sheetOnPhone />
       <EditProjectSheet detail={detail} open={sheet === 'edit'} onOpenChange={onOpenChange} />
       <LeaderSheet detail={detail} open={sheet === 'leader'} onOpenChange={onOpenChange} />
       <DeleteProjectSheet detail={detail} open={sheet === 'delete'} onOpenChange={onOpenChange} />

@@ -6,24 +6,28 @@ import { usePersonName } from '../../app/personName';
 import { useAction } from '../../app/runtime';
 import { Button } from '../../components/Button';
 import { TextArea } from '../../components/Fields';
-import { Popover } from '../../components/Popover';
+import { SheetOrPopover } from '../../components/SheetOrPopover';
+import { useIsPhone } from '../../app/useIsPhone';
 import { SegmentedControl } from '../../components/SegmentedControl';
 import { ProjectSign } from '../../components/ProjectSign';
 import { StatusSign } from '../../components/StatusSign';
 
 const VALUES: HealthValue[] = ['on_track', 'at_risk', 'late'];
 
-function HealthPopover({ detail, anchor, onClose }: { detail: ProjectDetail; anchor: HTMLElement; onClose: () => void }) {
+/** The form inside the panel. It mounts when the panel opens, so its fields start again each time. */
+function HealthForm({ detail, onClose }: { detail: ProjectDetail; onClose: () => void }) {
   const { t } = useTranslation();
+  const phone = useIsPhone();
   const health = detail.health!;
   const [value, setValue] = useState<HealthValue>(health.value);
   const [reason, setReason] = useState(health.overridden ? (health.reason ?? '') : '');
   const set = useAction('projects.setHealthOverride', { onSuccess: onClose });
   const clear = useAction('projects.clearHealthOverride', { onSuccess: onClose });
   return (
-    <Popover anchor={anchor} label={t('health.override')} onClose={onClose}>
+    <div className="flex flex-col gap-3">
       <div>
-        <p className="text-headline text-ink">{t('health.override')}</p>
+        {/* The sheet of a phone draws the title itself. */}
+        {!phone && <p className="text-headline text-ink">{t('health.override')}</p>}
         <p className="text-footnote text-ink-2">{t('health.overrideHint')}</p>
       </div>
       <SegmentedControl label={t('health.override')} value={value} onChange={setValue} options={VALUES.map((v) => ({ value: v, label: t(`health.${v}`) }))} />
@@ -35,7 +39,7 @@ function HealthPopover({ detail, anchor, onClose }: { detail: ProjectDetail; anc
           {t('health.save')}
         </Button>
       </div>
-    </Popover>
+    </div>
   );
 }
 
@@ -56,6 +60,7 @@ function HealthWord({ detail, canSet }: { detail: ProjectDetail; canSet: boolean
 
 /** The leader or the Admin can set the health by hand with a reason (spec 4.2). Others see the word only. */
 export function HealthControl({ detail }: { detail: ProjectDetail }) {
+  const { t } = useTranslation();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   if (!detail.viewerCan.healthOverride || !detail.health) return <HealthWord detail={detail} canSet={false} />;
   return (
@@ -69,7 +74,9 @@ export function HealthControl({ detail }: { detail: ProjectDetail }) {
       >
         <HealthWord detail={detail} canSet />
       </button>
-      {anchor && <HealthPopover detail={detail} anchor={anchor} onClose={() => setAnchor(null)} />}
+      <SheetOrPopover open={anchor !== null} onOpenChange={(open) => { if (!open) setAnchor(null); }} anchor={anchor} title={t('health.override')}>
+        <HealthForm detail={detail} onClose={() => setAnchor(null)} />
+      </SheetOrPopover>
     </>
   );
 }

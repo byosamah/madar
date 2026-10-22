@@ -9,7 +9,8 @@ import type { ProjectDetail } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
 import { useLang } from '../../app/lang';
 import { useCall } from '../../app/runtime';
-import { Popover } from '../../components/Popover';
+import { SheetOrPopover } from '../../components/SheetOrPopover';
+import { useIsPhone } from '../../app/useIsPhone';
 import { formatDay, listFormat, type Lang } from '../../lib/dates';
 import { openStagesNeededBy, overlappingWith, stageOverlaps } from '../../lib/stageFlow';
 
@@ -79,6 +80,7 @@ function StageDetails({ detail, stage }: { detail: ProjectDetail; stage: Stage }
  */
 export function StageControl({ detail }: { detail: ProjectDetail }) {
   const { t } = useTranslation();
+  const phone = useIsPhone();
   const ref = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState(detail.currentStage.id);
@@ -101,9 +103,10 @@ export function StageControl({ detail }: { detail: ProjectDetail }) {
         <bdi>{detail.currentStage.name}</bdi>
         <AnimatedIcon icon={ChevronDownIcon} size={16} className="text-ink-2" aria-hidden />
       </button>
-      {open && ref.current && (
-        <Popover anchor={ref.current} label={t('project.stages')} onClose={() => setOpen(false)}>
-          <p className="text-headline text-ink">{t('project.stages')}</p>
+      <SheetOrPopover open={open} onOpenChange={setOpen} anchor={ref.current} title={t('project.stages')}>
+        <div className="flex flex-col gap-3">
+          {/* The sheet of a phone draws the title itself. */}
+          {!phone && <p className="text-headline text-ink">{t('project.stages')}</p>}
           <p className="text-footnote text-ink-2">{t('project.stageAuto')}</p>
           <ol className="-mx-1 flex flex-col">
             {detail.stages.map((stage, index) => {
@@ -128,8 +131,8 @@ export function StageControl({ detail }: { detail: ProjectDetail }) {
             })}
           </ol>
           <StageDetails key={selected.id} detail={detail} stage={selected} />
-        </Popover>
-      )}
+        </div>
+      </SheetOrPopover>
     </>
   );
 }
