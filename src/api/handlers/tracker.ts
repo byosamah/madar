@@ -13,7 +13,7 @@ import { nextId, trackerOf, type State } from '../store';
 import { attachmentsOf, mayDeleteTracker, namesUnder, trackerRowOf } from '../views';
 import { isOpen, sidesOf } from '../../lib/tracker';
 import { assertFilesInProject } from './attach';
-import { assertActive, assertCan, requireProject, requireUser, roleIn, taskRole, touch } from './shared';
+import { assertActive, assertCan, requireProject, requireUser, roleIn, seesProject, taskRole, touch } from './shared';
 import { changeStatus } from './tasks';
 
 const Title = z.string().trim().min(1).max(200);
@@ -23,9 +23,10 @@ const Files = z.array(FileId).max(MAX_ATTACHMENTS);
 const ReplyBy = z.object({ userId: UserId, dueDate: Day });
 type ReplyBy = z.infer<typeof ReplyBy>;
 
+/** An entry by id. One of a project that the person does not see reads as missing, with the text of an unknown entry (hidden projects). */
 function requireEntry(ctx: Ctx, id: string): TrackerEntry {
   const entry = trackerOf(ctx.state)[id];
-  if (!entry) throw notFound('Tracker entry', id);
+  if (!entry || !seesProject(ctx, entry.projectId)) throw notFound('Tracker entry', id);
   return entry;
 }
 

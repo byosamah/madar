@@ -1,4 +1,4 @@
-import type { Event, EventTarget, Preferences, Task, User } from './contract/entities';
+import type { Event, EventTarget, Preferences, Project, Task, User } from './contract/entities';
 import { ApiError, notFound } from './errors';
 import { isReferenced } from './references';
 import { nextId, type State } from './store';
@@ -76,6 +76,19 @@ export function lastTaskCopy(state: State, taskId: string): Task | undefined {
     if (event.verb === 'task.deleted' && event.targetId === taskId && !event.undoneBy && (!found || event.seq > found.seq)) found = event;
   }
   return found && found.before !== null && typeof found.before === 'object' ? (found.before as Task) : undefined;
+}
+
+/**
+ * The last copy of a deleted project, from its newest delete event that stands (hidden projects, owner 2026-10-22). The History uses it:
+ * the changes of a deleted project that was hidden show only to the holders of "See hidden projects". Undefined when the state holds no
+ * such event.
+ */
+export function lastProjectCopy(state: State, projectId: string): Project | undefined {
+  let found: Event | undefined;
+  for (const event of Object.values(state.events)) {
+    if (event.verb === 'project.deleted' && event.targetId === projectId && !event.undoneBy && (!found || event.seq > found.seq)) found = event;
+  }
+  return found && found.before !== null && typeof found.before === 'object' ? (found.before as Project) : undefined;
 }
 
 /**

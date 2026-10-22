@@ -21,7 +21,7 @@ import { stampDay } from '../../lib/dates';
 import { compareTasks, stagesChrono } from '../../lib/stageFlow';
 import { helpersOf, involves, onlyTicks, peopleOfTask, versionOf } from '../../lib/taskPeople';
 import { dueFromDuration } from '../../lib/workdays';
-import { assertActive, assertCan, ensureOnTeam, insertComment, requireProject, requireStage, requireTask, requireUser, roleIn, taskRole, touch } from './shared';
+import { assertActive, assertCan, ensureOnTeam, insertComment, requireProject, requireStage, requireTask, requireUser, roleIn, seesProject, taskRole, touch } from './shared';
 import { addTrackerEntry, replyTaskDone } from './tracker';
 
 const Title = z.string().trim().min(1).max(200);
@@ -398,7 +398,8 @@ export const tasksCreateFromTemplate = defineCall({
     const template = taskTemplatesOf(ctx.state)[input.templateId];
     if (!template) throw notFound('Task template', input.templateId);
     const stage = ctx.state.stages[input.stageId];
-    if (!stage) throw notFound('Stage', input.stageId);
+    // A stage of a project that the person does not see reads as missing, before any other check (hidden projects, owner 2026-10-22).
+    if (!stage || !seesProject(ctx, stage.projectId)) throw notFound('Stage', input.stageId);
     if (stage.name.toLowerCase() !== template.stageName.toLowerCase()) {
       throw invalid('templateId', `This template is for the stage "${template.stageName}".`, 'template_other_stage');
     }

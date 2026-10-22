@@ -1,7 +1,7 @@
 import { isLiveMessage } from './chatNaming';
 import type { AdminReach, ChatRead, Conversation, Message, NotifyLevel, User } from './contract/entities';
 import { forbidden, invalid, notFound } from './errors';
-import { can, principalOf, projectRoleOf, type ProjectRole } from './permissions';
+import { can, principalOf, projectResource, projectRoleOf, type ProjectRole } from './permissions';
 import { ensureRights } from './rights';
 import { chatReadKey, nextId, unreadCountKey, type State } from './store';
 
@@ -50,7 +50,9 @@ export function canSeeConversation(state: Pick<State, 'projects' | 'members' | '
   const projectId = conversation.projectId;
   if (!projectId || !state.projects[projectId]) return false;
   // The person may be any user of the office (a mention, a recipient): attach the rights, so a Member keeps the project chat (fail closed).
-  return can(ensureRights(state, user), 'chat.project', { projectRole: projectRoleOf(state, projectId, user.id) });
+  const rights = ensureRights(state, user);
+  // A holder of the every-project chat switch still needs the view of the project: a hidden project keeps its chat (hidden projects, owner 2026-10-22).
+  return can(rights, 'project.view', projectResource(state, projectId, user.id)) && can(rights, 'chat.project', { projectRole: projectRoleOf(state, projectId, user.id) });
 }
 
 /**

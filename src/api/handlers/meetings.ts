@@ -4,7 +4,7 @@ import { Day, FileId, MAX_ATTACHMENTS, MEETING_LIMITS, Meeting, MeetingId, Meeti
 import { MeetingDetail, MeetingRow } from '../contract/views';
 import { ApiError, forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
-import { mayViewMeeting, meetingResource, type Actor } from '../permissions';
+import { mayViewMeeting, mayViewProject, meetingResource, type Actor } from '../permissions';
 import { mayEditMeeting, mayWriteMinutes } from '../meetingGates';
 import { notifyIn } from '../notify';
 import { meetingsOf, nextId, type State } from '../store';
@@ -182,11 +182,17 @@ const movesCalendar = (event: { after: unknown } | null): boolean =>
  * The attendees, checked. The organizer and a repeated person drop out of the attendees. An attendee is an active person, never an
  * agent. A person who is on the list already may have left since, so only a new person must be active.
  */
-function checkPeople(ctx: Ctx, organizerId: string, attendeeIds: readonly string[], already: readonly string[] = []): string[] {
+function checkPeople(ctx: Ctx, organizerId: string, attendeeIds: readonly string[], already: readonly string[] = [], projectId: string | null = null): string[] {
   const attendees = [...new Set(attendeeIds)].filter((id) => id !== organizerId);
   for (const id of attendees.filter((one) => !already.includes(one))) {
     assertActive(ctx, id, 'attendeeIds');
     if (requireUser(ctx, id).kind === 'agent') throw invalid('attendeeIds', 'An agent cannot attend a meeting. Choose a person.', 'attendee_agent');
+    // The people of a project meeting must see the project (hidden projects, owner 2026-10-22), or the invitation would show them a meeting
+    // that they could not read.
+    const project = projectId === null ? undefined : ctx.state.projects[projectId];
+    if (project && !mayViewProject(ctx.state, project, ctx.state.users[id])) {
+      throw invalid('attendeeIds', 'This person does not see the project of the meeting. Choose a person who sees it.', 'not_in_project_audience');
+    }
   }
   return attendees;
 }
@@ -243,7 +249,7 @@ const meetingsCreate = defineCall({
     const defaults = kindDefaults(input.kind);
     const minutes = input.durationMin ?? defaults.durationMin;
     const organizerId = ctx.authority.id;
-    const attendeeIds = checkPeople(ctx, organizerId, input.attendeeIds ?? []);
+    const attendeeIds = checkPeople(ctx, organizerId, input.attendeeIds ?? [], [], projectId);
     const id = nextId(ctx.state, 'mtg');
     const meeting: Meeting = {
       id, kind: input.kind, title: input.title, projectId, startsAt, endsAt: addMinutes(startsAt, minutes),
@@ -302,7 +308,7 @@ const meetingsUpdate = defineCall({
     const endsAt = input.startsAt === undefined && input.durationMin === undefined
       ? meeting.endsAt
       : addMinutes(startsAt, input.durationMin ?? minutesBetween(meeting.startsAt, meeting.endsAt));
-    const attendeeIds = input.attendeeIds !== undefined ? checkPeople(ctx, meeting.organizerId, input.attendeeIds, meeting.attendeeIds) : meeting.attendeeIds;
+    const attendeeIds = input.attendeeIds !== undefined ? checkPeople(ctx, meeting.organizerId, input.attendeeIds, meeting.attendeeIds, meeting.projectId) : meeting.attendeeIds;
     const next: Partial<Meeting> = {
       ...(input.kind !== undefined ? { kind: input.kind } : {}),
       ...(input.title !== undefined ? { title: input.title } : {}),

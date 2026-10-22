@@ -10,7 +10,7 @@ import { nextId } from '../store';
 import { commentViewOf, feedFor, updateItemOf } from '../views';
 import { toggledReactions, toggleMessageReaction } from './chats';
 import { mayUndoAgentChange } from './history';
-import { activeMentions, assertCan, everyoneOfNew, insertComment, requireProject, requireReplyComment, requireTask, roleIn, taskRole, touch } from './shared';
+import { activeMentions, assertCan, everyoneOfNew, insertComment, requireProject, requireReplyComment, requireTask, roleIn, seesProject, taskRole, touch } from './shared';
 import { mentionedUserIds } from '../../lib/text';
 import { assertFilesInProject } from './attach';
 
@@ -18,22 +18,27 @@ const Body = z.string().trim().min(1).max(5000);
 const Target = z.object({ targetType: z.enum(['task', 'update']), targetId: z.union([TaskId, UpdateId]) });
 const Deleted = z.object({ deleted: z.literal(true) });
 
+/** A post by id. A post of a project that the person does not see reads as missing, with the text of an unknown post (hidden projects). */
 function requireUpdate(ctx: Ctx, id: string): Update {
   const update = ctx.state.updates[id];
-  if (!update) throw notFound('Update', id);
+  if (!update || !seesProject(ctx, update.projectId)) throw notFound('Update', id);
   return update;
 }
 
 /**
- * A comment by id. A comment of an office task that the person does not see (live, or deleted with its last copy) reads exactly as a
- * missing comment, so no answer tells that it exists (review 2026-10-06).
+ * A comment by id. A comment of an office task that the person does not see (live, or deleted with its last copy), or of a task or a
+ * post of a project that the person does not see, reads exactly as a missing comment, so no answer tells that it exists (review
+ * 2026-10-06; hidden projects, 2026-10-22).
  */
 function requireComment(ctx: Ctx, id: string): Comment {
   const comment = ctx.state.comments[id];
   if (!comment) throw notFound('Comment', id);
   if (comment.targetType === 'task') {
     const task = ctx.state.tasks[comment.targetId] ?? lastTaskCopy(ctx.state, comment.targetId);
-    if (task && task.projectId === null && !mayViewTask(ctx.state, ctx.authority, task)) throw notFound('Comment', id);
+    if (task && !mayViewTask(ctx.state, ctx.authority, task)) throw notFound('Comment', id);
+  } else {
+    const update = ctx.state.updates[comment.targetId];
+    if (update && !seesProject(ctx, update.projectId)) throw notFound('Comment', id);
   }
   return comment;
 }
@@ -48,7 +53,7 @@ function targetOf(ctx: Ctx, targetType: 'task' | 'update', targetId: string): { 
     return { projectId: task.projectId, ...(task.projectId === null ? { officeTaskId: task.id } : {}), resource: taskRole(ctx, task) };
   }
   const update = ctx.state.updates[targetId];
-  if (!update) throw notFound('Update', targetId);
+  if (!update || !seesProject(ctx, update.projectId)) throw notFound('Update', targetId);
   return { projectId: update.projectId, resource: projectResource(ctx.state, update.projectId, ctx.authority.id) };
 }
 

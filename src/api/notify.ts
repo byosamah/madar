@@ -3,8 +3,9 @@ import {
   type User,
 } from './contract/entities';
 import { copyForAdmins } from './adminCopies';
-import { can, canReview, mayViewMeeting, mayViewTask, principalOf, type Actor } from './permissions';
+import { can, canReview, mayViewMeeting, mayViewProject, mayViewTask, principalOf, type Actor } from './permissions';
 import { ensureRights, withRights } from './rights';
+import { projectOfTarget } from './targetProject';
 import { nextId, type State } from './store';
 import { addDays, nowStamp, officeClock, weekStartOf } from '../lib/dates';
 import { peopleOfTask } from '../lib/taskPeople';
@@ -89,13 +90,14 @@ export type NotifyOptions = { dedupeUsed?(key: string): boolean };
 /**
  * Skips the actor and the person an agent actor works for, agents, inactive people, people who turned the trigger off, repeats of
  * a dedupe key, a person who does not see the office task of the notice (owner, 2026-10-06), and a person who does not see the
- * meeting of the notice (fbk_022). Then copyForAdmins (adminCopies.ts) makes the copies for the Admins who picked "Everything".
+ * meeting of the notice (fbk_022), and a person who does not see the project of the notice (hidden projects). Then copyForAdmins (adminCopies.ts) makes the copies for the Admins who picked "Everything".
  */
 export function notify(state: State, actor: User | null, stamp: string, input: NotifyInput, options: NotifyOptions = {}): Notification[] {
   const used = options.dedupeUsed ?? ((key: string) => Object.values(state.notifications).some((n) => n.dedupeKey === key));
   const created: Notification[] = [];
   const task = input.targetType === 'task' ? state.tasks[input.targetId] : undefined;
   const meeting = input.targetType === 'meeting' ? state.meetings?.[input.targetId] : undefined;
+  const project = projectOfTarget(state, input.targetType, input.targetId);
   for (const userId of new Set(input.userIds)) {
     const user = state.users[userId];
     if (!user || !user.active || user.kind === 'agent') continue;
@@ -103,6 +105,8 @@ export function notify(state: State, actor: User | null, stamp: string, input: N
     if (task && task.projectId === null && !mayViewTask(state, ensureRights(state, user), task)) continue;
     // A meeting with no project tells only the people who may see it (owner, 2026-10-19).
     if (meeting && !mayViewMeeting(state, user, meeting)) continue;
+    // A project that the person does not see tells the person nothing (hidden projects, owner 2026-10-22).
+    if (project && !mayViewProject(state, project, user)) continue;
     if (actor && (user.id === actor.id || user.id === actor.ownerId)) continue;
     if (!inAppOn(user.preferences, input.trigger)) continue;
     const dedupeKey = input.dedupeKey ? `${input.dedupeKey}:${userId}` : null;

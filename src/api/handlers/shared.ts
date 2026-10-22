@@ -1,6 +1,6 @@
 import type { Ctx } from '../registry';
 import { emptyReactions, type Comment, type CommentKind, type DateMove, type Project, type Stage, type Task, type User } from '../contract/entities';
-import { can, mayViewTask, principalOf, projectRoleOf, taskResource, type Action, type ProjectRole, type Resource } from '../permissions';
+import { can, mayViewProject, mayViewTask, principalOf, projectRoleOf, taskResource, type Action, type ProjectRole, type Resource } from '../permissions';
 import { forbidden, invalid, notFound, type ApiError } from '../errors';
 import { recordCreate } from '../events';
 import { notifyIn } from '../notify';
@@ -36,10 +36,21 @@ export function requireUser(ctx: Ctx, id: string): User {
   return user;
 }
 
+/**
+ * A project by id that the person of the call may see (hidden projects, owner 2026-10-22). A project that the person does not see reads
+ * as missing: the same code, the same text and the same details as an unknown id. Every call reads its project here, so the view check
+ * comes before any assertCan, and no call tells that a hidden project exists.
+ */
 export function requireProject(ctx: Ctx, id: string): Project {
   const project = ctx.state.projects[id];
-  if (!project) throw notFound('Project', id);
+  if (!project || !mayViewProject(ctx.state, project, ctx.authority)) throw notFound('Project', id);
   return project;
+}
+
+/** True when the person of the call sees the project. A missing project is not seen. */
+export function seesProject(ctx: Ctx, id: string): boolean {
+  const project = ctx.state.projects[id];
+  return project !== undefined && mayViewProject(ctx.state, project, ctx.authority);
 }
 
 /**

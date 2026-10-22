@@ -3,11 +3,11 @@ import { defineCall, type Ctx } from '../registry';
 import { EventId, EventTarget, ProjectId, Stamp, type ChecklistItem, type Event, type FileRec, type Meeting, type Notification, type Task, type TrackerEntry, type User } from '../contract/entities';
 import { EventLineView, EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
-import { DERIVED, FOLLOW_ON, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../events';
+import { DERIVED, FOLLOW_ON, lastProjectCopy, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../events';
 import { assertHasLead, assertMayFinish, reopenDependents, resyncStage, stageTag } from '../flow';
 import { feedbackNoticeHidden } from '../notify';
-import { withRights } from '../rights';
-import { can, holdsAdminRights, mayViewMeeting, mayViewTask, meetingResource, principalOf, taskResource, type Action, type Resource } from '../permissions';
+import { ensureRights, withRights } from '../rights';
+import { can, holdsAdminRights, holdsRight, mayViewMeeting, mayViewProject, mayViewTask, meetingResource, principalOf, taskResource, type Action, type Resource } from '../permissions';
 import { eventLabel, eventViewOf, mayDeleteTracker, officeResource } from '../views';
 import { mayEditMeeting, mayWriteMinutes } from '../meetingGates';
 import { isTaskMaker, mayAssignTask, mayChangePrerequisites, mayDeleteTask, mayTickChecklist } from '../taskGates';
@@ -68,7 +68,21 @@ export function seesEvent(ctx: Ctx, event: Event, undo = false, viewer: User = c
     const meeting = ctx.state.meetings?.[event.officeMeetingId] ?? (undo ? lastMeetingCopy(ctx.state, event.officeMeetingId) : undefined);
     return meeting !== undefined && mayViewMeeting(ctx.state, viewer, meeting);
   }
+  // A change of a project follows the view of the project (hidden projects, owner 2026-10-22).
+  if (event.projectId && !seesProjectEvent(ctx, event.projectId, viewer)) return false;
   return !event.officeTaskId || can(viewer, 'task.view', officeOf(ctx, event, undo, viewer));
+}
+
+/**
+ * The view rule for the changes of one project: a project that the person sees shows its changes. A deleted project that was hidden
+ * shows its changes only to the holders of "See hidden projects"; a deleted open project keeps the old rule (everyone). The copy of a
+ * deleted project comes from its delete event, so a state that does not hold the event reads the project as open.
+ */
+function seesProjectEvent(ctx: Ctx, projectId: string, viewer: User): boolean {
+  const project = ctx.state.projects[projectId];
+  if (project) return mayViewProject(ctx.state, project, viewer);
+  const copy = lastProjectCopy(ctx.state, projectId);
+  return copy?.access?.hidden !== true || holdsRight(ensureRights(ctx.state, viewer), 'project.hidden');
 }
 
 export const eventsList = defineCall({

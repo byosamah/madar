@@ -18,7 +18,7 @@ import { matchByNames } from '../../lib/templateMatch';
 import { workingDaysInclusive } from '../../lib/templatePlan';
 import { baseOf, nextBase, planOf, syncDiff, textChanges, type ItemRef, type SyncChoices, type SyncDiff } from '../templateSync';
 import { namesUnder, stagesOf } from '../views';
-import { assertCan, byName, ensureOnTeam, insertComment, roleIn, touch } from './shared';
+import { assertCan, byName, ensureOnTeam, insertComment, requireProject, roleIn, seesProject, touch } from './shared';
 import { dateMoveOf } from './tasks';
 
 const TemplateName = z.string().trim().min(1).max(60);
@@ -243,8 +243,8 @@ const projectTemplatesMatchPlan = defineCall({
   output: MatchPlanOutput,
   readOnly: true,
   run(input, ctx) {
-    const project = ctx.state.projects[input.projectId];
-    if (!project) throw notFound('Project', input.projectId);
+    // The view check comes first: a hidden project reads as missing (hidden projects, owner 2026-10-22).
+    const project = requireProject(ctx, input.projectId);
     assertMayApply(ctx, project);
     const template = projectTemplatesOf(ctx.state)[input.templateId];
     if (!template) throw notFound('Project template', input.templateId);
@@ -282,8 +282,8 @@ const projectTemplatesLink = defineCall({
   }),
   output: z.object({}),
   run(input, ctx) {
-    const project = ctx.state.projects[input.projectId];
-    if (!project) throw notFound('Project', input.projectId);
+    // The view check comes first: a hidden project reads as missing (hidden projects, owner 2026-10-22).
+    const project = requireProject(ctx, input.projectId);
     assertMayApply(ctx, project);
     const template = projectTemplatesOf(ctx.state)[input.templateId];
     if (!template) throw notFound('Project template', input.templateId);
@@ -427,7 +427,7 @@ const projectTemplatesSyncPlan = defineCall({
     const rows: { project: ReturnType<typeof refOf>; diff: SyncDiff }[] = [];
     for (const projectId of new Set(input.projectIds)) {
       const project = ctx.state.projects[projectId];
-      if (!project || project.templateLink?.templateId !== template.id) continue;
+      if (!project || !seesProject(ctx, projectId) || project.templateLink?.templateId !== template.id) continue;
       const { stages, tasks } = itemsOf(ctx, projectId);
       rows.push({ project: refOf(project), diff: syncDiff(template, project, stages, tasks, activePerson(ctx)) });
     }
@@ -458,8 +458,7 @@ const projectTemplatesSyncApply = defineCall({
     const applying = input.apply === true && isApplyChoices(input.choices);
     if (!applying) assertCan(ctx, 'templates.updateProjects');
     const template = templateOf(ctx, input.templateId);
-    const project = ctx.state.projects[input.projectId];
-    if (!project) throw notFound('Project', input.projectId);
+    const project = requireProject(ctx, input.projectId);
     if (applying) assertMayApply(ctx, project);
     const link = project.templateLink;
     if (!link) throw invalid('projectId', 'This project is not linked to a template.', 'not_linked');

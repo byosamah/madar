@@ -674,6 +674,25 @@ Design: `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design
   `project.access_changed` (before and after of `access`, Undo asks `project.access`), keeps the chosen people also while the project is
   open, sends `added_to_project` to a new chosen person who is not on the team, and writes nothing when the value is the same. A new
   person must be active and human (reasons `person_inactive`, `viewer_agent`). MCP: deny list. `WRITE_KINDS`: `events`, `projects`.
+- The doors (wave D1): `requireProject` (`handlers/shared.ts`) answers `not_found Project <id>` for a project the person does not see, before
+  any `assertCan`. `seesProject(ctx, id)` is the same test for a child record. A record that sits in a project answers as an unknown record
+  of its own kind: `requireDeadline`, the stage of `stages.setDates` and `stages.setPrerequisites`, the stage of `tasks.createFromTemplate`
+  (before `template_other_stage`), `requireUpdate`, `requireComment`, `targetOf`, `requireEntry`, `requirePayment`, `mayViewFile`
+  (`not_found File`, never `forbidden`, also on the server in `server/files/rights.ts` and `server/calls/files.ts`), `requireTask`
+  (through `mayViewTask`), `requireMeeting` (through `mayViewMeeting`), `seesEvent`, and `canSeeConversation` (a project chat needs the view
+  too). The template calls (`matchPlan`, `link`, `syncApply`) read the project with `requireProject` before `assertMayApply`.
+  `subCompanies.delete` counts only the projects the person sees in `sub_company_in_use`, and a person who sees none of them while a
+  hidden one names the sub-company gets `forbidden` (action `project.hidden`): only a holder of `project.hidden` deletes then. A move with
+  `moveToId` still moves every project.
+- `notify` skips a person who does not see the project of the target (`projectOfTarget`, `targetProject.ts`). A meeting of a project needs
+  attendees who see the project (reason `not_in_project_audience`). `seesEvent` hides the events of a deleted project that was hidden
+  from everyone but a holder of `project.hidden` (`lastProjectCopy`, `events.ts`); an open deleted project keeps the old rule. A state that
+  holds no delete event reads such a project as open, so a loader must bring the delete event (wave D2).
+- `code_taken` leaves out the key of a project the person does not see (the server still checks every project), and `sameContractAs` of
+  such a project reads as an unknown project.
+- Leak tests: `handlers/hiddenProjectLeaks.test.ts` (every door, with a person, an agent, a role without `project.seeAll`, Management with and
+  without `project.hidden`), `handlers/subCompaniesHidden.test.ts`, `server/mcp/hiddenProjectTools.test.ts`, `server/calls/hiddenProjectFiles.test.ts`;
+  the loader sweep reads and writes the hidden project `prj_005` of `trapOffice` (`HIDDEN_PROJECT` in `server/data/loaders/sweep.ts`).
 - `mayViewProject`, `mayViewTask` and `mayViewMeeting` attach the office rights (`ensureRights`). A bare `can()` on a raw user holds no
   `project.seeAll` (it fails closed), so a test that asks `can()` for a Member needs `withRights`.
 

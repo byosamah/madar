@@ -37,7 +37,7 @@ describe('projects.setAccess', () => {
   it('lets the Admin choose for any project, and refuses a team member, an outsider and the agent of an outsider', async () => {
     const t = world();
     t.as('usr_001');
-    await expect(t.api.call('projects.setAccess', { id: 'prj_001', hidden: true, viewerIds: [] })).resolves.toBeDefined();
+    await expect(t.api.call('projects.setAccess', { id: 'prj_001', hidden: false, viewerIds: ['usr_006'] })).resolves.toBeDefined();
     for (const person of ['usr_003', 'usr_004', 'usr_005']) {
       t.as(person);
       await expect(t.api.call('projects.setAccess', { id: 'prj_001', hidden: false, viewerIds: [] }), person).rejects.toMatchObject({ code: 'forbidden' });

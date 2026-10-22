@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
   ClientId, ClientInitials, Day, DeadlineId, FileId, GeoPoint, HealthValue, LinkKind, linkUrlOk, MAX_PREREQUISITES, MAX_PROJECT_VIEWERS, PauseKind, ProjectId, ProjectStatus, ProjectTemplateId, StageId,
-  SubCompanyId, TeamId, UserId, type Deadline, type Project, type ProjectTemplate, type Task,
+  SubCompanyId, TeamId, UserId, type Deadline, type Project, type ProjectTemplate, type Stage, type Task,
 } from '../contract/entities';
 import { DeadlineRow, ProjectDetail, ProjectSummary } from '../contract/views';
 import { ApiError, invalid, notFound } from '../errors';
@@ -25,7 +25,7 @@ import { pinFromLinks, samePoint } from '../../lib/geo';
 import { baseOf } from '../templateSync';
 import { markOf, pickMark } from '../../lib/projectMark';
 import { involves } from '../../lib/taskPeople';
-import { addMember, assertCan, requireProject, requireStage, requireUser, roleIn, touch } from './shared';
+import { addMember, assertCan, requireProject, requireStage, requireUser, roleIn, seesProject, touch } from './shared';
 import { addTrackerEntry } from './tracker';
 
 const ProjectName = z.string().trim().min(1).max(120);
@@ -81,7 +81,9 @@ const CodeParts = z.object({
 function assertCodeFree(ctx: Ctx, code: string, selfId: string | null): void {
   const other = contractClash(code, Object.values(ctx.state.projects), selfId);
   if (other) {
-    throw invalid('code', `The series ${contractOf(code)} belongs to another contract (${projectKey(other.code)}). To keep this code, send codeAnyway: true.`, 'code_taken');
+    // The server checks every project, so a code stays unique. The text names the other project only when the person sees it (hidden projects).
+    const name = seesProject(ctx, other.id) ? ` (${projectKey(other.code)})` : '';
+    throw invalid('code', `The series ${contractOf(code)} belongs to another contract${name}. To keep this code, send codeAnyway: true.`, 'code_taken');
   }
 }
 
@@ -106,7 +108,8 @@ function codeOfNew(ctx: Ctx, input: CodeInput): string {
   if (ways > 1) throw invalid('code', 'Give the code in one way: the parts, a typed code, or the same contract as another project.');
   if (input.sameContractAs !== undefined) {
     const other = state.projects[input.sameContractAs];
-    if (!other) throw invalid('sameContractAs', 'This project does not exist.');
+    // A project that the person does not see reads as missing (hidden projects).
+    if (!other || !seesProject(ctx, other.id)) throw invalid('sameContractAs', 'This project does not exist.');
     return other.code;
   }
   if (input.code !== undefined) {
@@ -266,10 +269,18 @@ function requireEditable(ctx: Ctx, projectId: string, power: ProjectPower): Proj
   return project;
 }
 
+/** A deadline by id. One in a project that the person does not see reads as missing, with the text of an unknown deadline (hidden projects). */
 function requireDeadline(ctx: Ctx, id: string): Deadline {
   const deadline = ctx.state.deadlines[id];
-  if (!deadline) throw notFound('Deadline', id);
+  if (!deadline || !seesProject(ctx, deadline.projectId)) throw notFound('Deadline', id);
   return deadline;
+}
+
+/** A stage by id. One in a project that the person does not see reads as missing, with the text of an unknown stage (hidden projects). */
+function requireStageById(ctx: Ctx, id: string): Stage {
+  const stage = ctx.state.stages[id];
+  if (!stage || !seesProject(ctx, stage.projectId)) throw notFound('Stage', id);
+  return stage;
 }
 
 const shownDate = (s: ProjectSummary) => s.nextDeadline?.date ?? s.stageEnd?.date ?? '9999-12-31';
@@ -948,8 +959,7 @@ export const stagesSetDates = defineCall({
   input: z.object({ stageId: StageId, startDate: Day.nullable(), endDate: Day.nullable() }),
   output: ProjectDetail,
   run(input, ctx) {
-    const stage = ctx.state.stages[input.stageId];
-    if (!stage) throw notFound('Stage', input.stageId);
+    const stage = requireStageById(ctx, input.stageId);
     const project = requireEditable(ctx, stage.projectId, 'project.stages');
     if (input.startDate && input.endDate && input.endDate < input.startDate) throw invalid('endDate', 'The stage cannot end before it starts.');
     const watch = watchStage(ctx, project.id);
@@ -968,8 +978,7 @@ export const stagesSetPrerequisites = defineCall({
   input: z.object({ stageId: StageId, prerequisiteIds: z.array(StageId).max(MAX_PREREQUISITES) }),
   output: ProjectDetail,
   run(input, ctx) {
-    const stage = ctx.state.stages[input.stageId];
-    if (!stage) throw notFound('Stage', input.stageId);
+    const stage = requireStageById(ctx, input.stageId);
     const project = requireEditable(ctx, stage.projectId, 'project.stages');
     assertStagePrerequisites(ctx.state, stage, input.prerequisiteIds);
     applyPatch(ctx, stage, { prerequisiteIds: input.prerequisiteIds }, {
