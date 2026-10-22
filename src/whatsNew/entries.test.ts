@@ -138,6 +138,17 @@ describe("What's new entries", () => {
     expect(String(wordAt(en, ['whatsNew', 'items', '2026-10-23-82', 'title']))).toBe('Madar is faster');
     expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-82', 'title']))).toBe('صار مدار أسرع');
   });
+
+  // Direction D (owner, 2026-10-22): the phone shell has four tabs with words. One line for everyone, with no link to open.
+  it('tells everyone that the phone has four tabs, as the newest entry', () => {
+    expect(WHATS_NEW[0]).toEqual({ id: '2026-10-23-93', day: '2026-10-23' });
+    expect(wordAt(en, ['whatsNew', 'items', '2026-10-23-93', 'title'])).toBe('Madar on the phone: four tabs');
+    expect(wordAt(ar, ['whatsNew', 'items', '2026-10-23-93', 'title'])).toBe('مدار على الجوال: أربعة تبويبات');
+    const body = String(wordAt(en, ['whatsNew', 'items', '2026-10-23-93', 'body']));
+    for (const tab of ['Today', 'Inbox', 'Work', 'Me']) expect(body, tab).toContain(tab);
+    const arBody = String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-93', 'body']));
+    for (const tab of ['اليوم', 'الوارد', 'العمل', 'أنا']) expect(arBody, tab).toContain(tab);
+  });
 });
 
 // Quiet hours and @everyone (owner, 2026-10-22, fbk_048 and fbk_041). The entries are found by id, never by place.

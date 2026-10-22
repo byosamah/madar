@@ -3,6 +3,10 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-93": {
+        "title": "Madar on the phone: four tabs",
+        "body": "On a phone, Madar now has four tabs with words: Today, Inbox, Work and Me. Chats and notifications share the Inbox. To-dos, meetings and projects share Work. Your settings are in Me."
+      },
       "2026-10-23-92": {
         "title": "Photos start to upload sooner",
         "body": "A big photo from your phone now starts to upload sooner, and the phone uses less memory while it gets ready."

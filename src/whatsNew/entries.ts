@@ -12,6 +12,7 @@ import type { Action } from '../api/permissions';
 export type WhatsNewEntry = { id: string; day: string; right?: Action; to?: string };
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
+  { id: '2026-10-23-93', day: '2026-10-23' },
   { id: '2026-10-23-92', day: '2026-10-23' },
   { id: '2026-10-23-91', day: '2026-10-23', to: '/work' },
   { id: '2026-10-23-90', day: '2026-10-23', to: '/settings' },
