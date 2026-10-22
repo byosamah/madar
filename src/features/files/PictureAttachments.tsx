@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Attachment } from '../../api/contract/views';
 import { downloadFile, isRemote, useFileLink, usePictureTest } from '../../app/files';
 import { useRuntime } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
+import { useNearView } from '../../app/useNearView';
 import { ImageViewer } from '../../components/ImageViewer';
 import { FileChips } from './Attachments';
 
@@ -14,21 +15,6 @@ import { FileChips } from './Attachments';
 const SHAPES = new Map<string, number>();
 /** The box of a picture before its shape is known. Most photos are 4 to 3. */
 const FIRST_SHAPE = 4 / 3;
-
-/** True from the moment the box comes within 400 px of the screen. The small picture asks for its link only then. */
-function useNearView(box: RefObject<Element | null>): boolean {
-  const [near, setNear] = useState(typeof IntersectionObserver === 'undefined');
-  useEffect(() => {
-    const node = box.current;
-    if (near || !node || typeof IntersectionObserver === 'undefined') return undefined;
-    const watcher = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) setNear(true);
-    }, { rootMargin: '400px' });
-    watcher.observe(node);
-    return () => watcher.disconnect();
-  }, [box, near]);
-  return near;
-}
 
 type Shape = 'single' | 'square' | 'wide';
 /** A file that still exists (a deleted file has no name). */

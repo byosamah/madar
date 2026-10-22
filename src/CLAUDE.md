@@ -505,7 +505,8 @@ any screen work.
   replaces `FileChips` in `Thread.tsx` and `CommentThread.tsx`: a picture (`Attachment.mimeType` and `usePictureTest`) is a small rounded
   picture, at most 240 px wide, from the thumb link (`useFileLink(..., 'thumb')`); two or more sit in a grid; every other file stays a chip.
   The box holds its place while the picture loads (the last known shape in `SHAPES`, else 4 to 3), the picture has
-  `loading="lazy" decoding="async"` and asks for its link only within 400 px of the screen. A picture that breaks, or that the store keeps
+  `loading="lazy" decoding="async"` and asks for its link only within 400 px of the screen (`useNearView`, `app/useNearView.ts`; the picture
+  rows of the Files tab use it too, BG-7). A picture that breaks, or that the store keeps
   as a download (an SVG in the real build), shows as a chip. A press opens `ImageViewer` (`components/ImageViewer.tsx`): the picture on a
   dark backdrop, the file name, an X, a Download button, Escape and a press on the dark space close it, the arrow keys follow the page
   direction between the pictures of one message, and the focus returns to the preview. A message of only pictures leaves out the file names
@@ -720,7 +721,7 @@ any screen work.
   requests. A render-count test wraps a component with `vi.mock(path, importOriginal)` and waits until the count stops
   changing before it compares.
 - A picture row of the real build: render with `runtime.mode: 'remote'` and an api stub that answers `files.link`
-  (`features/project/files/FilesTab.remote.test.tsx`).
+  (`features/project/files/FilesTab.remote.test.tsx`; it also stubs `IntersectionObserver` to move one row near the view).
 - `DateDraftField` (`components/DateDraftField.tsx`): a change event with no focus counts as a pick from the date picker and
   saves at once. To test typing, focus the field first (inside `act`): the full field shows and saves on blur or Enter.
 - `DateField` gives every change to the form at once, so `fireEvent.change` on the input by its label works as before. A
