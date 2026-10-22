@@ -208,3 +208,12 @@ describe('the picture viewer (owner, 2026-10-19)', () => {
     expect(screen.getByRole('dialog', { name: 'Task panel' })).toBeInTheDocument();
   });
 });
+
+describe('the picture viewer safe area (Direction D)', () => {
+  it('pads the bottom with the safe area', async () => {
+    render(<Demo />);
+    const dialog = await screen.findByRole('dialog', { name: 'Site photo.jpg' });
+    expect(dialog.className).toContain('pb-[env(safe-area-inset-bottom)]');
+    expect(within(dialog).getByRole('button', { name: 'Close' })).toBeInTheDocument();
+  });
+});

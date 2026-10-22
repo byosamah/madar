@@ -243,3 +243,39 @@ describe('the emoji button', () => {
     expect(screen.getByRole('dialog', { name: 'أضف إيموجي' })).toBeInTheDocument();
   });
 });
+
+describe('the group row of the sheet layout (Direction D)', () => {
+  function order(layout: 'panel' | 'sheet') {
+    const { container } = render(<EmojiPanel onPick={vi.fn()} layout={layout} />);
+    const bar = screen.getByRole('toolbar', { name: 'Groups of emoji' });
+    const grid = container.querySelector('[data-grid]')!.closest('[data-vaul-no-drag]')!;
+    return { bar, grid };
+  }
+
+  it('draws the group row after the grid in a sheet', () => {
+    useLanguage('en');
+    const { bar, grid } = order('sheet');
+    expect(grid.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('draws the group row before the grid in a panel', () => {
+    useLanguage('en');
+    const { bar, grid } = order('panel');
+    expect(bar.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('hides the group row while a search text is typed, in the sheet too', async () => {
+    useLanguage('en');
+    render(<EmojiPanel onPick={vi.fn()} layout="sheet" />);
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search emoji' }), 'heart');
+    expect(screen.queryByRole('toolbar')).toBeNull();
+  });
+
+  it('keeps a group button that scrolls to its group, and gives the search field no focus in a sheet', async () => {
+    useLanguage('en');
+    render(<EmojiPanel onPick={vi.fn()} layout="sheet" />);
+    expect(screen.getByRole('searchbox', { name: 'Search emoji' })).not.toHaveFocus();
+    await userEvent.click(within(screen.getByRole('toolbar', { name: 'Groups of emoji' })).getByRole('button', { name: 'Flags' }));
+    expect(await screen.findByRole('group', { name: 'Flags' })).toBeInTheDocument();
+  });
+});

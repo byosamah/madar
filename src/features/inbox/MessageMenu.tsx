@@ -34,6 +34,15 @@ function itemGroups(bubble: Bubble, actions: BubbleActions, t: TFunction): { fir
   };
 }
 
+/**
+ * True when the phone sheet of a message has something to show: a reaction row, a Reply, an Edit or a Delete, or Copy text. A reader who
+ * may not react, reply or edit, in a browser that cannot copy, gets no sheet from a long press, so no empty sheet opens (Direction D).
+ */
+export function sheetHasRows(bubble: Bubble, actions: BubbleActions): boolean {
+  // The same rules as `itemGroups`: Reply needs canReply, and Edit and Delete need canEdit.
+  return actions.canReact || actions.canReply || bubble.canEdit === true || canCopy();
+}
+
 /** The items of the menu on a computer, in order. */
 export function menuItemsOf(bubble: Bubble, actions: BubbleActions, t: TFunction): MenuItem[] {
   const { first, last } = itemGroups(bubble, actions, t);

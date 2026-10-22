@@ -4,6 +4,11 @@ import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
 import { ar } from '../../i18n/trees';
 import { renderApp } from '../../test/render';
+import { without } from '../../test/rr2work';
+import { addGroupConversation } from '../../api/chatState';
+import { sheetHasRows } from './MessageMenu';
+import type { BubbleActions } from './bubbleActions';
+import type { Bubble } from './MessageBubble';
 
 /**
  * The message menu, the phone sheet and the reaction pills (chat design 2026-10-19, items 9 and 12; track msg B11). Hala (usr_001) is the
@@ -220,5 +225,55 @@ describe('Arabic, right to left', () => {
     const preview = document.getElementById(sheet.getAttribute('aria-describedby') ?? '');
     expect(preview?.textContent?.startsWith('\u2068')).toBe(true);
     expect(preview?.textContent?.endsWith('\u2069')).toBe(true);
+  });
+});
+
+describe('a long press with nothing to show (Direction D)', () => {
+  const bubble = (over: Partial<Bubble> = {}) => ({ id: 'msg_1', body: 'Hi', canEdit: false, reactions: {}, ...over }) as unknown as Bubble;
+  const actions = (over: Partial<BubbleActions> = {}) => ({ canReact: false, canReply: false, ...over }) as unknown as BubbleActions;
+
+  it('has no rows for a reader who may not react, reply or edit, with no clipboard', () => {
+    vi.stubGlobal('navigator', { ...navigator, clipboard: undefined });
+    expect(sheetHasRows(bubble(), actions())).toBe(false);
+  });
+
+  it('has rows for a reaction, a reply, an edit or a copy', () => {
+    vi.stubGlobal('navigator', { ...navigator, clipboard: undefined });
+    expect(sheetHasRows(bubble(), actions({ canReact: true }))).toBe(true);
+    expect(sheetHasRows(bubble(), actions({ canReply: true }))).toBe(true);
+    expect(sheetHasRows(bubble({ canEdit: true }), actions())).toBe(true);
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText: vi.fn() } });
+    expect(sheetHasRows(bubble(), actions())).toBe(true);
+  });
+
+  /** A Member in a group that Faisal made, with chat.direct off: the Member may read and nothing more. */
+  const readOnlyGroup = (state: State) => {
+    state.session.currentUserId = 'usr_005';
+    state.settings.roles = without('chat.direct');
+    const group = addGroupConversation(state, 'Tower team', 'usr_002', ['usr_002', 'usr_001', 'usr_005'], '2026-09-30T09:00:00.000+03:00');
+    state.messages.msg_950 = {
+      id: 'msg_950', conversationId: group.id, authorId: 'usr_002', actingForId: 'usr_002', body: 'A line for readers.', mentions: [],
+      createdAt: '2026-09-30T09:30:00.000+03:00', editedAt: null,
+    };
+  };
+
+  it('does not open the sheet on a long press when it has no row', async () => {
+    vi.stubGlobal('navigator', { ...navigator, clipboard: undefined });
+    await renderApp('/inbox', readOnlyGroup);
+    await userEvent.click(await within(await screen.findByRole('list', { name: 'Chats' })).findByRole('link', { name: /Tower team/ }));
+    await waitFor(() => expect(row('msg_950')).not.toBeNull());
+    await longPress('msg_950');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('opens the sheet when only Copy text is possible', async () => {
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
+    await renderApp('/inbox', readOnlyGroup);
+    await userEvent.click(await within(await screen.findByRole('list', { name: 'Chats' })).findByRole('link', { name: /Tower team/ }));
+    await waitFor(() => expect(row('msg_950')).not.toBeNull());
+    await longPress('msg_950');
+    const sheet = await screen.findByRole('dialog');
+    expect(within(sheet).getByRole('button', { name: 'Copy text' })).toBeInTheDocument();
+    expect(within(sheet).queryByRole('button', { name: /React with/ })).toBeNull();
   });
 });

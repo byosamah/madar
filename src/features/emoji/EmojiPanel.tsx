@@ -143,6 +143,22 @@ export function EmojiPanel({ onPick, layout }: PanelProps) {
       ))}
     </div>
   );
+  const groupBar = (
+    <div role="toolbar" aria-label={t('emoji.groups')} className="flex shrink-0 justify-between">
+      {GROUPS.map((group) => (
+        <button
+          key={group.key}
+          type="button"
+          aria-label={t(`emoji.group.${group.key}`)}
+          title={t(`emoji.group.${group.key}`)}
+          onClick={() => goTo(group.key)}
+          className="pressable grid size-11 shrink-0 place-items-center rounded-full text-xl leading-none hover:bg-fill"
+        >
+          <span aria-hidden>{GROUP_ICON[group.key]}</span>
+        </button>
+      ))}
+    </div>
+  );
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col gap-2">
       <input
@@ -164,22 +180,7 @@ export function EmojiPanel({ onPick, layout }: PanelProps) {
         dir="auto"
         className="field shrink-0"
       />
-      {!searching && (
-        <div role="toolbar" aria-label={t('emoji.groups')} className="flex shrink-0 justify-between">
-          {GROUPS.map((group) => (
-            <button
-              key={group.key}
-              type="button"
-              aria-label={t(`emoji.group.${group.key}`)}
-              title={t(`emoji.group.${group.key}`)}
-              onClick={() => goTo(group.key)}
-              className="pressable grid size-11 shrink-0 place-items-center rounded-full text-xl leading-none hover:bg-fill"
-            >
-              <span aria-hidden>{GROUP_ICON[group.key]}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      {!searching && layout === 'panel' && groupBar}
       <div
         ref={list}
         data-vaul-no-drag
@@ -206,6 +207,8 @@ export function EmojiPanel({ onPick, layout }: PanelProps) {
           </>
         )}
       </div>
+      {/* The sheet of a phone keeps the group row under the grid, in reach of the thumb. It hides while a search text is typed. */}
+      {!searching && layout === 'sheet' && groupBar}
       <div className="flex shrink-0 flex-col gap-1 border-t border-hairline pt-2">
         <button
           type="button"

@@ -117,7 +117,7 @@ export function ImageViewer({ open, onClose, name, src, placeholder = null, fail
           onPointerDownOutside={(event) => {
             if (isToastPress(event.detail.originalEvent)) event.preventDefault();
           }}
-          className="fixed inset-0 z-50 flex flex-col bg-black/95 text-white outline-none"
+          className="fixed inset-0 z-50 flex flex-col bg-black/95 pb-[env(safe-area-inset-bottom)] text-white outline-none"
         >
           <header className="flex items-center gap-3 px-4 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)]">
             <div className="min-w-0 flex-1">

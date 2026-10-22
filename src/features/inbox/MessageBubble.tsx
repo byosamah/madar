@@ -19,7 +19,7 @@ import { DateMoveLines } from '../project/tasks/DateReason';
 import { EditingContext, useBubbleActions } from './bubbleActions';
 import { useLongPress } from './longPress';
 import { MessageEditForm } from './MessageEditForm';
-import { MessageSheet, MessageTools } from './MessageMenu';
+import { MessageSheet, MessageTools, sheetHasRows } from './MessageMenu';
 import { usePointerCoarse } from '../../app/usePointerCoarse';
 import { ReactionPills } from './ReactionPills';
 import { BubbleReplyQuote } from './ReplyStrip';
@@ -117,7 +117,10 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh, runSta
   const editing = useContext(EditingContext) === bubble.id;
   // A long press of a finger opens the sheet of the message (item 9). The sheet is a sibling of the row, so its events never reach the row.
   const [sheet, setSheet] = useState(false);
-  const press = useLongPress(() => setSheet(true));
+  const press = useLongPress(() => {
+    // A reader with no reaction, reply, edit or copy gets no empty sheet.
+    if (actions && sheetHasRows(bubble, actions)) setSheet(true);
+  });
   const { author, mine } = bubble;
   const saved = bubble.status === undefined;
   if (bubble.line) return <GroupLineItem id={bubble.id} line={bubble.line} framed={framed} />;
