@@ -22,6 +22,9 @@
     },
     "tracker": {
       "logNew": "Log a new line"
+    },
+    "files": {
+      "openPdf": "Open the PDF"
     }
   }
 }

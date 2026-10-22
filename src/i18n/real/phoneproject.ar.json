@@ -22,6 +22,9 @@
     },
     "tracker": {
       "logNew": "سجّل سطراً جديداً"
+    },
+    "files": {
+      "openPdf": "افتح ملف PDF"
     }
   }
 }

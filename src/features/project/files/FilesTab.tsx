@@ -11,6 +11,7 @@ import { downloadFile, isRemote, tooLargeText, uploadErrorMessage, useFileLimit,
 import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
 import { useCall, useRuntime } from '../../../app/runtime';
+import { useIsPhone } from '../../../app/useIsPhone';
 import { useNearView } from '../../../app/useNearView';
 import { useRight } from '../../../app/useRight';
 import { useToast } from '../../../app/toasts';
@@ -21,6 +22,7 @@ import { SelectField } from '../../../components/Fields';
 import { Menu, type MenuItem } from '../../../components/Menu';
 import { formatDay, formatNumber, stampDay } from '../../../lib/dates';
 import { UploadList } from '../../files/Attachments';
+import { tabButtonShows } from '../mainButton';
 import type { TabProps } from '../tabs';
 import { canPreview, PreviewSheet } from './PreviewSheet';
 import { LinkSheet, ProjectLinks, projectLinkRows } from './ProjectLinks';
@@ -28,6 +30,7 @@ import { ShareFileSheet, sharePlaces } from './ShareFileSheet';
 
 function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail: ProjectDetail; onPreview: () => void; onShare: () => void }) {
   const { t } = useTranslation();
+  const phone = useIsPhone();
   const lang = useLang();
   const nameOf = usePersonName();
   const runtime = useRuntime();
@@ -63,30 +66,40 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
     { label: t('files.setCover'), onSelect: () => cover.mutate({ id: detail.project.id, patch: { coverFileId: file.id } }), hidden: !image || !detail.viewerCan.editDetails || isCover },
     { label: t('files.delete'), onSelect: () => remove.mutate({ id: file.id }), hidden: !canDelete, destructive: true },
   ];
+  const identity = (
+    <>
+      <span ref={image ? thumbBox : undefined} className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-fill text-label-2">
+        {thumb.url ? <img src={thumb.url} alt="" onError={thumb.onError} loading="lazy" decoding="async" className="size-full object-cover" /> : <AnimatedIcon icon={FileTextIcon} size={20} aria-hidden />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="flex min-w-0 items-center gap-2">
+          <bdi className="truncate text-body">{file.name}</bdi>
+          <span className="shrink-0 rounded-full bg-fill px-2 text-caption font-semibold text-label-2">{t('files.version', { letter: latest.letter })}</span>
+          {isCover && <span className="shrink-0 rounded-full bg-fill px-2 text-caption text-label-2">{t('files.isCover')}</span>}
+        </p>
+        <p className="truncate text-footnote text-label-2">
+          <bdi>{nameOf(view.uploader)}</bdi> · <span className="tabular">{formatDay(stampDay(latest.uploadedAt), lang)} · {size}</span>
+        </p>
+      </div>
+    </>
+  );
   return (
     <li className="flex flex-col">
       {/* On a phone the row is a grid, and Versions goes on its own line under the name, so the name keeps most of the row.
           From sm up it is one line again (audit 2026-10-03, V-33). */}
       <div className="grid min-h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-2 sm:flex sm:gap-3">
-        <span ref={image ? thumbBox : undefined} className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-fill text-label-2">
-          {thumb.url ? <img src={thumb.url} alt="" onError={thumb.onError} loading="lazy" decoding="async" className="size-full object-cover" /> : <AnimatedIcon icon={FileTextIcon} size={20} aria-hidden />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="flex min-w-0 items-center gap-2">
-            <bdi className="truncate text-body">{file.name}</bdi>
-            <span className="shrink-0 rounded-full bg-fill px-2 text-caption font-semibold text-label-2">{t('files.version', { letter: latest.letter })}</span>
-            {isCover && <span className="shrink-0 rounded-full bg-fill px-2 text-caption text-label-2">{t('files.isCover')}</span>}
-          </p>
-          <p className="truncate text-footnote text-label-2">
-            <bdi>{nameOf(view.uploader)}</bdi> · <span className="tabular">{formatDay(stampDay(latest.uploadedAt), lang)} · {size}</span>
-          </p>
-        </div>
+        {/* On a phone the picture and the name are one press target that opens the preview (phone D). */}
+        {phone && canPreview(latest.mimeType) ? (
+          <button type="button" aria-label={t('picture.view', { name: file.name })} onClick={onPreview} className="pressable col-span-2 flex min-w-0 items-center gap-3 text-start">
+            {identity}
+          </button>
+        ) : identity}
         {file.versions.length > 1 && (
           <Button variant="plain" aria-expanded={showVersions} onClick={() => setShowVersions((open) => !open)} className="col-start-2 row-start-2 -ms-5 justify-self-start sm:ms-0">
             {t('files.versions')}
           </Button>
         )}
-        <Menu label={t('files.actions', { name: file.name })} items={items} />
+        <Menu label={t('files.actions', { name: file.name })} items={items} sheetOnPhone />
       </div>
       {showVersions && (
         <ol className="ms-14 flex flex-col pb-2">
@@ -110,6 +123,7 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
  */
 export function FilesTab({ detail }: TabProps) {
   const { t } = useTranslation();
+  const phone = useIsPhone();
   const lang = useLang();
   const { api } = useRuntime();
   const toast = useToast();
@@ -196,7 +210,9 @@ export function FilesTab({ detail }: TabProps) {
       text={t('files.add')}
       icon={<AnimatedIcon icon={PlusIcon} size={18} aria-hidden />}
       align="start"
-      triggerClassName="bg-fill text-ink hover:bg-fill-strong"
+      sheetOnPhone
+      // The Add button is the one navy button of this tab on a phone, when it shows (phone D).
+      triggerClassName={phone && tabButtonShows('files', detail.viewerCan) ? 'signature enabled:hover:brightness-110' : 'bg-fill text-ink hover:bg-fill-strong'}
       items={[
         { label: t('files.uploadOne'), onSelect: () => picker.current?.click(), hidden: uploading || !canUpload },
         { label: t('links.addTitle'), onSelect: () => openLink(null), hidden: !canLink },
@@ -206,15 +222,16 @@ export function FilesTab({ detail }: TabProps) {
 
   return (
     <div
-      onDragOver={(event) => {
+      // A phone has no drag from outside, so it takes no drop and draws no frame.
+      onDragOver={phone ? undefined : (event) => {
         if (!canUpload) return;
         event.preventDefault();
         setDragging(true);
       }}
-      onDragLeave={(event) => {
+      onDragLeave={phone ? undefined : (event) => {
         if (event.currentTarget === event.target) setDragging(false);
       }}
-      onDrop={(event) => {
+      onDrop={phone ? undefined : (event) => {
         if (!canUpload) return;
         event.preventDefault();
         setDragging(false);
@@ -236,7 +253,7 @@ export function FilesTab({ detail }: TabProps) {
               {t('files.receivedFromClient')}
             </label>
           )}
-          {canUpload && <p className="pb-3 text-footnote text-label-2">{t('files.drop')}</p>}
+          {canUpload && !phone && <p className="pb-3 text-footnote text-label-2">{t('files.drop')}</p>}
         </div>
       )}
       {/* The file chooser opens from the menu item "Upload a file". The input stays here, out of the tab order, so a file that is dropped
