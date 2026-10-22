@@ -2225,3 +2225,17 @@ presence entries live in memory and are gone when the sockets close. Production 
 - An AI app keeps its tool list for a while: a new chat in Claude Desktop gets the new tool text.
 - 2026-10-21, later: on the owner's "deploy to production", `all.sh test` and `all.sh production` took 23b2c902 (only TASKS.md and
   proof.md notes on top of 7b0ea2ce, no shipped file changed). Both quick checks passed (health from supabase, 149 calls).
+
+## Speed audit 2 (2026-10-21 to 2026-10-22)
+Branch `rb/perf2`. Audit report: `docs/reviews/2026-10-21-performance-audit/`. Each subsection is the proof of one track.
+
+### Instance reuse probe (madar-test, 2026-10-21, performance audit SV-1)
+
+Question: does a Supabase function reuse its worker, and does our entry block the reuse? Method: one probe function on madar-test,
+redeployed for six variants, each answering with a module id and a counter; 15 calls back to back and 10 calls with a 2 s gap, all with
+`forceFunctionRegion=eu-central-1`. Result: a plain `Deno.serve` (variant 1) got 15 new workers in 15 calls and 9 in 10 calls with a gap;
+`export default { fetch }`, `EdgeRuntime.waitUntil`, a `beforeunload` listener, an `npm:pg` pool with a 1 s idle close, and the real api
+bundle (/health only) gave the same: 14 to 15 new workers in 15 calls. In 80 calls each, the real bundle reached an old worker 4 times and the
+plain function 6 times (5% and 7.5%). Conclusion: the platform spreads the calls over new workers; our entry does not block the reuse; no
+code fix. The idle close of the pool still works on a reused worker. The cost stays about 230 ms and 110 ms of CPU for each call on a new
+worker; only a smaller import lowers it (SV-2 lazy segmenter, SV-3 bundled pg). `probe-reuse` stays on madar-test as a 404 stub.
