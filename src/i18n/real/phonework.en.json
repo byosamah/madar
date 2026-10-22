@@ -11,6 +11,9 @@
       "people_one": "1 person",
       "people_other": "{{count}} people",
       "googleLine": "Your meetings also go to Google Calendar."
+    },
+    "projects": {
+      "search": "Search projects"
     }
   }
 }

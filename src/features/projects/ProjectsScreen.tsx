@@ -1,7 +1,7 @@
 import { AnimatePresence, LayoutGroup } from 'motion/react';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../components/icons/animated/plus';
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import { usePersistentChoice } from '../../app/choices';
@@ -12,6 +12,7 @@ import { useByPersonName, usePersonName } from '../../app/personName';
 import type { ProjectSummary } from '../../api/contract/views';
 import { useCall } from '../../app/runtime';
 import { useStableHandler } from '../../app/useStableHandler';
+import { useIsPhone } from '../../app/useIsPhone';
 import { useRight } from '../../app/useRight';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
@@ -20,8 +21,11 @@ import { ScreenControls } from '../../components/ScreenControls';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { clientName } from '../../lib/clientName';
 import { clientParam, oneOf, subCompanyParam, teamParam, userParam } from '../../lib/params';
+import { WorkHeader } from '../work/WorkHeader';
 import { NewProjectSheet, usePrepareNewProject } from './NewProjectSheet';
 import { ProjectListRow } from './ProjectListRow';
+import { ProjectSearch } from './ProjectSearch';
+import { searchProjects } from './searchProjects';
 import { PROJECT_SORT_KEY, PROJECT_SORTS } from './sort';
 
 const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
@@ -61,9 +65,38 @@ const ProjectsBody = memo(function ProjectsBody({ rows, error, onRetry, onShowAl
   );
 });
 
+/**
+ * The Projects view of a phone below the header (phone design D): one row with the search field and the Filter button, the chips of a link
+ * under it, and the list. The search text lives here, in local state, so a letter renders this part and the list only: the screen, the
+ * Filter button and the New project sheet stay as they are. The text is not in the link and does not count in the Filter badge. The
+ * list gets the same array while the text keeps every row.
+ */
+function ProjectsFind({ filterButton, chips, rows, error, onRetry, onShowAll }: {
+  filterButton: ReactNode; chips: ReactNode; rows: ProjectSummary[] | undefined; error: unknown; onRetry: () => void; onShowAll: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const found = useMemo(() => (rows ? searchProjects(rows, query) : undefined), [rows, query]);
+  // "Show all projects" clears the text and the filters.
+  const showAll = useStableHandler(() => {
+    setQuery('');
+    onShowAll();
+  });
+  return (
+    <>
+      <div className="flex items-center gap-3 pb-4">
+        <ProjectSearch value={query} onChange={setQuery} />
+        {filterButton}
+      </div>
+      {chips && <div className="flex flex-wrap items-center gap-3 pb-4">{chips}</div>}
+      <ProjectsBody rows={found} error={error} onRetry={onRetry} onShowAll={showAll} />
+    </>
+  );
+}
+
 /** Every project as one calm list, with one filter button (redesign spec 3.3). */
 export function ProjectsScreen() {
   const { t } = useTranslation();
+  const phone = useIsPhone();
   const lang = useLang();
   const nameOf = usePersonName();
   const byName = useByPersonName();
@@ -133,92 +166,109 @@ export function ProjectsScreen() {
   const setParam = (key: string, value: string) => update((next) => (value ? next.set(key, value) : next.delete(key)));
   const showAll = useStableHandler(() => setParams({ status: 'all' }, { replace: true }));
   const retry = useStableHandler(() => void list.refetch());
+  // The Filter button and the chips of a link are built once. A desk puts them in the controls row, a phone in its own row under the search field.
+  const filterButton = (
+    <FilterButton label={t('filter.label')} count={active}>
+      <fieldset className="flex flex-col">
+        <legend className={LEGEND}>{t('projects.show')}</legend>
+        {FILTERS.map((value) => (
+          <label key={value} className="flex min-h-11 items-center gap-3 text-body text-ink">
+            <input type="radio" name="projects-show" checked={filterParam === value} onChange={() => setFilter(value)} className="size-5 accent-[var(--sig-from)]" />
+            {t(`projects.filter.${value}`)}
+          </label>
+        ))}
+      </fieldset>
+      <label className={LEGEND}>
+        {t('projects.stage')}
+        <select value={stageName ?? ''} onChange={(event) => setStage(event.target.value)} className={SELECT}>
+          <option value="">{t('projects.anyStage')}</option>
+          {(settings.data?.defaultStages ?? []).map((name) => <option key={name} value={name}>{name}</option>)}
+        </select>
+      </label>
+      <label className={LEGEND}>
+        {t('projects.team')}
+        <select value={teamId ?? ''} onChange={(event) => update((next) => (event.target.value ? next.set('team', event.target.value) : next.delete('team')))} className={SELECT}>
+          <option value="">{t('projects.anyTeam')}</option>
+          {(teams.data ?? []).map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+        </select>
+      </label>
+      <label className={LEGEND}>
+        {t('projects.leader')}
+        <select value={leaderId ?? ''} onChange={(event) => setParam('leader', event.target.value)} className={SELECT}>
+          <option value="">{t('projects.anyLeader')}</option>
+          {people.map((person) => <option key={person.id} value={person.id}>{nameOf(person)}</option>)}
+        </select>
+      </label>
+      <label className={LEGEND}>
+        {t('projects.client')}
+        <select value={clientId ?? ''} onChange={(event) => setParam('client', event.target.value)} className={SELECT}>
+          <option value="">{t('projects.anyClient')}</option>
+          {(clients.data ?? []).map((client) => <option key={client.id} value={client.id}>{clientName(client, lang)}</option>)}
+        </select>
+      </label>
+      {(subCompanies.data ?? []).length > 0 && (
+        <label className={LEGEND}>
+          {t('subCompanies.label')}
+          <select value={gap === 'no_sub_company' ? NO_SUB_COMPANY : subCompanyId ?? ''} onChange={(event) => setSubCompany(event.target.value)} className={SELECT}>
+            <option value="">{t('subCompanies.any')}</option>
+            {(subCompanies.data ?? []).map((sub) => <option key={sub.id} value={sub.id}>{lang === 'ar' ? sub.nameAr : sub.name}</option>)}
+            {/* The old projects that no one has placed yet: the Admin fills them in (INT-10). */}
+            <option value={NO_SUB_COMPANY}>{t('subCompanies.none')}</option>
+          </select>
+        </label>
+      )}
+      <label className={LEGEND}>
+        {t('projects.statusFilter')}
+        <select value={status} onChange={(event) => setStatus(event.target.value as (typeof STATUSES)[number])} className={SELECT}>
+          {STATUSES.map((value) => <option key={value} value={value}>{t(`status.${value}`)}</option>)}
+        </select>
+      </label>
+      <label className={LEGEND}>
+        {t('projects.sort')}
+        <select value={sort} onChange={(event) => setSort(event.target.value as (typeof SORTS)[number])} className={SELECT}>
+          {SORTS.map((value) => <option key={value} value={value}>{t(`projects.sorts.${value}`)}</option>)}
+        </select>
+      </label>
+    </FilterButton>
+  );
+  const hasChips = Boolean(gap || health);
+  const chips = (
+    <>
+      {gap && (
+        <p className="flex items-center gap-2 text-subheadline text-ink">
+          <span className="rounded-full bg-fill px-3 py-1.5">{t(`projects.gap.${gap}`)}</span>
+          <Button variant="plain" onClick={() => update((next) => next.delete('filter'))}>{t('projects.showAll')}</Button>
+        </p>
+      )}
+      {health && (
+        <p className="flex items-center gap-2 text-subheadline text-ink">
+          <span className="rounded-full bg-fill px-3 py-1.5">{t('projects.healthFilter', { health: t(`health.${health}`) })}</span>
+          <Button variant="plain" onClick={() => update((next) => next.delete('health'))}>{t('projects.clearHealth')}</Button>
+        </p>
+      )}
+    </>
+  );
+  const newProject = mayCreate ? (
+    <Button variant="primary" className="shrink-0" onPointerDown={prepareNew} onClick={() => setCreating(true)}>
+      <AnimatedIcon icon={PlusIcon} size={18} aria-hidden />
+      {t('projects.new')}
+    </Button>
+  ) : undefined;
+  if (phone) {
+    return (
+      <>
+        <WorkHeader action={newProject} />
+        <ProjectsFind filterButton={filterButton} chips={hasChips ? chips : null} rows={list.data} error={list.error} onRetry={retry} onShowAll={showAll} />
+        {mayCreate && <NewProjectSheet open={creating} onOpenChange={setCreating} />}
+      </>
+    );
+  }
   return (
     <>
-      <ScreenTitle
-        title={t('screens.projects')}
-        action={mayCreate ? (
-          <Button variant="primary" className="shrink-0" onPointerDown={prepareNew} onClick={() => setCreating(true)}>
-            <AnimatedIcon icon={PlusIcon} size={18} aria-hidden />
-            {t('projects.new')}
-          </Button>
-        ) : undefined}
-      />
+      <ScreenTitle title={t('screens.projects')} action={newProject} />
       <ScreenControls>
-        <FilterButton label={t('filter.label')} count={active}>
-          <fieldset className="flex flex-col">
-            <legend className={LEGEND}>{t('projects.show')}</legend>
-            {FILTERS.map((value) => (
-              <label key={value} className="flex min-h-11 items-center gap-3 text-body text-ink">
-                <input type="radio" name="projects-show" checked={filterParam === value} onChange={() => setFilter(value)} className="size-5 accent-[var(--sig-from)]" />
-                {t(`projects.filter.${value}`)}
-              </label>
-            ))}
-          </fieldset>
-          <label className={LEGEND}>
-            {t('projects.stage')}
-            <select value={stageName ?? ''} onChange={(event) => setStage(event.target.value)} className={SELECT}>
-              <option value="">{t('projects.anyStage')}</option>
-              {(settings.data?.defaultStages ?? []).map((name) => <option key={name} value={name}>{name}</option>)}
-            </select>
-          </label>
-          <label className={LEGEND}>
-            {t('projects.team')}
-            <select value={teamId ?? ''} onChange={(event) => update((next) => (event.target.value ? next.set('team', event.target.value) : next.delete('team')))} className={SELECT}>
-              <option value="">{t('projects.anyTeam')}</option>
-              {(teams.data ?? []).map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
-            </select>
-          </label>
-          <label className={LEGEND}>
-            {t('projects.leader')}
-            <select value={leaderId ?? ''} onChange={(event) => setParam('leader', event.target.value)} className={SELECT}>
-              <option value="">{t('projects.anyLeader')}</option>
-              {people.map((person) => <option key={person.id} value={person.id}>{nameOf(person)}</option>)}
-            </select>
-          </label>
-          <label className={LEGEND}>
-            {t('projects.client')}
-            <select value={clientId ?? ''} onChange={(event) => setParam('client', event.target.value)} className={SELECT}>
-              <option value="">{t('projects.anyClient')}</option>
-              {(clients.data ?? []).map((client) => <option key={client.id} value={client.id}>{clientName(client, lang)}</option>)}
-            </select>
-          </label>
-          {(subCompanies.data ?? []).length > 0 && (
-            <label className={LEGEND}>
-              {t('subCompanies.label')}
-              <select value={gap === 'no_sub_company' ? NO_SUB_COMPANY : subCompanyId ?? ''} onChange={(event) => setSubCompany(event.target.value)} className={SELECT}>
-                <option value="">{t('subCompanies.any')}</option>
-                {(subCompanies.data ?? []).map((sub) => <option key={sub.id} value={sub.id}>{lang === 'ar' ? sub.nameAr : sub.name}</option>)}
-                {/* The old projects that no one has placed yet: the Admin fills them in (INT-10). */}
-                <option value={NO_SUB_COMPANY}>{t('subCompanies.none')}</option>
-              </select>
-            </label>
-          )}
-          <label className={LEGEND}>
-            {t('projects.statusFilter')}
-            <select value={status} onChange={(event) => setStatus(event.target.value as (typeof STATUSES)[number])} className={SELECT}>
-              {STATUSES.map((value) => <option key={value} value={value}>{t(`status.${value}`)}</option>)}
-            </select>
-          </label>
-          <label className={LEGEND}>
-            {t('projects.sort')}
-            <select value={sort} onChange={(event) => setSort(event.target.value as (typeof SORTS)[number])} className={SELECT}>
-              {SORTS.map((value) => <option key={value} value={value}>{t(`projects.sorts.${value}`)}</option>)}
-            </select>
-          </label>
-        </FilterButton>
-        {gap && (
-          <p className="flex items-center gap-2 text-subheadline text-ink">
-            <span className="rounded-full bg-fill px-3 py-1.5">{t(`projects.gap.${gap}`)}</span>
-            <Button variant="plain" onClick={() => update((next) => next.delete('filter'))}>{t('projects.showAll')}</Button>
-          </p>
-        )}
-        {health && (
-          <p className="flex items-center gap-2 text-subheadline text-ink">
-            <span className="rounded-full bg-fill px-3 py-1.5">{t('projects.healthFilter', { health: t(`health.${health}`) })}</span>
-            <Button variant="plain" onClick={() => update((next) => next.delete('health'))}>{t('projects.clearHealth')}</Button>
-          </p>
-        )}
+        {filterButton}
+        {chips}
       </ScreenControls>
       <ProjectsBody rows={list.data} error={list.error} onRetry={retry} onShowAll={showAll} />
       {mayCreate && <NewProjectSheet open={creating} onOpenChange={setCreating} />}

@@ -15,6 +15,9 @@
       "people_many": "{{count}} شخصًا",
       "people_other": "{{count}} شخص",
       "googleLine": "تصل اجتماعاتك أيضًا إلى تقويم Google."
+    },
+    "projects": {
+      "search": "ابحث في المشاريع"
     }
   }
 }
