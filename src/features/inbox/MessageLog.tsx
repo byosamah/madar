@@ -187,6 +187,8 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier, readUpTo, un
       if (atBottom.current && !anchor.current) log.scrollTop = log.scrollHeight;
     });
     watcher.observe(list);
+    // The log itself shrinks when the keyboard opens on a phone. A reader at the bottom stays at the bottom.
+    watcher.observe(log);
     return () => watcher.disconnect();
   }, []);
   useLayoutEffect(() => {

@@ -7,12 +7,13 @@ import type { CallInput } from '../../api/calls';
 import type { ChatRow, CommentView, GroupLine, MessageView, ReplyRef, UserCard } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
 import { usePageVisible } from '../../app/usePageVisible';
+import { useDraftOwner } from '../../app/drafts';
 import { usePersonName } from '../../app/personName';
 import { useActive } from '../../app/live/activity';
 import { usePersonState } from '../../app/live/hooks';
 import { useTypingSender } from '../../app/live/typing';
 import { useAction, useCall, useRuntime } from '../../app/runtime';
-import { useIsPhone } from '../../app/useIsPhone';
+import { isPhoneNow, useIsPhone } from '../../app/useIsPhone';
 import { useRight } from '../../app/useRight';
 import { useStableHandler } from '../../app/useStableHandler';
 import { PersonFace } from '../../components/PersonFace';
@@ -40,7 +41,7 @@ import { useEarlierMessages } from './earlier';
 import { useOpenMark } from './newLine';
 import { bubbleOfComment, useBubbles } from './bubbles';
 import { ChatDropArea } from './ChatDrop';
-import { bubbleOfOutgoing, cardOfUser, newOutboxKey, refusedByOutbox, useOutbox, usePaneOpen } from './outbox';
+import { bubbleOfOutgoing, cardOfUser, keepAsDraft, newOutboxKey, refusedByOutbox, useDraftOnClose, useOutbox, usePaneOpen } from './outbox';
 import { nowStamp } from '../../lib/dates';
 import { NewerMessages } from './NewerMessages';
 import type { SeenInfo } from './SeenLine';
@@ -164,7 +165,8 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   const [editingId, setEditingId] = useState<string | null>(null);
   const endEdit = useStableHandler(() => {
     setEditingId(null);
-    requestAnimationFrame(() => document.getElementById(`composer-${id}`)?.focus());
+    // A phone does not open the keyboard when an edit ends (Direction D).
+    if (!isPhoneNow()) requestAnimationFrame(() => document.getElementById(`composer-${id}`)?.focus());
   });
   // The message that the log goes to and frames (items 10 and 17). The link starts it (`?at=`), a press on a reply strip sets it; the log
   // clears it after the frame. The query keeps `around` after that (it reads the prop, not this state), so the page stays.
@@ -175,7 +177,16 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   // Instant send (chat design 2026-10-19, item 13): a message shows at once as a faded bubble, and the saved message takes its place.
   const outbox = useOutbox<CallInput<'chats.send'>>(messages.map((view) => ({ id: view.message.id, mine: view.mine, body: view.message.body })));
   const paneOpen = usePaneOpen();
-  const send = useAction('chats.send', { onRefused: (error, input) => refusedByOutbox(paneOpen.current, outbox.markFailed, error, input) });
+  // A phone closes the chat page with Back. A message that did not go is kept as the draft of the chat (Direction D).
+  const draftOwner = useDraftOwner();
+  const draftKey = `chat:${id}`;
+  useDraftOnClose(draftOwner, draftKey, outbox.unsent);
+  const send = useAction('chats.send', {
+    onRefused: (error, input) => {
+      if (!paneOpen.current && draftOwner && isPhoneNow()) keepAsDraft(draftOwner, draftKey, input.body);
+      return refusedByOutbox(paneOpen.current, outbox.markFailed, error, input);
+    },
+  });
   const retrySend = useStableHandler((bubble: Bubble) => {
     const entry = outbox.unsent.find((item) => `out-${item.key}` === bubble.id);
     if (!entry) return;
@@ -308,7 +319,7 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
         </EditingContext.Provider>
       </BubbleActionsContext.Provider>
       {newer && <NewerMessages onShow={showNewest} />}
-      {chat.personLeft ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{isGroup ? t('chat.groupAlone') : t('chat.closed')}</p> : !canSend ? <p className="border-t border-hairline p-3 text-footnote text-ink-2">{t('chat.cannotSend')}</p> : (
+      {chat.personLeft ? <p className={NOTE}>{isGroup ? t('chat.groupAlone') : t('chat.closed')}</p> : !canSend ? <p className={NOTE}>{t('chat.cannotSend')}</p> : (
         <>
           {live && <TypingLine conversationId={id} />}
           <Composer
@@ -360,6 +371,8 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   );
 }
 
+/** The note in place of the message box. On a phone the page is docked at the bottom, so the note keeps clear of the safe area. */
+const NOTE = 'border-t border-hairline p-3 text-footnote text-ink-2 max-sm:pb-[max(env(safe-area-inset-bottom),0.75rem)]';
 const NO_COMMENTS: CommentView[] = [];
 const NO_LINES: GroupLine[] = [];
 const NO_PEOPLE: UserCard[] = [];
@@ -410,7 +423,8 @@ export function TaskPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   const [options, setOptions] = useState(false);
   const endEdit = useStableHandler(() => {
     setEditingId(null);
-    requestAnimationFrame(() => document.getElementById(`composer-${id}`)?.focus());
+    // A phone does not open the keyboard when an edit ends (Direction D).
+    if (!isPhoneNow()) requestAnimationFrame(() => document.getElementById(`composer-${id}`)?.focus());
   });
   // The comment that the log goes to and frames (items 10 and 17), as in a chat. All comments of a task are in the log, so a press on a strip
   // needs no page.
@@ -418,7 +432,15 @@ export function TaskPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   // Instant send, as in a chat (item 13).
   const outbox = useOutbox<CallInput<'comments.create'>>((comments.data ?? NO_COMMENTS).filter((view) => view.kind === 'message').map((view) => ({ id: view.comment.id, mine: view.author.id === me, body: view.comment.body })));
   const paneOpen = usePaneOpen();
-  const create = useAction('comments.create', { onRefused: (error, input) => refusedByOutbox(paneOpen.current, outbox.markFailed, error, input) });
+  const draftOwner = useDraftOwner();
+  const draftKey = `task:${id}`;
+  useDraftOnClose(draftOwner, draftKey, outbox.unsent);
+  const create = useAction('comments.create', {
+    onRefused: (error, input) => {
+      if (!paneOpen.current && draftOwner && isPhoneNow()) keepAsDraft(draftOwner, draftKey, input.body);
+      return refusedByOutbox(paneOpen.current, outbox.markFailed, error, input);
+    },
+  });
   const retrySend = useStableHandler((bubble: Bubble) => {
     const entry = outbox.unsent.find((item) => `out-${item.key}` === bubble.id);
     if (!entry) return;
@@ -502,7 +524,7 @@ export function TaskPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
             create.mutate(input, { onSuccess: (view) => outbox.markSaved(key, view.comment.id) });
           }}
         />
-      ) : <p className="border-t border-hairline p-3 text-footnote text-ink-2">{t('comments.cannot')}</p>}
+      ) : <p className={NOTE}>{t('comments.cannot')}</p>}
       {phone && (
         <ChatOptionsSheet
           open={options}

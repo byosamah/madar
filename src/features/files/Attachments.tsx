@@ -250,7 +250,7 @@ export function FileChip({ file }: { file: Attachment }) {
   const toast = useToast();
   if (file.name === null) {
     return (
-      <span className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-fill px-3 text-footnote text-label-2">
+      <span className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-fill px-3 text-footnote text-label-2 max-sm:min-h-11">
         <AnimatedIcon icon={AttachFileIcon} size={14} aria-hidden />
         {t('attachments.removed')}
       </span>
@@ -261,7 +261,7 @@ export function FileChip({ file }: { file: Attachment }) {
       type="button"
       aria-label={t('attachments.download', { name: file.name })}
       onClick={() => downloadFile(api, file.id, undefined, { remote: isRemote(runtime) }).catch((error: unknown) => toast.failed(error))}
-      className="pressable inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full bg-fill px-3 text-footnote text-ink hover:bg-fill-strong"
+      className="pressable inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full bg-fill px-3 text-footnote text-ink hover:bg-fill-strong max-sm:min-h-11"
     >
       <AnimatedIcon icon={AttachFileIcon} size={14} aria-hidden className="shrink-0" />
       <bdi className="truncate">{file.name}</bdi>

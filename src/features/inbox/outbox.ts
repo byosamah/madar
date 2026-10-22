@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 
 import type { User } from '../../api/contract/entities';
 import { ApiError } from '../../api/errors';
 import type { ReplyRef, UserCard } from '../../api/contract/views';
+import { readDraft, writeDraft } from '../../app/drafts';
+import { isPhoneNow } from '../../app/useIsPhone';
+import { plainText } from '../../lib/text';
 import type { Bubble } from './MessageBubble';
 
 /**
@@ -123,4 +126,30 @@ export function refusedByOutbox<I>(paneOpen: boolean, markFailed: (input: I) => 
 /** The card of the reader for the faded bubbles. Picture data stays out, as in every card. */
 export function cardOfUser(user: User): UserCard {
   return { id: user.id, name: user.name, ...(user.nameAr ? { nameAr: user.nameAr } : {}), avatarUrl: null, kind: user.kind, discipline: user.discipline, ...(user.gender ? { gender: user.gender } : {}) };
+}
+
+/**
+ * Keeps the words of a message that was not sent as the draft of its chat (Direction D). A phone closes the chat page with Back, and the
+ * pane takes its faded bubbles away with it, so the words would be lost. An empty body does nothing. With no draft the words become the
+ * draft (as plain text, without the mention markup). A draft that exists keeps its place after the words: the old words come first.
+ */
+export function keepAsDraft(owner: string, key: string, body: string): void {
+  const words = plainText(body);
+  if (words.trim() === '') return;
+  const draft = readDraft(owner, key);
+  writeDraft(owner, key, draft === '' ? words : `${words}\n${draft}`);
+}
+
+/**
+ * On a phone, a pane that closes with a failed entry writes the words of the entry into the draft of its chat (Direction D). The hook
+ * keeps the latest entries and the owner in refs, and acts only in the cleanup, so a re-render does nothing. A desk writes no draft.
+ */
+export function useDraftOnClose(owner: string | undefined, key: string, unsent: readonly Outgoing<unknown>[]): void {
+  const latest = useRef({ owner, key, unsent });
+  latest.current = { owner, key, unsent };
+  useEffect(() => () => {
+    const { owner: who, key: where, unsent: entries } = latest.current;
+    if (!who || !isPhoneNow()) return;
+    for (const entry of entries) if (entry.failed) keepAsDraft(who, where, entry.body);
+  }, []);
 }

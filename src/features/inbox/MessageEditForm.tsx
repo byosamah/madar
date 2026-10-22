@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useIsPhone } from '../../app/useIsPhone';
 import { Button } from '../../components/Button';
 import { MentionField } from '../../components/MentionField';
 import { editedBody, plainText } from '../../lib/text';
@@ -8,12 +9,14 @@ import type { Bubble } from './MessageBubble';
 
 /**
  * The edit of a message in place of its words (chat design 2026-10-19, item 11). The field shows the names as "@Name" and takes the
- * focus; a plain Enter saves, Escape cancels, and Cancel and Save sit under it. Save is a secondary button: the Send button of the box
+ * focus; a plain Enter saves, Escape cancels, and Cancel and Save sit under it. On a phone Enter adds a line and only Save saves, as in
+ * the message box (Direction D). Save is a secondary button: the Send button of the box
  * stays the one main button. The names the old words held stay, also for a person who left (`editedBody`).
  */
 export function MessageEditForm({ bubble }: { bubble: Bubble }) {
   const { t } = useTranslation();
   const actions = useBubbleActions();
+  const phone = useIsPhone();
   const [draft, setDraft] = useState(() => plainText(bubble.body));
   const field = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
@@ -42,7 +45,7 @@ export function MessageEditForm({ bubble }: { bubble: Bubble }) {
             event.preventDefault();
             event.stopPropagation();
             actions.endEdit();
-          } else if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+          } else if (!phone && event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();
             save();
           }

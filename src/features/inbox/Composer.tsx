@@ -5,7 +5,8 @@ import type { ReplyRef, UserCard } from '../../api/contract/views';
 import { newStoryId } from '../../app/actions';
 import { readDraftFiles, useDraftOwner, useDraftText, writeDraftFiles } from '../../app/drafts';
 import { useToast } from '../../app/toasts';
-import { useIsPhone } from '../../app/useIsPhone';
+import { isPhoneNow, useIsPhone } from '../../app/useIsPhone';
+import { useKeyboardOpen } from '../../app/useKeyboardOpen';
 import { Button } from '../../components/Button';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { SendIcon } from '../../components/icons/animated/send';
@@ -59,6 +60,7 @@ function ComposerBox({ id, people, everyone, pending, onSend, upload, owner, rep
   // On a phone the box shows a short hint that keeps the @ tip: the full hint took three lines and made the empty box tall, and a
   // project chat pushes only the people that a message names (owner, 2026-10-20).
   const phone = useIsPhone();
+  const keyboard = useKeyboardOpen();
   const draftKey = id.startsWith('tsk_') ? `task:${id}` : `chat:${id}`;
   const attachments = useAttachments(MAX_ATTACHMENTS, readDraftFiles(owner, draftKey));
   const [uploading, setUploading] = useState(false);
@@ -82,8 +84,9 @@ function ComposerBox({ id, people, everyone, pending, onSend, upload, owner, rep
   useEffect(() => {
     writeDraftFiles(owner, draftKey, attachments.files);
   }, [owner, draftKey, attachments.files]);
+  // A phone keeps the field without the focus when a chat opens: the keyboard would cover the last messages and the "New" line (Direction D).
   useEffect(() => {
-    field.current?.focus();
+    if (!isPhoneNow()) field.current?.focus();
   }, [id]);
   // Files dropped on the chat join the picked chips, and nothing sends until Send (item 14).
   useChatDropReceiver(upload ? (dropped) => { attachments.add(dropped); field.current?.focus(); } : null);
@@ -118,7 +121,7 @@ function ComposerBox({ id, people, everyone, pending, onSend, upload, owner, rep
   };
   return (
     <form
-      className="flex flex-col gap-2 border-t border-hairline p-3"
+      className={`flex flex-col gap-2 border-t border-hairline px-3 pt-3 ${phone ? (keyboard ? 'pb-2' : 'pb-[max(env(safe-area-inset-bottom),0.5rem)]') : 'pb-3'}`}
       onSubmit={(event) => {
         event.preventDefault();
         void submit();
@@ -170,7 +173,9 @@ function ComposerBox({ id, people, everyone, pending, onSend, upload, owner, rep
           inputRef={field}
           placement="above"
           placeholder={phone ? t('chat.placeholderPhone') : t('chat.placeholder')}
-          className="[&_textarea]:max-h-40 [&_textarea]:min-h-11 [&_textarea]:resize-none [&_textarea]:[field-sizing:content]"
+          // On a phone the field stops at 40 percent of the visible height, so the messages stay in view (landscape too).
+          className="[&_textarea]:max-h-40 max-sm:[&_textarea]:max-h-[min(9rem,calc(var(--chat-h,100dvh)*0.4))] [&_textarea]:min-h-11 [&_textarea]:resize-none [&_textarea]:[field-sizing:content]"
+          {...(phone ? { listMaxHeight: 'min(14.5rem,calc(var(--chat-h,100dvh) - 9rem))' } : {})}
         />
       </div>
       <Button

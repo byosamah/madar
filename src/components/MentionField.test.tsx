@@ -115,3 +115,25 @@ describe('the mention list: place and order', () => {
   });
 });
 
+describe('the list height (Direction D)', () => {
+  function WithHeight({ listMaxHeight }: { listMaxHeight?: string }) {
+    const [value, setValue] = useState('');
+    return <MentionField id="box" label="Box" value={value} onChange={setValue} people={[person('usr_005', 'Sara Al-Qahtani')]} {...(listMaxHeight ? { listMaxHeight } : {})} />;
+  }
+
+  it('sets the max height of the list and lets it scroll', async () => {
+    render(<WithHeight listMaxHeight="12rem" />);
+    await userEvent.type(screen.getByRole('textbox', { name: 'Box' }), 'Hi @');
+    const list = screen.getByRole('listbox');
+    expect(list.style.maxHeight).toBe('12rem');
+    expect(list.className).toContain('overflow-y-auto');
+  });
+
+  it('sets no style and no scroll class without the prop', async () => {
+    render(<WithHeight />);
+    await userEvent.type(screen.getByRole('textbox', { name: 'Box' }), 'Hi @');
+    const list = screen.getByRole('listbox');
+    expect(list.getAttribute('style')).toBeNull();
+    expect(list.className).not.toContain('overflow-y-auto');
+  });
+});

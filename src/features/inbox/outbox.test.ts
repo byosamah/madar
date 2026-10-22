@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { matchOutbox, type Outgoing, type SavedItem } from './outbox';
+import { readDraft, writeDraft } from '../../app/drafts';
+import { keepAsDraft, matchOutbox, type Outgoing, type SavedItem } from './outbox';
 
 /** Instant send (chat design 2026-10-19, item 13; track msg B14): the faded copy and the saved message meet here. */
 const entry = (key: string, body: string, seen: string[] = [], over: Partial<Outgoing<unknown>> = {}): Outgoing<unknown> => ({
@@ -38,5 +39,26 @@ describe('matchOutbox', () => {
   it('keeps a failed entry in the list until a message takes it', () => {
     const lost = entry('k1', 'Lost', [], { failed: true });
     expect(matchOutbox([lost], [])).toEqual({ unsent: [lost], claimed: [] });
+  });
+});
+
+describe('keepAsDraft', () => {
+  const owner = 'usr_001';
+  const key = 'chat:cnv_001';
+
+  it('does nothing for an empty body', () => {
+    keepAsDraft(owner, key, '   ');
+    expect(readDraft(owner, key)).toBe('');
+  });
+
+  it('writes the words as plain text when the chat has no draft', () => {
+    keepAsDraft(owner, key, 'Ok then');
+    expect(readDraft(owner, key)).toBe('Ok then');
+  });
+
+  it('puts the words before a draft that exists', () => {
+    writeDraft(owner, key, 'Newer words');
+    keepAsDraft(owner, key, 'Ok then');
+    expect(readDraft(owner, key)).toBe('Ok then\nNewer words');
   });
 });

@@ -21,7 +21,7 @@ type Row = { kind: 'everyone' } | { kind: 'person'; person: UserCard };
  * screens) or @الجميع (Arabic screens) into the box. The caller gives no count where the words name nobody (a direct chat, no right).
  */
 export function MentionField({
-  id, label, value, onChange, people, onPick, placeholder, rows = 3, inputRef, className = '', placement = 'below', everyone,
+  id, label, value, onChange, people, onPick, placeholder, rows = 3, inputRef, className = '', placement = 'below', everyone, listMaxHeight,
 }: {
   id: string;
   label: string;
@@ -35,6 +35,8 @@ export function MentionField({
   className?: string;
   placement?: 'below' | 'above';
   everyone?: number;
+  /** A CSS length for the list. The list then scrolls inside it. The chat box of a phone uses it, so the list stops under the header. */
+  listMaxHeight?: string;
 }) {
   const { t, i18n } = useTranslation();
   const nameOf = usePersonName();
@@ -115,7 +117,13 @@ export function MentionField({
         className="field resize-y"
       />
       {open && (
-        <ul id={listId} role="listbox" aria-label={t('overview.mentionList')} className={`float absolute inset-x-0 z-30 flex flex-col rounded-2xl p-1.5 ${placement === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+        <ul
+          id={listId}
+          role="listbox"
+          aria-label={t('overview.mentionList')}
+          style={listMaxHeight ? { maxHeight: listMaxHeight } : undefined}
+          className={`float absolute inset-x-0 z-30 flex flex-col rounded-2xl p-1.5 ${listMaxHeight ? 'overflow-y-auto' : ''} ${placement === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
+        >
           {entries.map((row, i) => (
             <li
               key={rowId(row)}
