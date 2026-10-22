@@ -8,6 +8,7 @@ import { ChevronLeftIcon } from './icons/animated/chevron-left';
 import { ChevronRightIcon } from './icons/animated/chevron-right';
 import { DownloadIcon } from './icons/animated/download';
 import { XIcon } from './icons/animated/x';
+import { useImageZoom } from './useImageZoom';
 
 type Box = { left: number; top: number; width: number; height: number };
 type Size = { width: number; height: number };
@@ -68,8 +69,13 @@ export function ImageViewer({ open, onClose, name, src, placeholder = null, fail
   // The big picture fades in over the small one once it has loaded. A new picture starts hidden again.
   const [shown, setShown] = useState<string | null>(null);
   const several = position !== undefined && position.count > 1;
+  // The zoom (fbk_038): pinch, double-tap, wheel, click, drag and the keys + - 0. A new picture, and an opened viewer, start at 1x.
+  const [stage, setStage] = useState<HTMLDivElement | null>(null);
+  const loaded = () => [big.current, small.current].find((img) => img !== null && img.naturalWidth > 0) ?? null;
+  const zoom = useImageZoom({ stage, picture: loaded, resetKey: `${open}|${position?.index ?? 0}|${name}` });
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (zoom.onKey(event)) return;
     if (!position || event.defaultPrevented) return;
     const rtl = isRtl();
     const forward = event.key === (rtl ? 'ArrowLeft' : 'ArrowRight');
@@ -83,12 +89,13 @@ export function ImageViewer({ open, onClose, name, src, placeholder = null, fail
     }
   };
 
-  // A press on the dark space closes. The picture sits in a box that it only partly fills, so the press point decides.
+  // A press on the dark space closes, only at 1x. The picture sits in a box that it only partly fills, so the press point decides. A
+  // press on the picture toggles the zoom (a mouse click), and a press that ends a drag is nothing.
   const onStagePress = (event: MouseEvent<HTMLDivElement>) => {
-    const picture = [big.current, small.current].find((img) => img !== null && img.naturalWidth > 0) ?? null;
+    const picture = loaded();
     const natural = picture ? { width: picture.naturalWidth, height: picture.naturalHeight } : null;
-    if (picture && insidePicture(picture.getBoundingClientRect(), natural, { x: event.clientX, y: event.clientY })) return;
-    onClose();
+    const inside = picture !== null && insidePicture(picture.getBoundingClientRect(), natural, { x: event.clientX, y: event.clientY });
+    zoom.press(event, inside, onClose);
   };
 
   return (
@@ -130,7 +137,21 @@ export function ImageViewer({ open, onClose, name, src, placeholder = null, fail
               <AnimatedIcon icon={XIcon} size={18} aria-hidden />
             </button>
           </header>
-          <div data-viewer-stage onClick={onStagePress} className="relative min-h-0 flex-1">
+          {/* touch-none: the stage takes every gesture itself, so the page never scrolls or zooms behind it. data-vaul-no-drag: a swipe on the
+              picture never drags the dialog. */}
+          <div
+            ref={setStage}
+            data-viewer-stage
+            data-vaul-no-drag
+            onClick={onStagePress}
+            {...zoom.stageProps}
+            className={`relative min-h-0 flex-1 touch-none select-none overflow-hidden ${zoom.zoomed ? 'cursor-grab active:cursor-grabbing' : ''}`}
+          >
+            <div
+              data-zoom-layer
+              style={zoom.layerStyle}
+              className={`absolute inset-0 ${zoom.animating ? 'transition-transform duration-150 motion-reduce:transition-none' : ''} ${zoom.zoomed ? 'will-change-transform' : ''}`}
+            >
             {placeholder && (
               <img ref={small} src={placeholder} alt="" draggable={false} onError={onPlaceholderError} className="pointer-events-none absolute inset-0 size-full object-contain sm:inset-6 sm:size-[calc(100%-3rem)]" />
             )}
@@ -146,6 +167,7 @@ export function ImageViewer({ open, onClose, name, src, placeholder = null, fail
                 className={`pointer-events-none absolute inset-0 size-full object-contain transition-opacity duration-200 motion-reduce:transition-none sm:inset-6 sm:size-[calc(100%-3rem)] ${shown === src ? 'opacity-100' : 'opacity-0'}`}
               />
             )}
+            </div>
             {failed && !placeholder && (
               <p className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-6 text-center text-subheadline text-white/80">{t('picture.failed')}</p>
             )}

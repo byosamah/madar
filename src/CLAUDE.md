@@ -613,7 +613,12 @@ any screen work.
   rows of the Files tab use it too, BG-7). A picture that breaks, or that the store keeps
   as a download (an SVG in the real build), shows as a chip. A press opens `ImageViewer` (`components/ImageViewer.tsx`): the picture on a
   dark backdrop, the file name, an X, a Download button, Escape and a press on the dark space close it, the arrow keys follow the page
-  direction between the pictures of one message, and the focus returns to the preview. A message with files and no words of its own gets the file names as its
+  direction between the pictures of one message, and the focus returns to the preview. The viewer zooms with no new button (fbk_038,
+  `components/useImageZoom.ts`, pure math in `lib/zoom.ts`, Pointer Events and a CSS transform only): on a phone two fingers pinch (1x to 4x) around the
+  fingers, a double-tap toggles 1x and 2.5x, one finger pans; on a computer the wheel and the trackpad pinch zoom around the pointer, a click on the picture
+  toggles 1x and 2.5x, a drag pans, and the keys + - 0 zoom. The pan stops at the picture edges. The stage is `touch-none` with `data-vaul-no-drag`, and the
+  `gesturestart` default is stopped so Safari never zooms the page. A new picture, and a viewer that opens again, start at 1x; a press on the dark space
+  closes only at 1x. A test plays the sizes (`ImageViewer.zoom.test.tsx`). A message with files and no words of its own gets the file names as its
   words; the bubble leaves them out for any files, pictures or not, when the words equal the joined names exactly (`isFileNamesBody`; the list preview,
   search, push and the stored body keep them). `MessageLog` keeps the newest message in view while a picture grows its box.
   Posts and the Tracker keep `FileChips`; its list and items are `min-w-0 max-w-full`, so a long file name is cut with an ellipsis inside its bubble (fbk_040).
