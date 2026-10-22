@@ -106,20 +106,26 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
       : { startDate: v.startDate || null, targetEndDate: v.targetEndDate || null, stages: v.stages.map((stage) => stage.name.trim()) };
     setSaving(true);
     try {
+      // An internal project sends none of the client fields and no code: the server gives the INT code and hides the project (fbk_044).
+      const own = v.kind === 'internal'
+        ? { kind: 'internal' as const }
+        : {
+          clientId: v.clientId || null,
+          subCompanyId: v.subCompanyId || null,
+          location: v.location.trim(),
+          geo: v.geo,
+          areaM2: areaValue(v.area),
+          contractStartDate: v.contractStartDate || null,
+          ...codeInput(v),
+        };
       const detail = await api.call('projects.create', {
         name: v.name.trim(),
-        clientId: v.clientId || null,
-        subCompanyId: v.subCompanyId || null,
         leader: v.leader,
-        location: v.location.trim(),
-        geo: v.geo,
-        areaM2: areaValue(v.area),
-        contractStartDate: v.contractStartDate || null,
         ...plan,
         teamIds: v.teamIds,
         modelFolderPath: v.modelFolderPath.trim(),
         description: v.description.trim(),
-        ...codeInput(v),
+        ...own,
       });
       // The key is short and never ends with the dot of a building type ("Dev."), so the sentence never shows two dots.
       toast.show({ message: t('projectForm.created', { code: shownKey(detail.project, t) }) });

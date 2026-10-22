@@ -266,9 +266,23 @@ export function ProjectFields({
     const personId = roleChoice(role, values, humans);
     if (personId) rolePeople.set(personId, [rolePeople.get(personId), role.name].filter(Boolean).join(', '));
   }
+  // An internal project (fbk_044) has no client, code, place, area, sub-company or contract date: those fields stay out of the form.
+  const internal = values.kind === 'internal';
   const error = (field: keyof ProjectFormErrors) => (errors[field] ? t(errors[field] as string, { example: '260902AZT-RES-Villa' }) : undefined);
   return (
     <div className="flex flex-col gap-4">
+      {/* The first choice of a new project: a client project or an internal one. Client at first. */}
+      {mode === 'create' && (
+        <div className="flex flex-col gap-2">
+          <SegmentedControl
+            label={t('projectForm.kind')}
+            value={values.kind}
+            onChange={(kind) => set('kind', kind)}
+            options={[{ value: 'client', label: t('projectForm.kindClient') }, { value: 'internal', label: t('projectForm.kindInternal') }]}
+          />
+          {internal && <p className="text-footnote text-ink-2">{t('projectForm.internalLine')}</p>}
+        </div>
+      )}
       <TextField
         id="project-name"
         label={t('projectForm.name')}
@@ -305,8 +319,8 @@ export function ProjectFields({
           )}
         </div>
       )}
-      <ClientPicker value={values.clientId} onChange={(id) => set('clientId', id)} clients={clients.data ?? []} />
-      {(subCompanies.data ?? []).length > 0 && (
+      {!internal && <ClientPicker value={values.clientId} onChange={(id) => set('clientId', id)} clients={clients.data ?? []} />}
+      {!internal && (subCompanies.data ?? []).length > 0 && (
         <SubCompanyPicker
           value={values.subCompanyId}
           onChange={(id) => {
@@ -318,7 +332,7 @@ export function ProjectFields({
           error={error('subCompanyId')}
         />
       )}
-      {mode === 'create' && <ProjectCodeFields form={form} clients={clients.data ?? []} />}
+      {mode === 'create' && !internal && <ProjectCodeFields form={form} clients={clients.data ?? []} />}
       {mode === 'create' && (
         <SelectField id="project-leader" label={t('projectForm.leader')} value={values.leader} onChange={(event) => set('leader', event.target.value)}>
           <option value="me">{t('projectForm.leaderMe')}</option>
@@ -326,7 +340,7 @@ export function ProjectFields({
           <option value="none">{t('projectForm.leaderNone')}</option>
         </SelectField>
       )}
-      <LocationField
+      {!internal && <LocationField
         geo={values.geo}
         address={values.location}
         changed={mode !== 'create' && (form.edited('geo') || form.edited('location'))}
@@ -334,21 +348,25 @@ export function ProjectFields({
           set('geo', geo);
           set('location', address);
         }}
-      />
-      <TextField
-        id="project-area"
-        label={t('projectForm.area')}
-        inputMode="decimal"
-        autoComplete="off"
-        value={values.area}
-        onChange={(event) => set('area', event.target.value)}
-        onBlur={() => touch('area')}
-        error={error('area')}
-      />
+      />}
+      {!internal && (
+        <TextField
+          id="project-area"
+          label={t('projectForm.area')}
+          inputMode="decimal"
+          autoComplete="off"
+          value={values.area}
+          onChange={(event) => set('area', event.target.value)}
+          onBlur={() => touch('area')}
+          error={error('area')}
+        />
+      )}
       {/* The dates sit in two equal columns at every width, so the contract start lines up with the start date below. */}
-      <div className="grid grid-cols-2 gap-4">
-        <DateField id="project-contract-start" label={t('projectForm.contractStartDate')} value={values.contractStartDate} onChange={(day) => set('contractStartDate', day)} />
-      </div>
+      {!internal && (
+        <div className="grid grid-cols-2 gap-4">
+          <DateField id="project-contract-start" label={t('projectForm.contractStartDate')} value={values.contractStartDate} onChange={(day) => set('contractStartDate', day)} />
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-4">
         <DateField
           id="project-start"

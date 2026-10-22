@@ -54,8 +54,8 @@ describe('the kind of a new project', () => {
   it('creates an internal project with the kind and no code, client, place, area or sub-company, in an office with sub-companies', async () => {
     const { sheet, store } = await openSheet((state) => {
       state.subCompanies = {
-        sub_001: { id: 'sub_001', name: 'Vado', nameAr: 'فادو', createdBy: 'usr_001', createdAt: '2026-09-01T09:00:00.000+03:00' },
-        sub_002: { id: 'sub_002', name: 'Bunah', nameAr: 'بناة', createdBy: 'usr_001', createdAt: '2026-09-01T09:00:00.000+03:00' },
+        sub_001: { id: 'sub_001', name: 'Vado', nameAr: 'فادو', logo: null, createdBy: 'usr_001', createdAt: '2026-09-01T09:00:00.000+03:00' },
+        sub_002: { id: 'sub_002', name: 'Bunah', nameAr: 'بناة', logo: null, createdBy: 'usr_001', createdAt: '2026-09-01T09:00:00.000+03:00' },
       };
     });
     await userEvent.click(within(sheet).getByRole('radio', { name: 'Internal project' }));

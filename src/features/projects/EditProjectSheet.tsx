@@ -16,6 +16,7 @@ function valuesOf(detail: ProjectDetail): ProjectFormValues {
   const { project } = detail;
   return {
     name: project.name,
+    kind: project.kind ?? 'client',
     clientId: project.clientId ?? '',
     subCompanyId: project.subCompanyId ?? '',
     leader: 'me',
