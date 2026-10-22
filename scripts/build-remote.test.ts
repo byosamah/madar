@@ -43,6 +43,21 @@ describe('remotePublicEnv (owner, 2026-10-16)', () => {
     expect(() => remotePublicEnv('test', `${FILE}VITE_API_URL=https://qdgwpnesxppnqsaabqzd.supabase.co/functions/v1/api\n`)).toThrow(/VITE_API_URL.*config\/server-host\.json/);
   });
 
+  it('names the page hosts of the copy when the api function is the host, so WebKit can use the page api (DF-12, LV-6)', () => {
+    const hosts = (target: 'test' | 'production', setting: { test: 'supabase' | 'workers'; production: 'supabase' | 'workers' }, dev = false) =>
+      remotePublicEnv(target, FILE, { setting, dev }).VITE_API_PAGE_HOSTS;
+    const supabase = { test: 'supabase', production: 'supabase' } as const;
+    expect(hosts('test', supabase)).toBe('preview.madar-46r.pages.dev');
+    expect(hosts('production', supabase)).toBe('madar.vado.sa,www.madar.vado.sa,madar-46r.pages.dev');
+    // The Worker host already uses the page api for every browser. The dev server has no Pages Function.
+    expect(hosts('test', { test: 'workers', production: 'supabase' })).toBeUndefined();
+    expect(hosts('test', supabase, true)).toBeUndefined();
+  });
+
+  it('refuses a VITE_API_PAGE_HOSTS line in the public file: the host table decides it', () => {
+    expect(() => remotePublicEnv('test', `${FILE}VITE_API_PAGE_HOSTS=evil.example\n`)).toThrow(/VITE_API_PAGE_HOSTS/);
+  });
+
   it('gives the dev server the api function: Vite runs no Pages Function, so the page api does not exist there', () => {
     expect(remotePublicEnv('test', FILE, { dev: true, setting: { test: 'workers', production: 'workers' } }).VITE_API_URL).toBe('https://qdgwpnesxppnqsaabqzd.supabase.co/functions/v1/api');
   });

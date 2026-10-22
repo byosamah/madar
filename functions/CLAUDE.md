@@ -38,7 +38,8 @@ ops of exit wave 4) go to the binding whatever the word says, and never to Supab
   sign-in and OAuth routes count it).
 - A new function here runs on every Pages host, production too. It needs a fixed host list and tests, like the forwarders.
 - A same-host forwarder of `POST /api/batch` to the Supabase function was built and measured (2026-10-08, performance audit
-  FET-10), then removed: it added 20 to 50 ms to every call. The api forwarder of 2026-10-16 is for the Worker host: the
+  FET-10), then removed: it added 20 to 50 ms to every call. WebKit browsers use it again (2026-10-22, DF-12 and LV-6): they keep a CORS
+  preflight only 10 minutes, and there it costs about 13 ms against about 275 ms for a new preflight (`src/CLAUDE.md`, the API address). The api forwarder of 2026-10-16 is for the Worker host: the
   screens call their own page, never a workers.dev address (security vendors report phishing abuse of workers.dev, so office
   filters can flag it), and the Worker needs no public address. The owner rule: the Worker stays only if it measures faster
   (`scripts/proof/server-time.sh`).

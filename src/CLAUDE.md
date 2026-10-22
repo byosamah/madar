@@ -38,6 +38,16 @@ any screen work.
   `VITE_MADAR_LIVE=socket`. `config/remote.<env>.env` must not set any of the three. `regionUrl` (`api/remote/region.ts`) adds
   `forceFunctionRegion=eu-central-1` only to a `*.supabase.co` URL, and a relative `/api` stays relative (fetch resolves it
   against the page). `dev:remote` always uses the api function: Vite runs no Pages Function.
+- WebKit browsers send their batch calls through the page's own `/api` (performance audit DF-12 and LV-6, owner 2026-10-21: "we have safari users
+  on iphone"; `api/remote/pageApi.ts`, `batchApiUrl` in `bootstrapRemote`). A call to the Supabase function needs a CORS preflight, and WebKit
+  (Safari on a Mac and every browser on an iPhone or iPad) keeps the answer for 10 minutes at most, Chromium for 2 hours. Measured on the test copy
+  on 2026-10-22, WebKit 26.6 with the iPhone 15 profile, 15 rounds each: direct with a preflight 656 ms (p90 768), direct with a cached preflight
+  370 ms (p90 459), the page's own `/api` 383 ms (p90 417); Chromium 660, 378 and 378. A preflight kept 9 minutes was still in the cache, one kept
+  11 minutes was gone (edge logs: the OPTIONS showed only at 11 minutes). So the forwarder costs about 13 ms more than a cached preflight and about
+  275 ms less than a new one. `build:remote` sets `VITE_API_PAGE_HOSTS` (the page hosts of the copy, from `PAGE_HOSTS`) only when the api function
+  is the host; the choice needs that list, the page host in it (a deployment hash host has no `/api`), a `*.supabase.co` build address and a WebKit
+  user agent (`isWebKit`). Sign-in, agent and OAuth requests keep the direct address (cold paths, and the Realtime socket needs Supabase anyway).
+  The CSP needs no change (`connect-src 'self'`). Not measured on a real iPhone; the cap comes from WebKit code that Mac and iOS share.
 - The sign-in of the remote build (`src/app/remote/authMode.ts`): `VITE_MADAR_AUTH` unset is the Supabase port of today;
   `madar` is the Madar port (`madarAuth.ts`, `madarOAuthPort`) for the own stack. No copy sets it before wave 5. Each port
   keeps its session under its own localStorage key (`SESSION_KEYS`: `madar.auth` for Supabase, `madar.session` for Madar);

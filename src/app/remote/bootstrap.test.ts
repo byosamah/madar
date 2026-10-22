@@ -241,6 +241,23 @@ describe('the remote runtime (plan R2)', () => {
     expect(urls).toEqual(['/api/batch']);
   });
 
+  it('sends the batch to the page api on WebKit, so the call needs no CORS preflight; the sign-in requests stay direct (DF-12, LV-6)', async () => {
+    const urls: string[] = [];
+    const fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      urls.push(String(url));
+      const body = JSON.parse(String(init?.body)) as { calls: { i: number }[] };
+      return new Response(JSON.stringify({ v: 1, serverTime: '2026-10-04T09:00:00.000+03:00', results: body.calls.map((call) => ({ i: call.i, ok: true, output: [], storyId: 'cor_srv_1', changed: false })) }), { status: 200 });
+    }) as unknown as typeof globalThis.fetch;
+    const iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+    const chrome = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+    const page = { hostname: 'preview.madar-46r.pages.dev', pageHosts: 'preview.madar-46r.pages.dev' };
+    const onWebKit = await bootstrapRemote({ config, supabase, auth: stubAuth().auth, fetch, page: { ...page, userAgent: iphone } });
+    await onWebKit.api.call('clients.list', {});
+    const onChrome = await bootstrapRemote({ config, supabase, auth: stubAuth().auth, fetch, page: { ...page, userAgent: chrome } });
+    await onChrome.api.call('clients.list', {});
+    expect(urls).toEqual(['/api/batch', 'https://ref.supabase.co/functions/v1/api/batch?forceFunctionRegion=eu-central-1']);
+  });
+
   it('makes the Supabase sign-in port, whose reset request also runs in Frankfurt', async () => {
     const fetch = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof globalThis.fetch;
     const withAuth = {
