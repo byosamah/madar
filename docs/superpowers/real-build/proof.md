@@ -2360,3 +2360,13 @@ What changed:
 Tests: Tests were written first and seen to fail. New: `src/api/remote/pageApi.test.ts` (user agents, host list, address shapes), 2 tests in `scripts/build-remote.test.ts`, 1 test in `src/app/remote/bootstrap.test.ts` (WebKit gets /api/batch, Chrome gets the Supabase address with the region). `src/api/remote`, `src/app/remote`, `scripts/build-remote.test.ts` and `scripts/vite-config.test.ts`: 27 files, 357 tests passed. `npm run typecheck` is clean. I did not run the full suite, test:db, test:it, test:lite, test:office, test:mcp, the smoke or the build size check (the new code is about 1 KB raw).
 
 Not proven: a real iPhone. After the deploy, wait 11 minutes on an iPhone, press a tab, and check that no OPTIONS reaches the function. Every WebKit call now also counts as one Pages Functions request (free limit 100,000 a day, shared with the satellite tiles).
+
+### The gates of the speed release (2026-10-22)
+- Docker suites once on bb8d8527 (GP-1 touches none of their code): db reset; test:db 2,979 passed (27 skipped); test:it 332 of 332;
+  test:mcp 330 passed and the conformance runner at its normal 5 of 32; test:lite 2,979 passed; test:office 40 of 40.
+- npm test once on 4c55ff97 (after GP-1): 9,794 passed, 6 skipped, 1 failed. The failure was real: DF-13 started the template read for
+  a person off the project team, against the LIV-5 pin of 2026-10-07. Fix 29170b22: the early read only for a right that covers every
+  project. src/features/project again: 725 of 725.
+- Builds once: prototype, server and remote, each with its bundle check. First load of the remote build: 34 files, 947,778 B raw,
+  289,341 B gzip (1d45aae5: 50 files, 1,236,844 B, about 384 KB gzip).
+- Prototype smoke once on 29170b22: 87 of 87.

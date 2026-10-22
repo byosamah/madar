@@ -959,8 +959,9 @@ Branch `rb/perf2` (worktree `~/dev/madar-rb/perf2`). Sonnet agents, the Opus ses
 - [x] Merge of the six tracks into rb/perf2 (3f8dcbae); builds and bundle checks pass; first load 34 files, 286,908 B gzip
   (was 384 KB); limits lowered to 970,000 B, 296,000 B gzip, 35 files (fe3a0196)
 - [ ] Gap critic findings: a second wave if any holds
-- [ ] Merge into rb/perf2, then the gates once: typecheck, npm test, test:lite, test:office, build, build:server,
-  build:remote test, test:db, test:it, test:mcp, the prototype smoke; screenshots of the touched screens (EN/AR, light/dark, 390 px)
+- [x] Merge into rb/perf2, then the gates once: typecheck, npm test, test:lite, test:office, build, build:server,
+  build:remote test, test:db, test:it, test:mcp, the prototype smoke: all green (one npm test failure fixed, see below)
+- [ ] Screenshots of the touched screens (EN/AR, light/dark, 390 px), Chrome and WebKit iPhone, on the test copy after the deploy
 - [x] What's new line 2026-10-23-82 "Madar is faster" (d107844d); no MCP change in wave 1 (no call, input, output or rule changes)
 - [ ] Test copy (`all.sh test` from main after the merge), then the live numbers again
 - [ ] Production: only on the owner's word, after the team week (not before 2026-10-23)
@@ -976,6 +977,7 @@ Branch `rb/perf2` (worktree `~/dev/madar-rb/perf2`). Sonnet agents, the Opus ses
 - [x] npm test once on 4c55ff97: 9,794 passed, 6 skipped, 1 failed (TemplateMenuRemote: DF-13 read the templates early for a person
   off the team). Fix 29170b22 (the early read only for a right over every project); src/features/project again: 725 of 725
 - [x] Builds once: prototype, server and remote with their bundle checks pass; first load 34 files, 947,778 B, 289,341 B gzip
+- [x] Prototype smoke once on 29170b22: 87 of 87 (7.6 minutes, delegated)
 - [x] Docker suites once on bb8d8527 (GP-1 touches none of their code), 2026-10-22: db reset; test:db 2,979 passed (27 skipped);
   test:it 332 of 332; test:mcp 330 passed, conformance 5 of 32 (the normal result); test:lite 2,979 passed; test:office 40 of 40
 - [ ] After the deploy, on a real iPhone: wait 11 minutes, press a tab, check that no OPTIONS reaches the function
