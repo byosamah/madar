@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence } from 'motion/react';
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import type { User } from '../../api/contract/entities';
@@ -15,7 +15,10 @@ import { SortableTaskRows } from '../project/tasks/SortableTaskRows';
 import { TaskRowItem } from '../project/tasks/TaskRowItem';
 import { LoadFailed } from '../../components/LoadFailed';
 import { openTask } from '../../lib/params';
+import { doneWindow } from './boardRows';
 import { homePlaceholder } from './minePlaceholder';
+import { lazyWorkBoard } from './WorkBoardLazy';
+import type { WorkView } from './workView';
 
 type Open = (row: TaskRow, thread?: boolean) => void;
 
@@ -86,15 +89,35 @@ function useMyOpenTasks() {
   });
 }
 
-/** My open tasks from all projects and the office, by date, with the leader's review queue first (spec 6.1). */
-export function WorkTasks() {
+/**
+ * My open tasks from all projects and the office, by date, with the leader's review queue first (spec 6.1). The Board view shows the
+ * same rows in the four columns of the project board, with the to-dos that I finished in the last 7 days in Done (fbk_042). The
+ * done rows are read only while the Board shows.
+ */
+export function WorkTasks({ view = 'list' }: { view?: WorkView }) {
   const [params, setParams] = useSearchParams();
   const mine = useMyOpenTasks();
   const review = useCall('tasks.list', { filter: 'review_for_me' });
+  const board = view === 'board';
+  const today = todayISO();
+  const donePlan = useMemo(() => doneWindow(today), [today]);
+  const done = useCall('tasks.list', donePlan, { enabled: board });
+  // "Send back with a note" on a card opens the panel ready for the note. The choice lives here for that one opening, not in the
+  // link, so Back, a reload or another task opens the plain panel (the same rule as the project board).
+  const [sendBackId, setSendBackId] = useState<string | null>(null);
+  const taskParam = params.get('task');
+  useEffect(() => {
+    if (taskParam !== sendBackId) setSendBackId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskParam]);
   // One session.get for every group. Each row takes the person from here.
   const me = useCall('session.get', {}).data?.authority;
   // An office task has no project, so its link names the task alone (owner, 2026-10-06).
   const open = useStableHandler((row: TaskRow, thread: boolean = false) => setParams((current) => openTask(current, row.task.id, row.project?.id ?? null, thread)));
+  const sendBack = useStableHandler((row: TaskRow) => {
+    setSendBackId(row.task.id);
+    open(row);
+  });
   const close = useCallback(() => setParams((current) => {
     const next = new URLSearchParams(current);
     next.delete('task');
@@ -102,16 +125,20 @@ export function WorkTasks() {
     next.delete('thread');
     return next;
   }), [setParams]);
-  if (mine.error || review.error) {
-    return <LoadFailed error={mine.error ?? review.error} onRetry={() => { void mine.refetch(); void review.refetch(); }} />;
+  const failed = mine.error ?? review.error ?? (board ? done.error : null);
+  if (failed) {
+    return <LoadFailed error={failed} onRetry={() => { void mine.refetch(); void review.refetch(); if (board) void done.refetch(); }} />;
   }
-  if (!mine.data || !review.data) return null;
+  if (!mine.data || !review.data || (board && !done.data)) return null;
   const taskId = params.get('task');
   const projectId = params.get('project');
+  const Board = lazyWorkBoard.Overlay;
   return (
     <div className="flex flex-col gap-5">
-      <WorkBody mine={mine.data} review={review.data} me={me} today={todayISO()} onOpen={open} />
-      {taskId && <ProjectTaskSheet key={taskId} projectId={projectId} taskId={taskId} onClose={close} />}
+      {board && done.data
+        ? <Board mine={mine.data} review={review.data} done={done.data} onOpen={open} onSendBack={sendBack} />
+        : <WorkBody mine={mine.data} review={review.data} me={me} today={today} onOpen={open} />}
+      {taskId && <ProjectTaskSheet key={taskId} projectId={projectId} taskId={taskId} onClose={close} noteFirst={sendBackId === taskId} />}
     </div>
   );
 }

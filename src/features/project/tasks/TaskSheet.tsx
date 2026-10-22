@@ -623,12 +623,12 @@ export function TaskSheet({ taskId, detail, onClose, noteFirst = false }: { task
   );
 }
 
-/** The task panel outside its project screen, for example over My Work. An office task has no project (projectId null). */
-export function ProjectTaskSheet({ projectId, taskId, onClose }: { projectId: string | null; taskId: string; onClose: () => void }) {
+/** The task panel outside its project screen, for example over My Work. An office task has no project (projectId null). `noteFirst` opens it ready for the note of Send back (the Board of Tasks). */
+export function ProjectTaskSheet({ projectId, taskId, onClose, noteFirst = false }: { projectId: string | null; taskId: string; onClose: () => void; noteFirst?: boolean }) {
   const detail = useCall('projects.get', { id: projectId ?? '' }, { enabled: projectId !== null });
   // The task, its files and its comments start with the project, so the panel does not wait three round trips (FET-1).
   usePanelPrefetch(taskId, projectId);
-  if (projectId === null) return <TaskSheet taskId={taskId} detail={null} onClose={onClose} />;
+  if (projectId === null) return <TaskSheet taskId={taskId} detail={null} onClose={onClose} noteFirst={noteFirst} />;
   if (!detail.data) return null;
-  return <TaskSheet taskId={taskId} detail={detail.data} onClose={onClose} />;
+  return <TaskSheet taskId={taskId} detail={detail.data} onClose={onClose} noteFirst={noteFirst} />;
 }

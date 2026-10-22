@@ -1,13 +1,17 @@
 import { AnimatedIcon } from './icons/AnimatedIcon';
 import { SlidersHorizontalIcon } from './icons/animated/sliders-horizontal';
+import type { AnimatedIconComponent } from './icons/AnimatedIcon';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useIsPhone } from '../app/useIsPhone';
 import { Popover } from './Popover';
 import { Sheet } from './Sheet';
 
-/** One button for every choice of a list (redesign spec 2.4). A popover on a computer, a sheet on a phone. */
-export function FilterButton({ label, count, children }: { label: string; count: number; children: ReactNode }) {
+/**
+ * One button for every choice of a list (redesign spec 2.4). A popover on a computer, a sheet on a phone. The icon is the sliders of a
+ * filter. The View button of Tasks gives its own icon (fbk_042).
+ */
+export function FilterButton({ label, count, icon = SlidersHorizontalIcon, children }: { label: string; count: number; icon?: AnimatedIconComponent; children: ReactNode }) {
   const { t } = useTranslation();
   const phone = useIsPhone();
   const ref = useRef<HTMLButtonElement>(null);
@@ -26,7 +30,7 @@ export function FilterButton({ label, count, children }: { label: string; count:
         onClick={() => setOpen((value) => !value)}
         className="pressable panel inline-flex min-h-11 items-center gap-2 !rounded-full px-4 text-subheadline font-semibold text-ink transition-colors hover:!bg-fill"
       >
-        <AnimatedIcon icon={SlidersHorizontalIcon} size={16} aria-hidden />
+        <AnimatedIcon icon={icon} size={16} aria-hidden />
         {label}
         {count > 0 && <span className="tabular grid min-w-5 place-items-center rounded-full bg-ink px-1.5 text-caption text-panel">{count}</span>}
       </button>

@@ -35,7 +35,11 @@ const columnKeys: KeyboardCoordinateGetter = (event, { context }) => {
   return { x: rect.left + rect.width / 2 - width / 2, y: rect.top + 56 }; // rtl-ok: screen coordinates
 };
 
-function CardFace({ row, lifted = false }: { row: TaskRow; lifted?: boolean }) {
+/**
+ * A card. On the Tasks screen (`across`) the board mixes projects, so the card names its project, or the word Office for a to-do of no
+ * project, and a card that waits for my review says "Your review" (fbk_042).
+ */
+function CardFace({ row, lifted = false, across = false, yourReview = false }: { row: TaskRow; lifted?: boolean; across?: boolean; yourReview?: boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
   const word = dueWord(row.task.dueDate, todayISO(), row.task.status);
@@ -51,6 +55,12 @@ function CardFace({ row, lifted = false }: { row: TaskRow; lifted?: boolean }) {
           {versionOf(row.task) > 1 && <span title={t('tasks.versionLabel', { n: versionOf(row.task) })} className="tabular ms-2 rounded-full bg-fill-strong px-1.5 text-caption font-semibold text-ink-2">{t('tasks.versionBadge', { n: versionOf(row.task) })}</span>}
         </p>
       </div>
+      {across && (
+        <p className="flex items-center gap-2 text-footnote text-ink-2">
+          {row.project ? <bdi className="truncate">{row.project.name}</bdi> : <span>{t('office.word')}</span>}
+          {yourReview && <span className="ms-auto shrink-0 font-semibold text-ink">{t('workView.yourReview')}</span>}
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-footnote text-ink-2">
         {starts && <span className="tabular whitespace-nowrap">{startsText(row.task.startDate as string, t, lang)}</span>}
         {!starts && word && row.task.dueDate && <span className={`tabular whitespace-nowrap ${word.tone === 'attn' ? 'font-medium text-attn' : ''}`}>{dueText(word, t, lang, row.task.dueDate)}</span>}
@@ -84,8 +94,8 @@ function Column({ status, count, closed, children }: { status: TaskStatus; count
   );
 }
 
-function BoardCard({ row, reviews, dragging, onOpen, onSendBack, onMove }: {
-  row: TaskRow; reviews: boolean; dragging: boolean; onOpen: () => void; onSendBack: () => void; onMove: (status: TaskStatus) => void;
+function BoardCard({ row, reviews, across, dragging, onOpen, onSendBack, onMove }: {
+  row: TaskRow; reviews: boolean; across: boolean; dragging: boolean; onOpen: () => void; onSendBack: () => void; onMove: (status: TaskStatus) => void;
 }) {
   const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, setActivatorNodeRef } = useDraggable({
@@ -96,7 +106,7 @@ function BoardCard({ row, reviews, dragging, onOpen, onSendBack, onMove }: {
   const reviewing = reviews && row.task.status === 'in_review';
   return (
     <li ref={setNodeRef} {...pointerOnly} className={`relative ${dragging ? 'opacity-40' : ''}`}>
-      <button type="button" onClick={onOpen} className="block w-full text-start"><CardFace row={row} /></button>
+      <button type="button" onClick={onOpen} className="block w-full text-start"><CardFace row={row} across={across} yourReview={across && reviewing} /></button>
       {row.canMove && (
         <div className="absolute end-1 top-1 flex" onPointerDown={(event) => event.stopPropagation()}>
           <button
@@ -124,10 +134,15 @@ function BoardCard({ row, reviews, dragging, onOpen, onSendBack, onMove }: {
   );
 }
 
-/** Columns To do, In progress, In review and Done. A drag, a keyboard drag or the Move menu moves a task (spec 5.3). */
-export function TaskBoard({ rows, reviews, onOpen, onSendBack }: {
-  rows: TaskRow[]; reviews: boolean; onOpen: (taskId: string) => void; onSendBack: (taskId: string) => void;
+/**
+ * Columns To do, In progress, In review and Done. A drag, a keyboard drag or the Move menu moves a task (spec 5.3).
+ * `reviews` says who may approve a task in review: one flag for a whole project (the project tab), or a function of the row, for the
+ * Tasks screen, where each to-do has its own reviewers (fbk_042). `across` is for that screen: the cards name their project.
+ */
+export function TaskBoard({ rows, reviews, across = false, onOpen, onSendBack }: {
+  rows: TaskRow[]; reviews: boolean | ((row: TaskRow) => boolean); across?: boolean; onOpen: (taskId: string) => void; onSendBack: (taskId: string) => void;
 }) {
+  const reviewsOf = (row: TaskRow) => (typeof reviews === 'function' ? reviews(row) : reviews);
   const { t } = useTranslation();
   const toast = useToast();
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -142,7 +157,7 @@ export function TaskBoard({ rows, reviews, onOpen, onSendBack }: {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: columnKeys }),
   );
-  const closedFor = (row: TaskRow, status: TaskStatus) => status !== row.task.status && !moveTargets(row.task.status, reviews, row.task.needsReview, row.owner !== null).includes(status);
+  const closedFor = (row: TaskRow, status: TaskStatus) => status !== row.task.status && !moveTargets(row.task.status, reviewsOf(row), row.task.needsReview, row.owner !== null).includes(status);
   // The screen point of the pointer while a card is lifted. The delta of the drag end also counts the scroll of the board
   // and the page since the drag began, so on a phone, where the board scrolls, it missed the column (audit 2026-10-03, F-9).
   const pointer = useRef<{ x: number; y: number } | null>(null);
@@ -164,7 +179,7 @@ export function TaskBoard({ rows, reviews, onOpen, onSendBack }: {
     droppedAt.current = Date.now();
     const row = rows.find((r) => r.task.id === active.id);
     if (!row) return;
-    if (over && moveTargets(row.task.status, reviews, row.task.needsReview, row.owner !== null).includes(over.id as TaskStatus)) {
+    if (over && moveTargets(row.task.status, reviewsOf(row), row.task.needsReview, row.owner !== null).includes(over.id as TaskStatus)) {
       move.mutate({ id: row.task.id, status: over.id as TaskStatus });
       return;
     }
@@ -183,7 +198,7 @@ export function TaskBoard({ rows, reviews, onOpen, onSendBack }: {
       // A task with no lead is told that it needs a lead first, with the way to its panel (owner, 2026-10-05).
       toast.show(row.owner === null
         ? { message: t('lead.needsLeadToast'), action: { label: t('tasks.openTask'), run: () => onOpen(row.task.id), isUndo: false } }
-        : reviews
+        : reviewsOf(row)
           ? { message: t('errors.reasons.review_send_back'), action: { label: t('tasks.openTask'), run: () => onOpen(row.task.id), isUndo: false } }
           : { message: t('tasks.waitsForApproval') });
     }
@@ -221,7 +236,8 @@ export function TaskBoard({ rows, reviews, onOpen, onSendBack }: {
                 <BoardCard
                   key={row.task.id}
                   row={row}
-                  reviews={reviews}
+                  reviews={reviewsOf(row)}
+                  across={across}
                   dragging={row.task.id === activeId}
                   onOpen={() => open(row.task.id)}
                   onSendBack={() => onSendBack(row.task.id)}
@@ -233,7 +249,7 @@ export function TaskBoard({ rows, reviews, onOpen, onSendBack }: {
         })}
       </div>
       <DragOverlay dropAnimation={{ duration: 350, easing: 'cubic-bezier(0.2, 0.9, 0.3, 1.15)' }}>
-        {lifted ? <CardFace row={lifted} lifted /> : null}
+        {lifted ? <CardFace row={lifted} lifted across={across} yourReview={across && reviewsOf(lifted) && lifted.task.status === 'in_review'} /> : null}
       </DragOverlay>
       {back.sheet}
     </DndContext>
