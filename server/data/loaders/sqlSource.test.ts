@@ -126,13 +126,13 @@ describe('the newest rows of each key (DB-2)', () => {
 });
 
 describe('the field pick (DB-4)', () => {
-  it('builds the picked doc from the one array parameter, and takes away the keys that the doc does not hold', () => {
+  const key = (i: number) => `($2::text[])[${i}]`;
+
+  it('returns the picked values as one array with the mask of the absent keys in front, from the one array parameter', () => {
     const { text, values } = selectSql({ c: 'tasks', where: [{ col: 'project_id', in: ['prj_001'] }], pick: ['id', 'dueDate'] });
-    const key = (i: number) => `($2::text[])[${i}]`;
     expect(text).toBe(
-      `select t.ord, (jsonb_build_object(${key(1)}, t.doc->(${key(1)}), ${key(2)}, t.doc->(${key(2)})) `
-        + `- array_remove(array[case when t.doc ? ${key(1)} then null else ${key(1)} end, case when t.doc ? ${key(2)} then null else ${key(2)} end], null)) as doc `
-        + 'from tasks t where t.project_id = any($1::text[]) order by t.ord',
+      `select t.ord, jsonb_build_array(case when t.doc ? ${key(1)} then 0 else 1 end + case when t.doc ? ${key(2)} then 0 else 2 end, `
+        + `t.doc->(${key(1)}), t.doc->(${key(2)})) as doc from tasks t where t.project_id = any($1::text[]) order by t.ord`,
     );
     expect(values).toEqual([['prj_001'], ['id', 'dueDate']]);
   });
@@ -140,6 +140,58 @@ describe('the field pick (DB-4)', () => {
   it('gives an empty doc for an empty pick, and never writes a field name into the SQL text', () => {
     expect(selectSql({ c: 'tasks', where: [], pick: [] }).text).toBe(`select t.ord, '{}'::jsonb as doc from tasks t order by t.ord`);
     expect(selectSql({ c: 'tasks', where: [], pick: ['dueDate'] }).text).not.toContain('dueDate');
+  });
+
+  it('keeps the object form for a pick of more than 50 keys', () => {
+    const pick = Array.from({ length: 51 }, (_, i) => `f${i}`);
+    expect(selectSql({ c: 'tasks', where: [], pick }).text).toContain('jsonb_each(t.doc)');
+    expect(selectSql({ c: 'tasks', where: [], pick: pick.slice(0, 50) }).text).toContain('jsonb_build_array(');
+  });
+
+  /** A Query that answers one read with the rows that the database sends. */
+  const answering = (rows: unknown[]): Query => async <R,>() => rows as R[];
+
+  it('builds the object of each row back from the array: an absent key stays absent, a JSON null stays null (DB-4 of perf2)', async () => {
+    // The pick is id, ownerId, completedAt, rank. Row 1 has them all; row 2 has no completedAt (bit 2, value 4) and a null ownerId.
+    const src = sqlSource(answering([
+      { ord: '2', doc: [0, 'tsk_001', 'usr_001', '2026-10-01', 3] },
+      { ord: '5', doc: [4, 'tsk_002', null, null, 7] },
+      { ord: '9', doc: [14, 'tsk_003', null, null, null] },
+    ]));
+    const rows = await src.select({ c: 'tasks', where: [{ col: 'id', in: ['tsk_001'] }], pick: ['id', 'ownerId', 'completedAt', 'rank'] });
+    expect(rows).toEqual([
+      { ord: 2, doc: { id: 'tsk_001', ownerId: 'usr_001', completedAt: '2026-10-01', rank: 3 } },
+      { ord: 5, doc: { id: 'tsk_002', ownerId: null, rank: 7 } },
+      { ord: 9, doc: { id: 'tsk_003' } },
+    ]);
+    expect('completedAt' in rows[1].doc).toBe(false);
+    expect('ownerId' in rows[1].doc && rows[1].doc.ownerId === null).toBe(true);
+  });
+
+  it('gives the keys in the order of jsonb (the shorter name first, then by bytes), as the object form gave them', async () => {
+    const src = sqlSource(answering([{ ord: '1', doc: [0, 'a-long-name', 'id', 'ab', 'b'] }]));
+    const [row] = await src.select({ c: 'tasks', where: [], pick: ['zeta', 'id', 'ab', 'b'] });
+    expect(Object.keys(row.doc)).toEqual(['b', 'ab', 'id', 'zeta']);
+    expect(row.doc).toEqual({ zeta: 'a-long-name', id: 'id', ab: 'ab', b: 'b' });
+  });
+
+  it('reads the mask of a pick of 50 keys without losing the last bit', async () => {
+    const pick = Array.from({ length: 50 }, (_, i) => `f${String(i).padStart(2, '0')}`);
+    const mask = 2 ** 49 + 1;
+    const src = sqlSource(answering([{ ord: '1', doc: [mask, ...pick.map((_, i) => i)] }]));
+    const [row] = await src.select({ c: 'tasks', where: [], pick });
+    expect(Object.keys(row.doc)).toHaveLength(48);
+    expect('f00' in row.doc).toBe(false);
+    expect('f49' in row.doc).toBe(false);
+    expect(row.doc.f48).toBe(48);
+  });
+
+  it('gives a doc of the object form (a pick of more than 50 keys, or an empty pick) as the database sent it', async () => {
+    const pick = Array.from({ length: 51 }, (_, i) => `f${i}`);
+    const wide = sqlSource(answering([{ ord: '1', doc: { f0: 1, f7: 2 } }]));
+    expect((await wide.select({ c: 'tasks', where: [], pick }))[0].doc).toEqual({ f0: 1, f7: 2 });
+    const none = sqlSource(answering([{ ord: '1', doc: {} }]));
+    expect((await none.select({ c: 'tasks', where: [], pick: [] }))[0].doc).toEqual({});
   });
 });
 

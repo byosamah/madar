@@ -162,6 +162,9 @@ describe('the loaders on the local database', () => {
       { c: 'tasks', where: [{ col: 'id', in: all }], pick },
       { c: 'tasks', where: [{ col: 'id', in: all }], pick: ['id'] },
       { c: 'tasks', where: [{ col: 'id', in: all }], pick: [] },
+      // The array form takes at most 50 keys: 50 names (with the absent ones) keep it, 51 go back to the object form (DB-4 of perf2).
+      { c: 'tasks', where: [{ col: 'id', in: all }], pick: [...pick, ...Array.from({ length: 44 }, (_, i) => `filler${i}`)] },
+      { c: 'tasks', where: [{ col: 'id', in: all }], pick: [...pick, ...Array.from({ length: 45 }, (_, i) => `filler${i}`)] },
       { c: 'tasks', where: [{ col: 'project_id', in: ['prj_001'] }], order: { col: 'status', desc: true, id: true }, per: 'project_id', limit: 3, pick },
     ];
     const sql = sqlSource(q);

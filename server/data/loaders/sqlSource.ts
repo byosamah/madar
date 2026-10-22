@@ -110,23 +110,43 @@ export function likeOf(text: string): string {
   return `%${text.replace(/[\\%_]/g, (letter) => `\\${letter}`)}%`;
 }
 
-/** jsonb_build_object takes at most 100 arguments, so a pick of more fields reads them with jsonb_each. */
+/** jsonb_build_array takes at most 100 arguments (the mask and one value for each key), so a pick of more fields reads them with jsonb_each. */
 const PICK_BUILD_MAX = 50;
 
 /**
- * The doc of a read that takes only some fields (performance audit DB-4): jsonb_build_object of the picked keys, minus the keys
- * that the doc does not hold, so an absent field stays absent and a JSON null stays null. jsonb keeps its keys in its own order,
- * so the doc is the one that jsonb_each and jsonb_object_agg give, at a fraction of the cost. The names stay in one array
- * parameter and never go into the SQL text.
+ * The doc of a read that takes only some fields (performance audit DB-4, perf2). A pick of up to 50 keys comes back as one jsonb array:
+ * the mask of the absent keys first (bit i is 1 when the doc has no key i), then the value of each key in the order of the pick, with
+ * JSON null for an absent key. The key names then never repeat in a row, which is about 40% of the bytes of a picked row. The mask keeps
+ * "absent" apart from a JSON null that the doc holds. sqlSource.select builds the object back (unpick). The names stay in one array
+ * parameter and never go into the SQL text. A pick of more keys comes back as an object, from jsonb_each, as it did before.
  */
 function pickSql(pick: readonly string[], param: (value: unknown, type: string) => string): string {
   if (pick.length === 0) return `'{}'::jsonb`;
   const keys = param(pick, 'text[]');
   if (pick.length > PICK_BUILD_MAX) return `(select coalesce(jsonb_object_agg(e.key, e.value), '{}'::jsonb) from jsonb_each(t.doc) e where e.key = any(${keys}))`;
   const key = (i: number) => `(${keys})[${i + 1}]`;
-  const pairs = pick.map((_, i) => `${key(i)}, t.doc->(${key(i)})`).join(', ');
-  const absent = pick.map((_, i) => `case when t.doc ? ${key(i)} then null else ${key(i)} end`).join(', ');
-  return `(jsonb_build_object(${pairs}) - array_remove(array[${absent}], null))`;
+  const mask = pick.map((_, i) => `case when t.doc ? ${key(i)} then 0 else ${2 ** i} end`).join(' + ');
+  const values = pick.map((_, i) => `t.doc->(${key(i)})`).join(', ');
+  return `jsonb_build_array(${mask}, ${values})`;
+}
+
+/** True when pickSql sends the array form for this pick. */
+const asArray = (pick: readonly string[] | undefined): pick is readonly string[] => pick !== undefined && pick.length > 0 && pick.length <= PICK_BUILD_MAX;
+
+/**
+ * The positions of a pick in the order that jsonb keeps its keys: the shorter name first, then by bytes. The old object form gave the
+ * keys in that order, so the rebuilt docs keep it.
+ */
+function jsonbOrder(pick: readonly string[]): number[] {
+  return pick.map((_, i) => i).sort((a, b) => pick[a].length - pick[b].length || (pick[a] < pick[b] ? -1 : pick[a] > pick[b] ? 1 : 0));
+}
+
+/** The object of one row of the array form: the keys that the mask does not mark absent, with their values. */
+function unpick(pick: readonly string[], order: readonly number[], doc: unknown): Record<string, unknown> {
+  const [mask, ...values] = doc as [number, ...unknown[]];
+  const out: Record<string, unknown> = {};
+  for (const i of order) if (Math.floor(mask / 2 ** i) % 2 === 0) out[pick[i]] = values[i];
+  return out;
 }
 
 /** The in-list condition of a Select on its "per" column, at the top level: the keys whose newest rows it reads. */
@@ -219,6 +239,11 @@ export function sqlSource(q: Query): Source {
       if (matchesNothing(s)) return [];
       const { text, values } = selectSql(s);
       const rows = await read<{ ord: string | number; doc: Record<string, unknown> }>(text, values);
+      if (asArray(s.pick)) {
+        const pick = s.pick;
+        const order = jsonbOrder(pick);
+        return rows.map((row): Row => ({ ord: Number(row.ord), doc: unpick(pick, order, row.doc) }));
+      }
       return rows.map((row): Row => ({ ord: Number(row.ord), doc: row.doc }));
     },
 

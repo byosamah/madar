@@ -102,9 +102,11 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - The perf2 indexes (`20261022000300_read_indexes_perf2.sql`): `comments_author_task` (the threads statement), `notifications_inbox_c`
   (it replaces `notifications_inbox`: the unread read and the newest read ones, in text order), and the partial index
   `events_report_verbs` (the five report verbs, for `reports.office`). `readIndexes.it.test.ts` pins each plan.
-- A field pick (`Select.pick`) builds the doc with `jsonb_build_object` of the picked keys minus the keys that the doc does not
-  hold, so an absent field stays absent. The key names go in one array parameter, never in the SQL text. A pick of more than
-  50 keys keeps `jsonb_each` (Postgres takes at most 100 arguments in a function call).
+- A field pick (`Select.pick`) returns one jsonb array for each row: a mask first (bit i is 1 when the doc has no key i), then
+  the value of each key in the order of the pick. `sqlSource.select` builds the object back (`unpick`), in the key order of
+  jsonb, so an absent field stays absent and a JSON null stays null. The key names never repeat in a row (about 40% fewer bytes,
+  perf2 DB-4) and go in one array parameter, never in the SQL text. A pick of more than 50 keys keeps the object form with
+  `jsonb_each` (Postgres takes at most 100 arguments in a function call, and the array holds the mask and one value for each key).
 - `atOrAfter` (`events.list` since) adds a text lower bound on `created_at collate "C"`: the UTC text of the time minus 36
   hours. The timestamptz test still decides, so the bound never removes a row. A count with a bounds condition on its `per`
   column counts each key in a LATERAL subquery on that column (a plain join let Postgres scan every message at 15,000 messages;
