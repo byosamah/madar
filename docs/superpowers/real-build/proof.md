@@ -2423,3 +2423,15 @@ Not proven: a real iPhone. After the deploy, wait 11 minutes on an iPhone, press
   screenshots EN and AR, light and dark, 390 px (the chat bubble, the zoom, the checklist grip and its keyboard move, the Tracker drop
   frame, the Board with "Your review"). Not run: test:db, test:it, test:mcp, the prototype smoke and the deploy suite (screens only).
   The upload bars were not seen in a browser: the prototype upload ends at once.
+
+### Release record: production at 6f7c3538 (2026-10-22, team reports batch B)
+- On the owner's "Production now" (AskUserQuestion, told that the office goes quiet from 5 PM Thursday to Sunday 9 AM), `all.sh production`
+  took 6f7c3538, the commit of the test deploy: quiet hours (fbk_048: work days and one range for each person, the office default and
+  the lock Sunday to Thursday 9 AM to 5 PM, no push and no email in quiet hours, one push when they end through the job step `quietEnd`,
+  the morning summary at the start of each person's work hours), @everyone (fbk_041: `@everyone`, `@all`, `@الجميع`, the right
+  `chat.mentionEveryone`, bell and push, never email), and the photo decode fix (a file over 2 MB decodes to 960 px wide). No
+  migration. The quick checks passed: health from supabase (149 calls), database, lock and asyncContext ok, /mcp with no token 401; the
+  page title Madar, `/favicon.ico` 200, and the live words hold the Quiet hours section.
+- Gates once on main c83ad4fb plus B: typecheck; npm test 10,074 passed (1 Home timing test passes 2 of 2 alone); test:db 3,037;
+  test:it 333 (one pin of the push device row updated for the two new columns); test:mcp 335 and conformance 5 of 32; the four builds;
+  screenshots EN and AR, light and dark, 390 px. Not seen live yet: a push held in quiet hours and sent at their end.

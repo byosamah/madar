@@ -1026,7 +1026,8 @@ Plan and answers: memory and the two design files below. fbk_039 (12-hour clock)
   test:db 3,037; test:it 333 (one pin of the device row updated for the two new columns, 12 of 12 again); test:mcp 335 and conformance
   5 of 32; the four builds (api.js 843.8 kB of 850,000; first load 947,375 B); screenshots EN and AR, light and dark, 390 px (Quiet
   hours, the Everyone row, the chip, the bell line with the female form). Not seen: a real push held and sent at the end of quiet hours.
-- [ ] Owner tries B on the test copy, then production. Mark fbk_041 and fbk_048 done after the owner says they are live.
+- [x] Test copy and production at 6f7c3538 (owner: "Production now", 2026-10-22). fbk_041 and fbk_048 marked done. To watch: the first
+  `quietEnd` push on Sunday morning, and the first summary at 9:00.
 - [ ] Polish seen in the shots: the mention list is narrow at 390 px, so long names wrap to two lines (it was so before B).
 - [ ] Batch D (`rb/batch-d`, design `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design.md`): hidden projects,
   "See every project" and internal projects (fbk_044). Designed; four build waves wait for the owner's word.
