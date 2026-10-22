@@ -13,5 +13,15 @@
   },
   "minutes": {
     "dropNote": "The files join the minutes. Nothing saves until you press Save the minutes."
+  },
+  "taskSheet": {
+    "moveItem": "Move {{text}} up or down",
+    "arrange": {
+      "instructions": "Press Space to pick up an item. Use the up and down arrow keys to move it. Press Space again to drop it, or Escape to cancel.",
+      "pickedUp": "Picked up {{text}}. It is at place {{n}} of {{count}}.",
+      "over": "{{text}} is at place {{n}} of {{count}}.",
+      "dropped": "{{text}} is now at place {{n}} of {{count}}.",
+      "cancelled": "The move of {{text}} is cancelled."
+    }
   }
 }

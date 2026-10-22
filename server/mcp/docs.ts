@@ -296,7 +296,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'tasks.update': {
     title: 'Change a task',
-    description: 'Changes one task: title, description, dates, schedule, stage, owner, helpers, prerequisites, flag, review need or checklist. Send only the fields that change, in "patch". ownerId null takes the lead off an open task. The owner, helpers and prerequisites need the maker of the task, the leader or the Admin; the review need, the leader or the Admin. A change of a date that was already set needs "dateReason". A stage move back needs "reason".',
+    description: 'Changes one task: title, description, dates, schedule, stage, owner, helpers, prerequisites, flag, review need or checklist. Send only the fields that change, in "patch". ownerId null takes the lead off an open task. The owner, helpers and prerequisites need the maker of the task, the leader or the Admin; the review need, the leader or the Admin. A change of a date that was already set needs "dateReason". A stage move back needs "reason". The order of the "checklist" list is the order on the screen: to move an item, send the whole list in the new order.',
   },
   'tracker.close': {
     title: 'Close a tracker wait',

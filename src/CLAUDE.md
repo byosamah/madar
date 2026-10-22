@@ -433,6 +433,10 @@ any screen work.
   chunk at idle. A test helper (`test/render.tsx`, `heldRemoteApp.tsx`) loads the layer first, so a test list starts with live grips; a
   test of the swap holds the import (`features/work/DragLayerSwap.test.tsx`). `TaskRowItem` and each drag row are `React.memo` (RN-5):
   `onOpen` takes the row, a caller gives one stable handler, and the list gives `today` to each row.
+  The checklist items of a to-do take the same grip (owner, fbk_043): `Checklist` in `TaskSheet.tsx` shows a grip (`ItemGrip`, `ChecklistRow.tsx`) at the end
+  of each item for a person with the `edit` prop (task.details), only when the list holds two items or more; a person who may only tick sees none. Its
+  drag layer is a chunk of its own: `ChecklistDrag.tsx` through `checklistLayerLoader.ts` (the same loaded-module pattern; the test helpers load it first,
+  `ChecklistSwap.test.tsx` holds the import). One drop that changes the order calls `change` once, which sends the whole list with `tasks.update`.
 - The project To-dos tab (feedback fbk_005 and fbk_006, 2026-10-11, `features/project/tasks/`): the "+" before "Add a to-do" opens
   `NewTaskSheet` (title, a lead from the team, due date; a new task has no lead until one is picked), and the words next to it stay
   the quick add. A refusal "move the project back" opens the reason sheet over it, as in the quick add. The avatar of a row is

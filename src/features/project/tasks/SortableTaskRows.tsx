@@ -21,9 +21,9 @@ const StaticRow = memo(function StaticRow({ row, me, onOpen, sortable, showProje
 const CONTROLS = 'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 /** Where the focus is inside a list: the row and the control in it. The swap to the drag layer makes new nodes, so the focus goes there again. */
-type FocusMark = { row: number; control: number };
+export type FocusMark = { row: number; control: number };
 
-function markFocus(list: HTMLUListElement | null): FocusMark | null {
+export function markFocus(list: HTMLUListElement | null): FocusMark | null {
   const active = document.activeElement;
   if (!list || !active || active === list || !list.contains(active)) return null;
   const rows = [...list.children];
@@ -33,7 +33,7 @@ function markFocus(list: HTMLUListElement | null): FocusMark | null {
   return control < 0 ? null : { row, control };
 }
 
-function restoreFocus(list: HTMLUListElement | null, mark: FocusMark): void {
+export function restoreFocus(list: HTMLUListElement | null, mark: FocusMark): void {
   const target = list?.children[mark.row]?.querySelectorAll<HTMLElement>(CONTROLS)[mark.control];
   target?.focus({ preventScroll: true });
 }

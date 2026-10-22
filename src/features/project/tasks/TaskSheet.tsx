@@ -1,7 +1,6 @@
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { CircleCheckIcon } from '../../../components/icons/animated/circle-check';
-import { XIcon } from '../../../components/icons/animated/x';
-import { memo, useCallback, useEffect, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentType, type MutableRefObject, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import type { ChecklistItem, Task, TaskStatus } from '../../../api/contract/entities';
@@ -20,7 +19,6 @@ import { AgentLabel } from '../../../components/AgentLabel';
 import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
 import { SelectField, TextArea, TextField } from '../../../components/Fields';
-import { IconButton } from '../../../components/IconButton';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { RichText } from '../../../components/RichText';
 import { focusLost, Sheet } from '../../../components/Sheet';
@@ -33,7 +31,11 @@ import { helpersOf } from '../../../lib/taskPeople';
 import { CommentThread } from '../../comments/CommentThread';
 import { canPreview, PreviewSheet } from '../files/PreviewSheet';
 import { useFocusLink } from '../../focus/focusLink';
+import type { DragChecklistProps } from './ChecklistDrag';
+import { loadChecklistLayer, loadedChecklistLayer } from './checklistLayerLoader';
+import { ChecklistRow, ItemGrip } from './ChecklistRow';
 import { historyText } from './history';
+import { markFocus, restoreFocus, type FocusMark } from './SortableTaskRows';
 import { useDateReason } from './DateReason';
 import { useStageBack } from './StageBack';
 import { DateNotes, TaskNeeds } from './TaskNeeds';
@@ -84,36 +86,55 @@ function Checklist({ task, edit, tick, onChange, draft }: { task: Task; edit: bo
   useEffect(() => {
     draft.current = { text, items };
   }, [draft, text, items]);
+  const toggle = (id: string, done: boolean) => change(items.map((i) => (i.id === id ? { ...i, done } : i)));
+  const remove = (id: string) => change(items.filter((i) => i.id !== id));
+  // A person who edits the checklist puts the items in their own order with a grip at the end of each item (fbk_043). One drop saves the
+  // whole list once. dnd-kit is a chunk of its own: the list first draws static rows, and the drag layer takes their place once loaded.
+  const sortable = edit && items.length > 1;
+  const [Layer, setLayer] = useState<ComponentType<DragChecklistProps> | null>(loadedChecklistLayer);
+  const listRef = useRef<HTMLUListElement>(null);
+  const mark = useRef<FocusMark | null>(null);
+  useEffect(() => {
+    if (!sortable || Layer) return undefined;
+    let live = true;
+    loadChecklistLayer().then((layer) => {
+      if (!live) return;
+      mark.current = markFocus(listRef.current);
+      setLayer(() => layer);
+    }, () => undefined);
+    return () => {
+      live = false;
+    };
+  }, [sortable, Layer]);
+  useLayoutEffect(() => {
+    if (!Layer || !mark.current) return;
+    const kept = mark.current;
+    mark.current = null;
+    restoreFocus(listRef.current, kept);
+  }, [Layer]);
   return (
     <section className="flex flex-col gap-1">
       <h3 className="text-headline">{t('taskSheet.checklist')}</h3>
-      <ul>
-        {!edit && !tick && items.map((item) => (
-          <li key={item.id} className="flex min-h-11 items-center gap-3">
-            {item.done ? <AnimatedIcon icon={CircleCheckIcon} size={20} className="shrink-0 text-link" aria-hidden /> : <AnimatedIcon icon={CircleIcon} size={20} className="shrink-0 text-label-3" aria-hidden />}
-            <span dir="auto" className={`min-w-0 flex-1 ${item.done ? 'text-label-2 line-through' : ''}`}>{item.text}</span>
-            {item.done && <span className="sr-only">{t('common.done')}</span>}
-          </li>
-        ))}
-        {(edit || tick) && items.map((item) => (
-          <li key={item.id} className="flex min-h-11 items-center gap-3">
-            <input
-              type="checkbox"
-              aria-label={item.text}
-              className="size-5 shrink-0 accent-[var(--c-accent-fill)]"
-              checked={item.done}
-              disabled={!tick}
-              onChange={(event) => change(items.map((i) => (i.id === item.id ? { ...i, done: event.target.checked } : i)))}
-            />
-            <span dir="auto" className={`min-w-0 flex-1 ${item.done ? 'text-label-2 line-through' : ''}`}>{item.text}</span>
-            {edit && (
-              <IconButton label={t('taskSheet.removeItem', { text: item.text })} onClick={() => change(items.filter((i) => i.id !== item.id))}>
-                <AnimatedIcon icon={XIcon} size={16} aria-hidden />
-              </IconButton>
-            )}
-          </li>
-        ))}
-      </ul>
+      {!edit && !tick && (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id} className="flex min-h-11 items-center gap-3">
+              {item.done ? <AnimatedIcon icon={CircleCheckIcon} size={20} className="shrink-0 text-link" aria-hidden /> : <AnimatedIcon icon={CircleIcon} size={20} className="shrink-0 text-label-3" aria-hidden />}
+              <span dir="auto" className={`min-w-0 flex-1 ${item.done ? 'text-label-2 line-through' : ''}`}>{item.text}</span>
+              {item.done && <span className="sr-only">{t('common.done')}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {(edit || tick) && (Layer && sortable ? (
+        <Layer items={items} edit={edit} tick={tick} onToggle={toggle} onRemove={remove} onReorder={change} listRef={listRef} />
+      ) : (
+        <ul ref={listRef}>
+          {items.map((item) => (
+            <ChecklistRow key={item.id} item={item} edit={edit} tick={tick} onToggle={toggle} onRemove={remove} drag={sortable ? { lifted: false, grip: <ItemGrip text={item.text} /> } : undefined} />
+          ))}
+        </ul>
+      ))}
       {edit && (
         <form
           onSubmit={(event) => {
