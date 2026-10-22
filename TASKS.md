@@ -1044,8 +1044,8 @@ Plan and answers: memory and the two design files below. fbk_039 (12-hour clock)
     test:mcp 339 and conformance 5 of 32; the four builds (api.js 855,764 characters, bound now 900,000; first load under 970,000);
     screenshots EN and AR, light and dark, 390 px: the Projects row with the lock and Internal, the Team tab block, an internal
     project with 6 tabs, the New project choice, and a person off the team who sees no row and a not-found page.
-  - [ ] Not run: the prototype smoke (Playwright) and the deploy suite. Owner tries D on the test copy, then production.
-    Mark fbk_044 done after the owner says it is live.
+  - [x] Test copy and production at 01af2203 (owner: "Production now", 2026-10-22). fbk_044 marked done. Not run: the prototype
+    smoke (Playwright) and the deploy suite.
 - [x] `makeThumb` (owner: "add it to Batch B", 2026-10-22): a file over 2 MB decodes straight to 960 px wide (`rb/thumb`, d501f03b, joins
   Batch B). The small picture still comes before the upload: the server signs its upload by its size, so starting both at once needs a
   server change (not done). What's new 92; entry 91 moved to the top.

@@ -2435,3 +2435,15 @@ Not proven: a real iPhone. After the deploy, wait 11 minutes on an iPhone, press
 - Gates once on main c83ad4fb plus B: typecheck; npm test 10,074 passed (1 Home timing test passes 2 of 2 alone); test:db 3,037;
   test:it 333 (one pin of the push device row updated for the two new columns); test:mcp 335 and conformance 5 of 32; the four builds;
   screenshots EN and AR, light and dark, 390 px. Not seen live yet: a push held in quiet hours and sent at their end.
+
+### Release record: production at 01af2203 (2026-10-22, team reports batch D)
+- On the owner's "Production now" (AskUserQuestion), `all.sh production` took 01af2203, the commit of the test deploy: hidden projects,
+  "See every project" and internal projects (fbk_044, waves D1 to D4: four rights, 117 switches; `Project.access` and `Project.kind`; the
+  view rule that fails closed; every door, list, SQL limit, Realtime signal, notice, push, summary line and Google Calendar row follow
+  it; the call `projects.setAccess`; the New project choice, the "Who sees this project" block, the lock mark and the word Internal), and
+  the wider mention list on a phone. No migration. Release day changes nothing for anyone: every project stays open and every role keeps
+  "See every project". The quick checks passed: health from supabase (150 calls), database, lock and asyncContext ok, /mcp with no token
+  401; the page title Madar, `/favicon.ico` 200, and the live words hold "Who sees this project".
+- Gates once on the join: see TASKS.md (npm test 10,316; test:db 3,176 after two test-only fixes; test:it 333; test:mcp 339; builds;
+  api bundle bound raised to 900,000 with its history line; screenshots EN and AR, light and dark, 390 px, with a person off the team
+  who sees no row and a not-found page). Not run: the prototype smoke and the deploy suite.
