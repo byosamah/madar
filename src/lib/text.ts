@@ -57,6 +57,7 @@ export function firstLineOf(body: string): string {
 
 export type Segment =
   | { kind: 'text'; text: string }
+  | { kind: 'everyone'; word: string }
   | { kind: 'mention'; name: string; userId: string }
   | { kind: 'project'; code: string }
   | { kind: 'url'; url: string };
@@ -64,6 +65,22 @@ export type Segment =
 /** A web address starts with http:// or https:// (chat design 2026-10-19, item 7). Another scheme makes no link. */
 const WEB_ADDRESS = '(https?:\\/\\/[^\\s<>"]+)';
 const TOKEN = new RegExp(`${MENTION.source}|${LINKED_CODE}|${WEB_ADDRESS}`, 'g');
+
+/**
+ * The words that name every person of a chat or a to-do thread (owner, 2026-10-22, fbk_041): @everyone and @all (any case) and @الجميع. A
+ * whole word: the text starts with it or a space comes before the "@", and a space, the end of the text or a mark of the sentence comes
+ * after it. A dot counts as a mark only at the end of a sentence, so an address like x@all.com or @all.com is no match.
+ */
+const EVERYONE_WORD = '(?:[eE][vV][eE][rR][yY][oO][nN][eE]|[aA][lL][lL]|\\u0627\\u0644\\u062C\\u0645\\u064A\\u0639)';
+const EVERYONE_AFTER = '(?=$|\\s|[,;:!?)\\]"\'\\u00BB\\u2026\\u060C\\u061B\\u061F]|\\.(?:$|\\s))';
+const EVERYONE = `(?<=^|\\s|[("'\\u00AB])@${EVERYONE_WORD}${EVERYONE_AFTER}`;
+const EVERYONE_ONLY = new RegExp(EVERYONE);
+const TOKEN_WITH_EVERYONE = new RegExp(`${TOKEN.source}|(${EVERYONE})`, 'g');
+
+/** True when the text holds @everyone, @all or @الجميع as a whole word. The mention markup of a person never counts. */
+export function mentionsEveryone(body: string): boolean {
+  return EVERYONE_ONLY.test(body);
+}
 
 /** The marks that end a sentence, not an address: they come off the end of an address. A closing bracket comes off only when the address did not open it. */
 const ADDRESS_END = new Set(Array.from('.,;:!?\'"\u060C\u061B\u061F\u00BB]}'));
@@ -80,15 +97,20 @@ function trimAddress(address: string): string {
   return address.slice(0, end);
 }
 
-/** Splits a post into plain text, mentions, project links and web addresses (spec 7.2), for display. */
-export function segmentsOf(body: string): Segment[] {
+/**
+ * Splits a post into plain text, mentions, project links and web addresses (spec 7.2), for display. With `everyone`, the three words of
+ * mentionsEveryone become a segment of their own, so the bubble draws them as a mention.
+ */
+export function segmentsOf(body: string, options: { everyone?: boolean } = {}): Segment[] {
   const out: Segment[] = [];
   let last = 0;
-  for (const match of body.matchAll(TOKEN)) {
+  for (const match of body.matchAll(options.everyone ? TOKEN_WITH_EVERYONE : TOKEN)) {
     const index = match.index ?? 0;
     let segment: Segment;
     let length = match[0].length;
-    if (match[4] !== undefined) {
+    if (match[5] !== undefined) {
+      segment = { kind: 'everyone', word: match[5] };
+    } else if (match[4] !== undefined) {
       // The cut part goes back into the text. An address with nothing after its scheme stays text.
       const url = trimAddress(match[4]);
       if (/^https?:\/\/$/.test(url)) continue;

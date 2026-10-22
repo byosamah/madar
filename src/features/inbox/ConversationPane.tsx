@@ -76,6 +76,7 @@ function bubbleOfMessage(view: MessageView): Bubble {
   return {
     id: view.message.id, author: view.author, actingFor: view.actingFor, body: view.message.body, files: view.files,
     createdAt: view.message.createdAt, mine: view.mine, edited: view.message.editedAt !== null, namesMe: view.namesMe, reactions: view.message.reactions, replyTo: view.replyTo, canEdit: view.mine,
+    ...(view.message.mentions.length > 0 ? { everyone: true as const } : {}),
   };
 }
 

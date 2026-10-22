@@ -24,3 +24,13 @@ describe('web addresses in rich text (design item 7)', () => {
     expect(link).not.toHaveAttribute('target');
   });
 });
+
+describe('the everyone words in rich text (fbk_041)', () => {
+  it('draws @everyone, @all and @الجميع like a mention when the item named people, and keeps plain text otherwise', () => {
+    const { container, rerender } = render(<MemoryRouter><RichText body="Hi @everyone and x@all.com, @الجميع" everyone /></MemoryRouter>);
+    const chips = [...container.querySelectorAll('span.text-link')].map((node) => node.textContent);
+    expect(chips).toEqual(['@everyone', '@الجميع']);
+    rerender(<MemoryRouter><RichText body="Hi @everyone" /></MemoryRouter>);
+    expect(container.querySelectorAll('span.text-link')).toHaveLength(0);
+  });
+});

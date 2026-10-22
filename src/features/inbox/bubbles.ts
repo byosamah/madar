@@ -47,6 +47,7 @@ export function bubbleOfComment(view: CommentView, me: string | undefined): Bubb
     id: view.comment.id, author: view.author, actingFor: null, body: view.comment.body, files: view.files, createdAt: view.comment.createdAt,
     mine: view.author.id === me, edited: view.comment.editedAt !== null, namesMe: view.namesMe, reactions: view.comment.reactions, replyTo: view.replyTo,
     canEdit: view.canEdit && view.kind === 'message',
+    ...((view.comment.mentions?.length ?? 0) > 0 ? { everyone: true as const } : {}),
     ...(view.kind === 'message' ? {} : { reason: { kind: view.kind, dates: view.comment.dates } }),
   };
 }

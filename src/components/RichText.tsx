@@ -30,12 +30,16 @@ function WebAddress({ url }: { url: string }) {
   );
 }
 
-/** A post or a comment. It keeps its own text direction (spec 10.8), shows mentions as names and project codes as links. */
-export function RichText({ body, className = '' }: { body: string; className?: string }) {
+/**
+ * A post or a comment. It keeps its own text direction (spec 10.8), shows mentions as names and project codes as links. With `everyone`
+ * (the message or the comment named people by @everyone), the words @everyone, @all and @الجميع look like a mention (fbk_041).
+ */
+export function RichText({ body, className = '', everyone = false }: { body: string; className?: string; everyone?: boolean }) {
   return (
     <p dir="auto" className={`whitespace-pre-line break-words ${className}`}>
-      {segmentsOf(body).map((segment, i) => {
+      {segmentsOf(body, { everyone }).map((segment, i) => {
         if (segment.kind === 'text') return <Fragment key={i}>{segment.text}</Fragment>;
+        if (segment.kind === 'everyone') return <span key={i} className="font-semibold text-link">{segment.word}</span>;
         if (segment.kind === 'url') return <WebAddress key={i} url={segment.url} />;
         if (segment.kind === 'mention') return <span key={i} className="font-semibold text-link">@{segment.name}</span>;
         return <Link key={i} to={`/projects/code/${segment.code}`} className="font-semibold text-link underline-offset-2 hover:underline">#{segment.code}</Link>;

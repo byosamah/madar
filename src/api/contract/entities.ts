@@ -176,7 +176,7 @@ export const SystemRole = z.enum(['admin', 'management', 'accounting', 'member']
 export type SystemRole = z.infer<typeof SystemRole>;
 
 /**
- * The office rights (owner, 2026-10-18, fbk_014). Role rights version 2 (owner, 2026-10-21): 112 switches in 13 sections, one id for each
+ * The office rights (owner, 2026-10-18, fbk_014). Role rights version 2 (owner, 2026-10-21): 113 switches in 13 sections, one id for each
  * switch (rightsCatalog.ts, the plain copy of the catalog JSON in docs). A switch opens one power for a person. The Admin holds every
  * switch. A power with scopes has one id for each scope: `<power>.<scope>`.
  * permissions.ts and rightsCatalog.ts hold the same names as plain constants, because they load with the screens and take no zod.
@@ -185,16 +185,16 @@ export const OfficeRight = z.enum(CATALOG_RIGHT_IDS);
 export type OfficeRight = z.infer<typeof OfficeRight>;
 
 /**
- * A right as a stored list holds it: the 112 ids, and the 17 old ids of 2026-10-23 (project.editAny, people.manage, payment.manage and
+ * A right as a stored list holds it: the 113 ids, and the 17 old ids of 2026-10-23 (project.editAny, people.manage, payment.manage and
  * so on). Only RoleSettings.rights, CustomRole.rights and the roles.* inputs take it, so old stored data still parses. rightsOf and the
- * roles calls expand an old id to its new ids (expandRights). Every output gives the 112 ids only.
+ * roles calls expand an old id to its new ids (expandRights). Every output gives the 113 ids only.
  */
 export const StoredRight = z.enum(STORED_RIGHT_IDS);
 export type StoredRight = z.infer<typeof StoredRight>;
 
-/** The most rights in one stored list: the 112 ids, with room for old ids. */
+/** The most rights in one stored list: the 113 ids, with room for old ids. */
 export const MAX_STORED_RIGHTS = 120;
-/** The most `off` ids in one stored list: the 64 basic switches, with room. */
+/** The most `off` ids in one stored list: the 65 basic switches, with room. */
 export const MAX_OFF_RIGHTS = 70;
 
 /**

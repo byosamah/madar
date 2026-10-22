@@ -17,6 +17,7 @@ import { assertFilesForDirect, assertFilesInProject } from './attach';
 import { assertCan, replyNotHere, roleIn } from './shared';
 import { isLine, lineKindOf } from '../../lib/commentLine';
 import { mentionedUserIds, plainText } from '../../lib/text';
+import { everyoneOfChat, namedByEveryone } from './everyone';
 import { listFormat } from '../../lib/dates';
 import { personName } from '../../lib/personName';
 import { markOf } from '../../lib/projectMark';
@@ -344,9 +345,10 @@ function seenInfoOf(state: State, conversation: Conversation, readerId: string):
  * The people that a message body names (chat design items 4 and 10): the active people of the chat whom the text names with @, and
  * the author of the old message when the message is a reply. A reply names the person behind the old message, unless that is the
  * sender, or the person left, or cannot open the chat. A person named in the text too has the one plain notice, so "replyOnly" is the
- * reply author named by the reply alone. "mentions" is the list the message keeps.
+ * reply author named by the reply alone. "everyone" are the people that @everyone, @all or @الجميع names (a person named by name or by a reply
+ * is not in it). "mentions" is the list the message keeps: all of them.
  */
-function namesIn(ctx: Ctx, conversation: Conversation, body: string, old: Message | undefined): { named: string[]; replyOnly: string | undefined; mentions: string[] } {
+function namesIn(ctx: Ctx, conversation: Conversation, body: string, old: Message | undefined): { named: string[]; replyOnly: string | undefined; everyone: string[]; mentions: string[] } {
   const named = mentionedUserIds(body).filter((id) => {
     const user = ctx.state.users[id];
     return user?.active === true && canSeeConversation(ctx.state, conversation, user);
@@ -355,7 +357,9 @@ function namesIn(ctx: Ctx, conversation: Conversation, body: string, old: Messag
   const replyAuthor = replyUser !== undefined && replyUser.id !== ctx.authority.id && replyUser.active && canSeeConversation(ctx.state, conversation, replyUser)
     ? replyUser.id : undefined;
   const replyOnly = replyAuthor !== undefined && !named.includes(replyAuthor) ? replyAuthor : undefined;
-  return { named, replyOnly, mentions: replyOnly === undefined ? named : [...named, replyOnly] };
+  // @everyone, @all and @الجميع (owner, 2026-10-22, fbk_041): the other people of the chat. A person named by name or by a reply has that notice.
+  const everyone = namedByEveryone(body, ctx.authority, () => everyoneOfChat(ctx.state, conversation, ctx)).filter((id) => !named.includes(id) && id !== replyAuthor);
+  return { named, replyOnly, everyone, mentions: [...new Set([...named, ...(replyOnly === undefined ? [] : [replyOnly]), ...everyone])] };
 }
 
 /** Checks the files of a message against the room, then stores the message. A project room takes files of its project. A direct room takes files that both people may open. */
@@ -375,7 +379,7 @@ export function postMessage(ctx: Ctx, conversation: Conversation, body: string, 
       assertFilesForDirect(ctx, fileIds, others, conversation.id);
     }
   }
-  const { named, replyOnly, mentions } = namesIn(ctx, conversation, body, old);
+  const { named, replyOnly, everyone, mentions } = namesIn(ctx, conversation, body, old);
   const id = nextId(ctx.state, 'msg');
   const message: Message = {
     id, conversationId: conversation.id, authorId: ctx.actor.id, actingForId: ctx.authority.id, body, mentions, fileIds,
@@ -386,6 +390,7 @@ export function postMessage(ctx: Ctx, conversation: Conversation, body: string, 
   if (replyOnly !== undefined) {
     notifyIn(ctx, { userIds: [replyOnly], trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: id, reply: true });
   }
+  notifyIn(ctx, { userIds: everyone, trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: id, everyone: true });
   markReadNow(ctx, conversation);
   return messageViewOf(ctx.state, message, ctx.authority);
 }
@@ -854,7 +859,7 @@ export const chatsEditMessage = defineCall({
     const { message, conversation } = requireMessage(ctx, input.id, { author: true, allowDeleted: false });
     assertMayWriteIn(ctx, conversation);
     if (input.body === message.body) return messageViewOf(ctx.state, message, ctx.authority);
-    const { named, replyOnly, mentions } = namesIn(ctx, conversation, input.body, replyTargetOf(ctx, message));
+    const { named, replyOnly, everyone, mentions } = namesIn(ctx, conversation, input.body, replyTargetOf(ctx, message));
     const edited: Message = { ...message, body: input.body, mentions, editedAt: ctx.stamp };
     ctx.state.messages[message.id] = edited;
     dropMessageNotices(ctx, message, message.mentions.filter((id) => !mentions.includes(id)));
@@ -863,6 +868,7 @@ export const chatsEditMessage = defineCall({
     if (replyOnly !== undefined) {
       notifyIn(ctx, { userIds: first([replyOnly]), trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: message.id, reply: true });
     }
+    notifyIn(ctx, { userIds: first(everyone), trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: message.id, everyone: true });
     return messageViewOf(ctx.state, edited, ctx.authority);
   },
 });
@@ -888,11 +894,12 @@ export const chatsDeleteMessage = defineCall({
     }
     const { deletedAt: _deletedAt, ...live } = message;
     ctx.state.messages[message.id] = live;
-    const { named, replyOnly } = namesIn(ctx, conversation, message.body, replyTargetOf(ctx, message));
+    const { named, replyOnly, everyone } = namesIn(ctx, conversation, message.body, replyTargetOf(ctx, message));
     const again = notifyIn(ctx, { userIds: named, trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: message.id });
     if (replyOnly !== undefined) {
       again.push(...notifyIn(ctx, { userIds: [replyOnly], trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: message.id, reply: true }));
     }
+    again.push(...notifyIn(ctx, { userIds: everyone, trigger: 'mention', targetType: 'chat', targetId: conversation.id, messageId: message.id, everyone: true }));
     for (const notice of again) notice.read = true;
     readCopiesOf(ctx, message.id);
     return { deleted: false };

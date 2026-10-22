@@ -119,6 +119,32 @@ describe('the push line in the push effects (owner, 2026-10-21)', () => {
     expect(new Headers(plain.init.headers).has('content-encoding')).toBe(false);
   });
 
+  // @everyone (owner, 2026-10-22, fbk_041): the bell and the push write the same sentence for a notice that came from @everyone.
+  it('writes "mentioned everyone" for an @everyone notice in a project chat, a group and a to-do thread, and in Arabic', async () => {
+    const browser = await makeBrowser();
+    const everyone = (over: Record<string, unknown>) => ({ ...notice, notification: { ...notice.notification, trigger: 'mention', everyone: true, messageId: 'msg_1', ...over } });
+    const cases: { view: object; en: string; ar: string }[] = [
+      { view: everyone({ targetType: 'chat', targetId: 'cnv_001' }), en: 'Hala Nasser mentioned everyone in Toilet details', ar: 'هالة ناصر' },
+      { view: { ...everyone({ targetType: 'chat', targetId: 'cnv_002' }), chatKind: 'group', target: 'Site visit', project: null }, en: 'Hala Nasser mentioned everyone in the group \u2068Site visit\u2069', ar: 'المجموعة' },
+      { view: { ...everyone({ targetType: 'chat', targetId: 'cnv_002' }), chatKind: 'group', target: '', project: null }, en: 'Hala Nasser mentioned everyone in a group', ar: 'مجموعة' },
+      { view: everyone({ targetType: 'task', targetId: 'tsk_064' }), en: 'Hala Nasser mentioned everyone in Toilet details', ar: 'هالة ناصر' },
+    ];
+    for (const { view, en, ar } of cases) {
+      for (const lang of ['en', 'ar'] as const) {
+        const { deps, posts } = setup([{ endpoint: `${FCM}one`, keys: browser.keys }]);
+        const { run } = reads({ 'session.get': { user: { preferences: { language: lang } } }, 'notifications.list': [view] });
+        await sendPushNotify({ userId: 'usr_002' }, deps, { run });
+        const line = (await decrypt(posts[0].init.body as Uint8Array, browser)) as { body: string };
+        if (lang === 'en') expect(line.body).toBe(en);
+        else {
+          expect(line.body).toContain(ar);
+          expect(line.body).toContain('الجميع');
+          expect(line.body).toMatch(/أشار|أشارت/);
+        }
+      }
+    }
+  });
+
   it('writes the line in Arabic for a person who reads Madar in Arabic', async () => {
     const browser = await makeBrowser();
     const { deps, posts } = setup([{ endpoint: `${FCM}one`, keys: browser.keys }]);
@@ -166,5 +192,14 @@ describe('the push line in the push effects (owner, 2026-10-21)', () => {
 
   it('reads the keys of each device with the device query', async () => {
     expect(PUSH_DEVICES_SQL).toContain("d.doc->'keys' as keys");
+  });
+});
+
+describe('the Arabic sentence of an @everyone notice', () => {
+  it('takes the female form for a woman', async () => {
+    const { pushWords } = await import('./words');
+    const t = pushWords('ar');
+    expect(t('inbox.mentionEveryone', { actor: 'هالة', context: 'female', target: 'برج' })).toBe('هالة أشارت إلى الجميع في برج');
+    expect(t('inbox.mentionEveryone', { actor: 'خالد', target: 'برج' })).toBe('خالد أشار إلى الجميع في برج');
   });
 });

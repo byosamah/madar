@@ -10,7 +10,7 @@ import { nextId } from '../store';
 import { commentViewOf, feedFor, updateItemOf } from '../views';
 import { toggledReactions, toggleMessageReaction } from './chats';
 import { mayUndoAgentChange } from './history';
-import { activeMentions, assertCan, insertComment, requireProject, requireReplyComment, requireTask, roleIn, taskRole, touch } from './shared';
+import { activeMentions, assertCan, everyoneOfNew, insertComment, requireProject, requireReplyComment, requireTask, roleIn, taskRole, touch } from './shared';
 import { mentionedUserIds } from '../../lib/text';
 import { assertFilesInProject } from './attach';
 
@@ -158,8 +158,15 @@ export const commentsUpdate = defineCall({
     // Madar wrote the words of its own date message, so nobody changes them. A person may fix the words of their own reason.
     if (comment.dates?.byTaskId) throw forbidden('Madar wrote this message.', { commentId: comment.id });
     const added = newMentions(ctx, comment.body, input.body);
-    applyPatch(ctx, comment, { body: input.body, editedAt: ctx.stamp }, { projectId, verb: 'comment.edited', targetType: 'comment', targetId: comment.id });
+    // The people of @everyone are found again for the new words: a person who was not named before gets the notice for the first time.
+    const task = comment.targetType === 'task' ? ctx.state.tasks[comment.targetId] : undefined;
+    const named = activeMentions(ctx.state, input.body);
+    const everyone = task === undefined ? [] : everyoneOfNew(ctx, task, input.body).filter((id) => !named.includes(id));
+    const firstEveryone = everyone.filter((id) => !(comment.mentions ?? []).includes(id));
+    const mentions = everyone.length > 0 || comment.mentions !== undefined ? { mentions: everyone } : {};
+    applyPatch(ctx, comment, { body: input.body, editedAt: ctx.stamp, ...mentions }, { projectId, verb: 'comment.edited', targetType: 'comment', targetId: comment.id });
     notifyIn(ctx, { userIds: added, trigger: 'mention', targetType: comment.targetType, targetId: comment.targetId, messageId: comment.id });
+    notifyIn(ctx, { userIds: firstEveryone.filter((id) => !added.includes(id)), trigger: 'mention', targetType: comment.targetType, targetId: comment.targetId, messageId: comment.id, everyone: true });
     return commentViewOf(ctx.state, comment, ctx.authority);
   },
 });

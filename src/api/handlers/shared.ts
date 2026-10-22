@@ -7,6 +7,7 @@ import { notifyIn } from '../notify';
 import { memberKey, nextId, type State } from '../store';
 import { isLine } from '../../lib/commentLine';
 import { mentionedUserIds } from '../../lib/text';
+import { everyoneOfTask, namedByEveryone } from './everyone';
 
 export function assertCan(ctx: Ctx, action: Action, resource: Resource = {}): void {
   if (!can(ctx.authority, action, resource)) throw forbidden('You cannot do this.', { action });
@@ -96,22 +97,31 @@ export function insertComment(
   kind?: CommentKind, replyToId?: string,
 ): Comment {
   const id = nextId(ctx.state, 'cmt');
-  const comment: Comment = {
-    id, targetType, targetId, authorId: ctx.actor.id, body, reactions: emptyReactions(), fileIds, ...(dates ? { dates } : {}), ...(kind ? { kind } : {}),
-    ...(replyToId ? { replyToId } : {}), createdAt: ctx.stamp, editedAt: null,
-  };
-  ctx.state.comments[id] = comment;
-  recordCreate(ctx, { projectId, verb: 'comment.created', targetType: 'comment', targetId: id, entity: comment });
   const named = activeMentions(ctx.state, body);
-  notifyIn(ctx, { userIds: named, trigger: 'mention', targetType, targetId, messageId: id });
-  // A reply names the person behind the old comment. A person who is named in the text too has the one plain notice above. notify skips
+  // A reply names the person behind the old comment. A person who is named in the text too has the one plain notice below. notify skips
   // the sender, agents, inactive people and an office task the person does not see.
   const old = replyToId === undefined ? undefined : ctx.state.comments[replyToId];
   const replyAuthor = old === undefined ? undefined : principalOf(ctx.state, old.authorId);
+  // @everyone, @all and @الجميع (owner, 2026-10-22, fbk_041) in the thread of a task: the people of the to-do. Not for a post.
+  const task = targetType === 'task' ? ctx.state.tasks[targetId] : undefined;
+  const everyone = task === undefined ? [] : everyoneOfNew(ctx, task, body).filter((person) => !named.includes(person) && person !== replyAuthor);
+  const comment: Comment = {
+    id, targetType, targetId, authorId: ctx.actor.id, body, reactions: emptyReactions(), fileIds, ...(dates ? { dates } : {}), ...(kind ? { kind } : {}),
+    ...(replyToId ? { replyToId } : {}), ...(everyone.length > 0 ? { mentions: everyone } : {}), createdAt: ctx.stamp, editedAt: null,
+  };
+  ctx.state.comments[id] = comment;
+  recordCreate(ctx, { projectId, verb: 'comment.created', targetType: 'comment', targetId: id, entity: comment });
+  notifyIn(ctx, { userIds: named, trigger: 'mention', targetType, targetId, messageId: id });
   if (replyAuthor !== undefined && !named.includes(replyAuthor)) {
     notifyIn(ctx, { userIds: [replyAuthor], trigger: 'mention', targetType, targetId, messageId: id, reply: true });
   }
+  notifyIn(ctx, { userIds: everyone, trigger: 'mention', targetType, targetId, messageId: id, everyone: true });
   return comment;
+}
+
+/** The people that the everyone words of a body name in the thread of a task, or none. */
+export function everyoneOfNew(ctx: Ctx, task: Task, body: string): string[] {
+  return namedByEveryone(body, ctx.authority, () => everyoneOfTask(ctx.state, task, ctx));
 }
 
 /** Adds a person to a project team with their discipline, and tells them. A person already on the team stays as they are. */

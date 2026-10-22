@@ -4,5 +4,18 @@
       "work_hours_lock": "Your work hours must include the days and hours that the office keeps notifications on.",
       "work_hours_default_lock": "The default work hours must include the days and hours that you keep notifications on."
     }
+  },
+  "roleRights": {
+    "powers": {
+      "chatMentionEveryone": {
+        "label": "Mention everyone",
+        "hint": "Write @everyone or @all in a group, a project chat or a to-do thread. It sends a notice and a push to every person there."
+      }
+    }
+  },
+  "inbox": {
+    "mentionEveryone": "{{actor}} mentioned everyone in {{target}}",
+    "mentionEveryoneGroup": "{{actor}} mentioned everyone in the group {{target}}",
+    "mentionEveryoneGroupGone": "{{actor}} mentioned everyone in a group"
   }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeMention, editedBody, excerptOf, linkedProjectCodes, mentionMarkup, mentionedUserIds, normalizeForSearch, plainText, segmentsOf, withMentionMarkup } from './text';
+import { activeMention, editedBody, excerptOf, linkedProjectCodes, mentionMarkup, mentionedUserIds, mentionsEveryone, normalizeForSearch, plainText, segmentsOf, withMentionMarkup } from './text';
 
 describe('text helpers', () => {
   it('reads mentions once each', () => {
@@ -141,5 +141,47 @@ describe('web addresses in a message (design item 7)', () => {
   it('keeps a hash inside an address as a part of it, and makes no link of a bare scheme', () => {
     expect(segmentsOf('https://x.test/plan#KH-26-014')).toEqual([{ kind: 'url', url: 'https://x.test/plan#KH-26-014' }]);
     expect(segmentsOf('Say https://.')).toEqual([{ kind: 'text', text: 'Say https://.' }]);
+  });
+});
+
+// @everyone (owner, 2026-10-22, fbk_041): the words @everyone, @all and @الجميع name every person of a chat or a to-do thread.
+describe('mentionsEveryone', () => {
+  it('finds the three words as whole words, in English and in Arabic', () => {
+    for (const body of ['@everyone', 'Hello @everyone', '@all please read', 'Team @all, the model is ready', 'مرحبا @الجميع', '@الجميع انتبهوا', 'line one\n@everyone', 'Thanks @everyone.', 'Ready @all!', 'Who? @all?', 'جاهز @الجميع،', '(@all)', '"@everyone"']) {
+      expect(mentionsEveryone(body), body).toBe(true);
+    }
+  });
+
+  it('does not care about the case of the English words', () => {
+    for (const body of ['@Everyone', '@EVERYONE hi', 'hi @All', '@ALL']) expect(mentionsEveryone(body), body).toBe(true);
+  });
+
+  it('finds no match in an email address, a longer word, or a word glued to text before it', () => {
+    for (const body of ['write to x@all.com', 'a@everyone.test', '@allison hi', '@everyones', '@allies', 'mail@all', 'foo@الجميع', '@ all', '@', 'everyone', 'all', 'الجميع', '@الجميعة', '@all.com']) {
+      expect(mentionsEveryone(body), body).toBe(false);
+    }
+  });
+
+  it('finds no match in the mention markup of a person who has such a name', () => {
+    expect(mentionsEveryone('@[everyone](usr_005) hello')).toBe(false);
+    expect(mentionsEveryone('@[All Hands](usr_005)')).toBe(false);
+  });
+
+  it('finds the words next to a mention of a person', () => {
+    expect(mentionsEveryone('@[Sara](usr_005) @all see this')).toBe(true);
+  });
+});
+
+describe('segmentsOf with the everyone words', () => {
+  it('makes a segment of the three words only when it is asked to', () => {
+    expect(segmentsOf('Hi @all, see')).toEqual([{ kind: 'text', text: 'Hi @all, see' }]);
+    expect(segmentsOf('Hi @all, see', { everyone: true })).toEqual([{ kind: 'text', text: 'Hi ' }, { kind: 'everyone', word: '@all' }, { kind: 'text', text: ', see' }]);
+    expect(segmentsOf('@الجميع مرحبا', { everyone: true })).toEqual([{ kind: 'everyone', word: '@الجميع' }, { kind: 'text', text: ' مرحبا' }]);
+  });
+
+  it('keeps an email address, a longer word and a mention as they were', () => {
+    expect(segmentsOf('x@all.com @allies', { everyone: true })).toEqual([{ kind: 'text', text: 'x@all.com @allies' }]);
+    expect(segmentsOf('@[Sara](usr_005) @everyone', { everyone: true })).toEqual([
+      { kind: 'mention', name: 'Sara', userId: 'usr_005' }, { kind: 'text', text: ' ' }, { kind: 'everyone', word: '@everyone' }]);
   });
 });

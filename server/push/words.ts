@@ -5,6 +5,8 @@ import { inbox as baseInboxAr } from '../../src/i18n/ar.json';
 import { inbox as baseInboxEn } from '../../src/i18n/en.json';
 import { notices as chatmsgNoticesAr } from '../../src/i18n/real/chatmsg.ar.json';
 import { notices as chatmsgNoticesEn } from '../../src/i18n/real/chatmsg.en.json';
+import { inbox as batchbInboxAr } from '../../src/i18n/real/batchb.ar.json';
+import { inbox as batchbInboxEn } from '../../src/i18n/real/batchb.en.json';
 import { inbox as fbnoticesInboxAr } from '../../src/i18n/real/fbnotices.ar.json';
 import { inbox as fbnoticesInboxEn } from '../../src/i18n/real/fbnotices.en.json';
 import { inbox as inboxInboxAr } from '../../src/i18n/real/inbox.ar.json';
@@ -35,8 +37,8 @@ const tree = (inbox: object[], notices: object, push: object, lang: Language) =>
 );
 
 export const PUSH_WORDS = {
-  en: tree([baseInboxEn, inboxInboxEn, meetingsInboxEn, teamaInboxEn, teamhelpInboxEn, fbnoticesInboxEn], chatmsgNoticesEn, pushEn, 'en'),
-  ar: tree([baseInboxAr, inboxInboxAr, meetingsInboxAr, teamaInboxAr, teamhelpInboxAr, fbnoticesInboxAr], chatmsgNoticesAr, pushAr, 'ar'),
+  en: tree([baseInboxEn, inboxInboxEn, meetingsInboxEn, teamaInboxEn, teamhelpInboxEn, fbnoticesInboxEn, batchbInboxEn], chatmsgNoticesEn, pushEn, 'en'),
+  ar: tree([baseInboxAr, inboxInboxAr, meetingsInboxAr, teamaInboxAr, teamhelpInboxAr, fbnoticesInboxAr, batchbInboxAr], chatmsgNoticesAr, pushAr, 'ar'),
 };
 
 const instance = i18next.createInstance();

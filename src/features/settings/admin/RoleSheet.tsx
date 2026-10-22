@@ -28,7 +28,7 @@ const EMPTY: Form = { name: '', nameAr: '', held: [] };
 
 /**
  * The sheet of one role (owner, 2026-10-18, fbk_014; ADM-12 to ADM-14): the people who hold it at the top, then its names (a custom
- * role), the rights in 13 folded sections (RoleRights.tsx: one open at a time, the count, and an All switch for each), the line "Holds 64 of 112" with
+ * role), the rights in 13 folded sections (RoleRights.tsx: one open at a time, the count, and an All switch for each), the line "Holds 65 of 113" with
  * the text button "Back to the standard list", and one main button, Save role, with Cancel. The switches live only here and save with the button, so the
  * page changes the rights of a role by one deliberate step. A custom role also has Delete role. A role that people hold asks one
  * question first: it names the people and the role they take, and "Delete and move" does both in one story, so one Undo brings back the

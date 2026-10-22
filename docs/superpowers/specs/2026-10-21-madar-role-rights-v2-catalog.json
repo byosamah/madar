@@ -1219,6 +1219,26 @@
               ]
             }
           ]
+        },
+        {
+          "power": "chat.mentionEveryone",
+          "en": "Mention everyone",
+          "ar": "مناداة الجميع",
+          "hint": "Write @everyone or @all in a group, a project chat or a to-do thread. It sends a notice and a push to every person there.",
+          "switches": [
+            {
+              "id": "chat.mentionEveryone",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
         }
       ]
     },

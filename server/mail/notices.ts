@@ -46,13 +46,15 @@ export const NOTICE_FREE_CALLS: ReadonlySet<string> = new Set([
 
 /**
  * $1 the people whose notices the save changed. The unread notices that the open transaction inserted, with their person. A copy for an
- * Admin who picked "Everything" has "forUserIds" and gets no mail (owner, 2026-10-23).
+ * Admin who picked "Everything" has "forUserIds" and gets no mail (owner, 2026-10-23). A notice from @everyone has "everyone" and gets no mail
+ * either (owner, 2026-10-22, fbk_041): the Resend free plan sends 100 mails a day.
  */
 export const NEW_NOTICES_SQL = `select n.id, n.user_id, n.doc->>'trigger' as trigger, n.target_type, n.doc->>'messageId' as message_id, u.kind, u.active, u.doc->'preferences' as preferences
 from notifications n join users u on u.id = n.user_id
 where n.user_id = any($1::text[]) and not n.read
   and n.xmin::text::bigint = (pg_current_xact_id_if_assigned()::text::bigint % 4294967296)
   and n.doc->'forUserIds' is null
+  and n.doc->'everyone' is null
 order by n.ord`;
 
 /**
@@ -153,6 +155,8 @@ async function liteNoticeRows(q: Query, ids: readonly string[]): Promise<OutboxR
     if (!notice || !person) continue;
     // A copy for an Admin who picked "Everything" gets no mail (owner, 2026-10-23).
     if (notice.doc.forUserIds !== undefined) continue;
+    // A notice from @everyone gets no mail (owner, 2026-10-22, fbk_041).
+    if (notice.doc.everyone === true) continue;
     const trigger = notice.doc.trigger;
     if (mailable(person) && inAppOn(person.preferences, trigger) && emailOn(person.preferences, trigger)) {
       rows.push(mailRowOf(notice.id, notice.doc.targetType, notice.doc.messageId ?? null));

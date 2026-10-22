@@ -23,7 +23,7 @@ export type Action =
   | 'meeting.plan' | 'meeting.editOwn' | 'meeting.minutesOwn' | 'meeting.any' | 'meeting.minutesAny'
   | 'post.create' | 'comment.create' | 'post.editOwn' | 'project.links'
   | 'file.upload' | 'file.deliver' | 'file.share' | 'file.deleteOwn' | 'file.deleteAny'
-  | 'chat.direct' | 'chat.groupCreate' | 'chat.groupChange'
+  | 'chat.direct' | 'chat.groupCreate' | 'chat.groupChange' | 'chat.mentionEveryone'
   | 'tracker.log' | 'tracker.reply' | 'tracker.export' | 'tracker.deleteOwn' | 'tracker.deleteAny'
   | 'people.invite' | 'people.change' | 'people.teams' | 'people.turnOff' | 'people.remove' | 'clients.change'
   | 'payment.view' | 'payment.add' | 'payment.change' | 'payment.receive'
@@ -44,7 +44,7 @@ export const RIGHT_SECTIONS: readonly { readonly key: string; readonly rights: r
   rights: section.powers.flatMap((power) => power.switches.map((item) => item.id)),
 }));
 
-/** The 112 switches, in the order of the sections. The Admin holds every one of them. */
+/** The 113 switches, in the order of the sections. The Admin holds every one of them. */
 export const OFFICE_RIGHTS: readonly OfficeRight[] = CATALOG_RIGHT_IDS;
 
 export { BASIC_ON, DEFAULT_EXTRA };
@@ -90,7 +90,7 @@ export function scopeAllows(actor: Actor, power: string, role: ProjectRole): boo
 
 /** The actions that one switch of the same name answers, with no scope and no people rule. */
 const SIMPLE: ReadonlySet<Action> = new Set<Action>([
-  'project.create', 'client.create', 'task.assign', 'task.officeAll', 'file.share', 'chat.direct', 'chat.groupCreate', 'chat.groupChange',
+  'project.create', 'client.create', 'task.assign', 'task.officeAll', 'file.share', 'chat.direct', 'chat.groupCreate', 'chat.groupChange', 'chat.mentionEveryone',
   'tracker.reply', 'tracker.export', 'people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove', 'clients.change',
   'subCompanies.manage', 'payment.view', 'payment.add', 'payment.change', 'payment.receive', 'templates.projectCreate', 'templates.projectAny',
   'templates.taskAny', 'templates.updateProjects', 'dashboard.view', 'workload.view', 'search.use', 'gaps.view', 'report.office',

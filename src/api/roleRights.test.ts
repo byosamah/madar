@@ -102,12 +102,12 @@ describe('the new office rights in can() (role-rights)', () => {
 });
 
 describe('the list of the switches', () => {
-  it('has 112 switches in 13 sections, in the order of the sections', () => {
+  it('has 113 switches in 13 sections, in the order of the sections', () => {
     expect(RIGHT_SECTIONS.map((section) => section.key)).toEqual([
       'projects', 'todos', 'meetings', 'posts', 'files', 'chat', 'tracker', 'people', 'money', 'templates', 'dashboard', 'ai', 'office',
     ]);
-    expect(OFFICE_RIGHTS).toHaveLength(112);
-    expect(new Set(OFFICE_RIGHTS).size).toBe(112);
+    expect(OFFICE_RIGHTS).toHaveLength(113);
+    expect(new Set(OFFICE_RIGHTS).size).toBe(113);
     expect([...OFFICE_RIGHTS]).toEqual(RIGHT_SECTIONS.flatMap((section) => section.rights));
   });
 
@@ -153,7 +153,7 @@ describe('the defaults: nobody gets a new power from this release', () => {
     expect(held).toHaveLength(BASIC_ON.length + 5);
   });
 
-  it('gives the Admin all 112 switches, the old ones and the new ones', () => {
+  it('gives the Admin all 113 switches, the old ones and the new ones', () => {
     const held = rightsOf(admin, { rights: { member: [] } });
     expect([...held]).toEqual([...OFFICE_RIGHTS]);
     for (const right of NEW.flatMap((id) => expandRights([id]))) expect(held).toContain(right);

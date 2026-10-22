@@ -1,5 +1,5 @@
 /**
- * The catalog of role rights version 2 (owner approved the list on 2026-10-21): 13 sections, 85 powers, 112 switches. It is a plain copy of
+ * The catalog of role rights version 2 (owner approved the list on 2026-10-21): 13 sections, 85 powers, 113 switches. It is a plain copy of
  * docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json, without the words (the labels and the hints are word keys of the
  * screens). A test (rightsCatalog.test.ts) checks that this file and the JSON agree. permissions.ts is in the first load of the real
  * build, so this file takes no value from zod or from the schema files.
@@ -35,7 +35,7 @@ export type CatalogPower = {
 
 export type CatalogSection = { readonly key: string; readonly powers: readonly CatalogPower[] };
 
-/** The 112 switch ids, in the order of the sections of the role sheet. */
+/** The 113 switch ids, in the order of the sections of the role sheet. */
 export const CATALOG_RIGHT_IDS = [
   'project.create', 'client.create', 'project.details.lead', 'project.details.all', 'project.team.lead', 'project.team.all',
   'project.stages.lead', 'project.stages.all', 'project.deadlines.lead', 'project.deadlines.all', 'project.template.lead',
@@ -48,7 +48,7 @@ export const CATALOG_RIGHT_IDS = [
   'comment.create.team', 'comment.create.all', 'post.editOwn', 'project.links.team', 'project.links.all', 'file.upload.team',
   'file.upload.all', 'file.deliver.team', 'file.deliver.all', 'file.share', 'file.deleteOwn', 'file.deleteAny.lead',
   'file.deleteAny.all', 'chat.direct', 'chat.groupCreate', 'chat.groupChange', 'chat.project.team', 'chat.project.all',
-  'tracker.log.team', 'tracker.log.all', 'tracker.reply', 'tracker.export', 'tracker.deleteOwn', 'tracker.deleteAny.lead',
+  'chat.mentionEveryone', 'tracker.log.team', 'tracker.log.all', 'tracker.reply', 'tracker.export', 'tracker.deleteOwn', 'tracker.deleteAny.lead',
   'tracker.deleteAny.all', 'people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove',
   'clients.change', 'subCompanies.manage', 'payment.view', 'payment.add', 'payment.change', 'payment.receive',
   'templates.projectCreate', 'templates.projectAny', 'templates.taskSave.lead', 'templates.taskSave.all', 'templates.taskAny',
@@ -359,6 +359,12 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
           { id: 'chat.project.all', scope: 'all', basic: false, needs: ['chat.project.team'] },
         ],
       },
+      {
+        power: 'chat.mentionEveryone',
+        switches: [
+          { id: 'chat.mentionEveryone', scope: null, basic: true, needs: [] },
+        ],
+      },
     ],
   },
   {
@@ -660,7 +666,7 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
   },
 ];
 
-/** The 64 switches that a Member holds by default: every scope of today's powers except `all`. */
+/** The 65 switches that a Member holds by default: every scope of today's powers except `all`. */
 export const BASIC_ON: readonly CatalogRightId[] = [
   'project.create', 'client.create', 'project.details.lead', 'project.team.lead', 'project.stages.lead',
   'project.deadlines.lead', 'project.template.lead', 'project.archive.lead', 'project.leader.lead', 'project.health.lead',
@@ -668,7 +674,7 @@ export const BASIC_ON: readonly CatalogRightId[] = [
   'task.deleteOwn', 'task.any.lead', 'task.review.lead', 'meeting.plan.none', 'meeting.plan.team', 'meeting.editOwn',
   'meeting.minutesOwn', 'meeting.any.lead', 'meeting.minutesAny.lead', 'post.create.team', 'comment.create.team',
   'post.editOwn', 'project.links.team', 'file.upload.team', 'file.deliver.team', 'file.share', 'file.deleteOwn',
-  'file.deleteAny.lead', 'chat.direct', 'chat.groupCreate', 'chat.groupChange', 'chat.project.team', 'tracker.log.team',
+  'file.deleteAny.lead', 'chat.direct', 'chat.groupCreate', 'chat.groupChange', 'chat.project.team', 'chat.mentionEveryone', 'tracker.log.team',
   'tracker.reply', 'tracker.export', 'tracker.deleteOwn', 'tracker.deleteAny.lead', 'templates.taskSave.lead',
   'dashboard.view', 'workload.view', 'search.use', 'ai.connect', 'ai.readWork', 'ai.readChats', 'ai.todos', 'ai.posts',
   'ai.messages', 'ai.meetings', 'ai.tracker', 'ai.projects', 'ai.payments', 'ai.feedback', 'ai.report', 'ai.undo',
@@ -748,7 +754,7 @@ const OLD_IDS: ReadonlySet<string> = new Set(LEGACY_RIGHT_IDS);
 /** True when the text is one of the 17 old right names (an old id may also be a new id: subCompanies.manage). */
 export const isLegacyRight = (id: string): id is LegacyRightId => OLD_IDS.has(id);
 
-/** The 112 ids plus the old names that are not among them: the form of a stored list (StoredRight). */
+/** The 113 ids plus the old names that are not among them: the form of a stored list (StoredRight). */
 export const STORED_RIGHT_IDS = [...CATALOG_RIGHT_IDS, ...LEGACY_RIGHT_IDS.filter((id) => !(CATALOG_RIGHT_IDS as readonly string[]).includes(id))] as [
   CatalogRightId, ...(CatalogRightId | LegacyRightId)[],
 ];

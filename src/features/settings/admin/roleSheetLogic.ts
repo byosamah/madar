@@ -18,7 +18,7 @@ export function powerKey(power: string): string {
   return first + rest.map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join('');
 }
 
-/** The sections of the sheet, from the catalog: the same order as the catalog, 13 sections, 84 powers, 112 switches. */
+/** The sections of the sheet, from the catalog: the same order as the catalog, 13 sections, 85 powers, 113 switches. */
 export const SHEET_SECTIONS: readonly SheetSection[] = CATALOG_SECTIONS.map((section) => {
   const powers = section.powers.map((power) => ({
     power: power.power, key: powerKey(power.power), switches: power.switches.map((item) => ({ id: item.id, scope: item.scope })),

@@ -16,7 +16,7 @@ const BUILT_IN = ['management', 'accounting', 'member'] as const;
 
 /**
  * The Admin page section that sets the rights of each role (owner, 2026-10-18, fbk_014; ADM-12). One calm row for each role: its name,
- * how many people hold it and how many of the 112 rights it holds ("3 people · 64 of 112 rights", from heldRightsOfRole, the one function
+ * how many people hold it and how many of the 113 rights it holds ("3 people · 65 of 113 rights", from heldRightsOfRole, the one function
  * that gives the held rights of a role). A press on a row opens the sheet of that role, where the people, the rights and the save are.
  * The Admin holds every right and is a locked row. "New role" is the one main button; a new role starts as a copy of the Member list.
  */

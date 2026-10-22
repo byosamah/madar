@@ -29,13 +29,14 @@ function principalOfItem(state: State, item: Message | Comment): string {
 /**
  * True when the item names the person (design item 4): an @mention of the person in the text, or a reply to a message of the person.
  * A reply on a message already joined "mentions" on the server (a reply names the author of the old message), so a message reads
- * "mentions" only. A comment keeps no list: it reads the mentions of its text and the author of the comment it answers. Never true
+ * "mentions" only. A comment keeps a list only for @everyone (the people that the words named): it reads that list, the mentions of its text and
+ * the author of the comment it answers. Never true
  * for the person's own item.
  */
 export function namesPerson(state: State, item: Message | Comment, personId: string): boolean {
   if (principalOfItem(state, item) === personId) return false;
   if (isMessage(item)) return item.mentions.includes(personId);
-  if (mentionedUserIds(item.body).includes(personId)) return true;
+  if (mentionedUserIds(item.body).includes(personId) || (item.mentions ?? []).includes(personId)) return true;
   const old = item.replyToId === undefined ? undefined : state.comments[item.replyToId];
   return old !== undefined && principalOf(state, old.authorId) === personId;
 }

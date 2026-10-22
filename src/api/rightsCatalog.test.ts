@@ -32,24 +32,24 @@ describe('the catalog module equals the catalog JSON in docs', () => {
     expect(fromModule).toEqual(fromJson);
   });
 
-  it('counts 13 sections, 84 powers and 112 switches (the design text says 85, the JSON has 84)', () => {
+  it('counts 13 sections, 85 powers and 113 switches (Mention everyone joined the Chat section on 2026-10-22)', () => {
     expect(CATALOG_SECTIONS).toHaveLength(13);
-    expect(CATALOG_SECTIONS.flatMap((s) => s.powers)).toHaveLength(84);
-    expect(CATALOG_RIGHT_IDS).toHaveLength(112);
-    expect(new Set(CATALOG_RIGHT_IDS).size).toBe(112);
+    expect(CATALOG_SECTIONS.flatMap((s) => s.powers)).toHaveLength(85);
+    expect(CATALOG_RIGHT_IDS).toHaveLength(113);
+    expect(new Set(CATALOG_RIGHT_IDS).size).toBe(113);
     expect(CATALOG_RIGHT_IDS).toEqual(switches.map((w) => w.id));
   });
 
-  it('holds BASIC_ON as the 64 basic switches, and the default extras of the catalog defaults', () => {
-    expect(BASIC_ON).toHaveLength(64);
+  it('holds BASIC_ON as the 65 basic switches, and the default extras of the catalog defaults', () => {
+    expect(BASIC_ON).toHaveLength(65);
     expect(BASIC_ON).toEqual(switches.filter((w) => w.basic).map((w) => w.id));
     for (const role of ['management', 'accounting', 'member'] as const) {
       expect(DEFAULT_EXTRA[role]).toEqual(switches.filter((w) => w.defaults[role] && !w.basic).map((w) => w.id));
       // A basic switch is on for every role by default.
       for (const w of switches.filter((item) => item.basic)) expect(w.defaults[role], `${role} ${w.id}`).toBe(true);
     }
-    expect(BASIC_ON.length + DEFAULT_EXTRA.management.length).toBe(74);
-    expect(BASIC_ON.length + DEFAULT_EXTRA.accounting.length).toBe(68);
+    expect(BASIC_ON.length + DEFAULT_EXTRA.management.length).toBe(75);
+    expect(BASIC_ON.length + DEFAULT_EXTRA.accounting.length).toBe(69);
   });
 
   it('holds the legacy map of the JSON, and the 17 old names', () => {
@@ -108,6 +108,6 @@ describe('expandRights and withNeeds', () => {
     for (const id of CATALOG_RIGHT_IDS) expect(STORED_RIGHT_IDS).toContain(id);
     for (const id of LEGACY_RIGHT_IDS) expect(STORED_RIGHT_IDS).toContain(id);
     expect(new Set(STORED_RIGHT_IDS).size).toBe(STORED_RIGHT_IDS.length);
-    expect(STORED_RIGHT_IDS).toHaveLength(112 + 12);
+    expect(STORED_RIGHT_IDS).toHaveLength(113 + 12);
   });
 });

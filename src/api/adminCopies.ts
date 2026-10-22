@@ -23,8 +23,10 @@ export const COPY_TRIGGERS: ReadonlySet<Trigger> = new Set<Trigger>([
  * True when a notice call makes copies: its trigger is a copy trigger, and a mention is one only for a project chat message or a task
  * comment. A mention in a direct chat, a group or a project post is private or small, so it makes none.
  */
-export function makesCopies(state: Pick<State, 'conversations'>, input: Pick<NotifyInput, 'trigger' | 'targetType' | 'targetId' | 'messageId'>): boolean {
+export function makesCopies(state: Pick<State, 'conversations'>, input: Pick<NotifyInput, 'trigger' | 'targetType' | 'targetId' | 'messageId' | 'everyone'>): boolean {
   if (!COPY_TRIGGERS.has(input.trigger)) return false;
+  // An @everyone notice makes no copy (owner, 2026-10-22): it would name every person of the chat in one line for each message.
+  if (input.everyone) return false;
   if (input.trigger !== 'mention') return true;
   if (input.targetType === 'chat') return state.conversations[input.targetId]?.kind === 'project';
   return input.targetType === 'task' && input.messageId !== undefined && input.messageId.startsWith('cmt_');

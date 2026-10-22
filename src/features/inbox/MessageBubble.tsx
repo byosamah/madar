@@ -37,6 +37,8 @@ export type Bubble = {
   edited: boolean;
   /** True when the message names the reader (an @mention, or a reply to the reader). Another person's bubble then gets the names-you mark (item 4). */
   namesMe?: boolean;
+  /** True when the message named people with @everyone, @all or @الجميع: the three words then look like a mention (fbk_041). */
+  everyone?: true;
   /** The people behind each reaction (chat design item 12). Missing means none. */
   reactions?: Record<string, string[]>;
   /**
@@ -164,7 +166,7 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh, runSta
             {marked && <span aria-hidden className="absolute inset-y-2 start-1.5 w-[3px] rounded-full bg-mention-bar" />}
             {marked && <span className="sr-only">{t('chat.namesYou')}</span>}
             {bubble.replyTo && <BubbleReplyQuote replyTo={bubble.replyTo} />}
-            {editing ? <MessageEditForm bubble={bubble} /> : !fileNamesOnly && <RichText body={bubble.body} className="natural-side text-subheadline" />}
+            {editing ? <MessageEditForm bubble={bubble} /> : !fileNamesOnly && <RichText body={bubble.body} everyone={bubble.everyone === true} className="natural-side text-subheadline" />}
             <AttachmentList files={bubble.files} />
             {(runStart || bubble.edited) && (
               <p className="tabular pt-0.5 text-end text-caption text-ink-2">

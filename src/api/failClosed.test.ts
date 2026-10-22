@@ -81,6 +81,6 @@ describe('withRights keeps the person and adds the rights once', () => {
   it('gives a Member the basic switches', () => {
     const { state } = world();
     const actor = withRights(state, state.users.usr_003);
-    expect(actor.officeRights).toHaveLength(64);
+    expect(actor.officeRights).toHaveLength(65);
   });
 });

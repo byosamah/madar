@@ -4,5 +4,21 @@
       "work_hours_lock": "يجب أن تشمل ساعات عملك الأيام والساعات التي يُبقي فيها المكتب الإشعارات مفعّلة.",
       "work_hours_default_lock": "يجب أن تشمل ساعات العمل الافتراضية الأيام والساعات التي تُبقي فيها الإشعارات مفعّلة."
     }
+  },
+  "roleRights": {
+    "powers": {
+      "chatMentionEveryone": {
+        "label": "مناداة الجميع",
+        "hint": "يكتب @الجميع في مجموعة أو محادثة مشروع أو نقاش مهمة. يصل الإشعار والدفع إلى كل شخص هناك."
+      }
+    }
+  },
+  "inbox": {
+    "mentionEveryone": "{{actor}} أشار إلى الجميع في {{target}}",
+    "mentionEveryone_female": "{{actor}} أشارت إلى الجميع في {{target}}",
+    "mentionEveryoneGroup": "{{actor}} أشار إلى الجميع في المجموعة {{target}}",
+    "mentionEveryoneGroup_female": "{{actor}} أشارت إلى الجميع في المجموعة {{target}}",
+    "mentionEveryoneGroupGone": "{{actor}} أشار إلى الجميع في مجموعة",
+    "mentionEveryoneGroupGone_female": "{{actor}} أشارت إلى الجميع في مجموعة"
   }
 }

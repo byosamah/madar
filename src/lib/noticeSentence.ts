@@ -52,6 +52,15 @@ function copyKey(view: NoticeView): string {
   return `adminReach.copy.${n.trigger}`;
 }
 
+/**
+ * The sentence of a mention that came from @everyone (owner, 2026-10-22, fbk_041): "<name> mentioned everyone in <place>". A group names the
+ * group, or says "a group" when the person has left it.
+ */
+function everyoneKey(group: boolean, named: boolean): string {
+  if (!group) return 'inbox.mentionEveryone';
+  return named ? 'inbox.mentionEveryoneGroup' : 'inbox.mentionEveryoneGroupGone';
+}
+
 /** Up to 3 names in one list ("A, B and C"). With more people: the first 2 names, then the number of the others. */
 const MOST_NAMES = 3;
 
@@ -70,13 +79,15 @@ export function noticeSentence(view: NoticeView, t: Words, lang: Language): stri
   const meeting = n.targetType === 'meeting';
   // A reply to a message of the person says "replied to you" (chat design 2026-10-19, item 10). The place is named as for a mention.
   const reply = n.trigger === 'mention' && n.reply === true;
+  // A mention that came from @everyone has its own sentence (owner, 2026-10-22, fbk_041).
+  const everyone = n.trigger === 'mention' && n.everyone === true;
   // A copy for an Admin who picked "Everything" (owner, 2026-10-23) has its own sentences, with the people of the original.
   const copy = n.forUserIds !== undefined;
   const names = view.forPeople.map((person) => `\u2068${nameOf(person)}\u2069`);
   const people = names.length <= MOST_NAMES
     ? listFormat(lang).format(names)
     : t('adminReach.andOthers', { names: names.slice(0, 2).join(', '), others: t('adminReach.others', { count: names.length - 2 }) });
-  const sentenceKey = copy ? copyKey(view) : meeting ? meetingKey(n, gone) : report ? reportKey(n)
+  const sentenceKey = copy ? copyKey(view) : meeting ? meetingKey(n, gone) : report ? reportKey(n) : everyone ? everyoneKey(group, target !== '')
     : reply ? (direct ? 'notices.repliedDirect' : group && target === '' ? 'notices.repliedGroupGone' : 'notices.repliedToYou')
       : direct ? 'inbox.mentionDirect' : group ? groupKey(n.trigger, target !== '') : restartPast ? 'inbox.trigger.resume_due_past' : `inbox.trigger.${n.trigger}`;
   return t(sentenceKey, {

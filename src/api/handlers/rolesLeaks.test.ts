@@ -112,7 +112,7 @@ describe('custom roles never leak payments', () => {
   it('gives the screens the rights of the person in the session, so the Dashboard money and the payment reads agree', async () => {
     const t = world();
     t.as('usr_011');
-    // The session lists the 112 ids only: the basic switches, plus the switches of the role (role rights version 2).
+    // The session lists the 113 ids only: the basic switches, plus the switches of the role (role rights version 2).
     const cashier = (await t.api.call('session.get', {})).authority.officeRights ?? [];
     expect(cashier).toEqual(expect.arrayContaining(['payment.view', 'payment.add', 'payment.change', 'payment.receive']));
     expect(cashier).not.toContain('payment.manage');

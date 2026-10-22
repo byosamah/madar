@@ -101,7 +101,7 @@ export const CommentItem = memo(function CommentItem({ view, people, canPost }: 
         {editing ? (
           editForm
         ) : (
-          <RichText body={comment.body} className="natural-side text-subheadline" />
+          <RichText body={comment.body} everyone={(comment.mentions?.length ?? 0) > 0} className="natural-side text-subheadline" />
         )}
         <AttachmentList files={files} />
         <div className="mt-1 flex flex-wrap items-center gap-1">
