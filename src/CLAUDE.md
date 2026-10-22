@@ -918,9 +918,11 @@ any screen work.
   the place message. Await the place message after Space and after the arrow key before the next key, or the drop never happens.
 
 ## Quiet hours and the Everyone row (owner, 2026-10-22, fbk_048 and fbk_041)
-- Settings has the section "Quiet hours" after the push section (`settings/QuietHoursSection.tsx`, for every role). One switch "Quiet outside my
-  work hours" (on by default), then the seven day toggles from Sunday and "From" and "To" (30-minute steps from 6:00 AM to 11:30 PM, on the
-  12-hour words of `clockFormat`; `WorkRangeFields.tsx`, `workRange.ts`). While the Admin keeps the lock on, the days of the lock are ticked and
+- Settings has the section "When Madar notifies you" after the push section (`settings/QuietHoursSection.tsx`, for every role; words of fbk_049).
+  One switch "Notify me only in my work hours" (on by default), then "My work days" (seven toggles from Sunday; a day the office keeps on looks
+  picked, with a small lock), then the two times in the order of the quiet line (fbk_051): "Quiet from" (the end of work, `to`) and "Until"
+  (the start of work, `from`), `WorkRangeFields order="quiet"`; 30-minute steps from 6:00 AM to 11:30 PM, on the 12-hour words of `clockFormat`
+  (`WorkRangeFields.tsx`, `workRange.ts`). One live line (`quietSentence`) says when Madar is quiet. The Admin block keeps the work order. While the Admin keeps the lock on, the days of the lock are ticked and
   locked, the times cannot cut the lock, and one line names it. Each change saves at once with `me.updatePreferences` and a toast. With the
   switch off, the day and time controls hide. A range the Admin's later lock no longer holds is shown widened to the lock.
 - The Admin block "Work hours" is in `admin/OfficeSection.tsx` (`office.settings`): the default range of a person who chose none, and "Keep

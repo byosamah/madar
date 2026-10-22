@@ -23,13 +23,20 @@ function DayLock({ label }: { label: string }) {
   );
 }
 
-export function WorkRangeFields({ idPrefix, value, onChange, lock, labels }: {
+/**
+ * `order` "work" (the Admin blocks) shows the start, then the end of the range. "quiet" (the Settings section, fbk_051) shows the end of
+ * work as "Quiet from", then the start as "Until", so the fields read in the order of the line "Madar is quiet from 5:00 PM to 8:00 AM".
+ * The values and the saved range stay the same: only the order and the words change.
+ */
+export function WorkRangeFields({ idPrefix, value, onChange, lock, labels, order = 'work' }: {
   idPrefix: string; value: WorkRange; onChange: (next: { days: number[]; from: Clock; to: Clock }) => void; lock?: RangeLock;
-  labels?: { days: string; from: string; to: string };
+  labels?: { days: string; from: string; to: string }; order?: 'work' | 'quiet';
 }) {
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === 'ar' ? 'ar' : 'en';
-  const words = labels ?? { days: t('quietHours.days'), from: t('quietHours.from'), to: t('quietHours.to') };
+  const words = labels ?? (order === 'quiet'
+    ? { days: t('quietHours.days'), from: t('quietHours.until'), to: t('quietHours.quietFrom') }
+    : { days: t('quietHours.days'), from: t('quietHours.from'), to: t('quietHours.to') });
   const lockedDays = lock?.on ? lock.days : [];
   const send = (next: Partial<{ days: readonly number[]; from: Clock; to: Clock }>) => {
     const days = [...(next.days ?? value.days)].sort((a, b) => a - b);
@@ -40,6 +47,16 @@ export function WorkRangeFields({ idPrefix, value, onChange, lock, labels }: {
     if (on && value.days.length === 1) return;
     send({ days: on ? value.days.filter((one) => one !== day) : [...value.days, day] });
   };
+  const start = (
+    <SelectField key="start" id={`${idPrefix}-from`} label={words.from} value={value.from} onChange={(event) => send({ from: event.target.value })}>
+      {startOptions(value, lock).map((step) => <option key={step} value={step}>{clockLabel(step, lang)}</option>)}
+    </SelectField>
+  );
+  const end = (
+    <SelectField key="end" id={`${idPrefix}-to`} label={words.to} value={value.to} onChange={(event) => send({ to: event.target.value })}>
+      {endOptions(value, lock).map((step) => <option key={step} value={step}>{clockLabel(step, lang)}</option>)}
+    </SelectField>
+  );
   return (
     <div className="flex flex-col gap-3">
       <div role="group" aria-label={words.days} className="flex flex-col gap-1">
@@ -69,12 +86,8 @@ export function WorkRangeFields({ idPrefix, value, onChange, lock, labels }: {
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <SelectField id={`${idPrefix}-from`} label={words.from} value={value.from} onChange={(event) => send({ from: event.target.value })}>
-          {startOptions(value, lock).map((step) => <option key={step} value={step}>{clockLabel(step, lang)}</option>)}
-        </SelectField>
-        <SelectField id={`${idPrefix}-to`} label={words.to} value={value.to} onChange={(event) => send({ to: event.target.value })}>
-          {endOptions(value, lock).map((step) => <option key={step} value={step}>{clockLabel(step, lang)}</option>)}
-        </SelectField>
+        {/* The quiet order (fbk_051): the end of work first ("Quiet from"), then its start ("Until"), as the quiet line reads. */}
+        {order === 'quiet' ? [end, start] : [start, end]}
       </div>
     </div>
   );

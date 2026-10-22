@@ -11,7 +11,7 @@ afterEach(() => {
   initI18n('en');
 });
 
-type Words = { title: string; switch: string; days: string; from: string; to: string; saved: string };
+type Words = { title: string; switch: string; days: string; quietFrom: string; until: string; saved: string };
 const W = (en as unknown as { quietHours: Words }).quietHours;
 const sectionOf = async (title = W.title) => (await screen.findByRole('heading', { name: title })).closest('section')!;
 const day = (section: HTMLElement, name: string) => within(section).getByRole('button', { name });
@@ -26,8 +26,8 @@ describe('the Quiet hours section of Settings', () => {
     expect(days).toEqual(['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']);
     for (const name of ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday']) expect(day(section, name)).toHaveAttribute('aria-pressed', 'true');
     for (const name of ['Friday', 'Saturday']) expect(day(section, name)).toHaveAttribute('aria-pressed', 'false');
-    expect(within(section).getByLabelText(W.from)).toHaveValue('08:00');
-    expect(within(section).getByLabelText(W.to)).toHaveValue('17:00');
+    expect(within(section).getByLabelText(W.until)).toHaveValue('08:00');
+    expect(within(section).getByLabelText(W.quietFrom)).toHaveValue('17:00');
     expect(within(section).getByText('Your office keeps notifications on Sunday to Thursday, 8:00 AM to 5:00 PM.')).toBeInTheDocument();
   });
 
@@ -36,8 +36,8 @@ describe('the Quiet hours section of Settings', () => {
     const section = await sectionOf();
     for (const name of ['Sunday', 'Thursday']) expect(day(section, name)).toBeDisabled();
     expect(day(section, 'Friday')).toBeEnabled();
-    const from = within(section).getByLabelText(W.from) as HTMLSelectElement;
-    const to = within(section).getByLabelText(W.to) as HTMLSelectElement;
+    const from = within(section).getByLabelText(W.until) as HTMLSelectElement;
+    const to = within(section).getByLabelText(W.quietFrom) as HTMLSelectElement;
     const values = (select: HTMLSelectElement) => [...select.options].map((option) => option.value);
     expect(values(from)[0]).toBe('06:00');
     expect(values(from).at(-1)).toBe('08:00');
@@ -60,9 +60,9 @@ describe('the Quiet hours section of Settings', () => {
   it('saves a new start and a new end', async () => {
     const { store } = await renderWithRuntime(<QuietHoursSection />);
     const section = await sectionOf();
-    await userEvent.selectOptions(within(section).getByLabelText(W.from), '07:30');
+    await userEvent.selectOptions(within(section).getByLabelText(W.until), '07:30');
     await waitFor(() => expect(store.state.users.usr_001.preferences.workHours?.from).toBe('07:30'));
-    await userEvent.selectOptions(within(section).getByLabelText(W.to), '20:00');
+    await userEvent.selectOptions(within(section).getByLabelText(W.quietFrom), '20:00');
     await waitFor(() => expect(store.state.users.usr_001.preferences.workHours?.to).toBe('20:00'));
   });
 
@@ -71,11 +71,11 @@ describe('the Quiet hours section of Settings', () => {
     const section = await sectionOf();
     await userEvent.click(within(section).getByRole('switch', { name: W.switch }));
     await waitFor(() => expect(store.state.users.usr_001.preferences.workHours?.quiet).toBe(false));
-    await waitFor(() => expect(within(section).queryByLabelText(W.from)).toBeNull());
+    await waitFor(() => expect(within(section).queryByLabelText(W.until)).toBeNull());
     expect(within(section).queryByRole('button')).toBeNull();
     await userEvent.click(within(section).getByRole('switch', { name: W.switch }));
     await waitFor(() => expect(store.state.users.usr_001.preferences.workHours?.quiet).toBe(true));
-    expect(await within(section).findByLabelText(W.from)).toBeInTheDocument();
+    expect(await within(section).findByLabelText(W.until)).toBeInTheDocument();
   });
 
   it('frees the days and the times while the Admin has the lock off, and drops the line of the lock', async () => {
@@ -87,7 +87,7 @@ describe('the Quiet hours section of Settings', () => {
     expect(within(section).queryByText(/keeps notifications on/)).toBeNull();
     await userEvent.click(day(section, 'Monday'));
     await userEvent.click(day(section, 'Tuesday'));
-    await userEvent.selectOptions(within(section).getByLabelText(W.from), '11:00');
+    await userEvent.selectOptions(within(section).getByLabelText(W.until), '11:00');
     await waitFor(() => expect(store.state.users.usr_001.preferences.workHours).toMatchObject({ days: [0, 3, 4], from: '11:00' }));
   });
 
@@ -107,8 +107,8 @@ describe('the Quiet hours section of Settings', () => {
     const section = await sectionOf();
     // The days and the times of the lock stay in the range that the screen shows.
     for (const name of ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday']) expect(day(section, name)).toHaveAttribute('aria-pressed', 'true');
-    expect(within(section).getByLabelText(W.from)).toHaveValue('08:00');
-    expect(within(section).getByLabelText(W.to)).toHaveValue('17:00');
+    expect(within(section).getByLabelText(W.until)).toHaveValue('08:00');
+    expect(within(section).getByLabelText(W.quietFrom)).toHaveValue('17:00');
   });
 
   it('reads in Arabic, with the days from Sunday and the 12-hour words', async () => {
@@ -152,6 +152,37 @@ describe('the section says when Madar notifies you, and when it is quiet', () =>
     expect(await within(section).findByText('Madar is quiet every day from 5:00 PM to 8:00 AM. The bell keeps everything.')).toBeInTheDocument();
     await userEvent.click(within(section).getByRole('switch', { name: 'Notify me only in my work hours' }));
     expect(await within(section).findByText('Madar notifies you at any time.')).toBeInTheDocument();
+  });
+});
+
+/** fbk_051 (Faisal, 2026-10-22): the fields read "From 7:00 AM, To 11:30 PM" over the line "quiet from 11:30 PM to 7:00 AM". */
+describe('the two times read in the order of the quiet line', () => {
+  it('shows "Quiet from" (the end of work) first and "Until" (the start of work) second', async () => {
+    await renderWithRuntime(<QuietHoursSection />);
+    const section = await sectionOf();
+    const quietFrom = within(section).getByLabelText('Quiet from');
+    const until = within(section).getByLabelText('Until');
+    expect(quietFrom).toHaveValue('17:00');
+    expect(until).toHaveValue('08:00');
+    expect(quietFrom.compareDocumentPosition(until) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(section).getByText('Madar is quiet on Friday and Saturday, and from 5:00 PM to 8:00 AM on your work days. The bell keeps everything.')).toBeInTheDocument();
+  });
+
+  it('saves "Quiet from" as the end of the work hours, and "Until" as their start', async () => {
+    const { store } = await renderWithRuntime(<QuietHoursSection />);
+    const section = await sectionOf();
+    await userEvent.selectOptions(within(section).getByLabelText('Quiet from'), '23:30');
+    await waitFor(() => expect(store.state.users.usr_001.preferences.workHours?.to).toBe('23:30'));
+    await userEvent.selectOptions(within(section).getByLabelText('Until'), '07:00');
+    await waitFor(() => expect(store.state.users.usr_001.preferences.workHours?.from).toBe('07:00'));
+  });
+
+  it('reads in Arabic', async () => {
+    await renderWithRuntime(<div dir="rtl"><QuietHoursSection /></div>);
+    const words = initI18n('ar');
+    const section = await sectionOf(words.t('quietHours.title'));
+    expect(within(section).getByLabelText('الهدوء من')).toHaveValue('17:00');
+    expect(within(section).getByLabelText('حتى')).toHaveValue('08:00');
   });
 });
 

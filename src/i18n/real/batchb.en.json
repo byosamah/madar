@@ -30,7 +30,9 @@
     "saved": "Your work hours are saved.",
     "sentence": "Madar is quiet on {{days}}, and from {{to}} to {{from}} on your work days. The bell keeps everything.",
     "sentenceEveryDay": "Madar is quiet every day from {{to}} to {{from}}. The bell keeps everything.",
-    "sentenceOff": "Madar notifies you at any time."
+    "sentenceOff": "Madar notifies you at any time.",
+    "quietFrom": "Quiet from",
+    "until": "Until"
   },
   "admin": {
     "workHours": {

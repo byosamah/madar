@@ -35,7 +35,7 @@ export function QuietHoursSection() {
   return (
     <SettingsSection title={t('quietHours.title')}>
       <Switch id="quiet-hours" label={t('quietHours.switch')} checked={shown.quiet} onChange={(quiet) => commit({ quiet })} />
-      {shown.quiet && <WorkRangeFields idPrefix="quiet" value={shown} lock={lock} onChange={(range) => commit(range)} />}
+      {shown.quiet && <WorkRangeFields idPrefix="quiet" order="quiet" value={shown} lock={lock} onChange={(range) => commit(range)} />}
       <p className="text-subheadline text-ink">{quietSentence(shown, lang, t)}</p>
       {shown.quiet && lock.on && (
         <p className="text-footnote text-label-2">

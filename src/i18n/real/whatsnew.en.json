@@ -3,6 +3,10 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-98": {
+        "title": "Quiet times in order",
+        "body": "In Settings, the two times now read like the quiet line: \"Quiet from\" the end of your work, \"Until\" its start."
+      },
       "2026-10-23-97": {
         "title": "Download many files at once",
         "body": "Under a chat message or a comment with two files or more, press Download all. On the Files tab, press it for a stage or for the whole project. You get one ZIP file."
