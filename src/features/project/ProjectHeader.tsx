@@ -92,7 +92,7 @@ function PhoneHeader({ detail, onPost, tab, controls }: { detail: ProjectDetail;
         </div>
         <ProjectActions detail={detail} onSheet={controls.onSheet} />
       </div>
-      <div className="flex items-center gap-x-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <StageControl detail={detail} open={controls.stage} onOpenChange={controls.onStage} />
         <span className="text-footnote text-ink-2">{count}</span>
         <span className="ms-auto"><HealthControl detail={detail} open={controls.health} onOpenChange={controls.onHealth} /></span>
