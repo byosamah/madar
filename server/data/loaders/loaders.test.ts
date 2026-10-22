@@ -1817,7 +1817,12 @@ describe('hidden projects on the scoped load (wave D2, owner 2026-10-22)', () =>
   it('lists a meeting of a hidden project only for the people who see the project', async () => {
     const office = hiddenTraps(traps(), 'hidden');
     const titles = async (actor: string) => ((await same(office, 'meetings.list', { mine: false, projectId: HIDDEN_LIMIT_PROJECT, from: '2026-10-01', to: '2026-10-31' }, actor)).outcome.output as { title: string }[]).map((m) => m.title);
-    for (const actor of [HIDDEN_OUTSIDER, 'usr_010', 'usr_006']) expect(await titles(actor), actor).not.toContain(HIDDEN_MEETING);
+    // The door of wave D1 answers a hidden project as a missing one: a person who does not see it gets "not found" (join of D1 and D2).
+    const refused = async (actor: string) => (await same(office, 'meetings.list', { mine: false, projectId: HIDDEN_LIMIT_PROJECT, from: '2026-10-01', to: '2026-10-31' }, actor)).outcome.error?.code;
+    for (const actor of [HIDDEN_OUTSIDER, 'usr_010', 'usr_006']) expect(await refused(actor), actor).toBe('not_found');
+    // Without the project filter, the list itself leaves the meeting out.
+    const wide = async (actor: string) => ((await same(office, 'meetings.list', { mine: false, from: '2026-10-01', to: '2026-10-31' }, actor)).outcome.output as { title: string }[]).map((m) => m.title);
+    for (const actor of [HIDDEN_OUTSIDER, 'usr_010', 'usr_006']) expect(await wide(actor), actor).not.toContain(HIDDEN_MEETING);
     for (const actor of ['usr_001', 'usr_003', 'usr_005', HIDDEN_CHOSEN]) expect(await titles(actor), actor).toContain(HIDDEN_MEETING);
   });
 
