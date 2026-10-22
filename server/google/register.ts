@@ -18,8 +18,7 @@ export function registerGoogleEffects(): () => void {
     undo.push(registerEffect(SYNC_EFFECT, async (payload, deps) => void (await syncOne(deps, String(payload.userId ?? ''), String(payload.meetingId ?? '')))));
     undo.push(registerEffect(TIDY_EFFECT, async (payload, deps) => void (await tidyOne(deps, String(payload.userId ?? '')))));
     undo.push(registerEffect(REVOKE_EFFECT, (payload, deps) => revokeOne(deps, String(payload.connectionId ?? ''), { replaced: payload.replaced === true })));
-    // 'projects.setAccess' is a shared call once the hidden project core is in; the cast keeps the list in one place.
-    for (const name of GCAL_CALLS) undo.push(registerOutbox(name as Parameters<typeof registerOutbox>[0], (_output, saved, q) => gcalRows(q, saved)));
+    for (const name of GCAL_CALLS) undo.push(registerOutbox(name, (_output, saved, q) => gcalRows(q, saved)));
     // A role call asks every event row of a project meeting. users.update asks the rows of the one person.
     for (const name of GCAL_VIEW_CALLS) {
       undo.push(registerOutbox(name, (output, _saved, q) => gcalViewRows(q, name === 'users.update' ? (output as { id: string }).id : undefined)));

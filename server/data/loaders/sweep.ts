@@ -148,8 +148,9 @@ function hiddenProjectReads(office: State, actors: string[]): SweepCall[] {
  * task in it, and gets the answer of a missing record on the scoped load as on the whole office. Then the leader chooses that person and
  * the person is told. None on an office with no hidden project.
  */
-function hiddenProjectWrites(office: State): SweepCall[] {
-  const project = Object.values(office.projects).find((p) => p.access?.hidden);
+function hiddenAccessWrites(office: State): SweepCall[] {
+  // The hidden project of wave D3 (hiddenProjectTraps) has its own writes (hiddenProjectWrites); this one tries the hidden project of the D1 trap.
+  const project = Object.values(office.projects).find((p) => p.access?.hidden && p.name !== HIDDEN_PROJECT_NAME);
   if (!project) return [];
   const id = project.id;
   const task = Object.values(office.tasks).find((t) => t.projectId === id);
@@ -253,6 +254,7 @@ export function writeSweep(office: State): SweepCall[] {
     ...meetingWrites(office),
     ...meetingFileWrites(office),
     ...meetingMinutesWrites(office),
+    ...hiddenAccessWrites(office),
     ...hiddenProjectWrites(office),
   ];
 }
