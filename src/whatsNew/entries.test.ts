@@ -158,7 +158,7 @@ describe("What's new entries", () => {
     expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-82', 'title']))).toBe('صار مدار أسرع');
   });
 
-  // Direction D (owner, 2026-10-22): the phone shell has four tabs with words. One line for everyone, with no link to open.
+  // Direction D (owner, 2026-10-22): the phone shell has four tabs, icons only. One line for everyone, with no link to open.
   it('tells everyone that the phone has four tabs, as the newest entry', () => {
     expect(WHATS_NEW[0]).toEqual({ id: '2026-10-23-99', day: '2026-10-22' });
     expect(wordAt(en, ['whatsNew', 'items', '2026-10-23-99', 'title'])).toBe('Madar on the phone: four tabs');
@@ -167,6 +167,11 @@ describe("What's new entries", () => {
     for (const tab of ['Today', 'Inbox', 'Work', 'Me']) expect(body, tab).toContain(tab);
     const arBody = String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-99', 'body']));
     for (const tab of ['اليوم', 'الوارد', 'العمل', 'أنا']) expect(arBody, tab).toContain(tab);
+    // The tabs show icons only (owner, 2026-10-22): the entry names the icon of each tab, and never says "with words".
+    for (const icon of ['sun', 'tray', 'briefcase', 'person']) expect(body, icon).toContain(icon);
+    for (const icon of ['الشمس', 'الصندوق', 'الحقيبة', 'الشخص']) expect(arBody, icon).toContain(icon);
+    expect(body).not.toContain('with words');
+    expect(arBody).not.toContain('بكلمات');
   });
 });
 

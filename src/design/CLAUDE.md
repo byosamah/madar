@@ -6,7 +6,7 @@ the same system for people and for design tools (Google DESIGN.md format, alpha,
 
 ## Files
 - `tokens.css`: the CSS variables, light and dark. `tokens.test.ts` checks the contrast of the text pairs.
-  `--phone-bar` is the room that the phone tab bar takes at the foot of the page: `calc(64px + max(16px, env(safe-area-inset-bottom)))` on `:root`,
+  `--phone-bar` is the room that the phone tab bar takes at the foot of the page: `calc(60px + max(16px, env(safe-area-inset-bottom)))` on `:root`,
   and 0 px under `:root[data-bar-hidden]` (the shell sets the mark while the bar hides: an open chat, the keyboard, Focus mode). The page padding and the
   toast lane use it. `tokens.test.ts` holds both values. `--chat-h` is not a token: `PhoneChatPage` sets it inline on the chat root, and the composer and the
   @ list read it with a `100dvh` fallback.

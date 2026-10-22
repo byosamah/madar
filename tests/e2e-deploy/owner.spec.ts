@@ -16,13 +16,36 @@ async function previewAs(page: Page, label: string): Promise<void> {
   else await expect(page.getByRole('button', { name: person, exact: true })).toBeVisible();
 }
 
-test('the phone tab bar has exactly four tabs with words and no sideways scroll at 390', async ({ page }) => {
+test('the phone tab bar has exactly four icon tabs, each icon in the middle of its tab, and no sideways scroll at 390', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  // The open tab plays its icon once. With reduced motion the icons hold still, so their boxes can be measured.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await goto(page, '/');
   const pill = page.getByRole('navigation', { name: 'Main navigation' });
   await expect(pill).toBeVisible();
   await expect(pill.getByRole('link')).toHaveCount(4);
   for (const name of ['Today', 'Inbox', 'Work', 'Me']) await expect(pill.getByRole('link', { name: new RegExp(`^${name}`) })).toBeVisible();
+  // Icons only (owner, 2026-10-22): no word shows, each tab is 48 px or more, and each icon sits in the middle of its tab, on one
+  // line with the others. An inline icon sat on the text line and rose about 2 px above the middle.
+  const tabs = await pill.getByRole('link').evaluateAll((links) => links.map((link) => {
+    const tab = link.getBoundingClientRect();
+    const icon = link.querySelector('[data-tab-icon] svg')!.getBoundingClientRect();
+    const word = link.querySelector('[data-tab-word]')!.getBoundingClientRect();
+    return {
+      dx: icon.left + icon.width / 2 - (tab.left + tab.width / 2),
+      dy: icon.top + icon.height / 2 - (tab.top + tab.height / 2),
+      middle: icon.top + icon.height / 2,
+      height: tab.height,
+      word: word.width * word.height,
+    };
+  }));
+  for (const [n, tab] of tabs.entries()) {
+    expect(Math.abs(tab.dx), `tab ${n} across`).toBeLessThanOrEqual(1);
+    expect(Math.abs(tab.dy), `tab ${n} down`).toBeLessThanOrEqual(1);
+    expect(tab.height, `tab ${n} height`).toBeGreaterThanOrEqual(48);
+    expect(tab.word, `tab ${n} word`).toBeLessThanOrEqual(1);
+  }
+  expect(Math.max(...tabs.map((t) => t.middle)) - Math.min(...tabs.map((t) => t.middle)), 'one line').toBeLessThanOrEqual(0.5);
   await expect(page.getByRole('link', { name: 'Search the whole office' })).toBeVisible();
   await expect(page.getByRole('link', { name: /^Notifications/ })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);

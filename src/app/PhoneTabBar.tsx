@@ -29,9 +29,9 @@ export function inboxName(t: TFunction, unread: number, notices: number): string
 }
 
 /**
- * The bar of a phone (Direction D): four tabs, Today, Inbox, Work and Me, each with its word under its icon. The open tab
- * carries the navy pill. A press on the open tab scrolls the page to the top. The bar keeps `data-pill`, so Focus mode makes
- * it inert.
+ * The bar of a phone (Direction D): four tabs, Today, Inbox, Work and Me. Each tab shows only its icon, and its word stays for
+ * screen readers (owner, 2026-10-22). The open tab carries the navy pill. A press on the open tab scrolls the page to the top.
+ * The bar keeps `data-pill`, so Focus mode makes it inert.
  */
 export function PhoneTabBar() {
   const { t } = useTranslation();
@@ -84,14 +84,15 @@ export function PhoneTabBar() {
             onClick={onClick}
             aria-current={active ? 'page' : undefined}
             aria-label={item.tab === 'inbox' && total > 0 ? name : undefined}
-            className={`pressable relative isolate flex h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-full font-semibold ${active ? 'text-[var(--on-sig)]' : 'text-ink-2 hover:text-ink'}`}
+            className={`pressable relative isolate flex h-12 min-w-0 flex-1 items-center justify-center rounded-full ${active ? 'text-[var(--on-sig)]' : 'text-ink-2 hover:text-ink'}`}
           >
             {active && <motion.span layoutId="pill-active" transition={spring.standard} className="signature absolute inset-0 -z-10 rounded-full" />}
-            <span data-tab-icon className="relative grid place-items-center">
-              <AnimatedIcon icon={Moving} size={22} playWhen={active} aria-hidden />
+            {/* A block icon: an inline one sits on the text line, and the room under that line lifts it about 2 px above the middle. */}
+            <span data-tab-icon className="relative grid place-items-center [&_svg]:block">
+              <AnimatedIcon icon={Moving} size={24} playWhen={active} aria-hidden />
               {item.tab === 'inbox' && total > 0 && <Badge count={total} label={name ?? ''} className="absolute -top-2 -end-3" />}
             </span>
-            <span data-tab-word className="text-caption leading-none whitespace-nowrap">{t(item.key)}</span>
+            <span data-tab-word className="sr-only">{t(item.key)}</span>
           </Link>
         );
       })}

@@ -457,8 +457,8 @@ A calm single column on a phone, a centred column with side panels on a desk, an
 - **The shell:** no sidebar. From 640 px a floating tab pill holds Home, Projects, Tasks, Dashboard and Inbox, plus Search and the
   bell, at the top centre. The Madar mark sits at the top start of every screen and opens Home; the person's picture sits at the top
   end and opens the person menu (language, theme, Settings, Admin, sign out). The picture and the person menu exist from 640 px only.
-  On a phone the bar sits at the bottom centre with four tabs, each with a word under its icon: Today, Inbox, Work and Me. The bar
-  is 64 px high, and it hides in an open chat, with the keyboard open and in Focus mode. The top row of a phone holds the Madar
+  On a phone the bar sits at the bottom centre with four tabs that show only their icon: Today, Inbox, Work and Me. The bar
+  is 60 px high, and it hides in an open chat, with the keyboard open and in Focus mode. The top row of a phone holds the Madar
   mark (or the back link of its screen) and one Search icon, and nothing else: no bell and no person picture. The Me tab holds
   Profile, Away, Language, Theme, the Notifications rows, the Office rows, What's new, the feedback sheet and Sign out.
 - **Home** reads in this order: a greeting with the date, the "Next for you" card (the single next step), Today, then Your
@@ -518,8 +518,8 @@ Every component exists to make the next step obvious. All live in `src/component
 - **Sheets** ({components.sheet}): a bottom sheet on a phone and a side or centred sheet on a desk; one title, one main
   action.
 - **The tab pill** ({components.tab-pill}): the open tab carries the signature fill ({components.tab-active}) and glides
-  between tabs. The phone bar has four tabs, each 52 px high with a 22 px icon and a 12 px word under it that never cuts; the open
-  tab is a round pill, and the bar keeps the 16 px edge of the page (owner, 2026-10-20 and 2026-10-22). The Inbox count (chats plus
+  between tabs. The phone bar has four tabs, each 48 px high with a 24 px icon in its middle and no visible word (owner, 2026-10-22; screen
+  readers still read the word); the open tab is a round pill, and the bar keeps the 16 px edge of the page (owner, 2026-10-20 and 2026-10-22). The Inbox count (chats plus
   bell items) sits on the corner of its icon. A press on the open tab scrolls the page to the top.
 - **Work header on a phone:** the title, the main button of the view, then the switch with the View toggle. The navy is only on the
   main button. The View toggle is a round 44 px button with `aria-pressed`: it has `bg-fill-strong` and a 1 px ink ring when Board is

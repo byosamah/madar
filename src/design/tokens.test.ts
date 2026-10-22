@@ -226,7 +226,7 @@ describe('the names-you mark (chat design item 4)', () => {
 
 describe('the phone bar space', () => {
   it('has the --phone-bar token in the first :root block, and 0 px while the bar hides', () => {
-    expect(token(':root', '--phone-bar')).toBe('calc(64px + max(16px, env(safe-area-inset-bottom)))');
+    expect(token(':root', '--phone-bar')).toBe('calc(60px + max(16px, env(safe-area-inset-bottom)))');
     expect(css).toMatch(/:root\[data-bar-hidden\]\s*\{[^}]*--phone-bar:\s*0px;/);
   });
 });

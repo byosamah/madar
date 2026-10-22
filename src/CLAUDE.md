@@ -507,9 +507,11 @@ any screen work.
 Under 640 px (`useIsPhone`) the shell and the main screens differ from the desk. The desk did not change. Wave 1 (the shell) never ships alone: it
 needs the Me hub of wave 2, because a phone has no bell, no person menu, no Sign out and no Preview as outside the Me tab. New phone code sits in lazy
 chunks (the first-load limit is in `scripts/check-bundles.ts`).
-- Tab bar: `PhoneTabBar` (`app/PhoneTabBar.tsx`, returned by `TabPill`) has four tabs with a word under each icon, in the order Today `/`, Inbox `/inbox`,
+- Tab bar: `PhoneTabBar` (`app/PhoneTabBar.tsx`, returned by `TabPill`) has four tabs that show only their icon (owner, 2026-10-22; the word stays
+  as `sr-only` text, so the link names do not change), in the order Today `/`, Inbox `/inbox`,
   Work (`workTabLink()`, the last Work view of the visit, `lastList.ts`) and Me `/me` (`PHONE_NAV`, `phoneTabOf` in `app/nav.ts`; the words are
-  `phoneShell.tab.*` in `i18n/real/phoneshell.*.json`). The bar is 64 px high and keeps `data-pill` (Focus mode makes it inert). The Inbox badge is the
+  `phoneShell.tab.*` in `i18n/real/phoneshell.*.json`). Each tab is 48 px high with a 24 px block icon in its middle (an inline icon sat on the text
+  line, about 2 px high). The bar is 60 px high and keeps `data-pill` (Focus mode makes it inert). The Inbox badge is the
   unread chats plus `notifications.count.badge`; the link name comes from `inboxName` (the keys `nav.inboxUnread`, `nav.inboxBadge`,
   `phoneShell.inboxBoth`). A press on the open tab scrolls to the top and does not navigate; a lit tab whose link points elsewhere (Work on a project
   page) navigates. No screen but `WorkHeader` calls `rememberWorkView`, so the Work tab links `/work` until a Work view was seen.

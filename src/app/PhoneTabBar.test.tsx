@@ -8,8 +8,8 @@ import { rememberWorkView } from './lastList';
 import { inboxName } from './PhoneTabBar';
 
 /**
- * The phone bar (Direction D, 2026-10-22): four links with a word under each icon, Today, Inbox, Work and Me. These tests
- * run at phone width through phoneMedia. A desk keeps the five-tab pill.
+ * The phone bar (Direction D, 2026-10-22): four links, Today, Inbox, Work and Me. Each link shows only its icon, and its word
+ * stays for screen readers (owner, 2026-10-22). These tests run at phone width through phoneMedia. A desk keeps the five-tab pill.
  */
 afterEach(() => {
   rememberWorkView('/work');
@@ -20,16 +20,23 @@ const bar = () => document.querySelector('nav[data-pill]') as HTMLElement;
 const wordOf = (link: HTMLElement) => link.querySelector('[data-tab-word]');
 
 describe('the phone tab bar', () => {
-  it('shows four links with a visible word, in the order Today, Inbox, Work, Me', async () => {
+  it('shows four icon links in the order Today, Inbox, Work, Me, with the word only for screen readers', async () => {
     phoneMedia(true);
     await renderApp('/');
     const links = within(bar()).getAllByRole('link');
     expect(links.map((l) => wordOf(l)?.textContent)).toEqual(['Today', 'Inbox', 'Work', 'Me']);
-    for (const l of links) expect(l).toHaveClass('h-[52px]', 'flex-1', 'min-w-0', 'flex-col');
-    const word = within(links[0]).getByText('Today');
-    expect(word).toHaveClass('text-caption', 'whitespace-nowrap');
-    expect(word).not.toHaveClass('sr-only', 'truncate');
-    expect(bar()).toHaveClass('w-[calc(100vw-32px)]', 'bottom-[max(16px,env(safe-area-inset-bottom))]');
+    for (const l of links) {
+      // One 48 px cell for each tab, with the icon in its middle: no column for a word under the icon.
+      expect(l).toHaveClass('h-12', 'flex-1', 'min-w-0', 'items-center', 'justify-center');
+      expect(l).not.toHaveClass('flex-col');
+      expect(wordOf(l)).toHaveClass('sr-only');
+      const icon = l.querySelector('[data-tab-icon]') as HTMLElement;
+      expect(icon).toHaveClass('[&_svg]:block');
+      expect(icon.querySelector('svg')).toHaveAttribute('width', '24');
+    }
+    expect(within(bar()).getByRole('link', { name: 'Today' })).toBe(links[0]);
+    expect(within(bar()).getByRole('link', { name: 'Me' })).toBe(links[3]);
+    expect(bar()).toHaveClass('w-[calc(100vw-32px)]', 'bottom-[max(16px,env(safe-area-inset-bottom))]', 'p-1.5');
     expect(within(bar()).queryByRole('link', { name: /Search|Notifications|Dashboard/ })).toBeNull();
   });
 
