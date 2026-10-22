@@ -116,7 +116,68 @@ export function readSweep(office: State): SweepCall[] {
   for (const conversation of Object.values(office.conversations)) {
     for (const actor of humans) calls.push(['chats.messages', { conversationId: conversation.id, limit: 2 }, actor]);
   }
+  calls.push(...hiddenProjectReads(office, [...humans, ...agents]));
   return calls;
+}
+
+/**
+ * The reads of a hidden project (hidden projects, owner 2026-10-22): every person and every agent reads the project, its feed, its files,
+ * its Tracker, its payments, its changes, and each of its tasks with their comments. A person who does not see the project must get the
+ * answer of a missing one, on the scoped load as on the whole office. None on an office with no hidden project.
+ */
+function hiddenProjectReads(office: State, actors: string[]): SweepCall[] {
+  const calls: SweepCall[] = [];
+  for (const project of Object.values(office.projects).filter((p) => p.access?.hidden)) {
+    const id = project.id;
+    for (const actor of actors) {
+      calls.push(
+        ['projects.get', { id }, actor], ['updates.list', { projectId: id }, actor], ['files.list', { projectId: id }, actor],
+        ['tracker.list', { projectId: id }, actor], ['payments.list', { projectId: id }, actor], ['events.list', { projectId: id, limit: 7 }, actor],
+        ['meetings.list', { mine: false, projectId: id }, actor],
+      );
+      for (const task of Object.values(office.tasks).filter((t) => t.projectId === id)) {
+        calls.push(['tasks.get', { id: task.id }, actor], ['comments.list', { targetType: 'task', targetId: task.id }, actor]);
+      }
+    }
+  }
+  return calls;
+}
+
+/**
+ * The writes of a hidden project (hidden projects, owner 2026-10-22): a person who does not see it tries a write on the project and on a
+ * task in it, and gets the answer of a missing record on the scoped load as on the whole office. Then the leader chooses that person and
+ * the person is told. None on an office with no hidden project.
+ */
+function hiddenProjectWrites(office: State): SweepCall[] {
+  const project = Object.values(office.projects).find((p) => p.access?.hidden);
+  if (!project) return [];
+  const id = project.id;
+  const task = Object.values(office.tasks).find((t) => t.projectId === id);
+  const members = new Set(Object.values(office.members).filter((m) => m.projectId === id).map((m) => m.userId));
+  const outsider = Object.values(office.users).find((u) => u.kind === 'human' && u.active && u.systemRole === 'member' && !members.has(u.id) && u.id !== project.leaderId && !project.access!.viewerIds.includes(u.id))!.id;
+  const leader = project.leaderId!;
+  return [
+    ['projects.update', { id, patch: { name: 'Outsider try' } }, outsider],
+    ['projects.setAccess', { id, hidden: false, viewerIds: [] }, outsider],
+    ['tasks.create', { projectId: id, title: 'Outsider task' }, outsider],
+    ['updates.create', { projectId: id, body: 'Outsider post' }, outsider],
+    ['tracker.log', { projectId: id, type: 'message', direction: 'in', title: 'Outsider entry' }, outsider],
+    ...(task ? [
+      ['tasks.update', { id: task.id, patch: { title: 'Outsider title' } }, outsider] as SweepCall,
+      ['comments.create', { targetType: 'task', targetId: task.id, body: 'Outsider note' }, outsider] as SweepCall,
+    ] : []),
+    ['projects.setAccess', { id, hidden: true, viewerIds: [...project.access!.viewerIds, outsider] }, leader],
+    ['projects.setAccess', { id, hidden: false, viewerIds: [] }, leader],
+  ];
+}
+
+/** The project that trapOffice hides (leader usr_003, team usr_007) and the one person it chooses (usr_011, Accounting). */
+export const HIDDEN_PROJECT = 'prj_005';
+export const HIDDEN_VIEWER = 'usr_011';
+
+/** Hides one project of the sample office from the people who do not work on it, and chooses one person to see it. */
+function hiddenProjectTrap(state: State): void {
+  state.projects[HIDDEN_PROJECT].access = { hidden: true, viewerIds: [HIDDEN_VIEWER] };
 }
 
 /** One write call for each kind of write, on records of the office. */
@@ -192,6 +253,7 @@ export function writeSweep(office: State): SweepCall[] {
     ...meetingWrites(office),
     ...meetingFileWrites(office),
     ...meetingMinutesWrites(office),
+    ...hiddenProjectWrites(office),
   ];
 }
 
@@ -594,6 +656,7 @@ export function trapOffice(seed: State): State {
   meetingFileTrap(state);
   meetingMinutesTraps(state);
   newestTies(state);
+  hiddenProjectTrap(state);
   const leader = state.projects.prj_001.leaderId!;
   const task = Object.values(state.tasks).find((t) => t.projectId === 'prj_001' && t.status !== 'done')!;
   apply(state, 'tasks.update', { id: task.id, patch: { title: 'Undone title' } }, leader, 'cor_trap_edit');
