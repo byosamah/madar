@@ -14,6 +14,8 @@ const LAZY_PARTS: { file: string; module: string; part: string }[] = [
   { file: 'src/app/AppShell.tsx', module: 'focus/FocusMode', part: 'Focus mode (FL-4)' },
   { file: 'src/app/PersonMenu.tsx', module: 'feedback/FeedbackSheet', part: 'the feedback sheet (FL-4)' },
   { file: 'src/features/auth/AuthGate.tsx', module: 'SessionExpiredSheet', part: 'the session expired sheet (FL-4)' },
+  { file: 'src/components/Menu.tsx', module: 'MenuSheet', part: 'the menu sheet' },
+  { file: 'src/components/Menu.tsx', module: 'Sheet', part: 'the sheet (vaul stays in the overlay chunk)' },
 ];
 
 describe('parts that load on their first use', () => {
@@ -27,5 +29,6 @@ describe('parts that load on their first use', () => {
     expect(overlays).toMatch(/import\('\.\.\/features\/feedback\/FeedbackSheet'\)/);
     expect(overlays).toMatch(/import\('\.\.\/features\/auth\/SessionExpiredSheet'\)/);
     expect(read('src/features/home/HomeTaskSheet.tsx')).toMatch(/import\('\.\.\/project\/tasks\/TaskSheet'\)/);
+    expect(read('src/components/Menu.tsx')).toMatch(/import\('\.\/MenuSheet'\)/);
   });
 });

@@ -4,11 +4,19 @@ import {
   type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { lazyOverlay } from '../app/lazyOverlay';
+import { useIsPhone } from '../app/useIsPhone';
 import { spring } from '../design/motion';
 import { AnimatedIcon } from './icons/AnimatedIcon';
 import { CheckIcon } from './icons/animated/check';
 import { EllipsisIcon } from './icons/animated/ellipsis';
 import { fixedFrame, inFrame, measure, menuPlace } from './placement';
+
+/**
+ * The bottom sheet of a Menu on a phone loads in its own chunk at the first press (`sheetOnPhone`). Menu sits in the first load and
+ * the sheet package (vaul) must stay out of it, so this file never imports Sheet or MenuSheet statically.
+ */
+const menuSheet = lazyOverlay(() => import('./MenuSheet').then((m) => m.MenuSheet));
 
 /**
  * `checked` makes the item a radio item (`role="menuitemradio"`, `aria-checked`) and draws a check mark at its end when it is true.
@@ -126,8 +134,17 @@ export function MenuList({
  * the start edge of the button (`align: 'start'`), so it opens under the word and not over the side menu.
  */
 export function Menu({
-  label, items, triggerClassName = '', icon, text, align = 'end', head,
-}: { label: string; items: MenuItem[]; triggerClassName?: string; icon?: ReactNode; text?: string; align?: 'start' | 'end'; head?: ReactNode }) {
+  label, items, triggerClassName = '', icon, text, align = 'end', head, sheetOnPhone = false,
+}: {
+  label: string; items: MenuItem[]; triggerClassName?: string; icon?: ReactNode; text?: string; align?: 'start' | 'end'; head?: ReactNode;
+  /** On a phone the items open as a bottom sheet of 44 px rows, with the same handlers (Direction D). A desk keeps the pop-up menu. */
+  sheetOnPhone?: boolean;
+}) {
+  const phone = useIsPhone();
+  const asSheet = sheetOnPhone && phone;
+  const [sheetOpen, setSheetOpen] = useState(false);
+  // The sheet mounts at the first press and stays mounted, so its closing animation stays.
+  const [sheetUsed, setSheetUsed] = useState(false);
   const [open, setOpen] = useState(false);
   const [place, setPlace] = useState<CSSProperties>({});
   const [layer, setLayer] = useState<HTMLElement | null>(null);
@@ -171,14 +188,22 @@ export function Menu({
         aria-label={label}
         title={text ? undefined : label}
         aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => (open ? close(false) : openMenu())}
+        aria-expanded={asSheet ? sheetOpen : open}
+        onPointerDown={asSheet ? () => menuSheet.warm() : undefined}
+        onClick={() => {
+          if (asSheet) {
+            setSheetUsed(true);
+            setSheetOpen(true);
+          } else if (open) close(false);
+          else openMenu();
+        }}
         className={`pressable ${text ? 'inline-flex min-h-11 items-center gap-2 px-5 text-subheadline font-semibold' : 'grid size-11 place-items-center'} rounded-full ${triggerClassName || 'text-label-2 hover:bg-fill'}`}
       >
         {icon ?? <AnimatedIcon icon={EllipsisIcon} size={20} aria-hidden />}
         {text}
       </button>
-      {createPortal(
+      {asSheet && sheetUsed && <menuSheet.Overlay label={label} items={items} open={sheetOpen} onClose={() => setSheetOpen(false)} head={head} />}
+      {!asSheet && createPortal(
         <AnimatePresence>{open && <MenuList label={label} items={items} onClose={close} boundary={trigger} style={place} head={head} />}</AnimatePresence>,
         layer ?? document.body,
       )}
