@@ -108,8 +108,11 @@ export async function openMenu(button: Locator): Promise<void> {
     requestAnimationFrame(frame);
   }));
   expect(settled, 'the "…" button held still before the click').toBe(true);
+  // Under 640 px the menu is a sheet (Direction D). The open sheet hides the page from the accessibility tree, so a role locator
+  // finds the button no more: the check reads the same element that the click pressed.
+  const pressed = await button.elementHandle();
   await button.click();
-  await expect(button).toHaveAttribute('aria-expanded', 'true');
+  await expect.poll(() => pressed?.getAttribute('aria-expanded'), { message: 'the menu stays open' }).toBe('true');
 }
 
 /** One call of a batch: the name and the input, as the screens send it. */
