@@ -972,6 +972,8 @@ Branch `rb/perf2` (worktree `~/dev/madar-rb/perf2`). Sonnet agents, the Opus ses
 - [x] Gap critic: 6 findings; GP-1 to wave 3, GP-2 mostly fixed by LV-2 (the rest needs an optimistic display, owner no on
   2026-10-08), GP-3 to GP-5 proposed for later, GP-6 nothing now
 - [ ] Wave 3 (run wf_fc2be876-cc7): GP-1, the first render does not wait for the token renewal
+- [x] Docker suites once on bb8d8527 (GP-1 touches none of their code), 2026-10-22: db reset; test:db 2,979 passed (27 skipped);
+  test:it 332 of 332; test:mcp 330 passed, conformance 5 of 32 (the normal result); test:lite 2,979 passed; test:office 40 of 40
 - [ ] After the deploy, on a real iPhone: wait 11 minutes, press a tab, check that no OPTIONS reaches the function
 - [ ] Owner: the removal of the probe function probe-reuse of track 6 on madar-test (a 404 stub after the probe)
 - [ ] Not asked, recorded only: LV-1 one font preload (first visit of a new device only)
