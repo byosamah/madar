@@ -48,7 +48,7 @@ async function world(o: { hidden: boolean }) {
 
 describe('the calls that can take away the view', () => {
   it('are in GCAL_CALLS: projects.setAccess, members.remove and projects.setLeader', () => {
-    for (const name of ['projects.setAccess', 'members.remove', 'projects.setLeader']) expect(GCAL_CALLS as readonly string[]).toContain(name);
+    for (const name of ['projects.setAccess', 'members.remove', 'projects.setLeader', 'roles.update', 'roles.delete', 'users.update']) expect(GCAL_CALLS as readonly string[]).toContain(name);
   });
 });
 
@@ -78,6 +78,15 @@ describe('gcalRows for a project that the save touched', () => {
     expect(named).toHaveLength(1);
   });
 
+  it('names the meetings of the project and the meetings that the save touched together', async () => {
+    const { t, id } = await world({ hidden: true });
+    ok(await t.call('usr_001', 'meetings.create', { kind: 'client', title: 'Other kickoff', projectId: 'prj_002', startsAt: START, attendeeIds: ['usr_011'] }));
+    const other = (await t.db.statement('read', "select id from meetings where project_id = 'prj_002'", []) as { id: string }[])[0].id;
+    await t.db.statement('write', "insert or replace into google_events (user_id, meeting_id, event_id, synced_rev, synced_at) values ('usr_011', ?1, 'ev', 1, '2026-10-21T06:00:00.000Z')", [other]);
+    const rows = await t.db.tx('read', (q) => gcalRows(q, { meetingIds: [other], hiddenProjects: [HIDDEN] }));
+    expect(rows.map((row) => (row.payload as { meetingId: string }).meetingId).sort()).toEqual([id, other].sort());
+  });
+
   it('asks the database nothing for a save that touched no meeting and no hidden project', async () => {
     const t = await googleOffice();
     expect(await t.db.tx('read', (q) => gcalRows(q, { hiddenProjects: [] }))).toEqual([]);
@@ -96,5 +105,42 @@ describe('gcal.sync of a meeting of a hidden project', () => {
     // A chosen person views it again.
     await change(t, hide(['usr_011']));
     expect(await syncOne(t.deps as never, 'usr_011', id)).toBe('put');
+  });
+});
+
+describe('a person who loses "See every project"', () => {
+  /** Omar (usr_004) is a Member who works on no project. He attends a client meeting of the open project prj_002, with his calendar connected. */
+  async function omar() {
+    const t = await googleOffice();
+    ok(await t.connect('usr_004'));
+    t.google.requests.length = 0;
+    const made = ok(await t.call('usr_003', 'meetings.create', { kind: 'client', title: 'Open kickoff', projectId: 'prj_002', startsAt: START, attendeeIds: ['usr_004'] }));
+    expect(methods(t)).toEqual(['POST']);
+    return { t, id: made.id as string };
+  }
+
+  it('loses the Google event when the Member role turns "See every project" off (roles.update)', async () => {
+    const { t, id } = await omar();
+    ok(await t.call('usr_001', 'roles.update', { role: 'member', off: ['project.seeAll'] }));
+    expect(methods(t)).toEqual(['POST', 'DELETE']);
+    expect((await outboxRows(t, 'gcal.sync')).map((row) => row.payload).at(-1)).toEqual({ userId: 'usr_004', meetingId: id });
+  });
+
+  it('keeps the Google event when the role change leaves "See every project" on', async () => {
+    const { t } = await omar();
+    ok(await t.call('usr_001', 'roles.update', { role: 'member', off: ['chat.direct'] }));
+    // The wide road checks again and puts the same event once more. It never deletes.
+    expect(methods(t)).not.toContain('DELETE');
+  });
+
+  it('loses the Google event when the person moves to a role without it (users.update), and when the role is deleted with a move (roles.delete)', async () => {
+    const { t } = await omar();
+    const role = ok(await t.call('usr_001', 'roles.create', { name: 'Guest', nameAr: 'ضيف', rights: [], off: ['project.seeAll'] }));
+    expect(methods(t)).toEqual(['POST']);
+    ok(await t.call('usr_001', 'users.update', { id: 'usr_004', patch: { roleId: role.id as string } }));
+    expect(methods(t)).toEqual(['POST', 'DELETE']);
+    // The move back to the Member role gives the view again, and the role goes: the sync puts nothing more, because no event row stands.
+    ok(await t.call('usr_001', 'roles.delete', { id: role.id as string, moveTo: 'member' }));
+    expect(methods(t)).toEqual(['POST', 'DELETE']);
   });
 });

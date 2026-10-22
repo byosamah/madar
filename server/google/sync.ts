@@ -33,7 +33,12 @@ export const GCAL_CALLS = [
   'meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.delete', 'meetings.extend', 'events.undo', 'events.undoStory', 'projects.delete',
   // The calls that can take the view of a project from a person (hidden projects, owner 2026-10-22): the person loses the Google event.
   'projects.setAccess', 'members.remove', 'projects.setLeader',
+  // The calls that take the view through a role (hidden projects): a role that loses "See every project", a person who moves to another role,
+  // a role deleted with a move. gcalViewRows (rows.ts) queues gcal.sync for each event row of a project meeting.
+  'roles.update', 'roles.delete', 'users.update',
 ] as const;
+/** The calls of GCAL_CALLS that also queue a sync for each event row of a project meeting (gcalViewRows). */
+export const GCAL_VIEW_CALLS = ['roles.update', 'roles.delete', 'users.update'] as const;
 
 const TIME_ZONE = 'Asia/Riyadh';
 const encoder = new TextEncoder();

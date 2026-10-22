@@ -208,6 +208,21 @@ export async function meetingIdsOfProjects(q: Query, projectIds: string[]): Prom
   return rows.map((row) => row.id);
 }
 
+/** The Google event rows of the meetings of a project (all people, or one person): (user, meeting) pairs. */
+export async function projectEventPairs(q: Query, userId?: string): Promise<{ userId: string; meetingId: string }[]> {
+  const rows = await q<{ user_id: string; meeting_id: string }>(
+    userId === undefined
+      ? 'select e.user_id, e.meeting_id from google_events e join meetings m on m.id = e.meeting_id where m.project_id is not null'
+      : sqlFor(
+        q,
+        'select e.user_id, e.meeting_id from google_events e join meetings m on m.id = e.meeting_id where m.project_id is not null and e.user_id = $1',
+        'select e.user_id, e.meeting_id from google_events e join meetings m on m.id = e.meeting_id where m.project_id is not null and e.user_id = ?1',
+      ),
+    userId === undefined ? [] : [userId],
+  );
+  return rows.map((row) => ({ userId: row.user_id, meetingId: row.meeting_id }));
+}
+
 /**
  * True when the person views the project: the one view rule of a project (mayViewProject), asked on the rows of the project, the team, the
  * person and the roles. A project that is gone is viewed by nobody. It is the check of gcal.sync for a meeting of a project.

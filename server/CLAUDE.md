@@ -190,6 +190,10 @@ The other host stays deployed as the way back. Each area below has its own guide
   from a person who does not (state `deleted`). `GCAL_CALLS` gains `projects.setAccess`, `members.remove` and `projects.setLeader`: a save that touched no
   meeting but touched a project that not every active person views (`SaveResult.hiddenProjects`) makes `gcalRows` name the scheduled meetings of that
   project (`meetingIdsOfProjects`), so each pair with an event or a connection gets a `gcal.sync` row and the person who lost the view loses the event.
+  A person also loses the view through a role: `roles.update`, `roles.delete` and `users.update` are in `GCAL_CALLS` and `GCAL_VIEW_CALLS`, and their producer
+  (`gcalViewRows`, the wide road) queues one `gcal.sync` for every Google event row of a meeting of a project (of the one person for `users.update`, of
+  everyone for a role call), so `syncOne` checks the view again and a person who lost it loses the event; a person who kept it gets the same event put once more.
+  `gcalRows` takes the union of the meetings of the save and the meetings of its hidden projects.
   Tests: `google/hiddenProject.test.ts`.
 - Tests use `google/fakeGoogle.ts` (a stand-in for the token address, the revoke address and the Calendar API) behind `Deps.googleFetch`, and
   `google/testOffice.ts` (the sample office on node:sqlite). `server/it/google.it.test.ts` runs the SQL on Postgres.
