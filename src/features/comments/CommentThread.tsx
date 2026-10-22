@@ -97,20 +97,25 @@ function CommentThreadFor({
     }
   };
   const list = comments.data ?? [];
-  // A docked thread scrolls once to the newest comment, the first time the comments are there. A comment that arrives later keeps the
-  // place of the reader (the chat page has its own rule for that).
+  // A docked thread scrolls to the newest comment, the first time the comments are there, and again for a comment that the reader sends, so
+  // the new comment shows above the box and not under it. A comment of another person that arrives later keeps the place of the reader
+  // (the chat page has its own rule for that).
   const end = useRef<HTMLDivElement>(null);
   const dock = useRef<HTMLDivElement>(null);
-  const scrolled = useRef(false);
+  const seen = useRef<number | null>(null);
   const loaded = comments.data !== undefined;
+  const count = list.length;
+  const newestIsMine = list[count - 1]?.comment.authorId === owner;
   useEffect(() => {
-    if (!docked || !loaded || scrolled.current) return;
-    scrolled.current = true;
+    if (!docked || !loaded) return;
+    const before = seen.current;
+    seen.current = count;
+    if (before !== null && !(count > before && newestIsMine)) return;
     // The dock is a sticky box over the end of the scroll area. The marker stops one dock height above the bottom edge, so the newest
     // comment ends above the box and the scroll moves no further than it needs to.
     end.current?.style.setProperty('--dock-height', `${dock.current?.offsetHeight ?? 0}px`);
     end.current?.scrollIntoView({ block: 'end' });
-  }, [docked, loaded]);
+  }, [docked, loaded, count, newestIsMine]);
   // A new object on each render: the ages of the comments read the clock on each key, as before the memo (RND-3).
   const refresh = {};
   // A file dropped on the panel outside the comments never opens in the browser tab (fbk_030).

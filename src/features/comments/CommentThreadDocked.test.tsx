@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
 import { renderPanel } from '../../test/renderPanel';
@@ -53,7 +53,15 @@ describe('CommentThread docked (Direction D)', () => {
     expect(within(list).getAllByRole('option')[0]).toHaveTextContent('Everyone · 3 people');
   });
 
-  it('scrolls once to the newest comment when the comments arrive', async () => {
+  it('scrolls to the newest comment when the comments arrive', async () => {
+    const spy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => undefined);
+    await open({ docked: true, hideTitle: true });
+    expect(await screen.findByText('Please check the landing.')).toBeInTheDocument();
+    await waitFor(() => expect(endCalls(spy)).toHaveLength(1));
+  });
+
+  it('scrolls again to the comment that the reader sends, so it shows above the box and not under it', async () => {
+    // Without this scroll the new comment sat under the dock: the reader sent a comment and did not see it (browser check, task panel).
     const spy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => undefined);
     const { store } = await open({ docked: true, hideTitle: true });
     expect(await screen.findByText('Please check the landing.')).toBeInTheDocument();
@@ -62,6 +70,23 @@ describe('CommentThread docked (Direction D)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() => expect(Object.values(store.state.comments).some((comment) => comment.body === 'Done.')).toBe(true));
     expect(await screen.findByText('Done.')).toBeInTheDocument();
+    await waitFor(() => expect(endCalls(spy)).toHaveLength(2));
+  });
+
+  it('keeps the place of the reader when a comment of another person arrives', async () => {
+    const spy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => undefined);
+    const { store } = await open({ docked: true, hideTitle: true });
+    expect(await screen.findByText('Please check the landing.')).toBeInTheDocument();
+    await waitFor(() => expect(endCalls(spy)).toHaveLength(1));
+    act(() => {
+      store.run((state) => {
+        state.comments.cmt_902 = {
+          id: 'cmt_902', targetType: 'task', targetId: 'tsk_007', authorId: 'usr_002', body: 'One more thing.',
+          reactions: { '👍': [], '✅': [], '👀': [] }, createdAt: '2026-09-30T09:00:00.000+03:00', editedAt: null,
+        };
+      });
+    });
+    expect(await screen.findByText('One more thing.')).toBeInTheDocument();
     expect(endCalls(spy)).toHaveLength(1);
   });
 

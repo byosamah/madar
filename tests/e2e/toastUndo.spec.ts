@@ -16,6 +16,12 @@ async function deleteAComment(page: Page, text: string) {
   await sheet.getByRole('textbox', { name: 'Add a comment' }).fill(text);
   await sheet.getByRole('button', { name: 'Send' }).click();
   await expect(sheet.getByText(text)).toBeVisible();
+  // The new comment shows above the box. Before, it sat under the box, and a press on its "..." scrolled the sheet and closed the menu.
+  await expect.poll(() => sheet.evaluate((root, words) => {
+    const dock = root.querySelector('[data-comment-dock]')?.getBoundingClientRect();
+    const mine = [...root.querySelectorAll('li')].find((item) => item.textContent?.includes(words))?.getBoundingClientRect();
+    return Boolean(dock && mine && mine.bottom <= dock.top + 1);
+  }, text)).toBe(true);
   // The comment shows at once while it goes (instant send), and gets its menu when it is saved: wait for the menu of this comment.
   await sheet.getByRole('listitem').filter({ hasText: text }).getByRole('button', { name: 'Actions for this comment' }).click();
   await page.getByRole('menuitem', { name: 'Delete' }).click();
