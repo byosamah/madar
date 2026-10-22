@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, screen, waitFor } from '@testing-library/react';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { alwaysSignedIn, type AuthPort, type AuthStatus } from '../../app/auth';
+import { createSupabaseAuth } from '../../app/remote/auth';
 import { clearHomeCache, readHomeRecord, saveHomeRecord, HOME_DB, MAX_AGE_MS } from '../../app/remote/homeCache';
 import type { State } from '../../api/store';
 import { renderHeldRemoteApp } from '../../test/heldRemoteApp';
@@ -263,5 +265,39 @@ describe('Home after a relaunch, real build (DF-14)', () => {
     const databases = await indexedDB.databases();
     expect(databases.map((db) => db.name)).not.toContain(HOME_DB);
     for (const stop of stops) stop();
+  });
+});
+
+/** A Supabase client whose renewal never answers until the test lets it: the token of 15 minutes has ended (GP-1). */
+function heldRenewal() {
+  let answer: (value: unknown) => void = () => undefined;
+  const client = {
+    auth: {
+      getSession: () => new Promise((resolve) => { answer = resolve; }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => undefined } } }),
+    },
+  } as unknown as SupabaseClient;
+  return { client, renew: () => answer({ data: { session: { access_token: 'new', user: { id: AUTH_A } } }, error: null }) };
+}
+
+describe('Home with a token that has ended (GP-1, performance audit 2026-10-21)', () => {
+  afterEach(() => window.localStorage.removeItem('madar.auth'));
+
+  it('shows the stored rows while the renewal of the token is still on the wire', async () => {
+    await firstLife(AUTH_A);
+    window.localStorage.setItem('madar.auth', JSON.stringify({ access_token: 'old', refresh_token: 'kept', user: { id: AUTH_A } }));
+    const renewal = heldRenewal();
+    // The port is made at once, as main.tsx waits for it before the first frame. The old port waited for the renewal here.
+    const auth = await Promise.race([
+      createSupabaseAuth(renewal.client, { apiUrl: 'https://api.test' }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
+    ]);
+    expect(auth, 'the port waits for the renewal').not.toBeNull();
+    const app = await renderHeldRemoteApp('/', as(MEMBER), { hold: true, auth: auth!, home: { gapMs: 0 } });
+    const list = await screen.findByRole('list', LIST, { timeout: 10_000 });
+    expect(list).toHaveTextContent(STORED_NAME);
+    renewal.renew();
+    app.release();
+    await waitFor(() => expect(screen.getByRole('list', LIST)).toHaveTextContent(STORED_NAME), { timeout: 10_000 });
   });
 });

@@ -16,6 +16,8 @@ export type FakeAuth = AuthPort & {
   current(): FakeAccount | null;
   /** The session ends without a sign-out, as when the refresh token is gone. */
   expire(): void;
+  /** The stored session did not renew at the start of the page (GP-1): the port was signed in at once, and the renewal failed. */
+  expireAtStart(): void;
   /** Another tab of the browser signs out on purpose: Supabase tells this tab, which did not sign out itself. */
   otherTabSignsOut(): void;
   /** Another tab of the browser signs in as this person. */
@@ -45,7 +47,7 @@ export function fakeAuth(o: {
   let lastUserId: string | null = current?.userId ?? null;
 
   const status = (): AuthStatus => (current ? 'signed_in' : 'signed_out');
-  const become = (next: FakeAccount | null) => {
+  const become = (next: FakeAccount | null, forced?: SessionChange) => {
     const before = status();
     const otherPerson = next !== null && lastUserId !== null && next.userId !== lastUserId;
     current = next;
@@ -55,6 +57,7 @@ export function fakeAuth(o: {
     }
     let change: SessionChange | undefined;
     if (otherPerson) change = 'person';
+    else if (forced) change = forced;
     else if (status() === 'signed_out' && leftOnPurpose()) change = 'left';
     if (otherPerson || status() !== before) for (const listener of [...listeners]) listener(status(), change);
   };
@@ -70,6 +73,10 @@ export function fakeAuth(o: {
     expire: () => {
       log.push('expire');
       become(null);
+    },
+    expireAtStart: () => {
+      log.push('expireAtStart');
+      become(null, 'unrenewed');
     },
     otherTabSignsOut: () => {
       markLeaving();

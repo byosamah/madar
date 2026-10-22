@@ -5,8 +5,10 @@ import type { AuthStatus } from '../../app/auth';
  * sign-out in one of them, so a tab must tell these apart from a session that ended by itself:
  * - left: a person signed out on purpose, in this tab or in another one.
  * - person: another person signed in, in this tab or in another one, so this tab now sends the token of someone else.
+ * - unrenewed: the page started on a stored session at once (GP-1), and the renewal of its token failed. The shell showed for a moment,
+ *   so the gate goes to Sign in, as a start with no session does. It is no session that ended while the person worked.
  */
-export type SessionChange = 'left' | 'person';
+export type SessionChange = 'left' | 'person' | 'unrenewed';
 
 /** A listener of the port. The second argument is optional, so a listener that only reads the status still fits AuthPort. */
 export type SessionListener = (status: AuthStatus, change?: SessionChange) => void;

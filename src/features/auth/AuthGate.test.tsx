@@ -219,6 +219,22 @@ describe('the sign-in gate of the remote build (plan U2, client map 7.3)', () =>
     await homeRecordGone();
   });
 
+  it('sends the person to Sign in, with the link to come back to, when the stored session did not renew at the start (GP-1)', async () => {
+    await keepHomeRecord();
+    const { auth, router, queryClient } = await renderRemoteApp(UPDATE);
+    await typeUpdate('Not kept');
+    // The shell showed at once on the stored session; the renewal failed. This is not a session that ended while the person worked.
+    act(() => auth.expireAtStart());
+    expect(await screen.findByRole('heading', { level: 1, name: 'Sign in to Madar' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Your session ended' })).toBeNull();
+    expect(router.state.location.pathname).toBe('/sign-in');
+    expect(new URLSearchParams(router.state.location.search).get('next')).toBe(UPDATE);
+    await homeRecordGone();
+    // No list of the person stays in the cache for the next sign-in.
+    await waitFor(() => expect(queryClient.getQueryCache().getAll().filter((query) => query.state.data !== undefined)).toEqual([]));
+    expect(savedDrafts()).toEqual([]);
+  });
+
   it('saves the language of the person for the next cold start', async () => {
     window.localStorage.setItem('madar.lang', 'en');
     await renderRemoteApp(UPDATE, { prepare: (state) => { state.users.usr_001.preferences.language = 'ar'; } });

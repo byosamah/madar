@@ -24,16 +24,17 @@ type Reason = 'signed_out' | 'expired' | 'account_off';
  * drafts of the person before. The gate also runs these steps when the person signs out, or another person signs in, in another
  * tab of the browser.
  */
-export function useLeaveScreen(): (reason: Reason) => Promise<void> {
+export function useLeaveScreen(): (reason: Reason | null, next?: string) => Promise<void> {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  return useCallback(async (reason) => {
+  return useCallback(async (reason, next) => {
     leaving = true;
     // The last Home lists of this person on this device go first, whatever else fails (DF-14).
     void clearHomeCache();
     try {
-      // Leave the screen first, so its lists do not ask the server again with no session.
-      await navigate(signInPath({ reason }), { replace: true });
+      // Leave the screen first, so its lists do not ask the server again with no session. A stored session that did not renew at
+      // the start (GP-1) has no reason to say, and Sign in brings the person back to the place they opened (`next`).
+      await navigate(signInPath({ ...(reason ? { reason } : {}), ...(next ? { next } : {}) }), { replace: true });
       // Every answer of the person goes. A reset, not a clear: a list that stays mounted above the router (the language and
       // theme of AppearanceSync) keeps its link to the cache, so it loads the next person's answer after their sign-in.
       queryClient.getMutationCache().clear();
