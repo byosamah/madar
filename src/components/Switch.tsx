@@ -1,4 +1,7 @@
-/** The round button of a switch, with no label and no box around it. A row that sets its own height uses it (the Me hub). */
+/**
+ * The round button of a switch, with no label and no box around it. A row that sets its own height uses it (the Me hub). The button stays 51 by
+ * 31 px. An invisible ::after area adds 7 px above and below, so the press area is 51 by 45 px (the 44 px target rule).
+ */
 export function SwitchButton({
   id, checked, onChange, describedBy,
 }: { id: string; checked: boolean; onChange: (next: boolean) => void; describedBy?: string }) {
@@ -10,7 +13,7 @@ export function SwitchButton({
       aria-checked={checked}
       aria-describedby={describedBy}
       onClick={() => onChange(!checked)}
-      className={`pressable relative h-[31px] w-[51px] shrink-0 rounded-full ${checked ? 'bg-green' : 'bg-fill-strong'}`}
+      className={`pressable relative h-[31px] w-[51px] shrink-0 rounded-full after:absolute after:-inset-y-[7px] after:inset-x-0 after:content-[''] ${checked ? 'bg-green' : 'bg-fill-strong'}`}
     >
       <span
         aria-hidden
