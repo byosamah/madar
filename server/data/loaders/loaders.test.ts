@@ -15,7 +15,7 @@ import { INBOX_TASK_FIELDS } from './inbox';
 import { LOADER_OF } from './index';
 import { loadJobs } from './jobs';
 import { memorySource } from './memorySource';
-import { AGENT_MADE_TASK, badgeTraps, HIDDEN_CHOSEN, HIDDEN_OUTSIDER, HIDDEN_PROJECT, HIDDEN_WORD, hiddenSweep, hiddenTraps, VISIBLE_HIT, ENDED_MEETING_TITLE, ENDED_PROJECT_MEETING_TITLE, ENDED_TEAM_MEETING_TITLE, findSweep, findTraps, MEETING_FILE_ID, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, SERIES_PRIVATE_TITLE, SERIES_PROJECT_TITLE, seriesSweep, seriesTraps, trapOffice, writeSweep } from './sweep';
+import { AGENT_MADE_TASK, badgeTraps, HIDDEN_CHOSEN, HIDDEN_OUTSIDER, HIDDEN_PROJECT, HIDDEN_WORD, hiddenSweep, HIDDEN_MEETING, hiddenTraps, VISIBLE_HIT, ENDED_MEETING_TITLE, ENDED_PROJECT_MEETING_TITLE, ENDED_TEAM_MEETING_TITLE, findSweep, findTraps, MEETING_FILE_ID, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, SERIES_PRIVATE_TITLE, SERIES_PROJECT_TITLE, seriesSweep, seriesTraps, trapOffice, writeSweep } from './sweep';
 
 /**
  * Task C2: each loader gives the handler the same answer as the whole office (plan 4.6, "Safety net"). runBoth runs the call on
@@ -1812,6 +1812,13 @@ describe('hidden projects on the scoped load (wave D2, owner 2026-10-22)', () =>
     const chosen = await found(HIDDEN_CHOSEN);
     expect(chosen.tasks).toHaveLength(5);
     expect(chosen.messages).toHaveLength(5);
+  });
+
+  it('lists a meeting of a hidden project only for the people who see the project', async () => {
+    const office = hiddenTraps(traps(), 'hidden');
+    const titles = async (actor: string) => ((await same(office, 'meetings.list', { mine: false, projectId: HIDDEN_PROJECT, from: '2026-10-01', to: '2026-10-31' }, actor)).outcome.output as { title: string }[]).map((m) => m.title);
+    for (const actor of [HIDDEN_OUTSIDER, 'usr_010', 'usr_006']) expect(await titles(actor), actor).not.toContain(HIDDEN_MEETING);
+    for (const actor of ['usr_001', 'usr_003', 'usr_005', HIDDEN_CHOSEN]) expect(await titles(actor), actor).toContain(HIDDEN_MEETING);
   });
 
   it('keeps the visible changes when the newest 20 changes are changes of a hidden project', async () => {

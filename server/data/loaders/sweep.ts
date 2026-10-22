@@ -820,6 +820,8 @@ export const HIDDEN_CHOSEN = 'usr_008';
 export const HIDDEN_OUTSIDER = 'usr_004';
 /** The word that every limit trap of hiddenTraps holds, in the title of a to-do, a file and a message. */
 export const HIDDEN_WORD = 'zzquartz';
+/** The title of the meeting of the hidden project. */
+export const HIDDEN_MEETING = 'Zzquartz hidden meeting';
 /** The to-do, the file and the message of the open project that the cut of a read must not drop. */
 export const VISIBLE_HIT = { task: 'Zzquartz open to-do', file: 'zzquartz-open.pdf', message: 'zzquartz open words' };
 /** The number of threads of the project that is hidden: more than TASK_THREAD_LIMIT, with newer comments than any open thread. */
@@ -849,6 +851,8 @@ export function hiddenTraps(traps: State, variant: 'hidden' | 'seeAll'): State {
     apply(state, 'tasks.create', { projectId: HIDDEN_PROJECT, title: `Zzquartz hidden to-do ${n}` }, leader, `cor_hidden_task_${n}`, undefined, at(n));
     apply(state, 'files.upload', { name: `${HIDDEN_WORD}-hidden-${n}.pdf`, projectId: HIDDEN_PROJECT, uploadId: `upl_hidden_${n}` }, leader, `cor_hidden_file_${n}`, { blobKey: `blob_hidden_${n}`, ...pdf }, at(10 + n));
   }
+  // A meeting of the hidden project: meetings.list shows it to the people who see the project only (meetingConds).
+  apply(state, 'meetings.create', { kind: 'team', title: HIDDEN_MEETING, projectId: HIDDEN_PROJECT, startsAt: '2026-10-07T09:00:00+03:00', attendeeIds: ['usr_005'] }, leader, 'cor_hidden_meeting', undefined, at(20));
   // The open rows come after the hidden ones, so a read without the view rule would fill its first 5 with hidden rows.
   const open = Object.values(state.tasks).find((t) => t.projectId === 'prj_001')!;
   const openLeader = state.projects.prj_001.leaderId!;
@@ -912,7 +916,7 @@ export function hiddenSweep(office: State): SweepCall[] {
       ['projects.list', { status: 'all' }, actor], ['tasks.list', { activeProjectsOnly: false }, actor], ['deadlines.list', { status: 'all' }, actor],
       ['dashboard.get', { status: 'all' }, actor], ['subCompanies.list', {}, actor],
       ['reports.office', { period: 'quarter' }, actor], ['reports.office', { period: 'range', from: '2026-09-01', to: '2026-10-31' }, actor],
-      ['meetings.list', { mine: false, from: '2026-09-01', to: '2026-12-31' }, actor], ['meetings.list', { mine: false, projectId: HIDDEN_PROJECT }, actor],
+      ['meetings.list', { from: '2026-09-01', to: '2026-12-31' }, actor], ['meetings.list', { mine: false, projectId: HIDDEN_PROJECT, from: '2026-10-01', to: '2026-10-31' }, actor],
     );
   }
   return calls;
