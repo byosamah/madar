@@ -92,6 +92,20 @@ describe('phone helpers', () => {
     }
   });
 
+  // A full-page screenshot, a turn of the phone and a resize of the window change the window before the visual viewport tells the hook.
+  // Another render in that gap saw the new window height and the old viewport height, and the bar hid for a moment and faded back.
+  it('useKeyboardOpen reads the live viewport, so a render between the window resize and the viewport event shows no keyboard', () => {
+    setInnerHeight(1);
+    const viewport = fakeVisualViewport({ height: 1 });
+    const { result, rerender } = renderHook(() => useKeyboardOpen());
+    expect(result.current).toBe(false);
+    // The window and the viewport are both 900 px high now, but the viewport has not fired its event yet.
+    setInnerHeight(900);
+    viewport.set({ height: 900 });
+    rerender();
+    expect(result.current).toBe(false);
+  });
+
   it('useKeyboardOpen stays false while the page is pinch-zoomed', () => {
     setInnerHeight(800);
     const viewport = fakeVisualViewport({ height: 400, scale: 2 });

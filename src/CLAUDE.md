@@ -510,7 +510,7 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
   page) navigates. No screen but `WorkHeader` calls `rememberWorkView`, so the Work tab links `/work` until a Work view was seen.
 - The bar hides through `usePhoneBarHide` (`app/usePhoneBarHide.ts`): for an open chat (`isPhoneChatPath`, `app/phoneChat.ts`) and Focus mode it leaves the
   page; with the open keyboard (`useKeyboardOpen`, `app/useKeyboardOpen.ts`: `visualViewport` more than 150 px shorter than the window, never while
-  pinch-zoomed) it stays mounted, clear and inert. While it hides, `<html>` carries `data-bar-hidden` and the token `--phone-bar` is 0 px. The page and
+  pinch-zoomed; the hook reads the live `visualViewport`, not a saved copy, because a full-page screenshot sets the window to 1 px and back, and a saved copy made the bar hide and fade in again, which failed the axe contrast check) it stays mounted, clear and inert. While it hides, `<html>` carries `data-bar-hidden` and the token `--phone-bar` is 0 px. The page and
   the toast lane use `--phone-bar` (`max-sm:pb-[calc(var(--phone-bar)+1.5rem)]`, `bottom-[calc(var(--phone-bar)+0.75rem)]`), never `pb-32` or `bottom-24`.
 - Top row: `PhoneTopRow` (`app/PhoneTopRow.tsx`) holds the mark, or the back link of `backLinkOf` (`app/phoneBack.ts`: a project page to Projects; Me
   sections, What's new, Dashboard and Admin to Me; `/tasks` to Dashboard or Me; an Admin section to Admin or Office), and one Search icon named
