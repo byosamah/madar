@@ -147,6 +147,13 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   its counts come from `countWhere` with one key for each value (`REPORT_KEYS`). A loader without the clock never resolves a period.
 - A Source gives rows that the caller owns (`sqlSource` gets new objects from pg, `memorySource` gives copies), so
   `Load.state()` keeps them with no second copy. The office lists of the State stay copies of the snapshot.
+- `Load.batch(steps)` sends reads that do not depend on each other as ONE statement (perf2 SV-10): `sqlSource.batch` joins them with
+  `union all` (`batchSql`) and gives one row for each read, with that read's rows as one jsonb array (`jsonb_agg`). The chat loaders
+  (`chat.ts`: `everyChat`, `chatsWaiting`) run in rounds: 3 statements for `chats.unreadCount` and `chats.list` (were 9 to 11), and 3
+  for `chats.waiting` (was 12). A step must not need the rows of another step of the same batch (the keys that a `byKey` step misses are
+  chosen before the batch runs). `memorySource` and `liteSource` have no `batch`; `Load.batch` then asks them one read at a time and
+  gives the same State. One read left in a batch keeps its own statement. `loaders.it.test.ts` pins at most 3 statements for the
+  badge and the list.
 - Save: `runWrite` takes `before` from `beforeOf` (`loaders/build.ts`). Its office lists are the frozen snapshot lists, and
   every other collection is a deep copy. Only the save step reads `before`; a write into its office part throws. `diffState`
   makes the JSON of a deep-frozen record once (a WeakMap in `save.ts`).

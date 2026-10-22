@@ -5,7 +5,7 @@ import { OFFICE_COLLECTIONS, type OfficeSnapshot } from '../../core/types';
 import { pairEventFields } from '../rows';
 import { tableOf, type TableCollection } from '../tables';
 import type { CountSelect, Row, Select } from './query';
-import type { Source } from './source';
+import type { Read, ReadAnswer, Source, ThreadRow, ThreadsArgs } from './source';
 
 /**
  * The work of one loader (plan 4.6; task C2): the office from the cache, plus the scoped rows it reads, as one State.
@@ -34,6 +34,18 @@ export type LoadCtx = {
 };
 
 const OFFICE = new Set<string>(OFFICE_COLLECTIONS);
+
+/**
+ * One read of Load.batch. select gives its rows (Load.select). byKey reads the rows of these keys that the load does not hold yet,
+ * with only some fields when "pick" is set (Load.byKey, pickedByKey). count is Load.countWhere. threads is Source.threads.
+ */
+export type Step =
+  | { select: Select }
+  | { byKey: { c: TableCollection; keys: Iterable<string | null | undefined>; pick?: readonly string[] } }
+  | { count: { s: CountSelect; values: readonly string[]; keyOf: (value: string) => string; inWrite?: true } }
+  | { threads: ThreadsArgs };
+/** The answer of one Step: rows for a select, threads for a threads read, nothing for the others (and for a step left out). */
+export type StepResult<S> = S extends { select: Select } ? Rec[] : S extends { threads: ThreadsArgs } ? ThreadRow[] : undefined;
 
 export class Load {
   readonly write: boolean;
@@ -111,6 +123,58 @@ export class Load {
     if (OFFICE.has(c)) return;
     const missing = [...new Set([...keys].filter((key): key is string => typeof key === 'string' && key !== ''))].filter((key) => !this.get(c, key));
     if (missing.length > 0) await this.select({ c, where: [{ col: 'id', in: missing }] });
+  }
+
+  /**
+   * Several reads that do not depend on each other, in one round trip (performance audit SV-10, perf2). Each step gives what its
+   * single call gives, and the load keeps the rows in the order of the steps, so the State is the one that the reads one by one
+   * give. The keys that byKey misses are chosen before any step runs, so a step must not need the rows of an earlier step of the
+   * same batch. A step that is undefined, a byKey with no missing key and a count with no value send nothing. The answers come
+   * back in the places of the steps.
+   */
+  async batch<const S extends readonly (Step | undefined)[]>(steps: S): Promise<{ -readonly [K in keyof S]: StepResult<S[K]> }> {
+    const plans: { at: number; read: Read; apply: (answer: ReadAnswer) => unknown }[] = [];
+    steps.forEach((step, at) => {
+      if (!step) return;
+      if ('select' in step) {
+        const { select } = step;
+        if (OFFICE.has(select.c)) throw new Error(`The office list ${select.c} comes from the office cache, not from a loader read.`);
+        plans.push({ at, read: { select }, apply: (answer) => this.#add(select.c, answer as Row[]) });
+      } else if ('byKey' in step) {
+        const { c, keys, pick } = step.byKey;
+        if (OFFICE.has(c)) return;
+        const missing = [...new Set([...keys].filter((key): key is string => typeof key === 'string' && key !== ''))].filter((key) => !this.get(c, key));
+        if (missing.length === 0) return;
+        const select: Select = { c, where: [{ col: 'id', in: missing }], ...(pick ? { pick } : {}) };
+        plans.push({ at, read: { select }, apply: (answer) => void this.#add(c, answer as Row[]) });
+      } else if ('count' in step) {
+        const { s, values, keyOf, inWrite } = step.count;
+        if (this.write && !inWrite) throw new Error('A write reads rows, never counts, except chats.markRead.');
+        const want = [...new Set(values)];
+        if (want.length === 0) return;
+        plans.push({
+          at, read: { count: s },
+          apply: (answer) => {
+            for (const value of want) this.#counts[keyOf(value)] = (answer as Map<string, number>).get(value) ?? 0;
+          },
+        });
+      } else {
+        plans.push({ at, read: { threads: step.threads }, apply: (answer) => answer });
+      }
+    });
+    const src = this.#src;
+    const reads = plans.map((plan) => plan.read);
+    let answers: ReadAnswer[];
+    if (reads.length > 1 && src.batch) answers = await src.batch(reads);
+    else {
+      answers = [];
+      for (const read of reads) answers.push('select' in read ? await src.select(read.select) : 'count' in read ? await src.countWhere(read.count) : await src.threads(read.threads));
+    }
+    const out: unknown[] = steps.map(() => undefined);
+    plans.forEach((plan, n) => {
+      out[plan.at] = plan.apply(answers[n]);
+    });
+    return out as never;
   }
 
   /** Every feedback row: only the feedback calls read them (plan 4.6). */

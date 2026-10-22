@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Query } from '../../core/ports';
 import type { CountSelect, Select } from './query';
-import { countSql, selectSql, sqlSource } from './sqlSource';
+import type { Read } from './source';
+import { batchSql, countSql, selectSql, sqlSource } from './sqlSource';
 
 /**
  * The SQL text of the loader reads (performance audit 2026-10-07). server/it/loaders.it.test.ts proves that each form gives the
@@ -275,5 +276,76 @@ describe('the rows that still name a record (DB-M3)', () => {
       expect(text, path).toContain('jsonb_path_exists(t.doc, $1::jsonpath');
       expect(values[1], path).toBe('tsk_001');
     }
+  });
+});
+
+describe('several reads in one statement (SV-10 of perf2)', () => {
+  const chatReads: Select = { c: 'chatReads', where: [{ col: 'id', in: ['cr_1', 'cr_2'] }] };
+  const picked: Select = { c: 'tasks', where: [{ col: 'id', in: ['tsk_001'] }], pick: ['id', 'ownerId'] };
+  const unread: CountSelect = { c: 'messages', per: 'conversation_id', where: [{ bounds: { col: 'conversation_id', by: { cnv_001: { gt: '' } } } }] };
+  const threads = { owner: 'usr_001', led: ['prj_001'], me: ['usr_001'], limit: 30, admin: false };
+  const reads: Read[] = [{ select: chatReads }, { select: picked }, { count: unread }, { threads }];
+
+  /** A Query that writes down what it gets and answers with the rows given. */
+  function recording(answer: unknown[] = []) {
+    const sent: { text: string; values: unknown[] }[] = [];
+    const q: Query = async <R,>(text: string, values: unknown[] = []) => {
+      sent.push({ text, values });
+      return answer as R[];
+    };
+    return { sent, q };
+  }
+
+  it('joins the reads with union all, one tag for each read, and numbers the values of each read after the values before it', () => {
+    const { text, values } = batchSql(reads);
+    expect(text.match(/ union all /g)).toHaveLength(3);
+    expect(text).toMatch(/^select u\.i, jsonb_agg\(u\.j order by u\.o\) as j from \([\s\S]*\) u group by u\.i order by u\.i$/);
+    const sizes = [selectSql(chatReads).values, selectSql(picked).values, countSql(unread).values, [0, 0, 0, 0, 0]].map((one) => one.length);
+    expect(values).toHaveLength(sizes.reduce((a, b) => a + b, 0));
+    // The values of the first two selects and the count come first, in the order of the reads.
+    expect(values.slice(0, 1)).toEqual(selectSql(chatReads).values.slice(0, 1));
+    expect(values.slice(sizes[0], sizes[0] + sizes[1])).toEqual(selectSql(picked).values);
+    // Every number up to the last one is used, and no text holds a value.
+    const used = new Set([...text.matchAll(/\$(\d+)/g)].map((m) => Number(m[1])));
+    expect([...used].sort((a, b) => a - b)).toEqual(values.map((_, i) => i + 1));
+    expect(text).not.toContain('cr_1');
+    expect(text).not.toContain('usr_001');
+  });
+
+  it('sends one statement for several reads and gives each read its own answer, in the order of the reads', async () => {
+    const { sent, q } = recording([
+      { i: 0, j: [[3, { id: 'cr_1' }], [8, { id: 'cr_2' }]] },
+      { i: 1, j: [[1, [0, 'tsk_001', null]]] },
+      { i: 2, j: [['cnv_001', 4], [null, 9]] },
+      { i: 3, j: [['tsk_005', '2026-10-02T10:00:00.000+03:00', null], ['tsk_002', '2026-10-01T10:00:00.000+03:00', 'x']] },
+    ]);
+    const answers = await sqlSource(q).batch!(reads);
+    expect(sent).toHaveLength(1);
+    expect(answers[0]).toEqual([{ ord: 3, doc: { id: 'cr_1' } }, { ord: 8, doc: { id: 'cr_2' } }]);
+    expect(answers[1]).toEqual([{ ord: 1, doc: { id: 'tsk_001', ownerId: null } }]);
+    expect(answers[2]).toEqual(new Map([['cnv_001', 4]]));
+    expect(answers[3]).toEqual([
+      { id: 'tsk_005', last: '2026-10-02T10:00:00.000+03:00', mine: null }, { id: 'tsk_002', last: '2026-10-01T10:00:00.000+03:00', mine: 'x' },
+    ]);
+  });
+
+  it('gives an empty answer to a read that has no row in the answer of the statement', async () => {
+    const { q } = recording([{ i: 1, j: [['cnv_001', 2]] }]);
+    const answers = await sqlSource(q).batch!([{ select: chatReads }, { count: unread }, { threads }]);
+    expect(answers).toEqual([[], new Map([['cnv_001', 2]]), []]);
+  });
+
+  it('keeps the plain statement of a batch of one read, and sends nothing for reads that match nothing', async () => {
+    const one = recording();
+    await sqlSource(one.q).batch!([{ select: chatReads }, { select: { c: 'tasks', where: [{ col: 'id', in: [] }] } }]);
+    expect(one.sent).toEqual([{ text: selectSql(chatReads).text, values: selectSql(chatReads).values }]);
+    const none = recording();
+    const answers = await sqlSource(none.q).batch!([{ select: { c: 'tasks', where: [{ col: 'id', in: [] }] } }, { count: { ...unread, where: [{ col: 'conversation_id', in: [] }] } }]);
+    expect(none.sent).toEqual([]);
+    expect(answers).toEqual([[], new Map()]);
+  });
+
+  it('puts the order of a thread read in its own row number, so the union cannot change it', () => {
+    expect(batchSql([{ select: chatReads }, { threads }]).text).toContain('row_number() over (order by x.last collate "C" desc, x.id collate "C" desc)');
   });
 });

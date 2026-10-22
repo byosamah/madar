@@ -240,11 +240,21 @@ describe('the loaders on the local database', () => {
     await db.query('begin');
     try {
       await writeDiff(q, diffState(office, traps), { signals: false });
-      const source = sqlSource(q);
+      let sent = 0;
+      const counting: Query = async <R,>(text: string, values?: unknown[]) => {
+        sent += 1;
+        return q<R>(text, values);
+      };
+      const source = sqlSource(counting);
       for (const actor of actors) {
-        for (const name of ['chats.unreadCount', 'chats.list', 'notifications.count', 'notifications.list'] as const) {
+        for (const name of ['chats.unreadCount', 'chats.list', 'chats.waiting', 'notifications.count', 'notifications.list'] as const) {
+          sent = 0;
           const { whole, scoped } = await runBoth(traps, name, {}, actor, { now: NOW, correlationId: 'cor_it', source });
           expect(scoped, `${name} as ${actor}`).toEqual(whole);
+          // The chat reads join their independent reads into one statement for each round (SV-10 of perf2): at most 3 rounds for the
+          // badge and the list, 4 for the waiting replies. Each read before sent 9 to 15 statements one after the other.
+          if (name === 'chats.unreadCount' || name === 'chats.list') expect(sent, `${name} as ${actor}`).toBeLessThanOrEqual(3);
+          if (name === 'chats.waiting') expect(sent, `${name} as ${actor}`).toBeLessThanOrEqual(4);
         }
       }
     } finally {

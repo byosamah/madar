@@ -3,7 +3,7 @@ import type { Query } from '../../core/ports';
 import { COUNTERS_SELECT_SQL } from '../rows';
 import { tableOf, type TableCollection } from '../tables';
 import { assertOrder, columnOf, columnOfField, fieldName, isAscending, matchesNothing, type Bound, type Cond, type CountSelect, type Row, type Select } from './query';
-import type { Source } from './source';
+import type { Read, ReadAnswer, Source, ThreadRow, ThreadsArgs } from './source';
 
 /**
  * A Source on the database (task C2). Each read is one statement inside the call's transaction. Values always go as parameters;
@@ -231,21 +231,81 @@ export function countSql(s: CountSelect): { text: string; values: unknown[] } {
   return { text: `select ${per} as v, count(*)::integer as n from ${tableOf(s.c).table} t${where} group by ${per}`, values };
 }
 
+/** The rows of one Select as the Source gives them: the number "ord" as a number, and the object of a picked doc built back (DB-4). */
+function rowsOf(s: Select, rows: readonly { ord: string | number; doc: unknown }[]): Row[] {
+  if (asArray(s.pick)) {
+    const pick = s.pick;
+    const order = jsonbOrder(pick);
+    return rows.map((row): Row => ({ ord: Number(row.ord), doc: unpick(pick, order, row.doc) }));
+  }
+  return rows.map((row): Row => ({ ord: Number(row.ord), doc: row.doc as Record<string, unknown> }));
+}
+
+/** The SQL of the task threads (Source.threads): $1 and up are its values. */
+export function threadsSql(o: ThreadsArgs): { text: string; values: unknown[] } {
+  return {
+    text: `with mine as (select distinct target_id from comments where target_type = 'task' and doc->>'authorId' = any($3::text[])),
+         cand as (select k.id from tasks k
+           where (k.owner_id = $1::text or k.project_id = any($2::text[]) or k.id in (select target_id from mine)
+               or (k.project_id is null and k.doc->>'createdBy' = any($3::text[])))
+             and (k.project_id is not null or $5::boolean or k.owner_id = $1::text or k.doc->'helperIds' ? $1::text
+               or k.doc->>'createdBy' = any($3::text[]))
+         ),
+         threads as (
+           select c.target_id as id, max(c.created_at ${C}) as last,
+                  max(c.created_at ${C}) filter (where c.doc->>'authorId' = any($3::text[])) as mine
+           from comments c where c.target_type = 'task' and c.target_id in (select id from cand)
+           group by c.target_id
+         ),
+         ranked as (select id, last, mine, rank() over (order by last ${C} desc) as r from threads)
+         select id, last, mine from ranked where r <= $4::int order by last ${C} desc, id ${C} desc`,
+    values: [o.owner, o.led, o.me, o.limit, o.admin],
+  };
+}
+
+/**
+ * Several reads that do not depend on each other as one statement (performance audit SV-10, perf2): the branches are joined with
+ * union all. Each branch gives i (the place of its read in the batch), o (the order of its rows) and j (one row as a jsonb array:
+ * ord and doc of a select, the key and the number of a count, id, last and mine of a thread), so the key names never repeat in a row.
+ * The statement then gives one row for each read, with the rows of that read as one jsonb array in the order o (jsonb_agg), so the
+ * tags i and o never repeat in a row either. A read with no row gives no row.
+ * The values of each read come after the values before it, so every value still goes as a parameter. The reads need no order
+ * between them: they run in one statement on one snapshot. Only a select, a count and the threads can join.
+ */
+export function batchSql(reads: readonly Read[]): { text: string; values: unknown[] } {
+  const values: unknown[] = [];
+  const branches = reads.map((one, i) => {
+    const part = 'select' in one ? selectSql(one.select) : 'count' in one ? countSql(one.count) : threadsSql(one.threads);
+    const shifted = part.text.replace(/\$(\d+)/g, (_whole, n: string) => `$${Number(n) + values.length}`);
+    values.push(...part.values);
+    if ('select' in one) return `select ${i} as i, x.ord::bigint as o, jsonb_build_array(x.ord, x.doc) as j from (${shifted}) x`;
+    if ('count' in one) return `select ${i} as i, 0::bigint as o, jsonb_build_array(x.v, x.n) as j from (${shifted}) x`;
+    return `select ${i} as i, (row_number() over (order by x.last ${C} desc, x.id ${C} desc))::bigint as o, jsonb_build_array(x.id, x.last, x.mine) as j from (${shifted}) x`;
+  });
+  return { text: `select u.i, jsonb_agg(u.j order by u.o) as j from (${branches.join(' union all ')}) u group by u.i order by u.i`, values };
+}
+
 export function sqlSource(q: Query): Source {
   const read = async <R,>(text: string, values: unknown[]): Promise<R[]> => q<R>(text, values);
 
+  const selectRows = async (s: Select): Promise<Row[]> => {
+    if (matchesNothing(s)) return [];
+    const { text, values } = selectSql(s);
+    return rowsOf(s, await read<{ ord: string | number; doc: Record<string, unknown> }>(text, values));
+  };
+  const countRows = async (s: CountSelect): Promise<Map<string, number>> => {
+    if (matchesNothing(s)) return new Map();
+    const { text, values } = countSql(s);
+    const rows = await read<{ v: string | null; n: number }>(text, values);
+    return new Map(rows.flatMap((row) => (row.v === null ? [] : [[row.v, Number(row.n)] as const])));
+  };
+  const threadRows = async (o: ThreadsArgs): Promise<ThreadRow[]> => {
+    const { text, values } = threadsSql(o);
+    return read<ThreadRow>(text, values);
+  };
+
   return {
-    async select(s) {
-      if (matchesNothing(s)) return [];
-      const { text, values } = selectSql(s);
-      const rows = await read<{ ord: string | number; doc: Record<string, unknown> }>(text, values);
-      if (asArray(s.pick)) {
-        const pick = s.pick;
-        const order = jsonbOrder(pick);
-        return rows.map((row): Row => ({ ord: Number(row.ord), doc: unpick(pick, order, row.doc) }));
-      }
-      return rows.map((row): Row => ({ ord: Number(row.ord), doc: row.doc }));
-    },
+    select: selectRows,
 
     async count(c, column, values) {
       if (values.length === 0) return new Map();
@@ -256,12 +316,7 @@ export function sqlSource(q: Query): Source {
       return new Map(rows.map((row) => [row.v, Number(row.n)]));
     },
 
-    async countWhere(s) {
-      if (matchesNothing(s)) return new Map();
-      const { text, values } = countSql(s);
-      const rows = await read<{ v: string | null; n: number }>(text, values);
-      return new Map(rows.flatMap((row) => (row.v === null ? [] : [[row.v, Number(row.n)] as const])));
-    },
+    countWhere: countRows,
 
     async undoLinks(eventIds) {
       if (eventIds.length === 0) return new Map();
@@ -286,25 +341,30 @@ export function sqlSource(q: Query): Source {
       return rows.map((row) => ({ ord: Number(row.ord), doc: row.doc }));
     },
 
-    async threads(o) {
-      return read<{ id: string; last: string; mine: string | null }>(
-        `with mine as (select distinct target_id from comments where target_type = 'task' and doc->>'authorId' = any($3::text[])),
-         cand as (select k.id from tasks k
-           where (k.owner_id = $1::text or k.project_id = any($2::text[]) or k.id in (select target_id from mine)
-               or (k.project_id is null and k.doc->>'createdBy' = any($3::text[])))
-             and (k.project_id is not null or $5::boolean or k.owner_id = $1::text or k.doc->'helperIds' ? $1::text
-               or k.doc->>'createdBy' = any($3::text[]))
-         ),
-         threads as (
-           select c.target_id as id, max(c.created_at ${C}) as last,
-                  max(c.created_at ${C}) filter (where c.doc->>'authorId' = any($3::text[])) as mine
-           from comments c where c.target_type = 'task' and c.target_id in (select id from cand)
-           group by c.target_id
-         ),
-         ranked as (select id, last, mine, rank() over (order by last ${C} desc) as r from threads)
-         select id, last, mine from ranked where r <= $4::int order by last ${C} desc, id ${C} desc`,
-        [o.owner, o.led, o.me, o.limit, o.admin],
-      );
+    threads: threadRows,
+
+    async batch(reads) {
+      const answers: ReadAnswer[] = reads.map((one) => ('select' in one ? [] : 'count' in one ? new Map<string, number>() : []));
+      const live = reads.flatMap((one, at) => (('select' in one && matchesNothing(one.select)) || ('count' in one && matchesNothing(one.count)) ? [] : [at]));
+      // One read keeps its own statement, so its text and its plan stay what they were.
+      if (live.length === 1) {
+        const one = reads[live[0]];
+        answers[live[0]] = 'select' in one ? await selectRows(one.select) : 'count' in one ? await countRows(one.count) : await threadRows(one.threads);
+        return answers;
+      }
+      if (live.length === 0) return answers;
+      const { text, values } = batchSql(live.map((at) => reads[at]));
+      const rows = await read<{ i: number; j: unknown[][] }>(text, values);
+      const byRead = live.map((): unknown[][] => []);
+      for (const row of rows) byRead[Number(row.i)] = row.j;
+      live.forEach((at, n) => {
+        const one = reads[at];
+        const mine = byRead[n];
+        if ('select' in one) answers[at] = rowsOf(one.select, mine.map((row) => ({ ord: row[0] as string | number, doc: row[1] as Record<string, unknown> })));
+        else if ('count' in one) answers[at] = new Map(mine.flatMap((row) => (row[0] === null ? [] : [[row[0] as string, Number(row[1])] as const])));
+        else answers[at] = mine.map((row): ThreadRow => ({ id: row[0] as string, last: row[1] as string, mine: row[2] as string | null }));
+      });
+      return answers;
     },
 
     async counters() {
