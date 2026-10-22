@@ -2410,3 +2410,16 @@ Not proven: a real iPhone. After the deploy, wait 11 minutes on an iPhone, press
   the times are not a fair compare. The rows wait for the first batch answer, which the change does not move.
 - Open: the limit of 3 imports at a time counts screens, not files: a screen import pulls its own chunks together (26 requests in flight
   at 8.3 s for ProjectsScreen and its parts). A second phone measure at a low load is still to do.
+
+### Release record: production at 8903f5a7 (2026-10-22, team reports batches A and C)
+- On the owner's "Production now" (AskUserQuestion), `all.sh production` took 8903f5a7, the commit of the test deploy: batch A (fbk_038
+  picture zoom, fbk_040 file chip and one picture inside the bubble and the file names once, fbk_043 checklist order, fbk_045 upload bars,
+  fbk_046 and fbk_047 paste and drop in the Tracker, posts and minutes) and batch C (fbk_042 the Board view of Tasks). Screens only: no
+  migration, no handler or loader change; the MCP docs of `tasks.update` name the checklist order. The quick checks passed: health from
+  supabase (149 calls), database, lock and asyncContext ok, /mcp with no token 401; the page title Madar, `/favicon.ico` 200, and the live
+  `WorkScreen` chunk holds the board code.
+- Gates once on the join (main f798195a plus A and C): typecheck; npm test 9,908 passed, 2 Inbox timing tests failed under a load
+  average of 12 and pass alone (`ChatListStage`, `ReactionAny` 3 of 3); the three builds (first load 946,527 B, 284,743 B gzip, 21 files);
+  screenshots EN and AR, light and dark, 390 px (the chat bubble, the zoom, the checklist grip and its keyboard move, the Tracker drop
+  frame, the Board with "Your review"). Not run: test:db, test:it, test:mcp, the prototype smoke and the deploy suite (screens only).
+  The upload bars were not seen in a browser: the prototype upload ends at once.

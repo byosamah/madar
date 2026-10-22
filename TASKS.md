@@ -1018,8 +1018,8 @@ Plan and answers: memory and the two design files below. fbk_039 (12-hour clock)
   and pass alone: `ChatListStage`, `ReactionAny` 3 of 3), `npm run build`, `build:server`, `build:remote -- test` (first load 946,527 B,
   284,743 B gzip, 21 files), screenshots EN and AR, light and dark, 390 px. Not run: `test:db`, `test:it`, `test:mcp` (no handler,
   loader or SQL change; the MCP docs tests are in `npm test`).
-- [ ] Owner tries A and C on the test copy (the upload bars show only there: the prototype upload ends at once), then production.
-  Mark fbk_038, 040, 042, 043, 045, 046, 047 done after the owner says they are live.
+- [x] Test copy and production at 8903f5a7 (owner: "Production now", 2026-10-22). fbk_038, 040, 042, 043, 045, 046 and 047 marked done.
+  Not seen in a browser yet: the upload bars (the prototype upload ends at once). Check one upload on the live site.
 - [ ] Batch B (`rb/batch-b`, plan `docs/superpowers/plans/2026-10-22-madar-quiet-hours-everyone-plan.md`): quiet hours (fbk_048) and
   @everyone (fbk_041). Building. What's new 88 to 90. Needs `test:db`, `test:it` and `test:mcp` at the merge.
 - [ ] Batch D (`rb/batch-d`, design `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design.md`): hidden projects,
