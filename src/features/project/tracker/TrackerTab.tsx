@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import { TRACKER_TYPES, TrackerDirection as Sides, type TrackerDirection, type TrackerType } from '../../../api/contract/entities';
 import { useCall } from '../../../app/runtime';
+import { useIsPhone } from '../../../app/useIsPhone';
 import { useRight } from '../../../app/useRight';
 import { Button } from '../../../components/Button';
 import { EmptyState } from '../../../components/EmptyState';
@@ -13,6 +14,7 @@ import { DownloadIcon } from '../../../components/icons/animated/download';
 import { oneOf } from '../../../lib/params';
 import { activeMembers } from '../../../lib/tracker';
 import { ENTRY_PANEL, usePanelLink } from '../panelLink';
+import { tabButtonShows } from '../mainButton';
 import { setFilterParam, type TabProps } from '../tabs';
 import { EntrySheet } from './EntrySheet';
 import { ExportSheet } from './ExportSheet';
@@ -38,6 +40,8 @@ function Choice({ name, value, checked, label, onChange }: { name: string; value
 /** The record of every exchange with the client (owner, 2026-10-01): open loops on top, a one-line log, then the history by week. */
 export function TrackerTab({ detail }: TabProps) {
   const { t } = useTranslation();
+  const phone = useIsPhone();
+  const [logOpen, setLogOpen] = useState(false);
   const projectId = detail.project.id;
   const [params, setParams] = useSearchParams();
   // The filter lives in the link, so a reload, Back or a trip to another tab keeps it (audit 2026-10-03, PRJ-22).
@@ -90,12 +94,28 @@ export function TrackerTab({ detail }: TabProps) {
   });
   const active = [filter.type !== 'all', filter.direction !== 'all', filter.openOnly].filter(Boolean).length;
   const shown = [...(history.data ?? []), ...(open.data ?? [])].find((row) => row.entry.id === openId);
+  const canLog = detail.viewerCan.logTracker === true;
+  const loops = open.error && !open.data ? <LoadFailed error={open.error} onRetry={() => void open.refetch()} /> : <OpenLoops rows={open.data ?? []} onOpen={setOpenId} />;
+  const quickLog = <QuickLog projectId={projectId} members={activeMembers(detail.members)} canReply={canReply} canAssign={canAssign} canAttach={detail.viewerCan.upload === true} sheet={phone ? { open: logOpen, onOpenChange: setLogOpen } : undefined} />;
   return (
     <div ref={root} className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-      {/* A list that did not load says so and offers Retry (audit 2026-10-03, PRJ-4). */}
-      {open.error && !open.data ? <LoadFailed error={open.error} onRetry={() => void open.refetch()} /> : <OpenLoops rows={open.data ?? []} onOpen={setOpenId} />}
-      {detail.viewerCan.logTracker ? <QuickLog projectId={projectId} members={activeMembers(detail.members)} canReply={canReply} canAssign={canAssign} canAttach={detail.viewerCan.upload === true} /> : <p className="text-footnote text-label-2">{t('tracker.cannotLog')}</p>}
-      <section aria-label={t('tracker.history')} className="flex flex-col gap-3">
+      {phone ? (
+        <>
+          {/* A phone shows the main button first. The form opens in a sheet that stays mounted, so the type and the side stay. */}
+          {tabButtonShows('tracker', detail.viewerCan)
+            ? <Button variant="primary" onClick={() => setLogOpen(true)}>{t('phoneProject.tracker.logNew')}</Button>
+            : <p className="text-footnote text-label-2">{t('tracker.cannotLog')}</p>}
+          {loops}
+          {canLog && quickLog}
+        </>
+      ) : (
+        <>
+          {/* A list that did not load says so and offers Retry (audit 2026-10-03, PRJ-4). */}
+          {loops}
+          {canLog ? quickLog : <p className="text-footnote text-label-2">{t('tracker.cannotLog')}</p>}
+        </>
+      )}
+      <section aria-label={t('tracker.history')} className={phone ? 'panel flex flex-col gap-3 p-4' : 'flex flex-col gap-3'}>
         <div className="flex flex-wrap items-center gap-2">
           <FilterButton label={t('filter.label')} count={active}>
             <div className="flex flex-col gap-3">

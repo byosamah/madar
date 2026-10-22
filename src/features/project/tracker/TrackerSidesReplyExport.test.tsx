@@ -38,6 +38,8 @@ describe('the Tracker tab: types, sides and replies', () => {
     const spy = phoneWidth();
     try {
       await renderApp(TRACKER, as('usr_002'));
+      // A phone keeps the form in a sheet (phone D): the main button opens it.
+      await userEvent.click(await screen.findByRole('button', { name: 'Log a new line' }));
       const field = await screen.findByRole('textbox', { name: 'Log an exchange' });
       // The full hint was cut on a phone. An empty field with dir="auto" is left to right, so an Arabic hint lost its first word.
       expect(field).toHaveAttribute('placeholder', 'e.g. Client sent the survey');

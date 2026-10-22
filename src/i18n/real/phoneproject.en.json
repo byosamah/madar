@@ -19,6 +19,9 @@
     "tasks": {
       "view": "View: {{view}}",
       "doneOf": "{{done}} of {{total}} done"
+    },
+    "tracker": {
+      "logNew": "Log a new line"
     }
   }
 }

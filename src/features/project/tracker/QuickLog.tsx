@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TRACKER_TYPES, type TrackerDirection, type TrackerType } from '../../../api/contract/entities';
 import type { UserCard } from '../../../api/contract/views';
@@ -8,6 +8,7 @@ import { useToast } from '../../../app/toasts';
 import { useIsPhone } from '../../../app/useIsPhone';
 import { Button } from '../../../components/Button';
 import { CalendarPopover } from '../../../components/CalendarPopover';
+import { Sheet } from '../../../components/Sheet';
 import { SegmentedControl } from '../../../components/SegmentedControl';
 import { Switch } from '../../../components/Switch';
 import { isFinePointer } from '../../../lib/calendar';
@@ -26,7 +27,7 @@ import { arrowStep } from '../../../lib/keys';
  * sensible defaults, so Enter saves. The type and the side stay as set for the next entry. The side follows the type: only a message,
  * a file or an "Other" entry asks for it. An entry that needs a reply also asks who replies and by which day.
  */
-export function QuickLog({ projectId, members: everyone, canReply = true, canAssign = true, canAttach = true }: {
+export function QuickLog({ projectId, members: everyone, canReply = true, canAssign = true, canAttach = true, sheet }: {
   projectId: string; members: UserCard[];
   /** False when the person lacks tracker.reply (or task.add here): the entry can wait, but no reply to-do is asked for. */
   canReply?: boolean;
@@ -34,12 +35,18 @@ export function QuickLog({ projectId, members: everyone, canReply = true, canAss
   canAssign?: boolean;
   /** False when the person lacks file.upload: no Attach button. */
   canAttach?: boolean;
+  /**
+   * On a phone the form opens in a sheet from one main button (phone D). QuickLog then draws only the sheet and stays mounted with its
+   * tab, so the type and the side stay as set for the next entry. The Log it button sits in the footer of the sheet.
+   */
+  sheet?: { open: boolean; onOpenChange: (open: boolean) => void };
 }) {
   const { t } = useTranslation();
   const phone = useIsPhone();
   const toast = useToast();
   const attachments = useAttachments();
   const field = useRef<HTMLInputElement>(null);
+  const formId = useId();
   // The date keeps its full field look (it is never empty). On a computer a press opens Madar's calendar under it (UX audit 2026-10-19, INT-22).
   const dateInput = useRef<HTMLInputElement>(null);
   const dateBox = useRef<HTMLSpanElement>(null);
@@ -63,7 +70,9 @@ export function QuickLog({ projectId, members: everyone, canReply = true, canAss
       setReplyDate('');
       setDate(todayISO());
       attachments.clear();
-      field.current?.focus();
+      // The sheet closes after a save and the box on the page keeps the focus for the next line.
+      if (sheet) sheet.onOpenChange(false);
+      else field.current?.focus();
     },
   });
 
@@ -109,12 +118,11 @@ export function QuickLog({ projectId, members: everyone, canReply = true, canAss
 
   // A file dropped on the screen outside the frame never opens in the browser tab (fbk_047).
   useBlockFileDrop();
-  return (
-    // Files dropped on the quick log join the picked files, where the person may upload. Nothing saves before the save button.
-    <ChatDropArea note={t('tracker.dropNote')} className="relative">
+  const form = (
     <form
+      id={formId}
       aria-label={t('tracker.logLabel')}
-      className="panel flex flex-col gap-3 p-4"
+      className={sheet ? 'flex flex-col gap-3' : 'panel flex flex-col gap-3 p-4'}
       onSubmit={(event) => {
         event.preventDefault();
         void submit();
@@ -122,7 +130,7 @@ export function QuickLog({ projectId, members: everyone, canReply = true, canAss
       // A paste of only pictures adds them to the picked files, with the rule of the chat box (fbk_046). Text stays text.
       onPaste={onPastePictures(attachments.add, canAttach)}
     >
-      {canAttach && <DropReceiver onFiles={attachments.add} />}
+      {canAttach && !sheet && <DropReceiver onFiles={attachments.add} />}
       <div className="flex items-center gap-2">
         <input
           ref={field}
@@ -138,7 +146,7 @@ export function QuickLog({ projectId, members: everyone, canReply = true, canAss
           onChange={(event) => setText(event.target.value)}
           className="field min-w-0 flex-1 text-ellipsis"
         />
-        <Button variant="primary" type="submit" className="shrink-0" disabled={!text.trim() || log.isPending || uploading}>{t('tracker.save')}</Button>
+        {!sheet && <Button variant="primary" type="submit" className="shrink-0" disabled={!text.trim() || log.isPending || uploading}>{t('tracker.save')}</Button>}
       </div>
       {/* Equal columns that never get narrower than their word: "Government" is wider than a fifth of a phone row (2026-10-12). */}
       <div role="radiogroup" aria-label={t('tracker.typeLabel')} className="grid grid-cols-[repeat(5,minmax(min-content,1fr))] gap-1.5">
@@ -213,6 +221,19 @@ export function QuickLog({ projectId, members: everyone, canReply = true, canAss
         />
       )}
     </form>
-    </ChatDropArea>
   );
+  if (sheet) {
+    return (
+      <Sheet
+        open={sheet.open}
+        onOpenChange={sheet.onOpenChange}
+        title={t('phoneProject.tracker.logNew')}
+        footer={<Button variant="primary" type="submit" form={formId} disabled={!text.trim() || log.isPending || uploading}>{t('tracker.save')}</Button>}
+      >
+        {form}
+      </Sheet>
+    );
+  }
+  // Files dropped on the quick log join the picked files, where the person may upload. Nothing saves before the save button.
+  return <ChatDropArea note={t('tracker.dropNote')} className="relative">{form}</ChatDropArea>;
 }

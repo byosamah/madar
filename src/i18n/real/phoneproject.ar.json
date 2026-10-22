@@ -19,6 +19,9 @@
     "tasks": {
       "view": "العرض: {{view}}",
       "doneOf": "{{done}} من {{total}} منجزة"
+    },
+    "tracker": {
+      "logNew": "سجّل سطراً جديداً"
     }
   }
 }
