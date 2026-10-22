@@ -21,6 +21,7 @@ import { EditingContext, useBubbleActions } from './bubbleActions';
 import { useLongPress } from './longPress';
 import { MessageEditForm } from './MessageEditForm';
 import { MessageSheet, MessageTools } from './MessageMenu';
+import { usePointerCoarse } from '../../app/usePointerCoarse';
 import { ReactionPills } from './ReactionPills';
 import { BubbleReplyQuote } from './ReplyStrip';
 
@@ -112,6 +113,7 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh, runSta
   const lang = useLang();
   const isPicture = usePictureTest();
   const actions = useBubbleActions();
+  const coarse = usePointerCoarse();
   const editing = useContext(EditingContext) === bubble.id;
   // A long press of a finger opens the sheet of the message (item 9). The sheet is a sibling of the row, so its events never reach the row.
   const [sheet, setSheet] = useState(false);
@@ -132,7 +134,8 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh, runSta
       {clockTime(bubble.createdAt, lang)}
     </time>
   );
-  const tools = saved && <MessageTools bubble={bubble} />;
+  // CSS hides the button under a finger (pointer-coarse:hidden), so a touch screen does not build it. The sheet of a task keeps it (RN-3).
+  const tools = saved && !(coarse && !actions?.inSheet) && <MessageTools bubble={bubble} />;
   const side = <div data-part="side" className="flex items-center gap-1.5 self-center">{mine ? <>{tools}{time}</> : <>{time}{tools}</>}</div>;
   return (
     <>

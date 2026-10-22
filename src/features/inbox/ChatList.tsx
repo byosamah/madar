@@ -18,6 +18,7 @@ import { useTypers } from '../../app/live/typing';
 import { useCall } from '../../app/runtime';
 import { actorContext } from '../../lib/grammar';
 import { useIsPhone } from '../../app/useIsPhone';
+import { usePointerCoarse } from '../../app/usePointerCoarse';
 import { Menu, type MenuItem } from '../../components/Menu';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { ChevronRightIcon } from '../../components/icons/animated/chevron-right';
@@ -118,8 +119,8 @@ function TypingPreview({ row, typers, fallback }: { row: Row; typers: string[]; 
   return text === null ? <>{fallback}</> : <bdi dir="auto" className="min-w-0 truncate text-link">{text}</bdi>;
 }
 
-const ChatRowItem = memo(function ChatRowItem({ row, selected, swipe, showArchived, onArchive, onMarkUnread }: {
-  row: Row; selected: boolean; swipe: boolean; showArchived: boolean; onArchive: (id: string, archived: boolean) => void; onMarkUnread: (id: string) => void;
+const ChatRowItem = memo(function ChatRowItem({ row, selected, swipe, noMenu, showArchived, onArchive, onMarkUnread }: {
+  row: Row; selected: boolean; swipe: boolean; noMenu: boolean; showArchived: boolean; onArchive: (id: string, archived: boolean) => void; onMarkUnread: (id: string) => void;
 }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
@@ -194,9 +195,11 @@ const ChatRowItem = memo(function ChatRowItem({ row, selected, swipe, showArchiv
       </Link>
       {/* The menu takes no room in the row: it floats over the end of the row and shows on hover or focus, so no empty strip waits
           for the mouse (owner, 2026-10-19). A phone has no menu: a swipe archives the chat. */}
-      <span className="absolute inset-y-0 end-1 flex items-center rounded-full pointer-coarse:hidden max-sm:hidden sm:pointer-events-none sm:opacity-0 sm:group-focus-within:pointer-events-auto sm:group-focus-within:opacity-100 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100 sm:has-[[aria-expanded=true]]:pointer-events-auto sm:has-[[aria-expanded=true]]:opacity-100 [&>*]:bg-panel">
-        <ChatMenu id={row.id} archived={row.archived} unread={row.unread} title={title} onArchive={onArchive} onMarkUnread={onMarkUnread} />
-      </span>
+      {!noMenu && (
+        <span className="absolute inset-y-0 end-1 flex items-center rounded-full pointer-coarse:hidden max-sm:hidden sm:pointer-events-none sm:opacity-0 sm:group-focus-within:pointer-events-auto sm:group-focus-within:opacity-100 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100 sm:has-[[aria-expanded=true]]:pointer-events-auto sm:has-[[aria-expanded=true]]:opacity-100 [&>*]:bg-panel">
+          <ChatMenu id={row.id} archived={row.archived} unread={row.unread} title={title} onArchive={onArchive} onMarkUnread={onMarkUnread} />
+        </span>
+      )}
     </motion.li>
   );
 });
@@ -212,6 +215,7 @@ const ChatRowItem = memo(function ChatRowItem({ row, selected, swipe, showArchiv
 export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; selectedId: string | undefined; onMarkUnread: (id: string) => void }) {
   const { t } = useTranslation();
   const phone = useIsPhone();
+  const coarse = usePointerCoarse();
   const archive = useArchive();
   const onArchive = useStableHandler(archive);
   const markUnread = useStableHandler(onMarkUnread);
@@ -234,6 +238,8 @@ export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; sele
   const shown = needle === '' ? listed : listed.filter((row) => normalizeForSearch(`${row.title} ${row.person?.nameAr ?? ''} ${row.project?.name ?? ''}`).includes(needle));
   // A finger swipes. A mouse or a trackpad uses the button that shows on hover.
   const swipe = phone || !isFinePointer();
+  // CSS hides the row menu on a phone and under a finger, so those screens do not build it (performance audit 2026-10-21, RN-3).
+  const noMenu = phone || coarse;
   // A new object on each render: the row ages read the clock on each switch and each search key, as before the memo (RND-5).
   const refresh = {};
   const searchLabel = archivedOpen ? t('chat.searchArchived') : t('chat.search');
@@ -300,6 +306,7 @@ export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; sele
               row={row}
               selected={row.id === selectedId}
               swipe={swipe}
+              noMenu={noMenu}
               showArchived={!archivedOpen}
               onArchive={onArchive}
               onMarkUnread={markUnread}

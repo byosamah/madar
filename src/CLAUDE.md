@@ -386,7 +386,7 @@ any screen work.
 
 ## Chat messages (track msg, 2026-10-19)
 - One small menu for each message (`features/inbox/MessageMenu.tsx`). On a computer a "..." button (`MessageTools`, a `Menu` with a `head`) sits in the
-  side spot (`data-part="side"`) of the row and shows on hover or focus, never on a touch screen. The `head` of `Menu` is the row of the three
+  side spot (`data-part="side"`) of the row and shows on hover or focus, never on a touch screen. A touch screen (`usePointerCoarse`, `app/usePointerCoarse.ts`) does not build it, except in the sheet of a task (`inSheet`); a narrow screen with a mouse keeps it. The row menu of the Inbox list is left out on a phone or under a finger the same way (RN-3, 2026-10-21). The `head` of `Menu` is the row of the three
   reactions (`role="menuitemcheckbox"`); a press on one closes the menu. On a phone a long press of a finger (`longPress.ts`, 500 ms, 10 px) opens
   `MessageSheet` (a `Sheet`: the preview, the reactions, the items, "Copy text"; no Copy item where the browser has no clipboard).
 - The handlers of a bubble reach `MessageBubble` through `BubbleActionsContext` (`bubbleActions.ts`), never through a `MessageLog` prop. The ChatPane
