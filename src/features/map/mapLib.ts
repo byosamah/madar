@@ -28,14 +28,18 @@ export function releaseUrl(url: string, release: string | undefined): string {
  */
 export function loadMapLib(): Promise<typeof MapLib> {
   loading ??= (async () => {
-    const [lib, worker, rtl] = await Promise.all([
-      import('maplibre-gl'),
-      import('maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'),
-      // A path into node_modules: the package lists only src/index.js in its exports, so the built plugin file has no package name.
-      import('../../../node_modules/@mapbox/mapbox-gl-rtl-text/dist/mapbox-gl-rtl-text.js?url'),
-      import('maplibre-gl/dist/maplibre-gl.css'),
-      import('./mapPopup.css'),
-    ]);
+    // The flag is folded here, as in the three screens: the prototype build drops the branch, so the `?url` files (the worker and
+    // the Arabic text plugin) are never emitted there. Without it the prototype build would carry a second script file.
+    const [lib, worker, rtl] = await (import.meta.env.VITE_MADAR_API === 'remote'
+      ? Promise.all([
+        import('maplibre-gl'),
+        import('maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'),
+        // A path into node_modules: the package lists only src/index.js in its exports, so the built plugin file has no package name.
+        import('../../../node_modules/@mapbox/mapbox-gl-rtl-text/dist/mapbox-gl-rtl-text.js?url'),
+        import('maplibre-gl/dist/maplibre-gl.css'),
+        import('./mapPopup.css'),
+      ])
+      : Promise.reject(new Error('The street map is in the real build only.')));
     lib.setWorkerUrl(releaseUrl(worker.default, import.meta.env.VITE_MADAR_BUILD));
     lib.setRTLTextPlugin(new URL(rtl.default, window.location.href).href, true).catch(() => undefined);
     lib.addProtocol(SATELLITE_SCHEME, loadSatelliteTile);

@@ -7,6 +7,8 @@ import MapCanvas, { foldCredit, releaseUrl } from './MapCanvas';
 import { loadSatelliteTile } from './satellite';
 
 // MapLibre runs in a browser, so these tests replace it with a double.
+// The map files load in the real build only (mapLib.ts folds the flag), so this test runs as the real build.
+vi.hoisted(() => { vi.stubEnv('VITE_MADAR_API', 'remote'); });
 type Handler = (event?: unknown) => void;
 const made = vi.hoisted(() => [] as { easeTo: (options: unknown) => void; handlers: Record<string, Handler[]>; style: unknown }[]);
 const markers = vi.hoisted(() => [] as { element: HTMLElement; lngLat: number[] }[]);

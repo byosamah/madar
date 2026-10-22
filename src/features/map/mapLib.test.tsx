@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Performance audit 2026-10-21, FL-17 and LV-10. The map library starts with the MapCanvas chunk (not after it), and a press on
 // the Map tab starts both. No map and no tile is made by either.
+vi.hoisted(() => { vi.stubEnv('VITE_MADAR_API', 'remote'); });
 const lib = vi.hoisted(() => ({
   setWorkerUrl: undefined as unknown as ReturnType<typeof vi.fn>,
   setRTLTextPlugin: undefined as unknown as ReturnType<typeof vi.fn>,
@@ -76,6 +77,17 @@ describe('the map loader', () => {
     await expect(loadMapLib()).rejects.toThrow('Failed to fetch');
     await expect(loadMapLib()).resolves.toBeDefined();
     expect(lib.setWorkerUrl).toHaveBeenCalledTimes(2);
+  });
+
+  it('loads nothing in a build without the real-build flag, so the prototype carries no map file', async () => {
+    vi.stubEnv('VITE_MADAR_API', '');
+    try {
+      const { loadMapLib } = await import('./mapLib');
+      await expect(loadMapLib()).rejects.toThrow('real build only');
+      expect(lib.setWorkerUrl).not.toHaveBeenCalled();
+    } finally {
+      vi.stubEnv('VITE_MADAR_API', 'remote');
+    }
   });
 
   it('adds the release to the worker address', async () => {
