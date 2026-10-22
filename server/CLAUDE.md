@@ -243,8 +243,8 @@ The other host stays deployed as the way back. Each area below has its own guide
   (the planned restart day of a paused project) to the leader and to the person who paused it (`src/api/CLAUDE.md`).
 - The meetings step (fbk_022, wave 2; `jobs/steps/meetings.ts`) settles the meetings that ended. One read (`SETTLE_SQL`, `SETTLE_LITE`, served by the
   partial index `meetings_to_settle`) gives at most 20 due meetings, the oldest end first: scheduled, not settled, ended in the last 14 days. For each
-  one the step runs the normal call `meetings.settle` as the organizer (`settleActorOf`: else the first active Admin for a project meeting, else the
-  first active attendee), so the mark and the Tracker line come from the one settle rule and carry the events of a normal call. It writes no row of
+  one the step runs the normal call `meetings.settle` as the organizer (`settleActorOf`: the organizer only while the organizer views the project of the meeting, hidden projects, owner 2026-10-22; else the first active
+  Admin who views the project for a project meeting, else the first active attendee; `extendActorOf` follows it), so the mark and the Tracker line come from the one settle rule and carry the events of a normal call. It writes no row of
   its own. A failure logs the id and the code only and the loop goes on. It reports `{ settled, skipped, failed, extended }`. The second half keeps the repeating
   series full (wave 3): one read (`EXTEND_SQL`, `EXTEND_LITE`; no new index: the base is the meetings that start today or later, served by `meetings_starts`)
   gives the last meeting of each series that is scheduled and has fewer than 8 scheduled meetings ahead (`ends_at` after the run), the fewest ahead first, at most
