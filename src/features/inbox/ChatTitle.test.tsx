@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderApp } from '../../test/render';
+import { stubPhone } from './phoneHarness';
 
 const cutter = (heading: HTMLElement) => heading.querySelector('bdi') as HTMLElement;
 
@@ -41,5 +42,15 @@ describe('the task thread title on a phone (owner, 2026-10-20)', () => {
     await renderApp('/inbox/cnv_001');
     const header = (await screen.findByRole('textbox', { name: 'Message' }, { timeout: 10_000 })).closest('form')!.parentElement!.querySelector('header') as HTMLElement;
     expect(cutter(within(header).getByRole('heading', { level: 2 }))).toHaveClass('block', 'truncate');
+  }, 30_000);
+
+  it('shows one line for the title of a to-do thread on a real phone, and the Open to-do link leaves the header', async () => {
+    stubPhone();
+    await renderApp('/inbox/tsk_001');
+    const heading = await screen.findByRole('heading', { level: 2 }, { timeout: 10_000 });
+    const header = heading.closest('header') as HTMLElement;
+    expect(cutter(heading)).toHaveClass('block', 'truncate');
+    expect(cutter(heading)).not.toHaveClass('line-clamp-2');
+    expect(within(header).queryByRole('link', { name: 'Open to-do' })).toBeNull();
   }, 30_000);
 });

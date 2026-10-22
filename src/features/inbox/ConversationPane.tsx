@@ -27,6 +27,7 @@ import { replyRefOfBubble } from './ReplyStrip';
 import { ChatMenu, chatMenuItems } from './ChatList';
 import { GroupPicture } from './GroupPicture';
 import { ChatBackLink } from './chatBack';
+import { ChatHeader } from './ChatHeader';
 import { GroupSheets, type GroupMode } from './GroupSheets';
 import { useArchive } from './archive';
 import { useNotifyItems } from './NotifyChoice';
@@ -131,6 +132,7 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   const nameOf = usePersonName();
   const navigate = useNavigate();
   const { live } = useRuntime();
+  const phone = useIsPhone();
   const session = useCall('session.get', {});
   const [sheet, setSheet] = useState<GroupMode | null>(null);
   const thread = useCall('chats.messages', { conversationId: id, ...(focusFromRoute ? { around: focusFromRoute } : {}) });
@@ -253,14 +255,15 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   const { chat } = data;
   const isGroup = chat.kind === 'group';
   // A group shows one picture. One press on it, or on the count of people, opens the People sheet (UX audit 2026-10-19, chats-07 and 08).
+  const picture = phone ? 38 : 40;
   const lead = chat.kind === 'project' && chat.project
-    ? <ProjectTile id={chat.project.id} mark={chat.project.mark} size={40} />
+    ? <ProjectTile id={chat.project.id} mark={chat.project.mark} size={picture} />
     : isGroup ? (
       <button type="button" aria-label={t('chat.peopleTitle')} onClick={() => setSheet('people')} className="pressable shrink-0 rounded-full">
-        <GroupPicture id={chat.id} size={40} />
+        <GroupPicture id={chat.id} size={picture} />
       </button>
     )
-    : chat.person ? <PersonFace user={{ ...chat.person, active: !chat.personLeft }} size={40} /> : null;
+    : chat.person ? <PersonFace user={{ ...chat.person, active: !chat.personLeft }} size={picture} /> : null;
   // A direct chat with an inactive person says so and takes no new messages (audit 2026-10-03, SHL-15).
   // "Inactive" is the word Admin uses for the same state (audit 2026-10-03, V-25).
   const context = actorContext(chat.person);
@@ -282,16 +285,14 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
     kind: chat.kind, readers: data.seen, others: data.others, people: data.people, ...(chat.kind === 'direct' && actorContext(chat.person) ? { context: 'female' as const } : {}),
   };
   const showNewest = () => navigate(chatLink(id), { replace: true });
+  const menu = isGroup
+    ? <GroupMenu id={id} archived={chat.archived} unread={chat.unread} title={title} onPick={setSheet} onArchive={archive} onMarkUnread={onMarkUnread} extra={notifyItems} />
+    : <ChatMenu id={id} archived={chat.archived} unread={chat.unread} title={title} onArchive={archive} onMarkUnread={onMarkUnread} extra={notifyItems} />;
   return (
     <ChatDropArea note={chat.kind === 'project' ? t('chat.dropProject') : t('chat.dropChat')}>
-      <Header
-        lead={lead}
-        title={title}
-        subtitle={subtitle}
-        action={isGroup
-          ? <GroupMenu id={id} archived={chat.archived} unread={chat.unread} title={title} onPick={setSheet} onArchive={archive} onMarkUnread={onMarkUnread} extra={notifyItems} />
-          : <ChatMenu id={id} archived={chat.archived} unread={chat.unread} title={title} onArchive={archive} onMarkUnread={onMarkUnread} extra={notifyItems} />}
-      />
+      {phone
+        ? <ChatHeader lead={lead} title={title} subtitle={subtitle} action={menu} />
+        : <Header lead={lead} title={title} subtitle={subtitle} action={menu} />}
       <BubbleActionsContext.Provider value={actions}>
         <EditingContext.Provider value={editingId}>
           <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} readUpTo={mark.readUpTo} unreadAtOpen={mark.unread} focusId={focusId} onFocused={() => setFocusId(null)} seen={seen} />
@@ -340,6 +341,7 @@ const NO_UNSENT: never[] = [];
 /** The comments of one task as a chat. A message posts a task comment. A link with a comment (`?at=`) names the comment to frame. */
 export function TaskPane({ id, focusFromRoute, onMarkUnread }: { id: string; focusFromRoute: string | null; onMarkUnread: (id: string) => void }) {
   const { t } = useTranslation();
+  const phone = useIsPhone();
   const task = useCall('tasks.get', { id });
   // An office task has no project (owner, 2026-10-06): its people are its maker, its lead and its helpers.
   const office = task.data !== undefined && task.data.project === null;
@@ -422,25 +424,32 @@ export function TaskPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
     setEditingId(last.id);
     return true;
   };
+  const taskMenu = <ChatMenu id={id} archived={row?.archived ?? false} unread={row?.unread ?? 0} title={task.data.task.title} onArchive={archive} onMarkUnread={onMarkUnread} />;
+  const taskLine = `${t('chat.taskThread')} · ${where ? where.name : t('office.word')}`;
   return (
     <ChatDropArea note={where ? t('chat.dropProject') : t('chat.dropOfficeTask')}>
-      <Header
-        lead={<span aria-hidden className="hidden size-10 shrink-0 place-items-center rounded-full bg-fill text-ink-2 sm:grid"><AnimatedIcon icon={ClipboardCheckIcon} size={18} aria-hidden /></span>}
-        title={task.data.task.title}
-        twoLines
-        subtitle={`${t('chat.taskThread')} · ${where ? where.name : t('office.word')}`}
-        action={(
-          <>
-            <Link
-              to={taskLink(where?.id ?? null, id)}
-              className="pressable inline-flex min-h-11 shrink-0 items-center rounded-full bg-fill px-4 text-subheadline font-semibold text-ink"
-            >
-              {t('chat.openTask')}
-            </Link>
-            <ChatMenu id={id} archived={row?.archived ?? false} unread={row?.unread ?? 0} title={task.data.task.title} onArchive={archive} onMarkUnread={onMarkUnread} />
-          </>
+      {phone
+        // A phone shows one title line and no picture. The Open to-do link is a row of the options sheet there.
+        ? <ChatHeader lead={null} title={task.data.task.title} subtitle={taskLine} action={taskMenu} />
+        : (
+          <Header
+            lead={<span aria-hidden className="hidden size-10 shrink-0 place-items-center rounded-full bg-fill text-ink-2 sm:grid"><AnimatedIcon icon={ClipboardCheckIcon} size={18} aria-hidden /></span>}
+            title={task.data.task.title}
+            twoLines
+            subtitle={taskLine}
+            action={(
+              <>
+                <Link
+                  to={taskLink(where?.id ?? null, id)}
+                  className="pressable inline-flex min-h-11 shrink-0 items-center rounded-full bg-fill px-4 text-subheadline font-semibold text-ink"
+                >
+                  {t('chat.openTask')}
+                </Link>
+                {taskMenu}
+              </>
+            )}
+          />
         )}
-      />
       <BubbleActionsContext.Provider value={actions}>
         <EditingContext.Provider value={editingId}>
           <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} unreadAtOpen={mark.unread} focusId={focusId} onFocused={() => setFocusId(null)} />
