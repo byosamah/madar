@@ -127,23 +127,34 @@ export function screenCache<N extends string>(loaders: Record<N, () => Promise<C
       return reloadOnFailedImport(() => loadScreen(name), page);
     },
     /**
-     * Loads the other screens one at a time, one at each idle moment, after the first screen shows. So a later screen change
-     * waits for no chunk, and a release that removes the old chunks finds them already in memory. A failure is ignored: the
-     * screen change tries the import again. A prefetch never reloads the page. `skip` names a screen that this person has no use
-     * for: it is asked at the step of that screen, and a skipped screen loads on its first use, as an unlisted one does.
+     * Loads the other screens, one at each idle moment for each line, after the first screen shows (`options.limit` lines, one by
+     * default; main.tsx gives 3 through `app/idlePrefetch.ts`). So a later screen change waits for no chunk, and a release that
+     * removes the old chunks finds them already in memory. A failure is ignored: the screen change tries the import again. A
+     * prefetch never reloads the page. `skip` names a screen that this person has no use for: it is asked at the step of that
+     * screen, and a skipped screen loads on its first use, as an unlisted one does. A screen that a person opens first loads at
+     * once through `loadScreen`, and the queue passes it.
      */
-    prefetchScreens(list: readonly N[] = names, idle: (run: () => void) => void = whenIdle, skip?: (name: N) => boolean): void {
+    prefetchScreens(
+      list: readonly N[] = names,
+      idle: (run: () => void) => void = whenIdle,
+      skip?: (name: N) => boolean,
+      options: { limit?: number } = {},
+    ): void {
       const queue = list.filter((name) => !loaded.has(name));
       const next = (): void => {
-        const name = queue.shift();
+        // A screen that a person opened first is loaded or on its way: the queue passes it with no idle wait.
+        let name = queue.shift();
+        while (name !== undefined && (loaded.has(name) || loading.has(name))) name = queue.shift();
         if (name === undefined) return;
+        const step = name;
         idle(() => {
           // The rule answers at the step, not at the start, so it reads what the first answers brought (audit 2026-10-21, FL-8).
-          if (skip?.(name)) next();
-          else loadScreen(name).then(next, next);
+          if (skip?.(step)) next();
+          else loadScreen(step).then(next, next);
         });
       };
-      next();
+      // `limit` lines run side by side (2026-10-22), so a press on a tab never waits behind the whole queue. One line is the old pace.
+      for (let line = 0; line < Math.max(1, options.limit ?? 1); line += 1) next();
     },
   };
 }
