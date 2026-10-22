@@ -2,15 +2,15 @@
   "chatFilter": {
     "group": "Kind of chat"
   },
-  "inbox": {
-    "view": {
-      "label": "Inbox view",
-      "chats": "Chats"
-    }
-  },
   "chat": {
     "searchMessages": "Search messages",
     "openProject": "Open the project",
     "messagePerson": "Message {{name}}"
+  },
+  "phoneInbox": {
+    "view": {
+      "label": "Inbox view",
+      "chats": "Chats"
+    }
   }
 }

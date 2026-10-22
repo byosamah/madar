@@ -26,14 +26,14 @@ export function InboxViews() {
       <SegmentedControl<View>
         fill
         layoutId="inbox-views"
-        label={t('inbox.view.label')}
+        label={t('phoneInbox.view.label')}
         value={view}
         onOptionPointerDown={(next) => start(ADDRESS[next])}
         onChange={(next) => {
           if (next !== view) void navigate(ADDRESS[next]);
         }}
         options={[
-          { value: 'chats', label: t('inbox.view.chats'), count: unread, countLabel: t('nav.inboxUnread', { count: unread }) },
+          { value: 'chats', label: t('phoneInbox.view.chats'), count: unread, countLabel: t('nav.inboxUnread', { count: unread }) },
           { value: 'notifications', label: t('screens.notifications'), count: notices, countLabel: t('nav.inboxBadge', { count: notices }) },
         ]}
       />

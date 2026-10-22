@@ -2,15 +2,15 @@
   "chatFilter": {
     "group": "نوع المحادثة"
   },
-  "inbox": {
-    "view": {
-      "label": "عرض الوارد",
-      "chats": "المحادثات"
-    }
-  },
   "chat": {
     "searchMessages": "ابحث في الرسائل",
     "openProject": "افتح المشروع",
     "messagePerson": "أرسل رسالة إلى {{name}}"
+  },
+  "phoneInbox": {
+    "view": {
+      "label": "عرض الوارد",
+      "chats": "المحادثات"
+    }
   }
 }
