@@ -422,6 +422,17 @@ any screen work.
   `taskLink(null, id)` sends an office task to `/work?task=<id>`. An office task has no project: the word Office
   (`office.word`) shows where a project shows, and its panel (`TaskSheet` with `detail` null) has no stage and no
   prerequisites (owner, 2026-10-06).
+- The Board of Tasks (fbk_042, Faisal, owner 2026-10-22; `features/work/`): one small "View" button (`WorkViewButton.tsx`, the `FilterButton` with the
+  kanban icon) sits at the end of the To-dos and Meetings row (`ms-auto` in `ScreenControls`), in the To-dos view only. It opens List or Board in
+  the same radio look as the project To-dos tab. The choice stays on this device (`usePersistentChoice`, key `madar.work.view` in `workView.ts`,
+  List at first). The one main button stays "New office to-do". The Board is `TaskBoard` of the project tab (cards, drag, keyboard moves, Move
+  menu, `moveTargets`) with two options: `reviews` may be a function of the row (each to-do has its own reviewers), and `across` makes a card name
+  its project, or the word Office, and say "Your review" on a card of mine to review. `WorkBoard.tsx` merges three reads into one card for each
+  to-do (`boardRows.ts`): the review queue first (`review_for_me`), my open to-dos, and the Done column, which holds the to-dos that I finished in
+  the last 7 Riyadh days (`doneWindow`: `tasks.list {filter:'mine', status:['done'], doneFrom}`). The done read starts only while the Board shows
+  (and on a press of the View button in the List view); the List view never reads done rows. I approve a to-do of someone else with a move to
+  Done; "Send back with a note" opens the panel ready for the note (`ProjectTaskSheet noteFirst`). The Board is a chunk of its own
+  (`WorkBoardLazy.ts`, `lazyOverlay`, warmed at idle): never import `WorkBoard.tsx` statically, or the drag code joins the first load (FL-2).
 - A date group of the Tasks screen, Home Today and each stage of the project task list take a new order by drag (owner,
   2026-10-07 and 2026-10-08): one component, `SortableTaskRows` (`features/project/tasks/`, `@dnd-kit/sortable`), with a grip at
   the end of each row the person may move, and Space plus the arrow keys on the grip. Coming up on Home has no grips, because its
@@ -686,7 +697,7 @@ any screen work.
   Tasks open on `/meetings`, and `screenKey` (`AppShell.tsx`) gives both views one entrance. The switch `WorkSwitch`
   (`features/work/`, a `SegmentedControl` over the address) sits in its own row under the title "Tasks", in `ScreenControls`
   (`components/`, owner 2026-10-23): the same row and the same space as the Filter button of Projects (20 px under the title block, 16 px above the list; the
-  screen wrapper has no gap of its own). It picks To-dos (`meetings.switch.todos`, Arabic «قائمة المهام») or Meetings. The one main
+  screen wrapper has no gap of its own). It picks To-dos (`meetings.switch.todos`, Arabic «قائمة المهام») or Meetings. The To-dos view adds the small View button at the end of the same row (see the Board of Tasks). The one main
   button follows the view: "New office to-do" or "New meeting".
 - Words (owner, 2026-10-20): "Tasks" now names the umbrella of to-dos and meetings. Only the tab (`nav.tasks`) and the screen title
   (`screens.myWork`) say "Tasks". Every other English text calls one old task a "to-do" (the project tab "To-dos", "Add a to-do", "To-do list").

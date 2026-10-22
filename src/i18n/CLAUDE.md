@@ -19,6 +19,8 @@ speaker, so write it as natural Arabic, not as a word-for-word copy of the Engli
   Repeat and Until, the line "Repeats every week", the scope question, the toasts and the refusals `until_before_start`, `until_too_far` and `series_day_one_only`.
   `adminreach` holds the words of "What reaches me" (owner, 2026-10-23): the Settings section, the bell lines of a copy for an Admin
   (`adminReach.copy.*`, with `_female` forms), the plural `adminReach.others`, and the What's new entry `2026-10-23-69`.
+  `batchc` holds the words of the Board view of Tasks (fbk_042): `workView.label` (the View button) and `workView.yourReview`, and the What's new entry `2026-10-23-91`
+  sits in `whatsnew`.
 - A task adds new words only to its own track files.
 - Server code reads the word files with plain JSON imports (no `import.meta.glob`).
 - The push line (2026-10-21) writes the bell sentences on the server: `server/push/words.ts` imports the `inbox`, `notices` and `push`
