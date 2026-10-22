@@ -2398,3 +2398,15 @@ Not proven: a real iPhone. After the deploy, wait 11 minutes on an iPhone, press
   calls), database, lock and asyncContext ok, /mcp with no token 401. Gates once on dffe9a1a and fbe8ac55: npm test 9,832 passed; test:db
   2,990; test:it 332; test:mcp 330 and conformance 5 of 32; test:lite 2,990; test:office 40; the three builds. The prototype smoke and the
   live check of one save ran after the test deploy, on the owner's "deploy" (checks after).
+
+### Live check of the two follow-ups (test copy at fbe8ac55, 2026-10-22, delegated agent; raw JSON in the scratchpad after2/)
+- One save (task title, member, Chromium): 1 request in 10 of 10 saves (was 2 in 5 of 5); the write request holds 9 calls and 7.3 to 7.9 KB
+  (was 6.4 KB). Answer 717 ms median (568 to 1,334) against 675 ms (619 to 714): no felt gain, because the second request came after the
+  answer. The gain is one Edge call less for each save. Server CPU of the save request, from the isolate shutdown lines: 175, 287 and 261 ms
+  (the cold start included), far under 2,000 ms.
+- Phone cold load (Pixel 5, 4G, CPU 4x, member, 5 runs): the idle download starts at about 7.9 s (was 4.1 s), after the first rows; no
+  screen chunk starts before the rows (36 files then: the 34 of the first load and the 2 word files); 656 KB loaded by 5 s (was 772 KB).
+  First rows 5,458 ms (5,181 to 5,899) against 5,110 ms; LCP 5,732 against 5,684; the Mac load average was 10 to 14 (about 5 before), so
+  the times are not a fair compare. The rows wait for the first batch answer, which the change does not move.
+- Open: the limit of 3 imports at a time counts screens, not files: a screen import pulls its own chunks together (26 requests in flight
+  at 8.3 s for ProjectsScreen and its parts). A second phone measure at a low load is still to do.
