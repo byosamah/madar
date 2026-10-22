@@ -1,18 +1,22 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import type { User } from '../../api/contract/entities';
 import type { TaskRow } from '../../api/contract/views';
 import { useCall, useRuntime } from '../../app/runtime';
+import { useIsPhone } from '../../app/useIsPhone';
 import { useStableHandler } from '../../app/useStableHandler';
 import { EmptyState } from '../../components/EmptyState';
+import { fade } from '../../design/motion';
 import { todayISO } from '../../lib/dates';
 import { groupMyTasks } from '../../lib/myWork';
+import { loadDragLayer, loadedDragLayer } from '../project/tasks/dragLayerLoader';
 import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 import { SortableTaskRows } from '../project/tasks/SortableTaskRows';
 import { TaskRowItem } from '../project/tasks/TaskRowItem';
+import { useTouchPhone } from '../project/tasks/useTouchPhone';
 import { LoadFailed } from '../../components/LoadFailed';
 import { openTask } from '../../lib/params';
 import { doneWindow } from './boardRows';
@@ -50,6 +54,27 @@ function SortableGroup({ id, title, rows, me, onOpen }: { id: string; title: str
 }
 
 /**
+ * The one quiet line under the last group of a touch phone: a press and hold changes the order (phone design D). It shows only when a
+ * group has two rows or more that the person may move, and only after the drag layer has loaded, because a hold before that does
+ * nothing. It has its own state, so the layer becoming ready renders the hint alone and no row.
+ */
+function HoldHint({ sortable }: { sortable: boolean }) {
+  const { t } = useTranslation();
+  const touch = useTouchPhone();
+  const [ready, setReady] = useState(() => loadedDragLayer() !== null);
+  useEffect(() => {
+    if (ready || !touch || !sortable) return undefined;
+    let live = true;
+    loadDragLayer().then(() => { if (live) setReady(true); }, () => undefined);
+    return () => {
+      live = false;
+    };
+  }, [ready, touch, sortable]);
+  if (!touch || !sortable || !ready) return null;
+  return <p className="text-footnote text-label-2">{t('phoneWork.holdHint')}</p>;
+}
+
+/**
  * The review group, the date groups and the empty state. It takes only plain props and stable handlers, so a link change that
  * only opens or closes the task panel does not render the rows again (performance audit 2026-10-07, RND-2). "today" comes
  * from the parent, so a new day still gives new date groups and due words.
@@ -63,12 +88,15 @@ const WorkBody = memo(function WorkBody({ mine, review, me, today, onOpen }: {
     const inReview = new Set(review.map((row) => row.task.id));
     return groupMyTasks(mine.filter((row) => !inReview.has(row.task.id)), today);
   }, [mine, review, today]);
+  // The rule of `SortableTaskRows`: a group with two rows or more, one of them mine to move. The review group has no drag.
+  const sortable = groups.some((group) => group.rows.length > 1 && group.rows.some((row) => row.canMove));
   return (
     <>
       {review.length > 0 && <TaskGroup id="review" title={t('work.group.review')} rows={review} me={me} today={today} onOpen={onOpen} />}
       {groups.length === 0 && review.length === 0
         ? <EmptyState title={t('work.emptyTitle')} body={t('work.empty')} />
         : groups.map((group) => <SortableGroup key={group.group} id={group.group} title={t(`work.group.${group.group}`)} rows={group.rows} me={me} onOpen={onOpen} />)}
+      <HoldHint sortable={sortable} />
     </>
   );
 });
@@ -94,6 +122,7 @@ function useMyOpenTasks() {
  * done rows are read only while the Board shows.
  */
 export function WorkTasks({ view = 'list' }: { view?: WorkView }) {
+  const phone = useIsPhone();
   const [params, setParams] = useSearchParams();
   const mine = useMyOpenTasks();
   const review = useCall('tasks.list', REVIEW_FOR_ME);
@@ -132,11 +161,15 @@ export function WorkTasks({ view = 'list' }: { view?: WorkView }) {
   const taskId = params.get('task');
   const projectId = params.get('project');
   const Board = lazyWorkBoard.Overlay;
+  const content = board && done.data
+    ? <Board mine={mine.data} review={review.data} done={done.data} onOpen={open} onSendBack={sendBack} />
+    : <WorkBody mine={mine.data} review={review.data} me={me} today={today} onOpen={open} />;
   return (
     <div className="flex flex-col gap-5">
-      {board && done.data
-        ? <Board mine={mine.data} review={review.data} done={done.data} onOpen={open} onSendBack={sendBack} />
-        : <WorkBody mine={mine.data} review={review.data} me={me} today={today} onOpen={open} />}
+      {/* On a phone the swap between List and Board fades in (150 ms, reduced motion makes it instant). A desk keeps its DOM. */}
+      {phone
+        ? <motion.div key={view} className="flex flex-col gap-5" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={fade}>{content}</motion.div>
+        : content}
       {taskId && <ProjectTaskSheet key={taskId} projectId={projectId} taskId={taskId} onClose={close} noteFirst={sendBackId === taskId} />}
     </div>
   );

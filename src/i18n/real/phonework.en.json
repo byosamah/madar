@@ -3,6 +3,7 @@
     "board": {
       "doneRange": "Last 7 days",
       "empty": "Nothing here."
-    }
+    },
+    "holdHint": "Press and hold a to-do to change its order."
   }
 }

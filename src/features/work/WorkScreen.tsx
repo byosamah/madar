@@ -10,6 +10,7 @@ import { usePrefetchCall } from '../../app/prefetch';
 import { useRight } from '../../app/useRight';
 import { whenIdle } from '../../app/whenIdle';
 import { todayISO } from '../../lib/dates';
+import { warmDragLayer } from '../project/tasks/dragLayerLoader';
 import { doneWindow } from './boardRows';
 import { NewOfficeTaskSheet } from './NewOfficeTaskSheet';
 import { WorkSwitch } from './WorkSwitch';
@@ -31,8 +32,10 @@ export function WorkScreen() {
   const mayAdd = useRight('task.add', { office: true });
   const [view, setView] = usePersistentChoice(WORK_VIEW_KEY, WORK_VIEWS, 'list');
   // The code of the Board loads at idle, and a press on the View button starts the done read, so a switch to Board finds both ready.
+  // The drag layer loads at idle too (only Home did before), so a hold on a row of a direct visit finds it ready (phone design D).
   useEffect(() => {
     whenIdle(lazyWorkBoard.warm);
+    warmDragLayer();
   }, []);
   const prefetch = usePrefetchCall();
   const today = todayISO();
