@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { addSampleInternalProject } from '../../data/sampleInternalProject';
 import { TODAY } from '../../test/factories';
@@ -88,3 +88,22 @@ describe('the pause sheet of an internal project', () => {
     expect(within(sheet).getByLabelText('Reason')).toBeInTheDocument();
   });
 });
+
+describe('the edit sheet of an internal project', () => {
+  it('leaves out the client fields, and saves a new name', async () => {
+    const { store } = await renderApp('/projects/prj_013', withInternal);
+    await screen.findByRole('heading', { level: 1, name: /Portfolio 2026/ });
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Edit project' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Edit project' });
+    for (const label of ['Client', 'Location', 'Area (m²)', 'Contract start date']) expect(within(sheet).queryByLabelText(label), label).toBeNull();
+    expect(within(sheet).queryByText('Project code')).toBeNull();
+    const name = within(sheet).getByLabelText('Name');
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Portfolio 2027');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(store.state.projects.prj_013.name).toBe('Portfolio 2027'));
+    expect(store.state.projects.prj_013.kind).toBe('internal');
+  });
+});
+
