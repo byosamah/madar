@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeLive } from '../../test/fakeLive';
 import { phoneMedia } from '../../test/phoneMedia';
@@ -95,5 +95,50 @@ describe('the Me hub (prototype, phone)', () => {
     });
     await screen.findByRole('link', { name: /Quiet hours/ });
     expect(screen.queryByRole('link', { name: /What reaches me/ })).toBeNull();
+  });
+
+  it('shows Dashboard, Admin, the What\'s new row and the feedback row to the Admin', async () => {
+    await hub();
+    const office = screen.getByRole('group', { name: 'Office' });
+    expect(within(office).getByRole('link', { name: /Dashboard/ })).toHaveAttribute('href', '#/dashboard');
+    expect(within(office).getByRole('link', { name: /Dashboard/ })).toHaveTextContent('The numbers and what needs attention');
+    const admin = within(office).getByRole('link', { name: /^Admin/ });
+    expect(admin).toHaveAttribute('href', '#/admin');
+    expect(admin).toHaveTextContent('Best on a computer');
+    expect(within(office).getByRole('link', { name: /What's new/ })).toHaveAttribute('href', '#/whats-new');
+    expect(within(office).getByRole('button', { name: 'Request a feature or report a bug' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Password/ })).toBeNull();
+  });
+
+  it('draws the Prototype group with Preview as at the end', async () => {
+    await hub();
+    const office = screen.getByRole('group', { name: 'Office' });
+    const prototype = screen.getByRole('group', { name: 'Prototype' });
+    expect(office.compareDocumentPosition(prototype) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(prototype).getByRole('combobox', { name: /Preview as/ })).toBeInTheDocument();
+    expect(within(prototype).getByRole('switch', { name: 'Simulate errors' })).toBeInTheDocument();
+    expect(within(prototype).getByRole('button', { name: 'Reset sample data' })).toBeInTheDocument();
+  });
+
+  it('shows the word New on the What\'s new row until the page is seen', async () => {
+    localStorage.setItem('madar.whatsNewSeen.usr_001', 'an-older-entry');
+    const { router } = await hub();
+    const row = () => screen.getByRole('link', { name: /What's new/ });
+    expect(row()).toHaveTextContent('New');
+    await userEvent.click(row());
+    await waitFor(() => expect(router.state.location.pathname).toBe('/whats-new'));
+    await act(async () => { await router.navigate('/me'); });
+    expect(await screen.findByRole('link', { name: /What's new/ })).not.toHaveTextContent('New');
+  });
+
+  it('opens the feedback sheet from its row and gives the focus back', async () => {
+    await hub();
+    const row = screen.getByRole('button', { name: 'Request a feature or report a bug' });
+    await userEvent.click(row);
+    const sheet = await screen.findByRole('dialog', { name: 'Request a feature or report a bug' });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Request a feature or report a bug' })).toBeNull());
+    await waitFor(() => expect(row).toHaveFocus());
   });
 });

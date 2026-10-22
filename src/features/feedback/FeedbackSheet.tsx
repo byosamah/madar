@@ -5,6 +5,7 @@ import type { FeedbackKind } from '../../api/contract/entities';
 import { fieldError } from '../../app/errors';
 import { useAction } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
+import { usePointerCoarse } from '../../app/usePointerCoarse';
 import { Button } from '../../components/Button';
 import { TextArea } from '../../components/Fields';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
@@ -27,6 +28,8 @@ export function FeedbackSheet({ open, onOpenChange }: { open: boolean; onOpenCha
   const { t } = useTranslation();
   const toast = useToast();
   const location = useLocation();
+  // A finger cannot paste with a key, so the hint leaves a touch screen (Direction D).
+  const coarse = usePointerCoarse();
   const picker = useRef<HTMLInputElement>(null);
   const nextShot = useRef(0);
   const [kind, setKind] = useState<FeedbackKind>('feature');
@@ -108,7 +111,7 @@ export function FeedbackSheet({ open, onOpenChange }: { open: boolean; onOpenCha
               <AnimatedIcon icon={AttachFileIcon} size={18} aria-hidden />
               {t('feedback.addScreenshot')}
             </Button>
-            <span className="text-footnote text-ink-2">{t('feedback.pasteHint')}</span>
+            {!coarse && <span className="text-footnote text-ink-2">{t('feedback.pasteHint')}</span>}
           </div>
           <input
             ref={picker}
@@ -132,7 +135,7 @@ export function FeedbackSheet({ open, onOpenChange }: { open: boolean; onOpenCha
                     onClick={() => remove(index)}
                     disabled={send.isPending}
                     aria-label={t('feedback.removeScreenshot', { n: index + 1 })}
-                    className="pressable absolute -end-2 -top-2 grid size-7 place-items-center rounded-full bg-ink text-bg shadow"
+                    className="pressable absolute -end-2 -top-2 grid size-7 place-items-center rounded-full bg-ink text-bg shadow after:absolute after:-inset-2 after:content-['']"
                   >
                     <AnimatedIcon icon={XIcon} size={14} aria-hidden />
                   </button>

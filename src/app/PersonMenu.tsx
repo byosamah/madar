@@ -15,14 +15,13 @@ import { useMyState } from './live/hooks';
 import { readEnvironment, resolveAppearance } from './appearance';
 import { PreviewAs } from './PreviewAs';
 import { PROTOTYPE, REMOTE } from './mode';
-import { useOnceOn } from './lazyOverlay';
 import { useSwitchLanguage } from './languageTurn';
-import { LazyFeedbackSheet } from './overlays';
 import { usePersonName } from './personName';
 import { useAction, useCall, useRuntime } from './runtime';
 import { ShieldCheckIcon } from '../components/icons/animated/shield-check';
 import { MessageSquarePlusIcon } from '../components/icons/animated/message-square-plus';
 import { useSignOut } from '../features/auth/signOut';
+import { useFeedbackSheet } from '../features/feedback/useFeedbackSheet';
 import { SparklesIcon } from '../components/icons/animated/sparkles';
 import { WHATS_NEW } from '../whatsNew/entries';
 import { hasNew, readSeen } from '../whatsNew/seen';
@@ -48,9 +47,8 @@ export function PersonMenu({ id }: { id: string }) {
   const myState = useMyState();
   const ref = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
-  const [feedback, setFeedback] = useState(false);
   // The feedback sheet loads in its own chunk (FL-4): it mounts at the first open and stays, so its closing animation stays.
-  const feedbackMounted = useOnceOn(feedback);
+  const feedback = useFeedbackSheet();
   const signOut = useSignOut();
   if (!user) return null;
   const close = () => {
@@ -120,7 +118,7 @@ export function PersonMenu({ id }: { id: string }) {
             </Link>
             {/* The focus goes back to the picture first, so the sheet gives it back there when it closes (audit 2026-10-03, SHL-19). */}
             {mayReport && (
-              <button type="button" onClick={() => { close(); setFeedback(true); }} className={row}>
+              <button type="button" onClick={() => { close(); feedback.open(); }} className={row}>
                 <AnimatedIcon icon={MessageSquarePlusIcon} size={18} className="text-ink-2" aria-hidden />
                 {t('feedback.menu')}
               </button>
@@ -134,7 +132,7 @@ export function PersonMenu({ id }: { id: string }) {
           </nav>
         </Popover>
       )}
-      {feedbackMounted && <LazyFeedbackSheet open={feedback} onOpenChange={setFeedback} />}
+      {feedback.sheet}
     </>
   );
 }

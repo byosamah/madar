@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
-import { renderApp } from '../../test/render';
+import { phoneMedia } from '../../test/phoneMedia';
+import { renderApp, renderWithRuntime } from '../../test/render';
+import { FeedbackSheet } from './FeedbackSheet';
 
 const as = (userId: string) => (state: State) => {
   state.session.currentUserId = userId;
@@ -67,5 +69,32 @@ describe('request a feature or report a bug (owner, 2026-10-01)', () => {
     await renderApp('/admin/feedback', as('usr_010'));
     await screen.findByRole('heading', { level: 1 });
     expect(screen.queryByRole('region', { name: /Requests and bugs/ })).toBeNull();
+  });
+});
+
+describe('the feedback sheet on a phone (Direction D)', () => {
+  const openSheet = async () => {
+    await renderWithRuntime(<FeedbackSheet open onOpenChange={() => undefined} />, undefined, { path: '/projects' });
+    return screen.findByRole('dialog', { name: 'Request a feature or report a bug' });
+  };
+
+  it('gives the remove button of a screenshot a 44 px press area', async () => {
+    const sheet = await openSheet();
+    await userEvent.upload(within(sheet).getByLabelText('Add a screenshot'), new File(['shot'], 'board.png', { type: 'image/png' }));
+    const remove = await within(sheet).findByRole('button', { name: 'Remove screenshot 1' });
+    // The button keeps its 28 px look. The strip of its after: part adds 8 px on each side, so the press area is 44 px.
+    expect(remove).toHaveClass('size-7');
+    expect(remove).toHaveClass('after:-inset-2');
+    expect(remove).toHaveClass('after:absolute');
+  });
+
+  it('hides the paste hint on a coarse pointer and shows it on a mouse', async () => {
+    phoneMedia({ phone: true, coarse: true });
+    const first = await openSheet();
+    expect(within(first).queryByText('Or paste one. Up to 3.')).toBeNull();
+    cleanup();
+    phoneMedia({ phone: false, coarse: false });
+    const second = await openSheet();
+    expect(within(second).getByText('Or paste one. Up to 3.')).toBeInTheDocument();
   });
 });

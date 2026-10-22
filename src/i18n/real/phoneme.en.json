@@ -10,6 +10,9 @@
     "gcalBroken": "Connect again",
     "groupSettings": "Settings",
     "profileLine": "Picture, names, discipline",
-    "homeScreenRow": "Add Madar to the Home Screen"
+    "homeScreenRow": "Add Madar to the Home Screen",
+    "groupOffice": "Office",
+    "dashboardLine": "The numbers and what needs attention",
+    "adminBest": "Best on a computer"
   }
 }

@@ -3,6 +3,7 @@ import { useCall } from '../../app/runtime';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { MeGroup } from './MeRow';
 import { AccountPanel, NoticePanel } from './NoticePanel';
+import { OfficeGroup, PrototypeGroup, SignOutButton } from './OfficeGroup';
 import { LookPanel, ProfilePanel } from './PersonPanels';
 
 /**
@@ -24,6 +25,9 @@ export function MeScreen() {
             <NoticePanel />
             <AccountPanel />
           </MeGroup>
+          <OfficeGroup />
+          <PrototypeGroup />
+          <SignOutButton />
         </>
       )}
     </div>

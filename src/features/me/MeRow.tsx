@@ -102,9 +102,9 @@ export function MePanel({ label, children }: { label?: string; children: ReactNo
 /** A group word over one or more panels. The group carries the same word as its name for a screen reader. */
 export function MeGroup({ title, children }: { title?: string; children: ReactNode }) {
   return (
-    <div role="group" aria-label={title} className="flex flex-col gap-1.5">
+    <div role="group" aria-label={title} className="flex flex-col gap-2">
       {title && <p aria-hidden className="px-5 text-footnote font-medium text-ink-2">{title}</p>}
-      {children}
+      <div className="flex flex-col gap-4">{children}</div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactElement } from 'react';
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { can } from '../../api/permissions';
 import userEvent from '@testing-library/user-event';
 import { watchInstall } from '../../app/remote/install';
 import { initI18n } from '../../i18n';
@@ -10,6 +11,10 @@ import {
 import { fakeAuth } from '../auth/fakeAuth';
 import { renderAuth, SAMPLE_ACCOUNTS } from '../auth/renderAuth';
 import { MeScreen } from './MeScreen';
+
+// Sign out is a promise that a test keeps open, so it can press the button twice while the call runs.
+const signOutCall = vi.hoisted(() => ({ fn: vi.fn<() => Promise<void>>() }));
+vi.mock('../auth/signOut', () => ({ useSignOut: () => signOutCall.fn }));
 
 // The remote build: push, the Morning summary, Password, Agents and Sign out exist here, and the prototype tools do not.
 vi.mock('../../app/mode', () => ({ REMOTE: true, PROTOTYPE: false }));
@@ -153,3 +158,70 @@ describe('the settings rows of the Me hub in the real build', () => {
     await waitFor(() => expect(row).toHaveTextContent('Connect again'));
   });
 });
+
+describe('the Office group, Sign out and the roles in the real build', () => {
+  const asRole = (systemRole: 'management' | 'member') => (state: { users: Record<string, { systemRole: string }> }) => {
+    state.users.usr_001.systemRole = systemRole;
+  };
+
+  it('shows the Admin row as "Office" for Management and no What reaches me', async () => {
+    pushBrowser();
+    await hub({ prepare: asRole('management') as never });
+    const office = screen.getByRole('group', { name: 'Office' });
+    expect(within(office).getByRole('link', { name: /^Office/ })).toHaveAttribute('href', '/admin');
+    expect(screen.queryByRole('link', { name: /What reaches me/ })).toBeNull();
+  });
+
+  it('shows a Member no Admin row and no reach row, and the Dashboard row only with the right', async () => {
+    pushBrowser();
+    const { api } = await hub({ prepare: asRole('member') as never });
+    const session = await api.call('session.get', {});
+    const office = screen.getByRole('group', { name: 'Office' });
+    expect(within(office).queryByRole('link', { name: /^Admin/ })).toBeNull();
+    expect(within(office).queryByRole('link', { name: /^Office/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: /What reaches me/ })).toBeNull();
+    expect(within(office).queryByRole('link', { name: /Dashboard/ }) !== null).toBe(can(session.authority, 'dashboard.view'));
+  });
+
+  it('has no Prototype group in the real build', async () => {
+    pushBrowser();
+    await hub();
+    expect(screen.queryByRole('group', { name: 'Prototype' })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: /Preview as/ })).toBeNull();
+  });
+
+  it('signs out with one press and ignores a second press while it runs', async () => {
+    pushBrowser();
+    let finish: () => void = () => undefined;
+    signOutCall.fn.mockReset();
+    signOutCall.fn.mockImplementation(() => new Promise<void>((resolve) => { finish = resolve; }));
+    await hub();
+    const button = screen.getByRole('button', { name: 'Sign out' });
+    await userEvent.click(button);
+    await userEvent.click(button);
+    expect(signOutCall.fn).toHaveBeenCalledTimes(1);
+    expect(button).toBeDisabled();
+    await act(async () => finish());
+    await waitFor(() => expect(button).toBeEnabled());
+  });
+
+  it('enables Sign out again when the call fails', async () => {
+    pushBrowser();
+    signOutCall.fn.mockReset();
+    signOutCall.fn.mockRejectedValue(new Error('offline'));
+    await hub();
+    const button = screen.getByRole('button', { name: 'Sign out' });
+    await userEvent.click(button);
+    await waitFor(() => expect(button).toBeEnabled());
+    expect(signOutCall.fn).toHaveBeenCalledTimes(1);
+  });
+
+  it('puts Sign out last on the page', async () => {
+    pushBrowser();
+    await hub();
+    const button = screen.getByRole('button', { name: 'Sign out' });
+    const everything = [...document.querySelectorAll('a, button')];
+    expect(everything.at(-1)).toBe(button);
+  });
+});
+
