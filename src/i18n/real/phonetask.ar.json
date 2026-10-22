@@ -2,6 +2,8 @@
   "phoneTask": {
     "editTitle": "اضغط على العنوان لتعدّله",
     "markDone": "أنهِ المهمة",
-    "sendToReview": "أرسلها للمراجعة"
+    "sendToReview": "أرسلها للمراجعة",
+    "groupPeople": "الأشخاص",
+    "groupThis": "هذه المهمة"
   }
 }

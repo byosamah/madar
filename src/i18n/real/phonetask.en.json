@@ -2,6 +2,8 @@
   "phoneTask": {
     "editTitle": "Tap to edit the title",
     "markDone": "Mark done",
-    "sendToReview": "Send to review"
+    "sendToReview": "Send to review",
+    "groupPeople": "People",
+    "groupThis": "This to-do"
   }
 }
