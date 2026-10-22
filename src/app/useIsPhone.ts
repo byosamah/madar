@@ -12,3 +12,8 @@ function subscribe(onChange: () => void): () => void {
 export function useIsPhone(): boolean {
   return useSyncExternalStore(subscribe, () => window.matchMedia(PHONE).matches, () => false);
 }
+
+/** The phone answer now, outside a render (for an event handler or an effect). False where matchMedia is absent. */
+export function isPhoneNow(): boolean {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(PHONE).matches;
+}
