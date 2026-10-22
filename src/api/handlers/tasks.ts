@@ -15,6 +15,7 @@ import { can, leadTookTask, mayViewTask, principalOf } from '../permissions';
 import { isTaskMaker, mayAssignTask, mayChangePrerequisites, mayChangeTask, mayDeleteTask, mayTickChecklist } from '../taskGates';
 import { nextId, taskTemplatesOf } from '../store';
 import { stagesOf, taskDetailOf, taskRowOf } from '../views';
+import { everyoneCountOfTask } from './everyone';
 import { arrangeRanks } from '../../lib/arrange';
 import { stampDay } from '../../lib/dates';
 import { compareTasks, stagesChrono } from '../../lib/stageFlow';
@@ -256,7 +257,10 @@ export const tasksGet = defineCall({
   output: TaskDetail,
   readOnly: true,
   run(input, ctx) {
-    return detail(ctx, requireTask(ctx, input.id));
+    const task = requireTask(ctx, input.id);
+    // The count of people that @everyone names in the thread of this to-do, for the mention list (fbk_041). Missing when it names nobody.
+    const everyone = everyoneCountOfTask(ctx, task);
+    return { ...detail(ctx, task), ...(everyone > 0 ? { everyone } : {}) };
   },
 });
 

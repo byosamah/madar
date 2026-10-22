@@ -16,6 +16,7 @@ import { GoogleCalendarSection } from './GoogleCalendarSection';
 import { NotificationsSection } from './NotificationsSection';
 import { PasswordSection } from './PasswordSection';
 import { PushSection } from './PushSection';
+import { QuietHoursSection } from './QuietHoursSection';
 import { ProfileSection } from './ProfileSection';
 import { SettingsSection as Section } from './Section';
 
@@ -68,6 +69,8 @@ export function SettingsScreen() {
       <NotificationsSection />
       {/* The real build: browser push on this device (owner, 2026-10-08). */}
       <PushSection />
+      {/* Quiet hours: no push and no email outside the work hours of the person (owner, 2026-10-22, fbk_048). */}
+      <QuietHoursSection />
       {/* Google Calendar: each meeting of the person goes to the calendar "Madar" in their Google account (fbk_022, owner 2026-10-19). */}
       <GoogleCalendarSection />
 

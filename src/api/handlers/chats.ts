@@ -17,7 +17,7 @@ import { assertFilesForDirect, assertFilesInProject } from './attach';
 import { assertCan, replyNotHere, roleIn } from './shared';
 import { isLine, lineKindOf } from '../../lib/commentLine';
 import { mentionedUserIds, plainText } from '../../lib/text';
-import { everyoneOfChat, namedByEveryone } from './everyone';
+import { everyoneCountOfChat, everyoneOfChat, namedByEveryone } from './everyone';
 import { listFormat } from '../../lib/dates';
 import { personName } from '../../lib/personName';
 import { markOf } from '../../lib/projectMark';
@@ -313,6 +313,8 @@ export const chatsMessages = defineCall({
     const people = Object.values(ctx.state.users)
       .filter((u) => u.kind === 'human' && u.id !== ctx.authority.id && canSeeConversation(ctx.state, conversation, u))
       .map((u) => cardOf(ctx.state, u.id));
+    // The count for the row "Everyone" of the mention list (fbk_041).
+    const everyone = everyoneCountOfChat(ctx, conversation);
     return {
       chat: { ...rowOf(ctx.state, conversation, ctx.authority), id: conversation.id },
       people,
@@ -323,6 +325,7 @@ export const chatsMessages = defineCall({
       ...seenInfoOf(ctx.state, conversation, ctx.authority.id),
       notify: notifyLevelOf(ctx.state, conversation, ctx.authority.id),
       newer: around?.newer ?? false,
+      ...(everyone > 0 ? { everyone } : {}),
     };
   },
 });

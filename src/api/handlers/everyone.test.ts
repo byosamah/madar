@@ -275,3 +275,35 @@ describe('the switch Mention everyone', () => {
     expect(noticesOf(w, on.message.id).length).toBe(2);
   });
 });
+
+describe('the count of people that @everyone names (the row Everyone of the mention list)', () => {
+  it('is given by chats.messages for a group and a project chat, without the sender and the people who are off', async () => {
+    const w = world();
+    w.t.as('usr_003');
+    expect((await w.t.api.call('chats.messages', { conversationId: w.group })).everyone).toBe(2);
+    expect((await w.t.api.call('chats.messages', { conversationId: w.room })).everyone).toBe(2);
+    w.t.as('usr_001');
+    // The Admin is not on the team and reads the project chat: the team is named, the Admin is the sender.
+    expect((await w.t.api.call('chats.messages', { conversationId: w.room })).everyone).toBe(3);
+  });
+
+  it('is not given for a direct chat, nor to a person without "Mention everyone"', async () => {
+    const w = world();
+    w.t.as('usr_003');
+    expect((await w.t.api.call('chats.messages', { conversationId: w.direct })).everyone).toBeUndefined();
+    withoutSwitch(w);
+    expect((await w.t.api.call('chats.messages', { conversationId: w.group })).everyone).toBeUndefined();
+  });
+
+  it('is given by tasks.get for the people of the to-do, and not for a person without the switch', async () => {
+    const w = world();
+    w.s.tasks.tsk_001 = makeTask({ ownerId: 'usr_003', createdBy: 'usr_002', helperIds: ['usr_006'] });
+    w.t.as('usr_003');
+    expect((await w.t.api.call('tasks.get', { id: 'tsk_001' })).everyone).toBe(2);
+    w.t.as('usr_002');
+    expect((await w.t.api.call('tasks.get', { id: 'tsk_001' })).everyone).toBe(2);
+    withoutSwitch(w);
+    w.t.as('usr_003');
+    expect((await w.t.api.call('tasks.get', { id: 'tsk_001' })).everyone).toBeUndefined();
+  });
+});

@@ -46,6 +46,16 @@ export function mayMentionEveryone(authority: Actor): boolean {
   return can(authority, 'chat.mentionEveryone');
 }
 
+/** The count of people that @everyone names for the sender in a chat (0 when the sender lacks the switch). */
+export function everyoneCountOfChat(ctx: Sender & { state: EveryoneState }, conversation: Conversation): number {
+  return mayMentionEveryone(ctx.authority) ? everyoneOfChat(ctx.state, conversation, ctx).length : 0;
+}
+
+/** The count of people that @everyone names for the sender in the thread of a task (0 when the sender lacks the switch). */
+export function everyoneCountOfTask(ctx: Sender & { state: EveryoneState & Pick<State, 'tasks'> }, task: Task): number {
+  return mayMentionEveryone(ctx.authority) ? everyoneOfTask(ctx.state, task, ctx).length : 0;
+}
+
 /** The people named by the everyone words of a body, or none when the body holds no such word or the writer lacks the switch. */
 export function namedByEveryone(body: string, authority: Actor, audience: () => string[]): string[] {
   return mentionsEveryone(body) && mayMentionEveryone(authority) ? audience() : [];

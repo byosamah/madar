@@ -228,6 +228,8 @@ export const TaskDetail = TaskRow.extend({
     upload: z.boolean().optional(),
   }),
   history: z.array(EventView),
+  /** Only from tasks.get: the count of people that @everyone names for the viewer in the thread of this to-do (fbk_041). Missing: nobody. */
+  everyone: z.number().int().min(1).optional(),
 });
 export type TaskDetail = z.infer<typeof TaskDetail>;
 
@@ -342,6 +344,11 @@ export const ChatThread = z.object({
   others: z.number().int().min(0).default(0),
   /** True when newer messages exist after this page: a page that opens at one message (item 17) may end before the newest. */
   newer: z.boolean().default(false),
+  /**
+   * The count of people that @everyone names for the reader in this chat (fbk_041), for the row "Everyone" of the mention list. Missing: the
+   * words name nobody here (a direct chat, no one else in the chat, or the reader lacks "Mention everyone").
+   */
+  everyone: z.number().int().min(1).optional(),
 });
 export type ChatThread = z.infer<typeof ChatThread>;
 

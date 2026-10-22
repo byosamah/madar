@@ -411,6 +411,7 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
             targetType="task" targetId={task.id} projectId={detail?.project.id ?? null} stageId={task.stageId} people={people}
             canPost={viewerCan.comment === true}
             canAttach={viewerCan.upload === true}
+            everyone={data.everyone}
           />
         </TabPanel>
       ) : (

@@ -1,0 +1,49 @@
+import { useTranslation } from 'react-i18next';
+import { useAction, useCall } from '../../app/runtime';
+import { useToast } from '../../app/toasts';
+import { Switch } from '../../components/Switch';
+import type { Lang } from '../../lib/dates';
+import { officeWorkHoursOf, workHoursOf, type WorkHours } from '../../lib/quietHours';
+import { SettingsSection } from './Section';
+import { WorkRangeFields } from './WorkRangeFields';
+import { clockLabel, daysPhrase } from './workRange';
+
+/**
+ * Settings, "Quiet hours" (owner, 2026-10-22, fbk_048). One switch, "Quiet outside my work hours" (on by default), then the work days and
+ * the two times. Outside the range Madar sends no push and no email, and the bell keeps everything. While the Admin keeps notifications on
+ * (the lock), the days and hours of the lock stay inside the range: the day toggles are locked and the times cannot cut the lock. Each
+ * change saves at once with a toast. With the switch off, the day and time controls hide.
+ */
+export function QuietHoursSection() {
+  const { t, i18n } = useTranslation();
+  const lang: Lang = i18n.language === 'ar' ? 'ar' : 'en';
+  const toast = useToast();
+  const session = useCall('session.get', {});
+  const settings = useCall('settings.get', {});
+  const save = useAction('me.updatePreferences', { onSuccess: () => toast.show({ message: t('quietHours.saved') }) });
+  const user = session.data?.user;
+  if (!user || !settings.data) return null;
+  const mine = workHoursOf(user.preferences, settings.data);
+  const { lock } = officeWorkHoursOf(settings.data);
+  // The range as the screen shows it and saves it: it always holds the lock, also when the Admin moved the lock after the person chose.
+  const shown: WorkHours = lock.on
+    ? { quiet: mine.quiet, days: [...new Set([...mine.days, ...lock.days])].sort((a, b) => a - b), from: mine.from < lock.from ? mine.from : lock.from, to: mine.to > lock.to ? mine.to : lock.to }
+    : mine;
+  const commit = (next: Partial<WorkHours>) => save.mutate({ workHours: { ...shown, ...next } });
+
+  return (
+    <SettingsSection title={t('quietHours.title')}>
+      <Switch id="quiet-hours" label={t('quietHours.switch')} description={t('quietHours.hint')} checked={shown.quiet} onChange={(quiet) => commit({ quiet })} />
+      {shown.quiet && (
+        <>
+          <WorkRangeFields idPrefix="quiet" value={shown} lock={lock} onChange={(range) => commit(range)} />
+          {lock.on && (
+            <p className="text-footnote text-label-2">
+              {t('quietHours.lockLine', { days: daysPhrase(lock.days, lang, t), from: clockLabel(lock.from, lang), to: clockLabel(lock.to, lang) })}
+            </p>
+          )}
+        </>
+      )}
+    </SettingsSection>
+  );
+}

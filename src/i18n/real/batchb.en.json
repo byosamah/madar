@@ -17,5 +17,51 @@
     "mentionEveryone": "{{actor}} mentioned everyone in {{target}}",
     "mentionEveryoneGroup": "{{actor}} mentioned everyone in the group {{target}}",
     "mentionEveryoneGroupGone": "{{actor}} mentioned everyone in a group"
+  },
+  "quietHours": {
+    "title": "Quiet hours",
+    "switch": "Quiet outside my work hours",
+    "hint": "In quiet hours Madar sends no push and no email. The bell keeps everything.",
+    "days": "Work days",
+    "from": "From",
+    "to": "To",
+    "lockLine": "Your office keeps notifications on {{days}}, {{from}} to {{to}}.",
+    "dayRange": "{{from}} to {{to}}",
+    "lockedDay": "The office keeps notifications on this day.",
+    "saved": "Your quiet hours are saved."
+  },
+  "admin": {
+    "workHours": {
+      "title": "Work hours",
+      "hint": "The default for a person who chose none. Each person can change it in Settings.",
+      "defaultTitle": "Default work hours",
+      "lock": "Keep notifications on",
+      "lockHint": "Nobody can be quiet inside these days and hours. The work hours of each person include them.",
+      "days": "Days",
+      "from": "From",
+      "to": "To"
+    }
+  },
+  "mentionEveryone": {
+    "word": "@everyone",
+    "row": "Everyone · {{count}} people",
+    "row_one": "Everyone · 1 person",
+    "row_other": "Everyone · {{count}} people"
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-90": {
+        "title": "The morning summary comes when your work starts",
+        "body": "The morning summary email now comes at the start of your work hours, on your work days. Before, it came at 7:30 AM for everyone. You set your work hours in Settings, Quiet hours."
+      },
+      "2026-10-23-89": {
+        "title": "Mention everyone",
+        "body": "Write @everyone or @all in a group, a project chat or a to-do thread. Madar sends a notice and a push to every person there. It sends no email. In Arabic, write @الجميع. Madar also shows an Everyone row when you type @."
+      },
+      "2026-10-23-88": {
+        "title": "Quiet hours",
+        "body": "Madar now sends no push and no email outside your work hours. The bell and the Inbox keep everything. When your quiet hours end, you get one push. Until you choose, your hours are Sunday to Thursday, 9 AM to 5 PM. Your office keeps notifications on inside those hours. To change your days and hours, open Settings, Quiet hours."
+      }
+    }
   }
 }

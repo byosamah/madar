@@ -291,6 +291,7 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
           <Composer
             id={id}
             people={data.people}
+            everyone={data.everyone}
             pending={false}
             // A project chat joins the files of its project. A direct chat or a group keeps its files in the chat (owner, 2026-10-19).
             upload={chat.kind === 'project' ? (chat.project ? { projectId: chat.project.id } : undefined) : { projectId: null, conversationId: id }}
@@ -436,6 +437,7 @@ export function TaskPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
         <Composer
           id={id}
           people={people}
+          everyone={task.data.everyone}
           pending={false}
           upload={task.data.viewerCan.upload ? { projectId: where?.id ?? null, stageId: task.data.task.stageId, taskId: id } : undefined}
           replyTo={replyTo}

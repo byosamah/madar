@@ -20,6 +20,8 @@ import { ComposerReplyStrip } from './ReplyStrip';
 type ComposerProps = {
   id: string;
   people: UserCard[];
+  /** The count of people that @everyone names here (fbk_041), for the row "Everyone" of the mention list. Missing: the row is off. */
+  everyone?: number;
   pending: boolean;
   /** "clear" empties the box. Call it when the send worked. */
   onSend: (body: string, fileIds: string[], clear: () => void) => void;
@@ -50,7 +52,7 @@ export function Composer(props: ComposerProps) {
  * Search unmounts the box; its draft waits until the person comes back or sends it (audit 2026-10-03, SHL-4). The text uses the
  * keys of the comment box (CommentThread), so a task thread and the comments of its task share one draft.
  */
-function ComposerBox({ id, people, pending, onSend, upload, owner, replyTo, onCancelReply, onEditLast, onTextChange }: ComposerProps & { owner: string }) {
+function ComposerBox({ id, people, everyone, pending, onSend, upload, owner, replyTo, onCancelReply, onEditLast, onTextChange }: ComposerProps & { owner: string }) {
   const { t } = useTranslation();
   const toast = useToast();
   // On a phone, Enter makes a new line and only the Send button sends (chat design 2026-10-19, item 7).
@@ -163,6 +165,7 @@ function ComposerBox({ id, people, pending, onSend, upload, owner, replyTo, onCa
           value={text}
           onChange={change}
           people={people}
+          everyone={everyone}
           rows={1}
           inputRef={field}
           placement="above"
