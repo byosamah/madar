@@ -1,4 +1,4 @@
-import { lazy, Suspense, useId, useState } from 'react';
+import { Suspense, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ProjectSummary } from '../../api/contract/views';
 import { useUndoable } from '../../app/actions';
@@ -9,6 +9,7 @@ import { Button } from '../../components/Button';
 import { ProjectTile } from '../../components/ProjectTile';
 import { Sheet } from '../../components/Sheet';
 import { projectKey } from '../../lib/projectCode';
+import { lazyMapCanvas } from '../map/mapLib';
 import { PinSheet } from '../map/PinSheet';
 import { ProjectPin } from '../map/ProjectPin';
 import { isLive } from '../../lib/overview';
@@ -16,7 +17,7 @@ import { MapPinCard } from './MapPinCard';
 import type { DashboardFilters } from './Tiles';
 
 // The street map loads in the real build only. The flag is folded here, as in PinPicker.tsx, so the prototype keeps no map code (fbk_017).
-const MapCanvas = import.meta.env.VITE_MADAR_API === 'remote' ? lazy(() => import('../map/MapCanvas')) : null;
+const MapCanvas = import.meta.env.VITE_MADAR_API === 'remote' ? lazyMapCanvas() : null;
 
 /**
  * The Map section of the Dashboard (owner, 2026-10-18, fbk_017). Each active project with a pin shows on the map as its own

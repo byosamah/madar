@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef, useState } from 'react';
+import { Suspense, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { GeoPoint } from '../../api/contract/entities';
 import { useLang } from '../../app/lang';
@@ -8,10 +8,11 @@ import { googleMapsUrl, inSaudi, parseMapPoint, pointText, swapPoint } from '../
 import { gated } from '../../lib/nominatimGate';
 import { parseResults, searchUrl, shortName, simplerQuery, type PlaceHit } from '../../lib/placeSearch';
 import { resolveShortLink, shortLinkIn } from '../../lib/shortLink';
+import { lazyMapCanvas } from './mapLib';
 
 // The map loads in the real build only, in a chunk of its own. The flag itself, not REMOTE from mode.ts: the bundler folds this
 // comparison. It drops the branch, so the prototype build keeps the paste field alone and no map code (fbk_017).
-const MapCanvas = import.meta.env.VITE_MADAR_API === 'remote' ? lazy(() => import('./MapCanvas')) : null;
+const MapCanvas = import.meta.env.VITE_MADAR_API === 'remote' ? lazyMapCanvas() : null;
 // The short link needs the server function /maplink, which the prototype does not have.
 const HAS_SERVER = import.meta.env.VITE_MADAR_API === 'remote';
 

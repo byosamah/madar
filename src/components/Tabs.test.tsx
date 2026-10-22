@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { vi } from 'vitest';
 import { Tabs } from './Tabs';
 
 const OPTIONS = [{ value: 'one', label: 'One' }, { value: 'two', label: 'Two' }];
@@ -22,5 +24,17 @@ describe('the tab row (owner, 2026-10-05, item 7)', () => {
     const underline = screen.getByRole('tab', { name: 'One' }).querySelector('span');
     expect(underline).toHaveClass('bottom-0');
     expect(underline).not.toHaveClass('-bottom-px');
+  });
+
+  // Performance audit 2026-10-21, LV-10: a screen can start the work of a tab when the finger goes down, before the click ends.
+  it('tells the screen which tab got a pointer down, and still changes the tab at the click', async () => {
+    const onChange = vi.fn();
+    const onTabPointerDown = vi.fn();
+    render(<Tabs label="Sections" value="one" onChange={onChange} options={OPTIONS} onTabPointerDown={onTabPointerDown} />);
+    fireEvent.pointerDown(screen.getByRole('tab', { name: 'Two' }));
+    expect(onTabPointerDown).toHaveBeenCalledWith('two');
+    expect(onChange).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('tab', { name: 'Two' }));
+    expect(onChange).toHaveBeenCalledWith('two');
   });
 });
