@@ -961,7 +961,10 @@ Branch `rb/perf2` (worktree `~/dev/madar-rb/perf2`). Sonnet agents, the Opus ses
 - [ ] Gap critic findings: a second wave if any holds
 - [x] Merge into rb/perf2, then the gates once: typecheck, npm test, test:lite, test:office, build, build:server,
   build:remote test, test:db, test:it, test:mcp, the prototype smoke: all green (one npm test failure fixed, see below)
-- [ ] Screenshots of the touched screens (EN/AR, light/dark, 390 px), Chrome and WebKit iPhone, on the test copy after the deploy
+- [x] Screenshots (EN/AR, light/dark, 390 px), Chrome and WebKit iPhone, and the after numbers on the test copy: no breakage;
+  numbers in proof.md "After numbers on the test copy"
+- [ ] Proposed, not built: the idle prefetch waits until the first Home rows show (64 chunks now start before them on a cold load);
+  the second batch after a save (a tasks.list follows the write)
 - [x] What's new line 2026-10-23-82 "Madar is faster" (d107844d); no MCP change in wave 1 (no call, input, output or rule changes)
 - [x] Test copy at b8bb9e42 (`all.sh test` from main, 2026-10-22): quick checks passed; the after numbers and screenshots run
 - [x] Production at b8bb9e42 on the owner's word ("deploy to production", 2026-10-22): migration applied, quick checks passed;

@@ -2376,3 +2376,18 @@ Not proven: a real iPhone. After the deploy, wait 11 minutes on an iPhone, press
   20261022000300_read_indexes_perf2.sql (three read indexes, one old index dropped). The quick checks passed: health from supabase
   (149 calls), database, lock and asyncContext ok, /mcp with no token 401. madar.vado.sa serves 34 first-load scripts and the new
   vendor file. The after numbers and the screenshots of the test copy come from a delegated agent (Chrome and WebKit iPhone).
+
+### After numbers on the test copy (2026-10-22, b8bb9e42, delegated agent; report and raw JSON in the session scratchpad after/)
+- Desktop Chromium, cold, member / admin: first paint 964 / 1,078 ms before, 384 / 588 ms after; first Home rows 2,038 / 2,025 before,
+  1,357 / 1,560 after; 6 batches (7 before); 3 OPTIONS (Chromium keeps the direct address). Warm first rows about 815 ms before,
+  174 / 245 after. Instant Home: rows before the first batch answer in 12 of 12 warm and reload loads.
+- Ended token: first paint 764 ms before, 186 ms after (first rows 247 ms with stored lists).
+- One save: 3 batches before, 2 after (a second tasks.list still follows the write); answer 714 ms before, 674 ms after.
+- Chat, member to admin: 2,175 ms before, 1,123 ms after. A third tab (management) got 0 signal frames and 0 calls for a direct chat
+  it is not in (4 of 4).
+- Phone (Chromium, 4G, CPU 4x, load average 4 to 5): first paint 4,960 to 3,972 ms; LCP 6,296 to 5,684; first rows 6,172 to 5,110.
+- WebKit, iPhone 15: every batch call went to the page's own /api, none to supabase.co, 0 OPTIONS; first rows 1,033 to 1,533 ms.
+- Screenshots: 54 for each engine (EN/AR, light/dark, 11 screens); no blank screen, cut-off, layout break, raw key or fallback font;
+  the square sign of m2 draws from the 11.8 KB Inter subset. WebKit wraps "See what's new" on two lines on Home.
+- Open: the idle prefetch starts 67 chunks (562 KB) at 805 ms, 64 of them before the first rows on a cold load; the save still sends
+  a second batch; the three font preloads stay (LV-1).
