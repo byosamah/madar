@@ -4,5 +4,14 @@
   },
   "feedback": {
     "uploading": "Screenshots: {{percent}}% uploaded"
+  },
+  "tracker": {
+    "dropNote": "The files join this entry. Nothing saves until you press Log it."
+  },
+  "overview": {
+    "dropNote": "The files join this post. Nothing posts until you press Post."
+  },
+  "minutes": {
+    "dropNote": "The files join the minutes. Nothing saves until you press Save the minutes."
   }
 }

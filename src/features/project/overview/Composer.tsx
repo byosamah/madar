@@ -8,7 +8,8 @@ import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { MentionField } from '../../../components/MentionField';
 import { withMentionMarkup } from '../../../lib/text';
-import { AttachButton, PickedFiles, useAttachments } from '../../files/Attachments';
+import { AttachButton, PickedFiles, onPastePictures, useAttachments, useBlockFileDrop } from '../../files/Attachments';
+import { ChatDropArea, DropReceiver } from '../../inbox/ChatDrop';
 
 /** A post carries up to 20 files (spec 5.2). */
 const MAX_POST_FILES = 20;
@@ -57,8 +58,14 @@ export function Composer({ detail }: { detail: ProjectDetail }) {
     }
   };
 
+  const mayUpload = detail.viewerCan.upload === true;
+  // A file dropped on the screen outside the frame never opens in the browser tab (fbk_047).
+  useBlockFileDrop();
   return (
-    <form onSubmit={post} aria-label={t('overview.composer')} className="panel flex flex-col gap-3 p-4">
+    // Files dropped on the box join the picked files, where the person may upload. Nothing posts before the Post button.
+    <ChatDropArea note={t('overview.dropNote')} className="relative">
+    <form onSubmit={post} aria-label={t('overview.composer')} className="panel flex flex-col gap-3 p-4" onPaste={onPastePictures(attachments.add, mayUpload)}>
+      {mayUpload && <DropReceiver onFiles={attachments.add} />}
       <MentionField
         id="composer"
         label={t('overview.composer')}
@@ -71,9 +78,10 @@ export function Composer({ detail }: { detail: ProjectDetail }) {
       />
       <PickedFiles files={attachments.files} onRemove={attachments.remove} progress={attachments.progress} busy={posting} />
       <div className="flex items-center justify-between gap-2">
-        {detail.viewerCan.upload ? <AttachButton onPick={attachments.add} /> : <span />}
+        {mayUpload ? <AttachButton onPick={attachments.add} /> : <span />}
         <Button variant={text.trim() ? 'primary' : 'secondary'} type="submit" disabled={!text.trim() || posting}>{t('overview.post')}</Button>
       </div>
     </form>
+    </ChatDropArea>
   );
 }

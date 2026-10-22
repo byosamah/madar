@@ -112,3 +112,9 @@ export function useChatDropReceiver(receive: Receive | null): void {
     return () => register(null);
   }, [register, present]);
 }
+
+/** Gives the files that are dropped on the area to a box. It draws nothing. Pass `onFiles` only where the person may upload. */
+export function DropReceiver({ onFiles }: { onFiles: (files: File[]) => void }) {
+  useChatDropReceiver(onFiles);
+  return null;
+}

@@ -14,7 +14,8 @@ import { isFinePointer } from '../../../lib/calendar';
 import { todayISO } from '../../../lib/dates';
 import { sideForType, sidesOf, waitingFor } from '../../../lib/tracker';
 import { addWorkingDays } from '../../../lib/workdays';
-import { AttachButton, PickedFiles, useAttachments } from '../../files/Attachments';
+import { AttachButton, PickedFiles, onPastePictures, useAttachments, useBlockFileDrop } from '../../files/Attachments';
+import { ChatDropArea, DropReceiver } from '../../inbox/ChatDrop';
 import { ReplyFields } from './ReplyFields';
 import { repliers } from './replyRights';
 import { TypeIcon } from './marks';
@@ -106,7 +107,11 @@ export function QuickLog({ projectId, members: everyone, canReply = true, canAss
     log.mutate({ projectId, type, direction, title, date: date || todayISO(), waiting, fileIds, replyBy });
   };
 
+  // A file dropped on the screen outside the frame never opens in the browser tab (fbk_047).
+  useBlockFileDrop();
   return (
+    // Files dropped on the quick log join the picked files, where the person may upload. Nothing saves before the save button.
+    <ChatDropArea note={t('tracker.dropNote')} className="relative">
     <form
       aria-label={t('tracker.logLabel')}
       className="panel flex flex-col gap-3 p-4"
@@ -114,7 +119,10 @@ export function QuickLog({ projectId, members: everyone, canReply = true, canAss
         event.preventDefault();
         void submit();
       }}
+      // A paste of only pictures adds them to the picked files, with the rule of the chat box (fbk_046). Text stays text.
+      onPaste={onPastePictures(attachments.add, canAttach)}
     >
+      {canAttach && <DropReceiver onFiles={attachments.add} />}
       <div className="flex items-center gap-2">
         <input
           ref={field}
@@ -205,5 +213,6 @@ export function QuickLog({ projectId, members: everyone, canReply = true, canAss
         />
       )}
     </form>
+    </ChatDropArea>
   );
 }

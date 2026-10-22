@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ClipboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MAX_ATTACHMENTS } from '../../api/contract/limits';
 import type { Attachment } from '../../api/contract/views';
@@ -26,6 +26,20 @@ export type UploadTarget = { projectId: string | null; stageId?: string | null; 
 export function pastedPictures(data: Pick<DataTransfer, 'files' | 'getData'> | null): File[] {
   if (!data || data.getData('text/plain') !== '') return [];
   return [...data.files].filter((file) => file.type.startsWith('image/'));
+}
+
+/**
+ * The paste handler of a box that takes picked files (fbk_046). A paste that holds text stays text; a paste of only pictures adds them to
+ * the picked files and cancels the browser paste. It does nothing where the person may not upload (`enabled` false).
+ */
+export function onPastePictures(add: (files: File[]) => void, enabled = true): (event: ClipboardEvent<HTMLElement>) => void {
+  return (event) => {
+    if (!enabled) return;
+    const pictures = pastedPictures(event.clipboardData);
+    if (pictures.length === 0) return;
+    event.preventDefault();
+    add(pictures);
+  };
 }
 
 /** True when a drag carries files. A drag of selected text or of a link carries none, and the page leaves it alone. */

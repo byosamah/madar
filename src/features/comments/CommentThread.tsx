@@ -13,7 +13,7 @@ import { LoadFailed } from '../../components/LoadFailed';
 import { AttachButton, PickedFiles, pastedPictures, useAttachments, useBlockFileDrop } from '../files/Attachments';
 import { EmojiButton } from '../emoji/EmojiButton';
 import { insertAt } from '../emoji/insert';
-import { ChatDropArea, useChatDropReceiver } from '../inbox/ChatDrop';
+import { ChatDropArea, DropReceiver } from '../inbox/ChatDrop';
 import { ComposerReplyStrip } from '../inbox/ReplyStrip';
 import { CommentItem } from './CommentItem';
 import { TaskComments } from './TaskComments';
@@ -144,10 +144,4 @@ function CommentThreadFor({
       </section>
     </ChatDropArea>
   );
-}
-
-/** Gives the files that are dropped on the comments to the picked files of the box (fbk_030). It draws nothing. */
-function DropReceiver({ onFiles }: { onFiles: (files: File[]) => void }) {
-  useChatDropReceiver(onFiles);
-  return null;
 }

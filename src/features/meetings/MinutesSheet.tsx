@@ -13,7 +13,8 @@ import { IconButton } from '../../components/IconButton';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { XIcon } from '../../components/icons/animated/x';
 import { Sheet } from '../../components/Sheet';
-import { AttachButton, PickedFiles, useAttachments } from '../files/Attachments';
+import { AttachButton, PickedFiles, onPastePictures, useAttachments, useBlockFileDrop } from '../files/Attachments';
+import { ChatDropArea, DropReceiver } from '../inbox/ChatDrop';
 
 /**
  * The sheet that writes the minutes of a meeting that ended, or changes them (wave 2, owner 2026-10-19). One text area, the attach button
@@ -50,6 +51,8 @@ export function MinutesSheet({ meeting, minutes, onClose }: {
   });
   const target = meeting.projectId ? { projectId: meeting.projectId } : { projectId: null, meetingId: meeting.id };
   const busy = save.isPending || uploading;
+  // A file dropped on the screen outside the frame never opens in the browser tab (fbk_047).
+  useBlockFileDrop();
 
   const submit = async () => {
     if (busy) return;
@@ -77,13 +80,17 @@ export function MinutesSheet({ meeting, minutes, onClose }: {
       title={t('minutes.sheetTitle', { title: lang === 'ar' ? `\u2068${meeting.title}\u2069` : meeting.title })}
       footer={<Button variant="primary" disabled={busy} onClick={() => void submit()}>{t('minutes.save')}</Button>}
     >
+      {/* Files dropped on the sheet join the picked files. Nothing saves before the save button. */}
+      <ChatDropArea note={t('minutes.dropNote')} className="relative">
       <form
         className="flex flex-col gap-4 pt-1"
         onSubmit={(event) => {
           event.preventDefault();
           void submit();
         }}
+        onPaste={onPastePictures(attachments.add)}
       >
+        <DropReceiver onFiles={attachments.add} />
         <TextArea
           id="minutes-text" label={t('minutes.field')} dir="auto" autoComplete="off" rows={8} maxLength={MEETING_LIMITS.minutesMax}
           value={text} onChange={(event) => setText(event.target.value)}
@@ -104,6 +111,7 @@ export function MinutesSheet({ meeting, minutes, onClose }: {
         <div><AttachButton onPick={attachments.add} disabled={attachments.full} /></div>
         {problem && <p role="alert" className="text-footnote text-late">{problem}</p>}
       </form>
+      </ChatDropArea>
     </Sheet>
   );
 }
