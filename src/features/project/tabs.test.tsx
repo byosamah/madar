@@ -4,7 +4,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import type { State } from '../../api/store';
 import { TODAY } from '../../test/factories';
 import { renderHeldRemoteApp, type Asked } from '../../test/heldRemoteApp';
-import { PROJECT_TABS, tabReads, type ProjectTab } from './tabs';
+import { isMorePage, litPhoneTab, tabOfLink, tabReads, tabSearch, type ProjectTab } from './tabs';
 
 const as = (userId: string) => (state: State) => {
   state.session.currentUserId = userId;
@@ -19,7 +19,7 @@ const observed = (client: QueryClient, name: string, input: unknown) =>
 function linkOf(path: string): { tab: ProjectTab; params: URLSearchParams } {
   const params = new URLSearchParams(path.split('?')[1] ?? '');
   const raw = params.get('tab');
-  return { tab: PROJECT_TABS.includes(raw as ProjectTab) ? (raw as ProjectTab) : 'overview', params };
+  return { tab: tabOfLink(raw, false), params };
 }
 
 /**
@@ -125,5 +125,31 @@ describe('the project page starts the reads of its tab with projects.get, real b
     expect(names(false)).toEqual(['tasks.list']);
     expect(names(undefined)).toEqual(['tasks.list']);
     expect(tabReads('overview', 'prj_001', params, { payments: false, today: TODAY, templates: true }).map((read) => read.name)).not.toContain('taskTemplates.list');
+  });
+});
+
+describe('the phone tab model (phone D, P1)', () => {
+  it('resolves the tab of a link on a desk and on a phone', () => {
+    expect(tabOfLink('more', false)).toBe('overview');
+    expect(tabOfLink('activity', false)).toBe('activity');
+    expect(tabOfLink('more', true)).toBe('more');
+    expect(tabOfLink('team', true)).toBe('team');
+    expect(tabOfLink('nonsense', true)).toBe('overview');
+    expect(tabOfLink(null, true)).toBe('overview');
+  });
+
+  it('lights More for the three pages of More', () => {
+    expect((['activity', 'schedule', 'team', 'more'] as const).map((tab) => litPhoneTab(tab))).toEqual(['more', 'more', 'more', 'more']);
+    expect(litPhoneTab('tasks')).toBe('tasks');
+    expect(isMorePage('schedule')).toBe(true);
+    expect(isMorePage('files')).toBe(false);
+  });
+
+  it('keeps the filters when it changes the tab', () => {
+    expect(tabSearch(new URLSearchParams('tab=tasks&show=mine&task=tsk_007'), 'tracker').toString()).toBe('tab=tracker&show=mine');
+  });
+
+  it('asks no read for More', () => {
+    expect(tabReads('more', 'prj_001', new URLSearchParams(), { payments: false, today: TODAY })).toEqual([]);
   });
 });

@@ -17,7 +17,7 @@ import { todayISO } from '../../lib/dates';
 import { HeaderShell, ProjectHeader } from './ProjectHeader';
 import { PausedBanner } from './PausedBanner';
 import { prefetchReads, sessionMayAddTask, sessionSeesPayments } from './reads';
-import { FILTER_PARAMS, PROJECT_TABS, TAB_BODY, tabReads, type ProjectTab } from './tabs';
+import { PROJECT_TABS, TAB_BODY, tabOfLink, tabReads, tabSearch, type ProjectTab } from './tabs';
 
 /** One project with the tabs Overview, Tasks, Schedule, Files & Links and Team (spec 5). The tab lives in the link. */
 export function ProjectScreen() {
@@ -25,7 +25,7 @@ export function ProjectScreen() {
   const { projectId = '' } = useParams();
   const [params, setParams] = useSearchParams();
   const raw = params.get('tab');
-  const tab: ProjectTab = PROJECT_TABS.includes(raw as ProjectTab) ? (raw as ProjectTab) : 'overview';
+  const tab: ProjectTab = tabOfLink(raw, false);
   const detail = useCall('projects.get', { id: projectId });
   const queryClient = useQueryClient();
   // The reads of the open tab start with projects.get, in an effect, so the tab and its panel show after one round trip
@@ -71,15 +71,7 @@ export function ProjectScreen() {
       <Tabs
         label={t('project.tabs')}
         value={tab}
-        onChange={(next) => setParams((current) => {
-          // A trip to another tab keeps the filters of the tabs, and drops an open panel (audit 2026-10-03, PRJ-22).
-          const value = new URLSearchParams({ tab: next });
-          for (const key of FILTER_PARAMS) {
-            const kept = current.get(key);
-            if (kept) value.set(key, kept);
-          }
-          return value;
-        })}
+        onChange={(next) => setParams((current) => tabSearch(current, next))}
         options={PROJECT_TABS.map((value) => ({ value, label: t(`project.tab.${value}`) }))}
       />
       <TabPanel value={tab}>

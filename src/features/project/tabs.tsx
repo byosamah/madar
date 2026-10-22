@@ -14,11 +14,42 @@ import { TeamTab } from './team/TeamTab';
 import { TrackerTab } from './tracker/TrackerTab';
 
 export const PROJECT_TABS = ['overview', 'tasks', 'activity', 'tracker', 'schedule', 'files', 'team'] as const;
-export type ProjectTab = (typeof PROJECT_TABS)[number];
+/** The five tabs of a phone (phone D). Activity, Schedule and Team are pages inside More. */
+export const PHONE_TABS = ['overview', 'tasks', 'tracker', 'files', 'more'] as const;
+export const MORE_PAGES = ['activity', 'schedule', 'team'] as const;
+export type ProjectPhoneTab = (typeof PHONE_TABS)[number];
+export type MorePage = (typeof MORE_PAGES)[number];
+/** A desk tab, or `more` (the list of More, on a phone only). */
+export type ProjectTab = (typeof PROJECT_TABS)[number] | 'more';
 export type TabProps = { detail: ProjectDetail };
+
+/** The tab of the `?tab=` link. A desk knows the seven desk tabs. A phone knows its five tabs and the three pages of More. */
+export function tabOfLink(raw: string | null, phone: boolean): ProjectTab {
+  const known: readonly string[] = phone ? [...PHONE_TABS, ...MORE_PAGES] : PROJECT_TABS;
+  return raw !== null && known.includes(raw) ? (raw as ProjectTab) : 'overview';
+}
+
+/** The phone tab that shows as open: More for More and for each page inside it. */
+export function litPhoneTab(tab: ProjectTab): ProjectPhoneTab {
+  return isMorePage(tab) ? 'more' : tab;
+}
+
+export function isMorePage(tab: ProjectTab): tab is MorePage {
+  return (MORE_PAGES as readonly string[]).includes(tab);
+}
 
 /** The filter choices of the tabs. They live in the link and stay there across tabs (audit 2026-10-03, PRJ-22). */
 export const FILTER_PARAMS = ['show', 'done', 'feed', 'type', 'side', 'open'] as const;
+
+/** The link of another tab. It keeps the filters of the tabs and drops an open panel (audit 2026-10-03, PRJ-22). */
+export function tabSearch(current: URLSearchParams, next: ProjectTab): URLSearchParams {
+  const value = new URLSearchParams({ tab: next });
+  for (const key of FILTER_PARAMS) {
+    const kept = current.get(key);
+    if (kept) value.set(key, kept);
+  }
+  return value;
+}
 
 /** A change to one filter of the link. It replaces the link, so Back leaves the screen and does not step through filters. */
 export function setFilterParam(setParams: SetURLSearchParams, key: (typeof FILTER_PARAMS)[number], value: string | null): void {
@@ -39,6 +70,7 @@ export const TAB_BODY: Record<ProjectTab, ComponentType<TabProps> | null> = {
   schedule: ScheduleTab,
   files: FilesTab,
   team: TeamTab,
+  more: null,
 };
 
 // The Show choices of the Tasks tab (TasksTab.tsx). tabs.test.tsx checks that each choice gives the key that the tab mounts.
