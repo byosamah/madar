@@ -229,7 +229,7 @@ any screen work.
 - Never write `new Intl.DateTimeFormat`, `Intl.NumberFormat` or `Intl.ListFormat` in a screen. `lib/dates.ts` keeps one
   formatter for each language and style (`formatDay`, `formatMonth`, `formatMonthYear`, `formatWeekday`, `formatNumber`,
   `listFormat`, `clockFormat`). `dates.recorded.json` pins every text in English and Arabic.
-- A list that stops its rows with `React.memo` (the comments, the task history, the Inbox rows and bubbles) wraps them in
+- A list that stops its rows with `React.memo` (the comments, the task history, the Inbox rows and bubbles, the notice rows of the bell) wraps them in
   `AgeRefresh.Provider` (`components/Age.tsx`) with a new object on each render, so each `Age` still reads the clock in the
   same renders as before. The Inbox keeps one Bubble for each message view object (`useBubbles`, `ConversationPane.tsx`). A chat at its
   limit of 200 slides its page by one for each new message, so every view is a new object: `useBubbles` also finds a bubble by the key of
