@@ -20,8 +20,8 @@ test('the phone tab bar has exactly four tabs with words and no sideways scroll 
   await expect(pill).toBeVisible();
   await expect(pill.getByRole('link')).toHaveCount(4);
   for (const name of ['Today', 'Inbox', 'Work', 'Me']) await expect(pill.getByRole('link', { name: new RegExp(`^${name}`) })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Search' })).toBeVisible();
-  await expect(page.getByRole('link', { name: /^Notifications/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Search the whole office' })).toBeVisible();
+  await expect(page.getByRole('link', { name: /^Notifications/ })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 

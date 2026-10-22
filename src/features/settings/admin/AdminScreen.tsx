@@ -7,7 +7,6 @@ import { useIsPhone } from '../../../app/useIsPhone';
 import { EmptyState } from '../../../components/EmptyState';
 import { ScreenTitle } from '../../../components/ScreenTitle';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
-import { ChevronLeftIcon } from '../../../components/icons/animated/chevron-left';
 import { ChevronRightIcon } from '../../../components/icons/animated/chevron-right';
 import { spring } from '../../../design/motion';
 import { listFormat } from '../../../lib/dates';
@@ -66,12 +65,6 @@ export function AdminScreen() {
         {(!phone || !open) && <SectionList sections={sections} openId={phone ? undefined : open?.id} phone={phone} />}
         {Open && (
           <div className="flex min-w-0 flex-col gap-2">
-            {phone && (
-              <Link to="/admin" className="pressable -ms-2 inline-flex min-h-11 items-center gap-0.5 self-start rounded-full pe-3 ps-1 text-subheadline font-semibold text-link">
-                <AnimatedIcon icon={ChevronLeftIcon} size={20} className="rtl:-scale-x-100" aria-hidden />
-                {pageTitle}
-              </Link>
-            )}
             <Open />
           </div>
         )}

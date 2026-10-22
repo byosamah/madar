@@ -1,25 +1,22 @@
 import { motion } from 'motion/react';
 import { useEffect, useLayoutEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { Link, Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router';
+import { Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router';
 import { useDraftOwner, useDraftSweep } from './drafts';
-import { projectsListLink } from './lastList';
 import { useFocusLink } from '../features/focus/focusLink';
 import { useOnceOn } from './lazyOverlay';
 import { NAV, isNavActive } from './nav';
 import { REMOTE } from './mode';
 import { LazyFocusMode } from './overlays';
+import { HomeMark } from './HomeMark';
 import { PersonMenu } from './PersonMenu';
+import { PhoneTopRow } from './PhoneTopRow';
 import { PicturesProvider } from './pictures';
 import { SubCompaniesProvider } from './subCompanies';
 import { PushSync } from './remote/PushSync';
 import { StorageBanner } from './StorageBanner';
 import { useRight } from './useRight';
 import { usePhoneBarHide } from './usePhoneBarHide';
-import { BellButton, SearchButton, TabPill } from './TabPill';
-import { AnimatedIcon } from '../components/icons/AnimatedIcon';
-import { ChevronLeftIcon } from '../components/icons/animated/chevron-left';
-import { MadarMark } from '../components/MadarMark';
+import { TabPill } from './TabPill';
 
 /** The calm shell (redesign spec 2.5): a floating pill of four tabs and the person's picture. No sidebar and no toolbar. */
 // Screens already shown in this visit. A screen's panels rise in only the first time (redesign spec 4).
@@ -57,16 +54,6 @@ function ScreenEntrance() {
     >
       <Outlet />
     </motion.div>
-  );
-}
-
-/** The Madar mark at the top start of the screen (owner, 2026-10-04). A press opens Home, as on most sites. */
-function HomeMark({ className }: { className?: string }) {
-  const { t } = useTranslation();
-  return (
-    <Link to="/" aria-label={t('nav.madarHome')} className={`pressable grid size-11 place-items-center rounded-[14px] ${className ?? ''}`}>
-      <MadarMark size={36} />
-    </Link>
   );
 }
 
@@ -112,7 +99,6 @@ function FocusSlot() {
 }
 
 function Shell() {
-  const { t } = useTranslation();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   // A change of person drops the half-written words of the person before (audit 2026-10-03, V-22).
@@ -157,19 +143,8 @@ function Shell() {
         <PersonMenu id="wide" />
       </div>
       <main className="app-page relative mx-auto w-full max-w-6xl px-4 pt-[max(1rem,env(safe-area-inset-top))] max-sm:pb-[calc(var(--phone-bar)+1.5rem)] sm:px-8 sm:pb-16 sm:pt-24">
-        {/* On a phone the tab bar keeps only the tabs; the mark (or the back link of a project page), Search, the bell and the picture sit at the top. */}
-        <div className="-me-1.5 flex items-center justify-end gap-0.5 pb-1 sm:hidden">
-          {!PROJECT_PAGE.test(pathname) && <HomeMark className="-ms-1 me-auto" />}
-          {PROJECT_PAGE.test(pathname) && (
-            <Link to={projectsListLink()} className="pressable -ms-2 me-auto inline-flex min-h-11 items-center gap-0.5 rounded-full pe-3 ps-1 text-subheadline font-semibold text-link">
-              <AnimatedIcon icon={ChevronLeftIcon} size={20} className="rtl:-scale-x-100" aria-hidden />
-              {t('project.back')}
-            </Link>
-          )}
-          <SearchButton />
-          <BellButton />
-          <PersonMenu id="phone" />
-        </div>
+        {/* On a phone the tab bar keeps only the tabs. The top row holds the mark (or a back link) and Search. */}
+        <PhoneTopRow />
         <ScreenEntrance key={`${personTurn}:${screenKey(pathname)}`} />
         {/* Each screen keeps its own scroll place; a new screen opens at the top. Changes to the link's values keep the place. */}
         <ScrollRestoration getKey={(location) => location.pathname} />

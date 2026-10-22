@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { phoneMedia } from '../../test/phoneMedia';
 import { renderApp } from '../../test/render';
 
 describe('the Task list', () => {
@@ -101,5 +102,13 @@ describe('the Task list', () => {
     await renderApp('/tasks?filter=overdue', undefined, { failFirst: 'tasks.list' });
     expect(await screen.findByRole('button', { name: 'Retry' })).toBeInTheDocument();
     expect(screen.queryByRole('list')).toBeNull();
+  });
+
+  it('shows one back link on a phone, in the top row, and hides the one in the list', async () => {
+    phoneMedia(true);
+    await renderApp('/tasks?filter=overdue');
+    const back = await within(screen.getByRole('main')).findAllByRole('link', { name: 'Dashboard' });
+    expect(back).toHaveLength(1);
+    expect(back[0]).toHaveAttribute('href', '#/dashboard');
   });
 });

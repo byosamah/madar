@@ -33,7 +33,7 @@ function BackToDashboard() {
   const { t } = useTranslation();
   // No link to a screen the person may not open (role rights version 2).
   if (!useRight('dashboard.view')) return null;
-  return <Link to="/dashboard" className="flex min-h-11 items-center text-subheadline font-semibold text-link">{t('taskList.backToDashboard')}</Link>;
+  return <Link to="/dashboard" className="flex min-h-11 items-center text-subheadline font-semibold text-link max-sm:hidden">{t('taskList.backToDashboard')}</Link>;
 }
 
 function DeadlineList({ from, to }: { from?: string; to?: string }) {

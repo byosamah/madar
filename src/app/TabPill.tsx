@@ -73,13 +73,15 @@ export function SearchButton({ className = '' }: { className?: string }) {
   const SearchTab = SEARCH_ITEM.animated;
   const { pathname } = useLocation();
   const on = pathname === SEARCH_ITEM.to;
+  // On a phone this is the one search icon of the shell, and its name says how far it reaches (Direction D).
+  const phone = useIsPhone();
   // Without search.use the icon is gone on a desk and on a phone (the shortcut and the route are gone too).
   const allowed = useRight(SEARCH_ITEM.right!, undefined, true);
   if (!allowed) return null;
   return (
     <Link
       to={SEARCH_ITEM.to}
-      aria-label={t(SEARCH_ITEM.key)}
+      aria-label={phone ? t('phoneShell.searchAll') : t(SEARCH_ITEM.key)}
       aria-current={on ? 'page' : undefined}
       className={`pressable grid size-11 shrink-0 place-items-center rounded-full ${on ? 'bg-fill text-ink' : 'text-ink-2 hover:text-ink'} ${className}`}
     >

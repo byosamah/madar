@@ -3,6 +3,7 @@ import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeVisualViewport, phoneMedia } from '../test/phoneMedia';
 import { renderApp } from '../test/render';
+import { without } from '../test/rr2work';
 
 const pill = () => screen.findByRole('navigation', { name: 'Main navigation' });
 
@@ -242,5 +243,67 @@ describe('app shell on a phone', () => {
     act(() => media.set(false));
     await waitFor(() => expect(document.documentElement).not.toHaveAttribute('data-bar-hidden'));
     expect(await screen.findByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument();
+  });
+});
+
+describe('the phone top row', () => {
+  const inMain = () => within(screen.getByRole('main'));
+
+  it('draws the mark and one Search icon at the top of Today, and no bell or person picture', async () => {
+    phoneMedia(true);
+    await renderApp('/');
+    expect(await screen.findAllByRole('link', { name: 'Search the whole office' })).toHaveLength(1);
+    expect(screen.queryByRole('link', { name: /^Notifications/ })).toBeNull();
+    // The desk menu stays in the page for a wide screen (hidden by a class). The phone menu is gone.
+    expect(screen.getAllByRole('button', { name: 'Hala Nasser' })).toHaveLength(1);
+    expect(inMain().getByRole('link', { name: 'Madar, Home' })).toBeInTheDocument();
+  });
+
+  it.each([['/dashboard'], ['/whats-new']])('shows the back link Me with the Me href at %s, and no mark in the phone row', async (path) => {
+    phoneMedia(true);
+    await renderApp(path);
+    const back = await inMain().findByRole('link', { name: 'Me' });
+    expect(back).toHaveAttribute('href', '#/me');
+    expect(inMain().queryByRole('link', { name: 'Madar, Home' })).toBeNull();
+    expect(screen.getAllByRole('link', { name: 'Madar, Home' })).toHaveLength(1);
+  });
+
+  it('shows the back link Dashboard at /tasks with dashboard.view, and Me without it', async () => {
+    phoneMedia(true);
+    const on = await renderApp('/tasks?filter=overdue');
+    expect(await inMain().findByRole('link', { name: 'Dashboard' })).toHaveAttribute('href', '#/dashboard');
+    on.unmount();
+    await renderApp('/tasks?filter=overdue', (state) => {
+      state.session.currentUserId = 'usr_005';
+      state.settings.roles = without('dashboard.view');
+    });
+    expect(await inMain().findByRole('link', { name: 'Me' })).toHaveAttribute('href', '#/me');
+  });
+
+  it('shows Admin at /admin/people, and the page has no second back link', async () => {
+    phoneMedia(true);
+    await renderApp('/admin/people');
+    const links = await screen.findAllByRole('link', { name: 'Admin' });
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute('href', '#/admin');
+  });
+
+  it('shows the Projects back link at a project page', async () => {
+    phoneMedia(true);
+    await renderApp('/projects/prj_001');
+    expect(await inMain().findByRole('link', { name: 'Projects' })).toBeInTheDocument();
+  });
+
+  it('draws no top row in an open chat', async () => {
+    phoneMedia(true);
+    await renderApp('/inbox/cnv_001');
+    expect(screen.queryByRole('link', { name: 'Search the whole office' })).toBeNull();
+    expect(inMain().queryByRole('link', { name: 'Madar, Home' })).toBeNull();
+  });
+
+  it('marks the Search icon open at /search', async () => {
+    phoneMedia(true);
+    await renderApp('/search');
+    expect(await screen.findByRole('link', { name: 'Search the whole office' })).toHaveAttribute('aria-current', 'page');
   });
 });

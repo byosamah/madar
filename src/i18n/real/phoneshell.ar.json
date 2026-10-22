@@ -6,6 +6,7 @@
       "work": "العمل",
       "me": "أنا"
     },
-    "inboxBoth": "{{name}}، {{chats}}، {{notices}}"
+    "inboxBoth": "{{name}}، {{chats}}، {{notices}}",
+    "searchAll": "ابحث في المكتب كله"
   }
 }

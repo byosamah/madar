@@ -6,6 +6,7 @@
       "work": "Work",
       "me": "Me"
     },
-    "inboxBoth": "{{name}}, {{chats}}, {{notices}}"
+    "inboxBoth": "{{name}}, {{chats}}, {{notices}}",
+    "searchAll": "Search the whole office"
   }
 }

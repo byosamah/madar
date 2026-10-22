@@ -75,7 +75,7 @@ test('no screen scrolls sideways on a phone', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const routes = [
     '/', '/projects', '/projects/prj_001', '/projects/prj_001?tab=tasks', '/projects/prj_001?tab=activity', '/projects/prj_001?tab=schedule', '/projects/prj_001?tab=files',
-    '/projects/prj_001?tab=team', '/work', '/inbox', '/notifications', '/admin', '/search', '/settings',
+    '/projects/prj_001?tab=team', '/work', '/inbox', '/notifications', '/admin', '/search', '/settings', '/me',
     '/dashboard', '/dashboard?view=people', '/dashboard?view=schedule', '/tasks?filter=overdue', '/tasks?mode=deadlines',
   ];
   for (const route of routes) {
