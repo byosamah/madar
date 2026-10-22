@@ -15,9 +15,9 @@ import { formatDay, todayISO } from '../../lib/dates';
 import { counted } from '../../lib/grammar';
 import { comingUp, dayRing, dueByToday, greetingKey, nextForYou, officeHour } from '../../lib/home';
 import { useFocusLink } from '../focus/focusLink';
-import { ProjectTaskSheet } from '../project/tasks/TaskSheet';
 import { ProjectListRow } from '../projects/ProjectListRow';
 import { DayRing } from './DayRing';
+import { HomeTaskSheet, warmTaskSheet } from './HomeTaskSheet';
 import { MeetingsCard } from './MeetingsCard';
 import { NextCard } from './NextCard';
 import { PushAskCard } from './PushAskCard';
@@ -146,6 +146,11 @@ export function HomeScreen() {
       window.clearTimeout(timer);
     };
   }, [queryClient]);
+  // The task panel loads in its own chunk (FL-1): start it 1 s after Home shows, so a press on a task finds it loaded.
+  useEffect(() => {
+    const timer = window.setTimeout(warmTaskSheet, 1000);
+    return () => window.clearTimeout(timer);
+  }, []);
   const failed = [session, mine, review].find((query) => query.error);
   if (failed) return <LoadFailed error={failed.error} onRetry={() => void failed.refetch()} />;
   if (!session.data?.user || !mine.data || !review.data) return null;
@@ -166,7 +171,7 @@ export function HomeScreen() {
         onFocus={startFocus}
         onRetry={retryProjects}
       />
-      {taskId && <ProjectTaskSheet key={taskId} projectId={projectId} taskId={taskId} onClose={close} />}
+      {taskId && <HomeTaskSheet key={taskId} projectId={projectId} taskId={taskId} onClose={close} />}
     </div>
   );
 }

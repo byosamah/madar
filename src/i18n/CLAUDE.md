@@ -27,7 +27,8 @@ speaker, so write it as natural Arabic, not as a word-for-word copy of the Engli
 - `words.en.ts` and `words.ar.ts` each merge one language (the base file plus the track files). `trees.ts` gives both trees,
   for the server and the tests. `index.ts` loads one language on demand (`loadWords`, `withWords`, `addWords`) and exports no
   word trees: tests and the server import `en` and `ar` from `i18n/trees`. `firstWords.ts` starts the words of the first
-  language with the first script of the remote build, and `main.tsx` loads the other language right after the first render.
+  language with the first script of the remote build, and `main.tsx` loads the other language 3 s after the first reads of the
+  screen settled (`otherLanguage.ts`, FL-7 of 2026-10-21; the prototype loads it at once). A switch before that waits for the words.
   `firstLanguage.ts` holds `firstLanguage` and `browserLanguage`. The prototype keeps its words in its one script file
   (performance audit BND-7).
 

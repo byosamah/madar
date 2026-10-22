@@ -185,3 +185,18 @@ describe('Home and meetings', () => {
     expect(today.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
+
+// Performance audit 2026-10-21, FL-1: the task panel loads in its own chunk. A link with ?task= still opens it on Home.
+describe('Home task panel (own chunk)', () => {
+  it('opens the panel for a link with ?task=', async () => {
+    await renderApp('/?task=tsk_007&project=prj_001', as('usr_001'));
+    expect(await screen.findByRole('dialog', { name: 'Stair details' }, { timeout: 10_000 })).toBeInTheDocument();
+  });
+
+  it('closes the panel with its Close button', async () => {
+    await renderApp('/?task=tsk_007&project=prj_001', as('usr_001'));
+    const panel = await screen.findByRole('dialog', { name: 'Stair details' }, { timeout: 10_000 });
+    await userEvent.click(within(panel).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Stair details' })).toBeNull());
+  });
+});

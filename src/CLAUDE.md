@@ -12,18 +12,23 @@ any screen work.
 ## Two builds from one source
 - `VITE_MADAR_API` (`fake` default, `remote`) is fixed at build time. Use `PROTOTYPE`/`REMOTE` from `app/mode.ts`.
 - `main.tsx` loads only one bootstrap. Its first import is `app/zodConfig.ts` (zod runs jitless, so the CSP holds), and its
-  second is `i18n/firstWords.ts`. `zodConfig.ts` imports only `config` from `zod/v4/core`. Never import `z` from `zod` there:
-  that puts the zod schemas into the first load.
+  second is `i18n/firstWords.ts`. `zodConfig.ts` imports nothing from zod: it sets `jitless` in place on the one object that
+  zod keeps on `globalThis.__zod_globalConfig` (FL-10, 2026-10-21). Never import from `zod` there: that puts zod code into the first load.
 - The remote build splits each screen into its own chunk (performance audit BND-1). `app/screenLoaders.ts` holds one loader
   for each screen, and `app/screens.ts` the module cache. A route in `app/routes.tsx` names its screen and never imports a
   screen file. The frame, the sign-in gate, Home and the error pages stay in the first script. `main.tsx` loads the screens of
   the first address (plus Sign in when no session is stored) before it makes the router, then the others one at a time at
-  idle. A failed import at a screen change reloads the page once (session mark `madar.screenReload`). A new screen needs a
+  idle. The idle step skips the five sign-in screens when a session is stored, and Admin when the cached `session.get` cannot open
+  it (`app/prefetchRules.ts`, FL-8 2026-10-21); a skipped screen loads at its first use. A failed import at a screen change reloads the page once (session mark `madar.screenReload`). A new screen needs a
   loader in both `screenLoaders.ts` and `screenLoaders.static.ts` (the prototype takes the plain imports through an alias in
   `vite.config.ts`, so its one file stays small; `screenLoaders.test.ts` keeps the lists the same).
-- `vite.config.ts` (remote modes): the first-screen packages go into a `vendor` chunk and `@supabase` into a `supabase` chunk
-  (`REMOTE_CHUNKS`), so a release that changes only app code keeps their names in the browser cache. zod stays out of
-  `vendor`. The plugin `earlyLinks` adds the modulepreload, font preload and preconnect links. The prototype gets none.
+- `vite.config.ts` (remote modes): the first-screen packages go into a `vendor` chunk, the sheet packages (vaul, Radix, the scroll lock)
+  into an `overlay` chunk (FL-3, 2026-10-21) and `@supabase` into a `supabase` chunk (`REMOTE_CHUNKS`), so a release that changes only
+  app code keeps their names in the browser cache. zod stays out of `vendor`. A static import of `Sheet` in a first-load module brings
+  the overlay chunk back into the first load: `check-bundles.ts` fails on the vaul marker. The remote modes also alias
+  `@supabase/storage-js`, `postgrest-js` and `functions-js` to `src/stubs/unusedClients.ts` (FL-5: 12 KB gz less). The screens use only
+  `auth`, `channel`, `removeChannel` and `realtime.setAuth` of the client; `app/remote/unusedClients.test.ts` fails on `.from(`, `.rpc(`,
+  `.storage` or `.functions`, and on a name that a supabase-js upgrade imports and the stub lacks. The plugin `earlyLinks` adds the modulepreload, font preload and preconnect links. The prototype gets none.
 - The prototype uses `createHashRouter` (links `#/...`, base `./`, one script file). The remote build uses
   `createBrowserRouter` (path links, base `/`). Screen tests use the hash router.
 - The remote build moves `www.<host>` to `<host>` before it starts (`app/canonicalHost.ts`).
@@ -38,9 +43,12 @@ any screen work.
   keeps its session under its own localStorage key (`SESSION_KEYS`: `madar.auth` for Supabase, `madar.session` for Madar);
   `main.tsx` and the deploy specs read the key of the build's port (`hasStoredSession`), never a fixed name.
 - `scripts/check-bundles.ts <remote|prototype|server> [folder]`: the remote build holds no sample names. Its first load (the
-  scripts of index.html, their static imports and the modulepreload links) holds no chart code, no zod schemas and no words,
-  and stays at 1,350,000 B or less. Its index.html preloads the bootstrap chunk and its imports, the three Thmanyah files and
-  a connection to each Supabase origin. The vendor and supabase chunks import no app chunk. The prototype build holds no
+  scripts of index.html, their static imports and the modulepreload links) holds no chart code, no zod schemas, no words, and
+  none of the markers of code that must stay lazy (`LAZY_MARKERS`: the chat message log, the vaul drawer, the Supabase storage
+  client). It stays at 1,015,000 B raw, 312,000 B gzip (level 9, each file) and 34 files or fewer (FL-11: the real size after the
+  speed release is 985,040 B, 302,322 B and 33 files, so a limit sits about 3 percent above it; a change that adds first-load code
+  fails there). Its index.html preloads the bootstrap chunk and its imports, the three Thmanyah files and
+  a connection to each Supabase origin. The vendor, overlay and supabase chunks import no app chunk. The prototype build holds no
   "supabase", is one script file, and its index.html has no early link. The preconnect rule runs only with `VITE_SUPABASE_URL`
   or a full `VITE_API_URL` set (`build:remote` sets them; the page's own `/api` needs no preconnect). A red "no zod schemas" line: a first-load file imports from
   `contract/entities.ts` or `server.ts`; take the limit from `contract/limits.ts` or use a type-only import.
@@ -97,6 +105,11 @@ any screen work.
 - `src/features/map/`: `MapCanvas.tsx` is the one MapLibre wrapper, `PinPicker.tsx` the one field of the pin, `PinSheet.tsx` the sheet
   around it (Cancel and "Use this place"), `ProjectPin.tsx` the pin of a project, `mapStyle.ts` the Madar style.
   `src/lib/geo.ts` reads a pasted link or a pair of coordinates. The form field "Location" (`LocationField`) is in `ProjectFields.tsx`.
+- The map loads in this order (speed audit 2026-10-21, FL-17 and LV-10). `mapLib.ts` is the loader and holds no map code. A screen
+  makes its lazy canvas with `lazyMapCanvas()`, which starts the library request with the chunk request of `MapCanvas`. A pointer
+  down on the Dashboard Map tab calls `warmMap()` (through `Tabs` `onTabPointerDown`). The map never joins the idle prefetch: the
+  library is about 300 KB gz. `loadMapLib` folds the flag `VITE_MADAR_API === 'remote'` itself, because its `?url` imports would
+  put a second script file into the prototype build (`check-bundles` fails that). A test that runs the loader sets the flag.
 - **Zero cost (owner, 2026-10-19): a map service has no account, no key and no bill.** OpenFreeMap (tiles and glyphs) and OpenStreetMap
   Nominatim (the place search) pass. `mapStyle.test.ts` pins the one host in the style. A paid or keyed service (Mapbox, Google Maps JS,
   MapTiler, Stadia) never goes in. The own map file (`functions/map`, `server/http/pagesMap.ts`, `scripts/map/build-basemap.sh`) stays in the
@@ -214,6 +227,14 @@ any screen work.
   values (`todayISO`, `officeHour`) and the panel. The body gets plain props and stable handlers (`app/useStableHandler.ts`),
   so a panel that opens or closes renders no row again. Never put a router hook in a row body: a row part that needs one
   is its own small component, as `RowMenu` in `features/projects/ProjectListRow.tsx`.
+- A part that most sessions never open loads in its own chunk through `lazyOverlay` (`app/lazyOverlay.tsx`; audit 2026-10-21, FL-1, FL-4):
+  the Home task panel (`features/home/HomeTaskSheet.tsx`), Focus mode, the feedback sheet and the sheet of an ended session
+  (`app/overlays.tsx`). `warm()` keeps the loaded component in a module variable: a part that mounts after it renders with no Suspense
+  step (a plain `React.lazy` adds about 500 ms to the first press), and a part that mounts before it keeps `React.lazy` for its whole
+  life, so the chunk never remounts it. `useOnceOn` mounts a sheet at its first use and keeps it, so the closing animation stays. Home
+  warms the panel 1 s after it mounts, `main.tsx` warms it at once for `/?task=`, and `warmAtIdle` warms the three shell parts. A failed
+  import at the first use reloads the page once (`reloadOnFailedImport` in `app/screens.ts`). Never import these four files statically
+  from the shell, Home or `AuthGate`: `app/firstLoadImports.test.ts` and the bundle rules of `check-bundles.ts` fail on it.
 - `useLang` (`app/lang.ts`) reads the language with `useSyncExternalStore` over the one i18next instance and its
   `languageChanged` event. It does not call `useTranslation`.
 - `usePrefetchCall` (`app/prefetch.ts`) starts a read early under the exact key of `useCall`, in the remote build only.

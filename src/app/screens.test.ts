@@ -113,4 +113,26 @@ describe('the screen loaders (performance audit BND-1)', () => {
     expect(idle).toHaveLength(0);
     expect(cache.screenFor('two')).toBeUndefined();
   });
+  // Performance audit 2026-10-21, FL-8: a screen that the person cannot open, or has no use for, is never imported at idle.
+  it('asks the skip rule when a screen is next, never imports a skipped screen, and keeps the order of the others', async () => {
+    const order: string[] = [];
+    const idle: (() => void)[] = [];
+    const asked: string[] = [];
+    const cache = screenCache({
+      one: async () => { order.push('one'); return One; },
+      two: async () => { order.push('two'); return Two; },
+      three: async () => { order.push('three'); return One; },
+    });
+    let hidden = false;
+    cache.prefetchScreens(undefined, (run) => idle.push(run), (name) => { asked.push(name); return name === 'two' && hidden; });
+    // The rule answers at the moment of the step, not when the queue starts: this answer changes after the start.
+    hidden = true;
+    for (let step = 0; step < 6 && idle.length > 0; step += 1) {
+      idle.shift()?.();
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    expect(order).toEqual(['one', 'three']);
+    expect(asked).toEqual(['one', 'two', 'three']);
+    expect(cache.screenFor('two')).toBeUndefined();
+  });
 });

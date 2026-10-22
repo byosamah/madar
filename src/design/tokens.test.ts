@@ -140,7 +140,8 @@ describe('the font stacks', () => {
     const dot = faces.filter((face) => face.includes('font-family: "Madar Dot";'));
     expect(dot).toHaveLength(1);
     expect(dot[0]).toContain('src: url("./inter/inter-digits-dot.woff2") format("woff2-variations");');
-    expect(dot[0]).toContain('unicode-range: U+00B7;');
+    // U+00B2 (the square sign of m2) is the one glyph of the project pages that Thmanyah lacks (LV-11).
+    expect(dot[0]).toContain('unicode-range: U+00B2, U+00B7;');
   });
 
   it('load Thmanyah Sans in the weights the screens use, and show the fallback until the file arrives', () => {

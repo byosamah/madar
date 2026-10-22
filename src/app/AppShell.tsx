@@ -4,9 +4,11 @@ import { useTranslation } from 'react-i18next';
 import { Link, Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router';
 import { useDraftOwner, useDraftSweep } from './drafts';
 import { projectsListLink } from './lastList';
-import { FocusMode } from '../features/focus/FocusMode';
+import { useFocusLink } from '../features/focus/focusLink';
+import { useOnceOn } from './lazyOverlay';
 import { NAV, isNavActive } from './nav';
 import { REMOTE } from './mode';
+import { LazyFocusMode } from './overlays';
 import { PersonMenu } from './PersonMenu';
 import { PicturesProvider } from './pictures';
 import { SubCompaniesProvider } from './subCompanies';
@@ -99,6 +101,15 @@ export function AppShell() {
   return <PicturesProvider><SubCompaniesProvider><Shell /></SubCompaniesProvider></PicturesProvider>;
 }
 
+/**
+ * Focus mode loads in its own chunk (performance audit 2026-10-21, FL-4). It mounts at the first ?focus= and stays mounted, so its
+ * closing animation stays. Without a task in focus it renders nothing, so the chunk costs a session without Focus mode nothing.
+ */
+function FocusSlot() {
+  const { taskId } = useFocusLink();
+  return useOnceOn(taskId !== null) ? <LazyFocusMode /> : null;
+}
+
 function Shell() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -129,7 +140,7 @@ function Shell() {
       {/* Browser push (owner, 2026-10-08): saves the endpoint of this browser again when the server does not list it. No screen. */}
       {REMOTE && <PushSync />}
       <TabPill />
-      <FocusMode />
+      <FocusSlot />
       <div className="fixed start-4 top-4 z-30 hidden sm:block">
         <HomeMark />
       </div>

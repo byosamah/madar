@@ -1,8 +1,9 @@
+import { randomBytes } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CHART_MARKER, checkBundles, FIRST_LOAD_MAX_BYTES, originsOf, SEED_MARKERS, staticImports, tagsOf, WORD_MARKERS, ZOD_MARKER, type BundleOptions } from './check-bundles.ts';
+import { CHART_MARKER, checkBundles, FIRST_LOAD_MAX_BYTES, FIRST_LOAD_MAX_FILES, FIRST_LOAD_MAX_GZIP, LAZY_MARKERS, originsOf, SEED_MARKERS, staticImports, tagsOf, WORD_MARKERS, ZOD_MARKER, type BundleOptions } from './check-bundles.ts';
 
 const dirs: string[] = [];
 
@@ -134,6 +135,8 @@ function goodRemote(): Record<string, string> {
     'assets/rolldown-runtime-r1.js': 'var e=Object.create;',
     'assets/vendor-v1.js': 'import"./rolldown-runtime-r1.js";export const a=1;',
     'assets/supabase-s1.js': 'import{a as e}from"./vendor-v1.js";import"./rolldown-runtime-r1.js";export const s=1;',
+    // The sheet packages (FL-3): a chunk of its own that the first load never starts.
+    'assets/overlay-o1.js': 'import{a as e}from"./vendor-v1.js";import"./rolldown-runtime-r1.js";export const o=1;',
     'assets/bootstrap-b1.js': 'import{s as e}from"./supabase-s1.js";import{t as n}from"./index-abc.js";export const b=1;',
     // The screens and the words load on demand, so their text is not in the first load.
     'assets/DashboardScreen-d1.js': `const c="${CHART_MARKER}",z="${ZOD_MARKER}";`,
@@ -166,7 +169,7 @@ describe('the first-load rules of the remote build (performance audit 2026-10-07
   it('pass a build that keeps them, and name each rule and its finding', () => {
     const result = checkRemote();
     expect(result.ok, result.text).toBe(true);
-    for (const part of [CHART_MARKER, ZOD_MARKER, 'words of a language', `${FIRST_LOAD_MAX_BYTES} B or less`, 'bootstrap-b1.js', 'three Thmanyah files', ORIGIN, 'vendor-v1.js', 'supabase-s1.js']) {
+    for (const part of [CHART_MARKER, ZOD_MARKER, 'words of a language', `${FIRST_LOAD_MAX_BYTES} B or less`, `${FIRST_LOAD_MAX_GZIP} B or less`, `${FIRST_LOAD_MAX_FILES} files or fewer`, 'bootstrap-b1.js', 'three Thmanyah files', ORIGIN, 'vendor-v1.js', 'supabase-s1.js']) {
       expect(result.text).toContain(part);
     }
     // index, the runtime, vendor, bootstrap and supabase: the dynamic imports stay out.
@@ -197,7 +200,44 @@ describe('the first-load rules of the remote build (performance audit 2026-10-07
   it('fail when the first load passes the size limit (BND-1)', () => {
     const result = checkRemote((files) => { files['assets/vendor-v1.js'] += `/*${'x'.repeat(FIRST_LOAD_MAX_BYTES)}*/`; });
     expect(result.ok).toBe(false);
-    expect(result.text).toMatch(/FAIL: the first-load scripts stay at 1350000 B or less: 5 files hold \d+ B\./);
+    expect(result.text).toMatch(new RegExp(`FAIL: the first-load scripts stay at ${FIRST_LOAD_MAX_BYTES} B or less: 5 files hold \\d+ B\\.`));
+  });
+
+  // Speed audit 2026-10-21, FL-11: the old limit sat 113 KB above the real size, so the growth of 2026-10-08 to 10-20 passed.
+  it('keep the limits within about 3 percent of the real first load of the speed release (FL-11)', () => {
+    expect(FIRST_LOAD_MAX_BYTES).toBeLessThanOrEqual(1_020_000);
+    expect(FIRST_LOAD_MAX_GZIP).toBeLessThanOrEqual(315_000);
+    expect(FIRST_LOAD_MAX_FILES).toBeLessThanOrEqual(35);
+  });
+
+  it('fail when the first load passes the gzip limit, though its raw size is under the limit (FL-11)', () => {
+    // Random text barely compresses: 420,000 characters of base64 give about 315,000 B of gzip.
+    const noise = randomBytes(330_000).toString('base64');
+    const result = checkRemote((files) => { files['assets/vendor-v1.js'] += `/*${noise}*/`; });
+    expect(result.ok).toBe(false);
+    expect(result.text).toMatch(new RegExp(`FAIL: the first-load scripts gzip to ${FIRST_LOAD_MAX_GZIP} B or less: 5 files gzip to \\d+ B\\.`));
+    expect(result.text).toContain(`ok: the first-load scripts stay at ${FIRST_LOAD_MAX_BYTES} B or less`);
+  });
+
+  it('fail when the first load starts more files than the limit (FL-11)', () => {
+    const result = checkRemote((files) => {
+      const extra = Array.from({ length: FIRST_LOAD_MAX_FILES }, (_, i) => `extra-${i}.js`);
+      files['assets/vendor-v1.js'] = `${extra.map((name) => `import"./${name}";`).join('')}${files['assets/vendor-v1.js']}`;
+      for (const name of extra) files[`assets/${name}`] = 'export const x=1;';
+    });
+    expect(result.ok).toBe(false);
+    expect(result.text).toMatch(new RegExp(`FAIL: the first load starts ${FIRST_LOAD_MAX_FILES} files or fewer: ${FIRST_LOAD_MAX_FILES + 5} files\\.`));
+  });
+
+  it('fail when the first load holds a marker of code that must stay lazy (FL-11)', () => {
+    expect(LAZY_MARKERS.map((entry) => entry.marker)).toEqual(['[data-new-line]', 'data-vaul-drawer', 'StorageUnknownError']);
+    for (const { label, marker } of LAZY_MARKERS) {
+      const result = checkRemote((files) => { files['assets/bootstrap-b1.js'] += `const m="${marker}";`; });
+      expect(result.ok, label).toBe(false);
+      expect(result.text).toContain(`FAIL: no ${label} in the first-load scripts: found in bootstrap-b1.js.`);
+      const lazy = checkRemote((files) => { files['assets/Lazy-l1.js'] = `export const m="${marker}";`; });
+      expect(lazy.ok, label).toBe(true);
+    }
   });
 
   it('fail when index.html starts a script that assets/ does not hold (BND-1)', () => {
@@ -265,6 +305,17 @@ describe('the first-load rules of the remote build (performance audit 2026-10-07
   it('skip the preconnect rule with a line when no origin is known', () => {
     const result = checkRemote(() => undefined, []);
     expect(result.text).toContain('skip: no Supabase origin given');
+  });
+
+  it('fail when the overlay chunk (the sheet packages) imports an app chunk, or is missing (FL-3)', () => {
+    const app = checkRemote((files) => { files['assets/overlay-o1.js'] = `import"./index-abc.js";${files['assets/overlay-o1.js']}`; });
+    expect(app.ok).toBe(false);
+    expect(app.text).toContain('FAIL: the overlay chunk imports only rolldown-runtime-* and vendor-*: it imports index-abc.js.');
+    const gone = checkRemote((files) => { delete files['assets/overlay-o1.js']; });
+    expect(gone.ok).toBe(false);
+    expect(gone.text).toContain('FAIL: one overlay chunk: assets/ holds 0.');
+    const fine = checkRemote(() => undefined);
+    expect(fine.text).toContain('ok: the overlay chunk imports only rolldown-runtime-* and vendor-*: overlay-o1.js.');
   });
 
   it('fail when the vendor or supabase chunk imports an app chunk, or is missing (BND-5)', () => {

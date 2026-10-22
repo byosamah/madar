@@ -116,8 +116,11 @@ describe('the build output', () => {
     expect(prototype[0].find.test('./screenLoaders')).toBe(true);
     expect(prototype[0].find.test('./screenLoaders.static')).toBe(false);
     expect(prototype[0].replacement.endsWith('/src/app/screenLoaders.static.ts')).toBe(true);
-    expect(aliasOf('remote-test')).toEqual([]);
-    expect(aliasOf('remote-production')).toEqual([]);
+    // The remote modes keep the on-demand list and only point three unused Supabase client packages at an empty stand-in (FL-5).
+    for (const mode of ['remote-test', 'remote-production']) {
+      expect(aliasOf(mode).map((alias) => alias.find)).toEqual(['@supabase/storage-js', '@supabase/postgrest-js', '@supabase/functions-js']);
+      expect(aliasOf(mode).every((alias) => alias.replacement.endsWith('/src/stubs/unusedClients.ts'))).toBe(true);
+    }
     expect(aliasOf('test', 'serve')).toEqual([]);
   });
 
@@ -126,9 +129,13 @@ describe('the build output', () => {
       const split = buildOf(mode).rolldownOptions?.output?.codeSplitting;
       if (typeof split !== 'object') throw new Error(`${mode} has no chunk groups`);
       const group = (path: string) => split.groups?.find((g) => g.test.test(path))?.name;
-      expect(split.groups?.map((g) => g.name)).toEqual(['vendor', 'supabase']);
-      for (const name of ['react', 'react-dom', 'scheduler', 'react-router', '@tanstack/react-query', 'i18next', 'react-i18next', 'motion', 'motion-dom', 'vaul', '@radix-ui/react-dialog']) {
+      expect(split.groups?.map((g) => g.name)).toEqual(['vendor', 'overlay', 'supabase']);
+      for (const name of ['react', 'react-dom', 'scheduler', 'react-router', '@tanstack/react-query', 'i18next', 'react-i18next', 'motion', 'motion-dom']) {
         expect(group(`/repo/node_modules/${name}/dist/index.js`), name).toBe('vendor');
+      }
+      // The sheet packages load with the first sheet, so they are not in the first load (FL-3).
+      for (const name of ['vaul', '@radix-ui/react-dialog', 'react-remove-scroll', 'react-remove-scroll-bar', 'react-style-singleton', 'use-callback-ref', 'use-sidecar', 'aria-hidden']) {
+        expect(group(`/repo/node_modules/${name}/dist/index.js`), name).toBe('overlay');
       }
       for (const name of ['@supabase/auth-js', '@supabase/realtime-js', '@supabase/supabase-js', 'iceberg-js']) expect(group(`/repo/node_modules/${name}/dist/index.js`), name).toBe('supabase');
       // zod stays with the screens that parse, so the first load holds no zod schemas (BND-6). The chart and drag packages stay with their screens.

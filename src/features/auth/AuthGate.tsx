@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Navigate, Outlet, useLocation } from 'react-router';
 import { ApiError } from '../../api/errors';
+import { useOnceOn } from '../../app/lazyOverlay';
+import { LazySessionExpiredSheet } from '../../app/overlays';
 import { useCall } from '../../app/runtime';
 import { LANGUAGE_KEY } from './AuthPage';
 import { signInPath } from './paths';
-import { SessionExpiredSheet } from './SessionExpiredSheet';
 import type { SessionChange } from './sessionEnd';
 import { isLeaving, useLeaveScreen, useSignOut } from './signOut';
 import { useAuth } from './useAuth';
@@ -27,6 +28,8 @@ export function AuthGate() {
   const leave = useLeaveScreen();
   const [entered] = useState(() => auth.status() === 'signed_in');
   const [expired, setExpired] = useState(false);
+  // The sheet loads in its own chunk (FL-4): it mounts when the session first ends, and stays so its closing animation stays.
+  const expiredMounted = useOnceOn(expired);
   const language = useCall('session.get', {}, { enabled: entered }).data?.user.preferences.language;
 
   // The Sign in screen of the next cold start opens in the language of the last person (client map 7.4).
@@ -66,7 +69,7 @@ export function AuthGate() {
   return (
     <>
       <Outlet />
-      <SessionExpiredSheet
+      {expiredMounted && <LazySessionExpiredSheet
         open={expired}
         onSignedIn={() => {
           setExpired(false);
@@ -74,7 +77,7 @@ export function AuthGate() {
           // (src/app/errors.ts) decides whether that toast offers Retry.
           void queryClient.invalidateQueries({ queryKey: ['api'] });
         }}
-      />
+      />}
     </>
   );
 }

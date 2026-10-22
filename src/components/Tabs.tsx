@@ -5,8 +5,12 @@ import { arrowStep } from '../lib/keys';
 
 /** Tabs for the sections of one screen. The arrow keys move the selection, the end-side arrow forward. */
 export function Tabs<T extends string>({
-  label, value, options, onChange, idPrefix = 'tab',
-}: { label: string; value: T; options: { value: T; label: string }[]; onChange: (value: T) => void; idPrefix?: string }) {
+  label, value, options, onChange, idPrefix = 'tab', onTabPointerDown,
+}: {
+  label: string; value: T; options: { value: T; label: string }[]; onChange: (value: T) => void; idPrefix?: string;
+  /** Tells the screen that a pointer went down on a tab, before the click ends. A screen may start the work of that tab (LV-10). */
+  onTabPointerDown?: (value: T) => void;
+}) {
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const step = arrowStep(event.key, document.documentElement.dir === 'rtl');
     if (step === 0) return;
@@ -31,6 +35,7 @@ export function Tabs<T extends string>({
             aria-selected={selected}
             aria-controls={`${idPrefix}-panel`}
             tabIndex={selected ? 0 : -1}
+            onPointerDown={onTabPointerDown ? () => onTabPointerDown(option.value) : undefined}
             onClick={() => onChange(option.value)}
             className={`pressable relative min-h-11 shrink-0 px-3 text-subheadline font-semibold ${selected ? 'text-ink' : 'text-ink-2 hover:text-ink'}`}
           >

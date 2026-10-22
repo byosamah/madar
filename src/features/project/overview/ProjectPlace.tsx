@@ -1,10 +1,12 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ProjectDetail } from '../../../api/contract/views';
+import { lazyMapCanvas } from '../../map/mapLib';
 import { ProjectPin } from '../../map/ProjectPin';
 
 // The real build only: the prototype has no street map, and its bundle must not hold the map code (check-bundles).
-const MapCanvas = import.meta.env.VITE_MADAR_API === 'remote' ? lazy(() => import('../../map/MapCanvas')) : null;
+// The library starts with the canvas chunk (lazyMapCanvas, FL-17).
+const MapCanvas = import.meta.env.VITE_MADAR_API === 'remote' ? lazyMapCanvas() : null;
 
 /**
  * The place of the project on a small street map, at the top of About, where the cover picture was (owner, 2026-10-19: "the map is

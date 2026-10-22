@@ -13,6 +13,7 @@ import { TabPanel, Tabs } from '../../components/Tabs';
 import { addDays, formatNumber, todayISO } from '../../lib/dates';
 import { counted } from '../../lib/grammar';
 import { oneOf, subCompanyParam, teamParam } from '../../lib/params';
+import { warmMap } from '../map/mapLib';
 import { PerStage, Submissions } from './Charts';
 import { DashboardMap } from './DashboardMap';
 import { DataGaps } from './DataGaps';
@@ -141,6 +142,8 @@ export function DashboardScreen() {
             idPrefix="dash-section"
             value={section}
             onChange={(next) => set('view', next, 'projects')}
+            // The flag itself, so the prototype build drops the map code (LV-10).
+            onTabPointerDown={import.meta.env.VITE_MADAR_API === 'remote' ? (next) => { if (next === 'map') warmMap(); } : undefined}
             options={VIEWS.map((value) => ({ value, label: t(`dashboard.views.${value}`) }))}
           />
           <TabPanel value={section} idPrefix="dash-section">

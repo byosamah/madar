@@ -4,7 +4,7 @@ import type { Language } from '../api/contract/entities';
 
 /**
  * The words of each language load on demand (performance audit BND-7): the first screen waits only for its own language, and
- * main.tsx loads the other one right after the first render. The tests and the server read both trees from trees.ts, and
+ * main.tsx loads the other one after the first reads settled (otherLanguage.ts). The tests and the server read both trees from trees.ts, and
  * src/test/setup.ts gives both to this module with addWords. The prototype keeps one script file, so its words are in it.
  */
 const loaded = new Map<Language, object>();

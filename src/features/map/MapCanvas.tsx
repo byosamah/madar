@@ -6,7 +6,8 @@ import type { Map as MapLibreMap, Marker, Popup } from 'maplibre-gl';
 import type { GeoPoint } from '../../api/contract/entities';
 import { useLang } from '../../app/lang';
 import { START_POINT, START_ZOOM, madarMapStyle, type MapTheme } from './mapStyle';
-import { ESRI_POWERED, SATELLITE_SCHEME, loadSatelliteTile, satelliteStyle } from './satellite';
+import { loadMapLib } from './mapLib';
+import { ESRI_POWERED, satelliteStyle } from './satellite';
 
 export type MapPin = { id: string; point: GeoPoint; label?: string };
 
@@ -47,18 +48,6 @@ export type MapCanvasProps = {
 const MAP_CREDIT =
   '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank">&copy; OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>';
 
-let loading: Promise<typeof MapLib> | undefined;
-
-/**
- * Loads MapLibre once (owner, 2026-10-18, fbk_017). The worker is a file of this build, so the page needs no blob worker in its
- * policy. The Arabic text plugin is a file of this build as well, never from a third party (owner, 2026-10-19). The tiles and the
- * glyphs come from OpenFreeMap (mapStyle.ts).
- */
-/**
- * The address of a file with the release in it. A browser keeps an assets file for a year with the policy header of its first
- * fetch, and the map worker obeys its own header, not the page's. A new address each release makes the browser fetch the worker
- * again with the policy of this release (the owner's map showed no tiles under the old policy, 2026-10-19).
- */
 /**
  * Folds the credit of the map to its small "i" button. MapLibre opens a compact credit when the map starts and folds it at the first
  * drag; the owner wants no text over the map (2026-10-19). A tap on the button still opens the credit, which the free data needs.
@@ -69,27 +58,7 @@ export function foldCredit(box: Element): void {
   credit?.classList.remove('maplibregl-compact-show');
 }
 
-export function releaseUrl(url: string, release: string | undefined): string {
-  return `${url}?release=${encodeURIComponent(release ?? '0')}`;
-}
-
-function loadMapLib(): Promise<typeof MapLib> {
-  loading ??= (async () => {
-    const [lib, worker, rtl] = await Promise.all([
-      import('maplibre-gl'),
-      import('maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'),
-      // A path into node_modules: the package lists only src/index.js in its exports, so the built plugin file has no package name.
-      import('../../../node_modules/@mapbox/mapbox-gl-rtl-text/dist/mapbox-gl-rtl-text.js?url'),
-      import('maplibre-gl/dist/maplibre-gl.css'),
-      import('./mapPopup.css'),
-    ]);
-    lib.setWorkerUrl(releaseUrl(worker.default, import.meta.env.VITE_MADAR_BUILD));
-    lib.setRTLTextPlugin(new URL(rtl.default, window.location.href).href, true).catch(() => undefined);
-    lib.addProtocol(SATELLITE_SCHEME, loadSatelliteTile);
-    return lib;
-  })();
-  return loading;
-}
+export { releaseUrl } from './mapLib';
 
 /** A point with six decimals: about 10 cm, more than a pin needs. */
 const roundPoint = (point: { lat: number; lng: number }): GeoPoint => ({ lat: Number(point.lat.toFixed(6)), lng: Number(point.lng.toFixed(6)) });
