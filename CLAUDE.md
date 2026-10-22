@@ -277,6 +277,11 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - 2026-10-16: move the files from Supabase Storage to R2, and the server from Supabase Edge Functions to one Cloudflare Worker
   for each copy (the test copy first); the database, Auth and Realtime stay; the functions stay as the way back; the Worker
   stays only if it measures faster.
+- 2026-10-21 (speed audit 2, `docs/reviews/2026-10-21-performance-audit/`): Home shows the last lists of the person at once after
+  a relaunch, from the device (cleared at sign-out, at session end, for another person and on a role change); a direct or group
+  chat message signals only its members (the anonymous office signal of INT-16 is gone); the outbox keeps its sent rows. The
+  office has Safari users on iPhone: every speed or screen change is checked on WebKit too, and WebKit sends its API calls
+  through the page's own `/api` (it keeps a CORS preflight only 10 minutes).
 - 2026-10-17: GO for the full exit from Supabase to Cloudflare Free (one office object for each copy, the own sign-in, live
   sockets, Cron, backups by export); no paid plan.
 - 2026-10-18: R2 alone for the files (no Backblaze B2); the test copy on the same Cloudflare account with a 50% day cap; the

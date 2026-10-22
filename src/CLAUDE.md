@@ -333,7 +333,8 @@ any screen work.
   one of these reads changes its line there too; `PressReads.test.tsx` holds the keys. Home and Tasks show from the cache and start nothing.
 - The project To-dos tab asks `taskTemplates.list {}` once, with its `tasks.list`, under the gates of the menu (list view and
   `createTaskForSelf`). `tabReads('tasks')` starts the same read with `projects.get` (`templates` option, DF-13) when the cached session
-  may add a to-do (`sessionMayAddTask` in `reads.ts`) and the list view shows. Each `TemplateMenu` keeps the templates of its stage with `lib/sameText.ts`, as the handler does.
+  may add a to-do on any project, also off the team (`sessionMayAddTask` in `reads.ts`), and the list view shows. A right for the
+  team's projects only gives no early read: a person off the team sees no menu and asks for no templates (`TemplateMenuRemote.test.tsx`). Each `TemplateMenu` keeps the templates of its stage with `lib/sameText.ts`, as the handler does.
 - In the real build, a picture hook (`useFileLink`, `useScreenshotLink`) keeps its signed link in the cache for
   `LINK_STALE_MS` (8 minutes) after the screen closes. The row pictures (Files rows, the meeting drawings, the report
   thumbnails) have `loading="lazy" decoding="async"`. A sheet or preview picture does not.

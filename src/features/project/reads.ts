@@ -25,13 +25,15 @@ export function sessionSeesPayments(queryClient: QueryClient): boolean {
 }
 
 /**
- * True when the cached session may add a to-do on a project where the person is on the team, and the Tasks tab shows the list view
- * (the gates of the template menu in TasksTab.tsx; DF-13). A guess for the prefetch only: the tab still asks with the exact gate
- * (viewerCan.addTask), so a wrong guess costs one read and never shows a thing. False while the session is not cached.
+ * True when the cached session may add a to-do on any project, also one where the person is not on the team (the Admin, or a role
+ * whose right covers every project), and the Tasks tab shows the list view (the gates of the template menu in TasksTab.tsx; DF-13).
+ * A person whose right covers only the team's projects gets no guess: the session cannot tell if the person is on this team, and a
+ * person who sees no template menu asks for no templates (LIV-5, TemplateMenuRemote.test.tsx). The tab still asks with the exact gate
+ * (viewerCan.addTask). False while the session is not cached.
  */
 export function sessionMayAddTask(queryClient: QueryClient): boolean {
   const session = queryClient.getQueryData<{ authority?: User }>(['api', 'session.get', {}]);
-  if (!session?.authority || !can(session.authority, 'task.add', { projectRole: 'team' })) return false;
+  if (!session?.authority || !can(session.authority, 'task.add', { projectRole: 'other' })) return false;
   try {
     return window.localStorage.getItem('madar.tasks.view') !== 'board';
   } catch {
