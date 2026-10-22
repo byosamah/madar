@@ -3,6 +3,10 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-92": {
+        "title": "Photos start to upload sooner",
+        "body": "A big photo from your phone now starts to upload sooner, and the phone uses less memory while it gets ready."
+      },
       "2026-10-23-91": {
         "title": "Your to-dos on a board",
         "body": "See your to-dos on a board: To do, In progress, In review and Done. Press View on the Tasks screen and pick Board. Done shows the to-dos that you finished in the last 7 days."

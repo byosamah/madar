@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { uploadAdapter, type PutSender } from '../api/remote/upload';
 import type { AdapterCtx } from '../api/remote/wire';
-import { makeThumb, THUMB_EDGE } from './thumbs';
+import { BIG_PICTURE_BYTES, makeThumb, THUMB_EDGE } from './thumbs';
 
 type Drawn = { width: number; height: number; type?: string; quality?: number };
 
@@ -135,5 +135,44 @@ describe('makeThumb where the browser cannot write WebP (Safari, iPhone and iPad
     expect(inputs['files.uploadStart']).toMatchObject({ mimeType: 'image/jpeg', thumb: { size: 4, mimeType: 'image/jpeg' } });
     expect(steps).toEqual(['files.uploadStart', `PUT ${PUT.url}`, `PUT ${THUMB_PUT.url}`, 'files.upload']);
     expect(sent[1].body.type).toBe('image/jpeg');
+  });
+});
+
+describe('makeThumb of a big photo (owner, 2026-10-22: a 48 MP phone photo held about 190 MB before the upload started)', () => {
+  const big = () => new Blob([new Uint8Array(BIG_PICTURE_BYTES + 1)], { type: 'image/jpeg' });
+
+  it('asks the browser to decode a big photo straight to the small width', async () => {
+    const browser = stubBrowser({ width: THUMB_EDGE, height: 720 });
+    const file = big();
+    await makeThumb(file);
+    expect(createImageBitmap).toHaveBeenCalledTimes(1);
+    expect(createImageBitmap).toHaveBeenCalledWith(file, { resizeWidth: THUMB_EDGE, resizeQuality: 'high' });
+    expect(browser.drawn[0]).toMatchObject({ width: THUMB_EDGE, height: 720 });
+  });
+
+  it('keeps a tall photo at 960 px on the long side after the small decode', async () => {
+    // Only the width goes to the browser, so it keeps the shape: a tall photo comes back 960 by 1280.
+    const browser = stubBrowser({ width: THUMB_EDGE, height: 1280 });
+    await makeThumb(big());
+    expect(browser.drawn[0]).toMatchObject({ width: 720, height: THUMB_EDGE });
+  });
+
+  it('decodes a small file at its own size, so a small picture never grows', async () => {
+    stubBrowser({ width: 300, height: 600 });
+    const file = new Blob(['png'], { type: 'image/png' });
+    await makeThumb(file);
+    expect(createImageBitmap).toHaveBeenCalledWith(file);
+  });
+
+  it('decodes the big photo at full size when the browser refuses the size options', async () => {
+    const drawn = stubBrowser({ width: 4000, height: 3000 }).drawn;
+    const plain = createImageBitmap as unknown as ReturnType<typeof vi.fn>;
+    const full = plain.getMockImplementation();
+    plain.mockImplementationOnce(async () => { throw new TypeError('options not supported'); });
+    plain.mockImplementation(full as never);
+    const file = big();
+    expect(await makeThumb(file)).not.toBeNull();
+    expect(plain).toHaveBeenNthCalledWith(2, file);
+    expect(drawn[0]).toMatchObject({ width: THUMB_EDGE, height: 720 });
   });
 });

@@ -5,6 +5,28 @@ export const THUMB_EDGE = 960;
 const QUALITY = 0.8;
 
 /**
+ * A picture file larger than this decodes straight to the small width (owner, 2026-10-22). A 48 MP phone photo takes about 190 MB
+ * at full size, and the upload waits for its small picture. A smaller file decodes at its own size, so a small picture never grows.
+ */
+export const BIG_PICTURE_BYTES = 2 * 1024 * 1024;
+
+/**
+ * The picture as a bitmap. A big file asks the browser for the small width only, so the browser keeps the shape (a tall photo comes
+ * back 960 by 1280, and the canvas makes it smaller). Safari and every browser on an iPhone take the size options since version 15.
+ * A browser that refuses them decodes the full picture, as before.
+ */
+async function decode(file: Blob): Promise<ImageBitmap> {
+  if (file.size > BIG_PICTURE_BYTES) {
+    try {
+      return await createImageBitmap(file, { resizeWidth: THUMB_EDGE, resizeQuality: 'high' });
+    } catch {
+      // The full decode below.
+    }
+  }
+  return createImageBitmap(file);
+}
+
+/**
  * The small picture of an image for the file lists and the cards: a WebP of at most 960 px on the long side, made in the browser
  * before the upload. A browser that cannot write WebP gives a JPEG for a JPEG photo. It gives null when the file is not a
  * picture, is a drawing (SVG), or the browser cannot read it or cannot write the type. The upload then goes without a small
@@ -15,7 +37,7 @@ export async function makeThumb(file: Blob): Promise<Blob | null> {
   if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') return null;
   let bitmap: ImageBitmap | null = null;
   try {
-    bitmap = await createImageBitmap(file);
+    bitmap = await decode(file);
     const scale = Math.min(1, THUMB_EDGE / Math.max(bitmap.width, bitmap.height, 1));
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(bitmap.width * scale));
