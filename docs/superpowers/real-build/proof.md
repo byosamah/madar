@@ -2391,3 +2391,10 @@ Not proven: a real iPhone. After the deploy, wait 11 minutes on an iPhone, press
   the square sign of m2 draws from the 11.8 KB Inter subset. WebKit wraps "See what's new" on two lines on Home.
 - Open: the idle prefetch starts 67 chunks (562 KB) at 805 ms, 64 of them before the first rows on a cold load; the save still sends
   a second batch; the three font preloads stay (LV-1).
+
+### Release record: production at fbe8ac55 (2026-10-22, the two speed follow-ups)
+- On the owner's "deploy to production now", `all.sh production` took fbe8ac55, the commit of the test deploy (the idle prefetch after the
+  first data, and one trip for each save under the cost budget). No migration. The quick checks passed: health from supabase (149
+  calls), database, lock and asyncContext ok, /mcp with no token 401. Gates once on dffe9a1a and fbe8ac55: npm test 9,832 passed; test:db
+  2,990; test:it 332; test:mcp 330 and conformance 5 of 32; test:lite 2,990; test:office 40; the three builds. The prototype smoke and the
+  live check of one save ran after the test deploy, on the owner's "deploy" (checks after).

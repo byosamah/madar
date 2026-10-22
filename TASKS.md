@@ -970,6 +970,7 @@ Branch `rb/perf2` (worktree `~/dev/madar-rb/perf2`). Sonnet agents, the Opus ses
   request, was 2); the server checks the same sum (413 too_many_overviews). What's new: the line "Madar is faster" covers them
 - [x] Gates once on dffe9a1a: typecheck; npm test 9,832 passed (6 skipped); the three builds; test:db 2,990 (27 skipped); test:it 332;
   test:mcp 330 and conformance 5 of 32 (normal); test:lite and test:office at the deploy (owner: "deploy", checks after)
+- [x] Test copy and production at fbe8ac55 (owner: "deploy", then "deploy to production now", 2026-10-22); quick checks passed
 - [ ] After the test deploy: the prototype smoke and one live save (one POST, CPU of that request far under 2 s)
 - [ ] Security note (automated review, 2026-10-22): the budget prices a one-person tasks.list (mine, review_for_me, workOf, ownerId)
   at 1. These lists are narrow in SQL (owner and helpers, or in review); measured 5 to 10 ms on the year office; the worst request
