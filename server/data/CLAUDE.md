@@ -25,7 +25,8 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   `SaveResult.messageIds` and `SaveResult.commentIds` list the messages and comments a save inserted, for the push producer.
 - A file of a direct chat or a group (owner, 2026-10-19) keeps `conversationId` in its `files` doc: no column and no migration, because
   no read selects by it. Its row has `project_id` and `task_id` null, so the search loader and `files.list` never load it. `diffState`
-  counts `files` as a kind of `PRIVATE_CHAT_KINDS`: its save sends the anonymous office signal of a private chat (`save.ts`).
+  counts `files` as a kind of the chat part (`Diff.chatKinds`): its save sends a person signal to each member of the chat and no office signal
+  (`save.ts`, owner 2026-10-21).
 - A file of a meeting with no project (wave 2) keeps `meetingId` in its `files` doc: no column and no migration. Its row has `project_id` and `task_id`
   null, so the search loader and `files.list` never load it. `diffState` counts `files` with a `meetingId` as a private change of that meeting
   (`officeMeetings`). `files.upload` with a `meetingId` loads the meeting by id; `attachedFiles` and the loaders of `files.delete`, `files.markDelivered`

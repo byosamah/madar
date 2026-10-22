@@ -733,9 +733,9 @@ describe('writeDiff', () => {
   });
 });
 
-// UX audit 2026-10-19, INT-16: the office signal of a message in a chat with no project (a direct chat, a group) tells every browser
-// on the office topic that "somebody wrote", and nothing of who or which story.
-describe('the office signal of a private chat message', () => {
+// UX audit 2026-10-19, INT-16, replaced by the owner on 2026-10-21 (perf2 SV-7 and DF-2): a message in a chat with no project (a direct
+// chat, a group) sends no office signal. Each member of the chat gets a person signal with the kinds, and nobody else hears anything.
+describe('the signals of a private chat message', () => {
   const groupAfter = (): State => {
     const group = copy();
     group.conversations.cnv_901 = {
@@ -746,18 +746,26 @@ describe('the office signal of a private chat message', () => {
     return group;
   };
 
-  it('names no actor and no story for a group message, and still reaches the office and the person who read', async () => {
+  it('sends a person signal to each member of a group for a message, and no office signal', async () => {
     const after = groupAfter();
-    const { q } = recorder({ officeSeq: 4 });
+    const { q, sql } = recorder({ officeSeq: 4 });
     const diff = diffState(seed, after);
-    expect(diff.anonymous).toBe(true);
+    expect(diff.anonymous).toBe(false);
+    expect(sorted(diff.chatPeople)).toEqual(['usr_002', 'usr_003', 'usr_004']);
+    expect(sorted(diff.chatKinds)).toEqual(['conversations', 'messages']);
+    expect([...diff.publicKinds]).toEqual([]);
     const result = await writeDiff(q, diff, { story: { storyId: 'sty_g', actorId: 'usr_003' } });
-    const office = result.signals.find((signal) => signal.channel === 'office')!;
-    expect(office).toBeDefined();
-    expect(office).not.toHaveProperty('actorId');
-    expect(office).not.toHaveProperty('storyId');
-    expect(office.kinds).toContain('messages');
-    expect(JSON.stringify(result.signals)).not.toContain('usr_003');
+    expect(result.signals.map((signal) => signal.channel).sort()).toEqual(['person:usr_002', 'person:usr_003', 'person:usr_004']);
+    for (const signal of result.signals) {
+      expect(signal.kinds).toEqual(['conversations', 'messages']);
+      expect(signal.people).toEqual([signal.channel.slice('person:'.length)]);
+      expect(signal.projects).toEqual([]);
+    }
+    // One statement counts every topic. The new chat is an office row, so the version rises, and the office signal counter does not.
+    expect(sql.filter((s) => s.text.includes('insert into person_seq'))).toHaveLength(1);
+    expect(sql.find((s) => s.text.includes('update office_meta'))?.values).toEqual([1, 0]);
+    // A person who is not in the group hears nothing.
+    expect(result.signals.some((signal) => signal.channel === 'person:usr_001' || signal.channel === 'office')).toBe(false);
   });
 
   // Role rights version 2 (chat.project.all): a project chat opens for a person of any project through a switch. Its signal stays what it was:
@@ -776,34 +784,48 @@ describe('the office signal of a private chat message', () => {
     for (const signal of result.signals) expect(signal.kinds).not.toContain('tasks');
   });
 
-  it('names no actor and no story for a group made, renamed or changed in its people', async () => {
+  it('sends a group made to its members only', async () => {
     const after = groupAfter();
     delete after.messages.msg_901;
     const { q } = recorder({ officeSeq: 4 });
     const diff = diffState(seed, after);
-    expect(diff.anonymous).toBe(true);
     const result = await writeDiff(q, diff, { story: { storyId: 'sty_g', actorId: 'usr_003' } });
-    expect(result.signals.every((signal) => !('actorId' in signal) && !('storyId' in signal))).toBe(true);
+    expect(result.signals.map((signal) => signal.channel).sort()).toEqual(['person:usr_002', 'person:usr_003', 'person:usr_004']);
+    for (const signal of result.signals) expect(signal.kinds).toEqual(['conversations']);
+  });
+
+  it('tells a person who is taken out of a group and a person who is added, with the people who stay', async () => {
+    const before = groupAfter();
+    const after = structuredClone(before);
+    after.conversations.cnv_901 = { ...after.conversations.cnv_901, memberIds: ['usr_002', 'usr_004', 'usr_006'] } as State['conversations'][string];
+    const result = await writeDiff(recorder({ officeSeq: 4 }).q, diffState(before, after), { story: { storyId: 'sty_g', actorId: 'usr_002' } });
+    expect(result.signals.map((signal) => signal.channel).sort()).toEqual(['person:usr_002', 'person:usr_003', 'person:usr_004', 'person:usr_006']);
+  });
+
+  it('maps a member that is an agent to the person it acts for', () => {
+    const before = groupAfter();
+    const after = structuredClone(before);
+    after.conversations.cnv_901 = { ...after.conversations.cnv_901, memberIds: ['usr_002', 'usr_009'] } as State['conversations'][string];
+    after.messages.msg_902 = { ...after.messages.msg_901, id: 'msg_902' };
+    // usr_009 is the agent of usr_001: no screen opens the topic of an agent.
+    expect(sorted(diffState(before, after).chatPeople)).toEqual(['usr_001', 'usr_002', 'usr_003', 'usr_004']);
   });
 
   // Chat design 2026-10-19, items 11 and 12: an edit, a delete and a reaction on a message are private chat kinds (messages, and the
   // notices of the message), so their office signal stays nameless. A message and its notices change together.
-  it('names no actor and no story for an edit of a group message', async () => {
+  it('sends an edit of a group message to the members only', async () => {
     const before = groupAfter();
     const after = structuredClone(before);
     after.messages.msg_901 = { ...after.messages.msg_901, body: 'A corrected line', editedAt: '2026-10-04T11:00:00.000+03:00' };
     const diff = diffState(before, after);
-    expect(diff.anonymous).toBe(true);
     expect(sorted(diff.kinds)).toEqual(['messages']);
     const { q } = recorder({ officeSeq: 4 });
     const result = await writeDiff(q, diff, { story: { storyId: 'sty_g', actorId: 'usr_003' } });
-    const office = result.signals.find((signal) => signal.channel === 'office')!;
-    expect(office).not.toHaveProperty('actorId');
-    expect(office).not.toHaveProperty('storyId');
-    expect(JSON.stringify(result.signals)).not.toContain('usr_003');
+    expect(result.signals.map((signal) => signal.channel).sort()).toEqual(['person:usr_002', 'person:usr_003', 'person:usr_004']);
+    expect(JSON.stringify(result.signals)).not.toContain('A corrected line');
   });
 
-  it('names no actor and no story for a delete of a group message, with the notices that go with it', async () => {
+  it('sends a delete of a group message, with the notices that go with it, to the members only', async () => {
     const before = groupAfter();
     before.notifications.ntf_901 = {
       id: 'ntf_901', userId: 'usr_004', trigger: 'mention', actorId: 'usr_002', targetType: 'chat', targetId: 'cnv_901', read: false,
@@ -813,28 +835,64 @@ describe('the office signal of a private chat message', () => {
     after.messages.msg_901 = { ...after.messages.msg_901, deletedAt: '2026-10-04T11:00:00.000+03:00' };
     delete after.notifications.ntf_901;
     const diff = diffState(before, after);
-    expect(diff.anonymous).toBe(true);
     expect(sorted(diff.kinds)).toEqual(['messages', 'notifications']);
+    expect([...diff.publicKinds]).toEqual([]);
     const { q } = recorder({ officeSeq: 4 });
     const result = await writeDiff(q, diff, { story: { storyId: 'sty_g', actorId: 'usr_003' } });
-    const office = result.signals.find((signal) => signal.channel === 'office')!;
-    expect(office).not.toHaveProperty('actorId');
-    expect(office).not.toHaveProperty('storyId');
+    expect(result.signals.map((signal) => signal.channel).sort()).toEqual(['person:usr_002', 'person:usr_003', 'person:usr_004']);
+    for (const signal of result.signals) expect(signal.kinds).toEqual(['messages', 'notifications']);
   });
 
-  it('names no actor and no story for a reaction on a group message', async () => {
+  it('sends a reaction on a group message to the members only', async () => {
     const before = groupAfter();
     const after = structuredClone(before);
     after.messages.msg_901 = { ...after.messages.msg_901, reactions: { '👍': ['usr_003'], '✅': [], '👀': [] } };
     const diff = diffState(before, after);
-    expect(diff.anonymous).toBe(true);
     expect(sorted(diff.kinds)).toEqual(['messages']);
     const { q } = recorder({ officeSeq: 4 });
     const result = await writeDiff(q, diff, { story: { storyId: 'sty_g', actorId: 'usr_003' } });
+    expect(result.signals.map((signal) => signal.channel).sort()).toEqual(['person:usr_002', 'person:usr_003', 'person:usr_004']);
+  });
+
+  // A save that also touches other kinds keeps its office signal for the other kinds. The private chat part never shows in it.
+  it('keeps the office signal of a task change and leaves the group message out of it: kinds, office flag and names', async () => {
+    const mixed = groupAfter();
+    const task = Object.values(mixed.tasks)[0];
+    task.title = 'Mixed save';
+    const diff = diffState(seed, mixed);
+    expect(sorted(diff.publicKinds)).toEqual(['tasks']);
+    expect(sorted(diff.chatKinds)).toEqual(['conversations', 'messages']);
+    expect(diff.publicOffice).toBe(false);
+    const result = await writeDiff(recorder({ officeSeq: 4 }).q, diff, { story: { storyId: 'sty_m', actorId: 'usr_003' } });
     const office = result.signals.find((signal) => signal.channel === 'office')!;
-    expect(office).not.toHaveProperty('actorId');
-    expect(office).not.toHaveProperty('storyId');
-    expect(JSON.stringify(result.signals)).not.toContain('usr_003');
+    expect(office).toMatchObject({ kinds: ['tasks'], office: false, actorId: 'usr_003', storyId: 'sty_m', people: [] });
+    expect(office.projects).toEqual([task.projectId]);
+    // The members hear the group kinds in a signal with another id.
+    const member = result.signals.find((signal) => signal.channel === 'person:usr_004')!;
+    expect(member.kinds).toEqual(['conversations', 'messages', 'tasks']);
+    expect(member.id).not.toBe(office.id);
+    // A person outside the group gets no signal that holds a group kind.
+    for (const signal of result.signals.filter((one) => !['person:usr_002', 'person:usr_003', 'person:usr_004'].includes(one.channel))) {
+      expect(signal.kinds).not.toContain('messages');
+      expect(signal.kinds).not.toContain('conversations');
+    }
+  });
+
+  it('sends the office task part of a mixed save to its people with the kinds of that part only, and the group kinds to the members', async () => {
+    const mixed = groupAfter();
+    const first = Object.values(mixed.tasks)[0];
+    mixed.tasks.tsk_900 = { ...first, id: 'tsk_900', projectId: null, stageId: null, title: 'Renew', createdBy: 'usr_005', ownerId: 'usr_006', helperIds: [] };
+    event(mixed, { id: 'evt_950', correlationId: 'sty_office', actorId: 'usr_005', verb: 'task.created', targetId: 'tsk_900', officeTaskId: 'tsk_900' });
+    const diff = diffState(seed, mixed);
+    expect(diff.privateChange).toBe(true);
+    const result = await writeDiff(recorder({ officeSeq: 4 }).q, diff, { story: { storyId: 'sty_m', actorId: 'usr_005' } });
+    expect(result.signals.some((signal) => signal.channel === 'office')).toBe(false);
+    const byChannel = new Map(result.signals.map((signal) => [signal.channel, signal]));
+    // usr_006 works on the task and is not in the group.
+    expect(byChannel.get('person:usr_006')!.kinds).not.toContain('messages');
+    expect(byChannel.get('person:usr_006')!.kinds).toContain('tasks');
+    // usr_004 is in the group and not on the task.
+    expect(byChannel.get('person:usr_004')!.kinds).toContain('messages');
   });
 
   it('keeps the actor and the story for a project chat message and for a change of a project', async () => {
@@ -843,12 +901,26 @@ describe('the office signal of a private chat message', () => {
     message.body = 'Edited';
     const diff = diffState(seed, after);
     expect(diff.anonymous).toBe(false);
+    expect(diff.chatPeople.size).toBe(0);
     const { q } = recorder({ officeSeq: 4 });
     const result = await writeDiff(q, diff, { story: { storyId: 'sty_p', actorId: 'usr_003' } });
     expect(result.signals.find((signal) => signal.channel === 'office')).toMatchObject({ actorId: 'usr_003', storyId: 'sty_p' });
     const mixed = groupAfter();
     Object.values(mixed.tasks)[0].title = 'x';
     expect(diffState(seed, mixed).anonymous).toBe(false);
+  });
+
+  // A chat that the save cannot find in either State keeps the old rule of INT-16 as the safe fallback: one office signal with no names.
+  it('keeps the nameless office signal for a message whose chat neither State holds', async () => {
+    const after = copy();
+    after.messages.msg_903 = { ...Object.values(after.messages)[0], id: 'msg_903', conversationId: 'cnv_missing' };
+    const diff = diffState(seed, after);
+    expect(diff.anonymous).toBe(true);
+    expect(diff.chatPeople.size).toBe(0);
+    const result = await writeDiff(recorder({ officeSeq: 4 }).q, diff, { story: { storyId: 'sty_g', actorId: 'usr_003' } });
+    const office = result.signals.find((signal) => signal.channel === 'office')!;
+    expect(office).not.toHaveProperty('actorId');
+    expect(office).not.toHaveProperty('storyId');
   });
 });
 
@@ -869,7 +941,7 @@ describe('the signals of a chat file (owner, 2026-10-19)', () => {
     return state;
   };
 
-  it('sends one anonymous office signal with the kind files, and no person signal', async () => {
+  it('sends a person signal with the kind files to each member of the chat, and no office signal', async () => {
     const before = chatFile(copy());
     const after = structuredClone(before);
     after.files.fil_951 = { ...after.files.fil_950, id: 'fil_951', name: 'Second-Hidden-photo.jpg' };
@@ -878,20 +950,20 @@ describe('the signals of a chat file (owner, 2026-10-19)', () => {
     expect(diff.office).toBe(true);
     expect(diff.officeRows).toBe(false);
     expect(diff.privateChange).toBe(false);
-    expect(diff.anonymous).toBe(true);
+    expect(diff.anonymous).toBe(false);
     expect(table(diff, 'files')?.inserted).toEqual(['fil_951']);
     const { q, sql } = recorder({ officeSeq: 4 });
     const result = await writeDiff(q, diff, { story: { storyId: 'sty_chat', actorId: 'usr_003' } });
     expect(result.changed).toBe(true);
-    expect(result.signals).toHaveLength(1);
-    const [office] = result.signals;
-    expect(office).toMatchObject({ channel: 'office', kinds: ['files'], people: [], projects: [], office: true });
-    expect(office).not.toHaveProperty('actorId');
-    expect(office).not.toHaveProperty('storyId');
+    expect(result.signals.map((signal) => signal.channel).sort()).toEqual(['person:usr_002', 'person:usr_003', 'person:usr_004']);
+    for (const signal of result.signals) {
+      expect(signal).toMatchObject({ kinds: ['files'], projects: [], people: [signal.channel.slice('person:'.length)] });
+    }
     const text = JSON.stringify(result.signals);
-    for (const hidden of ['fil_951', 'Second-Hidden-photo', 'cnv_901', 'usr_002', 'usr_003', 'usr_004', 'sty_chat']) expect(text).not.toContain(hidden);
-    // Nobody gets a person signal: no person seq is used.
-    expect(sql.some((s) => s.text.includes('insert into person_seq'))).toBe(false);
+    for (const hidden of ['fil_951', 'Second-Hidden-photo', 'cnv_901']) expect(text).not.toContain(hidden);
+    // The send needs no office_meta update, and one person_seq statement counts the three topics.
+    expect(sql.some((s) => s.text.includes('update office_meta'))).toBe(false);
+    expect(sql.filter((s) => s.text.includes('insert into person_seq'))).toHaveLength(1);
   });
 
   it('keeps a project file as a signal of its project, as before', async () => {
@@ -906,17 +978,19 @@ describe('the signals of a chat file (owner, 2026-10-19)', () => {
     expect(result.signals.find((signal) => signal.channel === 'office')).toMatchObject({ kinds: ['files'], actorId: 'usr_003' });
   });
 
-  it('sends the message that carries the file as an anonymous office signal, with no file id, no file name and no member', async () => {
+  it('sends the message that carries the file to the members, with no file id, no file name and no chat id', async () => {
     const before = chatFile(copy());
     const after = structuredClone(before);
     after.messages.msg_951 = { ...Object.values(after.messages)[0], id: 'msg_951', conversationId: 'cnv_901', authorId: 'usr_003', actingForId: 'usr_003', fileIds: ['fil_950'] };
     const diff = diffState(before, after);
-    expect(diff.anonymous).toBe(true);
+    expect(diff.anonymous).toBe(false);
     const { q } = recorder({ officeSeq: 4 });
     const result = await writeDiff(q, diff, { story: { storyId: 'sty_g', actorId: 'usr_003' } });
     const text = JSON.stringify(result.signals);
-    for (const hidden of ['fil_950', 'Hidden-site-photo', 'cnv_901', 'usr_003', 'usr_002', 'usr_004', 'sty_g']) expect(text).not.toContain(hidden);
-    expect(result.signals.find((signal) => signal.channel === 'office')).toMatchObject({ kinds: ['messages'], people: [], projects: [] });
+    for (const hidden of ['fil_950', 'Hidden-site-photo', 'cnv_901']) expect(text).not.toContain(hidden);
+    expect(result.signals.some((signal) => signal.channel === 'office')).toBe(false);
+    expect(result.signals.map((signal) => signal.channel).sort()).toEqual(['person:usr_002', 'person:usr_003', 'person:usr_004']);
+    for (const signal of result.signals) expect(signal).toMatchObject({ kinds: ['messages'], projects: [] });
   });
 
   it('keeps the actor and the story when a project file and a chat file change in one save', async () => {

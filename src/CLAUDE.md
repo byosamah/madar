@@ -200,9 +200,14 @@ any screen work.
   before the own answer: `connectChanges` keeps its id (`echoes`) until the answer names it, so the pass stays "own" and one save
   sends one request (LV-2, 2026-10-21). A gap of the seq, a join and an id that no own answer names keep the pass mixed.
 - A signal of another person that names `messages` while the Inbox or a chat is on screen (an active `chats.list` or `chats.messages`
-  read) waits 150 ms (`chatMs`), not 1 s, for its twin office and person signals, so a chat message shows 0.85 s sooner (LV-3,
-  2026-10-21). It keeps the full window while an own write is on the wire (`queryClient.isMutating()`): a direct chat signal names no
-  person, so it could be the echo of the own send. `maxMergeMs` stays.
+  read) waits 150 ms (`chatMs`), not 1 s, for its twin signals, so a chat message shows 0.85 s sooner (LV-3,
+  2026-10-21). It keeps the full window while an own write is on the wire (`queryClient.isMutating()`): a direct chat or group signal names
+  every member, the sender too, so the frame of another person looks like the echo of the own send. `maxMergeMs` stays.
+- A direct chat or a group reaches only its members (owner, 2026-10-21, perf2 SV-7 and DF-2): the server sends a person signal with the kinds
+  `messages`, `conversations`, `files`, `chatReads` or `notifications` to each member and no office signal, so the tabs of a person outside the
+  chat reload nothing for it. `affects` needs no rule for it: a person signal with a chat kind reloads the person reads that name the kind
+  (`chats.list`, `chats.messages`, `chats.unreadCount`, `chats.waiting`, `search.query`). A project chat keeps its office signal. `signals.test.tsx`
+  ("the person signal of a direct chat or group message") pins it.
 - `app/remote/supabase.ts` gives the Realtime client a `heartbeatCallback` that calls `supabase.realtime.connect()` on 'timeout' or 'disconnected'
   (BG-4 step 1, 2026-10-21): a hidden tab throttles the 25 s heartbeat, and the client joins again at once, not by its slow timer. realtime-js
   2.117.2 never passes 'disconnected' to the callback, so 'timeout' does the work. The worker option (step 2) needs a served worker file and a

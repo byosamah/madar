@@ -674,6 +674,114 @@ describe('a chat message of another person shows sooner (performance audit 2026-
   });
 });
 
+// Perf2 SV-7 and DF-2 (owner, 2026-10-21): a message of a direct chat or a group comes as a person signal to each member and as no office
+// signal. The tabs of a member reload the chat reads from it; a tab of a person outside the chat gets no signal and reloads nothing.
+describe('the person signal of a direct chat or group message (perf2 SV-7, DF-2)', () => {
+  const chatSignal = (o: Partial<ChangeSignal> = {}): ChangeSignal => sig({ kinds: ['messages'], channel: `person:${ME}`, people: [ME], office: true, ...o });
+
+  it('reloads the chat list, the open chat and the badge of a member from the person signal alone, after 150 ms', async () => {
+    const app = setup();
+    const list = app.show('chats.list');
+    const messages = app.show('chats.messages', { conversationId: 'cnv_013' });
+    const count = app.show('chats.unreadCount');
+    const search = app.show('search.query', { text: 'plan' });
+    const bell = app.show('notifications.count');
+    const tasks = app.show('tasks.list', { projectId: 'prj_001' });
+    await settle();
+    app.send([chatSignal()]);
+    await vi.advanceTimersByTimeAsync(100);
+    expect([list(), messages(), count()]).toEqual([1, 1, 1]);
+    await vi.advanceTimersByTimeAsync(60);
+    expect([list(), messages(), count(), search()]).toEqual([2, 2, 2, 2]);
+    // The bell and a project list have nothing in this change.
+    expect([bell(), tasks()]).toEqual([1, 1]);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect([list(), messages(), count(), bell(), tasks()]).toEqual([2, 2, 2, 1, 1]);
+    app.stop();
+  });
+
+  it('reloads the badge of a member whose Inbox is closed, after the normal window', async () => {
+    const app = setup();
+    const count = app.show('chats.unreadCount');
+    await settle();
+    app.send([chatSignal({ kinds: ['conversations', 'messages'] })]);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(count()).toBe(1);
+    await vi.advanceTimersByTimeAsync(600);
+    expect(count()).toBe(2);
+    app.stop();
+  });
+
+  it('reloads nothing for a person outside the chat: no signal arrives, and the office signal of another change holds no chat kind', async () => {
+    const app = setup({ me: 'usr_004' });
+    const list = app.show('chats.list');
+    const count = app.show('chats.unreadCount');
+    const messages = app.show('chats.messages', { conversationId: 'cnv_001' });
+    const clients = app.show('clients.list');
+    await settle();
+    // The server sent the members' signals on their own topics, so this tab hears nothing of the message. A save that also changed a client
+    // sends its office signal with the kinds of that part only.
+    app.send([sig({ kinds: ['clients'], office: true })]);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect([list(), count(), messages(), clients()]).toEqual([1, 1, 1, 2]);
+    app.stop();
+  });
+
+  it('applies the person signal of a mixed save as a change of its own, whatever came before it on the office topic', async () => {
+    const app = setup();
+    const count = app.show('chats.unreadCount');
+    const tasks = app.show('tasks.list', { projectId: 'prj_001' });
+    await settle();
+    // The office signal tells the task part; the person signal has its own id and also holds the chat kinds.
+    app.send([sig({ kinds: ['tasks'], projects: ['prj_001'] })]);
+    await vi.advanceTimersByTimeAsync(5);
+    app.send([chatSignal({ kinds: ['messages', 'tasks'], projects: ['prj_001'] })]);
+    await vi.advanceTimersByTimeAsync(1100);
+    expect([count(), tasks()]).toEqual([2, 2]);
+    app.stop();
+  });
+
+  it('shows the own message at once from the person signal of the answer, and adds nothing for its echo on Realtime', async () => {
+    const app = setup();
+    const list = app.show('chats.list');
+    const count = app.show('chats.unreadCount');
+    await settle();
+    const own = chatSignal({ actorId: ME });
+    app.send([own], 'channel');
+    app.send([own], 'own');
+    await settle();
+    expect([list(), count()]).toEqual([2, 2]);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect([list(), count()]).toEqual([2, 2]);
+    app.stop();
+  });
+
+  it('reloads the chat reads of a person who was taken out of a group, so the group leaves the list', async () => {
+    const app = setup({ me: 'usr_003' });
+    const list = app.show('chats.list');
+    const messages = app.show('chats.messages', { conversationId: 'cnv_015' });
+    await settle();
+    app.send([chatSignal({ channel: 'person:usr_003', people: ['usr_003'], kinds: ['conversations'] })]);
+    await vi.advanceTimersByTimeAsync(1100);
+    expect([list(), messages()]).toEqual([2, 2]);
+    app.stop();
+  });
+
+  it('keeps a hidden tab quiet: it marks the chat reads and reloads them when the tab shows', async () => {
+    const app = setup();
+    const count = app.show('chats.unreadCount');
+    await settle();
+    setHidden(true);
+    app.send([chatSignal()]);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(count()).toBe(1);
+    setHidden(false);
+    await settle();
+    expect(count()).toBe(2);
+    app.stop();
+  });
+});
+
 describe('the echo of the own write that comes before the own answer (performance audit 2026-10-21, LV-2)', () => {
   const TASK = { id: 'tsk_001' };
   const LIST = { projectId: 'prj_001' };
