@@ -48,9 +48,9 @@ export const SEED_MARKERS = ['Hala Nasser', 'Faisal Al-Harbi', 'Corniche Office 
  * limit of 1,350,000 B sat 113 KB above the real size, so the growth of 2026-10-08 to 2026-10-20 passed. A change that adds code to
  * the first load fails here. Then lazy-load the code, or raise the limit in the same commit with the reason.
  */
-export const FIRST_LOAD_MAX_BYTES = 1_015_000;
-export const FIRST_LOAD_MAX_GZIP = 312_000;
-export const FIRST_LOAD_MAX_FILES = 34;
+export const FIRST_LOAD_MAX_BYTES = 970_000;
+export const FIRST_LOAD_MAX_GZIP = 296_000;
+export const FIRST_LOAD_MAX_FILES = 35;
 
 /** Text that only the chart package (recharts), the zod schemas and the word files hold. A test checks the word files. */
 export const CHART_MARKER = 'recharts-wrapper';

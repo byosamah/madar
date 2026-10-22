@@ -205,8 +205,8 @@ describe('the first-load rules of the remote build (performance audit 2026-10-07
 
   // Speed audit 2026-10-21, FL-11: the old limit sat 113 KB above the real size, so the growth of 2026-10-08 to 10-20 passed.
   it('keep the limits within about 3 percent of the real first load of the speed release (FL-11)', () => {
-    expect(FIRST_LOAD_MAX_BYTES).toBeLessThanOrEqual(1_020_000);
-    expect(FIRST_LOAD_MAX_GZIP).toBeLessThanOrEqual(315_000);
+    expect(FIRST_LOAD_MAX_BYTES).toBeLessThanOrEqual(970_000);
+    expect(FIRST_LOAD_MAX_GZIP).toBeLessThanOrEqual(296_000);
     expect(FIRST_LOAD_MAX_FILES).toBeLessThanOrEqual(35);
   });
 
