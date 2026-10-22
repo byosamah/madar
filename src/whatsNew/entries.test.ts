@@ -119,4 +119,11 @@ describe("What's new entries", () => {
     expect(String(wordAt(en, ['whatsNew', 'items', '2026-10-23-81', 'body']))).toContain('from 1 to 15 October');
     expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-81', 'title']))).toBe('تقرير مدار من مساعدك الذكي');
   });
+
+  // The speed release (owner, 2026-10-21: "audit the performance of the full product and make the best"): one line for everyone.
+  it('tells everyone that Madar is faster', () => {
+    expect(WHATS_NEW[0]).toEqual({ id: '2026-10-23-82', day: '2026-10-23' });
+    expect(String(wordAt(en, ['whatsNew', 'items', '2026-10-23-82', 'title']))).toBe('Madar is faster');
+    expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-82', 'title']))).toBe('صار مدار أسرع');
+  });
 });
