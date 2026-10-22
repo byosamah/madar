@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { INTER_SOURCE, LICENCE_FILE, SUBSET_FILE, subsetArgs } from './subset-inter.ts';
 
 // Vitest runs from the repository root.
-const SUBSET_SHA256 = '05f8c1cea3b79d63437b26c3386b8c477ac8c1d799b8f05967d70d509033fcea';
+const SUBSET_SHA256 = 'e47916126f5a4ab6e779c4e6c463512ebe9d322d2ef0b55d8b6a6acfe120b672';
 
 /** The table tags that a WOFF2 file names by number (the WOFF2 specification, section 5.1). */
 const KNOWN_TAGS = ['cmap', 'head', 'hhea', 'hmtx', 'maxp', 'name', 'OS/2', 'post', 'cvt ', 'fpgm', 'glyf', 'loca', 'prep', 'CFF ', 'VORG', 'EBDT', 'EBLC', 'gasp', 'hdmx', 'kern', 'LTSH', 'PCLT', 'VDMX', 'vhea', 'vmtx', 'BASE', 'GDEF', 'GPOS', 'GSUB', 'EBSC', 'JSTF', 'MATH', 'CBDT', 'CBLC', 'COLR', 'CPAL', 'SVG ', 'sbix', 'acnt', 'avar', 'bdat', 'bloc', 'bsln', 'cvar', 'fdsc', 'feat', 'fmtx', 'fvar', 'gvar', 'hsty', 'just', 'lcar', 'mort', 'morx', 'opbd', 'prop', 'trak', 'Zapf', 'Silf', 'Glat', 'Gloc', 'Feat', 'Sill'];
@@ -74,7 +74,7 @@ describe('the Inter subset of the digits and the middle dot (performance audit B
     expect(SUBSET_FILE).toBe('src/design/inter/inter-digits-dot.woff2');
     expect(subsetArgs(INTER_SOURCE, SUBSET_FILE)).toEqual([
       INTER_SOURCE,
-      '--unicodes=U+0030-0039,U+00B7',
+      '--unicodes=U+0030-0039,U+00B2,U+00B7',
       '--layout-features=*',
       '--name-IDs=*',
       '--flavor=woff2',
@@ -86,9 +86,10 @@ describe('the Inter subset of the digits and the middle dot (performance audit B
     expect(createHash('sha256').update(readFileSync(SUBSET_FILE)).digest('hex')).toBe(SUBSET_SHA256);
   });
 
-  it('holds only the digits 0 to 9 and the middle dot, with the wght and opsz axes and the tabular figures', () => {
+  // LV-11 (performance audit 2026-10-21): the square sign of m2 is the one glyph Thmanyah lacks on the project pages, so it took the whole Inter Latin file (74 KB).
+  it('holds only the digits 0 to 9, the square sign and the middle dot, with the wght and opsz axes and the tabular figures', () => {
     const subset = woff2Tables(readFileSync(SUBSET_FILE));
-    expect(mappedCharacters(subset.get('cmap')!)).toEqual([0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0xb7]);
+    expect(mappedCharacters(subset.get('cmap')!)).toEqual([0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0xb2, 0xb7]);
     const fvar = subset.get('fvar')!;
     expect(tagsAt(fvar, fvar.readUInt16BE(4), fvar.readUInt16BE(10), fvar.readUInt16BE(8)).sort()).toEqual(['opsz', 'wght']);
     const gsub = subset.get('GSUB')!;
@@ -107,7 +108,7 @@ describe('the Inter subset of the digits and the middle dot (performance audit B
   it('is the file of the Madar Dot and Madar Digits faces, with the ranges, weights and swap of before', () => {
     const css = readFileSync('src/design/tokens.css', 'utf8');
     const faces = [...css.matchAll(/@font-face \{[^}]*\}/g)].map((m) => m[0]);
-    for (const [family, range] of [['Madar Dot', 'U+00B7'], ['Madar Digits', 'U+0030-0039']]) {
+    for (const [family, range] of [['Madar Dot', 'U+00B2, U+00B7'], ['Madar Digits', 'U+0030-0039']]) {
       const face = faces.find((f) => f.includes(`font-family: "${family}";`));
       expect(face, family).toContain('src: url("./inter/inter-digits-dot.woff2") format("woff2-variations");');
       expect(face).toContain('font-weight: 100 900;');

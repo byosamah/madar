@@ -7,7 +7,7 @@ the same system for people and for design tools (Google DESIGN.md format, alpha,
 ## Files
 - `tokens.css`: the CSS variables, light and dark. `tokens.test.ts` checks the contrast of the text pairs.
 - `fonts/`: Thmanyah Sans 400, 500 and 700 (OTF, version 1.003), exactly as font.thmanyah.com ships them.
-- `inter/`: the Inter subset of the digits and the middle dot, with the OFL licence of Inter (`OFL.txt`). It is not in
+- `inter/`: the Inter subset of the digits, the square sign and the middle dot, with the OFL licence of Inter (`OFL.txt`). It is not in
   `fonts/`, because `tokens.test.ts` keeps `fonts/` to the three Thmanyah files.
 - `motion.ts`: the motion times and curves. Motion respects "reduce motion" (`MotionConfig reducedMotion="user"`).
 
@@ -29,8 +29,9 @@ the same system for people and for design tools (Google DESIGN.md format, alpha,
   never convert, subset or rename the files, never put them in `public/`, and get a new version only from
   font.thmanyah.com. `tokens.test.ts` checks the file hashes; a new version needs new hashes there.
 - Thmanyah Sans has no tabular figures. The `.tabular` class takes the digits 0 to 9 from `inter/inter-digits-dot.woff2`
-  ("Madar Digits" in `tokens.css`), a 10,340 B Inter subset of 11 characters. The middle dot "·" also comes from that file
-  ("Madar Dot", first in every stack), because the Thmanyah dot reads like an Arabic zero. `scripts/fonts/subset-inter.ts`
+  ("Madar Digits" in `tokens.css`), a 10,796 B Inter subset of 12 characters. The middle dot "·" and the square sign "²" (m²) also come from that file
+  ("Madar Dot", first in every stack): the Thmanyah dot reads like an Arabic zero, and Thmanyah has no "²", which loaded the
+  74 KB Inter Latin file on the first project page (speed audit 2026-10-21, LV-11). `scripts/fonts/subset-inter.ts`
   makes the file with pyftsubset (`pip install fonttools brotli`), and `scripts/fonts/subset-inter.test.ts` pins its bytes,
   characters, axes and tnum. Keep the Inter import in `main.tsx`: it is the Inter Variable fallback face.
 - The remote index.html preloads the three Thmanyah files (`earlyLinks` in `vite.config.ts`, `FONT_WEIGHTS` in
