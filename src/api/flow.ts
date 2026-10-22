@@ -2,6 +2,7 @@ import type { Ctx } from './registry';
 import type { DateNote, Project, Stage, Task } from './contract/entities';
 import { ApiError, invalid } from './errors';
 import { applyPatch } from './events';
+import { isInternalId } from './internalProject';
 import { notifyIn, projectPeople } from './notify';
 import { can } from './permissions';
 import type { State } from './store';
@@ -194,11 +195,14 @@ export function shiftDependents(ctx: Ctx, task: Task, causeEventId: string, fini
     insertComment(ctx, 'task', dependent.id, dependent.projectId, reason, [], {
       from: note.from, to: note.to, byTaskId: task.id, byTaskTitle: task.title.slice(0, 200), lateDays: late,
     });
-    addTrackerEntry(ctx, {
-      projectId, type: 'other', direction: 'none', auto: 'shift',
-      title: `${dependent.title.slice(0, 160)} moved ${workingDays(move.lateDays)}`,
-      note: `It needs "${task.title.slice(0, 160)}", which finished ${workingDays(late)} late. Due date moved from ${when(from)} to ${when(dueDate)}.`,
-    });
+    // An internal project has no Tracker (fbk_044): the move stays in the to-do and its thread.
+    if (!isInternalId(ctx.state, projectId)) {
+      addTrackerEntry(ctx, {
+        projectId, type: 'other', direction: 'none', auto: 'shift',
+        title: `${dependent.title.slice(0, 160)} moved ${workingDays(move.lateDays)}`,
+        note: `It needs "${task.title.slice(0, 160)}", which finished ${workingDays(late)} late. Due date moved from ${when(from)} to ${when(dueDate)}.`,
+      });
+    }
     moved.push(dependent);
   }
   return moved;
@@ -209,7 +213,8 @@ export function shiftDependents(ctx: Ctx, task: Task, causeEventId: string, fini
  * log the move in the Tracker (tracker.log), so the screen shows the Balady tick box only to a person who may log.
  */
 function stageBackError(ctx: Ctx, projectId: string, to: Stage): ApiError {
-  const canLog = can(ctx.authority, 'tracker.log', { projectRole: roleIn(ctx, projectId) });
+  // An internal project has no Tracker, so the Balady tick box never shows there (fbk_044).
+  const canLog = can(ctx.authority, 'tracker.log', { projectRole: roleIn(ctx, projectId) }) && !isInternalId(ctx.state, projectId);
   return new ApiError('invalid_input', 'Write why the project moves back.', { fields: ['reason'], reason: 'stage_back_reason', stageId: to.id, stageName: to.name, canLog });
 }
 

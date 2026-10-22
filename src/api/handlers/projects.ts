@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
-  ClientId, ClientInitials, Day, DeadlineId, FileId, GeoPoint, HealthValue, LinkKind, linkUrlOk, MAX_PREREQUISITES, MAX_PROJECT_VIEWERS, PauseKind, ProjectId, ProjectStatus, ProjectTemplateId, StageId,
+  ClientId, ClientInitials, Day, DeadlineId, FileId, GeoPoint, HealthValue, LinkKind, linkUrlOk, MAX_PREREQUISITES, MAX_PROJECT_VIEWERS, PauseKind, ProjectId, ProjectKind, ProjectStatus, ProjectTemplateId, StageId,
   SubCompanyId, TeamId, UserId, type Deadline, type Project, type ProjectTemplate, type Stage, type Task,
 } from '../contract/entities';
 import { DeadlineRow, ProjectDetail, ProjectSummary } from '../contract/views';
 import { ApiError, invalid, notFound } from '../errors';
+import { internalRefusal, isInternal } from '../internalProject';
 import { addProjectConversation, dropProjectConversation } from '../chatState';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { assertStagePrerequisites, watchStage } from '../flow';
@@ -16,7 +17,7 @@ import { meetingsOf, memberKey, nextId, paymentsOf, projectTemplatesOf, subCompa
 import { detailOf, stagesOf, summaryOf } from '../views';
 import { diffDays } from '../../lib/dates';
 import {
-  buildProjectCode, CLASSIFICATIONS, codeMonth, contractClash, contractOf, FREE_CODE_MAX, FREE_CODE_PATTERN, isProjectCode, nextSeries, projectKey, TYPE_MAX,
+  buildProjectCode, CLASSIFICATIONS, codeMonth, contractClash, contractOf, FREE_CODE_MAX, FREE_CODE_PATTERN, INTERNAL_PREFIX, isProjectCode, nextSeries, projectKey, TYPE_MAX,
   TYPE_PATTERN,
 } from '../../lib/projectCode';
 import { planProject, type ProjectPlan } from '../../lib/projectPlan';
@@ -136,6 +137,36 @@ export function nextProjectCode(state: State, prefix: string, today: string): st
     .filter((p) => p.code.startsWith(head))
     .reduce((highest, p) => Math.max(highest, Number(p.code.slice(head.length))), 0);
   return `${head}${String(max + 1).padStart(3, '0')}`;
+}
+
+/**
+ * The fields that an internal project may not hold (fbk_044, owner 2026-10-22): the client, the place, the area, the sub-company, the
+ * contract date and the code. The first field that breaks the rule is named with the reason internal_project. An empty value is no value.
+ */
+function assertInternalCreate(input: {
+  clientId: string | null; subCompanyId?: string | null; geo: GeoPoint | null; areaM2: number | null; contractStartDate: string | null; location: string;
+  code?: string; codeParts?: unknown; sameContractAs?: string;
+}): void {
+  if (input.subCompanyId) throw internalRefusal('subCompanyId');
+  if (input.clientId) throw internalRefusal('clientId');
+  if (input.geo) throw internalRefusal('geo');
+  if (input.areaM2 !== null) throw internalRefusal('areaM2');
+  if (input.contractStartDate) throw internalRefusal('contractStartDate');
+  if (input.location !== '') throw internalRefusal('location');
+  if (input.code !== undefined) throw internalRefusal('code');
+  if (input.codeParts !== undefined) throw internalRefusal('codeParts');
+  if (input.sameContractAs !== undefined) throw internalRefusal('sameContractAs');
+}
+
+/** The same rule for a change: a value in one of these fields is refused, an empty value passes. */
+function assertInternalUpdate(patch: { clientId?: string | null; areaM2?: number | null; geo?: GeoPoint | null; subCompanyId?: string | null; contractStartDate?: string | null; location?: string; code?: string }): void {
+  if (patch.clientId) throw internalRefusal('clientId');
+  if (patch.areaM2 !== undefined && patch.areaM2 !== null) throw internalRefusal('areaM2');
+  if (patch.geo) throw internalRefusal('geo');
+  if (patch.subCompanyId) throw internalRefusal('subCompanyId');
+  if (patch.contractStartDate) throw internalRefusal('contractStartDate');
+  if (patch.location) throw internalRefusal('location');
+  if (patch.code !== undefined) throw internalRefusal('code');
 }
 
 function assertDates(start: string | null, end: string | null, field: string): void {
@@ -374,13 +405,20 @@ export const projectsCreate = defineCall({
     codeAnyway: CodeAnyway,
     /** Start from a project template: its stages, its tasks with dates and leads, and the project start and end. No stages or dates beside it. */
     template: TemplateUse.optional(),
+    /**
+     * client (the default) or internal (fbk_044, owner 2026-10-22). An internal project is the office's own work: no client, place, area,
+     * sub-company, contract date or typed code, the automatic code INT-YY-NNN, and it starts hidden from the office.
+     */
+    kind: ProjectKind.optional(),
   }),
   output: ProjectDetail,
   run(input, ctx) {
     assertCan(ctx, 'project.create');
     const { state, actor, stamp, today } = ctx;
+    const internal = input.kind === 'internal';
+    if (internal) assertInternalCreate(input);
     assertDates(input.startDate, input.targetEndDate, 'targetEndDate');
-    const subCompanyId = subCompanyOfNew(ctx, input.subCompanyId);
+    const subCompanyId = internal ? null : subCompanyOfNew(ctx, input.subCompanyId);
     const made = templateMadeOf(ctx, input);
     const leaderId = input.leader === 'me' ? ctx.authority.id : input.leader === 'none' ? null : input.leader;
     if (leaderId) assertLeader(ctx, leaderId);
@@ -389,7 +427,8 @@ export const projectsCreate = defineCall({
       const member = state.users[userId];
       if (!member?.active || member.kind !== 'human') throw invalid('teamIds', 'Every team member must be an active person. Agents act for a person.');
     }
-    const code = codeOfNew(ctx, input);
+    // The INT series is its own: nextProjectCode counts only the codes that start with INT-YY-, so it never takes a series of a client code.
+    const code = internal ? nextProjectCode(state, INTERNAL_PREFIX, today) : codeOfNew(ctx, input);
     const id = nextId(state, 'prj');
     const stageParts = made
       ? made.template.stages.map((stage) => ({ partId: stage.id, name: stage.name, dates: made.plan.stages[stage.id] }))
@@ -420,6 +459,7 @@ export const projectsCreate = defineCall({
       startDate, targetEndDate, contractStartDate: input.contractStartDate, coverFileId: null, modelFolderPath: input.modelFolderPath,
       description: input.description, healthOverride: null, mark: pickMark(id, Object.values(state.projects)),
       ...(subCompanyId ? { subCompanyId } : {}),
+      ...(internal ? { kind: 'internal' as const, access: { hidden: true, viewerIds: [] } } : {}),
       createdBy: actor.id, createdAt: stamp, updatedAt: stamp,
       // The link keeps the template, the person of each role and a copy of the template parts. No part is dropped yet (fbk_008 item 4, ADM-01).
       ...(made ? { templateLink: { templateId: made.template.id, linkedAt: stamp, syncedAt: null, rolePeople: { ...made.people }, droppedPartIds: [], base: baseOf(made.template, made.plan) } } : {}),
@@ -468,6 +508,8 @@ export const projectsUpdate = defineCall({
   run(input, ctx) {
     const project = requireEditable(ctx, input.id, 'project.details');
     const { code, ...asked } = input.patch;
+    // An internal project holds none of the client fields. The rule comes first, so a refused write changes nothing.
+    if (isInternal(project)) assertInternalUpdate(input.patch);
     // The rule of the place comes before any change, so a refused write changes nothing.
     const patch = placeRule(project, asked);
     if (patch.subCompanyId !== undefined) assertSubCompany(ctx, patch.subCompanyId);
@@ -559,6 +601,8 @@ export const projectsPause = defineCall({
     const project = requireProject(ctx, input.id);
     assertCan(ctx, 'project.archive', { projectRole: roleIn(ctx, project.id) });
     if (project.status === 'on_hold') throw new ApiError('conflict', 'This project is already paused. Resume it first.');
+    // A pause that waits for the client writes a Tracker line. An internal project has no client and no Tracker.
+    if (input.kind === 'client' && isInternal(project)) throw internalRefusal('kind');
     if (input.resumeOn && input.resumeOn <= ctx.today) throw invalid('resumeOn', 'The restart date must be after today.');
     const pause: NonNullable<Project['pause']> = { reason: input.reason, resumeOn: input.resumeOn ?? null, by: ctx.actor.id, at: ctx.stamp, kind: input.kind };
     if (input.kind === 'client') {

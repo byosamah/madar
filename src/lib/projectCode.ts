@@ -86,6 +86,15 @@ export function buildProjectCode(parts: { yymm: string; series: number | string;
   return `${parts.yymm}${series}${parts.initials}-${parts.classification}-${parts.type.trim()}`;
 }
 
+/** The head of the code of an internal project (fbk_044). The screens never show this code; they show the word "Internal". */
+export const INTERNAL_PREFIX = 'INT';
+const INTERNAL_CODE = new RegExp(`^${INTERNAL_PREFIX}-\\d{2}-\\d{3,}$`);
+
+/** True for the automatic code of an internal project, like INT-26-001. A row that carries a code and no kind uses this. */
+export function isInternalCode(code: string): boolean {
+  return INTERNAL_CODE.test(code);
+}
+
 /** The key YYMMSSINI of a new code. An old code is its own key. */
 export function projectKey(code: string): string {
   const parts = parseProjectCode(code);

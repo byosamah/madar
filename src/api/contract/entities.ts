@@ -394,6 +394,13 @@ export const ProjectAccess = z.object({
 });
 export type ProjectAccess = z.infer<typeof ProjectAccess>;
 
+/**
+ * The kind of a project (fbk_044, owner 2026-10-22). An internal project is the office's own work, like a portfolio: it has no client, code on
+ * the screens, place, area, sub-company, contract date, payments or Tracker. It starts hidden. Optional on the project: a missing value is a client project.
+ */
+export const ProjectKind = z.enum(['client', 'internal']);
+export type ProjectKind = z.infer<typeof ProjectKind>;
+
 export const Project = z.object({
   id: ProjectId,
   /** The old form KH-26-014, or the new form YYMMSSINI-CLS-Type (owner, 2026-10-05, lib/projectCode.ts). Two projects of one contract share one code. */
@@ -428,6 +435,8 @@ export const Project = z.object({
   templateLink: TemplateLink.nullable().optional(),
   /** Who sees the project (hidden projects, owner 2026-10-22). Optional, so a project saved before it is open to the office. */
   access: ProjectAccess.optional(),
+  /** The kind of the project (fbk_044). Set once when the project is made, and never changes. A missing value is a client project. */
+  kind: ProjectKind.optional(),
   createdBy: UserId,
   createdAt: Stamp,
   updatedAt: Stamp,

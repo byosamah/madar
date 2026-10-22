@@ -5,6 +5,7 @@ import {
 } from '../contract/entities';
 import { TaskDetail, TaskRow } from '../contract/views';
 import { ApiError, forbidden, invalid, notFound } from '../errors';
+import { isInternalId } from '../internalProject';
 import { applyPatch, recordCreate, recordDelete } from '../events';
 import { assertHasLead, assertMayFinish, assertTaskPrerequisites, reopenDependents, shiftDependents, stageTag, watchStage } from '../flow';
 import { isOverdue } from '../health';
@@ -677,8 +678,8 @@ export const tasksNewVersion = defineCall({
     insertComment(ctx, 'task', task.id, task.projectId, input.reason, [], undefined, 'reopened');
     // The reason for the new version is also the reason the project moves back, when it does.
     watch.finish({ reason: input.reason, logInTracker: input.logInTracker });
-    // An office task has no client, so it has no Tracker (owner, 2026-10-06).
-    if (task.projectId !== null) {
+    // An office task has no client, so it has no Tracker (owner, 2026-10-06). An internal project has none either (fbk_044).
+    if (task.projectId !== null && !isInternalId(ctx.state, task.projectId)) {
       addTrackerEntry(ctx, {
         projectId: task.projectId, type: 'message', direction: 'in', title: `${task.title.slice(0, 150)}: version ${n}`, note: input.reason, auto: 'version',
       });

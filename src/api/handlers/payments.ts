@@ -3,6 +3,7 @@ import { defineCall, type Ctx } from '../registry';
 import { Day, Payment, PaymentId, ProjectId } from '../contract/entities';
 import { PaymentRow } from '../contract/views';
 import { invalid, notFound } from '../errors';
+import { assertNotInternal } from '../internalProject';
 import { applyPatch, recordCreate, recordDelete } from '../events';
 import { nextId, paymentsOf } from '../store';
 import { paymentRowOf } from '../views';
@@ -61,6 +62,8 @@ const paymentsCreate = defineCall({
   run(input, ctx) {
     requireRight(ctx, 'payment.add');
     const project = requireProject(ctx, input.projectId);
+    // An internal project has no client, so no payments (fbk_044).
+    assertNotInternal(ctx, project);
     assertNotFuture(ctx, input.receivedOn);
     const id = nextId(ctx.state, 'pay');
     const payment: Payment = {

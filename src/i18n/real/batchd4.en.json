@@ -1,0 +1,8 @@
+{
+  "errors": {
+    "reasons": {
+      "internal_project": "An internal project has no client, place, area, sub-company, payments or Tracker.",
+      "code_prefix_taken": "INT is the code head of internal projects. Choose another."
+    }
+  }
+}

@@ -5,6 +5,7 @@ import {
 } from '../contract/entities';
 import { TrackerExportRow, TrackerRow } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
+import { assertNotInternal, internalRefusal, isInternalId } from '../internalProject';
 import { applyPatch, recordCreate, recordDelete } from '../events';
 import { mayFinish, stageTag, watchStage } from '../flow';
 import { notifyIn } from '../notify';
@@ -86,6 +87,9 @@ type NewEntry = Pick<TrackerEntry, 'projectId' | 'type' | 'direction' | 'title'>
  * A meeting line starts with no minutes, and its event names the event of the mark that caused it (causeEventId).
  */
 export function addTrackerEntry(ctx: Ctx, input: NewEntry): TrackerEntry {
+  // An internal project has no client, so no Tracker (fbk_044). The calls that write a line on their own skip it first; a call that
+  // a person starts for the Tracker (a file received, a file delivered, a move back logged) stops here.
+  if (isInternalId(ctx.state, input.projectId)) throw internalRefusal('projectId');
   assertSide(input.type, input.direction);
   const id = input.id ?? nextId(ctx.state, 'trk');
   const entry: TrackerEntry = {
@@ -213,6 +217,7 @@ const trackerLog = defineCall({
   output: TrackerRow,
   run(input, ctx) {
     const project = requireProject(ctx, input.projectId);
+    assertNotInternal(ctx, project);
     assertMayPost(ctx, project.id);
     assertFilesInProject(ctx, input.fileIds, project.id);
     assertPeople(ctx, input.peopleIds);
