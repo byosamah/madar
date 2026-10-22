@@ -15,6 +15,7 @@ import {
 import { defineCall, type Ctx } from '../registry';
 import { paymentsOf, subCompaniesOf, trackerOf, type State } from '../store';
 import { stagesOf, userCard } from '../views';
+import { isInternal } from '../internalProject';
 import { assertCan } from './shared';
 
 /**
@@ -65,8 +66,10 @@ function buildReport(ctx: Ctx, input: ReportPick & { subCompanyId?: string; guid
   const scope = new Set(projects.map((project) => project.id));
   const tasks = Object.values(state.tasks).filter((task) => task.projectId !== null && scope.has(task.projectId));
   const deadlines = Object.values(state.deadlines).filter((deadline) => scope.has(deadline.projectId));
-  const trackerRows = Object.values(trackerOf(state)).filter((entry) => scope.has(entry.projectId));
-  const payments = Object.values(paymentsOf(state)).filter((payment) => scope.has(payment.projectId));
+  // An internal project has no Tracker and no payments (fbk_044), so the client parts of the report never read it.
+  const clientScope = new Set([...scope].filter((id) => !isInternal(state.projects[id])));
+  const trackerRows = Object.values(trackerOf(state)).filter((entry) => clientScope.has(entry.projectId));
+  const payments = Object.values(paymentsOf(state)).filter((payment) => clientScope.has(payment.projectId));
   const events = Object.values(state.events);
   // The stage moves of the whole office leave out the projects that the person does not see, a deleted hidden project too.
   const eventSees = eventProjectViewer(state, actor);
@@ -230,9 +233,10 @@ function gapsOf(state: State, tasks: Task[], projects: Project[]): string[] {
     ['Open to-dos with no due date', open.filter((task) => task.dueDate === null).length],
     ['Open to-dos with no lead', open.filter((task) => task.ownerId === null).length],
     ['Active projects with a stage that has no end date', noStageEnd],
-    ['Active projects with no area', active.filter((project) => project.areaM2 === null).length],
+    // An internal project has no area and no sub-company on purpose (fbk_044).
+    ['Active projects with no area', active.filter((project) => project.areaM2 === null && !isInternal(project)).length],
     // Counted only when the office has a sub-company (INT-10).
-    ['Active projects with no sub-company', Object.keys(subCompaniesOf(state)).length > 0 ? active.filter((project) => !project.subCompanyId).length : 0],
+    ['Active projects with no sub-company', Object.keys(subCompaniesOf(state)).length > 0 ? active.filter((project) => !project.subCompanyId && !isInternal(project)).length : 0],
   ];
   return counts.filter(([, n]) => n > 0).map(([label, n]) => `${label}: ${n}`);
 }

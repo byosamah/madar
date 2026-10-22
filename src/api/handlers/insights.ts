@@ -10,6 +10,7 @@ import { MESSAGE_HITS, MessageHit, messageHits } from '../messageSearch';
 import { pauseKindOf, peopleFilter, staleDaysOf } from '../pause';
 import { reviewersOfTask } from '../notify';
 import { can, mayViewTask } from '../permissions';
+import { isInternal } from '../internalProject';
 import { assertCan } from './shared';
 import { projectViewer } from '../projectView';
 import { sentToReviewOn } from '../review';
@@ -119,16 +120,17 @@ function gapsOf(state: State, active: Project[], activeTasks: Task[]) {
     noLead: open.filter((t) => t.ownerId === null).length,
     // Projects, not stages: the number equals the projects.list filter stage_no_end that it opens (review, 2026-10-06).
     projectsStageNoEnd: active.filter((p) => stagesOf(state, p.id).some((stage) => stage.endDate === null)).length,
-    noArea: active.filter((p) => p.areaM2 === null).length,
+    // An internal project has no area and no sub-company on purpose, so these two gaps count client projects only (fbk_044).
+    noArea: active.filter((p) => p.areaM2 === null && !isInternal(p)).length,
     // Counted only when the office has a sub-company: an office with none has nothing to fill in (INT-10).
-    noSubCompany: Object.keys(subCompaniesOf(state)).length > 0 ? active.filter((p) => !p.subCompanyId).length : 0,
+    noSubCompany: Object.keys(subCompaniesOf(state)).length > 0 ? active.filter((p) => !p.subCompanyId && !isInternal(p)).length : 0,
   };
 }
 
 /** The money that clients owe: past due, and due from today to 30 days from today (owner, 2026-10-06). */
 function moneyOf(state: State, inFilters: (project: Project) => boolean, today: string) {
   const open = Object.values(paymentsOf(state))
-    .filter((p) => p.receivedOn === null && state.projects[p.projectId] !== undefined && inFilters(state.projects[p.projectId]))
+    .filter((p) => p.receivedOn === null && state.projects[p.projectId] !== undefined && !isInternal(state.projects[p.projectId]) && inFilters(state.projects[p.projectId]))
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.id.localeCompare(b.id));
   const rows = (list: Payment[]) => ({
     count: list.length,
@@ -281,7 +283,7 @@ export const dashboardGet = defineCall({
         overdueTasks: activeTasks.filter((t) => isOverdue(t, today)).length,
         deadlinesNext14: Object.values(state.deadlines).filter((d) => activeIds.has(d.projectId) && d.date >= today && d.date <= addDays(today, 14)).length,
         areaInDesign: inDesign.reduce((sum, p) => sum + (p.areaM2 ?? 0), 0),
-        inDesignWithoutArea: inDesign.filter((p) => p.areaM2 === null).length,
+        inDesignWithoutArea: inDesign.filter((p) => p.areaM2 === null && !isInternal(p)).length,
       },
       charts: {
         projectsPerStage: [...perStage.entries()]
