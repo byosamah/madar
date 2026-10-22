@@ -4,6 +4,9 @@
     "markDone": "أنهِ المهمة",
     "sendToReview": "أرسلها للمراجعة",
     "groupPeople": "الأشخاص",
-    "groupThis": "هذه المهمة"
+    "groupThis": "هذه المهمة",
+    "groupWhen": "المواعيد",
+    "timing": "الجدولة",
+    "checklistCount": "قائمة التحقق · {{done}} من {{count}}"
   }
 }

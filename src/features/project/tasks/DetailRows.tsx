@@ -1,6 +1,7 @@
 import { useId, type ReactNode } from 'react';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { ChevronDownIcon } from '../../../components/icons/animated/chevron-down';
+import { DateDraftField } from '../../../components/DateDraftField';
 import { Switch } from '../../../components/Switch';
 
 /**
@@ -70,6 +71,21 @@ export function SwitchRow({ id, label, description, checked, onChange }: {
       className="relative min-h-12 px-4 py-0.5 [&_button]:relative [&_button]:z-10 [&_label]:after:absolute [&_label]:after:inset-0 [&_label]:after:content-['']"
     >
       <Switch id={id} label={label} description={description} checked={checked} onChange={onChange} />
+    </div>
+  );
+}
+
+/**
+ * A date that saves itself, in a row: the label sits at the start, and the quiet date with its clear control (a 44 px target) sits at the end.
+ * It is the `DateDraftField` of the desk, so the picker of the phone, the reason sheet and the clear control all stay.
+ */
+export function DateRow({ id, label, value, onCommit }: { id: string; label: string; value: string; onCommit: (value: string | null) => void }) {
+  return (
+    <div className="flex min-h-12 items-center justify-between gap-3 ps-4 pe-1">
+      <span aria-hidden className="min-w-0 flex-1 text-body">{label}</span>
+      <div className="w-44 max-w-[60%] shrink-0">
+        <DateDraftField id={id} label={label} value={value} onCommit={onCommit} hideLabel align="end" touchClear />
+      </div>
     </div>
   );
 }

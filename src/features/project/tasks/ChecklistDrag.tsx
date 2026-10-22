@@ -19,19 +19,21 @@ export type DragChecklistProps = {
   /** One drop that changes the order calls this once, with the whole list in the new order. */
   onReorder: (next: ChecklistItem[]) => void;
   listRef: Ref<HTMLUListElement>;
+  /** The phone layout of the rows (see ChecklistRow). */
+  rows?: boolean;
 };
 
-function SortableItem({ item, edit, tick, onToggle, onRemove }: {
-  item: ChecklistItem; edit: boolean; tick: boolean; onToggle: (id: string, done: boolean) => void; onRemove: (id: string) => void;
+function SortableItem({ item, edit, tick, onToggle, onRemove, rows }: {
+  item: ChecklistItem; edit: boolean; tick: boolean; onToggle: (id: string, done: boolean) => void; onRemove: (id: string) => void; rows: boolean;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   // The item moves up and down only.
   const style = { transform: transform ? `translate3d(0, ${Math.round(transform.y)}px, 0)` : undefined, transition };
-  const grip = <ItemGrip text={item.text} activatorRef={setActivatorNodeRef} handle={{ ...attributes, ...listeners }} />;
-  return <ChecklistRow item={item} edit={edit} tick={tick} onToggle={onToggle} onRemove={onRemove} drag={{ ref: setNodeRef, style, lifted: isDragging, grip }} />;
+  const grip = <ItemGrip text={item.text} activatorRef={setActivatorNodeRef} handle={{ ...attributes, ...listeners }} rows={rows} />;
+  return <ChecklistRow item={item} edit={edit} tick={tick} onToggle={onToggle} onRemove={onRemove} rows={rows} drag={{ ref: setNodeRef, style, lifted: isDragging, grip }} />;
 }
 
-export function DragChecklist({ items, edit, tick, onToggle, onRemove, onReorder, listRef }: DragChecklistProps) {
+export function DragChecklist({ items, edit, tick, onToggle, onRemove, onReorder, listRef, rows = false }: DragChecklistProps) {
   const { t } = useTranslation();
   const sensors = useSensors(useSensor(PointerSensor, POINTER_OPTIONS), useSensor(KeyboardSensor, KEYBOARD_OPTIONS));
   const idsKey = items.map((item) => item.id).join(',');
@@ -59,8 +61,8 @@ export function DragChecklist({ items, edit, tick, onToggle, onRemove, onReorder
       onDragEnd={onDragEnd}
     >
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-        <ul ref={listRef}>
-          {items.map((item) => <SortableItem key={item.id} item={item} edit={edit} tick={tick} onToggle={onToggle} onRemove={onRemove} />)}
+        <ul ref={listRef} className={rows ? 'hairline' : undefined}>
+          {items.map((item) => <SortableItem key={item.id} item={item} edit={edit} tick={tick} onToggle={onToggle} onRemove={onRemove} rows={rows} />)}
         </ul>
       </SortableContext>
     </DndContext>

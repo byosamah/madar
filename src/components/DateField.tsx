@@ -32,12 +32,12 @@ export function dateInputClass(typing: boolean): string {
  * It has the box of a field without the fill: the same height, corners, 1 px edge and 14 px side space. So its text lines up with
  * the text of the fields above and below it (owner, 2026-10-05: "and the alignment").
  */
-export function DateFace({ shown, roomForClear, invalid, empty }: { shown: string; roomForClear: boolean; invalid?: boolean; empty?: string }) {
+export function DateFace({ shown, roomForClear, invalid, empty, align = 'start' }: { shown: string; roomForClear: boolean; invalid?: boolean; empty?: string; align?: 'start' | 'end' }) {
   const { t } = useTranslation();
   return (
     <span
       aria-hidden
-      className={`pointer-events-none flex min-h-11 items-center rounded-xl border ps-3.5 text-subheadline peer-hover:bg-fill peer-focus-visible:outline-2 peer-focus-visible:outline-link ${roomForClear ? 'pe-10' : 'pe-3.5'} ${invalid ? 'border-late' : 'border-transparent'}`}
+      className={`pointer-events-none flex min-h-11 items-center rounded-xl border ps-3.5 text-subheadline ${align === 'end' ? 'justify-end' : ''} peer-hover:bg-fill peer-focus-visible:outline-2 peer-focus-visible:outline-link ${roomForClear ? 'pe-10' : 'pe-3.5'} ${invalid ? 'border-late' : 'border-transparent'}`}
     >
       {shown ? <span className="tabular truncate text-ink">{shown}</span>
         : empty !== undefined ? <span className="truncate font-semibold text-link">{empty}</span> : <span className="truncate text-ink-2">{t('dateField.set')}</span>}
@@ -46,7 +46,7 @@ export function DateFace({ shown, roomForClear, invalid, empty }: { shown: strin
 }
 
 /** The small control at the end of a set date that empties it. */
-export function ClearDate({ label, onClear }: { label: string; onClear: () => void }) {
+export function ClearDate({ label, onClear, touch = false }: { label: string; onClear: () => void; touch?: boolean }) {
   const { t } = useTranslation();
   return (
     <button
@@ -54,7 +54,7 @@ export function ClearDate({ label, onClear }: { label: string; onClear: () => vo
       aria-label={t('dateField.clear', { label })}
       onClick={onClear}
       // A quiet grey that still holds 3:1 (WCAG 1.4.11), so a column of set dates does not read as a column of buttons.
-      className="pressable absolute end-1 top-1/2 z-20 grid size-8 -translate-y-1/2 place-items-center rounded-full text-chart-muted hover:bg-fill hover:text-ink"
+      className={`pressable absolute end-1 top-1/2 z-20 grid -translate-y-1/2 place-items-center rounded-full text-chart-muted hover:bg-fill hover:text-ink ${touch ? 'size-11' : 'size-8'}`}
     >
       <AnimatedIcon icon={XIcon} size={14} aria-hidden />
     </button>
@@ -81,6 +81,10 @@ type DateFieldProps = {
   /** A message elsewhere on the form marks the field and describes it (the plan line of a template). */
   'aria-invalid'?: boolean;
   'aria-describedby'?: string;
+  /** `end` puts the short date at the end of the field (a grouped row of the phone panel). Default `start`. */
+  align?: 'start' | 'end';
+  /** Makes the clear control a 44 px target. Default false. */
+  touchClear?: boolean;
 };
 
 /**
@@ -94,7 +98,7 @@ type DateFieldProps = {
  */
 export function DateField({
   id, label, value, onChange, onBlur, error, hint, required, disabled, min, max, className, clearable = !required,
-  'aria-invalid': markedInvalid, 'aria-describedby': describedElsewhere,
+  'aria-invalid': markedInvalid, 'aria-describedby': describedElsewhere, align, touchClear,
 }: DateFieldProps) {
   const lang = useLang();
   const input = useRef<HTMLInputElement>(null);
@@ -178,8 +182,8 @@ export function DateField({
             if (!typing && !['Tab', 'Shift', 'Escape', 'Enter'].includes(event.key)) setTyping(true);
           }}
         />
-        {!typing && <DateFace shown={quietDay(value, lang)} roomForClear={canClear} invalid={Boolean(invalid)} />}
-        {!typing && canClear && <ClearDate label={label} onClear={() => onChange('')} />}
+        {!typing && <DateFace shown={quietDay(value, lang)} roomForClear={canClear} invalid={Boolean(invalid)} align={align} />}
+        {!typing && canClear && <ClearDate label={label} onClear={() => onChange('')} touch={touchClear} />}
       </div>
       {calendarAnchor && (
         <CalendarPopover anchor={calendarAnchor} value={value} min={min} max={max} onPick={pickDay} onClose={closeCalendar} />

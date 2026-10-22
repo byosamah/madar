@@ -8,8 +8,13 @@ import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
 import { NoLeadMark } from '../../../components/NoLeadMark';
 import { RichText } from '../../../components/RichText';
 import { BOARD_COLUMNS, moveTargets } from '../../../lib/board';
+import { formatDay } from '../../../lib/dates';
+import { useLang } from '../../../app/lang';
 import { Group, PickRow, SwitchRow, ValueRow } from './DetailRows';
+import { DateNotes } from './TaskNeeds';
+import { Checklist } from './TaskParts';
 import { personOption, TaskHelpers } from './TaskHelpers';
+import { durationText, TaskTiming } from './TaskTiming';
 import type { TaskPanel } from './useTaskPanel';
 
 /** The people of the to-do: the lead, then the helpers and the row that adds one. */
@@ -50,6 +55,32 @@ function People({ panel }: { panel: TaskPanel }) {
         canEdit={viewerCan.editAll}
         onChange={(helperIds) => patch({ helperIds })}
       />
+    </Group>
+  );
+}
+
+/** The dates: Start, Timing and Due (or Duration). A person who cannot change the dates reads plain rows. */
+function When({ panel }: { panel: TaskPanel }) {
+  const { t } = useTranslation();
+  const lang = useLang();
+  const { task, canDates, patch, timingKey, failures } = panel;
+  return (
+    <Group title={t('phoneTask.groupWhen')}>
+      {canDates ? (
+        <TaskTiming
+          layout="rows"
+          key={`${timingKey}-${failures}`}
+          idPrefix="task"
+          value={{ startDate: task.startDate ?? null, schedule: task.schedule ?? 'static', durationDays: task.durationDays ?? null, dueDate: task.dueDate }}
+          onPatch={patch}
+        />
+      ) : (
+        <>
+          <ValueRow label={t('taskSheet.startDate')}>{task.startDate ? formatDay(task.startDate, lang, 'long') : t('overview.none')}</ValueRow>
+          <ValueRow label={t('taskSheet.dueDate')}>{task.dueDate ? formatDay(task.dueDate, lang, 'long') : t('overview.none')}</ValueRow>
+          {task.schedule === 'dynamic' && task.durationDays && <ValueRow label={t('taskSheet.duration')}>{durationText(task.durationDays, t)}</ValueRow>}
+        </>
+      )}
     </Group>
   );
 }
@@ -134,7 +165,10 @@ export function PhoneDetails({ panel }: { panel: TaskPanel }) {
   return (
     <div className="flex flex-col gap-5">
       <People panel={panel} />
+      <When panel={panel} />
+      <DateNotes data={panel.data} />
       <ThisTodo panel={panel} />
+      <Checklist rows key={panel.failures} task={panel.task} edit={panel.canDetails} tick={panel.viewerCan.contribute} onChange={(checklist) => panel.patch({ checklist })} draft={panel.checklistDraft} />
     </div>
   );
 }

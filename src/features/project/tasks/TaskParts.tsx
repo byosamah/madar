@@ -16,6 +16,7 @@ import { CircleCheckIcon } from '../../../components/icons/animated/circle-check
 import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
 import { canPreview, PreviewSheet } from '../files/PreviewSheet';
+import { Group } from './DetailRows';
 import type { DragChecklistProps } from './ChecklistDrag';
 import { loadChecklistLayer, loadedChecklistLayer } from './checklistLayerLoader';
 import { ChecklistRow, ItemGrip } from './ChecklistRow';
@@ -42,7 +43,11 @@ export const newItemId = () => `chk_${Date.now().toString(36)}${Math.random().to
  * edit: add and remove items (task.details). tick: tick items (task.work). With edit and no tick the boxes show and stay off.
  * Otherwise the list is plain text (role rights version 2).
  */
-export function Checklist({ task, edit, tick, onChange, draft }: { task: Task; edit: boolean; tick: boolean; onChange: (items: ChecklistItem[]) => void; draft: MutableRefObject<ChecklistDraft> }) {
+export function Checklist({ task, edit, tick, onChange, draft, rows = false }: {
+  task: Task; edit: boolean; tick: boolean; onChange: (items: ChecklistItem[]) => void; draft: MutableRefObject<ChecklistDraft>;
+  /** The phone layout (Direction D): the items are rows of a Group titled "Checklist · n of m". The desk layout is the default. */
+  rows?: boolean;
+}) {
   const { t } = useTranslation();
   const [text, setText] = useState('');
   // A local copy, so two quick ticks build on each other before the saved list comes back.
@@ -84,49 +89,62 @@ export function Checklist({ task, edit, tick, onChange, draft }: { task: Task; e
     mark.current = null;
     restoreFocus(listRef.current, kept);
   }, [Layer]);
-  return (
-    <section className="flex flex-col gap-1">
-      <h3 className="text-headline">{t('taskSheet.checklist')}</h3>
-      {!edit && !tick && (
-        <ul>
+  const plain = !edit && !tick;
+  const list = (
+    <>
+      {plain && (
+        <ul className={rows ? 'hairline' : undefined}>
           {items.map((item) => (
-            <li key={item.id} className="flex min-h-11 items-center gap-3">
+            <li key={item.id} className={`flex items-center gap-3 ${rows ? 'min-h-12 px-4 py-1' : 'min-h-11'}`}>
               {item.done ? <AnimatedIcon icon={CircleCheckIcon} size={20} className="shrink-0 text-link" aria-hidden /> : <AnimatedIcon icon={CircleIcon} size={20} className="shrink-0 text-label-3" aria-hidden />}
-              <span dir="auto" className={`min-w-0 flex-1 ${item.done ? 'text-label-2 line-through' : ''}`}>{item.text}</span>
+              <span dir="auto" className={`min-w-0 flex-1 ${rows ? 'break-words' : ''} ${item.done ? 'text-label-2 line-through' : ''}`}>{item.text}</span>
               {item.done && <span className="sr-only">{t('common.done')}</span>}
             </li>
           ))}
         </ul>
       )}
-      {(edit || tick) && (Layer && sortable ? (
-        <Layer items={items} edit={edit} tick={tick} onToggle={toggle} onRemove={remove} onReorder={change} listRef={listRef} />
+      {!plain && (Layer && sortable ? (
+        <Layer items={items} edit={edit} tick={tick} onToggle={toggle} onRemove={remove} onReorder={change} listRef={listRef} rows={rows} />
       ) : (
-        <ul ref={listRef}>
+        <ul ref={listRef} className={rows ? 'hairline' : undefined}>
           {items.map((item) => (
-            <ChecklistRow key={item.id} item={item} edit={edit} tick={tick} onToggle={toggle} onRemove={remove} drag={sortable ? { lifted: false, grip: <ItemGrip text={item.text} /> } : undefined} />
+            <ChecklistRow key={item.id} item={item} edit={edit} tick={tick} onToggle={toggle} onRemove={remove} rows={rows} drag={sortable ? { lifted: false, grip: <ItemGrip text={item.text} rows={rows} /> } : undefined} />
           ))}
         </ul>
       ))}
-      {edit && (
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            const value = text.trim();
-            if (!value) return;
-            change([...items, { id: newItemId(), text: value, done: false }]);
-            setText('');
-          }}
-        >
-          <input
-            aria-label={t('taskSheet.addItem')}
-            placeholder={t('taskSheet.addItem')}
-            value={text}
-            dir="auto"
-            onChange={(event) => setText(event.target.value)}
-            className="field"
-          />
-        </form>
-      )}
+    </>
+  );
+  const add = edit && (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        const value = text.trim();
+        if (!value) return;
+        change([...items, { id: newItemId(), text: value, done: false }]);
+        setText('');
+      }}
+    >
+      <input
+        aria-label={t('taskSheet.addItem')}
+        placeholder={t('taskSheet.addItem')}
+        value={text}
+        dir="auto"
+        onChange={(event) => setText(event.target.value)}
+        className={rows ? 'min-h-12 w-full bg-transparent px-4 text-body outline-none placeholder:text-ink-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-link' : 'field'}
+      />
+    </form>
+  );
+  if (rows) {
+    // A read only list with no item takes no room.
+    if (items.length === 0 && !edit) return null;
+    const done = items.filter((item) => item.done).length;
+    return <Group title={items.length > 0 ? t('phoneTask.checklistCount', { done, count: items.length }) : t('taskSheet.checklist')}>{list}{add}</Group>;
+  }
+  return (
+    <section className="flex flex-col gap-1">
+      <h3 className="text-headline">{t('taskSheet.checklist')}</h3>
+      {list}
+      {add}
     </section>
   );
 }

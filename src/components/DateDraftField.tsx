@@ -20,6 +20,10 @@ type Props = {
   max?: string;
   /** The words of an empty field, in place of "Set date…" (the paused banner says "Set a new date"). */
   emptyText?: string;
+  /** `end` puts the short date at the end of the field (a grouped row of the phone panel). Default `start`. */
+  align?: 'start' | 'end';
+  /** Makes the clear control a 44 px target. Default false. */
+  touchClear?: boolean;
 };
 
 /** A full date in a year from 2000. While a person types a year, the browser reports years like 0002. */
@@ -36,7 +40,7 @@ const savable = (day: string) => /^\d{4}-\d{2}-\d{2}$/.test(day) && Number(day.s
  *
  * A date in a form that saves with its own button is `DateField`. Both take the quiet look from `DateField.tsx`.
  */
-export function DateDraftField({ id, label, error, hint, className = '', value, onCommit, disabled, hideLabel = false, min, max, emptyText }: Props) {
+export function DateDraftField({ id, label, error, hint, className = '', value, onCommit, disabled, hideLabel = false, min, max, emptyText, align, touchClear }: Props) {
   const lang = useLang();
   const input = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState(value);
@@ -169,10 +173,11 @@ export function DateDraftField({ id, label, error, hint, className = '', value, 
             if (!typing && !['Tab', 'Shift', 'Escape'].includes(event.key)) setTyping(true);
           }}
         />
-        {!typing && <DateFace shown={shown} roomForClear={canClear} invalid={Boolean(error)} empty={emptyText} />}
+        {!typing && <DateFace shown={shown} roomForClear={canClear} invalid={Boolean(error)} empty={emptyText} align={align} />}
         {!typing && canClear && (
           <ClearDate
             label={label}
+            touch={touchClear}
             onClear={() => {
               setDraft('');
               commit('');

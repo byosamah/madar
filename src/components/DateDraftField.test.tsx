@@ -167,3 +167,21 @@ describe('DateDraftField with a range', () => {
   });
 });
 
+// Direction D (the task panel on a phone): a date in a grouped row sits at the end of the row, and its clear control is a 44 px target.
+describe('DateDraftField in a row of the phone panel', () => {
+  it('puts the date at the end with align="end"', () => {
+    const { container } = render(<DateDraftField id="start" label="Start" value="2026-10-12" onCommit={() => undefined} align="end" hideLabel />);
+    const face = container.querySelector('span[aria-hidden]');
+    expect(face).toHaveClass('justify-end');
+    const plain = render(<DateDraftField id="due" label="Due" value="2026-10-12" onCommit={() => undefined} />);
+    expect(plain.container.querySelector('span[aria-hidden]')).not.toHaveClass('justify-end');
+  });
+
+  it('makes the clear control 44 px with touchClear', () => {
+    const { rerender } = render(<DateDraftField id="start" label="Start" value="2026-10-12" onCommit={() => undefined} touchClear />);
+    expect(screen.getByRole('button', { name: 'Clear Start' })).toHaveClass('size-11');
+    rerender(<DateDraftField id="start" label="Start" value="2026-10-12" onCommit={() => undefined} />);
+    expect(screen.getByRole('button', { name: 'Clear Start' })).toHaveClass('size-8');
+  });
+});
+

@@ -4,6 +4,9 @@
     "markDone": "Mark done",
     "sendToReview": "Send to review",
     "groupPeople": "People",
-    "groupThis": "This to-do"
+    "groupThis": "This to-do",
+    "groupWhen": "When",
+    "timing": "Timing",
+    "checklistCount": "Checklist · {{done}} of {{count}}"
   }
 }
