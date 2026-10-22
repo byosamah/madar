@@ -3,6 +3,18 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-95": {
+        "title": "A role can see only its own projects",
+        "body": "Open Admin, then Roles. Turn off See every project for a role. The people of that role then see only the projects where they work."
+      },
+      "2026-10-23-94": {
+        "title": "Hide a project from the office",
+        "body": "Open the Team tab of a project. Choose who sees it: everyone in the office, or only the team and the people that you choose. A hidden project shows a small lock."
+      },
+      "2026-10-23-93": {
+        "title": "Internal projects",
+        "body": "Make a project for your own office work, like a portfolio. Choose Internal project when you make a new project. It has no client, code, place or payments. Only the team sees it."
+      },
       "2026-10-23-92": {
         "title": "Photos start to upload sooner",
         "body": "A big photo from your phone now starts to upload sooner, and the phone uses less memory while it gets ready."
