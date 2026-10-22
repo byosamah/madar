@@ -69,9 +69,9 @@ test('reduce motion stops the project row from growing', async ({ page }) => {
 test('reduce motion keeps the bars still while the page scrolls', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/#/');
-  // Home has no project list at 390 px (Direction D): wait for the card Next for you.
-  await expect(page.getByRole('region', { name: 'Next for you' })).toBeVisible();
+  // Home fits one screen at 390 px (Direction D has no project list there), so it does not scroll. The Projects list does.
+  await page.goto('/#/projects');
+  await expect(page.getByRole('list', { name: 'Projects' }).getByRole('link').first()).toBeVisible();
   await page.mouse.wheel(0, 600);
   await page.waitForTimeout(500);
   const moved = await page.evaluate(() => [...document.querySelectorAll('[data-compact]')].map((el) => {
