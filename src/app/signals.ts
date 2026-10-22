@@ -358,7 +358,8 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
     }
     // An own write shows at once, with whatever else waits. Others wait for the merge window. A message of another person waits only
     // for its twin signals while a chat is on screen (LV-3). While an own write is on the wire, the frame may be its echo (a direct chat
-    // signal names no person), so the full window holds: the own answer comes first and takes it (LV-2).
+    // or group signal names every member, the sender too, so the frame of another person looks the same), so the full window holds: the
+    // own answer comes first and takes it (LV-2).
     if (origin === 'channel' && chatBy === null && chatMs < mergeMs && signals.some((signal) => signal.kinds.includes('messages')) && chatOnScreen() && queryClient.isMutating() === 0) {
       chatBy = now() + chatMs;
     }

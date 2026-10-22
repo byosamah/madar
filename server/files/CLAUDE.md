@@ -48,8 +48,8 @@ server checks the final object, then saves the record.
   uses the files of its project. Who gets a link: exactly the people who read the messages of that chat (`assertMayViewChatFile`,
   `canSeeConversation`). The Admin who is not a member, a person who left, an agent, and everyone when the chat is gone get
   not_found, as for a missing file. An agent never opens a chat file, and no search, `files.list`, project page or History line
-  shows one. The file writes no History event. Its save sends the anonymous office signal of a private chat (`diffState`, kind
-  `files` in `PRIVATE_CHAT_KINDS`): no actor, no story, no person, no file and no chat in it, and no person signal. It cannot go into
+  shows one. The file writes no History event. Its save sends a person signal with the kind `files` to each member of the chat and no
+  office signal (`diffState`, `Diff.chatKinds`; owner 2026-10-21, replacing the anonymous office signal): no file and no chat in it. It cannot go into
   another chat, a task, a post or the Tracker (`file_chat`), and it is never deleted or shared. A second upload with the same name
   is a new file, not a new version.
 - A file of a meeting with no project (wave 2, owner 2026-10-19) sits under `meeting/<meeting>/<intent>/` (`meetingUploadKey`). Its intent has no

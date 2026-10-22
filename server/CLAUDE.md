@@ -200,9 +200,17 @@ The other host stays deployed as the way back. Each area below has its own guide
   private in the same way: its signals are person signals with no names, to the organizer (the person behind an agent) and the attendees,
   before and after the change. The Admin gets one only as one of those people. A save that touches office tasks and a private meeting
   sends the union of the two groups (the signal tells only kinds). `server/core/meetingsSignal.test.ts` proves it.
-- A save that touches only chats with no project (a direct chat or a group: kinds `messages`, `conversations`, `chatReads`,
-  `notifications`; `Diff.anonymous`) sends its office signal with no `actorId` and no `storyId`, so another browser learns that
-  somebody wrote, and not who (UX audit 2026-10-19, INT-16). A save that also touches a project keeps the names.
+- A direct chat or a group tells only its members (owner, 2026-10-21, perf2 SV-7 and DF-2; it replaces the anonymous office signal of
+  INT-16, UX audit 2026-10-19). `diffState` puts the records of such a chat in `Diff.chatKinds` (messages, the chat itself, its files, and
+  the read marks and notices of its people) and `Diff.chatPeople`: every member before and after the change, so a person taken out or
+  added hears it too (an agent member is mapped to its person), and the owner of each mark and notice. These kinds are never in
+  `publicKinds`, so no office signal tells them, and the save makes no `office_meta` update for them. `writeDiff` sends each person of
+  `chatPeople` one person signal with the kinds of the public part and the chat part, with its own id. The people of a save go in the
+  one `person_seq` statement and the one `realtime.send`, whatever their number (a group of 50 writes 50 `person_seq` rows). A project chat
+  keeps the office signal with the actor and the story. A save that also touches other kinds keeps its office signal for them, without
+  the chat part (`Diff.restKinds`, `Diff.publicOffice`). The old nameless office signal (`Diff.anonymous`) stays only as the fallback for
+  a message or file whose chat neither State holds. Tests: `core/chatSignalMembers.test.ts`, `core/chatSignalLeaks.test.ts`,
+  `data/save.test.ts`.
 - pg_cron calls `jobs/run` of the Supabase jobs function every 15 minutes, in both host settings (owner, 2026-10-16), with the
   secret header `x-madar-jobs-secret`. The Worker keeps `/jobs` mounted, but nothing calls it: pg_cron and the Vault
   `project_url` do not change. Steps (`jobs/steps/`):

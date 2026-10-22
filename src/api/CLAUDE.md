@@ -520,7 +520,8 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   the id of the person behind the call in `Message.reactions` (a missing record starts from `emptyReactions()`), for any person who may open
   the chat, in a closed chat too. It writes no event and no notice and leaves `createdAt` alone, so it makes no unread mark and no push. The
   output is a `CommentView` or a `MessageView`. The loader reads the message with `chatMessageRows`, and `WRITE_KINDS` adds `messages`.
-- The three calls name only the kinds `messages` and `notifications` (the reaction only `messages`), so their signals stay nameless (INT-16).
+- The three calls name only the kinds `messages` and `notifications` (the reaction only `messages`). In a direct chat or a group their signal goes
+  to the members only, as a person signal (owner, 2026-10-21; it replaces the nameless office signal of INT-16).
   MCP: edit, delete and the reaction are on the deny list.
 
 ## Meetings (owner, 2026-10-19, fbk_022)

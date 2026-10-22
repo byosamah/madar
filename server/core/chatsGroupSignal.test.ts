@@ -34,6 +34,7 @@ describe('the signals of chats.send in a group, with a file', () => {
     const made = await run(deps, { principal: { userId: ADMIN }, name: 'chats.createGroup', input: { name: 'Plan team', memberIds: [leader, member] }, batch: batch() });
     if (!made.ok) throw new Error(`createGroup failed: ${made.error.message}`);
     const group = (made.output as { id: string }).id;
+    deps.signal.sent.length = 0;
     const sent = await run(deps, {
       principal: { userId: ADMIN }, name: 'chats.send', input: { conversationId: group, body: 'SIGNAL-BODY-5521', fileIds: [file.id] }, batch: batch(),
     });
@@ -47,11 +48,15 @@ describe('the signals of chats.send in a group, with a file', () => {
       // The fields of a signal (wire.ts) hold ids of people and projects and the kinds of data, and nothing else.
       for (const key of Object.keys(signal)) expect(SIGNAL_KEYS.has(key), key).toBe(true);
     }
-    // The office signal names nobody: no member of the group and no project (as the signal of a direct message).
-    const everyone = (sent.signals ?? []).find((signal) => signal.channel === 'office')!;
-    expect(everyone.people).toEqual([]);
-    expect(everyone.projects).toEqual([]);
-    expect(everyone.kinds).toEqual(['chatReads', 'messages']);
+    // No office signal tells the message (owner, 2026-10-21): each member gets a person signal that names only that member, and no project.
+    expect(deps.signal.sent.some((signal) => signal.channel === 'office')).toBe(false);
+    for (const signal of deps.signal.sent) {
+      expect(signal.channel).toBe(`person:${signal.people[0]}`);
+      expect(signal.people).toHaveLength(1);
+      expect(signal.projects).toEqual([]);
+      expect(signal.kinds).toEqual(['chatReads', 'messages']);
+    }
+    expect(deps.signal.sent.map((signal) => signal.channel).sort()).toEqual(['person:usr_001', `person:${leader}`, `person:${member}`].sort());
   });
 
   // Owner, 2026-10-19: a chat file is private like a message. The send of a message that carries it tells no browser which file.
@@ -66,6 +71,7 @@ describe('the signals of chats.send in a group, with a file', () => {
     const made = await run(deps, { principal: { userId: ADMIN }, name: 'chats.createGroup', input: { name: 'Plan team', memberIds: people }, batch: batch() });
     if (!made.ok) throw new Error(`createGroup failed: ${made.error.message}`);
     const group = (made.output as { id: string }).id;
+    deps.signal.sent.length = 0;
     // The file is planted: the upload itself is a server call with its own tests (server/calls/chatFiles.test.ts).
     mem.tables.state.files.fil_960 = {
       id: 'fil_960', projectId: null, stageId: null, taskId: null, conversationId: group, name: 'Hidden-chat-photo-8812.jpg',
@@ -81,10 +87,12 @@ describe('the signals of chats.send in a group, with a file', () => {
       for (const hidden of ['fil_960', 'Hidden-chat-photo', group, ...people, 'SIGNAL-BODY-6642']) expect(text).not.toContain(hidden);
       for (const key of Object.keys(signal)) expect(SIGNAL_KEYS.has(key), key).toBe(true);
     }
-    const everyone = (sent.signals ?? []).find((signal) => signal.channel === 'office')!;
-    expect(everyone).not.toHaveProperty('actorId');
-    expect(everyone).not.toHaveProperty('storyId');
-    expect(everyone.people).toEqual([]);
-    expect(everyone.projects).toEqual([]);
+    // No office signal; each person signal names only its member and no project.
+    expect(deps.signal.sent.some((signal) => signal.channel === 'office')).toBe(false);
+    expect(deps.signal.sent.map((signal) => signal.channel).sort()).toEqual([ADMIN, ...people].map((id) => `person:${id}`).sort());
+    for (const signal of deps.signal.sent) {
+      expect(signal.people).toHaveLength(1);
+      expect(signal.projects).toEqual([]);
+    }
   });
 });

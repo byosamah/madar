@@ -1,4 +1,4 @@
-import type { Meeting, Task } from '../../src/api/contract/entities';
+import type { Conversation, Meeting, Task } from '../../src/api/contract/entities';
 import { rightsOf } from '../../src/api/rights';
 import type { State } from '../../src/api/store';
 import type { Query } from '../core/ports';
@@ -25,6 +25,10 @@ import { TABLES, type TableSpec } from './tables';
  *   projects and office flag. The office signal names nobody (people is empty), so the office channel never tells who reads or
  *   chats with whom; a person signal names only its person. A save that changes an office task sends that part to the people
  *   of the task and the Admins with a second id, every kind and no actor or story (see writeDiff, review 2026-10-06).
+ * - A direct chat or a group (owner, 2026-10-21, perf2 SV-7 and DF-2, it replaces the anonymous office signal of INT-16): the office
+ *   signal never tells that part. Each member of each chat that the save touched, before and after it (a person taken out or added
+ *   hears it too), gets a person signal with the kinds of that part, with a second id. The other open tabs reload nothing for it.
+ *   All these signals go in the one person_seq statement and the one send of the save.
  */
 
 type Rec = Record<string, unknown>;
@@ -79,11 +83,22 @@ export type Diff = {
    */
   privateOnly: boolean;
   /**
-   * True when the change touched only chats that belong to no project (a direct chat or a group) and the marks and notices of their
-   * people. Its office signal names no actor and no story, so a browser of another person learns that somebody wrote, and not who
-   * (UX audit 2026-10-19, INT-16).
+   * The old rule of INT-16 (UX audit 2026-10-19), now only the safe fallback: true when the change touched chats with no project that
+   * the save could not find (a message whose chat neither State holds) and nothing else. Its office signal names no actor and no
+   * story. A found direct chat or group never comes here: it has chatKinds and chatPeople, and sends no office signal.
    */
   anonymous: boolean;
+  /**
+   * The kinds of the direct chats and groups that the change touched (owner, 2026-10-21): their messages, the chats themselves, their
+   * files, and the read marks and notices of their people. They are in `kinds`, and never in `publicKinds`, so no office signal tells them.
+   */
+  chatKinds: Set<Kind>;
+  /** The people who hear that part: the members of each touched chat before and after the change, and the owner of each mark and notice. */
+  chatPeople: Set<string>;
+  /** The kinds of every record that is no part of a direct chat or a group. */
+  restKinds: Set<Kind>;
+  /** The office flag of the records that are no part of a direct chat or a group: the office signal tells only this one. */
+  publicOffice: boolean;
 };
 
 export type SaveResult = {
@@ -110,8 +125,9 @@ export type SaveOptions = { story?: SignalMeta; signals?: boolean };
 
 const PERSONAL_KINDS = new Set<Kind>(['chatReads', 'notifications', 'preferences']);
 /**
- * The kinds that a direct chat or a group writes (UX audit 2026-10-19, INT-16): a save of these kinds alone names no actor in its
- * signal. A file of such a chat is one of them (owner, 2026-10-19); a file of a project has a project, so it never counts here.
+ * The kinds that a direct chat or a group writes (UX audit 2026-10-19, INT-16): the fallback rule names no actor in the office signal
+ * of a save of these kinds alone. A file of such a chat is one of them (owner, 2026-10-19); a file of a project has a project, so it
+ * never counts here.
  */
 const PRIVATE_CHAT_KINDS = new Set<Kind>(['messages', 'conversations', 'chatReads', 'notifications', 'files']);
 /** The collections whose records belong to no project. A change of one of them is an office change. */
@@ -191,7 +207,14 @@ export function diffState(before: State, after: State): Diff {
   const people = new Set<string>();
   const unresolvedComments: Diff['unresolvedComments'] = [];
   const preferencesOnly = new Set<string>();
+  /** The direct chats and groups part (owner, 2026-10-21): its kinds, and the people who hear it. No office signal tells it. */
+  const chatKinds = new Set<Kind>();
+  const chatPeople = new Set<string>();
+  /** The kinds of every record that is no part of a direct chat or a group. */
+  const restKinds = new Set<Kind>();
   let office = false;
+  /** The office flag of the records that are no part of a direct chat or a group. */
+  let publicOffice = false;
   let officeRows = false;
   let meta: SignalMeta | undefined;
   /** The office tasks that the change touched: the task, its comments, its files and their events (owner, 2026-10-06). */
@@ -201,9 +224,36 @@ export function diffState(before: State, after: State): Diff {
   /** Comments whose target neither State holds: their event tells whether they belong to an office task. */
   const pendingComments: { id: string; row: Row | undefined; deleted: boolean; targetType: string; targetId: string }[] = [];
 
+  /** The person that a signal or a notice goes to: the person behind an agent, else the user. */
+  const principal = (id: string): string => {
+    const user = after.users[id] ?? before.users[id];
+    return user?.kind === 'agent' && user.ownerId ? user.ownerId : id;
+  };
+  const markOffice = () => {
+    office = true;
+    publicOffice = true;
+  };
   const addProject = (projectId: unknown) => {
     if (typeof projectId === 'string' && projectId !== '') projects.add(projectId);
-    else office = true;
+    else markOffice();
+  };
+  /** The direct chat or group with this id in either State; a project chat and an unknown id give undefined. */
+  const privateChat = (id: unknown): Conversation | undefined => {
+    if (typeof id !== 'string') return undefined;
+    const found = after.conversations[id] ?? before.conversations[id];
+    return found && found.kind !== 'project' ? found : undefined;
+  };
+  /** A kind of a direct chat or a group part: it goes to the people of that part only (owner, 2026-10-21). */
+  const chatPart = (kind: Kind) => {
+    kinds.add(kind);
+    chatKinds.add(kind);
+  };
+  /** Every member of the chat before and after the change: a person taken out or added hears it too. */
+  const chatMembers = (chat: Conversation) => {
+    office = true;
+    for (const conversation of [before.conversations[chat.id], after.conversations[chat.id]]) {
+      for (const id of conversation?.memberIds ?? []) chatPeople.add(principal(id));
+    }
   };
   const taskOf = (id: unknown): Rec | undefined => (typeof id === 'string' ? (after.tasks[id] ?? before.tasks[id]) as Rec | undefined : undefined);
   const isOfficeTask = (id: unknown): boolean => taskOf(id)?.projectId === null;
@@ -212,25 +262,31 @@ export function diffState(before: State, after: State): Diff {
   /** A kind of the project part (or the office) of the change, which the office signal may tell. */
   const pub = (kind: Kind) => {
     kinds.add(kind);
+    restKinds.add(kind);
     publicKinds.add(kind);
   };
   /** A kind of the office task part, which only the people of the task hear (review 2026-10-06). */
-  const priv = (kind: Kind) => kinds.add(kind);
+  const priv = (kind: Kind) => {
+    kinds.add(kind);
+    restKinds.add(kind);
+  };
 
   /**
    * A look that moves the seen time (chat presence design C4, base B3) also signals the authors whose message it made seen: the person
    * behind the author of each live message of the chat that is newer than the old seen time and not newer than the new one. The kind
    * stays chatReads (personal), so the office hears nothing. A message of an agent signals the person the agent acts for.
    */
-  function seenSignal(old: Rec | undefined, rec: Rec): void {
+  function seenSignal(old: Rec | undefined, rec: Rec, chat: boolean): void {
     const now = typeof rec.seenAt === 'string' ? rec.seenAt : '';
     const was = old && typeof old.seenAt === 'string' ? old.seenAt : '';
     if (now === '' || now <= was) return;
     for (const message of Object.values(after.messages)) {
       if (message.conversationId !== rec.conversationId || message.deletedAt || message.createdAt <= was || message.createdAt > now) continue;
-      const author = after.users[message.authorId] ?? before.users[message.authorId];
-      const principal = author?.kind === 'agent' && author.ownerId ? author.ownerId : message.authorId;
-      if (principal !== rec.userId) people.add(principal);
+      const person = principal(message.authorId);
+      if (person === rec.userId) continue;
+      people.add(person);
+      // The author of a message in a direct chat or a group hears it as a member of that part (owner, 2026-10-21).
+      if (chat) chatPeople.add(person);
     }
   }
 
@@ -249,7 +305,7 @@ export function diffState(before: State, after: State): Diff {
           preferencesOnly.add(id);
         } else {
           pub('users');
-          office = true;
+          markOffice();
         }
         if (old && rec && preferencesChanged) {
           pub('preferences');
@@ -258,18 +314,29 @@ export function diffState(before: State, after: State): Diff {
         return;
       }
       case 'notifications':
-      case 'chatReads':
+      case 'chatReads': {
+        let inChat = false;
         for (const side of sides) {
           // A notice of an office task, or a read mark of its thread, is of the office task part.
           const officeSide = spec.collection === 'notifications' ? side.targetType === 'task' && isOfficeTask(side.targetId) : isOfficeTask(side.conversationId);
           // A notice of a meeting with no project is of the private meeting part (fbk_022).
           const privateMeeting = spec.collection === 'notifications' && side.targetType === 'meeting' && isPrivateMeeting(side.targetId);
           if (privateMeeting) officeMeetings.add(side.targetId as string);
-          (officeSide || privateMeeting ? priv : pub)(spec.collection);
+          // A mark or a notice of a direct chat or a group is of the chat part: only its owner hears it, with the kinds of that part.
+          const chat = !officeSide && !privateMeeting
+            && privateChat(spec.collection === 'notifications' ? (side.targetType === 'chat' ? side.targetId : undefined) : side.conversationId);
+          if (chat) {
+            chatPart(spec.collection);
+            chatPeople.add(principal(side.userId as string));
+            inChat = true;
+          } else {
+            (officeSide || privateMeeting ? priv : pub)(spec.collection);
+          }
           people.add(side.userId as string);
         }
-        if (spec.collection === 'chatReads' && rec) seenSignal(old, rec);
+        if (spec.collection === 'chatReads' && rec) seenSignal(old, rec, inChat);
         return;
+      }
       case 'meetings':
         for (const side of sides) {
           // A meeting with no project belongs to its people: no project and no office signal. A project meeting belongs to its project.
@@ -309,10 +376,28 @@ export function diffState(before: State, after: State): Diff {
         // office signal. The row is still written.
         return;
       case 'messages':
-        pub('messages');
         for (const side of sides) {
           const conversationId = side.conversationId as string;
-          addProject((after.conversations[conversationId] ?? before.conversations[conversationId])?.projectId);
+          const chat = privateChat(conversationId);
+          if (chat) {
+            // A message of a direct chat or a group goes to the members of that chat and to nobody else (owner, 2026-10-21).
+            chatPart('messages');
+            chatMembers(chat);
+          } else {
+            pub('messages');
+            addProject((after.conversations[conversationId] ?? before.conversations[conversationId])?.projectId);
+          }
+        }
+        return;
+      case 'conversations':
+        for (const side of sides as unknown as Conversation[]) {
+          if (side.kind !== 'project') {
+            chatPart('conversations');
+            chatMembers(side);
+          } else {
+            pub('conversations');
+            addProject(side.projectId);
+          }
         }
         return;
       case 'events':
@@ -337,7 +422,7 @@ export function diffState(before: State, after: State): Diff {
       default:
         if (OFFICE_SCOPE.has(spec.collection)) {
           pub(spec.collection);
-          office = true;
+          markOffice();
         } else {
           for (const side of sides) {
             // An office task, and a file of one, belong to the task (owner, 2026-10-06).
@@ -353,11 +438,17 @@ export function diffState(before: State, after: State): Diff {
               priv(spec.collection);
               officeMeetings.add(side.meetingId);
             } else if (spec.collection === 'files' && side.projectId === null && typeof side.conversationId === 'string') {
-              // A file of a direct chat or a group (owner, 2026-10-19) is private like a message (PRIVATE_CHAT_KINDS): it belongs to no
-              // project and no task, so the save touches the office, and its office signal names no actor and no story. The signal
-              // holds the kind "files" and nothing else: no file id, no file name, no chat and no person.
-              pub(spec.collection);
-              office = true;
+              // A file of a direct chat or a group (owner, 2026-10-19) is private like a message: it belongs to no project and no task. It
+              // goes to the members of the chat only (owner, 2026-10-21). The signal holds the kind "files" and nothing else: no file id,
+              // no file name and no chat. A chat that neither State holds keeps the old anonymous office signal.
+              const chat = privateChat(side.conversationId);
+              if (chat) {
+                chatPart(spec.collection);
+                chatMembers(chat);
+              } else {
+                pub(spec.collection);
+                markOffice();
+              }
             } else {
               pub(spec.collection);
               addProject(side.projectId);
@@ -419,17 +510,13 @@ export function diffState(before: State, after: State): Diff {
     } else {
       pub('comments');
       if (comment.row) unresolvedComments.push({ id: comment.id, targetType: comment.targetType, targetId: comment.targetId });
-      else if (comment.deleted) office = true;
+      else if (comment.deleted) markOffice();
     }
   }
 
   // The people of each office task the change touched, before and after it (a person taken off still gets the signal that
   // drops the task from their lists), and every active holder of task.officeAll (the Admin holds it). A deleted task tells its people through its last copy.
   const privatePeople = new Set<string>();
-  const principal = (id: string): string => {
-    const user = after.users[id] ?? before.users[id];
-    return user?.kind === 'agent' && user.ownerId ? user.ownerId : id;
-  };
   for (const id of officeTasks) {
     const copies = [before.tasks[id], after.tasks[id]].filter((task): task is Task => task !== undefined);
     for (const task of copies.length > 0 ? copies : [deletedTaskCopy(after, id)].filter((task): task is Task => task !== undefined)) {
@@ -467,8 +554,13 @@ export function diffState(before: State, after: State): Diff {
     privatePeople,
     publicKinds,
     anonymous,
-    // A comment whose project writeDiff still looks up may belong to a project, so it keeps the office signal.
-    privateOnly: (officeTasks.size > 0 || officeMeetings.size > 0) && !office && projects.size === 0 && unresolvedComments.length === 0,
+    chatKinds,
+    chatPeople,
+    restKinds,
+    publicOffice: personal ? false : publicOffice,
+    // A comment whose project writeDiff still looks up may belong to a project, so it keeps the office signal. A chat part has its own
+    // signal and does not count here.
+    privateOnly: (officeTasks.size > 0 || officeMeetings.size > 0) && !publicOffice && projects.size === 0 && unresolvedComments.length === 0,
   };
 }
 
@@ -494,6 +586,7 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
   const story = o.story ?? diff.meta;
   const projects = new Set(diff.projects);
   let office = diff.office;
+  let publicOffice = diff.publicOffice;
   const changed = diff.tables.length > 0 || Object.keys(diff.counters).length > 0;
   const result = (fields: Partial<SaveResult> = {}): SaveResult => ({
     changed, kinds: new Set(diff.kinds), projects, office, people: new Set(diff.people), bytesWritten: 0, signals: [],
@@ -516,7 +609,10 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
       const row = rows.get(comment.id);
       if (row) row.columns = { ...row.columns, project_id: projectId };
       if (projectId) projects.add(projectId);
-      else if (!diff.personal) office = true;
+      else if (!diff.personal) {
+        office = true;
+        publicOffice = true;
+      }
     }
   }
 
@@ -550,7 +646,9 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
     await q(COUNTERS_UPSERT_SQL, [param]);
   }
 
-  const people = [...new Set([...diff.people, ...(diff.privateChange ? diff.privatePeople : [])])].sort();
+  // The people of a direct chat or a group join the list (owner, 2026-10-21): they get the signal in place of an office signal. One statement
+  // counts all their topics, whatever the number of people.
+  const people = [...new Set([...diff.people, ...(diff.privateChange ? diff.privatePeople : []), ...diff.chatPeople])].sort();
   let personSeq = new Map<string, number>();
   if (signalsOn && diff.kinds.size > 0 && people.length > 0) {
     const rows = await q<{ user_id: string; seq: string | number }>(PERSON_SEQ_SQL, [people]);
@@ -565,16 +663,28 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
     // The project part: the office signal and the person signals of other people, with the actor and the story, and only the
     // kinds of that part. The office task part: one signal with its own id for each person of the task and each Admin, with every
     // kind and no names (review 2026-10-06). The screens match their own changes by the signal id.
-    const shared = { v: 1 as const, projects: [...projects].sort(), office };
+    const shared = { v: 1 as const, projects: [...projects].sort(), office: publicOffice };
     const publicBase = {
       ...shared, id: crypto.randomUUID(), kinds: [...diff.publicKinds].sort(), storyId: story.storyId, actorId: story.actorId,
     };
-    // A save of only private chat kinds sends the office signal with no actor and no story, so the office does not learn who
-    // wrote to whom (INT-16). The person signals keep both: each one goes to one person only.
+    // A chat that the save could not find keeps the old rule of INT-16: the office signal has no actor and no story. A found direct chat
+    // or group sends no office signal at all (owner, 2026-10-21).
     const { storyId: _story, actorId: _actor, ...nameless } = publicBase;
     const officeBase = diff.anonymous ? nameless : publicBase;
-    const privateBase = diff.privateChange ? { ...shared, id: crypto.randomUUID(), kinds: [...diff.kinds].sort() } : null;
-    const baseOf = (userId: string) => (privateBase && (diff.privateOnly || diff.privatePeople.has(userId)) ? privateBase : publicBase);
+    // The office task part: every kind of the records that are no chat part. A member of a chat touched by the save also hears the chat
+    // kinds, in one signal with its own id (the screens drop a later signal with a known id, so it never shares the id of the office signal).
+    const privateBase = diff.privateChange ? { ...shared, id: crypto.randomUUID(), kinds: [...diff.restKinds].sort() } : null;
+    const memberOf = { ...shared, office, id: crypto.randomUUID(), storyId: story.storyId, actorId: story.actorId };
+    const chatBase = diff.chatPeople.size > 0 ? { ...memberOf, kinds: [...new Set([...diff.publicKinds, ...diff.chatKinds])].sort() } : null;
+    // A person of both parts hears all kinds in the signal of the office task part, which names no actor and no story.
+    const chatPrivateBase = diff.chatPeople.size > 0 && privateBase
+      ? { ...shared, office, id: privateBase.id, kinds: [...diff.kinds].sort() }
+      : null;
+    const baseOf = (userId: string) => {
+      const inPrivate = privateBase !== null && (diff.privateOnly || diff.privatePeople.has(userId));
+      if (diff.chatPeople.has(userId)) return inPrivate && chatPrivateBase ? chatPrivateBase : chatBase!;
+      return inPrivate ? privateBase! : publicBase;
+    };
     if (officeSignal) signals.push({ ...officeBase, channel: 'office', seq: officeSeq, people: [] });
     for (const userId of people) signals.push({ ...baseOf(userId), channel: `person:${userId}`, seq: personSeq.get(userId) ?? 0, people: [userId] });
   }
