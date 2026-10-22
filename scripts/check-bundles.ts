@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -8,7 +9,7 @@ import { fileURLToPath } from 'node:url';
  * remote: no sample office and no relative ./assets/ path in index.html, because path links need base '/'.
  * The sample office check looks for names from src/data/seed.ts: minification renames buildSeed, but string literals stay.
  * remote, the first load (performance audit 2026-10-07): the scripts that index.html starts hold no chart code, no zod
- * schemas, no words and no emoji data, and stay under FIRST_LOAD_MAX_BYTES. index.html starts the bootstrap chunk, the three Thmanyah
+ * schemas, no words and no emoji data, none of the LAZY_MARKERS, and stay under FIRST_LOAD_MAX_BYTES, FIRST_LOAD_MAX_GZIP and FIRST_LOAD_MAX_FILES. index.html starts the bootstrap chunk, the three Thmanyah
  * files and a connection to each Supabase origin. The vendor and supabase chunks import no app chunk, so their names stay
  * the same over a release that changes only app code.
  * prototype: no Supabase code, no _headers file, one script file, and none of the links of the remote build, so the
@@ -41,8 +42,15 @@ function walk(dir: string): string[] {
 /** Names that only the sample office holds (src/data/seed.ts). A test checks that the seed still holds each one. */
 export const SEED_MARKERS = ['Hala Nasser', 'Faisal Al-Harbi', 'Corniche Office Tower'] as const;
 
-/** The size limit of the scripts of the first load of the remote build (BND-1: about 1,294,000 B after the split). */
-export const FIRST_LOAD_MAX_BYTES = 1_350_000;
+/**
+ * The limits of the scripts of the first load of the remote build (BND-1, FL-11). Each one sits about 3 percent above the real size
+ * after the speed release of 2026-10-21: 985,040 B raw, 302,322 B gzip (level 9, one file at a time, summed) and 33 files. The old
+ * limit of 1,350,000 B sat 113 KB above the real size, so the growth of 2026-10-08 to 2026-10-20 passed. A change that adds code to
+ * the first load fails here. Then lazy-load the code, or raise the limit in the same commit with the reason.
+ */
+export const FIRST_LOAD_MAX_BYTES = 1_015_000;
+export const FIRST_LOAD_MAX_GZIP = 312_000;
+export const FIRST_LOAD_MAX_FILES = 34;
 
 /** Text that only the chart package (recharts), the zod schemas and the word files hold. A test checks the word files. */
 export const CHART_MARKER = 'recharts-wrapper';
@@ -51,6 +59,16 @@ export const ZOD_MARKER = '$ZodObject';
 export const MAP_LIBRARY_MARKER = 'maplibregl-';
 /** Text that only the data of the emoji panel holds (chat presence design D8, track emoji E2): the panel loads at its first open. */
 export const EMOJI_MARKER = 'grinning face';
+/**
+ * Text that only code which must stay lazy holds (FL-11). Each marker is a string that the minifier keeps. The first load never holds it:
+ * the log of chat messages (`[data-new-line]` of MessageLog), the drawer package of the sheets (`data-vaul-drawer`, in the overlay
+ * chunk) and the Supabase storage client (`StorageUnknownError`, which the stand-in of FL-5 keeps out of the build).
+ */
+export const LAZY_MARKERS = [
+  { label: "chat message log ('[data-new-line]')", marker: '[data-new-line]' },
+  { label: "sheet drawer package ('data-vaul-drawer')", marker: 'data-vaul-drawer' },
+  { label: "Supabase storage client ('StorageUnknownError')", marker: 'StorageUnknownError' },
+] as const;
 export const WORD_MARKERS = {
   en: 'Something went wrong on this page. Go to Home and try again.',
   ar: 'حدث خطأ في هذه الصفحة. انتقل إلى الرئيسية وحاول مرة أخرى.',
@@ -182,10 +200,22 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
     none("map library ('maplibregl-')", [MAP_LIBRARY_MARKER]);
     // The emoji panel and its data (about 360 KB) load at its first open, in a chunk of its own (chat presence design D8).
     none("emoji data ('grinning face')", [EMOJI_MARKER]);
+    for (const { label, marker } of LAZY_MARKERS) none(label, [marker]);
     rule(
       `the first-load scripts stay at ${FIRST_LOAD_MAX_BYTES} B or less`,
       bytes > FIRST_LOAD_MAX_BYTES ? [`${closure.length} files hold ${bytes} B`] : [],
       `${closure.length} files, ${bytes} B`,
+    );
+    const gzipBytes = closure.reduce((sum, name) => sum + gzipSync(scripts.get(name) ?? '', { level: 9 }).length, 0);
+    rule(
+      `the first-load scripts gzip to ${FIRST_LOAD_MAX_GZIP} B or less`,
+      gzipBytes > FIRST_LOAD_MAX_GZIP ? [`${closure.length} files gzip to ${gzipBytes} B`] : [],
+      `${closure.length} files, ${gzipBytes} B`,
+    );
+    rule(
+      `the first load starts ${FIRST_LOAD_MAX_FILES} files or fewer`,
+      closure.length > FIRST_LOAD_MAX_FILES ? [`${closure.length} files`] : [],
+      `${closure.length} files`,
     );
   }
 

@@ -43,8 +43,11 @@ any screen work.
   keeps its session under its own localStorage key (`SESSION_KEYS`: `madar.auth` for Supabase, `madar.session` for Madar);
   `main.tsx` and the deploy specs read the key of the build's port (`hasStoredSession`), never a fixed name.
 - `scripts/check-bundles.ts <remote|prototype|server> [folder]`: the remote build holds no sample names. Its first load (the
-  scripts of index.html, their static imports and the modulepreload links) holds no chart code, no zod schemas and no words,
-  and stays at 1,350,000 B or less. Its index.html preloads the bootstrap chunk and its imports, the three Thmanyah files and
+  scripts of index.html, their static imports and the modulepreload links) holds no chart code, no zod schemas, no words, and
+  none of the markers of code that must stay lazy (`LAZY_MARKERS`: the chat message log, the vaul drawer, the Supabase storage
+  client). It stays at 1,015,000 B raw, 312,000 B gzip (level 9, each file) and 34 files or fewer (FL-11: the real size after the
+  speed release is 985,040 B, 302,322 B and 33 files, so a limit sits about 3 percent above it; a change that adds first-load code
+  fails there). Its index.html preloads the bootstrap chunk and its imports, the three Thmanyah files and
   a connection to each Supabase origin. The vendor, overlay and supabase chunks import no app chunk. The prototype build holds no
   "supabase", is one script file, and its index.html has no early link. The preconnect rule runs only with `VITE_SUPABASE_URL`
   or a full `VITE_API_URL` set (`build:remote` sets them; the page's own `/api` needs no preconnect). A red "no zod schemas" line: a first-load file imports from
