@@ -2465,3 +2465,15 @@ Not proven: a real iPhone. After the deploy, wait 11 minutes on an iPhone, press
 - The read of a file from the page: the EU bucket `madar-files` (`wrangler r2 bucket cors list madar-files --jurisdiction eu`) allows
   `PUT, GET` from madar.vado.sa, and a preflight to `<account>.eu.r2.cloudflarestorage.com` answers 204 with
   `Access-Control-Allow-Origin: https://madar.vado.sa`. A probe of the host without `.eu.` answers 403: always use the EU host.
+
+### Release record: production at 9fba0e25 (2026-10-22, phone Direction D and the icon-only tab bar)
+- On the owner's "it works, release to production" (2026-10-22, after his try on the test copy), `all.sh production` took 9fba0e25 at
+  21:14: phone Direction D (Today, Inbox, Work and Me; 63847d10), the 4 deploy-suite fixes of `rb/phone-d-suitefix` (test files and
+  `tests/CLAUDE.md` only), and the icon-only tab bar that the owner asked for during his try (48 px tabs, 24 px block icons in the middle,
+  a 60 px bar, What's new 2026-10-23-99 names each icon). Screens only, no migration. The quick checks passed: health from supabase,
+  database, lock and asyncContext ok, /mcp with no token 401; the page title Madar, and the live English words hold "Inbox (the tray)".
+- The deploy suite ran green on the test copy at 63847d1 (after the test-only fixes). It did not run on 9fba0e2: the owner asked for
+  production after his try, and the change since 63847d1 is the tab bar and test files. The gates of 9fba0e2: typecheck; npm test
+  11,088 passed, 6 skipped (944 files), with 8 unhandled "Worker is not defined" errors from the map tests that predate it (TASKS.md);
+  the new bar check of `tests/e2e/owner.spec.ts` passed in Chromium and WebKit on the dev server (each icon 0 px from the middle of its
+  tab, in English and Arabic); bar screenshots EN/AR, light/dark, 390 px.

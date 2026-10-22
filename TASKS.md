@@ -1088,7 +1088,7 @@ Design `docs/superpowers/specs/2026-10-22-madar-phone-d-design.md` (+ `-areas.md
   dock, 44 px press areas); screenshots EN/AR, light/dark, 390/360 px, Chromium and WebKit.
 - [x] Merged main e4fb10c3 (Batch D, fbk_049 to fbk_051): an internal project has no Tracker tab on a phone either; the ZIP title wraps the
   task Conversation in both layouts.
-- [ ] Test copy (`all.sh test`), deploy suite, the owner's try on an iPhone and an Android phone from the Home Screen, then production on his word.
+- [x] Test copy (`all.sh test`), the deploy suite (green at 63847d1), the owner's try, then production at 9fba0e25 on his word (2026-10-22 21:14).
 - [x] Owner, 2026-10-22, during the phone try: the tab bar shows icons only (the words stay as screen-reader text, so the link names do
   not change). Each tab is 48 px with a 24 px block icon in its middle (the inline icon sat about 2 px high); the bar is 60 px, and
   `--phone-bar` follows. What's new 2026-10-23-99 names the icon of each tab. The 4 deploy-suite fixes of `rb/phone-d-suitefix` joined main
@@ -1096,4 +1096,7 @@ Design `docs/superpowers/specs/2026-10-22-madar-phone-d-design.md` (+ `-areas.md
 - [ ] The map tests (`src/features/map/PinPicker.test.tsx`, `src/features/project/overview/ProjectPlace.test.tsx`) leave 8 unhandled
   "Worker is not defined" errors (maplibre-gl has no Worker in jsdom), so `npm test` exits 1 with every test green. They came with the speed
   release (a8aa4356, already in production). Fix: give those tests a fake map library, or a fake Worker.
+- [ ] Plain `npx vite` (dev mode) shows an empty page: "Cannot access 'lazy' before initialization" (`src/app/lazyOverlay.tsx`, from
+  `src/components/Menu.tsx`). In dev, `vite.config.ts` points `./screenLoaders` at `screenLoaders.static.ts`, which makes the cycle Menu,
+  lazyOverlay, the screens, Menu. It came with f08094b5 (the Menu sheet on a phone). Builds are not affected; `--mode test` works.
 - [ ] Later: the project To-dos View button and the Work View toggle look different (pill with words vs round icon); make them one look.
