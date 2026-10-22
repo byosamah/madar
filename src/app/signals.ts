@@ -178,6 +178,9 @@ export function readsAfterWrite(queryClient: QueryClient, name: string, input: u
 
 export type ConnectOptions = { mergeMs?: number; maxMergeMs?: number; hiddenReloadMs?: number; joinMs?: number; chatMs?: number; now?: () => number };
 
+/** A join pass that comes this soon after the pass of a tab that shows again is part of that pass (DF-4). */
+const VISIBLE_MERGE_MS = 1000;
+
 /** How many signal ids the screen remembers, so a signal that comes again applies once. */
 const KEEP_IDS = 500;
 
@@ -212,6 +215,8 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
   let mixedHard = false;
   const echoes = new Map<string, Set<string>>();
   let hiddenAt: number | null = isHidden() ? now() : null;
+  // The moment the last pass of a tab that shows again after a long rest started (DF-4). A join in the next second joins this pass.
+  let visiblePassAt: number | null = null;
   let stopped = false;
 
   function isHidden(): boolean {
@@ -327,8 +332,11 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
   const unsubscribe = source.subscribe((signals, origin = 'channel', fresh) => {
     if (stopped) return;
     if (signals.length === 0) {
-      mixedHard = true;
       lastSeq.clear();
+      // The reload of a tab that shows again is on its way. A phone joins its channels some milliseconds after it, and a second pass of
+      // everything would cancel the running reads, which the server has already run (DF-4).
+      if (origin === 'join' && visiblePassAt !== null && now() - visiblePassAt < VISIBLE_MERGE_MS) return;
+      mixedHard = true;
       queue().all = true;
       if (origin === 'join') {
         joinBy = now() + joinMs;
@@ -374,6 +382,7 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
     hiddenAt = null;
     if (away > hiddenReloadMs) {
       // Signals may have been lost while the tab slept: reload every list on the screen.
+      visiblePassAt = now();
       run({ ...emptyMerge(), all: true });
       return;
     }

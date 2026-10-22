@@ -364,6 +364,69 @@ describe('the reload after a change signal (plan 5.3)', () => {
     app.stop();
   });
 
+  it('adds no join pass to a pass of the visibility that started in the last second (DF-4)', async () => {
+    const app = setup();
+    const tasks = app.show('tasks.list', { projectId: 'prj_001' });
+    const clients = app.show('clients.list');
+    await settle();
+    setHidden(true);
+    await vi.advanceTimersByTimeAsync(61_000);
+    setHidden(false);
+    await settle();
+    expect([tasks(), clients()]).toEqual([2, 2]);
+    // A phone: both channels join again some milliseconds after the tab shows. The reload of the screen is already on its way.
+    await vi.advanceTimersByTimeAsync(400);
+    app.send([], 'join');
+    await vi.advanceTimersByTimeAsync(50);
+    app.send([], 'join');
+    await vi.advanceTimersByTimeAsync(2000);
+    expect([tasks(), clients()]).toEqual([2, 2]);
+    app.stop();
+  });
+
+  it('still runs a join pass that comes later than a second after the visibility pass, and keeps the seq start (DF-4)', async () => {
+    const app = setup();
+    const tasks = app.show('tasks.list', { projectId: 'prj_002' });
+    await settle();
+    setHidden(true);
+    await vi.advanceTimersByTimeAsync(61_000);
+    setHidden(false);
+    await settle();
+    expect(tasks()).toBe(2);
+    app.send([sig({ kinds: ['clients'], office: true, seq: 5 })]);
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(300);
+    app.send([], 'join');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(tasks()).toBe(3);
+    // The pass of a join inside the second still starts the seq again: a first signal after it is no gap.
+    setHidden(true);
+    await vi.advanceTimersByTimeAsync(61_000);
+    setHidden(false);
+    await settle();
+    expect(tasks()).toBe(4);
+    app.send([sig({ kinds: ['clients'], office: true, seq: 5 })]);
+    await vi.advanceTimersByTimeAsync(100);
+    app.send([], 'join');
+    await vi.advanceTimersByTimeAsync(100);
+    app.send([sig({ kinds: ['clients'], office: true, seq: 40 })]);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(tasks()).toBe(4);
+    app.stop();
+  });
+
+  it('runs the 60 second pass also when the channels stayed open (DF-4: the pass is not skipped)', async () => {
+    const app = setup();
+    const tasks = app.show('tasks.list', { projectId: 'prj_001' });
+    await settle();
+    setHidden(true);
+    await vi.advanceTimersByTimeAsync(61_000);
+    setHidden(false);
+    await settle();
+    expect(tasks()).toBe(2);
+    app.stop();
+  });
+
   it('reloads every list at once for an empty list: a change of the prototype store, or a channel that joins again', async () => {
     const app = setup();
     const tasks = app.show('tasks.list', { projectId: 'prj_001' });

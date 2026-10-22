@@ -22,6 +22,8 @@ export function officeLive(
   const stateListeners = new Set<() => void>();
   const typingListeners = new Set<(signal: TypingSignal) => void>();
   let stopped = false;
+  /** True after the snapshot of the object and until the socket drops: a person not in it is Offline for sure. */
+  let snapshot = false;
   const tell = () => stateListeners.forEach((listener) => listener());
 
   /** True when the two readings differ. */
@@ -37,6 +39,7 @@ export function officeLive(
     setResting() {},
     watch() {},
     stateOf: (userId) => states.get(userId) ?? 'offline',
+    knowsState: () => snapshot && !stopped,
     subscribeStates(listener) {
       stateListeners.add(listener);
       return () => stateListeners.delete(listener);
@@ -49,6 +52,7 @@ export function officeLive(
       if (stopped) return;
       const next = new Map(states);
       if ('states' in payload) {
+        snapshot = true;
         next.clear();
         for (const [id, state] of Object.entries(payload.states)) next.set(id, state);
       } else {
@@ -64,6 +68,7 @@ export function officeLive(
       typingListeners.forEach((listener) => listener(signal));
     },
     reset() {
+      snapshot = false;
       if (states.size === 0) return;
       const changed = differ(states, new Map());
       states = new Map();

@@ -126,9 +126,12 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   const deleteMessage = useStableHandler(useDeleteMessage());
   const archive = useArchive();
   // The typing signal of the person for this chat (chat presence design B6). A task thread has none.
-  const typing = useTypingSender(id);
   const data = thread.data;
   const people = data?.people ?? NO_PEOPLE;
+  // The people who can see the chat tell the sender who may see the line (DF-10). Until the chat loads, the list is unknown.
+  const loadedPeople = data?.people;
+  const typingOthers = useMemo(() => loadedPeople?.map((person) => person.id), [loadedPeople]);
+  const typing = useTypingSender(id, typingOthers);
   const meId = session.data?.authority.id ?? '';
   // The message that the next send answers (chat design 2026-10-19, item 10). A closed chat takes no reply.
   const [replyTo, setReplyTo] = useState<ReplyRef | null>(null);

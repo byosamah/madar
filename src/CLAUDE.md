@@ -192,7 +192,9 @@ any screen work.
   person, so it could be the echo of the own send. `maxMergeMs` stays.
 - A Realtime channel that joins sends its empty list with the origin 'join'. `connectChanges` waits 100 ms after a join
   (`joinMs`) for the other channel and for any signal, then reloads every list in one pass. A change of the prototype store
-  still reloads at once.
+  still reloads at once. A join that comes within `VISIBLE_MERGE_MS` (1 s) after the pass of a tab that shows again (hidden over 60 s) adds
+  no second pass: the first pass already reloads every list, and a second one would cancel its running reads (DF-4, 2026-10-21). The
+  60 s pass itself always runs, because a socket of a sleeping laptop or a locked phone looks open until its heartbeat fails.
 - The office build (exit wave 3, `VITE_MADAR_LIVE=socket`, set by no build before wave 5) gets its signals from one socket of the
   office object (`api/remote/liveSocket.ts`, picked by `liveSourceOf` in `app/remote/bootstrap.ts`): a ticket, a ping each 30 s,
   a new socket and a reload of every list when no pong comes in 10 s. A build with `VITE_MADAR_AUTH=madar` has no Supabase
@@ -556,6 +558,9 @@ any screen work.
   `restingOf` and `useResting`: a page out of view for `REST_PHONE_MS` (60 s) or `REST_COMPUTER_MS` (30 min) rests, and `LiveProvider` calls `live.setResting`.
 - `typing.ts`: the board (`createTypingBoard`) keeps who types in which chat for `TYPING_SHOW_MS` (8 s) after the last signal. `useTypers`, `useTypingRows`,
   and `useTypingSender` (one signal each `TYPING_SEND_MS` (5 s), one stop). The sender calls `chats.typing` and ignores its errors.
+  `useTypingSender(id, others)` sends no signal while the port knows the state of every person in `others` and each one is Offline
+  (`LivePort.knowsState`, DF-10, 2026-10-21): `supabaseLive` knows a person from the first sync of the topic, `officeLive` from the first snapshot,
+  the prototype port never. Away still sends. The list is unknown until the chat loads, and then it sends.
 - `hooks.ts`: `usePersonState(userId)` renders only when the state of that person changes. Tests use `src/test/fakeLive.ts` and the `live` option of `renderApp`.
 - `Composer` takes `onTextChange`; its inner `change(next)` is the one door of the text (the field, the clear after a send, and the emoji panel).
 - The three adapters: `live/prototypeLive.ts` (a BroadcastChannel `madar-live` between the tabs of one browser, and `SAMPLE_STATES` for the sample

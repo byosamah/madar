@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { TypingSignal } from '../../api/remote/wire';
+import type { LivePort } from './types';
 import { useRuntime } from '../runtime';
 import { usePageVisible } from '../usePageVisible';
 
@@ -121,19 +122,30 @@ export function useTypingRows(): ReadonlyMap<string, string[]> {
   return useSyncExternalStore(subscribe, snapshot, () => NO_ROWS);
 }
 
+/** True when the port knows the state of every person in the list and each one is Offline. An empty list is true: the call tells nobody. */
+function nobodySees(port: LivePort | undefined, others: readonly string[] | undefined): boolean {
+  if (!port?.knowsState || !others) return false;
+  return others.every((id) => port.knowsState?.(id) === true && port.stateOf(id) === 'offline');
+}
+
 /**
  * The sender of the typing signal for one chat (chat presence design B6). A change that leaves text sends typing true at once, and then
  * at most once in TYPING_SEND_MS while changes come. An empty text, stop(), a page out of view and the unmount send one typing false, when
  * a true went out. The server call is a read: its errors are ignored, and a lost signal ends by itself on the other screens. The live
  * port hears of a call that worked (afterTypingCall), so the prototype can hand the signal to other tabs.
+ *
+ * others: the other people who can see the chat. While the port knows the state of each one and every one is Offline, a change sends
+ * nothing, because nobody can see the line (performance audit 2026-10-21, DF-10). An Away person still counts: the page is open. An
+ * unknown state, a port that cannot tell, and an unknown list (undefined) send as before. The check repeats at each change, so the first
+ * change after a person comes back sends the line at once.
  */
-export function useTypingSender(conversationId: string): { changed(text: string): void; stop(): void } {
+export function useTypingSender(conversationId: string, others?: readonly string[]): { changed(text: string): void; stop(): void } {
   const { api, live } = useRuntime();
   const meId = useContext(TypingContext)?.meId ?? '';
   const visible = usePageVisible();
   const state = useRef({ sentAt: 0, open: false, chat: conversationId });
-  const latest = useRef({ api, live, meId });
-  latest.current = { api, live, meId };
+  const latest = useRef({ api, live, meId, others });
+  latest.current = { api, live, meId, others };
 
   const send = useCallback((typing: boolean, chat: string) => {
     const { api: client, live: port, meId: me } = latest.current;
@@ -154,6 +166,10 @@ export function useTypingSender(conversationId: string): { changed(text: string)
     const at = Date.now();
     if (state.current.open && state.current.chat === conversationId && at - state.current.sentAt < TYPING_SEND_MS) return;
     if (state.current.open && state.current.chat !== conversationId) stop();
+    if (nobodySees(latest.current.live, latest.current.others)) {
+      state.current = { sentAt: 0, open: false, chat: conversationId };
+      return;
+    }
     state.current = { sentAt: at, open: true, chat: conversationId };
     send(true, conversationId);
   }, [send, stop, conversationId]);

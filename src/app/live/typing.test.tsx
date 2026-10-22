@@ -189,6 +189,96 @@ describe('the typing sender', () => {
   });
 });
 
+describe('the typing sender when nobody can see the line (DF-10)', () => {
+  beforeEach(() => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] }));
+  afterEach(() => vi.useRealTimers());
+  const flush = () => act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  const pass = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
+  const withLive = (states: Record<string, 'online' | 'away' | 'offline'>, known: string[]) => {
+    const live = fakeLive(states, known);
+    const typingCalls: { conversationId: string; typing: boolean }[] = [];
+    const call = vi.fn(async (name: string, input: unknown) => {
+      if (name === 'users.list') return [];
+      if (name === 'session.get') return { user: { id: 'usr_001', preferences: {} } };
+      if (name === 'chats.typing') {
+        typingCalls.push(input as { conversationId: string; typing: boolean });
+        return { sent: 1 };
+      }
+      throw new Error(`unexpected ${name}`);
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <RuntimeProvider runtime={{ api: { call } as unknown as MadarApi, live: live.port }} queryClient={createQueryClient()}>{children}</RuntimeProvider>
+    );
+    return { live, typingCalls, wrapper };
+  };
+
+  it('sends no call while every other member is known and Offline', async () => {
+    const { wrapper, typingCalls, live } = withLive({ usr_002: 'offline', usr_003: 'offline' }, ['usr_002', 'usr_003']);
+    const { result } = renderHook(() => useTypingSender('cnv_013', ['usr_002', 'usr_003']), { wrapper });
+    await flush();
+    for (const text of ['a', 'ab', 'abc']) {
+      act(() => result.current.changed(text));
+      await pass(3_000);
+    }
+    act(() => result.current.changed(''));
+    await flush();
+    expect(typingCalls).toEqual([]);
+    expect(live.log.afterTyping).toEqual([]);
+  });
+
+  it('sends at the next change when a member comes Online or Away, and the stop follows', async () => {
+    const { wrapper, typingCalls, live } = withLive({ usr_002: 'offline' }, ['usr_002']);
+    const { result } = renderHook(() => useTypingSender('cnv_013', ['usr_002']), { wrapper });
+    await flush();
+    act(() => result.current.changed('a'));
+    await flush();
+    expect(typingCalls).toEqual([]);
+    act(() => live.setState('usr_002', 'away'));
+    act(() => result.current.changed('ab'));
+    await flush();
+    expect(typingCalls).toEqual([{ conversationId: 'cnv_013', typing: true }]);
+    act(() => result.current.changed(''));
+    await flush();
+    expect(typingCalls.map((c) => c.typing)).toEqual([true, false]);
+  });
+
+  it('still sends when the state of one member is unknown, or when the member list is not known', async () => {
+    const unknown = withLive({ usr_002: 'offline' }, ['usr_002']);
+    const first = renderHook(() => useTypingSender('cnv_013', ['usr_002', 'usr_003']), { wrapper: unknown.wrapper });
+    await flush();
+    act(() => first.result.current.changed('a'));
+    await flush();
+    expect(unknown.typingCalls).toHaveLength(1);
+    const noList = withLive({ usr_002: 'offline' }, ['usr_002']);
+    const second = renderHook(() => useTypingSender('cnv_013'), { wrapper: noList.wrapper });
+    await flush();
+    act(() => second.result.current.changed('a'));
+    await flush();
+    expect(noList.typingCalls).toHaveLength(1);
+  });
+
+  it('still sends for a port that cannot tell whether it knows a state', async () => {
+    const { wrapper, typingCalls, live } = withLive({}, []);
+    Reflect.deleteProperty(live.port, 'knowsState');
+    const { result } = renderHook(() => useTypingSender('cnv_013', ['usr_002']), { wrapper });
+    await flush();
+    act(() => result.current.changed('a'));
+    await flush();
+    expect(typingCalls).toHaveLength(1);
+  });
+
+  it('sends the stop of a line that went out, also when every member is Offline by then', async () => {
+    const { wrapper, typingCalls, live } = withLive({ usr_002: 'online' }, ['usr_002']);
+    const { result } = renderHook(() => useTypingSender('cnv_013', ['usr_002']), { wrapper });
+    await flush();
+    act(() => result.current.changed('a'));
+    act(() => live.setState('usr_002', 'offline'));
+    act(() => result.current.changed(''));
+    await flush();
+    expect(typingCalls.map((c) => c.typing)).toEqual([true, false]);
+  });
+});
+
 describe('useTypers and useTypingRows', () => {
   it('give the typists of a chat without the own id, from the signals of the port', async () => {
     const { wrapper, live } = harness();
