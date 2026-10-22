@@ -13,10 +13,10 @@ async function expectNoSeriousA11yIssues(page: Page, route: string, scope?: stri
   expect.soft(serious.map((v) => `${route}: ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
 }
 
-const SCREENS: { name: string; route: string; ready: (page: Page) => Promise<void>; scope?: string }[] = [
+const SCREENS: { name: string; route: string; ready: (page: Page, lang: 'en' | 'ar') => Promise<void>; scope?: string }[] = [
   { name: 'work', route: '/work', ready: async (page) => { await expect(page.getByRole('region').first()).toBeVisible(); } },
   { name: 'meetings', route: '/meetings', ready: async (page) => { await expect(page.getByRole('radiogroup').first()).toBeVisible(); } },
-  { name: 'projects', route: '/projects', ready: async (page) => { await expect(page.getByRole('list', { name: 'Projects' })).toBeVisible(); } },
+  { name: 'projects', route: '/projects', ready: async (page, lang) => { await expect(page.getByRole('list', { name: lang === 'ar' ? 'المشاريع' : 'Projects' })).toBeVisible(); } },
   { name: 'inbox', route: '/inbox', ready: async (page) => { await expect(page.locator('aside ul li').first()).toBeVisible(); } },
   { name: 'notifications', route: '/notifications', ready: async (page) => { await expect(page.getByRole('heading', { level: 1 })).toBeVisible(); } },
   { name: 'search', route: '/search', ready: async (page) => { await page.locator('input[role="combobox"]').fill('a'); await expect(page.locator('[cmdk-root] [role="option"]').first()).toBeVisible(); } },
@@ -30,7 +30,7 @@ for (const width of [390, 820, 1440]) {
       if (lang === 'ar') await useArabic(page);
       for (const screen of SCREENS) {
         await goto(page, screen.route);
-        await screen.ready(page);
+        await screen.ready(page, lang);
         await settle(page);
         await page.screenshot({ path: `test-results/e2e-deploy-shots/work/${width}-${lang}-${screen.name}.png`, fullPage: true });
         await expectNoSeriousA11yIssues(page, screen.route, screen.scope);
@@ -91,7 +91,10 @@ test('no screen scrolls sideways on a phone', async ({ page }) => {
 
 // Phone design D, track W (the Work tab). The builder does not run these; the Playwright agent of the lead does, in Chromium and in WebKit.
 
-/** The press area test: the box is 44 px or more, and the four corners inside it hit the control or a child of it. */
+/**
+ * The press area test: the box is 44 px or more, and four points 2 px inside its edges hit the control or a child of it. The points sit on
+ * the middle of each edge, not on the corners: the people picture and the tick are round, and a corner of the box is outside a circle.
+ */
 async function expectPressArea(control: Locator): Promise<void> {
   await control.scrollIntoViewIfNeeded();
   const box = await control.boundingBox();
@@ -100,7 +103,9 @@ async function expectPressArea(control: Locator): Promise<void> {
   expect(box!.height).toBeGreaterThanOrEqual(43.5);
   const hits = await control.evaluate((element) => {
     const r = element.getBoundingClientRect();
-    const points: [number, number][] = [[r.left + 2, r.top + 2], [r.right - 2, r.top + 2], [r.left + 2, r.bottom - 2], [r.right - 2, r.bottom - 2]];
+    const midX = r.left + r.width / 2;
+    const midY = r.top + r.height / 2;
+    const points: [number, number][] = [[midX, r.top + 2], [r.right - 2, midY], [midX, r.bottom - 2], [r.left + 2, midY]];
     return points.map(([x, y]) => {
       const hit = document.elementFromPoint(x, y);
       return hit === element || element.contains(hit);
@@ -116,6 +121,8 @@ for (const width of [360, 390]) {
       if (lang === 'ar') await useArabic(page);
       for (const path of ['/work', '/meetings', '/projects']) {
         await goto(page, path);
+        // The screen slides in: a box read during the slide is a fraction under its size (43.99998 for 44 px).
+        await settle(page);
         const title = page.getByRole('heading', { level: 1 });
         await expect(title, path).toHaveText(lang === 'en' ? 'Work' : 'العمل');
         const group = page.getByRole('radiogroup').first();
@@ -124,7 +131,7 @@ for (const width of [360, 390]) {
         for (let n = 0; n < 3; n += 1) {
           const radio = radios.nth(n);
           const box = await radio.boundingBox();
-          expect(box!.height, `${path} part ${n}`).toBeGreaterThanOrEqual(44);
+          expect(box!.height, `${path} part ${n}`).toBeGreaterThanOrEqual(43.5);
           // A word never cuts inside its part.
           expect(await radio.evaluate((el) => el.scrollWidth <= el.clientWidth), `${path} part ${n} word`).toBe(true);
         }

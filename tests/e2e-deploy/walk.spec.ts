@@ -8,7 +8,7 @@ import { goto, settle, urlPattern } from './goto';
 import { withClient } from './mail';
 import { OFFICE_SQL, officePeek } from './office';
 import { closeTo, shownColors, WALK_PICTURE } from './picture';
-import { batchAs, NO_SESSION, openMenu, runId, type Lang } from './steps';
+import { batchAs, NO_SESSION, openMenu, runId, signOut, type Lang } from './steps';
 import { isSignedFileLink, storeOfUpload, type WalkStore } from './store';
 import { officeTarget, r2BucketTarget } from './targets';
 import { word } from './words';
@@ -467,9 +467,15 @@ for (const { lang, width } of VARIANTS) {
     }
     await step('report', 'member', async () => {
       const page = pages.member;
-      await goto(page, '/');
-      await page.getByRole('button', { name: nameOf('member'), exact: true }).click();
-      await page.getByRole('dialog', { name: nameOf('member') }).getByRole('button', { name: w('feedback.menu') }).click();
+      if (width < 640) {
+        // Under 640 px there is no person menu (Direction D): the feedback row sits in the Office group of the Me tab.
+        await goto(page, '/me');
+        await page.getByRole('button', { name: w('feedback.menu') }).click();
+      } else {
+        await goto(page, '/');
+        await page.getByRole('button', { name: nameOf('member'), exact: true }).click();
+        await page.getByRole('dialog', { name: nameOf('member') }).getByRole('button', { name: w('feedback.menu') }).click();
+      }
       const sheet = page.getByRole('dialog', { name: w('feedback.title') });
       await sheet.getByRole('radio', { name: w('feedback.kinds.bug'), exact: true }).click();
       await sheet.locator('#feedback-message').fill(report);
@@ -686,10 +692,7 @@ for (const { lang, width } of VARIANTS) {
       await step('signout', role, async () => {
         const page = pages[role];
         await goto(page, '/');
-        await page.getByRole('button', { name: nameOf(role), exact: true }).click();
-        await page.getByRole('dialog', { name: nameOf(role) }).getByRole('button', { name: w('auth.signOut') }).click();
-        await expect(page).toHaveURL(urlPattern('/sign-in?reason=signed_out'));
-        await expect(page.getByText(w('auth.reasons.signed_out'))).toBeVisible();
+        await signOut(page, nameOf(role), lang);
         await shot('signout', role);
         const left = await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith('sb-')).length);
         if (left > 0) throw new Error(`${left} Supabase session keys stay in localStorage`);
