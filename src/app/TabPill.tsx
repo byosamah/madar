@@ -5,6 +5,7 @@ import { Badge } from '../components/Badge';
 import { AnimatedIcon } from '../components/icons/AnimatedIcon';
 import { spring } from '../design/motion';
 import { NAV, NOTIFICATIONS_ITEM, SEARCH_ITEM, isNavActive } from './nav';
+import { usePressReads } from './pressReads';
 import { useCall } from './runtime';
 import { useCompactBars } from './useCompactBars';
 import { useCan, useRight } from './useRight';
@@ -20,6 +21,7 @@ export function TabPill() {
   const phone = useIsPhone();
   // A tab that needs a switch shows only to a person who holds it. Before the session arrives it shows (the route asks again).
   const may = useCan(true);
+  const startReads = usePressReads();
   return (
     <nav
       aria-label={t('nav.main')}
@@ -37,6 +39,7 @@ export function TabPill() {
           <Link
             key={item.to}
             to={item.to}
+            onPointerDown={() => startReads(item.to)}
             aria-current={active ? 'page' : undefined}
             className={`pressable relative isolate flex h-12 min-w-0 flex-1 items-center justify-center rounded-full font-semibold sm:h-11 sm:min-w-min sm:flex-none sm:gap-0.5 sm:px-4 sm:text-subheadline ${active ? 'text-[var(--on-sig)]' : 'text-ink-2 hover:text-ink'}`}
           >
@@ -86,11 +89,13 @@ export function InboxButton() {
   const { pathname } = useLocation();
   const unread = useCall('chats.unreadCount', {}).data?.unread ?? 0;
   const on = isNavActive(item.to, pathname);
+  const startReads = usePressReads();
   // The link's name carries the count: an aria-label replaces the hidden count inside it (audit 2026-10-03, BRW-10).
   const name = unread > 0 ? t('nav.withBadge', { name: t(item.key), badge: t('nav.inboxUnread', { count: unread }) }) : t(item.key);
   return (
     <Link
       to={item.to}
+      onPointerDown={() => startReads(item.to)}
       aria-label={name}
       aria-current={on ? 'page' : undefined}
       className={`pressable relative grid size-11 shrink-0 place-items-center rounded-full ${on ? 'bg-fill text-ink' : 'text-ink-2 hover:text-ink'}`}
@@ -108,12 +113,14 @@ export function BellButton({ className = '' }: { className?: string }) {
   const { pathname } = useLocation();
   const noticeBadge = useCall('notifications.count', {}).data?.badge ?? 0;
   const on = pathname === NOTIFICATIONS_ITEM.to;
+  const startReads = usePressReads();
   const name = noticeBadge > 0
     ? t('nav.withBadge', { name: t(NOTIFICATIONS_ITEM.key), badge: t('nav.inboxBadge', { count: noticeBadge }) })
     : t(NOTIFICATIONS_ITEM.key);
   return (
     <Link
       to={NOTIFICATIONS_ITEM.to}
+      onPointerDown={() => startReads(NOTIFICATIONS_ITEM.to)}
       aria-label={name}
       aria-current={on ? 'page' : undefined}
       className={`pressable relative grid size-11 shrink-0 place-items-center rounded-full ${on ? 'bg-fill text-ink' : 'text-ink-2 hover:text-ink'} ${className}`}

@@ -17,7 +17,8 @@ import type { ScreenName } from './screens';
 type Prefetch = ReturnType<typeof usePrefetchCall>;
 /** One read, as a step that starts it with the prefetch function. */
 export type GuardRead = (prefetch: Prefetch) => void;
-const read = <N extends CallName>(name: N, input: CallInput<N>): GuardRead => (prefetch) => prefetch(name, input);
+/** One read as a step. The press on a tab uses it too (pressReads.ts). */
+export const read = <N extends CallName>(name: N, input: CallInput<N>): GuardRead => (prefetch) => prefetch(name, input);
 
 /** The Dashboard filters in the link: the same four that the Dashboard, the meeting view and the Open space read. */
 function filtersOf(params: URLSearchParams) {

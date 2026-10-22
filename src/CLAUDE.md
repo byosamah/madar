@@ -259,6 +259,9 @@ any screen work.
   a function of the link, and `StartReads` (`app/useRight.tsx`, put around the screen by `routes.tsx`) starts them once at the mount with
   `usePrefetchCall`. It starts none when the cached session lacks the switch of the route. A change to a read of one of these screens
   changes its line in `guardReads.ts` in the same commit; `GuardReads.test.tsx` holds every answer and fails on a key that the list missed.
+- A press on a tab of the bar starts the main read of its screen on pointerdown, never on hover (LV-9, 2026-10-21): `usePressReads` and
+  `PRESS_READS` in `app/pressReads.ts` (Projects, Dashboard, Inbox, the bell), with the keys of the screen at its link with no filter. A change to
+  one of these reads changes its line there too; `PressReads.test.tsx` holds the keys. Home and Tasks show from the cache and start nothing.
 - The project To-dos tab asks `taskTemplates.list {}` once, with its `tasks.list`, under the gates of the menu (list view and
   `createTaskForSelf`). `tabReads('tasks')` starts the same read with `projects.get` (`templates` option, DF-13) when the cached session
   may add a to-do (`sessionMayAddTask` in `reads.ts`) and the list view shows. Each `TemplateMenu` keeps the templates of its stage with `lib/sameText.ts`, as the handler does.
