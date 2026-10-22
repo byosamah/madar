@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../../api/store';
+import { phoneMedia } from '../../../test/phoneMedia';
 import { renderApp } from '../../../test/render';
 
 // Feedback fbk_006 (2026-10-11): a press on the avatar of a task row opens a small pop-up for the lead and the helpers, so the
@@ -95,5 +96,25 @@ describe('the avatar of a task row', () => {
     await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Change the lead' })).toBeNull());
     expect(store.state.tasks.tsk_013.ownerId).toBe('usr_006');
+  });
+
+  it('gives the lead button a 44 px press area on a phone', async () => {
+    phoneMedia({ phone: true, coarse: true });
+    await renderApp(TAB, asLeader);
+    const button = await screen.findByRole('button', { name: `Lead and helpers of ${TITLE}` });
+    expect(button).toHaveClass('max-sm:min-h-11', 'max-sm:min-w-11', 'max-sm:justify-center', 'max-sm:m-0', 'max-sm:p-0');
+  });
+
+  it('opens the lead list as a bottom sheet on a phone, with one title and the same names', async () => {
+    phoneMedia({ phone: true, coarse: true });
+    const { store } = await renderApp(TAB, asLeader);
+    await openPeople();
+    const sheet = await screen.findByRole('dialog', { name: 'Change the lead' });
+    expect(sheet).toHaveAttribute('data-vaul-drawer-direction', 'bottom');
+    // The sheet has its own title, so the body repeats none.
+    expect(within(sheet).getAllByText('Change the lead')).toHaveLength(1);
+    await userEvent.click(within(sheet).getByRole('button', { name: /Sara Al-Qahtani/ }));
+    await waitFor(() => expect(store.state.tasks.tsk_013.ownerId).toBe('usr_005'));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Change the lead' })).toBeNull());
   });
 });
