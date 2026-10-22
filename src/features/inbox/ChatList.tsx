@@ -28,6 +28,7 @@ import { SlidersHorizontalIcon } from '../../components/icons/animated/sliders-h
 import { reasonLineText } from '../comments/ReasonLine';
 import { useArchive } from './archive';
 import { GroupPicture } from './GroupPicture';
+import { chatState } from './chatBack';
 
 type Row = CallOutput<'chats.list'>[number];
 
@@ -165,6 +166,7 @@ const ChatRowItem = memo(function ChatRowItem({ row, selected, swipe, noMenu, sh
     >
       <Link
         to={`/inbox/${row.id}`}
+        state={chatState('/inbox')}
         aria-current={selected ? 'page' : undefined}
         onClick={(event) => {
           if (swiped.current) event.preventDefault();

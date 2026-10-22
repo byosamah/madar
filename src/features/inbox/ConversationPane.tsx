@@ -1,5 +1,4 @@
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
-import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -26,6 +25,7 @@ import { useDeleteMessage } from './deleteMessage';
 import { replyRefOfBubble } from './ReplyStrip';
 import { ChatMenu, chatMenuItems } from './ChatList';
 import { GroupPicture } from './GroupPicture';
+import { ChatBackLink } from './chatBack';
 import { GroupSheets, type GroupMode } from './GroupSheets';
 import { useArchive } from './archive';
 import { useNotifyItems } from './NotifyChoice';
@@ -53,9 +53,7 @@ function Header({ lead, title, subtitle, action, twoLines = false }: { lead: Rea
   const { t } = useTranslation();
   return (
     <header className="flex items-center gap-3 border-b border-hairline px-3 py-2.5 sm:px-5">
-      <Link to="/inbox" aria-label={t('chat.back')} className="pressable grid size-11 shrink-0 place-items-center rounded-full text-ink-2 hover:text-ink sm:hidden">
-        <AnimatedIcon icon={ChevronLeftIcon} size={22} className="rtl:-scale-x-100" aria-hidden />
-      </Link>
+      <ChatBackLink className="sm:hidden" />
       {lead}
       <div className="min-w-0 flex-1">
         <h2 className="min-w-0 text-headline text-ink"><bdi className={twoLines ? 'line-clamp-2 [overflow-wrap:anywhere] sm:line-clamp-1' : 'block truncate'}>{title}</bdi></h2>

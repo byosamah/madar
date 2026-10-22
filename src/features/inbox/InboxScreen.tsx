@@ -14,6 +14,7 @@ import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { Sheet } from '../../components/Sheet';
 import { useBlockFileDrop } from '../files/Attachments';
+import { chatState } from './chatBack';
 import { ChatList } from './ChatList';
 import { ConversationPane } from './ConversationPane';
 import { useMarkUnread } from './markUnread';
@@ -44,13 +45,13 @@ function NewMessage({ open, onOpenChange }: { open: boolean; onOpenChange: (open
   const openChat = useAction('chats.openDirect', {
     onSuccess: ({ id }) => {
       onOpenChange(false);
-      navigate(`/inbox/${id}`);
+      navigate(`/inbox/${id}`, { state: chatState('/inbox') });
     },
   });
   const makeGroup = useAction('chats.createGroup', {
     onSuccess: ({ id }) => {
       onOpenChange(false);
-      navigate(`/inbox/${id}`);
+      navigate(`/inbox/${id}`, { state: chatState('/inbox') });
     },
   });
   const resetGroup = () => {
