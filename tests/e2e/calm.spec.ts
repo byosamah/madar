@@ -51,6 +51,23 @@ test('Home at 390px is one column of blocks with no project list', async ({ page
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
+test('the task panel at 390 px has one main button in each view', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  // Hala is the Admin: she reviews Toilet details (tsk_010, in review) and may finish Stair details (tsk_007).
+  for (const id of ['tsk_007', 'tsk_010']) {
+    await page.goto(`/#/projects/prj_001?tab=tasks&task=${id}`);
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('tablist')).toBeVisible();
+    await expect(dialog.locator('[data-next-step]')).toBeVisible();
+    expect(await dialog.locator('.signature').count()).toBeLessThanOrEqual(1);
+    if (id === 'tsk_010') await expect(dialog.getByRole('button', { name: 'Approve' })).toHaveClass(/signature/);
+    await dialog.getByRole('tab', { name: /^Conversation/ }).click();
+    await expect(dialog.getByRole('textbox', { name: 'Add a comment' })).toBeVisible();
+    expect(await dialog.locator('.signature').count()).toBeLessThanOrEqual(1);
+    await page.goto('/#/');
+  }
+});
+
 test('the pill has the five tabs, Search and the bell, and the person menu has its controls', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/#/');

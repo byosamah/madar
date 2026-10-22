@@ -92,6 +92,11 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
     await page.getByText('Toilet details').first().click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await page.waitForTimeout(500);
+    // Direction D: on a phone the panel of a person outside the team has no control at all, only the read only line.
+    if (width === 390) {
+      await expect(page.getByRole('dialog').locator('select, textarea, [role="switch"], input:not([type="hidden"])')).toHaveCount(0);
+      await expect(page.getByRole('dialog').getByText(/You can view this to-do/)).toBeVisible();
+    }
     await page.screenshot({ path: `${SHOTS}/task-sheet-readonly-${width}.png` });
   });
 }

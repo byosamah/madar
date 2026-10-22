@@ -9,6 +9,10 @@ async function deleteAComment(page: Page, text: string) {
   const sheet = page.getByRole('dialog', { name: 'Stair details' });
   await expect(sheet).toBeVisible();
   await sheet.getByRole('tab', { name: /Conversation/ }).click();
+  // Direction D: the comment box is docked at the bottom of the sheet, so it sits within the last 160 px of it.
+  const box = await sheet.getByRole('textbox', { name: 'Add a comment' }).boundingBox();
+  const frame = await sheet.boundingBox();
+  expect(frame!.y + frame!.height - (box!.y + box!.height)).toBeLessThan(160);
   await sheet.getByRole('textbox', { name: 'Add a comment' }).fill(text);
   await sheet.getByRole('button', { name: 'Send' }).click();
   await expect(sheet.getByText(text)).toBeVisible();
