@@ -8,6 +8,13 @@
     },
     "overview": {
       "nextDeadline": "Next deadline"
+    },
+    "tab": {
+      "overview": "Overview",
+      "tasks": "To-dos",
+      "tracker": "Tracker",
+      "files": "Files & Links",
+      "more": "More"
     }
   }
 }
