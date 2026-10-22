@@ -470,7 +470,8 @@ any screen work.
   pattern of Stale projects uses `AttentionCard.tsx` and shows only when it has a row. Money and Data gaps draw only when
   `dashboard.get` sends them (the server decides by role).
 - Roles: Admin, Management, Accounting, Member; per project a leader and a team. Anyone creates a project and leads it.
-  Everyone sees all projects. Payments only for the payment right (by default Admin, Management, Accounting; fbk_014). Agents never join a team. The person who adds a
+  A person sees an open project; a hidden project shows only to its leader, its team, its chosen people and the holders of "See hidden projects"
+  (see "Hidden and internal projects" below). Payments only for the payment right (by default Admin, Management, Accounting; fbk_014). Agents never join a team. The person who adds a
   project task changes and deletes it like the leader while on the team; the review stays with the leader (owner, 2026-10-07).
   Only the Admin changes a role. Management reads the role of a person as text in the person sheet (owner, 2026-10-18, fbk_014).
   The rights are 113 switches in 13 sections (role rights version 2, owner 2026-10-21; the list is `api/rightsCatalog.ts`, a plain copy of
@@ -492,6 +493,28 @@ any screen work.
   narrow phone. The Today panel lists my tasks due today or past due. With none, it is "Coming up": my next 3 open
   tasks with a due date (`comingUp`, `lib/home.ts`, owner 2026-10-07). With neither, it says that nothing is due today. Home
   follows the shared order of the Tasks screen (`api/CLAUDE.md`).
+
+## Hidden and internal projects (owner, 2026-10-22, fbk_044)
+- The New project sheet starts with one choice, "Client project" / "Internal project" (`SegmentedControl`, `ProjectFormValues.kind`, Client at first),
+  the first control of the form. Internal hides the code group, client, location, area, sub-company and contract date (`ProjectFields`, flag
+  `internal`) and shows one line under the choice. The template picker, the leader, the dates, the stages and the team stay. The sheet sends
+  `kind: 'internal'` and none of the client fields (`NewProjectSheet`); the validation skips the code and the sub-company (`validateProjectForm`).
+  The edit sheet reads `kind` from the project and hides the same fields. The "same contract" list leaves internal projects out.
+- Where a code shows, an internal project shows the word "Internal": call `shownKey(source, t)` (short key) or `shownCode(source, t)` (full code)
+  from `lib/projectLabel.ts`, never `projectKey` alone. `source` is the project, or only the code string (a task, a file or a message carries
+  just the code; the INT head is read then). The row of the Projects list shows "Internal" where a client shows. The code `INT-...` shows on no screen.
+- A hidden project shows a small lock beside its name (`components/HiddenMark.tsx`, `role="img"`, the words "Only the team and chosen people" as
+  its label and title; `isHiddenProject`): the project header, the list row, the map pin card. It is no control.
+- An internal project has no Tracker tab (`tabsOf(project)` in `project/tabs.tsx`; an address with `?tab=tracker` opens the Overview), no payments
+  part (`viewerCan.payments` is false), no Tracker read in the Overview, no side choice in the pause sheet, and its About panel leaves out the code,
+  place, area and contract date. The Dashboard map leaves it out (it has no place).
+- Team tab (`project/team/AccessBlock.tsx`), above the leader: the group "Who sees this project" with two native radios ("Everyone in the office",
+  "Only the team and chosen people"). With the second, a list "Chosen people" (a remove button on each) and one picker "Add people" (a select of
+  active people who are not on the team or chosen, and an Add button). Each change calls `projects.setAccess` through `useUndoable` and shows a toast
+  with Undo. A person without `viewerCan.access` sees one plain line. The chosen people stay in the list while the project is open.
+- The role sheet needs no screen change: the four switches come from the catalog (words `batchd`). The prototype office has "Portfolio 2026"
+  (`data/sampleInternalProject.ts`, added by `bootstrap` and `sampleOffice`, not by `buildSeed`): open it as the Admin, Reem Al-Ghamdi (leader) or Lina Mansour.
+- Words: `src/i18n/real/batchd4.*` (`project.internal`, `project.hiddenMark`, `projectForm.kind*`, `projectAccess.*`, `errors.reasons.internal_project`).
 
 ## Reminders, No lead and quiet lines (owner, 2026-10-19; fbk_024, fbk_025, fbk_027)
 - The paused banner (`features/project/PausedBanner.tsx`) says "Restart reminder on <date>." before the day, and after it "Planned restart was

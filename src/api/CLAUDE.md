@@ -716,6 +716,32 @@ Design: `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design
     keeps such a notice.
   - The push, the morning summary and Google Calendar skip a person who does not view the project (`server/push/CLAUDE.md`,
     `server/mail/CLAUDE.md`, `server/google/`). `settleActorOf` and `extendActorOf` fall back to an Admin.
+- Internal projects (fbk_044, wave D4). `Project.kind` is `'client' | 'internal'`, optional; a missing value is a client project, and a
+  client project stores no `kind`. The kind is set by `projects.create { kind: 'internal' }` and never changes (no call takes it).
+  Helpers: `src/api/internalProject.ts` (`isInternal`, `isInternalId`, `internalRefusal`, `assertNotInternal`), `INTERNAL_PREFIX` and
+  `isInternalCode` in `src/lib/projectCode.ts`.
+  - Create: `clientId`, `geo`, `areaM2`, `subCompanyId`, `contractStartDate`, `location`, and a typed `code`, `codeParts` or `sameContractAs`
+    are refused with the reason `internal_project` on that field. `subCompanyOfNew` is skipped, so an office with sub-companies asks for
+    none. The code is the old automatic form with the head `INT` (`INT-26-001`, `nextProjectCode`); its series counts only `INT-YY-` codes,
+    so it never takes a series of a client code, and `nextSeries` and `contractClash` read no INT code (an INT code has no contract part).
+    `access` starts `{ hidden: true, viewerIds: [] }`.
+  - Update: a value in one of those fields, or a `code` correction, is refused with `internal_project`; an empty value passes (the edit
+    form sends them empty). `projects.pause` with kind `client` is refused (it writes a Tracker line).
+  - No payments, no Tracker: `payments.create` and `tracker.log` call `assertNotInternal` (a person who does not see the project gets
+    `not_found` first). `addTrackerEntry` is the one door: it throws `internal_project` for an internal project, so a file received, a file
+    delivered and a move back logged stop there. The automatic lines skip it before the door: the shift line (`shiftDependents`), the
+    new-version line (`tasks.newVersion`), the Balady tick (`stageBackError` gives `canLog` false) and the meeting line (`hasLine` in
+    `handlers/meetings.ts`: an internal project meeting settles with the mark only and keeps its minutes on the meeting, `minutesPlace: 'meeting'`).
+  - `viewerCan` (additive): `access` (`project.access` with its scope), and for an internal project `payments`, `logTracker`, `deliver`
+    and `editCode` are false. The screens read these flags, so they show no Tracker control and no payments part.
+  - The numbers: it counts in the workload, the to-do lists, Home, deadlines and the schedule. It stays out of the gaps `noArea` and
+    `noSubCompany` (dashboard and report), `tiles.inDesignWithoutArea`, the `no_area` and `no_sub_company` filters of `projects.list`, the
+    money (`moneyOf` of the dashboard and the report) and the Tracker counts of the report. It stays in `stage_no_end`, the project rows
+    and `totals.projects` of the report. The code `INT-...` shows on no screen: the word "Internal" takes its place (`shownKey`,
+    `shownCode` in `src/lib/projectLabel.ts`).
+  - `Settings.codePrefix` may not be `INT` (reason `code_prefix_taken`).
+  - The event `project.access_changed` is in `FEED_VERBS`: the project activity says "changed who sees this project".
+  - The sample office adds one internal project, "Portfolio 2026" (`src/data/sampleInternalProject.ts`; `buildSeed` does not).
 
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.
