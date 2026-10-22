@@ -322,7 +322,8 @@ export function OverviewTab({ detail }: TabProps) {
   const phone = useIsPhone();
   const tasks = useCall('tasks.list', { projectId: detail.project.id, activeProjectsOnly: false });
   // The open Tracker rows of Attention load with the tasks, not after them (performance audit 2026-10-07, LIV-1).
-  const tracker = useCall('tracker.list', { projectId: detail.project.id, openOnly: true });
+  // An internal project has no Tracker (fbk_044): the read stays off.
+  const tracker = useCall('tracker.list', { projectId: detail.project.id, openOnly: true }, { enabled: detail.project.kind !== 'internal' });
   // Open adds one history step and Close goes back over it; Close also forgets the Conversation choice (audit 2026-10-03,
   // PRJ-9, PRJ-10, V-36).
   const panel = usePanelLink(TASK_PANEL);

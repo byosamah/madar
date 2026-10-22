@@ -248,8 +248,8 @@ export function threadsSql(o: ThreadsArgs): { text: string; values: unknown[] } 
          cand as (select k.id from tasks k
            where (k.owner_id = $1::text or k.project_id = any($2::text[]) or k.id in (select target_id from mine)
                or (k.project_id is null and k.doc->>'createdBy' = any($3::text[])))
-             and (k.project_id is not null or $5::boolean or k.owner_id = $1::text or k.doc->'helperIds' ? $1::text
-               or k.doc->>'createdBy' = any($3::text[]))
+             and (k.project_id = any($6::text[]) or (k.project_id is null and ($5::boolean or k.owner_id = $1::text or k.doc->'helperIds' ? $1::text
+               or k.doc->>'createdBy' = any($3::text[]))))
          ),
          threads as (
            select c.target_id as id, max(c.created_at ${C}) as last,
@@ -259,7 +259,7 @@ export function threadsSql(o: ThreadsArgs): { text: string; values: unknown[] } 
          ),
          ranked as (select id, last, mine, rank() over (order by last ${C} desc) as r from threads)
          select id, last, mine from ranked where r <= $4::int order by last ${C} desc, id ${C} desc`,
-    values: [o.owner, o.led, o.me, o.limit, o.admin],
+    values: [o.owner, o.led, o.me, o.limit, o.admin, o.seen],
   };
 }
 

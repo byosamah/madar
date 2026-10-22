@@ -6,7 +6,7 @@ import { todayISO } from '../../../src/lib/dates';
 import type { Cond } from './query';
 import type { Load } from './build';
 import { DASHBOARD_TASK_FIELDS } from './overview';
-import { tasksOf } from './steps';
+import { eventProjectConds, tasksOf, visibleProjects } from './steps';
 
 type Input = ReportPick & { subCompanyId?: string };
 
@@ -35,8 +35,8 @@ export async function reportsOffice(L: Load, input: Input): Promise<void> {
   if (!L.now) throw new Error('reports.office needs the time of the call (LoadCtx.now).');
   const range = reportRange(input, todayISO(L.now));
   const { from, until } = periodStamps(range);
-  // A sub-company filter reads only its projects (INT-09). Without it, every project.
-  const ids = Object.values(L.office.projects).filter((project) => !input.subCompanyId || project.subCompanyId === input.subCompanyId).map((project) => project.id);
+  // A sub-company filter reads only its projects (INT-09). Without it, every project that the person sees (hidden projects, owner 2026-10-22).
+  const ids = visibleProjects(L).filter((project) => !input.subCompanyId || project.subCompanyId === input.subCompanyId).map((project) => project.id);
 
   await tasksOf(L, ids, DASHBOARD_TASK_FIELDS);
   await L.select({ c: 'tracker', where: [{ col: 'project_id', in: ids }], pick: REPORT_TRACKER_FIELDS });
@@ -44,7 +44,8 @@ export async function reportsOffice(L: Load, input: Input): Promise<void> {
 
   // The events of the period: created on or after the first instant of the first day, and before the first instant of the day after.
   const time: Cond[] = [{ col: 'created_at', atOrAfter: from }, { col: 'created_at', atBefore: until }];
-  await L.countWhere({ c: 'events', per: 'verb', where: [{ col: 'verb', in: [REPORT_STAGE_VERB] }, ...time] }, [REPORT_STAGE_VERB], () => REPORT_KEYS.stageMoves);
+  // The office count leaves out the projects that the person does not see, and the projects deleted while hidden (the handler: eventProjectViewer).
+  await L.countWhere({ c: 'events', per: 'verb', where: [{ col: 'verb', in: [REPORT_STAGE_VERB] }, ...time, ...await eventProjectConds(L)] }, [REPORT_STAGE_VERB], () => REPORT_KEYS.stageMoves);
   // The stage moves of each project, only when the report names a sub-company: the office count above covers every project.
   if (input.subCompanyId) {
     await L.countWhere({ c: 'events', per: 'project_id', where: [{ col: 'verb', in: [REPORT_STAGE_VERB] }, ...time] }, ids, (projectId) => REPORT_KEYS.stageMovesOf(projectId));

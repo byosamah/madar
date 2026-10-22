@@ -3,9 +3,33 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
-      "2026-10-23-93": {
+      "2026-10-23-99": {
         "title": "Madar on the phone: four tabs",
         "body": "On a phone, Madar now has four tabs with words: Today, Inbox, Work and Me. Chats and notifications share the Inbox. To-dos, meetings and projects share Work. Your settings are in Me."
+      },
+      "2026-10-23-98": {
+        "title": "Quiet times in order",
+        "body": "In Settings, the two times now read like the quiet line: \"Quiet from\" the end of your work, \"Until\" its start."
+      },
+      "2026-10-23-97": {
+        "title": "Download many files at once",
+        "body": "Under a chat message or a comment with two files or more, press Download all. On the Files tab, press it for a stage or for the whole project. You get one ZIP file."
+      },
+      "2026-10-23-96": {
+        "title": "When Madar notifies you, in plain words",
+        "body": "Settings now names the hours when Madar notifies you, and one line tells you when it stays quiet. A day the office keeps on shows a small lock. The office hours are 8:00 AM to 5:00 PM."
+      },
+      "2026-10-23-95": {
+        "title": "A role can see only its own projects",
+        "body": "Open Admin, then Roles. Turn off See every project for a role. The people of that role then see only the projects where they work."
+      },
+      "2026-10-23-94": {
+        "title": "Hide a project from the office",
+        "body": "Open the Team tab of a project. Choose who sees it: everyone in the office, or only the team and the people that you choose. A hidden project shows a small lock."
+      },
+      "2026-10-23-93": {
+        "title": "Internal projects",
+        "body": "Make a project for your own office work, like a portfolio. Choose Internal project when you make a new project. It has no client, code, place or payments. Only the team sees it."
       },
       "2026-10-23-92": {
         "title": "Photos start to upload sooner",

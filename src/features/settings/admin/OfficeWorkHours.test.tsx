@@ -26,9 +26,9 @@ describe('the Work hours block of the office settings', () => {
     expect(lockSwitch(office)).toHaveAttribute('aria-checked', 'true');
     // Two ranges: the default of a person, and the lock.
     expect(within(office).getAllByRole('group', { name: 'Days' })).toHaveLength(2);
-    expect(office.querySelector('#office-default-from')).toHaveValue('09:00');
+    expect(office.querySelector('#office-default-from')).toHaveValue('08:00');
     expect(office.querySelector('#office-default-to')).toHaveValue('17:00');
-    expect(office.querySelector('#office-lock-range-from')).toHaveValue('09:00');
+    expect(office.querySelector('#office-lock-range-from')).toHaveValue('08:00');
     expect(office.querySelector('#office-lock-range-to')).toHaveValue('17:00');
     expect(office.querySelector('#office-lock-range-day-0')).toHaveAttribute('aria-pressed', 'true');
     expect(office.querySelector('#office-lock-range-day-5')).toHaveAttribute('aria-pressed', 'false');
@@ -40,11 +40,11 @@ describe('the Work hours block of the office settings', () => {
     const office = await officeOf();
     await within(office).findByText(W.defaultTitle);
     await userEvent.click(office.querySelector('#office-lock-range-day-4') as HTMLElement);
-    await userEvent.selectOptions(office.querySelector('#office-default-from') as HTMLElement, '08:00');
+    await userEvent.selectOptions(office.querySelector('#office-default-from') as HTMLElement, '07:30');
     await userEvent.selectOptions(office.querySelector('#office-default-to') as HTMLElement, '18:00');
     await userEvent.click(within(office).getByRole('button', { name: 'Save office settings' }));
     await waitFor(() => expect(store.state.settings.workHours).toEqual({
-      days: [0, 1, 2, 3, 4], from: '08:00', to: '18:00', lock: { on: true, days: [0, 1, 2, 3], from: '09:00', to: '17:00' },
+      days: [0, 1, 2, 3, 4], from: '07:30', to: '18:00', lock: { on: true, days: [0, 1, 2, 3], from: '08:00', to: '17:00' },
     }));
     expect(store.state.settings.workloadLimit).toBe(10);
   });

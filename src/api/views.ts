@@ -5,7 +5,8 @@ import type {
 import { canSeeConversation } from './chatState';
 import { namesPerson, replyRefOf } from './chatNaming';
 import { computeHealth, isOverdue } from './health';
-import { can, holdsRight, leadTookTask, mayViewMeeting, meetingResource, principalOf, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
+import { can, holdsRight, leadTookTask, mayViewMeeting, meetingResource, principalOf, projectResource, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
+import { ensureRights } from './rights';
 import { mayWriteMinutes } from './meetingGates';
 import { isTaskMaker, mayAssignTask, mayChangeTask, mayDeleteTask, mayTickChecklist } from './taskGates';
 import { commentCountKey, fileCountKey, projectTemplatesOf, type State } from './store';
@@ -73,7 +74,7 @@ export function countFiles(state: State, taskId: string): number {
 
 /** Events that show in the project feed and on the card. Posts show as "update" items. */
 export const FEED_VERBS = new Set([
-  'project.created', 'project.stage_changed', 'project.leader_changed', 'project.code_changed', 'task.created', 'task.status_changed',
+  'project.created', 'project.stage_changed', 'project.leader_changed', 'project.code_changed', 'project.access_changed', 'task.created', 'task.status_changed',
   'task.approved', 'task.sent_back', 'task.version_opened', 'task.reopened', 'task.dates_shifted', 'file.added', 'file.version_added', 'member.added',
   'project.template_synced', 'project.template_applied', 'meeting.created', 'meeting.updated', 'meeting.cancelled',
   // The minutes of a meeting (wave 2): on the Tracker line of a project meeting, or on the meeting itself. The mark "meeting.settled" stays out.
@@ -205,8 +206,10 @@ export function feedFor(
 /** The six powers that the old post flag stood for. */
 const POST_FLAGS = ['post.create', 'comment.create', 'project.links', 'file.upload', 'file.deliver', 'tracker.log'] as const;
 
-function viewerCanOf(viewer: User, projectRole: ProjectRole): ProjectSummary['viewerCan'] {
+function viewerCanOf(viewer: User, projectRole: ProjectRole, project: Pick<Project, 'kind'>): ProjectSummary['viewerCan'] {
   const r = { projectRole };
+  // An internal project has no client: no payments, no Tracker, no delivery and no code to correct (fbk_044).
+  const client = project.kind !== 'internal';
   return {
     // The old flag "edit" stays for the screens of today: all six powers of a project change (role rights version 2).
     edit: (['project.details', 'project.team', 'project.stages', 'project.deadlines', 'project.template', 'project.health'] as const).every((power) => can(viewer, power, r)),
@@ -220,10 +223,10 @@ function viewerCanOf(viewer: User, projectRole: ProjectRole): ProjectSummary['vi
     // The screens read the single flags below (postUpdate, comment, upload, deliver, logTracker, links).
     post: POST_FLAGS.every((action) => can(viewer, action, r)),
     review: can(viewer, 'task.review', r),
-    payments: can(viewer, 'payment.view'),
+    payments: client && can(viewer, 'payment.view'),
     // The switch alone, as before: the code field sits inside the edit sheet, which opens only where editDetails is true. The call
     // projects.update asks project.code, which also needs the details scope.
-    editCode: holdsRight(viewer, 'project.code'),
+    editCode: client && holdsRight(viewer, 'project.code'),
     // Role rights version 2: one flag for each gate that a screen hides.
     editDetails: can(viewer, 'project.details', r),
     editTeam: can(viewer, 'project.team', r),
@@ -232,8 +235,9 @@ function viewerCanOf(viewer: User, projectRole: ProjectRole): ProjectSummary['vi
     applyTemplate: can(viewer, 'project.template', r),
     links: can(viewer, 'project.links', r),
     upload: can(viewer, 'file.upload', r),
-    deliver: can(viewer, 'file.deliver', r),
-    logTracker: can(viewer, 'tracker.log', r),
+    deliver: client && can(viewer, 'file.deliver', r),
+    logTracker: client && can(viewer, 'tracker.log', r),
+    access: can(viewer, 'project.access', r),
     postUpdate: can(viewer, 'post.create', r),
     comment: can(viewer, 'comment.create', r),
     addTask: can(viewer, 'task.add', r),
@@ -294,7 +298,7 @@ export function summaryOf(state: State, project: Project, today: string, viewer:
     openTasks: tasks.filter((t) => t.status !== 'done').length,
     lastActivityAt: newest && newest > project.updatedAt ? newest : project.updatedAt,
     viewerRole,
-    viewerCan: viewerCanOf(viewer, viewerRole),
+    viewerCan: viewerCanOf(viewer, viewerRole, project),
     templateId: project.templateLink?.templateId ?? null,
   };
 }
@@ -458,7 +462,8 @@ export function mayViewFile(state: State, viewer: User, file: FileRec): boolean 
     const meeting = state.meetings?.[file.meetingId];
     return meeting !== undefined && mayViewMeeting(state, viewer, meeting);
   }
-  if (file.projectId !== null) return can(viewer, 'project.view', { projectRole: projectRoleOf(state, file.projectId, viewer.id) });
+  // A file of a project reads like the project: a hidden project leaves its files to the people who see it (hidden projects, owner 2026-10-22).
+  if (file.projectId !== null) return can(ensureRights(state, viewer), 'project.view', projectResource(state, file.projectId, viewer.id));
   return can(viewer, 'task.view', officeResource(state, file.taskId, viewer.id));
 }
 

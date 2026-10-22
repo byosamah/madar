@@ -1,8 +1,9 @@
-import type { Comment, Event, FileRec, Message, Task, TrackerEntry, Update } from '../../../src/api/contract/entities';
+import type { Comment, Event, FileRec, Message, Project, Task, TrackerEntry, Update } from '../../../src/api/contract/entities';
 import { COLLECTION } from '../../../src/api/events';
 import { commentCountKey, emptyState, fileCountKey, type State } from '../../../src/api/store';
 import { FEED_VERBS } from '../../../src/api/views';
 import { can } from '../../../src/api/permissions';
+import { goneHiddenProjectIds, hiddenProjectIds, PROJECT_DELETED_VERB, visibleProjectIds } from '../../../src/api/projectView';
 import type { TableCollection } from '../tables';
 import type { Cond, Select } from './query';
 import type { Load } from './build';
@@ -43,6 +44,50 @@ export function officeTaskConds(L: Load): Cond[] {
   if (can(L.authority, 'task.view', { office: true })) return [{ col: 'project_id', eq: null }];
   if (!L.authority.active) return nobody;
   return [{ col: 'project_id', eq: null }, { or: [{ col: 'owner_id', in: [me] }, { has: 'helperIds', value: me }, { field: 'createdBy', in: selfAndAgents(L, me) }] }];
+}
+
+/**
+ * The projects that the person of the call sees (hidden projects, owner 2026-10-22): the view rule of src/api/projectView.ts over the
+ * office lists (projects and members come from the cache, the rights from the authority). Nobody without a person sees a project.
+ * Every read across projects takes its ids from here, so a SQL limit never counts a project that the handler drops.
+ */
+export function visibleProjects(L: Load): Project[] {
+  if (!L.authority) return [];
+  const ids = visibleProjectIds(officeState(L), L.authority);
+  return Object.values(L.office.projects).filter((project) => ids.has(project.id));
+}
+
+/** The ids of visibleProjects. */
+export function visibleIds(L: Load): string[] {
+  return visibleProjects(L).map((project) => project.id);
+}
+
+/**
+ * The condition on a project column (project_id) that keeps the rows of the projects the person sees. The rows of a project with no
+ * record in the office are left out too, as the handlers leave out a record with no project.
+ */
+export function projectConds(L: Load, col = 'project_id'): Cond[] {
+  return [{ col, in: visibleIds(L) }];
+}
+
+/**
+ * The condition on the project of an event (events.project_id): a change with no project, and every change of a project that the person
+ * sees, or of a project that is gone and was open. The projects that the person does not see are left out, and so are the projects
+ * deleted while hidden, unless the person holds "See hidden projects". The second part needs the delete events of the office, so this
+ * reads them first (a few rows) and only for a person who lacks the switch. The handler reads eventProjectViewer, the same rule.
+ */
+export async function eventProjectConds(L: Load): Promise<Cond[]> {
+  if (!L.authority) return [{ col: 'id', in: [] }];
+  const office = officeState(L);
+  const blind = hiddenProjectIds(office, L.authority);
+  const mayHidden = can(L.authority, 'project.hidden');
+  let gone: string[] = [];
+  if (!mayHidden) {
+    const deletes = (await L.select({ c: 'events', where: [{ col: 'verb', in: [PROJECT_DELETED_VERB] }] })) as Event[];
+    gone = [...goneHiddenProjectIds(deletes)];
+  }
+  const out = [...blind, ...gone];
+  return out.length > 0 ? [{ col: 'project_id', notIn: out }] : [];
 }
 
 /** The office tasks that the person sees, with more conditions. A read may take only some fields. */

@@ -1028,9 +1028,49 @@ Plan and answers: memory and the two design files below. fbk_039 (12-hour clock)
   hours, the Everyone row, the chip, the bell line with the female form). Not seen: a real push held and sent at the end of quiet hours.
 - [x] Test copy and production at 6f7c3538 (owner: "Production now", 2026-10-22). fbk_041 and fbk_048 marked done. To watch: the first
   `quietEnd` push on Sunday morning, and the first summary at 9:00.
-- [ ] Polish seen in the shots: the mention list is narrow at 390 px, so long names wrap to two lines (it was so before B).
-- [ ] Batch D (`rb/batch-d`, design `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design.md`): hidden projects,
-  "See every project" and internal projects (fbk_044). Designed; four build waves wait for the owner's word.
+- [x] Polish seen in the shots: the mention list is narrow at 390 px, so long names wrap to two lines (it was so before B). Fixed in `rb/mention-width` (the list stays 18rem wide, one line for each name).
+- [x] Batch D (`rb/d-join`, design `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design.md`): hidden projects,
+  "See every project" and internal projects (fbk_044). Built in four waves and joined on main of Batch B. Not yet on the test copy.
+  - [x] D1: the four rights (117 switches in all), `Project.access`, the view rule, the call `projects.setAccess`, every door.
+  - [x] D2: the lists, counts and SQL limits show only the projects the person sees; the Inbox threads.
+  - [x] D3: Realtime signals, notices, push, the morning summary, Google Calendar and the jobs follow the view rule.
+  - [x] D4: internal projects, the Team tab block, the lock mark, MCP docs, What's new 93 to 95.
+  - [ ] D3 open: a push that the server plans before a person loses the view may still send its one fixed line ("You have something new in Madar.").
+  - [ ] D3 open: the number `reviews_waiting` of the morning summary is not filtered by the view rule.
+  - [ ] D4 open: the guard of the `INT` code head: a client code that already starts with `INT` before this change is not checked.
+  - [x] Gates on the join (main 92c3b276 plus D1 to D4 and the mention fix): typecheck; npm test 10,316 passed (6 timing tests failed
+    under a load average of 10 to 17 and pass alone, 91 of 91); test:db 3,176 (2 failed on the database only: the hidden-project sweep
+    needed more than 30 s, and the notice test deleted a project without its rows; both fixed in the tests, 31 of 31 again); test:it 333;
+    test:mcp 339 and conformance 5 of 32; the four builds (api.js 855,764 characters, bound now 900,000; first load under 970,000);
+    screenshots EN and AR, light and dark, 390 px: the Projects row with the lock and Internal, the Team tab block, an internal
+    project with 6 tabs, the New project choice, and a person off the team who sees no row and a not-found page.
+  - [x] Test copy and production at 01af2203 (owner: "Production now", 2026-10-22). fbk_044 marked done. Not run: the prototype
+    smoke (Playwright) and the deploy suite.
 - [x] `makeThumb` (owner: "add it to Batch B", 2026-10-22): a file over 2 MB decodes straight to 960 px wide (`rb/thumb`, d501f03b, joins
   Batch B). The small picture still comes before the upload: the server signs its upload by its size, so starting both at once needs a
   server change (not done). What's new 92; entry 91 moved to the top.
+
+## fbk_049 and the What's new dates (owner, 2026-10-22)
+- [x] fbk_049 (Faisal): the Settings section is "When Madar notifies you" (switch "Notify me only in my work hours", "My work days"), one
+  live line says when Madar is quiet, a day the office keeps on looks picked with a small lock (the faded look read as "off"), and the
+  built-in office hours and lock are Sunday to Thursday 8:00 AM to 5:00 PM (the morning summary at 8:00). What's new 96.
+- [x] What's new dates (owner: "add in whats new the date of each release when it released"): `day` of each of the 75 entries is the
+  day its production release went live (Cloudflare production deploys and the release record commits: 19, 20, 21 and 22 October); a
+  test refuses a future day or a day out of order. Guides: `src/CLAUDE.md`, `scripts/deploy/CLAUDE.md`.
+- [x] Gates: typecheck; npm test 10,311 passed (17 timing tests in 8 files failed under a load average of 25 to 39 from another program,
+  224 of 224 alone); test:db 3,178; test:it 333; screenshots EN and AR, light and dark, 390 px, and the What's new page with 4 dates.
+- [x] Production at f90bd7e7 (owner: "Production now"; the first run hit a Supabase 500, the second passed). fbk_049 marked done.
+- [ ] Note: an office that already saved Work hours in Admin keeps its saved hours; the 8 to 5 default applies only where none is saved.
+
+## fbk_050 and fbk_051 (owner, 2026-10-22; one release)
+- [x] fbk_050 (Anas Emam, "Download all attachments"): a quiet "Download all (N)" under every message, to-do comment and post comment with
+  2 or more files, and on the Files tab one for each stage group and "Download all files (N)" for the project (hidden when one group holds
+  every file). One ZIP made in the browser (`src/lib/zip.ts`: store method, CRC-32, UTF-8 names, no new package; the R2 CORS GET was there).
+  "Preparing n of N..." while it runs. What's new 97. Built by a Sonnet builder; the Arabic "preparing" word moved from «نجهّز» to «يجهّز مدار».
+- [x] fbk_051 (Faisal): the two times of "When Madar notifies you" read in the order of the quiet line: "Quiet from" (end of work), then
+  "Until" (start). Same saved data; the Admin block keeps its order. What's new 98.
+- [x] Gates on main d2476c8a plus both: typecheck; npm test 10,385 passed, 0 failed; both builds (first load 950,885 B, 285,936 B gzip);
+  screenshots 390 px (the chat button EN light, the Files tab AR dark, the quiet fields EN light and AR dark); the ZIP read back in the
+  page (4 names, Arabic intact, "Preparing 2 of 4" to "4 of 4"). Not run: test:db and test:it (no server or SQL change).
+- [x] Production at 139ad4ba (owner: "Production now"); fbk_050 and fbk_051 marked done. The live EU bucket allows the GET (preflight 204);
+  a real ZIP press on the live site is still not seen by eye.

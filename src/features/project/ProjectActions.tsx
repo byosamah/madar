@@ -19,7 +19,7 @@ import { Sheet } from '../../components/Sheet';
 import { fieldError } from '../../app/errors';
 import { todayISO, addDays } from '../../lib/dates';
 import { EditProjectSheet } from '../projects/EditProjectSheet';
-import { projectKey } from '../../lib/projectCode';
+import { shownKey } from '../../lib/projectLabel';
 import { ApplyTemplateSheet } from './ApplyTemplateSheet';
 
 type SheetProps = { detail: ProjectDetail; open: boolean; onOpenChange: (open: boolean) => void };
@@ -87,7 +87,7 @@ function DeleteProjectSheet({ detail, open, onOpenChange }: SheetProps) {
         </>
       )}
     >
-      <p dir="auto" className="tabular text-subheadline text-label-2">{projectKey(detail.project.code)} · {detail.project.name}</p>
+      <p dir="auto" className="tabular text-subheadline text-label-2">{shownKey(detail.project, t)} · {detail.project.name}</p>
     </Sheet>
   );
 }
@@ -121,7 +121,8 @@ function PauseSheet({ detail, open, onOpenChange }: SheetProps) {
       )}
     >
       <div className="flex flex-col gap-4 pt-1">
-        <div className="flex flex-col gap-1.5">
+        {/* An internal project has no client to wait for, so it asks no reason of this kind (fbk_044). */}
+        {detail.project.kind !== 'internal' && <div className="flex flex-col gap-1.5">
           <span className="field-label">{t('project.pauseWhy')}</span>
           <SegmentedControl
             label={t('project.pauseWhy')}
@@ -130,7 +131,7 @@ function PauseSheet({ detail, open, onOpenChange }: SheetProps) {
             options={(['internal', 'client'] as const).map((value) => ({ value, label: t(`project.pauseKinds.${value}`) }))}
           />
           {kind === 'client' && <p className="text-caption text-ink-2">{t('project.pauseClientHint')}</p>}
-        </div>
+        </div>}
         <TextArea id="pause-reason" label={t('project.pauseReason')} value={reason} dir="auto" maxLength={280} error={fieldError(pause.error, 'reason', t, t('errors.invalid_input'))} onChange={(event) => setReason(event.target.value)} />
         <DateField id="pause-resume" label={t('project.resumeOn')} hint={t('project.resumeOnHint')} min={addDays(todayISO(), 1)} value={resumeOn} error={fieldError(pause.error, 'resumeOn', t, t('errors.invalid_input'))} onChange={setResumeOn} />
       </div>

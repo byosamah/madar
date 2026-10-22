@@ -22,7 +22,7 @@ export type OfficeWorkHours = { days: Weekday[]; from: Clock; to: Clock; lock: {
 
 /** The built-in default, in one place: Sunday to Thursday, 9 AM to 5 PM, with the lock on for the same days and hours. */
 export const DEFAULT_OFFICE_WORK_HOURS: OfficeWorkHours = {
-  days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00', lock: { on: true, days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00' },
+  days: [0, 1, 2, 3, 4], from: '08:00', to: '17:00', lock: { on: true, days: [0, 1, 2, 3, 4], from: '08:00', to: '17:00' },
 };
 
 /** The part of the person (Preferences) that this module reads. */

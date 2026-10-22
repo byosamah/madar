@@ -122,6 +122,30 @@ describe('the free checks of each db-mode call (TM 3.5, checks 2 to 5)', () => {
     expect(callProblems(third)).toEqual(['tasks.update sent signals with more than one id.']);
   });
 
+  it('knows the part of a hidden project: person signals to its people only, with one id of their own, and none on the office channel (hidden projects, wave D3)', () => {
+    // prj_001 is hidden: the leader usr_002, the team usr_003, the Admin usr_001. usr_004 is an outsider.
+    const hiddenWrite = (): CallCheck => {
+      const check = goodWrite();
+      for (const state of [check.before, check.after]) state.projects.prj_001 = { ...state.projects.prj_001, access: { hidden: true, viewerIds: [] } };
+      const own = (user: string) => signal({ id: 'sig_h', channel: `person:${user}`, people: [user] });
+      check.signals = ['usr_001', 'usr_002', 'usr_003'].map(own);
+      return check;
+    };
+    expect(callProblems(hiddenWrite())).toEqual([]);
+
+    const onOffice = hiddenWrite();
+    onOffice.signals.push(signal({ id: 'sig_h' }));
+    expect(callProblems(onOffice)).toContain('tasks.update named a hidden project on the office channel.');
+
+    const outsider = hiddenWrite();
+    outsider.signals.push(signal({ id: 'sig_h', channel: 'person:usr_004', people: ['usr_004'] }));
+    expect(callProblems(outsider)).toContain('tasks.update told usr_004 about the hidden project prj_001, and usr_004 does not view it.');
+
+    const missing = hiddenWrite();
+    missing.signals.pop();
+    expect(callProblems(missing)).toContain('tasks.update did not tell usr_003 about the hidden project prj_001.');
+  });
+
   it('builds one checksum statement over every table of the schema, with the schema in each name, so no search_path counts', () => {
     const sql = checksumSql('madar_w2', ['users', 'events', 'office_meta']);
     expect(sql).toContain('from madar_w2.users t');

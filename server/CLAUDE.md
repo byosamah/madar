@@ -100,7 +100,7 @@ The other host stays deployed as the way back. Each area below has its own guide
 - `vite.server.config.ts` minifies the four bundles with `output.keepNames: true`. The names matter: the jose and SDK
   error classes name themselves from their constructor, and check-bundles finds a leaked `settleFuture` by its name.
   `entries/bundles.test.ts` checks this on fixtures.
-- `entries/bundles.test.ts` bounds the minified api bundle (850,000 characters since 2026-10-21). A long text constant in `src/api`
+- `entries/bundles.test.ts` bounds the minified api bundle (900,000 characters since 2026-10-22, hidden projects). A long text constant in `src/api`
   counts (the report guide: about 17,000). Raise the bound with one history line in the test.
 - Supabase serves each request with a new worker: about one cold start for each request, each worker lives 75 s and then
   stops (`EarlyDrop`), and about 5 calls in 100 reach a worker that already served one (function logs of madar-test,
@@ -185,6 +185,16 @@ The other host stays deployed as the way back. Each area below has its own guide
   starts with `MADAR_EVENT_PREFIX` (the hex of `madar:mtg_`). It never deletes an event without that prefix. It writes no row: the `google_events` rows come
   only from `gcal.sync`. A revoked grant, a 401 after a new access token, a seal that does not open, a calendar that is gone or a refusal ends it quietly (the next
   sync finds the same fault and ends the connection as today); a timeout, a network error, a 5xx or a 429 throws, and the outbox tries again.
+- Hidden projects (owner, 2026-10-22, wave D3): a meeting of a project syncs only for a person who views the project. `gcal.sync` asks
+  `viewsProject` (`google/store.ts`, the one rule `mayViewProject` on the rows of the project, the team, the person and the roles) and takes the Google event away
+  from a person who does not (state `deleted`). `GCAL_CALLS` gains `projects.setAccess`, `members.remove` and `projects.setLeader`: a save that touched no
+  meeting but touched a project that not every active person views (`SaveResult.hiddenProjects`) makes `gcalRows` name the scheduled meetings of that
+  project (`meetingIdsOfProjects`), so each pair with an event or a connection gets a `gcal.sync` row and the person who lost the view loses the event.
+  A person also loses the view through a role: `roles.update`, `roles.delete` and `users.update` are in `GCAL_CALLS` and `GCAL_VIEW_CALLS`, and their producer
+  (`gcalViewRows`, the wide road) queues one `gcal.sync` for every Google event row of a meeting of a project (of the one person for `users.update`, of
+  everyone for a role call), so `syncOne` checks the view again and a person who lost it loses the event; a person who kept it gets the same event put once more.
+  `gcalRows` takes the union of the meetings of the save and the meetings of its hidden projects.
+  Tests: `google/hiddenProject.test.ts`.
 - Tests use `google/fakeGoogle.ts` (a stand-in for the token address, the revoke address and the Calendar API) behind `Deps.googleFetch`, and
   `google/testOffice.ts` (the sample office on node:sqlite). `server/it/google.it.test.ts` runs the SQL on Postgres.
 
@@ -216,6 +226,18 @@ The other host stays deployed as the way back. Each area below has its own guide
   the chat part (`Diff.restKinds`, `Diff.publicOffice`). The old nameless office signal (`Diff.anonymous`) stays only as the fallback for
   a message or file whose chat neither State holds. Tests: `core/chatSignalMembers.test.ts`, `core/chatSignalLeaks.test.ts`,
   `data/save.test.ts`.
+- A project that at least one active person may not view (hidden projects, owner 2026-10-22, wave D3) tells only the people who view it.
+  `data/projectAudience.ts` (`audienceFinder`) asks the one view rule of a project for each active human, in `before` and in `after`: a project
+  is "restricted" when someone may not view it in either State (hidden, or open for a role without "See every project"). `diffState`
+  puts every record that names such a project (the project, its members, stages, deadlines, to-dos, posts, files, comments, messages, chat,
+  events and meetings) in `Diff.hidden` (kinds and people for each project), never in `publicKinds`, `restKinds` or `projects`, and never
+  marks the office. `writeDiff` sends each person of the audience (before and after, so a person who loses the view and a person who gains it
+  both hear) one person signal with its own id, the kinds of the hidden projects that the person views, and those project ids. The office
+  signal never names the project. A person of another part of the same save keeps those kinds in the same signal. A comment whose target the call
+  did not load is looked up by `writeDiff` (`COMMENT_TARGETS_SQL`), and the audience of the project found asks `Diff.audienceOf` after the
+  lookup (no new SQL, so the SQLite form needs no change). With the default settings no project is restricted and every signal is as before.
+  The three live paths (Postgres, the memory path of the tests and the SQLite socket path of the office object) share `diffState` and
+  `writeDiff`. `test/invariants.ts` knows the part. Tests: `data/hiddenProjectSignals.test.ts`, `data/hiddenProjectSignalsRun.test.ts`.
 - pg_cron calls `jobs/run` of the Supabase jobs function every 15 minutes, in both host settings (owner, 2026-10-16), with the
   secret header `x-madar-jobs-secret`. The Worker keeps `/jobs` mounted, but nothing calls it: pg_cron and the Vault
   `project_url` do not change. Steps (`jobs/steps/`):
@@ -225,8 +247,8 @@ The other host stays deployed as the way back. Each area below has its own guide
   (the planned restart day of a paused project) to the leader and to the person who paused it (`src/api/CLAUDE.md`).
 - The meetings step (fbk_022, wave 2; `jobs/steps/meetings.ts`) settles the meetings that ended. One read (`SETTLE_SQL`, `SETTLE_LITE`, served by the
   partial index `meetings_to_settle`) gives at most 20 due meetings, the oldest end first: scheduled, not settled, ended in the last 14 days. For each
-  one the step runs the normal call `meetings.settle` as the organizer (`settleActorOf`: else the first active Admin for a project meeting, else the
-  first active attendee), so the mark and the Tracker line come from the one settle rule and carry the events of a normal call. It writes no row of
+  one the step runs the normal call `meetings.settle` as the organizer (`settleActorOf`: the organizer only while the organizer views the project of the meeting, hidden projects, owner 2026-10-22; else the first active
+  Admin who views the project for a project meeting, else the first active attendee; `extendActorOf` follows it), so the mark and the Tracker line come from the one settle rule and carry the events of a normal call. It writes no row of
   its own. A failure logs the id and the code only and the loop goes on. It reports `{ settled, skipped, failed, extended }`. The second half keeps the repeating
   series full (wave 3): one read (`EXTEND_SQL`, `EXTEND_LITE`; no new index: the base is the meetings that start today or later, served by `meetings_starts`)
   gives the last meeting of each series that is scheduled and has fewer than 8 scheduled meetings ahead (`ends_at` after the run), the fewest ahead first, at most

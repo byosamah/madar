@@ -7,6 +7,7 @@ import { STATE_VERSION, Store } from '../api/store';
 import { migrateState } from '../data/migrate';
 import { buildSeed } from '../data/seed';
 import { addSampleMeetings } from '../data/sampleMeetings';
+import { addSampleInternalProject } from '../data/sampleInternalProject';
 import { addSampleSubCompanies } from '../data/sampleSubCompanies';
 import { sampleOffice } from '../data/sampleOffice';
 import { settleFuture, shiftState } from '../data/shift';
@@ -40,6 +41,7 @@ export async function bootstrap(options: { persister?: Persister; latencyMs?: nu
     await persister.clear().catch(() => undefined);
     state = await buildSeed(today, (key, blob) => persister.putBlob(key, blob));
     addSampleSubCompanies(state, today);
+    addSampleInternalProject(state, today);
     addSampleMeetings(state, today);
   } else if (state.seededOn !== today) {
     state = shiftState(state, diffDays(state.seededOn, today));

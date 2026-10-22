@@ -54,7 +54,7 @@ message from a notice, and the server cannot know that a window is open. The fix
 ## Quiet hours (owner, 2026-10-22, fbk_048)
 A person sets work days and one time range (Settings, "Quiet hours"). Outside it Madar is quiet for that person: no push and no email. The bell and
 the Inbox still collect everything. The rule is one pure function, `isQuiet` (`src/lib/quietHours.ts`, Riyadh time). The office sets the default range
-and the lock (Sunday to Thursday, 9 AM to 5 PM, on by default): nobody is quiet inside the lock.
+and the lock (Sunday to Thursday, 8 AM to 5 PM since fbk_049, on by default): nobody is quiet inside the lock.
 - Both effects (`sendPushNotify`, `sendChatPush`) read the work hours at send time with the statement of the devices (`readDevices`: `PUSH_DEVICES_SQL` also
   gives the work hours of the person and the office; `quietFromColumns` in `server/core/quiet.ts`), so quiet hours add no round trip. `sendChatPush` asks
   after the 10-second wait and after the still-new test. A quiet person gets no post: the effect marks the devices `heldAt` (`PUSH_HOLD_SQL`, once; a
@@ -75,10 +75,11 @@ and the lock (Sunday to Thursday, 9 AM to 5 PM, on by default): nobody is quiet 
 - `encrypt.ts`: `encryptPush` (RFC 8291). `line.ts`: `noticeLine` and `chatLine`, the line as the person reads it.
 - `words.ts`: the words of the line in an i18next instance of its own (as `server/mail/templates/words.ts`). It imports only the
   `inbox`, `notices` and `push` parts of the word files BY NAME, so the bundle keeps those parts only (the api bundle has a bound of
-  850,000 characters; 843,556 on 2026-10-22 after quiet hours and @everyone). `words.test.ts` checks that its `inbox` words are all the `inbox` words of the screens:
+  900,000 characters; 853,323 on 2026-10-22 after hidden projects). `words.test.ts` checks that its `inbox` words are all the `inbox` words of the screens:
   a track that adds a bell sentence in a new word file adds that file to `words.ts`.
 - `notify.ts`: the producer `pushRows`, the effects `sendPushNotify` and `sendChatPush` (each takes `LineOptions` for tests), and
   their SQL texts. `PUSH_DEVICES_SQL` reads the keys of each device (`d.doc->'keys'`, null when none).
+- `server/it/push.it.test.ts` pins the exact row of `PUSH_DEVICES_SQL`: a new column fails only `test:it` (2026-10-22, the work hours).
 - `chatRule.ts`: the pure rule `planPushes` and its facts. `chatFacts.ts`: the fact readers with their SQL texts, Postgres and SQLite.
 - `register.ts`, `effects.ts`: the registration, like `server/mail/register.ts` and `effects.ts`. `deps.ts` imports `effects.ts`.
 - The calls (`push.register`, `push.remove`, `push.mine`) are in `src/api/handlers/push.ts`. The record is `PushDevice`.
@@ -94,6 +95,14 @@ and the lock (Sunday to Thursday, 9 AM to 5 PM, on by default): nobody is quiet 
   never for a reaction, a delete, a quiet line or an Undo; an edit pushes only a person it names for the first time. One row for each
   person for each save: a `push.notify` row wins over a `push.chat` row. The mention switch of Settings does not stop a push that
   names a person.
+- A hidden project (owner, 2026-10-22, wave D3): a person who does not view the project of a message or a comment gets no push, whatever the
+  mention, the reply or the lead says, and also not through a notice of the item. `MessageFact.project` and `CommentFact.project` (`ProjectFact`:
+  `hidden`, `teamIds`, `viewerIds`) carry the people of the project; `PushPerson.seesAll` and `seesHidden` carry `project.seeAll` and
+  `project.hidden` (the Admin holds both). The view rule in `planPushes` is the one of `mayViewProject`: a holder of `project.hidden`, the
+  leader, the team, a chosen person, and a holder of `project.seeAll` when the project is open. A chosen person is in `viewerIds`, never in `teamIds`,
+  so a project chat pushes the person only when a message names the person. `PUSH_ITEMS_SQL` reads the team and `projects.doc->'access'` for a
+  message and for a comment; the SQLite reader reads the office lists (`teamOf`). A fact with no project reads as the old rule, everyone. Quiet
+  hours (`held.ts`) send the fixed line with no data and name no project. Tests: `hiddenProjectPush.test.ts`, `hiddenProjectLeaks.test.ts`.
 - An @everyone notice (`Notification.everyone`, 2026-10-22) gives the push like any mention notice of a new item: `planPushes` adds the person from the
   notice. It sends no mail. A person in quiet hours gets it later ("Quiet hours" above).
 - A copy for an Admin who picked "Everything" (`Notification.forUserIds`, owner 2026-10-23) gives no push: `PUSH_NEW_NOTICES_SQL` and the SQLite

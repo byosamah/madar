@@ -195,6 +195,10 @@ any screen work.
   the button is `viewerCan.upload` for "Upload a file" and `viewerCan.links` for "Add a link" (the button shows when one of them holds; the
   drop zone, the stage pick and "Received from the client" need `upload`, and the last also needs `deliver`). With no file and no link the tab shows one empty state, and the Add button sits in it
   (never twice). A link with the kind Location still sets the pin, as above.
+  "Download all" (owner, 2026-10-22, fbk_050): each stage group has one quiet "Download all (N)" button at the end of its heading row (`FilesTab.tsx`), and one
+  "Download all files (N)" sits above the first group, for the whole project. Each takes the newest version of each file (the same as a plain tap). A list with fewer
+  than two files shows no button, and the whole-project button hides when only one group holds files, because it would repeat that group's button. ZIP names:
+  "<project key> <stage name>.zip" and "<project key> <project name>.zip" (`shownKey`, so an internal project says "Internal"). How it works: the chat part above.
 - **One gate for Nominatim.** `src/lib/nominatimGate.ts` (`gated`) runs every request to Nominatim one at a time and at least 1 s after the
   last start, for the place search and the address lookup together. No header and no referrer of our own (`Referrer-Policy: no-referrer`).
   A test that sends a search calls `resetGate()` first. The About panel shows the address, then "Open in Google Maps"; with a pin and no
@@ -475,7 +479,8 @@ any screen work.
   pattern of Stale projects uses `AttentionCard.tsx` and shows only when it has a row. Money and Data gaps draw only when
   `dashboard.get` sends them (the server decides by role).
 - Roles: Admin, Management, Accounting, Member; per project a leader and a team. Anyone creates a project and leads it.
-  Everyone sees all projects. Payments only for the payment right (by default Admin, Management, Accounting; fbk_014). Agents never join a team. The person who adds a
+  A person sees an open project; a hidden project shows only to its leader, its team, its chosen people and the holders of "See hidden projects"
+  (see "Hidden and internal projects" below). Payments only for the payment right (by default Admin, Management, Accounting; fbk_014). Agents never join a team. The person who adds a
   project task changes and deletes it like the leader while on the team; the review stays with the leader (owner, 2026-10-07).
   Only the Admin changes a role. Management reads the role of a person as text in the person sheet (owner, 2026-10-18, fbk_014).
   The rights are 113 switches in 13 sections (role rights version 2, owner 2026-10-21; the list is `api/rightsCatalog.ts`, a plain copy of
@@ -610,6 +615,28 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
   the pane is closed). A long press opens the message sheet only when it has a row (`sheetHasRows`). In the emoji panel with `layout="sheet"`, the group row sits
   under the grid. The picture viewer pads `env(safe-area-inset-bottom)`. `FileChip` has `max-sm:min-h-11`.
 
+## Hidden and internal projects (owner, 2026-10-22, fbk_044)
+- The New project sheet starts with one choice, "Client project" / "Internal project" (`SegmentedControl`, `ProjectFormValues.kind`, Client at first),
+  the first control of the form. Internal hides the code group, client, location, area, sub-company and contract date (`ProjectFields`, flag
+  `internal`) and shows one line under the choice. The template picker, the leader, the dates, the stages and the team stay. The sheet sends
+  `kind: 'internal'` and none of the client fields (`NewProjectSheet`); the validation skips the code and the sub-company (`validateProjectForm`).
+  The edit sheet reads `kind` from the project and hides the same fields. The "same contract" list leaves internal projects out.
+- Where a code shows, an internal project shows the word "Internal": call `shownKey(source, t)` (short key) or `shownCode(source, t)` (full code)
+  from `lib/projectLabel.ts`, never `projectKey` alone. `source` is the project, or only the code string (a task, a file or a message carries
+  just the code; the INT head is read then). The row of the Projects list shows "Internal" where a client shows. The code `INT-...` shows on no screen.
+- A hidden project shows a small lock beside its name (`components/HiddenMark.tsx`, `role="img"`, the words "Only the team and chosen people" as
+  its label and title; `isHiddenProject`): the project header, the list row, the map pin card. It is no control.
+- An internal project has no Tracker tab (`tabsOf(project)` in `project/tabs.tsx`; an address with `?tab=tracker` opens the Overview), no payments
+  part (`viewerCan.payments` is false), no Tracker read in the Overview, no side choice in the pause sheet, and its About panel leaves out the code,
+  place, area and contract date. The Dashboard map leaves it out (it has no place).
+- Team tab (`project/team/AccessBlock.tsx`), above the leader: the group "Who sees this project" with two native radios ("Everyone in the office",
+  "Only the team and chosen people"). With the second, a list "Chosen people" (a remove button on each) and one picker "Add people" (a select of
+  active people who are not on the team or chosen, and an Add button). Each change calls `projects.setAccess` through `useUndoable` and shows a toast
+  with Undo. A person without `viewerCan.access` sees one plain line. The chosen people stay in the list while the project is open.
+- The role sheet needs no screen change: the four switches come from the catalog (words `batchd`). The prototype office has "Portfolio 2026"
+  (`data/sampleInternalProject.ts`, added by `bootstrap` and `sampleOffice`, not by `buildSeed`): open it as the Admin, Reem Al-Ghamdi (leader) or Lina Mansour.
+- Words: `src/i18n/real/batchd4.*` (`project.internal`, `project.hiddenMark`, `projectForm.kind*`, `projectAccess.*`, `errors.reasons.internal_project`).
+
 ## Reminders, No lead and quiet lines (owner, 2026-10-19; fbk_024, fbk_025, fbk_027)
 - The paused banner (`features/project/PausedBanner.tsx`) says "Restart reminder on <date>." before the day, and after it "Planned restart was
   <date>. Resume the project or set a new date." in the Attention color, with Resume project and one quiet field "Set a new date"
@@ -732,6 +759,17 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
   comments with every word (a word of 3 letters or more). A hit shows the chat picture (32 px), the chat name, the person ("You" for the
   own line), the line with each matched whole word in a grey `<mark>`, and the date; a press opens `/inbox/<id>?at=<message>`. The words
   of the hit fold as the server folds them (`lib/searchMatch.ts`), so an Arabic word marks across letter forms.
+- **Download all (owner, 2026-10-22, fbk_050).** `AttachmentList` ends with one quiet text button "Download all (N)" (`features/files/DownloadAll.tsx`, never
+  a main button) when two or more of the files can be downloaded. Pictures count, a deleted file (`name === null`) does not, and a list with fewer than
+  two shows no button. The button saves the newest version of each file as one ZIP file. The ZIP is made in the browser (`downloadAll` in
+  `app/files.ts`, the writer in `lib/zip.ts`): no server call, no new package, STORE only (drawings and photos are compressed already), UTF-8 names for
+  Arabic, no ZIP64 (a total over 4 GB refuses with a clear toast). The real build asks `files.link` for a signed link of each file, one after another, and reads
+  it with `fetch`; the prototype reads `files.get`. That GET needs `GET` in the R2 CORS rules (`config/r2-cors.<env>.json`) and the file store host in the CSP
+  `connect-src`, as the upload needs `PUT` (`server/files/CLAUDE.md`). The ZIP code loads at the first press (a dynamic import), so the first load stays as it was.
+  The button reads "Preparing 3 of 10..." while it runs and takes no second press. One file that fails stops the run: the toast names the file and has Retry.
+  The ZIP name is "<title> <YYYY-MM-DD>.zip": the chat title or the to-do title comes from `ZipTitleContext` (`features/files/zipTitle.ts`, given by `ChatPane`,
+  `TaskPane` and the to-do panel), else the word "Files". A path character in a name becomes a dash, and two files with one name get " (2)", " (3)".
+  Words: `src/i18n/real/fbk050.*`. Tests: `lib/zip.test.ts`, `app/downloadAll.test.ts`, `features/files/DownloadAll.test.tsx`.
 - A picture in a chat bubble or a task comment shows as a preview (owner, 2026-10-19). `AttachmentList` (`features/files/PictureAttachments.tsx`)
   replaces `FileChips` in `Thread.tsx` and `CommentThread.tsx`: a picture (`Attachment.mimeType` and `usePictureTest`) is a small rounded
   picture, at most 240 px wide, from the thumb link (`useFileLink(..., 'thumb')`); two or more sit in a grid; every other file stays a chip.
@@ -754,7 +792,11 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
 - The mention list of the Inbox box opens above the box (`MentionField placement="above"`) and ranks the names that start with
   the typed letters first (`rankedMatches`, `lib/personName.ts`).
 - A What's new id: take a number above the newest id on main and on every open `rb/*` branch (`git show rb/<x>:src/whatsNew/entries.ts`).
+  Sort the ids as numbers (`sort -t- -k4 -n`): a text sort puts `2026-10-23-9` above `-82` (2026-10-22).
   A test finds its entry by id, never by `WHATS_NEW[0]`.
+- What's new dates (owner, 2026-10-22): `day` is the day the entry's production release went live, and the page shows the entries of each
+  day under that date. Write the planned release day before `all.sh test`; when production goes on another day, fix it in the release
+  record commit. The id is only a name and keeps its old form. `entries.test.ts` fails on a day still to come or out of order.
 - What's new (`whatsNew/entries.ts`): an entry may have `right` (the page shows it only to a person who holds it, by `can()`) and
   `to` (one quiet link "Open"). An entry newer than the last one the person saw has the word "New". The person menu shows the word
   "New" after the item, and Home ends its date line with the link "See what's new", until the person opens the page. There is no dot
@@ -954,6 +996,10 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
   there (sandbox off); no `@fontsource` 403. A new port keeps its own saved office: run `indexedDB.deleteDatabase('madar')` and reload first.
 - To set the prototype person, language or theme, or add a sample record, without clicks: edit the saved office (IndexedDB
   `madar`, store `data`, key `state`: `session.currentUserId`, `users[id].preferences.language` and `.theme`), then reload.
+- Prototype data with no clicks in the 390 px frame: attach a file with `input.files = dataTransfer.files` and a `change` event; pick a
+  mention with Enter (a synthetic click picks nothing); set the box to '' before '@' (a stored draft can hold the same text, and React then sees no change).
+- A download control in the 390 px frame: wrap `URL.createObjectURL` and `HTMLAnchorElement.prototype.click` in the page to keep the
+  Blob and its name in memory, then read the bytes there (a ZIP starts "PK"); no file goes to the disk.
 
 ## Screen test gotchas
 - Links are `#/...` (hash router).
@@ -994,9 +1040,11 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
   the place message. Await the place message after Space and after the arrow key before the next key, or the drop never happens.
 
 ## Quiet hours and the Everyone row (owner, 2026-10-22, fbk_048 and fbk_041)
-- Settings (desk) or Me (phone) has the section "Quiet hours" after the push section (`settings/QuietHoursSection.tsx`, for every role). One switch "Quiet outside my
-  work hours" (on by default), then the seven day toggles from Sunday and "From" and "To" (30-minute steps from 6:00 AM to 11:30 PM, on the
-  12-hour words of `clockFormat`; `WorkRangeFields.tsx`, `workRange.ts`). While the Admin keeps the lock on, the days of the lock are ticked and
+- Settings (desk) or Me (phone) has the section "When Madar notifies you" after the push section (`settings/QuietHoursSection.tsx`, for every role; words of fbk_049).
+  One switch "Notify me only in my work hours" (on by default), then "My work days" (seven toggles from Sunday; a day the office keeps on looks
+  picked, with a small lock), then the two times in the order of the quiet line (fbk_051): "Quiet from" (the end of work, `to`) and "Until"
+  (the start of work, `from`), `WorkRangeFields order="quiet"`; 30-minute steps from 6:00 AM to 11:30 PM, on the 12-hour words of `clockFormat`
+  (`WorkRangeFields.tsx`, `workRange.ts`). One live line (`quietSentence`) says when Madar is quiet. The Admin block keeps the work order. While the Admin keeps the lock on, the days of the lock are ticked and
   locked, the times cannot cut the lock, and one line names it. Each change saves at once with `me.updatePreferences` and a toast. With the
   switch off, the day and time controls hide. A range the Admin's later lock no longer holds is shown widened to the lock.
 - The Admin block "Work hours" is in `admin/OfficeSection.tsx` (`office.settings`): the default range of a person who chose none, and "Keep

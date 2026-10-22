@@ -5,7 +5,14 @@ import type { CountSelect, Row, Select } from './query';
  * Where a loader reads (task C2). sqlSource reads the database inside the call's transaction; memorySource reads a whole office in
  * memory, for the tests that prove a scoped load gives the same answer as the whole office (AM 6).
  */
-export type ThreadsArgs = { owner: string; led: readonly string[]; me: readonly string[]; limit: number; admin: boolean };
+export type ThreadsArgs = {
+  owner: string; led: readonly string[]; me: readonly string[]; limit: number; admin: boolean;
+  /**
+   * The ids of the projects that the person sees (hidden projects, owner 2026-10-22). A thread of a project task counts only when its
+   * project is in this list, so the cut by "limit" never counts a thread that the handler drops.
+   */
+  seen: readonly string[];
+};
 /** One task thread of Source.threads. */
 export type ThreadRow = { id: string; last: string; mine: string | null };
 

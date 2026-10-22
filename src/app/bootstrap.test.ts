@@ -10,7 +10,8 @@ describe('bootstrap', () => {
     setNow(NOW);
     const persister = memoryPersister();
     const first = await bootstrap({ persister, latencyMs: 0 });
-    expect(Object.keys(first.store.state.projects)).toHaveLength(12);
+    // 12 projects of the plan, and the sample internal project (fbk_044).
+    expect(Object.keys(first.store.state.projects)).toHaveLength(13);
     await first.api.call('projects.update', { id: 'prj_001', patch: { name: 'Corniche Tower' } });
     await first.store.flush();
     const second = await bootstrap({ persister, latencyMs: 0 });
@@ -49,7 +50,7 @@ describe('bootstrap', () => {
     stale.version = 0;
     await persister.save(stale);
     const runtime = await bootstrap({ persister, latencyMs: 0 });
-    expect(Object.keys(runtime.store.state.projects)).toHaveLength(12);
+    expect(Object.keys(runtime.store.state.projects)).toHaveLength(13);
   });
 
   it('never wipes an office saved by a newer build: it runs in memory and keeps the saved copy (audit 2026-10-03, API-2)', async () => {
@@ -61,7 +62,7 @@ describe('bootstrap', () => {
     await persister.save(newer);
     const runtime = await bootstrap({ persister, latencyMs: 0 });
     expect(runtime.store.persistent).toBe(false);
-    expect(Object.keys(runtime.store.state.projects)).toHaveLength(12);
+    expect(Object.keys(runtime.store.state.projects)).toHaveLength(13);
     await runtime.api.call('projects.update', { id: 'prj_002', patch: { name: 'Changed here' } });
     await runtime.store.flush();
     const kept = (await persister.load())!;
@@ -83,7 +84,7 @@ describe('bootstrap', () => {
     const runtime = await bootstrap({ persister, latencyMs: 0 });
     expect(cleared).toBe(false);
     expect(runtime.store.persistent).toBe(false);
-    expect(Object.keys(runtime.store.state.projects)).toHaveLength(12);
+    expect(Object.keys(runtime.store.state.projects)).toHaveLength(13);
   });
 
   it('adds the sample genders to an office saved before them, and keeps the local work', async () => {

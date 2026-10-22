@@ -17,7 +17,7 @@ Both reports decide who gets a buzz, and when, so they ship together.
 2. In quiet hours Madar sends **no push and no email**. The bell and the Inbox still collect everything. When quiet hours end, the
    person gets **one push** with the fixed line ("You have something new in Madar." / «لديك جديد في مدار.»). The things of the quiet
    hours **never send an email**, also not later.
-3. **The Admin lock** is on by default: Sunday to Thursday, 9 AM to 5 PM. Nobody can be quiet inside it. The Admin changes its days
+3. **The Admin lock** is on by default: Sunday to Thursday, 9 AM to 5 PM (8 AM to 5 PM since fbk_049: the office works 8 to 5). Nobody can be quiet inside it. The Admin changes its days
    and hours, or turns it off. The Admin also sets the **office default** work days and range.
 4. **Release day:** the office default applies at once to every person who did not choose (quiet outside Sunday to Thursday, 9 AM to
    5 PM). A What's new line says how to change it.

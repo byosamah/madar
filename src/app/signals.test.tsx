@@ -320,6 +320,26 @@ describe('the reload after a change signal (plan 5.3)', () => {
     app.stop();
   });
 
+  it('reloads the lists of a hidden project for a change on my person channel that names the project, and no list of another project (hidden projects, wave D3)', async () => {
+    const app = setup();
+    const hidden = app.show('tasks.list', { projectId: 'prj_001' });
+    const other = app.show('tasks.list', { projectId: 'prj_002' });
+    const everyProject = app.show('tasks.list', {});
+    const projects = app.show('projects.list', {});
+    await settle();
+    const change = sig({ kinds: ['events', 'tasks'], channel: `person:${ME}`, people: [ME], office: false, projects: ['prj_001'] });
+    app.send([change]);
+    await vi.advanceTimersByTimeAsync(2000);
+    // The lists of the hidden project and of every project reload. The list of the other project does not.
+    expect([hidden(), other(), everyProject()]).toEqual([2, 1, 2]);
+    // The kinds of the project (the project itself) reload the project list too.
+    const before = projects();
+    app.send([sig({ kinds: ['projects'], channel: `person:${ME}`, people: [ME], office: false, projects: ['prj_001'] })]);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(projects()).toBe(before + 1);
+    app.stop();
+  });
+
   it('reloads at once when an own write comes back on Realtime before its answer', async () => {
     const app = setup();
     const tasks = app.show('tasks.list', { projectId: 'prj_001' });

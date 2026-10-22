@@ -8,8 +8,10 @@ import {
 import { UserCard } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, savePreferences } from '../events';
+import { projectViewer } from '../projectView';
 import { nextId } from '../store';
 import { userCard } from '../views';
+import { INTERNAL_PREFIX } from '../../lib/projectCode';
 import { holdsAdminRights } from '../permissions';
 import { coversLock, officeWorkHoursOf } from '../../lib/quietHours';
 import { assertCan, byName, requireUser } from './shared';
@@ -51,7 +53,9 @@ export const sessionGet = defineCall({
   readOnly: true,
   prototypeOnly: true,
   run(_input, ctx) {
-    const leaders = new Set(Object.values(ctx.state.projects).map((p) => p.leaderId));
+    // The hint "leader" counts only the projects that the person sees (hidden projects, owner 2026-10-22).
+    const sees = projectViewer(ctx.state, ctx.authority);
+    const leaders = new Set(Object.values(ctx.state.projects).filter(sees).map((p) => p.leaderId));
     // An agent shows only while its person is active, because it cannot act otherwise.
     const canAct = (u: User) => u.kind === 'human' || (u.ownerId !== null && ctx.state.users[u.ownerId]?.active === true);
     const previewUsers = Object.values(ctx.state.users)
@@ -464,6 +468,8 @@ export const settingsUpdate = defineCall({
   output: Settings,
   run(input, ctx) {
     assertCan(ctx, 'office.settings');
+    // INT is the head of the code of an internal project (fbk_044). A client project may not take it.
+    if (input.codePrefix === INTERNAL_PREFIX) throw invalid('codePrefix', 'INT is the code head of internal projects. Choose another.', 'code_prefix_taken');
     // The default range of the office must hold the lock, so a person who never chose is never quiet inside the lock (owner, 2026-10-22).
     const workHours = input.workHours === undefined ? undefined : {
       ...input.workHours, days: sortedDays(input.workHours.days), lock: { ...input.workHours.lock, days: sortedDays(input.workHours.lock.days) },

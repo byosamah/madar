@@ -218,7 +218,7 @@ describe('the actor of an agent carries the rights of its person', () => {
     expect(rightsOf(agent, t.store.state.settings.roles)).not.toContain('report.office');
     expect(can(withOfficeRights(agent, t.store.state.settings.roles), 'report.office')).toBe(false);
     expect(can(person, 'report.office')).toBe(true);
-    expect(BASIC_ON.length).toBe(65);
+    expect(BASIC_ON.length).toBe(67);
     const asAction: Action = 'report.office';
     expect(can(person, asAction)).toBe(true);
   });

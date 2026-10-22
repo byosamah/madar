@@ -2,6 +2,8 @@ import type { Meeting } from '../../../src/api/contract/entities';
 import { maxDay, todayISO } from '../../../src/lib/dates';
 import { isLive } from '../../../src/lib/overview';
 import { dayOf, occurrencesOf, officeStamp, SERIES_AHEAD, SETTLE_BACK_DAYS } from '../../../src/lib/meetings';
+import { mayViewProject } from '../../../src/api/permissions';
+import type { State } from '../../../src/api/store';
 import { runCall } from '../../core/runCall';
 import type { Deps } from '../../core/ports';
 import type { OfficeSnapshot } from '../../core/types';
@@ -57,17 +59,32 @@ export const EXTEND_LITE =
 type Due = Pick<Meeting, 'organizerId' | 'projectId' | 'attendeeIds'>;
 
 /**
- * The person who runs meetings.settle for a meeting: the organizer while an active person. Else, for a project meeting, the first
- * active Admin by id (everyone sees a project meeting); for a meeting with no project, the first active attendee by id (only its people
- * see it, the Admin too only when invited). Null when nobody can act: the meeting counts as skipped.
+ * The organizer acts only while an active person who views the project of the meeting (hidden projects, owner 2026-10-22): the call refuses
+ * a person who does not, as it refuses a missing project. A project that the office list lacks is no reason to change the actor.
+ */
+function organizerActs(office: OfficeSnapshot, row: Due): boolean {
+  const organizer = office.lists.users[row.organizerId];
+  if (organizer?.kind !== 'human' || !organizer.active) return false;
+  const project = row.projectId === null ? undefined : office.lists.projects[row.projectId];
+  return project === undefined || mayViewProject(office.lists as unknown as State, project, organizer);
+}
+
+/**
+ * The person who runs meetings.settle for a meeting: the organizer while an active person who views the project. Else, for a project
+ * meeting, the first active Admin by id who views the project (the Admin holds "See hidden projects"); for a meeting with no project, the
+ * first active attendee by id (only its people see it, the Admin too only when invited). Null when nobody can act: the meeting counts as skipped.
  */
 export function settleActorOf(office: OfficeSnapshot, row: Due): string | null {
   const users = office.lists.users;
   const person = (id: string) => users[id]?.kind === 'human' && users[id].active;
-  if (person(row.organizerId)) return row.organizerId;
+  if (organizerActs(office, row)) return row.organizerId;
   if (row.projectId !== null) {
-    return Object.values(users).filter((user) => user.kind === 'human' && user.active && user.systemRole === 'admin').map((user) => user.id).sort()[0] ?? null;
+    const project = office.lists.projects[row.projectId];
+    return Object.values(users)
+      .filter((user) => user.kind === 'human' && user.active && user.systemRole === 'admin' && (project === undefined || mayViewProject(office.lists as unknown as State, project, user)))
+      .map((user) => user.id).sort()[0] ?? null;
   }
+  if (person(row.organizerId)) return row.organizerId;
   return [...row.attendeeIds].sort().find(person) ?? null;
 }
 
@@ -76,8 +93,7 @@ export function settleActorOf(office: OfficeSnapshot, row: Due): string | null {
  * for a project series. A private series of an organizer who left has nobody who may change it: it stops, and the step skips it quietly.
  */
 export function extendActorOf(office: OfficeSnapshot, row: Due): string | null {
-  const users = office.lists.users;
-  if (users[row.organizerId]?.kind === 'human' && users[row.organizerId].active) return row.organizerId;
+  if (organizerActs(office, row)) return row.organizerId;
   return row.projectId === null ? null : settleActorOf(office, row);
 }
 

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { INITIALS_PATTERN, RECORD_CODE_PATTERN, visibleTextPattern } from '../../lib/projectCode';
 import {
-  DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, MEETING_KINDS, MEETING_LIMITS,
+  DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, MAX_PROJECT_VIEWERS, MEETING_KINDS, MEETING_LIMITS,
   NOTIFY_LEVELS, PICTURE_DATA, REACTIONS,
 } from './limits';
 import { isReactionEmoji } from './emoji';
@@ -10,7 +10,7 @@ import { CATALOG_RIGHT_IDS, STORED_RIGHT_IDS } from '../rightsCatalog';
 
 // The plain limits live in limits.ts, with no zod, for the screens of the first load (performance audit BND-6).
 export {
-  DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, MEETING_KINDS, MEETING_LIMITS,
+  DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, MAX_PROJECT_VIEWERS, MEETING_KINDS, MEETING_LIMITS,
   NOTIFY_LEVELS, PICTURE_DATA, REACTIONS,
 };
 
@@ -176,7 +176,7 @@ export const SystemRole = z.enum(['admin', 'management', 'accounting', 'member']
 export type SystemRole = z.infer<typeof SystemRole>;
 
 /**
- * The office rights (owner, 2026-10-18, fbk_014). Role rights version 2 (owner, 2026-10-21): 113 switches in 13 sections, one id for each
+ * The office rights (owner, 2026-10-18, fbk_014). Role rights version 2 (owner, 2026-10-21): 117 switches in 13 sections, one id for each
  * switch (rightsCatalog.ts, the plain copy of the catalog JSON in docs). A switch opens one power for a person. The Admin holds every
  * switch. A power with scopes has one id for each scope: `<power>.<scope>`.
  * permissions.ts and rightsCatalog.ts hold the same names as plain constants, because they load with the screens and take no zod.
@@ -185,16 +185,16 @@ export const OfficeRight = z.enum(CATALOG_RIGHT_IDS);
 export type OfficeRight = z.infer<typeof OfficeRight>;
 
 /**
- * A right as a stored list holds it: the 113 ids, and the 17 old ids of 2026-10-23 (project.editAny, people.manage, payment.manage and
+ * A right as a stored list holds it: the 117 ids, and the 17 old ids of 2026-10-23 (project.editAny, people.manage, payment.manage and
  * so on). Only RoleSettings.rights, CustomRole.rights and the roles.* inputs take it, so old stored data still parses. rightsOf and the
- * roles calls expand an old id to its new ids (expandRights). Every output gives the 113 ids only.
+ * roles calls expand an old id to its new ids (expandRights). Every output gives the 117 ids only.
  */
 export const StoredRight = z.enum(STORED_RIGHT_IDS);
 export type StoredRight = z.infer<typeof StoredRight>;
 
-/** The most rights in one stored list: the 113 ids, with room for old ids. */
+/** The most rights in one stored list: the 117 ids, with room for old ids. */
 export const MAX_STORED_RIGHTS = 120;
-/** The most `off` ids in one stored list: the 65 basic switches, with room. */
+/** The most `off` ids in one stored list: the 67 basic switches, with room. */
 export const MAX_OFF_RIGHTS = 70;
 
 /**
@@ -384,6 +384,23 @@ export const TemplateLink = z.object({
 });
 export type TemplateLink = z.infer<typeof TemplateLink>;
 
+/**
+ * Who sees a project (hidden projects, owner 2026-10-22). hidden: the project shows only to its leader, its team, the people in viewerIds
+ * and the holders of the switch "See hidden projects". Optional on the project: a missing value is an open project with no chosen people.
+ */
+export const ProjectAccess = z.object({
+  hidden: z.boolean(),
+  viewerIds: z.array(UserId).max(MAX_PROJECT_VIEWERS),
+});
+export type ProjectAccess = z.infer<typeof ProjectAccess>;
+
+/**
+ * The kind of a project (fbk_044, owner 2026-10-22). An internal project is the office's own work, like a portfolio: it has no client, code on
+ * the screens, place, area, sub-company, contract date, payments or Tracker. It starts hidden. Optional on the project: a missing value is a client project.
+ */
+export const ProjectKind = z.enum(['client', 'internal']);
+export type ProjectKind = z.infer<typeof ProjectKind>;
+
 export const Project = z.object({
   id: ProjectId,
   /** The old form KH-26-014, or the new form YYMMSSINI-CLS-Type (owner, 2026-10-05, lib/projectCode.ts). Two projects of one contract share one code. */
@@ -416,6 +433,10 @@ export const Project = z.object({
   subCompanyId: SubCompanyId.nullable().optional(),
   /** The template the project came from. Optional and null: a project made by hand has none, and older offices still load. */
   templateLink: TemplateLink.nullable().optional(),
+  /** Who sees the project (hidden projects, owner 2026-10-22). Optional, so a project saved before it is open to the office. */
+  access: ProjectAccess.optional(),
+  /** The kind of the project (fbk_044). Set once when the project is made, and never changes. A missing value is a client project. */
+  kind: ProjectKind.optional(),
   createdBy: UserId,
   createdAt: Stamp,
   updatedAt: Stamp,

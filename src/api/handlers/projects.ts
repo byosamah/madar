@@ -1,22 +1,23 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
-  ClientId, ClientInitials, Day, DeadlineId, FileId, GeoPoint, HealthValue, LinkKind, linkUrlOk, MAX_PREREQUISITES, PauseKind, ProjectId, ProjectStatus, ProjectTemplateId, StageId,
-  SubCompanyId, TeamId, UserId, type Deadline, type Project, type ProjectTemplate, type Task,
+  ClientId, ClientInitials, Day, DeadlineId, FileId, GeoPoint, HealthValue, LinkKind, linkUrlOk, MAX_PREREQUISITES, MAX_PROJECT_VIEWERS, PauseKind, ProjectId, ProjectKind, ProjectStatus, ProjectTemplateId, StageId,
+  SubCompanyId, TeamId, UserId, type Deadline, type Project, type ProjectTemplate, type Stage, type Task,
 } from '../contract/entities';
 import { DeadlineRow, ProjectDetail, ProjectSummary } from '../contract/views';
 import { ApiError, invalid, notFound } from '../errors';
+import { internalRefusal, isInternal } from '../internalProject';
 import { addProjectConversation, dropProjectConversation } from '../chatState';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { assertStagePrerequisites, watchStage } from '../flow';
-import { notify, projectPeople } from '../notify';
+import { notify, notifyIn, projectPeople } from '../notify';
 import { peopleFilter, teamFilter } from '../pause';
 import { can, projectRoleOf } from '../permissions';
 import { meetingsOf, memberKey, nextId, paymentsOf, projectTemplatesOf, subCompaniesOf, teamsOf, trackerOf, type State } from '../store';
 import { detailOf, stagesOf, summaryOf } from '../views';
 import { diffDays } from '../../lib/dates';
 import {
-  buildProjectCode, CLASSIFICATIONS, codeMonth, contractClash, contractOf, FREE_CODE_MAX, FREE_CODE_PATTERN, isProjectCode, nextSeries, projectKey, TYPE_MAX,
+  buildProjectCode, CLASSIFICATIONS, codeMonth, contractClash, contractOf, FREE_CODE_MAX, FREE_CODE_PATTERN, INTERNAL_PREFIX, isProjectCode, nextSeries, projectKey, TYPE_MAX,
   TYPE_PATTERN,
 } from '../../lib/projectCode';
 import { planProject, type ProjectPlan } from '../../lib/projectPlan';
@@ -25,7 +26,7 @@ import { pinFromLinks, samePoint } from '../../lib/geo';
 import { baseOf } from '../templateSync';
 import { markOf, pickMark } from '../../lib/projectMark';
 import { involves } from '../../lib/taskPeople';
-import { addMember, assertCan, requireProject, requireStage, requireUser, roleIn, touch } from './shared';
+import { addMember, assertCan, requireProject, requireStage, requireUser, roleIn, seesProject, touch } from './shared';
 import { addTrackerEntry } from './tracker';
 
 const ProjectName = z.string().trim().min(1).max(120);
@@ -81,7 +82,9 @@ const CodeParts = z.object({
 function assertCodeFree(ctx: Ctx, code: string, selfId: string | null): void {
   const other = contractClash(code, Object.values(ctx.state.projects), selfId);
   if (other) {
-    throw invalid('code', `The series ${contractOf(code)} belongs to another contract (${projectKey(other.code)}). To keep this code, send codeAnyway: true.`, 'code_taken');
+    // The server checks every project, so a code stays unique. The text names the other project only when the person sees it (hidden projects).
+    const name = seesProject(ctx, other.id) ? ` (${projectKey(other.code)})` : '';
+    throw invalid('code', `The series ${contractOf(code)} belongs to another contract${name}. To keep this code, send codeAnyway: true.`, 'code_taken');
   }
 }
 
@@ -106,7 +109,8 @@ function codeOfNew(ctx: Ctx, input: CodeInput): string {
   if (ways > 1) throw invalid('code', 'Give the code in one way: the parts, a typed code, or the same contract as another project.');
   if (input.sameContractAs !== undefined) {
     const other = state.projects[input.sameContractAs];
-    if (!other) throw invalid('sameContractAs', 'This project does not exist.');
+    // A project that the person does not see reads as missing (hidden projects).
+    if (!other || !seesProject(ctx, other.id)) throw invalid('sameContractAs', 'This project does not exist.');
     return other.code;
   }
   if (input.code !== undefined) {
@@ -133,6 +137,36 @@ export function nextProjectCode(state: State, prefix: string, today: string): st
     .filter((p) => p.code.startsWith(head))
     .reduce((highest, p) => Math.max(highest, Number(p.code.slice(head.length))), 0);
   return `${head}${String(max + 1).padStart(3, '0')}`;
+}
+
+/**
+ * The fields that an internal project may not hold (fbk_044, owner 2026-10-22): the client, the place, the area, the sub-company, the
+ * contract date and the code. The first field that breaks the rule is named with the reason internal_project. An empty value is no value.
+ */
+function assertInternalCreate(input: {
+  clientId: string | null; subCompanyId?: string | null; geo: GeoPoint | null; areaM2: number | null; contractStartDate: string | null; location: string;
+  code?: string; codeParts?: unknown; sameContractAs?: string;
+}): void {
+  if (input.subCompanyId) throw internalRefusal('subCompanyId');
+  if (input.clientId) throw internalRefusal('clientId');
+  if (input.geo) throw internalRefusal('geo');
+  if (input.areaM2 !== null) throw internalRefusal('areaM2');
+  if (input.contractStartDate) throw internalRefusal('contractStartDate');
+  if (input.location !== '') throw internalRefusal('location');
+  if (input.code !== undefined) throw internalRefusal('code');
+  if (input.codeParts !== undefined) throw internalRefusal('codeParts');
+  if (input.sameContractAs !== undefined) throw internalRefusal('sameContractAs');
+}
+
+/** The same rule for a change: a value in one of these fields is refused, an empty value passes. */
+function assertInternalUpdate(patch: { clientId?: string | null; areaM2?: number | null; geo?: GeoPoint | null; subCompanyId?: string | null; contractStartDate?: string | null; location?: string; code?: string }): void {
+  if (patch.clientId) throw internalRefusal('clientId');
+  if (patch.areaM2 !== undefined && patch.areaM2 !== null) throw internalRefusal('areaM2');
+  if (patch.geo) throw internalRefusal('geo');
+  if (patch.subCompanyId) throw internalRefusal('subCompanyId');
+  if (patch.contractStartDate) throw internalRefusal('contractStartDate');
+  if (patch.location) throw internalRefusal('location');
+  if (patch.code !== undefined) throw internalRefusal('code');
 }
 
 function assertDates(start: string | null, end: string | null, field: string): void {
@@ -266,10 +300,18 @@ function requireEditable(ctx: Ctx, projectId: string, power: ProjectPower): Proj
   return project;
 }
 
+/** A deadline by id. One in a project that the person does not see reads as missing, with the text of an unknown deadline (hidden projects). */
 function requireDeadline(ctx: Ctx, id: string): Deadline {
   const deadline = ctx.state.deadlines[id];
-  if (!deadline) throw notFound('Deadline', id);
+  if (!deadline || !seesProject(ctx, deadline.projectId)) throw notFound('Deadline', id);
   return deadline;
+}
+
+/** A stage by id. One in a project that the person does not see reads as missing, with the text of an unknown stage (hidden projects). */
+function requireStageById(ctx: Ctx, id: string): Stage {
+  const stage = ctx.state.stages[id];
+  if (!stage || !seesProject(ctx, stage.projectId)) throw notFound('Stage', id);
+  return stage;
 }
 
 const shownDate = (s: ProjectSummary) => s.nextDeadline?.date ?? s.stageEnd?.date ?? '9999-12-31';
@@ -305,14 +347,15 @@ export const projectsList = defineCall({
   readOnly: true,
   run(input, ctx) {
     const { state, today, authority } = ctx;
-    const inTeam = teamFilter(state, input.teamId);
-    // The filters that read only the project come first, so the summary is built only for the projects that stay.
+    const inTeam = teamFilter(state, input.teamId, authority);
+    // The filters that read only the project come first, so the summary is built only for the projects that stay. teamFilter holds the view
+    // rule too (hidden projects, owner 2026-10-22): a project that the person does not see never gets a summary.
     return Object.values(state.projects)
       .filter((p) => input.status === 'all' || p.status === input.status)
       .filter((p) => input.filter !== 'mine' || projectRoleOf(state, p.id, authority.id) !== 'other')
-      .filter((p) => input.filter !== 'no_area' || p.areaM2 === null)
+      .filter((p) => input.filter !== 'no_area' || (p.areaM2 === null && !isInternal(p)))
       .filter((p) => input.filter !== 'stage_no_end' || stagesOf(state, p.id).some((stage) => stage.endDate === null))
-      .filter((p) => input.filter !== 'no_sub_company' || !p.subCompanyId)
+      .filter((p) => input.filter !== 'no_sub_company' || (!p.subCompanyId && !isInternal(p)))
       .filter((p) => !input.leaderId || p.leaderId === input.leaderId)
       .filter((p) => !input.clientId || p.clientId === input.clientId)
       .filter((p) => !input.subCompanyId || p.subCompanyId === input.subCompanyId)
@@ -362,13 +405,20 @@ export const projectsCreate = defineCall({
     codeAnyway: CodeAnyway,
     /** Start from a project template: its stages, its tasks with dates and leads, and the project start and end. No stages or dates beside it. */
     template: TemplateUse.optional(),
+    /**
+     * client (the default) or internal (fbk_044, owner 2026-10-22). An internal project is the office's own work: no client, place, area,
+     * sub-company, contract date or typed code, the automatic code INT-YY-NNN, and it starts hidden from the office.
+     */
+    kind: ProjectKind.optional(),
   }),
   output: ProjectDetail,
   run(input, ctx) {
     assertCan(ctx, 'project.create');
     const { state, actor, stamp, today } = ctx;
+    const internal = input.kind === 'internal';
+    if (internal) assertInternalCreate(input);
     assertDates(input.startDate, input.targetEndDate, 'targetEndDate');
-    const subCompanyId = subCompanyOfNew(ctx, input.subCompanyId);
+    const subCompanyId = internal ? null : subCompanyOfNew(ctx, input.subCompanyId);
     const made = templateMadeOf(ctx, input);
     const leaderId = input.leader === 'me' ? ctx.authority.id : input.leader === 'none' ? null : input.leader;
     if (leaderId) assertLeader(ctx, leaderId);
@@ -377,7 +427,8 @@ export const projectsCreate = defineCall({
       const member = state.users[userId];
       if (!member?.active || member.kind !== 'human') throw invalid('teamIds', 'Every team member must be an active person. Agents act for a person.');
     }
-    const code = codeOfNew(ctx, input);
+    // The INT series is its own: nextProjectCode counts only the codes that start with INT-YY-, so it never takes a series of a client code.
+    const code = internal ? nextProjectCode(state, INTERNAL_PREFIX, today) : codeOfNew(ctx, input);
     const id = nextId(state, 'prj');
     const stageParts = made
       ? made.template.stages.map((stage) => ({ partId: stage.id, name: stage.name, dates: made.plan.stages[stage.id] }))
@@ -408,6 +459,7 @@ export const projectsCreate = defineCall({
       startDate, targetEndDate, contractStartDate: input.contractStartDate, coverFileId: null, modelFolderPath: input.modelFolderPath,
       description: input.description, healthOverride: null, mark: pickMark(id, Object.values(state.projects)),
       ...(subCompanyId ? { subCompanyId } : {}),
+      ...(internal ? { kind: 'internal' as const, access: { hidden: true, viewerIds: [] } } : {}),
       createdBy: actor.id, createdAt: stamp, updatedAt: stamp,
       // The link keeps the template, the person of each role and a copy of the template parts. No part is dropped yet (fbk_008 item 4, ADM-01).
       ...(made ? { templateLink: { templateId: made.template.id, linkedAt: stamp, syncedAt: null, rolePeople: { ...made.people }, droppedPartIds: [], base: baseOf(made.template, made.plan) } } : {}),
@@ -456,6 +508,8 @@ export const projectsUpdate = defineCall({
   run(input, ctx) {
     const project = requireEditable(ctx, input.id, 'project.details');
     const { code, ...asked } = input.patch;
+    // An internal project holds none of the client fields. The rule comes first, so a refused write changes nothing.
+    if (isInternal(project)) assertInternalUpdate(input.patch);
     // The rule of the place comes before any change, so a refused write changes nothing.
     const patch = placeRule(project, asked);
     if (patch.subCompanyId !== undefined) assertSubCompany(ctx, patch.subCompanyId);
@@ -547,6 +601,8 @@ export const projectsPause = defineCall({
     const project = requireProject(ctx, input.id);
     assertCan(ctx, 'project.archive', { projectRole: roleIn(ctx, project.id) });
     if (project.status === 'on_hold') throw new ApiError('conflict', 'This project is already paused. Resume it first.');
+    // A pause that waits for the client writes a Tracker line. An internal project has no client and no Tracker.
+    if (input.kind === 'client' && isInternal(project)) throw internalRefusal('kind');
     if (input.resumeOn && input.resumeOn <= ctx.today) throw invalid('resumeOn', 'The restart date must be after today.');
     const pause: NonNullable<Project['pause']> = { reason: input.reason, resumeOn: input.resumeOn ?? null, by: ctx.actor.id, at: ctx.stamp, kind: input.kind };
     if (input.kind === 'client') {
@@ -580,6 +636,39 @@ export const projectsSetRestart = defineCall({
     if (input.resumeOn !== project.pause.resumeOn) {
       applyPatch(ctx, project, { pause: { ...project.pause, resumeOn: input.resumeOn } }, { projectId: project.id, verb: 'project.restart_moved', targetType: 'project', targetId: project.id });
       touch(ctx, project.id);
+    }
+    return detail(ctx, project);
+  },
+});
+
+/**
+ * Who sees a project (hidden projects, owner 2026-10-22). "hidden" keeps the project for its leader, its team, the chosen people and the
+ * holders of "See hidden projects"; not hidden opens it to every person who may see every project. The chosen people stay in the list
+ * also while the project is open, so a later hide brings the same people back. It needs project.access on the project (the leader by
+ * default, the Admin for every project). One event with the old and the new value, so Undo works. A person who is new in the list and
+ * is no member gets the notice added_to_project. A person who loses the view gets nothing more about the project.
+ */
+export const projectsSetAccess = defineCall({
+  input: z.object({ id: ProjectId, hidden: z.boolean(), viewerIds: z.array(UserId).max(MAX_PROJECT_VIEWERS) }),
+  output: ProjectDetail,
+  run(input, ctx) {
+    const project = requireProject(ctx, input.id);
+    assertCan(ctx, 'project.access', { projectRole: roleIn(ctx, project.id) });
+    const viewerIds = [...new Set(input.viewerIds)];
+    const was = project.access?.viewerIds ?? [];
+    const added = viewerIds.filter((userId) => !was.includes(userId));
+    // A person who is new in the list must be an active person. A person already in the list may have left since.
+    for (const userId of added) {
+      const user = requireUser(ctx, userId);
+      if (user.kind === 'agent') throw invalid('viewerIds', 'Agents act for a person. Choose the person instead.', 'viewer_agent');
+      if (!user.active) throw invalid('viewerIds', 'This person is no longer active. Pick someone else.', 'person_inactive');
+    }
+    const unchanged = (project.access?.hidden ?? false) === input.hidden && JSON.stringify(was) === JSON.stringify(viewerIds);
+    if (!unchanged) {
+      applyPatch(ctx, project, { access: { hidden: input.hidden, viewerIds } }, { projectId: project.id, verb: 'project.access_changed', targetType: 'project', targetId: project.id });
+      // The list is saved first, so notify sees the new person as a viewer. A leader and a team member already see the project.
+      const told = added.filter((userId) => userId !== project.leaderId && ctx.state.members[memberKey(project.id, userId)] === undefined);
+      notifyIn(ctx, { userIds: told, trigger: 'added_to_project', targetType: 'project', targetId: project.id });
     }
     return detail(ctx, project);
   },
@@ -915,8 +1004,7 @@ export const stagesSetDates = defineCall({
   input: z.object({ stageId: StageId, startDate: Day.nullable(), endDate: Day.nullable() }),
   output: ProjectDetail,
   run(input, ctx) {
-    const stage = ctx.state.stages[input.stageId];
-    if (!stage) throw notFound('Stage', input.stageId);
+    const stage = requireStageById(ctx, input.stageId);
     const project = requireEditable(ctx, stage.projectId, 'project.stages');
     if (input.startDate && input.endDate && input.endDate < input.startDate) throw invalid('endDate', 'The stage cannot end before it starts.');
     const watch = watchStage(ctx, project.id);
@@ -935,8 +1023,7 @@ export const stagesSetPrerequisites = defineCall({
   input: z.object({ stageId: StageId, prerequisiteIds: z.array(StageId).max(MAX_PREREQUISITES) }),
   output: ProjectDetail,
   run(input, ctx) {
-    const stage = ctx.state.stages[input.stageId];
-    if (!stage) throw notFound('Stage', input.stageId);
+    const stage = requireStageById(ctx, input.stageId);
     const project = requireEditable(ctx, stage.projectId, 'project.stages');
     assertStagePrerequisites(ctx.state, stage, input.prerequisiteIds);
     applyPatch(ctx, stage, { prerequisiteIds: input.prerequisiteIds }, {
@@ -1009,7 +1096,7 @@ export const deadlinesList = defineCall({
   readOnly: true,
   run(input, ctx) {
     const { state, today } = ctx;
-    const inFilters = peopleFilter(state, input);
+    const inFilters = peopleFilter(state, input, ctx.authority);
     return Object.values(state.deadlines)
       .filter((d) => {
         const project = state.projects[d.projectId];
@@ -1035,6 +1122,7 @@ export const projectCalls = {
   'projects.setStatus': projectsSetStatus,
   'projects.pause': projectsPause,
   'projects.setRestart': projectsSetRestart,
+  'projects.setAccess': projectsSetAccess,
   'projects.resume': projectsResume,
   'projects.addLink': projectsAddLink,
   'projects.updateLink': projectsUpdateLink,

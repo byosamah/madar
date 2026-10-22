@@ -13,9 +13,9 @@ const FRI = '2026-10-09';
 const SAT = '2026-10-10';
 
 describe('the default office work hours', () => {
-  it('are Sunday to Thursday, 9 AM to 5 PM, with the lock on for the same days and hours', () => {
+  it('are Sunday to Thursday, 8 AM to 5 PM, with the lock on for the same days and hours (fbk_049: the office works 8 to 5)', () => {
     expect(DEFAULT_OFFICE_WORK_HOURS).toEqual({
-      days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00', lock: { on: true, days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00' },
+      days: [0, 1, 2, 3, 4], from: '08:00', to: '17:00', lock: { on: true, days: [0, 1, 2, 3, 4], from: '08:00', to: '17:00' },
     });
   });
 
@@ -29,7 +29,7 @@ describe('the default office work hours', () => {
 
 describe('the work hours of a person', () => {
   it('come from the office when the person chose nothing', () => {
-    expect(workHoursOf(undefined, undefined)).toEqual({ quiet: true, days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00' });
+    expect(workHoursOf(undefined, undefined)).toEqual({ quiet: true, days: [0, 1, 2, 3, 4], from: '08:00', to: '17:00' });
     const office = { workHours: { days: [0, 1, 2], from: '08:00', to: '15:00', lock: { on: false, days: [0], from: '09:00', to: '10:00' } } };
     expect(workHoursOf({}, office)).toEqual({ quiet: true, days: [0, 1, 2], from: '08:00', to: '15:00' });
   });
@@ -50,7 +50,7 @@ describe('isQuiet', () => {
 
   it('is true on a weekday evening and on a weekday morning', () => {
     expect(isQuiet(nobody.prefs, nobody.settings, riyadh(WED, '17:30'))).toBe(true);
-    expect(isQuiet(nobody.prefs, nobody.settings, riyadh(WED, '08:59'))).toBe(true);
+    expect(isQuiet(nobody.prefs, nobody.settings, riyadh(WED, '07:59'))).toBe(true);
     expect(isQuiet(nobody.prefs, nobody.settings, riyadh(THU, '23:45'))).toBe(true);
   });
 
@@ -60,14 +60,14 @@ describe('isQuiet', () => {
   });
 
   it('is false on the minute of "from" and true on the minute of "to"', () => {
-    expect(isQuiet(nobody.prefs, nobody.settings, riyadh(SUN, '09:00'))).toBe(false);
+    expect(isQuiet(nobody.prefs, nobody.settings, riyadh(SUN, '08:00'))).toBe(false);
     expect(isQuiet(nobody.prefs, nobody.settings, riyadh(SUN, '17:00'))).toBe(true);
   });
 
   it('reads the Riyadh clock, not the UTC clock', () => {
-    // 05:30 UTC is 08:30 in Riyadh (quiet). 06:30 UTC is 09:30 in Riyadh (not quiet).
-    expect(isQuiet(nobody.prefs, nobody.settings, new Date('2026-10-04T05:30:00Z'))).toBe(true);
-    expect(isQuiet(nobody.prefs, nobody.settings, new Date('2026-10-04T06:30:00Z'))).toBe(false);
+    // 04:30 UTC is 07:30 in Riyadh (quiet). 05:30 UTC is 08:30 in Riyadh (not quiet).
+    expect(isQuiet(nobody.prefs, nobody.settings, new Date('2026-10-04T04:30:00Z'))).toBe(true);
+    expect(isQuiet(nobody.prefs, nobody.settings, new Date('2026-10-04T05:30:00Z'))).toBe(false);
     // 21:30 UTC on Thursday is 00:30 on Friday in Riyadh.
     expect(isQuiet(nobody.prefs, nobody.settings, new Date('2026-10-08T21:30:00Z'))).toBe(true);
   });
@@ -94,12 +94,12 @@ describe('isQuiet', () => {
 
   describe('the lock', () => {
     it('keeps a person out of quiet hours inside the lock, also when the stored range is narrower', () => {
-      // The person works 11:00 to 14:00. The lock holds 9 AM to 5 PM on Sunday to Thursday.
+      // The person works 11:00 to 14:00. The lock holds 8 AM to 5 PM on Sunday to Thursday.
       const prefs = { workHours: { quiet: true, days: [0, 1, 2, 3, 4], from: '11:00', to: '14:00' } };
       expect(isQuiet(prefs, undefined, riyadh(WED, '10:00'))).toBe(false);
       expect(isQuiet(prefs, undefined, riyadh(WED, '16:30'))).toBe(false);
       expect(isQuiet(prefs, undefined, riyadh(WED, '17:00'))).toBe(true);
-      expect(isQuiet(prefs, undefined, riyadh(WED, '08:30'))).toBe(true);
+      expect(isQuiet(prefs, undefined, riyadh(WED, '07:30'))).toBe(true);
     });
 
     it('covers a day of the lock that the person does not work', () => {
@@ -144,7 +144,7 @@ describe('coversLock', () => {
 
 describe('workStartOn', () => {
   it('gives the start of the range on a work day', () => {
-    expect(workStartOn(undefined, undefined, WED)).toBe('09:00');
+    expect(workStartOn(undefined, undefined, WED)).toBe('08:00');
     expect(workStartOn({ workHours: { quiet: true, days: [0, 1, 2, 3, 4], from: '07:30', to: '16:00' } }, { workHours: { days: [0], from: '09:00', to: '17:00', lock: { on: false, days: [0], from: '09:00', to: '17:00' } } }, WED)).toBe('07:30');
   });
 
@@ -155,17 +155,17 @@ describe('workStartOn', () => {
   });
 
   it('gives the start of a person who turned quiet hours off, from the stored range or the office default', () => {
-    expect(workStartOn({ workHours: { quiet: false, days: [0, 1, 2, 3, 4], from: '08:30', to: '16:00' } }, undefined, SUN)).toBe('08:30');
-    expect(workStartOn({ workHours: { quiet: false, days: [0, 1, 2, 3, 4], from: '08:30', to: '16:00' } }, undefined, FRI)).toBeNull();
-    expect(workStartOn({}, undefined, SUN)).toBe('09:00');
+    expect(workStartOn({ workHours: { quiet: false, days: [0, 1, 2, 3, 4], from: '07:30', to: '16:00' } }, undefined, SUN)).toBe('07:30');
+    expect(workStartOn({ workHours: { quiet: false, days: [0, 1, 2, 3, 4], from: '07:30', to: '16:00' } }, undefined, FRI)).toBeNull();
+    expect(workStartOn({}, undefined, SUN)).toBe('08:00');
   });
 
   it('starts at the lock when the lock starts earlier than the stored range', () => {
-    expect(workStartOn({ workHours: { quiet: true, days: [0, 1, 2, 3, 4], from: '11:00', to: '17:00' } }, undefined, SUN)).toBe('09:00');
+    expect(workStartOn({ workHours: { quiet: true, days: [0, 1, 2, 3, 4], from: '11:00', to: '17:00' } }, undefined, SUN)).toBe('08:00');
   });
 
   it('counts a lock day as a work day', () => {
-    expect(workStartOn({ workHours: { quiet: true, days: [0, 1, 2, 3], from: '09:00', to: '17:00' } }, undefined, THU)).toBe('09:00');
+    expect(workStartOn({ workHours: { quiet: true, days: [0, 1, 2, 3], from: '09:00', to: '17:00' } }, undefined, THU)).toBe('08:00');
   });
 });
 

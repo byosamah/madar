@@ -139,7 +139,20 @@ describe('the Source on SQLite (server/data/lite/source.ts)', () => {
 
   it('gives the newest threads, newest first, with the ties at the cut', async () => {
     const { read, memory } = await both();
-    const o = { owner: 'usr_001', led: ['prj_001'], me: ['usr_001'], limit: 100, admin: false };
+    const o = { owner: 'usr_001', led: ['prj_001'], me: ['usr_001'], limit: 100, admin: false, seen: ['prj_001', 'prj_002', 'prj_003'] };
     expect(await read((src) => src.threads(o))).toEqual(await memory.threads(o));
+  });
+
+  it('leaves out the threads of a project that the person does not see, the same as the memory source (hidden projects)', async () => {
+    const { read, memory } = await both();
+    // tsk_001 is in prj_002, and the person commented on it: the thread shows only while prj_002 is in "seen".
+    const base = { owner: 'usr_003', led: [] as string[], me: ['usr_003'], limit: 100, admin: false };
+    const shown = await read((src) => src.threads({ ...base, seen: ['prj_001', 'prj_002'] }));
+    expect(shown.map((thread) => thread.id)).toEqual(['tsk_001']);
+    expect(shown).toEqual(await memory.threads({ ...base, seen: ['prj_001', 'prj_002'] }));
+    for (const seen of [['prj_001', 'prj_003'], []]) {
+      expect(await read((src) => src.threads({ ...base, seen }))).toEqual([]);
+      expect(await memory.threads({ ...base, seen })).toEqual([]);
+    }
   });
 });

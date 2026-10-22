@@ -25,3 +25,11 @@ describe('the project form checks', () => {
     expect(areaValue('  ')).toBeNull();
   });
 });
+
+describe('the form of an internal project (fbk_044)', () => {
+  it('needs no code parts and no sub-company, and a client project still needs both', () => {
+    const base = { ...emptyProjectForm(['Plan']), name: 'Portfolio' };
+    expect(Object.keys(validateProjectForm(base, { create: true, subCompanies: true }))).toEqual(expect.arrayContaining(['subCompanyId', 'initials']));
+    expect(validateProjectForm({ ...base, kind: 'internal' }, { create: true, subCompanies: true })).toEqual({});
+  });
+});

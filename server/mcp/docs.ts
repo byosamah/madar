@@ -70,6 +70,10 @@ export const INSTRUCTIONS = [
   '',
   'Sub-companies are the companies of the office group, for example Vado and Bunah. subCompanies.list gives their names and project counts. projects.list, tasks.list, deadlines.list, dashboard.get and reports.office take subCompanyId, the sub-company of a project. projects.list filter no_sub_company lists the projects with none.',
   '',
+  'Hidden projects: a project can be hidden from people who do not work on it. A project or a task that answers not_found may be hidden from your person. Never guess its content, and tell your person that you cannot see it.',
+  '',
+  'Internal projects: a project with kind internal is the office\'s own work, like a portfolio. It has no client, place, area, sub-company, contract date, payments or Tracker, and its code starts with INT. It starts hidden. payments.create and tracker.log fail on it with the reason internal_project. You cannot make a project: your person does that in the Madar screens.',
+  '',
   'Google Calendar: a person connects Google Calendar in the Madar Settings screen. You cannot connect, disconnect or read a connection. Madar then writes the meetings of that person to their own Google Calendar, with the title, the time and the place only.',
 ].join('\n');
 
@@ -214,7 +218,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'payments.create': {
     title: 'Add a payment',
-    description: 'Adds a planned payment to a project: a name, an amount in Saudi riyals, a due date (YYYY-MM-DD), and optionally the day it came in (receivedOn) and a note. Needs the switch "Add payments" (payment.add): by default the Admin, Management and Accounting.',
+    description: 'Adds a planned payment to a project: a name, an amount in Saudi riyals, a due date (YYYY-MM-DD), and optionally the day it came in (receivedOn) and a note. Needs the switch "Add payments" (payment.add): by default the Admin, Management and Accounting. An internal project has no payments: the call fails with the reason internal_project.',
   },
   'payments.list': {
     title: 'List payments',
@@ -234,11 +238,11 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.get': {
     title: 'Get a project',
-    description: 'Returns one project by id: its code, stages and current stage, team, leader, client, dates, health, deadlines and links. The code is 260902AZT-RES-Villa (new) or KH-26-014 (old). nextDeadline is the next named deadline. stageEnd (date, daysLeft) ends the current stage of an active project, or null. subCompanyId: the sub-company, or null. geo is the pin ({ lat, lng }) or null; with no pin, the location link gives it. location is the address of the pin. templateId: the template it came from, or null. chatId: the project chat your person may open, or null. look: color and tile (see Pictures).',
+    description: 'Returns one project by id: its code, stages, team, leader, client, dates, health, deadlines and links. The code is 260902AZT-RES-Villa (new) or KH-26-014 (old). nextDeadline is the next named deadline. stageEnd ends the current stage, or null. subCompanyId: the sub-company. geo is the pin ({ lat, lng }) or null. location is the address of the pin. templateId: the template, or null. chatId: the project chat, or null. access: { hidden, viewerIds }. kind: client or internal (no client, place, area, payments or Tracker; code starts with INT). look: color and tile.',
   },
   'projects.list': {
     title: 'List projects',
-    description: 'Lists the projects, with their code, stage, health and leader. A code is 260902AZT-RES-Villa (new form, key 260902AZT) or KH-26-014 (old form). Filters: status, filter (all, mine, at_risk, no_area, stage_no_end: a stage with no end date, no_sub_company), stageName, health, leaderId, clientId, teamId, subCompanyId (see subCompanies.list); sort by updated, deadline (the next named deadline, else the end of the current stage) or name. Each project gives nextDeadline, stageEnd, subCompanyId, geo and look, as projects.get does. templateId: the template it came from, or null.',
+    description: 'Lists the projects, with their code, stage, health and leader. A code is 260902AZT-RES-Villa (new form, key 260902AZT) or KH-26-014 (old form). Filters: status, filter (all, mine, at_risk, no_area, stage_no_end: a stage with no end date, no_sub_company), stageName, health, leaderId, clientId, teamId, subCompanyId (see subCompanies.list); sort by updated, deadline (the next named deadline, else the end of the current stage) or name. Each project gives nextDeadline, stageEnd, subCompanyId, geo, access, kind, templateId and look, as projects.get does.',
   },
   'projects.setStatus': {
     title: 'Set the project status',
@@ -310,7 +314,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'tracker.log': {
     title: 'Log in the tracker',
-    description: 'Logs one contact in the client tracker of a project: type (meeting, message, file, balady (any government body, not only the Balady portal), other), direction, title, and optionally note, date, who waits (us or client), files, people, and a reply task (replyBy: who and by when).',
+    description: 'Logs one contact in the client tracker of a project: type (meeting, message, file, balady (any government body, not only the Balady portal), other), direction, title, and optionally note, date, who waits (us or client), files, people, and a reply task (replyBy: who and by when). An internal project has no Tracker: the call fails with the reason internal_project.',
   },
   'tracker.update': {
     title: 'Change a tracker entry',

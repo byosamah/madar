@@ -11,13 +11,32 @@ import { WEEKDAYS, clockLabel, endOptions, startOptions, weekdayName } from './w
  */
 export type RangeLock = { on: boolean; days: readonly number[]; from: Clock; to: Clock };
 
-export function WorkRangeFields({ idPrefix, value, onChange, lock, labels }: {
+/** The small lock of a day that the office keeps on. Its label tells a screen reader why the day does not change. */
+function DayLock({ label }: { label: string }) {
+  return (
+    <span role="img" aria-label={label} title={label} className="inline-flex shrink-0">
+      <svg viewBox="0 0 24 24" width={12} height={12} fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </svg>
+    </span>
+  );
+}
+
+/**
+ * `order` "work" (the Admin blocks) shows the start, then the end of the range. "quiet" (the Settings section, fbk_051) shows the end of
+ * work as "Quiet from", then the start as "Until", so the fields read in the order of the line "Madar is quiet from 5:00 PM to 8:00 AM".
+ * The values and the saved range stay the same: only the order and the words change.
+ */
+export function WorkRangeFields({ idPrefix, value, onChange, lock, labels, order = 'work' }: {
   idPrefix: string; value: WorkRange; onChange: (next: { days: number[]; from: Clock; to: Clock }) => void; lock?: RangeLock;
-  labels?: { days: string; from: string; to: string };
+  labels?: { days: string; from: string; to: string }; order?: 'work' | 'quiet';
 }) {
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === 'ar' ? 'ar' : 'en';
-  const words = labels ?? { days: t('quietHours.days'), from: t('quietHours.from'), to: t('quietHours.to') };
+  const words = labels ?? (order === 'quiet'
+    ? { days: t('quietHours.days'), from: t('quietHours.until'), to: t('quietHours.quietFrom') }
+    : { days: t('quietHours.days'), from: t('quietHours.from'), to: t('quietHours.to') });
   const lockedDays = lock?.on ? lock.days : [];
   const send = (next: Partial<{ days: readonly number[]; from: Clock; to: Clock }>) => {
     const days = [...(next.days ?? value.days)].sort((a, b) => a - b);
@@ -28,6 +47,16 @@ export function WorkRangeFields({ idPrefix, value, onChange, lock, labels }: {
     if (on && value.days.length === 1) return;
     send({ days: on ? value.days.filter((one) => one !== day) : [...value.days, day] });
   };
+  const start = (
+    <SelectField key="start" id={`${idPrefix}-from`} label={words.from} value={value.from} onChange={(event) => send({ from: event.target.value })}>
+      {startOptions(value, lock).map((step) => <option key={step} value={step}>{clockLabel(step, lang)}</option>)}
+    </SelectField>
+  );
+  const end = (
+    <SelectField key="end" id={`${idPrefix}-to`} label={words.to} value={value.to} onChange={(event) => send({ to: event.target.value })}>
+      {endOptions(value, lock).map((step) => <option key={step} value={step}>{clockLabel(step, lang)}</option>)}
+    </SelectField>
+  );
   return (
     <div className="flex flex-col gap-3">
       <div role="group" aria-label={words.days} className="flex flex-col gap-1">
@@ -46,21 +75,19 @@ export function WorkRangeFields({ idPrefix, value, onChange, lock, labels }: {
                 title={locked ? t('quietHours.lockedDay') : undefined}
                 disabled={locked || (on && value.days.length === 1)}
                 onClick={() => toggle(day)}
-                className={`pressable inline-flex min-h-11 min-w-11 items-center justify-center rounded-full px-3 text-subheadline font-medium disabled:opacity-60 ${on ? 'bg-ink text-card' : 'bg-fill text-ink-2'}`}
+                className={`pressable inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-full px-3 text-subheadline font-medium ${on ? 'bg-ink text-card' : 'bg-fill text-ink-2'}`}
               >
                 {weekdayName(day, lang)}
+                {/* A day the office keeps on looks picked, as it is, with a small lock (fbk_049: the faded look read as "off"). */}
+                {locked && <DayLock label={t('quietHours.lockedDay')} />}
               </button>
             );
           })}
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <SelectField id={`${idPrefix}-from`} label={words.from} value={value.from} onChange={(event) => send({ from: event.target.value })}>
-          {startOptions(value, lock).map((step) => <option key={step} value={step}>{clockLabel(step, lang)}</option>)}
-        </SelectField>
-        <SelectField id={`${idPrefix}-to`} label={words.to} value={value.to} onChange={(event) => send({ to: event.target.value })}>
-          {endOptions(value, lock).map((step) => <option key={step} value={step}>{clockLabel(step, lang)}</option>)}
-        </SelectField>
+        {/* The quiet order (fbk_051): the end of work first ("Quiet from"), then its start ("Until"), as the quiet line reads. */}
+        {order === 'quiet' ? [end, start] : [start, end]}
       </div>
     </div>
   );

@@ -4,7 +4,8 @@ import { Day, FileId, MAX_ATTACHMENTS, MEETING_LIMITS, Meeting, MeetingId, Meeti
 import { MeetingDetail, MeetingRow } from '../contract/views';
 import { ApiError, forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
-import { mayViewMeeting, meetingResource, type Actor } from '../permissions';
+import { isInternalId } from '../internalProject';
+import { mayViewMeeting, mayViewProject, meetingResource, type Actor } from '../permissions';
 import { mayEditMeeting, mayWriteMinutes } from '../meetingGates';
 import { notifyIn } from '../notify';
 import { meetingsOf, nextId, type State } from '../store';
@@ -59,6 +60,9 @@ export function requireMeeting(ctx: Ctx, id: string): Meeting {
 
 const conflict = (message: string, reason: string) => new ApiError('conflict', message, { reason });
 
+/** True when Madar makes a Tracker line for the meeting. An internal project has no Tracker (fbk_044), so its meetings keep their minutes on the meeting. */
+const hasLine = (state: State, meeting: Pick<Meeting, 'projectId' | 'kind'>): boolean => hasTrackerLine(meeting) && !isInternalId(state, meeting.projectId);
+
 /**
  * What stops a person from writing the minutes of a meeting now, or null when nothing does (fbk_022, wave 2). The same rule serves
  * the upload of a meeting file and the save of the minutes. In this order: a meeting that the person does not see reads as missing;
@@ -70,7 +74,7 @@ export function minutesRefusal(state: State, meeting: Meeting, viewer: Actor, at
   if (meeting.status === 'cancelled') return conflict('This meeting is cancelled. It has no minutes.', 'meeting_cancelled');
   if (phaseOf(meeting, at) !== 'done') return conflict('You can write the minutes after the meeting ends.', 'minutes_not_yet');
   if (!mayWriteMinutes(viewer, meetingResource(state, meeting, viewer.id))) return forbidden('You cannot do this.', { action: 'meeting.minutesOwn' });
-  if (hasTrackerLine(meeting) && meeting.settledAt && !(meeting.trackerEntryId && state.tracker?.[meeting.trackerEntryId])) {
+  if (hasLine(state, meeting) && meeting.settledAt && !(meeting.trackerEntryId && state.tracker?.[meeting.trackerEntryId])) {
     return conflict('Someone deleted the Tracker line of this meeting. Undo the delete in the History first.', 'minutes_line_gone');
   }
   return null;
@@ -138,7 +142,7 @@ export function meetingDetailOf(state: State, meeting: Meeting, viewer: Actor, a
  */
 export function minutesOf(state: State, meeting: Meeting): { place: 'tracker' | 'meeting' | null; minutes: MeetingMinutes | null; entry?: TrackerEntry } {
   if (meeting.status === 'cancelled') return { place: null, minutes: null };
-  if (!hasTrackerLine(meeting)) return { place: 'meeting', minutes: meeting.minutes ?? null };
+  if (!hasLine(state, meeting)) return { place: 'meeting', minutes: meeting.minutes ?? null };
   const entry = meeting.trackerEntryId ? state.tracker?.[meeting.trackerEntryId] : undefined;
   return { place: 'tracker', minutes: entry?.minutes ?? null, ...(entry ? { entry } : {}) };
 }
@@ -182,11 +186,17 @@ const movesCalendar = (event: { after: unknown } | null): boolean =>
  * The attendees, checked. The organizer and a repeated person drop out of the attendees. An attendee is an active person, never an
  * agent. A person who is on the list already may have left since, so only a new person must be active.
  */
-function checkPeople(ctx: Ctx, organizerId: string, attendeeIds: readonly string[], already: readonly string[] = []): string[] {
+function checkPeople(ctx: Ctx, organizerId: string, attendeeIds: readonly string[], already: readonly string[] = [], projectId: string | null = null): string[] {
   const attendees = [...new Set(attendeeIds)].filter((id) => id !== organizerId);
   for (const id of attendees.filter((one) => !already.includes(one))) {
     assertActive(ctx, id, 'attendeeIds');
     if (requireUser(ctx, id).kind === 'agent') throw invalid('attendeeIds', 'An agent cannot attend a meeting. Choose a person.', 'attendee_agent');
+    // The people of a project meeting must see the project (hidden projects, owner 2026-10-22), or the invitation would show them a meeting
+    // that they could not read.
+    const project = projectId === null ? undefined : ctx.state.projects[projectId];
+    if (project && !mayViewProject(ctx.state, project, ctx.state.users[id])) {
+      throw invalid('attendeeIds', 'This person does not see the project of the meeting. Choose a person who sees it.', 'not_in_project_audience');
+    }
   }
   return attendees;
 }
@@ -243,7 +253,7 @@ const meetingsCreate = defineCall({
     const defaults = kindDefaults(input.kind);
     const minutes = input.durationMin ?? defaults.durationMin;
     const organizerId = ctx.authority.id;
-    const attendeeIds = checkPeople(ctx, organizerId, input.attendeeIds ?? []);
+    const attendeeIds = checkPeople(ctx, organizerId, input.attendeeIds ?? [], [], projectId);
     const id = nextId(ctx.state, 'mtg');
     const meeting: Meeting = {
       id, kind: input.kind, title: input.title, projectId, startsAt, endsAt: addMinutes(startsAt, minutes),
@@ -302,7 +312,7 @@ const meetingsUpdate = defineCall({
     const endsAt = input.startsAt === undefined && input.durationMin === undefined
       ? meeting.endsAt
       : addMinutes(startsAt, input.durationMin ?? minutesBetween(meeting.startsAt, meeting.endsAt));
-    const attendeeIds = input.attendeeIds !== undefined ? checkPeople(ctx, meeting.organizerId, input.attendeeIds, meeting.attendeeIds) : meeting.attendeeIds;
+    const attendeeIds = input.attendeeIds !== undefined ? checkPeople(ctx, meeting.organizerId, input.attendeeIds, meeting.attendeeIds, meeting.projectId) : meeting.attendeeIds;
     const next: Partial<Meeting> = {
       ...(input.kind !== undefined ? { kind: input.kind } : {}),
       ...(input.title !== undefined ? { title: input.title } : {}),
@@ -432,7 +442,7 @@ export function settleMeeting(ctx: Ctx, meeting: Meeting, o: { ownStory?: boolea
   // the minutes only: the mark has no Undo, and it would refuse the whole story.
   const sc: Ctx = o.ownStory ? { ...ctx, correlationId: `cor_settle_${meeting.id}` } : ctx;
   // The id of the line comes first, so the mark can hold it and the line can name the mark.
-  const lineId = hasTrackerLine(meeting) ? nextId(sc.state, 'trk') : null;
+  const lineId = hasLine(sc.state, meeting) ? nextId(sc.state, 'trk') : null;
   const mark = applyPatch(
     sc, meeting, { settledAt: sc.stamp, ...(lineId ? { trackerEntryId: lineId } : {}) },
     { projectId: meeting.projectId, verb: 'meeting.settled', targetType: 'meeting', targetId: meeting.id },
@@ -575,7 +585,7 @@ const meetingsSaveMinutes = defineCall({
     if (refusal) throw refusal;
     if (meeting.projectId === null) assertFilesForMeeting(ctx, input.fileIds, meeting.id);
     else assertFilesInProject(ctx, input.fileIds, meeting.projectId);
-    if (hasTrackerLine(meeting) && !meeting.settledAt) settleMeeting(ctx, meeting, { ownStory: true });
+    if (hasLine(ctx.state, meeting) && !meeting.settledAt) settleMeeting(ctx, meeting, { ownStory: true });
     const held = minutesOf(ctx.state, meeting);
     if (held.place === null) throw conflict('This meeting is cancelled. It has no minutes.', 'meeting_cancelled');
     if (input.since !== undefined && input.since !== (held.minutes?.updatedAt ?? null)) {

@@ -182,6 +182,60 @@ export async function downloadFile(api: MadarApi, fileId: string, letter?: strin
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** One file for "Download all": its id and the name it gets in the ZIP file. */
+export type DownloadItem = { id: string; name: string };
+
+/** A file that stopped "Download all". It names the file, so the screen can say which one, and keeps the first cause. */
+export class DownloadAllError extends Error {
+  readonly fileName: string;
+
+  constructor(fileName: string, cause: unknown) {
+    super(`Could not read ${fileName}.`, { cause });
+    this.name = 'DownloadAllError';
+    this.fileName = fileName;
+  }
+}
+
+/**
+ * Saves the newest version of many stored files as one ZIP file (fbk_050). The ZIP is made in the browser: the server does no work and
+ * no service is paid. The real build asks files.link for a signed link of each file, one after another, and reads it with fetch (the
+ * file store allows a GET from the page, `config/r2-cors.*.json`). The prototype reads the stored data with files.get. `onProgress`
+ * gets (n, total) before it reads file n. One file that fails stops the run with a DownloadAllError that names it, and nothing is saved.
+ * The ZIP code loads here, at the first press, so it stays out of the first load of the page.
+ */
+export async function downloadAll(
+  api: MadarApi,
+  items: DownloadItem[],
+  zipName: string,
+  onProgress?: (n: number, total: number) => void,
+  o: { remote?: boolean; fetch?: typeof fetch } = {},
+): Promise<void> {
+  const remote = o.remote ?? REMOTE;
+  const read = o.fetch ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
+  const { makeZip, safeFileName } = await import('../lib/zip');
+  const entries: { name: string; blob: Blob }[] = [];
+  for (const [i, item] of items.entries()) {
+    onProgress?.(i + 1, items.length);
+    try {
+      if (remote) {
+        const link = await api.call('files.link', { id: item.id, variant: 'full', disposition: 'attachment' });
+        const response = await read(link.url, { credentials: 'omit' });
+        if (!response.ok) throw new Error(`The file store answered ${response.status}.`);
+        entries.push({ name: item.name, blob: await response.blob() });
+      } else {
+        entries.push({ name: item.name, blob: (await api.call('files.get', { id: item.id })).blob });
+      }
+    } catch (error) {
+      throw new DownloadAllError(item.name, error);
+    }
+  }
+  const zip = await makeZip(entries);
+  const clean = safeFileName(zipName);
+  const url = URL.createObjectURL(zip);
+  save(url, /\.zip$/i.test(clean) ? clean : `${clean}.zip`);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 /** The adapters that RemoteApi runs for the two calls whose input carries files (plan 5.2). The bootstrap passes them. */
 export function remoteFileAdapters(): { 'files.upload': Adapter; 'feedback.send': Adapter } {
   return { 'files.upload': uploadAdapter({ makeThumb }), 'feedback.send': feedbackAdapter() };

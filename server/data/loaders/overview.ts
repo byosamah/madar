@@ -10,7 +10,7 @@ import { normalizeForSearch } from '../../../src/lib/text';
 import type { Cond } from './query';
 import type { Load } from './build';
 import { privateMeetingsOf } from './meetings';
-import { covers, eventTargets, feed, LIVE, officeState, officeTasks, tasksOf } from './steps';
+import { covers, eventProjectConds, eventTargets, feed, LIVE, officeState, officeTasks, projectConds, tasksOf, visibleIds, visibleProjects } from './steps';
 
 /**
  * The overview loader (plan 4.6): the calls that read across projects. The project filters of each call read only the office,
@@ -34,9 +34,12 @@ const officeIn = (input: Input): boolean => !str(input.projectId) && !str(input.
 
 /** projects.list: the projects that pass the filters on the project, each with its tasks, its newest 2 posts and events, and its cover. */
 export async function projectsList(L: Load, input: Input): Promise<void> {
+  // A person without a place in the office sees no project (the handler refuses such a call before it reads one).
+  if (!L.authority) return;
   const office = officeState(L);
-  const inTeam = teamFilter(office, str(input.teamId));
+  const inTeam = teamFilter(office, str(input.teamId), L.authority);
   const status = str(input.status) ?? 'active';
+  // Only the projects that the person sees (hidden projects, owner 2026-10-22): teamFilter holds the view rule too.
   const ids = Object.values(L.office.projects)
     .filter((p) => status === 'all' || p.status === status)
     .filter((p) => input.filter !== 'mine' || (L.authority !== undefined && projectRoleOf(office, p.id, L.authority.id) !== 'other'))
@@ -61,7 +64,7 @@ export async function projectsList(L: Load, input: Input): Promise<void> {
 export async function dashboardGet(L: Load, input: Input): Promise<void> {
   // The handler refuses a person without the Dashboard switch, so the loader reads nothing for that person (role rights version 2).
   if (!L.authority || !can(L.authority, 'dashboard.view')) return;
-  const inFilters = peopleFilter(officeState(L), { leaderId: str(input.leaderId), clientId: str(input.clientId), teamId: str(input.teamId), subCompanyId: str(input.subCompanyId) });
+  const inFilters = peopleFilter(officeState(L), { leaderId: str(input.leaderId), clientId: str(input.clientId), teamId: str(input.teamId), subCompanyId: str(input.subCompanyId) }, L.authority);
   const status = str(input.status) ?? 'active';
   const inPeople = Object.values(L.office.projects).filter(inFilters);
   const ids = inPeople.filter((p) => status === 'all' || p.status === status).map((p) => p.id);
@@ -92,8 +95,11 @@ export async function dashboardGet(L: Load, input: Input): Promise<void> {
  * waits for others brings every task of its project, for its "waiting for" list.
  */
 export async function tasksList(L: Load, input: Input): Promise<void> {
+  // A person without a place in the office reads no project task (hidden projects, owner 2026-10-22).
   const office = officeState(L);
-  const inFilters = peopleFilter(office, { leaderId: str(input.leaderId), clientId: str(input.clientId), teamId: str(input.teamId), subCompanyId: str(input.subCompanyId) });
+  const inFilters = L.authority
+    ? peopleFilter(office, { leaderId: str(input.leaderId), clientId: str(input.clientId), teamId: str(input.teamId), subCompanyId: str(input.subCompanyId) }, L.authority)
+    : () => false;
   const ids = Object.values(L.office.projects)
     .filter((p) => (input.activeProjectsOnly === false || p.status === 'active') && inFilters(p) && (!input.projectId || p.id === input.projectId))
     .map((p) => p.id);
@@ -128,16 +134,17 @@ export async function searchQuery(L: Load, input: Input): Promise<void> {
   const query = normalizeForSearch(String(input.text ?? '').replace(/^[#@]+/, ''));
   // The handler refuses a person without the Search switch, so the loader reads nothing for that person (role rights version 2).
   if (!query || !L.authority || !can(L.authority, 'search.use')) return;
-  const active = Object.values(L.office.projects).filter((p) => p.status === 'active').map((p) => p.id);
+  // Only the projects that the person sees (hidden projects, owner 2026-10-22), so the first 5 never hold a row that the handler drops.
+  const seen = visibleProjects(L);
+  const active = seen.filter((p) => p.status === 'active').map((p) => p.id);
   // The first 5 of each kind hold the first 5 of both together, which the handler cuts again (owner, 2026-10-06).
   await L.select({ c: 'tasks', where: [{ col: 'project_id', in: active }, { col: 'search_text', contains: query }], limit: 5 });
   await officeTasks(L, [{ col: 'search_text', contains: query }], { limit: 5 });
   // Every file of a project, and the files of the office tasks that the person sees. A file with a project names one that exists.
-  const projects = Object.keys(L.office.projects);
-  await L.select({ c: 'files', where: [{ col: 'project_id', in: projects }, { col: 'search_text', contains: query }], limit: 5 });
-  const seen = (await officeTasks(L, [], { pick: OFFICE_TASK_HIT })).map((task) => task.id);
-  await L.select({ c: 'files', where: [{ col: 'project_id', eq: null }, { col: 'task_id', in: seen }, { col: 'search_text', contains: query }], limit: 5 });
-  await messageHits(L, input, seen);
+  await L.select({ c: 'files', where: [...projectConds(L), { col: 'search_text', contains: query }], limit: 5 });
+  const seenTasks = (await officeTasks(L, [], { pick: OFFICE_TASK_HIT })).map((task) => task.id);
+  await L.select({ c: 'files', where: [{ col: 'project_id', eq: null }, { col: 'task_id', in: seenTasks }, { col: 'search_text', contains: query }], limit: 5 });
+  await messageHits(L, input, seenTasks);
 }
 
 /** The most times the comment read of a search goes again without the deleted tasks it found (security review 2026-10-19). */
@@ -160,7 +167,7 @@ async function messageHits(L: Load, input: Input, seen: readonly string[]): Prom
   // The comments of project tasks. Postgres keeps the project of a comment after its task goes, so a read can name a task that the load
   // does not hold. The handler drops such a comment, so the read goes again without that task, until no read names one. It goes again
   // GONE_REREADS times at most: one search never makes an unbounded number of reads, and many deleted tasks give fewer hits, not more reads.
-  const projects = Object.keys(L.office.projects);
+  const projects = visibleIds(L);
   const gone: string[] = [];
   for (let read = 0; read <= GONE_REREADS; read += 1) {
     const rows = (await L.select({
@@ -202,6 +209,9 @@ export async function eventsList(L: Load, input: Input): Promise<void> {
   // So no person skips this test, and the limit counts only the changes that the person reads. The meetings of the person come whole.
   const mine = (await privateMeetingsOf(L)).map((meeting) => meeting.id);
   where.push({ or: [{ field: 'officeMeetingId', null: true }, { field: 'officeMeetingId', in: mine }] });
+  // A change of a project that the person does not see is not in the list, so the limit counts only the changes the person reads
+  // (hidden projects, owner 2026-10-22). The changes of a project deleted while hidden show to a holder of "See hidden projects" only.
+  where.push(...await eventProjectConds(L));
   const events = (await L.select({ c: 'events', where, order: { col: 'seq', desc: true }, limit: (input.limit as number | undefined) ?? 50 })) as Event[];
   await eventTargets(L, events);
 }

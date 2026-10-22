@@ -3,7 +3,7 @@ import { MEETING_LIMITS } from '../../../src/api/contract/limits';
 import { addDays, diffDays, todayISO } from '../../../src/lib/dates';
 import type { Cond } from './query';
 import type { Load } from './build';
-import { attachedFiles } from './steps';
+import { attachedFiles, visibleIds } from './steps';
 
 /**
  * The meeting loaders (fbk_022). A meeting is not an office list: a call reads the rows of its own window.
@@ -20,7 +20,9 @@ const str = (value: unknown): string | undefined => (typeof value === 'string' &
 export function meetingConds(L: Load): Cond[] {
   if (!L.authority || !L.authority.active) return [{ col: 'id', in: [] }];
   const me = L.authority.id;
-  return [{ or: [{ col: 'project_id', in: Object.keys(L.office.projects) }, { col: 'organizer_id', in: [me] }, { has: 'attendeeIds', value: me }] }];
+  // The meetings of the projects that the person sees (hidden projects, owner 2026-10-22). A meeting of a project that the person does not
+  // see is one of the person's own (organizer or attendee) or it is out; the handler checks the view rule again (meetingResource).
+  return [{ or: [{ col: 'project_id', in: visibleIds(L) }, { col: 'organizer_id', in: [me] }, { has: 'attendeeIds', value: me }] }];
 }
 
 /** The meetings of the person (organizer or attendee), as one condition. */

@@ -23,6 +23,7 @@ import { Menu, type MenuItem } from '../../components/Menu';
 import { ProjectTile } from '../../components/ProjectTile';
 import { Composer, MessageLog, type Bubble } from './Thread';
 import { BubbleActionsContext, EditingContext, type BubbleActions } from './bubbleActions';
+import { ZipTitleContext } from '../files/zipTitle';
 import { useDeleteMessage } from './deleteMessage';
 import { replyRefOfBubble } from './ReplyStrip';
 import { ChatMenu, chatMenuItems } from './ChatList';
@@ -315,7 +316,9 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
         : <Header lead={lead} title={title} subtitle={subtitle} action={menu} />}
       <BubbleActionsContext.Provider value={actions}>
         <EditingContext.Provider value={editingId}>
-          <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} readUpTo={mark.readUpTo} unreadAtOpen={mark.unread} focusId={focusId} onFocused={() => setFocusId(null)} seen={seen} />
+          <ZipTitleContext.Provider value={title}>
+            <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} earlier={earlier} readUpTo={mark.readUpTo} unreadAtOpen={mark.unread} focusId={focusId} onFocused={() => setFocusId(null)} seen={seen} />
+          </ZipTitleContext.Provider>
         </EditingContext.Provider>
       </BubbleActionsContext.Provider>
       {newer && <NewerMessages onShow={showNewest} />}
@@ -502,7 +505,9 @@ export function TaskPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
         )}
       <BubbleActionsContext.Provider value={actions}>
         <EditingContext.Provider value={editingId}>
-          <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} unreadAtOpen={mark.unread} focusId={focusId} onFocused={() => setFocusId(null)} />
+          <ZipTitleContext.Provider value={task.data.task.title}>
+            <MessageLog key={id} bubbles={bubbles} resetKey={id} emptyText={t('chat.noMessages')} unreadAtOpen={mark.unread} focusId={focusId} onFocused={() => setFocusId(null)} />
+          </ZipTitleContext.Provider>
         </EditingContext.Provider>
       </BubbleActionsContext.Provider>
       {canPost ? (

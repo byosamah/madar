@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import { SubCompany, SubCompanyId } from '../contract/entities';
-import { ApiError, invalid, notFound } from '../errors';
+import { ApiError, forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
+import { projectViewer } from '../projectView';
 import { nextId, subCompaniesOf } from '../store';
-import { assertCan, touch } from './shared';
+import { assertCan, seesProject, touch } from './shared';
 
 const SubCompanyText = z.string().trim().min(1).max(80);
 const Logo = SubCompany.shape.logo;
@@ -34,8 +35,10 @@ const subCompaniesList = defineCall({
   readOnly: true,
   run(_input, ctx) {
     const counts = new Map<string, number>();
+    // The number counts the projects that the person sees (hidden projects, owner 2026-10-22).
+    const sees = projectViewer(ctx.state, ctx.authority);
     for (const project of Object.values(ctx.state.projects)) {
-      if (project.subCompanyId) counts.set(project.subCompanyId, (counts.get(project.subCompanyId) ?? 0) + 1);
+      if (project.subCompanyId && sees(project)) counts.set(project.subCompanyId, (counts.get(project.subCompanyId) ?? 0) + 1);
     }
     return Object.values(subCompaniesOf(ctx.state))
       .sort((a, b) => a.name.localeCompare(b.name))
@@ -78,7 +81,11 @@ const subCompaniesDelete = defineCall({
     const naming = Object.values(ctx.state.projects).filter((project) => project.subCompanyId === sub.id);
     if (input.moveToId === sub.id) throw invalid('moveToId', 'Choose another sub-company to move the projects to.');
     if (naming.length > 0 && input.moveToId === undefined) {
-      throw new ApiError('conflict', 'A project uses this sub-company. Change the project first.', { reason: 'sub_company_in_use', count: naming.length });
+      // The count is the projects the person sees (hidden projects, owner 2026-10-22). A person who sees none of them, while a hidden one
+      // still names the sub-company, is refused with no count: only a holder of "See hidden projects" deletes then.
+      const seen = naming.filter((project) => seesProject(ctx, project.id)).length;
+      if (seen === 0) throw forbidden('You cannot do this.', { action: 'project.hidden' });
+      throw new ApiError('conflict', 'A project uses this sub-company. Change the project first.', { reason: 'sub_company_in_use', count: seen });
     }
     if (input.moveToId !== undefined) {
       if (input.moveToId !== null) requireSubCompany(ctx, input.moveToId);

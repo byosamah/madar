@@ -111,7 +111,8 @@ export const filesLink: ServerCall<'files.link'> = async (input, ctx) => {
   else if (file.projectId === null) assertMayViewOfficeFile(office, userId, file.taskId ? await readTask(deps.db, file.taskId) : undefined, file.id);
   else {
     if (!office.lists.projects[file.projectId]) throw notFound('Project', file.projectId);
-    assertMayView(office, userId, file.projectId);
+    // A file of a hidden project reads as a missing file, never as a refusal (hidden projects, owner 2026-10-22).
+    assertMayView(office, userId, file.projectId, () => notFound('File', file.id));
   }
   const version = input.letter ? file.versions.find((v) => v.letter === input.letter) : file.versions[file.versions.length - 1];
   if (!version) throw notFound('Version', input.letter ?? '');

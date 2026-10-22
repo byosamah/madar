@@ -5,6 +5,7 @@ import { UserCard } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { canSeeConversation } from '../chatState';
 import { savePreferences } from '../events';
+import { noticeProjectHidden } from '../hiddenNotice';
 import { feedbackNoticeHidden } from '../notify';
 import type { State } from '../store';
 import { can, mayViewMeeting, mayViewTask, taskResource } from '../permissions';
@@ -87,8 +88,18 @@ function hiddenMeeting(state: State, n: Notification, viewer: User): boolean {
   return meeting !== undefined && !mayViewMeeting(state, viewer, meeting);
 }
 
+/**
+ * An item of a notice that belongs to a project the viewer may not view: a hidden project that the viewer is no longer on, an open project
+ * for a role without "See every project", or a deleted hidden project (hidden projects, owner 2026-10-22). Its notice reads as gone and
+ * names nothing. The rule lives in hiddenNotice.ts and is mirrored in history.ts (dropNotices) and adminCopies.ts.
+ */
+function hiddenProject(state: State, n: Notification, viewer: User): boolean {
+  return noticeProjectHidden(state, n.targetType, n.targetId, viewer);
+}
+
 /** True when the item of a notice is gone, or is a chat the viewer can no longer see. It builds no text, so the badge count stays cheap. */
 function isGone(state: State, n: Notification, viewer: User): boolean {
+  if (hiddenProject(state, n, viewer)) return true;
   if (n.targetType === 'task') return !state.tasks[n.targetId] || hiddenTask(state, n, viewer);
   if (n.targetType === 'meeting') return !state.meetings?.[n.targetId] || hiddenMeeting(state, n, viewer);
   if (n.targetType === 'update') return !state.updates[n.targetId];
@@ -110,7 +121,7 @@ function isGone(state: State, n: Notification, viewer: User): boolean {
  */
 function peopleOfCopy(state: State, n: Notification, viewer: User, gone: boolean): NotificationView['forPeople'] {
   if (n.forUserIds === undefined) return [];
-  if ((n.targetType === 'task' && hiddenTask(state, n, viewer)) || (n.targetType === 'meeting' && gone) || (n.targetType === 'chat' && gone)) return [];
+  if ((n.targetType === 'task' && hiddenTask(state, n, viewer)) || (n.targetType === 'meeting' && gone) || (n.targetType === 'chat' && gone) || hiddenProject(state, n, viewer)) return [];
   return n.forUserIds.filter((id) => state.users[id] !== undefined).map((id) => cardOf(state, id));
 }
 
@@ -124,6 +135,15 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   let dueDate: string | null = null;
   let chatKind: NotificationView['chatKind'] = null;
   let startsAt: string | null = null;
+  if (hiddenProject(state, n, viewer)) {
+    // Nothing of an item of a project that the viewer may not view: no title, no project, no day, no link, no actor, no message, no story,
+    // no people of a copy and no id of the item (hidden projects, owner 2026-10-22; the report branch below does the same).
+    const { messageId: _message, correlationId: _story, dueDate: _day, forUserIds: _people, ...rest } = n;
+    return {
+      notification: { ...rest, actorId: null, targetId: 'hidden' }, actor: null, target: '', projectCode: null, project: null, link,
+      needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove: false, gone: true, dueDate: null, chatKind: null, startsAt: null, forPeople: [],
+    };
+  }
   if (n.targetType === 'task' && hiddenTask(state, n, viewer)) {
     // Nothing of an office task that the viewer no longer sees: no title, no day, no link (owner, 2026-10-06).
   } else if (n.targetType === 'task') {

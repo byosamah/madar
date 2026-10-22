@@ -57,7 +57,8 @@ export function ProjectCodeFields({ form, clients }: { form: ProjectForm; client
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [values.clientId, locked]);
 
-  const projects = [...(list.data ?? [])].sort((a, b) => a.project.name.localeCompare(b.project.name));
+  // An internal project has no contract, so another project cannot share its code (fbk_044).
+  const projects = [...(list.data ?? [])].filter((summary) => summary.project.kind !== 'internal').sort((a, b) => a.project.name.localeCompare(b.project.name));
   const yymm = codeMonth(todayISO());
   const series = nextSeries(projects.map((summary) => summary.project.code), yymm);
   const sameCode = projects.find((summary) => summary.project.id === values.sameAs)?.project.code ?? null;

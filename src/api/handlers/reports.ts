@@ -5,6 +5,7 @@ import { Day, SubCompanyId, type Event, type Payment, type Project, type Task, t
 import { OfficeReport, type ReportPerson, type ReportProject } from '../contract/views';
 import { computeHealth } from '../health';
 import { can } from '../permissions';
+import { eventProjectViewer, projectViewer } from '../projectView';
 import { REPORT_DESIGN } from '../reportDesign';
 import { REPORT_GUIDE } from '../reportGuide';
 import {
@@ -14,6 +15,7 @@ import {
 import { defineCall, type Ctx } from '../registry';
 import { paymentsOf, subCompaniesOf, trackerOf, type State } from '../store';
 import { stagesOf, userCard } from '../views';
+import { isInternal } from '../internalProject';
 import { assertCan } from './shared';
 
 /**
@@ -57,14 +59,20 @@ function buildReport(ctx: Ctx, input: ReportPick & { subCompanyId?: string; guid
 
   // A sub-company filter keeps only its projects. Every count below reads these projects, so the totals, the people, the money
   // and the Tracker count that sub-company alone (INT-09). A sub-company that does not exist matches nothing.
-  const inScope = (project: Project) => !input.subCompanyId || project.subCompanyId === input.subCompanyId;
+  // A project that the person does not see counts in nothing (hidden projects, owner 2026-10-22): no row, no total, no person count.
+  const sees = projectViewer(state, actor);
+  const inScope = (project: Project) => sees(project) && (!input.subCompanyId || project.subCompanyId === input.subCompanyId);
   const projects = Object.values(state.projects).filter(inScope).sort((a, b) => a.code.localeCompare(b.code) || a.id.localeCompare(b.id));
   const scope = new Set(projects.map((project) => project.id));
   const tasks = Object.values(state.tasks).filter((task) => task.projectId !== null && scope.has(task.projectId));
   const deadlines = Object.values(state.deadlines).filter((deadline) => scope.has(deadline.projectId));
-  const trackerRows = Object.values(trackerOf(state)).filter((entry) => scope.has(entry.projectId));
-  const payments = Object.values(paymentsOf(state)).filter((payment) => scope.has(payment.projectId));
+  // An internal project has no Tracker and no payments (fbk_044), so the client parts of the report never read it.
+  const clientScope = new Set([...scope].filter((id) => !isInternal(state.projects[id])));
+  const trackerRows = Object.values(trackerOf(state)).filter((entry) => clientScope.has(entry.projectId));
+  const payments = Object.values(paymentsOf(state)).filter((payment) => clientScope.has(payment.projectId));
   const events = Object.values(state.events);
+  // The stage moves of the whole office leave out the projects that the person does not see, a deleted hidden project too.
+  const eventSees = eventProjectViewer(state, actor);
 
   const madeIn = (task: Task) => inDays(stampDay(task.createdAt));
   const doneIn = (task: Task) => inDays(dayOf(task.completedAt));
@@ -83,7 +91,7 @@ function buildReport(ctx: Ctx, input: ReportPick & { subCompanyId?: string; guid
   // With a sub-company filter the stage moves count project by project (the loader counts them by project).
   const stageMoves = input.subCompanyId
     ? projects.reduce((sum, project) => sum + count(REPORT_KEYS.stageMovesOf(project.id), () => eventsOf(REPORT_STAGE_VERB).filter((event) => event.projectId === project.id).length), 0)
-    : count(REPORT_KEYS.stageMoves, () => eventsOf(REPORT_STAGE_VERB).length);
+    : count(REPORT_KEYS.stageMoves, () => eventsOf(REPORT_STAGE_VERB).filter(eventSees).length);
   const completedIn = (projectId: string) => count(REPORT_KEYS.completed(projectId), () => eventsOf(REPORT_COMPLETED_VERB)
     .filter((event) => event.projectId === projectId && statusAfter(event) === 'completed').length);
   const pausedIn = (projectId: string) => count(REPORT_KEYS.paused(projectId), () => eventsOf(REPORT_PAUSED_VERB)
@@ -225,9 +233,10 @@ function gapsOf(state: State, tasks: Task[], projects: Project[]): string[] {
     ['Open to-dos with no due date', open.filter((task) => task.dueDate === null).length],
     ['Open to-dos with no lead', open.filter((task) => task.ownerId === null).length],
     ['Active projects with a stage that has no end date', noStageEnd],
-    ['Active projects with no area', active.filter((project) => project.areaM2 === null).length],
+    // An internal project has no area and no sub-company on purpose (fbk_044).
+    ['Active projects with no area', active.filter((project) => project.areaM2 === null && !isInternal(project)).length],
     // Counted only when the office has a sub-company (INT-10).
-    ['Active projects with no sub-company', Object.keys(subCompaniesOf(state)).length > 0 ? active.filter((project) => !project.subCompanyId).length : 0],
+    ['Active projects with no sub-company', Object.keys(subCompaniesOf(state)).length > 0 ? active.filter((project) => !project.subCompanyId && !isInternal(project)).length : 0],
   ];
   return counts.filter(([, n]) => n > 0).map(([label, n]) => `${label}: ${n}`);
 }

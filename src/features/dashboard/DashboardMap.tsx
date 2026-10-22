@@ -41,7 +41,8 @@ export function DashboardMap({ filters }: { filters: DashboardFilters }) {
     message: () => t('map.pinSheet.saved'),
     onSuccess: () => setEditing(null),
   });
-  const rows = (projects.data ?? []).filter((row) => isLive(row.project.status));
+  // An internal project has no place, so the map and the list of missing pins leave it out (fbk_044).
+  const rows = (projects.data ?? []).filter((row) => isLive(row.project.status) && row.project.kind !== 'internal');
   const pinned = rows.flatMap((row) => (row.geo ? [{ row, point: row.geo }] : []));
   const unpinned = rows.filter((row) => row.geo === null);
   const current = pinned.find((item) => item.row.project.id === selected);

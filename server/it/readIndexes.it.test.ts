@@ -204,7 +204,7 @@ describe('the read indexes on growth data', () => {
   });
 
   it('DB-6 (perf2): finds the comments of the person in the thread statement on comments_author_task, with no scan of every comment', async () => {
-    const [threads] = await statementsOf((s) => s.threads({ owner: 'usr_005', led: ['prj_005'], me: ['usr_005'], limit: 100, admin: false }));
+    const [threads] = await statementsOf((s) => s.threads({ owner: 'usr_005', led: ['prj_005'], me: ['usr_005'], limit: 100, admin: false, seen: ['prj_005'] }));
     const nodes = await planOf(threads);
     expect(uses(nodes, 'comments_author_task')).toBe(true);
   });

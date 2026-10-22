@@ -53,15 +53,15 @@ const RULES: Record<string, ReadRule> = {
   // The view rule of a task reads its project and team, and the people of an office task (owner, 2026-10-06).
   'comments.list': rule('project', ['comments', 'files', 'members', 'projects', 'tasks', 'updates', 'users']),
   'files.list': rule('project', ['files', 'members', 'projects', 'tasks', 'users'], byProjectId),
-  'payments.list': rule('project', ['payments', 'projects', 'users'], byProjectId),
+  'payments.list': rule('project', ['members', 'payments', 'projects', 'users'], byProjectId),
   'tracker.list': rule('project', ['files', 'meetings', 'members', 'projects', 'tracker', 'users'], byProjectId),
-  'tracker.export': rule('project', ['events', 'files', 'projects', 'tracker', 'users'], byProjectId),
-  'events.list': rule('project', ['events', 'files', 'projects', 'stages', 'tasks', 'tracker', 'users'], byProjectId),
+  'tracker.export': rule('project', ['events', 'files', 'members', 'projects', 'tracker', 'users'], byProjectId),
+  'events.list': rule('project', ['events', 'files', 'members', 'projects', 'stages', 'tasks', 'tracker', 'users'], byProjectId),
   'projects.list': rule('office', [...PROJECT_DETAIL, 'projectTouched', 'settings', 'teams']),
   // events: the day each task in review went to review. payments: the money panel (owner, 2026-10-06).
   'dashboard.get': rule('office', ['deadlines', 'events', 'members', 'payments', 'projects', 'settings', 'stages', 'subCompanies', 'tasks', 'teams', 'tracker', 'users']),
   'reports.office': rule('office', ['deadlines', 'events', 'members', 'payments', 'projects', 'settings', 'stages', 'subCompanies', 'tasks', 'tracker', 'users']),
-  'deadlines.list': rule('office', ['deadlines', 'projects', 'users']),
+  'deadlines.list': rule('office', ['deadlines', 'members', 'projects', 'users']),
   // Messages: the Messages group reads the chats that the person may open, and the messages in them (chat design 2026-10-19, item 16).
   'search.query': rule('office', ['clients', 'comments', 'conversations', 'files', 'members', 'messages', 'projects', 'subCompanies', 'tasks', 'users']),
   'users.list': rule('office', ['users', 'preferences']),
@@ -78,17 +78,17 @@ const RULES: Record<string, ReadRule> = {
   'meetings.get': rule('office', ['files', 'meetings', 'members', 'projects', 'tasks', 'tracker', 'users']),
   'stageTemplates.list': rule('office', ['stageTemplates', 'users']),
   'taskTemplates.list': rule('office', ['taskTemplates', 'users']),
-  'projectTemplates.list': rule('office', ['projectTemplates', 'projects', 'users']),
+  'projectTemplates.list': rule('office', ['members', 'projectTemplates', 'projects', 'users']),
   'projectTemplates.matchPlan': rule('project', ['members', 'projectTemplates', 'projects', 'stages', 'tasks', 'users'], byProjectId),
   // The update of a template (fbk_008 item 4): the list reads the open projects, the plan reads the tasks of the listed projects too.
-  'projectTemplates.usage': rule('office', ['projectTemplates', 'projects', 'settings', 'users']),
-  'projectTemplates.syncPlan': rule('office', ['projectTemplates', 'projects', 'settings', 'stages', 'tasks', 'users']),
+  'projectTemplates.usage': rule('office', ['members', 'projectTemplates', 'projects', 'settings', 'users']),
+  'projectTemplates.syncPlan': rule('office', ['members', 'projectTemplates', 'projects', 'settings', 'stages', 'tasks', 'users']),
   'feedback.list': rule('office', ['feedback', 'users']),
   // settings: the rights of the person come from settings.roles, so a role change reloads the session (role rights version 2).
-  'session.get': rule('person', ['projects', 'settings', 'users', 'preferences']),
+  'session.get': rule('person', ['members', 'projects', 'settings', 'users', 'preferences']),
   // No 'feedback': a report notice reads only if its report exists. Only the Undo of the send deletes a report, and that Undo
   // deletes each notice of the send or keeps a hidden one, which reads as gone both before and after (review 2026-10-07).
-  'notifications.list': rule('person', ['notifications', 'projects', 'tasks', 'updates', 'users']),
+  'notifications.list': rule('person', ['members', 'notifications', 'projects', 'tasks', 'updates', 'users']),
   'notifications.count': rule('person', ['notifications', 'projects', 'tasks', 'updates', 'users']),
   'chats.list': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'preferences', 'projects', 'tasks', 'users']),
   'chats.unreadCount': rule('person', ['chatReads', 'comments', 'conversations', 'members', 'messages', 'preferences', 'projects', 'tasks', 'users']),

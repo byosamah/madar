@@ -1,5 +1,5 @@
 /**
- * The catalog of role rights version 2 (owner approved the list on 2026-10-21): 13 sections, 85 powers, 113 switches. It is a plain copy of
+ * The catalog of role rights version 2 (owner approved the list on 2026-10-21): 13 sections, 88 powers, 117 switches. It is a plain copy of
  * docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json, without the words (the labels and the hints are word keys of the
  * screens). A test (rightsCatalog.test.ts) checks that this file and the JSON agree. permissions.ts is in the first load of the real
  * build, so this file takes no value from zod or from the schema files.
@@ -35,12 +35,13 @@ export type CatalogPower = {
 
 export type CatalogSection = { readonly key: string; readonly powers: readonly CatalogPower[] };
 
-/** The 113 switch ids, in the order of the sections of the role sheet. */
+/** The 117 switch ids, in the order of the sections of the role sheet. */
 export const CATALOG_RIGHT_IDS = [
   'project.create', 'client.create', 'project.details.lead', 'project.details.all', 'project.team.lead', 'project.team.all',
   'project.stages.lead', 'project.stages.all', 'project.deadlines.lead', 'project.deadlines.all', 'project.template.lead',
   'project.template.all', 'project.archive.lead', 'project.archive.all', 'project.leader.lead', 'project.leader.all',
-  'project.health.lead', 'project.health.all', 'project.code', 'project.delete.lead', 'project.delete.all', 'task.add.office',
+  'project.health.lead', 'project.health.all', 'project.code', 'project.delete.lead', 'project.delete.all', 'project.seeAll', 'project.access.lead', 'project.access.all', 'project.hidden',
+  'task.add.office',
   'task.add.team', 'task.add.all', 'task.assign', 'task.take', 'task.help', 'task.work', 'task.details', 'task.dates',
   'task.deleteOwn', 'task.any.lead', 'task.any.all', 'task.review.lead', 'task.review.all', 'task.officeAll',
   'meeting.plan.none', 'meeting.plan.team', 'meeting.plan.all', 'meeting.editOwn', 'meeting.minutesOwn', 'meeting.any.lead',
@@ -143,6 +144,25 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
         switches: [
           { id: 'project.delete.lead', scope: 'lead', basic: false, newPower: true, needs: [] },
           { id: 'project.delete.all', scope: 'all', basic: false, newPower: true, needs: ['project.delete.lead'] },
+        ],
+      },
+      {
+        power: 'project.seeAll',
+        switches: [
+          { id: 'project.seeAll', scope: null, basic: true, needs: [] },
+        ],
+      },
+      {
+        power: 'project.access',
+        switches: [
+          { id: 'project.access.lead', scope: 'lead', basic: true, needs: [] },
+          { id: 'project.access.all', scope: 'all', basic: false, newPower: true, needs: ['project.access.lead'] },
+        ],
+      },
+      {
+        power: 'project.hidden',
+        switches: [
+          { id: 'project.hidden', scope: null, basic: false, newPower: true, needs: [] },
         ],
       },
     ],
@@ -666,11 +686,11 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
   },
 ];
 
-/** The 65 switches that a Member holds by default: every scope of today's powers except `all`. */
+/** The 67 switches that a Member holds by default: every scope of today's powers except `all`, and the two new view switches. */
 export const BASIC_ON: readonly CatalogRightId[] = [
   'project.create', 'client.create', 'project.details.lead', 'project.team.lead', 'project.stages.lead',
   'project.deadlines.lead', 'project.template.lead', 'project.archive.lead', 'project.leader.lead', 'project.health.lead',
-  'task.add.office', 'task.add.team', 'task.assign', 'task.take', 'task.help', 'task.work', 'task.details', 'task.dates',
+  'project.seeAll', 'project.access.lead', 'task.add.office', 'task.add.team', 'task.assign', 'task.take', 'task.help', 'task.work', 'task.details', 'task.dates',
   'task.deleteOwn', 'task.any.lead', 'task.review.lead', 'meeting.plan.none', 'meeting.plan.team', 'meeting.editOwn',
   'meeting.minutesOwn', 'meeting.any.lead', 'meeting.minutesAny.lead', 'post.create.team', 'comment.create.team',
   'post.editOwn', 'project.links.team', 'file.upload.team', 'file.deliver.team', 'file.share', 'file.deleteOwn',

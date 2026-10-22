@@ -1,7 +1,8 @@
 import { isLiveMessage } from './chatNaming';
 import type { AdminReach, ChatRead, Conversation, Message, NotifyLevel, User } from './contract/entities';
 import { forbidden, invalid, notFound } from './errors';
-import { can, principalOf, projectRoleOf, type ProjectRole } from './permissions';
+import { can, principalOf, projectResource, projectRoleOf, type ProjectRole } from './permissions';
+import { projectViewer } from './projectView';
 import { ensureRights } from './rights';
 import { chatReadKey, nextId, unreadCountKey, type State } from './store';
 
@@ -42,15 +43,19 @@ export function dropProjectConversation(state: State, projectId: string): void {
 
 /**
  * The one rule of who sees a chat room: a direct chat is for its two people, a group for its people (never the Admin alone),
- * and a project chat for the team and the Admin.
+ * and a project chat for the team and the Admin, when the person sees the project (hidden projects, owner 2026-10-22).
  */
 export function canSeeConversation(state: Pick<State, 'projects' | 'members' | 'settings'>, conversation: Conversation, user: User): boolean {
   if (!user.active) return false;
   if (conversation.kind !== 'project') return conversation.memberIds.includes(user.id);
   const projectId = conversation.projectId;
   if (!projectId || !state.projects[projectId]) return false;
+  // A project that the person does not see has no chat for the person (hidden projects, owner 2026-10-22), whatever the chat switch says.
+  if (!projectViewer(state, user)({ id: projectId })) return false;
   // The person may be any user of the office (a mention, a recipient): attach the rights, so a Member keeps the project chat (fail closed).
-  return can(ensureRights(state, user), 'chat.project', { projectRole: projectRoleOf(state, projectId, user.id) });
+  const rights = ensureRights(state, user);
+  // A holder of the every-project chat switch still needs the view of the project: a hidden project keeps its chat (hidden projects, owner 2026-10-22).
+  return can(rights, 'project.view', projectResource(state, projectId, user.id)) && can(rights, 'chat.project', { projectRole: projectRoleOf(state, projectId, user.id) });
 }
 
 /**

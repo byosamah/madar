@@ -5,6 +5,8 @@ import type { GeoPoint } from '../../api/contract/entities';
 import type { State } from '../../api/store';
 import { resetGate } from '../../lib/nominatimGate';
 import { projectKey } from '../../lib/projectCode';
+import { addSampleInternalProject } from '../../data/sampleInternalProject';
+import { TODAY } from '../../test/factories';
 import { renderWithRuntime } from '../../test/render';
 import { DashboardMap } from './DashboardMap';
 
@@ -262,3 +264,19 @@ describe('the Dashboard map (fbk_017)', () => {
     }
   });
 });
+
+describe('the Dashboard map and an internal project (fbk_044)', () => {
+  it('leaves an internal project out of the list of projects with no pin: it has no place', async () => {
+    const plain = await renderWithRuntime(<DashboardMap filters={{}} />, pinFirstFour, { path: '/dashboard' });
+    const unpinned = (await openProjects(plain.api)).filter((row) => row.geo === null).length;
+    expect(unpinned).toBeGreaterThan(0);
+    plain.unmount();
+    await renderWithRuntime(<DashboardMap filters={{}} />, (state) => {
+      pinFirstFour(state);
+      addSampleInternalProject(state, TODAY);
+    }, { path: '/dashboard' });
+    await userEvent.click(await screen.findByRole('button', { name: `No pin yet (${unpinned})` }));
+    expect(screen.queryByText('Portfolio 2026')).toBeNull();
+  });
+});
+

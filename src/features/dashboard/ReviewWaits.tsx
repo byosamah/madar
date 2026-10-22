@@ -4,7 +4,7 @@ import { usePersonName } from '../../app/personName';
 import { Avatar } from '../../components/Avatar';
 import { counted } from '../../lib/grammar';
 import { taskLink } from '../../lib/params';
-import { projectKey } from '../../lib/projectCode';
+import { shownKey } from '../../lib/projectLabel';
 import { AttentionCard, ROW } from './AttentionCard';
 import type { DashboardData } from './Tiles';
 
@@ -41,7 +41,7 @@ export function ReviewWaits({ view }: { view: DashboardData }) {
                       <bdi className="block truncate text-subheadline text-ink">{task.title}</bdi>
                       <span className="tabular block truncate text-footnote text-ink-2">
                         {/* An office task shows the word Office where a project key shows (owner, 2026-10-06). */}
-                        <bdi>{task.projectId === null ? t('office.word') : projectKey(task.projectCode)}</bdi> · {counted(t, 'dashboard.inReview.days', task.days)}
+                        <bdi>{task.projectId === null ? t('office.word') : shownKey(task.projectCode, t)}</bdi> · {counted(t, 'dashboard.inReview.days', task.days)}
                       </span>
                     </span>
                   </Link>

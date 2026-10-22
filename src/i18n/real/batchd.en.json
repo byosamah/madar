@@ -1,0 +1,24 @@
+{
+  "errors": {
+    "reasons": {
+      "viewer_agent": "An agent acts for a person. Choose the person instead.",
+      "not_in_project_audience": "This person does not see the project of the meeting. Choose a person who sees it."
+    }
+  },
+  "roleRights": {
+    "powers": {
+      "projectSeeAll": {
+        "label": "See every project",
+        "hint": "See each project that is open to the office, also when the person does not work on it. With this off, the person sees only the projects where the person works."
+      },
+      "projectAccess": {
+        "label": "Choose who sees a project",
+        "hint": "Open a project to the whole office, or keep it for the team and the people that you choose."
+      },
+      "projectHidden": {
+        "label": "See hidden projects",
+        "hint": "See each project that the office kept for its team, also when the person does not work on it or is not chosen."
+      }
+    }
+  }
+}

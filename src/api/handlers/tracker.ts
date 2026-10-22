@@ -5,6 +5,7 @@ import {
 } from '../contract/entities';
 import { TrackerExportRow, TrackerRow } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
+import { assertNotInternal, internalRefusal, isInternalId } from '../internalProject';
 import { applyPatch, recordCreate, recordDelete } from '../events';
 import { mayFinish, stageTag, watchStage } from '../flow';
 import { notifyIn } from '../notify';
@@ -13,7 +14,7 @@ import { nextId, trackerOf, type State } from '../store';
 import { attachmentsOf, mayDeleteTracker, namesUnder, trackerRowOf } from '../views';
 import { isOpen, sidesOf } from '../../lib/tracker';
 import { assertFilesInProject } from './attach';
-import { assertActive, assertCan, requireProject, requireUser, roleIn, taskRole, touch } from './shared';
+import { assertActive, assertCan, requireProject, requireUser, roleIn, seesProject, taskRole, touch } from './shared';
 import { changeStatus } from './tasks';
 
 const Title = z.string().trim().min(1).max(200);
@@ -23,9 +24,10 @@ const Files = z.array(FileId).max(MAX_ATTACHMENTS);
 const ReplyBy = z.object({ userId: UserId, dueDate: Day });
 type ReplyBy = z.infer<typeof ReplyBy>;
 
+/** An entry by id. One of a project that the person does not see reads as missing, with the text of an unknown entry (hidden projects). */
 function requireEntry(ctx: Ctx, id: string): TrackerEntry {
   const entry = trackerOf(ctx.state)[id];
-  if (!entry) throw notFound('Tracker entry', id);
+  if (!entry || !seesProject(ctx, entry.projectId)) throw notFound('Tracker entry', id);
   return entry;
 }
 
@@ -85,6 +87,9 @@ type NewEntry = Pick<TrackerEntry, 'projectId' | 'type' | 'direction' | 'title'>
  * A meeting line starts with no minutes, and its event names the event of the mark that caused it (causeEventId).
  */
 export function addTrackerEntry(ctx: Ctx, input: NewEntry): TrackerEntry {
+  // An internal project has no client, so no Tracker (fbk_044). The calls that write a line on their own skip it first; a call that
+  // a person starts for the Tracker (a file received, a file delivered, a move back logged) stops here.
+  if (isInternalId(ctx.state, input.projectId)) throw internalRefusal('projectId');
   assertSide(input.type, input.direction);
   const id = input.id ?? nextId(ctx.state, 'trk');
   const entry: TrackerEntry = {
@@ -212,6 +217,7 @@ const trackerLog = defineCall({
   output: TrackerRow,
   run(input, ctx) {
     const project = requireProject(ctx, input.projectId);
+    assertNotInternal(ctx, project);
     assertMayPost(ctx, project.id);
     assertFilesInProject(ctx, input.fileIds, project.id);
     assertPeople(ctx, input.peopleIds);

@@ -6,6 +6,7 @@ import type { ChangeSignal, Kind } from '../core/types';
 import {
   COUNTERS_UPSERT_SQL, OFFICE_DELETES_SQL, deleteSql, rowOf, rowsParam, upsertSql, type Row,
 } from './rows';
+import { audienceFinder } from './projectAudience';
 import { TABLES, type TableSpec } from './tables';
 
 /**
@@ -29,6 +30,12 @@ import { TABLES, type TableSpec } from './tables';
  *   signal never tells that part. Each member of each chat that the save touched, before and after it (a person taken out or added
  *   hears it too), gets a person signal with the kinds of that part, with a second id. The other open tabs reload nothing for it.
  *   All these signals go in the one person_seq statement and the one send of the save.
+ * - A hidden project (owner, 2026-10-22, wave D3): a project that at least one active person may not view (hidden, or open for a role
+ *   without "See every project"; projectAudience.ts) sends every change that names it (the project, its members, stages, deadlines,
+ *   tasks, files, posts, comments, messages, chat, events and meetings) only as person signals. They go to the people who view the
+ *   project before the change and after it, so a person who loses the view and a person who gains it both hear the change. The office
+ *   signal never names such a project. A person of that part gets one signal with its own id, the kinds of the projects that the
+ *   person views, and those project ids. With the default settings no project is restricted, and every signal is as before.
  */
 
 type Rec = Record<string, unknown>;
@@ -99,6 +106,15 @@ export type Diff = {
   restKinds: Set<Kind>;
   /** The office flag of the records that are no part of a direct chat or a group: the office signal tells only this one. */
   publicOffice: boolean;
+  /**
+   * The changes of the projects that not every active person may view (hidden projects, owner 2026-10-22): for each project, the kinds that
+   * changed and the people who hear them. The kinds are in `kinds`, and never in `publicKinds` or `restKinds`.
+   */
+  hidden: Map<string, { kinds: Set<Kind>; people: ReadonlySet<string> }>;
+  /** The people who view a project before the change or after it, or null when the project is open to all (writeDiff asks it for a comment it looks up). */
+  audienceOf: (projectId: string) => ReadonlySet<string> | null;
+  /** True when every record that gave the kind "comments" to the public part is a comment whose project writeDiff looks up. */
+  lateComments: boolean;
 };
 
 export type SaveResult = {
@@ -119,6 +135,11 @@ export type SaveResult = {
   signals: ChangeSignal[];
   /** The new office_meta.version when the save raised it. runCall then drops BatchScope.office (plan 4.7). */
   officeVersion?: number;
+  /**
+   * The projects that not every active person views and that the save touched (hidden projects, owner 2026-10-22). They are no part of
+   * `projects`, which names the public ones. The Google Calendar sync reads them. Left out when there are none.
+   */
+  hiddenProjects?: string[];
 };
 
 export type SaveOptions = { story?: SignalMeta; signals?: boolean };
@@ -215,6 +236,11 @@ export function diffState(before: State, after: State): Diff {
   let office = false;
   /** The office flag of the records that are no part of a direct chat or a group. */
   let publicOffice = false;
+  const audienceOf = audienceFinder(before, after);
+  /** The projects that not every active person views (hidden projects): their kinds and their people. */
+  const hidden: Diff['hidden'] = new Map();
+  /** How many records gave each kind to the public part: a comment that writeDiff looks up may take its kind back. */
+  const publicCount = new Map<Kind, number>();
   let officeRows = false;
   let meta: SignalMeta | undefined;
   /** The office tasks that the change touched: the task, its comments, its files and their events (owner, 2026-10-06). */
@@ -264,6 +290,23 @@ export function diffState(before: State, after: State): Diff {
     kinds.add(kind);
     restKinds.add(kind);
     publicKinds.add(kind);
+    publicCount.set(kind, (publicCount.get(kind) ?? 0) + 1);
+  };
+  /**
+   * A kind of a record that names a project. A project that not every active person views (hidden projects, owner 2026-10-22) keeps the
+   * kind for its people: no office signal, no office flag and no project id on the office channel. Any other project is a public part.
+   */
+  const projectPart = (kind: Kind, projectId: unknown) => {
+    const audience = typeof projectId === 'string' && projectId !== '' ? audienceOf(projectId) : null;
+    if (audience === null) {
+      pub(kind);
+      addProject(projectId);
+      return;
+    }
+    kinds.add(kind);
+    const part = hidden.get(projectId as string) ?? { kinds: new Set<Kind>(), people: audience };
+    part.kinds.add(kind);
+    hidden.set(projectId as string, part);
   };
   /** A kind of the office task part, which only the people of the task hear (review 2026-10-06). */
   const priv = (kind: Kind) => {
@@ -295,8 +338,7 @@ export function diffState(before: State, after: State): Diff {
     const sides = [old, rec].filter((side): side is Rec => side !== undefined);
     switch (spec.collection) {
       case 'projects':
-        pub(old && rec && same(without(old, 'updatedAt'), without(rec, 'updatedAt')) ? 'projectTouched' : 'projects');
-        addProject((rec ?? old)!.id);
+        projectPart(old && rec && same(without(old, 'updatedAt'), without(rec, 'updatedAt')) ? 'projectTouched' : 'projects', (rec ?? old)!.id);
         return;
       case 'users': {
         const id = (rec ?? old)!.id as string;
@@ -344,8 +386,7 @@ export function diffState(before: State, after: State): Diff {
             priv('meetings');
             officeMeetings.add(side.id as string);
           } else {
-            pub('meetings');
-            addProject(side.projectId);
+            projectPart('meetings', side.projectId);
           }
         }
         return;
@@ -361,9 +402,8 @@ export function diffState(before: State, after: State): Diff {
         const fromState = (one: Rec) => spec.serverColumns!.project_id(one, after) ?? spec.serverColumns!.project_id(one, before);
         const found = fromState(side);
         if (typeof found === 'string') {
-          pub('comments');
+          projectPart('comments', found);
           if (row && row.columns.project_id === null) row.columns.project_id = found;
-          projects.add(found);
           return;
         }
         // An unknown target: the event of the change tells an office task (below); else writeDiff looks up a written comment,
@@ -384,8 +424,7 @@ export function diffState(before: State, after: State): Diff {
             chatPart('messages');
             chatMembers(chat);
           } else {
-            pub('messages');
-            addProject((after.conversations[conversationId] ?? before.conversations[conversationId])?.projectId);
+            projectPart('messages', (after.conversations[conversationId] ?? before.conversations[conversationId])?.projectId);
           }
         }
         return;
@@ -395,8 +434,7 @@ export function diffState(before: State, after: State): Diff {
             chatPart('conversations');
             chatMembers(side);
           } else {
-            pub('conversations');
-            addProject(side.projectId);
+            projectPart('conversations', side.projectId);
           }
         }
         return;
@@ -415,8 +453,7 @@ export function diffState(before: State, after: State): Diff {
           priv('events');
           officeMeetings.add(rec!.officeMeetingId);
         } else {
-          pub('events');
-          addProject(rec!.projectId);
+          projectPart('events', rec!.projectId);
         }
         return;
       default:
@@ -450,8 +487,7 @@ export function diffState(before: State, after: State): Diff {
                 markOffice();
               }
             } else {
-              pub(spec.collection);
-              addProject(side.projectId);
+              projectPart(spec.collection, side.projectId);
             }
           }
         }
@@ -542,6 +578,8 @@ export function diffState(before: State, after: State): Diff {
 
   const personal = kinds.size > 0 && [...kinds].every((kind) => PERSONAL_KINDS.has(kind));
   const anonymous = publicKinds.size > 0 && projects.size === 0 && officeTasks.size === 0 && officeMeetings.size === 0 && [...publicKinds].every((kind) => PRIVATE_CHAT_KINDS.has(kind));
+  // Every record that gave "comments" to the public part is a comment that writeDiff looks up (the lookup may find a hidden project).
+  const lateComments = unresolvedComments.length > 0 && publicCount.get('comments') === unresolvedComments.length;
   const messageIds = tables.find((change) => change.spec.collection === 'messages')?.inserted ?? [];
   const commentIds = tables.find((change) => change.spec.collection === 'comments')?.inserted ?? [];
   const noticeIds = tables.find((change) => change.spec.collection === 'notifications')?.inserted ?? [];
@@ -558,9 +596,12 @@ export function diffState(before: State, after: State): Diff {
     chatPeople,
     restKinds,
     publicOffice: personal ? false : publicOffice,
+    hidden,
+    audienceOf,
+    lateComments,
     // A comment whose project writeDiff still looks up may belong to a project, so it keeps the office signal. A chat part has its own
-    // signal and does not count here.
-    privateOnly: (officeTasks.size > 0 || officeMeetings.size > 0) && !publicOffice && projects.size === 0 && unresolvedComments.length === 0,
+    // signal and does not count here. A hidden project has its own people, so it is no part of the private-only rule.
+    privateOnly: (officeTasks.size > 0 || officeMeetings.size > 0) && !publicOffice && projects.size === 0 && unresolvedComments.length === 0 && hidden.size === 0,
   };
 }
 
@@ -585,6 +626,10 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
   const signalsOn = o.signals ?? true;
   const story = o.story ?? diff.meta;
   const projects = new Set(diff.projects);
+  // The kinds of the public part: a comment that this function looks up may leave it for a hidden project.
+  const publicKinds = new Set(diff.publicKinds);
+  const restKinds = new Set(diff.restKinds);
+  const hidden = new Map([...diff.hidden].map(([id, part]) => [id, { kinds: new Set(part.kinds), people: part.people }]));
   let office = diff.office;
   let publicOffice = diff.publicOffice;
   const changed = diff.tables.length > 0 || Object.keys(diff.counters).length > 0;
@@ -594,11 +639,13 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
     ...(diff.commentIds.length > 0 ? { commentIds: diff.commentIds } : {}),
     ...(diff.noticeIds.length > 0 ? { noticeIds: diff.noticeIds } : {}),
     ...(diff.meetingIds.length > 0 ? { meetingIds: diff.meetingIds } : {}),
+    ...(diff.hidden.size > 0 ? { hiddenProjects: [...diff.hidden.keys()].sort() } : {}),
     ...fields,
   });
   if (!changed) return result();
 
   // The project of each written comment whose target the call did not load.
+  let leftPublic = 0;
   if (diff.unresolvedComments.length > 0) {
     const ofType = (type: string) => diff.unresolvedComments.filter((c) => c.targetType === type).map((c) => c.targetId);
     const found = await q<{ type: string; id: string; project_id: string | null }>(COMMENT_TARGETS_SQL, [ofType('task'), ofType('update')]);
@@ -608,17 +655,29 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
       const projectId = projectOf.get(`${comment.targetType}:${comment.targetId}`) ?? null;
       const row = rows.get(comment.id);
       if (row) row.columns = { ...row.columns, project_id: projectId };
-      if (projectId) projects.add(projectId);
+      const audience = projectId ? diff.audienceOf(projectId) : null;
+      if (projectId && audience !== null) {
+        // A project that not every active person views (hidden projects): its people hear the comment, and the office does not.
+        const part = hidden.get(projectId) ?? { kinds: new Set<Kind>(), people: audience };
+        part.kinds.add('comments');
+        hidden.set(projectId, part);
+        leftPublic += 1;
+      } else if (projectId) projects.add(projectId);
       else if (!diff.personal) {
         office = true;
         publicOffice = true;
       }
     }
+    // The comments that left the public part take their kind with them, when no other record gave the kind to it.
+    if (leftPublic > 0 && leftPublic === diff.unresolvedComments.length && diff.lateComments) {
+      publicKinds.delete('comments');
+      restKinds.delete('comments');
+    }
   }
 
   // The office signal tells only the project part of a change: a change of office tasks alone sends none, and their people and
   // the Admins hear it on their person channels (review 2026-10-06). With no office task, publicKinds holds every kind.
-  const officeSignal = signalsOn && [...diff.publicKinds].some((kind) => !PERSONAL_KINDS.has(kind));
+  const officeSignal = signalsOn && [...publicKinds].some((kind) => !PERSONAL_KINDS.has(kind));
   let version: number | undefined;
   let officeSeq = 0;
   if (diff.officeRows || officeSignal) {
@@ -648,7 +707,8 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
 
   // The people of a direct chat or a group join the list (owner, 2026-10-21): they get the signal in place of an office signal. One statement
   // counts all their topics, whatever the number of people.
-  const people = [...new Set([...diff.people, ...(diff.privateChange ? diff.privatePeople : []), ...diff.chatPeople])].sort();
+  const hiddenPeople = [...hidden.values()].flatMap((part) => [...part.people]);
+  const people = [...new Set([...diff.people, ...(diff.privateChange ? diff.privatePeople : []), ...diff.chatPeople, ...hiddenPeople])].sort();
   let personSeq = new Map<string, number>();
   if (signalsOn && diff.kinds.size > 0 && people.length > 0) {
     const rows = await q<{ user_id: string; seq: string | number }>(PERSON_SEQ_SQL, [people]);
@@ -665,7 +725,7 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
     // kind and no names (review 2026-10-06). The screens match their own changes by the signal id.
     const shared = { v: 1 as const, projects: [...projects].sort(), office: publicOffice };
     const publicBase = {
-      ...shared, id: crypto.randomUUID(), kinds: [...diff.publicKinds].sort(), storyId: story.storyId, actorId: story.actorId,
+      ...shared, id: crypto.randomUUID(), kinds: [...publicKinds].sort(), storyId: story.storyId, actorId: story.actorId,
     };
     // A chat that the save could not find keeps the old rule of INT-16: the office signal has no actor and no story. A found direct chat
     // or group sends no office signal at all (owner, 2026-10-21).
@@ -673,17 +733,32 @@ export async function writeDiff(q: Query, diff: Diff, o: SaveOptions = {}): Prom
     const officeBase = diff.anonymous ? nameless : publicBase;
     // The office task part: every kind of the records that are no chat part. A member of a chat touched by the save also hears the chat
     // kinds, in one signal with its own id (the screens drop a later signal with a known id, so it never shares the id of the office signal).
-    const privateBase = diff.privateChange ? { ...shared, id: crypto.randomUUID(), kinds: [...diff.restKinds].sort() } : null;
+    const privateBase = diff.privateChange ? { ...shared, id: crypto.randomUUID(), kinds: [...restKinds].sort() } : null;
     const memberOf = { ...shared, office, id: crypto.randomUUID(), storyId: story.storyId, actorId: story.actorId };
-    const chatBase = diff.chatPeople.size > 0 ? { ...memberOf, kinds: [...new Set([...diff.publicKinds, ...diff.chatKinds])].sort() } : null;
+    const chatBase = diff.chatPeople.size > 0 ? { ...memberOf, kinds: [...new Set([...publicKinds, ...diff.chatKinds])].sort() } : null;
     // A person of both parts hears all kinds in the signal of the office task part, which names no actor and no story.
     const chatPrivateBase = diff.chatPeople.size > 0 && privateBase
-      ? { ...shared, office, id: privateBase.id, kinds: [...diff.kinds].sort() }
+      ? { ...shared, office, id: privateBase.id, kinds: [...new Set([...restKinds, ...diff.chatKinds])].sort() }
       : null;
-    const baseOf = (userId: string) => {
+    const plainOf = (userId: string) => {
       const inPrivate = privateBase !== null && (diff.privateOnly || diff.privatePeople.has(userId));
       if (diff.chatPeople.has(userId)) return inPrivate && chatPrivateBase ? chatPrivateBase : chatBase!;
       return inPrivate ? privateBase! : publicBase;
+    };
+    // The hidden project part (owner, 2026-10-22): one signal with its own id for each person who views a project that the save touched. It
+    // holds the kinds and the ids of those projects only, so a person never hears a project of which the person is no viewer. A person who
+    // also hears another part keeps its kinds and ids too, under the id of this part (the screens drop a later signal with a known id).
+    const hiddenId = hidden.size > 0 ? crypto.randomUUID() : '';
+    const inOtherPart = (userId: string) => diff.people.has(userId) || (diff.privateChange && diff.privatePeople.has(userId)) || diff.chatPeople.has(userId);
+    const baseOf = (userId: string) => {
+      const own = [...hidden].filter(([, part]) => part.people.has(userId));
+      if (own.length === 0) return plainOf(userId);
+      const plain = inOtherPart(userId) ? plainOf(userId) : { v: 1 as const, office: false, projects: [] as string[], kinds: [] as Kind[], storyId: story.storyId, actorId: story.actorId };
+      return {
+        ...plain, id: hiddenId,
+        projects: [...new Set([...plain.projects, ...own.map(([projectId]) => projectId)])].sort(),
+        kinds: [...new Set([...plain.kinds, ...own.flatMap(([, part]) => [...part.kinds])])].sort(),
+      };
     };
     if (officeSignal) signals.push({ ...officeBase, channel: 'office', seq: officeSeq, people: [] });
     for (const userId of people) signals.push({ ...baseOf(userId), channel: `person:${userId}`, seq: personSeq.get(userId) ?? 0, people: [userId] });

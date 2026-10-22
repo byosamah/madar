@@ -23,6 +23,8 @@ import { Menu, type MenuItem } from '../../../components/Menu';
 import { formatDay, formatNumber, stampDay } from '../../../lib/dates';
 import { UploadList } from '../../files/Attachments';
 import { tabButtonShows } from '../mainButton';
+import { DownloadAllButton } from '../../files/DownloadAll';
+import { shownKey } from '../../../lib/projectLabel';
 import type { TabProps } from '../tabs';
 import { canPreview, PreviewSheet } from './PreviewSheet';
 import { LinkSheet, ProjectLinks, projectLinkRows } from './ProjectLinks';
@@ -202,6 +204,12 @@ export function FilesTab({ detail }: TabProps) {
     .map((group) => ({ ...group, files: (files.data ?? []).filter((view) => view.file.stageId === group.id) }))
     .filter((group) => group.files.length > 0);
 
+  // "Download all" (owner, 2026-10-22, fbk_050): the newest version of each file, for one stage and for the whole project. A button shows for two files
+  // or more. The whole-project button shows only when the files sit in more than one group, because with one group it would repeat the group button.
+  const itemsOf = (views: FileView[]) => views.map((view) => ({ id: view.file.id, name: view.file.name }));
+  const allItems = groups.flatMap((group) => itemsOf(group.files));
+  const projectZip = () => `${shownKey(detail.project, t)} ${detail.project.name}`;
+
   // A tab with no files and no links shows one empty state, and the one Add button moves into it (it shows once, never twice).
   const empty = Boolean(files.data) && groups.length === 0 && !hasLinks;
   const add = (canUpload || canLink) && (
@@ -278,11 +286,15 @@ export function FilesTab({ detail }: TabProps) {
       <LoadFailed query={files} />
       {empty && <EmptyState title={t('files.emptyTitle')} body={t('files.empty')} action={add} />}
       <ProjectLinks detail={detail} onEdit={openLink} />
+      {groups.length > 1 && <DownloadAllButton items={allItems} zipName={projectZip} all="allFiles" className="px-2" />}
       {groups.map((group) => {
         const id = `files-${group.id ?? 'none'}`;
         return (
           <section key={id} aria-labelledby={id} className="surface rounded-card p-2">
-            <h3 id={id} dir="auto" className="px-2 pt-1 text-headline">{group.name}</h3>
+            <div className="flex items-center justify-between gap-3 px-2 pt-1">
+              <h3 id={id} dir="auto" className="min-w-0 text-headline">{group.name}</h3>
+              <DownloadAllButton items={itemsOf(group.files)} zipName={() => `${shownKey(detail.project, t)} ${group.name}`} scope={group.name} className="shrink-0" />
+            </div>
             <ul>{group.files.map((view) => <FileRow key={view.file.id} view={view} detail={detail} onPreview={() => setPreview(view)} onShare={() => setSharing(view)} />)}</ul>
           </section>
         );

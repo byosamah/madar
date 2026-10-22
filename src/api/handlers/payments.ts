@@ -3,10 +3,11 @@ import { defineCall, type Ctx } from '../registry';
 import { Day, Payment, PaymentId, ProjectId } from '../contract/entities';
 import { PaymentRow } from '../contract/views';
 import { invalid, notFound } from '../errors';
+import { assertNotInternal } from '../internalProject';
 import { applyPatch, recordCreate, recordDelete } from '../events';
 import { nextId, paymentsOf } from '../store';
 import { paymentRowOf } from '../views';
-import { assertCan, requireProject } from './shared';
+import { assertCan, requireProject, seesProject } from './shared';
 
 const Name = z.string().trim().min(1).max(120);
 const Amount = Payment.shape.amount;
@@ -22,9 +23,10 @@ function requireRight(ctx: Ctx, right: 'payment.view' | 'payment.add' | 'payment
   assertCan(ctx, right);
 }
 
+/** A payment by id. One of a project that the person does not see reads as missing, with the text of an unknown payment (hidden projects). */
 function requirePayment(ctx: Ctx, id: string): Payment {
   const payment = paymentsOf(ctx.state)[id];
-  if (!payment) throw notFound('Payment', id);
+  if (!payment || !seesProject(ctx, payment.projectId)) throw notFound('Payment', id);
   return payment;
 }
 
@@ -60,6 +62,8 @@ const paymentsCreate = defineCall({
   run(input, ctx) {
     requireRight(ctx, 'payment.add');
     const project = requireProject(ctx, input.projectId);
+    // An internal project has no client, so no payments (fbk_044).
+    assertNotInternal(ctx, project);
     assertNotFuture(ctx, input.receivedOn);
     const id = nextId(ctx.state, 'pay');
     const payment: Payment = {

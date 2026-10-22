@@ -1,0 +1,38 @@
+{
+  "errors": {
+    "reasons": {
+      "internal_project": "An internal project has no client, place, area, sub-company, payments or Tracker.",
+      "code_prefix_taken": "INT is the code head of internal projects. Choose another."
+    }
+  },
+  "project": {
+    "internal": "Internal",
+    "hiddenMark": "Only the team and chosen people"
+  },
+  "projectForm": {
+    "kind": "Kind of project",
+    "kindClient": "Client project",
+    "kindInternal": "Internal project",
+    "internalLine": "Only the team sees an internal project. You can share it later."
+  },
+  "projectAccess": {
+    "title": "Who sees this project",
+    "open": "Everyone in the office",
+    "team": "Only the team and chosen people",
+    "chosen": "Chosen people",
+    "none": "No one is chosen yet.",
+    "add": "Add people",
+    "remove": "Remove {{name}}",
+    "lineOpen": "Everyone in the office sees this project.",
+    "lineTeam": "Only the team and chosen people see this project.",
+    "savedOpen": "Everyone in the office sees this project now.",
+    "savedTeam": "Only the team and chosen people see this project now.",
+    "personAdded": "{{name}} sees this project now.",
+    "personRemoved": "{{name}} no longer sees this project."
+  },
+  "feed": {
+    "project": {
+      "access_changed": "changed who sees this project"
+    }
+  }
+}

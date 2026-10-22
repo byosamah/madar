@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Attachment } from '../../api/contract/views';
 import { downloadFile, isRemote, useFileLink, usePictureTest } from '../../app/files';
@@ -6,7 +6,10 @@ import { useRuntime } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { useNearView } from '../../app/useNearView';
 import { ImageViewer } from '../../components/ImageViewer';
+import { todayISO } from '../../lib/dates';
 import { FileChips } from './Attachments';
+import { DownloadAllButton } from './DownloadAll';
+import { ZipTitleContext } from './zipTitle';
 
 /**
  * The shape of each picture that a screen has shown, by file id. A picture that shows again (a chat that opens again, a message that
@@ -122,10 +125,12 @@ function PictureViewer({ pictures, index, open, onMove, onClose, tiles }: {
  * The files of a chat message or a comment (owner, 2026-10-19). A picture shows as a preview, several pictures as a small grid, and a press
  * opens the viewer with Close and Download. Every other file stays a chip that saves it. A picture that breaks, or that the store
  * keeps as a download (an SVG in the real build), shows as a chip too. The rights to open a file are the same as before: the preview and
- * the viewer ask for the same links as the chip did.
+ * the viewer ask for the same links as the chip did. Two files or more get one quiet "Download all (N)" button under them: one ZIP file with
+ * every file that still exists, pictures too (owner, 2026-10-22, fbk_050). Its name is the title of the pane and the day.
  */
 export function AttachmentList({ files }: { files: Attachment[] }) {
   const { t } = useTranslation();
+  const title = useContext(ZipTitleContext);
   const isPicture = usePictureTest();
   const [broken, setBroken] = useState<ReadonlySet<string>>(new Set());
   const [viewer, setViewer] = useState<{ index: number; open: boolean } | null>(null);
@@ -136,6 +141,7 @@ export function AttachmentList({ files }: { files: Attachment[] }) {
   const pictures = files.filter((file): file is Named => file.name !== null && file.mimeType !== undefined && isPicture(file.mimeType) && !broken.has(file.id));
   const chips = files.filter((file) => !pictures.some((picture) => picture.id === file.id));
   const count = pictures.length;
+  const downloadable = files.filter((file): file is Named => file.name !== null).map((file) => ({ id: file.id, name: file.name }));
   const columns = count >= 5 ? 'grid-cols-3' : 'grid-cols-2';
   return (
     <div className="flex flex-col gap-1.5">
@@ -155,6 +161,7 @@ export function AttachmentList({ files }: { files: Attachment[] }) {
         </ul>
       )}
       <FileChips files={chips} />
+      <DownloadAllButton items={downloadable} zipName={() => `${title ?? t('zip.defaultName')} ${todayISO()}`} />
       {viewer && count > 0 && (
         <PictureViewer
           pictures={pictures}

@@ -2435,3 +2435,33 @@ Not proven: a real iPhone. After the deploy, wait 11 minutes on an iPhone, press
 - Gates once on main c83ad4fb plus B: typecheck; npm test 10,074 passed (1 Home timing test passes 2 of 2 alone); test:db 3,037;
   test:it 333 (one pin of the push device row updated for the two new columns); test:mcp 335 and conformance 5 of 32; the four builds;
   screenshots EN and AR, light and dark, 390 px. Not seen live yet: a push held in quiet hours and sent at their end.
+
+### Release record: production at 01af2203 (2026-10-22, team reports batch D)
+- On the owner's "Production now" (AskUserQuestion), `all.sh production` took 01af2203, the commit of the test deploy: hidden projects,
+  "See every project" and internal projects (fbk_044, waves D1 to D4: four rights, 117 switches; `Project.access` and `Project.kind`; the
+  view rule that fails closed; every door, list, SQL limit, Realtime signal, notice, push, summary line and Google Calendar row follow
+  it; the call `projects.setAccess`; the New project choice, the "Who sees this project" block, the lock mark and the word Internal), and
+  the wider mention list on a phone. No migration. Release day changes nothing for anyone: every project stays open and every role keeps
+  "See every project". The quick checks passed: health from supabase (150 calls), database, lock and asyncContext ok, /mcp with no token
+  401; the page title Madar, `/favicon.ico` 200, and the live words hold "Who sees this project".
+- Gates once on the join: see TASKS.md (npm test 10,316; test:db 3,176 after two test-only fixes; test:it 333; test:mcp 339; builds;
+  api bundle bound raised to 900,000 with its history line; screenshots EN and AR, light and dark, 390 px, with a person off the team
+  who sees no row and a not-found page). Not run: the prototype smoke and the deploy suite.
+
+### Release record: production at f90bd7e7 (2026-10-22, fbk_049 and the What's new dates)
+- On the owner's "Production now" (AskUserQuestion), `all.sh production` took f90bd7e7: the Settings section "When Madar notifies you"
+  with one live line of the quiet time and picked days that look picked (fbk_049), the built-in office hours and lock Sunday to Thursday
+  8:00 AM to 5:00 PM, and the What's new page dated by release day (19, 20, 21 and 22 October). No migration.
+- The first run stopped at the secrets step: "The Management API refused the key list with 500" (Supabase; migrations and config were up
+  to date, nothing deployed). The second run passed every step: health from supabase (150 calls), database, lock and asyncContext ok,
+  /mcp with no token 401; the page title Madar, `/favicon.ico` 200, and the live words hold "When Madar notifies you".
+
+### Release record: production at 139ad4ba (2026-10-22, fbk_050 and fbk_051)
+- On the owner's "Production now" (AskUserQuestion), `all.sh production` took 139ad4ba: "Download all" as one ZIP made in the browser under
+  every message, to-do comment and post comment with 2 or more files and on the Files tab (fbk_050), and the two times of "When Madar
+  notifies you" in the order of the quiet line, "Quiet from" then "Until" (fbk_051). Screens only, no migration. The quick checks passed:
+  health from supabase, database, lock and asyncContext ok, /mcp with no token 401; the page title Madar, `/favicon.ico` 200, the live words
+  hold "Quiet from", and the lazy `zip-*.js` chunk answers 200.
+- The read of a file from the page: the EU bucket `madar-files` (`wrangler r2 bucket cors list madar-files --jurisdiction eu`) allows
+  `PUT, GET` from madar.vado.sa, and a preflight to `<account>.eu.r2.cloudflarestorage.com` answers 204 with
+  `Access-Control-Allow-Origin: https://madar.vado.sa`. A probe of the host without `.eu.` answers 403: always use the EU host.

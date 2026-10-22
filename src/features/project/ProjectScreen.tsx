@@ -20,7 +20,7 @@ import { prefetchReads, sessionMayAddTask, sessionSeesPayments } from './reads';
 import { useIsPhone } from '../../app/useIsPhone';
 import { projectsListLink } from '../../app/lastList';
 import { MoreSubPage } from './MoreTab';
-import { PHONE_TABS, PROJECT_TABS, TAB_BODY, isMorePage, litPhoneTab, tabOfLink, tabReads, tabSearch, type ProjectTab } from './tabs';
+import { TAB_BODY, isMorePage, litPhoneTab, phoneTabsOf, tabOfLink, tabReads, tabSearch, tabsOf, type ProjectTab } from './tabs';
 
 /** A tab change on a phone brings the tab row to the top when the header has scrolled away (the row is sticky). */
 function scrollToTabRow(): void {
@@ -79,7 +79,11 @@ export function ProjectScreen() {
       .flatMap(([, list]) => list ?? []).find((item) => item.project.id === projectId);
     return summary ? <LayoutGroup id={sharedSource()}><HeaderShell id={summary.project.id} name={summary.project.name} mark={summary.project.mark} /></LayoutGroup> : null;
   }
-  const Body = TAB_BODY[tab];
+  // The tabs of this project: an internal project has no Tracker, so the address of that tab opens the Overview.
+  const shown = tabsOf(detail.data.project);
+  // On a phone, More is a tab of its own; Activity, Schedule and Team stay pages of it.
+  const current: ProjectTab = tab === 'more' || shown.includes(tab) ? tab : 'overview';
+  const Body = TAB_BODY[current];
   return (
     <div className="flex flex-col gap-5">
       <LayoutGroup id={sharedSource()}>
@@ -94,27 +98,27 @@ export function ProjectScreen() {
             <Tabs
               spread
               label={t('project.tabs')}
-              value={litPhoneTab(tab)}
+              value={litPhoneTab(current)}
               onChange={(next) => {
-                setParams((current) => tabSearch(current, next));
+                setParams((now) => tabSearch(now, next));
                 scrollToTabRow();
               }}
-              options={PHONE_TABS.map((value) => ({ value, label: t(`phoneProject.tab.${value}`) }))}
+              options={phoneTabsOf(detail.data.project).map((value) => ({ value, label: t(`phoneProject.tab.${value}`) }))}
             />
           </div>
         </>
       ) : (
         <Tabs
           label={t('project.tabs')}
-          value={tab}
-          onChange={(next) => setParams((current) => tabSearch(current, next))}
-          options={PROJECT_TABS.map((value) => ({ value, label: t(`project.tab.${value}`) }))}
+          value={current}
+          onChange={(next) => setParams((now) => tabSearch(now, next))}
+          options={shown.map((value) => ({ value, label: t(`project.tab.${value}`) }))}
         />
       )}
-      <TabPanel value={phone ? litPhoneTab(tab) : tab}>
-        {phone && isMorePage(tab)
-          ? <MoreSubPage detail={detail.data} page={tab} />
-          : Body ? <Body detail={detail.data} /> : <EmptyState title={t(`project.tab.${tab}`)} body={t('project.comingSoon')} />}
+      <TabPanel value={phone ? litPhoneTab(current) : current}>
+        {phone && isMorePage(current)
+          ? <MoreSubPage detail={detail.data} page={current} />
+          : Body ? <Body detail={detail.data} /> : <EmptyState title={t(`project.tab.${current}`)} body={t('project.comingSoon')} />}
       </TabPanel>
     </div>
   );

@@ -122,7 +122,7 @@ export function MentionField({
           role="listbox"
           aria-label={t('overview.mentionList')}
           style={listMaxHeight ? { maxHeight: listMaxHeight } : undefined}
-          className={`float absolute inset-x-0 z-30 flex flex-col rounded-2xl p-1.5 ${listMaxHeight ? 'overflow-y-auto' : ''} ${placement === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
+          className={`float absolute end-0 z-30 flex w-[max(100%,min(18rem,calc(100vw_-_2rem)))] flex-col rounded-2xl p-1.5 ${listMaxHeight ? 'overflow-y-auto' : ''} ${placement === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
         >
           {entries.map((row, i) => (
             <li

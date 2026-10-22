@@ -22,6 +22,19 @@ export type ProjectPhoneTab = (typeof PHONE_TABS)[number];
 export type MorePage = (typeof MORE_PAGES)[number];
 /** A desk tab, or `more` (the list of More, on a phone only). */
 export type ProjectTab = (typeof PROJECT_TABS)[number] | 'more';
+
+/**
+ * The tabs that a project shows. An internal project has no client, so it has no Tracker tab (fbk_044, owner 2026-10-22). An address
+ * that names the missing tab opens the Overview.
+ */
+export function tabsOf(project: { kind?: 'client' | 'internal' }): readonly ProjectTab[] {
+  return project.kind === 'internal' ? PROJECT_TABS.filter((tab) => tab !== 'tracker') : PROJECT_TABS;
+}
+
+/** The phone tabs of a project: the five of D, without Tracker for an internal project (fbk_044). */
+export function phoneTabsOf(project: { kind?: 'client' | 'internal' }): readonly ProjectPhoneTab[] {
+  return project.kind === 'internal' ? PHONE_TABS.filter((tab) => tab !== 'tracker') : PHONE_TABS;
+}
 export type TabProps = { detail: ProjectDetail };
 
 /** The tab of the `?tab=` link. A desk knows the seven desk tabs. A phone knows its five tabs and the three pages of More. */

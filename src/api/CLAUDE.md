@@ -224,7 +224,10 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   with no people filter. They never count in a project number.
 - Three functions hold the rule of a hidden notice: `hiddenTask` (`notifications.ts`) and `noticeTaskHidden`
   (`handlers/history.ts`) for an office task, and `feedbackNoticeHidden` (`notify.ts`) for a report. Change them together. A fourth,
-  `hiddenMeeting` (`notifications.ts`) with `noticeMeetingHidden` (`history.ts`), holds the rule of a meeting with no project (fbk_022).
+  `hiddenMeeting` (`notifications.ts`) with `noticeMeetingHidden` (`history.ts`), holds the rule of a meeting with no project (fbk_022). A fifth,
+  `noticeProjectHidden` (`hiddenNotice.ts`), holds the rule of an item of a project that the person may not view (hidden projects, wave D3): the
+  notice view (`hiddenProject` in `notifications.ts`: `isGone`, `viewOf`, `peopleOfCopy`), `dropNotices` (`history.ts`) and `mayView` of
+  `adminCopies.ts` all call it. A deleted hidden project reads from its last copy (leader, chosen people, holders of `project.hidden`).
 
 ## Task makers (owner, 2026-10-07)
 - The person who adds a project task (`principalOf(createdBy)`, so the task of an agent belongs to its person) holds the
@@ -381,10 +384,10 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   - MCP: `TOOL_DOCS` of `projects.update` (600 characters, at the limit) and `projects.get`, and the `Place:` line of `INSTRUCTIONS`.
 
 ## Office rights and roles (owner, 2026-10-18, fbk_014; role rights version 2, 2026-10-21)
-- The rights are 113 switches in 13 sections (`OfficeRight`, `contract/entities.ts`; 85 powers; "Mention everyone" joined the Chat section on 2026-10-22). The one source is the catalog JSON in
+- The rights are 117 switches in 13 sections (`OfficeRight`, `contract/entities.ts`; 88 powers; "Mention everyone" joined the Chat section on 2026-10-22; the four hidden-project rights joined the Projects section on 2026-10-22). The one source is the catalog JSON in
   `docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json`; `rightsCatalog.ts` is its plain copy (no zod), and
   `rightsCatalog.test.ts` checks that the two agree. The Admin holds all of them. A switch id is `<power>.<scope>` for a power with
-  scopes (`lead`, `team`, `all`, `office`, `none`), or the power name for a power with one switch. `BASIC_ON` is the 65 switches a Member holds.
+  scopes (`lead`, `team`, `all`, `office`, `none`), or the power name for a power with one switch. `BASIC_ON` is the 67 switches a Member holds.
 - A power with scopes asks `scopeAllows` (`permissions.ts`): hold `<power>.all`, or `<power>.lead` and lead the project, or
   `<power>.team` and be on the team (the leader counts as on the team). An "own" power keeps the people rule (maker, lead, author,
   organizer) and needs its switch. `project.code` passes only where `project.details` passes. The Admin holds every `.all`.
@@ -394,7 +397,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   `off`) plus the expanded `rights` (or `DEFAULT_EXTRA`), minus each switch whose need on another power is off (`dropUnmetNeeds`, fail
   closed: `ai.connect` off turns every AI switch off; the sheet turns needs on with `withNeeds`); a custom role with no `off` = the Member switches
   plus its own (the meaning of before); with `off` = its own full list; a deleted role leaves the Member switches. `heldRightsOfRole` gives
-  the list to the screens. `session.get` and every output give the 113 ids only. A save writes new ids only (`roles.*` expand old ids).
+  the list to the screens. `session.get` and every output give the 117 ids only. A save writes new ids only (`roles.*` expand old ids).
   Caps: `rights` 120, `off` 70.
 - The actions of `can()` are the power names. The stand-ins of the first release are gone (`project.edit`, `project.changeLeader`,
   `project.healthOverride`, `project.editCode`, `content.post`, `content.editOwn`, `task.createForSelf`, `task.createForAnyone`,
@@ -405,7 +408,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   (the Roles section and the role events). With the default settings the answers equal the answers of before
   (`server/core/rightsParity.test.ts` proves it against a record made on the code before this release). A stored list may still hold an
   old id (`LEGACY_RIGHTS` of `rightsCatalog.ts`); that is a stored right, never an action. The pure power actions are in
-  `rightSwitches.test.ts`, one group of tests for each of the 113 switches. A to-do rule that combines the own power and `task.any` lives
+  `rightSwitches.test.ts`, one group of tests for each of the 117 switches. A to-do rule that combines the own power and `task.any` lives
   in `taskGates.ts` (`mayChangeTask`, `mayAssignTask`, `mayDeleteTask`, `mayTickChecklist`).
 - A right gives only its own power. Before a right passes an action, grep every use of that action and check what it stands in for.
 - A check of an office right reads the person with the rights attached. A handler gets them in `ctx.authority` (`execute.ts`); the
@@ -654,6 +657,92 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   project and one meeting with no project for the Admin and a leader. The prototype day shift moves `startsAt` and `endsAt` (`PLANNED_FIELDS`,
   `data/shift.ts`) and never pulls them back before now.
 
+## Hidden projects (owner, 2026-10-22)
+Design: `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design.md`. Wave D1 builds the core.
+- Four rights in the catalog (117 switches, 88 powers): `project.seeAll` (See every project) and `project.access.lead` (Choose who sees a
+  project, Projects I lead) are basic and on for every role. `project.access.all` and `project.hidden` (See hidden projects) are for the
+  Admin only. The Admin always holds every switch (`heldSet`), so an Admin without `project.hidden` cannot exist. Management can get it.
+- `Project.access` is `{ hidden, viewerIds }`, optional, at most `MAX_PROJECT_VIEWERS` (50). Missing means open with no chosen people.
+  No migration and no `STATE_VERSION` step.
+- One rule: `mayViewProject(state, project, viewer)` = `can(viewer, 'project.view', projectResource(state, projectId, viewerId))`. True for a
+  holder of `project.hidden`, the leader, a team member, a chosen person, and a holder of `project.seeAll` when the project is open.
+  `project.view`, `task.view` and `comment.read` of a project resource, and `meeting.view` of a project meeting, all read it. A resource
+  with no project facts (`can(actor, 'comment.read')`) is the plain question "may this person read" and answers true. A person who left the
+  office never sees a hidden project. `projectResource` carries `projectRole` and `access`; `taskResource` and `meetingResource` use it.
+- The rule fails closed. `can()` reads `project.view`, `task.view`, `comment.read` and a project `meeting.view` from the facts of
+  `projectResource`. A resource with no `access` facts, or with no project at all, denies everyone except a holder of `project.hidden`,
+  the leader and the team (those two by role). Never write `{ projectRole }` alone for a view check: build the resource with
+  `projectResource`. A check that only asks "is this person active" tests `actor.active`, not `comment.read`.
+- `projects.setAccess { id, hidden, viewerIds }` (needs `project.access` with its scope on the project): writes the event
+  `project.access_changed` (before and after of `access`, Undo asks `project.access`), keeps the chosen people also while the project is
+  open, sends `added_to_project` to a new chosen person who is not on the team, and writes nothing when the value is the same. A new
+  person must be active and human (reasons `person_inactive`, `viewer_agent`). MCP: deny list. `WRITE_KINDS`: `events`, `projects`.
+- The doors (wave D1): `requireProject` (`handlers/shared.ts`) answers `not_found Project <id>` for a project the person does not see, before
+  any `assertCan`. `seesProject(ctx, id)` is the same test for a child record. A record that sits in a project answers as an unknown record
+  of its own kind: `requireDeadline`, the stage of `stages.setDates` and `stages.setPrerequisites`, the stage of `tasks.createFromTemplate`
+  (before `template_other_stage`), `requireUpdate`, `requireComment`, `targetOf`, `requireEntry`, `requirePayment`, `mayViewFile`
+  (`not_found File`, never `forbidden`, also on the server in `server/files/rights.ts` and `server/calls/files.ts`), `requireTask`
+  (through `mayViewTask`), `requireMeeting` (through `mayViewMeeting`), `seesEvent`, and `canSeeConversation` (a project chat needs the view
+  too). The template calls (`matchPlan`, `link`, `syncApply`) read the project with `requireProject` before `assertMayApply`.
+  `subCompanies.delete` counts only the projects the person sees in `sub_company_in_use`, and a person who sees none of them while a
+  hidden one names the sub-company gets `forbidden` (action `project.hidden`): only a holder of `project.hidden` deletes then. A move with
+  `moveToId` still moves every project.
+- `notify` skips a person who does not see the project of the target (`projectOfTarget`, `targetProject.ts`). A meeting of a project needs
+  attendees who see the project (reason `not_in_project_audience`). `seesEvent` hides the events of a deleted project that was hidden
+  from everyone but a holder of `project.hidden` (`lastProjectCopy`, `events.ts`); an open deleted project keeps the old rule. A state that
+  holds no delete event reads such a project as open, so a loader must bring the delete event (wave D2).
+- `code_taken` leaves out the key of a project the person does not see (the server still checks every project), and `sameContractAs` of
+  such a project reads as an unknown project.
+- Leak tests: `handlers/hiddenProjectLeaks.test.ts` (every door, with a person, an agent, a role without `project.seeAll`, Management with and
+  without `project.hidden`), `handlers/subCompaniesHidden.test.ts`, `server/mcp/hiddenProjectTools.test.ts`, `server/calls/hiddenProjectFiles.test.ts`;
+  the loader sweep reads and writes the hidden project `prj_005` of `trapOffice` (`HIDDEN_PROJECT` in `server/data/loaders/sweep.ts`).
+- `mayViewProject`, `mayViewTask` and `mayViewMeeting` attach the office rights (`ensureRights`). A bare `can()` on a raw user holds no
+  `project.seeAll` (it fails closed), so a test that asks `can()` for a Member needs `withRights`.
+- The lists (wave D2). `src/api/projectView.ts` holds the view rule for lists: `projectViewer(state, viewer)` gives one test for many
+  projects (rights attached once), `visibleProjectIds`, `hiddenProjectIds`, and `eventProjectViewer` for changes. `peopleFilter` and
+  `teamFilter` (`pause.ts`) take the viewer as their last parameter and never pass a project the viewer does not see, so
+  `projects.list`, `tasks.list`, `deadlines.list` and every number of `dashboard.get` (tiles, charts, schedule, workload rows, the No
+  lead row, money, `waitingForUs`, `attention.stale`) count only the visible projects. A count of another person's work counts only
+  the to-dos of the visible projects (the rule of office to-dos). A new list or count over projects must call one of them first.
+  `search.query` (projects, project tasks, project files, the sub-company counts), `reports.office` (rows, totals, people, money,
+  the office stage-move count), `subCompanies.list` `projectCount`, `projectTemplates.list` `followers`, `projectTemplates.usage`
+  and the leader hint of `session.get` follow the same test. `canSeeConversation` also asks the view of the project for a project
+  chat, and `taskThreads` drops a thread of a project task that the person does not see (so `chats.list`, `chats.unreadCount` and
+  `chats.waiting` never count it). `events.list` drops the changes of a project that the person does not see. The changes of a deleted
+  project that was hidden (the `before` of its `project.deleted` event holds `access`) show only to a holder of `project.hidden`.
+- Wave D3, the signals and the outside (owner, 2026-10-22):
+  - Realtime: a project that someone may not view tells only its people (`server/CLAUDE.md`, `data/projectAudience.ts`). A notice whose item
+    belongs to a project the person does not view reads as gone: no words, no names, no link, no badge (`noticeProjectHidden`). An Undo
+    keeps such a notice.
+  - The push, the morning summary and Google Calendar skip a person who does not view the project (`server/push/CLAUDE.md`,
+    `server/mail/CLAUDE.md`, `server/google/`). `settleActorOf` and `extendActorOf` fall back to an Admin.
+- Internal projects (fbk_044, wave D4). `Project.kind` is `'client' | 'internal'`, optional; a missing value is a client project, and a
+  client project stores no `kind`. The kind is set by `projects.create { kind: 'internal' }` and never changes (no call takes it).
+  Helpers: `src/api/internalProject.ts` (`isInternal`, `isInternalId`, `internalRefusal`, `assertNotInternal`), `INTERNAL_PREFIX` and
+  `isInternalCode` in `src/lib/projectCode.ts`.
+  - Create: `clientId`, `geo`, `areaM2`, `subCompanyId`, `contractStartDate`, `location`, and a typed `code`, `codeParts` or `sameContractAs`
+    are refused with the reason `internal_project` on that field. `subCompanyOfNew` is skipped, so an office with sub-companies asks for
+    none. The code is the old automatic form with the head `INT` (`INT-26-001`, `nextProjectCode`); its series counts only `INT-YY-` codes,
+    so it never takes a series of a client code, and `nextSeries` and `contractClash` read no INT code (an INT code has no contract part).
+    `access` starts `{ hidden: true, viewerIds: [] }`.
+  - Update: a value in one of those fields, or a `code` correction, is refused with `internal_project`; an empty value passes (the edit
+    form sends them empty). `projects.pause` with kind `client` is refused (it writes a Tracker line).
+  - No payments, no Tracker: `payments.create` and `tracker.log` call `assertNotInternal` (a person who does not see the project gets
+    `not_found` first). `addTrackerEntry` is the one door: it throws `internal_project` for an internal project, so a file received, a file
+    delivered and a move back logged stop there. The automatic lines skip it before the door: the shift line (`shiftDependents`), the
+    new-version line (`tasks.newVersion`), the Balady tick (`stageBackError` gives `canLog` false) and the meeting line (`hasLine` in
+    `handlers/meetings.ts`: an internal project meeting settles with the mark only and keeps its minutes on the meeting, `minutesPlace: 'meeting'`).
+  - `viewerCan` (additive): `access` (`project.access` with its scope), and for an internal project `payments`, `logTracker`, `deliver`
+    and `editCode` are false. The screens read these flags, so they show no Tracker control and no payments part.
+  - The numbers: it counts in the workload, the to-do lists, Home, deadlines and the schedule. It stays out of the gaps `noArea` and
+    `noSubCompany` (dashboard and report), `tiles.inDesignWithoutArea`, the `no_area` and `no_sub_company` filters of `projects.list`, the
+    money (`moneyOf` of the dashboard and the report) and the Tracker counts of the report. It stays in `stage_no_end`, the project rows
+    and `totals.projects` of the report. The code `INT-...` shows on no screen: the word "Internal" takes its place (`shownKey`,
+    `shownCode` in `src/lib/projectLabel.ts`).
+  - `Settings.codePrefix` may not be `INT` (reason `code_prefix_taken`).
+  - The event `project.access_changed` is in `FEED_VERBS`: the project activity says "changed who sees this project".
+  - The sample office adds one internal project, "Portfolio 2026" (`src/data/sampleInternalProject.ts`; `buildSeed` does not).
+
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.
 2. If it is server-only: its contract in `contract/server.ts`, its fake in `handlers/serverFakes.ts`, its server body in
@@ -694,10 +783,13 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   never "the newest event".
 - `npm test` runs the rule tests on the store in memory. `npm run test:db` runs them again on the local Postgres (one
   schema for each worker, as madar_server).
+- `test:db` refuses a test that edits the state by hand and breaks a foreign key ("db mode: the test's own edits break a database rule"):
+  a deleted project takes its members, stages, deadlines, tasks, updates, files, conversations, tracker and payments rows. A long leak
+  sweep needs its own timeout there (about 11 ms a call).
 
 ## Quiet hours and @everyone (owner, 2026-10-22, fbk_048 and fbk_041)
 - Contract (all additive): `Preferences.workHours` (`{ quiet, days, from, to }`; days 0 = Sunday to 6, at least one, `from` before `to` on a
-  30-minute step) and `Settings.workHours` (`{ days, from, to, lock: { on, days, from, to } }`). A missing value means Sunday to Thursday, 9 AM to
+  30-minute step) and `Settings.workHours` (`{ days, from, to, lock: { on, days, from, to } }`). A missing value means Sunday to Thursday, 8 AM to
   5 PM, the lock on with the same days and hours, and quiet hours on (`DEFAULT_OFFICE_WORK_HOURS`, `src/lib/quietHours.ts`: the one pure rule
   `isQuiet`, `workHoursOf`, `workStartOn`, `coversLock`). `Notification.everyone`, `Comment.mentions`, `PushDevice.heldAt`, `ChatThread.everyone` and
   `TaskDetail.everyone` are optional.

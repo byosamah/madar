@@ -1,4 +1,4 @@
-import { projectKey } from '../../lib/projectCode';
+import { shownKey } from '../../lib/projectLabel';
 import { useCallback, useEffect, useState, type FormEvent, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
@@ -106,23 +106,29 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
       : { startDate: v.startDate || null, targetEndDate: v.targetEndDate || null, stages: v.stages.map((stage) => stage.name.trim()) };
     setSaving(true);
     try {
+      // An internal project sends none of the client fields and no code: the server gives the INT code and hides the project (fbk_044).
+      const own = v.kind === 'internal'
+        ? { kind: 'internal' as const }
+        : {
+          clientId: v.clientId || null,
+          subCompanyId: v.subCompanyId || null,
+          location: v.location.trim(),
+          geo: v.geo,
+          areaM2: areaValue(v.area),
+          contractStartDate: v.contractStartDate || null,
+          ...codeInput(v),
+        };
       const detail = await api.call('projects.create', {
         name: v.name.trim(),
-        clientId: v.clientId || null,
-        subCompanyId: v.subCompanyId || null,
         leader: v.leader,
-        location: v.location.trim(),
-        geo: v.geo,
-        areaM2: areaValue(v.area),
-        contractStartDate: v.contractStartDate || null,
         ...plan,
         teamIds: v.teamIds,
         modelFolderPath: v.modelFolderPath.trim(),
         description: v.description.trim(),
-        ...codeInput(v),
+        ...own,
       });
       // The key is short and never ends with the dot of a building type ("Dev."), so the sentence never shows two dots.
-      toast.show({ message: t('projectForm.created', { code: projectKey(detail.project.code) }) });
+      toast.show({ message: t('projectForm.created', { code: shownKey(detail.project, t) }) });
       fresh.current = true;
       // The project exists now. The cover goes up on its own, so a failed upload never makes a second project. The sheet stays open
       // while the cover goes up, so the person sees its bar (fbk_045); a failed upload shows its toast with Retry after the sheet closes.

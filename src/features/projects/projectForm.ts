@@ -1,4 +1,4 @@
-import type { GeoPoint, ProjectTemplate } from '../../api/contract/entities';
+import type { GeoPoint, ProjectKind, ProjectTemplate } from '../../api/contract/entities';
 import { normalizeTypedCode } from '../../lib/projectCode';
 import { emptyCodeValues, typedCodeError, validateCodeValues, type CodeErrors, type CodeProjects, type CodeValues } from './codeForm';
 import { planOfForm } from './templateForm';
@@ -13,6 +13,8 @@ export function emptyTemplateChoice(): TemplateChoice {
 export type ProjectFormValues = CodeValues & TemplateChoice & {
   /** The Admin's correction of the code, in the edit form only (right project.editCode). */
   code: string;
+  /** client or internal (fbk_044). An internal project hides the code, client, place, area, sub-company and contract date. */
+  kind: ProjectKind;
   name: string;
   clientId: string;
   /** The sub-company (fbk_007). Empty is no sub-company. */
@@ -49,7 +51,7 @@ export type ProjectFormRules = {
 
 export function emptyProjectForm(stages: string[]): ProjectFormValues {
   return {
-    name: '', clientId: '', subCompanyId: '', leader: 'me', location: '', geo: null, area: '', contractStartDate: '', startDate: '', targetEndDate: '',
+    name: '', kind: 'client', clientId: '', subCompanyId: '', leader: 'me', location: '', geo: null, area: '', contractStartDate: '', startDate: '', targetEndDate: '',
     stages: stages.map((name) => ({ name })), teamIds: [], modelFolderPath: '', description: '', code: '', ...emptyCodeValues(),
     ...emptyTemplateChoice(),
   };
@@ -82,8 +84,9 @@ export function validateProjectForm(values: ProjectFormValues, rules: ProjectFor
     else if (template && !errors.targetEndDate && planOfForm(template, values)?.ok === false) errors.template = 'templateUse.tooShort';
   } else if (values.stages.length === 0) errors.stages = 'projectForm.errors.stageRequired';
   else if (values.stages.some((stage) => !stage.name.trim())) errors.stages = 'projectForm.errors.stageName';
-  if (rules.create && rules.subCompanies && !values.subCompanyId) errors.subCompanyId = 'subCompanies.required';
-  if (rules.create) Object.assign(errors, validateCodeValues(values, rules.projects));
+  // An internal project has no sub-company and no code to check (fbk_044).
+  if (rules.create && values.kind !== 'internal' && rules.subCompanies && !values.subCompanyId) errors.subCompanyId = 'subCompanies.required';
+  if (rules.create && values.kind !== 'internal') Object.assign(errors, validateCodeValues(values, rules.projects));
   if (rules.editCode && normalizeTypedCode(values.code) !== rules.project?.code) {
     const error = typedCodeError(values.code, values.codeAnyway, rules.projects ?? [], rules.project?.id ?? null);
     if (error) errors.code = error;

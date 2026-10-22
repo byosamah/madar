@@ -9,7 +9,7 @@ import { Button } from '../../components/Button';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { MessageCircleIcon } from '../../components/icons/animated/message-circle';
 import { Sheet } from '../../components/Sheet';
-import { projectKey } from '../../lib/projectCode';
+import { shownKey } from '../../lib/projectLabel';
 import { chatState } from '../inbox/chatBack';
 
 /**
@@ -53,7 +53,7 @@ export function PersonSheet({ person, onClose }: { person: UserCard; onClose: ()
               {theirs.map((summary) => (
                 <li key={summary.project.id}>
                   <Link to={`/projects/${summary.project.id}`} onClick={onClose} className="flex min-h-11 items-center gap-3 rounded-xl px-2 hover:bg-fill">
-                    <span className="tabular text-footnote text-label-2">{projectKey(summary.project.code)}</span>
+                    <span className="tabular text-footnote text-label-2">{shownKey(summary.project, t)}</span>
                     <bdi className="min-w-0 flex-1 truncate">{summary.project.name}</bdi>
                     <span className="text-footnote text-label-2">{summary.leader?.id === person.id ? t('person.leads') : t('person.member')}</span>
                   </Link>

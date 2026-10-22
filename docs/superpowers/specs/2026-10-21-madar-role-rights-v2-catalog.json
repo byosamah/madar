@@ -398,6 +398,80 @@
               ]
             }
           ]
+        },
+        {
+          "power": "project.seeAll",
+          "en": "See every project",
+          "ar": "رؤية كل المشاريع",
+          "hint": "See each project that is open to the office, also when the person does not work on it. With this off, the person sees only the projects where the person works.",
+          "switches": [
+            {
+              "id": "project.seeAll",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            }
+          ]
+        },
+        {
+          "power": "project.access",
+          "en": "Choose who sees a project",
+          "ar": "اختيار من يرى المشروع",
+          "hint": "Open a project to the whole office, or keep it for the team and the people that you choose.",
+          "switches": [
+            {
+              "id": "project.access.lead",
+              "scope": "lead",
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": []
+            },
+            {
+              "id": "project.access.all",
+              "scope": "all",
+              "basic": false,
+              "newPower": true,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "project.access.lead"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "project.hidden",
+          "en": "See hidden projects",
+          "ar": "رؤية المشاريع المخفية",
+          "hint": "See each project that the office kept for its team, also when the person does not work on it or is not chosen.",
+          "switches": [
+            {
+              "id": "project.hidden",
+              "scope": null,
+              "basic": false,
+              "newPower": true,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": []
+            }
+          ]
         }
       ]
     },

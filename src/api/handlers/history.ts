@@ -3,11 +3,13 @@ import { defineCall, type Ctx } from '../registry';
 import { EventId, EventTarget, ProjectId, Stamp, type ChecklistItem, type Event, type FileRec, type Meeting, type Notification, type Task, type TrackerEntry, type User } from '../contract/entities';
 import { EventLineView, EventView } from '../contract/views';
 import { ApiError, forbidden, notFound } from '../errors';
-import { DERIVED, FOLLOW_ON, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../events';
+import { DERIVED, FOLLOW_ON, lastProjectCopy, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../events';
 import { assertHasLead, assertMayFinish, reopenDependents, resyncStage, stageTag } from '../flow';
+import { noticeProjectHidden } from '../hiddenNotice';
 import { feedbackNoticeHidden } from '../notify';
-import { withRights } from '../rights';
-import { can, holdsAdminRights, mayViewMeeting, mayViewTask, meetingResource, principalOf, taskResource, type Action, type Resource } from '../permissions';
+import { eventProjectViewer } from '../projectView';
+import { ensureRights, withRights } from '../rights';
+import { can, holdsAdminRights, holdsRight, mayViewMeeting, mayViewProject, mayViewTask, meetingResource, principalOf, taskResource, type Action, type Resource } from '../permissions';
 import { eventLabel, eventViewOf, mayDeleteTracker, officeResource } from '../views';
 import { mayEditMeeting, mayWriteMinutes } from '../meetingGates';
 import { isTaskMaker, mayAssignTask, mayChangePrerequisites, mayDeleteTask, mayTickChecklist } from '../taskGates';
@@ -68,7 +70,21 @@ export function seesEvent(ctx: Ctx, event: Event, undo = false, viewer: User = c
     const meeting = ctx.state.meetings?.[event.officeMeetingId] ?? (undo ? lastMeetingCopy(ctx.state, event.officeMeetingId) : undefined);
     return meeting !== undefined && mayViewMeeting(ctx.state, viewer, meeting);
   }
+  // A change of a project follows the view of the project (hidden projects, owner 2026-10-22).
+  if (event.projectId && !seesProjectEvent(ctx, event.projectId, viewer)) return false;
   return !event.officeTaskId || can(viewer, 'task.view', officeOf(ctx, event, undo, viewer));
+}
+
+/**
+ * The view rule for the changes of one project: a project that the person sees shows its changes. A deleted project that was hidden
+ * shows its changes only to the holders of "See hidden projects"; a deleted open project keeps the old rule (everyone). The copy of a
+ * deleted project comes from its delete event, so a state that does not hold the event reads the project as open.
+ */
+function seesProjectEvent(ctx: Ctx, projectId: string, viewer: User): boolean {
+  const project = ctx.state.projects[projectId];
+  if (project) return mayViewProject(ctx.state, project, viewer);
+  const copy = lastProjectCopy(ctx.state, projectId);
+  return copy?.access?.hidden !== true || holdsRight(ensureRights(ctx.state, viewer), 'project.hidden');
 }
 
 export const eventsList = defineCall({
@@ -90,8 +106,12 @@ export const eventsList = defineCall({
     const seesFeedback = can(ctx.authority, 'feedback.manage');
     // The contract takes any time offset, so "since" compares times, not text (audit 2026-10-03, API-20).
     const since = input.since ? Date.parse(input.since) : null;
+    // A change of a project that the person does not see is not in the list, and the limit counts only the changes the person reads
+    // (hidden projects, owner 2026-10-22). The change of a deleted hidden project shows to a holder of "See hidden projects" only.
+    const seesProjectOf = eventProjectViewer(ctx.state, ctx.authority);
     return Object.values(ctx.state.events)
       .filter((e) => (seesPayments || e.targetType !== 'payment')
+        && seesProjectOf(e)
         && (seesFeedback || e.targetType !== 'feedback')
         && seesEvent(ctx, e)
         && (!input.projectId || e.projectId === input.projectId)
@@ -207,6 +227,7 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
     case 'project':
       if (event.verb === 'project.leader_changed') return need('project.leader');
       if (event.verb === 'project.code_changed') return need('project.code');
+      if (event.verb === 'project.access_changed') return need('project.access');
       // Deleting the cover file also clears the cover. Whoever may bring that file back may bring the cover back with it.
       if (event.verb === 'project.cover_changed' && coverComesBackWithFile(ctx, event)) return;
       if (ARCHIVE_VERBS.has(event.verb)) return need('project.archive');
@@ -566,6 +587,8 @@ function dropNotices(ctx: Ctx, correlationId: string): void {
     if (owner !== undefined && noticeTaskHidden(ctx, notice.targetType, notice.targetId, owner)) continue;
     // The same for the notice of a meeting that its owner no longer sees (a person taken off the attendees, fbk_022).
     if (owner !== undefined && noticeMeetingHidden(ctx, notice.targetType, notice.targetId, owner)) continue;
+    // The same for the notice of an item of a project that its owner no longer sees (hidden projects, owner 2026-10-22).
+    if (owner !== undefined && noticeProjectHidden(ctx.state, notice.targetType, notice.targetId, owner)) continue;
     // The same for the notice of a new report that a former Admin holds (owner, 2026-10-07).
     if (owner !== undefined && feedbackNoticeHidden(notice, owner)) continue;
     let kept: boolean;

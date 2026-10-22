@@ -1,6 +1,6 @@
 import { registerEffect, registerOutbox } from '../core/effects';
-import { gcalRows, REVOKE_EFFECT, revokeRowsOf, SYNC_EFFECT, TIDY_EFFECT } from './rows';
-import { GCAL_CALLS, revokeOne, syncOne, tidyOne } from './sync';
+import { gcalRows, gcalViewRows, REVOKE_EFFECT, revokeRowsOf, SYNC_EFFECT, TIDY_EFFECT } from './rows';
+import { GCAL_CALLS, GCAL_VIEW_CALLS, revokeOne, syncOne, tidyOne } from './sync';
 
 /**
  * Wires the Google Calendar sync into runCall (fbk_022): the handlers of the three effect kinds, the producer of gcal.sync on each call of
@@ -19,6 +19,10 @@ export function registerGoogleEffects(): () => void {
     undo.push(registerEffect(TIDY_EFFECT, async (payload, deps) => void (await tidyOne(deps, String(payload.userId ?? '')))));
     undo.push(registerEffect(REVOKE_EFFECT, (payload, deps) => revokeOne(deps, String(payload.connectionId ?? ''), { replaced: payload.replaced === true })));
     for (const name of GCAL_CALLS) undo.push(registerOutbox(name, (_output, saved, q) => gcalRows(q, saved)));
+    // A role call asks every event row of a project meeting. users.update asks the rows of the one person.
+    for (const name of GCAL_VIEW_CALLS) {
+      undo.push(registerOutbox(name, (output, _saved, q) => gcalViewRows(q, name === 'users.update' ? (output as { id: string }).id : undefined)));
+    }
     undo.push(registerOutbox('users.remove', (output, _saved, q, at) => revokeRowsOf(q, output as { id: string }, at ?? new Date())));
   } catch (error) {
     removeAll();

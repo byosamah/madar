@@ -5,6 +5,7 @@ import { NextStep } from './NextStepSlot';
 import { PhoneDetails } from './PhoneDetails';
 import { TitleBlock } from './PhoneTop';
 import { StateLine } from './StateLine';
+import { ZipTitleContext } from '../../files/zipTitle';
 import type { TaskPanel } from './useTaskPanel';
 
 /**
@@ -37,14 +38,16 @@ export function PhoneBody({ panel }: { panel: TaskPanel }) {
       {section === 'conversation' ? (
         // The same markup as TabPanel, with a column that fills the sheet for the docked box.
         <div id="task-section-panel" role="tabpanel" aria-labelledby="task-section-conversation" className="flex flex-1 flex-col">
-          <CommentThread
-            targetType="task" targetId={task.id} projectId={detail?.project.id ?? null} stageId={task.stageId} people={people}
-            canPost={viewerCan.comment === true}
-            canAttach={viewerCan.upload === true}
-            everyone={data.everyone}
-            docked
-            hideTitle
-          />
+          <ZipTitleContext.Provider value={task.title}>
+            <CommentThread
+              targetType="task" targetId={task.id} projectId={detail?.project.id ?? null} stageId={task.stageId} people={people}
+              canPost={viewerCan.comment === true}
+              canAttach={viewerCan.upload === true}
+              everyone={data.everyone}
+              docked
+              hideTitle
+            />
+          </ZipTitleContext.Provider>
         </div>
       ) : (
         <TabPanel value="details" idPrefix="task-section">

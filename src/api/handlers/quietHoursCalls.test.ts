@@ -7,7 +7,7 @@ beforeEach(() => setNow(NOW));
 
 const failureOf = (promise: Promise<unknown>) => promise.then(() => null, (error: { code: string; message: string; details?: { reason?: string; fields?: string[] } }) => error);
 
-const WORK = { quiet: true, days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00' };
+const WORK = { quiet: true, days: [0, 1, 2, 3, 4], from: '08:00', to: '17:00' };
 
 /** Quiet hours (owner, 2026-10-22, fbk_048): a person sets work days and one time range. The Admin lock keeps the range wide enough. */
 describe('me.updatePreferences with workHours', () => {
@@ -84,7 +84,7 @@ describe('me.updatePreferences with workHours', () => {
   it('keeps a stored range when the Admin moves the lock later', async () => {
     const t = testApi(calls);
     t.as('usr_003');
-    const mine = { quiet: true, days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00' };
+    const mine = { quiet: true, days: [0, 1, 2, 3, 4], from: '08:00', to: '17:00' };
     await t.api.call('me.updatePreferences', { workHours: mine });
     t.as('usr_001');
     await t.api.call('settings.update', { workHours: { days: [0, 1, 2, 3, 4, 5], from: '08:00', to: '18:00', lock: { on: true, days: [0, 1, 2, 3, 4, 5], from: '08:00', to: '18:00' } } });

@@ -64,6 +64,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - Judge every design choice from the view of the employees with ADHD: one next step, the fewest controls.
 - Stop and ask only for: a delete of data or folders, a force-push, a change outside this repo, an email to a real
   person, any payment. Worktree folders are removed only with the owner's OK.
+- A team report about a screen released the same day may come from a stale browser copy. Read the record through the Madar MCP
+  (for example `chats.messages`) before you call the fix broken; a reload of the page shows the new copy.
 - Never recommend paying Vercel or another Israeli or pro-Israel vendor (owner boycott). Vercel is out of the stack.
 - Fonts: Thmanyah Sans (free, font.thmanyah.com) since 2026-10-05. Its licence forbids any change to the files and any
   copy outside the built product (see `src/design/CLAUDE.md`).
@@ -71,6 +73,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 ## Secrets and accounts
 - Secrets live only in `.env.local` and `secrets/<env>.env` (both git-ignored). Never open, print, commit or log them.
   Scripts load them with `set -a; . ./.env.local; set +a`. Error texts name variables, never values.
+- `secrets/<env>.env` does not load as a shell file (a value with special characters). Read one name with
+  `grep '^NAME=' secrets/<env>.env | cut -d= -f2-` into a variable, and never print it.
 - To get a secret from the owner: `open -a TextEdit .env.local` and ask him to add a `NAME=value` line, then check its
   shape without printing it. Never ask for a secret in chat: Supermemory also saves what is pasted in chat.
   The sandbox blocks `open`: ask the owner to type `! open -a TextEdit <file>` in the prompt.
@@ -235,6 +239,11 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   `TaskStop` (2026-10-20).
 - A Workflow `scriptPath` must be inside the repo (a path in /tmp is refused): keep it untracked in the worktree, delete it after.
 - Brief parallel builders to run their test files with `--no-file-parallelism --testTimeout=60000`.
+- Parallel waves on one rule: the first builder makes a checkpoint commit of the core (rule, data, rights) that it never rewrites; the
+  next wave branches from it. A wave that changes another batch's files starts from that batch's branch plus the cherry-picked core (2026-10-22).
+- A join picks one commit at a time (`git -c merge.conflictStyle=diff3 cherry-pick <hash>`) and reads each pinned count from a failing
+  run, never by adding deltas.
+- A background security review of a builder's commit goes back to that builder with a test-first fix; the lead does not patch it beside the builder.
 - `npm install` in a worktree whose `node_modules` is a link puts a full folder in place of the link, so the folder behind
   the link lacks the new package. The main folder follows its own branch: after a new package, give `deploy-test` its own
   folder (`rm node_modules` removes only the link, then `npm install` there) before `all.sh` (2026-10-07).

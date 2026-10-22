@@ -160,7 +160,7 @@ describe('suite 10: the 15-minute job on the local database, as madar_server', (
     expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it('sends the morning summary once at the start of the work hours (09:00 Riyadh by default) on a working day, also to a person with no morningSummary field, and never on Friday', async () => {
+  it('sends the morning summary once at the start of the work hours (08:00 Riyadh by default, fbk_049) on a working day, also to a person with no morningSummary field, and never on Friday', async () => {
     const day = '2026-10-04'; // Sunday
     const people = await deps.db.tx('read', (q) => summaryPeople(q));
     const withNews: User[] = [];

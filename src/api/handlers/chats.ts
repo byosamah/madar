@@ -10,6 +10,7 @@ import { forbidden, invalid, notFound } from '../errors';
 import { isLiveMessage, namesPerson, notifyLevelOf, replyRefOf } from '../chatNaming';
 import { readCopiesOf } from '../adminCopies';
 import { notifyIn } from '../notify';
+import { projectViewer } from '../projectView';
 import { can, mayViewTask, principalOf, projectRoleOf } from '../permissions';
 import { chatReadKey, nextId, unreadCountKey, type State } from '../store';
 import { attachmentsOf, cardOf, mayViewFile } from '../views';
@@ -146,7 +147,10 @@ type TaskThread = { task: Task; project: Project | null; comments: Comment[] };
  * Only the newest TASK_THREAD_LIMIT threads count, for the list and for the unread number alike (plan 4.13, A5).
  */
 function taskThreads(state: State, viewer: User): TaskThread[] {
-  if (!can(viewer, 'comment.read')) return [];
+  // Only an active person reads threads. Each task is checked on its own below (mayViewTask), so a hidden project shows nothing.
+  if (!viewer.active) return [];
+  // A thread of a project task shows only when the person sees the project (hidden projects, owner 2026-10-22).
+  const sees = projectViewer(state, viewer);
   const byTask = new Map<string, Comment[]>();
   for (const c of Object.values(state.comments)) {
     if (c.targetType !== 'task') continue;
@@ -159,7 +163,8 @@ function taskThreads(state: State, viewer: User): TaskThread[] {
     const task = state.tasks[taskId];
     if (!task) continue;
     const project = task.projectId === null ? null : state.projects[task.projectId];
-    if (project === undefined || (task.projectId === null && !mayViewTask(state, viewer, task))) continue;
+    // Every task is checked: an office task by its people, a project task by the view of its project (hidden projects, owner 2026-10-22).
+    if (project === undefined || !mayViewTask(state, viewer, task) || (project !== null && !sees(project))) continue;
     const leads = project ? project.leaderId === viewer.id : principalOf(state, task.createdBy) === viewer.id;
     const involved = task.ownerId === viewer.id || leads
       || comments.some((c) => principalOf(state, c.authorId) === viewer.id);
@@ -419,7 +424,8 @@ function requireTaskThread(ctx: Ctx, taskId: string): void {
   const task = ctx.state.tasks[taskId];
   // An office task that the person does not see reads as missing (owner, 2026-10-06).
   if (!task || !mayViewTask(ctx.state, ctx.authority, task)) throw notFound('Task', taskId);
-  if (!can(ctx.authority, 'comment.read')) throw forbidden('You cannot read these comments.', { action: 'comment.read' });
+  // The task view above also covers its project. The comments need an active person, as before.
+  if (!ctx.authority.active) throw forbidden('You cannot read these comments.', { action: 'comment.read' });
 }
 
 /** A task thread read now: every comment in it so far counts as read. Reading follows the rule of comments.list. */

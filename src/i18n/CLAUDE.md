@@ -19,6 +19,9 @@ speaker, so write it as natural Arabic, not as a word-for-word copy of the Engli
   Repeat and Until, the line "Repeats every week", the scope question, the toasts and the refusals `until_before_start`, `until_too_far` and `series_day_one_only`.
   `adminreach` holds the words of "What reaches me" (owner, 2026-10-23): the Settings section, the bell lines of a copy for an Admin
   (`adminReach.copy.*`, with `_female` forms), the plural `adminReach.others`, and the What's new entry `2026-10-23-69`.
+  `fbk050` holds the words of "Download all" (`zip.*`: the button, "Preparing n of N...", the failed-file and too-large toasts) and the What's new entry `2026-10-23-97` sits in `whatsnew`.
+  `batchd4` holds the words of internal projects and the Team tab block (fbk_044): `project.internal`, `project.hiddenMark`, `projectForm.kind*`, `projectAccess.*`,
+  `feed.project.access_changed`, and the reasons `internal_project` and `code_prefix_taken`.
   `batchc` holds the words of the Board view of Tasks (fbk_042): `workView.label` (the View button) and `workView.yourReview`, and the What's new entry `2026-10-23-91`
   sits in `whatsnew`.
   `batchb` holds the words of quiet hours and @everyone (2026-10-22): the `quietHours` section, the Admin block `admin.workHours`, the reasons

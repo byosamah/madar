@@ -18,6 +18,7 @@ import { Checklist, Fact, History, TaskFiles } from './TaskParts';
 import { personOption, TaskHelpers } from './TaskHelpers';
 import { durationText, TaskTiming } from './TaskTiming';
 import { NewVersion, TaskVersions } from './TaskVersions';
+import { ZipTitleContext } from '../../files/zipTitle';
 import type { TaskPanel } from './useTaskPanel';
 
 /** The desk layout of the task panel: the same markup and ids as before the split. The phone has its own body (PhoneBody). */
@@ -46,12 +47,14 @@ export function DeskBody({ panel }: { panel: TaskPanel }) {
       />
       {section === 'conversation' ? (
         <TabPanel value="conversation" idPrefix="task-section">
-          <CommentThread
-            targetType="task" targetId={task.id} projectId={detail?.project.id ?? null} stageId={task.stageId} people={people}
-            canPost={viewerCan.comment === true}
-            canAttach={viewerCan.upload === true}
-            everyone={data.everyone}
-          />
+          <ZipTitleContext.Provider value={task.title}>
+            <CommentThread
+              targetType="task" targetId={task.id} projectId={detail?.project.id ?? null} stageId={task.stageId} people={people}
+              canPost={viewerCan.comment === true}
+              canAttach={viewerCan.upload === true}
+              everyone={data.everyone}
+            />
+          </ZipTitleContext.Provider>
         </TabPanel>
       ) : (
         <TabPanel value="details" idPrefix="task-section">

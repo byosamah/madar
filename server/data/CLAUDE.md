@@ -92,7 +92,21 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   loads each kind with its own limit (search), or filters in SQL first (`events.list`: `officeTaskId` of the tasks the
   person sees), so the cut of the handler gives the same rows. `trapOffice` (`sweep.ts`) holds office tasks and ties at the
   cut of the newest rows (`newestTies`, in prj_004) for the sweep. `badgeTraps` holds the badge and bell cases: a tie with the
-  own last comment, a helper, a task that an agent made, a hidden notice, a gone task and a report.
+  own last comment, a helper, a task that an agent made, a hidden notice, a gone task and a report. `hiddenProjectTraps` (`sweep.ts`, in `trapOffice`) adds
+  a hidden project (leader usr_005, team usr_006, chosen usr_007) with a to-do, a comment, a post and a chat line, and `hiddenProjectWrites` its writes, so
+  the signal invariants (`test/invariants.ts`) see a hidden part. The Inbox loader (`inbox.ts`, `deletedProjects`) also brings the `project.deleted` event of
+  every project that a notice names through its item and the office no longer holds, because `noticeProjectHidden` fails closed without it.
+- Hidden projects (owner 2026-10-22, wave D2): the view rule of a project in SQL is `visibleProjects`, `visibleIds` and `projectConds`
+  (`steps.ts`), built from `L.office.projects`, `L.office.members` and `L.authority` with `projectViewer` (`src/api/projectView.ts`).
+  Every read across projects takes its ids from them: `projects.list`, the Dashboard, `tasks.list` (through `peopleFilter`), the
+  search (tasks, files, comments; each kind keeps its own limit of 5), `reports.office`, `meetingConds`. `eventProjectConds`
+  (`steps.ts`) is the condition of `events.list` and of the office stage-move count: `project_id notIn` the projects the person does
+  not see and the projects deleted while hidden. A holder of `project.hidden` needs no pre-read. Any other person costs one read of
+  the `project.deleted` events (a few rows) before the main read. The task threads of the Inbox take `ThreadsArgs.seen` (the
+  visible ids): `threadsSql`, `memorySource` and `lite/source.ts` keep a thread of a project task only when its project is in `seen`,
+  so the cut by `limit` never counts a thread that the handler drops. `hiddenTraps` and `hiddenSweep` (`sweep.ts`) fill each SQL
+  limit with rows of a hidden project (search 5, newest messages 5, `events.list` 20, threads 100), and the tests of `loaders.test.ts`
+  check that the visible rows stay.
 - The shadow run (`server/test/shadow.ts`) runs each API test in memory and on the database, and fails on any difference.
 - Read indexes (performance audit 2026-10-07): `20261007000100_read_indexes.sql` adds the statistics `events_office_task` on
   `doc->'officeTaskId'` and the indexes `events_created_c`, `events_project_created`, `messages_conversation_newest`,
@@ -128,7 +142,7 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   with a text column in `query.ts` (`columnOfField`). A list or nested path keeps `jsonb_path_exists`.
 - Leak rule for picks: `chats.unreadCount` has its own loader (`chatsUnread`), with `THREAD_TASK_FIELDS` and
   `THREAD_COMMENT_FIELDS` (`chat.ts`). `notifications.count` reads its targets with `INBOX_TASK_FIELDS` (`inbox.ts`), and posts
-  and reports with the id only, and its own unread notices with `INBOX_COUNT_NOTICE_FIELDS` (count mode only: the list and the writes keep whole rows;
+  with `INBOX_UPDATE_FIELDS` (id and project: `noticeProjectHidden` reads the project of a post, hidden projects wave D3) and reports with the id only, and its own unread notices with `INBOX_COUNT_NOTICE_FIELDS` (count mode only: the list and the writes keep whole rows;
   perf2 DB-8). Each task pick must hold every field that a view rule reads (`mayViewTask`, `taskResource`,
   `hiddenTask`: projectId, ownerId, helperIds, createdBy). `chats.list`, `chats.markRead` and the notification writes keep
   whole rows. `pickedByKey` (`steps.ts`) is only for a read that never saves and loads nothing else of that table, because a

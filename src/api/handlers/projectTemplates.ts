@@ -10,6 +10,7 @@ import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { hasCycle, watchStage } from '../flow';
 import { notifyIn } from '../notify';
 import { staleDaysOf } from '../pause';
+import { projectViewer } from '../projectView';
 import { can } from '../permissions';
 import { nextId, projectTemplatesOf } from '../store';
 import { markOf } from '../../lib/projectMark';
@@ -18,7 +19,7 @@ import { matchByNames } from '../../lib/templateMatch';
 import { workingDaysInclusive } from '../../lib/templatePlan';
 import { baseOf, nextBase, planOf, syncDiff, textChanges, type ItemRef, type SyncChoices, type SyncDiff } from '../templateSync';
 import { namesUnder, stagesOf } from '../views';
-import { assertCan, byName, ensureOnTeam, insertComment, roleIn, touch } from './shared';
+import { assertCan, byName, ensureOnTeam, insertComment, requireProject, roleIn, seesProject, touch } from './shared';
 import { dateMoveOf } from './tasks';
 
 const TemplateName = z.string().trim().min(1).max(60);
@@ -44,8 +45,10 @@ function mayChange(ctx: Ctx, template: ProjectTemplate): boolean {
 
 function rowOf(ctx: Ctx, template: ProjectTemplate): ProjectTemplateRow {
   const author = ctx.state.users[template.createdBy];
+  // The number counts the open projects that the person sees (hidden projects, owner 2026-10-22).
+  const sees = projectViewer(ctx.state, ctx.authority);
   const followers = can(ctx.authority, 'templates.updateProjects')
-    ? Object.values(ctx.state.projects).filter((project) => project.templateLink?.templateId === template.id && (project.status === 'active' || project.status === 'on_hold')).length
+    ? Object.values(ctx.state.projects).filter((project) => sees(project) && project.templateLink?.templateId === template.id && (project.status === 'active' || project.status === 'on_hold')).length
     : undefined;
   return {
     ...structuredClone(template), ...namesUnder('createdByName', author), createdByGender: author?.gender, canEdit: mayChange(ctx, template),
@@ -243,8 +246,8 @@ const projectTemplatesMatchPlan = defineCall({
   output: MatchPlanOutput,
   readOnly: true,
   run(input, ctx) {
-    const project = ctx.state.projects[input.projectId];
-    if (!project) throw notFound('Project', input.projectId);
+    // The view check comes first: a hidden project reads as missing (hidden projects, owner 2026-10-22).
+    const project = requireProject(ctx, input.projectId);
     assertMayApply(ctx, project);
     const template = projectTemplatesOf(ctx.state)[input.templateId];
     if (!template) throw notFound('Project template', input.templateId);
@@ -282,8 +285,8 @@ const projectTemplatesLink = defineCall({
   }),
   output: z.object({}),
   run(input, ctx) {
-    const project = ctx.state.projects[input.projectId];
-    if (!project) throw notFound('Project', input.projectId);
+    // The view check comes first: a hidden project reads as missing (hidden projects, owner 2026-10-22).
+    const project = requireProject(ctx, input.projectId);
     assertMayApply(ctx, project);
     const template = projectTemplatesOf(ctx.state)[input.templateId];
     if (!template) throw notFound('Project template', input.templateId);
@@ -405,7 +408,8 @@ const projectTemplatesUsage = defineCall({
     assertCan(ctx, 'templates.updateProjects');
     const template = templateOf(ctx, input.templateId);
     const row = (project: Project) => ({ project: refOf(project), status: project.status, staleDays: staleDaysOf(ctx.state, project, ctx.today) });
-    const open = Object.values(ctx.state.projects).filter((project) => project.status === 'active' || project.status === 'on_hold').sort(byName);
+    const sees = projectViewer(ctx.state, ctx.authority);
+    const open = Object.values(ctx.state.projects).filter((project) => sees(project) && (project.status === 'active' || project.status === 'on_hold')).sort(byName);
     return {
       linked: open.filter((project) => project.templateLink?.templateId === template.id).map(row),
       notLinked: open.filter((project) => !project.templateLink).map(row),
@@ -427,7 +431,7 @@ const projectTemplatesSyncPlan = defineCall({
     const rows: { project: ReturnType<typeof refOf>; diff: SyncDiff }[] = [];
     for (const projectId of new Set(input.projectIds)) {
       const project = ctx.state.projects[projectId];
-      if (!project || project.templateLink?.templateId !== template.id) continue;
+      if (!project || !seesProject(ctx, projectId) || project.templateLink?.templateId !== template.id) continue;
       const { stages, tasks } = itemsOf(ctx, projectId);
       rows.push({ project: refOf(project), diff: syncDiff(template, project, stages, tasks, activePerson(ctx)) });
     }
@@ -458,8 +462,7 @@ const projectTemplatesSyncApply = defineCall({
     const applying = input.apply === true && isApplyChoices(input.choices);
     if (!applying) assertCan(ctx, 'templates.updateProjects');
     const template = templateOf(ctx, input.templateId);
-    const project = ctx.state.projects[input.projectId];
-    if (!project) throw notFound('Project', input.projectId);
+    const project = requireProject(ctx, input.projectId);
     if (applying) assertMayApply(ctx, project);
     const link = project.templateLink;
     if (!link) throw invalid('projectId', 'This project is not linked to a template.', 'not_linked');

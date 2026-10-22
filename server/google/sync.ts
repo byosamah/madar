@@ -7,7 +7,7 @@ import { googleOf, type GoogleReady } from './client';
 import { openToken, SealBroken } from './keys';
 import {
   connectionById, deleteConnection, deleteEventRow, deleteEventsOfUser, eventIdsOfUser, eventRow, liveConnection, markBroken, markNotSynced, markOk, meetingOf, personOf,
-  saveEventRow, upcomingMeetingIds, type Connection,
+  saveEventRow, upcomingMeetingIds, viewsProject, type Connection,
 } from './store';
 
 /**
@@ -29,7 +29,16 @@ import {
  */
 
 /** The calls whose save can change a meeting: each one writes gcal.sync rows (server/google/rows.ts). The extension of a series (wave 3) adds meetings, so it is here too. */
-export const GCAL_CALLS = ['meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.delete', 'meetings.extend', 'events.undo', 'events.undoStory', 'projects.delete'] as const;
+export const GCAL_CALLS = [
+  'meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.delete', 'meetings.extend', 'events.undo', 'events.undoStory', 'projects.delete',
+  // The calls that can take the view of a project from a person (hidden projects, owner 2026-10-22): the person loses the Google event.
+  'projects.setAccess', 'members.remove', 'projects.setLeader',
+  // The calls that take the view through a role (hidden projects): a role that loses "See every project", a person who moves to another role,
+  // a role deleted with a move. gcalViewRows (rows.ts) queues gcal.sync for each event row of a project meeting.
+  'roles.update', 'roles.delete', 'users.update',
+] as const;
+/** The calls of GCAL_CALLS that also queue a sync for each event row of a project meeting (gcalViewRows). */
+export const GCAL_VIEW_CALLS = ['roles.update', 'roles.delete', 'users.update'] as const;
 
 const TIME_ZONE = 'Asia/Riyadh';
 const encoder = new TextEncoder();
@@ -151,7 +160,9 @@ export async function syncOne(deps: Deps, userId: string, meetingId: string): Pr
   const person = await personOf(q, userId);
   if (!person || !person.active || person.removed) return 'none';
   const meeting = await meetingOf(q, meetingId);
-  const wanted = meeting !== undefined && meeting.status === 'scheduled' && (meeting.organizerId === userId || meeting.attendeeIds.includes(userId));
+  // A meeting of a project syncs only for a person who views the project (hidden projects, owner 2026-10-22).
+  const wanted = meeting !== undefined && meeting.status === 'scheduled' && (meeting.organizerId === userId || meeting.attendeeIds.includes(userId))
+    && (meeting.projectId === null || await viewsProject(q, userId, meeting.projectId));
   const row = await eventRow(q, userId, meetingId);
   if (!wanted && !row) return 'none';
 

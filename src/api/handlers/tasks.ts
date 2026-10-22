@@ -5,6 +5,7 @@ import {
 } from '../contract/entities';
 import { TaskDetail, TaskRow } from '../contract/views';
 import { ApiError, forbidden, invalid, notFound } from '../errors';
+import { isInternalId } from '../internalProject';
 import { applyPatch, recordCreate, recordDelete } from '../events';
 import { assertHasLead, assertMayFinish, assertTaskPrerequisites, reopenDependents, shiftDependents, stageTag, watchStage } from '../flow';
 import { isOverdue } from '../health';
@@ -21,7 +22,7 @@ import { stampDay } from '../../lib/dates';
 import { compareTasks, stagesChrono } from '../../lib/stageFlow';
 import { helpersOf, involves, onlyTicks, peopleOfTask, versionOf } from '../../lib/taskPeople';
 import { dueFromDuration } from '../../lib/workdays';
-import { assertActive, assertCan, ensureOnTeam, insertComment, requireProject, requireStage, requireTask, requireUser, roleIn, taskRole, touch } from './shared';
+import { assertActive, assertCan, ensureOnTeam, insertComment, requireProject, requireStage, requireTask, requireUser, roleIn, seesProject, taskRole, touch } from './shared';
 import { addTrackerEntry, replyTaskDone } from './tracker';
 
 const Title = z.string().trim().min(1).max(200);
@@ -195,7 +196,7 @@ export const tasksList = defineCall({
   run(input, ctx) {
     const { state, today, authority } = ctx;
     const { projectId, ownerId, status, dueFrom, dueTo } = input;
-    const inFilters = peopleFilter(state, input);
+    const inFilters = peopleFilter(state, input, authority);
     // An office task belongs to no project, so a project filter leaves it out. It shows only to its people and the Admin (owner, 2026-10-06).
     const officeIn = !projectId && !input.leaderId && !input.clientId && !input.teamId && !input.subCompanyId;
     const tasks = Object.values(state.tasks).filter((task) => {
@@ -398,7 +399,8 @@ export const tasksCreateFromTemplate = defineCall({
     const template = taskTemplatesOf(ctx.state)[input.templateId];
     if (!template) throw notFound('Task template', input.templateId);
     const stage = ctx.state.stages[input.stageId];
-    if (!stage) throw notFound('Stage', input.stageId);
+    // A stage of a project that the person does not see reads as missing, before any other check (hidden projects, owner 2026-10-22).
+    if (!stage || !seesProject(ctx, stage.projectId)) throw notFound('Stage', input.stageId);
     if (stage.name.toLowerCase() !== template.stageName.toLowerCase()) {
       throw invalid('templateId', `This template is for the stage "${template.stageName}".`, 'template_other_stage');
     }
@@ -676,8 +678,8 @@ export const tasksNewVersion = defineCall({
     insertComment(ctx, 'task', task.id, task.projectId, input.reason, [], undefined, 'reopened');
     // The reason for the new version is also the reason the project moves back, when it does.
     watch.finish({ reason: input.reason, logInTracker: input.logInTracker });
-    // An office task has no client, so it has no Tracker (owner, 2026-10-06).
-    if (task.projectId !== null) {
+    // An office task has no client, so it has no Tracker (owner, 2026-10-06). An internal project has none either (fbk_044).
+    if (task.projectId !== null && !isInternalId(ctx.state, task.projectId)) {
       addTrackerEntry(ctx, {
         projectId: task.projectId, type: 'message', direction: 'in', title: `${task.title.slice(0, 150)}: version ${n}`, note: input.reason, auto: 'version',
       });
