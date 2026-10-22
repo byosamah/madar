@@ -5,6 +5,16 @@
       "doneRange": "آخر 7 أيام",
       "empty": "لا شيء هنا."
     },
-    "holdHint": "اضغط مطولًا على مهمة لتغيير ترتيبها."
+    "holdHint": "اضغط مطولًا على مهمة لتغيير ترتيبها.",
+    "meetings": {
+      "people": "{{count}} شخص",
+      "people_zero": "لا أحد",
+      "people_one": "شخص واحد",
+      "people_two": "شخصان",
+      "people_few": "{{count}} أشخاص",
+      "people_many": "{{count}} شخصًا",
+      "people_other": "{{count}} شخص",
+      "googleLine": "تصل اجتماعاتك أيضًا إلى تقويم Google."
+    }
   }
 }

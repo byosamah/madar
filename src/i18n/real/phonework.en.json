@@ -5,6 +5,12 @@
       "doneRange": "Last 7 days",
       "empty": "Nothing here."
     },
-    "holdHint": "Press and hold a to-do to change its order."
+    "holdHint": "Press and hold a to-do to change its order.",
+    "meetings": {
+      "people": "{{count}} people",
+      "people_one": "1 person",
+      "people_other": "{{count}} people",
+      "googleLine": "Your meetings also go to Google Calendar."
+    }
   }
 }
