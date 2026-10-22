@@ -33,7 +33,7 @@ function Item({ value, onSelect, onPrepare, children }: { value: string; onSelec
   );
 }
 
-function Results({ query, onPerson }: { query: string; onPerson: (person: UserCard) => void }) {
+function Results({ query, onPerson, messagesFirst }: { query: string; onPerson: (person: UserCard) => void; messagesFirst: boolean }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const lang = useLang();
@@ -56,6 +56,8 @@ function Results({ query, onPerson }: { query: string; onPerson: (person: UserCa
   }
   return (
     <>
+      {/* The chat header opens the screen with ?in=messages: the Messages group comes first then (Direction D). */}
+      {messagesFirst && <MessageHits hits={messages} words={searchWords(query)} />}
       {projects.length > 0 && (
         <Command.Group heading={t('search.projects')} className={GROUP}>
           {projects.map((p) => (
@@ -115,7 +117,7 @@ function Results({ query, onPerson }: { query: string; onPerson: (person: UserCa
         </Command.Group>
       )}
       {/* The Messages group is last: the newest messages and task comments that hold every word (chat design 2026-10-19, item 16). */}
-      <MessageHits hits={messages} words={searchWords(query)} />
+      {!messagesFirst && <MessageHits hits={messages} words={searchWords(query)} />}
     </>
   );
 }
@@ -127,6 +129,8 @@ export function SearchScreen() {
   // The search text lives in the link too, so Back from a result shows the same search again (audit PER-14).
   const [params] = useSearchParams();
   const [text, setText] = useState(() => params.get('q') ?? '');
+  // ?in=messages (the Search icon of a chat header) shows Messages first and no Commands. It is a mark of the screen and no field of a call.
+  const messagesOnly = params.get('in') === 'messages';
   const query = useDebounced(text.trim(), 150);
   useQueryInLink(query);
   const [sheet, setSheet] = useState<'task' | 'project' | null>(null);
@@ -139,7 +143,7 @@ export function SearchScreen() {
     { id: 'new-project', label: t('search.command.newProject'), run: () => setSheet('project'), show: may('project.create'), prepare: prepareNew },
     { id: 'dashboard', label: t('search.command.dashboard'), run: () => navigate('/dashboard'), show: may('dashboard.view') },
     { id: 'my-work', label: t('search.command.myWork'), run: () => navigate('/work'), show: true },
-  ].filter((command) => command.show).filter((command) => !text.trim() || normalizeForSearch(command.label).includes(normalizeForSearch(text)));
+  ].filter((command) => command.show && !messagesOnly).filter((command) => !text.trim() || normalizeForSearch(command.label).includes(normalizeForSearch(text)));
   return (
     <>
       <ScreenTitle title={t('screens.search')} />
@@ -148,7 +152,7 @@ export function SearchScreen() {
           autoFocus
           value={text}
           onValueChange={setText}
-          placeholder={t('search.placeholderAll')}
+          placeholder={messagesOnly ? t('chat.searchMessages') : t('search.placeholderAll')}
           className="panel min-h-14 w-full !rounded-2xl px-5 text-[calc(18px*var(--boost))] text-ink placeholder:text-ink-2 focus-visible:outline-2 focus-visible:outline-[var(--c-link)]"
         />
         {/* The list gets its own name: the library default is the English word "Suggestions" (audit 2026-10-03, F-4). */}
@@ -158,7 +162,7 @@ export function SearchScreen() {
               {commands.map((command) => <Item key={command.id} value={`command-${command.id}`} onSelect={command.run} onPrepare={command.prepare}>{command.label}</Item>)}
             </Command.Group>
           )}
-          {query && <Results query={query} onPerson={setPerson} />}
+          {query && <Results query={query} onPerson={setPerson} messagesFirst={messagesOnly} />}
         </Command.List>
       </Command>
       <NewTaskSheet open={sheet === 'task'} onOpenChange={(open) => { if (!open) setSheet(null); }} />

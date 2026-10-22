@@ -10,6 +10,7 @@ import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { MessageCircleIcon } from '../../components/icons/animated/message-circle';
 import { Sheet } from '../../components/Sheet';
 import { projectKey } from '../../lib/projectCode';
+import { chatState } from '../inbox/chatBack';
 
 /**
  * A person from search: their discipline, email and active projects (plan clarification 8). A grey Message button opens the direct chat
@@ -23,7 +24,7 @@ export function PersonSheet({ person, onClose }: { person: UserCard; onClose: ()
   const openChat = useAction('chats.openDirect', {
     onSuccess: ({ id }) => {
       onClose();
-      navigate(`/inbox/${id}`);
+      navigate(`/inbox/${id}`, { state: chatState('/search') });
     },
   });
   // The Message button needs chat.direct (role rights version 2).

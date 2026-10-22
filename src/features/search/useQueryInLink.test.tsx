@@ -17,14 +17,15 @@ function Harness() {
     <>
       <button type="button" onClick={() => setQuery('corniche')}>type corniche</button>
       <button type="button" onClick={() => setQuery('tower')}>type tower</button>
+      <button type="button" onClick={() => setQuery('')}>clear</button>
       <button type="button" onClick={() => void navigate('/projects/p1?tab=files&file=f1')}>open the file</button>
       <output>{location.pathname + location.search}</output>
     </>
   );
 }
 
-const start = () => {
-  const router = createMemoryRouter([{ path: '*', element: <Harness /> }], { initialEntries: ['/search'] });
+const start = (entry = '/search') => {
+  const router = createMemoryRouter([{ path: '*', element: <Harness /> }], { initialEntries: [entry] });
   render(<RouterProvider router={router} />);
   return router;
 };
@@ -57,5 +58,13 @@ describe('useQueryInLink', () => {
     await userEvent.click(screen.getByRole('button', { name: 'open the file' }));
     await act(async () => screen.getByRole('button', { name: 'type corniche' }).click());
     expect(link()).toBe('/projects/p1?tab=files&file=f1');
+  });
+
+  it('keeps the other values of the link when it writes q, and when it clears q (Direction D, ?in=messages)', async () => {
+    start('/search?in=messages');
+    await userEvent.click(screen.getByRole('button', { name: 'type corniche' }));
+    expect(link()).toBe('/search?in=messages&q=corniche');
+    await userEvent.click(screen.getByRole('button', { name: 'clear' }));
+    expect(link()).toBe('/search?in=messages');
   });
 });

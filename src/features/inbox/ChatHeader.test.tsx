@@ -71,12 +71,13 @@ describe('the chat header on a phone (Direction D)', () => {
     expect(heading.parentElement).toHaveClass('min-w-0', 'flex-1');
   });
 
-  it('opens the Search screen from the icon (its Messages group is Task I10)', async () => {
+  it('opens the Search screen on its Messages group from the icon', async () => {
     stubPhone();
     const { router } = await renderApp('/inbox');
     await userEvent.click(await rowLink(/Corniche Office Tower/));
     await userEvent.click(within(await headerOf(/Corniche Office Tower/)).getByRole('link', { name: 'Search messages' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/search'));
+    expect(router.state.location.search).toBe('?in=messages');
   });
 
   it('keeps the Back rule of the first task: a step back to the list', async () => {

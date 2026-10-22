@@ -12,6 +12,7 @@ import { formatDay, stampDay } from '../../lib/dates';
 import { chatLink } from '../../lib/params';
 import { projectKey } from '../../lib/projectCode';
 import { markedParts } from '../../lib/searchMatch';
+import { chatState } from '../inbox/chatBack';
 import { GroupPicture } from '../inbox/GroupPicture';
 
 type Hit = CallOutput<'search.query'>['messages'][number];
@@ -55,7 +56,8 @@ export function MessageHits({ hits, words }: { hits: CallOutput<'search.query'>[
           <Command.Item
             key={hit.id}
             value={`message-${hit.id}`}
-            onSelect={() => navigate(chatLink(hit.chatId, hit.id))}
+            // The chat remembers its opener, so Back returns to the same search (Direction D).
+            onSelect={() => navigate(chatLink(hit.chatId, hit.id), { state: chatState('/search') })}
             className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl px-3 py-2 text-body data-[selected=true]:bg-fill"
           >
             <Lead hit={hit} />

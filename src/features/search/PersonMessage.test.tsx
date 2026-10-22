@@ -44,3 +44,13 @@ describe('the Message button of the person sheet', () => {
     expect(document.documentElement).toHaveAttribute('dir', 'rtl');
   });
 });
+
+describe('the Message button passes the opener (Direction D)', () => {
+  it('passes state.from "/search" when the Message button opens a chat', async () => {
+    const { router } = await renderApp('/search');
+    await openSheet(/Sara Al-Qahtani/, 'sara');
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Sara Al-Qahtani' })).getByRole('button', { name: 'Message' }));
+    await waitFor(() => expect(router.state.location.pathname).toMatch(/^\/inbox\/cnv_\d+$/));
+    expect(router.state.location.state).toEqual({ from: '/search' });
+  });
+});

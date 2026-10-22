@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
+import { emptyReactions } from '../../api/contract/entities';
 import { renderApp } from '../../test/render';
+import { stubPhone } from '../inbox/phoneHarness';
 
 const asSara = (state: State) => {
   state.session.currentUserId = 'usr_005';
@@ -103,5 +105,79 @@ describe('search', () => {
     expect(row).toHaveTextContent('2 projects');
     await userEvent.click(row);
     await waitFor(() => expect(window.location.hash).toContain('/projects?subCompany=sub_001'));
+  });
+});
+
+/** The Messages mark of the chat header (Direction D): /search?in=messages shows Messages first and hides Commands. */
+describe('search on its Messages group (?in=messages)', () => {
+  let room = '';
+  const plant = (state: State) => {
+    room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!.id;
+    state.messages.msg_950 = {
+      id: 'msg_950', conversationId: room, authorId: 'usr_002', actingForId: 'usr_002', body: 'The new riser size is 150 mm', mentions: [], fileIds: [],
+      createdAt: '2026-10-04T08:30:00.000+03:00', editedAt: null,
+    };
+    state.messages.msg_951 = {
+      id: 'msg_951', conversationId: room, authorId: 'usr_002', actingForId: 'usr_002', body: 'The ground floor plan is ready', mentions: [], fileIds: [],
+      createdAt: '2026-10-04T08:31:00.000+03:00', editedAt: null,
+    };
+    state.comments.cmt_950 = {
+      id: 'cmt_950', targetType: 'task', targetId: Object.values(state.tasks).find((t) => t.projectId === 'prj_001')!.id, authorId: 'usr_001',
+      body: 'Riser spacing noted', reactions: emptyReactions(), fileIds: [], createdAt: '2026-10-04T08:32:00.000+03:00', editedAt: null,
+    };
+  };
+  const headings = () => [...document.querySelectorAll('[cmdk-group-heading]')].map((node) => node.textContent);
+
+  it('shows Messages first and no Commands, and names the field Search messages', async () => {
+    await renderApp('/search?in=messages', plant);
+    const field = await box();
+    expect(field).toHaveAttribute('placeholder', 'Search messages');
+    expect(screen.queryByText('Commands')).toBeNull();
+    await userEvent.type(field, 'riser');
+    await screen.findByRole('group', { name: 'Messages' });
+    expect(headings()[0]).toBe('Messages');
+    expect(screen.queryByText('Commands')).toBeNull();
+  });
+
+  it('keeps the other groups after Messages', async () => {
+    await renderApp('/search?in=messages', plant);
+    await userEvent.type(await box(), 'ground floor');
+    await screen.findByRole('group', { name: 'Messages' });
+    await waitFor(() => expect(headings()).toContain('To-dos'));
+    expect(headings().indexOf('Messages')).toBe(0);
+    expect(headings()).toContain('Files');
+  });
+
+  it('shows Commands first and Messages last without the mark', async () => {
+    await renderApp('/search', plant);
+    // "new" is in a command (New to-do) and in a message (The new riser size).
+    await userEvent.type(await box(), 'new');
+    await screen.findByRole('group', { name: 'Messages' });
+    expect(headings()[0]).toBe('Commands');
+    expect(headings().at(-1)).toBe('Messages');
+    expect(await box()).toHaveAttribute('placeholder', 'Search projects, to-dos, people, files and messages');
+  });
+
+  it('keeps the mark in the link when it writes q', async () => {
+    const { router } = await renderApp('/search?in=messages', plant);
+    const field = await box();
+    await userEvent.type(field, 'corniche');
+    await waitFor(() => expect(router.state.location.search).toBe('?in=messages&q=corniche'));
+    await userEvent.clear(field);
+    await waitFor(() => expect(router.state.location.search).toBe('?in=messages'));
+  });
+
+  it('passes state.from "/search" when a hit opens a chat, and Back returns to the same search', async () => {
+    stubPhone();
+    const { router } = await renderApp('/search?in=messages', plant);
+    await userEvent.type(await box(), 'riser size');
+    const group = await screen.findByRole('group', { name: 'Messages' });
+    await userEvent.click(within(group).getByRole('option', { name: /Corniche Office Tower.*riser/ }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/inbox/${room}`));
+    expect(router.state.location.state).toEqual({ from: '/search' });
+    await userEvent.click(await screen.findByRole('link', { name: 'Back to chats' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/search'));
+    expect(router.state.historyAction).toBe('POP');
+    expect(await box()).toHaveValue('riser size');
   });
 });
