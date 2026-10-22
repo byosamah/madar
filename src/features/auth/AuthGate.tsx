@@ -4,6 +4,7 @@ import { Navigate, Outlet, useLocation } from 'react-router';
 import { ApiError } from '../../api/errors';
 import { useOnceOn } from '../../app/lazyOverlay';
 import { LazySessionExpiredSheet } from '../../app/overlays';
+import { clearHomeCache } from '../../app/remote/homeCache';
 import { useCall } from '../../app/runtime';
 import { LANGUAGE_KEY } from './AuthPage';
 import { signInPath } from './paths';
@@ -42,7 +43,11 @@ export function AuthGate() {
     // The listener runs at once when the status changes, so a sign-out in this tab is still marked as one.
     if (isLeaving()) return;
     if (change === 'left' || change === 'person') void leave('signed_out');
-    else if (status === 'signed_out') setExpired(true);
+    else if (status === 'signed_out') {
+      // The session ended: the last Home lists of this person leave the device too (DF-14).
+      void clearHomeCache();
+      setExpired(true);
+    }
   }), [auth, leave]);
 
   useEffect(() => {
@@ -51,7 +56,10 @@ export function AuthGate() {
       // the sign-in status has already said signed out, and the listener above opens the sheet for that.
       if (!unauthenticated(error) || isLeaving() || error.details.reason === 'no_session') return;
       if (error.details.reason === 'account_off') void signOut('account_off');
-      else setExpired(true);
+      else {
+        void clearHomeCache();
+        setExpired(true);
+      }
     };
     const offQueries = queryClient.getQueryCache().subscribe((event) => {
       if (event.type === 'updated' && event.action.type === 'error') seen(event.action.error);
