@@ -98,6 +98,8 @@ export function PictureFrame({ file, crop, onCrop, plate, words, previews, start
         <div
           role="img"
           aria-label={words.hint}
+          // A drag inside the frame moves the crop. It must not drag the bottom sheet that holds the frame (Direction D).
+          data-vaul-no-drag=""
           tabIndex={0}
           style={{ width: FRAME, height: FRAME, background: plate, touchAction: 'none' }}
           className="relative cursor-grab overflow-hidden rounded-full ring-1 ring-inset ring-ink/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-link active:cursor-grabbing"

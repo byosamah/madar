@@ -11,6 +11,7 @@ import { TextField } from '../../components/Fields';
 import { safePicture } from '../../lib/picture';
 import { FormError } from '../auth/AuthPage';
 import { AvatarFrameSheet } from './AvatarFrameSheet';
+import { useBare } from './bare';
 
 
 /**
@@ -20,6 +21,7 @@ import { AvatarFrameSheet } from './AvatarFrameSheet';
  */
 export function ProfileSection({ user }: { user: User }) {
   const { t } = useTranslation();
+  const bare = useBare();
   const toast = useToast();
   const profile = useAction('me.updateProfile', { onSuccess: () => toast.show({ message: t('settings.saved') }) });
   const picture = useUndoable('me.updateProfile', {
@@ -53,7 +55,7 @@ export function ProfileSection({ user }: { user: User }) {
 
   return (
     <section aria-labelledby="settings-profile" className="panel flex flex-col gap-4 p-5">
-      <h2 id="settings-profile" className="text-section text-ink">{t('settings.profile')}</h2>
+      <h2 id="settings-profile" className={bare ? 'sr-only' : 'text-section text-ink'}>{t('settings.profile')}</h2>
       <div className="flex items-center gap-4">
         <Avatar user={user} size={72} />
         <div className="flex min-w-0 flex-col items-start gap-2">

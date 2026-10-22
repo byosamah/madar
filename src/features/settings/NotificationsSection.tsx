@@ -4,6 +4,7 @@ import { emailOn, inAppOn, morningSummaryOn, visibleTriggers } from '../../api/n
 import { REMOTE } from '../../app/mode';
 import { useAction, useCall } from '../../app/runtime';
 import { Switch } from '../../components/Switch';
+import { useBare } from './bare';
 import { SettingsSection } from './Section';
 
 /** One switch of a trigger row. It has no label of its own: aria-label names the trigger and the channel. */
@@ -44,6 +45,8 @@ export function NotificationsSection() {
   const { t } = useTranslation();
   const session = useCall('session.get', {});
   const save = useAction('notifications.updateSettings');
+  // On the Me sub-page the Morning summary sits on the hub, and the column names stay under the title while the list scrolls.
+  const bare = useBare();
   if (!session.data) return null;
   const preferences = session.data.authority.preferences;
   const triggers = visibleTriggers(session.data.authority);
@@ -64,13 +67,14 @@ export function NotificationsSection() {
     );
   }
 
+  const names = bare ? 'sticky top-0 z-10 bg-card py-1 text-footnote text-label-2' : 'text-footnote text-label-2';
   return (
     <SettingsSection title={t('settings.notifications')}>
       <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-4">
         {/* The column names. Each switch already names its channel, so a screen reader skips them. */}
         <span aria-hidden />
-        <span aria-hidden className="justify-self-center text-footnote text-label-2">{t('notices.inApp')}</span>
-        <span aria-hidden className="justify-self-center text-footnote text-label-2">{t('notices.email')}</span>
+        <span aria-hidden className={`${names} justify-self-center`}>{t('notices.inApp')}</span>
+        <span aria-hidden className={`${names} justify-self-center`}>{t('notices.email')}</span>
         {triggers.map((name) => {
           const label = t(`settings.triggers.${name}`);
           const inApp = inAppOn(preferences, name);
@@ -102,15 +106,17 @@ export function NotificationsSection() {
           );
         })}
       </div>
-      <div className="border-t border-separator pt-2">
-        <Switch
-          id="morning-summary"
-          label={t('notices.summary')}
-          description={t('notices.summaryHint')}
-          checked={morningSummaryOn(preferences)}
-          onChange={(on) => save.mutate({ morningSummary: on })}
-        />
-      </div>
+      {!bare && (
+        <div className="border-t border-separator pt-2">
+          <Switch
+            id="morning-summary"
+            label={t('notices.summary')}
+            description={t('notices.summaryHint')}
+            checked={morningSummaryOn(preferences)}
+            onChange={(on) => save.mutate({ morningSummary: on })}
+          />
+        </div>
+      )}
     </SettingsSection>
   );
 }

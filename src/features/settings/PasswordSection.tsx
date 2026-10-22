@@ -66,7 +66,7 @@ function PasswordForm() {
         <TextField id="password-current" type="password" dir="ltr" autoComplete="current-password" label={t('password.current')} value={current} error={errors.current} disabled={pending} className="flex-1" onChange={(event) => setCurrent(event.target.value)} />
         <TextField id="password-new" type="password" dir="ltr" autoComplete="new-password" label={t('password.new')} hint={t('auth.passwordHint')} value={next} error={errors.next} disabled={pending} className="flex-1" onChange={(event) => setNext(event.target.value)} />
         {/* Settings keeps one main button at most, so this one is quiet, like Save of the profile. */}
-        <Button type="submit" className="sm:mt-[1.6rem]" disabled={pending || !current || !next}>{t('password.save')}</Button>
+        <Button type="submit" className="max-sm:w-full sm:mt-[1.6rem]" disabled={pending || !current || !next}>{t('password.save')}</Button>
       </form>
     </Section>
   );
