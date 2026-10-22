@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router';
 import { usePersistentChoice } from '../../../app/choices';
 import type { ProjectDetail, TaskRow } from '../../../api/contract/views';
 import { useCall } from '../../../app/runtime';
+import { useIsPhone } from '../../../app/useIsPhone';
 import { useStableHandler } from '../../../app/useStableHandler';
 import { FilterButton } from '../../../components/FilterButton';
 import { oneOf } from '../../../lib/params';
@@ -13,6 +14,7 @@ import { setFilterParam, type TabProps } from '../tabs';
 import { TaskBoard } from './TaskBoard';
 import { TaskList } from './TaskList';
 import { TaskSheet } from './TaskSheet';
+import { ViewButton } from './ViewButton';
 
 const FILTERS = ['all', 'mine', 'overdue', 'flagged', 'no_lead'] as const;
 const VIEWS = ['list', 'board'] as const;
@@ -33,6 +35,7 @@ const TasksBody = memo(function TasksBody({ detail, filter, showDone, view, rows
   onOpen: (taskId: string, thread?: boolean) => void; onSendBack: (taskId: string) => void; onRetry: () => void;
 }) {
   const { t } = useTranslation();
+  const phone = useIsPhone();
   // Hidden done tasks still count, so a finished stage says so instead of "No tasks here yet." (plan 5 clarification 3).
   const doneCounts: Record<string, number> = {};
   for (const row of rows ?? []) if (row.task.status === 'done' && row.task.stageId) doneCounts[row.task.stageId] = (doneCounts[row.task.stageId] ?? 0) + 1;
@@ -55,16 +58,20 @@ const TasksBody = memo(function TasksBody({ detail, filter, showDone, view, rows
               {t('tasks.showDone')}
             </label>
           )}
-          <fieldset className="flex flex-col border-t border-hairline pt-2">
-            <legend className={LEGEND}>{t('tasks.view')}</legend>
-            {VIEWS.map((value) => (
-              <label key={value} className={RADIO}>
-                <input type="radio" name="tasks-view" checked={view === value} onChange={() => onView(value)} className="size-5 accent-[var(--sig-from)]" />
-                {t(`tasks.views.${value}`)}
-              </label>
-            ))}
-          </fieldset>
+          {/* A phone has its own View button next to Filter. */}
+          {!phone && (
+            <fieldset className="flex flex-col border-t border-hairline pt-2">
+              <legend className={LEGEND}>{t('tasks.view')}</legend>
+              {VIEWS.map((value) => (
+                <label key={value} className={RADIO}>
+                  <input type="radio" name="tasks-view" checked={view === value} onChange={() => onView(value)} className="size-5 accent-[var(--sig-from)]" />
+                  {t(`tasks.views.${value}`)}
+                </label>
+              ))}
+            </fieldset>
+          )}
         </FilterButton>
+        {phone && <ViewButton view={view} onView={onView} />}
         {unledCount > 0 && filter !== 'no_lead' && (
           <p className="text-footnote text-ink-2">
             {t('lead.countLine', { count: unledCount })}{' '}

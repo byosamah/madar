@@ -1,6 +1,7 @@
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../../components/icons/animated/plus';
 import { useState } from 'react';
+import { useIsPhone } from '../../../app/useIsPhone';
 import { useStableHandler } from '../../../app/useStableHandler';
 import { useTranslation } from 'react-i18next';
 import type { Stage } from '../../../api/contract/entities';
@@ -70,6 +71,7 @@ export function TaskList({ detail, rows, filtered, onOpen, doneCounts }: {
   detail: ProjectDetail; rows: TaskRow[]; filtered: boolean; onOpen: (taskId: string, thread?: boolean) => void; doneCounts: Record<string, number>;
 }) {
   const { t } = useTranslation();
+  const phone = useIsPhone();
   // One session.get for the whole list. Each row takes the person from here.
   const me = useCall('session.get', {}).data?.authority;
   // One handler for every row (RN-5): a row that did not change renders no more.
@@ -80,19 +82,30 @@ export function TaskList({ detail, rows, filtered, onOpen, doneCounts }: {
   if (filtered && groups.length === 0) return <EmptyState title={t('project.tab.tasks')} body={t('tasks.emptyFiltered')} />;
   return (
     <div className="flex flex-col gap-5">
-      {groups.map(({ stage, rows: stageRows }) => (
+      {groups.map(({ stage, rows: stageRows }) => {
+        // Under the filter All a phone says how far the stage is: done of all. The hidden done to-dos are in doneCounts. Any other filter
+        // lists fewer rows from the server, so "n of m" would lie there (phone D).
+        const hidden = doneCounts[stage.id] ?? 0;
+        const total = stageRows.length + hidden;
+        const done = hidden + stageRows.filter((row) => row.task.status === 'done').length;
+        const count = phone && !filtered && total > 0 ? t('phoneProject.tasks.doneOf', { done, total }) : t('tasks.count', { n: stageRows.length });
+        const add = detail.viewerCan.addTask && <QuickAdd detail={detail} stage={stage} onOpen={onOpen} />;
+        return (
         <section key={stage.id} aria-labelledby={`stage-${stage.id}`} className="surface overflow-hidden rounded-card pb-2">
           <header className="flex items-center justify-between gap-2 px-4 pb-1 pt-3">
             <h3 id={`stage-${stage.id}`} dir="auto" className="text-headline">{stage.name}</h3>
-            <span className="tabular text-footnote text-label-2">{t('tasks.count', { n: stageRows.length })}</span>
+            <span className="tabular text-footnote text-label-2">{count}</span>
           </header>
-          {detail.viewerCan.addTask && <QuickAdd detail={detail} stage={stage} onOpen={onOpen} />}
+          {!phone && add}
           <SortableTaskRows rows={arranged(stageRows)} me={me} onOpen={openRow} />
           {stageRows.length === 0 && (
             <p className="px-4 pb-2 text-footnote text-label-2">{(doneCounts[stage.id] ?? 0) > 0 ? t('tasks.allDone') : t('tasks.empty')}</p>
           )}
+          {/* The add row is the last row of a group on a phone. */}
+          {phone && add}
         </section>
-      ))}
+        );
+      })}
     </div>
   );
 }
