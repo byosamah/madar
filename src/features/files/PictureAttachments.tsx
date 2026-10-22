@@ -140,9 +140,9 @@ export function AttachmentList({ files }: { files: Attachment[] }) {
   return (
     <div className="flex flex-col gap-1.5">
       {count > 0 && (
-        <ul aria-label={t('picture.group')} className={count === 1 ? 'flex' : `grid w-60 max-w-full gap-1 ${columns}`}>
+        <ul aria-label={t('picture.group')} className={count === 1 ? 'flex min-w-0 max-w-full' : `grid w-60 max-w-full gap-1 ${columns}`}>
           {pictures.map((file, i) => (
-            <li key={file.id} className={count === 3 && i === 2 ? 'col-span-2' : count === 1 ? 'flex' : undefined}>
+            <li key={file.id} className={count === 3 && i === 2 ? 'col-span-2' : count === 1 ? 'flex min-w-0 max-w-full' : undefined}>
               <PictureTile
                 file={file}
                 shape={count === 1 ? 'single' : count === 3 && i === 2 ? 'wide' : 'square'}

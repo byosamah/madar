@@ -67,6 +67,14 @@ describe('the files of a message or a comment (owner, 2026-10-19)', () => {
     expect(container.querySelectorAll('img')).toHaveLength(1);
   });
 
+  it('lets one picture shrink to a narrow bubble, so it never runs out of the bubble on a phone (fbk_040)', () => {
+    renderList([PHOTO]);
+    const list = screen.getByRole('list', { name: 'Pictures' });
+    // A flex item keeps the width of its content unless it may shrink: the 240 px tile ran 50 px out of a bubble at 390 px.
+    expect(list).toHaveClass('min-w-0', 'max-w-full');
+    expect(list.querySelector('li')).toHaveClass('min-w-0', 'max-w-full');
+  });
+
   it('shows a deleted file as removed, and a file with no known type as a chip', () => {
     renderList([file('fil_005', null), file('fil_006', 'Old.jpg')]);
     expect(screen.getByText('File removed')).toBeInTheDocument();
