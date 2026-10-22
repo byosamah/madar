@@ -75,7 +75,7 @@ and the lock (Sunday to Thursday, 9 AM to 5 PM, on by default): nobody is quiet 
 - `encrypt.ts`: `encryptPush` (RFC 8291). `line.ts`: `noticeLine` and `chatLine`, the line as the person reads it.
 - `words.ts`: the words of the line in an i18next instance of its own (as `server/mail/templates/words.ts`). It imports only the
   `inbox`, `notices` and `push` parts of the word files BY NAME, so the bundle keeps those parts only (the api bundle has a bound of
-  850,000 characters; 843,556 on 2026-10-22 after quiet hours and @everyone). `words.test.ts` checks that its `inbox` words are all the `inbox` words of the screens:
+  900,000 characters; 853,323 on 2026-10-22 after hidden projects). `words.test.ts` checks that its `inbox` words are all the `inbox` words of the screens:
   a track that adds a bell sentence in a new word file adds that file to `words.ts`.
 - `notify.ts`: the producer `pushRows`, the effects `sendPushNotify` and `sendChatPush` (each takes `LineOptions` for tests), and
   their SQL texts. `PUSH_DEVICES_SQL` reads the keys of each device (`d.doc->'keys'`, null when none).

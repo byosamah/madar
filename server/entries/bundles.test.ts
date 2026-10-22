@@ -155,7 +155,9 @@ describe('the minified function bundles (performance audit SRV-11)', () => {
     // The join as a helper and the lead delete (fbk_034, fbk_035) on top of the later fixes: 760,035, so the bound is 800,000.
     // Role rights version 2 and chat presence (typing, seen, any emoji) together, 2026-10-21: 803,793, so the bound is 850,000.
     // The guide of the Madar report (reportGuide.ts, 2026-10-21) adds about 17,000 characters of plain text on top.
-    expect(text.length).toBeLessThan(850_000);
+    // Hidden projects, waves D1 to D3 (fbk_044, 2026-10-22: the view rule, the doors, the lists, the signals, push, mail and Google)
+    // on top of quiet hours and @everyone: 853,323, so the bound is 900,000.
+    expect(text.length).toBeLessThan(900_000);
     expect(text.includes('JWTExpired')).toBe(true);
     expect(text.includes('@param {import(')).toBe(false);
     expect(checkBundles('server', dirname(file)).ok).toBe(true);
