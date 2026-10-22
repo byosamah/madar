@@ -229,8 +229,9 @@ describe('browser push on the local database, as madar_server', () => {
     expect(posted).toEqual([]);
     // The device of an active human is the only one the effect reads.
     expect(await office.sql(PUSH_DEVICES_SQL, [sara.id])).toEqual([]);
-    // A device saved with no keys reads keys null: it gets the empty push (owner, 2026-10-21).
-    expect(await office.sql(PUSH_DEVICES_SQL, [omar.id])).toEqual([{ endpoint: endpointOf(omar.id), keys: null }]);
+    // A device saved with no keys reads keys null: it gets the empty push (owner, 2026-10-21). The same row carries the work hours of the
+    // person and of the office (quiet hours, fbk_048), null when nobody set them, so the quiet check needs no second statement.
+    expect(await office.sql(PUSH_DEVICES_SQL, [omar.id])).toEqual([{ endpoint: endpointOf(omar.id), keys: null, work_hours: null, office: null }]);
   });
 
   it('leaves no push row after a call that fails', async () => {
