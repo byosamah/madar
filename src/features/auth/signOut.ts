@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { keepDraftsOf } from '../../app/drafts';
 import { REMOTE } from '../../app/mode';
+import { clearHomeCache } from '../../app/remote/homeCache';
 import { removeThisDevice, type PushApi } from '../../app/remote/push';
 import { useRuntime } from '../../app/runtime';
 import { signInPath } from './paths';
@@ -28,6 +29,8 @@ export function useLeaveScreen(): (reason: Reason) => Promise<void> {
   const navigate = useNavigate();
   return useCallback(async (reason) => {
     leaving = true;
+    // The last Home lists of this person on this device go first, whatever else fails (DF-14).
+    void clearHomeCache();
     try {
       // Leave the screen first, so its lists do not ask the server again with no session.
       await navigate(signInPath({ reason }), { replace: true });

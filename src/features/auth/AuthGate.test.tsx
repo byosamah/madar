@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ApiError } from '../../api/errors';
+import { clearHomeCache, readHomeRecord, saveHomeRecord } from '../../app/remote/homeCache';
 import { appRoutes } from '../../app/routes';
 import { expectCalm } from './calmChecks';
 import { renderRemoteApp, SAMPLE_ACCOUNTS } from './renderAuth';
@@ -28,6 +29,15 @@ async function continueWith(password: string) {
   await userEvent.type(within(open).getByLabelText('Password'), password);
   await userEvent.click(within(open).getByRole('button', { name: 'Continue' }));
 }
+
+const STORED = 'auth-user-stored';
+/** A record of the last Home lists of a person, as the real build keeps it (DF-14). */
+const keepHomeRecord = () => saveHomeRecord(STORED, { build: 'test', at: Date.now(), fingerprint: 'member||', entries: [] });
+const homeRecordGone = () => waitFor(async () => expect(await readHomeRecord(STORED, 5000)).toBeNull());
+
+afterEach(async () => {
+  await clearHomeCache();
+});
 
 describe('the sign-in gate of the remote build (plan U2, client map 7.3)', () => {
   it('sends a person with no session to Sign in, with the link to come back to', async () => {
@@ -179,6 +189,34 @@ describe('the sign-in gate of the remote build (plan U2, client map 7.3)', () =>
       const sessions = queryClient.getQueryCache().getAll().filter((query) => query.queryKey.includes('session.get') && query.state.data !== undefined);
       for (const query of sessions) expect((query.state.data as { user: { id: string } }).user.id).toBe('usr_002');
     });
+  });
+
+  it('clears the stored Home lists when the session ends, and when a call says so (DF-14)', async () => {
+    await keepHomeRecord();
+    const { auth } = await renderRemoteApp(UPDATE);
+    await screen.findByRole('form', { name: 'Post an update' });
+    expect(await readHomeRecord(STORED, 5000)).not.toBeNull();
+    act(() => auth.expire());
+    await sheet();
+    await homeRecordGone();
+
+    await keepHomeRecord();
+    let refuse = false;
+    const second = await renderRemoteApp(UPDATE, { refuse: () => refuse });
+    await screen.findAllByRole('form', { name: 'Post an update' });
+    refuse = true;
+    await act(async () => { await second.queryClient.invalidateQueries({ queryKey: ['api'] }); });
+    await homeRecordGone();
+  });
+
+  it('clears the stored Home lists when the person signs out, or another person signs in, in another tab (DF-14)', async () => {
+    await keepHomeRecord();
+    const { auth } = await renderRemoteApp('/inbox');
+    await screen.findByRole('list', { name: 'Chats' });
+    expect(await readHomeRecord(STORED, 5000)).not.toBeNull();
+    act(() => auth.otherTabSignsOut());
+    await screen.findByRole('heading', { level: 1, name: 'Sign in to Madar' });
+    await homeRecordGone();
   });
 
   it('saves the language of the person for the next cold start', async () => {

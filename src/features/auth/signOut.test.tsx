@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { clearHomeCache, readHomeRecord, saveHomeRecord } from '../../app/remote/homeCache';
 import { PUSH_TEST_ENDPOINT, pushBrowser, stopPushBrowser } from '../../test/pushBrowser';
 import { renderRemoteApp, SAMPLE_ACCOUNTS } from './renderAuth';
 
@@ -36,6 +37,15 @@ describe('sign out and browser push (owner, 2026-10-08)', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     stopPushBrowser();
+  });
+
+  it('clears the stored Home lists of the person at a sign-out (DF-14)', async () => {
+    await saveHomeRecord('auth-user-stored', { build: 'test', at: Date.now(), fingerprint: 'member||', entries: [] });
+    const app = await renderRemoteApp('/');
+    expect(await readHomeRecord('auth-user-stored', 5000)).not.toBeNull();
+    await signOut(app);
+    await waitFor(async () => expect(await readHomeRecord('auth-user-stored', 5000)).toBeNull());
+    await clearHomeCache();
   });
 
   it('removes this device on the server while the session lives, and unsubscribes this browser, so the next person gets no push', async () => {

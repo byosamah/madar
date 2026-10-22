@@ -277,6 +277,18 @@ any screen work.
 - Home keeps the last role it saw for each auth user in localStorage (`madar.homeRole.<auth user id>`,
   `features/home/roleHint.ts`). Before `session.get` answers, the real build asks for the `projects.list` of that role. The
   session answer always decides. The sign-in port gives the auth user id at once (`AuthPort.userId()`, optional).
+- The last Home lists stay on the device (owner, 2026-10-21, DF-14): `app/remote/homeCache.ts`, started by `main.tsx` in the real build only. The prototype
+  stores nothing. One record for each auth user id sits in the IndexedDB `madar-home-cache` (raw IndexedDB, no package). It holds the build
+  (`VITE_MADAR_BUILD`), the time, the role and rights of the session, and the answers of the reads that a cold Home sends in its first request
+  (`homeKeys`: `session.get`, both `tasks.list`, `projects.list` of the role, today's `meetings.list`, `chats.unreadCount`, `notifications.count`,
+  `subCompanies.list`, `users.list`). A change to the first request of Home changes `homeKeys` in the same commit; `HomeInstant.test.tsx` pins the names.
+  Start: the read runs next to the first request and gives up after 150 ms; each stored answer goes into the query cache with its stored time
+  (only where the query has no data), and the same read is sent at once (`fetchQuery`, joined when it is already on the wire), because the real build keeps an
+  answer until a change names it. A record of another build, another person or over 7 days is ignored and deleted. Write: after the Home reads
+  settle, at idle (`whenIdle`), then at most once a minute; only answers of this page and this person; never over 1 MB; never after a sign-out.
+  Clear (`clearHomeCache`, a `deleteDatabase`): `useLeaveScreen`, the end of the session in `AuthGate`, the sign-in port (a sign-out, or another person), and the
+  first fresh `session.get` with another role or other rights than the record (the shown stored answers are reset at once). IndexedDB that throws, is missing, or
+  was evicted gives the plain load. Never keep a token or a file link in this record. A new read that Home sends in its first request goes in `homeKeys`.
 - In the real build, Tasks shows the cached Home answer of `tasks.list {filter:'mine'}` without the done rows while its own
   list loads (`features/work/minePlaceholder.ts`), only when no change marked that answer. `WorkTasks` reads its list with
   `useQuery` under the `useCall` key, so a change to `useCall` must also go there.
@@ -782,6 +794,9 @@ any screen work.
 - `renderHeldRemoteApp` (`test/heldRemoteApp.tsx`) renders the whole app over the sample office as the real build runs it,
   with no change signals. Its API records each call (`asked`, `callsOf`). `hold`, `release` and `releaseHeld` hold the
   answers, and `fail` makes chosen calls fail: use it to test which reads start before the first answer.
+- `renderHeldRemoteApp` also takes `auth` (a port with `userId()`) and `home` (starts `startHomeCache` before the first frame, as `main.tsx` does), and
+  `releaseHeld(match)` lets only the calls that `match` accepts answer. `HomeInstant.test.tsx` shows a first page life that writes the record and a second one that
+  starts with a held network.
 - `renderRemoteApp` (`test/renderRemote.tsx`) renders the app with runtime mode remote and the query client of the real
   build. `sent` lists each call in order, and `hold` keeps the calls it picks until `release()`: use it to test the order of
   requests. A render-count test wraps a component with `vi.mock(path, importOriginal)` and waits until the count stops
