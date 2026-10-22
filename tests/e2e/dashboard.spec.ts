@@ -21,13 +21,18 @@ const SCREENS = [
   { name: 'deadlines', path: '/#/tasks?mode=deadlines' },
   { name: 'settings-admin', path: '/#/settings' },
 ];
+// The Me hub and its Profile page are the phone shape of Settings (Direction D). A desk sends both to /settings.
+const PHONE_SCREENS = [
+  { name: 'me', path: '/#/me' },
+  { name: 'me-profile', path: '/#/me/profile' },
+];
 
 for (const width of [390, 1440]) {
   for (const lang of ['en', 'ar'] as const) {
     test(`dashboard screens at ${width}px in ${lang}`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       if (lang === 'ar') await useArabic(page);
-      for (const screen of SCREENS) {
+      for (const screen of width < 640 ? [...SCREENS, ...PHONE_SCREENS] : SCREENS) {
         await page.goto(screen.path);
         await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
         await page.waitForTimeout(1200);

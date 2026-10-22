@@ -63,10 +63,18 @@ export async function signIn(page: Page, email: string, password: string): Promi
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 }
 
-/** Signs out with the person menu, as a person does, and lands on Sign in with "You signed out." */
+/**
+ * Signs out as a person does, and lands on Sign in with "You signed out." From 640 px the person menu has Sign out. Under 640 px
+ * there is no person menu (Direction D): the person presses the Me tab and then the Sign out button at the end of the Me hub.
+ */
 export async function signOut(page: Page, person: string, lang: Lang): Promise<void> {
-  await page.getByRole('button', { name: person, exact: true }).click();
-  await page.getByRole('dialog', { name: person }).getByRole('button', { name: word(lang, 'auth.signOut') }).click();
+  if ((page.viewportSize()?.width ?? 1440) < 640) {
+    await page.getByRole('navigation', { name: word(lang, 'nav.main') }).getByRole('link', { name: word(lang, 'phoneShell.tab.me') }).click();
+    await page.getByRole('button', { name: word(lang, 'auth.signOut'), exact: true }).click();
+  } else {
+    await page.getByRole('button', { name: person, exact: true }).click();
+    await page.getByRole('dialog', { name: person }).getByRole('button', { name: word(lang, 'auth.signOut') }).click();
+  }
   await expect(page).toHaveURL(urlPattern('/sign-in?reason=signed_out'));
   await expect(page.getByText(word(lang, 'auth.reasons.signed_out'))).toBeVisible();
 }

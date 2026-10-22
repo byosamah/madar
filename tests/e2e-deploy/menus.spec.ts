@@ -117,7 +117,8 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
     // Omar has no test account: this check needs Preview as.
     skipPreviewAs();
     await page.setViewportSize({ width, height });
-    await goto(page, '/settings');
+    // Preview as is on the Me hub on a phone (Direction D) and on the Settings page from 640 px, where /me sends the person.
+    await goto(page, '/me');
     const select = page.getByLabel('Preview as').locator('visible=true').first();
     const value = await select.locator('option', { hasText: 'Omar Haddad' }).getAttribute('value');
     await select.selectOption(value!);

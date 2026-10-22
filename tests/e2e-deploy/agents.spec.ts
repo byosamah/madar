@@ -157,7 +157,8 @@ test('an approved agent shows in Settings, Agents after its first call, and Remo
   for (const name of ['"chats.openDirect"', '"chats.list"', '"chats.send"', '"chats.messages"', '"chats.waiting"']) expect(tools, name).toContain(name);
   expect(tools).not.toContain('"chats.markRead"');
   await page.unroute(`${new URL(REDIRECT_URI).origin}/**`);
-  await goto(page, '/settings');
+  // /me/agents is the phone page of the Agents section. From 640 px it sends the person to /settings.
+  await goto(page, '/me/agents');
   await expect(page.getByRole('button', { name: PERSON_OF.member, exact: true })).toBeVisible();
   const row = page.getByRole('listitem').filter({ hasText: name });
   await expect(row).toBeVisible();

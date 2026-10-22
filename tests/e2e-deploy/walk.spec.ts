@@ -560,7 +560,8 @@ for (const { lang, width } of VARIANTS) {
       await settle(page);
       await expect(page.getByText(report)).toHaveCount(0);
       // Only an Admin sees the switch of the new-report notice. Everyone sees the switch of the done notice.
-      await goto(page, '/settings');
+      // /me/notices is the phone page of the Notifications section. From 640 px it sends the person to /settings, where the section is.
+      await goto(page, '/me/notices');
       await expect(page.getByRole('switch', { name: w('notices.switchInApp', { trigger: w('settings.triggers.feedback_done') }), exact: true })).toBeVisible();
       await expect(page.getByRole('switch', { name: w('notices.switchInApp', { trigger: w('settings.triggers.feedback_sent') }), exact: true })).toHaveCount(0);
       return 'no notice of the report in the database or on the screen; no new-report switch';
@@ -570,7 +571,7 @@ for (const { lang, width } of VARIANTS) {
     for (const role of ROLES) {
       await step('notices', role, async () => {
         const page = pages[role];
-        await goto(page, '/settings');
+        await goto(page, '/me/notices');
         const tail = w('notices.switchInApp', { trigger: 'X' }).replace(/^.*X/, '');
         const first = page.locator(`[role="switch"][aria-checked="true"][aria-label$="${tail}"]`).first();
         await expect(first).toBeVisible();
@@ -664,8 +665,10 @@ for (const { lang, width } of VARIANTS) {
     for (const role of ROLES) {
       await step('agents', role, async () => {
         const page = pages[role];
-        await goto(page, '/settings');
-        const heading = page.getByRole('heading', { level: 2, name: w('agents.title'), exact: true });
+        // /me/agents is the phone page of the Agents section. From 640 px it sends the person to /settings. On the phone page the h1
+        // and the hidden h2 share the name, so the heading is found by name with no level, and the first one is the title.
+        await goto(page, '/me/agents');
+        const heading = page.getByRole('heading', { name: w('agents.title'), exact: true }).first();
         await expect(heading).toBeVisible();
         await heading.scrollIntoViewIfNeeded();
         const section = page.locator('section').filter({ has: heading });

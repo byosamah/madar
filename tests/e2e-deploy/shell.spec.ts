@@ -4,7 +4,7 @@ import { goto, settle } from './goto';
 
 /** tests/e2e/shell.spec.ts on the remote build (task X2). */
 
-const ROUTES = ['/', '/projects', '/work', '/dashboard', '/inbox', '/notifications', '/admin', '/search', '/settings', '/me'];
+const ROUTES = ['/', '/projects', '/work', '/dashboard', '/inbox', '/notifications', '/admin', '/search', '/settings', '/me', '/me/profile'];
 const WIDTHS = [390, 820, 1440];
 
 for (const width of WIDTHS) {

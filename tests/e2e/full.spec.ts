@@ -3,7 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 
 const ROUTES = [
   '/', '/projects', '/projects/prj_001', '/projects/prj_001?tab=tasks', '/projects/prj_001?tab=activity', '/projects/prj_001?tab=schedule', '/projects/prj_001?tab=files',
-  '/projects/prj_001?tab=team', '/work', '/dashboard', '/dashboard?view=people', '/dashboard?view=schedule', '/tasks?filter=overdue', '/tasks?mode=deadlines', '/inbox', '/notifications', '/admin', '/search', '/settings', '/me',
+  '/projects/prj_001?tab=team', '/work', '/dashboard', '/dashboard?view=people', '/dashboard?view=schedule', '/tasks?filter=overdue', '/tasks?mode=deadlines', '/inbox', '/notifications', '/admin', '/search', '/settings', '/me', '/me/profile',
 ];
 
 async function useArabic(page: Page): Promise<void> {

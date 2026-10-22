@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-const ROUTES = ['/', '/projects', '/work', '/dashboard', '/inbox', '/notifications', '/admin', '/search', '/settings', '/me'];
+const ROUTES = ['/', '/projects', '/work', '/dashboard', '/inbox', '/notifications', '/admin', '/search', '/settings', '/me', '/me/profile'];
 const WIDTHS = [390, 820, 1440];
 
 for (const width of WIDTHS) {

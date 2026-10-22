@@ -10,7 +10,10 @@ import { openMenu } from './steps';
 async function previewAs(page: Page, label: string): Promise<void> {
   await goto(page, '/settings');
   await page.getByRole('combobox', { name: /Preview as/ }).first().selectOption({ label });
-  await expect(page.getByRole('button', { name: label.split(' · ')[0], exact: true })).toBeVisible();
+  const person = label.split(' · ')[0];
+  // Under 640 px there is no picture button: the Me hub shows the person as its first row, a link that starts with the name.
+  if ((page.viewportSize()?.width ?? 1440) < 640) await expect(page.getByRole('link', { name: new RegExp(`^${person.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`) })).toBeVisible();
+  else await expect(page.getByRole('button', { name: person, exact: true })).toBeVisible();
 }
 
 test('the phone tab bar has exactly four tabs with words and no sideways scroll at 390', async ({ page }) => {

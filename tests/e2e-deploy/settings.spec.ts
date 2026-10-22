@@ -16,16 +16,35 @@ for (const width of WIDTHS) {
         await page.setViewportSize({ width, height: 900 });
         await page.emulateMedia({ colorScheme: theme });
         if (lang === 'ar') await useLanguage(page, 'ar');
-        await goto(page, '/settings');
-        // exact: the push card heading "Notifications on this device" also starts with "Notifications".
-        for (const key of ['settings.notifications', 'password.title']) {
-          await expect(page.getByRole('heading', { level: 2, name: word(lang, key), exact: true })).toBeVisible();
+        if (width < 640) {
+          // A phone: the hub holds the Morning summary switch, and Notifications and Password are pages of their own (Direction D).
+          await goto(page, '/me');
+          await expect(page.getByRole('switch', { name: word(lang, 'notices.summary') })).toBeVisible();
+          await page.waitForTimeout(800);
+          await page.screenshot({ path: `test-results/e2e-deploy-shots/settings/${width}-${lang}-${theme}-me.png`, fullPage: true });
+          await expectCalm(page, 'me');
+          await expectNoSeriousA11y(page, 'me');
+          // The page title is the h1, and the part keeps its h2 for a screen reader, so the heading is found by name with no level.
+          for (const [section, key] of [['notices', 'settings.notifications'], ['password', 'password.title']] as const) {
+            await goto(page, `/me/${section}`);
+            await expect(page.getByRole('heading', { name: word(lang, key), exact: true }).first()).toBeVisible();
+            await page.waitForTimeout(600);
+            await page.screenshot({ path: `test-results/e2e-deploy-shots/settings/${width}-${lang}-${theme}-me-${section}.png`, fullPage: true });
+            await expectCalm(page, `me ${section}`);
+            await expectNoSeriousA11y(page, `me ${section}`);
+          }
+        } else {
+          await goto(page, '/settings');
+          // exact: the push card heading "Notifications on this device" also starts with "Notifications".
+          for (const key of ['settings.notifications', 'password.title']) {
+            await expect(page.getByRole('heading', { level: 2, name: word(lang, key), exact: true })).toBeVisible();
+          }
+          await expect(page.getByRole('switch', { name: word(lang, 'notices.summary') })).toBeVisible();
+          await page.waitForTimeout(800);
+          await page.screenshot({ path: `test-results/e2e-deploy-shots/settings/${width}-${lang}-${theme}-settings.png`, fullPage: true });
+          await expectCalm(page, 'settings');
+          await expectNoSeriousA11y(page, 'settings');
         }
-        await expect(page.getByRole('switch', { name: word(lang, 'notices.summary') })).toBeVisible();
-        await page.waitForTimeout(800);
-        await page.screenshot({ path: `test-results/e2e-deploy-shots/settings/${width}-${lang}-${theme}-settings.png`, fullPage: true });
-        await expectCalm(page, 'settings');
-        await expectNoSeriousA11y(page, 'settings');
 
         await goto(page, '/admin/people');
         await page.getByRole('button', { name: word(lang, 'admin.addPerson') }).click();
@@ -40,6 +59,24 @@ for (const width of WIDTHS) {
         await expect(sheet).toHaveCount(0);
       });
     }
+  }
+}
+
+// The Me hub at 360 px, the narrowest phone: long Arabic words must wrap and never push a row past the screen (Direction D).
+for (const lang of LANGS) {
+  for (const theme of THEMES) {
+    test(`The Me hub at 360px, ${lang}, ${theme}`, async ({ page }) => {
+      await page.setViewportSize({ width: 360, height: 800 });
+      await page.emulateMedia({ colorScheme: theme });
+      if (lang === 'ar') await useLanguage(page, 'ar');
+      await goto(page, '/me');
+      await expect(page.getByRole('switch', { name: word(lang, 'notices.summary') })).toBeVisible();
+      await page.waitForTimeout(800);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+      await page.screenshot({ path: `test-results/e2e-deploy-shots/settings/360-${lang}-${theme}-me.png`, fullPage: true });
+      await expectCalm(page, 'me 360');
+      await expectNoSeriousA11y(page, 'me 360');
+    });
   }
 }
 

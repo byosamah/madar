@@ -203,7 +203,8 @@ test('screenshots for the sweep', async ({ page }) => {
   await page.goto('/#/inbox');
   await expect(page.getByRole('list', { name: 'Chats' })).toBeVisible();
   await shot('inbox-390');
-  await page.goto('/#/settings');
+  // On a phone the Language choice is on the Me hub (Direction D). /#/settings sends a phone there.
+  await page.goto('/#/me');
   await page.getByRole('radio', { name: 'العربية' }).click();
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await page.goto('/#/');

@@ -104,8 +104,9 @@ for (const v of VARIANTS) {
       const page = await personPage(browser, v);
       await guard(page, violations);
       await signIn(page, person.email, passwords.first);
-      await goto(page, '/settings');
-      await expect(page.getByRole('heading', { level: 2, name: word(v.lang, 'password.title') })).toBeVisible();
+      // /me/password is the phone page of the Password section. From 640 px it sends the person to /settings, where the section is.
+      await goto(page, '/me/password');
+      await expect(page.getByRole('heading', { name: word(v.lang, 'password.title'), exact: true }).first()).toBeVisible();
       // A wrong current password shows under its own field.
       await page.locator('#password-current').fill('not-the-password-1');
       await page.locator('#password-new').fill(passwords.second);

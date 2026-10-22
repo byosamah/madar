@@ -84,7 +84,8 @@ test('board Move menu on the last Done card reaches every item', async ({ page }
 for (const [width, height] of [[1440, 900], [390, 844]]) {
   test(`a person outside the team sees the task panel as plain text at ${width}`, async ({ page }) => {
     await page.setViewportSize({ width, height });
-    await page.goto('/#/settings');
+    // Preview as is on the Me hub on a phone (Direction D) and on the Settings page from 640 px, where /me sends the person.
+    await page.goto('/#/me');
     const select = page.getByLabel('Preview as').locator('visible=true').first();
     const value = await select.locator('option', { hasText: 'Omar Haddad' }).getAttribute('value');
     await select.selectOption(value!);
