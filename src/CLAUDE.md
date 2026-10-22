@@ -256,7 +256,8 @@ any screen work.
   `usePrefetchCall`. It starts none when the cached session lacks the switch of the route. A change to a read of one of these screens
   changes its line in `guardReads.ts` in the same commit; `GuardReads.test.tsx` holds every answer and fails on a key that the list missed.
 - The project To-dos tab asks `taskTemplates.list {}` once, with its `tasks.list`, under the gates of the menu (list view and
-  `createTaskForSelf`). Each `TemplateMenu` keeps the templates of its stage with `lib/sameText.ts`, as the handler does.
+  `createTaskForSelf`). `tabReads('tasks')` starts the same read with `projects.get` (`templates` option, DF-13) when the cached session
+  may add a to-do (`sessionMayAddTask` in `reads.ts`) and the list view shows. Each `TemplateMenu` keeps the templates of its stage with `lib/sameText.ts`, as the handler does.
 - In the real build, a picture hook (`useFileLink`, `useScreenshotLink`) keeps its signed link in the cache for
   `LINK_STALE_MS` (8 minutes) after the screen closes. The row pictures (Files rows, the meeting drawings, the report
   thumbnails) have `loading="lazy" decoding="async"`. A sheet or preview picture does not.

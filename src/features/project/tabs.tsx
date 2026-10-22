@@ -48,11 +48,12 @@ const TASK_FILTERS = ['all', 'mine', 'overdue', 'flagged', 'no_lead'] as const;
  * The reads that a tab mounts first, with the exact keys of their useCall (performance audit 2026-10-07, FET-2 and LIV-1).
  * ProjectScreen starts them with projects.get, so the tab finds its answers in the cache and shows after one round trip, not
  * two or three. payments: the person may manage payments (the Overview shows them only then). today: the office day, for the
- * meetings panel of the Overview (fbk_022). A link with a task opens the
+ * meetings panel of the Overview (fbk_022). templates: the cached session may add a to-do and the list view shows, so the template menus
+ * of the Tasks tab find their answer at once (DF-13). A link with a task opens the
  * task panel on the Overview and on Tasks, so those two tabs also start the reads of the panel. A tab that is not here loads
  * as before. tabs.test.tsx compares each list with the keys that the tab mounts.
  */
-export function tabReads(tab: ProjectTab, projectId: string, params: URLSearchParams, o: { payments: boolean; today: string }): Read[] {
+export function tabReads(tab: ProjectTab, projectId: string, params: URLSearchParams, o: { payments: boolean; today: string; templates?: boolean }): Read[] {
   const reads: Read[] = [];
   if (tab === 'overview') {
     reads.push(
@@ -64,6 +65,7 @@ export function tabReads(tab: ProjectTab, projectId: string, params: URLSearchPa
     if (o.payments) reads.push({ name: 'payments.list', input: { projectId } });
   } else if (tab === 'tasks') {
     reads.push({ name: 'tasks.list', input: { projectId, filter: oneOf(params.get('show'), TASK_FILTERS, 'all'), activeProjectsOnly: false } });
+    if (o.templates) reads.push({ name: 'taskTemplates.list', input: {} });
   } else if (tab === 'activity') {
     reads.push({ name: 'updates.list', input: { projectId, filter: oneOf(params.get('feed'), FEED_FILTERS, 'all'), limit: FEED_PAGE } });
   } else if (tab === 'files') {

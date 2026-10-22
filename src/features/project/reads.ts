@@ -23,3 +23,18 @@ export function sessionSeesPayments(queryClient: QueryClient): boolean {
   const session = queryClient.getQueryData<{ authority?: User }>(['api', 'session.get', {}]);
   return session?.authority ? can(session.authority, 'payment.view') : false;
 }
+
+/**
+ * True when the cached session may add a to-do on a project where the person is on the team, and the Tasks tab shows the list view
+ * (the gates of the template menu in TasksTab.tsx; DF-13). A guess for the prefetch only: the tab still asks with the exact gate
+ * (viewerCan.addTask), so a wrong guess costs one read and never shows a thing. False while the session is not cached.
+ */
+export function sessionMayAddTask(queryClient: QueryClient): boolean {
+  const session = queryClient.getQueryData<{ authority?: User }>(['api', 'session.get', {}]);
+  if (!session?.authority || !can(session.authority, 'task.add', { projectRole: 'team' })) return false;
+  try {
+    return window.localStorage.getItem('madar.tasks.view') !== 'board';
+  } catch {
+    return true;
+  }
+}

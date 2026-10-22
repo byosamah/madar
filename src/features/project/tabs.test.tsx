@@ -42,12 +42,12 @@ async function expectOneTrip(path: string, prepare?: (state: State) => void) {
 }
 
 /** Opens Projects first, so the session is in the cache, then the project page with every answer held. */
-async function fromProjects(userId: string) {
+async function fromProjects(userId: string, path = '/projects/prj_001') {
   const app = await renderHeldRemoteApp('/projects', as(userId));
   await waitFor(() => expect(app.queryClient.getQueryData(['api', 'session.get', {}])).toBeDefined(), { timeout: 10_000 });
   await flush(100);
   app.hold();
-  await act(async () => { await app.router.navigate('/projects/prj_001'); });
+  await act(async () => { await app.router.navigate(path); });
   await flush();
   return app;
 }
@@ -94,4 +94,36 @@ describe('the project page starts the reads of its tab with projects.get, real b
     await flush(100);
     expect(asked.some((call) => call.name === 'payments.list')).toBe(false);
   }, 60_000);
+  it('asks the to-do templates of the Tasks tab with projects.get when the cached session may add a to-do (DF-13)', async () => {
+    const { asked, queryClient, release } = await fromProjects('usr_001', '/projects/prj_001?tab=tasks');
+    expect(asked).toContainEqual({ name: 'taskTemplates.list', input: {} });
+    release();
+    await waitFor(() => expect(observed(queryClient, 'taskTemplates.list', {})).toBeGreaterThan(0), { timeout: 10_000 });
+    await flush(100);
+    expect(timesAsked(asked, 'taskTemplates.list', {})).toBe(1);
+  }, 60_000);
+
+  it('starts no template read for the Overview, and none for the board view of the Tasks tab (DF-13)', async () => {
+    const overview = await fromProjects('usr_001');
+    expect(overview.asked.some((call) => call.name === 'taskTemplates.list')).toBe(false);
+    overview.release();
+    overview.unmount();
+    window.localStorage.setItem('madar.tasks.view', 'board');
+    try {
+      const board = await fromProjects('usr_001', '/projects/prj_001?tab=tasks');
+      expect(board.asked.some((call) => call.name === 'taskTemplates.list')).toBe(false);
+      board.release();
+    } finally {
+      window.localStorage.removeItem('madar.tasks.view');
+    }
+  }, 60_000);
+
+  it('lists the template read in tabReads only when the caller says the person may add a to-do', () => {
+    const params = new URLSearchParams('tab=tasks');
+    const names = (templates: boolean | undefined) => tabReads('tasks', 'prj_001', params, { payments: false, today: TODAY, templates }).map((read) => read.name);
+    expect(names(true)).toEqual(['tasks.list', 'taskTemplates.list']);
+    expect(names(false)).toEqual(['tasks.list']);
+    expect(names(undefined)).toEqual(['tasks.list']);
+    expect(tabReads('overview', 'prj_001', params, { payments: false, today: TODAY, templates: true }).map((read) => read.name)).not.toContain('taskTemplates.list');
+  });
 });
