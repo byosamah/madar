@@ -1,5 +1,7 @@
 {
   "phoneTask": {
-    "editTitle": "Tap to edit the title"
+    "editTitle": "Tap to edit the title",
+    "markDone": "Mark done",
+    "sendToReview": "Send to review"
   }
 }

@@ -36,23 +36,25 @@ type Options = {
   projectId?: string | null;
   /** True answers (max-width: 639px). Default false, a desk. */
   phone?: boolean;
+  /** Opens the panel ready for the note of Send back (the Board of Tasks). */
+  noteFirst?: boolean;
   /** With render, the page shows only that node, fed by useTaskPanel. Without it, the page shows the real ProjectTaskSheet. */
   render?: (panel: TaskPanel) => ReactNode;
 };
 
 /** Reads the to-do and its project, then draws the real sheet or the node that `render` gives. */
-function Host({ taskId, projectId, onClose, render }: { taskId: string; projectId?: string | null; onClose: () => void; render?: Options['render'] }) {
+function Host({ taskId, projectId, onClose, render, noteFirst }: { taskId: string; projectId?: string | null; onClose: () => void; render?: Options['render']; noteFirst: boolean }) {
   const task = useCall('tasks.get', { id: taskId });
   const owner = projectId === undefined ? (task.data ? task.data.task.projectId : undefined) : projectId;
   const detail = useCall('projects.get', { id: owner ?? '' }, { enabled: typeof owner === 'string' });
   if (!task.data || owner === undefined) return null;
-  if (!render) return <ProjectTaskSheet projectId={owner} taskId={taskId} onClose={onClose} />;
+  if (!render) return <ProjectTaskSheet projectId={owner} taskId={taskId} onClose={onClose} noteFirst={noteFirst} />;
   if (owner !== null && !detail.data) return null;
-  return <Panel data={task.data} detail={detail.data ?? null} onClose={onClose} render={render} />;
+  return <Panel data={task.data} detail={detail.data ?? null} onClose={onClose} render={render} noteFirst={noteFirst} />;
 }
 
-function Panel({ data, detail, onClose, render }: { data: NonNullable<ReturnType<typeof useCall<'tasks.get'>>['data']>; detail: Parameters<typeof useTaskPanel>[0]['detail']; onClose: () => void; render: NonNullable<Options['render']> }) {
-  const panel = useTaskPanel({ detail, data, onClose, noteFirst: false });
+function Panel({ data, detail, onClose, render, noteFirst }: { noteFirst: boolean; data: NonNullable<ReturnType<typeof useCall<'tasks.get'>>['data']>; detail: Parameters<typeof useTaskPanel>[0]['detail']; onClose: () => void; render: NonNullable<Options['render']> }) {
+  const panel = useTaskPanel({ detail, data, onClose, noteFirst });
   return <>{render(panel)}</>;
 }
 
@@ -60,7 +62,7 @@ export async function renderPanel(taskId: string, options: Options = {}): Promis
   phoneMedia(options.phone === true);
   const onClose = vi.fn();
   const view = await renderWithRuntime(
-    <Host taskId={taskId} projectId={options.projectId} onClose={onClose} render={options.render} />,
+    <Host taskId={taskId} projectId={options.projectId} onClose={onClose} render={options.render} noteFirst={options.noteFirst === true} />,
     options.prepare,
     { path: options.path ?? `/?task=${taskId}` },
   );
