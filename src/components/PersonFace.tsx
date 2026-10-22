@@ -1,4 +1,5 @@
-import { useTranslation } from 'react-i18next';
+import { getI18n } from 'react-i18next';
+import { useLang } from '../app/lang';
 import { useMyState, usePersonState } from '../app/live/hooks';
 import type { PersonState } from '../app/live/types';
 import { usePersonName } from '../app/personName';
@@ -9,11 +10,29 @@ import { Avatar, type AvatarUser } from './Avatar';
 
 type FaceUser = AvatarUser & { active?: boolean; gender?: UserCard['gender'] };
 
-/** The face with its dot and its label, once the state is known. */
+/** The labels already built, by language, state, grammar form and name. A face then makes no t() call (performance audit 2026-10-21, RN-10). */
+const labels = new Map<string, string>();
+const LABEL_LIMIT = 2000;
+
+function labelOf(lang: string, state: PersonState, context: 'female' | undefined, name: string): string {
+  const key = `${lang}|${state}|${context ?? ''}|${name}`;
+  const known = labels.get(key);
+  if (known !== undefined) return known;
+  const i18n = getI18n();
+  if (!i18n) return name;
+  const label = i18n.t('presence.faceLabel', { name, state: i18n.t(`presence.${state}`, { context }) });
+  // A word file that is not loaded yet gives the key back: never keep that text.
+  if (label.startsWith('presence.')) return label;
+  if (labels.size >= LABEL_LIMIT) labels.clear();
+  labels.set(key, label);
+  return label;
+}
+
+/** The face with its dot and its label, once the state is known. It reads the language with useLang, not useTranslation (RND-8). */
 function StateFace({ user, size, state }: { user: FaceUser; size: number; state: PersonState }) {
-  const { t } = useTranslation();
+  const lang = useLang();
   const nameOf = usePersonName();
-  const label = t('presence.faceLabel', { name: nameOf(user), state: t(`presence.${state}`, { context: actorContext(user) }) });
+  const label = labelOf(lang, state, actorContext(user), nameOf(user));
   return <Avatar user={user} size={size} state={state} label={label} />;
 }
 
