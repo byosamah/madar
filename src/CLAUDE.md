@@ -38,7 +38,7 @@ any screen work.
   keeps its session under its own localStorage key (`SESSION_KEYS`: `madar.auth` for Supabase, `madar.session` for Madar);
   `main.tsx` and the deploy specs read the key of the build's port (`hasStoredSession`), never a fixed name.
 - `scripts/check-bundles.ts <remote|prototype|server> [folder]`: the remote build holds no sample names. Its first load (the
-  scripts of index.html, their static imports and the modulepreload links) holds no chart code, no zod schemas and no words,
+  scripts of index.html, their static imports and the modulepreload links) holds no chart code, no zod schemas, no words and no drag code (`DndDescribedBy`, dnd-kit),
   and stays at 1,350,000 B or less. Its index.html preloads the bootstrap chunk and its imports, the three Thmanyah files and
   a connection to each Supabase origin. The vendor and supabase chunks import no app chunk. The prototype build holds no
   "supabase", is one script file, and its index.html has no early link. The preconnect rule runs only with `VITE_SUPABASE_URL`
@@ -327,6 +327,12 @@ any screen work.
   the end of each row the person may move, and Space plus the arrow keys on the grip. Coming up on Home has no grips, because its
   tasks fall on different days. The row content sits in an inner box (`RowDrag`, `TaskRowItem.tsx`), so the drag and the slide of
   the row never set one transform.
+  dnd-kit is a chunk of its own (performance audit 2026-10-21, FL-2): `SortableTaskRows.tsx` draws static rows (the same `TaskRowItem`
+  and `RowGrip`, no listeners) and a list with a grip loads `DragLayer.tsx` (`dragLayerLoader.ts`, the loaded-module pattern) and swaps
+  it in. The swap makes new nodes with no entrance, and the focus goes back to the same control of the same row. `TodayPanel` warms the
+  chunk at idle. A test helper (`test/render.tsx`, `heldRemoteApp.tsx`) loads the layer first, so a test list starts with live grips; a
+  test of the swap holds the import (`features/work/DragLayerSwap.test.tsx`). `TaskRowItem` and each drag row are `React.memo` (RN-5):
+  `onOpen` takes the row, a caller gives one stable handler, and the list gives `today` to each row.
 - The project To-dos tab (feedback fbk_005 and fbk_006, 2026-10-11, `features/project/tasks/`): the "+" before "Add a to-do" opens
   `NewTaskSheet` (title, a lead from the team, due date; a new task has no lead until one is picked), and the words next to it stay
   the quick add. A refusal "move the project back" opens the reason sheet over it, as in the quick add. The avatar of a row is

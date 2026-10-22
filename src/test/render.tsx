@@ -14,6 +14,7 @@ import { createAppRouter } from '../app/routes';
 import type { LivePort } from '../app/live/types';
 import { RuntimeProvider, createQueryClient } from '../app/runtime';
 import { preloadScreens } from '../app/screens';
+import { loadDragLayer } from '../features/project/tasks/dragLayerLoader';
 import { ToastProvider } from '../app/toasts';
 import { initI18n } from '../i18n';
 import { setNow } from '../lib/dates';
@@ -22,6 +23,8 @@ import { NOW, TODAY } from './factories';
 // The screens load on demand (src/app/screens.ts). The tests load all of them once, so each router starts with every screen,
 // as the prototype does.
 await preloadScreens();
+// The drag layer of the sortable task lists is a chunk of its own (RN-5, FL-2). The tests load it once, so each list starts with the grips live.
+await loadDragLayer();
 
 /** Renders the whole app over the sample office, at a hash route, with no latency. "prepare" may change the office first. */
 /** failFirst makes the first call of that name fail, as the "Simulate errors" switch can. */

@@ -19,13 +19,13 @@ import { homePlaceholder } from './minePlaceholder';
 
 type Open = (row: TaskRow, thread?: boolean) => void;
 
-function TaskGroup({ id, title, rows, me, onOpen }: { id: string; title: string; rows: TaskRow[]; me: User | undefined; onOpen: Open }) {
+function TaskGroup({ id, title, rows, me, today, onOpen }: { id: string; title: string; rows: TaskRow[]; me: User | undefined; today: string; onOpen: Open }) {
   return (
     <section aria-labelledby={`work-${id}`} className="surface overflow-hidden rounded-card pb-2">
       <h2 id={`work-${id}`} className="px-4 pb-1 pt-3 text-headline">{title}</h2>
       <ul>
         <AnimatePresence initial={false}>
-          {rows.map((row) => <TaskRowItem key={row.task.id} row={row} me={me} onOpen={(_, thread) => onOpen(row, thread)} showProject />)}
+          {rows.map((row) => <TaskRowItem key={row.task.id} row={row} me={me} onOpen={onOpen} today={today} showProject />)}
         </AnimatePresence>
       </ul>
     </section>
@@ -61,7 +61,7 @@ const WorkBody = memo(function WorkBody({ mine, review, me, today, onOpen }: {
   }, [mine, review, today]);
   return (
     <>
-      {review.length > 0 && <TaskGroup id="review" title={t('work.group.review')} rows={review} me={me} onOpen={onOpen} />}
+      {review.length > 0 && <TaskGroup id="review" title={t('work.group.review')} rows={review} me={me} today={today} onOpen={onOpen} />}
       {groups.length === 0 && review.length === 0
         ? <EmptyState title={t('work.emptyTitle')} body={t('work.empty')} />
         : groups.map((group) => <SortableGroup key={group.group} id={group.group} title={t(`work.group.${group.group}`)} rows={group.rows} me={me} onOpen={onOpen} />)}

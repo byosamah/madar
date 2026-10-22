@@ -51,6 +51,8 @@ export const ZOD_MARKER = '$ZodObject';
 export const MAP_LIBRARY_MARKER = 'maplibregl-';
 /** Text that only the data of the emoji panel holds (chat presence design D8, track emoji E2): the panel loads at its first open. */
 export const EMOJI_MARKER = 'grinning face';
+/** Text that only dnd-kit holds (its hidden description of a drag handle). The sortable lists load it after the first screen (FL-2). */
+export const DRAG_MARKER = 'DndDescribedBy';
 export const WORD_MARKERS = {
   en: 'Something went wrong on this page. Go to Home and try again.',
   ar: 'حدث خطأ في هذه الصفحة. انتقل إلى الرئيسية وحاول مرة أخرى.',
@@ -182,6 +184,8 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
     none("map library ('maplibregl-')", [MAP_LIBRARY_MARKER]);
     // The emoji panel and its data (about 360 KB) load at its first open, in a chunk of its own (chat presence design D8).
     none("emoji data ('grinning face')", [EMOJI_MARKER]);
+    // The drag code (dnd-kit, about 18 KB gz) loads in a chunk of its own after the first screen (performance audit 2026-10-21, FL-2).
+    none("drag code ('DndDescribedBy')", [DRAG_MARKER]);
     rule(
       `the first-load scripts stay at ${FIRST_LOAD_MAX_BYTES} B or less`,
       bytes > FIRST_LOAD_MAX_BYTES ? [`${closure.length} files hold ${bytes} B`] : [],

@@ -71,13 +71,13 @@ function DeadlineList({ from, to }: { from?: string; to?: string }) {
 /**
  * The title, the subtitle, the error, the empty state and the rows. It takes only plain props and stable handlers, so a link
  * change that only opens or closes the task panel does not render the rows again (performance audit 2026-10-07, RND-2).
- * "today" is not read here: it makes the rows render again on a new day, so their due words stay true.
+ * "today" goes to each row (RN-5): a new day makes the rows render again, so their due words stay true.
  */
 const TaskResultsBody = memo(function TaskResultsBody(props: {
   title: string; subtitle: string; rows: TaskRow[] | undefined; error: unknown; me: User | undefined; today: string;
   onOpen: (row: TaskRow, thread?: boolean) => void; onRetry: () => void;
 }) {
-  const { title, subtitle, rows, error, me, onOpen, onRetry } = props;
+  const { title, subtitle, rows, error, me, today, onOpen, onRetry } = props;
   const { t } = useTranslation();
   return (
     <>
@@ -88,7 +88,7 @@ const TaskResultsBody = memo(function TaskResultsBody(props: {
       {rows && rows.length > 0 && (
         <ul className="surface overflow-hidden rounded-card py-1">
           <AnimatePresence initial={false}>
-            {rows.map((row) => <TaskRowItem key={row.task.id} row={row} me={me} onOpen={(_, thread) => onOpen(row, thread)} showProject />)}
+            {rows.map((row) => <TaskRowItem key={row.task.id} row={row} me={me} onOpen={onOpen} today={today} showProject />)}
           </AnimatePresence>
         </ul>
       )}
