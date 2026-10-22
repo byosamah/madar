@@ -5,7 +5,7 @@ import { appOrigin, databaseTarget, officeTarget, r2BucketTarget, supabaseTarget
 import { isSignedFileLink, storeOfUpload } from '../tests/e2e-deploy/store';
 import { functionsEnvLines, localOnly } from '../tests/e2e-deploy/local';
 import { word } from '../tests/e2e-deploy/words';
-import { closeTo, pngOf, WALK_PICTURE } from '../tests/e2e-deploy/picture';
+import { closeTo, containShares, pngOf, WALK_PICTURE } from '../tests/e2e-deploy/picture';
 import { inflateSync } from 'node:zlib';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
@@ -223,6 +223,15 @@ describe('pngOf: the test picture of the walk, made at run time', () => {
   it('compares a shown colour with some room for the scaling of the screen', () => {
     expect(closeTo([200, 40, 40], [210, 30, 52])).toBe(true);
     expect(closeTo([200, 40, 40], [255, 255, 255])).toBe(false);
+  });
+
+  it('moves the points onto a contained picture, which fills its box on one side only (the phone viewer)', () => {
+    // A square picture in a 390 x 780 box: it shows 390 x 390, from y 195 to 585.
+    const points = containShares({ width: 390, height: 780 }, { width: 64, height: 64 }, WALK_PICTURE.quarters);
+    expect(points.map((p) => [p.x, p.y])).toEqual([[0.25, 0.375], [0.75, 0.375], [0.25, 0.625], [0.75, 0.625]]);
+    // A box with the shape of the picture keeps the points.
+    expect(containShares({ width: 200, height: 200 }, { width: 64, height: 64 }, WALK_PICTURE.quarters).map((p) => [p.x, p.y]))
+      .toEqual(WALK_PICTURE.quarters.map((q) => [q.x, q.y]));
   });
 });
 

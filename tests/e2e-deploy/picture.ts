@@ -75,6 +75,27 @@ export function closeTo(want: Rgb | number[], got: Rgb | number[], room = 24): b
   return want.every((value, i) => Math.abs(value - got[i]) <= room);
 }
 
+type Size = { width: number; height: number };
+
+/**
+ * The points of a picture shown with object-fit: contain, as shares of its element box. Such a picture fills its box on one side
+ * only and sits in the middle (the full screen viewer on a phone), so a share of the box can fall on the backdrop beside it.
+ */
+export function containShares<P extends { x: number; y: number }>(box: Size, natural: Size, points: P[]): P[] {
+  const scale = Math.min(box.width / natural.width, box.height / natural.height);
+  const width = (natural.width * scale) / box.width;
+  const height = (natural.height * scale) / box.height;
+  return points.map((p) => ({ ...p, x: (1 - width) / 2 + p.x * width, y: (1 - height) / 2 + p.y * height }));
+}
+
+/** containShares for a picture on the page: the points stay as they are when the picture does not use object-fit: contain. */
+export async function shownShares<P extends { x: number; y: number }>(picture: Locator, points: P[]): Promise<P[]> {
+  const sizes = await picture.evaluate((img: HTMLImageElement) => (getComputedStyle(img).objectFit === 'contain'
+    ? { box: { width: img.clientWidth, height: img.clientHeight }, natural: { width: img.naturalWidth, height: img.naturalHeight } }
+    : null));
+  return sizes ? containShares(sizes.box, sizes.natural, points) : points;
+}
+
 /**
  * The colours that the screen shows at points of an element (x and y as shares of its box), read from a screenshot of the
  * element. The screenshot is decoded on a blank page of its own, so the CSP of the app and the origin of the picture do not

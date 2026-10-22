@@ -7,7 +7,7 @@ import { expect, passwordOf, PERSON_AR_OF, PERSON_OF, test } from './fixtures';
 import { goto, settle, urlPattern } from './goto';
 import { withClient } from './mail';
 import { OFFICE_SQL, officePeek } from './office';
-import { closeTo, shownColors, WALK_PICTURE } from './picture';
+import { closeTo, shownColors, shownShares, WALK_PICTURE } from './picture';
 import { batchAs, NO_SESSION, openMenu, runId, signOut, type Lang } from './steps';
 import { isSignedFileLink, storeOfUpload, type WalkStore } from './store';
 import { officeTarget, r2BucketTarget } from './targets';
@@ -425,7 +425,7 @@ for (const { lang, width } of VARIANTS) {
         : page.getByRole('dialog').last().getByRole('img', { name: `${fileBase}.png` });
       await expect(picture).toBeVisible();
       await expect.poll(() => picture.evaluate((img: HTMLImageElement, width) => img.complete && img.naturalWidth === width, WALK_PICTURE.width), { timeout: 15_000 }).toBe(true);
-      const shown = await shownColors(browser, picture, WALK_PICTURE.quarters);
+      const shown = await shownColors(browser, picture, await shownShares(picture, WALK_PICTURE.quarters));
       const wrong = WALK_PICTURE.quarters.filter((quarter, i) => !closeTo(quarter.rgb, shown[i]));
       if (wrong.length > 0) throw new Error(`the preview shows ${shown.map((c) => `rgb(${c.join(',')})`).join(' ')}, not the picture (${wrong.map((x) => x.name).join(', ')})`);
       await shot('file-preview', 'admin');
