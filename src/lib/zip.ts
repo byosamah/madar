@@ -100,7 +100,7 @@ export async function makeZip(entries: ZipEntry[], at: Date = new Date()): Promi
 
   const stamp = dosStamp(at);
   const parts: BlobPart[] = [];
-  const central: Uint8Array[] = [];
+  const central: Uint8Array<ArrayBuffer>[] = [];
   let offset = 0;
   for (let i = 0; i < entries.length; i += 1) {
     const { blob } = entries[i];

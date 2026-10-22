@@ -195,6 +195,10 @@ any screen work.
   the button is `viewerCan.upload` for "Upload a file" and `viewerCan.links` for "Add a link" (the button shows when one of them holds; the
   drop zone, the stage pick and "Received from the client" need `upload`, and the last also needs `deliver`). With no file and no link the tab shows one empty state, and the Add button sits in it
   (never twice). A link with the kind Location still sets the pin, as above.
+  "Download all" (owner, 2026-10-22, fbk_050): each stage group has one quiet "Download all (N)" button at the end of its heading row (`FilesTab.tsx`), and one
+  "Download all files (N)" sits above the first group, for the whole project. Each takes the newest version of each file (the same as a plain tap). A list with fewer
+  than two files shows no button, and the whole-project button hides when only one group holds files, because it would repeat that group's button. ZIP names:
+  "<project key> <stage name>.zip" and "<project key> <project name>.zip" (`shownKey`, so an internal project says "Internal"). How it works: the chat part above.
 - **One gate for Nominatim.** `src/lib/nominatimGate.ts` (`gated`) runs every request to Nominatim one at a time and at least 1 s after the
   last start, for the place search and the address lookup together. No header and no referrer of our own (`Referrer-Policy: no-referrer`).
   A test that sends a search calls `resetGate()` first. The About panel shows the address, then "Open in Google Maps"; with a pin and no
@@ -639,6 +643,17 @@ any screen work.
   comments with every word (a word of 3 letters or more). A hit shows the chat picture (32 px), the chat name, the person ("You" for the
   own line), the line with each matched whole word in a grey `<mark>`, and the date; a press opens `/inbox/<id>?at=<message>`. The words
   of the hit fold as the server folds them (`lib/searchMatch.ts`), so an Arabic word marks across letter forms.
+- **Download all (owner, 2026-10-22, fbk_050).** `AttachmentList` ends with one quiet text button "Download all (N)" (`features/files/DownloadAll.tsx`, never
+  a main button) when two or more of the files can be downloaded. Pictures count, a deleted file (`name === null`) does not, and a list with fewer than
+  two shows no button. The button saves the newest version of each file as one ZIP file. The ZIP is made in the browser (`downloadAll` in
+  `app/files.ts`, the writer in `lib/zip.ts`): no server call, no new package, STORE only (drawings and photos are compressed already), UTF-8 names for
+  Arabic, no ZIP64 (a total over 4 GB refuses with a clear toast). The real build asks `files.link` for a signed link of each file, one after another, and reads
+  it with `fetch`; the prototype reads `files.get`. That GET needs `GET` in the R2 CORS rules (`config/r2-cors.<env>.json`) and the file store host in the CSP
+  `connect-src`, as the upload needs `PUT` (`server/files/CLAUDE.md`). The ZIP code loads at the first press (a dynamic import), so the first load stays as it was.
+  The button reads "Preparing 3 of 10..." while it runs and takes no second press. One file that fails stops the run: the toast names the file and has Retry.
+  The ZIP name is "<title> <YYYY-MM-DD>.zip": the chat title or the to-do title comes from `ZipTitleContext` (`features/files/zipTitle.ts`, given by `ChatPane`,
+  `TaskPane` and the to-do panel), else the word "Files". A path character in a name becomes a dash, and two files with one name get " (2)", " (3)".
+  Words: `src/i18n/real/fbk050.*`. Tests: `lib/zip.test.ts`, `app/downloadAll.test.ts`, `features/files/DownloadAll.test.tsx`.
 - A picture in a chat bubble or a task comment shows as a preview (owner, 2026-10-19). `AttachmentList` (`features/files/PictureAttachments.tsx`)
   replaces `FileChips` in `Thread.tsx` and `CommentThread.tsx`: a picture (`Attachment.mimeType` and `usePictureTest`) is a small rounded
   picture, at most 240 px wide, from the thumb link (`useFileLink(..., 'thumb')`); two or more sit in a grid; every other file stays a chip.

@@ -3,6 +3,10 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-97": {
+        "title": "Download many files at once",
+        "body": "Under a chat message or a comment with two files or more, press Download all. On the Files tab, press it for a stage or for the whole project. You get one ZIP file."
+      },
       "2026-10-23-96": {
         "title": "When Madar notifies you, in plain words",
         "body": "Settings now names the hours when Madar notifies you, and one line tells you when it stays quiet. A day the office keeps on shows a small lock. The office hours are 8:00 AM to 5:00 PM."

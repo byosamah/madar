@@ -16,7 +16,9 @@ server checks the final object, then saves the record.
 - No copy from R2 back to Storage exists. A way back to the Supabase functions keeps `MADAR_FILE_STORE=r2`. The Storage
   bucket stays as the frozen copy of the files before the switch (no delete without the owner's OK).
 - The CSP of the screens follows the same setting (`scripts/deploy/headers.ts`). The R2 CORS rules are
-  `config/r2-cors.<env>.json`: only the browser upload (PUT with Content-Type) needs them.
+  `config/r2-cors.<env>.json`: the browser upload (PUT with Content-Type) needs them, and so does "Download all" (fbk_050, 2026-10-22).
+  That button reads each file with a `fetch` GET of a signed link from the page, and the browser makes the ZIP file (`src/CLAUDE.md`).
+  Keep `PUT` and `GET` in `AllowedMethods`: without `GET`, "Download all" fails on the real store.
 - The scripts of the switch: `scripts/storage/move-to-r2.ts --env` (the copy; `--copy-only` after the switch) and
   `scripts/storage/verify-r2-keys.ts --env` (every record key has an object on R2). The runbook is in
   `scripts/deploy/CLAUDE.md`, "Switch the files to R2".

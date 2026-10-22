@@ -29,6 +29,7 @@ import { formatDay, formatNumber } from '../../../lib/dates';
 import { actorContext } from '../../../lib/grammar';
 import { helpersOf } from '../../../lib/taskPeople';
 import { CommentThread } from '../../comments/CommentThread';
+import { ZipTitleContext } from '../../files/zipTitle';
 import { canPreview, PreviewSheet } from '../files/PreviewSheet';
 import { useFocusLink } from '../../focus/focusLink';
 import type { DragChecklistProps } from './ChecklistDrag';
@@ -407,12 +408,14 @@ function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail 
       />
       {section === 'conversation' ? (
         <TabPanel value="conversation" idPrefix="task-section">
-          <CommentThread
-            targetType="task" targetId={task.id} projectId={detail?.project.id ?? null} stageId={task.stageId} people={people}
-            canPost={viewerCan.comment === true}
-            canAttach={viewerCan.upload === true}
-            everyone={data.everyone}
-          />
+          <ZipTitleContext.Provider value={task.title}>
+            <CommentThread
+              targetType="task" targetId={task.id} projectId={detail?.project.id ?? null} stageId={task.stageId} people={people}
+              canPost={viewerCan.comment === true}
+              canAttach={viewerCan.upload === true}
+              everyone={data.everyone}
+            />
+          </ZipTitleContext.Provider>
         </TabPanel>
       ) : (
         <TabPanel value="details" idPrefix="task-section">
