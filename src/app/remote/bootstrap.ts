@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CallName, Calls, MadarApi } from '../../api/calls';
 import type { FreshReads } from '../../api/remote/follow';
 import { liveSocketSource, liveUrl } from '../../api/remote/liveSocket';
+import { batchApiUrl } from '../../api/remote/pageApi';
 import { createRemoteApi } from '../../api/remote/remoteApi';
 import { setTileTokenSource } from './tileToken';
 import type { Adapter, ChangeSignal } from '../../api/remote/wire';
@@ -201,6 +202,8 @@ export async function bootstrapRemote(o: {
   supabase?: SupabaseClient;
   auth?: AuthPort;
   fetch?: typeof fetch;
+  /** The browser and the page, for the choice of the batch address (a test sets it; the default reads the globals). */
+  page?: { userAgent: string; hostname: string; pageHosts?: string };
 } = {}): Promise<RemoteRuntime> {
   // Each name on its own: the bundler then puts only these four values in the page, never every VITE_ value of the build shell.
   const config = o.config ?? remoteConfig({
@@ -219,7 +222,13 @@ export async function bootstrapRemote(o: {
   const adapters: Partial<Record<CallName, Adapter>> = remoteFileAdapters();
   let changes: PersonChangeSource | undefined;
   const api = createRemoteApi<Calls>({
-    url: config.apiUrl,
+    // WebKit sends its batch calls through the page's own /api: no CORS preflight (DF-12, LV-6). The sign-in and agent requests keep config.apiUrl.
+    url: batchApiUrl({
+      apiUrl: config.apiUrl,
+      pageHosts: o.page ? o.page.pageHosts : import.meta.env.VITE_API_PAGE_HOSTS,
+      hostname: o.page ? o.page.hostname : window.location.hostname,
+      userAgent: o.page ? o.page.userAgent : window.navigator.userAgent,
+    }),
     build: config.build,
     token: () => auth.accessToken(),
     refresh: async () => {

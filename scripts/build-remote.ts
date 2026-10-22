@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SERVER_HOST_SETTING, screensApiUrl, type ServerHostSetting } from '../server/core/serverHost.ts';
+import { PAGE_HOSTS, SERVER_HOST_SETTING, onWorker, screensApiUrl, type ServerHostSetting } from '../server/core/serverHost.ts';
 
 /**
  * The real screens: npm run build:remote -- <test|production>, or npm run dev:remote -- <test|production>.
@@ -34,11 +34,16 @@ export function parsePublicEnv(text: string): Record<string, string> {
  */
 export function remotePublicEnv(target: RemoteEnv, text: string, o: { dev?: boolean; setting?: ServerHostSetting } = {}): Record<string, string> {
   const env = parsePublicEnv(text);
-  for (const name of ['VITE_API_URL', 'VITE_MADAR_AUTH', 'VITE_MADAR_LIVE'] as const) {
+  for (const name of ['VITE_API_URL', 'VITE_API_PAGE_HOSTS', 'VITE_MADAR_AUTH', 'VITE_MADAR_LIVE'] as const) {
     if (env[name] !== undefined) throw new Error(`config/remote.${target}.env must not set ${name}: config/server-host.json decides it (scripts/build-remote.ts).`);
   }
   const host = o.dev ? 'supabase' : (o.setting ?? SERVER_HOST_SETTING)[target];
   env.VITE_API_URL = screensApiUrl(target, host);
+  // The api function is the host (the dev server too): WebKit browsers send their calls through the page's own /api, which needs no
+  // CORS preflight (DF-12, LV-6; src/api/remote/pageApi.ts). Only the page hosts of this copy serve /api, and Vite has no Pages Function.
+  if (!onWorker(host) && !o.dev) {
+    env.VITE_API_PAGE_HOSTS = Object.keys(PAGE_HOSTS).filter((name) => PAGE_HOSTS[name] === target).join(',');
+  }
   // An office copy signs in with Madar and gets its live updates from the office object (exit waves 2 and 3).
   if (host === 'office') {
     env.VITE_MADAR_AUTH = 'madar';

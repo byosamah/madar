@@ -12,6 +12,8 @@ interface ImportMetaEnv {
   readonly VITE_API_URL?: string;
   /** The build ID (scripts/build-remote.ts): the UTC day of the build, sent as X-Madar-Build. */
   readonly VITE_MADAR_BUILD?: string;
+  /** The page hosts that serve /api, comma separated (build-remote.ts). WebKit browsers send their calls there (api/remote/pageApi.ts). */
+  readonly VITE_API_PAGE_HOSTS?: string;
   /**
    * The live updates (exit wave 3): 'socket' for the office object, else Supabase Realtime. No build sets it yet. A build with
    * VITE_MADAR_AUTH=madar opens the socket in any case (liveKindOf, src/app/remote/bootstrap.ts).
