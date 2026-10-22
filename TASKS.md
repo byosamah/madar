@@ -1049,3 +1049,14 @@ Plan and answers: memory and the two design files below. fbk_039 (12-hour clock)
 - [x] `makeThumb` (owner: "add it to Batch B", 2026-10-22): a file over 2 MB decodes straight to 960 px wide (`rb/thumb`, d501f03b, joins
   Batch B). The small picture still comes before the upload: the server signs its upload by its size, so starting both at once needs a
   server change (not done). What's new 92; entry 91 moved to the top.
+
+## fbk_049 and the What's new dates (owner, 2026-10-22)
+- [x] fbk_049 (Faisal): the Settings section is "When Madar notifies you" (switch "Notify me only in my work hours", "My work days"), one
+  live line says when Madar is quiet, a day the office keeps on looks picked with a small lock (the faded look read as "off"), and the
+  built-in office hours and lock are Sunday to Thursday 8:00 AM to 5:00 PM (the morning summary at 8:00). What's new 96.
+- [x] What's new dates (owner: "add in whats new the date of each release when it released"): `day` of each of the 75 entries is the
+  day its production release went live (Cloudflare production deploys and the release record commits: 19, 20, 21 and 22 October); a
+  test refuses a future day or a day out of order. Guides: `src/CLAUDE.md`, `scripts/deploy/CLAUDE.md`.
+- [x] Gates: typecheck; npm test 10,311 passed (17 timing tests in 8 files failed under a load average of 25 to 39 from another program,
+  224 of 224 alone); test:db 3,178; test:it 333; screenshots EN and AR, light and dark, 390 px, and the What's new page with 4 dates.
+- [ ] Note: an office that already saved Work hours in Admin keeps its saved hours; the 8 to 5 default applies only where none is saved.
