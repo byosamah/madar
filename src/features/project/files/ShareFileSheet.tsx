@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import type { FileView, ProjectDetail } from '../../../api/contract/views';
 import { useByPersonName, usePersonName } from '../../../app/personName';
 import { useAction, useCall } from '../../../app/runtime';
@@ -33,6 +33,7 @@ export function ShareFileSheet({ view, projectId, projectName, viewerCan, onClos
   const byName = useByPersonName();
   const toast = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const session = useCall('session.get', {});
   const users = useCall('users.list', {});
   const tasks = useCall('tasks.list', { projectId, activeProjectsOnly: false });
@@ -51,8 +52,10 @@ export function ShareFileSheet({ view, projectId, projectName, viewerCan, onClos
         : place.kind === 'person'
           ? t('files.sharedPerson', { name: ((found) => (found ? nameOf(found) : ''))(people.find((person) => person.id === userId)) })
           : t('files.sharedTask', { title: tasks.data?.find((row) => row.task.id === place.id)?.task.title ?? '' });
+      // A chat opens full screen on a phone. Back returns to the screen that opened it (phone D, lead amendment 6).
+      const from = location.pathname + location.search;
       const to = place.kind === 'task' ? taskLink(projectId, place.id, true) : `/inbox/${place.id}`;
-      toast.show({ message, action: { label: t('files.sharedOpen'), run: () => navigate(to), isUndo: false } });
+      toast.show({ message, action: { label: t('files.sharedOpen'), run: () => navigate(to, place.kind === 'task' ? undefined : { state: { from } }), isUndo: false } });
       onClose();
     },
   });

@@ -28,6 +28,16 @@ describe('the toast after a file is shared', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe(`/inbox/${room?.id}`));
   });
 
+  it('sends the opener with the chat link, so Back returns to the Files tab (phone D, lead amendment 6)', async () => {
+    const { router } = await renderApp(FILES, as('usr_002'));
+    const sheet = await openShare();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Share' }));
+    await screen.findByText('Shared in the Corniche Office Tower chat.');
+    await userEvent.click(screen.getByRole('button', { name: 'Open' }));
+    await waitFor(() => expect(router.state.location.pathname).toMatch(/^\/inbox\//));
+    expect(router.state.location.state).toEqual({ from: '/projects/prj_001?tab=files' });
+  });
+
   it('names the person and opens the chat with them', async () => {
     const { store, router } = await renderApp(FILES, as('usr_002'));
     const sheet = await openShare();
