@@ -135,4 +135,54 @@ describe('the screen loaders (performance audit BND-1)', () => {
     expect(asked).toEqual(['one', 'two', 'three']);
     expect(cache.screenFor('two')).toBeUndefined();
   });
+
+  // Prefetch follow-up 2026-10-22: a few imports at once, never the whole queue, and a press on a tab never waits behind the queue.
+  it('runs at most the given number of imports at once, in the order of the list, and starts the next one when one ends', async () => {
+    const started: string[] = [];
+    const finish = new Map<string, () => void>();
+    const loaders = Object.fromEntries(
+      ['a', 'b', 'c', 'd', 'e'].map((name) => [name, () => new Promise<ComponentType>((resolve) => { started.push(name); finish.set(name, () => resolve(One)); })]),
+    ) as Record<'a' | 'b' | 'c' | 'd' | 'e', () => Promise<ComponentType>>;
+    const cache = screenCache(loaders);
+    cache.prefetchScreens(undefined, (run) => run(), undefined, { limit: 3 });
+    expect(started).toEqual(['a', 'b', 'c']);
+    finish.get('b')?.();
+    await vi.waitFor(() => expect(started).toEqual(['a', 'b', 'c', 'd']));
+    finish.get('a')?.();
+    await vi.waitFor(() => expect(started).toEqual(['a', 'b', 'c', 'd', 'e']));
+    for (const name of ['c', 'd', 'e']) finish.get(name)?.();
+    await vi.waitFor(() => expect(cache.screenFor('e')).toBe(One));
+  });
+
+  it('keeps one import at a time when no limit is given', () => {
+    const started: string[] = [];
+    const cache = screenCache({
+      a: () => new Promise<ComponentType>(() => { started.push('a'); }),
+      b: () => new Promise<ComponentType>(() => { started.push('b'); }),
+    });
+    cache.prefetchScreens(undefined, (run) => run());
+    expect(started).toEqual(['a']);
+  });
+
+  it('loads a screen that a person opens first at once, behind no queue, and the queue does not import it again', async () => {
+    const started: string[] = [];
+    const finish = new Map<string, () => void>();
+    const loaders = Object.fromEntries(
+      ['a', 'b', 'c', 'd'].map((name) => [name, () => new Promise<ComponentType>((resolve) => { started.push(name); finish.set(name, () => resolve(One)); })]),
+    ) as Record<'a' | 'b' | 'c' | 'd', () => Promise<ComponentType>>;
+    const cache = screenCache(loaders);
+    cache.prefetchScreens(undefined, (run) => run(), undefined, { limit: 2 });
+    expect(started).toEqual(['a', 'b']);
+    // The person presses a tab of a screen that waits at the end of the queue: its import starts now.
+    const opened = cache.loadForNavigation('d', page());
+    expect(started).toEqual(['a', 'b', 'd']);
+    finish.get('d')?.();
+    await opened;
+    finish.get('a')?.();
+    finish.get('b')?.();
+    await vi.waitFor(() => expect(started).toEqual(['a', 'b', 'd', 'c']));
+    finish.get('c')?.();
+    await vi.waitFor(() => expect(cache.screenFor('c')).toBe(One));
+    expect(started.filter((name) => name === 'd')).toHaveLength(1);
+  });
 });

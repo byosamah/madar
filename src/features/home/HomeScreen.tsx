@@ -151,11 +151,15 @@ export function HomeScreen() {
       window.clearTimeout(timer);
     };
   }, [queryClient]);
-  // The task panel loads in its own chunk (FL-1): start it 1 s after Home shows, so a press on a task finds it loaded.
+  // The task panel loads in its own chunk (FL-1): start it 1 s after Home shows its fresh data, so a press on a task finds it loaded.
+  // It waits for the answers (speed follow-up 2026-10-22): a start at the mount sent 21 files on the line of the first request. A stored
+  // answer of the Home cache does not count: its read is still on its way (`isFetching`).
+  const fresh = Boolean(session.data && mine.data && review.data) && !session.isFetching && !mine.isFetching && !review.isFetching;
   useEffect(() => {
+    if (!fresh) return;
     const timer = window.setTimeout(warmTaskSheet, 1000);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [fresh]);
   const failed = [session, mine, review].find((query) => query.error);
   if (failed) return <LoadFailed error={failed.error} onRetry={() => void failed.refetch()} />;
   if (!session.data?.user || !mine.data || !review.data) return null;

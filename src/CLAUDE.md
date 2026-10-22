@@ -17,8 +17,15 @@ any screen work.
 - The remote build splits each screen into its own chunk (performance audit BND-1). `app/screenLoaders.ts` holds one loader
   for each screen, and `app/screens.ts` the module cache. A route in `app/routes.tsx` names its screen and never imports a
   screen file. The frame, the sign-in gate, Home and the error pages stay in the first script. `main.tsx` loads the screens of
-  the first address (plus Sign in when no session is stored) before it makes the router, then the others one at a time at
-  idle. The idle step skips the five sign-in screens when a session is stored, and Admin when the cached `session.get` cannot open
+  the first address (plus Sign in when no session is stored) before it makes the router. The other screens follow only after the first
+  screen shows its data (`app/idlePrefetch.ts`, follow-up 2026-10-22): the start is one idle step and `PREFETCH_GAP_MS` (1 s) after the first
+  fresh answer of the page (data or error, never an answer that the Home cache stored) with no read on its way; a sign-in screen with no reads
+  starts the same way after its render; `PREFETCH_SAFETY_MS` (10 s) after the call starts it anyway, so it always runs once. It runs
+  `PREFETCH_AT_ONCE` (3) imports side by side (`prefetchScreens(list, idle, skip, { limit })` in `app/screens.ts`), in the order of
+  `prefetchOrder()` (Projects, the project page, Tasks, Inbox, Dashboard, then the rest). A screen that a person opens first loads at once through
+  `loadScreen`, and the queue passes it. `warmAtIdle` starts in the same step. Before, it started at the first render and sent 66 chunk requests
+  (446 KB) before the first Home rows; the lab (Pixel 5, 4G, CPU 4x, local build) now sends 2 (35 KB, the word files). The idle step skips the five sign-in
+  screens when a session is stored, and Admin when the cached `session.get` cannot open
   it (`app/prefetchRules.ts`, FL-8 2026-10-21); a skipped screen loads at its first use. A failed import at a screen change reloads the page once (session mark `madar.screenReload`). A new screen needs a
   loader in both `screenLoaders.ts` and `screenLoaders.static.ts` (the prototype takes the plain imports through an alias in
   `vite.config.ts`, so its one file stays small; `screenLoaders.test.ts` keeps the lists the same).
@@ -271,7 +278,7 @@ any screen work.
   (`app/overlays.tsx`). `warm()` keeps the loaded component in a module variable: a part that mounts after it renders with no Suspense
   step (a plain `React.lazy` adds about 500 ms to the first press), and a part that mounts before it keeps `React.lazy` for its whole
   life, so the chunk never remounts it. `useOnceOn` mounts a sheet at its first use and keeps it, so the closing animation stays. Home
-  warms the panel 1 s after it mounts, `main.tsx` warms it at once for `/?task=`, and `warmAtIdle` warms the three shell parts. A failed
+  warms the panel 1 s after its three first reads answered (not after the mount, and a stored Home answer does not count; `HomeWarm.test.tsx`), `main.tsx` warms it at once for `/?task=`, and `warmAtIdle` warms the three shell parts after the first data (`app/idlePrefetch.ts`). A failed
   import at the first use reloads the page once (`reloadOnFailedImport` in `app/screens.ts`). Never import these four files statically
   from the shell, Home or `AuthGate`: `app/firstLoadImports.test.ts` and the bundle rules of `check-bundles.ts` fail on it.
 - `useLang` (`app/lang.ts`) reads the language with `useSyncExternalStore` over the one i18next instance and its

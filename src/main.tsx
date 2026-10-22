@@ -18,6 +18,7 @@ import { hasStoredSession } from './app/remote/authMode';
 import { startHomeCache } from './app/remote/homeCache';
 import { watchInstall } from './app/remote/install';
 import { createAppRouter, screensAt } from './app/routes';
+import { PREFETCH_AT_ONCE, prefetchOrder, startIdlePrefetch } from './app/idlePrefetch';
 import { warmAtIdle, warmForAddress } from './app/overlays';
 import { prefetchSkip } from './app/prefetchRules';
 import { RuntimeProvider, createQueryClient, type Runtime } from './app/runtime';
@@ -97,12 +98,24 @@ async function main(): Promise<void> {
   // (`withWords`). The prototype holds both languages in its one script file, so it loads at once as before.
   if (REMOTE) loadOtherLanguageLater({ queryClient, language });
   else void loadWords(language === 'ar' ? 'en' : 'ar').catch(() => undefined);
-  // The other screens load one at a time at idle, so a later screen change waits for no chunk (remote build only).
+  // The other screens load after the first screen shows its data, a few at a time (speed follow-up 2026-10-22), so they never share the line
+  // with the first answer and the words (remote build only). The safety start in `startIdlePrefetch` makes sure that the prefetch runs once.
   if (REMOTE) {
-    // The sign-in screens stay out for a stored session, and Admin for a person who cannot open it (performance audit 2026-10-21, FL-8).
-    prefetchScreens(undefined, undefined, prefetchSkip({ storedSession: storedSession(), session: () => queryClient.getQueryData(['api', 'session.get', {}]) }));
-    // The task panel, Focus mode, the feedback sheet and the sheet of an ended session load in their own chunks (FL-1, FL-4).
-    warmAtIdle();
+    startIdlePrefetch({
+      queryClient,
+      signedOut: runtime.auth?.status() === 'signed_out',
+      start: () => {
+        // The sign-in screens stay out for a stored session, and Admin for a person who cannot open it (performance audit 2026-10-21, FL-8).
+        prefetchScreens(
+          prefetchOrder(),
+          undefined,
+          prefetchSkip({ storedSession: storedSession(), session: () => queryClient.getQueryData(['api', 'session.get', {}]) }),
+          { limit: PREFETCH_AT_ONCE },
+        );
+        // The task panel, Focus mode, the feedback sheet and the sheet of an ended session load in their own chunks (FL-1, FL-4).
+        warmAtIdle();
+      },
+    });
   }
 }
 
