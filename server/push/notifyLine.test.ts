@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RunCall } from '../core/runCall';
 import { memoryMailDb } from '../mail/memoryMailDb';
 import { fakeDeps } from '../test/fakes/deps';
+import { QUIET_SQL } from '../core/quiet';
 import { PUSH_DEVICES_SQL, PUSH_GONE_SQL, PUSH_SENT_SQL, PUSH_STILL_NEW_SQL, sendChatPush, sendPushNotify } from './notify';
 import { base64url, makeVapidKeys, type VapidConfig } from './vapid';
 
@@ -80,6 +81,7 @@ describe('the push line in the push effects (owner, 2026-10-21)', () => {
 
   function setup(devices: { endpoint: string; keys: { p256dh: string; auth: string } | null }[], stillNew: string[] = []) {
     const mem = memoryMailDb((text) => {
+      if (text === QUIET_SQL) return [{ person: null, office: null }];
       if (text === PUSH_STILL_NEW_SQL) return stillNew.map((item_id) => ({ item_id }));
       if (text === PUSH_DEVICES_SQL) return devices;
       if (text === PUSH_SENT_SQL || text === PUSH_GONE_SQL) return [];

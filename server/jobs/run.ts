@@ -3,6 +3,7 @@ import { cleanup } from './steps/cleanup';
 import { heartbeat } from './steps/heartbeat';
 import { meetings } from './steps/meetings';
 import { outboxRetry } from './steps/outbox';
+import { quietEnd } from './steps/quietEnd';
 import { summary } from './steps/summary';
 import { triggers } from './steps/triggers';
 import { uploads } from './steps/uploads';
@@ -14,7 +15,8 @@ import { uploads } from './steps/uploads';
  *   heartbeat   the job_runs row "heartbeat" (the health check of the office object reads the last run)
  *   triggers    the due, overdue and restart reminders under the office lock, with their notice mail
  *   meetings    the meetings that ended: the mark and, for a project meeting, the Tracker line (meetings.settle as the organizer)
- *   summary     the morning summary at 07:30 Riyadh on a working day
+ *   summary     the morning summary at the start of the work hours of each person, on the work days of the person
+ *   quietEnd    the one push for each person whose quiet hours ended, when a push was held back (owner, 2026-10-22)
  *   outbox      the effects that did not finish after their commit
  *   cleanup     old stories, idempotency keys, office_deletes rows and rate limit windows
  *   uploads     every up/ object older than 2 hours 10 minutes, and the intent rows after 24 hours
@@ -32,6 +34,7 @@ export const JOB_STEPS: readonly JobStep[] = [
   { name: 'triggers', run: triggers },
   { name: 'meetings', run: meetings },
   { name: 'summary', run: summary },
+  { name: 'quietEnd', run: quietEnd },
   { name: 'outbox', run: (deps) => outboxRetry(deps) },
   { name: 'cleanup', run: cleanup },
   { name: 'uploads', run: uploads },

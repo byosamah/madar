@@ -6,6 +6,7 @@ import { processOutbox } from '../core/effects';
 import { createRunCall, runCall } from '../core/runCall';
 import type { RunResult } from '../core/types';
 import { PUSH_CHAT_EFFECT, PUSH_DEVICES_SQL, PUSH_EFFECT } from '../push/notify';
+import { releaseHeld } from '../push/held';
 import { makeVapidKeys } from '../push/vapid';
 // It registers the push effect and the push producers, as server/core/deps.ts does for the entries.
 import '../push/effects';
@@ -190,6 +191,34 @@ describe('browser push on the local database, as madar_server', () => {
     expect(pushedTo()).toEqual([endpointOf(b.id), endpointOf(c.id)].sort());
     expect(pushedTo()).not.toContain(endpointOf(a.id));
     if (outsider) expect(pushedTo()).not.toContain(endpointOf(outsider.id));
+  });
+
+  // Quiet hours (owner, 2026-10-22, fbk_048): the SQL of QUIET_SQL, PUSH_HOLD_SQL, HELD_PEOPLE_SQL and PUSH_RELEASE_SQL on Postgres.
+  it('holds a push in quiet hours, marks the devices, ends the row as done, and sends ONE fixed push when the quiet hours end', async () => {
+    const [sara] = members;
+    await register(sara.id, endpointOf('sara-a'));
+    await register(sara.id, endpointOf('sara-b'));
+    // 22:00 in Riyadh on a Sunday: outside the default work hours.
+    deps.clock.set(new Date('2026-10-04T19:00:00Z'));
+    try {
+      okOf(await call(leader, 'tasks.create', { projectId: project.id, title: 'A task', ownerId: sara.id }));
+      expect(posted).toEqual([]);
+      expect(await outboxOf()).toEqual([{ payload: { userId: sara.id }, done: true, error: null }]);
+      const marks = await office.sql<{ held: string | null }>("select doc->>'heldAt' as held from push_devices where user_id = $1", [sara.id]);
+      expect(marks.map((row) => row.held !== null)).toEqual([true, true]);
+      // Still quiet: the step sends nothing and keeps the marks.
+      const quiet = await releaseHeld(deps, deps.clock.now());
+      expect(quiet).toMatchObject({ pushed: 0, cleared: 0 });
+      // The next Monday at 09:00 the quiet hours are over. The task is unread, so each device gets one empty push.
+      deps.clock.set(new Date('2026-10-05T06:00:00Z'));
+      const end = await releaseHeld(deps, deps.clock.now());
+      expect(end).toMatchObject({ pushed: 1, cleared: 1 });
+      expect(pushedTo()).toEqual([endpointOf('sara-a'), endpointOf('sara-b')]);
+      for (const { init } of posted) expect(init.body ?? null).toBeNull();
+      expect(await office.sql("select 1 from push_devices where doc ? 'heldAt'")).toEqual([]);
+    } finally {
+      deps.clock.set(NOW);
+    }
   });
 
   it('writes no push row for a person with no device', async () => {

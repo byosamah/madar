@@ -7,6 +7,7 @@ import {
   PUSH_CHAT_EFFECT, PUSH_DEVICES_SQL, PUSH_EFFECT, PUSH_FACTS_SQL, PUSH_GONE_SQL, PUSH_ITEMS_SQL, PUSH_LEVELS_SQL, PUSH_NEW_NOTICES_SQL, PUSH_PEOPLE_SQL, PUSH_SENT_SQL,
   PUSH_STILL_NEW_SQL, pushRows, sendChatPush, sendPushNotify,
 } from './notify';
+import { QUIET_SQL } from '../core/quiet';
 import { PUSH_FREE_CALLS, registerPushEffects } from './register';
 import { makeVapidKeys, type VapidConfig } from './vapid';
 
@@ -277,6 +278,7 @@ describe('sendPushNotify: the push of one person', () => {
     const devices = o.devices ?? [device(1)];
     const writes: { text: string; values: unknown[] }[] = [];
     const mem = memoryMailDb((text, values) => {
+      if (text === QUIET_SQL) return [{ person: null, office: null }];
       if (text === PUSH_DEVICES_SQL) return values[0] === 'usr_002' ? devices.map((endpoint) => ({ endpoint })) : [];
       if (text === PUSH_SENT_SQL || text === PUSH_GONE_SQL) {
         writes.push({ text, values });
@@ -373,6 +375,7 @@ describe('sendChatPush: the push after the wait (item 20)', () => {
     const asked: { text: string; values: unknown[] }[] = [];
     const mem = memoryMailDb((text, values) => {
       asked.push({ text, values });
+      if (text === QUIET_SQL) return [{ person: null, office: null }];
       if (text === PUSH_STILL_NEW_SQL) return (o.stillNew ?? []).map((item_id) => ({ item_id }));
       if (text === PUSH_DEVICES_SQL) return (o.devices ?? [device(1)]).map((endpoint) => ({ endpoint }));
       if (text === PUSH_SENT_SQL || text === PUSH_GONE_SQL) return [];

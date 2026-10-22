@@ -65,7 +65,8 @@ export const pushRegister = defineCall({
       device = { ...known, label: input.label };
     } else if (known) {
       // A shared browser: the endpoint moves to the current person, and the history of pushes starts again.
-      device = { ...known, userId, label: input.label, createdAt: ctx.stamp, lastPushAt: null };
+      const { heldAt: _old, ...rest } = known;
+      device = { ...rest, userId, label: input.label, createdAt: ctx.stamp, lastPushAt: null };
     } else {
       device = { id: nextId(ctx.state, 'pdv'), userId, endpoint: input.endpoint, label: input.label, createdAt: ctx.stamp, lastPushAt: null };
     }

@@ -34,6 +34,8 @@ async function office(edit: (seed: State) => void = () => undefined) {
   edit(seed);
   await lite.db.tx('write', (q) => liteWriteState(q, seed));
   const deps = fakeDeps({ db: lite.db, config: { push: vapid } });
+  // 11:00 in Riyadh on a Monday: inside the default work hours, so quiet hours hold nothing back.
+  deps.clock.set(new Date('2026-10-19T08:00:00Z'));
   const posts: string[] = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     posts.push(url);

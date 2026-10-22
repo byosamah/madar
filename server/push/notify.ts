@@ -1,5 +1,6 @@
 import type { PushKeys } from '../../src/api/contract/entities';
 import { nowStamp } from '../../src/lib/dates';
+import { isQuietNow } from '../core/quiet';
 import { isLite } from '../data/dialect';
 import type { OutboxRow } from '../core/effects';
 import type { Deps, Query } from '../core/ports';
@@ -29,6 +30,9 @@ import { PushConfigError } from './vapid';
  * - A device that the push service calls gone (404, 410) is removed. A device that took the push gets lastPushAt. A 429, a 5xx or
  *   a network error throws after the other devices were handled, so the outbox tries the row again. A retry posts to every device
  *   of the person again; the tag of the notification (madar-new) makes the browser show one line only.
+ * - Quiet hours (owner, 2026-10-22, fbk_048): both effects ask isQuietNow (server/core/quiet.ts) at send time. A person in quiet hours gets no
+ *   push: the effect marks the devices of the person held (heldAt) and ends as done. The job step held.ts sends ONE push when the quiet
+ *   hours are over, and clears the mark.
  * - This is the one effect that writes a State table outside runCall. It touches push_devices only: private rows with no event,
  *   no chg, no signal. Every other write of a record goes through runCall.
  */
@@ -66,18 +70,32 @@ from push_devices d join users u on u.id = d.user_id
 where d.user_id = $1 and u.kind = 'human' and u.active
 order by d.ord`;
 
-/** $1 the endpoints that took the push, $2 the stamp. */
-export const PUSH_SENT_SQL = "update push_devices set doc = jsonb_set(doc, '{lastPushAt}', to_jsonb($2::text)) where endpoint = any($1::text[])";
+/**
+ * $1 the endpoints that took the push, $2 the stamp. A device that took a push holds nothing back any more (quiet hours, owner
+ * 2026-10-22): the mark "heldAt" goes, so the job step of the quiet end sends it nothing more.
+ */
+export const PUSH_SENT_SQL = "update push_devices set doc = jsonb_set(doc, '{lastPushAt}', to_jsonb($2::text)) - 'heldAt' where endpoint = any($1::text[])";
+
+/**
+ * Quiet hours (owner, 2026-10-22, fbk_048). $1 the person, $2 the stamp. A push for a person in quiet hours is not sent: the effect marks
+ * the devices of the person as held, once, and ends. The job step of the quiet end (held.ts) sends ONE push when the quiet hours are over.
+ * The mark is a private field of the device row: no event, no chg, no signal.
+ */
+export const PUSH_HOLD_SQL = "update push_devices set doc = jsonb_set(doc, '{heldAt}', to_jsonb($2::text)) where user_id = $1 and doc->>'heldAt' is null";
+/** $1 the person. The devices of the person hold nothing back any more. */
+export const PUSH_RELEASE_SQL = "update push_devices set doc = doc - 'heldAt' where user_id = $1 and doc->>'heldAt' is not null";
 
 /** $1 the endpoints that the push service calls gone. */
 export const PUSH_GONE_SQL = 'delete from push_devices where endpoint = any($1::text[])';
 
 // SQLite forms (exit wave 3). The person of a device is read from the users doc; a list of endpoints goes one statement each.
 export const PUSH_DEVICES_LITE = "select d.rowid as ord, d.endpoint as endpoint, json_extract(d.doc, '$.keys') as keys, u.doc as doc from push_devices d join users u on u.id = d.user_id where d.user_id = ?1";
-export const PUSH_SENT_LITE = "update push_devices set doc = json_set(doc, '$.lastPushAt', ?2) where endpoint = ?1";
+export const PUSH_SENT_LITE = "update push_devices set doc = json_remove(json_set(doc, '$.lastPushAt', ?2), '$.heldAt') where endpoint = ?1";
+export const PUSH_HOLD_LITE = "update push_devices set doc = json_set(doc, '$.heldAt', ?2) where user_id = ?1 and json_extract(doc, '$.heldAt') is null";
+export const PUSH_RELEASE_LITE = "update push_devices set doc = json_remove(doc, '$.heldAt') where user_id = ?1 and json_extract(doc, '$.heldAt') is not null";
 export const PUSH_GONE_LITE = 'delete from push_devices where endpoint = ?1';
 
-type Device = { endpoint: string; keys: PushKeys | null };
+export type Device = { endpoint: string; keys: PushKeys | null };
 
 /** The keys of a device as the database gives them: an object (jsonb), JSON text (SQLite), or nothing. */
 function keysOf(value: unknown): PushKeys | null {
@@ -88,7 +106,7 @@ function keysOf(value: unknown): PushKeys | null {
 }
 
 /** The push addresses of an active human, with their keys, oldest device first, on both databases. */
-async function devicesOf(deps: Deps, userId: string): Promise<Device[]> {
+export async function devicesOf(deps: Deps, userId: string): Promise<Device[]> {
   if (!isLite(deps.db)) {
     const rows = await deps.db.statement<{ endpoint: string; keys?: unknown }>('write', PUSH_DEVICES_SQL, [userId]);
     return rows.map((row) => ({ endpoint: row.endpoint, keys: keysOf(row.keys) }));
@@ -161,6 +179,17 @@ async function stillNewItems(deps: Deps, userId: string, items: ChatPushItem[]):
   return fresh.sort();
 }
 
+/** Marks the devices of a person as held (PUSH_HOLD_SQL), on both databases. */
+async function holdDevices(deps: Deps, userId: string): Promise<void> {
+  const stamp = nowStamp(deps.clock.now());
+  await deps.db.statement('write', isLite(deps.db) ? PUSH_HOLD_LITE : PUSH_HOLD_SQL, [userId, stamp]);
+}
+
+/** Gives back the devices of a person: they hold nothing any more (PUSH_RELEASE_SQL), on both databases. */
+export async function releaseDevices(deps: Deps, userId: string): Promise<void> {
+  await deps.db.statement('write', isLite(deps.db) ? PUSH_RELEASE_LITE : PUSH_RELEASE_SQL, [userId]);
+}
+
 /**
  * The push.chat effect (chat design item 20): it runs 10 seconds after the answer (WAITED_KINDS), asks which items the person has
  * not read on any device and which are not deleted, and sends the one empty push only when one is left.
@@ -171,6 +200,8 @@ export async function sendChatPush(payload: Record<string, unknown>, deps: Deps,
   if (items.length === 0) return;
   const fresh = await stillNewItems(deps, userId, items);
   if (fresh.length === 0) return;
+  // Quiet hours (owner, 2026-10-22): asked at send time, after the wait. A person in quiet hours gets no push now, and the row ends as done.
+  if (await isQuietNow(deps.db, userId, deps.clock.now())) return holdDevices(deps, userId);
   // The line shows the chat of the newest item that is still new.
   const newest = [...items].reverse().find((item) => fresh.includes(item.itemId));
   const devices = await devicesOf(deps, userId);
@@ -182,6 +213,8 @@ export async function sendChatPush(payload: Record<string, unknown>, deps: Deps,
 /** The push.notify effect: one push to each device of one person, with the line of the newest unread notice. */
 export async function sendPushNotify(payload: Record<string, unknown>, deps: Deps, o: LineOptions = {}): Promise<void> {
   const userId = String(payload.userId ?? '');
+  // Quiet hours (owner, 2026-10-22): a person in quiet hours gets no push now, and the row ends as done. The bell keeps the notice.
+  if (await isQuietNow(deps.db, userId, deps.clock.now())) return holdDevices(deps, userId);
   // The primary, never a read copy: the effect runs right after the commit that wrote the notice or the device.
   const devices = await devicesOf(deps, userId);
   if (devices.length === 0) return;
@@ -189,7 +222,7 @@ export async function sendPushNotify(payload: Record<string, unknown>, deps: Dep
 }
 
 /** One push to each device: the encrypted line where the device has keys, else the empty push. */
-async function postToDevices(deps: Deps, devices: Device[], line: PushLine | null): Promise<void> {
+export async function postToDevices(deps: Deps, devices: Device[], line: PushLine | null): Promise<void> {
   const config = deps.config.push;
   const sent: string[] = [];
   const gone: string[] = [];

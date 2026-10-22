@@ -11,7 +11,7 @@ const AT = new Date('2026-10-04T06:00:00Z');
 
 describe('runJob (plan 5.5)', () => {
   it('runs the heartbeat, the triggers, the meetings settle, the summary, the outbox retry, the cleanup, and the uploads, in that order', () => {
-    expect(JOB_STEPS.map((step) => step.name)).toEqual(['heartbeat', 'triggers', 'meetings', 'summary', 'outbox', 'cleanup', 'uploads']);
+    expect(JOB_STEPS.map((step) => step.name)).toEqual(['heartbeat', 'triggers', 'meetings', 'summary', 'quietEnd', 'outbox', 'cleanup', 'uploads']);
   });
 
   it('gives every step the same time and reports each result', async () => {

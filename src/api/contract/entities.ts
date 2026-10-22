@@ -652,6 +652,8 @@ export const PushDevice = z.object({
   lastPushAt: Stamp.nullable(),
   /** Missing on a device saved before 2026-10-21: it gets the empty push (the fixed line) until its browser sends the keys. */
   keys: PushKeys.optional(),
+  /** Quiet hours (owner, 2026-10-22): the time of a push that the server held back. Set and cleared by the push effects. Optional. */
+  heldAt: Stamp.optional(),
 });
 export type PushDevice = z.infer<typeof PushDevice>;
 

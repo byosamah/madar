@@ -51,6 +51,21 @@ message from a notice, and the server cannot know that a window is open. The fix
 - Tests: `src/app/remote/serviceWorker.test.ts` (user agents of Chrome, Edge, Firefox, Android, Safari on a Mac and an iPhone, Chrome and Firefox
   on an iPhone; windows in front, hidden, without focus; a failed list of windows).
 
+## Quiet hours (owner, 2026-10-22, fbk_048)
+A person sets work days and one time range (Settings, "Quiet hours"). Outside it Madar is quiet for that person: no push and no email. The bell and
+the Inbox still collect everything. The rule is one pure function, `isQuiet` (`src/lib/quietHours.ts`, Riyadh time). The office sets the default range
+and the lock (Sunday to Thursday, 9 AM to 5 PM, on by default): nobody is quiet inside the lock.
+- Both effects (`sendPushNotify`, `sendChatPush`) ask `isQuietNow` (`server/core/quiet.ts`, one statement, the primary) at send time. `sendChatPush` asks
+  after the 10-second wait and after the still-new test. A quiet person gets no post: the effect marks the devices `heldAt` (`PUSH_HOLD_SQL`, once; a
+  private field of the device row, so no event, no chg, no signal) and the row ends as done, with no retry.
+- The job step `quietEnd` (`jobs/steps/quietEnd.ts`, `held.ts`) runs after `summary`. For each person with a held device who is no longer quiet it
+  sends ONE empty push (the fixed line) to each device, then clears `heldAt` (`PUSH_RELEASE_SQL`). It sends nothing when the person has nothing unread
+  any more (`notifications.list` and `chats.list` as the person; a copy for an Admin does not count; a read that fails counts as unread) and still
+  clears the mark. A push service that fails keeps the mark of that device, the other people are handled, and the step throws so the next run tries again.
+- A device that takes any push loses `heldAt` (`PUSH_SENT_SQL`). `push.register` keeps the mark of the same person and drops it when the endpoint moves.
+- Both databases: `PUSH_HOLD_LITE`, `PUSH_RELEASE_LITE`, `HELD_PEOPLE_LITE`, `QUIET_LITE`. Tests: `quietPush.test.ts` (a real SQLite office),
+  `server/it/push.it.test.ts` (Postgres, Docker).
+
 ## Files
 - `vapid.ts`: the ES256 token (RFC 8292) with WebCrypto only, so it runs on Deno Edge Functions and on Workers. No Node API and
   no package. `vapidConfigOf` reads the three secrets. `makeVapidKeys` makes a pair.
