@@ -34,6 +34,20 @@ describe('the More tab of a project on a phone (phone D, P2)', () => {
     expect(await screen.findAllByRole('link', { name: /^Team/ })).not.toHaveLength(0);
   });
 
+  it.each([['en', 'Activity', 'ltr'], ['ar', 'النشاط', 'rtl']])('slides a sub-page in by no more than the 16 px gutter, so the page never scrolls sideways (%s)', async (lang, title) => {
+    phoneMedia(true);
+    await renderApp('/projects/prj_001?tab=activity', (state) => {
+      as('usr_002')(state);
+      state.users.usr_002.preferences.language = lang as 'en' | 'ar';
+    });
+    const heading = await screen.findByRole('heading', { level: 2, name: title });
+    const slider = heading.parentElement!.parentElement as HTMLElement;
+    // The page has a 16 px gutter on each side. A start offset of 24 px put 8 px of the page outside the screen for a few frames.
+    const offset = /translateX\((-?[\d.]+)px\)/.exec(slider.style.transform);
+    expect(offset, 'the slide has its offset in the style').not.toBeNull();
+    expect(Math.abs(Number(offset![1]))).toBeLessThanOrEqual(16);
+  });
+
   it('opens the page named in the link, also after a reload', async () => {
     phoneMedia(true);
     await renderApp('/projects/prj_001?tab=team', as('usr_002'));

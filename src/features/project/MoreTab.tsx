@@ -38,7 +38,10 @@ export function MoreTab(_props: TabProps) {
   );
 }
 
-/** One page of More: a back row to the list, the title, then the body of the tab. It slides in from the end side. */
+/**
+ * One page of More: a back row to the list, the title, then the body of the tab. It slides in from the end side, by the 16 px of the page
+ * gutter at most: a longer slide put part of the page outside the screen for a few frames, and the page scrolled sideways by 8 px.
+ */
 export function MoreSubPage({ detail, page }: TabProps & { page: MorePage }) {
   const { t } = useTranslation();
   const [params] = useSearchParams();
@@ -46,7 +49,7 @@ export function MoreSubPage({ detail, page }: TabProps & { page: MorePage }) {
   const rtl = document.documentElement.dir === 'rtl';
   return (
     <motion.div
-      initial={{ opacity: 0, x: rtl ? -24 : 24 }}
+      initial={{ opacity: 0, x: rtl ? -16 : 16 }}
       animate={{ opacity: 1, x: 0 }}
       transition={spring.standard}
       className="flex flex-col gap-4"

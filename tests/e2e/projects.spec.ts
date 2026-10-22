@@ -74,12 +74,15 @@ test('five tab words fit in 360 px in Arabic, with no sideways scroll', async ({
   await useArabic(page);
   for (const tab of PHONE_TABS) {
     await page.goto(`/#/projects/prj_001?tab=${tab}`);
-    const tabs = page.getByRole('tablist', { name: 'Project sections' }).getByRole('tab');
+    // The screen is Arabic, so the tab row has its Arabic name.
+    const tabs = page.getByRole('tablist', { name: 'أقسام المشروع' }).getByRole('tab');
     await expect(tabs).toHaveCount(5);
     for (const box of await tabs.evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().toJSON()))) {
       expect(box.left).toBeGreaterThanOrEqual(0);
       expect(box.right).toBeLessThanOrEqual(360);
     }
+    // No tab word is cut: a word that does not fit would be wider than its tab.
+    expect(await tabs.evaluateAll((nodes) => nodes.filter((node) => node.scrollWidth > node.clientWidth).length)).toBe(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
   }
 });
