@@ -9,6 +9,8 @@ import { sqlFor } from '../data/dialect';
 
 export const USERS_SQL = 'select doc from users where id = any($1::text[])';
 export const FILE_DOC_SQL = 'select doc from files where id = $1';
+/** Several files at once: the read of a run of adjacent files.link entries (SV-11). */
+export const FILES_DOCS_SQL = 'select doc from files where id = any($1::text[])';
 export const TASK_PROJECT_SQL = 'select project_id from tasks where id = $1';
 export const TASK_DOC_SQL = 'select doc from tasks where id = $1';
 export const FEEDBACK_DOC_SQL = 'select doc from feedback where id = $1';
@@ -20,6 +22,7 @@ export const SETTINGS_SQL = "select doc from settings where id = 'office'";
 // and wave 3 reads the users from the office snapshot.
 export const USERS_LITE = 'select doc from users where id in (select value from json_each(?1))';
 export const FILE_DOC_LITE = 'select doc from files where id = ?1';
+export const FILES_DOCS_LITE = 'select doc from files where id in (select value from json_each(?1))';
 export const TASK_PROJECT_LITE = 'select project_id from tasks where id = ?1';
 export const TASK_DOC_LITE = 'select doc from tasks where id = ?1';
 export const FEEDBACK_DOC_LITE = 'select doc from feedback where id = ?1';
@@ -34,6 +37,12 @@ export async function readUsers(db: Db, ids: string[]): Promise<Map<string, User
 export async function readFile(db: Db, id: string): Promise<FileRec | undefined> {
   const [row] = await db.statement<{ doc: FileRec }>('read', sqlFor(db, FILE_DOC_SQL, FILE_DOC_LITE), [id]);
   return row?.doc;
+}
+
+/** The records of several files with one statement. An id with no file is not in the map. */
+export async function readFiles(db: Db, ids: string[]): Promise<Map<string, FileRec>> {
+  const rows = await db.statement<{ doc: FileRec }>('read', sqlFor(db, FILES_DOCS_SQL, FILES_DOCS_LITE), [ids]);
+  return new Map(rows.map((row) => [row.doc.id, row.doc]));
 }
 
 /** The project of a task, or undefined when the task does not exist. */

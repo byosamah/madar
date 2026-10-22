@@ -49,7 +49,15 @@ The other host stays deployed as the way back. Each area below has its own guide
   show an old list after its own save. Adjacent `files.link` entries are the one exception: reads only, side by side.
 - A batch with a
   write calls `db.warm('write')` after the token check. Adjacent `files.link` entries run side by side, each with its own
-  error, and the answers keep their order. Every other entry runs alone, in order.
+  error, and the answers keep their order. Every other entry runs alone, in order. Before such a run of two or more, `prefetchLinkRun`
+  (`calls/files.ts`) reads the files of the whole run with one statement (`FILES_DOCS_SQL`, SV-11) into `batch.files`; `filesLink`
+  uses that record, still checks the view right per link, and `handleBatch` drops `batch.files` after the run.
+- The first read joins the sign-in (performance audit SV-5, 2026-10-21). When the first call of a batch is a plain read
+  (`joinsFirstRead` in `core/runCall.ts`: a shared read with no preflight hook), `handleBatch` opens one read transaction, reads the
+  office in it, and runs that call in it (`RunRequest.open`, `CallData.on`). One begin, one `office_meta` read and one commit go.
+  Only the first call joins, and a failed first call rolls the transaction back. A server call never joins: it opens its own
+  transactions, and a nested one is refused. `apiApp` turns the join on only with the real `runCall` and the real office read; a
+  test that replaces either passes `joinFirst` itself. The office object (`office/batch.ts`) has its own batch and no join.
 
 ## Calls
 - `core/serverCallMap.ts` holds every call the server runs: the shared calls of `src/api/sharedCalls.ts` plus the server calls.

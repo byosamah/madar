@@ -1,17 +1,17 @@
-import { MAX_FILE_BYTES, type Task } from '../../src/api/contract/entities';
+import { MAX_FILE_BYTES, type FileRec, type Task } from '../../src/api/contract/entities';
 import { forbidden, invalid, notFound } from '../../src/api/errors';
 import type { UploadPrepared } from '../../src/api/handlers/files';
 import { can, taskResource } from '../../src/api/permissions';
 import type { ServerHooks } from '../../src/api/registry';
 import type { State } from '../../src/api/store';
 import type { Deps } from '../core/ports';
-import type { ServerCall } from '../core/types';
+import type { BatchScope, Principal, ServerCall } from '../core/types';
 import { confirmThumb, confirmUpload, fileTooLarge } from '../files/confirm';
 import { projectBlobKeys, removeNowOrLater, stashProjectKeys } from '../files/effects';
 import { checkIntent, declaredType, insertIntents, intentExpiry, newUploadId, readIntents, useIntents } from '../files/intents';
 import { chatUploadKey, chatUploadThumbKey, meetingUploadKey, meetingUploadThumbKey, officeUploadKey, officeUploadThumbKey, stagingKey, stagingThumbKey, uploadKey, uploadThumbKey } from '../files/keys';
 import { isPictureType } from '../files/links';
-import { projectOfTask, readFile, readMeeting, readTask } from '../files/records';
+import { projectOfTask, readFile, readFiles, readMeeting, readTask } from '../files/records';
 import { assertMayPost, assertMayUploadToChat, assertMayUploadToMeeting, assertMayView, assertMayViewChatFile, assertMayViewMeetingFile, assertMayViewOfficeFile, authorityOf, mayViewOfficeTask } from '../files/rights';
 
 /**
@@ -99,7 +99,9 @@ export const filesLink: ServerCall<'files.link'> = async (input, ctx) => {
   const { deps, office } = ctx;
   const userId = ctx.principal.userId;
   authorityOf((id) => office.lists.users[id], userId);
-  const file = await readFile(deps.db, input.id);
+  // The record may already be in the batch: handleBatch read the files of a run of adjacent links with one statement (SV-11).
+  const held = ctx.batch.files;
+  const file = held?.has(input.id) ? held.get(input.id) : await readFile(deps.db, input.id);
   if (!file) throw notFound('File', input.id);
   // A file of a meeting with no project: the people who see that meeting, right before the signing (wave 2).
   if (file.meetingId !== undefined) assertMayViewMeetingFile(office, userId, await readMeeting(deps.db, file.meetingId), file.id);
@@ -119,6 +121,32 @@ export const filesLink: ServerCall<'files.link'> = async (input, ctx) => {
   });
   return { output: { url: link.url, expiresAt: link.expiresAt, name: file.name, mimeType: version.mimeType, size: version.size }, changed: false };
 };
+
+/** The most files that one run of links reads at once. A longer run reads the rest one by one. */
+const LINK_RUN_MAX = 200;
+
+/**
+ * handleBatch calls it before a run of adjacent files.link entries (SV-11): one statement reads the files of the whole run into
+ * batch.files, so each link finds its record and sends no read of its own. It reads nothing for a person who may not act, or when
+ * the batch holds no office, and it never throws: any miss leaves every link to read its own file, with its own error. The view
+ * right and the signing stay in filesLink, per link.
+ */
+export async function prefetchLinkRun(deps: Deps, batch: BatchScope, principal: Principal, run: { input: unknown }[]): Promise<void> {
+  const office = batch.office;
+  if (!office) return;
+  try {
+    authorityOf((id) => office.lists.users[id], principal.userId);
+    const ids = [...new Set(run.flatMap(({ input }) => {
+      const id = (input as { id?: unknown } | null)?.id;
+      return typeof id === 'string' ? [id] : [];
+    }))].slice(0, LINK_RUN_MAX);
+    if (ids.length < 2) return;
+    const found = await readFiles(deps.db, ids);
+    batch.files = new Map<string, FileRec | undefined>(ids.map((id) => [id, found.get(id)]));
+  } catch {
+    batch.files = undefined;
+  }
+}
 
 /** No projectId: an upload of the office task taskId (owner, 2026-10-06), of the chat conversationId (owner, 2026-10-19), or of the meeting meetingId (wave 2). */
 type UploadInput = { projectId?: string; uploadId: string; taskId?: string | null; conversationId?: string; meetingId?: string };

@@ -6,7 +6,7 @@ import { diffState, writeDiff } from '../data/save';
 import { tableOf } from '../data/tables';
 import { PROJECT_KEYS_SQL } from '../files/effects';
 import { INTENTS_SELECT_SQL } from '../files/intents';
-import { FEEDBACK_DOC_SQL, FILE_DOC_SQL, SETTINGS_SQL, USERS_SQL } from '../files/records';
+import { FEEDBACK_DOC_SQL, FILE_DOC_SQL, FILES_DOCS_SQL, SETTINGS_SQL, USERS_SQL } from '../files/records';
 import type { OutboxRow } from './effects';
 import type { KeyRow } from './idempotency';
 import type { Db, Query } from './ports';
@@ -206,6 +206,8 @@ export function memoryData(office: State): MemoryData {
         const doc = tables.state.files[String(values[0])];
         return (doc ? [{ doc }] : []) as R[];
       }
+      // The files of a run of adjacent files.link entries (SV-11).
+      if (text === FILES_DOCS_SQL) return (values[0] as string[]).flatMap((id) => (tables.state.files[id] ? [{ doc: tables.state.files[id] }] : [])) as R[];
       // The office settings row, which the hook of feedback.screenshot reads for the roles (role-rights).
       if (text === SETTINGS_SQL) return (tables.state.settings ? [{ doc: tables.state.settings }] : []) as R[];
       if (text === INTENTS_SELECT_SQL) return [];
@@ -214,7 +216,8 @@ export function memoryData(office: State): MemoryData {
   };
 
   return {
-    data: () => ({ tx, office: async () => officeOf() }),
+    // on: the steps of a read transaction that the caller opened (the sign-in read of a batch, SV-5): a copy of the tables, as tx makes.
+    data: () => ({ tx, on: () => txOf(structuredClone(tables)), office: async () => officeOf() }),
     db,
     get tables() {
       return tables;

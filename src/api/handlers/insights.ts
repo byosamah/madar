@@ -13,7 +13,7 @@ import { can, mayViewTask } from '../permissions';
 import { assertCan } from './shared';
 import { sentToReviewOn } from '../review';
 import { paymentsOf, subCompaniesOf, trackerOf, type State } from '../store';
-import { stageTag } from '../flow';
+import { stageTag, tasksByProject } from '../flow';
 import { cardOf, deadlinesOf, mayViewFile, stagesInTime, stagesOf, userCard } from '../views';
 import { addDays, diffDays, maxDay, stampDay, weekStartOf } from '../../lib/dates';
 import { searchWords } from '../../lib/searchMatch';
@@ -169,9 +169,15 @@ export const dashboardGet = defineCall({
     // gaps. They have no leader, client or team, so a people filter leaves them out, as in the lists the numbers open.
     const officeIn = !input.leaderId && !input.clientId && !input.teamId && !input.subCompanyId;
     const officeTasks = officeIn ? tasks.filter((t) => t.projectId === null && mayViewTask(state, actor, t)) : [];
-    const healths = active.map((p) => computeHealth({ project: p, stages: stagesOf(state, p.id), tasks: tasks.filter((t) => t.projectId === p.id) }, today));
+    // The tasks of each project are grouped once, and the stage tag of each project is worked out once (DB-3, 2026-10-21).
+    const byProject = tasksByProject(state);
+    const healths = active.map((p) => computeHealth({ project: p, stages: stagesOf(state, p.id), tasks: byProject.get(p.id) ?? [] }, today));
     // The stage of a project follows its tasks (owner, 2026-10-02), so it is computed here and never read from the saved value.
-    const tagOf = (p: Project) => stageTag(state, p.id);
+    const tags = new Map<string, ReturnType<typeof stageTag>>();
+    const tagOf = (p: Project) => {
+      if (!tags.has(p.id)) tags.set(p.id, stageTag(state, p.id, byProject.get(p.id) ?? []));
+      return tags.get(p.id) ?? null;
+    };
     const healthOf = new Map(active.flatMap((p, i) => (healths[i] ? [[p.id, healths[i].value] as const] : [])));
     const healthMix = { on_track: 0, at_risk: 0, late: 0 };
     for (const health of healths) if (health) healthMix[health.value] += 1;
@@ -198,11 +204,14 @@ export const dashboardGet = defineCall({
     }
 
     const scopedTasks = tasks.filter((t) => inScope.has(t.projectId));
+    // The day of each stamp is read once, not once for each of the 12 weeks (DB-3, 2026-10-21).
+    const createdDays = scopedTasks.map((t) => stampDay(t.createdAt));
+    const doneDays = scopedTasks.map((t) => (t.completedAt === null ? null : stampDay(t.completedAt)));
     const throughput = Array.from({ length: 12 }, (_, i) => {
       const start = addDays(weekStart, (i - 11) * 7);
       const end = addDays(start, 6);
-      const inWeek = (stamp: string | null) => stamp !== null && stampDay(stamp) >= start && stampDay(stamp) <= end;
-      return { weekStart: start, created: scopedTasks.filter((t) => inWeek(t.createdAt)).length, done: scopedTasks.filter((t) => inWeek(t.completedAt)).length };
+      const inWeek = (day: string | null) => day !== null && day >= start && day <= end;
+      return { weekStart: start, created: createdDays.filter(inWeek).length, done: doneDays.filter(inWeek).length };
     });
 
     const sent = Object.values(trackerOf(state)).filter((entry) => entry.direction === 'out' && inScope.has(entry.projectId));

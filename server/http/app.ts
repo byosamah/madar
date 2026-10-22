@@ -3,9 +3,10 @@ import { ApiError } from '../../src/api/errors';
 import { principalOf } from '../auth/principal';
 import { verifyBrowserToken } from '../auth/verify';
 import type { Deps } from '../core/ports';
-import { runCall } from '../core/runCall';
+import { joinsFirstRead, runCall } from '../core/runCall';
 import { serverCallMap } from '../core/serverCallMap';
 import { readOffice } from '../data/officeCache';
+import { prefetchLinkRun } from '../calls/files';
 import { handleBatch, type BatchOptions } from './batch';
 import { cors } from './cors';
 import { errorResponse, runErrorOf } from './errors';
@@ -25,8 +26,13 @@ export function apiApp(deps: Deps, o: AppOptions = {}): Hono {
     runCall: o.runCall ?? runCall,
     verifyToken: o.verifyToken ?? verifyBrowserToken,
     principalOf: o.principalOf ?? principalOf,
-    readOffice: o.readOffice ?? ((d) => readOffice(d)),
+    readOffice: o.readOffice ?? ((d, q) => readOffice(d, q)),
     hasWrite: o.hasWrite ?? ((name) => serverCallMap.get(name)?.readOnly === false),
+    // The first read joins the sign-in transaction only with the real runCall and the real office read (SV-5): a test that
+    // replaces either one opts in by itself.
+    joinFirst: o.joinFirst ?? (o.runCall || o.readOffice ? undefined : (name) => joinsFirstRead(name)),
+    // The same rule for the read of a run of links (SV-11).
+    prefetchRun: o.prefetchRun ?? (o.runCall || o.readOffice ? undefined : prefetchLinkRun),
   };
   const app = new Hono();
   app.use('*', cors(() => deps.config.allowedOrigins));

@@ -80,6 +80,10 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 ## Office cache
 - `officeCache.ts` keeps committed rows only, frozen, versioned by `office_meta.version`.
 - Any change to an office table raises the version, sets `chg` and records deletes in `office_deletes` (kept 7 days).
+- A write asks for the counters with the version (DB-12, 2026-10-21): `runWrite` calls `t.office({ counters: true })`, which sends
+  `META_COUNTERS_SQL` (office_meta and a json object of the counters) as the first statement after the lock, and the loader's
+  `sqlSource(q, { counters })` gives them with no statement of its own. A read keeps `META_SQL`. Never read the counters of a write
+  before the lock, and never cache them with the snapshot: a save can change a counter and leave the version as it is.
 
 ## Loaders
 - Every call needs a loader entry in `loaders/`, or a test fails.

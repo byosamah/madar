@@ -48,6 +48,35 @@ describe('office dates', () => {
     expect(stampDay('2026-09-30T22:30:00.000Z')).toBe('2026-10-01');
   });
 
+  // DB-3 (performance audit 2026-10-21): the day of an office stamp is its first 10 characters. It needs no Date object.
+  it('gives the same day as the Date formula for every kind of stamp', () => {
+    const viaDate = (stamp: string) => todayISO(new Date(stamp));
+    const stamps = [
+      '2026-09-30T00:00:00.000+03:00', '2026-09-30T23:59:59.999+03:00', '2026-10-01T00:00:00+03:00', '2026-12-31T23:30:00.000+03:00',
+      '2026-09-30T22:30:00.000Z', '2026-09-30T21:00:00.000Z', '2026-09-30T20:59:59.999Z', '2026-09-30T10:00:00.000+00:00',
+      '2026-09-30T01:00:00.000+05:00', '2026-09-30T23:00:00.000-05:00', '2026-09-30T09:00:00.000+03:30', '2028-02-29T23:30:00.000+03:00',
+      '2026-09-30T09:00+03:00', '2026-09-30',
+    ];
+    for (const stamp of stamps) expect(stampDay(stamp), stamp).toBe(viaDate(stamp));
+  });
+
+  it('makes no Date object for a stamp in office time', () => {
+    const RealDate = globalThis.Date;
+    let made = 0;
+    globalThis.Date = class extends RealDate {
+      constructor(...args: ConstructorParameters<typeof RealDate>) {
+        made += 1;
+        super(...args);
+      }
+    } as DateConstructor;
+    try {
+      for (let i = 0; i < 50; i += 1) stampDay('2026-09-30T23:30:00.000+03:00');
+    } finally {
+      globalThis.Date = RealDate;
+    }
+    expect(made).toBe(0);
+  });
+
   it('formats with Western digits and the Gregorian calendar', () => {
     expect(formatDay('2026-10-12', 'en')).toBe('12 Oct');
     const arabic = formatDay('2026-10-12', 'ar');

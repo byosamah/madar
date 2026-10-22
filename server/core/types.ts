@@ -1,8 +1,9 @@
 import type { z } from 'zod';
 import type { ServerCallName, ServerContracts } from '../../src/api/contract/server';
+import type { FileRec } from '../../src/api/contract/entities';
 import type { State } from '../../src/api/store';
 import type { ChangeSignal, RunError, StoryRef } from '../../src/api/remote/wire';
-import type { Deps } from './ports';
+import type { Deps, Query } from './ports';
 import type { CallData } from './runCall';
 
 export type { ChangeSignal, Kind, RunError, StoryRef } from '../../src/api/remote/wire';
@@ -24,9 +25,26 @@ export type OfficeSnapshot = { version: number; lists: Readonly<Required<Pick<St
  * and how many overview calls it holds. runCall drops "office" after an entry that raised the office version.
  * mail: the mail effects of the batch that run after the answer, as one chain, so they run in the order of the entries.
  */
-export type BatchScope = { storyRefs: Map<string, string>; office?: OfficeSnapshot; overviewCalls: number; mail?: Promise<void> };
+export type BatchScope = {
+  storyRefs: Map<string, string>;
+  office?: OfficeSnapshot;
+  overviewCalls: number;
+  mail?: Promise<void>;
+  /**
+   * The file records that handleBatch read with one statement for a run of adjacent files.link entries (SV-11): an id with no file is
+   * in the map with undefined. Only while that run is on; handleBatch removes it after the run, so a later call reads again.
+   */
+  files?: Map<string, FileRec | undefined>;
+};
 
-export type RunRequest = { principal: Principal; name: string; input: unknown; story?: StoryRef; key?: string; batch: BatchScope };
+/**
+ * The read transaction of the sign-in, still open (performance audit SV-5). The first read call of a batch runs in it, so the batch
+ * saves one begin, one office_meta read and one commit. Only handleBatch sets it, only for a call that joinsFirstRead accepts, and
+ * only for that one call.
+ */
+export type OpenRead = { q: Query };
+
+export type RunRequest = { principal: Principal; name: string; input: unknown; story?: StoryRef; key?: string; batch: BatchScope; open?: OpenRead };
 
 /** signals: only the signals that the actor's own screen receives (the office signal, and the actor's person signal). */
 export type RunResult =

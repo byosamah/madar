@@ -285,7 +285,11 @@ export function batchSql(reads: readonly Read[]): { text: string; values: unknow
   return { text: `select u.i, jsonb_agg(u.j order by u.o) as j from (${branches.join(' union all ')}) u group by u.i order by u.i`, values };
 }
 
-export function sqlSource(q: Query): Source {
+/**
+ * o.counters: the counters that the office read of this call already holds (DB-12: one statement with office_meta, under the
+ * office lock). When it gives numbers, counters() sends no statement.
+ */
+export function sqlSource(q: Query, o: { counters?: () => Record<string, number> | undefined } = {}): Source {
   const read = async <R,>(text: string, values: unknown[]): Promise<R[]> => q<R>(text, values);
 
   const selectRows = async (s: Select): Promise<Row[]> => {
@@ -368,6 +372,8 @@ export function sqlSource(q: Query): Source {
     },
 
     async counters() {
+      const held = o.counters?.();
+      if (held) return { ...held };
       const rows = await read<{ prefix: string; n: number | string }>(COUNTERS_SELECT_SQL, []);
       return Object.fromEntries(rows.map((row) => [row.prefix, Number(row.n)]));
     },

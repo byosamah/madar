@@ -17,11 +17,16 @@ const MAX_REACTION_UNITS = 32;
 const EMOJI =
   /^(?:\p{Extended_Pictographic}[️\p{Emoji_Modifier}]?(?:‍\p{Extended_Pictographic}[️\p{Emoji_Modifier}]?)*(?:[\u{E0020}-\u{E007E}]+\u{E007F})?|\p{Regional_Indicator}{2}|[#*0-9]️?⃣)$/u;
 
-const segmenter = typeof Intl !== 'undefined' && 'Segmenter' in Intl ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null;
+/**
+ * The grapheme segmenter, built on the first check and not at module load: `new Intl.Segmenter` costs about 10 ms, and the server
+ * paid it in every cold start (performance audit SV-2). `undefined` means not built yet; `null` means the runtime has no Segmenter.
+ */
+let segmenter: Intl.Segmenter | null | undefined;
 
 /** True when the value is exactly one emoji of 1 to 32 UTF-16 units. */
 export function isReactionEmoji(value: string): boolean {
   if (value.length === 0 || value.length > MAX_REACTION_UNITS) return false;
+  segmenter ??= typeof Intl !== 'undefined' && 'Segmenter' in Intl ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null;
   if (segmenter) {
     const parts = [...segmenter.segment(value)];
     if (parts.length !== 1) return false;

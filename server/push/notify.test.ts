@@ -4,7 +4,7 @@ import { AFTER_ANSWER_KINDS, EFFECTS_OF, processOutbox, registerEffect, writeOut
 import { memoryMailDb } from '../mail/memoryMailDb';
 import { fakeDeps } from '../test/fakes/deps';
 import {
-  PUSH_CHAT_EFFECT, PUSH_DEVICES_SQL, PUSH_EFFECT, PUSH_GONE_SQL, PUSH_ITEMS_SQL, PUSH_LEVELS_SQL, PUSH_NEW_NOTICES_SQL, PUSH_PEOPLE_SQL, PUSH_SENT_SQL,
+  PUSH_CHAT_EFFECT, PUSH_DEVICES_SQL, PUSH_EFFECT, PUSH_FACTS_SQL, PUSH_GONE_SQL, PUSH_ITEMS_SQL, PUSH_LEVELS_SQL, PUSH_NEW_NOTICES_SQL, PUSH_PEOPLE_SQL, PUSH_SENT_SQL,
   PUSH_STILL_NEW_SQL, pushRows, sendChatPush, sendPushNotify,
 } from './notify';
 import { PUSH_FREE_CALLS, registerPushEffects } from './register';
@@ -30,6 +30,8 @@ function producerDb(answers: Partial<Record<string, unknown[]>>) {
   return { q, statements };
 }
 
+/** The one row of PUSH_FACTS_SQL (SV-9): the items, the people and the stored levels, each as a list. */
+const facts = (items: unknown[], people: unknown[] = PEOPLE_ROWS, levels: unknown[] = []) => [{ items, people, levels }];
 const person = (id: string, over: Record<string, unknown> = {}) => ({ id, kind: 'human', active: true, system_role: null, owner_id: null, device: true, ...over });
 const PEOPLE_ROWS = [person('usr_001', { system_role: 'admin' }), person('usr_002'), person('usr_003'), person('usr_004')];
 const projectMessage = (over: Record<string, unknown> = {}) => ({
@@ -77,27 +79,25 @@ describe('pushRows: who gets a push after a save', () => {
     expect(seen).toEqual([[['usr_002', 'usr_003', 'usr_009']]]);
   });
 
-  it('reads the items, the people and the levels of a new project message, and pushes only the named person after the wait', async () => {
+  it('reads the items, the people and the levels of a new project message in ONE statement, and pushes only the named person after the wait', async () => {
     // The save holds no notice (kinds messages and chatReads), so PUSH_NEW_NOTICES_SQL does not run.
-    const { q, statements } = producerDb({ [PUSH_ITEMS_SQL]: [projectMessage()], [PUSH_PEOPLE_SQL]: PEOPLE_ROWS, [PUSH_LEVELS_SQL]: [] });
+    const { q, statements } = producerDb({ [PUSH_FACTS_SQL]: facts([projectMessage()]) });
     const rows = await pushRows(q, { kinds: new Set(['messages', 'chatReads']), people: new Set(['usr_002']), messageIds: ['msg_010'] });
     expect(rows).toEqual([{ kind: PUSH_CHAT_EFFECT, payload: { userId: 'usr_003', items: [{ chatId: 'cnv_001', itemId: 'msg_010' }] } }]);
-    expect(statements).toEqual([PUSH_ITEMS_SQL, PUSH_PEOPLE_SQL, PUSH_LEVELS_SQL]);
+    expect(statements).toEqual([PUSH_FACTS_SQL]);
   });
 
   it('gives a person who picked All messages every project message, and reads the stored levels of the chat', async () => {
     const seen: unknown[][] = [];
     const q = (async (text: string, values: unknown[]) => {
-      seen.push([text === PUSH_LEVELS_SQL ? 'levels' : text === PUSH_ITEMS_SQL ? 'items' : 'people', values]);
-      if (text === PUSH_ITEMS_SQL) return [projectMessage({ doc: { ...projectMessage().doc, mentions: [] } })];
-      if (text === PUSH_PEOPLE_SQL) return PEOPLE_ROWS;
-      if (text === PUSH_LEVELS_SQL) return [{ conversation_id: 'cnv_001', user_id: 'usr_001', notify: 'all' }];
-      throw new Error(`Unexpected statement: ${text}`);
+      if (text !== PUSH_FACTS_SQL) throw new Error(`Unexpected statement: ${text}`);
+      seen.push(['facts', values]);
+      return facts([projectMessage({ doc: { ...projectMessage().doc, mentions: [] } })], PEOPLE_ROWS, [{ conversation_id: 'cnv_001', user_id: 'usr_001', notify: 'all' }]);
     }) as never;
     const rows = await pushRows(q, { kinds: new Set(['messages']), people: new Set(), messageIds: ['msg_010'] });
     expect(rows).toEqual([{ kind: PUSH_CHAT_EFFECT, payload: { userId: 'usr_001', items: [{ chatId: 'cnv_001', itemId: 'msg_010' }] } }]);
-    expect(seen).toContainEqual(['items', [['msg_010'], []]]);
-    expect(seen).toContainEqual(['levels', [['cnv_001']]]);
+    // The ids of the items go in; the chats of the levels come from the items inside the statement.
+    expect(seen).toEqual([['facts', [['msg_010'], []]]]);
   });
 
   it('lets a person of a role with task.officeAll hear a mention in an office comment, and not a person of another role', async () => {
@@ -107,21 +107,21 @@ describe('pushRows: who gets a push after a save', () => {
       doc: { id: 'cmt_9', targetType: 'task', targetId: 'tsk_001', authorId: 'usr_003', body: '@[Omar](usr_004) @[Ola](usr_005) see' },
     });
     const people = [person('usr_002'), person('usr_003'), person('usr_004', { role_id: 'rol_001', roles }), person('usr_005', { roles })];
-    const { q } = producerDb({ [PUSH_ITEMS_SQL]: [office], [PUSH_PEOPLE_SQL]: people });
+    const { q } = producerDb({ [PUSH_FACTS_SQL]: facts([office], people) });
     const rows = await pushRows(q, { kinds: new Set(['comments']), people: new Set(), commentIds: ['cmt_9'] });
     expect(rows.map((row) => (row.payload as { userId: string }).userId)).toEqual(['usr_002', 'usr_004']);
   });
 
   it('reads the task and the reply author of a new comment and pushes the lead of the task, with no level read', async () => {
-    const { q, statements } = producerDb({ [PUSH_ITEMS_SQL]: [taskComment()], [PUSH_PEOPLE_SQL]: PEOPLE_ROWS });
+    const { q, statements } = producerDb({ [PUSH_FACTS_SQL]: facts([taskComment()]) });
     const rows = await pushRows(q, { kinds: new Set(['comments']), people: new Set(), commentIds: ['cmt_9'] });
     expect(rows).toEqual([{ kind: PUSH_CHAT_EFFECT, payload: { userId: 'usr_003', items: [{ chatId: 'tsk_001', itemId: 'cmt_9' }] } }]);
-    expect(statements).toEqual([PUSH_ITEMS_SQL, PUSH_PEOPLE_SQL]);
+    expect(statements).toEqual([PUSH_FACTS_SQL]);
   });
 
   it('writes no row for a quiet line of a task thread', async () => {
     const line = taskComment({ doc: { id: 'cmt_9', targetType: 'task', targetId: 'tsk_001', authorId: 'usr_002', body: 'Moved.', dates: { from: { startDate: null, dueDate: '2026-10-20' }, to: { startDate: null, dueDate: '2026-10-25' } } } });
-    const { q } = producerDb({ [PUSH_ITEMS_SQL]: [line], [PUSH_PEOPLE_SQL]: PEOPLE_ROWS });
+    const { q } = producerDb({ [PUSH_FACTS_SQL]: facts([line]) });
     expect(await pushRows(q, { kinds: new Set(['comments']), people: new Set(), commentIds: ['cmt_9'] })).toEqual([]);
   });
 
@@ -134,22 +134,20 @@ describe('pushRows: who gets a push after a save', () => {
   it('joins the mention notice of a new message to the push of that message: ONE push.chat row, no push.notify row', async () => {
     const { q, statements } = producerDb({
       [PUSH_NEW_NOTICES_SQL]: [{ user_id: 'usr_003', target_type: 'chat', target_id: 'cnv_001', message_id: 'msg_010' }],
-      [PUSH_ITEMS_SQL]: [projectMessage()], [PUSH_PEOPLE_SQL]: PEOPLE_ROWS, [PUSH_LEVELS_SQL]: [],
+      [PUSH_FACTS_SQL]: facts([projectMessage()]),
     });
     const rows = await pushRows(q, { kinds: new Set(['notifications', 'messages']), people: new Set(['usr_003']), messageIds: ['msg_010'] });
     expect(rows).toEqual([{ kind: PUSH_CHAT_EFFECT, payload: { userId: 'usr_003', items: [{ chatId: 'cnv_001', itemId: 'msg_010' }] } }]);
-    expect(statements).toEqual([PUSH_NEW_NOTICES_SQL, PUSH_ITEMS_SQL, PUSH_PEOPLE_SQL, PUSH_LEVELS_SQL]);
+    expect(statements).toEqual([PUSH_NEW_NOTICES_SQL, PUSH_FACTS_SQL]);
   });
 
   it('reads an old message for an edit notice: the save names no message, the notice names it, and the person gets the push after the wait', async () => {
     const edited = projectMessage({ doc: { ...projectMessage().doc, mentions: ['usr_004'], editedAt: '2026-10-19T09:05:00.000+03:00' }, team_ids: ['usr_002', 'usr_003', 'usr_004'] });
     const seen: unknown[][] = [];
     const q = (async (text: string, values: unknown[]) => {
-      if (text === PUSH_ITEMS_SQL) seen.push(values);
+      if (text === PUSH_FACTS_SQL) seen.push(values);
       if (text === PUSH_NEW_NOTICES_SQL) return [{ user_id: 'usr_004', target_type: 'chat', target_id: 'cnv_001', message_id: 'msg_010' }];
-      if (text === PUSH_ITEMS_SQL) return [edited];
-      if (text === PUSH_PEOPLE_SQL) return PEOPLE_ROWS;
-      if (text === PUSH_LEVELS_SQL) return [];
+      if (text === PUSH_FACTS_SQL) return facts([edited]);
       throw new Error(`Unexpected statement: ${text}`);
     }) as never;
     const rows = await pushRows(q, { kinds: new Set(['notifications', 'messages']), people: new Set(['usr_004']) });
@@ -160,7 +158,7 @@ describe('pushRows: who gets a push after a save', () => {
   it('writes ONE row for a person who has a plain notice and a new message in the same save: the push.notify row wins', async () => {
     const { q } = producerDb({
       [PUSH_NEW_NOTICES_SQL]: [{ user_id: 'usr_003', target_type: 'task', target_id: 'tsk_001', message_id: null }, { user_id: 'usr_002', target_type: 'task', target_id: 'tsk_001', message_id: null }],
-      [PUSH_ITEMS_SQL]: [projectMessage()], [PUSH_PEOPLE_SQL]: PEOPLE_ROWS, [PUSH_LEVELS_SQL]: [],
+      [PUSH_FACTS_SQL]: facts([projectMessage()]),
     });
     const rows = await pushRows(q, { kinds: new Set(['notifications', 'messages']), people: new Set(['usr_002', 'usr_003']), messageIds: ['msg_010'] });
     expect(rows).toEqual([{ kind: PUSH_EFFECT, payload: { userId: 'usr_002' } }, { kind: PUSH_EFFECT, payload: { userId: 'usr_003' } }]);
@@ -168,12 +166,12 @@ describe('pushRows: who gets a push after a save', () => {
 
   it('writes no row for a message that is deleted by now', async () => {
     const gone = projectMessage({ doc: { ...projectMessage().doc, deletedAt: '2026-10-19T09:00:05.000+03:00' } });
-    const { q } = producerDb({ [PUSH_ITEMS_SQL]: [gone], [PUSH_PEOPLE_SQL]: PEOPLE_ROWS, [PUSH_LEVELS_SQL]: [] });
+    const { q } = producerDb({ [PUSH_FACTS_SQL]: facts([gone]) });
     expect(await pushRows(q, { kinds: new Set(['messages']), people: new Set(), messageIds: ['msg_010'] })).toEqual([]);
   });
 
   it('writes no row when nobody has a device', async () => {
-    const { q } = producerDb({ [PUSH_ITEMS_SQL]: [projectMessage()], [PUSH_PEOPLE_SQL]: PEOPLE_ROWS.map((p) => ({ ...p, device: false })), [PUSH_LEVELS_SQL]: [] });
+    const { q } = producerDb({ [PUSH_FACTS_SQL]: facts([projectMessage()], PEOPLE_ROWS.map((p) => ({ ...p, device: false }))) });
     expect(await pushRows(q, { kinds: new Set(['messages']), people: new Set(), messageIds: ['msg_010'] })).toEqual([]);
   });
 
@@ -215,7 +213,16 @@ describe('the SQL of the producer keeps the rules', () => {
     expect(PUSH_PEOPLE_SQL).toContain('push_devices');
     expect(PUSH_PEOPLE_SQL).toContain("doc->>'systemRole'");
     expect(PUSH_LEVELS_SQL).toContain("doc ? 'notify'");
-    expect(PUSH_LEVELS_SQL).toMatch(/r\.conversation_id = any\(\$1::text\[\]\)/);
+    expect(PUSH_LEVELS_SQL).toContain('from items');
+  });
+
+  it('joins the items, the people and the levels into ONE statement, with the people in order of id (SV-9)', () => {
+    expect(PUSH_FACTS_SQL).toContain(PUSH_ITEMS_SQL);
+    expect(PUSH_FACTS_SQL).toContain(PUSH_PEOPLE_SQL);
+    expect(PUSH_FACTS_SQL).toContain(PUSH_LEVELS_SQL);
+    expect(PUSH_FACTS_SQL).toContain('jsonb_agg(to_jsonb(people) order by people.id)');
+    // Two parameters only: the message ids and the comment ids. The chats of the levels come from the items.
+    expect(PUSH_FACTS_SQL).not.toMatch(/\$3/);
   });
 
   it('reads the devices of an active human, and writes only push_devices', () => {

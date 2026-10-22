@@ -5,7 +5,7 @@ import { runInHost } from '../core/after';
 import { CLAIM_SQL, registerEffect, registerOutbox } from '../core/effects';
 import { memoryData, type MemoryData } from '../core/memoryData';
 import type { Db, Deps, Query } from '../core/ports';
-import { createRunCall, type CallData, type CallTx } from '../core/runCall';
+import { createRunCall, joinsFirstRead, type CallData, type CallTx } from '../core/runCall';
 import type { OfficeSnapshot } from '../core/types';
 import { META_SQL } from '../data/officeCache';
 import { diffState, writeDiff } from '../data/save';
@@ -106,33 +106,31 @@ function countingSource(source: ReturnType<CallTx['source']>, q: Query): ReturnT
 /** The memory data, with each transaction on the counting pgDb and each step sending the statements of its SQL form. */
 function countingData(mem: MemoryData, db: Db): CallData {
   const inner = mem.data();
+  /** The CallTx of one open transaction: the memory step with each statement of its SQL form sent on q. */
+  const countedOn = (q: Query, t: CallTx): CallTx => ({
+    ...t,
+    q,
+    lock: async (key) => {
+      await q('select pg_advisory_xact_lock($1)', [key]);
+      return t.lock(key);
+    },
+    office: async () => {
+      await q(META_SQL);
+      return t.office();
+    },
+    source: () => countingSource(t.source(), q),
+    save: async (before, after, o) => {
+      await writeDiff(q, diffState(before, after), o);
+      return t.save(before, after, o);
+    },
+    outbox: async (rows) => {
+      if (rows.length > 0) await q('insert into outbox (kind, payload) select 1');
+      return t.outbox(rows);
+    },
+  });
   return {
-    tx: (mode, work) =>
-      db.tx(mode, (q) =>
-        inner.tx(mode, (t) =>
-          work({
-            ...t,
-            q,
-            lock: async (key) => {
-              await q('select pg_advisory_xact_lock($1)', [key]);
-              return t.lock(key);
-            },
-            office: async () => {
-              await q(META_SQL);
-              return t.office();
-            },
-            source: () => countingSource(t.source(), q),
-            save: async (before, after, o) => {
-              await writeDiff(q, diffState(before, after), o);
-              return t.save(before, after, o);
-            },
-            outbox: async (rows) => {
-              if (rows.length > 0) await q('insert into outbox (kind, payload) select 1');
-              return t.outbox(rows);
-            },
-          }),
-        ),
-      ),
+    tx: (mode, work) => db.tx(mode, (q) => inner.tx(mode, (t) => work(countedOn(q, t)))),
+    on: (q) => countedOn(q, inner.on!(q)),
     office: () => db.tx('read', async (q) => {
       await q(META_SQL);
       return inner.office();
@@ -152,7 +150,13 @@ async function measure(calls: { name: string; input: unknown }[]): Promise<Measu
     runCall: createRunCall({ data: () => data }),
     verifyToken: async () => ({ authUserId: 'auth-1' }),
     principalOf: () => ({ userId: ADMIN }),
-    readOffice: (): Promise<OfficeSnapshot> => data.office(),
+    // The sign-in read answers on the open transaction q, as officeCache.read does: one office_meta statement.
+    readOffice: async (_deps, q): Promise<OfficeSnapshot> => {
+      if (!q) return data.office();
+      await q(META_SQL);
+      return mem.data().office();
+    },
+    joinFirst: joinsFirstRead,
   });
   sent.length = 0;
   const later: Promise<unknown>[] = [];
@@ -166,7 +170,7 @@ async function measure(calls: { name: string; input: unknown }[]): Promise<Measu
 }
 
 describe('the round trips before the answer (performance audit SRV-1, SRV-4, SRV-9)', () => {
-  it('a read batch of 4 calls: the sign-in read, 4 read transactions with one start statement each', async () => {
+  it('a read batch of 4 calls: the first call joins the sign-in read, 3 more read transactions follow (SV-5)', async () => {
     const read = await measure([
       { name: 'projects.get', input: { id: 'prj_001' } },
       { name: 'tasks.list', input: { projectId: 'prj_001' } },
@@ -176,8 +180,9 @@ describe('the round trips before the answer (performance audit SRV-1, SRV-4, SRV
     console.log('round trips, 4-call read batch:', JSON.stringify(read));
     expect(read.status).toBe(200);
     // Before the audit: 37 before the answer. The sign-in read 4, each entry 4 plus its 3 loader reads, the meter 5.
-    // Now: the sign-in read 3, each entry 3 plus its loader reads. The usage meter (3 after the answer) went with the usage feature (owner, 2026-10-23).
-    expect(read).toMatchObject({ beforeAnswer: 27, total: 27 });
+    // Then: the sign-in read 3, each entry 3 plus its loader reads. The usage meter (3 after the answer) went with the usage feature (owner, 2026-10-23).
+    // Now (SV-5): the first entry runs in the transaction of the sign-in read, so its begin, office_meta and commit go (27 - 3).
+    expect(read).toMatchObject({ beforeAnswer: 24, total: 24 });
   });
 
   it('a task save that mails one person: the notice mail goes after the answer', async () => {
