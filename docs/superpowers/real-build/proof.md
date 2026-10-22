@@ -2238,7 +2238,7 @@ redeployed for six variants, each answering with a module id and a counter; 15 c
 bundle (/health only) gave the same: 14 to 15 new workers in 15 calls. In 80 calls each, the real bundle reached an old worker 4 times and the
 plain function 6 times (5% and 7.5%). Conclusion: the platform spreads the calls over new workers; our entry does not block the reuse; no
 code fix. The idle close of the pool still works on a reused worker. The cost stays about 230 ms and 110 ms of CPU for each call on a new
-worker; only a smaller import lowers it (SV-2 lazy segmenter, SV-3 bundled pg). `probe-reuse` stays on madar-test as a 404 stub.
+worker; only a smaller import lowers it (SV-2 lazy segmenter, SV-3 bundled pg). `probe-reuse` was deleted from madar-test on the owner's word (2026-10-22).
 
 ### Track 5: the database
 Branch `worktree-wf_92fa548c-685-5` (head 15027449), merged into `rb/perf2`. Report file PERF2-REPORT-database.md of that worktree.

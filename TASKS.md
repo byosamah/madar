@@ -981,7 +981,7 @@ Branch `rb/perf2` (worktree `~/dev/madar-rb/perf2`). Sonnet agents, the Opus ses
 - [x] Docker suites once on bb8d8527 (GP-1 touches none of their code), 2026-10-22: db reset; test:db 2,979 passed (27 skipped);
   test:it 332 of 332; test:mcp 330 passed, conformance 5 of 32 (the normal result); test:lite 2,979 passed; test:office 40 of 40
 - [ ] After the deploy, on a real iPhone: wait 11 minutes, press a tab, check that no OPTIONS reaches the function
-- [ ] Owner: the removal of the probe function probe-reuse of track 6 on madar-test (a 404 stub after the probe)
+- [x] probe-reuse deleted from madar-test on the owner's word (2026-10-22); the test project holds api, mcp and jobs again
 - [ ] Not asked, recorded only: LV-1 one font preload (first visit of a new device only)
 - [ ] Safari on iPhone (owner, 2026-10-21: "we have safari users on iphone"). Every iPhone browser is WebKit, and every check
   of this audit ran on Chromium. At the merge: no requestIdleCallback, scheduler or navigator.connection without the fallback
