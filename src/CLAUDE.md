@@ -221,7 +221,7 @@ any screen work.
   read does not read (`signals.test.tsx`).
 - In the real build, `useAction` and `useUndoable` load the active reads that the write will change (`readsAfterWrite`,
   `app/signals.ts`, from `WRITE_KINDS` in `app/writeKinds.ts`) in the request of the write, right after it (`writeWithReads`,
-  `app/runtime.tsx`). The read that shows the record of the write goes first. At most 11 reads and one overview read go. The
+  `app/runtime.tsx`). The read that shows the record of the write goes first. At most 11 reads go, and the reads whose cost (`callCost`, `src/api/remote/wire.ts`) adds up to `BATCH_BUDGET` (30) at most: the two person lists of Tasks and Home (`mine`, `review_for_me`) cost 1 each and always go with the write (perf2 savetrip, 2026-10-22: before, the second one left the request and a second request followed). A read that would pass the budget loads on the signals. The
   own pass of `connectChanges` does not reload a read that answered there. The success steps of the action run after those
   reads, plus one task. The prototype sends the write alone (performance audit FET-3). The Realtime frame of the own write can come
   before the own answer: `connectChanges` keeps its id (`echoes`) until the answer names it, so the pass stays "own" and one save
@@ -830,6 +830,10 @@ any screen work.
 - `renderHeldRemoteApp` also takes `auth` (a port with `userId()`) and `home` (starts `startHomeCache` before the first frame, as `main.tsx` does), and
   `releaseHeld(match)` lets only the calls that `match` accepts answer. `HomeInstant.test.tsx` shows a first page life that writes the record and a second one that
   starts with a held network.
+- `renderWireApp` (`test/wireApp.tsx`, perf2 savetrip) renders the whole app over the REAL `RemoteApi` (batcher, follow reads, own signals) and a fake
+  server that runs the prototype handlers of each request in order and refuses a request over `BATCH_BUDGET` with 413. `trips` lists each request (call
+  names, inputs, cost); `settle()` waits until no new request goes out. Use it to count the requests of one save (`app/SaveTrip.test.tsx`). `renderHeldRemoteApp`
+  and `renderRemoteApp` see calls, not requests.
 - `renderRemoteApp` (`test/renderRemote.tsx`) renders the app with runtime mode remote and the query client of the real
   build. `sent` lists each call in order, and `hold` keeps the calls it picks until `release()`: use it to test the order of
   requests. A render-count test wraps a component with `vi.mock(path, importOriginal)` and waits until the count stops

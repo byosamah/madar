@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MutationObserver, QueryClient, QueryObserver } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
 import type { MadarApi } from '../api/calls';
-import type { ChangeSignal, Kind } from '../api/remote/wire';
+import { BATCH_BUDGET, callCost, type ChangeSignal, type Kind } from '../api/remote/wire';
 import { RuntimeProvider, createQueryClient, useCall } from './runtime';
 import type { FreshReads } from '../api/remote/remoteApi';
 import {
@@ -897,9 +897,36 @@ describe('the reads that a write will change (performance audit FET-3)', () => {
     app.show('tasks.get', { id: 'tsk_001' }, { task: { projectId: 'prj_001' } });
     await settle();
     const chosen = readsAfterWrite(app.client, 'tasks.complete', { id: 'tsk_001' }, ME).map((q) => q.queryKey.slice(1));
-    // tasks.list of both filters is an overview read: only the one with the ticked row goes in the request of the write. The
-    // session and the clients read no kind of the write.
-    expect(chosen).toEqual([['tasks.get', { id: 'tsk_001' }], ['tasks.list', { filter: 'mine' }], ['notifications.count', {}]]);
+    // The lists of both filters cost 1 each (callCost), so both go in the request of the write, the one with the ticked row first.
+    // The session and the clients read no kind of the write.
+    expect(chosen).toEqual([
+      ['tasks.get', { id: 'tsk_001' }], ['tasks.list', { filter: 'mine' }], ['notifications.count', {}], ['tasks.list', { filter: 'review_for_me' }],
+    ]);
+    app.stop();
+  });
+
+  it('takes the reads whose cost fits the budget of one request, and leaves out a read that passes it (perf2 savetrip)', async () => {
+    const app = setup();
+    app.show('tasks.get', { id: 'tsk_001' }, { task: { projectId: 'prj_001' } });
+    app.show('projects.list', {}, [{ id: 'prj_001' }]);
+    app.show('events.list', { limit: 20 }, []);
+    app.show('tasks.list', { filter: 'mine' }, [ROW('tsk_001')]);
+    app.show('tasks.list', { filter: 'review_for_me' }, []);
+    app.show('tasks.list', { projectId: 'prj_001' }, [ROW('tsk_001')]);
+    app.show('dashboard.get', {}, {});
+    await settle();
+    const chosen = readsAfterWrite(app.client, 'tasks.update', { id: 'tsk_001', patch: {} }, ME);
+    const costOf = (query: (typeof chosen)[number]) => callCost(query.queryKey[1] as string, query.queryKey[2]);
+    expect(chosen.reduce((sum, query) => sum + costOf(query), 0)).toBeLessThanOrEqual(BATCH_BUDGET);
+    const names = chosen.map((q) => `${String(q.queryKey[1])} ${JSON.stringify(q.queryKey[2])}`);
+    // The reads that show the record go first (1 for the list of mine, 0 for the project list), then projects.list (20). events.list
+    // (15) would pass 30 and is left out, but review_for_me (1) comes after it and still goes. dashboard.get (10) would pass 30 too.
+    expect(names).toContain('projects.list {}');
+    expect(names).not.toContain('events.list {"limit":20}');
+    expect(names).toContain('tasks.list {"filter":"mine"}');
+    expect(names).toContain('tasks.list {"filter":"review_for_me"}');
+    expect(names).toContain('tasks.list {"projectId":"prj_001"}');
+    expect(names).not.toContain('dashboard.get {}');
     app.stop();
   });
 

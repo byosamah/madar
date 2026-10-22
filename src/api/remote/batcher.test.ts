@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_BATCH } from './wire';
+import { BATCH_BUDGET, MAX_BATCH, callCost } from './wire';
 import { Batcher } from './batcher';
 
-type Item = { name: string; overview: boolean; after?: Item };
-const item = (name: string, overview = false): Item => ({ name, overview });
+type Item = { name: string; cost: number; after?: Item };
+/** cost: the cost of the call for the budget of a request. BATCH_BUDGET is a call that takes the whole budget (it fits alone). */
+const item = (name: string, cost = 0): Item => ({ name, cost });
 /** A read that must run after a write, in the request of that write (performance audit FET-3). */
-const follower = (name: string, after: Item, overview = false): Item => ({ name, overview, after });
+const follower = (name: string, after: Item, cost = 0): Item => ({ name, cost, after });
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 function setup(place?: (item: Item, request: object) => Promise<void> | null) {
@@ -44,14 +45,74 @@ describe('the batcher (client map 4.1)', () => {
     expect(sent).toEqual([sent[0], ['last']]);
   });
 
-  it('puts two overview calls in two requests, and keeps the other calls with them', async () => {
+  it('puts two calls that take the whole budget in two requests, and keeps the other calls with them', async () => {
     const { sent, batcher } = setup();
     batcher.add(item('session.get'));
-    batcher.add(item('projects.list', true));
-    batcher.add(item('dashboard.get', true));
+    batcher.add(item('projects.list', BATCH_BUDGET));
+    batcher.add(item('dashboard.get', BATCH_BUDGET));
     batcher.add(item('notifications.count'));
     await tick();
     expect(sent).toEqual([['session.get', 'projects.list'], ['dashboard.get', 'notifications.count']]);
+  });
+
+  it('keeps one overview call in a request for the calls of a screen, whatever their cost (the cold start does not change)', async () => {
+    const { sent, batcher } = setup();
+    batcher.add(item('session.get'));
+    batcher.add(item('tasks.list', callCost('tasks.list', { filter: 'mine' })));
+    batcher.add(item('tasks.list', callCost('tasks.list', { filter: 'review_for_me' })));
+    batcher.add(item('projects.list', callCost('projects.list', {})));
+    batcher.add(item('notifications.count'));
+    await tick();
+    expect(sent).toEqual([['session.get', 'tasks.list'], ['tasks.list'], ['projects.list', 'notifications.count']]);
+  });
+
+  it('puts the follow reads in the request of their write while their cost adds up to the budget (perf2 savetrip)', async () => {
+    const { sent, batcher } = setup();
+    const write = item('tasks.update');
+    batcher.add(write);
+    batcher.add(follower('a', write, 10));
+    batcher.add(follower('b', write, 10));
+    batcher.add(follower('c', write, 10));
+    batcher.add(follower('d', write, 1));
+    batcher.add(follower('e', write));
+    await tick();
+    // The fourth follow read would pass 30. It starts a request of its own, and the follow read after it (cost 0) joins that one.
+    expect(sent).toEqual([['tasks.update', 'a', 'b', 'c', 'e'], ['d']]);
+  });
+
+  it('keeps the order of the calls and starts the next request with the follow read that did not fit', async () => {
+    const { sent, batcher } = setup();
+    const write = item('tasks.update');
+    batcher.add(write);
+    batcher.add(follower('projects.list', write, callCost('projects.list', {})));
+    batcher.add(follower('mine', write, callCost('tasks.list', { filter: 'mine' })));
+    batcher.add(follower('events.list', write, callCost('events.list', {})));
+    batcher.add(follower('review', write, callCost('tasks.list', { filter: 'review_for_me' })));
+    await tick();
+    // projects.list (20), mine (1) and review (1) fit with the write; events.list (15) passes 30 and goes as any other call.
+    expect(sent).toEqual([['tasks.update', 'projects.list', 'mine', 'review'], ['events.list']]);
+  });
+
+  it('puts a cheap follow read in the request of its write beside a costly call, and a follow read over the budget in the next one', async () => {
+    const { sent, batcher } = setup();
+    const write = item('tasks.update');
+    batcher.add(item('projects.list', 20));
+    batcher.add(write);
+    batcher.add(follower('tasks.list', write, 1));
+    batcher.add(follower('tasks.list', write, 1));
+    batcher.add(follower('dashboard.get', write, 10));
+    await tick();
+    expect(sent).toEqual([['projects.list', 'tasks.update', 'tasks.list', 'tasks.list'], ['dashboard.get']]);
+  });
+
+  it('keeps a plain overview call out of the request that follow reads filled', async () => {
+    const { sent, batcher } = setup();
+    const write = item('tasks.update');
+    batcher.add(write);
+    batcher.add(follower('tasks.list', write, 1));
+    batcher.add(item('dashboard.get', 10));
+    await tick();
+    expect(sent).toEqual([['tasks.update', 'tasks.list'], ['dashboard.get']]);
   });
 
   it('holds back a call that must wait, and adds it again when the wait ends', async () => {
@@ -75,8 +136,8 @@ describe('the batcher (client map 4.1)', () => {
     const { batcher } = setup((_i, request) => { requests.push(request); return null; });
     batcher.add(item('a'));
     batcher.add(item('b'));
-    batcher.add(item('c', true));
-    batcher.add(item('d', true));
+    batcher.add(item('c', BATCH_BUDGET));
+    batcher.add(item('d', BATCH_BUDGET));
     await tick();
     expect(requests[0]).toBe(requests[1]);
     expect(requests[1]).toBe(requests[2]);
@@ -97,20 +158,20 @@ describe('the batcher (client map 4.1)', () => {
   it('keeps a follower in the request of its write when a later call started a new request', async () => {
     const { sent, batcher } = setup();
     const write = item('tasks.complete');
-    batcher.add(item('projects.list', true));
+    batcher.add(item('projects.list', BATCH_BUDGET));
     batcher.add(write);
-    batcher.add(item('dashboard.get', true));
+    batcher.add(item('dashboard.get', BATCH_BUDGET));
     batcher.add(follower('tasks.get', write));
     await tick();
     expect(sent).toEqual([['projects.list', 'tasks.complete', 'tasks.get'], ['dashboard.get']]);
   });
 
-  it('places a follower that does not fit with its write as any other call: a full request or a second overview', async () => {
+  it('places a follower that does not fit with its write as any other call: a full request or a cost over the budget', async () => {
     const { sent, batcher } = setup();
     const write = item('tasks.complete');
-    batcher.add(item('projects.list', true));
+    batcher.add(item('projects.list', BATCH_BUDGET));
     batcher.add(write);
-    batcher.add(follower('tasks.list', write, true));
+    batcher.add(follower('tasks.list', write, BATCH_BUDGET));
     await tick();
     expect(sent).toEqual([['projects.list', 'tasks.complete'], ['tasks.list']]);
     const full = setup();

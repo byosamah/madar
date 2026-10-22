@@ -103,14 +103,34 @@ describe('POST /batch', () => {
     expect(h.seen).toHaveLength(12);
   });
 
-  it('answers 413 for two overview calls, and counts tasks.list only without projectId', async () => {
+  it('answers 413 for overview calls that pass the budget, and counts tasks.list only without projectId', async () => {
     const h = harness();
-    const two = await batch(h, [call(0, 'projects.list'), call(1, 'dashboard.get')]);
+    const two = await batch(h, [call(0, 'projects.list'), call(1, 'events.list')]);
     expect(two.status).toBe(413);
     expect(await two.json()).toMatchObject({ error: { details: { reason: 'too_many_overviews' } } });
+    expect(h.seen).toEqual([]);
     const fine = await batch(h, [call(0, 'projects.list'), call(1, 'tasks.list', { projectId: 'prj_001' })]);
     expect(fine.status).toBe(200);
     expect(h.seen[0].batch.overviewCalls).toBe(1);
+  });
+
+  it('takes what the client sends for one save: the cheap person lists with a heavy call, and refuses what passes the budget (perf2 savetrip)', async () => {
+    const h = harness();
+    const wide = [
+      call(0, 'tasks.update', { id: 'tsk_007', patch: { title: 'New' } }), call(1, 'tasks.get', { id: 'tsk_007' }),
+      call(2, 'tasks.list', { projectId: 'prj_001', activeProjectsOnly: false }), call(3, 'tasks.list', { filter: 'mine', includeDone: false }),
+      call(4, 'tasks.list', { filter: 'review_for_me' }), call(5, 'projects.list'), call(6, 'chats.unreadCount'), call(7, 'notifications.count'),
+    ];
+    const ok = await batch(h, wide);
+    expect(ok.status).toBe(200);
+    expect(h.seen).toHaveLength(8);
+    expect(h.seen[0].batch.overviewCalls).toBe(3);
+    const heavy = await batch(h, [call(0, 'projects.list'), call(1, 'tasks.list', { filter: 'mine' }), call(2, 'dashboard.get'), call(3, 'search.query', { text: 'a' })]);
+    expect(heavy.status).toBe(413);
+    expect(await heavy.json()).toMatchObject({ error: { details: { reason: 'too_many_overviews' } } });
+    // Exactly the budget passes: projects.list (20) with dashboard.get (10).
+    const edge = await batch(h, [call(0, 'projects.list'), call(1, 'dashboard.get')]);
+    expect(edge.status).toBe(200);
   });
 
   it('answers 413 for a body over 256 KB', async () => {
