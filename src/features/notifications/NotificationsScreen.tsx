@@ -21,6 +21,7 @@ import { groupByDay } from '../../lib/group';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ProjectTile } from '../../components/ProjectTile';
 import { GroupPicture } from '../inbox/GroupPicture';
+import { InboxViews } from '../inbox/InboxViews';
 import { noticeSentence } from '../../lib/noticeSentence';
 
 type NoticeView = CallOutput<'notifications.list'>[number];
@@ -175,9 +176,11 @@ export function NotificationsScreen() {
     if (goneUnread) markGone.mutate({ ids: goneUnread.split(',').slice(0, 200) });
     // The mutation object changes on every render. Only a new set of gone notices matters here.
   }, [goneUnread]);
+  const phone = useIsPhone();
   return (
     <>
-      <ScreenTitle
+      {/* A phone shows one title, Inbox, and the switch of the two views under it (Direction D). The desk keeps its page. */}
+      {phone ? <><ScreenTitle title={t('screens.inbox')} /><InboxViews /></> : <ScreenTitle
         title={t('screens.notifications')}
         action={unread ? (
           <Button
@@ -191,7 +194,7 @@ export function NotificationsScreen() {
             {t('inbox.markAllRead')}
           </Button>
         ) : undefined}
-      />
+      />}
       {list.error && <LoadFailed error={list.error} onRetry={() => void list.refetch()} />}
       {list.data && items.length === 0 && <EmptyState title={t('inbox.emptyTitle')} body={t('inbox.empty')} />}
       {/* A new object at each render of the list: the memo rows stay, and each Age reads the clock again (RN-7). */}

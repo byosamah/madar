@@ -1,5 +1,11 @@
 {
   "chatFilter": {
     "group": "Kind of chat"
+  },
+  "inbox": {
+    "view": {
+      "label": "Inbox view",
+      "chats": "Chats"
+    }
   }
 }

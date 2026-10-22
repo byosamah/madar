@@ -17,6 +17,7 @@ import { Sheet } from '../../components/Sheet';
 import { useBlockFileDrop } from '../files/Attachments';
 import { chatState } from './chatBack';
 import { ChatList } from './ChatList';
+import { InboxViews } from './InboxViews';
 import { ConversationPane } from './ConversationPane';
 import { useMarkUnread } from './markUnread';
 
@@ -155,6 +156,7 @@ export function InboxScreen() {
           title={t('screens.inbox')}
           action={mayStart ? <Button className="shrink-0" onClick={() => setPicking(true)}>{t('chat.newMessage')}</Button> : undefined}
         />
+        {phone && !open && <InboxViews />}
       </div>
       <div className={`flex gap-4 ${pageList ? '' : `${open ? 'h-[calc(100dvh-9.5rem)] sm:h-[calc(100dvh-15rem)]' : 'h-[calc(100dvh-16rem)] sm:h-[calc(100dvh-15rem)]'} min-h-[26rem]`}`}>
         <aside className={`flex w-full min-w-0 flex-col sm:w-[340px] sm:shrink-0 ${phone ? '' : 'panel hairline overflow-hidden'} ${open ? 'max-sm:hidden' : ''}`}>
