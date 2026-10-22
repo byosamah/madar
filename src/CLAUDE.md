@@ -87,7 +87,7 @@ any screen work.
   control: `none` gives the main button "Connect Google Calendar", `ok` and `not_synced` give a quiet "Disconnect", `broken` gives the main button
   "Connect again". `ready: false` gives one line and no control, and the prototype gives one line (`gcal.prototype`) and asks nothing.
 - Connect asks `google.connectStart` and leaves for the address (`leave`, a prop for the tests). The page leaves only for `https://accounts.google.com`. Google
-  sends the person back through `GET /api/google/callback` (`server/google/callback.ts`) to `/settings#google=<word>`. The section reads the fragment once,
+  sends the person back through `GET /api/google/callback` (`server/google/callback.ts`) to `/settings#google=<word>` (on a phone the redirect in `routes.tsx` sends `#google=` to `/me/calendar`). The section reads the fragment once,
   removes it at once with `history.replaceState` (a reload never runs the step again, and the code never stays in the address bar), and for the word
   `finish` calls `google.connect` once with the code and the state. The words `denied`, `failed`, `old` and `not_ready` show their sentence, and the Connect
   button stays. A refusal of `google.connect` shows the words of its reason inline (no toast).
@@ -102,7 +102,7 @@ any screen work.
   link a path of this site. The bell sentence lives in `lib/noticeSentence.ts`, shared with the server (`server/push/CLAUDE.md`).
 - Real build only. `app/remote/push.ts` (no React, no zod): the state of the switch (`statusOf`), `turnOn`, `turnOff`, the check at the
   start (`syncThisDevice`, run by `app/remote/PushSync.tsx` in the shell) and `removeThisDevice` (the sign-out step in
-  `features/auth/signOut.ts`, 4 s at most). Settings has `features/settings/PushSection.tsx`: one switch, "Notify me on this device",
+  `features/auth/signOut.ts`, 4 s at most). Settings (desk) or Me (phone) has `features/settings/PushSection.tsx`: one switch, "Notify me on this device",
   and a plain note, with no switch, where the browser cannot push (not supported, add Madar to the Home Screen first, blocked, not set up).
 - The permission question starts inside the click, before any wait (Safari refuses it otherwise): `turnOn` calls
   `Notification.requestPermission()` first. `src/test/pushBrowser.ts` makes a browser for the tests.
@@ -255,8 +255,9 @@ any screen work.
   carries the held switches (`officeRights`). Before the session arrives a button is hidden (fail closed); a tab of the tab bar shows
   (`whileLoading` true), so the bar does not jump. `RequireRight` guards a route: without the switch the address shows the page of a wrong
   link (`NotFound`, with the way Home) and the screen never mounts. `routes.tsx` names the switch of a route in `right`: `/dashboard`,
-  `/dashboard/meeting` and `/dashboard/space` need `dashboard.view`, `/search` needs `search.use`. `NAV` items carry `right`, so the tab bar
-  has four tabs without `dashboard.view`. The Search icon, the Ctrl+K shortcut, the phone top bar and the Search commands follow
+  `/dashboard/meeting` and `/dashboard/space` need `dashboard.view`, `/search` needs `search.use`. `NAV` items carry `right`, so the desk tab pill
+  has four tabs without `dashboard.view`. The phone bar (`PHONE_NAV`) has no gated tab: the Dashboard and Admin are rows of the Me tab.
+  The Search icon, the Ctrl+K shortcut, the phone top row and the Search commands follow
   `search.use`, `project.create`, `task.add` and `dashboard.view`. A link to the Dashboard (the lists behind its numbers, the team meeting
   sheet, the entries of What's new) is left out without `dashboard.view`. Without `workload.view` the Workload block is left out. A control
   that a screen shows with a person's choice (the lead of a new to-do, the one who replies, the people of a meeting) offers only the person
@@ -307,7 +308,7 @@ any screen work.
   (`app/useStaged.ts`) draws the first rows of a long list at once and the others at the idle step; the final list is the same list. The Inbox list draws
   its first 40 rows this way.
 - Home keeps the last role it saw for each auth user in localStorage (`madar.homeRole.<auth user id>`,
-  `features/home/roleHint.ts`). Before `session.get` answers, the real build asks for the `projects.list` of that role. The
+  `features/home/roleHint.ts`). Before `session.get` answers, the real build asks for the `projects.list` of that role (a phone asks for none, see "Home on a phone"). The
   session answer always decides. The sign-in port gives the auth user id at once (`AuthPort.userId()`, optional).
 - The last Home lists stay on the device (owner, 2026-10-21, DF-14): `app/remote/homeCache.ts`, started by `main.tsx` in the real build only. The prototype
   stores nothing. One record for each auth user id sits in the IndexedDB `madar-home-cache` (raw IndexedDB, no package). It holds the build
@@ -321,6 +322,9 @@ any screen work.
   Clear (`clearHomeCache`, a `deleteDatabase`): `useLeaveScreen`, the end of the session in `AuthGate`, the sign-in port (a sign-out, or another person), and the
   first fresh `session.get` with another role or other rights than the record (the shown stored answers are reset at once). IndexedDB that throws, is missing, or
   was evicted gives the plain load. Never keep a token or a file link in this record. A new read that Home sends in its first request goes in `homeKeys`.
+  On a phone (under 640 px) `homeKeys(role, today, phone = false)` leaves out `projects.list` (Direction D). `show` and `collect` pass `isPhoneNow()`.
+  `HOME_NAMES` keeps the default, so a `projects.list` answer still schedules a write. A record from a desk browser shows no stored project list on a
+  phone. `HomeInstant.test.tsx` and `homeCache.test.ts` pin both cases.
 - In the real build, Tasks shows the cached Home answer of `tasks.list {filter:'mine'}` without the done rows while its own
   list loads (`features/work/minePlaceholder.ts`), only when no change marked that answer. `WorkTasks` reads its list with
   `useQuery` under the `useCall` key, so a change to `useCall` must also go there.
@@ -336,8 +340,10 @@ any screen work.
   `usePrefetchCall`. It starts none when the cached session lacks the switch of the route. A change to a read of one of these screens
   changes its line in `guardReads.ts` in the same commit; `GuardReads.test.tsx` holds every answer and fails on a key that the list missed.
 - A press on a tab of the bar starts the main read of its screen on pointerdown, never on hover (LV-9, 2026-10-21): `usePressReads` and
-  `PRESS_READS` in `app/pressReads.ts` (Projects, Dashboard, Inbox, the bell), with the keys of the screen at its link with no filter. A change to
-  one of these reads changes its line there too; `PressReads.test.tsx` holds the keys. Home and Tasks show from the cache and start nothing.
+  `PRESS_READS` in `app/pressReads.ts` (Projects, Dashboard, Inbox, the bell, `/work`, `/meetings`, `/me`), with the keys of the screen at its link with no filter. A change to
+  one of these reads changes its line there too; `PressReads.test.tsx` holds the keys. Home shows from the cache and starts nothing. `/work` starts
+  `MINE_OPEN` and `REVIEW_FOR_ME` (`features/work/readInputs.ts`), `/meetings` starts `meetingsListInput(today)` (`features/meetings/readInputs.ts`),
+  `/me` starts `settings.get` (and `google.status` in the real build). The Work tab, the Work segments and the Me hub all use `usePressReads()(path)`.
 - The project To-dos tab asks `taskTemplates.list {}` once, with its `tasks.list`, under the gates of the menu (list view and
   `createTaskForSelf`). `tabReads('tasks')` starts the same read with `projects.get` (`templates` option, DF-13) when the cached session
   may add a to-do on any project, also off the team (`sessionMayAddTask` in `reads.ts`), and the list view shows. A right for the
@@ -375,12 +381,12 @@ any screen work.
 ## Routes and shell
 - Routes (`app/routes.tsx`): `/` Home, `/projects`, `/projects/:id` (tabs overview, tasks, activity, tracker, schedule,
   files, team), `/work` (Tasks), `/meetings` (the second view of Tasks), `/dashboard`, `/dashboard/meeting` (full screen), `/dashboard/space` (Open space, full screen, read only), `/inbox`, `/notifications`, `/search`,
-  `/settings`, `/admin` and `/admin/:section`. Remote only: `/sign-in`, `/welcome`, `/forgot`, `/reset`, `/oauth/consent`.
+  `/settings` (a phone goes to `/me`), `/me` and `/me/:section` (a desk goes to `/settings`), `/admin` and `/admin/:section`. Remote only: `/sign-in`, `/welcome`, `/forgot`, `/reset`, `/oauth/consent`.
 - Admin: a grouped side list, one section at a time. The sections, their groups and roles are in one registry,
   `features/settings/admin/sections.ts`; a new section is one line there. A section with `right` opens for each person who holds
   that right (owner, 2026-10-18, fbk_014): `sectionsFor` reads the viewer, and `opensAdminPage` (`api/rights.ts`) decides the person
   menu. The Roles section is the Admin's only: `RolesSection.tsx` is one row for each role (people and rights), `RoleSheet.tsx` is the sheet of one role (people, names, the 113 switches in 13 folded sections, Save role, Delete with a move). A desk opens the first section at `/admin`; a
-  phone shows the list there. An unknown or forbidden section goes back to `/admin`.
+  phone shows the list there, and its Admin row sits in the Me tab. An unknown or forbidden section goes back to `/admin`.
 - Project templates: the Admin section (`ProjectTemplatesSection.tsx`) and "Start from a template" in the new-project form
   (`features/projects/TemplateUse.tsx`, `templateForm.ts`; the picker sits right under the Name, and the people of the roles are ticked
   and locked in the Team list). A chosen template takes the place of the stage list and makes the start date required. The ticks "Can
@@ -411,11 +417,9 @@ any screen work.
   for each kind of change and a line for each task (old value, new value). The main button runs only the projects that change and the
   sheet closes with the toast "Updated 2 projects. Undo". After a save of a followed template the toast offers "Update them"
   (`reviewAll`). A person who is not the Admin sees "Office" (not "Admin") as the title of the page.
-- Shell (`app/AppShell.tsx`): a floating tab pill (Home, Projects, Tasks, Dashboard, Inbox, plus Search and the bell; top
-  on desktop, bottom on a phone; on a phone the tabs show icons only, and the word of each tab stays `sr-only` below
-  640 px, owner 2026-10-08; each phone tab is 48 px high with its 24 px icon in the centre, the open tab is a round pill, the
-  bar sits 16 px from the sides and the bottom, and the Inbox count sits on the icon, owner 2026-10-20), the Madar mark at the top
-  start (a press opens Home), the person menu. No sidebar.
+- Shell (`app/AppShell.tsx`): from 640 px a floating tab pill at the top centre (Home, Projects, Tasks, Dashboard, Inbox, plus Search and the
+  bell), the Madar mark at the top start (a press opens Home) and the person menu at the top end. No sidebar. The desk did not change in
+  Direction D. A phone (`useIsPhone`, under 640 px) has a different shell, described in "The phone shell" below.
 - Focus mode is `?focus=<taskId>` with a 25-minute timer.
 - Tasks (`/work`): one main button, New office task (`features/work/NewOfficeTaskSheet.tsx`: title, lead, due date). A list
   screen opens a task panel with `?task=<id>` and, for a project task, `&project=<id>` (`openTask`, `lib/params.ts`).
@@ -451,12 +455,13 @@ any screen work.
 - The project To-dos tab (feedback fbk_005 and fbk_006, 2026-10-11, `features/project/tasks/`): the "+" before "Add a to-do" opens
   `NewTaskSheet` (title, a lead from the team, due date; a new task has no lead until one is picked), and the words next to it stay
   the quick add. A refusal "move the project back" opens the reason sheet over it, as in the quick add. The avatar of a row is
-  `TaskPeople`: for a person with `row.canEditPeople` a press opens a small pop-up with the lead list (the lead first, then the
-  team, then the others, who join the team), and a small "+" beside it (it shows on hover or focus, and is gone on a touch screen
-  and under 640 px: `pointer-coarse:hidden max-sm:hidden`) opens the helper list. The pop-up also holds an "Add a helper" row,
-  which is the only way on a phone. One press on a name changes the task at once, with an Undo toast and no confirm button. The
-  pop-up takes its people from the cached `users.list` and `projects.get`, with the rules of the task panel. A row without the right
-  keeps an empty box of the "+" size, so the avatars line up. The pop-up is a `Popover` with `fit`: it takes the side with room, its
+  `TaskPeople`: for a person with `row.canEditPeople` a press opens a small list with the lead first, then the
+  team, then the others, who join the team, and a small "+" beside it (it shows on hover or focus, and is gone on a touch screen
+  and under 640 px: `pointer-coarse:hidden max-sm:hidden`) opens the helper list. The list also holds an "Add a helper" row,
+  which is the only way on a phone. `TaskPeople.tsx` loads `TaskPeopleList.tsx` lazily, so vaul stays out of the first load: a phone gets a `Sheet`
+  and a desk keeps the `Popover` with `fit`. One press on a name changes the task at once, with an Undo toast and no confirm button. The
+  list takes its people from the cached `users.list` and `projects.get`, with the rules of the task panel. A row without the right
+  keeps an empty box of the "+" size, so the avatars line up. On a desk the list is a `Popover` with `fit`: it takes the side with room, its
   height stops 8 px inside the screen (`popoverPlace`), and only its list scrolls, so the heading and "Add a helper" stay in view.
 - The Projects list and the project header show "Stage ends" (the end of the current stage, `ProjectSummary.stageEnd`) while the
   project has no named deadline (feedback fbk_004, 2026-10-11). "No deadline" shows only with neither. That line wraps on a narrow
@@ -491,7 +496,119 @@ any screen work.
 - Home (`features/home/`): the day ring shows its words, "11 of 14 done today" (owner, 2026-10-19, fbk_026); the text wraps under the date on a
   narrow phone. The Today panel lists my tasks due today or past due. With none, it is "Coming up": my next 3 open
   tasks with a due date (`comingUp`, `lib/home.ts`, owner 2026-10-07). With neither, it says that nothing is due today. Home
-  follows the shared order of the Tasks screen (`api/CLAUDE.md`).
+  follows the shared order of the Tasks screen (`api/CLAUDE.md`). A phone has its own Home layout ("Home on a phone" below).
+
+## The phone shell (Direction D, owner 2026-10-22)
+Under 640 px (`useIsPhone`) the shell and the main screens differ from the desk. The desk did not change. Wave 1 (the shell) never ships alone: it
+needs the Me hub of wave 2, because a phone has no bell, no person menu, no Sign out and no Preview as outside the Me tab. New phone code sits in lazy
+chunks (the first-load limit is in `scripts/check-bundles.ts`).
+- Tab bar: `PhoneTabBar` (`app/PhoneTabBar.tsx`, returned by `TabPill`) has four tabs with a word under each icon, in the order Today `/`, Inbox `/inbox`,
+  Work (`workTabLink()`, the last Work view of the visit, `lastList.ts`) and Me `/me` (`PHONE_NAV`, `phoneTabOf` in `app/nav.ts`; the words are
+  `phoneShell.tab.*` in `i18n/real/phoneshell.*.json`). The bar is 64 px high and keeps `data-pill` (Focus mode makes it inert). The Inbox badge is the
+  unread chats plus `notifications.count.badge`; the link name comes from `inboxName` (the keys `nav.inboxUnread`, `nav.inboxBadge`,
+  `phoneShell.inboxBoth`). A press on the open tab scrolls to the top and does not navigate; a lit tab whose link points elsewhere (Work on a project
+  page) navigates. No screen but `WorkHeader` calls `rememberWorkView`, so the Work tab links `/work` until a Work view was seen.
+- The bar hides through `usePhoneBarHide` (`app/usePhoneBarHide.ts`): for an open chat (`isPhoneChatPath`, `app/phoneChat.ts`) and Focus mode it leaves the
+  page; with the open keyboard (`useKeyboardOpen`, `app/useKeyboardOpen.ts`: `visualViewport` more than 150 px shorter than the window, never while
+  pinch-zoomed) it stays mounted, clear and inert. While it hides, `<html>` carries `data-bar-hidden` and the token `--phone-bar` is 0 px. The page and
+  the toast lane use `--phone-bar` (`max-sm:pb-[calc(var(--phone-bar)+1.5rem)]`, `bottom-[calc(var(--phone-bar)+0.75rem)]`), never `pb-32` or `bottom-24`.
+- Top row: `PhoneTopRow` (`app/PhoneTopRow.tsx`) holds the mark, or the back link of `backLinkOf` (`app/phoneBack.ts`: a project page to Projects; Me
+  sections, What's new, Dashboard and Admin to Me; `/tasks` to Dashboard or Me; an Admin section to Admin or Office), and one Search icon named
+  `phoneShell.searchAll`. There is no bell and no person picture on a phone. An open chat has no top row. `HomeMark` lives in `app/HomeMark.tsx`.
+  `screenKey` and `tabIndexOf` live in `app/phoneShell.ts` and take a `phone` argument.
+- Me routes: `/me` (screen `me`) and `/me/:section` (screen `meSection`) sit inside the shell with no `right`. The redirects live in `routes.tsx` (`phoneTo`
+  and `deskTo` of an `Entry`), never in a screen: `/settings` on a phone goes to `/me` (to `/me/calendar` when the hash starts with `#google=`); `/me` and
+  `/me/:section` on a desk go to `/settings`. Search and hash stay. The section id of Google Calendar is `calendar`.
+- Me hub (`features/me/`; words `phoneMe` in `phoneme.*.json`): `MeScreen` (hub), `MeSectionScreen` and `meSections.tsx` (`/me/:section`, seven sections,
+  `meSectionOf`), `MeRow.tsx` (row parts), `PersonPanels`, `NoticePanel`, `OfficeGroup` (Office, Prototype, Sign out), `HomeScreenSheet`, `useMeSummary`.
+  The hub holds Profile, Away, Language, Theme, the Notifications rows, the Office rows (Dashboard and Admin), What's new, the feedback sheet and
+  Sign out. `settings/bare.tsx` (`BareProvider`, `useBare`) makes the h2 of Settings parts `sr-only`, leaves the Morning summary out of `/me/notices` and
+  makes the column names sticky; a desk has no provider. Shared with the desk: `settings/PrototypeTools.tsx`, `feedback/useFeedbackSheet.tsx` (also used by
+  `PersonMenu`), `SwitchButton` in `Switch.tsx`, `effectiveWorkHours` in `workRange.ts`, `PUSH_NOTE` in `PushSection.tsx`. The Today ask card and the hub
+  push row share `usePushDevice`. The Morning summary switch sits on the hub on a phone and in Notifications on a desk. Sign out on the hub is one press and
+  ignores a second press while it runs. The Admin row says "Best on a computer" (`phoneMe.adminBest`).
+- Shared parts: `SegmentedControl` takes `fill`, `layoutId`, `onOptionPointerDown` and per option `count` and `countLabel` (a red Badge after the label).
+  `Tabs` takes `spread` (equal columns, no side scroll, a word may wrap) and `variant="pill"`. `Sheet` takes `tall` (full free height on a phone),
+  `phoneHeader` (replaces the visible title on a phone; the real title stays `sr-only`; `headerAction` and Close stay in the row) and `onClosed` (runs
+  500 ms after a close, also when the parent closed it; vaul's `onAnimationEnd` does not). `SheetOrPopover` is a Popover on a desk and a Sheet on a phone.
+  `Menu` takes `sheetOnPhone`: on a phone the items open as `MenuSheet` (44 px rows, loaded on first press; `Menu.tsx` must never import `Sheet` or
+  `MenuSheet` statically, `firstLoadImports.test.ts` holds it), and the chosen item runs after the sheet has closed.
+- Phone tests: use `phoneMedia(initial)` and `fakeVisualViewport()` from `src/test/phoneMedia.ts` (it answers `(max-width: 639px)` and `(pointer: coarse)`, and
+  restores `matchMedia` when the test ends). `features/inbox/phoneHarness.ts` and `src/test/renderPanel.tsx` wrap it for the Inbox and the task panel. For
+  reduced motion use `reduceMotion()` (`features/project/tasks/testMotion.ts`). After a test lifts a drag, end it, or the dnd-kit click guard stays on `document`.
+- Work tab (`features/work/WorkHeader.tsx`): the top of the three views To-dos, Meetings and Projects. It shows the title "Work" with the main button of the view,
+  then the full-width `SegmentedControl` (`fill`, `layoutId="work-switch"`) and the View toggle. It calls `rememberWorkView`, and after a keyboard change of
+  view it puts the focus on the checked part (route state `focusSwitch`). A desk keeps "Tasks" and the two-part switch.
+- Press and hold: `useTouchPhone()` is `useIsPhone() && usePointerCoarse()`. `dragSensors.ts` holds `useDragSensors` and `prefersReducedMotion`, and only
+  `DragLayer.tsx` and `TaskBoard.tsx` import it. A touch phone gets Mouse (distance), Touch (400 ms, 8 px) and Keyboard. The grip is `sr-only` there. A click
+  within 250 ms of a drop or cancel opens nothing. `contextmenu` is stopped on a touch row. The 400 ms hold is not proven on a real iPhone.
+- Board on a phone: a snap lane (`auto-cols-[calc(100%-3rem)]`, snap off while a card is lifted). `BoardDots` uses an `IntersectionObserver`. The Done header says
+  "Last 7 days". An empty column shows "Nothing here.". A touch drop reads the point from `touchmove` and `touchend`. The drop animation is `null` under reduced motion.
+- Meetings on a phone: `MeetingCard` with Join as a secondary anchor. `useMinuteTick` gives one 60 s tick for the list and stops while the page is hidden. The
+  Earlier fold is a 52 px row. The Google line shows only for `google.status` state `ok`. A meeting with 0 attendees shows no people line.
+- Projects on a phone: `ProjectSearch` and `searchProjects` (in `features/projects/`). The text lives in `ProjectsFind`, not in the link or the Filter count.
+- Home on a phone: `HomeScreen` renders five blocks as direct children of one grid, `grid grid-cols-[minmax(0,1fr)] gap-4`: the title, `NextCard`, `TodayPanel`,
+  `MeetingsCard` and `PushAskCard`. There is no `display: contents` wrapper, because the `.screen-enter` rule reads the DOM tree. A phone mounts no "Your
+  projects" section and no "See what's new" link: `useCall('projects.list', ..., { enabled: !phone })` sends no read. A turn to landscape starts the read and
+  shows the section. A push link `/?task=` still opens the sheet. `MeetingsCard` adds a line under the title (`meetings.kind.*`, then the project name), a
+  chevron, and a secondary Join link (`<a target="_blank">`; it shows from 30 minutes before the start, or while the meeting is on, for an https place only,
+  `mainAction` in `meetingLinks.ts`; the word is `phoneToday.joinLabel`). A 60-second timer redraws the card on a phone. `PushAskCard` shows a 20 px bell
+  (`BellIcon`, `text-ink-2`) before the ask line on a phone only; the iPhone steps card and the Android install card have none. Home selectors in tests are
+  `[data-screen] > .grid`, not `main .grid`, because the phone top row has its own grid.
+- Project page on a phone: five tabs, `PHONE_TABS` = Overview, To-dos, Tracker, Files & Links, More (words `phoneproject.*`). Activity, Schedule and Team are pages
+  inside More. `?tab=more` is the list. `?tab=activity|schedule|team` light More and open the sub-page (`MoreSubPage`, with a back row). On a desk `?tab=more`
+  opens Overview. `tabOfLink`, `litPhoneTab`, `isMorePage` and `tabSearch` in `tabs.tsx` hold these rules. The tab row is sticky, and a tab change scrolls to
+  `[data-tab-anchor]` when the header is out of view. `ProjectHeader` owns the open sheets (stage, health, More actions) and swaps `PhoneHeader` and `DeskHeader`,
+  so a phone turned sideways keeps the open sheet. `phoneMainButton` (`mainButton.ts`) decides the one navy button of each tab: Post update, "Log a new line" on
+  Tracker, Add on Files & Links, or the Post button of the box while the box holds text; `tabButtonShows` says when a tab button shows.
+- Project Overview on a phone is one column in this order: standing, attention, payments, Updates (compact post box plus the two newest posts), meetings, coming
+  up, people, about. The "Next deadline" row lives in the standing panel. Activity has no post box on a phone. `usePostDraft` (`overview/postDraft.ts`) keeps
+  the update draft: on a phone the box and the header share it, in memory and in the draft store key `post:<project>`, so a tab change or blocked storage does
+  not lose it. The Project chat link and the file-share "Open" action send `state.from = pathname + search` for Back.
+- Tracker and Files on a phone: the Tracker log form is a `Sheet` (`QuickLog sheet={...}`) that stays mounted, so the type and the side stay for the next line.
+  Add on Files & Links is a navy sheet menu (`Menu sheetOnPhone`). A row's thumbnail and name open the preview. There is no drop hint and no drop. A picture opens
+  in `ImageViewer`. A PDF opens a sheet with a real `<a target="_blank">` made after the signed link loads (the Arabic word is «افتح الملف», because
+  `src/i18n/arabic.test.ts` refuses Latin letters).
+- Task panel on a phone (`features/project/tasks/`): `TaskBody` in `TaskSheet.tsx` draws `PhoneBody`; on a desk it draws `DeskBody` with the same markup as before.
+  Both read one hook, `useTaskPanel.ts`, which holds all state, actions, the save at close and the lead, helper and dates logic. The Sheet gets `tall` and
+  `phoneHeader={<PhoneHeader/>}`: the project link (`ProjectTile` 22 and the name) or the word Office, beside the Focus pill and the X. `PhoneBody` order:
+  `TitleBlock` (a tap edits, blur or Enter saves, Escape restores), `StateLine`, the office note, `NextStep`, `Tabs variant="pill"` (thumb `layoutId`
+  `task-section-thumb`), then `PhoneDetails` or the docked `CommentThread`. `nextStep(data, viewerCan, makerId)` in `nextStep.ts` picks one of nine kinds, in
+  this order: review, take, complete, waiting, needs_lead, wait_approval, new_version, join, none. The component is `NextStepSlot.tsx` (its name differs in
+  case from `nextStep.ts` on purpose, because macOS resolves `./NextStep` to the `.ts` file). One main button at most; in the Conversation view it is secondary
+  (`demote`), so Send is the one navy button there.
+- Task panel details: `PhoneDetails.tsx` order is People, When (then the date changes), This to-do, Checklist, Files, Needs first and Unlocks, Versions, History, and
+  the stacked Leave, Save as template and Delete buttons. `DetailRows.tsx` holds `Group`, `ValueRow`, `PickRow` (the real `<select>` lies over the row with opacity 0
+  and keeps its `id`), `SwitchRow` and `DateRow`. Layout props on shared parts: `layout="rows"` on `TaskHelpers`, `TaskTiming`, `TaskNeeds`, `TaskVersions`,
+  `TaskFiles` and `History`; `rows` on `Checklist`, `ChecklistRow` and `ItemGrip`; `align` and `touchClear` on `DateDraftField` and `DateField`; `docked` and
+  `hideTitle` on `CommentThread` (it adds `data-comment-end` for the scroll-once effect). `src/lib/fileSize.ts` has `fileSizeText` (`FilesTab.tsx` keeps its own
+  copy). Hooks kept at 390 px for the browser specs: `#task-owner`, `#task-status`, `#task-review`, `#task-note`, `#task-title`, `#task-add-helper`,
+  `#task-add-need`, the region Review, the buttons Approve and Send back, the role `tab` named Conversation, and the button Focus. Words: `phoneTask` in
+  `phonetask.*.json`.
+- Inbox on a phone: `/inbox` and `/notifications` share the title "Inbox" and `InboxViews` (`SegmentedControl` with `fill`, `layoutId="inbox-views"`, and a count and
+  `countLabel` on each segment). The list is a page, not a panel. The four kind chips are `features/inbox/ChatKindChips.tsx`. Search text is at least 16 px.
+  "Archived (n)" is the last row of the list panel. "Mark all read" ends the heading line of the first day. Approve sits under the meta line in a separate button
+  (`ps-[5.375rem]`).
+- An open chat on a phone is `PhoneChatPage` (`features/inbox/PhoneChatPage.tsx`): a portal on the body (`[data-chat-page]`, fixed, `z-30`, `overscroll-none`). Its
+  top and height follow `visualViewport`, and it sets `--chat-h` inline (not a token; it falls back to `100dvh`). It calls `useSheetToasts(true)`, so toasts move
+  to the top. It becomes `inert` while a sheet is open (it follows the `data-panel-open` mark). The entrance is keyed by the chat id only, so a new `?at=` mark does
+  not replay it. The list stays mounted but hidden, so its search text and scroll place stay. The load, error and not-found states carry `PhoneBackBar`.
+- Back rule (`features/inbox/chatBack.tsx`): a screen that opens a chat passes `state: { from }`, with `chatState(from)`. The senders are the chat list, New message,
+  Notifications, Search hits, the Search person sheet and the Message button of the options sheet (this one sends the real pathname plus search). Projects, Home and
+  the task panel send it for their own links. `ChatBackLink` goes one step back (`navigate(-1)`) when `state.from` exists and the history index is above 0, else
+  to `/inbox` as a new step. A second press during a step does nothing. `useLeaveChat` does the same for Archive, Mark as unread and Leave group. A test must wait
+  for the chat log before it presses Back, because the Back link of the loading state is replaced when the chat arrives.
+- Chat header (`ChatHeader`): 56 px plus the top safe area, in this order: Back, picture of 38 px, title, Search, options. Search is a link to
+  `/search?in=messages`, a mark for the screen only: that screen shows Messages first, hides Commands and uses the placeholder "Search messages".
+  `useQueryInLink` keeps the other link values when it writes `q`. The options sheet (`ChatOptionsSheet`, `OptionsButton`, `PeopleRows`) is one sheet for all
+  four chat kinds. Its rows are the people (group), Add people, Rename, the link row, Notify me (not for a to-do thread), Mark as unread, Archive or Move back,
+  and Leave group. Add, Rename and Leave open one frame after this sheet closes. `PeopleRows` with `rich` adds the presence word and a Message button
+  (`chat.direct`). The desk keeps its anchored menu and People sheet.
+- Composer on a phone: no focus when a chat opens (`isPhoneNow()`). The form pads `max(env(safe-area-inset-bottom),0.5rem)`, or `pb-2` with the keyboard open. The
+  field stops at 40 percent of `--chat-h`. `MentionField` takes `listMaxHeight`. Enter adds a line in the edit form, and no focus follows Save or Cancel of an
+  edit. `MessageLog` also observes the log region. A failed message is kept as the draft of its chat (`keepAsDraft`, `useDraftOnClose`; and `onRefused` when
+  the pane is closed). A long press opens the message sheet only when it has a row (`sheetHasRows`). In the emoji panel with `layout="sheet"`, the group row sits
+  under the grid. The picture viewer pads `env(safe-area-inset-bottom)`. `FileChip` has `max-sm:min-h-11`.
 
 ## Reminders, No lead and quiet lines (owner, 2026-10-19; fbk_024, fbk_025, fbk_027)
 - The paused banner (`features/project/PausedBanner.tsx`) says "Restart reminder on <date>." before the day, and after it "Planned restart was
@@ -546,11 +663,11 @@ any screen work.
   `notices.repliedGroupGone` in a group the reader left, `notices.repliedToYou` elsewhere. The link, the face and the row stay as for a mention.
 
 ## Inbox, groups and What's new (owner 2026-10-18; UX audit 2026-10-19)
-- Inbox list (`features/inbox/ChatList.tsx`): a menu button beside the search shows one kind of chat (owner, 2026-10-20): All,
+- Inbox list (`features/inbox/ChatList.tsx`): on a desk a menu button beside the search shows one kind of chat (owner, 2026-10-20; a phone has four kind chips, see "Inbox on a phone"): All,
   Projects (project chats), To-dos (the threads of to-dos) and People (direct chats and groups). The button names the shown kind. The
   choice lasts: it stays after the Inbox closes, after a reload and for the next visit (owner, 2026-10-23; `usePersistentChoice`, key
   `madar.chatKind`, fallback All); the search and "Archived (n)" look only in
-  that kind, and an empty kind says "No chats here.". "Archived (n)" is one quiet row under the search field, only while a chat is archived
+  that kind, and an empty kind says "No chats here.". "Archived (n)" is one quiet row under the search field on a desk (the last row of the list on a phone), only while a chat is archived
   and nothing is typed. The archived view has a back arrow, the title "Archived chats" and its own search words. A search in the
   main list looks in every chat, and an archived match carries the word "Archived". A group matches by its name (only its members
   have its row). An archive and a move back show a toast with Undo (`archive.ts`, `useArchive`; `chats.archive` writes no event, so
@@ -558,8 +675,7 @@ any screen work.
   `max-sm:hidden`); on a phone or a finger a swipe on the row archives it. The menu button names its chat ("Options for <title>").
 - No "Waits for your reply" line (owner, 2026-10-19 and 2026-10-20, fbk_028; it wins over item 22 of the chat design, whose waits rule stays in the
   API for `chats.waiting` and the agents): the Inbox does not call `chats.waiting` any more. In its
-  place the menu of a chat has "Mark as unread" (`chatMenuItems` in `ChatList.tsx`: the row menu, and the menu in the header of the open chat, which is
-  the way on a phone). It shows only for a chat with nothing unread that is not archived. The call is `chats.markUnread`; the toast "Marked as unread."
+  place the menu of a chat has "Mark as unread" (`chatMenuItems` in `ChatList.tsx`: the row menu, and the menu in the header of the open chat; on a phone the options sheet of the chat holds the item). It shows only for a chat with nothing unread that is not archived. The call is `chats.markUnread`; the toast "Marked as unread."
   has Undo, which calls `chats.markRead` (`inbox/markUnread.ts`, kept in `InboxScreen` so the toast stays when the open chat closes). The open chat
   goes back to the list. The chat is bold again, the badge counts it, until the person opens it again. `ChatPane` marks a chat read at its first look
   (the first fresh answer while the tab shows, design item 5), and after that only when a message is newer than the read time (`behind`), so a mark
@@ -579,7 +695,7 @@ any screen work.
   as before, and their row counts only the unread messages that name the Admin, unless the Admin picked All messages in the chat menu
   (`countsNamedOnly`, `chatState.ts`). Because such a row can count 0 while plain messages are new, `ChatPane` marks the chat read on
   open when its newest message is newer than `readUpTo` (`behind`), not only when the count is above 0.
-- What reaches the Admin (owner, 2026-10-23): one choice for a person with the Admin role, `Preferences.adminReach`, in Settings
+- What reaches the Admin (owner, 2026-10-23): one choice for a person with the Admin role, `Preferences.adminReach`, in Settings (desk) or Me (phone)
   (`settings/AdminReachSection.tsx`, "What reaches me", before the notification switches; three radio choices, saved at once by
   `me.updatePreferences` with a toast). Read it only with `adminReachOf` (`chatState.ts`): a missing value means `mixed`, and any person who is
   not an Admin reads `mixed` whatever is stored. `mixed` is item 23 above, with no change. `mine` ("Only my work") leaves the project
@@ -642,7 +758,8 @@ any screen work.
 - What's new (`whatsNew/entries.ts`): an entry may have `right` (the page shows it only to a person who holds it, by `can()`) and
   `to` (one quiet link "Open"). An entry newer than the last one the person saw has the word "New". The person menu shows the word
   "New" after the item, and Home ends its date line with the link "See what's new", until the person opens the page. There is no dot
-  and no bold item.
+  and no bold item. A phone has no person menu and no "See what's new" link on Home: the What's new row of the Me hub shows the word "New"
+  (`features/me/OfficeGroup.tsx`).
 
 ## Chat reading (track read, 2026-10-19)
 - Runs (`features/inbox/runs.ts`): the messages of one person within 5 minutes of the one before form a run; a new day, a quiet line, another person, an agent message or the New line starts a run. A next message shows no face and no name; its time sits in the side spot (`data-part="side"`) at opacity 0 until hover or focus.
@@ -695,8 +812,9 @@ any screen work.
   A test that needs the last group waits for it (`findByRole`).
 
 ## Meetings screens (owner, 2026-10-19, fbk_022)
-- `/meetings` is the second view of the Tasks tab (`features/meetings/`, `MeetingsScreen.tsx`). The tab pill keeps 5 tabs: `isNavActive` keeps
-  Tasks open on `/meetings`, and `screenKey` (`AppShell.tsx`) gives both views one entrance. The switch `WorkSwitch`
+- `/meetings` is the second view of the Tasks tab (`features/meetings/`, `MeetingsScreen.tsx`). The desk pill keeps 5 tabs: `isNavActive` keeps
+  Tasks open on `/meetings`, and `screenKey(pathname, phone)` (`app/phoneShell.ts`) gives both views one entrance; on a phone it also joins `/projects` to
+  `/work` and `/notifications` to `/inbox`, and `ScreenEntrance` slides by the four-tab index (`tabIndexOf`). On a desk the switch `WorkSwitch`
   (`features/work/`, a `SegmentedControl` over the address) sits in its own row under the title "Tasks", in `ScreenControls`
   (`components/`, owner 2026-10-23): the same row and the same space as the Filter button of Projects (20 px under the title block, 16 px above the list; the
   screen wrapper has no gap of its own). It picks To-dos (`meetings.switch.todos`, Arabic «قائمة المهام») or Meetings. The To-dos view adds the small View button at the end of the same row (see the Board of Tasks). The one main
@@ -769,7 +887,9 @@ any screen work.
 - Status words are shape signs plus an ink word (no tinted pill). The stage steps line takes the status colour.
 - Red only for Late and errors. Gentle words: "3 days past due" in the attention colour, never a red "Overdue".
 - Calm rules (`expectCalm` in the Playwright suites): one title, at most one main button, no filter chip rows (one Filter
-  button), no grid view, no avatar stacks, "On track" never shows in lists. Only the tab pill keeps a blur.
+  button; the one exception is the four kind chips of the phone Inbox, a radiogroup whose open chip is a white card and never navy), no grid view,
+  no avatar stacks, "On track" never shows in lists. Only the tab pill keeps a blur. "Unread badge: red, on the Inbox and the bell only" stays
+  true: on a phone the bell count shows on the Inbox tab and on the Notifications segment, and the Chats segment shows the unread chats.
 - Icons: animated Lucide icons from lucide-animated.com through `components/icons/AnimatedIcon.tsx`.
 - Logo: `MadarMark` ("Turning doors"), only in the sign-in frame, the app frame and the office card of the Open space map,
   never in a project list (`MadarMark.test.tsx` lists the files).
@@ -823,7 +943,7 @@ any screen work.
   before you judge it. The tab that claude-in-chrome opens is hidden (`document.hidden` is true), and then `connectChanges` marks
   the lists old and never loads them again: a saved change does not show until a reload (2026-10-12, fbk_006). In that tab run
   `Object.defineProperty(document, 'hidden', { configurable: true, get: () => false })` and dispatch `visibilitychange` first.
-- Prototype language and theme: the person menu (stored in IndexedDB, not localStorage). A switch takes a few seconds,
+- Prototype language and theme: the person menu from 640 px, the Me tab on a phone (stored in IndexedDB, not localStorage). A switch takes a few seconds,
   and `<html lang>` can show the old value meanwhile. Wait before a screenshot.
 - The owner likes to choose a visual style from a side-by-side comparison artifact.
 - A quick 390 px check without Playwright: in the claude-in-chrome tab, add a fixed 390 x 844 `iframe` of the same page
@@ -874,7 +994,7 @@ any screen work.
   the place message. Await the place message after Space and after the arrow key before the next key, or the drop never happens.
 
 ## Quiet hours and the Everyone row (owner, 2026-10-22, fbk_048 and fbk_041)
-- Settings has the section "Quiet hours" after the push section (`settings/QuietHoursSection.tsx`, for every role). One switch "Quiet outside my
+- Settings (desk) or Me (phone) has the section "Quiet hours" after the push section (`settings/QuietHoursSection.tsx`, for every role). One switch "Quiet outside my
   work hours" (on by default), then the seven day toggles from Sunday and "From" and "To" (30-minute steps from 6:00 AM to 11:30 PM, on the
   12-hour words of `clockFormat`; `WorkRangeFields.tsx`, `workRange.ts`). While the Admin keeps the lock on, the days of the lock are ticked and
   locked, the times cannot cut the lock, and one line names it. Each change saves at once with `me.updatePreferences` and a toast. With the

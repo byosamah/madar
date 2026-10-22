@@ -6,6 +6,10 @@ the same system for people and for design tools (Google DESIGN.md format, alpha,
 
 ## Files
 - `tokens.css`: the CSS variables, light and dark. `tokens.test.ts` checks the contrast of the text pairs.
+  `--phone-bar` is the room that the phone tab bar takes at the foot of the page: `calc(64px + max(16px, env(safe-area-inset-bottom)))` on `:root`,
+  and 0 px under `:root[data-bar-hidden]` (the shell sets the mark while the bar hides: an open chat, the keyboard, Focus mode). The page padding and the
+  toast lane use it. `tokens.test.ts` holds both values. `--chat-h` is not a token: `PhoneChatPage` sets it inline on the chat root, and the composer and the
+  @ list read it with a `100dvh` fallback.
 - `fonts/`: Thmanyah Sans 400, 500 and 700 (OTF, version 1.003), exactly as font.thmanyah.com ships them.
 - `inter/`: the Inter subset of the digits, the square sign and the middle dot, with the OFL licence of Inter (`OFL.txt`). It is not in
   `fonts/`, because `tokens.test.ts` keeps `fonts/` to the three Thmanyah files.
@@ -21,6 +25,9 @@ the same system for people and for design tools (Google DESIGN.md format, alpha,
 - A new component style also needs its token group in `DESIGN.md` under `components`.
 
 ## Rules
+- Phone parts take no new token. The sticky tab row of the project page is a solid `--c-bg` band with no blur. The `.hairline` class draws a line between
+  the direct children of a `Group` body in the task panel. The press and hold classes are `touch-manipulation`, `pointer-coarse:select-none` and
+  `pointer-coarse:[-webkit-touch-callout:none]`. A Me hub icon has no coloured tile, and a state is a word in ink, not a dot.
 - Screens take colours from the tokens. A new colour starts as a token here and in `DESIGN.md`.
 - No gradient on a button, and never a blue-to-violet gradient anywhere. The signature navy is always solid.
 - No new font file or font family (see "Do's and Don'ts" in `DESIGN.md`). The one exception is the Inter subset in

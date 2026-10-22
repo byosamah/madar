@@ -420,7 +420,9 @@ One ink, one signature, quiet states. Colour carries meaning, never decoration.
 - **Project hues:** eight soft tile colours (blue, orange, green, purple, pink, teal, amber, indigo), each with its own
   darker ink, for example {colors.project-blue} with {colors.on-project-blue}. A stable hash of the project id picks the
   hue, so a project keeps its colour everywhere. The hue identifies a project; it never means good or bad.
-- **Unread badge:** {colors.badge} with {colors.on-badge}, on the Inbox and the bell only.
+- **Unread badge:** {colors.badge} with {colors.on-badge}, on the Inbox and the bell only. On a phone it shows on the Inbox tab
+  and on the two Inbox segments (the Chats segment counts unread chats, the Notifications segment counts bell items). The chat row
+  keeps the `signature` count.
 
 ## Typography
 
@@ -452,12 +454,16 @@ A calm single column on a phone, a centred column with side panels on a desk, an
   {spacing.gutter-desktop} from 640 px.
 - **Spacing:** a 4 px base ({spacing.base}); groups separate with {spacing.lg} to {spacing.xl}; a panel has
   {spacing.panel} of padding. Lay out sibling groups with flex or grid gaps, not with margins on each element.
-- **The shell:** no sidebar. A floating tab pill holds Home, Projects, Tasks, Dashboard and Inbox, plus Search and the
-  bell. It sits at the top centre from 640 px and at the bottom centre on a phone. The Madar mark sits at the top start
-  of every screen and opens Home; the person's picture sits at the top end and opens the person menu (language, theme,
-  Settings, Admin, sign out). On a project page the phone's top start shows the back link instead of the mark.
+- **The shell:** no sidebar. From 640 px a floating tab pill holds Home, Projects, Tasks, Dashboard and Inbox, plus Search and the
+  bell, at the top centre. The Madar mark sits at the top start of every screen and opens Home; the person's picture sits at the top
+  end and opens the person menu (language, theme, Settings, Admin, sign out). The picture and the person menu exist from 640 px only.
+  On a phone the bar sits at the bottom centre with four tabs, each with a word under its icon: Today, Inbox, Work and Me. The bar
+  is 64 px high, and it hides in an open chat, with the keyboard open and in Focus mode. The top row of a phone holds the Madar
+  mark (or the back link of its screen) and one Search icon, and nothing else: no bell and no person picture. The Me tab holds
+  Profile, Away, Language, Theme, the Notifications rows, the Office rows, What's new, the feedback sheet and Sign out.
 - **Home** reads in this order: a greeting with the date, the "Next for you" card (the single next step), Today, then Your
-  projects. Never add a fourth kind of block above "Next for you".
+  projects. Never add a fourth kind of block above "Next for you". On a phone Home is one column of five blocks with a 16 px
+  gap (the title, "Next for you", Today, Meetings and the push ask line) and has no Your projects block.
 - **Touch targets** are at least {spacing.touch-target}.
 - **Direction:** every rule uses logical sides (start and end). Never write left or right in styles; a build check refuses
   them.
@@ -512,10 +518,31 @@ Every component exists to make the next step obvious. All live in `src/component
 - **Sheets** ({components.sheet}): a bottom sheet on a phone and a side or centred sheet on a desk; one title, one main
   action.
 - **The tab pill** ({components.tab-pill}): the open tab carries the signature fill ({components.tab-active}) and glides
-  between tabs. Phone tabs show the icon only, in the centre of a 48 px tab; the open tab is a round pill, and the bar keeps
-  the 16 px edge of the page (owner, 2026-10-20). The Inbox count sits on the corner of its icon.
+  between tabs. The phone bar has four tabs, each 52 px high with a 22 px icon and a 12 px word under it that never cuts; the open
+  tab is a round pill, and the bar keeps the 16 px edge of the page (owner, 2026-10-20 and 2026-10-22). The Inbox count (chats plus
+  bell items) sits on the corner of its icon. A press on the open tab scrolls the page to the top.
+- **Work header on a phone:** the title, the main button of the view, then the switch with the View toggle. The navy is only on the
+  main button. The View toggle is a round 44 px button with `aria-pressed`: it has `bg-fill-strong` and a 1 px ink ring when Board is
+  on, and the kanban icon in both states. The Board dots are 44 px buttons with an 8 px dot: the open one is `bg-ink`, the rest
+  `bg-fill-strong`, and the open dot slides. A held row or card lifts with `scale(1.02)`, and with no scale under reduced motion. The
+  meeting card has a sign plus an ink word for Now, Done and Cancelled, and Join is not navy.
+- **Home on a phone:** the bell before the ask line is `text-ink-2`, not coloured. The Join button is secondary (`bg-fill text-ink`,
+  never navy). The row chevron is `text-ink-2` and mirrors in Arabic. Home keeps one navy button, the main button of "Next for you".
+- **Project page on a phone:** five equal tabs in a sticky solid row, with no side scroll, one navy button for each tab, and panels
+  instead of cards. The More rows are plain link rows with a chevron and no icon tiles. The sub-page slides in from the end side, and
+  reduced motion removes the slide. The stage list, the health form and the More actions are bottom sheets.
+- **Task panel on a phone:** the grouped rows are `rounded-2xl bg-fill` with hairline dividers and a title in `text-caption` capitals.
+  A row is at least 48 px high. The pill switch has a 44 px grey track with a `bg-card` thumb that slides. The next step slot is the
+  only navy in the panel: a 52 px button, and the slot changes with `fade`. In the Conversation view the button is secondary, so Send
+  is the one navy button. Timing opens in place. The X, the grip and Remove are 44 px, and the tick area of a checklist item is the
+  whole row. The docked comment box has a hairline above it and sits at the bottom of the sheet.
+- **Chat page on a phone:** the header is 56 px. Send is the one navy item. "Not sent" stays `text-late`. Leave group, Delete and
+  Remove keep the destructive look. The rows of the options sheet are 56 px, in ink, with an icon in ink.
+- **Me rows:** a row is at least 56 px high, its icon is plain `text-ink-2` at 20 px with no coloured tile behind it, and a state is a
+  word in ink (New, Connected, Off), never a dot. A switch is never shown disabled.
 - **"Next for you"** ({components.next-for-you}): the one card with the glow. It names one task and one action.
-- **Filter button:** one button with a count opens a sheet or a popover. Never a row of filter chips.
+- **Filter button:** one button with a count opens a sheet or a popover. Never a row of filter chips. The one exception is the four
+  kind chips of the phone Inbox: the open chip is a white card and never navy.
 - **Status sign:** the shape plus an ink word, for example "At risk". "On track" never shows in lists; a sign shows only
   when something needs attention.
 - **Notes** ({components.attention-note}, {components.late-note}): a soft tinted line for "3 days past due" or "Late".
@@ -580,10 +607,11 @@ stands alone without a label or an accessible name.
 - **Do** let panels breathe: white space is part of the calm, not unused room.
 - **Do** design the Arabic screen at the same time as the English one, with logical sides only.
 - **Don't** use gradients on buttons, and never a blue-to-violet gradient anywhere. The owner reads it as generic AI style.
-- **Don't** bring back glass panels, cover images in lists, grid views of projects or rows of filter chips.
+- **Don't** bring back glass panels, cover images in lists, grid views of projects or rows of filter chips (the four kind chips of the
+  phone Inbox are the one exception).
 - **Don't** use red for anything except Late and errors.
 - **Don't** show "On track" in a list, or a status word when nothing needs attention.
-- **Don't** add a badge, a pulse or a moving element to get attention. One unread count on the Inbox and the bell is
+- **Don't** add a badge, a pulse or a moving element to get attention. One unread count on the Inbox and the bell (on a phone, the Inbox tab and its two segments) is
   enough.
 - **Don't** stack avatars or show more than one picture style in one list.
 - **Don't** put the Madar mark inside a project list, or a project picture in the app frame.
