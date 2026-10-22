@@ -18,8 +18,14 @@ export function feedbackAdapter(o: { put?: PutSender } = {}): Adapter {
       const start = (await ctx.call('feedback.uploadStart', {
         screenshots: screenshots.map((shot) => ({ size: shot.size, mimeType: shot.type })),
       })) as { uploads: { uploadId: string; put: SignedPut }[] };
+      // The screens show one bar for all the screenshots: the bytes of the earlier ones plus the bytes of the one that goes up.
+      const total = screenshots.reduce((sum, shot) => sum + shot.size, 0);
+      let before = 0;
       for (const [i, upload] of start.uploads.entries()) {
-        const result = await send(upload.put, screenshots[i]);
+        const base = before;
+        const report = ctx.meta.onProgress;
+        const result = await send(upload.put, screenshots[i], report ? (sent) => report(base + sent, total) : undefined);
+        before += screenshots[i].size;
         const failure = putFailure(result);
         // The server already refused a screenshot over 10 MB, so a size refusal of the store names that limit.
         if (failure === 'too_large') throw tooLarge('screenshots', MAX_SHOT_BYTES);

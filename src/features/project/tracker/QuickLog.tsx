@@ -188,7 +188,7 @@ export function QuickLog({ projectId, members: everyone, canReply = true, canAss
       {needsReply && canReply && members.length > 0 && (
         <ReplyFields id="tracker-reply" members={members} userId={who} dueDate={replyDate || addWorkingDays(todayISO(), 2)} onUser={setReplier} onDueDate={setReplyDate} />
       )}
-      <PickedFiles files={attachments.files} onRemove={attachments.remove} />
+      <PickedFiles files={attachments.files} onRemove={attachments.remove} progress={attachments.progress} busy={uploading} />
       {calendarAnchor && (
         <CalendarPopover
           anchor={calendarAnchor}

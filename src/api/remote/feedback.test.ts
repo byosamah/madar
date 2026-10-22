@@ -41,6 +41,21 @@ function sender(steps: string[], answer: (url: string) => PutResult = () => ({ s
 const REPORT = { kind: 'bug', message: 'The button does nothing.', page: '/projects' };
 
 describe('the feedback adapter (plan 5.2)', () => {
+  it('reports the bytes of all the screenshots to onProgress as one total (fbk_045)', async () => {
+    const { ctx } = wire();
+    const reports: [number, number][] = [];
+    ctx.meta = { onProgress: (sent, total) => reports.push([sent, total]) };
+    const first = new Blob(['12345'], { type: 'image/png' });
+    const second = new Blob(['1234567'], { type: 'image/png' });
+    const put: PutSender = async (_signed, body, onProgress) => {
+      onProgress?.(body.size / 2, body.size);
+      onProgress?.(body.size, body.size);
+      return { status: 200, body: '' };
+    };
+    await feedbackAdapter({ put })({ ...REPORT, screenshots: [first, second] }, ctx);
+    expect(reports).toEqual([[2.5, 12], [5, 12], [8.5, 12], [12, 12]]);
+  });
+
   it('sends a report with no screenshots in one call, with no uploads', async () => {
     const { ctx, steps, inputs } = wire();
     const output = await feedbackAdapter({ put: sender(steps).put })({ ...REPORT, screenshots: [] }, ctx);

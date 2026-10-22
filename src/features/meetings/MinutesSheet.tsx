@@ -100,7 +100,7 @@ export function MinutesSheet({ meeting, minutes, onClose }: {
             ))}
           </ul>
         )}
-        <PickedFiles files={attachments.files} onRemove={attachments.remove} />
+        <PickedFiles files={attachments.files} onRemove={attachments.remove} progress={attachments.progress} busy={uploading} />
         <div><AttachButton onPick={attachments.add} disabled={attachments.full} /></div>
         {problem && <p role="alert" className="text-footnote text-late">{problem}</p>}
       </form>

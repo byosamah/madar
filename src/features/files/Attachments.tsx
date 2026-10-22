@@ -186,20 +186,45 @@ export function PickedFiles({ files, onRemove, progress, busy = false }: { files
   );
 }
 
-/** The thin grey bar of a file that goes up: the whole percent, in words for a screen reader. */
-function UploadBar({ name, percent }: { name: string; percent: number }) {
+/** The thin grey bar of a file that goes up: the whole percent, in words for a screen reader. Every upload spot uses this one bar (fbk_045). */
+export function UploadBar({ name, percent }: { name: string; percent: number }) {
   const { t } = useTranslation();
+  return <BarBox label={t('chat.uploading', { name, percent })} percent={percent} />;
+}
+
+/** The bar with a label that the caller words, for a group of files with one bar (the screenshots of a report). */
+export function BarBox({ label, percent }: { label: string; percent: number }) {
   return (
     <span
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={percent}
-      aria-label={t('chat.uploading', { name, percent })}
+      aria-label={label}
       className="block h-[3px] w-full min-w-30 overflow-hidden rounded-full bg-fill-strong"
     >
       <span className="block h-full rounded-full bg-ink-2" style={{ width: `${percent}%` }} />
     </span>
+  );
+}
+
+/**
+ * The files that go up in a queue with no Remove button (the Files tab): each name has its bar. A file that waits shows its bar at 0.
+ */
+export function UploadList({ files, progress }: { files: File[]; progress: ReadonlyMap<File, number> }) {
+  const { t } = useTranslation();
+  if (files.length === 0) return null;
+  return (
+    <ul aria-label={t('files.going')} className="flex flex-wrap gap-2">
+      {files.map((file, i) => (
+        <li key={`${file.name}-${i}`} className="inline-flex min-h-11 min-w-0 max-w-full items-center rounded-full bg-fill px-3">
+          <span className="flex min-w-0 flex-col gap-1">
+            <bdi className="truncate text-footnote">{file.name}</bdi>
+            <UploadBar name={file.name} percent={progress.get(file) ?? 0} />
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 

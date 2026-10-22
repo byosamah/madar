@@ -131,7 +131,7 @@ function CommentThreadFor({
             {canAttach && <DropReceiver onFiles={attachments.add} />}
             {replyTo && <ComposerReplyStrip replyTo={replyTo} onCancel={() => setReplyTo(null)} />}
             <MentionField id={`comment-${targetId}`} label={t('comments.add')} value={body} onChange={setBody} people={people} placeholder={t('comments.placeholder')} rows={2} inputRef={field} />
-            <PickedFiles files={attachments.files} onRemove={attachments.remove} />
+            <PickedFiles files={attachments.files} onRemove={attachments.remove} progress={attachments.progress} busy={uploading} />
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1">
                 {canAttach && <AttachButton onPick={attachments.add} />}

@@ -12,6 +12,7 @@ import { AttachFileIcon } from '../../components/icons/animated/attach-file';
 import { XIcon } from '../../components/icons/animated/x';
 import { SegmentedControl } from '../../components/SegmentedControl';
 import { Sheet } from '../../components/Sheet';
+import { BarBox } from '../files/Attachments';
 
 const MAX_SHOTS = 3;
 
@@ -41,12 +42,19 @@ export function FeedbackSheet({ open, onOpenChange }: { open: boolean; onOpenCha
       return [];
     });
   }, [open]);
+  // The whole percent of the screenshots that go up, or null when nothing goes up (fbk_045).
+  const [percent, setPercent] = useState<number | null>(null);
   const send = useAction('feedback.send', {
     onSuccess: () => {
       toast.show({ message: t('feedback.sent') });
       onOpenChange(false);
     },
+    onProgress: (sent, total) => setPercent(total > 0 ? Math.min(100, Math.round((sent / total) * 100)) : 0),
   });
+  // A finished or failed send shows no bar.
+  useEffect(() => {
+    if (!send.isPending) setPercent(null);
+  }, [send.isPending]);
   const add = (files: File[]) => {
     const pictures = files.filter((file) => file.type.startsWith('image/'));
     setShots((current) => [...current, ...pictures.map((file) => ({ id: nextShot.current++, file, url: URL.createObjectURL(file) }))].slice(0, MAX_SHOTS));
@@ -96,7 +104,7 @@ export function FeedbackSheet({ open, onOpenChange }: { open: boolean; onOpenCha
         />
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <Button variant="plain" className="-ms-3" disabled={shots.length >= MAX_SHOTS} onClick={() => picker.current?.click()}>
+            <Button variant="plain" className="-ms-3" disabled={shots.length >= MAX_SHOTS || send.isPending} onClick={() => picker.current?.click()}>
               <AnimatedIcon icon={AttachFileIcon} size={18} aria-hidden />
               {t('feedback.addScreenshot')}
             </Button>
@@ -122,6 +130,7 @@ export function FeedbackSheet({ open, onOpenChange }: { open: boolean; onOpenCha
                   <button
                     type="button"
                     onClick={() => remove(index)}
+                    disabled={send.isPending}
                     aria-label={t('feedback.removeScreenshot', { n: index + 1 })}
                     className="pressable absolute -end-2 -top-2 grid size-7 place-items-center rounded-full bg-ink text-bg shadow"
                   >
@@ -131,6 +140,7 @@ export function FeedbackSheet({ open, onOpenChange }: { open: boolean; onOpenCha
               ))}
             </ul>
           )}
+          {shots.length > 0 && percent !== null && <BarBox label={t('feedback.uploading', { percent })} percent={percent} />}
         </div>
         <p className="text-footnote text-ink-2">{t('feedback.pageNote', { page: page || '/' })}</p>
       </div>

@@ -270,7 +270,12 @@ export function useAttemptKeys(): AttemptKeys {
 
 export function useAction<N extends CallName>(
   name: N,
-  options: { onSuccess?: (output: CallOutput<N>) => void; onRefused?: (error: unknown, input: CallInput<N>) => boolean } = {},
+  options: {
+    onSuccess?: (output: CallOutput<N>) => void;
+    onRefused?: (error: unknown, input: CallInput<N>) => boolean;
+    /** Screen only: a call that sends files reports the bytes that went up and the bytes in all (the screenshots of a report, fbk_045). */
+    onProgress?: (sent: number, total: number) => void;
+  } = {},
 ) {
   const runtime = useRuntime();
   const { api } = runtime;
@@ -283,7 +288,7 @@ export function useAction<N extends CallName>(
   const mutation = useMutation<CallOutput<N>, unknown, CallInput<N>>({
     mutationKey: ['api', name],
     // The real build sends the reads that the write changes right after it (FET-3, writeWithReads).
-    mutationFn: (input) => attempts.run(input, (key) => writeWithReads(runtime, queryClient, name, input, () => api.call(name, input, { key }))),
+    mutationFn: (input) => attempts.run(input, (key) => writeWithReads(runtime, queryClient, name, input, () => api.call(name, input, { key, ...(latest.current.onProgress ? { onProgress: (sent, total) => latest.current.onProgress?.(sent, total) } : {}) }))),
     onSuccess: (output) => options.onSuccess?.(output),
     onError: (error, input) => {
       if (latest.current.onRefused?.(error, input)) return;

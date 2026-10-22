@@ -1,0 +1,8 @@
+{
+  "files": {
+    "going": "Files going up"
+  },
+  "feedback": {
+    "uploading": "Screenshots: {{percent}}% uploaded"
+  }
+}

@@ -20,6 +20,7 @@ import { LoadFailed } from '../../../components/LoadFailed';
 import { SelectField } from '../../../components/Fields';
 import { Menu, type MenuItem } from '../../../components/Menu';
 import { formatDay, formatNumber, stampDay } from '../../../lib/dates';
+import { UploadList } from '../../files/Attachments';
 import type { TabProps } from '../tabs';
 import { canPreview, PreviewSheet } from './PreviewSheet';
 import { LinkSheet, ProjectLinks, projectLinkRows } from './ProjectLinks';
@@ -117,6 +118,10 @@ export function FilesTab({ detail }: TabProps) {
   const [stageId, setStageId] = useState(detail.currentStage.id);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // The files of the queue that is going up, each with its whole percent (fbk_045). The list is empty when nothing goes up.
+  const [going, setGoing] = useState<File[]>([]);
+  const [percents, setPercents] = useState<ReadonlyMap<File, number>>(() => new Map());
+  const setPercent = (file: File, percent: number) => setPercents((current) => new Map(current).set(file, percent));
   const [received, setReceived] = useState(false);
   const [preview, setPreview] = useState<FileView | null>(null);
   const [sharing, setSharing] = useState<FileView | null>(null);
@@ -144,10 +149,14 @@ export function FilesTab({ detail }: TabProps) {
   // A failed upload keeps its place in the queue: Retry sends that file and the ones after it, never the ones that went up.
   const uploadQueue = async (queue: File[], meta: { correlationId: string }): Promise<void> => {
     setUploading(true);
+    setGoing(queue);
+    setPercents(new Map(queue.map((file) => [file, 0])));
     let sent = 0;
     try {
       for (const file of queue) {
-        await api.call('files.upload', { projectId: detail.project.id, name: file.name, blob: file, stageId: stageId || null, receivedFromClient: received }, meta);
+        const onProgress = (done: number, total: number) => setPercent(file, total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0);
+        await api.call('files.upload', { projectId: detail.project.id, name: file.name, blob: file, stageId: stageId || null, receivedFromClient: received }, { ...meta, onProgress });
+        setPercent(file, 100);
         sent += 1;
       }
       toast.show({ message: t('files.uploaded', { n: queue.length }) });
@@ -157,6 +166,7 @@ export function FilesTab({ detail }: TabProps) {
       toast.failed(error, { retry: () => void uploadQueue(rest, meta), message: uploadErrorMessage(error, queue[sent]?.name ?? '', t, lang) });
     } finally {
       setUploading(false);
+      setGoing([]);
     }
   };
 
@@ -246,6 +256,7 @@ export function FilesTab({ detail }: TabProps) {
           }}
         />
       )}
+      <UploadList files={going} progress={percents} />
       {/* A list that did not load says so and offers Retry (audit 2026-10-03, PRJ-4). */}
       <LoadFailed query={files} />
       {empty && <EmptyState title={t('files.emptyTitle')} body={t('files.empty')} action={add} />}

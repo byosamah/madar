@@ -69,7 +69,7 @@ export function Composer({ detail }: { detail: ProjectDetail }) {
         inputRef={area}
         className="[&_textarea]:min-h-24"
       />
-      <PickedFiles files={attachments.files} onRemove={attachments.remove} />
+      <PickedFiles files={attachments.files} onRemove={attachments.remove} progress={attachments.progress} busy={posting} />
       <div className="flex items-center justify-between gap-2">
         {detail.viewerCan.upload ? <AttachButton onPick={attachments.add} /> : <span />}
         <Button variant={text.trim() ? 'primary' : 'secondary'} type="submit" disabled={!text.trim() || posting}>{t('overview.post')}</Button>

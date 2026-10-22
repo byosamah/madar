@@ -9,6 +9,7 @@ import { useCall, useRuntime } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { Button } from '../../components/Button';
 import { Sheet } from '../../components/Sheet';
+import { UploadBar } from '../files/Attachments';
 import { codeInput } from './codeForm';
 import { emptyProjectForm, areaValue } from './projectForm';
 import { ProjectFields, useProjectForm } from './ProjectFields';
@@ -53,6 +54,8 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
     subCompanies: (subCompanies.data ?? []).length > 0,
   });
   const [cover, setCover] = useState<File | null>(null);
+  // The whole percent of the cover that goes up, or null when nothing goes up (fbk_045).
+  const [coverPercent, setCoverPercent] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
   // A sheet closed by accident (Escape, a tap outside, a swipe) keeps what the person typed, for as long as this screen lives.
@@ -78,10 +81,14 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
   }, [open, settings.data]);
 
   const uploadCover = async (projectId: string, stageId: string, file: File): Promise<void> => {
+    setCoverPercent(0);
     try {
-      await api.call('files.upload', { projectId, name: file.name, blob: file, stageId, asCover: true });
+      const onProgress = (sent: number, total: number) => setCoverPercent(total > 0 ? Math.min(100, Math.round((sent / total) * 100)) : 0);
+      await api.call('files.upload', { projectId, name: file.name, blob: file, stageId, asCover: true }, { onProgress });
     } catch (error) {
       toast.failed(error, { retry: () => void uploadCover(projectId, stageId, file), message: uploadErrorMessage(error, file.name, t, lang) });
+    } finally {
+      setCoverPercent(null);
     }
   };
 
@@ -117,12 +124,13 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
       // The key is short and never ends with the dot of a building type ("Dev."), so the sentence never shows two dots.
       toast.show({ message: t('projectForm.created', { code: projectKey(detail.project.code) }) });
       fresh.current = true;
-      onOpenChange(false);
-      navigate(`/projects/${detail.project.id}`);
-      // The project exists now. The cover goes up on its own, so a failed upload never makes a second project.
+      // The project exists now. The cover goes up on its own, so a failed upload never makes a second project. The sheet stays open
+      // while the cover goes up, so the person sees its bar (fbk_045); a failed upload shows its toast with Retry after the sheet closes.
       // The limit of the active store (session.get), named, so a cover over it never starts an upload that the server refuses.
       if (cover && cover.size > limit) toast.show({ tone: 'error', message: tooLargeText(cover.name, limit, t, lang) });
-      else if (cover) void uploadCover(detail.project.id, detail.currentStage.id, cover);
+      else if (cover) await uploadCover(detail.project.id, detail.currentStage.id, cover);
+      onOpenChange(false);
+      navigate(`/projects/${detail.project.id}`);
     } catch (error) {
       toast.failed(error);
     } finally {
@@ -154,6 +162,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
             onChange={(event) => setCover(event.target.files?.[0] ?? null)}
             className="text-subheadline file:me-3 file:min-h-11 file:rounded-full file:border-0 file:bg-fill file:px-4 file:text-label"
           />
+          {cover && coverPercent !== null && <UploadBar name={cover.name} percent={coverPercent} />}
         </div>
       </form>
     </Sheet>
