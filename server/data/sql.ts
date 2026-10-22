@@ -40,7 +40,7 @@ export type PgDbOptions = { callerClient?: PoolClient };
 const CONNECT_TIMEOUT_MS = 5000;
 /**
  * An idle connection of the pooler pools closes after 1 s (2026-10-16). Supabase serves each request with a new worker that
- * lives 75 s and never takes a second request (function logs of madar-test), so a connection kept 120 s (performance audit
+ * lives 75 s and seldom takes a second request (function logs of madar-test), so a connection kept 120 s (performance audit
  * SRV-3) saved no connect and only held a client of the pooler: under the deploy suite about 85 workers held up to 2 each, the
  * client limit of 200 filled, and requests failed at once with EMAXCONN.
  */

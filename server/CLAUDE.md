@@ -90,7 +90,10 @@ The other host stays deployed as the way back. Each area below has its own guide
 - `entries/bundles.test.ts` bounds the minified api bundle (850,000 characters since 2026-10-21). A long text constant in `src/api`
   counts (the report guide: about 17,000). Raise the bound with one history line in the test.
 - Supabase serves each request with a new worker: about one cold start for each request, each worker lives 75 s and then
-  stops (`EarlyDrop`), and none takes a second request (function logs of madar-test, 2026-10-16). So the pools close an idle
+  stops (`EarlyDrop`), and about 5 calls in 100 reach a worker that already served one (function logs of madar-test,
+  2026-10-16). The platform does this, not our code: a probe function with a plain `Deno.serve` and no code of ours gets the
+  same rate as the real api bundle (probe on madar-test, 2026-10-21, proof.md). Do not look for a code fix for the cold start.
+  So the pools close an idle
   connection after 1 s (`IDLE_TIMEOUT_MS`, `data/sql.ts`), and each entry also closes its pools on `beforeunload`
   (`closeOnUnload`, `entries/start.ts`). With the old 120 s, about 85 workers under the deploy suite held up to 2 pooler
   clients each, the client limit of the pooler (200) filled, and requests failed at once with `EMAXCONN` (a whole-batch 500).
