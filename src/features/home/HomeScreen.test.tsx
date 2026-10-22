@@ -218,13 +218,12 @@ describe('the status line on a phone', () => {
     expect(await screen.findByText('Done. 1 more today.', {}, { timeout: 2000 })).toBeInTheDocument();
   });
 
-  // Track K gives the to-do the button "Mark done". The lead turns this test live in the join (amendment 16).
-  it.skip('shows the line after a finish made inside the opened to-do (enable after track K merges)', async () => {
+  it('shows the line after a finish made inside the opened to-do', async () => {
     phoneMedia(true);
     // usr_006 has 'Stair details' due today and a second due task. Open /?task=tsk_007&project=prj_001, click 'Mark done' in the dialog.
     await renderApp('/?task=tsk_007&project=prj_001', as('usr_006'));
     const dialog = await screen.findByRole('dialog', { name: 'Stair details' }, { timeout: 10_000 });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Mark done' }));
-    expect(await within(await next()).findByText(/^Done\. \d+ more today\.$/, {}, { timeout: 2000 })).toBeInTheDocument();
+    expect(await screen.findByText(/^Done\. \d+ more today\.$/, {}, { timeout: 2000 })).toBeInTheDocument();
   });
 });
