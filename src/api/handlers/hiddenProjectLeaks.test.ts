@@ -205,7 +205,7 @@ describe('every call that names a hidden project, or a record in it', () => {
         if (!probe.plain) expect(hidden!.code, label).toBe('not_found');
       }
     }
-  });
+  }, 180_000); // Every probe runs twice for each person: on the database run it takes more than the 30 s default.
 
   it('shows the same project, its feed, files, Tracker, tasks and comments to the leader, the team, the chosen person, the Admin and their agents', async () => {
     const w = await world();

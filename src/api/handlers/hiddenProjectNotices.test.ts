@@ -106,6 +106,12 @@ describe('a notice of a hidden project, for a person who does not see the projec
     } as never;
     const project = state.projects[HIDDEN];
     delete state.projects[HIDDEN];
+    // A deleted project takes its rows with it, as projects.delete does, so the database run keeps its foreign keys.
+    const owned = ['members', 'stages', 'deadlines', 'tasks', 'updates', 'files', 'conversations', 'tracker', 'payments'] as const;
+    for (const name of owned) {
+      const rows = state[name] as Record<string, { projectId?: string | null }> | undefined;
+      for (const [key, row] of Object.entries(rows ?? {})) if (row.projectId === HIDDEN) delete rows![key];
+    }
     state.events.evt_901 = {
       id: 'evt_901', seq: 901, projectId: HIDDEN, actorId: LEADER, actorKind: 'human', actingForId: LEADER, correlationId: 'sty_del2', verb: 'project.deleted',
       targetType: 'project', targetId: HIDDEN, before: project, after: null, createdAt: STAMP, undoneBy: null,
