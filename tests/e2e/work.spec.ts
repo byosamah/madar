@@ -93,7 +93,10 @@ test('no screen scrolls sideways on a phone', async ({ page }) => {
 
 // Phone design D, track W (the Work tab). The builder does not run these; the Playwright agent of the lead does, in Chromium and in WebKit.
 
-/** The press area test: the box is 44 px or more, and the four corners inside it hit the control or a child of it. */
+/**
+ * The press area test: the box is 44 px or more, and four points 2 px inside its edges hit the control or a child of it. The points sit on
+ * the middle of each edge, not on the corners: the people picture and the tick are round, and a corner of the box is outside a circle.
+ */
 async function expectPressArea(control: Locator): Promise<void> {
   await control.scrollIntoViewIfNeeded();
   const box = await control.boundingBox();
@@ -102,7 +105,9 @@ async function expectPressArea(control: Locator): Promise<void> {
   expect(box!.height).toBeGreaterThanOrEqual(43.5);
   const hits = await control.evaluate((element) => {
     const r = element.getBoundingClientRect();
-    const points: [number, number][] = [[r.left + 2, r.top + 2], [r.right - 2, r.top + 2], [r.left + 2, r.bottom - 2], [r.right - 2, r.bottom - 2]];
+    const midX = r.left + r.width / 2;
+    const midY = r.top + r.height / 2;
+    const points: [number, number][] = [[midX, r.top + 2], [r.right - 2, midY], [midX, r.bottom - 2], [r.left + 2, midY]];
     return points.map(([x, y]) => {
       const hit = document.elementFromPoint(x, y);
       return hit === element || element.contains(hit);
