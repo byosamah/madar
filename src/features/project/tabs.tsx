@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import type { SetURLSearchParams } from 'react-router';
 import type { ProjectDetail } from '../../api/contract/views';
 import { oneOf } from '../../lib/params';
+import { MoreTab } from './MoreTab';
 import { projectMeetingsInput } from '../meetings/readInputs';
 import { FilesTab } from './files/FilesTab';
 import { ActivityTab, FEED_FILTERS, FEED_PAGE } from './overview/ActivityTab';
@@ -61,6 +62,11 @@ export function setFilterParam(setParams: SetURLSearchParams, key: (typeof FILTE
   }, { replace: true });
 }
 
+/** MoreTab imports this file for its links, so the entry is a wrapper: no import cycle reads MoreTab while the modules load. */
+function MoreBody(props: TabProps) {
+  return <MoreTab {...props} />;
+}
+
 /** The body of each tab. Each later task of plan 2 fills in its own line. */
 export const TAB_BODY: Record<ProjectTab, ComponentType<TabProps> | null> = {
   overview: OverviewTab,
@@ -70,7 +76,7 @@ export const TAB_BODY: Record<ProjectTab, ComponentType<TabProps> | null> = {
   schedule: ScheduleTab,
   files: FilesTab,
   team: TeamTab,
-  more: null,
+  more: MoreBody,
 };
 
 // The Show choices of the Tasks tab (TasksTab.tsx). tabs.test.tsx checks that each choice gives the key that the tab mounts.

@@ -17,7 +17,9 @@ import { todayISO } from '../../lib/dates';
 import { HeaderShell, ProjectHeader } from './ProjectHeader';
 import { PausedBanner } from './PausedBanner';
 import { prefetchReads, sessionMayAddTask, sessionSeesPayments } from './reads';
-import { PROJECT_TABS, TAB_BODY, tabOfLink, tabReads, tabSearch, type ProjectTab } from './tabs';
+import { useIsPhone } from '../../app/useIsPhone';
+import { MoreSubPage } from './MoreTab';
+import { PROJECT_TABS, TAB_BODY, isMorePage, tabOfLink, tabReads, tabSearch, type ProjectTab } from './tabs';
 
 /** One project with the tabs Overview, Tasks, Schedule, Files & Links and Team (spec 5). The tab lives in the link. */
 export function ProjectScreen() {
@@ -25,7 +27,8 @@ export function ProjectScreen() {
   const { projectId = '' } = useParams();
   const [params, setParams] = useSearchParams();
   const raw = params.get('tab');
-  const tab: ProjectTab = tabOfLink(raw, false);
+  const phone = useIsPhone();
+  const tab: ProjectTab = tabOfLink(raw, phone);
   const detail = useCall('projects.get', { id: projectId });
   const queryClient = useQueryClient();
   // The reads of the open tab start with projects.get, in an effect, so the tab and its panel show after one round trip
@@ -75,7 +78,9 @@ export function ProjectScreen() {
         options={PROJECT_TABS.map((value) => ({ value, label: t(`project.tab.${value}`) }))}
       />
       <TabPanel value={tab}>
-        {Body ? <Body detail={detail.data} /> : <EmptyState title={t(`project.tab.${tab}`)} body={t('project.comingSoon')} />}
+        {phone && isMorePage(tab)
+          ? <MoreSubPage detail={detail.data} page={tab} />
+          : Body ? <Body detail={detail.data} /> : <EmptyState title={t(`project.tab.${tab}`)} body={t('project.comingSoon')} />}
       </TabPanel>
     </div>
   );
