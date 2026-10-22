@@ -18,6 +18,7 @@ import { useBlockFileDrop } from '../files/Attachments';
 import { chatState } from './chatBack';
 import { ChatList } from './ChatList';
 import { InboxViews } from './InboxViews';
+import { PhoneChatPage } from './PhoneChatPage';
 import { ConversationPane } from './ConversationPane';
 import { useMarkUnread } from './markUnread';
 
@@ -147,24 +148,44 @@ export function InboxScreen() {
   const rows = list.data ?? [];
   const open = conversationId !== undefined;
   const phone = useIsPhone();
-  // A phone shows the list as a page: the page scrolls, and the list has no panel around the search (Direction D).
-  const pageList = phone && !open;
+  const title = (
+    <ScreenTitle
+      title={t('screens.inbox')}
+      action={mayStart ? <Button className="shrink-0" onClick={() => setPicking(true)}>{t('chat.newMessage')}</Button> : undefined}
+    />
+  );
+  const chats = (
+    <>
+      {list.error && <div className="p-3"><LoadFailed error={list.error} onRetry={() => void list.refetch()} /></div>}
+      {list.data && rows.length === 0 && <div className="p-3"><EmptyState title={t('chat.emptyTitle')} body={t('chat.empty')} /></div>}
+      {list.data && rows.length > 0 && <ChatList rows={rows} selectedId={conversationId} onMarkUnread={markUnread} />}
+    </>
+  );
+  // A phone shows the list as a page, or the chat as a full-screen page in a portal (Direction D). The list stays mounted while a chat
+  // is open, so its search text and its place stay. The page scrolls, not an inner panel, and the list has no panel around its search.
+  if (phone) {
+    return (
+      <>
+        <div hidden={open}>
+          {title}
+          <InboxViews />
+          <aside className="flex w-full min-w-0 flex-col">{chats}</aside>
+        </div>
+        {conversationId && (
+          <PhoneChatPage conversationId={conversationId}>
+            <ConversationPane id={conversationId} onMarkUnread={markUnread} />
+          </PhoneChatPage>
+        )}
+        <NewMessage open={picking} onOpenChange={setPicking} />
+      </>
+    );
+  }
   return (
     <>
-      <div className={open ? 'max-sm:hidden' : undefined}>
-        <ScreenTitle
-          title={t('screens.inbox')}
-          action={mayStart ? <Button className="shrink-0" onClick={() => setPicking(true)}>{t('chat.newMessage')}</Button> : undefined}
-        />
-        {phone && !open && <InboxViews />}
-      </div>
-      <div className={`flex gap-4 ${pageList ? '' : `${open ? 'h-[calc(100dvh-9.5rem)] sm:h-[calc(100dvh-15rem)]' : 'h-[calc(100dvh-16rem)] sm:h-[calc(100dvh-15rem)]'} min-h-[26rem]`}`}>
-        <aside className={`flex w-full min-w-0 flex-col sm:w-[340px] sm:shrink-0 ${phone ? '' : 'panel hairline overflow-hidden'} ${open ? 'max-sm:hidden' : ''}`}>
-          {list.error && <div className="p-3"><LoadFailed error={list.error} onRetry={() => void list.refetch()} /></div>}
-          {list.data && rows.length === 0 && <div className="p-3"><EmptyState title={t('chat.emptyTitle')} body={t('chat.empty')} /></div>}
-          {list.data && rows.length > 0 && <ChatList rows={rows} selectedId={conversationId} onMarkUnread={markUnread} />}
-        </aside>
-        <section className={`panel hairline flex min-w-0 flex-1 flex-col overflow-hidden ${open ? '' : 'max-sm:hidden'}`}>
+      {title}
+      <div className="flex h-[calc(100dvh-15rem)] min-h-[26rem] gap-4">
+        <aside className="panel hairline flex w-full min-w-0 flex-col overflow-hidden sm:w-[340px] sm:shrink-0">{chats}</aside>
+        <section className="panel hairline flex min-w-0 flex-1 flex-col overflow-hidden">
           {conversationId
             ? <ConversationPane id={conversationId} onMarkUnread={markUnread} />
             : (

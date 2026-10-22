@@ -12,6 +12,7 @@ import { useActive } from '../../app/live/activity';
 import { usePersonState } from '../../app/live/hooks';
 import { useTypingSender } from '../../app/live/typing';
 import { useAction, useCall, useRuntime } from '../../app/runtime';
+import { useIsPhone } from '../../app/useIsPhone';
 import { useRight } from '../../app/useRight';
 import { useStableHandler } from '../../app/useStableHandler';
 import { PersonFace } from '../../components/PersonFace';
@@ -60,6 +61,20 @@ function Header({ lead, title, subtitle, action, twoLines = false }: { lead: Rea
         <div className="truncate text-footnote text-ink-2">{subtitle}</div>
       </div>
       {action}
+    </header>
+  );
+}
+
+/**
+ * The head of a chat page that has no chat to show yet: while it loads, when it fails, and when the id names nothing. A phone has no tab
+ * bar and no top row on a chat, so the Back link must show in every one of these states. The desk shows nothing here.
+ */
+function PhoneBackBar() {
+  const phone = useIsPhone();
+  if (!phone) return null;
+  return (
+    <header className="flex h-[calc(56px+env(safe-area-inset-top))] shrink-0 items-center border-b border-hairline px-1 pt-[env(safe-area-inset-top)]">
+      <ChatBackLink />
     </header>
   );
 }
@@ -233,8 +248,8 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
     // The mutation object changes on every render. Only a new count of unread messages, a newer message than the read time, a newer one
     // than the seen time, the tab that shows, or the person who is in use again, matters here.
   }, [id, unread, opened, visible, behind, active, seenBehind]);
-  if (thread.error) return <div className="p-4"><LoadFailed error={thread.error} onRetry={() => void thread.refetch()} /></div>;
-  if (!data || !mark) return <div className="flex-1" aria-busy="true" />;
+  if (thread.error) return <><PhoneBackBar /><div className="p-4"><LoadFailed error={thread.error} onRetry={() => void thread.refetch()} /></div></>;
+  if (!data || !mark) return <><PhoneBackBar /><div className="flex-1" aria-busy="true" /></>;
   const { chat } = data;
   const isGroup = chat.kind === 'group';
   // A group shows one picture. One press on it, or on the count of people, opens the People sheet (UX audit 2026-10-19, chats-07 and 08).
@@ -399,8 +414,8 @@ export function TaskPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   // A comment that waits for its answer comes last.
   const bubbles = unsentBubbles.length === 0 ? settled : [...settled, ...unsentBubbles];
   const failed = task.error ?? comments.error;
-  if (failed) return <div className="p-4"><LoadFailed error={failed} onRetry={() => { void task.refetch(); void comments.refetch(); }} /></div>;
-  if (!task.data || !comments.data || !mark) return <div className="flex-1" aria-busy="true" />;
+  if (failed) return <><PhoneBackBar /><div className="p-4"><LoadFailed error={failed} onRetry={() => { void task.refetch(); void comments.refetch(); }} /></div></>;
+  if (!task.data || !comments.data || !mark) return <><PhoneBackBar /><div className="flex-1" aria-busy="true" /></>;
   const editLast = () => {
     const last = bubbles.findLast((bubble) => bubble.canEdit);
     if (!last) return false;
@@ -464,5 +479,5 @@ export function ConversationPane({ id, onMarkUnread }: { id: string; onMarkUnrea
   const key = `${id}:${at ?? ''}`;
   if (id.startsWith('tsk_')) return <TaskPane key={key} id={id} focusFromRoute={at} onMarkUnread={onMarkUnread} />;
   if (id.startsWith('cnv_')) return <ChatPane key={key} id={id} focusFromRoute={at} onMarkUnread={onMarkUnread} />;
-  return <div className="p-4"><EmptyState title={t('common.loadFailed')} body={t('errors.not_found')} /></div>;
+  return <><PhoneBackBar /><div className="p-4"><EmptyState title={t('common.loadFailed')} body={t('errors.not_found')} /></div></>;
 }
