@@ -66,9 +66,9 @@ describe('the Me hub (prototype, phone)', () => {
     expect(screen.queryByRole('radiogroup')).toBeNull();
   });
 
-  it('has the Quiet hours, Notifications and Google Calendar rows and no real-build rows', async () => {
+  it('has the When Madar notifies you, Notifications and Google Calendar rows and no real-build rows', async () => {
     await hub();
-    expect(screen.getByRole('link', { name: /Quiet hours/ })).toHaveAttribute('href', '#/me/quiet-hours');
+    expect(screen.getByRole('link', { name: /When Madar notifies you/ })).toHaveAttribute('href', '#/me/quiet-hours');
     expect(screen.getByRole('link', { name: /Notifications/ })).toHaveAttribute('href', '#/me/notices');
     expect(screen.getByRole('link', { name: /Google Calendar/ })).toHaveAttribute('href', '#/me/calendar');
     expect(screen.queryByRole('switch', { name: 'Morning summary' })).toBeNull();
@@ -79,7 +79,7 @@ describe('the Me hub (prototype, phone)', () => {
 
   it('shows the quiet range and the notice line', async () => {
     await hub();
-    expect(await screen.findByText('Sunday to Thursday, outside 9:00 AM to 5:00 PM')).toBeInTheDocument();
+    expect(await screen.findByText('Sunday to Thursday, outside 8:00 AM to 5:00 PM')).toBeInTheDocument();
     expect(screen.getByText('In the app')).toBeInTheDocument();
   });
 
@@ -93,7 +93,7 @@ describe('the Me hub (prototype, phone)', () => {
     await renderApp('/me', (state) => {
       state.session.currentUserId = 'usr_005';
     });
-    await screen.findByRole('link', { name: /Quiet hours/ });
+    await screen.findByRole('link', { name: /When Madar notifies you/ });
     expect(screen.queryByRole('link', { name: /What reaches me/ })).toBeNull();
   });
 

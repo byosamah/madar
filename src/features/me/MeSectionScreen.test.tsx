@@ -13,9 +13,9 @@ describe('the sub-pages of the Me tab (prototype, phone)', () => {
   it('shows one section with its title as h1 and the section h2 hidden', async () => {
     phoneMedia(true);
     await renderApp('/me/quiet-hours');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Quiet hours' })).toBeInTheDocument();
-    expect(await screen.findByRole('switch', { name: 'Quiet outside my work hours' })).toHaveAttribute('id', 'quiet-hours');
-    expect(screen.getByRole('heading', { level: 2, name: 'Quiet hours' })).toHaveClass('sr-only');
+    expect(await screen.findByRole('heading', { level: 1, name: 'When Madar notifies you' })).toBeInTheDocument();
+    expect(await screen.findByRole('switch', { name: 'Notify me only in my work hours' })).toHaveAttribute('id', 'quiet-hours');
+    expect(screen.getByRole('heading', { level: 2, name: 'When Madar notifies you' })).toHaveClass('sr-only');
   });
 
   it('shows the profile form', async () => {

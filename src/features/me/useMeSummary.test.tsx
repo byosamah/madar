@@ -30,7 +30,7 @@ const read = async (prepare?: (state: State) => void, language: 'en' | 'ar' = 'e
 describe('the lines under the titles of the Me hub', () => {
   it('names the role and the quiet range of an Admin with the defaults', async () => {
     const summary = await read();
-    expect(summary.quiet).toBe('Sunday to Thursday, outside 9:00 AM to 5:00 PM');
+    expect(summary.quiet).toBe('Sunday to Thursday, outside 8:00 AM to 5:00 PM');
     expect(summary.role).toBe('Admin');
     expect(summary.reach).toBe('My work, and the rest in the list');
     expect(summary.notices).toBe('In the app');
