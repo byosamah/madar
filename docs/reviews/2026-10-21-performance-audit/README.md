@@ -96,3 +96,15 @@ Owner answers (2026-10-21): DF-14 yes, SV-7 and DF-2 yes, DB-13 no. LV-1 and the
   no change with a gain.
 - RN-9 (keep the map alive), BG-12 (a picture cache in the service worker, a security question), DB-7 (a picked meeting copy can
   hide fields), DB-14 (database size, about four years to 500 MB): watch only.
+
+## 6. The gap critic (2026-10-22)
+
+The critic looked for what the seven auditors missed. Its six findings and their verdicts are at the end of `findings.md`.
+- GP-1 (the first paint waits for the token renewal after 15 minutes, about 0.5 s on each later open): built in wave 3, after
+  instant Home, because instant Home needs an early first render.
+- GP-2 (a switch or a tick shows its result 1.3 to 1.9 s after the press): about 0.7 s of it was LV-2, fixed in wave 1. The rest
+  needs an optimistic display, which the owner ruled out on 2026-10-08. Measured again after the release.
+- GP-3 (uploads: confirm the file and its small picture together, three files at a time), GP-4 (a stable shell chunk, so a
+  release renames fewer files), GP-5 (profile pictures as data in users.list): proposed for later. GP-5 first needs the Egress
+  chart of production, which the owner reads.
+- GP-6 (the nightly backup): nothing today; look again when the database passes about 50 MB.
