@@ -7,6 +7,8 @@
     "groupThis": "This to-do",
     "groupWhen": "When",
     "timing": "Timing",
-    "checklistCount": "Checklist · {{done}} of {{count}}"
+    "checklistCount": "Checklist · {{done}} of {{count}}",
+    "filesCount": "Files · {{n}}",
+    "seeAll": "See all ({{n}})"
   }
 }

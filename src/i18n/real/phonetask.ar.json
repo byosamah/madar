@@ -7,6 +7,8 @@
     "groupThis": "هذه المهمة",
     "groupWhen": "المواعيد",
     "timing": "الجدولة",
-    "checklistCount": "قائمة التحقق · {{done}} من {{count}}"
+    "checklistCount": "قائمة التحقق · {{done}} من {{count}}",
+    "filesCount": "الملفات · {{n}}",
+    "seeAll": "اعرض الكل ({{n}})"
   }
 }

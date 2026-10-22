@@ -1,4 +1,6 @@
 import { useTranslation } from 'react-i18next';
+import { AgeRefresh } from '../../../components/Age';
+import { Button } from '../../../components/Button';
 import type { TaskStatus } from '../../../api/contract/entities';
 import { usePersonName } from '../../../app/personName';
 import { Avatar } from '../../../components/Avatar';
@@ -11,8 +13,9 @@ import { BOARD_COLUMNS, moveTargets } from '../../../lib/board';
 import { formatDay } from '../../../lib/dates';
 import { useLang } from '../../../app/lang';
 import { Group, PickRow, SwitchRow, ValueRow } from './DetailRows';
-import { DateNotes } from './TaskNeeds';
-import { Checklist } from './TaskParts';
+import { DateNotes, TaskNeeds } from './TaskNeeds';
+import { Checklist, History, TaskFiles } from './TaskParts';
+import { TaskVersions } from './TaskVersions';
 import { personOption, TaskHelpers } from './TaskHelpers';
 import { durationText, TaskTiming } from './TaskTiming';
 import type { TaskPanel } from './useTaskPanel';
@@ -162,6 +165,10 @@ function ThisTodo({ panel }: { panel: TaskPanel }) {
 
 /** The Details view of the task panel on a phone: groups of rows over the native pickers. */
 export function PhoneDetails({ panel }: { panel: TaskPanel }) {
+  const { t } = useTranslation();
+  const { data, detail, task, viewerCan, canDetails, patch, files, canUndoAgent, helping, leave, saveTemplate, remove } = panel;
+  // A new object on each render: the ages of the history read the clock on each key, as before the memo (RND-4).
+  const refresh = {};
   return (
     <div className="flex flex-col gap-5">
       <People panel={panel} />
@@ -169,6 +176,24 @@ export function PhoneDetails({ panel }: { panel: TaskPanel }) {
       <DateNotes data={panel.data} />
       <ThisTodo panel={panel} />
       <Checklist rows key={panel.failures} task={panel.task} edit={panel.canDetails} tick={panel.viewerCan.contribute} onChange={(checklist) => panel.patch({ checklist })} draft={panel.checklistDraft} />
+      <TaskFiles layout="rows" views={files} />
+      {/* An office task waits for no task. */}
+      {detail && <TaskNeeds layout="rows" data={data} canEdit={viewerCan.editAll && canDetails} onChange={(prerequisiteIds) => patch({ prerequisiteIds })} />}
+      <TaskVersions layout="rows" task={task} />
+      <AgeRefresh.Provider value={refresh}>
+        <History layout="rows" data={data} canUndoAgent={canUndoAgent} />
+      </AgeRefresh.Provider>
+      {(viewerCan.saveTemplate || viewerCan.delete || helping) && (
+        <div className="flex flex-col gap-3">
+          {helping && <Button className="min-h-12 w-full" disabled={leave.isPending} onClick={() => leave.mutate({ taskId: task.id, help: false })}>{t('taskHelp.leave')}</Button>}
+          {viewerCan.saveTemplate && (
+            <Button className="min-h-12 w-full" disabled={saveTemplate.isPending} onClick={() => saveTemplate.mutate({ fromTaskId: task.id })}>{t('taskSheet.saveTemplate')}</Button>
+          )}
+          {viewerCan.delete && (
+            <Button variant="destructive" className="min-h-12 w-full" disabled={remove.isPending} onClick={() => remove.mutate({ id: task.id })}>{t('taskSheet.delete')}</Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

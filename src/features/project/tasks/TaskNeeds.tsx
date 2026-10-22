@@ -12,6 +12,7 @@ import { SelectField } from '../../../components/Fields';
 import { IconButton } from '../../../components/IconButton';
 import { formatDay } from '../../../lib/dates';
 import { counted } from '../../../lib/grammar';
+import { Group, PickRow } from './DetailRows';
 
 /** One line of a task list: the title, and its state in a word. Done tasks read quietly; open ones say so. */
 function Line({ title, status, onRemove, removeLabel }: { title: string; status: string; onRemove?: () => void; removeLabel?: string }) {
@@ -30,12 +31,33 @@ function Line({ title, status, onRemove, removeLabel }: { title: string; status:
   );
 }
 
+/** One row of a task list in a Group of the phone panel: the title, its state in a word, and an X of 44 px for an editor. */
+function RowLine({ title, status, onRemove, removeLabel }: { title: string; status: string; onRemove?: () => void; removeLabel?: string }) {
+  const { t } = useTranslation();
+  const done = status === 'done';
+  return (
+    <li className={`flex min-h-12 items-center gap-3 ps-4 ${onRemove ? 'pe-1' : 'pe-4'}`}>
+      <bdi className={`min-w-0 flex-1 truncate ${done ? 'text-label-2 line-through' : ''}`}>{title}</bdi>
+      <span className="shrink-0 text-footnote text-label-2">{t(`taskStatus.${status}`)}</span>
+      {onRemove && (
+        <IconButton label={removeLabel ?? ''} onClick={onRemove}>
+          <AnimatedIcon icon={XIcon} size={16} aria-hidden />
+        </IconButton>
+      )}
+    </li>
+  );
+}
+
 /**
  * "Needs first": the tasks of this project that must be done before this one can be finished. The leader and the Admin change the list;
  * everyone else reads it. "Unlocks": the tasks that need this one, read only (owner, 2026-10-02). The server checks cycles and the limit.
  * An empty list does not show. The leader gets one "Add a task it needs first" press instead (audit 2026-10-03, PRJ-8).
  */
-export function TaskNeeds({ data, canEdit, onChange }: { data: TaskDetail; canEdit: boolean; onChange: (prerequisiteIds: string[]) => void }) {
+export function TaskNeeds({ data, canEdit, onChange, layout = 'plain' }: {
+  data: TaskDetail; canEdit: boolean; onChange: (prerequisiteIds: string[]) => void;
+  /** `rows` is the phone layout (Direction D): two Groups, Needs first and Unlocks, with an Add row that picks the next to-do. */
+  layout?: 'plain' | 'rows';
+}) {
   const { t } = useTranslation();
   const { task, needsFirst, unlocks } = data;
   const project = useCall('tasks.list', { projectId: task.projectId ?? undefined, activeProjectsOnly: false }, { enabled: canEdit && task.projectId !== null });
@@ -45,6 +67,41 @@ export function TaskNeeds({ data, canEdit, onChange }: { data: TaskDetail; canEd
   const choices = (project.data ?? []).filter((row) => !blocked.has(row.task.id));
   const [adding, setAdding] = useState(false);
   const canAdd = canEdit && ids.length < MAX_PREREQUISITES && choices.length > 0;
+  if (layout === 'rows') {
+    // The group hides for an empty read only list. An editor with no need yet sees the Add row alone.
+    return (
+      <>
+        {(needsFirst.length > 0 || canAdd) && (
+          <Group title={t('taskSheet.needsFirst')} hint={needsFirst.length > 0 ? t('taskSheet.needsFirstHint') : undefined}>
+            {needsFirst.length > 0 && (
+              <ul className="hairline">
+                {needsFirst.map((need) => (
+                  <RowLine
+                    key={need.id}
+                    title={need.title}
+                    status={need.status}
+                    removeLabel={t('taskSheet.removeNeed', { title: need.title })}
+                    onRemove={canEdit ? () => onChange(ids.filter((id) => id !== need.id)) : undefined}
+                  />
+                ))}
+              </ul>
+            )}
+            {canAdd && (
+              <PickRow id="task-add-need" label={t('taskSheet.addNeed')} value="" display="" onChange={(value) => { if (value) onChange([...ids, value]); }}>
+                <option value="">{t('taskSheet.pickNeed')}</option>
+                {choices.map((row) => <option key={row.task.id} value={row.task.id}>{row.task.title}</option>)}
+              </PickRow>
+            )}
+          </Group>
+        )}
+        {unlocks.length > 0 && (
+          <Group title={t('taskSheet.unlocks')} hint={t('taskSheet.unlocksHint')}>
+            <ul className="hairline">{unlocks.map((unlock) => <RowLine key={unlock.id} title={unlock.title} status={unlock.status} />)}</ul>
+          </Group>
+        )}
+      </>
+    );
+  }
   const showNeeds = needsFirst.length > 0 || (adding && canEdit);
   if (!showNeeds && unlocks.length === 0 && !canAdd) return null;
   return (

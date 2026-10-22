@@ -16,6 +16,7 @@ import { CircleCheckIcon } from '../../../components/icons/animated/circle-check
 import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
 import { canPreview, PreviewSheet } from '../files/PreviewSheet';
+import { fileSizeText } from '../../../lib/fileSize';
 import { Group } from './DetailRows';
 import type { DragChecklistProps } from './ChecklistDrag';
 import { loadChecklistLayer, loadedChecklistLayer } from './checklistLayerLoader';
@@ -157,8 +158,9 @@ export const EMPTY_FILES: FileView[] = Object.freeze([]) as unknown as FileView[
  * Memoized, as History, so a key in the title, the description or the note renders it again only when its files change
  * (performance audit 2026-10-07, RND-4).
  */
-export const TaskFiles = memo(function TaskFiles({ views }: { views: FileView[] }) {
+export const TaskFiles = memo(function TaskFiles({ views, layout = 'plain' }: { views: FileView[]; layout?: 'plain' | 'rows' }) {
   const { t } = useTranslation();
+  const lang = useLang();
   const { api } = useRuntime();
   const toast = useToast();
   const [preview, setPreview] = useState<FileView | null>(null);
@@ -166,6 +168,35 @@ export const TaskFiles = memo(function TaskFiles({ views }: { views: FileView[] 
     if (canPreview(view.latest.mimeType)) setPreview(view);
     else downloadFile(api, view.file.id).catch((error: unknown) => toast.failed(error));
   };
+  const sheet = preview && <PreviewSheet views={[preview]} index={0} onIndex={() => undefined} onClose={() => setPreview(null)} />;
+  if (layout === 'rows') {
+    // The phone layout: one row for each file, a plain icon (no tile), the name and the size.
+    return (
+      <>
+        <Group title={views.length > 0 ? t('phoneTask.filesCount', { n: views.length }) : t('taskSheet.files')}>
+          {views.length === 0 ? <p className="flex min-h-12 items-center px-4 py-1.5 text-footnote text-ink-2">{t('taskSheet.noFiles')}</p> : (
+            <ul className="hairline">
+              {views.map((view) => (
+                <li key={view.file.id}>
+                  <button
+                    type="button"
+                    aria-label={t('taskSheet.openFile', { name: view.file.name })}
+                    onClick={() => open(view)}
+                    className="pressable flex min-h-12 w-full items-center gap-3 px-4 py-1.5 text-start"
+                  >
+                    <AnimatedIcon icon={AttachFileIcon} size={18} aria-hidden className="shrink-0 text-ink-2" />
+                    <bdi className="min-w-0 flex-1 truncate">{view.file.name}</bdi>
+                    <span className="tabular shrink-0 text-footnote text-ink-2">{fileSizeText(view.latest.size, t, lang)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Group>
+        {sheet}
+      </>
+    );
+  }
   return (
     <section className="flex flex-col gap-1">
       <h3 className="text-headline">{t('taskSheet.files')}</h3>
@@ -186,18 +217,50 @@ export const TaskFiles = memo(function TaskFiles({ views }: { views: FileView[] 
           ))}
         </ul>
       )}
-      {preview && <PreviewSheet views={[preview]} index={0} onIndex={() => undefined} onClose={() => setPreview(null)} />}
+      {sheet}
     </section>
   );
 });
 
 /** Memoized (RND-4): it renders again when the task data or the Undo rule changes. Its ages refresh through AgeRefresh. */
-export const History = memo(function History({ data, canUndoAgent }: { data: TaskDetail; canUndoAgent: (actingForId: string) => boolean }) {
+export const History = memo(function History({ data, canUndoAgent, layout = 'plain' }: { data: TaskDetail; canUndoAgent: (actingForId: string) => boolean; layout?: 'plain' | 'rows' }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const lang = useLang();
   const toast = useToast();
   const undo = useAction('events.undo', { onSuccess: () => toast.show({ message: t('taskSheet.undone') }) });
+  const [all, setAll] = useState(false);
+  if (layout === 'rows') {
+    // The phone layout: the 3 newest rows, then a plain button that shows the rest in place. "Undo agent change" sits under the text of its row.
+    const shown = all ? data.history : data.history.slice(0, 3);
+    return (
+      <Group title={t('taskSheet.history')}>
+        {data.history.length === 0 ? <p className="flex min-h-12 items-center px-4 py-1.5 text-footnote text-ink-2">{t('taskSheet.noHistory')}</p> : (
+          <ol className="hairline">
+            {shown.map(({ event, actor }) => (
+              <li key={event.id} className="flex items-start gap-3 px-4 py-2.5 text-footnote">
+                <Avatar user={actor} size={24} />
+                <div className="min-w-0 flex-1">
+                  <p>
+                    <bdi className="font-semibold">{nameOf(actor)}</bdi>{' '}
+                    {actor.kind === 'agent' && <><AgentLabel />{' '}</>}
+                    <span className="text-label-2">{historyText(event, t, lang, actor.gender)}</span>
+                  </p>
+                  <span className="text-caption text-label-2"><Age stamp={event.createdAt} /></span>
+                  {event.actorKind === 'agent' && !event.undoneBy && event.verb !== 'undo' && canUndoAgent(event.actingForId) && (
+                    <div><Button variant="plain" className="-ms-3 min-h-11" onClick={() => undo.mutate({ eventId: event.id })}>{t('taskSheet.undoAgent')}</Button></div>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+        {!all && data.history.length > 3 && (
+          <Button variant="plain" className="w-full" onClick={() => setAll(true)}>{t('phoneTask.seeAll', { n: data.history.length })}</Button>
+        )}
+      </Group>
+    );
+  }
   return (
     <section className="flex flex-col gap-2">
       <h3 className="text-headline">{t('taskSheet.history')}</h3>
