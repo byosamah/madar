@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import 'fake-indexeddb/auto';
 import { afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import { forgetDeviceChecks } from '../app/remote/push';
 import { addWords } from '../i18n';
 import { ar, en } from '../i18n/trees';
 import { setNow } from '../lib/dates';
@@ -44,6 +45,8 @@ if (!Element.prototype.scrollIntoView) Element.prototype.scrollIntoView = () => 
 window.scrollTo = (() => undefined) as typeof window.scrollTo;
 
 afterEach(() => {
+  // The device check of push runs once for each page (DF-11): each test is a new page.
+  forgetDeviceChecks();
   window.localStorage.clear();
   cleanup();
   // The meeting keeps its session for the day in the session storage, so each test starts a new meeting.

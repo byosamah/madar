@@ -83,6 +83,8 @@ any screen work.
   button; `canAsk` in `push.ts`). Any answer ends the ask; a closed question leaves it. The permission then stays in the browser, so
   `syncThisDevice(api, key, userId)` turns push on again by itself when the permission is granted and the browser holds no
   subscription (after a sign-out, or for the next person on a shared browser). It never asks the question.
+  The screens call `syncDeviceOnce` (DF-11, 2026-10-21), not `syncThisDevice`: one `push.mine` check for each page, person and key, shared by
+  the card on Home and `PushSync`. A turn on, a turn off and the sign-out call `forgetDeviceChecks`, and `src/test/setup.ts` calls it after each test.
 - Only a person who turned the switch off stays off. `usePushDevice` keeps that choice in localStorage for each person
   (`madar.pushOff.<user id>`, `isPushOptedOut` and `setPushOptOut` in `push.ts`), sets it before the turn off, takes it back when
   the turn off fails, and clears it at a turn on. The ask also stays away from that person. The choice is never on the server.
