@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { chatReadKey } from '../../api/store';
 import { ACTIVE_MS } from '../../app/live/activity';
+import { setNow } from '../../lib/dates';
+import { NOW } from '../../test/factories';
 import { renderApp } from '../../test/render';
 
 /** The seen flag of chats.markRead (chat presence design C4, F3): only a chat in view and in use sends seen: true. */
@@ -73,5 +76,42 @@ describe('seen only while the person uses the chat', () => {
     act(() => show(true));
     await waitFor(() => expect(inputs(call)).toHaveLength(1));
     expect(inputs(call)[0]).toEqual({ conversationId: id, seen: true });
+  });
+  it('sends no read mark for the own new message: chats.send marks the chat read already (performance audit 2026-10-21, LV-4)', async () => {
+    const { api, store, router } = await renderApp('/inbox');
+    const id = direct(store).id;
+    const call = vi.spyOn(api, 'call');
+    await act(async () => { await router.navigate(`/inbox/${id}`); });
+    await within(await screen.findByRole('log', { name: 'Messages' })).findByText('I will bring the new stage dates.');
+    await waitFor(() => expect(inputs(call)).toHaveLength(1));
+    // The clock moves on, so the own message is newer than the seen time of the open.
+    setNow(new Date(NOW.getTime() + 5 * 60_000));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Message' }), 'On my way.{Enter}');
+    await within(screen.getByRole('log', { name: 'Messages' })).findByText('On my way.');
+    await waitFor(() => expect(call.mock.calls.filter(([name]) => name === 'chats.send')).toHaveLength(1));
+    await settle();
+    // The send is the only write after the open: no second chats.markRead for the own message.
+    expect(inputs(call)).toHaveLength(1);
+  });
+
+  it('still sends the seen mark for a message of the other person that arrives after the own message', async () => {
+    const { api, store, router, queryClient } = await renderApp('/inbox');
+    const id = direct(store).id;
+    const call = vi.spyOn(api, 'call');
+    await act(async () => { await router.navigate(`/inbox/${id}`); });
+    await within(await screen.findByRole('log', { name: 'Messages' })).findByText('I will bring the new stage dates.');
+    await waitFor(() => expect(inputs(call)).toHaveLength(1));
+    // The clock moves on, so the own message is newer than the seen time of the open.
+    setNow(new Date(NOW.getTime() + 5 * 60_000));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Message' }), 'On my way.{Enter}');
+    await within(screen.getByRole('log', { name: 'Messages' })).findByText('On my way.');
+    await settle();
+    store.state.messages.msg_998 = {
+      id: 'msg_998', conversationId: id, authorId: 'usr_002', actingForId: 'usr_002', body: 'See you there.', mentions: [],
+      createdAt: '2026-09-30T23:00:00.000+03:00', editedAt: null,
+    };
+    await act(async () => { await queryClient.refetchQueries({ queryKey: ['api', 'chats.messages'] }); });
+    await waitFor(() => expect(inputs(call)).toHaveLength(2));
+    expect(inputs(call)[1]).toEqual({ conversationId: id, seen: true });
   });
 });

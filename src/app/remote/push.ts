@@ -173,6 +173,7 @@ async function subscribeAndSave(api: PushApi, key: string): Promise<void> {
  * subscription is taken back when the server did not save the device.
  */
 export async function turnOn(api: PushApi, key: string): Promise<'on' | 'blocked' | 'dismissed'> {
+  forgetDeviceChecks();
   const permission = await Notification.requestPermission();
   if (permission === 'denied') return 'blocked';
   if (permission !== 'granted') return 'dismissed';
@@ -182,6 +183,7 @@ export async function turnOn(api: PushApi, key: string): Promise<'on' | 'blocked
 
 /** Removes the device on the server (best effort), then unsubscribes this browser. An error of the browser is passed on. */
 export async function turnOff(api: PushApi): Promise<void> {
+  forgetDeviceChecks();
   const subscription = await thisSubscription();
   if (!subscription) return;
   await api.call('push.remove', { endpoint: subscription.endpoint }).catch(() => undefined);
@@ -214,6 +216,31 @@ export async function syncThisDevice(api: PushApi, key: string, userId: string):
   return 'registered';
 }
 
+/**
+ * The checks of this page, one for each person and key (performance audit 2026-10-21, DF-11). The check holds one push.mine call, which
+ * is one Edge call, so the card on Home, the start of the app and every later visit to Home share one run. A failed run is forgotten, so
+ * the next caller tries again. A turn on, a turn off and the sign-out forget every run, because they change the device.
+ */
+const deviceChecks = new Map<string, Promise<'none' | 'same' | 'registered'>>();
+
+/** Forgets the checks of this page. The next syncDeviceOnce asks again. The tests call it between two tests. */
+export function forgetDeviceChecks(): void {
+  deviceChecks.clear();
+}
+
+/** syncThisDevice, but once for each page and person: a second call gets the run of the first. Use it from the screens. */
+export function syncDeviceOnce(api: PushApi, key: string, userId: string): Promise<'none' | 'same' | 'registered'> {
+  const id = `${userId}|${key}`;
+  const known = deviceChecks.get(id);
+  if (known) return known;
+  const run = syncThisDevice(api, key, userId);
+  deviceChecks.set(id, run);
+  run.catch(() => {
+    if (deviceChecks.get(id) === run) deviceChecks.delete(id);
+  });
+  return run;
+}
+
 /** The sign-out takes at most this long for push. A slow network never holds the person at the door. */
 const LEAVE_WAIT_MS = 4_000;
 
@@ -222,6 +249,7 @@ const LEAVE_WAIT_MS = 4_000;
  * person on a shared browser then gets no push and must turn it on. It never throws and never waits long.
  */
 export async function removeThisDevice(api: PushApi): Promise<void> {
+  forgetDeviceChecks();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const work = (async () => {
     if (!readEnv().hasWorker) return;

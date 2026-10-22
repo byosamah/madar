@@ -5,8 +5,10 @@ import type { DeviceState, LivePort, PersonState } from '../app/live/types';
  * A live port for tests (chat presence design). It keeps the states a test sets, records what the screens tell it, and lets a test
  * send a typing signal. The real adapters are the work of the track live.
  */
-export function fakeLive(initial: Record<string, PersonState> = {}) {
+export function fakeLive(initial: Record<string, PersonState> = {}, known: string[] = []) {
   const states = new Map(Object.entries(initial));
+  // The people whose state the port knows (DF-10). A person not in the set is unknown, whatever stateOf answers.
+  const knownIds = new Set(known);
   const stateListeners = new Set<() => void>();
   const typingListeners = new Set<(signal: TypingSignal) => void>();
   const log = {
@@ -17,6 +19,7 @@ export function fakeLive(initial: Record<string, PersonState> = {}) {
     setResting: (resting) => { log.resting.push(resting); },
     watch: (ids) => { log.watched.push([...ids]); },
     stateOf: (userId) => states.get(userId) ?? 'offline',
+    knowsState: (userId) => knownIds.has(userId),
     subscribeStates: (listener) => {
       stateListeners.add(listener);
       return () => stateListeners.delete(listener);
@@ -33,6 +36,7 @@ export function fakeLive(initial: Record<string, PersonState> = {}) {
     log,
     setState(userId: string, state: PersonState): void {
       states.set(userId, state);
+      knownIds.add(userId);
       stateListeners.forEach((listener) => listener());
     },
     emitTyping(signal: TypingSignal): void {

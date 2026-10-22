@@ -91,6 +91,8 @@ any screen work.
   button; `canAsk` in `push.ts`). Any answer ends the ask; a closed question leaves it. The permission then stays in the browser, so
   `syncThisDevice(api, key, userId)` turns push on again by itself when the permission is granted and the browser holds no
   subscription (after a sign-out, or for the next person on a shared browser). It never asks the question.
+  The screens call `syncDeviceOnce` (DF-11, 2026-10-21), not `syncThisDevice`: one `push.mine` check for each page, person and key, shared by
+  the card on Home and `PushSync`. A turn on, a turn off and the sign-out call `forgetDeviceChecks`, and `src/test/setup.ts` calls it after each test.
 - Only a person who turned the switch off stays off. `usePushDevice` keeps that choice in localStorage for each person
   (`madar.pushOff.<user id>`, `isPushOptedOut` and `setPushOptOut` in `push.ts`), sets it before the turn off, takes it back when
   the turn off fails, and clears it at a turn on. The ask also stays away from that person. The choice is never on the server.
@@ -194,10 +196,22 @@ any screen work.
   `app/signals.ts`, from `WRITE_KINDS` in `app/writeKinds.ts`) in the request of the write, right after it (`writeWithReads`,
   `app/runtime.tsx`). The read that shows the record of the write goes first. At most 11 reads and one overview read go. The
   own pass of `connectChanges` does not reload a read that answered there. The success steps of the action run after those
-  reads, plus one task. The prototype sends the write alone (performance audit FET-3).
+  reads, plus one task. The prototype sends the write alone (performance audit FET-3). The Realtime frame of the own write can come
+  before the own answer: `connectChanges` keeps its id (`echoes`) until the answer names it, so the pass stays "own" and one save
+  sends one request (LV-2, 2026-10-21). A gap of the seq, a join and an id that no own answer names keep the pass mixed.
+- A signal of another person that names `messages` while the Inbox or a chat is on screen (an active `chats.list` or `chats.messages`
+  read) waits 150 ms (`chatMs`), not 1 s, for its twin office and person signals, so a chat message shows 0.85 s sooner (LV-3,
+  2026-10-21). It keeps the full window while an own write is on the wire (`queryClient.isMutating()`): a direct chat signal names no
+  person, so it could be the echo of the own send. `maxMergeMs` stays.
+- `app/remote/supabase.ts` gives the Realtime client a `heartbeatCallback` that calls `supabase.realtime.connect()` on 'timeout' or 'disconnected'
+  (BG-4 step 1, 2026-10-21): a hidden tab throttles the 25 s heartbeat, and the client joins again at once, not by its slow timer. realtime-js
+  2.117.2 never passes 'disconnected' to the callback, so 'timeout' does the work. The worker option (step 2) needs a served worker file and a
+  CSP change (`worker-src 'self'`), so it waits for the owner.
 - A Realtime channel that joins sends its empty list with the origin 'join'. `connectChanges` waits 100 ms after a join
   (`joinMs`) for the other channel and for any signal, then reloads every list in one pass. A change of the prototype store
-  still reloads at once.
+  still reloads at once. A join that comes within `VISIBLE_MERGE_MS` (1 s) after the pass of a tab that shows again (hidden over 60 s) adds
+  no second pass: the first pass already reloads every list, and a second one would cancel its running reads (DF-4, 2026-10-21). The
+  60 s pass itself always runs, because a socket of a sleeping laptop or a locked phone looks open until its heartbeat fails.
 - The office build (exit wave 3, `VITE_MADAR_LIVE=socket`, set by no build before wave 5) gets its signals from one socket of the
   office object (`api/remote/liveSocket.ts`, picked by `liveSourceOf` in `app/remote/bootstrap.ts`): a ticket, a ping each 30 s,
   a new socket and a reload of every list when no pong comes in 10 s. A build with `VITE_MADAR_AUTH=madar` has no Supabase
@@ -266,8 +280,23 @@ any screen work.
 - In the real build, Tasks shows the cached Home answer of `tasks.list {filter:'mine'}` without the done rows while its own
   list loads (`features/work/minePlaceholder.ts`), only when no change marked that answer. `WorkTasks` reads its list with
   `useQuery` under the `useCall` key, so a change to `useCall` must also go there.
+- A closed sheet reads nothing (DF-5, 2026-10-21): `NewProjectSheet`, `ApplyTemplateSheet` and `EditProjectSheet` read with `enabled: open`.
+  The button that opens one starts its reads on pointerdown with `usePrefetchCall`: `usePrepareNewProject` (the New project button of Projects
+  and the Search command), and `MenuItem.onPrepare` (the "Edit project" and "Apply a template" items of `ProjectActions`). `ClosedSheetReads.test.tsx`
+  pins it. A new sheet that reads data follows the same rule.
+- Home starts `meetings.list` with `todayMeetingsInput(today)` in an effect (`usePrefetchCall`, DF-6), so the Meetings card, which mounts after three answers,
+  finds the answer and the read goes in the first request.
+- A guarded route starts the reads of its screen with the session (DF-7, 2026-10-21). `RequireRight` and the Admin page draw nothing until
+  `session.get` answers, so `app/guardReads.ts` (`GUARD_READS`: `dashboard`, `meeting`, `space`, `admin`) lists the reads of each screen as
+  a function of the link, and `StartReads` (`app/useRight.tsx`, put around the screen by `routes.tsx`) starts them once at the mount with
+  `usePrefetchCall`. It starts none when the cached session lacks the switch of the route. A change to a read of one of these screens
+  changes its line in `guardReads.ts` in the same commit; `GuardReads.test.tsx` holds every answer and fails on a key that the list missed.
+- A press on a tab of the bar starts the main read of its screen on pointerdown, never on hover (LV-9, 2026-10-21): `usePressReads` and
+  `PRESS_READS` in `app/pressReads.ts` (Projects, Dashboard, Inbox, the bell), with the keys of the screen at its link with no filter. A change to
+  one of these reads changes its line there too; `PressReads.test.tsx` holds the keys. Home and Tasks show from the cache and start nothing.
 - The project To-dos tab asks `taskTemplates.list {}` once, with its `tasks.list`, under the gates of the menu (list view and
-  `createTaskForSelf`). Each `TemplateMenu` keeps the templates of its stage with `lib/sameText.ts`, as the handler does.
+  `createTaskForSelf`). `tabReads('tasks')` starts the same read with `projects.get` (`templates` option, DF-13) when the cached session
+  may add a to-do (`sessionMayAddTask` in `reads.ts`) and the list view shows. Each `TemplateMenu` keeps the templates of its stage with `lib/sameText.ts`, as the handler does.
 - In the real build, a picture hook (`useFileLink`, `useScreenshotLink`) keeps its signed link in the cache for
   `LINK_STALE_MS` (8 minutes) after the screen closes. The row pictures (Files rows, the meeting drawings, the report
   thumbnails) have `loading="lazy" decoding="async"`. A sheet or preview picture does not.
@@ -575,6 +604,9 @@ any screen work.
   `restingOf` and `useResting`: a page out of view for `REST_PHONE_MS` (60 s) or `REST_COMPUTER_MS` (30 min) rests, and `LiveProvider` calls `live.setResting`.
 - `typing.ts`: the board (`createTypingBoard`) keeps who types in which chat for `TYPING_SHOW_MS` (8 s) after the last signal. `useTypers`, `useTypingRows`,
   and `useTypingSender` (one signal each `TYPING_SEND_MS` (5 s), one stop). The sender calls `chats.typing` and ignores its errors.
+  `useTypingSender(id, others)` sends no signal while the port knows the state of every person in `others` and each one is Offline
+  (`LivePort.knowsState`, DF-10, 2026-10-21): `supabaseLive` knows a person from the first sync of the topic, `officeLive` from the first snapshot,
+  the prototype port never. Away still sends. The list is unknown until the chat loads, and then it sends.
 - `hooks.ts`: `usePersonState(userId)` renders only when the state of that person changes. Tests use `src/test/fakeLive.ts` and the `live` option of `renderApp`.
 - `Composer` takes `onTextChange`; its inner `change(next)` is the one door of the text (the field, the clear after a send, and the emoji panel).
 - The three adapters: `live/prototypeLive.ts` (a BroadcastChannel `madar-live` between the tabs of one browser, and `SAMPLE_STATES` for the sample

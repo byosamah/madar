@@ -204,6 +204,12 @@ export function supabaseLive(supabase: SupabaseClient, me: string): LivePort & {
       reconcile();
     },
     stateOf: (userId) => states.get(userId) ?? 'offline',
+    // A state is known from the first presence sync of its topic until the topic drops. A resting page or a person not watched is not.
+    knowsState(userId) {
+      if (!active()) return false;
+      const entry = entries.get(userId);
+      return userId === me || (entry?.subscribed === true && entry.synced);
+    },
     subscribeStates(listener) {
       stateListeners.add(listener);
       return () => stateListeners.delete(listener);
@@ -281,6 +287,7 @@ export function switchedLive(): SwitchedLive {
       inner?.watch(ids);
     },
     stateOf: (userId) => inner?.stateOf(userId) ?? 'offline',
+    knowsState: (userId) => inner?.knowsState?.(userId) ?? false,
     subscribeStates(listener) {
       stateListeners.add(listener);
       return () => stateListeners.delete(listener);

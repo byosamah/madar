@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { QueryClient, QueryObserver } from '@tanstack/react-query';
+import { MutationObserver, QueryClient, QueryObserver } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
 import type { MadarApi } from '../api/calls';
 import type { ChangeSignal, Kind } from '../api/remote/wire';
@@ -364,6 +364,69 @@ describe('the reload after a change signal (plan 5.3)', () => {
     app.stop();
   });
 
+  it('adds no join pass to a pass of the visibility that started in the last second (DF-4)', async () => {
+    const app = setup();
+    const tasks = app.show('tasks.list', { projectId: 'prj_001' });
+    const clients = app.show('clients.list');
+    await settle();
+    setHidden(true);
+    await vi.advanceTimersByTimeAsync(61_000);
+    setHidden(false);
+    await settle();
+    expect([tasks(), clients()]).toEqual([2, 2]);
+    // A phone: both channels join again some milliseconds after the tab shows. The reload of the screen is already on its way.
+    await vi.advanceTimersByTimeAsync(400);
+    app.send([], 'join');
+    await vi.advanceTimersByTimeAsync(50);
+    app.send([], 'join');
+    await vi.advanceTimersByTimeAsync(2000);
+    expect([tasks(), clients()]).toEqual([2, 2]);
+    app.stop();
+  });
+
+  it('still runs a join pass that comes later than a second after the visibility pass, and keeps the seq start (DF-4)', async () => {
+    const app = setup();
+    const tasks = app.show('tasks.list', { projectId: 'prj_002' });
+    await settle();
+    setHidden(true);
+    await vi.advanceTimersByTimeAsync(61_000);
+    setHidden(false);
+    await settle();
+    expect(tasks()).toBe(2);
+    app.send([sig({ kinds: ['clients'], office: true, seq: 5 })]);
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(300);
+    app.send([], 'join');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(tasks()).toBe(3);
+    // The pass of a join inside the second still starts the seq again: a first signal after it is no gap.
+    setHidden(true);
+    await vi.advanceTimersByTimeAsync(61_000);
+    setHidden(false);
+    await settle();
+    expect(tasks()).toBe(4);
+    app.send([sig({ kinds: ['clients'], office: true, seq: 5 })]);
+    await vi.advanceTimersByTimeAsync(100);
+    app.send([], 'join');
+    await vi.advanceTimersByTimeAsync(100);
+    app.send([sig({ kinds: ['clients'], office: true, seq: 40 })]);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(tasks()).toBe(4);
+    app.stop();
+  });
+
+  it('runs the 60 second pass also when the channels stayed open (DF-4: the pass is not skipped)', async () => {
+    const app = setup();
+    const tasks = app.show('tasks.list', { projectId: 'prj_001' });
+    await settle();
+    setHidden(true);
+    await vi.advanceTimersByTimeAsync(61_000);
+    setHidden(false);
+    await settle();
+    expect(tasks()).toBe(2);
+    app.stop();
+  });
+
   it('reloads every list at once for an empty list: a change of the prototype store, or a channel that joins again', async () => {
     const app = setup();
     const tasks = app.show('tasks.list', { projectId: 'prj_001' });
@@ -532,6 +595,181 @@ describe('the own pass after a write with reads in its request (performance audi
     // Two writes in one request: the read ran after the first write, but before the second one.
     app.send([own()], 'own', { tag, reads: [{ name: 'tasks.list', input: LIST }] });
     app.send([own()], 'own');
+    await settle();
+    expect(list()).toBe(3);
+    app.stop();
+  });
+});
+
+describe('a chat message of another person shows sooner (performance audit 2026-10-21, LV-3)', () => {
+  it('reloads the chat reads after 150 ms, not 1 s, when a messages signal comes and the Inbox is open', async () => {
+    const app = setup();
+    const list = app.show('chats.list');
+    const messages = app.show('chats.messages', { conversationId: 'cnv_001' });
+    const count = app.show('chats.unreadCount');
+    await settle();
+    // The office signal and the person signal of one message come a few milliseconds apart.
+    const office = sig({ kinds: ['messages'], office: true });
+    app.send([office]);
+    await vi.advanceTimersByTimeAsync(5);
+    app.send([{ ...office, channel: `person:${ME}`, people: [ME] }]);
+    await vi.advanceTimersByTimeAsync(100);
+    expect([list(), messages(), count()]).toEqual([1, 1, 1]);
+    await vi.advanceTimersByTimeAsync(60);
+    // One pass for both signals.
+    expect([list(), messages(), count()]).toEqual([2, 2, 2]);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect([list(), messages(), count()]).toEqual([2, 2, 2]);
+    app.stop();
+  });
+
+  it('keeps the 1 s window when a chat is open but the signal names no message, and when no chat is open', async () => {
+    const quiet = setup();
+    const list = quiet.show('chats.list');
+    quiet.show('tasks.list', { projectId: 'prj_001' });
+    await settle();
+    quiet.send([sig({ kinds: ['tasks'], projects: ['prj_001'] })]);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(list()).toBe(1);
+    await vi.advanceTimersByTimeAsync(600);
+    quiet.stop();
+
+    const none = setup();
+    const tasks = none.show('tasks.list', { projectId: 'prj_001' });
+    none.show('chats.unreadCount');
+    await settle();
+    none.send([sig({ kinds: ['messages', 'tasks'], projects: ['prj_001'] })]);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(tasks()).toBe(1);
+    await vi.advanceTimersByTimeAsync(600);
+    expect(tasks()).toBe(2);
+    none.stop();
+  });
+
+  it('keeps the full window while an own write is on the wire, because the frame can be the echo of that write', async () => {
+    const app = setup();
+    const list = app.show('chats.list');
+    await settle();
+    void new MutationObserver(app.client, { mutationFn: () => new Promise(() => undefined) }).mutate();
+    app.send([sig({ kinds: ['messages'], office: true })]);
+    await vi.advanceTimersByTimeAsync(300);
+    expect(list()).toBe(1);
+    await vi.advanceTimersByTimeAsync(800);
+    expect(list()).toBe(2);
+    app.stop();
+  });
+
+  it('does not move the short window later for a signal that comes inside it', async () => {
+    const app = setup();
+    const list = app.show('chats.list');
+    app.show('tasks.list', { projectId: 'prj_001' });
+    await settle();
+    app.send([sig({ kinds: ['messages'], office: true })]);
+    await vi.advanceTimersByTimeAsync(100);
+    // A signal of another change inside the window never moves the pass later.
+    app.send([sig({ kinds: ['tasks'], projects: ['prj_001'] })]);
+    await vi.advanceTimersByTimeAsync(60);
+    expect(list()).toBe(2);
+    app.stop();
+  });
+});
+
+describe('the echo of the own write that comes before the own answer (performance audit 2026-10-21, LV-2)', () => {
+  const TASK = { id: 'tsk_001' };
+  const LIST = { projectId: 'prj_001' };
+  const kinds: Kind[] = ['tasks', 'events'];
+  /** The office signal and the own person signal of one save: the same id, as the server sends them. */
+  const save = () => {
+    const office = sig({ kinds, projects: ['prj_001'], actorId: ME });
+    const person: ChangeSignal = { ...office, channel: `person:${ME}`, people: [ME] };
+    return { office, person };
+  };
+  /** A read that ran after the write in its request, with the tag of its follow step. */
+  async function followed(app: ReturnType<typeof setup>) {
+    const task = app.show('tasks.get', TASK, { task: { projectId: 'prj_001' } });
+    const list = app.show('tasks.list', LIST);
+    await settle();
+    const tag = {};
+    await app.follow('tasks.get', TASK, tag);
+    await app.follow('tasks.list', LIST, tag);
+    const fresh = { tag, reads: [{ name: 'tasks.get', input: TASK }, { name: 'tasks.list', input: LIST }] };
+    return { task, list, fresh };
+  }
+
+  it('does not reload the reads of the follow step when the signals of Realtime come before the own answer', async () => {
+    const app = setup();
+    const { task, list, fresh } = await followed(app);
+    const { office, person } = save();
+    app.send([office], 'channel');
+    app.send([person], 'channel');
+    app.send([office, person], 'own', fresh);
+    await settle();
+    expect([task(), list()]).toEqual([2, 2]);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect([task(), list()]).toEqual([2, 2]);
+    app.stop();
+  });
+
+  it('does the same when only the office signal came first, and when the signals come after the own answer', async () => {
+    const app = setup();
+    const { task, list, fresh } = await followed(app);
+    const first = save();
+    app.send([first.office], 'channel');
+    app.send([first.office, first.person], 'own', fresh);
+    await settle();
+    expect([task(), list()]).toEqual([2, 2]);
+    // The echo after the answer names nothing new: it neither reloads nor blocks the next own pass.
+    app.send([first.office], 'channel');
+    app.send([first.person], 'channel');
+    const second = save();
+    const tag = {};
+    await app.follow('tasks.list', LIST, tag);
+    app.send([second.office, second.person], 'own', { tag, reads: [{ name: 'tasks.list', input: LIST }] });
+    await settle();
+    expect(list()).toBe(3);
+    app.stop();
+  });
+
+  it('reloads every read the signals name when a signal of another change waits in the same pass', async () => {
+    const app = setup();
+    const { task, list, fresh } = await followed(app);
+    const { office, person } = save();
+    app.send([sig({ kinds: ['tasks'], projects: ['prj_001'] })], 'channel');
+    app.send([office, person], 'channel');
+    app.send([office, person], 'own', fresh);
+    await settle();
+    expect([task(), list()]).toEqual([3, 3]);
+    app.stop();
+  });
+
+  it('reloads every read the signals name after a gap of the seq, or a channel that joined', async () => {
+    const gap = setup();
+    const a = await followed(gap);
+    const one = save();
+    // The office channel counted 1, and the echo of the own write comes with 5: signals were lost, so every list reloads.
+    gap.send([{ ...sig({ kinds: ['clients'], office: true }), seq: 1 }], 'channel');
+    gap.send([{ ...one.office, seq: 5 }], 'channel');
+    gap.send([{ ...one.office, seq: 5 }], 'own', a.fresh);
+    await settle();
+    expect(a.list()).toBe(3);
+    gap.stop();
+
+    const joined = setup();
+    const b = await followed(joined);
+    const two = save();
+    joined.send([two.office], 'channel');
+    joined.send([], 'join');
+    joined.send([two.office, two.person], 'own', b.fresh);
+    await settle();
+    expect([b.task(), b.list()]).toEqual([3, 3]);
+    joined.stop();
+  });
+
+  it('reloads a read when the own answer names another save than the signal of Realtime', async () => {
+    const app = setup();
+    const { list, fresh } = await followed(app);
+    app.send([save().office], 'channel');
+    app.send([save().office, save().person], 'own', fresh);
     await settle();
     expect(list()).toBe(3);
     app.stop();

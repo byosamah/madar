@@ -16,7 +16,7 @@ import { sharedSource } from '../../app/sharedLayout';
 import { todayISO } from '../../lib/dates';
 import { HeaderShell, ProjectHeader } from './ProjectHeader';
 import { PausedBanner } from './PausedBanner';
-import { prefetchReads, sessionSeesPayments } from './reads';
+import { prefetchReads, sessionMayAddTask, sessionSeesPayments } from './reads';
 import { FILTER_PARAMS, PROJECT_TABS, TAB_BODY, tabReads, type ProjectTab } from './tabs';
 
 /** One project with the tabs Overview, Tasks, Schedule, Files & Links and Team (spec 5). The tab lives in the link. */
@@ -31,7 +31,7 @@ export function ProjectScreen() {
   // The reads of the open tab start with projects.get, in an effect, so the tab and its panel show after one round trip
   // (performance audit 2026-10-07, FET-2 and LIV-1). Every gate below stays: only the start time of the reads changes.
   const prefetch = usePrefetchCall();
-  const reads = tabReads(tab, projectId, params, { payments: sessionSeesPayments(queryClient), today: todayISO() });
+  const reads = tabReads(tab, projectId, params, { payments: sessionSeesPayments(queryClient), today: todayISO(), templates: sessionMayAddTask(queryClient) });
   const readsKey = JSON.stringify(reads);
   useEffect(() => {
     prefetchReads(prefetch, reads);

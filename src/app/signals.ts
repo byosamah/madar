@@ -11,7 +11,8 @@ import { WRITE_KINDS } from './writeKinds';
  * - Own writes: RemoteApi hands over the signals of the answer, and they apply at once, before any timer. The answers of one
  *   batch come in one loop, so they apply in one pass (on a microtask), and a list loads once for them.
  * - Other people's writes come from Realtime. They merge for 1 second (at most 2 seconds from the first) into one pass, and so
- *   into one batch request.
+ *   into one batch request. A signal that names messages, while the Inbox or a chat is on screen, waits only 150 ms (the office
+ *   signal and the person signal of one message come a few milliseconds apart), so a chat message shows 0.85 s sooner (LV-3).
  * - All signals of one save share one id: the office signal and one signal on each person channel. The first one with an id
  *   applies whole. A later one with the same id adds only the people it names, so a person signal that comes after the office
  *   signal still reloads that person's own lists, and nothing applies twice. A save that changes an office task sends that part
@@ -26,7 +27,9 @@ import { WRITE_KINDS } from './writeKinds';
  * - Reads after an own write (real build, performance audit FET-3): the runtime loads the reads on screen that a write will
  *   change (readsAfterWrite) in the request of the write, right after it. RemoteApi names the ones that answered there. The own
  *   pass does not reload such a read while its last load is that one. Every other read that the signals name reloads as before,
- *   and a pass that also holds other changes reloads them all.
+ *   and a pass that also holds other changes reloads them all. The Realtime frame of the own write often comes before the own answer
+ *   (LV-2, 2026-10-21): the pass keeps the id of that frame until the own answer names it, so it is no other change. A gap of the
+ *   seq, an empty list (join) and any id that no own answer names still make the pass mixed.
  */
 
 /** own: the signals of an answer to this screen's own write. channel: Realtime (the default). join: a Realtime channel joined. */
@@ -173,7 +176,10 @@ export function readsAfterWrite(queryClient: QueryClient, name: string, input: u
   return chosen;
 }
 
-export type ConnectOptions = { mergeMs?: number; maxMergeMs?: number; hiddenReloadMs?: number; joinMs?: number; now?: () => number };
+export type ConnectOptions = { mergeMs?: number; maxMergeMs?: number; hiddenReloadMs?: number; joinMs?: number; chatMs?: number; now?: () => number };
+
+/** A join pass that comes this soon after the pass of a tab that shows again is part of that pass (DF-4). */
+const VISIBLE_MERGE_MS = 1000;
 
 /** How many signal ids the screen remembers, so a signal that comes again applies once. */
 const KEEP_IDS = 500;
@@ -187,6 +193,7 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
   const maxMergeMs = o.maxMergeMs ?? 2000;
   const hiddenReloadMs = o.hiddenReloadMs ?? 60_000;
   const joinMs = o.joinMs ?? 100;
+  const chatMs = o.chatMs ?? 150;
   const now = o.now ?? (() => Date.now());
   const seen = new Map<string, Set<string>>();
   const lastSeq = new Map<string, number>();
@@ -195,12 +202,21 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
   let timer: ReturnType<typeof setTimeout> | undefined;
   // The latest moment of the pass after a join: the last join plus joinMs. A signal in the window never moves the pass later.
   let joinBy: number | null = null;
+  // The same for a message of another person while the Inbox or a chat is open (LV-3): the pass waits for the twin office and person
+  // signals only, not for the whole merge window.
+  let chatBy: number | null = null;
   // True while a pass for own answers waits for its microtask.
   let ownQueued = false;
   // The pending pass (FET-3): the fresh reads of each own answer in it (null: none), and whether it holds any other change.
+  // A change that no own answer names is "mixed": an empty list (join), a gap of the seq, or a signal of Realtime. The signal of
+  // Realtime that comes before the own answer of its own write is no other change (LV-2): `echoes` keeps its id and its channels
+  // until the own answer names them, so the pass is mixed while `echoes` holds an id.
   let owns: (FreshReads | null)[] = [];
-  let mixed = false;
+  let mixedHard = false;
+  const echoes = new Map<string, Set<string>>();
   let hiddenAt: number | null = isHidden() ? now() : null;
+  // The moment the last pass of a tab that shows again after a long rest started (DF-4). A join in the next second joins this pass.
+  let visiblePassAt: number | null = null;
   let stopped = false;
 
   function isHidden(): boolean {
@@ -222,7 +238,7 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
    * as fresh, while its last load is the load of that follow step. Any other pass reloads every read that its signals name.
    */
   function freshOf(): ((query: Query) => boolean) | undefined {
-    if (mixed || owns.length === 0 || owns.some((fresh) => fresh === null)) return undefined;
+    if (mixedHard || echoes.size > 0 || owns.length === 0 || owns.some((fresh) => fresh === null)) return undefined;
     const lists = (owns as FreshReads[]).map((fresh) => ({
       tag: fresh.tag,
       hashes: new Set(fresh.reads.map((read) => hashKey(['api', read.name, read.input]))),
@@ -230,15 +246,24 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
     return (query) => lists.every((list) => list.hashes.has(query.queryHash) && followTagOf(query) === list.tag);
   }
 
+  /** True while a screen shows the chat list or a chat: only then a message of another person is worth a short window (LV-3). */
+  function chatOnScreen(): boolean {
+    const cache = queryClient.getQueryCache();
+    return cache.findAll({ queryKey: ['api', 'chats.list'], type: 'active' }).length > 0
+      || cache.findAll({ queryKey: ['api', 'chats.messages'], type: 'active' }).length > 0;
+  }
+
   function flush(): void {
     if (timer !== undefined) clearTimeout(timer);
     timer = undefined;
     joinBy = null;
+    chatBy = null;
     const merged = pending;
     pending = null;
     const fresh = freshOf();
     owns = [];
-    mixed = false;
+    mixedHard = false;
+    echoes.clear();
     if (merged) run(merged, fresh);
   }
 
@@ -254,6 +279,7 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
     if (timer !== undefined) clearTimeout(timer);
     let wait = Math.min(mergeMs, firstAt + maxMergeMs - now());
     if (joinBy !== null) wait = Math.min(wait, joinBy - now());
+    if (chatBy !== null) wait = Math.min(wait, chatBy - now());
     timer = setTimeout(flush, Math.max(0, wait));
   }
 
@@ -273,25 +299,44 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
     return true;
   }
 
-  /** The seq of a Realtime channel: a number that skips one (or goes back) is a gap. */
-  function checkSeq(merged: MergedSignal, signal: ChangeSignal): void {
+  /** The seq of a Realtime channel: a number that skips one (or goes back) is a gap. True for a gap. */
+  function checkSeq(merged: MergedSignal, signal: ChangeSignal): boolean {
     const last = lastSeq.get(signal.channel);
     lastSeq.set(signal.channel, signal.seq);
-    if (last === undefined || signal.seq === last + 1) return;
+    if (last === undefined || signal.seq === last + 1) return false;
     if (signal.seq <= last && seen.has(signal.id)) {
       // The same signal again: keep the higher number.
       lastSeq.set(signal.channel, last);
-      return;
+      return false;
     }
     if (signal.channel === 'office') merged.all = true;
     else if (signal.channel === `person:${me()}`) merged.personAll = true;
+    return true;
+  }
+
+  /** A signal of Realtime that adds something to the pass: the pass holds a change until an own answer names it (LV-2). */
+  function keepEcho(signal: ChangeSignal): void {
+    const channels = echoes.get(signal.id) ?? new Set<string>();
+    channels.add(signal.channel);
+    echoes.set(signal.id, channels);
+  }
+
+  /** An own answer names this signal: the echo of Realtime that came before it is part of the own write. */
+  function dropEcho(signal: ChangeSignal): void {
+    const channels = echoes.get(signal.id);
+    if (!channels) return;
+    channels.delete(signal.channel);
+    if (channels.size === 0) echoes.delete(signal.id);
   }
 
   const unsubscribe = source.subscribe((signals, origin = 'channel', fresh) => {
     if (stopped) return;
     if (signals.length === 0) {
-      mixed = true;
       lastSeq.clear();
+      // The reload of a tab that shows again is on its way. A phone joins its channels some milliseconds after it, and a second pass of
+      // everything would cancel the running reads, which the server has already run (DF-4).
+      if (origin === 'join' && visiblePassAt !== null && now() - visiblePassAt < VISIBLE_MERGE_MS) return;
+      mixedHard = true;
       queue().all = true;
       if (origin === 'join') {
         joinBy = now() + joinMs;
@@ -303,12 +348,20 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
     }
     const merged = queue();
     if (origin === 'own') owns.push(fresh ?? null);
-    else mixed = true;
+    else if (origin !== 'channel') mixedHard = true;
     for (const signal of signals) {
-      if (origin === 'channel') checkSeq(merged, signal);
-      take(merged, signal);
+      if (origin === 'channel' && checkSeq(merged, signal)) mixedHard = true;
+      const added = take(merged, signal);
+      // A signal that adds nothing (it came before, with the own answer) changes nothing in the pass.
+      if (origin === 'own') dropEcho(signal);
+      else if (added) keepEcho(signal);
     }
-    // An own write shows at once, with whatever else waits. Others wait for the merge window.
+    // An own write shows at once, with whatever else waits. Others wait for the merge window. A message of another person waits only
+    // for its twin signals while a chat is on screen (LV-3). While an own write is on the wire, the frame may be its echo (a direct chat
+    // signal names no person), so the full window holds: the own answer comes first and takes it (LV-2).
+    if (origin === 'channel' && chatBy === null && chatMs < mergeMs && signals.some((signal) => signal.kinds.includes('messages')) && chatOnScreen() && queryClient.isMutating() === 0) {
+      chatBy = now() + chatMs;
+    }
     if (origin !== 'own') schedule();
     else if (!ownQueued) {
       ownQueued = true;
@@ -329,6 +382,7 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
     hiddenAt = null;
     if (away > hiddenReloadMs) {
       // Signals may have been lost while the tab slept: reload every list on the screen.
+      visiblePassAt = now();
       run({ ...emptyMerge(), all: true });
       return;
     }
@@ -341,6 +395,7 @@ export function connectChanges(queryClient: QueryClient, source: ChangeSource, m
     if (timer !== undefined) clearTimeout(timer);
     timer = undefined;
     joinBy = null;
+    chatBy = null;
     pending = null;
     owns = [];
     unsubscribe();

@@ -16,6 +16,11 @@ export type LivePort = {
   /** The active humans whose states the screens show. */
   watch(userIds: readonly string[]): void;
   stateOf(userId: string): PersonState;
+  /**
+   * True when stateOf(userId) is a state that the port has read (a topic that synced, or the first snapshot of the office socket), not
+   * the Offline of a person it cannot see yet. A port without it never says so, and the typing sender then always sends (DF-10).
+   */
+  knowsState?(userId: string): boolean;
   subscribeStates(listener: () => void): () => void;
   subscribeTyping(listener: (signal: TypingSignal) => void): () => void;
   /** The prototype only: hands a typing signal that the server call accepted to the other tabs. */

@@ -340,6 +340,28 @@ describe('supabaseLive: the status of people on Realtime Presence (chat presence
     expect(live.stateOf('usr_002')).toBe('away');
   });
 
+  // DF-10: the typing sender skips its call only for a person whose state the port has read.
+  it('knows the state of a person from the first sync of the topic to its drop, and not while it rests', async () => {
+    const stub = stubSupabase();
+    const live = supabaseLive(stub.client, 'usr_001');
+    live.watch(['usr_001', 'usr_002']);
+    await flush();
+    expect(live.knowsState?.('usr_002')).toBe(false);
+    joined(stub, 'status:usr_002');
+    expect(live.knowsState?.('usr_002')).toBe(false);
+    stub.present('status:usr_002', {});
+    expect(live.knowsState?.('usr_002')).toBe(true);
+    expect(live.stateOf('usr_002')).toBe('offline');
+    expect(live.knowsState?.('usr_009')).toBe(false);
+    stub.live('status:usr_002')?.status?.('CHANNEL_ERROR', new Error('down'));
+    expect(live.knowsState?.('usr_002')).toBe(false);
+    joined(stub, 'status:usr_002');
+    stub.present('status:usr_002', {});
+    live.setResting(true);
+    await flush();
+    expect(live.knowsState?.('usr_002')).toBe(false);
+  });
+
   it('joins again after a close, with the REJOIN_MS waits and a fresh token', async () => {
     const stub = stubSupabase();
     const live = supabaseLive(stub.client, 'usr_001');
@@ -443,6 +465,17 @@ describe('switchedLive: one port for the runtime, one adapter for each signed-in
     };
     return { port, log, states, typing };
   };
+
+  it('knows no state until an adapter comes that says it does (DF-10)', () => {
+    const live = switchedLive();
+    expect(live.knowsState?.('usr_002')).toBe(false);
+    const { port } = inner();
+    live.use(port);
+    expect(live.knowsState?.('usr_002')).toBe(false);
+    live.use({ ...port, knowsState: (id) => id === 'usr_002' });
+    expect(live.knowsState?.('usr_002')).toBe(true);
+    expect(live.knowsState?.('usr_003')).toBe(false);
+  });
 
   it('says offline and forgets the calls until an adapter comes, then replays the last of each', () => {
     const live = switchedLive();

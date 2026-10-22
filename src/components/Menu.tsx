@@ -15,7 +15,8 @@ import { fixedFrame, inFrame, measure, menuPlace } from './placement';
  * `heading` draws a hairline and a small label above the item, `note` a small line under it (the "Notify me" part of a chat menu,
  * chat design item 21). A heading and a note are text, not items: the arrow keys skip them.
  */
-export type MenuItem = { label: string; onSelect: () => void; destructive?: boolean; hidden?: boolean; checked?: boolean; heading?: string; note?: string };
+/** onPrepare runs on the pointer press, before the click: a read that the next step needs can start early (performance audit DF-5). */
+export type MenuItem = { label: string; onSelect: () => void; onPrepare?: () => void; destructive?: boolean; hidden?: boolean; checked?: boolean; heading?: string; note?: string };
 
 /** What a key press moves between: the items, the choice items (Notify me), and the tick items of a head (a row of choices above the items). */
 const STOPS = '[role="menuitem"],[role="menuitemradio"],[role="menuitemcheckbox"]';
@@ -99,6 +100,7 @@ export function MenuList({
             role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
             aria-checked={item.checked}
             tabIndex={-1}
+            onPointerDown={item.onPrepare}
             onClick={() => {
               onClose(true);
               item.onSelect();

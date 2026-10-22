@@ -13,7 +13,7 @@ import { useCan } from '../../app/useRight';
 import { Avatar } from '../../components/Avatar';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { normalizeForSearch } from '../../lib/text';
-import { NewProjectSheet } from '../projects/NewProjectSheet';
+import { NewProjectSheet, usePrepareNewProject } from '../projects/NewProjectSheet';
 import { NewTaskSheet } from './NewTaskSheet';
 import { PersonSheet } from './PersonSheet';
 import { useQueryInLink } from './useQueryInLink';
@@ -25,9 +25,9 @@ import { projectKey } from '../../lib/projectCode';
 
 const GROUP = 'flex flex-col [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-footnote [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-label-2';
 
-function Item({ value, onSelect, children }: { value: string; onSelect: () => void; children: ReactNode }) {
+function Item({ value, onSelect, onPrepare, children }: { value: string; onSelect: () => void; onPrepare?: () => void; children: ReactNode }) {
   return (
-    <Command.Item value={value} onSelect={onSelect} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-body data-[selected=true]:bg-fill">
+    <Command.Item value={value} onSelect={onSelect} onPointerDown={onPrepare} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 text-body data-[selected=true]:bg-fill">
       {children}
     </Command.Item>
   );
@@ -132,10 +132,11 @@ export function SearchScreen() {
   const [sheet, setSheet] = useState<'task' | 'project' | null>(null);
   const [person, setPerson] = useState<UserCard | null>(null);
   const may = useCan();
+  const prepareNew = usePrepareNewProject();
   // A command shows only when the switch behind it is on (role rights version 2). New to-do makes a to-do of a project.
   const commands = [
     { id: 'new-task', label: t('search.command.newTask'), run: () => setSheet('task'), show: may('task.add', { projectRole: 'team' }) },
-    { id: 'new-project', label: t('search.command.newProject'), run: () => setSheet('project'), show: may('project.create') },
+    { id: 'new-project', label: t('search.command.newProject'), run: () => setSheet('project'), show: may('project.create'), prepare: prepareNew },
     { id: 'dashboard', label: t('search.command.dashboard'), run: () => navigate('/dashboard'), show: may('dashboard.view') },
     { id: 'my-work', label: t('search.command.myWork'), run: () => navigate('/work'), show: true },
   ].filter((command) => command.show).filter((command) => !text.trim() || normalizeForSearch(command.label).includes(normalizeForSearch(text)));
@@ -154,7 +155,7 @@ export function SearchScreen() {
         <Command.List label={t('search.suggestions')} className="surface flex flex-col gap-2 rounded-card p-2">
           {commands.length > 0 && (
             <Command.Group heading={t('search.commands')} className={GROUP}>
-              {commands.map((command) => <Item key={command.id} value={`command-${command.id}`} onSelect={command.run}>{command.label}</Item>)}
+              {commands.map((command) => <Item key={command.id} value={`command-${command.id}`} onSelect={command.run} onPrepare={command.prepare}>{command.label}</Item>)}
             </Command.Group>
           )}
           {query && <Results query={query} onPerson={setPerson} />}

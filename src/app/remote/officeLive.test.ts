@@ -78,6 +78,17 @@ describe('officeLive: status and typing on the office socket (chat presence desi
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
+  it('knows the states from the first snapshot until the socket drops (DF-10)', () => {
+    const live = officeLive(source(), 'usr_001');
+    expect(live.knowsState?.('usr_002')).toBe(false);
+    live.presence({ v: 1, userId: 'usr_002', state: 'online' });
+    expect(live.knowsState?.('usr_003')).toBe(false);
+    live.presence({ v: 1, states: { usr_002: 'online' } });
+    expect(live.knowsState?.('usr_003')).toBe(true);
+    live.reset();
+    expect(live.knowsState?.('usr_003')).toBe(false);
+  });
+
   it('keeps the list and ignores the rest: the object sends every state, and a rest has no quota to save', () => {
     const s = source();
     const live = officeLive(s, 'usr_001');

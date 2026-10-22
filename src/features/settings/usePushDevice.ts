@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  buildKey, canAsk, isPushOptedOut, isSubscribed, readEnv, setPushOptOut, statusOf, syncThisDevice, turnOff, turnOn, type PushApi, type PushStatus,
+  buildKey, canAsk, isPushOptedOut, isSubscribed, readEnv, setPushOptOut, statusOf, syncDeviceOnce, turnOff, turnOn, type PushApi, type PushStatus,
 } from '../../app/remote/push';
 import { useCall, useRuntime } from '../../app/runtime';
 
@@ -38,7 +38,7 @@ export function usePushDevice(): { status: PushStatus | null; askable: boolean; 
     alive.current = true;
     void (async () => {
       const env = readEnv();
-      if (key && userId && env.hasWorker && env.hasNotification && env.hasManager) await syncThisDevice(pushApi, key, userId).catch(() => undefined);
+      if (key && userId && env.hasWorker && env.hasNotification && env.hasManager) await syncDeviceOnce(pushApi, key, userId).catch(() => undefined);
       await check();
     })();
     return () => {

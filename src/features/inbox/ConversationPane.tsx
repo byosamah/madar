@@ -126,9 +126,12 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   const deleteMessage = useStableHandler(useDeleteMessage());
   const archive = useArchive();
   // The typing signal of the person for this chat (chat presence design B6). A task thread has none.
-  const typing = useTypingSender(id);
   const data = thread.data;
   const people = data?.people ?? NO_PEOPLE;
+  // The people who can see the chat tell the sender who may see the line (DF-10). Until the chat loads, the list is unknown.
+  const loadedPeople = data?.people;
+  const typingOthers = useMemo(() => loadedPeople?.map((person) => person.id), [loadedPeople]);
+  const typing = useTypingSender(id, typingOthers);
   const meId = session.data?.authority.id ?? '';
   // The message that the next send answers (chat design 2026-10-19, item 10). A closed chat takes no reply.
   const [replyTo, setReplyTo] = useState<ReplyRef | null>(null);
@@ -219,7 +222,10 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   // The seen time (chat presence design C4) moves only for a look in use: the chat is open, in view, and the person used Madar in the last
   // 10 minutes. An idle screen still reads the chat (no flag), and the first key after the pause sends the flag. The times compare as instants.
   const active = useActive();
-  const seenBehind = newestAt !== undefined && (data?.seenUpTo == null || Date.parse(newestAt) > Date.parse(data.seenUpTo));
+  // Only a message of another person can be unseen: the own message is no news to the person, and `chats.send` marks the chat read in
+  // its own save, so a mark for it was one more request for each message sent (performance audit 2026-10-21, LV-4).
+  const newestOtherAt = data?.messages.findLast((view) => !view.mine)?.message.createdAt;
+  const seenBehind = newestOtherAt !== undefined && (data?.seenUpTo == null || Date.parse(newestOtherAt) > Date.parse(data.seenUpTo));
   useEffect(() => {
     if (!opened || !visible) return;
     const first = !looked.current;

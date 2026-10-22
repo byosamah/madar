@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useCall, useRuntime } from '../runtime';
 import { REMOTE } from '../mode';
-import { buildKey, syncThisDevice, type PushApi } from './push';
+import { buildKey, syncDeviceOnce, type PushApi } from './push';
 
 /** The check waits a little, so it never competes with the first screen. */
 export const PUSH_SYNC_DELAY_MS = 3_000;
@@ -20,7 +20,7 @@ export function PushSync({ delayMs = PUSH_SYNC_DELAY_MS }: { delayMs?: number })
   useEffect(() => {
     const key = buildKey();
     if (!REMOTE || !key || !userId) return;
-    const timer = setTimeout(() => void syncThisDevice(api as unknown as PushApi, key, userId).catch(() => undefined), delayMs);
+    const timer = setTimeout(() => void syncDeviceOnce(api as unknown as PushApi, key, userId).catch(() => undefined), delayMs);
     return () => clearTimeout(timer);
   }, [api, userId, delayMs]);
 

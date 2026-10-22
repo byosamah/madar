@@ -20,15 +20,16 @@ import { ScreenControls } from '../../components/ScreenControls';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { clientName } from '../../lib/clientName';
 import { clientParam, oneOf, subCompanyParam, teamParam, userParam } from '../../lib/params';
-import { NewProjectSheet } from './NewProjectSheet';
+import { NewProjectSheet, usePrepareNewProject } from './NewProjectSheet';
 import { ProjectListRow } from './ProjectListRow';
+import { PROJECT_SORT_KEY, PROJECT_SORTS } from './sort';
 
 const STATUSES = ['active', 'on_hold', 'completed', 'archived', 'all'] as const;
 const FILTERS = ['all', 'mine', 'at_risk'] as const;
 /** The data gaps that the Dashboard opens for the Admin (owner, 2026-10-06). Only a link sets them, like the health. */
 const GAPS = ['no_area', 'stage_no_end', 'no_sub_company'] as const;
 const HEALTH = ['on_track', 'at_risk', 'late'] as const;
-const SORTS = ['updated', 'deadline', 'name'] as const;
+const SORTS = PROJECT_SORTS;
 /** The value of the "No sub-company" choice in the Sub-company select. */
 const NO_SUB_COMPANY = 'none';
 const SELECT = 'field mt-1.5 font-normal';
@@ -106,10 +107,11 @@ export function ProjectsScreen() {
     if (value === 'active') next.delete('status');
     else next.set('status', value);
   });
-  const [sort, setSort] = usePersistentChoice('madar.projects.sort', SORTS, 'updated');
+  const [sort, setSort] = usePersistentChoice(PROJECT_SORT_KEY, SORTS, 'updated');
   const [creating, setCreating] = useState(false);
   // "New project" needs project.create (role rights version 2).
   const mayCreate = useRight('project.create');
+  const prepareNew = usePrepareNewProject();
   const settings = useCall('settings.get', {});
   const teams = useCall('teams.list', {});
   const users = useCall('users.list', {});
@@ -136,7 +138,7 @@ export function ProjectsScreen() {
       <ScreenTitle
         title={t('screens.projects')}
         action={mayCreate ? (
-          <Button variant="primary" className="shrink-0" onClick={() => setCreating(true)}>
+          <Button variant="primary" className="shrink-0" onPointerDown={prepareNew} onClick={() => setCreating(true)}>
             <AnimatedIcon icon={PlusIcon} size={18} aria-hidden />
             {t('projects.new')}
           </Button>
