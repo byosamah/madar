@@ -1,5 +1,5 @@
 import { lazyOverlay } from './lazyOverlay';
-import { whenIdle } from './screens';
+import { whenIdle } from './whenIdle';
 import { warmTaskSheet } from '../features/home/HomeTaskSheet';
 
 /**

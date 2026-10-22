@@ -1,10 +1,23 @@
-import { describe, expect, it } from 'vitest';
-import { act, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { act, cleanup, screen } from '@testing-library/react';
 import type { UserCard } from '../api/contract/views';
 import { initI18n } from '../i18n';
 import { fakeLive } from '../test/fakeLive';
 import { renderWithRuntime } from '../test/render';
 import { PersonFace } from './PersonFace';
+
+// Each call of useTranslation (performance audit 2026-10-21, RN-10). The real hook still runs.
+const translations = vi.hoisted(() => ({ calls: 0 }));
+vi.mock('react-i18next', async (importOriginal) => {
+  const real = await importOriginal<typeof import('react-i18next')>();
+  return {
+    ...real,
+    useTranslation: (...args: Parameters<typeof real.useTranslation>) => {
+      translations.calls += 1;
+      return real.useTranslation(...args);
+    },
+  };
+});
 
 const card = (id: string, name: string, nameAr: string, gender: 'female' | 'male', kind: 'human' | 'agent' = 'human'): UserCard => (
   { id, name, nameAr, avatarUrl: null, kind, discipline: 'Architect', gender }
@@ -88,5 +101,30 @@ describe('PersonFace', () => {
     expect(await screen.findByRole('img', { name: 'ريم الغامدي، متصلة' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'فيصل الحربي، بعيد عن الشاشة' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'لينا منصور، غير متصلة' })).toBeInTheDocument();
+  });
+
+  it('adds no useTranslation call for each face (RN-10)', async () => {
+    const people = Array.from({ length: 30 }, (_, i) => card(`usr_${100 + i}`, `Person ${i}`, `شخص ${i}`, i % 2 ? 'female' : 'male'));
+    const states = Object.fromEntries(people.map((p, i) => [p.id, i % 3 === 0 ? 'online' : 'away'] as const));
+    const live = fakeLive(states);
+    translations.calls = 0;
+    await renderWithRuntime(<PersonFace user={people[0]!} size={40} />, undefined, { live: live.port });
+    const base = translations.calls;
+    cleanup();
+    translations.calls = 0;
+    await renderWithRuntime(<>{people.map((p) => <PersonFace key={p.id} user={p} size={40} />)}</>, undefined, { live: live.port });
+    expect(screen.getByRole('img', { name: 'Person 0, Online' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Person 1, Away' })).toBeInTheDocument();
+    expect(translations.calls).toBe(base);
+  });
+
+  it('gives a new language to the label of a face that holds no hook (RN-10)', async () => {
+    const live = fakeLive({ usr_003: 'online' });
+    await renderWithRuntime(<PersonFace user={reem} size={40} />, undefined, { live: live.port });
+    expect(screen.getByRole('img', { name: 'Reem Al-Ghamdi, Online' })).toBeInTheDocument();
+    await act(async () => { initI18n('ar'); });
+    expect(await screen.findByRole('img', { name: 'ريم الغامدي، متصلة' })).toBeInTheDocument();
+    await act(async () => { initI18n('en'); });
+    expect(await screen.findByRole('img', { name: 'Reem Al-Ghamdi, Online' })).toBeInTheDocument();
   });
 });

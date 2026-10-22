@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLang } from '../../app/lang';
+import { whenIdle } from '../../app/whenIdle';
 import { Button } from '../../components/Button';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { ChevronDownIcon } from '../../components/icons/animated/chevron-down';
@@ -8,6 +9,7 @@ import { addDays, formatDay, stampDay, todayISO } from '../../lib/dates';
 import { groupByDay } from '../../lib/group';
 import { MessageBubble, type Bubble } from './MessageBubble';
 import { isNearBottom, scrollTopFor } from './logScroll';
+import { stageStartId } from './logStage';
 import { firstUnreadId } from './newLine';
 import { runStarts } from './runs';
 import { SeenLine, type SeenInfo } from './SeenLine';
@@ -95,6 +97,35 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier, readUpTo, un
   }, [bubbles, sentSinceOpen, unreadAtOpen, readUpTo, newestAtFirst]);
   // The messages of one person within 5 minutes form a run (design item 2): only the first shows the face and the name.
   const starts = useMemo(() => runStarts(bubbles, newLineId), [bubbles, newLineId]);
+  // The newest 60 bubbles mount at once and the others at an idle moment (performance audit 2026-10-21, RN-1). The focus message and the message
+  // after the New line are always in the first mount. The log is keyed by the chat, so this runs once for a chat.
+  const [stage, setStage] = useState(() => ({ startId: stageStartId(bubbles, [focusId, newLineId]), done: false }));
+  const staged = !stage.done && stage.startId !== null;
+  let from = 0;
+  if (staged) {
+    from = Math.max(0, bubbles.findIndex((b) => b.id === stage.startId));
+    // A focus message that comes later (a press on a reply strip) is mounted at once too.
+    const at = focusId ? bubbles.findIndex((b) => b.id === focusId) : -1;
+    if (at >= 0 && at < from) from = at;
+  }
+  const drawn = from > 0 ? bubbles.slice(from) : bubbles;
+  // The distance from the bottom when the older bubbles come, so a reader keeps the place (the same step as the earlier messages).
+  const revealAnchor = useRef<number | null>(null);
+  const reveal = () => {
+    const log = region.current;
+    if (log) revealAnchor.current = log.scrollHeight - log.scrollTop;
+    setStage((now) => (now.done ? now : { ...now, done: true }));
+  };
+  useEffect(() => {
+    if (!staged) return undefined;
+    let live = true;
+    whenIdle(() => {
+      if (live) reveal();
+    });
+    return () => {
+      live = false;
+    };
+  }, [staged]);
   // The Seen line sits under the last own message, and only when that message is saved (design C3). A message that waits shows none.
   const seenId = useMemo(() => {
     const last = seen ? bubbles.findLast((b) => b.mine && !b.line && !b.reason) : undefined;
@@ -158,6 +189,15 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier, readUpTo, un
     watcher.observe(list);
     return () => watcher.disconnect();
   }, []);
+  useLayoutEffect(() => {
+    const kept = revealAnchor.current;
+    const log = region.current;
+    if (!stage.done || kept === null || !log) return;
+    revealAnchor.current = null;
+    log.scrollTop = log.scrollHeight - kept;
+    atBottom.current = isNearBottom(log);
+    setAway(!atBottom.current);
+  }, [stage.done]);
   const hasEarlier = earlier !== undefined;
   useLayoutEffect(() => {
     const log = region.current;
@@ -173,6 +213,8 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier, readUpTo, un
   }, [firstId, hasEarlier]);
   const askEarlier = (control: EarlierControl, button: HTMLButtonElement) => {
     if (control.pending || !region.current) return;
+    // The older bubbles that wait come first, so the page goes above all of them.
+    if (staged) reveal();
     anchor.current = { fromBottom: region.current.scrollHeight - region.current.scrollTop, focused: document.activeElement === button, firstId };
     // A page that does not arrive moves nothing, so the kept distance goes. Else the next new message scrolls back to it.
     void control.load().then((loaded) => {
@@ -201,7 +243,7 @@ export function MessageLog({ bubbles, resetKey, emptyText, earlier, readUpTo, un
       )}
       {bubbles.length === 0 && <p className="text-subheadline text-ink-2">{emptyText}</p>}
       <ol ref={items} className="flex flex-col gap-0.5">
-        {groupByDay(bubbles, (b) => stampDay(b.createdAt)).flatMap((group) => [
+        {groupByDay(drawn, (b) => stampDay(b.createdAt)).flatMap((group) => [
           <li key={`day-${group.day}`} className="self-center py-2 text-footnote font-semibold text-ink-2">{dayLabel(group.day)}</li>,
           ...group.items.flatMap((bubble) => [
             ...(bubble.id === newLineId

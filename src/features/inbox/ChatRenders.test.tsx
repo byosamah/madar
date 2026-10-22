@@ -48,6 +48,8 @@ describe('a chat at its limit of 200 messages (RN-4)', () => {
     await act(async () => { await router.navigate(`/inbox/${room.id}`); });
     await screen.findByRole('log', { name: 'Messages' });
     await screen.findByText(/Old note 200 /);
+    // The oldest bubbles mount at the idle step (RN-1): this count waited for 200 at once before that item.
+    await waitFor(() => expect(screen.getByRole('log', { name: 'Messages' }).querySelectorAll('[data-message-id]').length).toBeGreaterThanOrEqual(190), { timeout: 10_000 });
     const before = await settled();
     expect(before).toBeGreaterThanOrEqual(200);
     store.state.messages['msg_9001'] = {

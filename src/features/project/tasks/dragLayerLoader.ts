@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { whenIdle } from '../../../app/screens';
+import { whenIdle } from '../../../app/whenIdle';
 import type { DragRowsProps } from './DragLayer';
 
 /**

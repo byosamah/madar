@@ -255,6 +255,11 @@ any screen work.
   same renders as before. The Inbox keeps one Bubble for each message view object (`useBubbles`, `ConversationPane.tsx`). A chat at its
   limit of 200 slides its page by one for each new message, so every view is a new object: `useBubbles` also finds a bubble by the key of
   its message and reuses it when `replaceEqualDeep` says the view is equal (RN-4, 2026-10-21; the key of a message the outbox claimed has `#claimed`).
+- Idle steps (RN-2, 2026-10-21): every step that waits for an idle moment goes through `whenIdle` (`app/whenIdle.ts`, also exported by `app/screens.ts`),
+  never through `requestIdleCallback`, `scheduler.postTask`, `scheduler.yield`, `navigator.connection` or a `longtask` observer: Safari has none of
+  them, and every browser on an iPhone is Safari. `whenIdle` waits 200 ms where `requestIdleCallback` is missing. `useStaged(total, first)`
+  (`app/useStaged.ts`) draws the first rows of a long list at once and the others at the idle step; the final list is the same list. The Inbox list draws
+  its first 40 rows this way.
 - Home keeps the last role it saw for each auth user in localStorage (`madar.homeRole.<auth user id>`,
   `features/home/roleHint.ts`). Before `session.get` answers, the real build asks for the `projects.list` of that role. The
   session answer always decides. The sign-in port gives the auth user id at once (`AuthPort.userId()`, optional).
@@ -413,7 +418,7 @@ any screen work.
 
 ## Chat messages (track msg, 2026-10-19)
 - One small menu for each message (`features/inbox/MessageMenu.tsx`). On a computer a "..." button (`MessageTools`, a `Menu` with a `head`) sits in the
-  side spot (`data-part="side"`) of the row and shows on hover or focus, never on a touch screen. The `head` of `Menu` is the row of the three
+  side spot (`data-part="side"`) of the row and shows on hover or focus, never on a touch screen. A touch screen (`usePointerCoarse`, `app/usePointerCoarse.ts`) does not build it, except in the sheet of a task (`inSheet`); a narrow screen with a mouse keeps it. The row menu of the Inbox list is left out on a phone or under a finger the same way (RN-3, 2026-10-21). The `head` of `Menu` is the row of the three
   reactions (`role="menuitemcheckbox"`); a press on one closes the menu. On a phone a long press of a finger (`longPress.ts`, 500 ms, 10 px) opens
   `MessageSheet` (a `Sheet`: the preview, the reactions, the items, "Copy text"; no Copy item where the browser has no clipboard).
 - The handlers of a bubble reach `MessageBubble` through `BubbleActionsContext` (`bubbleActions.ts`), never through a `MessageLog` prop. The ChatPane
@@ -550,6 +555,10 @@ any screen work.
 - Keep my place (`MessageLog`, `logScroll.ts`): a new message moves the log only when the reader is in the last 80 px or sent it. Else the round Newest button shows (sticky inside the log, `aria-live="off"`), still, with no count.
 - New line (`newLine.ts`): the pane keeps the read state of the first fresh answer (`useOpenMark`) and shows the log only then. A chat places the line by `ChatThread.readUpTo`, a task thread by the unread count of its `chats.list` row. The line goes when the person sends. The mark read goes only after the mark exists, so a stale cached answer never clears the unread count first.
 - Open at one message: `MessageLog` `focusId` centers that bubble (by `data-message-id`), frames it for 1 s (`FRAME_MS`, `data-framed`) and calls `onFocused` once. Tracks msg (reply strip) and find (notices, search, the route) pass it. At the open the focus message beats the New line, and the New line beats the bottom.
+- First mount (RN-1, 2026-10-21): a log of more than 60 bubbles mounts the newest 60 at once and the older ones at the idle step (`whenIdle`, `logStage.ts`
+  `stageStartId`). The focus message and the message after the New line are always in the first mount. The older bubbles go above with the re-anchor step of
+  "Earlier messages" (the distance from the bottom stays), a press on "Earlier messages" shows them first, and a focus message that comes later is mounted at once.
+  A test that reads an old bubble waits for it (`waitFor`).
 - Read only while you look: `ChatPane` and `useMarkTaskRead` mark read only while `usePageVisible()` (`app/usePageVisible.ts`) is true. A task thread is marked once for each new count of comments. A hidden tab only marks the lists (`app/signals.ts`), so a message reaches an open chat in a hidden tab only when something else loads it; a test that needs that loads the chat itself with `queryClient.refetchQueries`.
 - Links (`segmentsOf`, `RichText`): an `http://` or `https://` address is a link with `dir="ltr"` and `break-all`; an outside address opens in a new tab with `noopener noreferrer`. The marks of the sentence at its end (`. , ; : ! ? ' "`, the Arabic comma, semicolon and question mark, `»`, `]`, `}`) and a closing bracket the address did not open stay out of the link.
 - Drafts (`app/drafts.ts`): the text of a draft lives in localStorage for each person, so it stays after the tab closes. A sign-out (`keepDraftsOf('')`) and a change of person clear both stores. A draft of the old session store moves to localStorage on its first read. Picked files stay in memory only.
@@ -578,6 +587,10 @@ any screen work.
   the repo; the header has the command). The script drops U+FE0F after an `Emoji_Presentation` character, so 👍 from the panel equals the quick 👍.
   `EmojiButton` loads the panel with `import()` at the first open (`check-bundles` refuses `grinning face` in the first load). A phone gets a
   sheet, except inside a dialog, where the panel floats (`EmojiFloat`: 8 columns of 44 px; `Popover` is too narrow).
+  The panel draws Recent and the first group at once and the other 7 groups at the idle step (`Groups` in `EmojiPanel.tsx`, `useStaged`, RN-8, 2026-10-21).
+  An undrawn group (`EmojiGroup.tsx`) keeps its id and a box of the height of its grid (rows of 44 px), so the group buttons and `nextCell` work. Each group
+  is a memo part and gets `tabbable` only when the tab cell is in it, so a focus move renders two cells and one or two groups; `EmojiCell.tsx` holds the cell.
+  A test that needs the last group waits for it (`findByRole`).
 
 ## Meetings screens (owner, 2026-10-19, fbk_022)
 - `/meetings` is the second view of the Tasks tab (`features/meetings/`, `MeetingsScreen.tsx`). The tab pill keeps 5 tabs: `isNavActive` keeps

@@ -1,8 +1,11 @@
-import { memo, useCallback, useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLang } from '../../app/lang';
 import data from './data.generated.json';
 import { pushRecent, readRecent, readTone, writeTone, type Tone } from './recent';
+import { Cell } from './EmojiCell';
+import { EmojiGroup } from './EmojiGroup';
+import { useStaged } from '../../app/useStaged';
 import { searchEmoji, type EmojiItem } from './search';
 
 /**
@@ -18,7 +21,6 @@ const GROUP_ICON: Record<GroupKey, string> = { people: '😀', nature: '🐱', f
 const TONE_SAMPLES = ['👋', '👋🏻', '👋🏼', '👋🏽', '👋🏾', '👋🏿'];
 const TONES: Tone[] = [0, 1, 2, 3, 4, 5];
 const COLUMNS = 8;
-const CELL = 'grid h-11 w-full place-items-center rounded-xl text-2xl leading-none hover:bg-fill focus-visible:bg-fill-strong';
 
 let byEmoji: Map<string, EmojiItem> | undefined;
 /** The item of an emoji, also of a form with a skin tone, for the name of a button in Recent. */
@@ -34,16 +36,6 @@ function itemOf(emoji: string): EmojiItem | undefined {
   }
   return byEmoji.get(emoji);
 }
-
-type CellProps = { emoji: string; name: string; id: string; tabbable: boolean; onPick: (emoji: string) => void };
-/** One button. Memoized, so a move of the focus draws two cells again and not the 1,900 of the panel. */
-const Cell = memo(function Cell({ emoji, name, id, tabbable, onPick }: CellProps) {
-  return (
-    <button type="button" data-emoji={emoji} data-cell={id} aria-label={name} tabIndex={tabbable ? 0 : -1} onClick={() => onPick(emoji)} className={CELL}>
-      <span aria-hidden>{emoji}</span>
-    </button>
-  );
-});
 
 /** The place of the next button for an arrow key. A grid ends, the next grid (or the one before) takes the key. */
 function nextCell(from: HTMLElement, key: string, rtl: boolean, root: HTMLElement): HTMLElement | undefined {
@@ -74,6 +66,34 @@ function nextCell(from: HTMLElement, key: string, rtl: boolean, root: HTMLElemen
     return other[Math.min(Math.floor((other.length - 1) / COLUMNS) * COLUMNS + column, other.length - 1)];
   }
   return undefined;
+}
+
+/**
+ * The 8 groups. Smileys and people draw at once and the others at an idle moment (performance audit 2026-10-21, RN-8): a group that is
+ * not drawn yet keeps its id and its height, so the group buttons and the arrow keys work. It mounts again after a search ends, so it
+ * draws in stages each time.
+ */
+function Groups({ uid, tone, lang, tabbable, onPick }: { uid: string; tone: Tone; lang: 'en' | 'ar'; tabbable: string | null; onPick: (emoji: string) => void }) {
+  const { t } = useTranslation();
+  const drawn = useStaged(GROUPS.length, 1);
+  return (
+    <>
+      {GROUPS.map((group, index) => (
+        <EmojiGroup
+          key={group.key}
+          id={`${uid}-${group.key}`}
+          title={t(`emoji.group.${group.key}`)}
+          kind={group.key}
+          items={group.items}
+          filled={index < drawn}
+          tone={tone}
+          lang={lang}
+          tabbable={tabbable?.startsWith(`${group.key}:`) ? tabbable : null}
+          onPick={onPick}
+        />
+      ))}
+    </>
+  );
 }
 
 type PanelProps = { onPick: (emoji: string) => void; layout: 'panel' | 'sheet' };
@@ -182,18 +202,7 @@ export function EmojiPanel({ onPick, layout }: PanelProps) {
               <h3 id={`${uid}-recent`} className="px-1 pb-1 text-footnote font-semibold text-ink-2">{t('emoji.recent')}</h3>
               {grid(t('emoji.recent'), 'r', recent.map((emoji) => ({ emoji, name: nameOf(itemOf(emoji), emoji), key: emoji })))}
             </section>
-            {GROUPS.map((group) => (
-              <section
-                key={group.key}
-                id={`${uid}-${group.key}`}
-                aria-labelledby={`${uid}-${group.key}-title`}
-                // The browser skips the drawing of the groups out of view: the panel holds 1,900 buttons.
-                style={{ contentVisibility: 'auto', containIntrinsicSize: `auto ${Math.ceil(group.items.length / COLUMNS) * 44 + 36}px` }}
-              >
-                <h3 id={`${uid}-${group.key}-title`} className="px-1 pb-1 pt-3 text-footnote font-semibold text-ink-2">{t(`emoji.group.${group.key}`)}</h3>
-                {grid(t(`emoji.group.${group.key}`), group.key, group.items.map((item) => ({ emoji: shown(item), name: nameOf(item, item.e), key: item.e })))}
-              </section>
-            ))}
+            <Groups uid={uid} tone={tone} lang={lang} tabbable={tabbable} onPick={pick} />
           </>
         )}
       </div>
