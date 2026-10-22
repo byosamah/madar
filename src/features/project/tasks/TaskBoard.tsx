@@ -4,21 +4,25 @@ import {
 } from '@dnd-kit/core';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { GripVerticalIcon } from '../../../components/icons/animated/grip-vertical';
-import { useEffect, useRef, useState, type PointerEventHandler, type ReactNode } from 'react';
+import { motion } from 'motion/react';
+import { useEffect, useRef, useState, type PointerEventHandler, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TaskStatus } from '../../../api/contract/entities';
 import type { TaskRow } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
 import { useLang } from '../../../app/lang';
 import { useToast } from '../../../app/toasts';
+import { useIsPhone } from '../../../app/useIsPhone';
 import { Avatar } from '../../../components/Avatar';
 import { AvatarStack } from '../../../components/AvatarStack';
 import { Menu } from '../../../components/Menu';
 import { NoLeadMark } from '../../../components/NoLeadMark';
+import { spring } from '../../../design/motion';
 import { BOARD_COLUMNS, moveTargets, nextColumn } from '../../../lib/board';
 import { todayISO } from '../../../lib/dates';
 import { dueText, dueWord, startsLater, startsText } from '../../../lib/due';
 import { versionOf } from '../../../lib/taskPeople';
+import { prefersReducedMotion } from './dragSensors';
 import { useStageBack } from './StageBack';
 import { isWaiting, waitingNames } from '../../../lib/waiting';
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
@@ -76,19 +80,23 @@ function CardFace({ row, lifted = false, across = false, yourReview = false }: {
   );
 }
 
-function Column({ status, count, closed, children }: { status: TaskStatus; count: number; closed: boolean; children: ReactNode }) {
+function Column({ status, count, closed, note, children }: { status: TaskStatus; count: number; closed: boolean; note?: string; children: ReactNode }) {
   const { t } = useTranslation();
+  const phone = useIsPhone();
   // A closed column takes no drop, and the arrow keys skip it (audit 2026-10-03, V-5).
   const { setNodeRef, isOver } = useDroppable({ id: status, disabled: closed });
   const label = t(`taskStatus.${status}`);
   return (
-    <section ref={setNodeRef} data-column={status} aria-label={t('tasks.column', { status: label, n: count })} className={`flex min-h-48 flex-col gap-2 rounded-card p-2 ${isOver ? 'bg-fill-strong' : closed ? 'bg-fill/40' : 'bg-fill'}`}>
+    <section ref={setNodeRef} data-column={status} aria-label={t('tasks.column', { status: label, n: count })} className={`flex min-h-48 flex-col gap-2 rounded-card p-2 max-sm:snap-start ${isOver ? 'bg-fill-strong' : closed ? 'bg-fill/40' : 'bg-fill'}`}>
       <h3 className="flex items-center justify-between px-2 pt-1 text-subheadline font-semibold">
         {label}
         <span className="tabular text-footnote text-ink-2">{count}</span>
       </h3>
+      {note && <p className="px-2 text-footnote text-ink-2">{note}</p>}
       {/* While a card is lifted, a column it cannot go to says so (audit 2026-10-03, F-9). */}
       {closed && <p className="px-2 text-footnote text-ink-2">{t('tasks.dropClosed')}</p>}
+      {/* A phone shows one quiet line in an empty column. The column keeps its height, so it stays a drop target. */}
+      {phone && !closed && count === 0 && <p className="px-2 text-footnote text-ink-2">{t('phoneWork.board.empty')}</p>}
       <ul className="flex flex-col gap-2">{children}</ul>
     </section>
   );
@@ -135,12 +143,61 @@ function BoardCard({ row, reviews, across, dragging, onOpen, onSendBack, onMove 
 }
 
 /**
+ * The four dots under the lane of a phone, one for each column (phone design D). The open dot follows the lane: an IntersectionObserver reads
+ * how much of each column shows, so it works in right to left too (`scrollLeft` does not). A press scrolls the lane to the column. Each dot
+ * is a button of 44 px with the name of its column, so a screen reader reaches every column without a swipe.
+ */
+function BoardDots({ lane, counts }: { lane: RefObject<HTMLDivElement | null>; counts: number[] }) {
+  const { t } = useTranslation();
+  const phone = useIsPhone();
+  const [open, setOpen] = useState<TaskStatus>(BOARD_COLUMNS[0]!);
+  useEffect(() => {
+    const root = lane.current;
+    if (!phone || !root || typeof IntersectionObserver === 'undefined') return undefined;
+    const ratios = new Map<string, number>();
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) ratios.set((entry.target as HTMLElement).dataset.column ?? '', entry.intersectionRatio);
+      let best: TaskStatus | null = null;
+      let most = 0;
+      for (const status of BOARD_COLUMNS) {
+        const ratio = ratios.get(status) ?? 0;
+        if (ratio > most) { most = ratio; best = status; }
+      }
+      if (best) setOpen(best);
+    }, { root, threshold: [0, 0.25, 0.5, 0.75, 1] });
+    root.querySelectorAll('[data-column]').forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, [phone, lane]);
+  if (!phone) return null;
+  const go = (status: TaskStatus) => {
+    lane.current?.querySelector(`[data-column="${status}"]`)?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', inline: 'start', block: 'nearest' });
+  };
+  return (
+    <div className="flex items-center justify-center">
+      {BOARD_COLUMNS.map((status, at) => (
+        <button
+          key={status}
+          type="button"
+          aria-label={t('tasks.column', { status: t(`taskStatus.${status}`), n: counts[at] })}
+          aria-current={open === status ? 'true' : undefined}
+          onClick={() => go(status)}
+          className="relative grid size-11 place-items-center rounded-full"
+        >
+          <span aria-hidden className="size-2 rounded-full bg-fill-strong" />
+          {open === status && <motion.span aria-hidden layoutId="board-dot" transition={spring.standard} className="absolute size-2 rounded-full bg-ink" />}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
  * Columns To do, In progress, In review and Done. A drag, a keyboard drag or the Move menu moves a task (spec 5.3).
  * `reviews` says who may approve a task in review: one flag for a whole project (the project tab), or a function of the row, for the
  * Tasks screen, where each to-do has its own reviewers (fbk_042). `across` is for that screen: the cards name their project.
  */
-export function TaskBoard({ rows, reviews, across = false, onOpen, onSendBack }: {
-  rows: TaskRow[]; reviews: boolean | ((row: TaskRow) => boolean); across?: boolean; onOpen: (taskId: string) => void; onSendBack: (taskId: string) => void;
+export function TaskBoard({ rows, reviews, across = false, doneNote, onOpen, onSendBack }: {
+  rows: TaskRow[]; reviews: boolean | ((row: TaskRow) => boolean); across?: boolean; doneNote?: string; onOpen: (taskId: string) => void; onSendBack: (taskId: string) => void;
 }) {
   const reviewsOf = (row: TaskRow) => (typeof reviews === 'function' ? reviews(row) : reviews);
   const { t } = useTranslation();
@@ -227,11 +284,14 @@ export function TaskBoard({ rows, reviews, across = false, onOpen, onSendBack }:
       onDragEnd={onDragEnd}
       onDragCancel={() => setActiveId(null)}
     >
-      <div ref={board} className="-mx-4 grid auto-cols-[minmax(15rem,1fr)] grid-flow-col gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
+      <div
+        ref={board}
+        className="-mx-4 grid auto-cols-[minmax(15rem,1fr)] grid-flow-col gap-3 overflow-x-auto px-4 pb-2 max-sm:auto-cols-[calc(100%-3rem)] max-sm:snap-x max-sm:snap-mandatory max-sm:overscroll-x-contain max-sm:scroll-ps-4 sm:mx-0 sm:px-0"
+      >
         {BOARD_COLUMNS.map((status) => {
           const columnRows = rows.filter((row) => row.task.status === status);
           return (
-            <Column key={status} status={status} count={columnRows.length} closed={!!lifted && closedFor(lifted, status)}>
+            <Column key={status} status={status} count={columnRows.length} closed={!!lifted && closedFor(lifted, status)} note={status === 'done' ? doneNote : undefined}>
               {columnRows.map((row) => (
                 <BoardCard
                   key={row.task.id}
@@ -248,6 +308,7 @@ export function TaskBoard({ rows, reviews, across = false, onOpen, onSendBack }:
           );
         })}
       </div>
+      <BoardDots lane={board} counts={BOARD_COLUMNS.map((status) => rows.filter((row) => row.task.status === status).length)} />
       <DragOverlay dropAnimation={{ duration: 350, easing: 'cubic-bezier(0.2, 0.9, 0.3, 1.15)' }}>
         {lifted ? <CardFace row={lifted} lifted across={across} yourReview={across && reviewsOf(lifted) && lifted.task.status === 'in_review'} /> : null}
       </DragOverlay>

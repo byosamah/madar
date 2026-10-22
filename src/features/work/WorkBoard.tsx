@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TaskRow } from '../../api/contract/views';
+import { useIsPhone } from '../../app/useIsPhone';
 import { EmptyState } from '../../components/EmptyState';
 import { TaskBoard } from '../project/tasks/TaskBoard';
 import { boardRows } from './boardRows';
@@ -19,6 +20,7 @@ export type WorkBoardProps = {
  */
 export const WorkBoard = memo(function WorkBoard({ mine, review, done, onOpen, onSendBack }: WorkBoardProps) {
   const { t } = useTranslation();
+  const phone = useIsPhone();
   const rows = useMemo(() => boardRows(mine, review, done), [mine, review, done]);
   const reviewIds = useMemo(() => new Set(review.map((row) => row.task.id)), [review]);
   const byId = useMemo(() => new Map(rows.map((row) => [row.task.id, row])), [rows]);
@@ -30,6 +32,7 @@ export const WorkBoard = memo(function WorkBoard({ mine, review, done, onOpen, o
       rows={rows}
       reviews={reviews}
       across
+      doneNote={phone ? t('phoneWork.board.doneRange') : undefined}
       onOpen={(taskId) => onOpen(byId.get(taskId)!)}
       onSendBack={(taskId) => onSendBack(byId.get(taskId)!)}
     />
