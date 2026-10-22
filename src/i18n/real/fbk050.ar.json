@@ -3,7 +3,7 @@
     "all": "نزّل الكل ({{count}})",
     "allFiles": "نزّل كل الملفات ({{count}})",
     "allLabel": "نزّل كل ملفات {{name}} ({{count}})",
-    "preparing": "نجهّز {{n}} من {{total}}...",
+    "preparing": "يجهّز مدار {{n}} من {{total}}...",
     "failedFile": "تعذّرت قراءة {{name}}. لم يُنشأ ملف ZIP.",
     "tooLarge": "حجم هذه الملفات أكبر من 4 جيجابايت. نزّل مجموعة أصغر.",
     "defaultName": "ملفات"
