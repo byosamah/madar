@@ -15,7 +15,7 @@ import { INBOX_TASK_FIELDS } from './inbox';
 import { LOADER_OF } from './index';
 import { loadJobs } from './jobs';
 import { memorySource } from './memorySource';
-import { AGENT_MADE_TASK, badgeTraps, HIDDEN_CHOSEN, HIDDEN_OUTSIDER, HIDDEN_PROJECT, HIDDEN_WORD, hiddenSweep, HIDDEN_MEETING, hiddenTraps, VISIBLE_HIT, ENDED_MEETING_TITLE, ENDED_PROJECT_MEETING_TITLE, ENDED_TEAM_MEETING_TITLE, findSweep, findTraps, MEETING_FILE_ID, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, SERIES_PRIVATE_TITLE, SERIES_PROJECT_TITLE, seriesSweep, seriesTraps, trapOffice, writeSweep } from './sweep';
+import { AGENT_MADE_TASK, badgeTraps, HIDDEN_CHOSEN, HIDDEN_OUTSIDER, HIDDEN_LIMIT_PROJECT, HIDDEN_WORD, hiddenSweep, HIDDEN_MEETING, hiddenTraps, VISIBLE_HIT, ENDED_MEETING_TITLE, ENDED_PROJECT_MEETING_TITLE, ENDED_TEAM_MEETING_TITLE, findSweep, findTraps, MEETING_FILE_ID, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, SERIES_PRIVATE_TITLE, SERIES_PROJECT_TITLE, seriesSweep, seriesTraps, trapOffice, writeSweep } from './sweep';
 
 /**
  * Task C2: each loader gives the handler the same answer as the whole office (plan 4.6, "Safety net"). runBoth runs the call on
@@ -1816,7 +1816,7 @@ describe('hidden projects on the scoped load (wave D2, owner 2026-10-22)', () =>
 
   it('lists a meeting of a hidden project only for the people who see the project', async () => {
     const office = hiddenTraps(traps(), 'hidden');
-    const titles = async (actor: string) => ((await same(office, 'meetings.list', { mine: false, projectId: HIDDEN_PROJECT, from: '2026-10-01', to: '2026-10-31' }, actor)).outcome.output as { title: string }[]).map((m) => m.title);
+    const titles = async (actor: string) => ((await same(office, 'meetings.list', { mine: false, projectId: HIDDEN_LIMIT_PROJECT, from: '2026-10-01', to: '2026-10-31' }, actor)).outcome.output as { title: string }[]).map((m) => m.title);
     for (const actor of [HIDDEN_OUTSIDER, 'usr_010', 'usr_006']) expect(await titles(actor), actor).not.toContain(HIDDEN_MEETING);
     for (const actor of ['usr_001', 'usr_003', 'usr_005', HIDDEN_CHOSEN]) expect(await titles(actor), actor).toContain(HIDDEN_MEETING);
   });
@@ -1826,8 +1826,8 @@ describe('hidden projects on the scoped load (wave D2, owner 2026-10-22)', () =>
     const list = async (actor: string) => ((await same(office, 'events.list', { limit: 20 }, actor)).outcome.output as { event: { projectId: string | null } }[]).map((row) => row.event.projectId);
     const outsider = await list(HIDDEN_OUTSIDER);
     expect(outsider).toHaveLength(20);
-    expect(outsider).not.toContain(HIDDEN_PROJECT);
-    expect(await list('usr_001')).toEqual(Array(20).fill(HIDDEN_PROJECT));
+    expect(outsider).not.toContain(HIDDEN_LIMIT_PROJECT);
+    expect(await list('usr_001')).toEqual(Array(20).fill(HIDDEN_LIMIT_PROJECT));
   });
 
   it('shows the changes of a project that was deleted while hidden to the Admin only, and the changes of a deleted open project to all', async () => {
@@ -1851,7 +1851,7 @@ describe('hidden projects on the scoped load (wave D2, owner 2026-10-22)', () =>
     const outsider = await rows(HIDDEN_OUTSIDER);
     expect(outsider.filter((row) => row.kind === 'task' && Number(row.id.slice(4)) >= 900)).toEqual([]);
     expect(outsider.some((row) => row.kind === 'task')).toBe(true);
-    const leader = await rows(office.projects[HIDDEN_PROJECT].leaderId!);
+    const leader = await rows(office.projects[HIDDEN_LIMIT_PROJECT].leaderId!);
     expect(leader.filter((row) => row.kind === 'task' && Number(row.id.slice(4)) >= 900).length).toBeGreaterThan(0);
     const unread = (await same(office, 'chats.unreadCount', {}, HIDDEN_OUTSIDER)).outcome.output as { unread: number };
     const whole = (await same(hiddenTraps(traps(), 'seeAll'), 'chats.unreadCount', {}, HIDDEN_OUTSIDER)).outcome.output as { unread: number };
