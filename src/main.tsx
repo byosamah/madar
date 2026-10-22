@@ -68,7 +68,8 @@ async function main(): Promise<void> {
   const pathname = window.location.pathname;
   // The prototype loads every screen from its one script file before the router, so it starts as before.
   const [{ runtime, language }] = await Promise.all([start(), REMOTE ? warmFirstScreens(pathname) : preloadScreens()]);
-  // A stored session that did not renew sends the person to Sign in, so that screen loads before the first frame too.
+  // A start that is already signed out sends the person to Sign in, so that screen loads before the first frame too. A stored session
+  // is signed in at once (GP-1, the renewal runs beside the first frame); if that renewal fails, Sign in loads at that moment.
   if (REMOTE && runtime.auth?.status() === 'signed_out' && screensAt(pathname).gated) await loadScreen('signIn').catch(() => undefined);
   // The words of one language (performance audit BND-7). The remote build started this load with the first script
   // (i18n/firstWords.ts), and the prototype holds its words in its one script file.

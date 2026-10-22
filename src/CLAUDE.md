@@ -52,6 +52,16 @@ any screen work.
   `madar` is the Madar port (`madarAuth.ts`, `madarOAuthPort`) for the own stack. No copy sets it before wave 5. Each port
   keeps its session under its own localStorage key (`SESSION_KEYS`: `madar.auth` for Supabase, `madar.session` for Madar);
   `main.tsx` and the deploy specs read the key of the build's port (`hasStoredSession`), never a fixed name.
+- The Supabase port starts at once on a stored session (perf2 GP-1, 2026-10-22). The access token lives 15 minutes, and a page that opens later
+  used to wait for the renewal (one preflight, one refresh POST, about 0.5 s) before the first frame. `createSupabaseAuth` (`app/remote/auth.ts`) now
+  reads the stored value with `storedSupabaseUser` (`authMode.ts`: a refresh token and a user id, every read in try/catch): that is `signed_in`, with
+  `userId()` from the value, and `getSession()` runs beside the first frame, not awaited. `accessToken()` still awaits `getSession`, so the first batch
+  carries the new token, and a dead token sends no request (`remoteApi` sends nothing without a token). Storage that throws, holds no value or holds
+  another shape gives the old wait. A renewal that ends with no session (a dead refresh token, or no network) tells `signed_out` with the change
+  `unrenewed` (`SessionChange`, `features/auth/sessionEnd.ts`); `AuthGate` then runs `useLeaveScreen` with no reason and the link back, so the
+  shell shows for a moment and Sign in follows, with the stored Home lists and the cache cleared. It is no "Your session ended" sheet. A test of
+  the port with a held renewal: `app/remote/authFastStart.test.ts`; `fakeAuth.expireAtStart()` plays the failed renewal. The Madar port
+  (`VITE_MADAR_AUTH=madar`) is unchanged.
 - `scripts/check-bundles.ts <remote|prototype|server> [folder]`: the remote build holds no sample names. Its first load (the
   scripts of index.html, their static imports and the modulepreload links) holds no chart code, no zod schemas, no words, and
   none of the markers of code that must stay lazy (`LAZY_MARKERS`: the chat message log, the vaul drawer, the Supabase storage

@@ -5,6 +5,7 @@ import { clearLeaving, leftOnPurpose, markLeaving, type SessionChange, type Sess
 import { regionUrl } from '../../api/remote/region';
 import type { AuthPort, AuthStatus } from '../auth';
 import { renewInviteAt, requestResetAt } from './authMail';
+import { storedSupabaseUser } from './authMode';
 
 /**
  * The sign-in port of the real screens, over Supabase Auth (plan 5.1, client map 7.2). Only the remote build imports this file:
@@ -42,10 +43,23 @@ export async function createSupabaseAuth(supabase: SupabaseClient, o: { apiUrl: 
   const forgotUrl = regionUrl(`${o.apiUrl.replace(/\/+$/, '')}/auth/forgot`);
   const renewUrl = regionUrl(`${o.apiUrl.replace(/\/+$/, '')}/auth/renew-invite`);
   const listeners = new Set<SessionListener>();
-  const { data } = await supabase.auth.getSession();
-  let status: AuthStatus = data.session ? 'signed_in' : 'signed_out';
+  // The fast start (performance audit 2026-10-21, GP-1). The access token lives 15 minutes, and getSession waits for its renewal (one
+  // preflight and one refresh POST). A stored refresh token means signed in, so the first frame needs no wait: the renewal runs beside
+  // it. Nothing stored, or storage that fails or holds another shape: the old wait, which needs no network when there is no session.
+  const storedUser = storedSupabaseUser(() => window.localStorage);
+  /** True from the fast start until the renewal answers. A session that ends in that time is an unrenewed start, not an ended session. */
+  let renewing = storedUser !== null;
+  let status: AuthStatus;
   // The person of the last session. It stays after a sign-out, so a sign-in of someone else in any tab counts as a change.
-  let userId: string | null = data.session?.user?.id ?? null;
+  let userId: string | null;
+  if (storedUser !== null) {
+    status = 'signed_in';
+    userId = storedUser;
+  } else {
+    const { data } = await supabase.auth.getSession();
+    status = data.session ? 'signed_in' : 'signed_out';
+    userId = data.session?.user?.id ?? null;
+  }
   const tell = (next: AuthStatus, change?: SessionChange) => {
     status = next;
     for (const listener of [...listeners]) listener(next, change);
@@ -60,8 +74,33 @@ export async function createSupabaseAuth(supabase: SupabaseClient, o: { apiUrl: 
     const otherPerson = id !== null && userId !== null && id !== userId;
     if (id !== null) userId = id;
     if (otherPerson) tell(next, 'person');
-    else if (next !== status) tell(next, next === 'signed_out' && leftOnPurpose() ? 'left' : undefined);
+    else if (next !== status) {
+      const ended = next === 'signed_out';
+      tell(next, ended && leftOnPurpose() ? 'left' : ended && renewing ? 'unrenewed' : undefined);
+    }
   });
+
+  if (storedUser !== null) {
+    // The renewal itself, not awaited. It ends in a session (all is well), or in none: a dead refresh token (Supabase removes the
+    // session and tells SIGNED_OUT above) or a network that fails (Supabase tells nothing and keeps the session). Both give the old
+    // result of a start that could not renew: signed out, so the gate goes to Sign in. accessToken() below awaits getSession too, so
+    // the first batch carries the new token, and a dead token sends no request.
+    const done = (session: Session | null) => {
+      const wasRenewing = renewing;
+      renewing = false;
+      if (session) {
+        // The person of the stored value stays the person of the renewed session. Another one is a change, as in onAuthStateChange.
+        const id = session.user?.id ?? null;
+        if (id === null) return;
+        const otherPerson = userId !== null && id !== userId;
+        userId = id;
+        if (otherPerson) tell('signed_in', 'person');
+        return;
+      }
+      if (wasRenewing && status !== 'signed_out') tell('signed_out', leftOnPurpose() ? 'left' : 'unrenewed');
+    };
+    supabase.auth.getSession().then(({ data }) => done(data.session), () => done(null));
+  }
 
   return {
     status: () => status,

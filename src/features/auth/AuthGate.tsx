@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Navigate, Outlet, useLocation } from 'react-router';
 import { ApiError } from '../../api/errors';
@@ -28,6 +28,9 @@ export function AuthGate() {
   const signOut = useSignOut();
   const leave = useLeaveScreen();
   const [entered] = useState(() => auth.status() === 'signed_in');
+  // Where the person is now, for the link back after an unrenewed start. The listener below reads it when the renewal fails.
+  const placeRef = useRef('');
+  placeRef.current = `${location.pathname}${location.search}`;
   const [expired, setExpired] = useState(false);
   // The sheet loads in its own chunk (FL-4): it mounts when the session first ends, and stays so its closing animation stays.
   const expiredMounted = useOnceOn(expired);
@@ -43,6 +46,9 @@ export function AuthGate() {
     // The listener runs at once when the status changes, so a sign-out in this tab is still marked as one.
     if (isLeaving()) return;
     if (change === 'left' || change === 'person') void leave('signed_out');
+    // The shell showed on the stored session at the start and its renewal failed (GP-1): the same Sign in screen as a start with
+    // no session, with the link to come back to. The shell and the stored Home lists of this device go, as at a sign-out.
+    else if (change === 'unrenewed') void leave(null, placeRef.current);
     else if (status === 'signed_out') {
       // The session ended: the last Home lists of this person leave the device too (DF-14).
       void clearHomeCache();
