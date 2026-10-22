@@ -481,6 +481,46 @@ function apply(state: State, name: SharedCallName, input: unknown, actorId: stri
   return outcome.output;
 }
 
+/** The name and the code of the hidden project of trapOffice. An outsider must never read either. */
+export const HIDDEN_PROJECT_NAME = 'Hidden portfolio works';
+export const HIDDEN_PROJECT_TASK = 'Hidden portfolio plan';
+
+/**
+ * A hidden project (hidden projects, owner 2026-10-22, wave D3): usr_005 leads it, usr_006 is on its team, usr_007 is a chosen person. It
+ * has a to-do (led by usr_006), a post, a comment and a chat message, all made by real calls before the project is hidden. usr_003,
+ * usr_004 and the other people are outsiders. The traps of the signals read it: every change of it goes only to its people.
+ */
+export function hiddenProjectTraps(state: State): HiddenProject {
+  const made = apply(state, 'projects.create', { name: HIDDEN_PROJECT_NAME, clientId: 'cli_001', leader: 'usr_005', stageTemplateId: 'stt_001' }, ADMIN, 'cor_trap_hidden_project') as { project: { id: string } };
+  const projectId = made.project.id;
+  apply(state, 'members.add', { projectId, userId: 'usr_006' }, 'usr_005', 'cor_trap_hidden_member');
+  const stage = Object.values(state.stages).find((st) => st.projectId === projectId)!;
+  const task = apply(state, 'tasks.create', { projectId, stageId: stage.id, title: HIDDEN_PROJECT_TASK, ownerId: 'usr_006' }, 'usr_005', 'cor_trap_hidden_task') as { task: { id: string } };
+  apply(state, 'comments.create', { targetType: 'task', targetId: task.task.id, body: 'A note in the hidden project.' }, 'usr_006', 'cor_trap_hidden_comment');
+  apply(state, 'updates.create', { projectId, body: 'A post in the hidden project.', fileIds: [] }, 'usr_005', 'cor_trap_hidden_post');
+  const chat = Object.values(state.conversations).find((c) => c.projectId === projectId)!;
+  apply(state, 'chats.send', { conversationId: chat.id, body: 'A line in the hidden project chat.' }, 'usr_005', 'cor_trap_hidden_chat');
+  state.projects[projectId] = { ...state.projects[projectId], access: { hidden: true, viewerIds: ['usr_007'] } };
+  return { projectId, taskId: task.task.id, conversationId: chat.id };
+}
+export type HiddenProject = { projectId: string; taskId: string; conversationId: string };
+
+/** The writes of the people of the hidden project of trapOffice: each change goes only to them. None on an office without it. */
+export function hiddenProjectWrites(office: State): SweepCall[] {
+  const project = Object.values(office.projects).find((p) => p.name === HIDDEN_PROJECT_NAME);
+  const task = Object.values(office.tasks).find((t) => t.title === HIDDEN_PROJECT_TASK);
+  const chat = project ? Object.values(office.conversations).find((c) => c.projectId === project.id) : undefined;
+  if (!project || !task || !chat) return [];
+  return [
+    ['tasks.update', { id: task.id, patch: { title: `${HIDDEN_PROJECT_TASK} v2` } }, 'usr_005'],
+    ['comments.create', { targetType: 'task', targetId: task.id, body: 'Another note in the hidden project.' }, 'usr_006'],
+    ['updates.create', { projectId: project.id, body: 'Another post in the hidden project.', fileIds: [] }, 'usr_005'],
+    ['chats.send', { conversationId: chat.id, body: 'Another line in the hidden project chat.' }, 'usr_006'],
+    ['members.add', { projectId: project.id, userId: 'usr_004' }, 'usr_005'],
+    ['deadlines.create', { projectId: project.id, name: 'Hidden submission', date: '2026-11-15' }, 'usr_005'],
+  ];
+}
+
 /** The agent of the lead of the office task of trapOffice: it sees what its person sees. */
 export const OFFICE_AGENT = 'usr_090';
 
@@ -655,6 +695,7 @@ export function trapOffice(seed: State): State {
   chatFileTrap(state);
   meetingFileTrap(state);
   meetingMinutesTraps(state);
+  hiddenProjectTraps(state);
   newestTies(state);
   hiddenProjectTrap(state);
   const leader = state.projects.prj_001.leaderId!;
