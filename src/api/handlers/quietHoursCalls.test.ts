@@ -165,3 +165,18 @@ describe('the Undo of a change to the work hours', () => {
     expect(t.store.state.users.usr_003.preferences.workHours).toBeUndefined();
   });
 });
+
+// Only the person sets quiet hours (owner, 2026-10-22). An agent may not, as it may not set Away or what reaches the Admin.
+describe('me.updatePreferences with workHours from an agent', () => {
+  it('is refused and changes nothing, while the person own call still saves', async () => {
+    const t = testApi(calls);
+    t.as('usr_005'); // the agent of usr_003
+    const error = await failureOf(t.api.call('me.updatePreferences', { workHours: { quiet: false, days: [0], from: '10:00', to: '12:00' } }));
+    expect(error).toMatchObject({ code: 'forbidden', message: 'Only the person sets quiet hours.', details: { action: 'me.workHours' } });
+    expect(t.store.state.users.usr_003.preferences.workHours).toBeUndefined();
+    expect(t.store.state.users.usr_005.preferences.workHours).toBeUndefined();
+    t.as('usr_003');
+    const mine = { quiet: false, days: [0], from: '10:00', to: '12:00' };
+    expect((await t.api.call('me.updatePreferences', { workHours: mine })).preferences.workHours).toEqual(mine);
+  });
+});

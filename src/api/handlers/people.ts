@@ -371,6 +371,10 @@ export const meUpdatePreferences = defineCall({
     if (workHours?.quiet && !coversLock(workHours, officeWorkHoursOf(ctx.state.settings).lock)) {
       throw invalid('workHours', 'Your work hours must include the hours that the office keeps notifications on.', 'work_hours_lock');
     }
+    // Quiet hours change when a push and an email go to the person, so only the person sets them (owner, 2026-10-22).
+    if (input.workHours !== undefined && ctx.actor.kind === 'agent') {
+      throw forbidden('Only the person sets quiet hours.', { action: 'me.workHours' });
+    }
     const current = ctx.actor.preferences;
     // The email switches and the morning summary stay as they are: this call never names them (review 2026-10-03).
     const next: Preferences = {
