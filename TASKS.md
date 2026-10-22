@@ -939,7 +939,7 @@ Owner: "add some Slack chat features": Online, Away, Offline, "Seen", "typing...
   when the owner put role rights first; both migrations taken off madar-test again
 - [ ] After the owner's rr2 hand test: merge main (rr2, a816c42a), gates again, `all.sh test`, the live check, the whole deploy suite
 - [x] Production at faaa6f76 (2026-10-21, the owner said "go to production"; Claude ran it). The owner skipped the two-phone test and the browser suite
-- [ ] What's new line; production only by the owner, not before 2026-10-23
+- [ ] What's new line; production only by the owner
 
 ## The Madar report from the AI assistant (owner, 2026-10-21)
 - [x] Past due of the office report counts to today while the period runs (a816c42a, b84b0212)
@@ -964,7 +964,7 @@ Branch `rb/perf2` (worktree `~/dev/madar-rb/perf2`). Sonnet agents, the Opus ses
 - [ ] Screenshots of the touched screens (EN/AR, light/dark, 390 px), Chrome and WebKit iPhone, on the test copy after the deploy
 - [x] What's new line 2026-10-23-82 "Madar is faster" (d107844d); no MCP change in wave 1 (no call, input, output or rule changes)
 - [ ] Test copy (`all.sh test` from main after the merge), then the live numbers again
-- [ ] Production: only on the owner's word, after the team week (not before 2026-10-23)
+- [ ] Production: on the owner's word ("deploy to production", 2026-10-22); the team week freeze is gone (owner, 2026-10-22)
 - [x] Owner decisions (2026-10-21): DF-14 instant Home from the device: yes (clear at sign-out and on a role change); SV-7 and
   DF-2 direct and group chat signals to the members only: yes (with leak tests); DB-13 outbox clean-up: no, keep the rows
 - [x] Wave 2 (run wf_adeeec9a-475) merged (79baf983): DF-14 instant Home (first Home rows 42 to 53 ms against 654 ms with a held
