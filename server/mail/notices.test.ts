@@ -3,6 +3,7 @@ import { defaultPreferences, type Preferences } from '../../src/api/contract/ent
 import { sharedCalls } from '../../src/api/sharedCalls';
 import { EFFECTS_OF, processOutbox, registerEffect, writeOutbox } from '../core/effects';
 import { fakeDeps } from '../test/fakes/deps';
+import { QUIET_SQL } from '../core/quiet';
 import { memoryMailDb } from './memoryMailDb';
 import {
   ADMINS_SQL, ADMIN_MAIL_SQL, CHAT_NOTICE_EFFECT, NEW_NOTICES_SQL, NOTICE_EFFECT, NOTICE_FREE_CALLS, NOTICE_MAIL_SQL, NOTICE_UNREAD_LITE, NOTICE_UNREAD_SQL, QUOTA_WARNING_EFFECT,
@@ -35,6 +36,7 @@ function setup(o: { people?: Person[]; notices?: { id: string; userId: string; t
   // The notices that are still unread when the chat mail runs: all of them, unless a test says otherwise.
   const unread = o.unread ?? notices.map((n) => n.id);
   const mem = memoryMailDb((text, values) => {
+    if (text === QUIET_SQL) return [{ person: null, office: null }];
     if (text === NOTICE_UNREAD_SQL) return unread.includes(values[0] as string) ? [{ id: values[0] }] : [];
     if (text === NOTICE_MAIL_SQL) {
       const n = notices.find((x) => x.id === values[0]);

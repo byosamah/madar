@@ -5,6 +5,7 @@ import { liteDbOf } from '../data/lite/db';
 import { readLiteOffice } from '../data/lite/office';
 import type { SaveResult } from '../data/save';
 import { processOutbox, writeOutbox, type OutboxRow } from '../core/effects';
+import { isQuietNow } from '../core/quiet';
 import type { Db, Deps, Mail, Query } from '../core/ports';
 import { isChatItemNotice } from '../push/chatRule';
 import { QUOTA_LIMITS, sendCounted, utcDay, type QuotaKind, type SendCounted } from './quota';
@@ -25,6 +26,8 @@ import { renderMail, type RenderedMail } from './templates';
  *   the key notice-<id>, so an effect that runs twice keeps one place and Resend sends one mail.
  * - Notice 91 of the UTC day stays in the app. The first refusal of the day writes one mail.quotaWarning row for each active
  *   Admin in the same transaction as the mark (quota.ts), and those rows run right after.
+ * - Quiet hours (owner, 2026-10-22, fbk_048): sendNoticeMail asks isQuietNow (server/core/quiet.ts) at send time, after the wait of a chat mail. A
+ *   person in quiet hours gets no mail: the row ends as done, no place of the quota is taken, and no mail goes later. The bell keeps the notice.
  * - The mail carries no client data (plan 2, change 22): the trigger in general words and a link to the notices.
  */
 
@@ -190,6 +193,9 @@ export async function sendNoticeMail(payload: Record<string, unknown>, deps: Dep
   const { preferences, trigger } = notice;
   // A notice that stays in the app has no mail (owner, 2026-10-07). emailOn says the same; the check also gives the mail its type.
   if (!isEmailTrigger(trigger) || !inAppOn(preferences, trigger) || !emailOn(preferences, trigger)) return;
+  // Quiet hours (owner, 2026-10-22, fbk_048): a person in quiet hours gets no mail at send time. The row ends as done, and no mail goes later.
+  // The place of the day quota is taken only inside sendCounted, so nothing is reserved yet and nothing needs to go back.
+  if (await isQuietNow(deps.db, notice.user_id, deps.clock.now())) return;
   const rendered = renderMail('notice', preferences.language, { trigger, link: appLink(deps.config.appUrl, '/notifications') }, { reader: notice.gender ?? undefined }, { appUrl: deps.config.appUrl });
   await sendWarned(deps, 'notice', mailOf(notice.email, rendered, 'notice', `notice-${id}`), notice.user_id);
 }

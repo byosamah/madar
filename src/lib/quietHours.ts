@@ -26,9 +26,9 @@ export const DEFAULT_OFFICE_WORK_HOURS: OfficeWorkHours = {
 };
 
 /** The part of the person (Preferences) that this module reads. */
-type PersonLike = { workHours?: WorkHours | undefined } | null | undefined;
+export type PersonLike = { workHours?: WorkHours | undefined } | null | undefined;
 /** The part of the office settings (Settings) that this module reads. A stored value may miss a part. */
-type SettingsLike = { workHours?: Partial<Omit<OfficeWorkHours, 'lock'>> & { lock?: Partial<OfficeWorkHours['lock']> } | undefined } | null | undefined;
+export type SettingsLike = { workHours?: Partial<Omit<OfficeWorkHours, 'lock'>> & { lock?: Partial<OfficeWorkHours['lock']> } | undefined } | null | undefined;
 
 /** The office work hours with every missing part filled from the built-in default. */
 export function officeWorkHoursOf(settings: SettingsLike): OfficeWorkHours {

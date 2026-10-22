@@ -160,7 +160,7 @@ describe('suite 10: the 15-minute job on the local database, as madar_server', (
     expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it('sends the morning summary once at 07:30 Riyadh on a working day, also to a person with no morningSummary field, and never on Friday', async () => {
+  it('sends the morning summary once at the start of the work hours (09:00 Riyadh by default) on a working day, also to a person with no morningSummary field, and never on Friday', async () => {
     const day = '2026-10-04'; // Sunday
     const people = await deps.db.tx('read', (q) => summaryPeople(q));
     const withNews: User[] = [];
@@ -176,13 +176,13 @@ describe('suite 10: the 15-minute job on the local database, as madar_server', (
     expect(await summary(deps, at('2026-10-09'))).toEqual({ due: false }); // Friday
     expect(deps.mail.sent).toEqual([]);
 
-    deps.clock.set(`${day}T04:30:00Z`);
-    const first = await summary(deps, new Date(`${day}T04:30:00Z`));
+    deps.clock.set(`${day}T06:00:00Z`);
+    const first = await summary(deps, new Date(`${day}T06:00:00Z`));
     expect(first).toMatchObject({ due: true, day, sent: wanted.length, already: 0 });
     expect(deps.mail.sent.map((m) => m.idempotencyKey).sort()).toEqual([...wanted].sort());
     expect(deps.mail.sent.map((m) => m.idempotencyKey)).toContain(`summary-${day}-${unset.id}`);
-    expect(await office.sql('select key from job_runs where key = $1', [`summary:${day}`])).toEqual([{ key: `summary:${day}` }]);
-    expect(await summary(deps, new Date(`${day}T04:45:00Z`))).toEqual({ due: true, day, done: true });
+    expect(await office.sql('select key from job_runs where key = $1', [`summary:${day}:${unset.id}`])).toEqual([{ key: `summary:${day}:${unset.id}` }]);
+    expect(await summary(deps, new Date(`${day}T06:15:00Z`))).toEqual({ due: true, day, done: true });
     expect(deps.mail.sent).toHaveLength(wanted.length);
     deps.clock.set(NOW);
   });
@@ -247,7 +247,7 @@ describe('suite 10: the 15-minute job on the local database, as madar_server', (
     const body = (await response.json()) as { ok: boolean; steps: { name: string; ok: boolean; error?: string }[] };
     expect(body.steps.filter((s) => !s.ok)).toEqual([]);
     expect(response.status).toBe(200);
-    expect(body.steps.map((s) => s.name)).toEqual(['heartbeat', 'triggers', 'meetings', 'summary', 'outbox', 'cleanup', 'uploads']);
+    expect(body.steps.map((s) => s.name)).toEqual(['heartbeat', 'triggers', 'meetings', 'summary', 'quietEnd', 'outbox', 'cleanup', 'uploads']);
     const [beat] = await office.sql<{ done_at: Date }>("select done_at from job_runs where key = 'heartbeat'");
     expect(beat.done_at.toISOString()).toBe(friday.toISOString());
     deps.clock.set(NOW);

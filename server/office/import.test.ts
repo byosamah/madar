@@ -98,14 +98,14 @@ describe('the import steps of the office object (server/office/import.ts)', () =
 
   it('sends no second morning summary after an import that holds the summary row of the day', async () => {
     const seed = await buildSeed(NODE_TODAY, async () => undefined);
-    const withRow = await nodeOffice({ seed: false, at: '2026-10-04T05:00:00.000Z' });
+    const withRow = await nodeOffice({ seed: false, at: '2026-10-04T06:05:00.000Z' });
     await importState(withRow, seed, serverOf(seed, { jobRuns: [{ key: `summary:${NODE_TODAY}`, done_at: '2026-10-04T04:31:00.000Z' }] }));
-    await withRow.parts.cron({ at: '2026-10-04T05:00:00.000Z', worker: 0 }, withRow.net);
+    await withRow.parts.cron({ at: '2026-10-04T06:05:00.000Z', worker: 0 }, withRow.net);
     expect(withRow.raw.prepare("select count(*) as n from mail_outbox where tag = 'summary'").get()).toEqual({ n: 0 });
     // The control: with no summary row, the same run mails the summary.
-    const without = await nodeOffice({ seed: false, at: '2026-10-04T05:00:00.000Z' });
+    const without = await nodeOffice({ seed: false, at: '2026-10-04T06:05:00.000Z' });
     await importState(without, seed);
-    await without.parts.cron({ at: '2026-10-04T05:00:00.000Z', worker: 0 }, without.net);
+    await without.parts.cron({ at: '2026-10-04T06:05:00.000Z', worker: 0 }, without.net);
     expect(Number((without.raw.prepare("select count(*) as n from mail_outbox where tag = 'summary'").get() as { n: number }).n)).toBeGreaterThan(0);
   });
 

@@ -41,6 +41,11 @@ after the commit of the call that asked for it.
   ref), with the UTC day from the caller's clock. `REFUSAL_MARK_LITE` and `SENT_TODAY_LITE` are the first refusal and the meter. A mail of the office object goes through the network port of the Worker; with `MAIL_DRIVER=outbox` it goes into
   `mail_outbox` of the object.
 
+## Quiet hours (owner, 2026-10-22, fbk_048)
+- `sendNoticeMail` (so `mail.chatNotice` too) asks `isQuietNow` (`server/core/quiet.ts`) at send time, after the 10-second wait. A person in quiet hours gets
+  no mail: the row ends as done, no place of the day quota is taken (the place is reserved inside `sendCounted`, after the check), and no mail goes later.
+  The bell keeps the notice. The summary is not held: it goes at the start of the work hours, so the person is not quiet then. Tests: `quietMail.test.ts`.
+
 ## Copies (owner, 2026-10-23)
 - A copy of a notice for an Admin who picked "Everything" (`Notification.forUserIds`) sends no mail: `NEW_NOTICES_SQL` and the SQLite reader
   (`liteNoticeRows`) skip it, so no `mail.notice` and no `mail.chatNotice` row exists for it. Tests: `server/push/adminCopies.test.ts`.
@@ -54,7 +59,11 @@ after the commit of the call that asked for it.
   and the notices of a new helper and a deleted task (`helper_joined`, `task_deleted`, fbk_034 and fbk_035)
   never send mail (`IN_APP_ONLY_TRIGGERS`, `emailOn`). A meeting sends no mail: the quota is 100 a day, and calendar apps remind by themselves. `MailData.notice` takes only an
   `EmailTrigger`, and the mail tests iterate `EMAIL_TRIGGERS`.
-- The morning summary goes at 07:30 Riyadh, Sunday to Thursday. It lists the open tasks (to do or in progress) that the person
+- The morning summary goes at the start of the work hours of each person, on the work days of that person (owner, 2026-10-22, fbk_048; it was 07:30
+  for all, Sunday to Thursday). The first run of the 15-minute job at or after the start sends it (`jobs/steps/summary.ts`, `workStartOn`). A job_runs row
+  `summary:<day>:<person>` closes one person for one day; the old row `summary:<day>` still closes the whole day. A person with quiet hours off uses the
+  stored range, else the office default. The key `summary-<day>-<person>` is as before.
+- The morning summary lists the tasks as follows. It lists the open tasks (to do or in progress) that the person
   leads or helps on, in an active project or with no project, in three groups: Past due, Today and This week. The groups follow the
   Work screen (`weekEndOf` has the same week rule as `workGroupOf`; a test pins both). A group keeps the shared order of the screens
   (a placed task first, then the date). The mail shows at most 8 lines in all, the past due first, then "and N more tasks" and one

@@ -35,7 +35,11 @@ async function office(edit: (seed: State) => void = () => undefined) {
 
 const mailOn = (seed: State) => {
   const prefs = seed.users.usr_002.preferences;
-  seed.users.usr_002 = { ...seed.users.usr_002, preferences: { ...prefs, email: { ...prefs.email, due_tomorrow: true, overdue: true } } };
+  // The run is at 08:00 Riyadh, before the default work hours: usr_002 turns quiet hours off, so the mail goes (owner, 2026-10-22).
+  seed.users.usr_002 = {
+    ...seed.users.usr_002,
+    preferences: { ...prefs, email: { ...prefs.email, due_tomorrow: true, overdue: true }, workHours: { quiet: false, days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00' } },
+  };
 };
 
 describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
@@ -114,8 +118,11 @@ describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
     expect(await db.statement('read', "select id from tracker where json_extract(doc, '$.auto') = 'meeting'")).toHaveLength(1);
   });
 
-  it('sends the morning summary to each person with something to say, marks the day, and sends nothing in a second run', async () => {
-    const { seed, deps } = await office();
+  it('sends the morning summary to each person with something to say at the start of the work hours, marks each person, and sends nothing in a second run', async () => {
+    const { seed, deps, db } = await office();
+    // 08:00 Riyadh: the default work hours start at 09:00, so nobody is due yet.
+    expect(await summary(deps, AT)).toEqual({ due: false });
+    const NINE = new Date('2026-10-04T06:05:00Z');
     // The rule of buildMorning on the State: an open task, past due or due today, that the person leads or helps with, or a review that waits.
     const active = (projectId: string | null) => projectId === null || seed.projects[projectId]?.status === 'active';
     const says = (id: string) => Object.values(seed.tasks).some((t) =>
@@ -125,9 +132,11 @@ describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
       .filter((u) => u.kind === 'human' && u.active && (u.preferences.morningSummary ?? true) && says(u.id))
       .map((u) => `summary-${DAY}-${u.id}`).sort();
     expect(expected.length).toBeGreaterThan(0);
-    expect(await summary(deps, AT)).toMatchObject({ due: true, day: DAY, sent: expected.length });
+    expect(await summary(deps, NINE)).toMatchObject({ due: true, day: DAY, sent: expected.length });
     expect(deps.mail.sent.map((m) => m.idempotencyKey).sort()).toEqual(expected);
-    expect(await summary(deps, AT)).toEqual({ due: true, day: DAY, done: true });
+    const marks = await db.statement<{ key: string }>('read', "select key from job_runs where key like 'summary:%'");
+    expect(marks.length).toBe(Object.values(seed.users).filter((u) => u.kind === 'human' && u.active && (u.preferences.morningSummary ?? true)).length);
+    expect(await summary(deps, NINE)).toEqual({ due: true, day: DAY, done: true });
   });
 
   it('takes only the outbox rows that are old, open and not claimed', async () => {

@@ -4,6 +4,8 @@ import { canReview } from '../../src/api/permissions';
 import { withOfficeRights } from '../../src/api/rights';
 import type { State } from '../../src/api/store';
 import type { Deps, Query } from '../core/ports';
+import { jsonOf } from '../core/quiet';
+import type { PersonLike, SettingsLike, WorkHours } from '../../src/lib/quietHours';
 import { isLite } from '../data/dialect';
 import { liteDbOf } from '../data/lite/db';
 import { readLiteOffice } from '../data/lite/office';
@@ -54,8 +56,14 @@ export const SUMMARY_REVIEWERS_SQL = `select u.id, u.doc->>'systemRole' as syste
   (select s.doc->'roles' from settings s where s.id = 'office') as roles
 from users u where u.kind = 'human' and u.active`;
 
-/** The people who get the summary: active humans whose Morning summary is on or never set. */
-export const SUMMARY_PEOPLE_SQL = `select id from users
+/**
+ * The people who get the summary: active humans whose Morning summary is on or never set. Each row also holds the work hours the person
+ * chose (null when none) and the office work hours (the same value in each row, null when none): the summary goes at the start of the
+ * work hours of the person, on the work days of the person (quiet hours, owner 2026-10-22).
+ */
+export const SUMMARY_PEOPLE_SQL = `select id, doc->'preferences'->'workHours' as work_hours,
+  (select s.doc->'workHours' from settings s where s.id = 'office') as office
+from users
 where kind = 'human' and active and coalesce((doc->'preferences'->>'morningSummary')::boolean, true)
 order by ord`;
 
@@ -73,7 +81,9 @@ where (t.project_id is null or p.status = 'active') and t.status in ('todo', 'in
 // SQLite forms (exit wave 3). The users and projects tables hold only id and doc: the people come from doc, and the counts are
 // worked out in JavaScript on the office lists in memory with the rules of the screens (reviewersOfTask), as SUMMARY_COUNTS_SQL does.
 export const SUMMARY_PEOPLE_LITE =
-  "select rowid as ord, id from users where json_extract(doc, '$.kind') = 'human' and json_type(doc, '$.active') = 'true' "
+  "select rowid as ord, id, json_extract(doc, '$.preferences.workHours') as work_hours, "
+  + "(select json_extract(s.doc, '$.workHours') from settings s where s.id = 'office') as office "
+  + "from users where json_extract(doc, '$.kind') = 'human' and json_type(doc, '$.active') = 'true' "
   + "and coalesce(json_type(doc, '$.preferences.morningSummary'), 'null') in ('true', 'null')";
 export const SUMMARY_DUE_LITE = "select doc, project_id from tasks where due_date = ?1 and status in ('todo', 'in_progress')";
 export const SUMMARY_REVIEW_LITE = "select doc from tasks where status = 'in_review'";
@@ -141,9 +151,23 @@ export async function buildMorning(q: Query, user: { id: string }, today: string
   return tasks.pastDue.length > 0 || tasks.today.length > 0 || reviewsWaiting > 0 ? { tasks, reviewsWaiting } : null;
 }
 
+/** One person of the summary list, with the parts that quiet hours read (src/lib/quietHours.ts). */
+export type SummaryPerson = { id: string; person: PersonLike; settings: SettingsLike };
+
+type PeopleRow = { ord?: number; id: string; work_hours?: unknown; office?: unknown };
+
+/** The people who get the summary, in order, with their work hours. */
+export async function summaryRoster(q: Query): Promise<SummaryPerson[]> {
+  const rows = isLite(q) ? (await q<PeopleRow>(SUMMARY_PEOPLE_LITE)).sort((a, b) => (a.ord ?? 0) - (b.ord ?? 0)) : await q<PeopleRow>(SUMMARY_PEOPLE_SQL);
+  return rows.map((row) => {
+    const workHours = jsonOf<WorkHours>(row.work_hours);
+    const office = jsonOf<NonNullable<NonNullable<SettingsLike>['workHours']>>(row.office);
+    return { id: row.id, person: workHours ? { workHours } : undefined, settings: office ? { workHours: office } : undefined };
+  });
+}
+
 export async function summaryPeople(q: Query): Promise<string[]> {
-  if (isLite(q)) return (await q<{ ord: number; id: string }>(SUMMARY_PEOPLE_LITE)).sort((a, b) => a.ord - b.ord).map((row) => row.id);
-  return (await q<{ id: string }>(SUMMARY_PEOPLE_SQL)).map((row) => row.id);
+  return (await summaryRoster(q)).map((row) => row.id);
 }
 
 /** skipped: not an active human, or the summary is off. empty: nothing to say. over: the notice limit of the day stopped it. */

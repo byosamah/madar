@@ -14,7 +14,7 @@ import { fakeDeps } from '../../test/fakes/deps';
 import { GOOGLE_REVOKING_CLEANUP_SQL, IDEMPOTENCY_CLEANUP_SQL, OFFICE_DELETES_CLEANUP_SQL, RATE_LIMITS_CLEANUP_SQL, STORIES_CLEANUP_SQL, cleanup } from './cleanup';
 import { HEARTBEAT_SQL, heartbeat } from './heartbeat';
 import { OUTBOX_BATCH, OUTBOX_DUE_SQL, OUTBOX_MAX_ATTEMPTS, outboxRetry } from './outbox';
-import { SUMMARY_DONE_SQL, SUMMARY_MARK_SQL, SUMMARY_SENT_SQL, summary, summaryDay } from './summary';
+import { SUMMARY_DONE_SQL, SUMMARY_MARK_SQL, SUMMARY_SENT_SQL, summary } from './summary';
 import { EXTEND_SQL, meetings, SETTLE_SQL } from './meetings';
 import { USED_DEDUPE_SQL, usedDedupeKeys } from './triggers';
 import { INTENTS_DELETE_SQL, INTENT_KEEP_MS, OLD_INTENTS_SQL, STAGING_KEEP_MS, UPLOADS_BATCH, uploads } from './uploads';
@@ -101,19 +101,24 @@ describe('step 1b, the meetings that ended (fbk_022, wave 2)', () => {
   });
 });
 
-describe('step 2, the morning summary', () => {
+describe('step 2, the morning summary (quiet hours, owner 2026-10-22: it goes at the start of the work hours of each person)', () => {
   const person = (id: string, more: Record<string, unknown> = {}) => ({ user_id: id, kind: 'human', active: true, email: `${id}@madar.test`, preferences: defaultPreferences(), gender: null, ...more });
+  /** usr_c starts at 07:30. usr_a and usr_b keep the office default of 09:00. */
+  const EARLY = { quiet: true, days: [0, 1, 2, 3, 4], from: '07:30', to: '17:00' };
+  const SUN_0730 = new Date('2026-10-04T04:30:00Z');
+  const SUN_0900 = new Date('2026-10-04T06:00:00Z');
 
-  function setup() {
+  function setup(o: { roster?: Record<string, unknown>[] } = {}) {
     const marks = new Set<string>();
     const people = new Map([['usr_a', person('usr_a')], ['usr_b', person('usr_b')], ['usr_c', person('usr_c')]]);
     const counts: Record<string, { due_today: number; reviews_waiting: number }> = {
       usr_a: { due_today: 2, reviews_waiting: 1 }, usr_b: { due_today: 0, reviews_waiting: 0 }, usr_c: { due_today: 1, reviews_waiting: 0 },
     };
+    const roster = o.roster ?? [{ id: 'usr_a' }, { id: 'usr_b' }, { id: 'usr_c', work_hours: EARLY }];
     const r = recorder((text, values) => {
-      if (text === SUMMARY_DONE_SQL) return marks.has(values[0] as string) ? [{ done_at: AT }] : [];
+      if (text === SUMMARY_DONE_SQL) return [...marks].filter((key) => key.startsWith((values[0] as string).replace('%', ''))).map((key) => ({ key }));
       if (text === SUMMARY_MARK_SQL) return (marks.add(values[0] as string), []);
-      if (text === SUMMARY_PEOPLE_SQL) return [...people.keys()].map((id) => ({ id }));
+      if (text === SUMMARY_PEOPLE_SQL) return roster;
       if (text === SUMMARY_SENT_SQL) {
         const refs = values[0] as string[];
         return r.mem.log.filter((row) => refs.includes(row.ref) && row.resend_id !== null).map((row) => ({ ref: row.ref }));
@@ -131,70 +136,103 @@ describe('step 2, the morning summary', () => {
     return { r, deps, marks };
   }
 
-  it('is due from 07:30 Riyadh on a working day (Sunday to Thursday), and never on Friday or Saturday', () => {
-    expect(summaryDay(new Date('2026-10-04T04:29:00Z'))).toBeNull(); // Sunday 07:29
-    expect(summaryDay(new Date('2026-10-04T04:30:00Z'))).toBe('2026-10-04'); // Sunday 07:30
-    expect(summaryDay(new Date('2026-10-01T20:59:00Z'))).toBe('2026-10-01'); // Thursday 23:59
-    expect(summaryDay(new Date('2026-10-02T06:00:00Z'))).toBeNull(); // Friday
-    expect(summaryDay(new Date('2026-10-03T06:00:00Z'))).toBeNull(); // Saturday
-  });
-
-  it('sends nothing and reads nothing before 07:30 or on a day off', async () => {
-    for (const at of [new Date('2026-10-04T04:29:00Z'), new Date('2026-10-02T06:00:00Z')]) {
+  it('is not due before the earliest start, and not on a day off, and then reads only the roster', async () => {
+    for (const at of [new Date('2026-10-04T04:29:00Z'), new Date('2026-10-02T06:00:00Z'), new Date('2026-10-03T06:00:00Z')]) {
       const { r, deps } = setup();
       expect(await summary(deps, at)).toEqual({ due: false });
-      expect(r.calls).toEqual([]);
+      expect(r.calls.map((call) => call.text)).toEqual([SUMMARY_PEOPLE_SQL]);
       expect(deps.mail.sent).toEqual([]);
     }
   });
 
-  it('mails each person with something to say once at 07:30, writes summary:<day>, and a second run sends nothing new', async () => {
+  it('mails a person at the start of the own work hours, and the others at theirs', async () => {
     const { r, deps, marks } = setup();
-    const at = new Date('2026-10-04T04:30:00Z');
-    deps.clock.set(at);
-    expect(await summary(deps, at)).toEqual({ due: true, day: '2026-10-04', sent: 2, empty: 1, over: 0, skipped: 0, refused: 0, already: 0 });
-    expect(deps.mail.sent.map((m) => [m.to, m.idempotencyKey])).toEqual([
-      ['usr_a@madar.test', 'summary-2026-10-04-usr_a'],
-      ['usr_c@madar.test', 'summary-2026-10-04-usr_c'],
-    ]);
-    expect([...marks]).toEqual(['summary:2026-10-04']);
-    expect(r.valuesOf(SUMMARY_MARK_SQL)).toEqual([['summary:2026-10-04', at]]);
+    deps.clock.set(SUN_0730);
+    // 07:30: only usr_c has started.
+    expect(await summary(deps, SUN_0730)).toEqual({ due: true, day: '2026-10-04', sent: 1, empty: 0, over: 0, skipped: 0, refused: 0, already: 0 });
+    expect(deps.mail.sent.map((m) => [m.to, m.idempotencyKey])).toEqual([['usr_c@madar.test', 'summary-2026-10-04-usr_c']]);
+    expect([...marks]).toEqual(['summary:2026-10-04:usr_c']);
+    // 07:45: nobody new is due, so nobody is read again.
     expect(await summary(deps, new Date('2026-10-04T04:45:00Z'))).toEqual({ due: true, day: '2026-10-04', done: true });
+    // 09:00: usr_a and usr_b start. usr_c is not sent twice.
+    expect(await summary(deps, SUN_0900)).toEqual({ due: true, day: '2026-10-04', sent: 1, empty: 1, over: 0, skipped: 0, refused: 0, already: 0 });
+    expect(deps.mail.sent.map((m) => m.to)).toEqual(['usr_c@madar.test', 'usr_a@madar.test']);
+    expect([...marks].sort()).toEqual(['summary:2026-10-04:usr_a', 'summary:2026-10-04:usr_b', 'summary:2026-10-04:usr_c']);
+    expect(r.valuesOf(SUMMARY_MARK_SQL).map(([key]) => key).sort()).toEqual([...marks].sort());
+    expect(await summary(deps, new Date('2026-10-04T06:15:00Z'))).toEqual({ due: true, day: '2026-10-04', done: true });
     expect(deps.mail.sent).toHaveLength(2);
   });
 
-  it('keeps the day open when a send fails, and the next run sends only to the people who did not get it', async () => {
+  it('treats the old mark summary:<day> as a day that is done for everyone (a release in the middle of a day)', async () => {
     const { deps, marks } = setup();
-    const at = new Date('2026-10-04T04:30:00Z');
-    deps.clock.set(at);
+    marks.add('summary:2026-10-04');
+    expect(await summary(deps, SUN_0900)).toEqual({ due: true, day: '2026-10-04', done: true });
+    expect(deps.mail.sent).toEqual([]);
+  });
+
+  it('sends at the first run at or after the start, also when the run is late', async () => {
+    const { deps } = setup();
+    expect(await summary(deps, new Date('2026-10-04T11:00:00Z'))).toMatchObject({ due: true, sent: 2, empty: 1 });
+  });
+
+  it('skips a person on a day off: the work days are the work days of the person', async () => {
+    // Sunday 2026-10-04. usr_a works on Tuesday only. usr_c has the default days.
+    const { deps } = setup({ roster: [{ id: 'usr_a', work_hours: { quiet: true, days: [2], from: '09:00', to: '17:00' }, office: { days: [0], from: '09:00', to: '17:00', lock: { on: false, days: [0], from: '09:00', to: '17:00' } } }, { id: 'usr_c' }] });
+    expect(await summary(deps, SUN_0900)).toMatchObject({ due: true, sent: 1 });
+    expect(deps.mail.sent.map((m) => m.to)).toEqual(['usr_c@madar.test']);
+  });
+
+  it('mails on a Friday a person who works on Friday', async () => {
+    const { deps } = setup({ roster: [{ id: 'usr_a', work_hours: { quiet: true, days: [0, 1, 2, 3, 4, 5], from: '09:00', to: '17:00' } }] });
+    const friday = new Date('2026-10-09T06:00:00Z');
+    expect(await summary(deps, friday)).toMatchObject({ due: true, sent: 1 });
+    expect(deps.mail.sent[0].idempotencyKey).toBe('summary-2026-10-09-usr_a');
+  });
+
+  it('uses the start of a person who turned quiet hours off, from the stored range', async () => {
+    const { deps } = setup({ roster: [{ id: 'usr_a', work_hours: { quiet: false, days: [0, 1, 2, 3, 4], from: '08:00', to: '16:00' } }] });
+    expect(await summary(deps, new Date('2026-10-04T04:59:00Z'))).toEqual({ due: false });
+    expect(await summary(deps, new Date('2026-10-04T05:00:00Z'))).toMatchObject({ due: true, sent: 1 });
+  });
+
+  it('keeps the person open when a send fails, and the next run sends only to the person who did not get it', async () => {
+    const { deps, marks } = setup();
+    deps.clock.set(SUN_0900);
     deps.mail.failNext(new Error('Resend is down.'));
-    await expect(summary(deps, at)).rejects.toThrow('The morning summary did not reach 1 person. The next run tries again.');
-    expect(marks.size).toBe(0);
+    await expect(summary(deps, SUN_0900)).rejects.toThrow('The morning summary did not reach 1 person. The next run tries again.');
     expect(deps.mail.sent.map((m) => m.to)).toEqual(['usr_c@madar.test']);
-    expect(await summary(deps, new Date('2026-10-04T04:45:00Z'))).toEqual({ due: true, day: '2026-10-04', sent: 1, empty: 1, over: 0, skipped: 0, refused: 0, already: 1 });
+    // usr_a failed and has no mark. usr_b (nothing to say) and usr_c are done.
+    expect([...marks].sort()).toEqual(['summary:2026-10-04:usr_b', 'summary:2026-10-04:usr_c']);
+    expect(await summary(deps, new Date('2026-10-04T06:15:00Z'))).toEqual({ due: true, day: '2026-10-04', sent: 1, empty: 0, over: 0, skipped: 0, refused: 0, already: 0 });
     expect(deps.mail.sent.map((m) => m.to)).toEqual(['usr_c@madar.test', 'usr_a@madar.test']);
-    expect([...marks]).toEqual(['summary:2026-10-04']);
+    expect(marks.has('summary:2026-10-04:usr_a')).toBe(true);
   });
 
-  it('closes the day when Resend refuses a send for good (not retryable), warns, and the next run sends nothing to that person', async () => {
+  it('marks a person whose mail went out before, so a lost mark does not mail twice', async () => {
+    const { r, deps, marks } = setup({ roster: [{ id: 'usr_c' }] });
+    r.mem.log.push({ utc_day: '2026-10-04', kind: 'summary', user_id: 'usr_c', ref: 'summary-2026-10-04-usr_c', resend_id: 'mail_1' });
+    expect(await summary(deps, SUN_0900)).toMatchObject({ due: true, sent: 0, already: 1 });
+    expect(deps.mail.sent).toEqual([]);
+    expect([...marks]).toEqual(['summary:2026-10-04:usr_c']);
+  });
+
+  it('closes the person when Resend refuses a send for good (not retryable), warns, and the next run sends nothing to that person', async () => {
     const { deps, marks } = setup();
-    const at = new Date('2026-10-04T04:30:00Z');
-    deps.clock.set(at);
+    deps.clock.set(SUN_0900);
     deps.mail.failNext(new MailSendError('You can only send testing emails to your own email address.', { status: 403, code: 'validation_error', retryable: false }));
-    expect(await summary(deps, at)).toEqual({ due: true, day: '2026-10-04', sent: 1, empty: 1, over: 0, skipped: 0, refused: 1, already: 0 });
-    expect([...marks]).toEqual(['summary:2026-10-04']);
+    expect(await summary(deps, SUN_0900)).toEqual({ due: true, day: '2026-10-04', sent: 1, empty: 1, over: 0, skipped: 0, refused: 1, already: 0 });
+    expect(marks.has('summary:2026-10-04:usr_a')).toBe(true);
     expect(deps.logs.filter((l) => l.level === 'warn')).toEqual([{ level: 'warn', message: expect.any(String), fields: { userId: 'usr_a', code: 'validation_error', status: 403 } }]);
-    expect(await summary(deps, new Date('2026-10-04T04:45:00Z'))).toEqual({ due: true, day: '2026-10-04', done: true });
+    expect(await summary(deps, new Date('2026-10-04T06:15:00Z'))).toEqual({ due: true, day: '2026-10-04', done: true });
     expect(deps.mail.sent.map((m) => m.to)).toEqual(['usr_c@madar.test']);
   });
 
-  it('keeps the day open when Resend fails with a retryable error (a 429 or a 5xx)', async () => {
+  it('keeps the person open when Resend fails with a retryable error (a 429 or a 5xx)', async () => {
     const { deps, marks } = setup();
-    const at = new Date('2026-10-04T04:30:00Z');
-    deps.clock.set(at);
+    deps.clock.set(SUN_0900);
     deps.mail.failNext(new MailSendError('Too many requests.', { status: 429, code: 'rate_limit_exceeded', retryable: true }));
-    await expect(summary(deps, at)).rejects.toThrow('The morning summary did not reach 1 person. The next run tries again.');
-    expect(marks.size).toBe(0);
+    await expect(summary(deps, SUN_0900)).rejects.toThrow('The morning summary did not reach 1 person. The next run tries again.');
+    expect(marks.has('summary:2026-10-04:usr_a')).toBe(false);
   });
 });
 
