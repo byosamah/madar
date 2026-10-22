@@ -2447,3 +2447,11 @@ Not proven: a real iPhone. After the deploy, wait 11 minutes on an iPhone, press
 - Gates once on the join: see TASKS.md (npm test 10,316; test:db 3,176 after two test-only fixes; test:it 333; test:mcp 339; builds;
   api bundle bound raised to 900,000 with its history line; screenshots EN and AR, light and dark, 390 px, with a person off the team
   who sees no row and a not-found page). Not run: the prototype smoke and the deploy suite.
+
+### Release record: production at f90bd7e7 (2026-10-22, fbk_049 and the What's new dates)
+- On the owner's "Production now" (AskUserQuestion), `all.sh production` took f90bd7e7: the Settings section "When Madar notifies you"
+  with one live line of the quiet time and picked days that look picked (fbk_049), the built-in office hours and lock Sunday to Thursday
+  8:00 AM to 5:00 PM, and the What's new page dated by release day (19, 20, 21 and 22 October). No migration.
+- The first run stopped at the secrets step: "The Management API refused the key list with 500" (Supabase; migrations and config were up
+  to date, nothing deployed). The second run passed every step: health from supabase (150 calls), database, lock and asyncContext ok,
+  /mcp with no token 401; the page title Madar, `/favicon.ico` 200, and the live words hold "When Madar notifies you".

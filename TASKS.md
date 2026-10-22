@@ -1059,4 +1059,5 @@ Plan and answers: memory and the two design files below. fbk_039 (12-hour clock)
   test refuses a future day or a day out of order. Guides: `src/CLAUDE.md`, `scripts/deploy/CLAUDE.md`.
 - [x] Gates: typecheck; npm test 10,311 passed (17 timing tests in 8 files failed under a load average of 25 to 39 from another program,
   224 of 224 alone); test:db 3,178; test:it 333; screenshots EN and AR, light and dark, 390 px, and the What's new page with 4 dates.
+- [x] Production at f90bd7e7 (owner: "Production now"; the first run hit a Supabase 500, the second passed). fbk_049 marked done.
 - [ ] Note: an office that already saved Work hours in Admin keeps its saved hours; the 8 to 5 default applies only where none is saved.
