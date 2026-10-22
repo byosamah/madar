@@ -695,6 +695,18 @@ Design: `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design
   the loader sweep reads and writes the hidden project `prj_005` of `trapOffice` (`HIDDEN_PROJECT` in `server/data/loaders/sweep.ts`).
 - `mayViewProject`, `mayViewTask` and `mayViewMeeting` attach the office rights (`ensureRights`). A bare `can()` on a raw user holds no
   `project.seeAll` (it fails closed), so a test that asks `can()` for a Member needs `withRights`.
+- The lists (wave D2). `src/api/projectView.ts` holds the view rule for lists: `projectViewer(state, viewer)` gives one test for many
+  projects (rights attached once), `visibleProjectIds`, `hiddenProjectIds`, and `eventProjectViewer` for changes. `peopleFilter` and
+  `teamFilter` (`pause.ts`) take the viewer as their last parameter and never pass a project the viewer does not see, so
+  `projects.list`, `tasks.list`, `deadlines.list` and every number of `dashboard.get` (tiles, charts, schedule, workload rows, the No
+  lead row, money, `waitingForUs`, `attention.stale`) count only the visible projects. A count of another person's work counts only
+  the to-dos of the visible projects (the rule of office to-dos). A new list or count over projects must call one of them first.
+  `search.query` (projects, project tasks, project files, the sub-company counts), `reports.office` (rows, totals, people, money,
+  the office stage-move count), `subCompanies.list` `projectCount`, `projectTemplates.list` `followers`, `projectTemplates.usage`
+  and the leader hint of `session.get` follow the same test. `canSeeConversation` also asks the view of the project for a project
+  chat, and `taskThreads` drops a thread of a project task that the person does not see (so `chats.list`, `chats.unreadCount` and
+  `chats.waiting` never count it). `events.list` drops the changes of a project that the person does not see. The changes of a deleted
+  project that was hidden (the `before` of its `project.deleted` event holds `access`) show only to a holder of `project.hidden`.
 
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.

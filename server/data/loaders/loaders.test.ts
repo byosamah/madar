@@ -15,7 +15,7 @@ import { INBOX_TASK_FIELDS } from './inbox';
 import { LOADER_OF } from './index';
 import { loadJobs } from './jobs';
 import { memorySource } from './memorySource';
-import { AGENT_MADE_TASK, badgeTraps, ENDED_MEETING_TITLE, ENDED_PROJECT_MEETING_TITLE, ENDED_TEAM_MEETING_TITLE, findSweep, findTraps, MEETING_FILE_ID, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, SERIES_PRIVATE_TITLE, SERIES_PROJECT_TITLE, seriesSweep, seriesTraps, trapOffice, writeSweep } from './sweep';
+import { AGENT_MADE_TASK, badgeTraps, HIDDEN_CHOSEN, HIDDEN_OUTSIDER, HIDDEN_PROJECT, HIDDEN_WORD, hiddenSweep, hiddenTraps, VISIBLE_HIT, ENDED_MEETING_TITLE, ENDED_PROJECT_MEETING_TITLE, ENDED_TEAM_MEETING_TITLE, findSweep, findTraps, MEETING_FILE_ID, meetingWrites, OFFICE_AGENT, officeWrites, readSweep, SERIES_PRIVATE_TITLE, SERIES_PROJECT_TITLE, seriesSweep, seriesTraps, trapOffice, writeSweep } from './sweep';
 
 /**
  * Task C2: each loader gives the handler the same answer as the whole office (plan 4.6, "Safety net"). runBoth runs the call on
@@ -1782,5 +1782,72 @@ describe('the Dashboard, Search and money switches on the loaders (role rights v
     expect(run.scoped).toEqual(run.whole);
     expect((run.whole.outcome.output as { money: unknown }).money).not.toBeNull();
     expect(Object.keys(run.loaded.payments ?? {}).length).toBeGreaterThan(0);
+  });
+});
+
+describe('hidden projects on the scoped load (wave D2, owner 2026-10-22)', () => {
+  const traps = () => trapOffice(seed);
+
+  it('gives the same answers as the whole office, with a hidden project and with a role that lacks "See every project"', async () => {
+    for (const variant of ['hidden', 'seeAll'] as const) {
+      const office = hiddenTraps(traps(), variant);
+      const calls = [...readSweep(office), ...hiddenSweep(office)];
+      expect(calls.length).toBeGreaterThan(600);
+      for (const [name, input, actor] of calls) await same(office, name, input, actor);
+    }
+  }, 180_000);
+
+  it('keeps the visible hits when the first 5 rows of a search are hidden rows', async () => {
+    const office = hiddenTraps(traps(), 'hidden');
+    const found = async (actor: string) => (await same(office, 'search.query', { text: HIDDEN_WORD }, actor)).outcome.output as {
+      tasks: { title: string }[]; files: { name: string }[]; messages: { id: string }[]; projects: unknown[];
+    };
+    for (const actor of ['usr_006', HIDDEN_OUTSIDER]) {
+      const seen = await found(actor);
+      expect(seen.tasks.map((t) => t.title), actor).toEqual([VISIBLE_HIT.task]);
+      expect(seen.files.map((f) => f.name), actor).toEqual([VISIBLE_HIT.file]);
+      // The open project chat shows to its team only: usr_006 is on it, usr_004 is not.
+      expect(seen.messages.map((m) => m.id).sort(), actor).toEqual(actor === 'usr_006' ? ['cmt_8000', 'msg_8000'] : ['cmt_8000']);
+    }
+    const chosen = await found(HIDDEN_CHOSEN);
+    expect(chosen.tasks).toHaveLength(5);
+    expect(chosen.messages).toHaveLength(5);
+  });
+
+  it('keeps the visible changes when the newest 20 changes are changes of a hidden project', async () => {
+    const office = hiddenTraps(traps(), 'hidden');
+    const list = async (actor: string) => ((await same(office, 'events.list', { limit: 20 }, actor)).outcome.output as { event: { projectId: string | null } }[]).map((row) => row.event.projectId);
+    const outsider = await list(HIDDEN_OUTSIDER);
+    expect(outsider).toHaveLength(20);
+    expect(outsider).not.toContain(HIDDEN_PROJECT);
+    expect(await list('usr_001')).toEqual(Array(20).fill(HIDDEN_PROJECT));
+  });
+
+  it('shows the changes of a project that was deleted while hidden to the Admin only, and the changes of a deleted open project to all', async () => {
+    const office = hiddenTraps(traps(), 'hidden');
+    const deletes = Object.values(office.events).filter((event) => event.verb === 'project.deleted');
+    expect(deletes).toHaveLength(2);
+    const gone = deletes.find((event) => (event.before as { access?: unknown }).access !== undefined)!;
+    const open = deletes.find((event) => event !== gone)!;
+    const ids = async (actor: string) => ((await same(office, 'events.list', { limit: 500 }, actor)).outcome.output as { event: { id: string } }[]).map((row) => row.event.id);
+    for (const actor of ['usr_002', HIDDEN_OUTSIDER, 'usr_010', 'usr_090']) {
+      const seen = await ids(actor);
+      expect(seen, actor).not.toContain(gone.id);
+      expect(seen, actor).toContain(open.id);
+    }
+    expect(await ids('usr_001')).toEqual(expect.arrayContaining([gone.id, open.id]));
+  });
+
+  it('keeps the visible threads when the newest 100 threads are threads of a hidden project', async () => {
+    const office = hiddenTraps(traps(), 'hidden');
+    const rows = async (actor: string) => (await same(office, 'chats.list', {}, actor)).outcome.output as { id: string; kind: string }[];
+    const outsider = await rows(HIDDEN_OUTSIDER);
+    expect(outsider.filter((row) => row.kind === 'task' && Number(row.id.slice(4)) >= 900)).toEqual([]);
+    expect(outsider.some((row) => row.kind === 'task')).toBe(true);
+    const leader = await rows(office.projects[HIDDEN_PROJECT].leaderId!);
+    expect(leader.filter((row) => row.kind === 'task' && Number(row.id.slice(4)) >= 900).length).toBeGreaterThan(0);
+    const unread = (await same(office, 'chats.unreadCount', {}, HIDDEN_OUTSIDER)).outcome.output as { unread: number };
+    const whole = (await same(hiddenTraps(traps(), 'seeAll'), 'chats.unreadCount', {}, HIDDEN_OUTSIDER)).outcome.output as { unread: number };
+    expect(unread.unread).toBeLessThanOrEqual(whole.unread);
   });
 });

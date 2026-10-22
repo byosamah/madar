@@ -93,6 +93,17 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   person sees), so the cut of the handler gives the same rows. `trapOffice` (`sweep.ts`) holds office tasks and ties at the
   cut of the newest rows (`newestTies`, in prj_004) for the sweep. `badgeTraps` holds the badge and bell cases: a tie with the
   own last comment, a helper, a task that an agent made, a hidden notice, a gone task and a report.
+- Hidden projects (owner 2026-10-22, wave D2): the view rule of a project in SQL is `visibleProjects`, `visibleIds` and `projectConds`
+  (`steps.ts`), built from `L.office.projects`, `L.office.members` and `L.authority` with `projectViewer` (`src/api/projectView.ts`).
+  Every read across projects takes its ids from them: `projects.list`, the Dashboard, `tasks.list` (through `peopleFilter`), the
+  search (tasks, files, comments; each kind keeps its own limit of 5), `reports.office`, `meetingConds`. `eventProjectConds`
+  (`steps.ts`) is the condition of `events.list` and of the office stage-move count: `project_id notIn` the projects the person does
+  not see and the projects deleted while hidden. A holder of `project.hidden` needs no pre-read. Any other person costs one read of
+  the `project.deleted` events (a few rows) before the main read. The task threads of the Inbox take `ThreadsArgs.seen` (the
+  visible ids): `threadsSql`, `memorySource` and `lite/source.ts` keep a thread of a project task only when its project is in `seen`,
+  so the cut by `limit` never counts a thread that the handler drops. `hiddenTraps` and `hiddenSweep` (`sweep.ts`) fill each SQL
+  limit with rows of a hidden project (search 5, newest messages 5, `events.list` 20, threads 100), and the tests of `loaders.test.ts`
+  check that the visible rows stay.
 - The shadow run (`server/test/shadow.ts`) runs each API test in memory and on the database, and fails on any difference.
 - Read indexes (performance audit 2026-10-07): `20261007000100_read_indexes.sql` adds the statistics `events_office_task` on
   `doc->'officeTaskId'` and the indexes `events_created_c`, `events_project_created`, `messages_conversation_newest`,

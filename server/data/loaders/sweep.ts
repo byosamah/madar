@@ -813,3 +813,107 @@ function directOpenSweep(office: State): SweepCall[] {
   return calls;
 }
 
+
+/** The hidden project of hiddenTraps, its leader, a team member, a chosen person, and an outsider who once commented on its to-dos. */
+export const HIDDEN_PROJECT = 'prj_002';
+export const HIDDEN_CHOSEN = 'usr_008';
+export const HIDDEN_OUTSIDER = 'usr_004';
+/** The word that every limit trap of hiddenTraps holds, in the title of a to-do, a file and a message. */
+export const HIDDEN_WORD = 'zzquartz';
+/** The to-do, the file and the message of the open project that the cut of a read must not drop. */
+export const VISIBLE_HIT = { task: 'Zzquartz open to-do', file: 'zzquartz-open.pdf', message: 'zzquartz open words' };
+/** The number of threads of the project that is hidden: more than TASK_THREAD_LIMIT, with newer comments than any open thread. */
+const HIDDEN_THREADS = 105;
+
+/**
+ * Hidden projects (wave D2, owner 2026-10-22): a copy of the trap office where the reads must give the same answers on the scoped load
+ * as on the whole office, and where the SQL limits are full of rows of a hidden project.
+ * - "hidden": HIDDEN_PROJECT is hidden for its team and HIDDEN_CHOSEN. It holds 6 to-dos, 6 files, 6 messages and 6 comments that hold
+ *   HIDDEN_WORD and come before the open ones in a search, 25 new changes (the limit of events.list is 20), and 105 threads of
+ *   HIDDEN_OUTSIDER (the limit of the Inbox is 100) that are newer than every thread he can read. prj_001 holds one open row of each kind.
+ * - "seeAll": no project is hidden, and the role Member lacks "See every project".
+ */
+export function hiddenTraps(traps: State, variant: 'hidden' | 'seeAll'): State {
+  const state = structuredClone(traps);
+  const leader = state.projects[HIDDEN_PROJECT].leaderId!;
+  if (variant === 'seeAll') {
+    state.settings.roles = { ...(state.settings.roles ?? {}), off: { ...(state.settings.roles?.off ?? {}), member: ['project.seeAll'] } };
+    return state;
+  }
+  state.projects[HIDDEN_PROJECT].access = { hidden: true, viewerIds: [HIDDEN_CHOSEN] };
+  const stage = { id: state.projects[HIDDEN_PROJECT].currentStageId };
+  const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === HIDDEN_PROJECT)!;
+  const pdf = { mimeType: 'application/pdf', size: 7 };
+  const at = (minute: number) => new Date(Date.UTC(2026, 9, 3, 6, minute));
+  for (let n = 1; n <= 6; n++) {
+    apply(state, 'tasks.create', { projectId: HIDDEN_PROJECT, title: `Zzquartz hidden to-do ${n}` }, leader, `cor_hidden_task_${n}`, undefined, at(n));
+    apply(state, 'files.upload', { name: `${HIDDEN_WORD}-hidden-${n}.pdf`, projectId: HIDDEN_PROJECT, uploadId: `upl_hidden_${n}` }, leader, `cor_hidden_file_${n}`, { blobKey: `blob_hidden_${n}`, ...pdf }, at(10 + n));
+  }
+  // The open rows come after the hidden ones, so a read without the view rule would fill its first 5 with hidden rows.
+  const open = Object.values(state.tasks).find((t) => t.projectId === 'prj_001')!;
+  const openLeader = state.projects.prj_001.leaderId!;
+  apply(state, 'tasks.create', { projectId: 'prj_001', title: VISIBLE_HIT.task }, openLeader, 'cor_hidden_open_task', undefined, at(30));
+  apply(state, 'files.upload', { name: VISIBLE_HIT.file, projectId: 'prj_001', uploadId: 'upl_hidden_open' }, openLeader, 'cor_hidden_open_file', { blobKey: 'blob_hidden_open', ...pdf }, at(31));
+  const openRoom = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001')!;
+  state.messages.msg_8000 = {
+    id: 'msg_8000', conversationId: openRoom.id, authorId: openLeader, actingForId: openLeader, body: VISIBLE_HIT.message, mentions: [], fileIds: [],
+    createdAt: '2026-10-03T09:00:00.000+03:00', editedAt: null,
+  };
+  state.comments.cmt_8000 = {
+    id: 'cmt_8000', targetType: 'task', targetId: open.id, authorId: openLeader, body: `${HIDDEN_WORD} open comment`, reactions: emptyReactions(), fileIds: [],
+    createdAt: '2026-10-03T09:01:00.000+03:00', editedAt: null,
+  };
+  // Newer than the open row of each kind: 6 messages of the hidden chat, 6 comments of a hidden to-do.
+  const hiddenTask = Object.values(state.tasks).find((t) => t.projectId === HIDDEN_PROJECT && t.title.startsWith('Zzquartz hidden'))!;
+  for (let n = 1; n <= 6; n++) {
+    state.messages[`msg_81${n}`] = {
+      id: `msg_81${n}`, conversationId: room.id, authorId: leader, actingForId: leader, body: `${HIDDEN_WORD} hidden words ${n}`, mentions: [], fileIds: [],
+      createdAt: `2026-10-03T10:0${n}:00.000+03:00`, editedAt: null,
+    };
+    state.comments[`cmt_81${n}`] = {
+      id: `cmt_81${n}`, targetType: 'task', targetId: hiddenTask.id, authorId: leader, body: `${HIDDEN_WORD} hidden comment ${n}`, reactions: emptyReactions(), fileIds: [],
+      createdAt: `2026-10-03T11:0${n}:00.000+03:00`, editedAt: null,
+    };
+  }
+  // A project that was hidden when it was deleted, and one that was open: the changes of the first show to the Admin only (events.list).
+  for (const [title, hidden] of [['Gone secret', true], ['Gone open', false]] as const) {
+    const made = apply(state, 'projects.create', { name: title }, ADMIN, `cor_hidden_gone_${title}`, undefined, new Date(Date.UTC(2026, 9, 4, 5))) as { project: { id: string } };
+    if (hidden) state.projects[made.project.id].access = { hidden: true, viewerIds: [] };
+    apply(state, 'projects.delete', { id: made.project.id, confirm: true }, ADMIN, `cor_hidden_delete_${title}`, undefined, new Date(Date.UTC(2026, 9, 4, 5, 1)));
+  }
+  // 25 new changes of the hidden project, newer than any open change: they fill the limit of events.list.
+  for (let n = 1; n <= 25; n++) {
+    apply(state, 'tasks.update', { id: hiddenTask.id, patch: { title: `Zzquartz hidden to-do 1 v${n}` } }, leader, `cor_hidden_event_${n}`, undefined, new Date(Date.UTC(2026, 9, 4, 4, n)));
+  }
+  // Threads: the outsider commented on 105 to-dos of the hidden project, each newer than every thread of the open projects.
+  for (let n = 1; n <= HIDDEN_THREADS; n++) {
+    const id = `tsk_9${String(n).padStart(2, '0')}`;
+    state.tasks[id] = {
+      id, projectId: HIDDEN_PROJECT, stageId: stage.id, title: `Hidden thread ${n}`, description: '', ownerId: HIDDEN_OUTSIDER, status: 'todo', dueDate: null, flagged: false,
+      needsReview: false, checklist: [], createdBy: leader, createdAt: '2026-10-02T08:00:00.000+03:00', completedAt: null,
+    } as never;
+    state.comments[`cmt_9${String(n).padStart(2, '0')}`] = {
+      id: `cmt_9${String(n).padStart(2, '0')}`, targetType: 'task', targetId: id, authorId: HIDDEN_OUTSIDER, body: `Hidden thread words ${n}`, reactions: emptyReactions(), fileIds: [],
+      createdAt: new Date(Date.UTC(2026, 9, 4, 3, 0, n)).toISOString(), editedAt: null,
+    };
+  }
+  return state;
+}
+
+/** The reads of hiddenTraps for every person and agent: the search of the word that every trap holds, the Inbox and the lists. */
+export function hiddenSweep(office: State): SweepCall[] {
+  const calls: SweepCall[] = [];
+  const people = Object.values(office.users).filter((u) => u.active).map((u) => u.id);
+  for (const actor of people) {
+    calls.push(
+      ['search.query', { text: HIDDEN_WORD }, actor], ['search.query', { text: 'hidden' }, actor], ['search.query', { text: 'Dune' }, actor],
+      ['events.list', { limit: 20 }, actor], ['events.list', { limit: 500 }, actor], ['events.list', { projectId: HIDDEN_PROJECT, limit: 20 }, actor],
+      ['chats.list', {}, actor], ['chats.unreadCount', {}, actor], ['chats.waiting', {}, actor],
+      ['projects.list', { status: 'all' }, actor], ['tasks.list', { activeProjectsOnly: false }, actor], ['deadlines.list', { status: 'all' }, actor],
+      ['dashboard.get', { status: 'all' }, actor], ['subCompanies.list', {}, actor],
+      ['reports.office', { period: 'quarter' }, actor], ['reports.office', { period: 'range', from: '2026-09-01', to: '2026-10-31' }, actor],
+      ['meetings.list', { mine: false, from: '2026-09-01', to: '2026-12-31' }, actor], ['meetings.list', { mine: false, projectId: HIDDEN_PROJECT }, actor],
+    );
+  }
+  return calls;
+}
