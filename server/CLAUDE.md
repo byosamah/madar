@@ -216,6 +216,18 @@ The other host stays deployed as the way back. Each area below has its own guide
   the chat part (`Diff.restKinds`, `Diff.publicOffice`). The old nameless office signal (`Diff.anonymous`) stays only as the fallback for
   a message or file whose chat neither State holds. Tests: `core/chatSignalMembers.test.ts`, `core/chatSignalLeaks.test.ts`,
   `data/save.test.ts`.
+- A project that at least one active person may not view (hidden projects, owner 2026-10-22, wave D3) tells only the people who view it.
+  `data/projectAudience.ts` (`audienceFinder`) asks the one view rule of a project for each active human, in `before` and in `after`: a project
+  is "restricted" when someone may not view it in either State (hidden, or open for a role without "See every project"). `diffState`
+  puts every record that names such a project (the project, its members, stages, deadlines, to-dos, posts, files, comments, messages, chat,
+  events and meetings) in `Diff.hidden` (kinds and people for each project), never in `publicKinds`, `restKinds` or `projects`, and never
+  marks the office. `writeDiff` sends each person of the audience (before and after, so a person who loses the view and a person who gains it
+  both hear) one person signal with its own id, the kinds of the hidden projects that the person views, and those project ids. The office
+  signal never names the project. A person of another part of the same save keeps those kinds in the same signal. A comment whose target the call
+  did not load is looked up by `writeDiff` (`COMMENT_TARGETS_SQL`), and the audience of the project found asks `Diff.audienceOf` after the
+  lookup (no new SQL, so the SQLite form needs no change). With the default settings no project is restricted and every signal is as before.
+  The three live paths (Postgres, the memory path of the tests and the SQLite socket path of the office object) share `diffState` and
+  `writeDiff`. `test/invariants.ts` knows the part. Tests: `data/hiddenProjectSignals.test.ts`, `data/hiddenProjectSignalsRun.test.ts`.
 - pg_cron calls `jobs/run` of the Supabase jobs function every 15 minutes, in both host settings (owner, 2026-10-16), with the
   secret header `x-madar-jobs-secret`. The Worker keeps `/jobs` mounted, but nothing calls it: pg_cron and the Vault
   `project_url` do not change. Steps (`jobs/steps/`):
