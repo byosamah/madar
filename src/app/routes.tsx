@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode } from 'react';
-import { createBrowserRouter, createHashRouter, matchRoutes, type RouteObject } from 'react-router';
+import { createBrowserRouter, createHashRouter, matchRoutes, Navigate, useLocation, type RouteObject, type To } from 'react-router';
 import { AppShell } from './AppShell';
 import { REMOTE } from './mode';
 import { loadForNavigation, screenFor, type ScreenName } from './screens';
@@ -8,6 +8,7 @@ import { AuthGate } from '../features/auth/AuthGate';
 import { NotFound, RouteError } from './RouteError';
 import { GUARD_READS } from './guardReads';
 import { RequireRight, StartReads } from './useRight';
+import { useIsPhone } from './useIsPhone';
 import type { Action } from '../api/permissions';
 
 /**
@@ -18,6 +19,10 @@ type Entry = {
   path?: string; index?: true; screen?: ScreenName; element?: ReactNode; errorElement?: ReactNode; gate?: true; children?: Entry[];
   /** The switch the screen needs (role rights version 2). Without it the address shows the page of a wrong link. */
   right?: Action;
+  /** On a phone this address goes to another one (the Settings page is the Me tab). The search and the fragment stay. */
+  phoneTo?: (url: { search: string; hash: string }) => To;
+  /** On a desk this address goes to another one (the Me tab has no desk page). The search and the fragment stay. */
+  deskTo?: string;
 };
 
 /**
@@ -48,7 +53,10 @@ function routeTable(remote: boolean): Entry[] {
         { path: 'notifications', screen: 'notifications' },
         { path: 'search', screen: 'search', right: 'search.use' },
         { path: 'tasks', screen: 'tasks' },
-        { path: 'settings', screen: 'settings' },
+        // Settings is the Me tab on a phone. The Google return (/settings#google=...) opens the Calendar section there.
+        { path: 'settings', screen: 'settings', phoneTo: ({ search, hash }) => ({ pathname: hash.startsWith('#google=') ? '/me/calendar' : '/me', search, hash }) },
+        { path: 'me', screen: 'me', deskTo: '/settings' },
+        { path: 'me/:section', screen: 'meSection', deskTo: '/settings' },
         { path: 'whats-new', screen: 'whatsNew' },
         // One route for the list and each section, so a change of section keeps the side list (owner, 2026-10-05, item 4).
         { path: 'admin/:section?', screen: 'admin' },
@@ -82,13 +90,31 @@ function guarded(Screen: ComponentType, right: Action | undefined, framed: boole
   return Guarded;
 }
 
+/**
+ * A screen with a phone address or a desk address (Settings and Me): the other width gets a redirect that keeps the search and the
+ * fragment. The wrapper carries the name of its screen, as the guard does. A phone turned sideways passes 640 px and follows the rule.
+ */
+function redirecting(Screen: ComponentType, phoneTo: Entry['phoneTo'], deskTo: Entry['deskTo']): ComponentType {
+  const Redirecting = () => {
+    const phone = useIsPhone();
+    const { search, hash } = useLocation();
+    const target: To | undefined = phone ? phoneTo?.({ search, hash }) : deskTo === undefined ? undefined : { pathname: deskTo, search, hash };
+    return target ? <Navigate to={target} replace /> : <Screen />;
+  };
+  Object.defineProperty(Redirecting, 'name', { value: Screen.name });
+  return Redirecting;
+}
+
 /** A loaded screen is the Component of its route. Else the route imports it at the first visit, and the old screen stays meanwhile. */
-function toRoute({ screen, gate: _gate, right, children, ...rest }: Entry): RouteObject {
+function toRoute({ screen, gate: _gate, right, phoneTo, deskTo, children, ...rest }: Entry): RouteObject {
   const Component = screen ? screenFor(screen) : undefined;
   // A screen outside the shell shows the page of a wrong link with its own margins.
   const framed = rest.path?.startsWith('/dashboard/') === true;
   const reads = screen ? GUARD_READS[screen] : undefined;
-  const guard = (Screen: ComponentType) => (right || reads ? guarded(Screen, right, framed, reads) : Screen);
+  const guard = (Inner: ComponentType) => {
+    const Screen = phoneTo || deskTo ? redirecting(Inner, phoneTo, deskTo) : Inner;
+    return right || reads ? guarded(Screen, right, framed, reads) : Screen;
+  };
   return {
     ...rest,
     ...(screen ? (Component ? { Component: guard(Component) } : { lazy: async () => ({ Component: guard(await loadForNavigation(screen)) }) }) : {}),

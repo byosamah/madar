@@ -13,6 +13,8 @@ import { ConsentScreen } from '../features/oauth/ConsentScreen';
 import { ProjectByCode } from '../features/project/ProjectByCode';
 import { ProjectScreen } from '../features/project/ProjectScreen';
 import { ProjectsScreen } from '../features/projects/ProjectsScreen';
+import { MeScreen } from '../features/me/MeScreen';
+import { MeSectionScreen } from '../features/me/MeSectionScreen';
 import { SearchScreen } from '../features/search/SearchScreen';
 import { SettingsScreen } from '../features/settings/SettingsScreen';
 import { AdminScreen } from '../features/settings/admin/AdminScreen';
@@ -38,6 +40,8 @@ export const LOADERS = {
   meeting: () => Promise.resolve(MeetingView),
   space: () => Promise.resolve(OpenSpaceScreen),
   settings: () => Promise.resolve(SettingsScreen),
+  me: () => Promise.resolve(MeScreen),
+  meSection: () => Promise.resolve(MeSectionScreen),
   whatsNew: () => Promise.resolve(WhatsNewScreen),
   admin: () => Promise.resolve(AdminScreen),
   projectByCode: () => Promise.resolve(ProjectByCode),

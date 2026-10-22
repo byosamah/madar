@@ -18,7 +18,7 @@ export const PREFETCH_GAP_MS = 1000;
 export const PREFETCH_AT_ONCE = 3;
 
 /** The screens that a person opens most, first. The others follow in the order of `screenLoaders.ts`. */
-const FIRST_SCREENS: readonly ScreenName[] = ['projects', 'project', 'work', 'inbox', 'dashboard', 'notifications', 'meetings'];
+const FIRST_SCREENS: readonly ScreenName[] = ['projects', 'project', 'work', 'inbox', 'dashboard', 'notifications', 'meetings', 'me'];
 
 /** The order of the idle prefetch: the likely next screens first (Projects, the project page, Tasks, Inbox), then the rest. */
 export function prefetchOrder(): ScreenName[] {

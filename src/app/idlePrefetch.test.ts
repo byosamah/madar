@@ -194,6 +194,12 @@ describe('the order and the pace of the screen imports', () => {
     expect(order.slice(0, 4)).toEqual(['projects', 'project', 'work', 'inbox']);
   });
 
+  it('holds the Me screens, and puts the Me tab after the other likely screens', () => {
+    const order = prefetchOrder();
+    expect(order).toEqual(expect.arrayContaining(['me', 'meSection']));
+    expect(order.indexOf('me')).toBe(7);
+  });
+
   it('runs 3 imports at most at once', () => {
     expect(PREFETCH_AT_ONCE).toBe(3);
   });

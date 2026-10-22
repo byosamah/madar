@@ -20,6 +20,8 @@ export const LOADERS = {
   meeting: () => import('../features/dashboard/MeetingView').then((m) => m.MeetingView),
   space: () => import('../features/space/OpenSpaceScreen').then((m) => m.OpenSpaceScreen),
   settings: () => import('../features/settings/SettingsScreen').then((m) => m.SettingsScreen),
+  me: () => import('../features/me/MeScreen').then((m) => m.MeScreen),
+  meSection: () => import('../features/me/MeSectionScreen').then((m) => m.MeSectionScreen),
   whatsNew: () => import('../features/whatsNew/WhatsNewScreen').then((m) => m.WhatsNewScreen),
   admin: () => import('../features/settings/admin/AdminScreen').then((m) => m.AdminScreen),
   projectByCode: () => import('../features/project/ProjectByCode').then((m) => m.ProjectByCode),
