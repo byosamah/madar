@@ -966,13 +966,18 @@ Branch `rb/perf2` (worktree `~/dev/madar-rb/perf2`). Sonnet agents, the Opus ses
 - [ ] Production: only on the owner's word, after the team week (not before 2026-10-23)
 - [x] Owner decisions (2026-10-21): DF-14 instant Home from the device: yes (clear at sign-out and on a role change); SV-7 and
   DF-2 direct and group chat signals to the members only: yes (with leak tests); DB-13 outbox clean-up: no, keep the rows
-- [ ] Wave 2 (run wf_adeeec9a-475, from 3f8dcbae): DF-14 instant Home, SV-7 member-only chat signals, DF-12 the WebKit
-  preflight measure (and the page's own /api for WebKit if it wins); the gap critic runs again (it stopped on the limit)
+- [x] Wave 2 (run wf_adeeec9a-475) merged (79baf983): DF-14 instant Home (first Home rows 42 to 53 ms against 654 ms with a held
+  network), SV-7 member-only chat signals (with leak tests), DF-12 WebKit keeps a preflight 10 minutes, so WebKit sends its batch
+  calls through the page's own /api (383 ms against 656 ms with a new preflight). First load 289,064 B gzip, 34 files
+- [x] Gap critic: 6 findings; GP-1 to wave 3, GP-2 mostly fixed by LV-2 (the rest needs an optimistic display, owner no on
+  2026-10-08), GP-3 to GP-5 proposed for later, GP-6 nothing now
+- [ ] Wave 3 (run wf_fc2be876-cc7): GP-1, the first render does not wait for the token renewal
+- [ ] After the deploy, on a real iPhone: wait 11 minutes, press a tab, check that no OPTIONS reaches the function
 - [ ] Owner: the removal of the probe function probe-reuse of track 6 on madar-test (a 404 stub after the probe)
 - [ ] Not asked, recorded only: LV-1 one font preload (first visit of a new device only)
 - [ ] Safari on iPhone (owner, 2026-10-21: "we have safari users on iphone"). Every iPhone browser is WebKit, and every check
   of this audit ran on Chromium. At the merge: no requestIdleCallback, scheduler or navigator.connection without the fallback
   (the idle helper of src/app/screens.ts waits 200 ms in Safari). After the merge: the screenshots and the live numbers also on
   WebKit with an iPhone profile (Playwright webkit 26.6 installed 2026-10-21): cold load, one save, chat delivery
-- [ ] Wave 2, Safari: measure the CORS preflight cache of WebKit (DF-12, LV-6: Chromium keeps it 2 h, WebKit much less), then
-  decide on the same-origin /api path for WebKit only; DF-14 must fall back to a plain load when iOS evicted or blocks IndexedDB
+- [x] Wave 2, Safari: WebKit keeps a preflight 10 minutes (Chromium 2 h); WebKit uses the page's own /api; DF-14 falls back to
+  a plain load when IndexedDB throws, fails or is missing (tests)

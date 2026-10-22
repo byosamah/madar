@@ -2311,3 +2311,52 @@ Branch `worktree-wf_92fa548c-685-3` (head d675f2b3), merged into `rb/perf2`. Rep
 ### The merge (2026-10-22)
 - Six tracks merged into `rb/perf2` with four text conflicts (sqlSource.ts signature, check-bundles markers, src/CLAUDE.md, the `whenIdle` export, a HomeScreen import). `whenIdle` lives in `src/app/whenIdle.ts`; no screen part imports `screens.ts` for it.
 - Builds after the merge: prototype, server and remote all pass their bundle checks. First load of the remote build: 34 files, 941,244 B raw, 286,908 B gzip (was 50 files, 1,236,844 B, about 384 KB gzip on 1d45aae5; 318,488 B gzip on 2026-10-08). The limits are now 970,000 B, 296,000 B gzip and 35 files.
+
+### Wave 2: instant Home after a relaunch (DF-14, owner yes 2026-10-21)
+Branch `worktree-wf_adeeec9a-475-1` (head 3d127dc4), merged into `rb/perf2`. Report PERF2-REPORT-instanthome.md of that worktree.
+
+Home now shows the person's last lists at once after a relaunch. With the network held for 600 ms, the first Home rows took 654 to 657 ms before (3 runs). They take 42 to 53 ms with a stored record (jsdom, includes React render). The fresh answers then replace the stored ones. The real build keeps the first-request reads of a cold Home in a small IndexedDB of its own (`madar-home-cache`, no new package, one record per auth user id): session.get, both tasks.list, projects.list of the role, today's meetings.list, chats.unreadCount, notifications.count, subCompanies.list and users.list. A record of another build or older than 7 days is ignored and deleted. The read runs beside the first request and gives up after 150 ms. Each stored answer goes into the query cache with its stored time, only where the query has no data. The same read is sent at once and joins the request already on the wire, so no extra request goes out. The write runs at idle after the Home reads settle, then at most once a minute. It never writes a record over 1 MB, answers from a stored life, or anything after a sign-out. The record is cleared at every sign-out path, at session expiry, when another person signs in, at a start with no session, and when the fresh session.get shows another role or other rights. In that last case the shown stored answers are reset at once. A fresh session that arrives before a late read also blocks a record of the old role. IndexedDB that throws, fails or is missing gives the plain load with no error on screen. The prototype stores nothing.
+
+Tests: New tests: HomeInstant.test.tsx (15) and homeCache.test.ts (10), plus 2 in AuthGate.test.tsx and 1 in signOut.test.tsx for the clears. They cover: rows before any answer, fresh replace, no duplicate request, a hidden project disappearing, another user id, other build and over 7 days, role change, a late read, sign-out and expiry clears, IndexedDB throw, fail and missing, the 1 MB limit, the write gap, no write after sign-out, and the prototype storing nothing. Ran npm run typecheck (clean) and 42 related test files (415 tests, all pass): home, auth, app/remote, firstLoadImports, runtime, GuardReads, PressReads and the other heldRemoteApp users. Did not run the full npm test, builds, test:db, test:it, test:mcp or the smoke.
+
+### Wave 2: direct and group chat signals to the members only (SV-7, DF-2, owner yes 2026-10-21)
+Branch `worktree-wf_adeeec9a-475-2` (head 4e3060ab), merged into `rb/perf2`. Report PERF2-REPORT-chatsignal.md of that worktree.
+
+A direct or group chat message no longer sends the anonymous office signal. Each member of each touched chat, before and after the change, gets a person signal. A person taken out or added gets it too. Project chats keep their office signal with actor and story. A save that also touches other kinds keeps its office signal for those kinds only, without the chat kinds and without the chat office flag. The old nameless office signal stays only as a fallback for a chat that neither State holds. Numbers for one chats.send (writeDiff statements plus the one realtime.send). Direct message: before 7 statements and 2 signal rows (1 office, 1 person), woke every open tab; after 6 statements (no office_meta update) and 2 person rows, wakes only the 2 members' tabs. Group of 5: before 7 statements and 2 rows; after 6 statements and 5 person rows, woken tabs only the members'. The person_seq upsert stays one statement (a group writes one row per member: 1 to 5 rows for 5 members, 50 for 50). Realtime stays one send per save.
+
+Tests: npm run typecheck is clean. Green: the touched files (server/core/chatSignalMembers.test.ts 12 new, server/core/chatSignalLeaks.test.ts 8 new, server/data/save.test.ts 65 with about 8 new and 7 rewritten, server/core/chatsGroupSignal.test.ts 2 rewritten, src/app/signals.test.tsx 56 with 7 new). Side-effect check also green on server/core, data, signal, test, http, push (81 files, 923 tests) and server/office, mcp, google, mail, calls, jobs, auth, files, entries (106 files, 1,287 tests). Leak tests cover an outsider (Admin in a direct chat, Member in a group): no signal on office or the outsider topic, no change of person counter, office counter or office version, same answers on chats.list, chats.unreadCount, notifications.list and count, search.query, events.list, same error text as a missing chat for chats.messages, markRead, send, archive. Agent test included. The merge lead must run: npm test, test:db, test:it (server/it/save.it.test.ts, runCall.it.test.ts, realtime.it.test.ts, loaders.it.test.ts), test:lite, test:office.
+
+### Wave 2: the CORS preflight on WebKit, and the page's own /api for WebKit (DF-12, LV-6)
+Branch `worktree-wf_adeeec9a-475-3` (head 8c9aaad1), merged into `rb/perf2`. Report PERF2-REPORT-webkitcors.md of that worktree.
+
+Decision: BUILD. WebKit browsers (Safari on a Mac, and every browser on an iPhone or iPad) now send their batch calls through the page's own /api. Every other browser keeps the direct address.
+
+Measured on the test copy with WebKit 26.6 (iPhone 15 profile) and Chromium, about 150 API calls.
+
+Preflight cache life, counted in the Supabase edge logs:
+- Chromium kept the preflight for the full 11 minutes.
+- WebKit sent no OPTIONS at 30 s, 2 min, 6 min or 9 min. It sent one at 11 min. That fits a 10 minute cap. Calls took 350 to 462 ms up to 9 min and 616 to 703 ms at 11 min.
+- Caveat: the log stream dropped the warm-phase and 1 s rows of the WebKit run. The warm calls themselves took 504 to 760 ms, which fits a preflight each.
+
+Time of one call, median / p90 in ms, 15 rounds each:
+
+| | direct, new preflight | direct, cached preflight | page /api |
+| --- | --- | --- | --- |
+| WebKit | 656 / 768 | 370 / 459 | 383 / 417 |
+| Chromium | 660 / 700 | 378 / 437 | 378 / 439 |
+
+The forwarder costs about 13 ms more than a cached preflight and about 275 ms less than a new one. The 2026-10-08 audit found it 20 to 50 ms slower than direct on Chromium with a cached preflight. Here it is equal.
+
+For a person who calls every 2 to 10 minutes, a new preflight falls on about g/10 of the calls (g = minutes between calls). The direct extra time per call is 55 ms at 2 min, 137 ms at 5 min and 275 ms at 10 min, against about 13 ms for the forwarder. The break-even is a call every 30 seconds.
+
+What changed:
+- New `src/api/remote/pageApi.ts` with `isWebKit` and `batchApiUrl`.
+- `build:remote` sets `VITE_API_PAGE_HOSTS` only when the Supabase function is the host. The dev server does not get it, and the public env file may not set it.
+- `bootstrapRemote` passes `batchApiUrl(...)` to the batch client.
+- The choice needs a `*.supabase.co` build address, the page host in the list (a deployment hash host has no /api and would get 404), and a WebKit user agent. Sign-in, forgot, renew, OAuth and the live socket keep the direct address.
+- The live CSP already allows it (`connect-src 'self'`).
+- The Worker host already uses /api for everyone and is untouched.
+
+Tests: Tests were written first and seen to fail. New: `src/api/remote/pageApi.test.ts` (user agents, host list, address shapes), 2 tests in `scripts/build-remote.test.ts`, 1 test in `src/app/remote/bootstrap.test.ts` (WebKit gets /api/batch, Chrome gets the Supabase address with the region). `src/api/remote`, `src/app/remote`, `scripts/build-remote.test.ts` and `scripts/vite-config.test.ts`: 27 files, 357 tests passed. `npm run typecheck` is clean. I did not run the full suite, test:db, test:it, test:lite, test:office, test:mcp, the smoke or the build size check (the new code is about 1 KB raw).
+
+Not proven: a real iPhone. After the deploy, wait 11 minutes on an iPhone, press a tab, and check that no OPTIONS reaches the function. Every WebKit call now also counts as one Pages Functions request (free limit 100,000 a day, shared with the satellite tiles).
