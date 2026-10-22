@@ -17,11 +17,13 @@ const actors: [string, User, ProjectRole][] = [
 ];
 
 const none = () => ({});
+/** The facts of an open project: the view rule fails closed without them (hidden projects). */
+const open = () => ({ access: { hidden: false, chosen: false } });
 const own = (u: User) => ({ ownerId: u.id, authorId: u.id });
 
 // Expected results for admin, leader, team, other. Copied from spec section 2.3.
-const TABLE: [Action, [boolean, boolean, boolean, boolean], (u: User) => Record<string, string>][] = [
-  ['project.view', [true, true, true, true], none],
+const TABLE: [Action, [boolean, boolean, boolean, boolean], (u: User) => Record<string, unknown>][] = [
+  ['project.view', [true, true, true, true], open],
   ['project.create', [true, true, true, true], none],
   ['project.details', [true, true, false, false], none],
   ['project.team', [true, true, false, false], none],
@@ -108,7 +110,10 @@ describe('permission details', () => {
 
   it('lets an inactive person only view', () => {
     const gone = makeUser('usr_009', { active: false, systemRole: 'admin' });
-    expect(can(gone, 'project.view')).toBe(true);
+    expect(can(gone, 'project.view', open())).toBe(true);
+    // Without the access facts, or for a hidden project, a person who left sees nothing.
+    expect(can(gone, 'project.view')).toBe(false);
+    expect(can(gone, 'project.view', { access: { hidden: true, chosen: false } })).toBe(false);
     expect(can(gone, 'project.create')).toBe(false);
     expect(can(gone, 'admin.manage')).toBe(false);
   });

@@ -209,15 +209,18 @@ export function mayViewTask(state: State, viewer: User, task: TaskPeople): boole
 
 /**
  * The view rule of a project as can() reads it (hidden projects, owner 2026-10-22). The facts come from projectResource: the role of the
- * person and, for a hidden project, the list of chosen people. A holder of "See hidden projects" sees every project. The leader, the team and
- * a chosen person see their project. Any other person needs "See every project" and an open project. A resource with neither a role nor
- * access facts names no project, so the plain question "may this person read" answers true.
+ * person and, for a hidden project, the list of chosen people. A holder of "See hidden projects" sees every project. The leader and the
+ * team see their project. A chosen person sees it. Any other person needs "See every project" and an open project.
+ * It fails closed: a resource that carries no access facts is read as a project that the person does not work on, so a caller that forgets
+ * the facts sees nothing. Build the resource with projectResource.
  */
 function viewsProject(actor: Actor, resource: Resource): boolean {
-  if (resource.projectRole === undefined && resource.access === undefined) return true;
+  if (holdsRight(actor, 'project.hidden')) return true;
   const role = resource.projectRole ?? 'other';
-  if (holdsRight(actor, 'project.hidden') || role === 'leader' || role === 'team' || resource.access?.chosen === true) return true;
-  return resource.access?.hidden !== true && holdsRight(actor, 'project.seeAll');
+  if (role === 'leader' || role === 'team') return true;
+  const access = resource.access;
+  if (access === undefined) return false;
+  return access.chosen || (!access.hidden && holdsRight(actor, 'project.seeAll'));
 }
 
 /**
@@ -348,7 +351,7 @@ export function can(actor: Actor, action: Action, resource: Resource = {}): bool
   if (resource.meeting) return actor.active && canOnMeeting(actor, action, resource);
   // A project task reads like its project. An office task stays with its people.
   // A hidden project never shows to a person who left the office (owner, 2026-10-22).
-  if (!actor.active) return !resource.access?.hidden && (action === 'project.view' || (action === 'task.view' && !resource.office));
+  if (!actor.active) return resource.access !== undefined && !resource.access.hidden && (action === 'project.view' || (action === 'task.view' && !resource.office));
   if (resource.office) return canOnOfficeTask(actor, action, resource);
   const admin = actor.systemRole === 'admin';
   const role = resource.projectRole ?? 'other';

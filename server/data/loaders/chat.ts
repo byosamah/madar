@@ -107,7 +107,7 @@ async function chatsOf(L: Load, userId: string, conversations: readonly Conversa
 
 /** The question for the task threads of U, or undefined when U may not read comments. */
 function threadsAsk(L: Load, userId: string): ThreadsArgs | undefined {
-  if (!L.authority || !can(L.authority, 'comment.read')) return undefined;
+  if (!L.authority || !L.authority.active) return undefined;
   const led = Object.values(L.office.projects).filter((project) => project.leaderId === userId).map((project) => project.id);
   // The Admin sees every office task, so an office thread the Admin commented on is the Admin's too (owner, 2026-10-06).
   return { owner: userId, led, me: meOf(L, userId), limit: TASK_THREAD_LIMIT, admin: can(L.authority, 'task.view', { office: true }) };

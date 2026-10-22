@@ -109,10 +109,34 @@ describe('can() reads the same rule', () => {
     }
   });
 
-  it('answers a resource with no project facts as the plain question "may this person read", true', () => {
+  it('denies a person who is not on the project when the resource names the role but carries no access facts (fail closed)', () => {
     const state = world();
-    expect(can(withRights(state, state.users.usr_004), 'comment.read')).toBe(true);
-    expect(can(withRights(state, state.users.usr_004), 'project.view')).toBe(true);
+    const outsider = withRights(state, state.users.usr_004);
+    const chosen = withRights(state, state.users.usr_006);
+    for (const action of ['project.view', 'task.view', 'comment.read'] as const) {
+      expect(can(outsider, action, { projectRole: 'other' }), action).toBe(false);
+      expect(can(chosen, action, { projectRole: 'other' }), `${action} chosen`).toBe(false);
+      // The leader and the team need no facts, and the holder of See hidden projects sees every project.
+      expect(can(withRights(state, state.users.usr_002), action, { projectRole: 'leader' }), `${action} leader`).toBe(true);
+      expect(can(withRights(state, state.users.usr_003), action, { projectRole: 'team' }), `${action} team`).toBe(true);
+      expect(can(withRights(state, state.users.usr_001), action, { projectRole: 'other' }), `${action} Admin`).toBe(true);
+    }
+  });
+
+  it('denies a resource with no project facts at all to everyone but a holder of See hidden projects', () => {
+    const state = world();
+    for (const action of ['project.view', 'task.view', 'comment.read'] as const) {
+      expect(can(withRights(state, state.users.usr_004), action), action).toBe(false);
+      expect(can(withRights(state, state.users.usr_004), action, {}), action).toBe(false);
+      expect(can(withRights(state, state.users.usr_001), action), `${action} Admin`).toBe(true);
+    }
+  });
+
+  it('never shows a project to a person who left the office when the facts are missing', () => {
+    const state = world();
+    state.users.usr_004.active = false;
+    expect(can(withRights(state, state.users.usr_004), 'project.view', { projectRole: 'other' })).toBe(false);
+    expect(can(withRights(state, state.users.usr_004), 'project.view', projectResource(state, 'prj_001', 'usr_004'))).toBe(true);
   });
 
   it('asks the scope rule for Choose who sees a project', () => {
