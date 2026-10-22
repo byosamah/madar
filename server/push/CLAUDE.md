@@ -94,6 +94,14 @@ and the lock (Sunday to Thursday, 9 AM to 5 PM, on by default): nobody is quiet 
   never for a reaction, a delete, a quiet line or an Undo; an edit pushes only a person it names for the first time. One row for each
   person for each save: a `push.notify` row wins over a `push.chat` row. The mention switch of Settings does not stop a push that
   names a person.
+- A hidden project (owner, 2026-10-22, wave D3): a person who does not view the project of a message or a comment gets no push, whatever the
+  mention, the reply or the lead says, and also not through a notice of the item. `MessageFact.project` and `CommentFact.project` (`ProjectFact`:
+  `hidden`, `teamIds`, `viewerIds`) carry the people of the project; `PushPerson.seesAll` and `seesHidden` carry `project.seeAll` and
+  `project.hidden` (the Admin holds both). The view rule in `planPushes` is the one of `mayViewProject`: a holder of `project.hidden`, the
+  leader, the team, a chosen person, and a holder of `project.seeAll` when the project is open. A chosen person is in `viewerIds`, never in `teamIds`,
+  so a project chat pushes the person only when a message names the person. `PUSH_ITEMS_SQL` reads the team and `projects.doc->'access'` for a
+  message and for a comment; the SQLite reader reads the office lists (`teamOf`). A fact with no project reads as the old rule, everyone. Quiet
+  hours (`held.ts`) send the fixed line with no data and name no project. Tests: `hiddenProjectPush.test.ts`, `hiddenProjectLeaks.test.ts`.
 - An @everyone notice (`Notification.everyone`, 2026-10-22) gives the push like any mention notice of a new item: `planPushes` adds the person from the
   notice. It sends no mail. A person in quiet hours gets it later ("Quiet hours" above).
 - A copy for an Admin who picked "Everything" (`Notification.forUserIds`, owner 2026-10-23) gives no push: `PUSH_NEW_NOTICES_SQL` and the SQLite

@@ -13,7 +13,19 @@ import { mentionedUserIds } from '../../src/lib/text';
  * "officeAll": the person holds task.officeAll (role rights version 2): reads every office to-do, as the Admin does. The Admin always
  * does, so a fact that leaves the field out reads as the Admin flag.
  */
-export type PushPerson = { id: string; kind: 'human' | 'agent'; active: boolean; admin: boolean; ownerId: string | null; device: boolean; officeAll?: boolean };
+export type PushPerson = {
+  id: string; kind: 'human' | 'agent'; active: boolean; admin: boolean; ownerId: string | null; device: boolean; officeAll?: boolean;
+  /** The person holds project.seeAll (hidden projects, owner 2026-10-22): views every open project. A fact that leaves it out reads as false, except for the Admin. */
+  seesAll?: boolean;
+  /** The person holds project.hidden: views every hidden project. The Admin always does. */
+  seesHidden?: boolean;
+};
+/**
+ * The people of the project of a chat message or a task comment (hidden projects, owner 2026-10-22). "teamIds": the leader and the team.
+ * "viewerIds": the chosen people, who view a hidden project and are no team member. "hidden": the project is kept for these people. A
+ * fact that leaves the project out reads as the old rule: everyone views.
+ */
+export type ProjectFact = { hidden: boolean; teamIds: string[]; viewerIds: string[] };
 /**
  * A chat message of the save. "teamIds": the leader and the team of a project chat (empty for a direct chat and a group).
  * "memberIds": the people of a direct chat or a group. "mentions": the people the message names (an @mention, and the author of the
@@ -22,6 +34,8 @@ export type PushPerson = { id: string; kind: 'human' | 'agent'; active: boolean;
 export type MessageFact = {
   kind: 'message'; id: string; chatId: string; chatKind: 'project' | 'direct' | 'group'; memberIds: string[]; teamIds: string[];
   authorId: string; actingForId: string; mentions: string[]; isNew: boolean;
+  /** The project of a project chat (hidden projects). Left out for a direct chat, a group, and a reader that knows no project. */
+  project?: ProjectFact;
 };
 /**
  * A task comment of the save. "chatId" of its push item is the task id. "makerId" is the raw createdBy of the task. "line": a quiet
@@ -30,6 +44,8 @@ export type MessageFact = {
 export type CommentFact = {
   kind: 'comment'; id: string; taskId: string; office: boolean; leadId: string | null; makerId: string; helperIds: string[]; authorId: string;
   body: string; replyAuthorId: string | null; line: boolean; isNew: boolean;
+  /** The project of a project task (hidden projects). Null or left out for an office task, and for a reader that knows no project. */
+  project?: ProjectFact | null;
 };
 export type PushNotice = { userId: string; targetType: string; targetId: string; messageId: string | null };
 /** "levels" is keyed by chatReadKey(chatId, userId) and holds only stored levels. "notices": the new unread notices of reachable people. */
@@ -60,6 +76,14 @@ export function planPushes(facts: PushFacts): PushPlan {
   const levelOf = (userId: string, chatId: string, chatKind: MessageFact['chatKind']): NotifyLevel => {
     const stored = facts.levels[chatReadKey(chatId, userId)];
     return levelFromRead(stored === undefined ? undefined : { notify: stored }, chatKind);
+  };
+  /** True when the person views the project (the view rule of a project, as the facts give it). No project fact: the old rule, everyone. */
+  const views = (userId: string, project: ProjectFact | null | undefined): boolean => {
+    if (project === undefined || project === null) return true;
+    const p = people.get(userId);
+    if (p === undefined) return false;
+    if (p.admin || p.seesHidden === true || project.teamIds.includes(userId) || project.viewerIds.includes(userId)) return true;
+    return !project.hidden && p.seesAll === true;
   };
   const admins = facts.people.filter((p) => p.admin).map((p) => p.id);
   // The people who read every office to-do: the Admins, and each person who holds task.officeAll.
@@ -92,7 +116,7 @@ export function planPushes(facts: PushFacts): PushPlan {
     if (item.kind === 'message') {
       const candidates = item.chatKind === 'project' ? [...item.teamIds, ...admins] : item.memberIds;
       for (const userId of candidates) {
-        if (skip.has(userId)) continue;
+        if (skip.has(userId) || !views(userId, item.project)) continue;
         if (levelOf(userId, item.chatId, item.chatKind) === 'all' || item.mentions.includes(userId)) add(userId, { chatId: item.chatId, itemId: item.id });
       }
       continue;
@@ -101,7 +125,9 @@ export function planPushes(facts: PushFacts): PushPlan {
     const plain = [item.leadId, ...(item.office ? [maker] : [])].filter((id): id is string => id !== null);
     const named = [...mentionedUserIds(item.body), ...[principal(item.replyAuthorId)].filter((id): id is string => id !== null)];
     // A project task: any person may read it. An office task: its maker, lead, helpers and the holders of task.officeAll (the Admins).
-    const mayRead = (userId: string): boolean => !item.office || userId === maker || userId === item.leadId || item.helperIds.includes(userId) || officeReaders.includes(userId);
+    const mayRead = (userId: string): boolean => (item.office
+      ? userId === maker || userId === item.leadId || item.helperIds.includes(userId) || officeReaders.includes(userId)
+      : views(userId, item.project));
     for (const userId of new Set([...plain, ...named])) {
       if (skip.has(userId) || !mayRead(userId)) continue;
       add(userId, { chatId: item.taskId, itemId: item.id });
@@ -114,6 +140,8 @@ export function planPushes(facts: PushFacts): PushPlan {
     if (!isChatItemNotice(notice)) continue;
     const item = items.find((candidate) => candidate.id === notice.messageId);
     if (item === undefined || skipOf(item).has(notice.userId)) continue;
+    // A person who does not view the project of the item gets no push, whatever the notice says (hidden projects, owner 2026-10-22).
+    if (!views(notice.userId, item.project)) continue;
     const chatId = item.kind === 'message' ? item.chatId : item.taskId;
     if (item.isNew) {
       add(notice.userId, { chatId, itemId: item.id });

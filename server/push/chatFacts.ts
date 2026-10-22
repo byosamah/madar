@@ -1,4 +1,4 @@
-import type { Comment, Message, Notification, NotifyLevel, RoleSettings, Task, User } from '../../src/api/contract/entities';
+import type { Comment, Message, Notification, NotifyLevel, OfficeRight, RoleSettings, Task, User } from '../../src/api/contract/entities';
 import { rightsOf } from '../../src/api/rights';
 import { chatReadKey } from '../../src/api/rowKeys';
 import { isLine } from '../../src/lib/commentLine';
@@ -7,7 +7,7 @@ import { isLite } from '../data/dialect';
 import { liteDbOf } from '../data/lite/db';
 import { readLiteOffice } from '../data/lite/office';
 import type { SaveResult } from '../data/save';
-import { isChatItemNotice, type CommentFact, type MessageFact, type PushFacts, type PushNotice, type PushPerson } from './chatRule';
+import { isChatItemNotice, type CommentFact, type MessageFact, type ProjectFact, type PushFacts, type PushNotice, type PushPerson } from './chatRule';
 
 /**
  * The fact readers of the push producer (chat design items 19 to 21). They read what planPushes (chatRule.ts) needs, in the
@@ -35,14 +35,19 @@ order by n.user_id, n.ord`;
 /**
  * $1 the message ids, $2 the comment ids. A message comes with its chat kind, the people of its chat (a direct chat or a group:
  * memberIds; a project chat: the leader and the team). A comment of a task comes with its task and the author of the comment it
- * replies to.
+ * replies to. Both come with the team of their project and its "access" (hidden projects, owner 2026-10-22): the chosen people and
+ * whether the project is hidden.
  */
 export const PUSH_ITEMS_SQL = `select 'message' as kind, m.id, m.conversation_id as chat_id, c.kind as chat_kind, c.project_id, m.doc, c.doc->'memberIds' as member_ids,
   (select coalesce(jsonb_agg(t.user_id order by t.user_id), '[]'::jsonb) from (select p.leader_id as user_id from projects p where p.id = c.project_id and p.leader_id is not null union select mb.user_id from members mb where mb.project_id = c.project_id) t) as team_ids,
-  null::jsonb as task, null::text as reply_author_id
+  null::jsonb as task, null::text as reply_author_id,
+  (select p.doc->'access' from projects p where p.id = c.project_id) as access
 from messages m join conversations c on c.id = m.conversation_id where m.id = any($1::text[])
 union all
-select 'comment', k.id, k.target_id, 'task', t.project_id, k.doc, null::jsonb, null::jsonb, t.doc, r.doc->>'authorId'
+select 'comment', k.id, k.target_id, 'task', t.project_id, k.doc, null::jsonb,
+  (select coalesce(jsonb_agg(u.user_id order by u.user_id), '[]'::jsonb) from (select p.leader_id as user_id from projects p where p.id = t.project_id and p.leader_id is not null union select mb.user_id from members mb where mb.project_id = t.project_id) u),
+  t.doc, r.doc->>'authorId',
+  (select p.doc->'access' from projects p where p.id = t.project_id)
 from comments k join tasks t on t.id = k.target_id left join comments r on r.id = k.doc->>'replyToId'
 where k.id = any($2::text[]) and k.target_type = 'task'`;
 
@@ -86,6 +91,7 @@ type NoticeRow = { user_id: string; target_type: string; target_id: string; mess
 type ItemRow = {
   kind: 'message' | 'comment'; id: string; chat_id: string; chat_kind: string; project_id: string | null; doc: Message | Comment;
   member_ids: string[] | null; team_ids: string[] | null; task: Task | null; reply_author_id: string | null;
+  access?: { hidden?: boolean; viewerIds?: string[] } | null;
 };
 type PersonRow = {
   id: string; kind: 'human' | 'agent'; active: boolean; system_role: string | null; role_id?: string | null; owner_id: string | null; device: boolean; roles?: RoleSettings | null;
@@ -94,6 +100,11 @@ type LevelRow = { conversation_id: string; user_id: string; notify: NotifyLevel 
 
 const unique = (ids: Iterable<string>): string[] => [...new Set(ids)];
 
+/** The people of the project of an item (hidden projects, owner 2026-10-22): the leader and the team, the chosen people, and whether it is hidden. */
+function projectFactOf(row: ItemRow): ProjectFact {
+  return { hidden: row.access?.hidden === true, teamIds: row.team_ids ?? [], viewerIds: row.access?.viewerIds ?? [] };
+}
+
 /** The facts of a message row, or null for a deleted message (it pushes nobody). isNew: the save inserted the message. */
 function messageFact(row: ItemRow, isNew: boolean): MessageFact | null {
   const doc = row.doc as Message;
@@ -101,6 +112,7 @@ function messageFact(row: ItemRow, isNew: boolean): MessageFact | null {
   return {
     kind: 'message', id: row.id, chatId: row.chat_id, chatKind: row.chat_kind as MessageFact['chatKind'], memberIds: row.chat_kind === 'project' ? [] : row.member_ids ?? [],
     teamIds: row.chat_kind === 'project' ? row.team_ids ?? [] : [], authorId: doc.authorId, actingForId: doc.actingForId, mentions: doc.mentions ?? [], isNew,
+    ...(row.chat_kind === 'project' && row.project_id ? { project: projectFactOf(row) } : {}),
   };
 }
 
@@ -112,6 +124,7 @@ function commentFact(row: ItemRow, isNew: boolean): CommentFact | null {
   return {
     kind: 'comment', id: row.id, taskId: row.chat_id, office: task.projectId == null, leadId: task.ownerId ?? null, makerId: task.createdBy,
     helperIds: task.helperIds ?? [], authorId: doc.authorId, body: doc.body, replyAuthorId: row.reply_author_id, line: isLine(doc), isNew,
+    ...(task.projectId ? { project: projectFactOf(row) } : {}),
   };
 }
 
@@ -144,15 +157,32 @@ async function postgresFacts(q: Query, saved: PushSaved, wroteNotices: boolean, 
   return { people, items, levels, notices, undo };
 }
 
-/** True when the person holds task.officeAll: the Admin, or a person whose role gives it. An agent holds nothing of its own. */
-function holdsOfficeAll(person: Pick<User, 'systemRole' | 'roleId'>, roles: RoleSettings | null | undefined): boolean {
-  return rightsOf(person as User, roles ?? undefined).includes('task.officeAll');
+/** True when the person holds the switch: the Admin, or a person whose role gives it. An agent holds nothing of its own. */
+function holds(person: Pick<User, 'systemRole' | 'roleId'>, roles: RoleSettings | null | undefined, right: OfficeRight): boolean {
+  return rightsOf(person as User, roles ?? undefined).includes(right);
+}
+const holdsOfficeAll = (person: Pick<User, 'systemRole' | 'roleId'>, roles: RoleSettings | null | undefined): boolean => holds(person, roles, 'task.officeAll');
+
+/** The viewing rights of a human (hidden projects, owner 2026-10-22): "See every project" and "See hidden projects". */
+function viewRights(person: Pick<User, 'kind' | 'systemRole' | 'roleId'>, roles: RoleSettings | null | undefined): Pick<PushPerson, 'seesAll' | 'seesHidden'> {
+  const human = person.kind === 'human';
+  return { seesAll: human && holds(person, roles, 'project.seeAll'), seesHidden: human && holds(person, roles, 'project.hidden') };
 }
 
 const personOf = (row: PersonRow): PushPerson => ({
   id: row.id, kind: row.kind, active: row.active, admin: row.system_role === 'admin', ownerId: row.owner_id, device: row.device,
   officeAll: row.kind === 'human' && holdsOfficeAll({ systemRole: (row.system_role ?? 'member') as User['systemRole'], roleId: row.role_id ?? undefined }, row.roles),
+  ...viewRights({ kind: row.kind, systemRole: (row.system_role ?? 'member') as User['systemRole'], roleId: row.role_id ?? undefined }, row.roles),
 });
+
+/** The leader and the team of a project, from the office lists in memory, sorted. */
+function teamOf(lists: { projects: Record<string, { leaderId: string | null }>; members: Record<string, { projectId: string; userId: string }> }, projectId: string): string[] {
+  const team: string[] = [];
+  const leaderId = lists.projects[projectId]?.leaderId;
+  if (leaderId) team.push(leaderId);
+  for (const m of Object.values(lists.members)) if (m.projectId === projectId) team.push(m.userId);
+  return unique(team).sort();
+}
 
 async function liteFacts(q: Query, saved: PushSaved, wroteNotices: boolean, undo: boolean): Promise<PushFacts> {
   const { lists } = await readLiteOffice(liteDbOf(q), q);
@@ -183,13 +213,9 @@ async function liteFacts(q: Query, saved: PushSaved, wroteNotices: boolean, undo
     const [message] = await q<{ conversation_id: string; doc: Message }>(MESSAGE_LITE, [id]);
     const chat = message ? lists.conversations[message.conversation_id] : undefined;
     if (!message || !chat) continue;
-    const team: string[] = [];
-    if (chat.kind === 'project' && chat.projectId !== null) {
-      const leaderId = lists.projects[chat.projectId]?.leaderId;
-      if (leaderId) team.push(leaderId);
-      for (const m of Object.values(lists.members)) if (m.projectId === chat.projectId) team.push(m.userId);
-    }
-    const fact = messageFact({ kind: 'message', id, chat_id: chat.id, chat_kind: chat.kind, project_id: chat.projectId, doc: message.doc, member_ids: [...chat.memberIds], team_ids: unique(team).sort(), task: null, reply_author_id: null }, newMessages.has(id));
+    const team = chat.kind === 'project' && chat.projectId !== null ? teamOf(lists, chat.projectId) : [];
+    const access = chat.kind === 'project' && chat.projectId !== null ? lists.projects[chat.projectId]?.access ?? null : null;
+    const fact = messageFact({ kind: 'message', id, chat_id: chat.id, chat_kind: chat.kind, project_id: chat.projectId, doc: message.doc, member_ids: [...chat.memberIds], team_ids: team, task: null, reply_author_id: null, access }, newMessages.has(id));
     if (fact) items.push(fact);
   }
   for (const id of ids.comments) {
@@ -198,13 +224,19 @@ async function liteFacts(q: Query, saved: PushSaved, wroteNotices: boolean, undo
     const [task] = await q<{ doc: Task }>(PUSH_TASK_LITE, [comment.target_id]);
     if (!task) continue;
     const old = comment.doc.replyToId === undefined ? undefined : (await q<{ doc: Comment }>(PUSH_COMMENT_LITE, [comment.doc.replyToId]))[0];
-    const fact = commentFact({ kind: 'comment', id, chat_id: comment.target_id, chat_kind: 'task', project_id: task.doc.projectId ?? null, doc: comment.doc, member_ids: null, team_ids: null, task: task.doc, reply_author_id: old?.doc.authorId ?? null }, newComments.has(id));
+    const projectId = task.doc.projectId ?? null;
+    const fact = commentFact({
+      kind: 'comment', id, chat_id: comment.target_id, chat_kind: 'task', project_id: projectId, doc: comment.doc, member_ids: null,
+      team_ids: projectId === null ? null : teamOf(lists, projectId), task: task.doc, reply_author_id: old?.doc.authorId ?? null,
+      access: projectId === null ? null : lists.projects[projectId]?.access ?? null,
+    }, newComments.has(id));
     if (fact) items.push(fact);
   }
   await devicesOf(allIds);
   const people: PushPerson[] = allIds.map((id) => ({
     id, kind: users[id].kind, active: users[id].active === true, admin: users[id].systemRole === 'admin', ownerId: users[id].ownerId ?? null, device: withDevice.has(id),
     officeAll: users[id].kind === 'human' && holdsOfficeAll(users[id], (lists as { settings?: { roles?: RoleSettings } }).settings?.roles),
+    ...viewRights(users[id], (lists as { settings?: { roles?: RoleSettings } }).settings?.roles),
   }));
   const levels: Record<string, NotifyLevel> = {};
   for (const chatId of unique(items.filter((i): i is MessageFact => i.kind === 'message').map((i) => i.chatId))) {

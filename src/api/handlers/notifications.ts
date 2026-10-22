@@ -136,10 +136,12 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   let chatKind: NotificationView['chatKind'] = null;
   let startsAt: string | null = null;
   if (hiddenProject(state, n, viewer)) {
-    // Nothing of an item of a project that the viewer may not view: no title, no project, no day, no link (hidden projects, owner 2026-10-22).
+    // Nothing of an item of a project that the viewer may not view: no title, no project, no day, no link, no actor, no message, no story,
+    // no people of a copy and no id of the item (hidden projects, owner 2026-10-22; the report branch below does the same).
+    const { messageId: _message, correlationId: _story, dueDate: _day, forUserIds: _people, ...rest } = n;
     return {
-      notification: n, actor: n.actorId ? cardOf(state, n.actorId) : null, target: '', projectCode: null, project: null, link, needsAction: ACTION_TRIGGERS.has(n.trigger),
-      canApprove: false, gone: true, dueDate: null, chatKind: null, startsAt: null, forPeople: [],
+      notification: { ...rest, actorId: null, targetId: 'hidden' }, actor: null, target: '', projectCode: null, project: null, link,
+      needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove: false, gone: true, dueDate: null, chatKind: null, startsAt: null, forPeople: [],
     };
   }
   if (n.targetType === 'task' && hiddenTask(state, n, viewer)) {

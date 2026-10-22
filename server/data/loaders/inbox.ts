@@ -1,4 +1,4 @@
-import type { Notification } from '../../../src/api/contract/entities';
+import type { Event, Notification, Task, Update } from '../../../src/api/contract/entities';
 import type { Load } from './build';
 import { pickedByKey } from './steps';
 
@@ -16,6 +16,11 @@ type Input = Record<string, unknown>;
  * maker. A post or a report counts only by being there (feedbackNoticeHidden reads the notice alone), so it needs its id only.
  */
 export const INBOX_TASK_FIELDS = ['id', 'projectId', 'ownerId', 'helperIds', 'createdBy'] as const;
+/**
+ * The post fields that the bell reads (hidden projects, owner 2026-10-22): whether the post is there, and its project (noticeProjectHidden,
+ * src/api/hiddenNotice.ts), so the bell never counts a notice of a hidden project that the list shows as gone.
+ */
+export const INBOX_UPDATE_FIELDS = ['id', 'projectId'] as const;
 /** The meeting fields that the bell reads (fbk_022): whether the meeting is there, and its view rule (mayViewMeeting). */
 export const INBOX_MEETING_FIELDS = ['id', 'projectId', 'organizerId', 'attendeeIds'] as const;
 
@@ -41,7 +46,7 @@ async function targets(L: Load, counted = false): Promise<void> {
   const of = (type: Notification['targetType']) => notices.filter((n) => n.targetType === type).map((n) => n.targetId);
   if (counted) {
     await pickedByKey(L, 'tasks', of('task'), INBOX_TASK_FIELDS);
-    await pickedByKey(L, 'updates', of('update'), ['id']);
+    await pickedByKey(L, 'updates', of('update'), INBOX_UPDATE_FIELDS);
     await pickedByKey(L, 'feedback', of('feedback'), ['id']);
     await pickedByKey(L, 'meetings', of('meeting'), INBOX_MEETING_FIELDS);
     return;
@@ -52,12 +57,40 @@ async function targets(L: Load, counted = false): Promise<void> {
   await L.byKey('feedback', of('feedback'));
 }
 
+/**
+ * The delete event of each project that a notice names through its item and that the office no longer holds (hidden projects, owner
+ * 2026-10-22). noticeProjectHidden reads the last copy of such a project, and fails closed when it finds none, so the loader brings the
+ * event of every project it needs: the project of a live to-do or post, and of the last copy of a deleted one (the events already loaded).
+ */
+async function deletedProjects(L: Load): Promise<void> {
+  const notices = L.list<Notification>('notifications');
+  const projectIds = new Set<string>();
+  for (const n of notices) {
+    if (n.targetType === 'task') {
+      const task = L.get<Pick<Task, 'projectId'>>('tasks', n.targetId);
+      if (task?.projectId) projectIds.add(task.projectId);
+    } else if (n.targetType === 'update') {
+      const update = L.get<Pick<Update, 'projectId'>>('updates', n.targetId);
+      if (update?.projectId) projectIds.add(update.projectId);
+    }
+  }
+  for (const event of L.list<Event>('events')) {
+    if (event.verb !== 'task.deleted' && event.verb !== 'update.deleted') continue;
+    const projectId = (event.before as { projectId?: unknown } | null)?.projectId;
+    if (typeof projectId === 'string' && projectId !== '') projectIds.add(projectId);
+  }
+  const missing = [...projectIds].filter((id) => !L.get('projects', id));
+  if (missing.length === 0) return;
+  await L.select({ c: 'events', where: [{ col: 'target_id', in: missing }, { col: 'verb', in: ['project.deleted'] }] });
+}
+
 /** notifications.count, markAllRead, and the count that markRead and markUnread return. */
 export async function inboxCount(L: Load, input: Input): Promise<void> {
   if (!L.authority) return;
   await unreadOf(L, L.authority.id, !L.write);
   await L.byKey('notifications', (input.ids as string[] | undefined) ?? []);
   await targets(L, !L.write);
+  await deletedProjects(L);
 }
 
 /** notifications.list: every unread notice, the newest "limit" read ones, their targets, and the delete event of each gone target. */
@@ -78,9 +111,11 @@ export async function inboxList(L: Load, input: Input): Promise<void> {
     if (n.targetType === 'project') return !L.get('projects', n.targetId);
     return false;
   });
-  if (gone.length === 0) return;
-  await L.select({
-    c: 'events',
-    where: [{ col: 'target_id', in: gone.map((n) => n.targetId) }, { col: 'verb', in: ['task.deleted', 'update.deleted', 'project.deleted'] }],
-  });
+  if (gone.length > 0) {
+    await L.select({
+      c: 'events',
+      where: [{ col: 'target_id', in: gone.map((n) => n.targetId) }, { col: 'verb', in: ['task.deleted', 'update.deleted', 'project.deleted'] }],
+    });
+  }
+  await deletedProjects(L);
 }

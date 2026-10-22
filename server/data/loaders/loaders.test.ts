@@ -11,7 +11,7 @@ import { snapshotOf } from '../officeCache';
 import { Load } from './build';
 import { THREAD_COMMENT_FIELDS, THREAD_TASK_FIELDS } from './chat';
 import { changesOf, runBoth, runOn, type Run } from './compare';
-import { INBOX_TASK_FIELDS } from './inbox';
+import { INBOX_TASK_FIELDS, INBOX_UPDATE_FIELDS } from './inbox';
 import { LOADER_OF } from './index';
 import { loadJobs } from './jobs';
 import { memorySource } from './memorySource';
@@ -1556,7 +1556,8 @@ describe('the chat badge and the bell (performance audit DB-6, DB-M1, DB-M2)', (
       await same(state, 'notifications.count', {}, actor);
       const { loaded } = await runBoth(state, 'notifications.count', {}, actor, { now: NOW, correlationId: 'cor_test' });
       for (const keys of keysOf(loaded.tasks)) expect(keys.every((key) => (INBOX_TASK_FIELDS as readonly string[]).includes(key)), `${actor} ${keys}`).toBe(true);
-      for (const keys of [...keysOf(loaded.updates), ...keysOf(loaded.feedback ?? {})]) expect(keys, actor).toEqual(['id']);
+      for (const keys of keysOf(loaded.updates)) expect(keys.every((key) => (INBOX_UPDATE_FIELDS as readonly string[]).includes(key)), `${actor} ${keys}`).toBe(true);
+      for (const keys of keysOf(loaded.feedback ?? {})) expect(keys, actor).toEqual(['id']);
     }
     // The writes of the bell keep whole rows.
     const notice = Object.values(state.notifications).find((n) => n.targetType === 'task' && state.tasks[n.targetId])!;

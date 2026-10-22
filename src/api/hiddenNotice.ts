@@ -1,5 +1,5 @@
 import type { Event, Project, User } from './contract/entities';
-import { can, mayViewProject, projectAccessOf } from './permissions';
+import { can, holdsRight, mayViewProject, projectAccessOf } from './permissions';
 import { ensureRights } from './rights';
 import type { State } from './store';
 
@@ -41,7 +41,7 @@ export function projectOfNotice(state: State, targetType: string, targetId: stri
 /**
  * True when the item of a notice belongs to a project that the person may not view. The project may be gone: then its last copy tells
  * (its leader, its chosen people and the holders of "See hidden projects" keep the view of a deleted hidden project, because its team is
- * gone with it). A project that never existed hides nothing.
+ * gone with it). A project that neither the office nor a delete event holds fails closed: only a holder of "See hidden projects" views it.
  */
 export function noticeProjectHidden(state: State, targetType: string, targetId: string, person: User): boolean {
   const projectId = projectOfNotice(state, targetType, targetId);
@@ -49,7 +49,9 @@ export function noticeProjectHidden(state: State, targetType: string, targetId: 
   const project = state.projects[projectId];
   if (project) return !mayViewProject(state, project, person);
   const copy = lastCopy(state, 'project', projectId) as (Partial<Project> & Pick<Project, 'access'>) | null;
-  if (copy === null) return false;
+  // Fail closed: a project that the office does not hold and no delete event shows is hidden from everyone but a holder of "See hidden
+  // projects" (security review of the notice commit, 2026-10-22). The loader of the Inbox brings the events it needs.
+  if (copy === null) return !holdsRight(ensureRights(state, person), 'project.hidden');
   const role = copy.leaderId === person.id ? 'leader' : 'other';
   return !can(ensureRights(state, person), 'project.view', { projectRole: role, access: projectAccessOf(copy, person.id) });
 }
