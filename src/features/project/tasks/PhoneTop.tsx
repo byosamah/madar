@@ -35,8 +35,8 @@ export function TitleBlock({ panel }: { panel: TaskPanel }) {
   if (!canDetails) return <p dir="auto" className={shape}><bdi>{task.title}</bdi></p>;
   if (!editing) {
     return (
-      <button type="button" dir="auto" onClick={() => setEditing(true)} className={`pressable w-full text-start ${shape}`}>
-        {title}
+      <button type="button" onClick={() => setEditing(true)} className={`pressable w-full text-start ${shape}`}>
+        <span dir="auto" className="block">{title}</span>
         <span className="sr-only"> {t('phoneTask.editTitle')}</span>
       </button>
     );
