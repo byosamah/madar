@@ -963,10 +963,17 @@ Branch `rb/perf2` (worktree `~/dev/madar-rb/perf2`). Sonnet agents, the Opus ses
   build:remote test, test:db, test:it, test:mcp, the prototype smoke: all green (one npm test failure fixed, see below)
 - [x] Screenshots (EN/AR, light/dark, 390 px), Chrome and WebKit iPhone, and the after numbers on the test copy: no breakage;
   numbers in proof.md "After numbers on the test copy"
-- [ ] Follow-ups (owner, 2026-10-22: "do both fixes"), run wf_e8be1b35-93b: the idle prefetch waits until the first rows show and
-  fetches a few chunks at a time (64 chunks now start before the first rows on a cold load); one save makes one trip (a second
-  tasks.list request follows the write, likely the one-overview-read rule of wire.ts). Then the gates once, the test copy, the
-  live numbers. What's new: the line "Madar is faster" covers them
+- [x] Follow-ups (owner, 2026-10-22: "do both fixes"), run wf_e8be1b35-93b, merged (dffe9a1a): the idle prefetch starts one idle step
+  and a 1 s quiet gap after the first fresh answer (safety start at 10 s), 3 chunks at a time in the order Projects, project page,
+  Tasks, Inbox, Dashboard (lab: 2 chunks before the first rows, were 66); one save makes one trip: each overview call has a cost
+  (callCost, BATCH_BUDGET 30 = 300 ms of CPU on the year office) and the follow reads of a write share one request (jsdom: 1
+  request, was 2); the server checks the same sum (413 too_many_overviews). What's new: the line "Madar is faster" covers them
+- [x] Gates once on dffe9a1a: typecheck; npm test 9,832 passed (6 skipped); the three builds; test:db 2,990 (27 skipped); test:it 332;
+  test:mcp 330 and conformance 5 of 32 (normal); test:lite and test:office at the deploy (owner: "deploy", checks after)
+- [ ] After the test deploy: the prototype smoke and one live save (one POST, CPU of that request far under 2 s)
+- [ ] Security note (automated review, 2026-10-22): the budget prices a one-person tasks.list (mine, review_for_me, workOf, ownerId)
+  at 1. These lists are narrow in SQL (owner and helpers, or in review); measured 5 to 10 ms on the year office; the worst request
+  the budget and MAX_BATCH allow stays near 0.5 s of the 2 s CPU limit. No change; look again if a person list grows a full scan
 - [x] What's new line 2026-10-23-82 "Madar is faster" (d107844d); no MCP change in wave 1 (no call, input, output or rule changes)
 - [x] Test copy at b8bb9e42 (`all.sh test` from main, 2026-10-22): quick checks passed; the after numbers and screenshots run
 - [x] Production at b8bb9e42 on the owner's word ("deploy to production", 2026-10-22): migration applied, quick checks passed;
