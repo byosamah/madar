@@ -19,8 +19,15 @@ export const INBOX_TASK_FIELDS = ['id', 'projectId', 'ownerId', 'helperIds', 'cr
 /** The meeting fields that the bell reads (fbk_022): whether the meeting is there, and its view rule (mayViewMeeting). */
 export const INBOX_MEETING_FIELDS = ['id', 'projectId', 'organizerId', 'attendeeIds'] as const;
 
-async function unreadOf(L: Load, userId: string): Promise<void> {
-  await L.select({ c: 'notifications', where: [{ col: 'user_id', in: [userId] }, { col: 'read', eq: false }] });
+/**
+ * The notice fields that the bell count reads (notifications.count, performance audit DB-8, perf2): counts() reads the person, the read
+ * mark and the trigger, isGone reads the target, and feedbackNoticeHidden reads the trigger and the report excerpt of a report notice.
+ */
+export const INBOX_COUNT_NOTICE_FIELDS = ['id', 'userId', 'read', 'trigger', 'targetType', 'targetId', 'feedback'] as const;
+
+/** The unread notices of the person: whole rows, or only the fields of the count when "counted" (a read that never saves). */
+async function unreadOf(L: Load, userId: string, counted = false): Promise<void> {
+  await L.select({ c: 'notifications', where: [{ col: 'user_id', in: [userId] }, { col: 'read', eq: false }], ...(counted ? { pick: INBOX_COUNT_NOTICE_FIELDS } : {}) });
 }
 
 /**
@@ -48,7 +55,7 @@ async function targets(L: Load, counted = false): Promise<void> {
 /** notifications.count, markAllRead, and the count that markRead and markUnread return. */
 export async function inboxCount(L: Load, input: Input): Promise<void> {
   if (!L.authority) return;
-  await unreadOf(L, L.authority.id);
+  await unreadOf(L, L.authority.id, !L.write);
   await L.byKey('notifications', (input.ids as string[] | undefined) ?? []);
   await targets(L, !L.write);
 }

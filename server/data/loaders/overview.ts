@@ -116,7 +116,9 @@ export async function tasksList(L: Load, input: Input): Promise<void> {
   ];
   const waiting = tasks.filter((t) => t.status !== 'done' && t.stageId !== null
     && ((t.prerequisiteIds ?? []).length > 0 || (L.office.stages[t.stageId]?.prerequisiteIds ?? []).length > 0));
-  await tasksOf(L, waiting.map((t) => t.projectId));
+  // The first read held every task of its projects when it had no narrowing condition, so a waiting task finds its project held (DB-11, perf2).
+  const held = new Set<string | null>(where.length === 0 ? ids : []);
+  await tasksOf(L, waiting.map((t) => t.projectId).filter((id) => !held.has(id)));
   await L.counts('comments', 'target_id', tasks.map((t) => t.id), commentCountKey);
   await L.counts('files', 'task_id', tasks.map((t) => t.id), fileCountKey);
 }

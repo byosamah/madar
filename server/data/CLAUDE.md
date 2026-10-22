@@ -96,12 +96,21 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - A Select with `per`, a limit and a top-level in-list on the `per` column reads each key with a LATERAL subquery on the index
   of that key (`fetch first n rows with ties` for ties, else `limit n`). Every other Select with a limit keeps the `rank()` or
   `row_number()` window form. Both forms give the same rows in the same order (`sqlSource.ts`, `selectSql`).
-- A field pick (`Select.pick`) builds the doc with `jsonb_build_object` of the picked keys minus the keys that the doc does not
-  hold, so an absent field stays absent. The key names go in one array parameter, never in the SQL text. A pick of more than
-  50 keys keeps `jsonb_each` (Postgres takes at most 100 arguments in a function call).
+- A Select with a limit, no `per`, no ties and an order that ends with the id (`order.id`) takes the plain LIMIT form: one key of an
+  in-list reads as an equality, the order is the order columns and the id (no `t.ord`), and the outer `order by x.ord` keeps the row
+  order. An index in that order then gives the first rows with no sort (the Inbox list, `notifications_inbox_c`; perf2 DB-9).
+- The perf2 indexes (`20261022000300_read_indexes_perf2.sql`): `comments_author_task` (the threads statement), `notifications_inbox_c`
+  (it replaces `notifications_inbox`: the unread read and the newest read ones, in text order), and the partial index
+  `events_report_verbs` (the five report verbs, for `reports.office`). `readIndexes.it.test.ts` pins each plan.
+- A field pick (`Select.pick`) returns one jsonb array for each row: a mask first (bit i is 1 when the doc has no key i), then
+  the value of each key in the order of the pick. `sqlSource.select` builds the object back (`unpick`), in the key order of
+  jsonb, so an absent field stays absent and a JSON null stays null. The key names never repeat in a row (about 40% fewer bytes,
+  perf2 DB-4) and go in one array parameter, never in the SQL text. A pick of more than 50 keys keeps the object form with
+  `jsonb_each` (Postgres takes at most 100 arguments in a function call, and the array holds the mask and one value for each key).
 - `atOrAfter` (`events.list` since) adds a text lower bound on `created_at collate "C"`: the UTC text of the time minus 36
   hours. The timestamptz test still decides, so the bound never removes a row. A count with a bounds condition on its `per`
-  column joins the bound rows to the table on that column.
+  column counts each key in a LATERAL subquery on that column (a plain join let Postgres scan every message at 15,000 messages;
+  `readIndexes.it.test.ts` pins the plan, perf2 DB-5).
 - `after` is the mirror of `before`, and `order.asc` reads oldest first (no ties); `chats.messages` with `around` uses both.
   `contains` sends an escaped LIKE on Postgres (`likeOf`, `sqlSource.ts`), so a trigram index serves it; memory and SQLite keep
   the substring test.
@@ -114,10 +123,15 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   with a text column in `query.ts` (`columnOfField`). A list or nested path keeps `jsonb_path_exists`.
 - Leak rule for picks: `chats.unreadCount` has its own loader (`chatsUnread`), with `THREAD_TASK_FIELDS` and
   `THREAD_COMMENT_FIELDS` (`chat.ts`). `notifications.count` reads its targets with `INBOX_TASK_FIELDS` (`inbox.ts`), and posts
-  and reports with the id only. Each task pick must hold every field that a view rule reads (`mayViewTask`, `taskResource`,
+  and reports with the id only, and its own unread notices with `INBOX_COUNT_NOTICE_FIELDS` (count mode only: the list and the writes keep whole rows;
+  perf2 DB-8). Each task pick must hold every field that a view rule reads (`mayViewTask`, `taskResource`,
   `hiddenTask`: projectId, ownerId, helperIds, createdBy). `chats.list`, `chats.markRead` and the notification writes keep
   whole rows. `pickedByKey` (`steps.ts`) is only for a read that never saves and loads nothing else of that table, because a
   later `byKey` keeps the picked copy.
+- Picks of perf2 (all reads that never save a row): the jobs loader reads each open task with `JOB_TASK_FIELDS` and only the tasks past due or due
+  within `JOB_DUE_AHEAD_DAYS` (4) days of the run (`atBefore` on `due_date`; with no run time it reads every open task); `reports.office` reads
+  the Tracker lines with `REPORT_TRACKER_FIELDS`; `tasks.list` reads the tasks of a waiting project a second time only when its first read had a
+  narrowing condition. `perf2.test.ts` pins each one against the whole office.
 - The unread count and the reply that waits of a task thread read the messages only (fbk_027): the chat loader adds `MESSAGES_ONLY`
   (`dates` and `kind` null) to the count, to the newest message and to the own newest message, and keeps the reads of the newest item of any
   kind (the preview, the order, who is in the thread). Change `taskUnread` and `waitingThread` (`src/api/handlers/chats.ts`) with it.
@@ -133,6 +147,13 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   its counts come from `countWhere` with one key for each value (`REPORT_KEYS`). A loader without the clock never resolves a period.
 - A Source gives rows that the caller owns (`sqlSource` gets new objects from pg, `memorySource` gives copies), so
   `Load.state()` keeps them with no second copy. The office lists of the State stay copies of the snapshot.
+- `Load.batch(steps)` sends reads that do not depend on each other as ONE statement (perf2 SV-10): `sqlSource.batch` joins them with
+  `union all` (`batchSql`) and gives one row for each read, with that read's rows as one jsonb array (`jsonb_agg`). The chat loaders
+  (`chat.ts`: `everyChat`, `chatsWaiting`) run in rounds: 3 statements for `chats.unreadCount` and `chats.list` (were 9 to 11), and 3
+  for `chats.waiting` (was 12). A step must not need the rows of another step of the same batch (the keys that a `byKey` step misses are
+  chosen before the batch runs). `memorySource` and `liteSource` have no `batch`; `Load.batch` then asks them one read at a time and
+  gives the same State. One read left in a batch keeps its own statement. `loaders.it.test.ts` pins at most 3 statements for the
+  badge and the list.
 - Save: `runWrite` takes `before` from `beforeOf` (`loaders/build.ts`). Its office lists are the frozen snapshot lists, and
   every other collection is a deep copy. Only the save step reads `before`; a write into its office part throws. `diffState`
   makes the JSON of a deep-frozen record once (a WeakMap in `save.ts`).

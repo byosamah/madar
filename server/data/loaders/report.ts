@@ -11,6 +11,12 @@ import { tasksOf } from './steps';
 type Input = ReportPick & { subCompanyId?: string };
 
 /**
+ * The Tracker fields that the report counts (reports.ts, trackerCounts and the submissions): the project, the side, the day, who it
+ * waits for and when it closed. The report never saves, so it loads only these (performance audit DB-10, perf2).
+ */
+export const REPORT_TRACKER_FIELDS = ['id', 'projectId', 'direction', 'date', 'waiting', 'closedAt'] as const;
+
+/**
  * reports.office (owner, 2026-10-18, fbk_016). The loader reads the rows and the counts of the period of the call.
  *
  * Rows: every task of the projects, because a task has no date column and the handler counts the days. Every Tracker entry of the
@@ -33,7 +39,7 @@ export async function reportsOffice(L: Load, input: Input): Promise<void> {
   const ids = Object.values(L.office.projects).filter((project) => !input.subCompanyId || project.subCompanyId === input.subCompanyId).map((project) => project.id);
 
   await tasksOf(L, ids, DASHBOARD_TASK_FIELDS);
-  await L.select({ c: 'tracker', where: [{ col: 'project_id', in: ids }] });
+  await L.select({ c: 'tracker', where: [{ col: 'project_id', in: ids }], pick: REPORT_TRACKER_FIELDS });
   if (can(L.authority, 'payment.view')) await L.select({ c: 'payments', where: [{ col: 'project_id', in: ids }] });
 
   // The events of the period: created on or after the first instant of the first day, and before the first instant of the day after.

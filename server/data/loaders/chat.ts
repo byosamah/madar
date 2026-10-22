@@ -7,7 +7,8 @@ import type { Bound } from './query';
 import { AROUND_BEFORE } from '../../../src/api/chatAround';
 import { isLiveMessage } from '../../../src/api/chatNaming';
 import { MESSAGE_PAGE_MAX } from '../../../src/api/chatState';
-import { attachedFiles, LIVE, newestMessages, officeState, pickedByKey } from './steps';
+import type { ThreadRow, ThreadsArgs } from './source';
+import { attachedFiles, LIVE, newestMessagesRead, officeState } from './steps';
 
 /**
  * The chat loader (plan 4.6): the chats and the task threads of the person U.
@@ -51,14 +52,29 @@ type Kept = { inWrite?: true };
 /** badge: the read of chats.unreadCount, which needs the numbers only. */
 type Mode = Kept & { badge?: true };
 
-/** The read marks, newest message and unread count of these chats. */
-async function chatsOf(L: Load, userId: string, conversations: readonly Conversation[], mode: Mode = {}): Promise<void> {
+/**
+ * The reads of a chat load come in rounds (performance audit SV-10, perf2): the reads of one round do not depend on each other, so
+ * Load.batch sends them as one statement. A round may need the answer of the round before it (the read marks give the bounds of the
+ * counts, the thread list gives the keys of the thread reads, the own comments give the bounds of the thread count).
+ */
+
+/** Round 1 of the chats: the read marks and the newest message of each chat (the badge needs no message). */
+function chatsFirst(userId: string, conversations: readonly Conversation[], mode: Mode) {
   const ids = conversations.map((c) => c.id);
-  await L.byKey('chatReads', ids.map((id) => chatReadKey(id, userId)));
-  // unreadIn (chatState.ts) takes the count first, so the badge never reads the newest message.
-  if (!mode.badge) await newestMessages(L, ids);
-  // The Admin's other project chats count only the messages that name the Admin (design item 23): a second grouped count, with the
-  // extra condition on "mentions". Every other chat counts as before. A count with no chat is skipped.
+  return [
+    { byKey: { c: 'chatReads', keys: ids.map((id) => chatReadKey(id, userId)) } },
+    // unreadIn (chatState.ts) takes the count first, so the badge never reads the newest message.
+    mode.badge ? undefined : { select: newestMessagesRead(ids) },
+  ] as const;
+}
+
+/**
+ * Round 2 of the chats: the unread count of each chat, from the read marks of round 1. The Admin's other project chats count only
+ * the messages that name the Admin (design item 23): a second grouped count, with the extra condition on "mentions". Every other
+ * chat counts as before. A count with no chat is left out.
+ */
+function chatsCounts(L: Load, userId: string, conversations: readonly Conversation[], mode: Mode) {
+  const ids = conversations.map((c) => c.id);
   const office = officeState(L);
   // The Admin who picked "Everything" counts every message of those chats, so the same rule (adminReachOf) feeds both counts (owner, 2026-10-23).
   const reach = L.authority && L.authority.id === userId ? adminReachOf(L.authority) : 'mixed';
@@ -66,46 +82,77 @@ async function chatsOf(L: Load, userId: string, conversations: readonly Conversa
     .filter((c) => countsNamedOnly(projectRoleOf(office, c.projectId, userId), c, levelFromRead(L.get<ChatRead>('chatReads', chatReadKey(c.id, userId)), c.kind), reach))
     .map((c) => c.id));
   const countOf = (own: string[], extra: readonly { has: string; value: string }[]) => {
-    if (own.length === 0) return Promise.resolve();
+    if (own.length === 0) return undefined;
     const by = Object.fromEntries(own.map((id): [string, Bound] => [id, { gt: markOf(L, id, userId) }]));
-    return L.countWhere({
-      c: 'messages', per: 'conversation_id',
-      where: [{ bounds: { col: 'conversation_id', by } }, LIVE, { field: 'authorId', notIn: meOf(L, userId) }, { field: 'actingForId', notIn: [userId] }, ...extra],
-    }, own, (id) => unreadCountKey(id, userId), mode);
+    return {
+      count: {
+        s: {
+          c: 'messages', per: 'conversation_id',
+          where: [{ bounds: { col: 'conversation_id', by } }, LIVE, { field: 'authorId', notIn: meOf(L, userId) }, { field: 'actingForId', notIn: [userId] }, ...extra],
+        },
+        values: own, keyOf: (id: string) => unreadCountKey(id, userId), ...inWriteOf(mode),
+      },
+    } as const;
   };
-  await countOf(ids.filter((id) => !namedOnly.has(id)), []);
-  await countOf(ids.filter((id) => namedOnly.has(id)), [{ has: 'mentions', value: userId }]);
+  return [countOf(ids.filter((id) => !namedOnly.has(id)), []), countOf(ids.filter((id) => namedOnly.has(id)), [{ has: 'mentions', value: userId }])] as const;
 }
 
-/** The task threads of U, with the comments that their preview and order read, and their unread counts. */
-async function threadsOf(L: Load, userId: string, mode: Mode): Promise<void> {
-  if (!L.authority || !can(L.authority, 'comment.read')) return;
-  const me = meOf(L, userId);
+const inWriteOf = (mode: Mode) => (mode.inWrite ? { inWrite: true as const } : {});
+
+/** The read marks, newest message and unread count of these chats. */
+async function chatsOf(L: Load, userId: string, conversations: readonly Conversation[], mode: Mode = {}): Promise<void> {
+  await L.batch(chatsFirst(userId, conversations, mode));
+  await L.batch(chatsCounts(L, userId, conversations, mode));
+}
+
+/** The question for the task threads of U, or undefined when U may not read comments. */
+function threadsAsk(L: Load, userId: string): ThreadsArgs | undefined {
+  if (!L.authority || !can(L.authority, 'comment.read')) return undefined;
   const led = Object.values(L.office.projects).filter((project) => project.leaderId === userId).map((project) => project.id);
   // The Admin sees every office task, so an office thread the Admin commented on is the Admin's too (owner, 2026-10-06).
-  const threads = await L.src.threads({ owner: userId, led, me, limit: TASK_THREAD_LIMIT, admin: can(L.authority, 'task.view', { office: true }) });
-  if (threads.length === 0) return;
+  return { owner: userId, led, me: meOf(L, userId), limit: TASK_THREAD_LIMIT, admin: can(L.authority, 'task.view', { office: true }) };
+}
+
+/**
+ * Round 2 of the task threads, from the thread list of round 1: each thread's task, its read mark, its newest comment, U's newest
+ * comment of any kind (a person who only wrote a line of a reason is part of the thread), and U's newest message, which gives the
+ * bound of the unread count in round 3. Nothing for an empty list.
+ */
+function threadsMiddle(userId: string, me: readonly string[], threads: readonly ThreadRow[], mode: Mode) {
+  if (threads.length === 0) return [undefined, undefined, undefined, undefined, undefined] as const;
   const ids = threads.map((thread) => thread.id);
-  if (mode.badge) await pickedByKey(L, 'tasks', ids, THREAD_TASK_FIELDS);
-  else await L.byKey('tasks', ids);
-  await L.byKey('chatReads', ids.map((id) => chatReadKey(id, userId)));
   const newest = { order: { col: 'created_at', desc: true, id: true } as const, per: 'target_id', limit: 1, ...(mode.badge ? { pick: THREAD_COMMENT_FIELDS } : {}) };
   const onThreads = [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: ids }] as const;
-  await L.select({ c: 'comments', where: onThreads, ...newest });
-  // U's newest comment of any kind: a person who only wrote a line of a reason is part of the thread (taskThreads).
-  await L.select({ c: 'comments', where: [...onThreads, { field: 'authorId', in: me }], ...newest });
-  // The unread comments come after U's own last message in the order of the thread (stamp, then id), as taskUnread reads them.
-  // A line that U wrote is no reply, so the bound is the newest message of U (fbk_027).
-  const own = (await L.select({ c: 'comments', where: [...onThreads, { field: 'authorId', in: me }, ...MESSAGES_ONLY], ...newest })) as Comment[];
+  return [
+    // The badge reads only the fields of its rules from the tasks (THREAD_TASK_FIELDS).
+    { byKey: { c: 'tasks', keys: ids, ...(mode.badge ? { pick: THREAD_TASK_FIELDS } : {}) } },
+    { byKey: { c: 'chatReads', keys: ids.map((id) => chatReadKey(id, userId)) } },
+    { select: { c: 'comments', where: onThreads, ...newest } },
+    { select: { c: 'comments', where: [...onThreads, { field: 'authorId', in: me }], ...newest } },
+    // The unread comments come after U's own last message in the order of the thread (stamp, then id), as taskUnread reads them.
+    // A line that U wrote is no reply, so the bound is the newest message of U (fbk_027).
+    { select: { c: 'comments', where: [...onThreads, { field: 'authorId', in: me }, ...MESSAGES_ONLY], ...newest } },
+  ] as const;
+}
+
+/** Round 3 of the task threads: the unread comments of each thread, after the read mark and U's last own message. */
+function threadsCount(L: Load, userId: string, me: readonly string[], threads: readonly ThreadRow[], own: readonly Comment[], mode: Mode) {
+  if (threads.length === 0) return undefined;
+  const ids = threads.map((thread) => thread.id);
   const lastOwn = new Map(own.map((comment) => [comment.targetId, { at: comment.createdAt, id: comment.id }]));
   const by = Object.fromEntries(ids.map((id): [string, Bound] => {
     const after = lastOwn.get(id);
     return [id, { gt: markOf(L, id, userId), ...(after ? { after } : {}) }];
   }));
-  await L.countWhere({
-    c: 'comments', per: 'target_id',
-    where: [{ col: 'target_type', eq: 'task' }, { bounds: { col: 'target_id', by } }, { field: 'authorId', notIn: me }, ...MESSAGES_ONLY],
-  }, ids, (id) => unreadCountKey(id, userId), mode);
+  return {
+    count: {
+      s: {
+        c: 'comments', per: 'target_id',
+        where: [{ col: 'target_type', eq: 'task' }, { bounds: { col: 'target_id', by } }, { field: 'authorId', notIn: me }, ...MESSAGES_ONLY],
+      },
+      values: ids, keyOf: (id: string) => unreadCountKey(id, userId), ...inWriteOf(mode),
+    },
+  } as const;
 }
 
 /** The chats U may open, from the office. */
@@ -124,11 +171,24 @@ function listed(L: Load): Conversation[] {
   return reach === 'mine' ? visible(L).filter((c) => !hiddenByReach(projectRoleOf(office, c.projectId, L.authority!.id), c, reach)) : visible(L);
 }
 
-/** Every chat and task thread of U. */
+/**
+ * Every chat and task thread of U, in three rounds (performance audit SV-10, perf2; each round was up to 17 statements one after the
+ * other): 1. the read marks and the newest messages of the chats, and the thread list. 2. the unread counts of the chats, and the
+ * tasks, read marks and comments of the threads. 3. the unread comments of the threads.
+ */
 async function everyChat(L: Load, mode: Mode): Promise<void> {
   if (!L.authority) return;
-  await chatsOf(L, L.authority.id, listed(L), mode);
-  await threadsOf(L, L.authority.id, mode);
+  const userId = L.authority.id;
+  const conversations = listed(L);
+  const ask = threadsAsk(L, userId);
+  const [reads, newest] = chatsFirst(userId, conversations, mode);
+  const [, , found] = await L.batch([reads, newest, ask ? { threads: ask } : undefined] as const);
+  const threads = found ?? [];
+  const [plain, named] = chatsCounts(L, userId, conversations, mode);
+  const [tasks, marks, latest, mine, ownRead] = threadsMiddle(userId, ask?.me ?? [], threads, mode);
+  const answers = await L.batch([plain, named, tasks, marks, latest, mine, ownRead] as const);
+  const count = threadsCount(L, userId, ask?.me ?? [], threads, (answers[6] ?? []) as Comment[], mode);
+  await L.batch([count] as const);
 }
 
 /** chats.list: every chat and task thread of U, with the previews. */
@@ -294,7 +354,12 @@ export async function chatMessageCall(L: Load, input: Input): Promise<void> {
 /**
  * chats.waiting (fbk_011, owner 2026-10-18): the rows that waitingFor (chats.ts) compares. Per visible chat: the archive mark and
  * the newest message (the direct rule). Per project chat and per group (design item 22): the newest message of the person, with its
- * agents, and the newest message that names the person. Per task thread: see threadsWaitingOf.
+ * agents, and the newest message that names the person. Per task thread: the task (its lead), the newest comment, and the newest
+ * comment of the person. A thread that the person does not lead also gets the comments of other people after the person's last
+ * comment. Comments keep no mention list, so the body names the person (mentionedUserIds), or the comment replies to a comment of
+ * the person (namesPerson reads the old comment, so its key loads too). A thread the person leads needs only its newest comment.
+ * Four rounds of independent reads (performance audit SV-10, perf2): 1. the marks, the newest messages and the thread list.
+ * 2. the thread tasks, marks and comments. 3. the comments of other people after the last own one. 4. the old comment of each reply.
  */
 export async function chatsWaiting(L: Load): Promise<void> {
   if (!L.authority) return;
@@ -302,52 +367,43 @@ export async function chatsWaiting(L: Load): Promise<void> {
   const meSet = meOf(L, me);
   const conversations = visible(L);
   const ids = conversations.map((c) => c.id);
-  await L.byKey('chatReads', ids.map((id) => chatReadKey(id, me)));
-  await newestMessages(L, ids);
   // A group waits like a project chat: only for a newer message that names the person (design item 22).
   const namedIds = conversations.filter((c) => c.kind === 'project' || c.kind === 'group').map((c) => c.id);
-  if (namedIds.length > 0) {
-    const newest = { order: { col: 'created_at', desc: true, id: true } as const, per: 'conversation_id', limit: 1 };
-    await L.select({ c: 'messages', where: [{ col: 'conversation_id', in: namedIds }, LIVE, { or: [{ field: 'actingForId', in: [me] }, { field: 'authorId', in: meSet }] }], ...newest });
-    await L.select({ c: 'messages', where: [{ col: 'conversation_id', in: namedIds }, LIVE, { has: 'mentions', value: me }], ...newest });
-  }
-  await threadsWaitingOf(L, me, meSet);
-}
-
-/**
- * The task threads of the person for chats.waiting: the task (its lead), the newest comment, and the newest comment of the person.
- * A thread that the person does not lead also gets the comments of other people after the person's last comment.
- * Comments keep no mention list, so the body names the person (mentionedUserIds), or the comment replies to a comment of the person
- * (namesPerson reads the old comment, so its key loads too). A thread the person leads needs only its newest comment.
- */
-async function threadsWaitingOf(L: Load, me: string, meSet: string[]): Promise<void> {
-  if (!L.authority || !can(L.authority, 'comment.read')) return;
-  const led = Object.values(L.office.projects).filter((project) => project.leaderId === me).map((project) => project.id);
-  // The Admin sees every office task, so an office thread the Admin commented on is the Admin's too (owner, 2026-10-06).
-  const threads = await L.src.threads({ owner: me, led, me: meSet, limit: TASK_THREAD_LIMIT, admin: can(L.authority, 'task.view', { office: true }) });
+  const newest = { order: { col: 'created_at', desc: true, id: true } as const, per: 'conversation_id', limit: 1 };
+  const ask = threadsAsk(L, me);
+  const [, , , , found] = await L.batch([
+    { byKey: { c: 'chatReads', keys: ids.map((id) => chatReadKey(id, me)) } },
+    { select: newestMessagesRead(ids) },
+    namedIds.length > 0 ? { select: { c: 'messages', where: [{ col: 'conversation_id', in: namedIds }, LIVE, { or: [{ field: 'actingForId', in: [me] }, { field: 'authorId', in: meSet }] }], ...newest } } : undefined,
+    namedIds.length > 0 ? { select: { c: 'messages', where: [{ col: 'conversation_id', in: namedIds }, LIVE, { has: 'mentions', value: me }], ...newest } } : undefined,
+    ask ? { threads: ask } : undefined,
+  ] as const);
+  const threads = found ?? [];
   if (threads.length === 0) return;
-  const ids = threads.map((thread) => thread.id);
-  await L.byKey('tasks', ids);
-  await L.byKey('chatReads', ids.map((id) => chatReadKey(id, me)));
-  const newest = { order: { col: 'created_at', desc: true, id: true } as const, per: 'target_id', limit: 1 };
-  const onThreads = [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: ids }] as const;
+  const threadIds = threads.map((thread) => thread.id);
+  const byThread = { order: { col: 'created_at', desc: true, id: true } as const, per: 'target_id', limit: 1 };
+  const onThreads = [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: threadIds }] as const;
   // The newest comment and U's newest comment of any kind give the thread its place and its people (taskThreads). The reply that waits
   // reads the messages only (waitingThread), so the newest message, U's newest message and the messages after it come as well (fbk_027).
-  await L.select({ c: 'comments', where: onThreads, ...newest });
-  await L.select({ c: 'comments', where: [...onThreads, { field: 'authorId', in: meSet }], ...newest });
-  await L.select({ c: 'comments', where: [...onThreads, ...MESSAGES_ONLY], ...newest });
-  const own = (await L.select({ c: 'comments', where: [...onThreads, { field: 'authorId', in: meSet }, ...MESSAGES_ONLY], ...newest })) as Comment[];
-  const named = ids.filter((id) => L.get<Task>('tasks', id)?.ownerId !== me);
+  const answers = await L.batch([
+    { byKey: { c: 'tasks', keys: threadIds } },
+    { byKey: { c: 'chatReads', keys: threadIds.map((id) => chatReadKey(id, me)) } },
+    { select: { c: 'comments', where: onThreads, ...byThread } },
+    { select: { c: 'comments', where: [...onThreads, { field: 'authorId', in: meSet }], ...byThread } },
+    { select: { c: 'comments', where: [...onThreads, ...MESSAGES_ONLY], ...byThread } },
+    { select: { c: 'comments', where: [...onThreads, { field: 'authorId', in: meSet }, ...MESSAGES_ONLY], ...byThread } },
+  ] as const);
+  const own = (answers[5] ?? []) as Comment[];
+  const named = threadIds.filter((id) => L.get<Task>('tasks', id)?.ownerId !== me);
   if (named.length === 0) return;
   const lastOwn = new Map(own.map((comment) => [comment.targetId, { at: comment.createdAt, id: comment.id }]));
   const by = Object.fromEntries(named.map((id): [string, Bound] => {
     const after = lastOwn.get(id);
     return [id, { gt: '', ...(after ? { after } : {}) }];
   }));
-  const others = (await L.select({
-    c: 'comments', where: [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: named }, { bounds: { col: 'target_id', by } }, { field: 'authorId', notIn: meSet }, ...MESSAGES_ONLY],
-  })) as Comment[];
+  const [others] = await L.batch([{
+    select: { c: 'comments', where: [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: named }, { bounds: { col: 'target_id', by } }, { field: 'authorId', notIn: meSet }, ...MESSAGES_ONLY] },
+  }] as const);
   // The old comment of each reply, by key: a reply to a comment of the person names the person (design item 22).
-  await L.byKey('comments', others.map((comment) => comment.replyToId));
+  await L.byKey('comments', ((others ?? []) as Comment[]).map((comment) => comment.replyToId));
 }
-

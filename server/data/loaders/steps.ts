@@ -4,7 +4,7 @@ import { commentCountKey, emptyState, fileCountKey, type State } from '../../../
 import { FEED_VERBS } from '../../../src/api/views';
 import { can } from '../../../src/api/permissions';
 import type { TableCollection } from '../tables';
-import type { Cond } from './query';
+import type { Cond, Select } from './query';
 import type { Load } from './build';
 
 /**
@@ -213,10 +213,15 @@ export const LIVE = { field: 'deletedAt', null: true } as const;
 
 /** The newest live message of each conversation, by stamp then id, as messagesOf (chatState.ts) orders them. */
 export async function newestMessages(L: Load, conversationIds: readonly string[]): Promise<Message[]> {
-  return (await L.select({
+  return (await L.select(newestMessagesRead(conversationIds))) as Message[];
+}
+
+/** The read of newestMessages, for a load that joins it with other reads (Load.batch). */
+export function newestMessagesRead(conversationIds: readonly string[]): Select {
+  return {
     c: 'messages', where: [{ col: 'conversation_id', in: conversationIds }, LIVE],
     order: { col: 'created_at', desc: true, id: true }, per: 'conversation_id', limit: 1,
-  })) as Message[];
+  };
 }
 
 /**

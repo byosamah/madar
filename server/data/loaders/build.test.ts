@@ -89,3 +89,83 @@ describe('beforeOf', () => {
     }).toThrow(TypeError);
   });
 });
+
+describe('Load.batch (SV-10 of perf2)', () => {
+  /** A Source that counts how it is asked: one batch call, or one call for each read. */
+  function counting(state: State) {
+    const inner = memorySource(structuredClone(state));
+    const calls = { batch: 0, select: 0, countWhere: 0, threads: 0 };
+    const src: Source = {
+      ...inner,
+      select: async (s) => (calls.select++, inner.select(s)),
+      countWhere: async (s) => (calls.countWhere++, inner.countWhere(s)),
+      threads: async (o) => (calls.threads++, inner.threads(o)),
+    };
+    return { src, calls, inner };
+  }
+  const comments = { c: 'comments' as const, where: [{ col: 'target_type', eq: 'task' }, { col: 'target_id', in: ['tsk_001'] }] };
+  const unread = { s: { c: 'messages' as const, per: 'conversation_id', where: [{ bounds: { col: 'conversation_id', by: { cnv_001: { gt: '' } } } }] }, values: ['cnv_001', 'cnv_002'], keyOf: (id: string) => `unread:${id}` };
+  const asked = { owner: 'usr_001', led: [] as string[], me: ['usr_001'], limit: 30, admin: true };
+  const steps = () => [
+    { byKey: { c: 'tasks' as const, keys: ['tsk_001', 'tsk_002', 'tsk_001', null, ''] } },
+    { select: comments },
+    undefined,
+    { count: unread },
+    { threads: asked },
+    { byKey: { c: 'tasks' as const, keys: [] } },
+  ] as const;
+
+  it('sends the reads to the batch of the source in one call, and gives the same State as the reads one by one', async () => {
+    const office = officeOf(seed);
+    const one = counting(seed);
+    const A = new Load({ src: one.src, office, actorId: 'usr_001', write: false });
+    const answers = await A.batch(steps());
+
+    const many = counting(seed);
+    const sequential = new Load({ src: many.src, office, actorId: 'usr_001', write: false });
+    await sequential.byKey('tasks', ['tsk_001', 'tsk_002']);
+    await sequential.select(comments);
+    await sequential.countWhere(unread.s, unread.values, unread.keyOf);
+    const threads = await many.src.threads(asked);
+
+    expect(await A.state()).toEqual(await sequential.state());
+    expect(answers[2]).toBeUndefined();
+    expect(answers[1]).toHaveLength(Object.values(A.list('comments')).length);
+    expect(answers[4]).toEqual(threads);
+    // The source here has no batch, so Load asked it one read at a time: the same reads that the sequential way made.
+    expect(one.calls).toEqual({ batch: 0, select: 2, countWhere: 1, threads: 1 });
+  });
+
+  it('asks a source that has a batch once, and skips a byKey with no missing key and a count with no value', async () => {
+    const office = officeOf(seed);
+    const inner = memorySource(structuredClone(seed));
+    const asked: unknown[][] = [];
+    const src: Source = {
+      ...inner,
+      async batch(reads) {
+        asked.push([...reads]);
+        return Promise.all(reads.map((read) => ('select' in read ? inner.select(read.select) : 'count' in read ? inner.countWhere(read.count) : inner.threads(read.threads))));
+      },
+    };
+    const L = new Load({ src, office, actorId: 'usr_001', write: false });
+    await L.byKey('tasks', ['tsk_001']);
+    await L.batch([
+      { byKey: { c: 'tasks', keys: ['tsk_001'] } },
+      { count: { s: { c: 'messages', per: 'conversation_id', where: [] }, values: [], keyOf: (id) => id } },
+      { select: { c: 'comments', where: [{ col: 'id', in: ['cmt_001'] }] } },
+      { select: { c: 'updates', where: [{ col: 'id', in: ['upd_001'] }] } },
+    ]);
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toHaveLength(2);
+
+    // One read left after the skips goes to select, not to the batch.
+    await L.batch([{ count: { s: { c: 'messages', per: 'conversation_id', where: [] }, values: [], keyOf: (id) => id } }, { select: { c: 'files', where: [] } }]);
+    expect(asked).toHaveLength(1);
+  });
+
+  it('refuses an office list and a count in a write, as select and countWhere do', async () => {
+    const L = new Load({ src: memorySource(structuredClone(seed)), office: officeOf(seed), actorId: 'usr_001', write: true });
+    await expect(L.batch([{ select: { c: 'projects', where: [] } }])).rejects.toThrow('office');
+    await expect(L.batch([{ count: { s: { c: 'messages', per: 'conversation_id', where: [] }, values: ['cnv_001'], keyOf: (id) => id } }])).rejects.toThrow('never counts');
+  });
+});
