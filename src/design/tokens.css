@@ -4,6 +4,8 @@
 /* Design tokens from spec section 10, with the contrast values from plan clarification 7.
    label-3 is for icons and disabled states only, never for text. */
 :root {
+  /* The room that the phone tab bar takes at the foot of the page (64 px bar, 16 px edge or the safe area). 0 px while the bar hides. */
+  --phone-bar: calc(64px + max(16px, env(safe-area-inset-bottom)));
   --c-bg: #F4F4F7;
   --c-card: #FFFFFF;
   --c-label: #1D1D1F;
@@ -517,6 +519,9 @@
 }
 :root[data-panel-open] .app-page {
   transform: scale(0.97);
+}
+:root[data-bar-hidden] {
+  --phone-bar: 0px;
 }
 @media (prefers-reduced-motion: reduce) {
   .app-page {

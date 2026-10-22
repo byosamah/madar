@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router';
 import { useDraftOwner, useDraftSweep } from './drafts';
@@ -15,6 +15,7 @@ import { SubCompaniesProvider } from './subCompanies';
 import { PushSync } from './remote/PushSync';
 import { StorageBanner } from './StorageBanner';
 import { useRight } from './useRight';
+import { usePhoneBarHide } from './usePhoneBarHide';
 import { BellButton, SearchButton, TabPill } from './TabPill';
 import { AnimatedIcon } from '../components/icons/AnimatedIcon';
 import { ChevronLeftIcon } from '../components/icons/animated/chevron-left';
@@ -119,6 +120,14 @@ function Shell() {
   // A change of person also starts the open screen again, so no box on it keeps the unsent words or picked files of the
   // person before, for example the project update box (audit 2026-10-03, V-22).
   const personTurn = usePersonTurn();
+  // While the phone bar hides (an open chat, the keyboard, Focus mode), the page gives up the bar space (--phone-bar is 0 px).
+  // The layout effect sets the mark before the first paint, so a push that opens a chat shows no bar space.
+  const barHidden = usePhoneBarHide() !== null;
+  useLayoutEffect(() => {
+    if (!barHidden) return undefined;
+    document.documentElement.dataset.barHidden = '';
+    return () => { delete document.documentElement.dataset.barHidden; };
+  }, [barHidden]);
 
   // Without search.use the shortcut does nothing (role rights version 2). Before the session arrives it works, as the icon shows.
   const mayFind = useRight('search.use', undefined, true);
@@ -147,7 +156,7 @@ function Shell() {
       <div className="fixed end-4 top-4 z-30 hidden sm:block">
         <PersonMenu id="wide" />
       </div>
-      <main className="app-page relative mx-auto w-full max-w-6xl px-4 pb-32 pt-[max(1rem,env(safe-area-inset-top))] sm:px-8 sm:pb-16 sm:pt-24">
+      <main className="app-page relative mx-auto w-full max-w-6xl px-4 pt-[max(1rem,env(safe-area-inset-top))] max-sm:pb-[calc(var(--phone-bar)+1.5rem)] sm:px-8 sm:pb-16 sm:pt-24">
         {/* On a phone the tab bar keeps only the tabs; the mark (or the back link of a project page), Search, the bell and the picture sit at the top. */}
         <div className="-me-1.5 flex items-center justify-end gap-0.5 pb-1 sm:hidden">
           {!PROJECT_PAGE.test(pathname) && <HomeMark className="-ms-1 me-auto" />}

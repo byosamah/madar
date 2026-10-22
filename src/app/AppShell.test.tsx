@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { fakeVisualViewport, phoneMedia } from '../test/phoneMedia';
 import { renderApp } from '../test/render';
 
 const pill = () => screen.findByRole('navigation', { name: 'Main navigation' });
@@ -184,5 +185,62 @@ describe('app shell', () => {
     await pill();
     await userEvent.keyboard('{Control>}k{/Control}');
     expect(await screen.findByRole('heading', { level: 1, name: 'Search' })).toBeInTheDocument();
+  });
+});
+
+describe('app shell on a phone', () => {
+  const nav = () => screen.queryByRole('navigation', { name: 'Main navigation' });
+
+  it('shows no bar at first paint when a push opens a chat', async () => {
+    phoneMedia(true);
+    await renderApp('/inbox/cnv_001');
+    expect(nav()).toBeNull();
+    expect(document.documentElement).toHaveAttribute('data-bar-hidden');
+  });
+
+  it('slides the bar out in a chat and back on Back, and clears the attribute', async () => {
+    phoneMedia(true);
+    const { router } = await renderApp('/inbox');
+    expect(await screen.findByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument();
+    expect(document.documentElement).not.toHaveAttribute('data-bar-hidden');
+    await act(() => router.navigate('/inbox/cnv_001'));
+    await waitFor(() => expect(nav()).toBeNull());
+    expect(document.documentElement).toHaveAttribute('data-bar-hidden');
+    await act(() => router.navigate('/inbox'));
+    expect(await screen.findByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument();
+    expect(document.documentElement).not.toHaveAttribute('data-bar-hidden');
+  });
+
+  it('keeps the bar mounted but inert and clear while the keyboard is open', async () => {
+    phoneMedia(true);
+    const before = window.innerHeight;
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 });
+    fakeVisualViewport({ height: 500 });
+    try {
+      await renderApp('/');
+      const bar = await screen.findByRole('navigation', { name: 'Main navigation', hidden: true });
+      expect(bar).toHaveClass('opacity-0', 'pointer-events-none');
+      expect(bar).toHaveAttribute('inert');
+      expect(document.documentElement).toHaveAttribute('data-bar-hidden');
+    } finally {
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: before });
+    }
+  });
+
+  it('puts the bar space in the page padding', async () => {
+    phoneMedia(true);
+    await renderApp('/');
+    const main = document.querySelector('main')!;
+    expect(main).toHaveClass('max-sm:pb-[calc(var(--phone-bar)+1.5rem)]');
+    expect(main.className).not.toMatch(/\bpb-32\b/);
+  });
+
+  it('removes the attribute and brings the bar back when the window grows past 640 px in a chat', async () => {
+    const media = phoneMedia(true);
+    await renderApp('/inbox/cnv_001');
+    expect(document.documentElement).toHaveAttribute('data-bar-hidden');
+    act(() => media.set(false));
+    await waitFor(() => expect(document.documentElement).not.toHaveAttribute('data-bar-hidden'));
+    expect(await screen.findByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument();
   });
 });

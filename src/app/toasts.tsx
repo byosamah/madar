@@ -49,7 +49,7 @@ export function useSheetToasts(open: boolean): void {
 }
 
 /** The toasts sit at the bottom. While a sheet is open on a phone, they sit at the top, above the sheet. */
-const LANE = 'pointer-events-none fixed inset-x-0 bottom-24 z-[80] flex flex-col items-center gap-2 px-4 sm:bottom-6';
+const LANE = 'pointer-events-none fixed inset-x-0 bottom-[calc(var(--phone-bar)+0.75rem)] z-[80] flex flex-col items-center gap-2 px-4 sm:bottom-6';
 const LANE_OVER_SHEET = 'max-sm:bottom-auto max-sm:top-[calc(env(safe-area-inset-top)_+_0.75rem)]';
 
 /** Inputs that take no typing. A tick box, a radio or a button has nothing for Ctrl+Z to undo. */

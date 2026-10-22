@@ -1,4 +1,4 @@
-import { motion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { TFunction } from 'i18next';
 import type { MouseEvent } from 'react';
 import { useSyncExternalStore } from 'react';
@@ -6,12 +6,13 @@ import { useTranslation } from 'react-i18next';
 import { Link, useLocation } from 'react-router';
 import { Badge } from '../components/Badge';
 import { AnimatedIcon } from '../components/icons/AnimatedIcon';
-import { spring } from '../design/motion';
+import { fade, spring } from '../design/motion';
 import { subscribeWorkView, workTabLink } from './lastList';
 import { PHONE_NAV, phoneTabOf } from './nav';
 import { usePressReads } from './pressReads';
 import { useCall } from './runtime';
 import { useCompactBars } from './useCompactBars';
+import { usePhoneBarHide } from './usePhoneBarHide';
 
 /**
  * The name of the Inbox link. The Inbox tab counts the unread chats and the items that need action in the bell. Its count badge
@@ -41,12 +42,25 @@ export function PhoneTabBar() {
   const startReads = usePressReads();
   const workLink = useSyncExternalStore(subscribeWorkView, workTabLink, () => '/work');
   const open = phoneTabOf(pathname);
+  const hide = usePhoneBarHide();
+  const reduced = useReducedMotion();
+  // In a chat the bar leaves the page and slides back on Back. With the keyboard open it stays mounted, clear and inert. The
+  // scale of the compact bar transitions through the CSS scale property, so it does not fight the slide of the motion.
+  const keyboard = hide === 'keyboard';
   return (
-    <nav
+    <AnimatePresence initial={false}>
+      {hide !== 'route' && (
+    <motion.nav
+      key="bar"
       aria-label={t('nav.main')}
       data-pill
       data-compact={compact || undefined}
-      className={`pill fixed inset-x-0 bottom-[max(16px,env(safe-area-inset-bottom))] z-30 mx-auto flex w-[calc(100vw-32px)] max-w-md items-center gap-0.5 rounded-full p-1.5 origin-bottom motion-safe:transition-transform motion-safe:duration-300 ${compact ? 'motion-safe:scale-[0.94]' : ''}`}
+      inert={keyboard}
+      initial={reduced ? { opacity: 0 } : { y: '100%', opacity: 0 }}
+      animate={{ opacity: keyboard ? 0 : 1, ...(reduced ? {} : { y: 0 }) }}
+      exit={reduced ? { opacity: 0, transition: fade } : { y: '100%', opacity: 0, transition: spring.standard }}
+      transition={keyboard ? { duration: 0 } : reduced ? fade : spring.standard}
+      className={`pill fixed inset-x-0 bottom-[max(16px,env(safe-area-inset-bottom))] z-30 mx-auto flex w-[calc(100vw-32px)] max-w-md items-center gap-0.5 rounded-full p-1.5 origin-bottom motion-safe:transition-[scale] motion-safe:duration-300 ${compact ? 'motion-safe:scale-[0.94]' : ''} ${keyboard ? 'pointer-events-none opacity-0' : ''}`}
     >
       {PHONE_NAV.map((item) => {
         const to = item.tab === 'work' ? workLink : item.to;
@@ -81,6 +95,8 @@ export function PhoneTabBar() {
           </Link>
         );
       })}
-    </nav>
+    </motion.nav>
+      )}
+    </AnimatePresence>
   );
 }

@@ -149,7 +149,7 @@ describe('toasts and an open sheet (owner, 2026-10-06, layout)', () => {
     initI18n('en');
     phoneWidth();
     render(<ToastProvider><Screen /></ToastProvider>);
-    const bottom = ['bottom-24'];
+    const bottom = ['bottom-[calc(var(--phone-bar)+0.75rem)]', 'sm:bottom-6'];
     const top = ['max-sm:bottom-auto', 'max-sm:top-[calc(env(safe-area-inset-top)_+_0.75rem)]'];
     expect(lane()).toHaveClass(...bottom);
     expect(lane()).not.toHaveClass(...top);
