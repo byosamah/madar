@@ -1,5 +1,12 @@
 {
   "phoneMe": {
-    "title": "Me"
+    "title": "Me",
+    "disciplineRole": "{{discipline}}, {{role}}",
+    "quietOn": "{{days}}, outside {{from}} to {{to}}",
+    "quietOff": "Off",
+    "noticesApp": "In the app",
+    "noticesAppEmail": "In the app and by email",
+    "gcalOn": "Connected",
+    "gcalBroken": "Connect again"
   }
 }

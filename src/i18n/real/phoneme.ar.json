@@ -1,5 +1,12 @@
 {
   "phoneMe": {
-    "title": "أنا"
+    "title": "أنا",
+    "disciplineRole": "{{discipline}}، {{role}}",
+    "quietOn": "{{days}}، خارج {{from}} إلى {{to}}",
+    "quietOff": "متوقفة",
+    "noticesApp": "في التطبيق",
+    "noticesAppEmail": "في التطبيق وبالبريد",
+    "gcalOn": "مربوط",
+    "gcalBroken": "اربطه من جديد"
   }
 }

@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next';
 import { clockFormat, localeFor, type Lang } from '../../lib/dates';
-import { clockSteps, type Clock, type WorkRange } from '../../lib/quietHours';
+import { clockSteps, officeWorkHoursOf, workHoursOf, type Clock, type PersonLike, type SettingsLike, type WorkHours, type WorkRange } from '../../lib/quietHours';
 
 /** The words of the weekdays and the times of the work range, for the Settings section and the Admin block (fbk_048). */
 
@@ -48,4 +48,20 @@ export function startOptions(value: WorkRange, lock?: { on: boolean; from: Clock
 export function endOptions(value: WorkRange, lock?: { on: boolean; to: Clock }): Clock[] {
   const steps = clockSteps().filter((step) => step > value.from && (!lock?.on || step >= lock.to));
   return steps.includes(value.to) ? steps : [...steps, value.to].sort();
+}
+
+/**
+ * The range as the Quiet hours page shows it and saves it, and as the Me hub names it: the choice of the person, widened to hold the
+ * lock. The range always holds the lock, also when the Admin moved the lock after the person chose.
+ */
+export function effectiveWorkHours(person: PersonLike, settings: SettingsLike): WorkHours {
+  const mine = workHoursOf(person, settings);
+  const { lock } = officeWorkHoursOf(settings);
+  if (!lock.on) return mine;
+  return {
+    quiet: mine.quiet,
+    days: [...new Set([...mine.days, ...lock.days])].sort((a, b) => a - b),
+    from: mine.from < lock.from ? mine.from : lock.from,
+    to: mine.to > lock.to ? mine.to : lock.to,
+  };
 }
