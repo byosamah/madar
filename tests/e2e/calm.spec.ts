@@ -22,7 +22,9 @@ for (const width of [390, 820, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/#/');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Hala');
-    await expect(homeRows(page).first()).toBeVisible();
+    // Under 640 px Home has no project list (Direction D): it waits for the card Next for you.
+    if (width < 640) await expect(page.getByRole('region', { name: 'Next for you' })).toBeVisible();
+    else await expect(homeRows(page).first()).toBeVisible();
     await page.waitForTimeout(800); // the first-visit entrance settles
     await expect(page.locator('.glow')).toHaveCount(1);
     await expect(page.locator('main .signature')).toHaveCount(1);
@@ -36,6 +38,18 @@ for (const width of [390, 820, 1440]) {
     expect(scrollWidth).toBeLessThanOrEqual(width);
   });
 }
+
+test('Home at 390px is one column of blocks with no project list', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/#/');
+  await expect(page.getByRole('region', { name: 'Next for you' })).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Your projects' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: "See what's new" })).toHaveCount(0);
+  const left = await page.locator('[data-screen] > .grid > *').evaluateAll((nodes) => nodes.map((node) => Math.round(node.getBoundingClientRect().left)));
+  expect(left.length).toBeGreaterThanOrEqual(3);
+  expect(new Set(left).size).toBe(1); // every block starts at the same edge
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
 
 test('the pill has the five tabs, Search and the bell, and the person menu has its controls', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -176,6 +190,6 @@ test('screenshots for the sweep', async ({ page }) => {
   await page.getByRole('radio', { name: 'العربية' }).click();
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await page.goto('/#/');
-  await expect(page.locator('main ul li').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'خطوتك التالية' })).toBeVisible();
   await shot('home-390-ar');
 });

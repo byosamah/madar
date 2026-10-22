@@ -27,7 +27,9 @@ for (const width of [390, 820, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await goto(page, '/');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Hala');
-    await expect(homeRows(page).first()).toBeVisible();
+    // Under 640 px Home has no project list (Direction D): it waits for the card Next for you.
+    if (width < 640) await expect(page.getByRole('region', { name: 'Next for you' })).toBeVisible();
+    else await expect(homeRows(page).first()).toBeVisible();
     await page.waitForTimeout(800); // the first-visit entrance settles
     await expect(page.locator('.glow')).toHaveCount(1);
     await expect(page.locator('main .signature')).toHaveCount(1);
@@ -186,6 +188,6 @@ test('screenshots for the sweep', async ({ page }) => {
   await page.getByRole('radio', { name: 'العربية' }).click();
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await goto(page, '/');
-  await expect(page.locator('main ul li').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'خطوتك التالية' })).toBeVisible();
   await shot('home-390-ar');
 });

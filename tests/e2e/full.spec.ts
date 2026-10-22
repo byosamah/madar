@@ -70,7 +70,8 @@ test('reduce motion keeps the bars still while the page scrolls', async ({ page 
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/#/');
-  await expect(page.getByRole('list', { name: 'Your projects' }).getByRole('listitem').first()).toBeVisible();
+  // Home has no project list at 390 px (Direction D): wait for the card Next for you.
+  await expect(page.getByRole('region', { name: 'Next for you' })).toBeVisible();
   await page.mouse.wheel(0, 600);
   await page.waitForTimeout(500);
   const moved = await page.evaluate(() => [...document.querySelectorAll('[data-compact]')].map((el) => {
