@@ -1,3 +1,25 @@
+/** The round button of a switch, with no label and no box around it. A row that sets its own height uses it (the Me hub). */
+export function SwitchButton({
+  id, checked, onChange, describedBy,
+}: { id: string; checked: boolean; onChange: (next: boolean) => void; describedBy?: string }) {
+  return (
+    <button
+      id={id}
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-describedby={describedBy}
+      onClick={() => onChange(!checked)}
+      className={`pressable relative h-[31px] w-[51px] shrink-0 rounded-full ${checked ? 'bg-green' : 'bg-fill-strong'}`}
+    >
+      <span
+        aria-hidden
+        className={`absolute start-[2px] top-[2px] size-[27px] rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-5 rtl:-translate-x-5' : ''}`}
+      />
+    </button>
+  );
+}
+
 export function Switch({
   id, label, description, checked, onChange,
 }: { id: string; label: string; description?: string; checked: boolean; onChange: (next: boolean) => void }) {
@@ -7,20 +29,7 @@ export function Switch({
         <label htmlFor={id} className="block text-body">{label}</label>
         {description && <p id={`${id}-hint`} className="text-footnote text-label-2">{description}</p>}
       </div>
-      <button
-        id={id}
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        aria-describedby={description ? `${id}-hint` : undefined}
-        onClick={() => onChange(!checked)}
-        className={`pressable relative h-[31px] w-[51px] shrink-0 rounded-full ${checked ? 'bg-green' : 'bg-fill-strong'}`}
-      >
-        <span
-          aria-hidden
-          className={`absolute start-[2px] top-[2px] size-[27px] rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-5 rtl:-translate-x-5' : ''}`}
-        />
-      </button>
+      <SwitchButton id={id} checked={checked} onChange={onChange} describedBy={description ? `${id}-hint` : undefined} />
     </div>
   );
 }
