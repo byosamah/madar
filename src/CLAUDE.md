@@ -105,6 +105,11 @@ any screen work.
 - `src/features/map/`: `MapCanvas.tsx` is the one MapLibre wrapper, `PinPicker.tsx` the one field of the pin, `PinSheet.tsx` the sheet
   around it (Cancel and "Use this place"), `ProjectPin.tsx` the pin of a project, `mapStyle.ts` the Madar style.
   `src/lib/geo.ts` reads a pasted link or a pair of coordinates. The form field "Location" (`LocationField`) is in `ProjectFields.tsx`.
+- The map loads in this order (speed audit 2026-10-21, FL-17 and LV-10). `mapLib.ts` is the loader and holds no map code. A screen
+  makes its lazy canvas with `lazyMapCanvas()`, which starts the library request with the chunk request of `MapCanvas`. A pointer
+  down on the Dashboard Map tab calls `warmMap()` (through `Tabs` `onTabPointerDown`). The map never joins the idle prefetch: the
+  library is about 300 KB gz. `loadMapLib` folds the flag `VITE_MADAR_API === 'remote'` itself, because its `?url` imports would
+  put a second script file into the prototype build (`check-bundles` fails that). A test that runs the loader sets the flag.
 - **Zero cost (owner, 2026-10-19): a map service has no account, no key and no bill.** OpenFreeMap (tiles and glyphs) and OpenStreetMap
   Nominatim (the place search) pass. `mapStyle.test.ts` pins the one host in the style. A paid or keyed service (Mapbox, Google Maps JS,
   MapTiler, Stadia) never goes in. The own map file (`functions/map`, `server/http/pagesMap.ts`, `scripts/map/build-basemap.sh`) stays in the
