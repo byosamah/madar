@@ -25,6 +25,13 @@ type CommentThreadProps = { targetType: 'task' | 'update'; targetId: string; pro
   canAttach?: boolean;
   /** The count of people that @everyone names in this thread (fbk_041), for the row "Everyone" of the mention list. Missing: the row is off. */
   everyone?: number;
+  /**
+   * The phone panel (Direction D): the box sticks to the bottom of the scroll area of the sheet, with a hairline above it, and the @ list opens
+   * above it. The view scrolls once to the newest comment when the comments arrive. Default false: the desk panel does not change.
+   */
+  docked?: boolean;
+  /** Hides the heading "Comments", because the switch of the panel already says "Conversation (n)". The section keeps its name. Default false. */
+  hideTitle?: boolean;
 };
 
 /**
@@ -43,7 +50,7 @@ export function CommentThread(props: CommentThreadProps) {
  * the panel is open.
  */
 function CommentThreadFor({
-  targetType, targetId, projectId, stageId = null, people, canPost, canAttach = true, everyone, owner,
+  targetType, targetId, projectId, stageId = null, people, canPost, canAttach = true, everyone, docked = false, hideTitle = false, owner,
 }: CommentThreadProps & { owner: string }) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -90,16 +97,56 @@ function CommentThreadFor({
     }
   };
   const list = comments.data ?? [];
+  // A docked thread scrolls once to the newest comment, the first time the comments are there. A comment that arrives later keeps the
+  // place of the reader (the chat page has its own rule for that).
+  const end = useRef<HTMLDivElement>(null);
+  const scrolled = useRef(false);
+  const loaded = comments.data !== undefined;
+  useEffect(() => {
+    if (!docked || !loaded || scrolled.current) return;
+    scrolled.current = true;
+    end.current?.scrollIntoView({ block: 'end' });
+  }, [docked, loaded]);
   // A new object on each render: the ages of the comments read the clock on each key, as before the memo (RND-3).
   const refresh = {};
   // A file dropped on the panel outside the comments never opens in the browser tab (fbk_030).
   useBlockFileDrop();
+  const box = canPost ? (
+    <form
+      className="flex flex-col gap-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const text = withMentionMarkup(body.trim(), people);
+        if (text && !uploading) void send(text);
+      }}
+      // A paste of only pictures adds them to the picked files, with the rule of the chat box (item 14, fbk_032). Text stays text.
+      onPaste={(event) => {
+        const pictures = pastedPictures(event.clipboardData);
+        if (!canAttach || pictures.length === 0) return;
+        event.preventDefault();
+        attachments.add(pictures);
+      }}
+    >
+      {canAttach && <DropReceiver onFiles={attachments.add} />}
+      {replyTo && <ComposerReplyStrip replyTo={replyTo} onCancel={() => setReplyTo(null)} />}
+      <MentionField id={`comment-${targetId}`} label={t('comments.add')} value={body} onChange={setBody} people={people} everyone={everyone} placement={docked ? 'above' : 'below'} placeholder={t('comments.placeholder')} rows={2} inputRef={field} />
+      <PickedFiles files={attachments.files} onRemove={attachments.remove} progress={attachments.progress} busy={uploading} />
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1">
+          {canAttach && <AttachButton onPick={attachments.add} />}
+          <EmojiButton onPick={insertEmoji} returnTo={() => field.current} />
+        </div>
+        <Button variant={body.trim() ? 'primary' : 'secondary'} type="submit" disabled={!body.trim() || create.isPending || uploading}>{t('comments.send')}</Button>
+      </div>
+    </form>
+  ) : <p className="text-footnote text-label-2">{t('comments.cannot')}</p>;
+
   return (
     // Files dropped on the comments join the picked files, as in a chat (chat design item 14, fbk_030), where the person may post. The
     // area is no flex item here, so the panel keeps its layout.
-    <ChatDropArea note={targetType === 'task' && projectId === null ? t('chat.dropOfficeTask') : t('chat.dropProject')} className="relative">
-      <section aria-label={t('comments.title')} className="flex flex-col gap-3">
-        <h3 className="text-headline">{t('comments.title')}</h3>
+    <ChatDropArea note={targetType === 'task' && projectId === null ? t('chat.dropOfficeTask') : t('chat.dropProject')} className={docked ? 'relative flex min-h-0 flex-1 flex-col' : 'relative'}>
+      <section aria-label={t('comments.title')} className={`flex flex-col gap-3 ${docked ? 'flex-1' : ''}`}>
+        {!hideTitle && <h3 className="text-headline">{t('comments.title')}</h3>}
         {comments.error && <LoadFailed error={comments.error} onRetry={() => void comments.refetch()} />}
         {comments.data && list.length === 0 && <p className="text-footnote text-label-2">{t('comments.empty')}</p>}
         {list.length > 0 && (
@@ -114,35 +161,8 @@ function CommentThreadFor({
             )}
           </AgeRefresh.Provider>
         )}
-        {canPost ? (
-          <form
-            className="flex flex-col gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const text = withMentionMarkup(body.trim(), people);
-              if (text && !uploading) void send(text);
-            }}
-            // A paste of only pictures adds them to the picked files, with the rule of the chat box (item 14, fbk_032). Text stays text.
-            onPaste={(event) => {
-              const pictures = pastedPictures(event.clipboardData);
-              if (!canAttach || pictures.length === 0) return;
-              event.preventDefault();
-              attachments.add(pictures);
-            }}
-          >
-            {canAttach && <DropReceiver onFiles={attachments.add} />}
-            {replyTo && <ComposerReplyStrip replyTo={replyTo} onCancel={() => setReplyTo(null)} />}
-            <MentionField id={`comment-${targetId}`} label={t('comments.add')} value={body} onChange={setBody} people={people} everyone={everyone} placeholder={t('comments.placeholder')} rows={2} inputRef={field} />
-            <PickedFiles files={attachments.files} onRemove={attachments.remove} progress={attachments.progress} busy={uploading} />
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1">
-                {canAttach && <AttachButton onPick={attachments.add} />}
-                <EmojiButton onPick={insertEmoji} returnTo={() => field.current} />
-              </div>
-              <Button variant={body.trim() ? 'primary' : 'secondary'} type="submit" disabled={!body.trim() || create.isPending || uploading}>{t('comments.send')}</Button>
-            </div>
-          </form>
-        ) : <p className="text-footnote text-label-2">{t('comments.cannot')}</p>}
+        {docked && <div ref={end} data-comment-end className="-mt-3 h-0" />}
+        {docked ? <div data-comment-dock className="sticky bottom-0 z-10 -mx-5 -mb-5 mt-auto border-t border-hairline bg-panel px-5 pb-2 pt-3">{box}</div> : box}
       </section>
     </ChatDropArea>
   );
