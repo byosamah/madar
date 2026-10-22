@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import { LOADERS } from './screenLoaders';
+import { whenIdle } from './whenIdle';
 
 /**
  * The screens that load on demand (performance audit BND-1): the list is in screenLoaders.ts. The remote build splits each
@@ -55,11 +56,8 @@ function thisPage(): PageReload {
   };
 }
 
-/** Runs a step when the browser is idle. Safari has no requestIdleCallback, so it waits 200 ms there. */
-function whenIdle(run: () => void): void {
-  if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(() => run());
-  else setTimeout(run, 200);
-}
+/** Runs a step when the browser is idle (Safari: after 200 ms). The function lives in whenIdle.ts, so a part of a screen needs no loader table. */
+export { whenIdle };
 
 /** The loaded screens and the imports on their way, for one set of loaders. */
 export function screenCache<N extends string>(loaders: Record<N, () => Promise<ComponentType>>) {

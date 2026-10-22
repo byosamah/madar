@@ -19,6 +19,7 @@ import { useCall } from '../../app/runtime';
 import { actorContext } from '../../lib/grammar';
 import { useIsPhone } from '../../app/useIsPhone';
 import { usePointerCoarse } from '../../app/usePointerCoarse';
+import { useStaged } from '../../app/useStaged';
 import { Menu, type MenuItem } from '../../components/Menu';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { ChevronRightIcon } from '../../components/icons/animated/chevron-right';
@@ -88,6 +89,9 @@ function inKind(row: Row, kind: ChatKind): boolean {
   if (kind === 'people') return row.kind === 'direct' || row.kind === 'group';
   return true;
 }
+
+/** The rows that the Inbox list draws before the first paint. A longer list draws the others at an idle moment (RN-2). */
+const FIRST_ROWS = 40;
 
 /** How far a swipe goes before the row archives. The same as the swipe of the Notifications rows. */
 const SWIPE_PX = 80;
@@ -236,6 +240,8 @@ export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; sele
   const listed = archivedOpen ? archivedRows : needle === '' ? kindRows.filter((row) => !row.archived) : kindRows;
   // A direct chat matches both names of the person (owner item 12). A group matches its name, and only its members have its row.
   const shown = needle === '' ? listed : listed.filter((row) => normalizeForSearch(`${row.title} ${row.person?.nameAr ?? ''} ${row.project?.name ?? ''}`).includes(needle));
+  // The first rows draw at once and the others at an idle moment (RN-2). The last list is the same list.
+  const drawn = useStaged(shown.length, FIRST_ROWS);
   // A finger swipes. A mouse or a trackpad uses the button that shows on hover.
   const swipe = phone || !isFinePointer();
   // CSS hides the row menu on a phone and under a finger, so those screens do not build it (performance audit 2026-10-21, RN-3).
@@ -300,7 +306,7 @@ export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; sele
       {shown.length === 0 && needle === '' && kind !== 'all' && <p className="px-4 pb-4 text-subheadline text-ink-2">{t('chatFilter.none')}</p>}
       <AgeRefresh.Provider value={refresh}>
         <ul aria-label={t('chat.list')} className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
-          {shown.map((row) => (
+          {shown.slice(0, drawn).map((row) => (
             <ChatRowItem
               key={row.id}
               row={row}

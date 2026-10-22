@@ -234,6 +234,11 @@ any screen work.
   same renders as before. The Inbox keeps one Bubble for each message view object (`useBubbles`, `ConversationPane.tsx`). A chat at its
   limit of 200 slides its page by one for each new message, so every view is a new object: `useBubbles` also finds a bubble by the key of
   its message and reuses it when `replaceEqualDeep` says the view is equal (RN-4, 2026-10-21; the key of a message the outbox claimed has `#claimed`).
+- Idle steps (RN-2, 2026-10-21): every step that waits for an idle moment goes through `whenIdle` (`app/whenIdle.ts`, also exported by `app/screens.ts`),
+  never through `requestIdleCallback`, `scheduler.postTask`, `scheduler.yield`, `navigator.connection` or a `longtask` observer: Safari has none of
+  them, and every browser on an iPhone is Safari. `whenIdle` waits 200 ms where `requestIdleCallback` is missing. `useStaged(total, first)`
+  (`app/useStaged.ts`) draws the first rows of a long list at once and the others at the idle step; the final list is the same list. The Inbox list draws
+  its first 40 rows this way.
 - Home keeps the last role it saw for each auth user in localStorage (`madar.homeRole.<auth user id>`,
   `features/home/roleHint.ts`). Before `session.get` answers, the real build asks for the `projects.list` of that role. The
   session answer always decides. The sign-in port gives the auth user id at once (`AuthPort.userId()`, optional).
