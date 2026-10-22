@@ -9,11 +9,9 @@ import { EmptyState } from '../../components/EmptyState';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../components/icons/animated/plus';
 import { LoadFailed } from '../../components/LoadFailed';
-import { ScreenControls } from '../../components/ScreenControls';
-import { ScreenTitle } from '../../components/ScreenTitle';
 import { todayISO, type DayStyle } from '../../lib/dates';
 import { closeMeeting, meetingParam, openMeeting } from '../../lib/params';
-import { WorkSwitch } from '../work/WorkSwitch';
+import { WorkHeader } from '../work/WorkHeader';
 import { groupMeetings, type MeetingGroup } from './groups';
 import { MeetingForm } from './MeetingForm';
 import { MeetingListRow } from './MeetingRow';
@@ -87,8 +85,7 @@ export function MeetingsScreen() {
   const mayPlan = usePlanRights().any;
   return (
     <div className="flex flex-col">
-      <ScreenTitle
-        title={t('screens.myWork')}
+      <WorkHeader
         action={mayPlan ? (
           <Button variant="primary" className="shrink-0" onClick={() => setPlanning(true)}>
             <AnimatedIcon icon={PlusIcon} size={18} aria-hidden />
@@ -96,9 +93,6 @@ export function MeetingsScreen() {
           </Button>
         ) : undefined}
       />
-      <ScreenControls>
-        <WorkSwitch />
-      </ScreenControls>
       {list.error && !list.data && <LoadFailed error={list.error} onRetry={() => void list.refetch()} />}
       {list.data && <MeetingsBody rows={list.data} today={today} onOpen={open} />}
       {meetingId && <MeetingSheet key={meetingId} meetingId={meetingId} onClose={close} />}

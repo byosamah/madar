@@ -3,8 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '../../components/Button';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../components/icons/animated/plus';
-import { ScreenControls } from '../../components/ScreenControls';
-import { ScreenTitle } from '../../components/ScreenTitle';
 import { usePersistentChoice } from '../../app/choices';
 import { usePrefetchCall } from '../../app/prefetch';
 import { useRight } from '../../app/useRight';
@@ -13,7 +11,7 @@ import { todayISO } from '../../lib/dates';
 import { warmDragLayer } from '../project/tasks/dragLayerLoader';
 import { doneWindow } from './boardRows';
 import { NewOfficeTaskSheet } from './NewOfficeTaskSheet';
-import { WorkSwitch } from './WorkSwitch';
+import { WorkHeader } from './WorkHeader';
 import { lazyWorkBoard } from './WorkBoardLazy';
 import { WorkTasks } from './WorkTasks';
 import { WorkViewButton } from './WorkViewButton';
@@ -42,26 +40,24 @@ export function WorkScreen() {
   const donePlan = useMemo(() => doneWindow(today), [today]);
   return (
     <div className="flex flex-col">
-      <ScreenTitle
-        title={t('screens.myWork')}
+      <WorkHeader
         action={mayAdd ? (
           <Button variant="primary" className="shrink-0" onClick={() => setAdding(true)}>
             <AnimatedIcon icon={PlusIcon} size={18} aria-hidden />
             {t('office.new')}
           </Button>
         ) : undefined}
+        trailing={(
+          <WorkViewButton
+            view={view}
+            onView={(next) => {
+              if (next === 'board') lazyWorkBoard.warm();
+              setView(next);
+            }}
+            onPrepare={view === 'list' ? () => { lazyWorkBoard.warm(); prefetch('tasks.list', donePlan); } : undefined}
+          />
+        )}
       />
-      <ScreenControls>
-        <WorkSwitch />
-        <WorkViewButton
-          view={view}
-          onView={(next) => {
-            if (next === 'board') lazyWorkBoard.warm();
-            setView(next);
-          }}
-          onPrepare={view === 'list' ? () => { lazyWorkBoard.warm(); prefetch('tasks.list', donePlan); } : undefined}
-        />
-      </ScreenControls>
       <WorkTasks view={view} />
       {mayAdd && <NewOfficeTaskSheet open={adding} onOpenChange={setAdding} />}
     </div>

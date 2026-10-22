@@ -1,5 +1,6 @@
 {
   "phoneWork": {
+    "title": "العمل",
     "board": {
       "doneRange": "آخر 7 أيام",
       "empty": "لا شيء هنا."

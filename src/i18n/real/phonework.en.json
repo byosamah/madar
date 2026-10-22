@@ -1,5 +1,6 @@
 {
   "phoneWork": {
+    "title": "Work",
     "board": {
       "doneRange": "Last 7 days",
       "empty": "Nothing here."
