@@ -100,11 +100,15 @@ function CommentThreadFor({
   // A docked thread scrolls once to the newest comment, the first time the comments are there. A comment that arrives later keeps the
   // place of the reader (the chat page has its own rule for that).
   const end = useRef<HTMLDivElement>(null);
+  const dock = useRef<HTMLDivElement>(null);
   const scrolled = useRef(false);
   const loaded = comments.data !== undefined;
   useEffect(() => {
     if (!docked || !loaded || scrolled.current) return;
     scrolled.current = true;
+    // The dock is a sticky box over the end of the scroll area. The marker stops one dock height above the bottom edge, so the newest
+    // comment ends above the box and the scroll moves no further than it needs to.
+    end.current?.style.setProperty('--dock-height', `${dock.current?.offsetHeight ?? 0}px`);
     end.current?.scrollIntoView({ block: 'end' });
   }, [docked, loaded]);
   // A new object on each render: the ages of the comments read the clock on each key, as before the memo (RND-3).
@@ -161,8 +165,8 @@ function CommentThreadFor({
             )}
           </AgeRefresh.Provider>
         )}
-        {docked && <div ref={end} data-comment-end className="-mt-3 h-0" />}
-        {docked ? <div data-comment-dock className="sticky bottom-0 z-10 -mx-5 -mb-5 mt-auto border-t border-hairline bg-panel px-5 pb-2 pt-3">{box}</div> : box}
+        {docked && <div ref={end} data-comment-end className="-mt-3 h-0 scroll-mb-[var(--dock-height,0px)]" />}
+        {docked ? <div ref={dock} data-comment-dock className="sticky -bottom-5 z-10 -mx-5 -mb-5 mt-auto border-t border-hairline bg-panel px-5 pb-2 pt-3">{box}</div> : box}
       </section>
     </ChatDropArea>
   );

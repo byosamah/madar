@@ -38,7 +38,9 @@ describe('CommentThread docked (Direction D)', () => {
     await screen.findByRole('textbox', { name: 'Add a comment' });
     const dock = document.querySelector('[data-comment-dock]');
     expect(dock).not.toBeNull();
-    expect(dock).toHaveClass('sticky', 'bottom-0', 'border-t', 'bg-panel');
+    // The scroll area has 20 px of padding at its end. A sticky box keeps that padding free, so the dock reaches under it with -bottom-5
+    // and leaves no strip of comments below the box.
+    expect(dock).toHaveClass('sticky', '-bottom-5', 'border-t', 'bg-panel');
     expect(within(dock as HTMLElement).getByRole('textbox', { name: 'Add a comment' })).toBeInTheDocument();
     expect(within(dock as HTMLElement).getByRole('button', { name: 'Send' })).toBeInTheDocument();
   });
@@ -61,6 +63,20 @@ describe('CommentThread docked (Direction D)', () => {
     await waitFor(() => expect(Object.values(store.state.comments).some((comment) => comment.body === 'Done.')).toBe(true));
     expect(await screen.findByText('Done.')).toBeInTheDocument();
     expect(endCalls(spy)).toHaveLength(1);
+  });
+
+  it('leaves room for the dock when it scrolls to the newest comment, so the newest comment ends above the box', async () => {
+    // The dock is a sticky box over the end of the scroll area. A scroll that puts the end marker at the bottom edge hid the newest comment
+    // under the box, and the 25 px that this scroll moved cut the title of the to-do in half (browser check, WebKit 393 x 659).
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(140);
+    const room: string[] = [];
+    vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(function scroll(this: Element) {
+      if (this.hasAttribute('data-comment-end')) room.push((this as HTMLElement).style.getPropertyValue('--dock-height'));
+    });
+    await open({ docked: true, hideTitle: true });
+    expect(await screen.findByText('Please check the landing.')).toBeInTheDocument();
+    await waitFor(() => expect(room).toEqual(['140px']));
+    expect(document.querySelector('[data-comment-end]')).toHaveClass('scroll-mb-[var(--dock-height,0px)]');
   });
 
   it('keeps Attach only with canAttach and shows comments.cannot without canPost', async () => {
