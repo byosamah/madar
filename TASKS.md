@@ -971,7 +971,11 @@ Branch `rb/perf2` (worktree `~/dev/madar-rb/perf2`). Sonnet agents, the Opus ses
   calls through the page's own /api (383 ms against 656 ms with a new preflight). First load 289,064 B gzip, 34 files
 - [x] Gap critic: 6 findings; GP-1 to wave 3, GP-2 mostly fixed by LV-2 (the rest needs an optimistic display, owner no on
   2026-10-08), GP-3 to GP-5 proposed for later, GP-6 nothing now
-- [ ] Wave 3 (run wf_fc2be876-cc7): GP-1, the first render does not wait for the token renewal
+- [x] Wave 3 (run wf_fc2be876-cc7) merged (4c55ff97): GP-1, the first frame does not wait for the token renewal (with a held
+  renewal of 600 ms: stored Home rows at 76 ms against 701 ms)
+- [x] npm test once on 4c55ff97: 9,794 passed, 6 skipped, 1 failed (TemplateMenuRemote: DF-13 read the templates early for a person
+  off the team). Fix 29170b22 (the early read only for a right over every project); src/features/project again: 725 of 725
+- [x] Builds once: prototype, server and remote with their bundle checks pass; first load 34 files, 947,778 B, 289,341 B gzip
 - [x] Docker suites once on bb8d8527 (GP-1 touches none of their code), 2026-10-22: db reset; test:db 2,979 passed (27 skipped);
   test:it 332 of 332; test:mcp 330 passed, conformance 5 of 32 (the normal result); test:lite 2,979 passed; test:office 40 of 40
 - [ ] After the deploy, on a real iPhone: wait 11 minutes, press a tab, check that no OPTIONS reaches the function
