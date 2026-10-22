@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
   AdminReach, Gender,
-  Client, ClientId, ClientInitials, Glass, Language, OfficeRight, RoleId, Settings, SystemRole, Theme, User, UserAvatarInput, UserId, defaultPreferences,
+  Client, ClientId, ClientInitials, Glass, Language, OfficeRight, OfficeWorkHours, RoleId, Settings, SystemRole, Theme, User, UserAvatarInput, UserId, WorkHours, defaultPreferences,
   type Preferences,
 } from '../contract/entities';
 import { UserCard } from '../contract/views';
@@ -11,6 +11,7 @@ import { applyPatch, recordCreate, savePreferences } from '../events';
 import { nextId } from '../store';
 import { userCard } from '../views';
 import { holdsAdminRights } from '../permissions';
+import { coversLock, officeWorkHoursOf } from '../../lib/quietHours';
 import { assertCan, byName, requireUser } from './shared';
 
 const Empty = z.object({});
@@ -350,8 +351,10 @@ export const meUpdateProfile = defineCall({
   },
 });
 
+const sortedDays = (days: readonly number[]): number[] => [...new Set(days)].sort((a, b) => a - b);
+
 export const meUpdatePreferences = defineCall({
-  input: z.object({ language: Language.optional(), theme: Theme.optional(), glass: Glass.optional(), hatchOverlap: z.boolean().optional(), adminReach: AdminReach.optional(), awayByHand: z.boolean().optional() }),
+  input: z.object({ language: Language.optional(), theme: Theme.optional(), glass: Glass.optional(), hatchOverlap: z.boolean().optional(), adminReach: AdminReach.optional(), awayByHand: z.boolean().optional(), workHours: WorkHours.optional() }),
   output: User,
   run(input, ctx) {
     // What reaches the Admin is the choice of an Admin (owner, 2026-10-23). Any other person gets a refusal, so a stored value never exists
@@ -363,6 +366,11 @@ export const meUpdatePreferences = defineCall({
     if (input.awayByHand !== undefined && ctx.actor.kind === 'agent') {
       throw forbidden('Only the person sets Away.', { action: 'me.away' });
     }
+    // Quiet hours (owner, 2026-10-22, fbk_048): the range must hold the lock that the Admin keeps, unless the person turns quiet hours off.
+    const workHours = input.workHours === undefined ? undefined : { ...input.workHours, days: sortedDays(input.workHours.days) };
+    if (workHours?.quiet && !coversLock(workHours, officeWorkHoursOf(ctx.state.settings).lock)) {
+      throw invalid('workHours', 'Your work hours must include the hours that the office keeps notifications on.', 'work_hours_lock');
+    }
     const current = ctx.actor.preferences;
     // The email switches and the morning summary stay as they are: this call never names them (review 2026-10-03).
     const next: Preferences = {
@@ -373,6 +381,7 @@ export const meUpdatePreferences = defineCall({
       ...(input.hatchOverlap !== undefined && { hatchOverlap: input.hatchOverlap }),
       ...(input.adminReach !== undefined && { adminReach: input.adminReach }),
       ...(input.awayByHand !== undefined && { awayByHand: input.awayByHand }),
+      ...(workHours !== undefined && { workHours }),
     };
     // The stored record takes the change. A change to the context copy is lost, because the copy holds the office rights.
     const me = ctx.state.users[ctx.actor.id];
@@ -446,11 +455,19 @@ export const settingsUpdate = defineCall({
     codePrefix: Settings.shape.codePrefix.optional(),
     workloadLimit: Settings.shape.workloadLimit.optional(),
     staleAfterDays: Settings.shape.staleAfterDays,
+    workHours: OfficeWorkHours.optional(),
   }),
   output: Settings,
   run(input, ctx) {
     assertCan(ctx, 'office.settings');
-    applyPatch(ctx, ctx.state.settings, input, { projectId: null, verb: 'settings.updated', targetType: 'settings', targetId: 'settings' });
+    // The default range of the office must hold the lock, so a person who never chose is never quiet inside the lock (owner, 2026-10-22).
+    const workHours = input.workHours === undefined ? undefined : {
+      ...input.workHours, days: sortedDays(input.workHours.days), lock: { ...input.workHours.lock, days: sortedDays(input.workHours.lock.days) },
+    };
+    if (workHours && !coversLock(workHours, workHours.lock)) {
+      throw invalid('workHours', 'The default work hours must include the hours that the office keeps notifications on.', 'work_hours_default_lock');
+    }
+    applyPatch(ctx, ctx.state.settings, workHours ? { ...input, workHours } : input, { projectId: null, verb: 'settings.updated', targetType: 'settings', targetId: 'settings' });
     return ctx.state.settings;
   },
 });

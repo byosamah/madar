@@ -1,0 +1,8 @@
+{
+  "errors": {
+    "reasons": {
+      "work_hours_lock": "Your work hours must include the days and hours that the office keeps notifications on.",
+      "work_hours_default_lock": "The default work hours must include the days and hours that you keep notifications on."
+    }
+  }
+}

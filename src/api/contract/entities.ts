@@ -112,6 +112,31 @@ export type AdminReach = z.infer<typeof AdminReach>;
 /** The three choices in the order the Settings screen shows them. */
 export const ADMIN_REACH_CHOICES = AdminReach.options;
 
+/** A weekday as dayOfWeek() counts: 0 is Sunday and 6 is Saturday. */
+export const Weekday = z.number().int().min(0).max(6);
+/** A time of the day on a 30-minute step: "HH:MM" from 00:00 to 23:30. */
+export const Clock = z.string().regex(/^([01]\d|2[0-3]):[03]0$/, 'Use a time like 09:00 or 17:30.');
+/** Work days: at least one, no repeat. */
+const WorkDays = z.array(Weekday).min(1).max(7).refine((days) => new Set(days).size === days.length, { message: 'A day appears once.' });
+/** The first time comes before the second one. A range never runs over midnight. */
+const startsFirst = (range: { from: string; to: string }) => range.from < range.to;
+
+/**
+ * The work hours of a person (quiet hours, owner 2026-10-22, fbk_048): the work days and one time range in Riyadh time. With "quiet" on,
+ * Madar sends the person no push and no email outside the range. The bell keeps everything. Read it with workHoursOf (lib/quietHours.ts).
+ */
+export const WorkHours = z.object({ quiet: z.boolean(), days: WorkDays, from: Clock, to: Clock }).refine(startsFirst, { message: 'The end comes after the start.', path: ['to'] });
+export type WorkHours = z.infer<typeof WorkHours>;
+
+/** The office work hours (owner, 2026-10-22): the default range of a person who chose none, and the lock that nobody can be quiet inside. */
+export const OfficeWorkHours = z.object({
+  days: WorkDays,
+  from: Clock,
+  to: Clock,
+  lock: z.object({ on: z.boolean(), days: WorkDays, from: Clock, to: Clock }).refine(startsFirst, { message: 'The end comes after the start.', path: ['to'] }),
+}).refine(startsFirst, { message: 'The end comes after the start.', path: ['to'] });
+export type OfficeWorkHours = z.infer<typeof OfficeWorkHours>;
+
 export const Preferences = z.object({
   language: Language,
   theme: Theme,
@@ -132,6 +157,8 @@ export const Preferences = z.object({
    * only "Away": no screen shows this field to another person.
    */
   awayByHand: z.boolean().optional(),
+  /** Quiet hours (owner, 2026-10-22). A missing value means the office default with quiet hours on. Read it with workHoursOf (lib/quietHours.ts). */
+  workHours: WorkHours.optional(),
 });
 export type Preferences = z.infer<typeof Preferences>;
 
@@ -684,6 +711,11 @@ export const Comment = z.object({
    * so older comments load.
    */
   replyToId: CommentId.optional(),
+  /**
+   * The people that @everyone named in this comment (owner, 2026-10-22, fbk_041), so the bubble marks "names you" for each. A person named
+   * by name is read from the text, as before. Only a comment with the everyone words has the list. Optional, so older comments load.
+   */
+  mentions: z.array(UserId).max(200).optional(),
   createdAt: Stamp,
   editedAt: Stamp.nullable(),
 });
@@ -930,6 +962,11 @@ export const Notification = z.object({
   messageId: z.string().min(1).max(40).optional(),
   /** True on a notice of a reply: the person wrote the message that this one answers (item 10). Optional, so older notices load. */
   reply: z.literal(true).optional(),
+  /**
+   * True on a mention notice that came from @everyone (owner, 2026-10-22, fbk_041): the person is named by "everyone", not by name. Such a
+   * notice sends a push but no email. Optional, so older notices load.
+   */
+  everyone: z.literal(true).optional(),
   /** What happened to the meeting of a meeting_invited notice: it is new for this person, it moved, or it was cancelled (fbk_022). Optional, so older notices load. */
   meeting: z.object({ change: z.enum(['new', 'moved', 'cancelled']) }).optional(),
   /**
@@ -1056,6 +1093,11 @@ export const Settings = z.object({
   staleAfterDays: z.number().int().min(7).max(365).optional(),
   /** The office roles and their rights (owner, 2026-10-18). Optional, so an office saved before roles reads the defaults. */
   roles: RoleSettings.optional(),
+  /**
+   * The office work hours and the lock (owner, 2026-10-22). Optional: a missing value means Sunday to Thursday, 9 AM to 5 PM, with the lock
+   * on. Read it with officeWorkHoursOf (lib/quietHours.ts).
+   */
+  workHours: OfficeWorkHours.optional(),
 });
 export type Settings = z.infer<typeof Settings>;
 

@@ -407,14 +407,18 @@ const PEOPLE_VERB_RIGHT: Readonly<Record<string, Action>> = {
   'user.removed': 'people.remove',
 };
 
-/** True when a preferences change touched an email switch or the morning summary. A missing switch reads as its default. */
+/**
+ * True when a preferences change touched an email switch, the morning summary or the work hours (quiet hours decide when an email and a
+ * push go; owner, 2026-10-22). A missing switch reads as its default.
+ */
 function changesEmail(event: Event): boolean {
-  const prefs = (side: unknown) => (side as { preferences?: { email?: Record<string, boolean>; morningSummary?: boolean } } | null)?.preferences;
+  const prefs = (side: unknown) => (side as { preferences?: { email?: Record<string, boolean>; morningSummary?: boolean; workHours?: unknown } } | null)?.preferences;
   const before = prefs(event.before);
   const after = prefs(event.after);
   const triggers = new Set([...Object.keys(before?.email ?? {}), ...Object.keys(after?.email ?? {})]);
   return [...triggers].some((trigger) => before?.email?.[trigger] !== after?.email?.[trigger])
-    || (before?.morningSummary ?? true) !== (after?.morningSummary ?? true);
+    || (before?.morningSummary ?? true) !== (after?.morningSummary ?? true)
+    || JSON.stringify(before?.workHours ?? null) !== JSON.stringify(after?.workHours ?? null);
 }
 
 /** Who may undo this change at all: its own person (or their agent's), or the leader for an agent change. */
