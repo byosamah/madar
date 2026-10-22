@@ -2,7 +2,7 @@ import type { Conversation, Meeting, Task, User } from '../../src/api/contract/e
 import { canSeeConversation, chatForUpload } from '../../src/api/chatState';
 import { ApiError, forbidden, invalid, notFound } from '../../src/api/errors';
 import { minutesRefusal } from '../../src/api/handlers/meetings';
-import { type Actor, can, mayViewMeeting, projectRoleOf, taskResource } from '../../src/api/permissions';
+import { type Actor, can, mayViewMeeting, projectResource, projectRoleOf, taskResource } from '../../src/api/permissions';
 import { withOfficeRights, withRights } from '../../src/api/rights';
 import type { State } from '../../src/api/store';
 import type { Db } from '../core/ports';
@@ -40,13 +40,14 @@ export function authorityOf(users: UserLookup, userId: string): User {
 const officeUsers = (office: OfficeSnapshot): UserLookup => (id) => office.lists.users[id];
 const roleIn = (office: OfficeSnapshot, projectId: string, userId: string) => projectRoleOf(office.lists as unknown as State, projectId, userId);
 
-/** assertCan(ctx, 'project.view', { projectRole: roleIn(ctx, projectId) }) on the office snapshot. */
-export function assertMayView(office: OfficeSnapshot, userId: string, projectId: string): Actor {
+/**
+ * assertCan(ctx, 'project.view', ...) on the office snapshot. A project that the person does not see answers as a missing one (hidden
+ * projects, owner 2026-10-22): `missing` gives the error of the thing that the call asked for (the project, or the file).
+ */
+export function assertMayView(office: OfficeSnapshot, userId: string, projectId: string, missing: () => ApiError = () => notFound('Project', projectId)): Actor {
   // The person carries the office rights, so a Member keeps the upload (role rights version 2: a person with none attached holds none).
   const authority = withRights(office.lists, authorityOf(officeUsers(office), userId));
-  if (!authority.active || !can(authority, 'project.view', { projectRole: roleIn(office, projectId, authority.id) })) {
-    throw forbidden('You cannot do this.', { action: 'project.view' });
-  }
+  if (!authority.active || !can(authority, 'project.view', projectResource(office.lists as unknown as State, projectId, authority.id))) throw missing();
   return authority;
 }
 

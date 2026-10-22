@@ -106,7 +106,8 @@ const filesLink = defineCall({
     const viewer = withRights(p.state, p.state.users[principalOf(p.state, p.actor.id)] ?? p.actor);
     // A file of an office task that the person does not see reads as missing (review 2026-10-06). So does a file of a chat, and for an
     // agent, which never opens one (owner, 2026-10-19).
-    if (!mayOpenFile(p.state, viewer, p.actor, file)) throw file.projectId === null ? notFound('File', input.id) : forbidden('You cannot do this.', { action: 'project.view' });
+    // A file of a project that the person does not see reads as missing too, never as a refusal (hidden projects, owner 2026-10-22).
+    if (!mayOpenFile(p.state, viewer, p.actor, file)) throw notFound('File', input.id);
     const version = input.letter ? file.versions.find((v) => v.letter === input.letter) : file.versions[file.versions.length - 1];
     if (!version) throw notFound('Version', input.letter ?? '');
     const key = input.variant === 'thumb' && version.thumbKey ? version.thumbKey : version.blobKey;
@@ -123,9 +124,7 @@ const filesLink = defineCall({
   run(input, ctx, prepared) {
     const file = ctx.state.files[input.id];
     if (!file) throw notFound('File', input.id);
-    if (file.projectId === null) {
-      if (!mayOpenFile(ctx.state, ctx.authority, ctx.actor, file)) throw notFound('File', input.id);
-    } else assertCan(ctx, 'project.view', { projectRole: roleIn(ctx, requireProject(ctx, file.projectId).id) });
+    if (!mayOpenFile(ctx.state, ctx.authority, ctx.actor, file)) throw notFound('File', input.id);
     const { version } = prepared;
     return { url: prepared.url, expiresAt: later(ctx.now, UPLOAD_LIFE_MS), name: file.name, mimeType: version.mimeType, size: version.size };
   },

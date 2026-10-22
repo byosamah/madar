@@ -5,7 +5,8 @@ import type {
 import { canSeeConversation } from './chatState';
 import { namesPerson, replyRefOf } from './chatNaming';
 import { computeHealth, isOverdue } from './health';
-import { can, holdsRight, leadTookTask, mayViewMeeting, meetingResource, principalOf, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
+import { can, holdsRight, leadTookTask, mayViewMeeting, meetingResource, principalOf, projectResource, projectRoleOf, taskResource, type ProjectRole, type Resource } from './permissions';
+import { ensureRights } from './rights';
 import { mayWriteMinutes } from './meetingGates';
 import { isTaskMaker, mayAssignTask, mayChangeTask, mayDeleteTask, mayTickChecklist } from './taskGates';
 import { commentCountKey, fileCountKey, projectTemplatesOf, type State } from './store';
@@ -458,7 +459,8 @@ export function mayViewFile(state: State, viewer: User, file: FileRec): boolean 
     const meeting = state.meetings?.[file.meetingId];
     return meeting !== undefined && mayViewMeeting(state, viewer, meeting);
   }
-  if (file.projectId !== null) return can(viewer, 'project.view', { projectRole: projectRoleOf(state, file.projectId, viewer.id) });
+  // A file of a project reads like the project: a hidden project leaves its files to the people who see it (hidden projects, owner 2026-10-22).
+  if (file.projectId !== null) return can(ensureRights(state, viewer), 'project.view', projectResource(state, file.projectId, viewer.id));
   return can(viewer, 'task.view', officeResource(state, file.taskId, viewer.id));
 }
 
