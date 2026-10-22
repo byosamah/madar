@@ -190,6 +190,10 @@ any screen work.
   read) waits 150 ms (`chatMs`), not 1 s, for its twin office and person signals, so a chat message shows 0.85 s sooner (LV-3,
   2026-10-21). It keeps the full window while an own write is on the wire (`queryClient.isMutating()`): a direct chat signal names no
   person, so it could be the echo of the own send. `maxMergeMs` stays.
+- `app/remote/supabase.ts` gives the Realtime client a `heartbeatCallback` that calls `supabase.realtime.connect()` on 'timeout' or 'disconnected'
+  (BG-4 step 1, 2026-10-21): a hidden tab throttles the 25 s heartbeat, and the client joins again at once, not by its slow timer. realtime-js
+  2.117.2 never passes 'disconnected' to the callback, so 'timeout' does the work. The worker option (step 2) needs a served worker file and a
+  CSP change (`worker-src 'self'`), so it waits for the owner.
 - A Realtime channel that joins sends its empty list with the origin 'join'. `connectChanges` waits 100 ms after a join
   (`joinMs`) for the other channel and for any signal, then reloads every list in one pass. A change of the prototype store
   still reloads at once. A join that comes within `VISIBLE_MERGE_MS` (1 s) after the pass of a tab that shows again (hidden over 60 s) adds
