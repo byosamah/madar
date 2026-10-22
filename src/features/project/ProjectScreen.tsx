@@ -68,7 +68,7 @@ export function ProjectScreen() {
   return (
     <div className="flex flex-col gap-5">
       <LayoutGroup id={sharedSource()}>
-        <ProjectHeader detail={detail.data} onPost={() => setParams({ tab: 'activity', compose: '1' })} />
+        <ProjectHeader detail={detail.data} tab={tab} onPost={() => setParams({ tab: phone ? 'overview' : 'activity', compose: '1' })} />
       </LayoutGroup>
       <PausedBanner detail={detail.data} />
       <Tabs

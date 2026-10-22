@@ -3,8 +3,9 @@ import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 import { MessageCircleIcon } from '../../components/icons/animated/message-circle';
 import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { projectsListLink } from '../../app/lastList';
+import { useIsPhone } from '../../app/useIsPhone';
 import type { ProjectDetail } from '../../api/contract/views';
 import { Button } from '../../components/Button';
 import { ProgressLine } from '../../components/ProgressLine';
@@ -13,8 +14,11 @@ import { signOfProject } from '../../components/StatusSign';
 import { spring } from '../../design/motion';
 import { NextDeadlineLabel } from '../projects/ProjectCard';
 import { HealthControl } from './HealthControl';
+import { phoneMainButton } from './mainButton';
+import { usePostDraft } from './overview/postDraft';
 import { ProjectActions } from './ProjectActions';
 import { StageControl } from './StageControl';
+import type { ProjectTab } from './tabs';
 import { clientName } from '../../lib/clientName';
 import { useLang } from '../../app/lang';
 
@@ -36,13 +40,87 @@ export function isViewOnly(can: ProjectDetail['viewerCan']): boolean {
     || can.links || can.upload || can.deliver || can.logTracker || can.addTask || can.planMeeting || can.archive || can.changeLeader || can.healthOverride);
 }
 
-/** The calm header (redesign spec 3.4): back, tile, name, client, one stage line, one main button and the "…" menu. */
-export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPost: () => void }) {
+/** The chat button and the opener it sends: Back from the chat returns to this screen (phone D, lead amendment 6). */
+function ChatLink({ chatId, className }: { chatId: string; className: string }) {
   const { t } = useTranslation();
+  const location = useLocation();
+  return (
+    <Link to={`/inbox/${chatId}`} state={{ from: location.pathname + location.search }} className={className}>
+      <AnimatedIcon icon={MessageCircleIcon} size={18} aria-hidden />
+      {t('project.chat')}
+    </Link>
+  );
+}
+
+/**
+ * The header of a phone (phone D, P5): the identity row, the stage row with the health sign, a full width stage line, and the action
+ * row. The deadline label leaves the header: Overview shows it. The navy goes to one button for each tab (`phoneMainButton`).
+ */
+function PhoneHeader({ detail, onPost, tab }: { detail: ProjectDetail; onPost: () => void; tab: ProjectTab }) {
+  const { t } = useTranslation();
+  const lang = useLang();
+  const { project } = detail;
+  const [draft] = usePostDraft(project.id, true);
+  const main = phoneMainButton(tab, detail.viewerCan, draft.trim() !== '');
+  const viewOnly = isViewOnly(detail.viewerCan);
+  const index = detail.stages.findIndex((stage) => stage.id === detail.currentStage.id);
+  const count = t('projects.stageCount', { n: index + 1, total: detail.stages.length });
+  return (
+    <header className="flex flex-col gap-3">
+      <div className="flex items-start gap-3">
+        <ProjectTile id={project.id} mark={project.mark} size={48} subCompanyId={detail.subCompanyId} shared />
+        <div className="min-w-0 flex-1">
+          <h1 dir="auto" className="text-page-title text-ink [text-wrap:balance]">
+            <motion.span layoutId={`name-${project.id}`} transition={spring.expand} className="inline-block">{project.name}</motion.span>
+          </h1>
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-subheadline text-ink-2">
+            <span dir="ltr" className="tabular break-all">{project.code}</span>
+            {detail.client && <><span aria-hidden>·</span><bdi>{clientName(detail.client, lang)}</bdi></>}
+            {viewOnly && <span className="rounded-full bg-fill px-2.5 text-caption font-semibold text-ink-2">{t('project.viewOnly')}</span>}
+          </p>
+        </div>
+        <ProjectActions detail={detail} />
+      </div>
+      <div className="flex items-center gap-x-3">
+        <StageControl detail={detail} />
+        <span className="text-footnote text-ink-2">{count}</span>
+        <span className="ms-auto"><HealthControl detail={detail} /></span>
+      </div>
+      <ProgressLine
+        index={index}
+        total={detail.stages.length}
+        complete={project.status === 'completed'}
+        tone={signOfProject(detail)}
+        label={count}
+        size="md"
+        className="w-full"
+      />
+      {(detail.viewerCan.postUpdate || detail.chatId) && (
+        <div data-action-row className="flex gap-2">
+          {detail.viewerCan.postUpdate && (
+            <Button variant={main === 'post' ? 'primary' : 'secondary'} className="flex-1" onClick={onPost}>{t('projects.postUpdate')}</Button>
+          )}
+          {detail.chatId && (
+            <ChatLink
+              chatId={detail.chatId}
+              className="pressable inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-fill px-4 text-subheadline font-semibold text-ink hover:bg-fill-strong"
+            />
+          )}
+        </div>
+      )}
+    </header>
+  );
+}
+
+/** The calm header (redesign spec 3.4): back, tile, name, client, one stage line, one main button and the "…" menu. */
+export function ProjectHeader({ detail, onPost, tab }: { detail: ProjectDetail; onPost: () => void; tab: ProjectTab }) {
+  const { t } = useTranslation();
+  const phone = useIsPhone();
   const lang = useLang();
   const { project } = detail;
   const viewOnly = isViewOnly(detail.viewerCan);
   const index = detail.stages.findIndex((stage) => stage.id === detail.currentStage.id);
+  if (phone) return <PhoneHeader detail={detail} onPost={onPost} tab={tab} />;
   return (
     <header className="flex flex-col gap-3">
       <Link to={projectsListLink()} className="pressable -ms-2 inline-flex min-h-11 items-center gap-0.5 self-start rounded-full pe-3 ps-1 text-subheadline font-semibold text-link max-sm:hidden">
@@ -65,10 +143,7 @@ export function ProjectHeader({ detail, onPost }: { detail: ProjectDetail; onPos
           {detail.viewerCan.postUpdate && <Button variant="primary" onClick={onPost}>{t('projects.postUpdate')}</Button>}
           {/* The project chat, for the people who may open it (chat design 2026-10-19, item 18). A grey button, never the main one. */}
           {detail.chatId && (
-            <Link to={`/inbox/${detail.chatId}`} className="pressable inline-flex min-h-11 items-center gap-2 rounded-full bg-fill px-4 text-subheadline font-semibold text-ink hover:bg-fill-strong">
-              <AnimatedIcon icon={MessageCircleIcon} size={18} aria-hidden />
-              {t('project.chat')}
-            </Link>
+            <ChatLink chatId={detail.chatId} className="pressable inline-flex min-h-11 items-center gap-2 rounded-full bg-fill px-4 text-subheadline font-semibold text-ink hover:bg-fill-strong" />
           )}
           <ProjectActions detail={detail} />
         </div>
