@@ -7,6 +7,7 @@ import { initI18n } from '../../i18n';
 import {
   androidBrowser, installEvent, iphoneBrowser, PUSH_TEST_ENDPOINT, PUSH_TEST_KEY, pushBrowser, pushWords, stopPushBrowser,
 } from '../../test/pushBrowser';
+import { phoneMedia } from '../../test/phoneMedia';
 import { renderWithRuntime } from '../../test/render';
 import { HomeScreen } from './HomeScreen';
 import { PushAskCard } from './PushAskCard';
@@ -282,5 +283,46 @@ describe('Home with the ask', () => {
     await screen.findByRole('region', { name: 'Next for you' });
     await settle();
     expect(screen.queryByRole('button', { name: pushWords.en.askButton })).toBeNull();
+  });
+});
+
+// Direction D: a bell starts the ask line on a phone. The two other cards and the desk stay as they are.
+describe('the bell in the ask card (Direction D)', () => {
+  it('puts a bell before the ask line on a phone', async () => {
+    phoneMedia(true);
+    pushBrowser();
+    await renderWithRuntime(<PushAskCard />);
+    const line = await screen.findByText(pushWords.en.ask);
+    expect(line.previousElementSibling).toHaveAttribute('data-animated-icon');
+    expect(line.previousElementSibling).toHaveClass('text-ink-2');
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+    expect((await button()).classList.contains('signature')).toBe(false);
+  });
+
+  it('shows no bell on a desk, on the iPhone steps card or on the Android install card', async () => {
+    phoneMedia(false);
+    pushBrowser();
+    const desk = await renderWithRuntime(<PushAskCard />);
+    await screen.findByText(pushWords.en.ask);
+    expect(desk.container.querySelector('[data-animated-icon]')).toBeNull();
+    cleanup();
+    stopPushBrowser();
+
+    phoneMedia(true);
+    pushBrowser({ none: true });
+    iphoneBrowser();
+    const steps = await renderWithRuntime(<PushAskCard />);
+    await screen.findByText(pushWords.en.homeScreenLine);
+    expect(steps.container.querySelector('[data-animated-icon]')).toBeNull();
+    cleanup();
+    stopPushBrowser();
+
+    androidBrowser();
+    pushBrowser({ permission: 'granted', subscribed: true });
+    stopInstall = watchInstall();
+    window.dispatchEvent(installEvent());
+    const install = await renderWithRuntime(<PushAskCard />);
+    await screen.findByRole('button', { name: pushWords.en.installButton });
+    expect(install.container.querySelector('[data-animated-icon]')).toBeNull();
   });
 });

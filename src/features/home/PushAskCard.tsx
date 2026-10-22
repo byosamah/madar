@@ -2,7 +2,10 @@ import { useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { REMOTE } from '../../app/mode';
 import { canInstall, onInstallChange, promptInstall } from '../../app/remote/install';
+import { useIsPhone } from '../../app/useIsPhone';
 import { Button } from '../../components/Button';
+import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
+import { BellIcon } from '../../components/icons/animated/bell';
 import { FormError } from '../auth/AuthPage';
 import { usePushDevice } from '../settings/usePushDevice';
 
@@ -35,9 +38,17 @@ function Ask() {
 
 function PushAsk({ push }: { push: ReturnType<typeof usePushDevice> }) {
   const { t } = useTranslation();
+  const phone = useIsPhone();
+  const line = <p className="text-subheadline text-ink-2">{t('push.ask')}</p>;
   return (
     <section aria-label={t('push.title')} className="panel flex flex-col gap-3 px-5 py-4">
-      <p className="text-subheadline text-ink-2">{t('push.ask')}</p>
+      {/* On a phone a bell starts the line (Direction D). It plays once when the card shows. The other two cards have none. */}
+      {phone ? (
+        <div className="flex items-start gap-3">
+          <AnimatedIcon icon={BellIcon} size={20} playWhen className="mt-0.5 shrink-0 text-ink-2" aria-hidden />
+          {line}
+        </div>
+      ) : line}
       <div className="flex flex-wrap items-center gap-3">
         <Button disabled={push.busy} onClick={push.turnOn}>{t('push.askButton')}</Button>
         <FormError text={push.failure === 'on' ? t('push.error') : null} />
