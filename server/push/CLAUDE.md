@@ -54,7 +54,7 @@ message from a notice, and the server cannot know that a window is open. The fix
 ## Quiet hours (owner, 2026-10-22, fbk_048)
 A person sets work days and one time range (Settings, "Quiet hours"). Outside it Madar is quiet for that person: no push and no email. The bell and
 the Inbox still collect everything. The rule is one pure function, `isQuiet` (`src/lib/quietHours.ts`, Riyadh time). The office sets the default range
-and the lock (Sunday to Thursday, 9 AM to 5 PM, on by default): nobody is quiet inside the lock.
+and the lock (Sunday to Thursday, 8 AM to 5 PM since fbk_049, on by default): nobody is quiet inside the lock.
 - Both effects (`sendPushNotify`, `sendChatPush`) read the work hours at send time with the statement of the devices (`readDevices`: `PUSH_DEVICES_SQL` also
   gives the work hours of the person and the office; `quietFromColumns` in `server/core/quiet.ts`), so quiet hours add no round trip. `sendChatPush` asks
   after the 10-second wait and after the still-new test. A quiet person gets no post: the effect marks the devices `heldAt` (`PUSH_HOLD_SQL`, once; a

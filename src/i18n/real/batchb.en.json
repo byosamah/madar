@@ -19,16 +19,18 @@
     "mentionEveryoneGroupGone": "{{actor}} mentioned everyone in a group"
   },
   "quietHours": {
-    "title": "Quiet hours",
-    "switch": "Quiet outside my work hours",
-    "hint": "In quiet hours Madar sends no push and no email. The bell keeps everything.",
-    "days": "Work days",
+    "title": "When Madar notifies you",
+    "switch": "Notify me only in my work hours",
+    "days": "My work days",
     "from": "From",
     "to": "To",
     "lockLine": "Your office keeps notifications on {{days}}, {{from}} to {{to}}.",
     "dayRange": "{{from}} to {{to}}",
     "lockedDay": "The office keeps notifications on this day.",
-    "saved": "Your quiet hours are saved."
+    "saved": "Your work hours are saved.",
+    "sentence": "Madar is quiet on {{days}}, and from {{to}} to {{from}} on your work days. The bell keeps everything.",
+    "sentenceEveryDay": "Madar is quiet every day from {{to}} to {{from}}. The bell keeps everything.",
+    "sentenceOff": "Madar notifies you at any time."
   },
   "admin": {
     "workHours": {

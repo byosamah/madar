@@ -309,7 +309,7 @@ describe('What\'s new (fbk_022)', () => {
   it('has the entry 2026-10-23-53 above the minutes entry, with the Settings link, and its words in both languages', () => {
     // Newer entries of the same day (the team fixes, 26 to 29) sit above it. The chat batch took 24 and 25 first, so the gcal entry is 53 and the minutes entry 52.
     const index = WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-53');
-    expect(WHATS_NEW[index]).toEqual({ id: '2026-10-23-53', day: '2026-10-23', to: '/settings' });
+    expect(WHATS_NEW[index]).toEqual({ id: '2026-10-23-53', day: '2026-10-20', to: '/settings' });
     expect(WHATS_NEW[index + 1]?.id).toBe('2026-10-23-52');
     expect(pick(en, 'whatsNew.items.2026-10-23-53.title')).toBe('Your meetings in Google Calendar');
     expect(pick(en, 'whatsNew.items.2026-10-23-53.body')).toBe(

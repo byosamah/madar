@@ -11,6 +11,18 @@ import { WEEKDAYS, clockLabel, endOptions, startOptions, weekdayName } from './w
  */
 export type RangeLock = { on: boolean; days: readonly number[]; from: Clock; to: Clock };
 
+/** The small lock of a day that the office keeps on. Its label tells a screen reader why the day does not change. */
+function DayLock({ label }: { label: string }) {
+  return (
+    <span role="img" aria-label={label} title={label} className="inline-flex shrink-0">
+      <svg viewBox="0 0 24 24" width={12} height={12} fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </svg>
+    </span>
+  );
+}
+
 export function WorkRangeFields({ idPrefix, value, onChange, lock, labels }: {
   idPrefix: string; value: WorkRange; onChange: (next: { days: number[]; from: Clock; to: Clock }) => void; lock?: RangeLock;
   labels?: { days: string; from: string; to: string };
@@ -46,9 +58,11 @@ export function WorkRangeFields({ idPrefix, value, onChange, lock, labels }: {
                 title={locked ? t('quietHours.lockedDay') : undefined}
                 disabled={locked || (on && value.days.length === 1)}
                 onClick={() => toggle(day)}
-                className={`pressable inline-flex min-h-11 min-w-11 items-center justify-center rounded-full px-3 text-subheadline font-medium disabled:opacity-60 ${on ? 'bg-ink text-card' : 'bg-fill text-ink-2'}`}
+                className={`pressable inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-full px-3 text-subheadline font-medium ${on ? 'bg-ink text-card' : 'bg-fill text-ink-2'}`}
               >
                 {weekdayName(day, lang)}
+                {/* A day the office keeps on looks picked, as it is, with a small lock (fbk_049: the faded look read as "off"). */}
+                {locked && <DayLock label={t('quietHours.lockedDay')} />}
               </button>
             );
           })}

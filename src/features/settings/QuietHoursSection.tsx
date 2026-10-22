@@ -6,13 +6,14 @@ import type { Lang } from '../../lib/dates';
 import { officeWorkHoursOf, workHoursOf, type WorkHours } from '../../lib/quietHours';
 import { SettingsSection } from './Section';
 import { WorkRangeFields } from './WorkRangeFields';
-import { clockLabel, daysPhrase } from './workRange';
+import { clockLabel, daysPhrase, quietSentence } from './workRange';
 
 /**
- * Settings, "Quiet hours" (owner, 2026-10-22, fbk_048). One switch, "Quiet outside my work hours" (on by default), then the work days and
- * the two times. Outside the range Madar sends no push and no email, and the bell keeps everything. While the Admin keeps notifications on
- * (the lock), the days and hours of the lock stay inside the range: the day toggles are locked and the times cannot cut the lock. Each
- * change saves at once with a toast. With the switch off, the day and time controls hide.
+ * Settings, "When Madar notifies you" (owner, 2026-10-22, fbk_048; words of fbk_049). One switch, "Notify me only in my work hours" (on
+ * by default), then the work days and the two times: the hours that notify. Outside them Madar sends no push and no email, and the bell
+ * keeps everything; one line spells out that quiet time. While the Admin keeps notifications on (the lock), the days and hours of the lock
+ * stay inside the range: the day toggles are locked and the times cannot cut the lock. Each change saves at once with a toast. With the
+ * switch off, the day and time controls hide, and the line says that Madar notifies at any time.
  */
 export function QuietHoursSection() {
   const { t, i18n } = useTranslation();
@@ -33,16 +34,13 @@ export function QuietHoursSection() {
 
   return (
     <SettingsSection title={t('quietHours.title')}>
-      <Switch id="quiet-hours" label={t('quietHours.switch')} description={t('quietHours.hint')} checked={shown.quiet} onChange={(quiet) => commit({ quiet })} />
-      {shown.quiet && (
-        <>
-          <WorkRangeFields idPrefix="quiet" value={shown} lock={lock} onChange={(range) => commit(range)} />
-          {lock.on && (
-            <p className="text-footnote text-label-2">
-              {t('quietHours.lockLine', { days: daysPhrase(lock.days, lang, t), from: clockLabel(lock.from, lang), to: clockLabel(lock.to, lang) })}
-            </p>
-          )}
-        </>
+      <Switch id="quiet-hours" label={t('quietHours.switch')} checked={shown.quiet} onChange={(quiet) => commit({ quiet })} />
+      {shown.quiet && <WorkRangeFields idPrefix="quiet" value={shown} lock={lock} onChange={(range) => commit(range)} />}
+      <p className="text-subheadline text-ink">{quietSentence(shown, lang, t)}</p>
+      {shown.quiet && lock.on && (
+        <p className="text-footnote text-label-2">
+          {t('quietHours.lockLine', { days: daysPhrase(lock.days, lang, t), from: clockLabel(lock.from, lang), to: clockLabel(lock.to, lang) })}
+        </p>
       )}
     </SettingsSection>
   );

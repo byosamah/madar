@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next';
-import { clockFormat, localeFor, type Lang } from '../../lib/dates';
+import { clockFormat, listFormat, localeFor, type Lang } from '../../lib/dates';
 import { clockSteps, type Clock, type WorkRange } from '../../lib/quietHours';
 
 /** The words of the weekdays and the times of the work range, for the Settings section and the Admin block (fbk_048). */
@@ -34,6 +34,19 @@ export function daysPhrase(days: readonly number[], lang: Lang, t: TFunction): s
   const name = (day: number) => weekdayName(day, lang, 'long');
   if (run) return t('quietHours.dayRange', { from: name(sorted[0]), to: name(sorted[sorted.length - 1]) });
   return sorted.map(name).join(lang === 'ar' ? '، ' : ', ');
+}
+
+/**
+ * The one line that says when Madar is quiet (fbk_049, Faisal: the controls set the hours that notify, so the screen spells out the rest):
+ * "Madar is quiet on Friday and Saturday, and from 5:00 PM to 8:00 AM on your work days." With every day a work day it says "every day",
+ * and with quiet hours off it says that Madar notifies at any time.
+ */
+export function quietSentence(range: { quiet: boolean; days: readonly number[]; from: Clock; to: Clock }, lang: Lang, t: TFunction): string {
+  if (!range.quiet) return t('quietHours.sentenceOff');
+  const times = { from: clockLabel(range.from, lang), to: clockLabel(range.to, lang) };
+  const off = WEEK.filter((day) => !range.days.includes(day));
+  if (off.length === 0) return t('quietHours.sentenceEveryDay', times);
+  return t('quietHours.sentence', { ...times, days: listFormat(lang).format(off.map((day) => weekdayName(day, lang, 'long'))) });
 }
 
 /**

@@ -11,7 +11,7 @@ afterEach(() => {
   initI18n('en');
 });
 
-type Words = { title: string; switch: string; hint: string; days: string; from: string; to: string; saved: string };
+type Words = { title: string; switch: string; days: string; from: string; to: string; saved: string };
 const W = (en as unknown as { quietHours: Words }).quietHours;
 const sectionOf = async (title = W.title) => (await screen.findByRole('heading', { name: title })).closest('section')!;
 const day = (section: HTMLElement, name: string) => within(section).getByRole('button', { name });
@@ -22,14 +22,13 @@ describe('the Quiet hours section of Settings', () => {
     await renderWithRuntime(<QuietHoursSection />);
     const section = await sectionOf();
     expect(within(section).getByRole('switch', { name: W.switch })).toHaveAttribute('aria-checked', 'true');
-    expect(within(section).getByText(W.hint)).toBeInTheDocument();
     const days = within(section).getAllByRole('button').map((button) => button.getAttribute('aria-label'));
     expect(days).toEqual(['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']);
     for (const name of ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday']) expect(day(section, name)).toHaveAttribute('aria-pressed', 'true');
     for (const name of ['Friday', 'Saturday']) expect(day(section, name)).toHaveAttribute('aria-pressed', 'false');
-    expect(within(section).getByLabelText(W.from)).toHaveValue('09:00');
+    expect(within(section).getByLabelText(W.from)).toHaveValue('08:00');
     expect(within(section).getByLabelText(W.to)).toHaveValue('17:00');
-    expect(within(section).getByText('Your office keeps notifications on Sunday to Thursday, 9:00 AM to 5:00 PM.')).toBeInTheDocument();
+    expect(within(section).getByText('Your office keeps notifications on Sunday to Thursday, 8:00 AM to 5:00 PM.')).toBeInTheDocument();
   });
 
   it('locks the days of the lock, and offers only times outside the lock', async () => {
@@ -41,7 +40,7 @@ describe('the Quiet hours section of Settings', () => {
     const to = within(section).getByLabelText(W.to) as HTMLSelectElement;
     const values = (select: HTMLSelectElement) => [...select.options].map((option) => option.value);
     expect(values(from)[0]).toBe('06:00');
-    expect(values(from).at(-1)).toBe('09:00');
+    expect(values(from).at(-1)).toBe('08:00');
     expect(values(to)[0]).toBe('17:00');
     expect(values(to).at(-1)).toBe('23:30');
     expect(from.options[0].textContent).toBe('6:00 AM');
@@ -51,7 +50,7 @@ describe('the Quiet hours section of Settings', () => {
     const { store } = await renderWithRuntime(<QuietHoursSection />);
     const section = await sectionOf();
     await userEvent.click(day(section, 'Friday'));
-    await waitFor(() => expect(store.state.users.usr_001.preferences.workHours).toEqual({ quiet: true, days: [0, 1, 2, 3, 4, 5], from: '09:00', to: '17:00' }));
+    await waitFor(() => expect(store.state.users.usr_001.preferences.workHours).toEqual({ quiet: true, days: [0, 1, 2, 3, 4, 5], from: '08:00', to: '17:00' }));
     expect(await screen.findByText(W.saved)).toBeInTheDocument();
     await waitFor(() => expect(day(section, 'Friday')).toHaveAttribute('aria-pressed', 'true'));
     await userEvent.click(day(section, 'Friday'));
@@ -108,7 +107,7 @@ describe('the Quiet hours section of Settings', () => {
     const section = await sectionOf();
     // The days and the times of the lock stay in the range that the screen shows.
     for (const name of ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday']) expect(day(section, name)).toHaveAttribute('aria-pressed', 'true');
-    expect(within(section).getByLabelText(W.from)).toHaveValue('09:00');
+    expect(within(section).getByLabelText(W.from)).toHaveValue('08:00');
     expect(within(section).getByLabelText(W.to)).toHaveValue('17:00');
   });
 
@@ -117,11 +116,53 @@ describe('the Quiet hours section of Settings', () => {
     const words = initI18n('ar');
     const title = words.t('quietHours.title');
     const section = await sectionOf(title);
-    expect(title).toBe('ساعات الهدوء');
+    expect(title).toBe('متى يُنبّهك مدار');
     expect(within(section).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual(['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']);
     expect(within(section).getByRole('switch', { name: words.t('quietHours.switch') })).toBeInTheDocument();
     expect(within(section).getByText(/يُبقي مكتبك الإشعارات مفعّلة: الأحد إلى الخميس/)).toBeInTheDocument();
-    expect((ar as unknown as { quietHours: Words }).quietHours.hint).toContain('الجرس');
+    expect(within(section).getByText('يهدأ مدار يوم الجمعة والسبت، ومن 5:00 م إلى 8:00 ص في أيام عملك. الجرس يحفظ كل شيء.')).toBeInTheDocument();
+  });
+});
+
+/** fbk_049 (Faisal, 2026-10-22): the name said "quiet", the controls set the hours that notify, and the locked days looked off. */
+describe('the section says when Madar notifies you, and when it is quiet', () => {
+  it('names the hours that notify, and spells out the quiet time in one line', async () => {
+    await renderWithRuntime(<QuietHoursSection />);
+    const section = await sectionOf('When Madar notifies you');
+    expect(within(section).getByRole('switch', { name: 'Notify me only in my work hours' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(section).getByRole('group', { name: 'My work days' })).toBeInTheDocument();
+    expect(within(section).getByText('Madar is quiet on Friday and Saturday, and from 5:00 PM to 8:00 AM on your work days. The bell keeps everything.')).toBeInTheDocument();
+  });
+
+  it('keeps the look of a picked day on a day the office locks, with a small lock', async () => {
+    await renderWithRuntime(<QuietHoursSection />);
+    const section = await sectionOf('When Madar notifies you');
+    const sunday = day(section, 'Sunday');
+    expect(sunday).toHaveAttribute('aria-pressed', 'true');
+    expect(sunday.className).not.toMatch(/opacity/);
+    expect(within(sunday).getByRole('img', { name: 'The office keeps notifications on this day.' })).toBeInTheDocument();
+    expect(within(day(section, 'Friday')).queryByRole('img')).toBeNull();
+  });
+
+  it('says "every day" when every day is a work day, and "at any time" with the switch off', async () => {
+    await renderWithRuntime(<QuietHoursSection />);
+    const section = await sectionOf('When Madar notifies you');
+    await userEvent.click(day(section, 'Friday'));
+    await userEvent.click(day(section, 'Saturday'));
+    expect(await within(section).findByText('Madar is quiet every day from 5:00 PM to 8:00 AM. The bell keeps everything.')).toBeInTheDocument();
+    await userEvent.click(within(section).getByRole('switch', { name: 'Notify me only in my work hours' }));
+    expect(await within(section).findByText('Madar notifies you at any time.')).toBeInTheDocument();
+  });
+});
+
+describe("What's new of fbk_049", () => {
+  it('has the line about the clearer words at the top, dated on its release day, with the Settings link', async () => {
+    const { WHATS_NEW } = await import('../../whatsNew/entries');
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-96')).toEqual({ id: '2026-10-23-96', day: '2026-10-22', to: '/settings' });
+    for (const tree of [en, ar]) {
+      const item = (tree as unknown as { whatsNew: { items: Record<string, { body: string }> } }).whatsNew.items['2026-10-23-96'];
+      expect(item.body).toMatch(/8:00/);
+    }
   });
 });
 

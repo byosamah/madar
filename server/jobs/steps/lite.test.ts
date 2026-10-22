@@ -120,8 +120,8 @@ describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
 
   it('sends the morning summary to each person with something to say at the start of the work hours, marks each person, and sends nothing in a second run', async () => {
     const { seed, deps, db } = await office();
-    // 08:00 Riyadh: the default work hours start at 09:00, so nobody is due yet.
-    expect(await summary(deps, AT)).toEqual({ due: false });
+    // 07:45 Riyadh: the default work hours start at 08:00 (fbk_049), so nobody is due yet.
+    expect(await summary(deps, new Date('2026-10-04T04:45:00Z'))).toEqual({ due: false });
     const NINE = new Date('2026-10-04T06:05:00Z');
     // The rule of buildMorning on the State: an open task, past due or due today, that the person leads or helps with, or a review that waits.
     const active = (projectId: string | null) => projectId === null || seed.projects[projectId]?.status === 'active';

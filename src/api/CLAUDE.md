@@ -789,7 +789,7 @@ Design: `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design
 
 ## Quiet hours and @everyone (owner, 2026-10-22, fbk_048 and fbk_041)
 - Contract (all additive): `Preferences.workHours` (`{ quiet, days, from, to }`; days 0 = Sunday to 6, at least one, `from` before `to` on a
-  30-minute step) and `Settings.workHours` (`{ days, from, to, lock: { on, days, from, to } }`). A missing value means Sunday to Thursday, 9 AM to
+  30-minute step) and `Settings.workHours` (`{ days, from, to, lock: { on, days, from, to } }`). A missing value means Sunday to Thursday, 8 AM to
   5 PM, the lock on with the same days and hours, and quiet hours on (`DEFAULT_OFFICE_WORK_HOURS`, `src/lib/quietHours.ts`: the one pure rule
   `isQuiet`, `workHoursOf`, `workStartOn`, `coversLock`). `Notification.everyone`, `Comment.mentions`, `PushDevice.heldAt`, `ChatThread.everyone` and
   `TaskDetail.everyone` are optional.

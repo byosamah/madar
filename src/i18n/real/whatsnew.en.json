@@ -3,6 +3,10 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-96": {
+        "title": "When Madar notifies you, in plain words",
+        "body": "Settings now names the hours when Madar notifies you, and one line tells you when it stays quiet. A day the office keeps on shows a small lock. The office hours are 8:00 AM to 5:00 PM."
+      },
       "2026-10-23-95": {
         "title": "A role can see only its own projects",
         "body": "Open Admin, then Roles. Turn off See every project for a role. The people of that role then see only the projects where they work."
