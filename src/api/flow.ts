@@ -18,10 +18,29 @@ import { openPrerequisites, openPrerequisiteStages, stagesChrono, stageTagOf, sh
 
 export const tasksOfProject = (state: State, projectId: string): Task[] => Object.values(state.tasks).filter((task) => task.projectId === projectId);
 
-/** The stage the project is in: computed from the tasks, never read from the saved value. */
-export function stageTag(state: State, projectId: string): Stage | null {
+/**
+ * The tasks of every project, grouped in one pass, each group in the order of Object.values (DB-3, 2026-10-21). A read that needs the
+ * tasks of many projects asks for this once, and does not call tasksOfProject for each project. The groups are only for the call that
+ * built them: a change of a task makes them old, so a write never keeps them.
+ */
+export function tasksByProject(state: State): Map<string, Task[]> {
+  const groups = new Map<string, Task[]>();
+  for (const task of Object.values(state.tasks)) {
+    if (task.projectId === null) continue;
+    const group = groups.get(task.projectId);
+    if (group) group.push(task);
+    else groups.set(task.projectId, [task]);
+  }
+  return groups;
+}
+
+/**
+ * The stage the project is in: computed from the tasks, never read from the saved value. A caller that has the tasks of the project
+ * already (from tasksByProject) passes them as the third argument.
+ */
+export function stageTag(state: State, projectId: string, projectTasks?: Task[]): Stage | null {
   const stages = stagesOf(state, projectId);
-  return stages.length === 0 ? null : stageTagOf(stages, tasksOfProject(state, projectId));
+  return stages.length === 0 ? null : stageTagOf(stages, projectTasks ?? tasksOfProject(state, projectId));
 }
 
 const names = (items: { title?: string; name?: string }[]): string => items.map((item) => item.title ?? item.name ?? '').join(', ');

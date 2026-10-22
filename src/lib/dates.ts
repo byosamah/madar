@@ -65,8 +65,12 @@ export function officeClock(at: Date = now()): { day: string; weekday: number; h
   return { day: shifted.toISOString().slice(0, 10), weekday: shifted.getUTCDay(), hour: shifted.getUTCHours() };
 }
 
+// A stamp in office time, as nowStamp writes it. Its office day is its first 10 characters (DB-3, 2026-10-21).
+const OFFICE_STAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?\+03:00$/;
+
+/** The office calendar day of a stamp. A stamp in office time needs no Date object: a report reads thousands of them. */
 export function stampDay(stamp: string): string {
-  return todayISO(new Date(stamp));
+  return OFFICE_STAMP.test(stamp) ? stamp.slice(0, 10) : todayISO(new Date(stamp));
 }
 
 export type Lang = 'en' | 'ar';
