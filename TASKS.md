@@ -1028,9 +1028,17 @@ Plan and answers: memory and the two design files below. fbk_039 (12-hour clock)
   hours, the Everyone row, the chip, the bell line with the female form). Not seen: a real push held and sent at the end of quiet hours.
 - [x] Test copy and production at 6f7c3538 (owner: "Production now", 2026-10-22). fbk_041 and fbk_048 marked done. To watch: the first
   `quietEnd` push on Sunday morning, and the first summary at 9:00.
-- [ ] Polish seen in the shots: the mention list is narrow at 390 px, so long names wrap to two lines (it was so before B).
-- [ ] Batch D (`rb/batch-d`, design `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design.md`): hidden projects,
-  "See every project" and internal projects (fbk_044). Designed; four build waves wait for the owner's word.
+- [x] Polish seen in the shots: the mention list is narrow at 390 px, so long names wrap to two lines (it was so before B). Fixed in `rb/mention-width` (the list stays 18rem wide, one line for each name).
+- [x] Batch D (`rb/d-join`, design `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design.md`): hidden projects,
+  "See every project" and internal projects (fbk_044). Built in four waves and joined on main of Batch B. Not yet on the test copy.
+  - [x] D1: the four rights (117 switches in all), `Project.access`, the view rule, the call `projects.setAccess`, every door.
+  - [x] D2: the lists, counts and SQL limits show only the projects the person sees; the Inbox threads.
+  - [x] D3: Realtime signals, notices, push, the morning summary, Google Calendar and the jobs follow the view rule.
+  - [x] D4: internal projects, the Team tab block, the lock mark, MCP docs, What's new 93 to 95.
+  - [ ] D3 open: a push that the server plans before a person loses the view may still send its one fixed line ("You have something new in Madar.").
+  - [ ] D3 open: the number `reviews_waiting` of the morning summary is not filtered by the view rule.
+  - [ ] D4 open: the guard of the `INT` code head: a client code that already starts with `INT` before this change is not checked.
+  - [ ] Run the full gates on the join: `npm test`, `test:db`, `test:it`, `test:mcp`, the prototype smoke, and the screenshots of D4.
 - [x] `makeThumb` (owner: "add it to Batch B", 2026-10-22): a file over 2 MB decodes straight to 960 px wide (`rb/thumb`, d501f03b, joins
   Batch B). The small picture still comes before the upload: the server signs its upload by its size, so starting both at once needs a
   server change (not done). What's new 92; entry 91 moved to the top.
