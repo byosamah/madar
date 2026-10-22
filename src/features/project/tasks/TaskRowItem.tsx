@@ -2,7 +2,7 @@ import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { CircleCheckIcon } from '../../../components/icons/animated/circle-check';
 import { MessageCircleIcon } from '../../../components/icons/animated/message-circle';
 import { motion } from 'motion/react';
-import { memo, useState, type CSSProperties, type ReactNode } from 'react';
+import { memo, useState, type CSSProperties, type HTMLAttributes, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { User } from '../../../api/contract/entities';
 import type { TaskRow } from '../../../api/contract/views';
@@ -45,8 +45,17 @@ function HelperLine({ name, context }: { name: string; context: string | undefin
 /**
  * The parts that the sortable list of the Tasks screen gives a row (owner, 2026-10-07): the box that the drag moves, its style,
  * and the grip at the end. `still` turns off the slide of the row while a drag runs, so the two motions do not fight.
+ * `listeners` is set only on a touch phone (phone design D): the whole row then starts the drag with a press and hold of 400 ms.
  */
-export type RowDrag = { ref?: (node: HTMLElement | null) => void; style?: CSSProperties; lifted: boolean; still: boolean; grip: ReactNode };
+export type RowDrag = {
+  ref?: (node: HTMLElement | null) => void; style?: CSSProperties; lifted: boolean; still: boolean; grip: ReactNode;
+  listeners?: Pick<HTMLAttributes<HTMLElement>, 'onMouseDown' | 'onTouchStart'>;
+};
+
+// A row that a finger can hold: it lets the page scroll, keeps the text from selecting, and shows no callout menu of the browser.
+const HOLDABLE = 'touch-manipulation pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]';
+// The lift of a held row. The CSS `scale` property does not clash with the `transform` of dnd-kit. The curve is the drop curve of the Board.
+const LIFT = 'scale-[1.02] transition-[scale] duration-[350ms] ease-[cubic-bezier(0.2,0.9,0.3,1.15)] motion-reduce:scale-100 motion-reduce:transition-none';
 
 /**
  * One task: the round tick, the title, a gentle due word, and the flag and counts only when there are some (redesign spec 3.4).
@@ -93,6 +102,7 @@ export const TaskRowItem = memo(function TaskRowItem({ row, me, onOpen, showProj
     setTicking(true);
     window.setTimeout(() => complete.mutate({ id: task.id }, { onSettled: () => setTicking(false) }), 500);
   };
+  const holdable = Boolean(drag?.listeners);
   const rtl = document.documentElement.dir === 'rtl';
   const day = today ?? todayISO();
   const word = dueWord(task.dueDate, day, task.status);
@@ -109,7 +119,14 @@ export const TaskRowItem = memo(function TaskRowItem({ row, me, onOpen, showProj
       className="rounded-xl transition-colors hover:bg-fill/50"
     >
       {/* The drag moves this box, so the slide of the row and the drag never set the same transform. */}
-      <div ref={drag?.ref} style={drag?.style} className={`flex min-h-14 items-center gap-2 rounded-xl px-2 ${drag?.lifted ? 'surface relative z-10 shadow-float' : ''}`}>
+      {/* A long press on a touch screen can fire a context menu, so a held row stops it. */}
+      <div
+        ref={drag?.ref}
+        style={drag?.style}
+        {...drag?.listeners}
+        onContextMenu={holdable ? (event) => event.preventDefault() : undefined}
+        className={`flex min-h-14 items-center gap-2 rounded-xl px-2 ${holdable ? HOLDABLE : ''} ${drag?.lifted ? `surface relative z-10 shadow-float ${holdable ? LIFT : ''}` : ''}`}
+      >
         {/* A person who cannot tick gets a plain mark, not a dead button (spec 2.3; audit 2026-10-03, BRW-13). */}
         {canTick ? (
           <button

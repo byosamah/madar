@@ -1,13 +1,16 @@
-import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors, type Announcements, type DragEndEvent, type UniqueIdentifier } from '@dnd-kit/core';
+import { closestCenter, DndContext, type Announcements, type DragEndEvent, type UniqueIdentifier } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { AnimatePresence } from 'motion/react';
-import { memo, useEffect, useMemo, useRef, useState, type Ref } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type MouseEventHandler, type Ref, type TouchEventHandler } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { User } from '../../../api/contract/entities';
 import type { TaskRow } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
+import { useStableHandler } from '../../../app/useStableHandler';
+import { prefersReducedMotion, useDragSensors } from './dragSensors';
 import { RowGrip } from './RowGrip';
 import { TaskRowItem } from './TaskRowItem';
+import { useTouchPhone } from './useTouchPhone';
 
 /**
  * The drag part of the sortable task list (performance audit 2026-10-21, FL-2). It holds everything of dnd-kit, so it is a chunk of
@@ -15,17 +18,16 @@ import { TaskRowItem } from './TaskRowItem';
  */
 type Open = (row: TaskRow, thread?: boolean) => void;
 
-// The options of the sensors are the same objects at each render (RN-5): a new object gave dnd-kit new sensors, and every row rendered again.
-const POINTER_OPTIONS = { activationConstraint: { distance: 4 } };
-const KEYBOARD_OPTIONS = { coordinateGetter: sortableKeyboardCoordinates };
-
 /** One row of the sortable list. The row renders again only when its own data changes or dnd-kit says so (a drag). */
 const SortableRow = memo(function SortableRow({ row, me, onOpen, still, sortable, showProject, today }: {
   row: TaskRow; me: User | undefined; onOpen: Open; still: boolean; sortable: boolean; showProject: boolean; today: string;
 }) {
+  const touch = useTouchPhone();
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     // A task the person only helps with sits at the end of the group and takes no drop (`groupMyTasks`).
     id: row.task.id, disabled: !sortable || !row.canMove,
+    // Under reduced motion the other rows jump to their new places and do not slide.
+    transition: prefersReducedMotion() ? null : undefined,
   });
   // The row moves up and down only.
   const style = { transform: transform ? `translate3d(0, ${Math.round(transform.y)}px, 0)` : undefined, transition };
@@ -37,7 +39,13 @@ const SortableRow = memo(function SortableRow({ row, me, onOpen, still, sortable
       onOpen={onOpen}
       showProject={showProject}
       today={today}
-      drag={{ ref: setNodeRef, style, lifted: isDragging, still, grip }}
+      drag={{
+        ref: setNodeRef, style, lifted: isDragging, still, grip,
+        // On a touch phone the whole row takes the hold (mouse and touch). The grip keeps the keyboard.
+        listeners: touch && listeners
+          ? { onMouseDown: listeners.onMouseDown as MouseEventHandler<HTMLElement>, onTouchStart: listeners.onTouchStart as TouchEventHandler<HTMLElement> }
+          : undefined,
+      }}
     />
   );
 });
@@ -69,16 +77,19 @@ export function DragRows({ rows, me, onOpen, showProject, sortable, today, listC
   // The ids are one array for as long as the places stay the same (RN-5), so the sortable context does not change at each render.
   const idsKey = shown.map((row) => row.task.id).join(',');
   const ids = useMemo(() => (idsKey === '' ? [] : idsKey.split(',')), [idsKey]);
-  const sensors = useSensors(
-    useSensor(PointerSensor, POINTER_OPTIONS),
-    useSensor(KeyboardSensor, KEYBOARD_OPTIONS),
-  );
+  const sensors = useDragSensors(4, sortableKeyboardCoordinates);
+  // A long press can end in a click. A click within 250 ms of a drop or a cancel opens nothing (the rule of the Board).
+  const droppedAt = useRef(0);
+  const open = useStableHandler((row: TaskRow, thread?: boolean) => {
+    if (Date.now() - droppedAt.current > 250) onOpen(row, thread);
+  });
   const start = () => {
     window.clearTimeout(settle.current);
     setStill(true);
   };
   // The slide of the rows comes back after the drop has settled.
   const stop = () => {
+    droppedAt.current = Date.now();
     settle.current = window.setTimeout(() => setStill(false), 400);
   };
   const onDragEnd = ({ active, over }: DragEndEvent) => {
@@ -112,7 +123,7 @@ export function DragRows({ rows, me, onOpen, showProject, sortable, today, listC
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
         <ul ref={listRef} className={listClassName}>
           <AnimatePresence initial={false}>
-            {shown.map((row) => <SortableRow key={row.task.id} row={row} me={me} onOpen={onOpen} still={still} sortable={sortable} showProject={showProject} today={today} />)}
+            {shown.map((row) => <SortableRow key={row.task.id} row={row} me={me} onOpen={open} still={still} sortable={sortable} showProject={showProject} today={today} />)}
           </AnimatePresence>
         </ul>
       </SortableContext>
