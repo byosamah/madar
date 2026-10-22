@@ -32,6 +32,16 @@ describe('the project header on a phone (phone D, P5)', () => {
     expect(chat).toHaveClass('flex-1', 'bg-fill');
   });
 
+  it('gives the health button a 44 px press area on a phone, and keeps its look on a desk', async () => {
+    phoneMedia(true);
+    const { unmount } = await renderApp(PROJECT, as('usr_002'));
+    const header = await headerOf();
+    const late = within(header).getByRole('button', { name: /^Late/ });
+    // The word is shorter than 44 px, so the button needs a minimum width as well as a minimum height.
+    expect(late).toHaveClass('min-h-11', 'max-sm:min-w-11');
+    unmount();
+  });
+
   it('gives the row to the one button that stays', async () => {
     phoneMedia(true);
     await renderApp(PROJECT, (state) => {

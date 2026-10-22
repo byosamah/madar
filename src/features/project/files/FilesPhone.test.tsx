@@ -61,6 +61,25 @@ describe('the Files & Links tab on a phone (phone D, P9)', () => {
     expect(screen.getByRole('checkbox', { name: 'Received from the client' })).toBeInTheDocument();
   });
 
+  it('gives the file row button a 44 px press area', async () => {
+    phoneMedia(true);
+    await renderApp(FILES, as('usr_002'));
+    // The row button was 42 px high by its content, so it has a minimum height.
+    expect(await screen.findByRole('button', { name: 'View Ground floor plan.pdf' })).toHaveClass('min-h-11');
+  });
+
+  it('keeps the "Received from the client" tick inside a label of 44 px, and a press on the label turns it on', async () => {
+    phoneMedia(true);
+    await renderApp(FILES, as('usr_002'));
+    // The native tick stays 20 px: Chromium and WebKit ignore padding on it. The press area is the label that holds it, as for a switch row.
+    const tick = (await screen.findByRole('checkbox', { name: 'Received from the client' })) as HTMLInputElement;
+    const label = tick.closest('label') as HTMLElement;
+    expect(label).toHaveClass('min-h-11');
+    expect(tick.checked).toBe(false);
+    await userEvent.click(within(label).getByText('Received from the client'));
+    expect(tick.checked).toBe(true);
+  });
+
   it('shows no Add button to a person with no upload and no link right', async () => {
     phoneMedia(true);
     await renderApp(FILES, as('usr_003'));

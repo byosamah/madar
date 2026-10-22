@@ -76,7 +76,7 @@ export function HealthControl({ detail, open: shown, onOpenChange }: { detail: P
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className="pressable -my-2 grid min-h-11 place-items-center rounded-full"
+        className="pressable -my-2 grid min-h-11 place-items-center rounded-full max-sm:min-w-11"
       >
         <HealthWord detail={detail} canSet />
       </button>

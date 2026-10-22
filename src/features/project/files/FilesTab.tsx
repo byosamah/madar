@@ -90,7 +90,7 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
       <div className="grid min-h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-2 sm:flex sm:gap-3">
         {/* On a phone the picture and the name are one press target that opens the preview (phone D). */}
         {phone && canPreview(latest.mimeType) ? (
-          <button type="button" aria-label={t('picture.view', { name: file.name })} onClick={onPreview} className="pressable col-span-2 flex min-w-0 items-center gap-3 text-start">
+          <button type="button" aria-label={t('picture.view', { name: file.name })} onClick={onPreview} className="pressable col-span-2 flex min-h-11 min-w-0 items-center gap-3 text-start">
             {identity}
           </button>
         ) : identity}
