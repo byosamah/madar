@@ -1005,3 +1005,24 @@ Branch `rb/perf2` (worktree `~/dev/madar-rb/perf2`). Sonnet agents, the Opus ses
   WebKit with an iPhone profile (Playwright webkit 26.6 installed 2026-10-21): cold load, one save, chat delivery
 - [x] Wave 2, Safari: WebKit keeps a preflight 10 minutes (Chromium 2 h); WebKit uses the page's own /api; DF-14 falls back to
   a plain load when IndexedDB throws, fails or is missing (tests)
+
+## Team reports of 2026-10-22 (fbk_038 to fbk_048; owner: "go with your recommendations")
+Plan and answers: memory and the two design files below. fbk_039 (12-hour clock) was live already and is marked done.
+- [x] Batch A (`rb/batch-a`): fbk_040 the file chip and one picture stay inside the bubble, the file names show once; fbk_045 a
+  progress bar at every upload spot (Tracker, comments, posts, minutes, Files tab, project cover, feedback); fbk_046 and fbk_047 paste
+  and drop in the Tracker, posts and minutes; fbk_043 checklist order by drag (keyboard too); fbk_038 picture zoom (pinch, double-tap,
+  wheel, click, keys). What's new 83 to 87.
+- [x] Batch C (`rb/batch-c`, on top of A): fbk_042 a View button on Tasks with a Board (To do, In progress, In review with "Your
+  review", Done of the last 7 days). What's new 91.
+- [x] Gates of A plus C on main f798195a: typecheck, `npm test` (9,908 passed; 2 Inbox timing tests failed under a load average of 12
+  and pass alone: `ChatListStage`, `ReactionAny` 3 of 3), `npm run build`, `build:server`, `build:remote -- test` (first load 946,527 B,
+  284,743 B gzip, 21 files), screenshots EN and AR, light and dark, 390 px. Not run: `test:db`, `test:it`, `test:mcp` (no handler,
+  loader or SQL change; the MCP docs tests are in `npm test`).
+- [ ] Owner tries A and C on the test copy (the upload bars show only there: the prototype upload ends at once), then production.
+  Mark fbk_038, 040, 042, 043, 045, 046, 047 done after the owner says they are live.
+- [ ] Batch B (`rb/batch-b`, plan `docs/superpowers/plans/2026-10-22-madar-quiet-hours-everyone-plan.md`): quiet hours (fbk_048) and
+  @everyone (fbk_041). Building. What's new 88 to 90. Needs `test:db`, `test:it` and `test:mcp` at the merge.
+- [ ] Batch D (`rb/batch-d`, design `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design.md`): hidden projects,
+  "See every project" and internal projects (fbk_044). Designed; four build waves wait for the owner's word.
+- [ ] Proposal from the A builder, not built: `makeThumb` (`src/app/thumbs.ts`) decodes a big photo at full size before the upload
+  starts (about 190 MB for a 48 MP photo on an iPhone). Decode straight to 960 px and start the small picture beside the upload.
