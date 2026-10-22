@@ -963,8 +963,10 @@ Branch `rb/perf2` (worktree `~/dev/madar-rb/perf2`). Sonnet agents, the Opus ses
   build:remote test, test:db, test:it, test:mcp, the prototype smoke: all green (one npm test failure fixed, see below)
 - [x] Screenshots (EN/AR, light/dark, 390 px), Chrome and WebKit iPhone, and the after numbers on the test copy: no breakage;
   numbers in proof.md "After numbers on the test copy"
-- [ ] Proposed, not built: the idle prefetch waits until the first Home rows show (64 chunks now start before them on a cold load);
-  the second batch after a save (a tasks.list follows the write)
+- [ ] Follow-ups (owner, 2026-10-22: "do both fixes"), run wf_e8be1b35-93b: the idle prefetch waits until the first rows show and
+  fetches a few chunks at a time (64 chunks now start before the first rows on a cold load); one save makes one trip (a second
+  tasks.list request follows the write, likely the one-overview-read rule of wire.ts). Then the gates once, the test copy, the
+  live numbers. What's new: the line "Madar is faster" covers them
 - [x] What's new line 2026-10-23-82 "Madar is faster" (d107844d); no MCP change in wave 1 (no call, input, output or rule changes)
 - [x] Test copy at b8bb9e42 (`all.sh test` from main, 2026-10-22): quick checks passed; the after numbers and screenshots run
 - [x] Production at b8bb9e42 on the owner's word ("deploy to production", 2026-10-22): migration applied, quick checks passed;
