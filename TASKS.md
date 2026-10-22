@@ -1024,5 +1024,6 @@ Plan and answers: memory and the two design files below. fbk_039 (12-hour clock)
   @everyone (fbk_041). Building. What's new 88 to 90. Needs `test:db`, `test:it` and `test:mcp` at the merge.
 - [ ] Batch D (`rb/batch-d`, design `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design.md`): hidden projects,
   "See every project" and internal projects (fbk_044). Designed; four build waves wait for the owner's word.
-- [ ] Proposal from the A builder, not built: `makeThumb` (`src/app/thumbs.ts`) decodes a big photo at full size before the upload
-  starts (about 190 MB for a 48 MP photo on an iPhone). Decode straight to 960 px and start the small picture beside the upload.
+- [x] `makeThumb` (owner: "add it to Batch B", 2026-10-22): a file over 2 MB decodes straight to 960 px wide (`rb/thumb`, d501f03b, joins
+  Batch B). The small picture still comes before the upload: the server signs its upload by its size, so starting both at once needs a
+  server change (not done). What's new 92; entry 91 moved to the top.
