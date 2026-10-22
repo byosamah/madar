@@ -27,6 +27,8 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
   then fails at db push and removes its record: ask that session first, or ship both in one release.
 - Load the keys first: `set -a; . ./.env.local; set +a`, then `scripts/deploy/all.sh test`.
 - Commit TASKS.md and proof.md before `all.sh test`: any later commit (also a note) needs `all.sh test` again.
+- Notes after `all.sh test` (proof, TASKS, a deleted probe) go on the batch branch, not main. After production, fast-forward
+  main to that branch with the release record (speed release, 2026-10-22).
 - Another session may leave changes in the main folder. Then deploy from a clean worktree of main: `git fetch . <branch>:main`,
   `git worktree add .claude/worktrees/deploy-test main`, and link `node_modules`, `secrets` and `.env.local` into it.
   `.gitignore` has `secrets/`, which does not match a link, so `.git/info/exclude` holds `secrets` (2026-10-07). Without it

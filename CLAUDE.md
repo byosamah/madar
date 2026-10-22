@@ -87,7 +87,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `npm run build:remote -- <test|production>` - the real screens from `config/remote.<env>.env` (public VITE_ names only).
 - `npm run build:server` - the server bundles: `supabase/functions/_build/{api,mcp,jobs}.js` and `dist-server/worker.js`.
 - `npm run typecheck` - both tsconfigs (screens and server).
-- `npm test` - the `unit` and `server` projects (about 7,700 tests). Run it alone: next to a build or Playwright,
+- `npm test` - the `unit` and `server` projects (about 9,800 tests, about 5 minutes). Run it alone: next to a build or Playwright,
   screen tests time out. With a load average far above the core count (`uptime`), other screen tests time out on each
   run: run the failed files alone (`--no-file-parallelism --testTimeout=60000`) before you call a test broken.
 - Put `-u` after the test files: `vitest run -u <file>` reads the file name as the value of `-u` and runs every test in update
@@ -138,8 +138,9 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - A change to a test script in `package.json` also changes `scripts/vite-config.test.ts`: it pins the script texts.
 - Size of an old build: `git archive <sha> | tar -x -C $TMPDIR/base`, link `node_modules` into it, build there.
 - `npx supabase db reset` - after any migration change, from your own worktree, under the lock.
-- Last counts (2026-10-21, chat presence gate): unit+server 8,515 passed (761 files); test:db 2,260 (27 skipped); test:lite 2,260; test:it 325;
-  test:office 40; test:mcp normal (5 of 32); prototype smoke 87 of 87. Older: deploy suite 206 passed, 13 skipped (2026-10-20).
+- Last counts (2026-10-22, speed release gate): unit+server 9,794 passed (822 files); test:db 2,979 (27 skipped);
+  test:lite 2,979; test:it 332; test:office 40; test:mcp 330, conformance normal (5 of 32); prototype smoke 87 of 87. Older: deploy
+  suite 206 passed, 13 skipped (2026-10-20).
 - `grep -c` that counts 0 exits 1, so it stops a `&&` chain: end the count with `; true` or check its number apart.
 
 ## Run the real product locally
@@ -166,6 +167,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 
 ## Rules that cross parts
 - `src/api` never imports `server/` or `src/app/`.
+- On Supabase almost every API call starts a new worker (about 230 ms and 110 ms of CPU; probe of 2026-10-21, `server/CLAUDE.md`).
+  A screen change that saves a call saves more than a server change: count the calls of each change.
 - Never write to the database outside `runCall`. Handlers stay synchronous and pure. Outside work goes through the outbox.
 - Every shared call works in the prototype fake and on the server. Follow the new-call checklist in `src/api/CLAUDE.md`
   (loader entry, MCP allow, Admin or deny list, the `WRITE_KINDS` line of a write, words).
@@ -224,6 +227,9 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - A Workflow agent that stopped (an API error) keeps its commits, but SendMessage cannot resume it, and a re-run
   starts it again from its brief. Start a finisher in the same worktree with the commit list and the transcript
   (`subagents/workflows/<run>/agent-*.jsonl`; `agent-*.meta.json` names the label).
+- A usage limit stops every running agent at once. Give each finisher a tail of the transcript (the last 70 text and tool
+  steps of `agent-*.jsonl`, cut by a script) and `git status` of its worktree. A Docker lock of a stopped agent is stale after
+  its 3-hour hold: the finisher takes it again under the same holder name.
 - Ask each builder to write its report to a file in its worktree before it returns it, so a dropped last call loses nothing.
 - A builder that sends the same report again ("waiting on its own background work") after its work is merged: stop it with
   `TaskStop` (2026-10-20).

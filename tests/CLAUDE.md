@@ -2,6 +2,8 @@
 
 Two Playwright suites. Unit, server, db and integration tests sit next to their code (see Commands in the root
 CLAUDE.md). Run Playwright only in a delegated subagent: its output floods the main context.
+Playwright `webkit` (26.6) is installed next to `chromium`. The office has Safari users on iPhone: check a speed or screen change
+in a node script with `devices['iPhone 15']` too. Both configs run Desktop Chrome only.
 
 `npm run test:office` also runs the live suites (`server/office/{batch,socket,cron,mcp}.wd.test.ts`) on the test Worker of
 `server/office/test/live/`; the harness makes a key of the own sign-in for each run (the MCP suite signs its agent tokens with
