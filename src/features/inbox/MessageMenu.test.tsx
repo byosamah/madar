@@ -90,6 +90,20 @@ describe('the message menu on a computer', () => {
     expect(within(menu).getByRole('menuitemcheckbox', { name: 'React with 👍, 2' })).toHaveAttribute('aria-checked', 'false');
   });
 
+  it('keeps a pill 28 px high with a press area of 44 by 44 px: 8 px above and below, and 44 px wide', async () => {
+    await renderApp('/inbox', (state) => {
+      plant(state);
+      state.messages.msg_901.reactions = { '👍': ['usr_002'], '✅': [], '👀': [] };
+    });
+    await openTower();
+    const pill = within(row()).getByRole('button', { name: 'React with 👍, 1' });
+    // jsdom has no layout, so the test pins the classes: h-7 is 28 px, the ::after reaches 8 px (2 units) above and below it, and the pill is 44 px wide at least.
+    expect(pill).toHaveClass('h-7', 'min-w-11', 'relative');
+    expect(pill.className).toContain("after:-inset-y-2");
+    expect(pill.className).toContain("after:inset-x-0");
+    expect(pill.className).toContain("after:absolute");
+  });
+
   it('keeps the menu button of a message in a side spot, and closes the menu with Escape', async () => {
     await renderApp('/inbox', plant);
     await openTower();
