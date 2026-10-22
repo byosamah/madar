@@ -49,18 +49,53 @@ export type WireEntry =
 export type WireResponse = { v: 1; serverTime: string; results: WireEntry[] };
 
 export const MAX_BATCH = 12;
-/** At most one of these in one request, because the CPU limit covers the whole request. tasks.list counts only without projectId. */
+/**
+ * The overview calls: the reads that scan a whole list of the office. The CPU limit of the server covers the whole request, so a
+ * request holds a limited sum of their cost (BATCH_BUDGET). tasks.list counts only without projectId. The server accepts the
+ * budget. The client sends up to the budget only for the follow reads of a write (batcher.ts); any other call keeps one overview
+ * call for each request.
+ */
 export const OVERVIEW_CALLS = ['projects.list', 'dashboard.get', 'tasks.list', 'search.query', 'events.list'] as const;
+
+/**
+ * The cost of an overview call, in units of 10 ms of CPU on the one-year office (perf2 savetrip, 2026-10-22). Each number is the
+ * worst time of the load and the handler for an Admin and a Member in memory, rounded up (proof.md, "One save, one trip"):
+ * projects.list 146 to 192 ms, events.list 59 to 147, search.query 72 to 93, dashboard.get 80 to 84, tasks.list without a person
+ * filter 18 to 37, tasks.list of one person (mine, review_for_me, workOf, ownerId) 5 to 10, tasks.list of one project 3 to 6.
+ * A call that is not an overview call costs 0.
+ */
+const CALL_COST: Readonly<Record<string, number>> = { 'projects.list': 20, 'events.list': 15, 'dashboard.get': 10, 'search.query': 10 };
+/** tasks.list without a project: a list of one person is cheap, any other list scans every task of the office. */
+const TASKS_LIST_COST = 4;
+const TASKS_LIST_PERSON_COST = 1;
+/**
+ * The most cost that one request holds (30 units, 300 ms of calls). The worst full request that this allows took 277 ms in memory
+ * (projects.list with dashboard.get, as an Admin); with the 110 to 150 ms that a Supabase request needs before its first call, that
+ * is about 430 ms of the 2 s limit. Any one call fits alone (the highest cost is 20).
+ */
+export const BATCH_BUDGET = 30;
+
+const hasText = (input: object, key: string): boolean => typeof (input as Record<string, unknown>)[key] === 'string';
+
+/** The cost of one wire call, from its name and input. The client batcher and the server limits use this one rule. */
+export function callCost(name: string, input: unknown): number {
+  if (!(OVERVIEW_CALLS as readonly string[]).includes(name)) return 0;
+  if (name !== 'tasks.list') return CALL_COST[name] ?? 0;
+  const read = typeof input === 'object' && input !== null ? input : {};
+  if (hasText(read, 'projectId')) return 0;
+  const filter = (read as { filter?: unknown }).filter;
+  if (filter === 'mine' || filter === 'review_for_me' || hasText(read, 'workOf') || hasText(read, 'ownerId')) return TASKS_LIST_PERSON_COST;
+  return TASKS_LIST_COST;
+}
+
 /** The largest request body the server reads. */
 export const MAX_BODY_BYTES = 256 * 1024;
 /** Every request URL carries this, so the functions run in Frankfurt (plan, change 5). */
 export const FUNCTION_REGION = 'eu-central-1';
 
-/** True when this entry counts as an overview call. */
+/** True when this entry counts as an overview call (it has a cost). */
 export function isOverviewCall(name: string, input: unknown): boolean {
-  if (!(OVERVIEW_CALLS as readonly string[]).includes(name)) return false;
-  if (name !== 'tasks.list') return true;
-  return !(typeof input === 'object' && input !== null && typeof (input as { projectId?: unknown }).projectId === 'string');
+  return callCost(name, input) > 0;
 }
 
 /**

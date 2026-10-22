@@ -1,4 +1,4 @@
-import { MAX_BATCH } from './wire';
+import { BATCH_BUDGET, MAX_BATCH } from './wire';
 
 /**
  * Collects the calls of one moment into requests (client map 4.1). The window is setTimeout(0): every call that starts in the
@@ -8,8 +8,10 @@ import { MAX_BATCH } from './wire';
  *
  * A call with "after" (a read that a screen sends right after its own write, performance audit FET-3) joins the request of that
  * write instead, after it, when it fits there. The server runs the calls of a request in order, so the read sees the write.
- * When it does not fit (a full request, a second overview call, a write that waits or went before), it goes as any other call,
- * and RemoteApi does not count it as a read after the write.
+ * A follow read is one extra trip for the save when it stays out, so it has the larger limit: the calls of the request may cost
+ * BATCH_BUDGET together (callCost, wire.ts), so the cheap person lists of a screen go with the write (perf2 savetrip, 2026-10-22).
+ * The server accepts the same sum. When it does not fit (a full request, a cost over the budget, a write that waits or went
+ * before), it goes as any other call, and RemoteApi does not count it as a read after the write.
  */
 export type BatcherOptions<T> = {
   /** Sends one request. */
@@ -23,7 +25,7 @@ export type BatcherOptions<T> = {
   schedule?: (run: () => void) => void;
 };
 
-export class Batcher<T extends { overview: boolean; after?: object }> {
+export class Batcher<T extends { cost: number; after?: object }> {
   #queue: T[] = [];
   #timer = false;
   #o: BatcherOptions<T>;
@@ -50,15 +52,21 @@ export class Batcher<T extends { overview: boolean; after?: object }> {
   flush(): void {
     const items = this.#queue.splice(0);
     if (items.length === 0) return;
-    const requests: { token: object; items: T[]; overview: boolean }[] = [];
+    const requests: { token: object; items: T[]; cost: number }[] = [];
     type Request = (typeof requests)[number];
+    // A follow read in the request of its write: the cost of the calls stays within the budget. Any other call: one overview call.
+    const fitsHost = (request: Request | undefined, item: T): request is Request =>
+      request !== undefined && request.items.length < MAX_BATCH && request.cost + item.cost <= BATCH_BUDGET;
     const fits = (request: Request | undefined, item: T): request is Request =>
-      request !== undefined && request.items.length < MAX_BATCH && !(item.overview && request.overview);
+      request !== undefined && request.items.length < MAX_BATCH && !(item.cost > 0 && request.cost > 0);
     for (const item of items) {
       const host = item.after === undefined ? undefined : requests.find((request) => request.items.includes(item.after as T));
-      let current = fits(host, item) ? host : requests.at(-1);
-      if (!fits(current, item)) {
-        current = { token: {}, items: [], overview: false };
+      const last = requests.at(-1);
+      let current: Request;
+      if (fitsHost(host, item)) current = host;
+      else if (fits(last, item)) current = last;
+      else {
+        current = { token: {}, items: [], cost: 0 };
         requests.push(current);
       }
       const wait = this.#o.place?.(item, current.token) ?? null;
@@ -67,7 +75,7 @@ export class Batcher<T extends { overview: boolean; after?: object }> {
         continue;
       }
       current.items.push(item);
-      current.overview ||= item.overview;
+      current.cost += item.cost;
     }
     for (const request of requests) if (request.items.length > 0) this.#o.send(request.items);
   }

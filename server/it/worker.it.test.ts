@@ -118,10 +118,10 @@ describe.each(HOSTS)('the server on $name', (host) => {
     expect(wrong.status).toBe(401);
   });
 
-  it('refuses 13 entries, two overview calls, a body over 256 KB and an old build, before any sign-in', async () => {
+  it('refuses 13 entries, overview calls over the budget, a body over 256 KB and an old build, before any sign-in', async () => {
     const many = await post(host, '/api/batch', batchOf(Array.from({ length: 13 }, (_, i) => call(i, 'tasks.get', { id: `tsk_${i}` }))));
     expect([many.status, ((await many.json()) as { error: { details: { reason: string } } }).error.details.reason]).toEqual([413, 'too_many_calls']);
-    const overviews = await post(host, '/api/batch', batchOf([call(0, 'projects.list'), call(1, 'dashboard.get')]));
+    const overviews = await post(host, '/api/batch', batchOf([call(0, 'projects.list'), call(1, 'events.list')]));
     expect([overviews.status, ((await overviews.json()) as { error: { details: { reason: string } } }).error.details.reason]).toEqual([413, 'too_many_overviews']);
     const big = await post(host, '/api/batch', batchOf([call(0, 'comments.create', { text: 'x'.repeat(MAX_BODY_BYTES) })]));
     expect(big.status).toBe(413);

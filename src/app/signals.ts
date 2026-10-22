@@ -1,6 +1,6 @@
 import { hashKey, type Query, type QueryClient } from '@tanstack/react-query';
 import type { FreshReads } from '../api/remote/follow';
-import { MAX_BATCH, isOverviewCall, type ChangeSignal, type Kind } from '../api/remote/wire';
+import { BATCH_BUDGET, MAX_BATCH, callCost, type ChangeSignal, type Kind } from '../api/remote/wire';
 import { PERSONAL_KINDS, READS } from './readMap';
 import { WRITE_KINDS } from './writeKinds';
 
@@ -143,7 +143,8 @@ function rankOf(query: Query, record: string | undefined): number {
  * The reads on screen that a write will change (real build, performance audit FET-3): the active reads with an answer that
  * affects() gives for the kinds of WRITE_KINDS, in the project of the input, else in every project, and the personal lists of
  * me for a personal kind. The reads that show the record of the write come first, then the others in cache order. At most
- * FOLLOW_MAX reads and one overview read, so that all fit with the write in one request. The rest load on the signals.
+ * FOLLOW_MAX reads, and reads whose cost (callCost, wire.ts) adds up to BATCH_BUDGET at most, so that all fit with the write in one
+ * request. A read that would pass the budget is left out, and a cheaper one after it may still go. The rest load on the signals.
  */
 export function readsAfterWrite(queryClient: QueryClient, name: string, input: unknown, me: string): Query[] {
   const kinds = WRITE_KINDS[name];
@@ -164,13 +165,12 @@ export function readsAfterWrite(queryClient: QueryClient, name: string, input: u
     .map((query, at) => ({ query, at, rank: rankOf(query, record) }))
     .sort((a, b) => a.rank - b.rank || a.at - b.at);
   const chosen: Query[] = [];
-  let overview = false;
+  let spent = 0;
   for (const { query } of ranked) {
     if (chosen.length >= FOLLOW_MAX) break;
-    if (isOverviewCall(query.queryKey[1] as string, query.queryKey[2])) {
-      if (overview) continue;
-      overview = true;
-    }
+    const cost = callCost(query.queryKey[1] as string, query.queryKey[2]);
+    if (spent + cost > BATCH_BUDGET) continue;
+    spent += cost;
     chosen.push(query);
   }
   return chosen;

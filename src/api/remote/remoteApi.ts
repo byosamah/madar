@@ -7,7 +7,7 @@ import { fromEntry, fromStatus, noAnswer } from './errors';
 import { isRead, newKey } from './keys';
 import { StoryMap } from './stories';
 import { regionUrl } from './region';
-import { isOverviewCall, type Adapter, type AdapterCtx, type ChangeSignal, type StoryRef, type WireEntry, type WireRequest } from './wire';
+import { callCost, type Adapter, type AdapterCtx, type ChangeSignal, type StoryRef, type WireEntry, type WireRequest } from './wire';
 
 /**
  * RemoteApi: the screens' api.call() and api.run() over the batch endpoint of the server (client map 2 to 5, plan 4.10).
@@ -49,7 +49,8 @@ export { canFollow, type FollowApi, type FreshReads } from './follow';
 type Pending = {
   name: string;
   input: unknown;
-  overview: boolean;
+  /** The cost of the call for the budget of a request (callCost, wire.ts). */
+  cost: number;
   read: boolean;
   correlationId?: string;
   key?: string;
@@ -260,7 +261,7 @@ export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<
       const item: Pending = {
         name,
         input,
-        overview: isOverviewCall(name, input),
+        cost: callCost(name, input),
         read,
         correlationId: read ? undefined : meta.correlationId,
         key: read ? undefined : (meta.key ?? newKey()),

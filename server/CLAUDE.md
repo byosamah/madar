@@ -19,8 +19,13 @@ The other host stays deployed as the way back. Each area below has its own guide
 
 ## Request path
 - `POST /api/batch` (`http/batch.ts`; on a Supabase function URL with `?forceFunctionRegion=eu-central-1`, on the Worker
-  through the page's own `/api`): at most 12 entries, 256 KB, 1 overview call
-  (`http/limits.ts`). An old `X-Madar-Build` gives 409 `client_outdated`. CORS allows only listed origins, never `*`.
+  through the page's own `/api`): at most 12 entries, 256 KB, and calls whose
+  cost adds up to 30 at most (`callCost` and `BATCH_BUDGET` in `src/api/remote/wire.ts`, 1 unit = 10 ms of CPU on the year office; `http/limits.ts`
+  refuses a request over it with 413 `too_many_overviews`). A call that scans a list of the office has a cost: `projects.list` 20, `events.list` 15,
+  `dashboard.get` 10, `search.query` 10, `tasks.list` of one person (`mine`, `review_for_me`, `workOf`, `ownerId`) 1, any other `tasks.list` 4, a
+  `tasks.list` of one project and every other call 0. The follow reads of a save use the same function (perf2 savetrip, 2026-10-22). The client sends
+  up to the budget only for the follow reads of a write; any other call keeps one overview call for each request, so a cold start sends the same requests
+  as before. Change a cost only with a new CPU table of the year office (`node --import tsx scripts/proof/overview-cost.ts`; the heaviest request the budget allows took 277 ms in memory). An old `X-Madar-Build` gives 409 `client_outdated`. CORS allows only listed origins, never `*`.
 - Extra routes (`http/routes.ts`) sit under the api app: `POST /auth/forgot` answers at `/api/auth/forgot`. `GET /google/callback` (fbk_022,
   `google/callback.ts`) has no sign-in, reads no database and writes nothing: it checks the signed state and answers 302 to
   `<APP_URL>/settings#google=<word>` with `Cache-Control: no-store` and `Referrer-Policy: no-referrer`. On the office path it answers `#google=not_ready`

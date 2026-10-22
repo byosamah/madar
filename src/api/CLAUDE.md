@@ -38,7 +38,9 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   `server/core/writeKinds.test.ts` runs every write of `everyCall` and of the write sweep in memory, and fails on a kind
   that the line does not hold. A missing kind leaves no old list: the signals still reload that read, one round trip later.
 - The Batcher (`remote/batcher.ts`) places a read with `after` (a read of a follow step) in the request of that write, right
-  after it, while the request has fewer than 12 calls and no second overview call. Else the read goes as any other call, and
+  after it, while the request has fewer than 12 calls and the cost of its calls stays within `BATCH_BUDGET` (`callCost`, `remote/wire.ts`; the cheap person lists
+  of a screen cost 1 each, perf2 savetrip). Every other call keeps the limit of one overview call for each request, so the cold start of a screen sends the same
+  requests as before. Else the read goes as any other call, and
   RemoteApi does not name it as fresh. A read that goes again after a lost answer goes alone and drops `after`.
 - A rule over two input fields: chain `.refine(fn, { path, message })` on the `z.object` of `defineCall`. zod 4 keeps a ZodObject,
   so the MCP inputSchema still builds, and `invalidInput` lists each path in `details.fields` (`reports.office`).

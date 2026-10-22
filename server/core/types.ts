@@ -22,7 +22,7 @@ export type OfficeSnapshot = { version: number; lists: Readonly<Required<Pick<St
 
 /**
  * What one batch shares between its entries (plan 4.10): the story placeholders it mapped, the office it read once,
- * and how many overview calls it holds. runCall drops "office" after an entry that raised the office version.
+ * and how many overview calls (calls with a cost, see callCost in wire.ts) it holds. runCall drops "office" after an entry that raised the office version.
  * mail: the mail effects of the batch that run after the answer, as one chain, so they run in the order of the entries.
  */
 export type BatchScope = {

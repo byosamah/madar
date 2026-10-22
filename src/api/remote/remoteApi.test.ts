@@ -90,8 +90,15 @@ describe('the request', () => {
   it('sends two overview calls in two requests', async () => {
     const { sent, fetch } = stubFetch();
     const api = remote(fetch);
-    await Promise.all([api.call('projects.list', {}), api.call('dashboard.get', {}), api.call('tasks.list', { projectId: 'prj_001' })]);
-    expect(sent.map((s) => s.body.calls.map((c) => c.name))).toEqual([['projects.list'], ['dashboard.get', 'tasks.list']]);
+    await Promise.all([api.call('projects.list', {}), api.call('events.list', {}), api.call('tasks.list', { projectId: 'prj_001' })]);
+    expect(sent.map((s) => s.body.calls.map((c) => c.name))).toEqual([['projects.list'], ['events.list', 'tasks.list']]);
+  });
+
+  it('keeps the calls of a screen at one overview call for each request, however cheap the second one is (perf2 savetrip)', async () => {
+    const { sent, fetch } = stubFetch();
+    const api = remote(fetch);
+    await Promise.all([api.call('tasks.list', { filter: 'mine' }), api.call('tasks.list', { filter: 'review_for_me' }), api.call('projects.list', {})]);
+    expect(sent.map((s) => s.body.calls.map((c) => c.name))).toEqual([['tasks.list'], ['tasks.list'], ['projects.list']]);
   });
 
   it('adds no wait of its own', async () => {
@@ -418,6 +425,24 @@ describe('reads after an own write (performance audit FET-3)', () => {
     expect(onSignals).toHaveBeenCalledWith([signal], { tag, reads: [{ name: 'tasks.get', input: TASK }, { name: 'tasks.list', input: LIST }] });
   });
 
+  it('sends the cheap person lists of a screen with the write, and names all of them (perf2 savetrip: one save, one trip)', async () => {
+    const onSignals = vi.fn();
+    const { sent, fetch } = stubFetch(changedWrites);
+    const api = followable(fetch, { onSignals });
+    const tag = {};
+    const MINE = { filter: 'mine', includeDone: false } as const;
+    const REVIEW = { filter: 'review_for_me' } as const;
+    const reads: Promise<unknown>[] = [];
+    await api.follow(() => api.call('tasks.update', { id: 'tsk_013', patch: {} }), () => {
+      reads.push(api.call('tasks.get', TASK), api.call('tasks.list', LIST), api.call('tasks.list', MINE), api.call('tasks.list', REVIEW));
+    }, tag);
+    await Promise.all(reads);
+    expect(sent.map((s) => s.body.calls.map((c) => c.name))).toEqual([['tasks.update', 'tasks.get', 'tasks.list', 'tasks.list', 'tasks.list']]);
+    expect(onSignals).toHaveBeenCalledWith([signal], {
+      tag, reads: [{ name: 'tasks.get', input: TASK }, { name: 'tasks.list', input: LIST }, { name: 'tasks.list', input: MINE }, { name: 'tasks.list', input: REVIEW }],
+    });
+  });
+
   it('works the same for run(), which the undoable actions use', async () => {
     const onSignals = vi.fn();
     const { sent, fetch } = stubFetch(changedWrites);
@@ -481,7 +506,7 @@ describe('reads after an own write (performance audit FET-3)', () => {
     expect(sent.map((s) => s.body.calls.map((c) => c.name))).toEqual([['files.upload']]);
   });
 
-  it('names no read that did not fit in the request of the write (a second overview call)', async () => {
+  it('names no read that did not fit in the request of the write (a cost over the budget)', async () => {
     const onSignals = vi.fn();
     const { sent, fetch } = stubFetch(changedWrites);
     const api = followable(fetch, { onSignals });
@@ -489,10 +514,10 @@ describe('reads after an own write (performance audit FET-3)', () => {
     const reads: Promise<unknown>[] = [];
     const first = api.call('projects.list', {});
     await api.follow(() => api.call('tasks.complete', TASK), () => {
-      reads.push(api.call('dashboard.get', {}), api.call('tasks.get', TASK));
+      reads.push(api.call('events.list', {}), api.call('tasks.get', TASK));
     }, tag);
     await Promise.all([first, ...reads]);
-    expect(sent.map((s) => s.body.calls.map((c) => c.name))).toEqual([['projects.list', 'tasks.complete', 'tasks.get'], ['dashboard.get']]);
+    expect(sent.map((s) => s.body.calls.map((c) => c.name))).toEqual([['projects.list', 'tasks.complete', 'tasks.get'], ['events.list']]);
     expect(onSignals).toHaveBeenCalledWith([signal], { tag, reads: [{ name: 'tasks.get', input: TASK }] });
   });
 

@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { isOverviewCall, MAX_BATCH, MAX_BODY_BYTES, type WireRequest } from '../../src/api/remote/wire';
+import { BATCH_BUDGET, callCost, MAX_BATCH, MAX_BODY_BYTES, type WireRequest } from '../../src/api/remote/wire';
 import { refuse } from './errors';
 
 /**
  * The checks of a batch before any sign-in or call (plan 4.10): the screen build, the body size, the wire shape,
- * at most 12 entries and at most one overview call. Each refusal names its reason for the screen.
+ * at most 12 entries, and calls whose cost (callCost) adds up to BATCH_BUDGET at most. Each refusal names its reason for the screen.
  */
 
 /** True when the screen build is older than the oldest build the server accepts. Builds compare number by number ("2026.10.4"). */
@@ -67,7 +67,7 @@ const WireRequestSchema = z.object({ v: z.literal(1), calls: z.array(WireCallSch
 
 const notABatch = () => refuse('invalid_input', 'The request is not a batch.', { reason: 'bad_request' });
 
-/** The batch of a body, with the entry and overview limits. Returns the number of overview calls. */
+/** The batch of a body, with the entry and cost limits. Returns the number of overview calls (the calls that have a cost). */
 export function parseBatch(text: string): { request: WireRequest; overviewCalls: number } {
   let json: unknown;
   try {
@@ -83,7 +83,10 @@ export function parseBatch(text: string): { request: WireRequest; overviewCalls:
   if (!parsed.success) throw notABatch();
   const request = parsed.data as WireRequest;
   if (new Set(request.calls.map((c) => c.i)).size !== request.calls.length) throw notABatch();
-  const overviewCalls = request.calls.filter((c) => isOverviewCall(c.name, c.input)).length;
-  if (overviewCalls > 1) throw refuse('invalid_input', 'A request holds at most one overview call.', { reason: 'too_many_overviews' });
-  return { request, overviewCalls };
+  // The CPU limit of the server covers the whole request. A call that scans a list of the office has a cost (wire.ts, callCost).
+  const costs = request.calls.map((c) => callCost(c.name, c.input));
+  if (costs.reduce((sum, cost) => sum + cost, 0) > BATCH_BUDGET) {
+    throw refuse('invalid_input', 'A request holds too many overview calls.', { reason: 'too_many_overviews' });
+  }
+  return { request, overviewCalls: costs.filter((cost) => cost > 0).length };
 }
