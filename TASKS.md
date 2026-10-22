@@ -1038,7 +1038,14 @@ Plan and answers: memory and the two design files below. fbk_039 (12-hour clock)
   - [ ] D3 open: a push that the server plans before a person loses the view may still send its one fixed line ("You have something new in Madar.").
   - [ ] D3 open: the number `reviews_waiting` of the morning summary is not filtered by the view rule.
   - [ ] D4 open: the guard of the `INT` code head: a client code that already starts with `INT` before this change is not checked.
-  - [ ] Run the full gates on the join: `npm test`, `test:db`, `test:it`, `test:mcp`, the prototype smoke, and the screenshots of D4.
+  - [x] Gates on the join (main 92c3b276 plus D1 to D4 and the mention fix): typecheck; npm test 10,316 passed (6 timing tests failed
+    under a load average of 10 to 17 and pass alone, 91 of 91); test:db 3,176 (2 failed on the database only: the hidden-project sweep
+    needed more than 30 s, and the notice test deleted a project without its rows; both fixed in the tests, 31 of 31 again); test:it 333;
+    test:mcp 339 and conformance 5 of 32; the four builds (api.js 855,764 characters, bound now 900,000; first load under 970,000);
+    screenshots EN and AR, light and dark, 390 px: the Projects row with the lock and Internal, the Team tab block, an internal
+    project with 6 tabs, the New project choice, and a person off the team who sees no row and a not-found page.
+  - [ ] Not run: the prototype smoke (Playwright) and the deploy suite. Owner tries D on the test copy, then production.
+    Mark fbk_044 done after the owner says it is live.
 - [x] `makeThumb` (owner: "add it to Batch B", 2026-10-22): a file over 2 MB decodes straight to 960 px wide (`rb/thumb`, d501f03b, joins
   Batch B). The small picture still comes before the upload: the server signs its upload by its size, so starting both at once needs a
   server change (not done). What's new 92; entry 91 moved to the top.
