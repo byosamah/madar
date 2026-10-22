@@ -555,6 +555,10 @@ any screen work.
   the repo; the header has the command). The script drops U+FE0F after an `Emoji_Presentation` character, so 👍 from the panel equals the quick 👍.
   `EmojiButton` loads the panel with `import()` at the first open (`check-bundles` refuses `grinning face` in the first load). A phone gets a
   sheet, except inside a dialog, where the panel floats (`EmojiFloat`: 8 columns of 44 px; `Popover` is too narrow).
+  The panel draws Recent and the first group at once and the other 7 groups at the idle step (`Groups` in `EmojiPanel.tsx`, `useStaged`, RN-8, 2026-10-21).
+  An undrawn group (`EmojiGroup.tsx`) keeps its id and a box of the height of its grid (rows of 44 px), so the group buttons and `nextCell` work. Each group
+  is a memo part and gets `tabbable` only when the tab cell is in it, so a focus move renders two cells and one or two groups; `EmojiCell.tsx` holds the cell.
+  A test that needs the last group waits for it (`findByRole`).
 
 ## Meetings screens (owner, 2026-10-19, fbk_022)
 - `/meetings` is the second view of the Tasks tab (`features/meetings/`, `MeetingsScreen.tsx`). The tab pill keeps 5 tabs: `isNavActive` keeps

@@ -36,14 +36,15 @@ describe('the emoji panel', () => {
     expect(within(recentGroup()).getByRole('button', { name: 'red heart' })).toBeInTheDocument();
   });
 
-  it('has the 8 group buttons, with the names of the groups', () => {
+  it('has the 8 group buttons, with the names of the groups', async () => {
     useLanguage('en');
     panel();
     const bar = screen.getByRole('toolbar', { name: 'Groups of emoji' });
     expect(within(bar).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
       'Smileys and people', 'Animals and nature', 'Food and drink', 'Activities', 'Travel and places', 'Objects', 'Symbols', 'Flags',
     ]);
-    expect(screen.getByRole('group', { name: 'Flags' })).toBeInTheDocument();
+    // The last group draws at the idle step (RN-8): this pin waited for it at once before.
+    expect(await screen.findByRole('group', { name: 'Flags' })).toBeInTheDocument();
   });
 
   it('finds ❤️ for heart and for قلب', async () => {
@@ -153,7 +154,7 @@ describe('the emoji panel', () => {
     expect(first).toHaveFocus();
     // The names are Arabic.
     expect(within(recentGroup()).getByRole('button', { name: 'قلب أحمر' })).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'الأعلام' })).toBeInTheDocument();
+    expect(await screen.findByRole('group', { name: 'الأعلام' })).toBeInTheDocument();
   });
 
   it('finds ❤️ for احمر in the Arabic screen', async () => {
