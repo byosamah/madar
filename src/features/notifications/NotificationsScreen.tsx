@@ -21,6 +21,7 @@ import { groupByDay } from '../../lib/group';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ProjectTile } from '../../components/ProjectTile';
 import { GroupPicture } from '../inbox/GroupPicture';
+import { chatState } from '../inbox/chatBack';
 import { InboxViews } from '../inbox/InboxViews';
 import { noticeSentence } from '../../lib/noticeSentence';
 
@@ -82,6 +83,20 @@ const InboxItem = memo(function InboxItem({ view }: { view: NoticeView }) {
       </span>
     </>
   );
+  const approveButton = canApprove && (
+    <Button
+      className="shrink-0"
+      disabled={approve.isPending}
+      onClick={() => {
+        wasUnread.current = !n.read;
+        approve.mutate({ id: n.targetId });
+      }}
+      // Each button names its task, so a screen reader can tell two Approve buttons apart; the visible word stays Approve.
+      aria-label={t('inbox.approveTask', { target })}
+    >
+      {t('inbox.approve')}
+    </Button>
+  );
   return (
     <motion.li
       drag={phone ? 'x' : false}
@@ -96,13 +111,14 @@ const InboxItem = memo(function InboxItem({ view }: { view: NoticeView }) {
           swiped.current = false;
         }, 0);
       }}
-      className="flex items-center gap-2 bg-panel pe-3 transition-colors hover:bg-fill/50"
+      className={`flex gap-2 bg-panel pe-3 transition-colors hover:bg-fill/50 ${phone ? 'flex-col' : 'items-center'}`}
     >
       {/* The whole row opens the item and marks it read (redesign spec 3.7). Approve stays its own button beside it. */}
       {/* A row with no link (a done report) is a button that only marks it read (owner, 2026-10-07). */}
       {gone ? <div className="flex min-w-0 flex-1 items-start gap-3 py-3.5 ps-4">{body}</div> : link !== '' ? (
         <Link
           to={link}
+          state={chatState('/notifications')}
           onClick={(event) => {
             if (swiped.current) {
               event.preventDefault();
@@ -125,20 +141,9 @@ const InboxItem = memo(function InboxItem({ view }: { view: NoticeView }) {
           {body}
         </button>
       )}
-      {canApprove && (
-        <Button
-          className="shrink-0"
-          disabled={approve.isPending}
-          onClick={() => {
-            wasUnread.current = !n.read;
-            approve.mutate({ id: n.targetId });
-          }}
-          // Each button names its task, so a screen reader can tell two Approve buttons apart; the visible word stays Approve.
-          aria-label={t('inbox.approveTask', { target })}
-        >
-          {t('inbox.approve')}
-        </Button>
-      )}
+      {/* On a phone Approve sits under the meta line, in line with the text: 16 px edge, the dot of 10 px, the face of 36 px and two gaps of
+          12 px make 5.375rem. It stays its own button next to the link, never inside it. */}
+      {canApprove && (phone ? <div className="flex ps-[5.375rem] pb-3">{approveButton}</div> : approveButton)}
     </motion.li>
   );
 });
@@ -177,6 +182,10 @@ export function NotificationsScreen() {
     // The mutation object changes on every render. Only a new set of gone notices matters here.
   }, [goneUnread]);
   const phone = useIsPhone();
+  const markAllRead = () => {
+    cleared.current = items.filter((view) => !view.notification.read).map((view) => view.notification.id);
+    markAll.mutate({});
+  };
   return (
     <>
       {/* A phone shows one title, Inbox, and the switch of the two views under it (Direction D). The desk keeps its page. */}
@@ -186,10 +195,7 @@ export function NotificationsScreen() {
           <Button
             variant="plain"
             className="shrink-0 px-3"
-            onClick={() => {
-              cleared.current = items.filter((view) => !view.notification.read).map((view) => view.notification.id);
-              markAll.mutate({});
-            }}
+            onClick={markAllRead}
           >
             {t('inbox.markAllRead')}
           </Button>
@@ -200,9 +206,15 @@ export function NotificationsScreen() {
       {/* A new object at each render of the list: the memo rows stay, and each Age reads the clock again (RN-7). */}
       <AgeRefresh.Provider value={{}}>
         <div className="flex flex-col gap-5">
-          {groupByDay(items, (view) => stampDay(view.notification.createdAt)).map((group) => (
+          {groupByDay(items, (view) => stampDay(view.notification.createdAt)).map((group, index) => (
             <section key={group.day} aria-labelledby={`inbox-${group.day}`}>
-              <h2 id={`inbox-${group.day}`} className="px-1 pb-2 text-footnote font-semibold uppercase tracking-[0.06em] text-ink-2">{dayLabel(group.day)}</h2>
+              {/* On a phone Mark all read ends the heading line of the first day, while one notice is unread (Direction D). */}
+              <div className={phone && index === 0 && unread ? 'flex items-center justify-between gap-2' : undefined}>
+                <h2 id={`inbox-${group.day}`} className="px-1 pb-2 text-footnote font-semibold uppercase tracking-[0.06em] text-ink-2">{dayLabel(group.day)}</h2>
+                {phone && index === 0 && unread && (
+                  <Button variant="plain" className="-mt-2 mb-0 shrink-0 px-3" onClick={markAllRead}>{t('inbox.markAllRead')}</Button>
+                )}
+              </div>
               <ul className="panel hairline flex flex-col overflow-hidden">
                 {group.items.map((view) => <InboxItem key={view.notification.id} view={view} />)}
               </ul>
