@@ -5,7 +5,9 @@ import { goto, settle, urlPattern } from './goto';
 
 /** tests/e2e/projects.spec.ts on the remote build (task X2), at 820 px too. */
 
-const TABS = ['overview', 'tasks', 'activity', 'schedule', 'files', 'team'];
+const DESK_TABS = ['overview', 'tasks', 'activity', 'tracker', 'schedule', 'files', 'team'];
+// A phone has five tabs. The last three entries open a page of More (phone D).
+const PHONE_TABS = ['overview', 'tasks', 'tracker', 'files', 'more', 'activity', 'schedule', 'team'];
 
 async function expectNoSeriousA11yIssues(page: Page, route: string): Promise<void> {
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
@@ -27,7 +29,7 @@ for (const width of [390, 820, 1440]) {
     test(`project tabs at ${width}px in ${lang}`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       if (lang === 'ar') await useArabic(page);
-      for (const tab of TABS) {
+      for (const tab of width < 640 ? PHONE_TABS : DESK_TABS) {
         const route = `/projects/prj_001?tab=${tab}`;
         await goto(page, route);
         await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
@@ -38,6 +40,61 @@ for (const width of [390, 820, 1440]) {
     });
   }
 }
+
+test('the project page on a phone has five tabs, one navy button and no sideways scroll', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await goto(page, '/projects/prj_001');
+  await expect(page.getByRole('tablist', { name: 'Project sections' }).getByRole('tab')).toHaveText(['Overview', 'To-dos', 'Tracker', 'Files & Links', 'More']);
+  await settle(page);
+  await expect(page.locator('main .signature')).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  for (const tab of ['tasks', 'tracker', 'files', 'more', 'schedule']) {
+    await goto(page, `/projects/prj_001?tab=${tab}`);
+    await expect(page.getByRole('tablist', { name: 'Project sections' })).toBeVisible();
+    await settle(page);
+    // One navy button on each tab.
+    await expect(page.locator('main .signature')).toHaveCount(1);
+  }
+});
+
+test('the tab row stays at the top while the page scrolls', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await goto(page, '/projects/prj_001');
+  const row = page.getByRole('tablist', { name: 'Project sections' });
+  await expect(row).toBeVisible();
+  await settle(page);
+  await page.evaluate(() => window.scrollTo(0, 800));
+  await page.waitForTimeout(300);
+  // The safe area is 0 in this browser, so the sticky row sits at the top edge.
+  const box = await row.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.y).toBeLessThanOrEqual(1);
+});
+
+test('five tab words fit in 360 px in Arabic, with no sideways scroll', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 740 });
+  await useArabic(page);
+  for (const tab of PHONE_TABS) {
+    await goto(page, `/projects/prj_001?tab=${tab}`);
+    const tabs = page.getByRole('tablist', { name: 'Project sections' }).getByRole('tab');
+    await expect(tabs).toHaveCount(5);
+    await settle(page);
+    for (const box of await tabs.evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().toJSON()))) {
+      expect(box.left).toBeGreaterThanOrEqual(0);
+      expect(box.right).toBeLessThanOrEqual(360);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+  }
+});
+
+test('Back from the project chat returns to the project tab', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await goto(page, '/projects/prj_001?tab=files');
+  await page.getByRole('link', { name: 'Project chat' }).click();
+  await expect(page).toHaveURL(urlPattern('/inbox/'));
+  await page.goBack();
+  await expect(page).toHaveURL(urlPattern('/projects/prj_001?tab=files'));
+});
 
 test('the projects list is one column of rows, with no cards and no grid switch', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
