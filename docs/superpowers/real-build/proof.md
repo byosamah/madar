@@ -2455,3 +2455,13 @@ Not proven: a real iPhone. After the deploy, wait 11 minutes on an iPhone, press
 - The first run stopped at the secrets step: "The Management API refused the key list with 500" (Supabase; migrations and config were up
   to date, nothing deployed). The second run passed every step: health from supabase (150 calls), database, lock and asyncContext ok,
   /mcp with no token 401; the page title Madar, `/favicon.ico` 200, and the live words hold "When Madar notifies you".
+
+### Release record: production at 139ad4ba (2026-10-22, fbk_050 and fbk_051)
+- On the owner's "Production now" (AskUserQuestion), `all.sh production` took 139ad4ba: "Download all" as one ZIP made in the browser under
+  every message, to-do comment and post comment with 2 or more files and on the Files tab (fbk_050), and the two times of "When Madar
+  notifies you" in the order of the quiet line, "Quiet from" then "Until" (fbk_051). Screens only, no migration. The quick checks passed:
+  health from supabase, database, lock and asyncContext ok, /mcp with no token 401; the page title Madar, `/favicon.ico` 200, the live words
+  hold "Quiet from", and the lazy `zip-*.js` chunk answers 200.
+- The read of a file from the page: the EU bucket `madar-files` (`wrangler r2 bucket cors list madar-files --jurisdiction eu`) allows
+  `PUT, GET` from madar.vado.sa, and a preflight to `<account>.eu.r2.cloudflarestorage.com` answers 204 with
+  `Access-Control-Allow-Origin: https://madar.vado.sa`. A probe of the host without `.eu.` answers 403: always use the EU host.

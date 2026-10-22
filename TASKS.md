@@ -1072,4 +1072,5 @@ Plan and answers: memory and the two design files below. fbk_039 (12-hour clock)
 - [x] Gates on main d2476c8a plus both: typecheck; npm test 10,385 passed, 0 failed; both builds (first load 950,885 B, 285,936 B gzip);
   screenshots 390 px (the chat button EN light, the Files tab AR dark, the quiet fields EN light and AR dark); the ZIP read back in the
   page (4 names, Arabic intact, "Preparing 2 of 4" to "4 of 4"). Not run: test:db and test:it (no server or SQL change).
-- [ ] Owner: production. Then mark fbk_050 and fbk_051 done. Check one real ZIP on the live site (the R2 GET runs only there).
+- [x] Production at 139ad4ba (owner: "Production now"); fbk_050 and fbk_051 marked done. The live EU bucket allows the GET (preflight 204);
+  a real ZIP press on the live site is still not seen by eye.
