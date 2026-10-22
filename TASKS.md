@@ -953,16 +953,21 @@ Branch `rb/perf2` (worktree `~/dev/madar-rb/perf2`). Sonnet agents, the Opus ses
 `docs/reviews/2026-10-21-performance-audit/` (README, findings, auditor reports). Fix rule: speed and size only.
 - [x] Baseline: first load 50 files, 384 KB gzip (318 KB on 2026-10-08); api.js 827 KB
 - [x] Audit workflow wf_cd6fb185-8e4: 7 auditors and 7 skeptics, 113 findings; the gap critic runs
-- [ ] Build, 6 tracks on Sonnet: 1 first load, 2 lists, 3 calls, 4 server, 5 database, 6 instance reuse probe
+- [x] Build, 6 tracks on Sonnet: 1 first load, 2 lists, 3 calls, 4 server, 5 database, 6 instance reuse probe. The weekly usage
+  limit stopped 5 builders on 2026-10-21 at about 20:00; 6 finishers ended them on 2026-10-22 (the lists track split in two)
+- [x] Track 6 answer: the platform gives about 95 of 100 calls a new worker, also for a plain function: no code fix (proof.md)
+- [x] Merge of the six tracks into rb/perf2 (3f8dcbae); builds and bundle checks pass; first load 34 files, 286,908 B gzip
+  (was 384 KB); limits lowered to 970,000 B, 296,000 B gzip, 35 files (fe3a0196)
 - [ ] Gap critic findings: a second wave if any holds
 - [ ] Merge into rb/perf2, then the gates once: typecheck, npm test, test:lite, test:office, build, build:server,
   build:remote test, test:db, test:it, test:mcp, the prototype smoke; screenshots of the touched screens (EN/AR, light/dark, 390 px)
-- [ ] What's new line (one for the speed release); no MCP change (no call, input, output or rule changes)
+- [x] What's new line 2026-10-23-82 "Madar is faster" (d107844d); no MCP change in wave 1 (no call, input, output or rule changes)
 - [ ] Test copy (`all.sh test` from main after the merge), then the live numbers again
 - [ ] Production: only on the owner's word, after the team week (not before 2026-10-23)
 - [x] Owner decisions (2026-10-21): DF-14 instant Home from the device: yes (clear at sign-out and on a role change); SV-7 and
   DF-2 direct and group chat signals to the members only: yes (with leak tests); DB-13 outbox clean-up: no, keep the rows
-- [ ] Wave 2 after the wave 1 merge: DF-14 and SV-7 (both touch files of wave 1), plus the gap critic findings that hold
+- [ ] Wave 2 (run wf_adeeec9a-475, from 3f8dcbae): DF-14 instant Home, SV-7 member-only chat signals, DF-12 the WebKit
+  preflight measure (and the page's own /api for WebKit if it wins); the gap critic runs again (it stopped on the limit)
 - [ ] Owner: the removal of the probe function probe-reuse of track 6 on madar-test (a 404 stub after the probe)
 - [ ] Not asked, recorded only: LV-1 one font preload (first visit of a new device only)
 - [ ] Safari on iPhone (owner, 2026-10-21: "we have safari users on iphone"). Every iPhone browser is WebKit, and every check
