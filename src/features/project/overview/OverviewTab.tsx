@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import type { TaskRow, TrackerRow } from '../../../api/contract/views';
 import { useLang } from '../../../app/lang';
+import { useIsPhone } from '../../../app/useIsPhone';
 import { usePersonName } from '../../../app/personName';
 import { useCall } from '../../../app/runtime';
 import { Age } from '../../../components/Age';
@@ -21,7 +22,9 @@ import type { TabProps } from '../tabs';
 import { TaskSheet } from '../tasks/TaskSheet';
 import { Loop } from '../tracker/OpenLoops';
 import { amountText, PaymentsPanel } from '../payments/PaymentsPanel';
+import { NextDeadlineLabel } from '../../projects/ProjectCard';
 import { AboutPanel } from './AboutPanel';
+import { Composer } from './Composer';
 import { ProjectMeetings } from './ProjectMeetings';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { CornerUpLeftIcon } from '../../../components/icons/animated/corner-up-left';
@@ -49,7 +52,7 @@ function TaskLine({ row, onOpen, showOwner = true }: { row: TaskRow; onOpen: (id
 }
 
 /** Where the project stands: the stage, how far the stage is, the stage's end and the health (owner's request, 2026-10-01). */
-function Standing({ detail, rows }: TabProps & { rows: TaskRow[] }) {
+function Standing({ detail, rows, phone = false }: TabProps & { rows: TaskRow[]; phone?: boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
   const nameOf = usePersonName();
@@ -60,14 +63,19 @@ function Standing({ detail, rows }: TabProps & { rows: TaskRow[] }) {
   return (
     <section aria-labelledby="overview-standing" className="panel flex flex-col gap-4 p-5">
       <h2 id="overview-standing" className={HEADING}>{t('overview.standing')}</h2>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-footnote text-ink-2">{t('projects.stageCount', { n: index + 1, total: stages.length })}</p>
-          <p dir="auto" className="text-section text-ink">{currentStage.name}</p>
-        </div>
-        {health ? <StatusSign state={health.value}>{t(`health.${health.value}`)}</StatusSign> : <ProjectSign project={project} staleDays={detail.staleDays} />}
-      </div>
-      <ProgressLine index={index} total={stages.length} complete={project.status === 'completed'} size="md" tone={signOfProject(detail)} label={t('projects.stageCount', { n: index + 1, total: stages.length })} />
+      {/* A phone shows the stage name, the count and the steps in the header, so this panel keeps the facts only. */}
+      {!phone && (
+        <>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-footnote text-ink-2">{t('projects.stageCount', { n: index + 1, total: stages.length })}</p>
+              <p dir="auto" className="text-section text-ink">{currentStage.name}</p>
+            </div>
+            {health ? <StatusSign state={health.value}>{t(`health.${health.value}`)}</StatusSign> : <ProjectSign project={project} staleDays={detail.staleDays} />}
+          </div>
+          <ProgressLine index={index} total={stages.length} complete={project.status === 'completed'} size="md" tone={signOfProject(detail)} label={t('projects.stageCount', { n: index + 1, total: stages.length })} />
+        </>
+      )}
       {project.stageBack && project.stageBack.toStageId === currentStage.id && (
         // Why the project went back a stage, until it moves forward again (colleague comment 12).
         <p className="flex items-start gap-2 text-subheadline text-ink-2">
@@ -94,7 +102,14 @@ function Standing({ detail, rows }: TabProps & { rows: TaskRow[] }) {
               : `${formatDay(currentStage.endDate, lang)} · ${late ? counted(t, 'overview.stageLate', -standing.daysLeft) : standing.daysLeft === 0 ? t('due.today') : counted(t, 'overview.stageLeft', standing.daysLeft)}`}
           </dd>
         </div>
+        {phone && detail.nextDeadline && (
+          <div>
+            <dt className="text-footnote text-ink-2">{t('phoneProject.overview.nextDeadline')}</dt>
+            <dd><NextDeadlineLabel deadline={detail.nextDeadline} /></dd>
+          </div>
+        )}
       </dl>
+      {phone && !detail.nextDeadline && !detail.stageEnd && <p className="text-footnote text-ink-2">{t('projects.noDeadline')}</p>}
       {health?.overridden && health.reason && (
         <p className="rounded-xl bg-fill px-3 py-2 text-footnote text-ink-2">
           <bdi>{healthSetBy ? t('overview.healthNote', { name: nameOf(healthSetBy), context: actorContext(healthSetBy) }) : ''}</bdi> <bdi className="text-ink">{health.reason}</bdi>
@@ -267,12 +282,44 @@ function LatestUpdate({ detail }: TabProps) {
   );
 }
 
+/** The Updates panel of a phone: the post box, then the two newest posts, then the link to the whole feed. */
+function UpdatesPanel({ detail }: TabProps) {
+  const { t } = useTranslation();
+  const nameOf = usePersonName();
+  const posts = useCall('updates.list', { projectId: detail.project.id, filter: 'posts' });
+  const newest = (posts.data ?? []).filter((item) => item.kind === 'update').slice(0, 2);
+  return (
+    <section aria-labelledby="overview-updates" className="panel flex flex-col gap-3 p-5">
+      <h2 id="overview-updates" className={HEADING}>{t('overview.feed')}</h2>
+      {detail.viewerCan.postUpdate ? <Composer detail={detail} compact /> : <p className="text-footnote text-label-2">{t('overview.cannotPost')}</p>}
+      {posts.data && newest.length === 0 && <p className="text-subheadline text-ink-2">{t('overview.noPosts')}</p>}
+      {newest.length > 0 && (
+        <ul className="flex flex-col gap-3">
+          {newest.map((item) => item.kind === 'update' && (
+            <li key={item.id} data-post className="flex flex-col gap-2">
+              <span className="flex items-center gap-2">
+                <Avatar user={item.author} size={24} />
+                <bdi className="truncate text-footnote font-semibold text-ink">{nameOf(item.author)}</bdi>
+                {item.author.kind === 'agent' && <AgentLabel />}
+                <span className="text-footnote text-ink-2"><Age stamp={item.at} /></span>
+              </span>
+              <div dir="auto" className="line-clamp-4 text-subheadline text-ink"><RichText body={item.body} /></div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Link to="?tab=activity" className="flex min-h-11 items-center self-start text-subheadline font-semibold text-link">{t('overview.seeActivity')}</Link>
+    </section>
+  );
+}
+
 /**
  * The project at a glance (owner's request, 2026-10-01): where it stands, what needs attention,
  * what each person works on now, what comes next. The log of every change lives in Activity.
  */
 export function OverviewTab({ detail }: TabProps) {
   const [params] = useSearchParams();
+  const phone = useIsPhone();
   const tasks = useCall('tasks.list', { projectId: detail.project.id, activeProjectsOnly: false });
   // The open Tracker rows of Attention load with the tasks, not after them (performance audit 2026-10-07, LIV-1).
   const tracker = useCall('tracker.list', { projectId: detail.project.id, openOnly: true });
@@ -283,6 +330,26 @@ export function OverviewTab({ detail }: TabProps) {
   if (tasks.error && !tasks.data) return <LoadFailed error={tasks.error} onRetry={() => void tasks.refetch()} />;
   const rows = tasks.data ?? [];
   const taskId = params.get('task');
+  if (phone) {
+    // One column in this order: standing, attention, payments, updates, meetings, coming up, people, about (phone D).
+    return (
+      <div className="flex min-w-0 flex-col gap-5">
+        {tasks.data ? (
+          <>
+            <Standing detail={detail} rows={rows} phone />
+            <Attention projectId={detail.project.id} rows={rows} tracker={tracker.data} onOpen={open} seesPayments={detail.viewerCan.payments} />
+          </>
+        ) : <div aria-busy="true" className="panel min-h-64" />}
+        {detail.viewerCan.payments && <PaymentsPanel projectId={detail.project.id} />}
+        <UpdatesPanel detail={detail} />
+        <ProjectMeetings detail={detail} />
+        <ComingUp detail={detail} />
+        {tasks.data && <People detail={detail} rows={rows} onOpen={open} />}
+        <AboutPanel detail={detail} />
+        {taskId && <TaskSheet key={taskId} taskId={taskId} detail={detail} onClose={panel.close} />}
+      </div>
+    );
+  }
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="flex min-w-0 flex-col gap-5">

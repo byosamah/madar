@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import { useCall } from '../../../app/runtime';
+import { useIsPhone } from '../../../app/useIsPhone';
 import { Button } from '../../../components/Button';
 import { FilterButton } from '../../../components/FilterButton';
 import { EmptyState } from '../../../components/EmptyState';
@@ -22,6 +23,7 @@ export { FILTERS as FEED_FILTERS, PAGE as FEED_PAGE };
 /** The project's log: posts and system events with a filter, and the composer on top (spec 5.2). The Overview shows the state of the project instead (owner, 2026-10-01). */
 export function ActivityTab({ detail }: TabProps) {
   const { t } = useTranslation();
+  const phone = useIsPhone();
   const [params, setParams] = useSearchParams();
   // The feed filter lives in the link, so a reload, Back or a trip to another tab keeps it (audit 2026-10-03, PRJ-22).
   const filter = oneOf(params.get('feed'), FILTERS, 'all');
@@ -39,7 +41,8 @@ export function ActivityTab({ detail }: TabProps) {
   return (
     <div className="mx-auto w-full max-w-3xl">
       <section aria-label={t('overview.feed')} className="flex min-w-0 flex-col gap-4">
-        {detail.viewerCan.postUpdate ? <Composer detail={detail} /> : <p className="text-footnote text-label-2">{t('overview.cannotPost')}</p>}
+        {/* A phone has the box in the Updates panel of Overview (phone D). */}
+        {!phone && (detail.viewerCan.postUpdate ? <Composer detail={detail} /> : <p className="text-footnote text-label-2">{t('overview.cannotPost')}</p>)}
         <div>
           <FilterButton label={t('filter.label')} count={filter === 'all' ? 0 : 1}>
             <fieldset className="flex flex-col">

@@ -5,6 +5,9 @@
       "scheduleLine": "Stage dates and deadlines.",
       "teamLine": "Who is on this project.",
       "back": "More"
+    },
+    "overview": {
+      "nextDeadline": "Next deadline"
     }
   }
 }
