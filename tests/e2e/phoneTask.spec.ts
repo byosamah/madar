@@ -15,7 +15,8 @@ const KINDS = [
   { kind: 'waiting', person: 'Khalid Al-Mutairi · Member', task: 'tsk_008', control: null },
   { kind: 'new version', person: 'Faisal Al-Harbi · Leader', task: 'tsk_005', control: { role: 'button', name: 'New version' } },
   { kind: 'join', person: 'Sara Al-Qahtani · Member', task: 'tsk_011', control: { role: 'button', name: 'Join as a helper' } },
-  { kind: 'none', person: 'Omar Haddad · Member', task: 'tsk_010', control: null },
+  // Omar leads other projects, not Corniche Office Tower: on this to-do he is a reader, so the panel shows the read-only line.
+  { kind: 'none', person: 'Omar Haddad · Leader', task: 'tsk_010', control: null, line: 'You can view this to-do' },
 ] as const;
 
 /** Picks a person in Preview as and waits until the app shows that person. */
@@ -55,6 +56,7 @@ for (const lang of ['en', 'ar'] as const) {
         expect(await page.evaluate(() => window.innerWidth)).toBe(390);
         if ('prepare' in entry && lang === 'en') await entry.prepare(page);
         if (entry.control && lang === 'en') await expect(sheet.getByRole(entry.control.role, { name: entry.control.name })).toBeVisible();
+        if ('line' in entry && lang === 'en') await expect(sheet.getByText(entry.line)).toBeVisible();
         await page.waitForTimeout(500);
         await page.screenshot({ path: `${SHOTS}/${entry.kind.replace(' ', '-')}-${lang}-${theme}.png` });
         // The targets that every panel has.
