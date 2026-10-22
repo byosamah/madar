@@ -93,6 +93,7 @@ test('the Remove helper X and the checklist grip are 44 px targets', async ({ pa
   const grip = sheet.getByRole('button', { name: /^Move .* up or down$/ }).first();
   await grip.scrollIntoViewIfNeeded();
   await expectTarget(grip, 'the checklist grip', 43.5);
-  await expect(grip).toHaveAttribute('data-vaul-no-drag', '');
+  // The grip must not drag the sheet: vaul reads the attribute `data-vaul-no-drag`, and React writes its value as "true".
+  await expect(grip).toHaveAttribute('data-vaul-no-drag');
   await page.screenshot({ path: `${SHOTS}/targets.png` });
 });
