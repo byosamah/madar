@@ -2370,3 +2370,9 @@ Not proven: a real iPhone. After the deploy, wait 11 minutes on an iPhone, press
 - Builds once: prototype, server and remote, each with its bundle check. First load of the remote build: 34 files, 947,778 B raw,
   289,341 B gzip (1d45aae5: 50 files, 1,236,844 B, about 384 KB gzip).
 - Prototype smoke once on 29170b22: 87 of 87.
+
+### Release record: production at b8bb9e42 (2026-10-22)
+- On the owner's "deploy to production", `all.sh production` took b8bb9e42, the commit of the test deploy. It applied the migration
+  20261022000300_read_indexes_perf2.sql (three read indexes, one old index dropped). The quick checks passed: health from supabase
+  (149 calls), database, lock and asyncContext ok, /mcp with no token 401. madar.vado.sa serves 34 first-load scripts and the new
+  vendor file. The after numbers and the screenshots of the test copy come from a delegated agent (Chrome and WebKit iPhone).

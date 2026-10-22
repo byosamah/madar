@@ -963,8 +963,9 @@ Branch `rb/perf2` (worktree `~/dev/madar-rb/perf2`). Sonnet agents, the Opus ses
   build:remote test, test:db, test:it, test:mcp, the prototype smoke: all green (one npm test failure fixed, see below)
 - [ ] Screenshots of the touched screens (EN/AR, light/dark, 390 px), Chrome and WebKit iPhone, on the test copy after the deploy
 - [x] What's new line 2026-10-23-82 "Madar is faster" (d107844d); no MCP change in wave 1 (no call, input, output or rule changes)
-- [ ] Test copy (`all.sh test` from main after the merge), then the live numbers again
-- [ ] Production: on the owner's word ("deploy to production", 2026-10-22); the team week freeze is gone (owner, 2026-10-22)
+- [x] Test copy at b8bb9e42 (`all.sh test` from main, 2026-10-22): quick checks passed; the after numbers and screenshots run
+- [x] Production at b8bb9e42 on the owner's word ("deploy to production", 2026-10-22): migration applied, quick checks passed;
+  the team week freeze is gone (owner, 2026-10-22)
 - [x] Owner decisions (2026-10-21): DF-14 instant Home from the device: yes (clear at sign-out and on a role change); SV-7 and
   DF-2 direct and group chat signals to the members only: yes (with leak tests); DB-13 outbox clean-up: no, keep the rows
 - [x] Wave 2 (run wf_adeeec9a-475) merged (79baf983): DF-14 instant Home (first Home rows 42 to 53 ms against 654 ms with a held
