@@ -17,6 +17,8 @@ function plant(state: State) {
 const rowLink = async (name: RegExp) => within(await screen.findByRole('list', { name: 'Chats' })).getByRole('link', { name });
 async function openTower() {
   await userEvent.click(await rowLink(/Corniche Office Tower/));
+  // The Back link of the loading state is replaced by the one in the header when the chat arrives, so the helper waits for the chat.
+  await screen.findByRole('log', { name: 'Messages' });
   return document.querySelector<HTMLElement>('[data-chat-page]')!;
 }
 const message = () => document.querySelector<HTMLElement>('[data-message-id="msg_901"]');
@@ -43,6 +45,23 @@ describe('the chat as a full-screen page on a phone (Direction D)', () => {
     viewport.set({ height: 300 });
     expect(root.style.height).toBe('300px');
     expect(root.style.getPropertyValue('--chat-h')).toBe('300px');
+  });
+
+  it('keeps the message box the last part of the page, above the keyboard (Safari for iPhone)', async () => {
+    stubPhone();
+    const viewport = fakeVisualViewport({ height: 800, innerHeight: 800 });
+    await renderApp('/inbox');
+    const root = await openTower();
+    const box = await screen.findByRole('textbox', { name: 'Message' });
+    // The keyboard opens: the visible height drops from 800 to 420, and the page follows it.
+    viewport.set({ height: 420 });
+    expect(root.style.height).toBe('420px');
+    expect(root.style.getPropertyValue('--chat-h')).toBe('420px');
+    const pane = box.closest('form')!.parentElement!;
+    expect(pane.lastElementChild).toBe(box.closest('form'));
+    expect(root.contains(box)).toBe(true);
+    // The tab bar stays hidden, and the Newest button lives inside the log, so it never covers the box.
+    await waitFor(() => expect(screen.queryByRole('navigation', { name: 'Main navigation' })).toBeNull());
   });
 
   it('falls back to 100dvh where the browser has no visual viewport', async () => {

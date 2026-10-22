@@ -6,7 +6,11 @@ import { stubPhone } from './phoneHarness';
 
 /** The Back rule of a chat on a phone (Direction D, lead decision 6): back to the screen that opened it, else to the Inbox. */
 const rowLink = async (name: RegExp) => within(await screen.findByRole('list', { name: 'Chats' })).getByRole('link', { name });
-const backLink = () => screen.findByRole('link', { name: 'Back to chats' });
+// The Back link of the loading state is replaced by the one in the header when the chat arrives. A test waits for the chat first.
+const backLink = async () => {
+  await screen.findByRole('log', { name: 'Messages' });
+  return screen.findByRole('link', { name: 'Back to chats' });
+};
 
 describe('the Back rule of a chat', () => {
   it('passes state.from when a row opens a chat', async () => {
