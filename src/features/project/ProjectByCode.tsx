@@ -7,7 +7,8 @@ import { ProjectTile } from '../../components/ProjectTile';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { LoadFailed } from '../../components/LoadFailed';
 import { clientName } from '../../lib/clientName';
-import { codeMatches, projectKey } from '../../lib/projectCode';
+import { codeMatches } from '../../lib/projectCode';
+import { shownKey } from '../../lib/projectLabel';
 
 /**
  * "#KH-26-014" or "#260902AZT" in a post or comment links here (spec 7.2; owner, 2026-10-05). The screen finds the project by
@@ -27,7 +28,7 @@ export function ProjectByCode() {
     return (
       <>
         <ScreenTitle title={t('projectCode.sharedTitle')}>
-          <span dir="ltr" className="tabular">{projectKey(matches[0].project.code)}</span>
+          <span dir="ltr" className="tabular">{shownKey(matches[0].project, t)}</span>
         </ScreenTitle>
         <section className="surface flex flex-col gap-3 rounded-card p-5">
           <p className="text-subheadline text-ink-2">{t('projectCode.sharedBody')}</p>

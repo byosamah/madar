@@ -87,8 +87,10 @@ export const ViewerCan = z.object({
   upload: z.boolean().optional(),
   /** file.deliver: Mark as delivered, Received from the client. */
   deliver: z.boolean().optional(),
-  /** tracker.log: log, update and close a Tracker entry of the project. */
+  /** tracker.log: log, update and close a Tracker entry of the project. False for an internal project, which has no Tracker. */
   logTracker: z.boolean().optional(),
+  /** project.access: choose who sees the project (hidden projects, owner 2026-10-22): the leader and the Admin by default. */
+  access: z.boolean().optional(),
   /** post.create: post an update in the project. */
   postUpdate: z.boolean().optional(),
   /** comment.create: comment and react in the project. */

@@ -1,4 +1,4 @@
-import { projectKey } from '../../lib/projectCode';
+import { shownKey } from '../../lib/projectLabel';
 import { useCallback, useEffect, useState, type FormEvent, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
@@ -122,7 +122,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
         ...codeInput(v),
       });
       // The key is short and never ends with the dot of a building type ("Dev."), so the sentence never shows two dots.
-      toast.show({ message: t('projectForm.created', { code: projectKey(detail.project.code) }) });
+      toast.show({ message: t('projectForm.created', { code: shownKey(detail.project, t) }) });
       fresh.current = true;
       // The project exists now. The cover goes up on its own, so a failed upload never makes a second project. The sheet stays open
       // while the cover goes up, so the person sees its bar (fbk_045); a failed upload shows its toast with Retry after the sheet closes.

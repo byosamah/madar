@@ -10,7 +10,7 @@ import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-ch
 import { ProjectTile } from '../../components/ProjectTile';
 import { formatDay, stampDay } from '../../lib/dates';
 import { chatLink } from '../../lib/params';
-import { projectKey } from '../../lib/projectCode';
+import { shownKey } from '../../lib/projectLabel';
 import { markedParts } from '../../lib/searchMatch';
 import { GroupPicture } from '../inbox/GroupPicture';
 
@@ -50,7 +50,7 @@ export function MessageHits({ hits, words }: { hits: CallOutput<'search.query'>[
         const name = hit.kind === 'direct' && hit.person ? nameOf(hit.person) : hit.title;
         const by = hit.mine ? t('chat.you') : nameOf(hit.author).split(' ')[0];
         // A task shows its project key beside its title, and an office task the word Office (as the Tasks group does).
-        const key = hit.kind === 'task' ? (hit.project ? projectKey(hit.project.code) : t('office.word')) : null;
+        const key = hit.kind === 'task' ? (hit.project ? shownKey(hit.project.code, t) : t('office.word')) : null;
         return (
           <Command.Item
             key={hit.id}

@@ -21,7 +21,7 @@ import { LoadFailed } from '../../components/LoadFailed';
 import { taskLink } from '../../lib/params';
 import { searchWords } from '../../lib/searchMatch';
 import { MessageHits } from './MessageHits';
-import { projectKey } from '../../lib/projectCode';
+import { shownKey } from '../../lib/projectLabel';
 
 const GROUP = 'flex flex-col [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-footnote [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-label-2';
 
@@ -60,7 +60,7 @@ function Results({ query, onPerson }: { query: string; onPerson: (person: UserCa
         <Command.Group heading={t('search.projects')} className={GROUP}>
           {projects.map((p) => (
             <Item key={p.id} value={`project-${p.id}`} onSelect={() => navigate(`/projects/${p.id}`)}>
-              <span className="tabular text-footnote text-label-2">{projectKey(p.code)}</span>
+              <span className="tabular text-footnote text-label-2">{shownKey(p.code, t)}</span>
               <bdi>{p.name}</bdi>
             </Item>
           ))}
@@ -83,7 +83,7 @@ function Results({ query, onPerson }: { query: string; onPerson: (person: UserCa
             <Item key={task.id} value={`task-${task.id}`} onSelect={() => navigate(taskLink(task.projectId, task.id))}>
               <bdi className="min-w-0 flex-1 truncate">{task.title}</bdi>
               {/* An office task shows the word Office where a project key shows (owner, 2026-10-06). */}
-              <span className="tabular text-footnote text-label-2">{task.projectId === null ? t('office.word') : projectKey(task.projectCode)}</span>
+              <span className="tabular text-footnote text-label-2">{task.projectId === null ? t('office.word') : shownKey(task.projectCode, t)}</span>
             </Item>
           ))}
         </Command.Group>
@@ -109,7 +109,7 @@ function Results({ query, onPerson }: { query: string; onPerson: (person: UserCa
               onSelect={() => navigate(file.projectId === null ? taskLink(null, file.taskId ?? '') : `/projects/${file.projectId}?tab=files&file=${file.id}`)}
             >
               <bdi className="min-w-0 flex-1 truncate">{file.name}</bdi>
-              <span className="tabular text-footnote text-label-2">{file.projectId === null ? t('office.word') : projectKey(file.projectCode)}</span>
+              <span className="tabular text-footnote text-label-2">{file.projectId === null ? t('office.word') : shownKey(file.projectCode, t)}</span>
             </Item>
           ))}
         </Command.Group>

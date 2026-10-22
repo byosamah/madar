@@ -260,3 +260,25 @@ describe('leaks of an internal project', () => {
     await expect(t.api.call('settings.update', { codePrefix: 'INT' })).rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['codePrefix'] } });
   });
 });
+
+describe('viewerCan of a project', () => {
+  it('says who may choose who sees it: the leader and the Admin, not a team member', async () => {
+    const t = world();
+    for (const [person, expected] of [['usr_002', true], ['usr_001', true], ['usr_003', false]] as const) {
+      t.as(person);
+      const detail = await t.api.call('projects.get', { id: 'prj_001' });
+      expect(detail.viewerCan.access, person).toBe(expected);
+    }
+  });
+
+  it('hides the payments, the Tracker, the delivery and the code correction of an internal project', async () => {
+    const t = world();
+    t.as('usr_002');
+    const made = await t.api.call('projects.create', NEW_INTERNAL);
+    t.as('usr_001');
+    const internal = await t.api.call('projects.get', { id: made.project.id });
+    expect(internal.viewerCan).toMatchObject({ payments: false, logTracker: false, deliver: false, editCode: false, access: true });
+    const client = await t.api.call('projects.get', { id: 'prj_001' });
+    expect(client.viewerCan).toMatchObject({ payments: true, logTracker: true, deliver: true, editCode: true });
+  });
+});
