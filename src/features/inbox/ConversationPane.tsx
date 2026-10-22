@@ -180,6 +180,9 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
     messages,
     (view) => ({ ...bubbleOfMessage(view), ...(canSend ? {} : { canEdit: false }), ...(outbox.claimed.has(view.message.id) ? { fromOutbox: true as const } : {}) }),
     canSend ? undefined : 'read',
+    // The id of the message finds its bubble when the newest page slides (RN-4). The mark of the outbox is in the key, so a message that
+    // the outbox claims after it showed gets a new bubble with `fromOutbox`.
+    (view) => (outbox.claimed.has(view.message.id) ? `${view.message.id}#claimed` : view.message.id),
   );
   const lineBubbles = useBubbles(data?.lines ?? NO_LINES, bubbleOfLine);
   const unsentBubbles = useBubbles(me ? outbox.unsent : NO_UNSENT, (entry) => bubbleOfOutgoing(entry, me!), meId);

@@ -11,6 +11,7 @@ import { sampleOffice } from '../data/sampleOffice';
 import { AppearanceSync } from '../app/AppearanceSync';
 import { createAppRouter } from '../app/routes';
 import { preloadScreens } from '../app/screens';
+import { loadDragLayer } from '../features/project/tasks/dragLayerLoader';
 import { RuntimeProvider, createQueryClient, type ChangeSource } from '../app/runtime';
 import { ToastProvider } from '../app/toasts';
 import { initI18n } from '../i18n';
@@ -19,6 +20,8 @@ import { NOW, TODAY } from './factories';
 
 // The routes start initialized only when their screens are loaded (performance audit BND-1), as in render.tsx.
 await preloadScreens();
+// The drag layer of the sortable task lists is a chunk of its own (RN-5, FL-2). The tests load it once, so each list starts with the grips live.
+await loadDragLayer();
 
 /** One call that the screens asked, with its input and the idempotency key it carried (a write of the real build; a retry carries the key of the failed attempt). */
 export type Asked = { name: string; input: unknown; key?: string };

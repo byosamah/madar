@@ -45,7 +45,7 @@ any screen work.
 - `scripts/check-bundles.ts <remote|prototype|server> [folder]`: the remote build holds no sample names. Its first load (the
   scripts of index.html, their static imports and the modulepreload links) holds no chart code, no zod schemas, no words, and
   none of the markers of code that must stay lazy (`LAZY_MARKERS`: the chat message log, the vaul drawer, the Supabase storage
-  client). It stays at 1,015,000 B raw, 312,000 B gzip (level 9, each file) and 34 files or fewer (FL-11: the real size after the
+  client; `DRAG_MARKER`: the drag code `DndDescribedBy` of dnd-kit, FL-2). It stays at 1,015,000 B raw, 312,000 B gzip (level 9, each file) and 34 files or fewer (FL-11: the real size after the
   speed release is 985,040 B, 302,322 B and 33 files, so a limit sits about 3 percent above it; a change that adds first-load code
   fails there). Its index.html preloads the bootstrap chunk and its imports, the three Thmanyah files and
   a connection to each Supabase origin. The vendor, overlay and supabase chunks import no app chunk. The prototype build holds no
@@ -250,9 +250,11 @@ any screen work.
 - Never write `new Intl.DateTimeFormat`, `Intl.NumberFormat` or `Intl.ListFormat` in a screen. `lib/dates.ts` keeps one
   formatter for each language and style (`formatDay`, `formatMonth`, `formatMonthYear`, `formatWeekday`, `formatNumber`,
   `listFormat`, `clockFormat`). `dates.recorded.json` pins every text in English and Arabic.
-- A list that stops its rows with `React.memo` (the comments, the task history, the Inbox rows and bubbles) wraps them in
+- A list that stops its rows with `React.memo` (the comments, the task history, the Inbox rows and bubbles, the notice rows of the bell) wraps them in
   `AgeRefresh.Provider` (`components/Age.tsx`) with a new object on each render, so each `Age` still reads the clock in the
-  same renders as before. The Inbox keeps one Bubble for each message view object (`useBubbles`, `ConversationPane.tsx`).
+  same renders as before. The Inbox keeps one Bubble for each message view object (`useBubbles`, `ConversationPane.tsx`). A chat at its
+  limit of 200 slides its page by one for each new message, so every view is a new object: `useBubbles` also finds a bubble by the key of
+  its message and reuses it when `replaceEqualDeep` says the view is equal (RN-4, 2026-10-21; the key of a message the outbox claimed has `#claimed`).
 - Home keeps the last role it saw for each auth user in localStorage (`madar.homeRole.<auth user id>`,
   `features/home/roleHint.ts`). Before `session.get` answers, the real build asks for the `projects.list` of that role. The
   session answer always decides. The sign-in port gives the auth user id at once (`AuthPort.userId()`, optional).
@@ -346,6 +348,12 @@ any screen work.
   the end of each row the person may move, and Space plus the arrow keys on the grip. Coming up on Home has no grips, because its
   tasks fall on different days. The row content sits in an inner box (`RowDrag`, `TaskRowItem.tsx`), so the drag and the slide of
   the row never set one transform.
+  dnd-kit is a chunk of its own (performance audit 2026-10-21, FL-2): `SortableTaskRows.tsx` draws static rows (the same `TaskRowItem`
+  and `RowGrip`, no listeners) and a list with a grip loads `DragLayer.tsx` (`dragLayerLoader.ts`, the loaded-module pattern) and swaps
+  it in. The swap makes new nodes with no entrance, and the focus goes back to the same control of the same row. `TodayPanel` warms the
+  chunk at idle. A test helper (`test/render.tsx`, `heldRemoteApp.tsx`) loads the layer first, so a test list starts with live grips; a
+  test of the swap holds the import (`features/work/DragLayerSwap.test.tsx`). `TaskRowItem` and each drag row are `React.memo` (RN-5):
+  `onOpen` takes the row, a caller gives one stable handler, and the list gives `today` to each row.
 - The project To-dos tab (feedback fbk_005 and fbk_006, 2026-10-11, `features/project/tasks/`): the "+" before "Add a to-do" opens
   `NewTaskSheet` (title, a lead from the team, due date; a new task has no lead until one is picked), and the words next to it stay
   the quick add. A refusal "move the project back" opens the reason sheet over it, as in the quick add. The avatar of a row is
@@ -518,7 +526,8 @@ any screen work.
   replaces `FileChips` in `Thread.tsx` and `CommentThread.tsx`: a picture (`Attachment.mimeType` and `usePictureTest`) is a small rounded
   picture, at most 240 px wide, from the thumb link (`useFileLink(..., 'thumb')`); two or more sit in a grid; every other file stays a chip.
   The box holds its place while the picture loads (the last known shape in `SHAPES`, else 4 to 3), the picture has
-  `loading="lazy" decoding="async"` and asks for its link only within 400 px of the screen. A picture that breaks, or that the store keeps
+  `loading="lazy" decoding="async"` and asks for its link only within 400 px of the screen (`useNearView`, `app/useNearView.ts`; the picture
+  rows of the Files tab use it too, BG-7). A picture that breaks, or that the store keeps
   as a download (an SVG in the real build), shows as a chip. A press opens `ImageViewer` (`components/ImageViewer.tsx`): the picture on a
   dark backdrop, the file name, an X, a Download button, Escape and a press on the dark space close it, the arrow keys follow the page
   direction between the pictures of one message, and the focus returns to the preview. A message of only pictures leaves out the file names
@@ -733,7 +742,7 @@ any screen work.
   requests. A render-count test wraps a component with `vi.mock(path, importOriginal)` and waits until the count stops
   changing before it compares.
 - A picture row of the real build: render with `runtime.mode: 'remote'` and an api stub that answers `files.link`
-  (`features/project/files/FilesTab.remote.test.tsx`).
+  (`features/project/files/FilesTab.remote.test.tsx`; it also stubs `IntersectionObserver` to move one row near the view).
 - `DateDraftField` (`components/DateDraftField.tsx`): a change event with no focus counts as a pick from the date picker and
   saves at once. To test typing, focus the field first (inside `act`): the full field shows and saves on blur or Enter.
 - `DateField` gives every change to the form at once, so `fireEvent.change` on the input by its label works as before. A

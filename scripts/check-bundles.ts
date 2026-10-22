@@ -69,6 +69,8 @@ export const LAZY_MARKERS = [
   { label: "sheet drawer package ('data-vaul-drawer')", marker: 'data-vaul-drawer' },
   { label: "Supabase storage client ('StorageUnknownError')", marker: 'StorageUnknownError' },
 ] as const;
+/** Text that only dnd-kit holds (its hidden description of a drag handle). The sortable lists load it after the first screen (FL-2). */
+export const DRAG_MARKER = 'DndDescribedBy';
 export const WORD_MARKERS = {
   en: 'Something went wrong on this page. Go to Home and try again.',
   ar: 'حدث خطأ في هذه الصفحة. انتقل إلى الرئيسية وحاول مرة أخرى.',
@@ -201,6 +203,8 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
     // The emoji panel and its data (about 360 KB) load at its first open, in a chunk of its own (chat presence design D8).
     none("emoji data ('grinning face')", [EMOJI_MARKER]);
     for (const { label, marker } of LAZY_MARKERS) none(label, [marker]);
+    // The drag code (dnd-kit, about 18 KB gz) loads in a chunk of its own after the first screen (performance audit 2026-10-21, FL-2).
+    none("drag code ('DndDescribedBy')", [DRAG_MARKER]);
     rule(
       `the first-load scripts stay at ${FIRST_LOAD_MAX_BYTES} B or less`,
       bytes > FIRST_LOAD_MAX_BYTES ? [`${closure.length} files hold ${bytes} B`] : [],

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import type { MadarApi } from '../../../api/calls';
 import type { FileView, ProjectDetail } from '../../../api/contract/views';
@@ -63,5 +63,36 @@ describe('the Files tab in the real build (plan 5.2)', () => {
     expect(links).toEqual([{ id: 'fil_001', letter: 'A', variant: 'thumb', disposition: 'inline' }]);
     expect(container.querySelectorAll('img')).toHaveLength(1);
     expect(screen.getByText('Brief.pdf')).toBeInTheDocument();
+  });
+
+  it('asks for the link of a picture row only when the row is near the view (performance audit 2026-10-21, BG-7)', async () => {
+    // One watcher for each observed row. A test opens the watcher of the row that "scrolls" near.
+    const watchers = new Map<Element, () => void>();
+    vi.stubGlobal('IntersectionObserver', class {
+      private callback: IntersectionObserverCallback;
+      constructor(callback: IntersectionObserverCallback) { this.callback = callback; }
+      observe(node: Element) { watchers.set(node, () => this.callback([{ isIntersecting: true } as IntersectionObserverEntry], this as unknown as IntersectionObserver)); }
+      unobserve() {}
+      disconnect() {}
+    });
+    try {
+      const { container, links } = renderRemote([
+        view('fil_001', 'One.jpg', 'image/jpeg'), view('fil_002', 'Two.jpg', 'image/jpeg'), view('fil_003', 'Three.jpg', 'image/jpeg'), view('fil_004', 'Brief.pdf', 'application/pdf'),
+      ]);
+      await screen.findByText('Three.jpg');
+      await act(() => new Promise((resolve) => { window.setTimeout(resolve, 30); }));
+      // No picture row is near yet: no link call, no picture. Only the three picture rows are watched, never the PDF row.
+      expect(links).toEqual([]);
+      expect(container.querySelector('img')).toBeNull();
+      expect(watchers.size).toBe(3);
+      const second = [...watchers.keys()][1]!;
+      act(() => watchers.get(second)!());
+      await waitFor(() => expect(links).toHaveLength(1));
+      await waitFor(() => expect(container.querySelectorAll('img')).toHaveLength(1));
+      expect(links[0]).toMatchObject({ variant: 'thumb', disposition: 'inline' });
+      expect(second.closest('li')).toHaveTextContent('Two.jpg');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

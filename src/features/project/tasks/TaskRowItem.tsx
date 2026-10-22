@@ -2,7 +2,7 @@ import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { CircleCheckIcon } from '../../../components/icons/animated/circle-check';
 import { MessageCircleIcon } from '../../../components/icons/animated/message-circle';
 import { motion } from 'motion/react';
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { memo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { User } from '../../../api/contract/entities';
 import type { TaskRow } from '../../../api/contract/views';
@@ -46,16 +46,19 @@ function HelperLine({ name, context }: { name: string; context: string | undefin
  * The parts that the sortable list of the Tasks screen gives a row (owner, 2026-10-07): the box that the drag moves, its style,
  * and the grip at the end. `still` turns off the slide of the row while a drag runs, so the two motions do not fight.
  */
-export type RowDrag = { ref: (node: HTMLElement | null) => void; style?: CSSProperties; lifted: boolean; still: boolean; grip: ReactNode };
+export type RowDrag = { ref?: (node: HTMLElement | null) => void; style?: CSSProperties; lifted: boolean; still: boolean; grip: ReactNode };
 
 /**
  * One task: the round tick, the title, a gentle due word, and the flag and counts only when there are some (redesign spec 3.4).
  * A tick fills the circle at once, and the call runs after 0.5 s, so the row slides away then (spec 5.5).
  * "me" is the person who looks at the list (the authority of session.get). The list asks for it once and gives it to each row,
  * so a long list does not hold one session.get for each row (cleanup 2026-10-06).
+ * The row is memoized (performance audit 2026-10-21, RN-5): a list that reloads for one changed task renders only that row. So `onOpen`
+ * takes the row (the caller gives one stable handler, never a closure for each row), and the list gives `today`: a row never reads the
+ * clock alone, so a new day still gives new due words at the next render of the list. Without `today` the row reads the clock.
  */
-export function TaskRowItem({ row, me, onOpen, showProject = false, drag }: {
-  row: TaskRow; me: User | undefined; onOpen: (taskId: string, thread?: boolean) => void; showProject?: boolean; drag?: RowDrag;
+export const TaskRowItem = memo(function TaskRowItem({ row, me, onOpen, showProject = false, drag, today }: {
+  row: TaskRow; me: User | undefined; onOpen: (row: TaskRow, thread?: boolean) => void; showProject?: boolean; drag?: RowDrag; today?: string;
 }) {
   const { t } = useTranslation();
   const lang = useLang();
@@ -91,8 +94,9 @@ export function TaskRowItem({ row, me, onOpen, showProject = false, drag }: {
     window.setTimeout(() => complete.mutate({ id: task.id }, { onSettled: () => setTicking(false) }), 500);
   };
   const rtl = document.documentElement.dir === 'rtl';
-  const word = dueWord(task.dueDate, todayISO(), task.status);
-  const starts = startsLater(task.startDate, todayISO(), task.status);
+  const day = today ?? todayISO();
+  const word = dueWord(task.dueDate, day, task.status);
+  const starts = startsLater(task.startDate, day, task.status);
   const when = starts ? startsText(task.startDate as string, t, lang) : word && task.dueDate ? dueText(word, t, lang, task.dueDate) : null;
   return (
     // Moments 2 and 8 (redesign spec 4): a ticked row slides out toward the end side; a row that Undo brings back slides in from there.
@@ -136,7 +140,7 @@ export function TaskRowItem({ row, me, onOpen, showProject = false, drag }: {
             {done && <span className="sr-only">{t('common.done')}</span>}
           </span>
         )}
-        <button type="button" onClick={() => onOpen(task.id)} className="min-w-0 flex-1 py-2 text-start">
+        <button type="button" onClick={() => onOpen(row)} className="min-w-0 flex-1 py-2 text-start">
           <span className="flex items-center gap-2">
             <span dir="auto" className={`block min-w-0 truncate text-[calc(15px*var(--boost))] font-medium transition-colors duration-300 ${done ? 'text-ink-2 line-through' : ticking ? 'text-ink-2' : 'text-ink'}`}>{task.title}</span>
             {versionOf(task) > 1 && (
@@ -165,7 +169,7 @@ export function TaskRowItem({ row, me, onOpen, showProject = false, drag }: {
         {/* The task's conversation, one press away (owner, 2026-10-01). The count shows when there are comments. */}
         <button
           type="button"
-          onClick={() => onOpen(task.id, true)}
+          onClick={() => onOpen(row, true)}
           aria-label={row.commentCount > 0 ? `${t('tasks.openConversation', { title: task.title })}, ${t('tasks.comments', { n: row.commentCount })}` : t('tasks.openConversation', { title: task.title })}
           className="pressable relative grid size-11 shrink-0 place-items-center rounded-full text-ink-2 transition-colors hover:bg-fill hover:text-ink"
         >
@@ -181,4 +185,4 @@ export function TaskRowItem({ row, me, onOpen, showProject = false, drag }: {
       </div>
     </motion.li>
   );
-}
+});

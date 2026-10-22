@@ -11,6 +11,7 @@ import { downloadFile, isRemote, tooLargeText, uploadErrorMessage, useFileLimit,
 import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
 import { useCall, useRuntime } from '../../../app/runtime';
+import { useNearView } from '../../../app/useNearView';
 import { useRight } from '../../../app/useRight';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
@@ -35,7 +36,10 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
   const { file, latest } = view;
   const isPicture = usePictureTest();
   const image = isPicture(latest.mimeType);
-  const thumb = useFileLink(image ? file.id : null, latest.letter, 'thumb');
+  // The small picture asks for its link only when its row is within 400 px of the screen, as in the chat (performance audit 2026-10-21, BG-7).
+  const thumbBox = useRef<HTMLSpanElement>(null);
+  const near = useNearView(thumbBox);
+  const thumb = useFileLink(image && near ? file.id : null, latest.letter, 'thumb');
   const remove = useUndoable('files.delete', { message: () => t('files.deleted') });
   const cover = useUndoable('projects.update', { message: () => t('files.coverSet') });
   const delivered = useUndoable('files.markDelivered', { message: () => t('files.delivered') });
@@ -63,7 +67,7 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
       {/* On a phone the row is a grid, and Versions goes on its own line under the name, so the name keeps most of the row.
           From sm up it is one line again (audit 2026-10-03, V-33). */}
       <div className="grid min-h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-2 sm:flex sm:gap-3">
-        <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-fill text-label-2">
+        <span ref={image ? thumbBox : undefined} className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-fill text-label-2">
           {thumb.url ? <img src={thumb.url} alt="" onError={thumb.onError} loading="lazy" decoding="async" className="size-full object-cover" /> : <AnimatedIcon icon={FileTextIcon} size={20} aria-hidden />}
         </span>
         <div className="min-w-0 flex-1">

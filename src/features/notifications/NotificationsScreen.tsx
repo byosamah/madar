@@ -1,7 +1,7 @@
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { BellIcon } from '../../components/icons/animated/bell';
 import { motion } from 'motion/react';
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { CallOutput } from '../../api/calls';
@@ -10,7 +10,7 @@ import { useLang } from '../../app/lang';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { useIsPhone } from '../../app/useIsPhone';
-import { Age } from '../../components/Age';
+import { Age, AgeRefresh } from '../../components/Age';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
@@ -25,7 +25,12 @@ import { noticeSentence } from '../../lib/noticeSentence';
 
 type NoticeView = CallOutput<'notifications.list'>[number];
 
-function InboxItem({ view }: { view: NoticeView }) {
+/**
+ * One notice. The row is memoized (performance audit 2026-10-21, RN-7): it holds three mutation observers, so a list that reloads for
+ * one changed notice renders only that row. The list wraps the rows in `AgeRefresh.Provider`, so each `Age` still reads the clock in the
+ * renders of the list.
+ */
+const InboxItem = memo(function InboxItem({ view }: { view: NoticeView }) {
   const { t } = useTranslation();
   const lang = useLang();
   const phone = useIsPhone();
@@ -135,7 +140,7 @@ function InboxItem({ view }: { view: NoticeView }) {
       )}
     </motion.li>
   );
-}
+});
 
 /** My notifications by day, with an unread dot. A press on a row opens it (spec 7.1, redesign spec 3.7). */
 export function NotificationsScreen() {
@@ -189,16 +194,19 @@ export function NotificationsScreen() {
       />
       {list.error && <LoadFailed error={list.error} onRetry={() => void list.refetch()} />}
       {list.data && items.length === 0 && <EmptyState title={t('inbox.emptyTitle')} body={t('inbox.empty')} />}
-      <div className="flex flex-col gap-5">
-        {groupByDay(items, (view) => stampDay(view.notification.createdAt)).map((group) => (
-          <section key={group.day} aria-labelledby={`inbox-${group.day}`}>
-            <h2 id={`inbox-${group.day}`} className="px-1 pb-2 text-footnote font-semibold uppercase tracking-[0.06em] text-ink-2">{dayLabel(group.day)}</h2>
-            <ul className="panel hairline flex flex-col overflow-hidden">
-              {group.items.map((view) => <InboxItem key={view.notification.id} view={view} />)}
-            </ul>
-          </section>
-        ))}
-      </div>
+      {/* A new object at each render of the list: the memo rows stay, and each Age reads the clock again (RN-7). */}
+      <AgeRefresh.Provider value={{}}>
+        <div className="flex flex-col gap-5">
+          {groupByDay(items, (view) => stampDay(view.notification.createdAt)).map((group) => (
+            <section key={group.day} aria-labelledby={`inbox-${group.day}`}>
+              <h2 id={`inbox-${group.day}`} className="px-1 pb-2 text-footnote font-semibold uppercase tracking-[0.06em] text-ink-2">{dayLabel(group.day)}</h2>
+              <ul className="panel hairline flex flex-col overflow-hidden">
+                {group.items.map((view) => <InboxItem key={view.notification.id} view={view} />)}
+              </ul>
+            </section>
+          ))}
+        </div>
+      </AgeRefresh.Provider>
     </>
   );
 }

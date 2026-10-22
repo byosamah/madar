@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { User } from '../../api/contract/entities';
 import type { TaskRow } from '../../api/contract/views';
+import { warmDragLayer } from '../project/tasks/dragLayerLoader';
 import { SortableTaskRows } from '../project/tasks/SortableTaskRows';
 
 /**
@@ -12,6 +14,8 @@ export function TodayPanel({ rows, later = [], me, onOpen }: {
   rows: TaskRow[]; later?: TaskRow[]; me: User | undefined; onOpen: (row: TaskRow, thread?: boolean) => void;
 }) {
   const { t } = useTranslation();
+  // Home is the first screen of everyone. The drag layer of the Today list loads at an idle moment, so the Tasks screen finds it ready (FL-2).
+  useEffect(() => { warmDragLayer(); }, []);
   const coming = rows.length === 0 && later.length > 0;
   const shown = coming ? later : rows;
   return (

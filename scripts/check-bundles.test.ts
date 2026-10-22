@@ -433,3 +433,16 @@ describe('the emoji data (chat presence design D8): the panel loads at its first
     expect(result.ok).toBe(true);
   });
 });
+
+describe('the drag code (performance audit 2026-10-21, FL-2): the sortable lists load it after the first screen, never with the page', () => {
+  it('fails a remote first load that holds dnd-kit, so the drag code would load with the page', () => {
+    const result = checkRemote((files) => { files['assets/vendor-v1.js'] += 'const c="DndDescribedBy";'; });
+    expect(result.ok).toBe(false);
+    expect(result.text).toMatch(/FAIL: no drag code \('DndDescribedBy'\) in the first-load scripts: found in vendor-v1\.js\./);
+  });
+
+  it('passes a remote first load with dnd-kit in a lazy chunk of its own', () => {
+    const result = checkRemote((files) => { files['assets/DragLayer-abc.js'] = 'export default "DndDescribedBy";'; });
+    expect(result.ok).toBe(true);
+  });
+});

@@ -55,7 +55,7 @@ function thisPage(): PageReload {
   };
 }
 
-/** Runs a step when the browser is idle. Safari has no requestIdleCallback, so it waits 200 ms there. */
+/** Runs a step when the browser is idle. Safari has no requestIdleCallback, so it waits 200 ms there. Every idle step of the app goes through here. */
 export function whenIdle(run: () => void): void {
   if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(() => run());
   else setTimeout(run, 200);
