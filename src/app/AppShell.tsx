@@ -4,12 +4,13 @@ import { Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-route
 import { useDraftOwner, useDraftSweep } from './drafts';
 import { useFocusLink } from '../features/focus/focusLink';
 import { useOnceOn } from './lazyOverlay';
-import { NAV, isNavActive } from './nav';
 import { REMOTE } from './mode';
 import { LazyFocusMode } from './overlays';
 import { HomeMark } from './HomeMark';
 import { PersonMenu } from './PersonMenu';
 import { PhoneTopRow } from './PhoneTopRow';
+import { screenKey, tabIndexOf } from './phoneShell';
+import { useIsPhone } from './useIsPhone';
 import { PicturesProvider } from './pictures';
 import { SubCompaniesProvider } from './subCompanies';
 import { PushSync } from './remote/PushSync';
@@ -24,29 +25,30 @@ const seen = new Set<string>();
 // The tab of the last screen, so the next screen slides in from the side of the tab that was pressed.
 let lastTab = -1;
 const PROJECT_PAGE = /^\/projects\/[^/]+$/;
-const tabOf = (pathname: string) => (PROJECT_PAGE.test(pathname) ? -1 : NAV.findIndex((item) => isNavActive(item.to, pathname)));
 
 /**
  * The first panels of a screen rise 10 px and fade in, 60 ms apart, once per visit.
  * A change of tab slides the new screen in from the side of its tab, the same way the tab bar's highlight moves (owner, 2026-10-01).
  * A project page has its own entrance: the tapped row grows into its header (moment 1).
  */
-function ScreenEntrance() {
+function ScreenEntrance({ screen }: { screen: string }) {
   const { pathname } = useLocation();
+  const phone = useIsPhone();
   const [first] = useState(() => !seen.has(pathname) && !PROJECT_PAGE.test(pathname));
   const [offset] = useState(() => {
-    const tab = tabOf(pathname);
+    const tab = tabIndexOf(pathname, phone);
     if (tab < 0 || lastTab < 0 || tab === lastTab) return 0;
     const rtl = document.documentElement.dir === 'rtl';
     return Math.sign(tab - lastTab) * (rtl ? -48 : 48);
   });
   useEffect(() => {
     seen.add(pathname);
-    const tab = tabOf(pathname);
+    const tab = tabIndexOf(pathname, phone);
     if (tab >= 0) lastTab = tab;
-  }, [pathname]);
+  }, [pathname, phone]);
   return (
     <motion.div
+      data-screen={screen}
       className={first ? 'screen-enter' : undefined}
       initial={offset ? { opacity: 0, x: offset } : false}
       animate={{ opacity: 1, x: 0 }}
@@ -56,18 +58,6 @@ function ScreenEntrance() {
     </motion.div>
   );
 }
-
-/**
- * The chat is one screen: opening another conversation keeps the list, its search and its place. The Admin page is one screen
- * too: opening another section keeps the side list (owner, 2026-10-05, item 4).
- */
-const screenKey = (pathname: string): string => {
-  if (pathname.startsWith('/inbox/')) return '/inbox';
-  if (pathname.startsWith('/admin/')) return '/admin';
-  // The switch between Tasks and Meetings keeps the screen, so the entrance does not play again.
-  if (pathname === '/meetings') return '/work';
-  return pathname;
-};
 
 /**
  * A number that goes up each time another person becomes current (Preview as, or Reset sample data while a preview is on, in the
@@ -101,6 +91,8 @@ function FocusSlot() {
 function Shell() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const phone = useIsPhone();
+  const key = screenKey(pathname, phone);
   // A change of person drops the half-written words of the person before (audit 2026-10-03, V-22).
   useDraftSweep();
   // A change of person also starts the open screen again, so no box on it keeps the unsent words or picked files of the
@@ -145,7 +137,7 @@ function Shell() {
       <main className="app-page relative mx-auto w-full max-w-6xl px-4 pt-[max(1rem,env(safe-area-inset-top))] max-sm:pb-[calc(var(--phone-bar)+1.5rem)] sm:px-8 sm:pb-16 sm:pt-24">
         {/* On a phone the tab bar keeps only the tabs. The top row holds the mark (or a back link) and Search. */}
         <PhoneTopRow />
-        <ScreenEntrance key={`${personTurn}:${screenKey(pathname)}`} />
+        <ScreenEntrance key={`${personTurn}:${key}`} screen={key} />
         {/* Each screen keeps its own scroll place; a new screen opens at the top. Changes to the link's values keep the place. */}
         <ScrollRestoration getKey={(location) => location.pathname} />
       </main>

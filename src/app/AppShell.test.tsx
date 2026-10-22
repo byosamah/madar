@@ -307,3 +307,32 @@ describe('the phone top row', () => {
     expect(await screen.findByRole('link', { name: 'Search the whole office' })).toHaveAttribute('aria-current', 'page');
   });
 });
+
+describe('the entrance of the screens', () => {
+  const screenNode = () => document.querySelector('[data-screen]') as HTMLElement;
+
+  it('keeps one entrance for the Work views on a phone, and starts a new one for another tab', async () => {
+    phoneMedia(true);
+    const { router } = await renderApp('/work');
+    await waitFor(() => expect(screenNode()).not.toBeNull());
+    const first = screenNode();
+    expect(first).toHaveAttribute('data-screen', '/work');
+    await act(() => router.navigate('/projects'));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/projects'));
+    expect(screenNode()).toBe(first);
+    expect(screenNode()).toHaveAttribute('data-screen', '/work');
+    await act(() => router.navigate('/me'));
+    await waitFor(() => expect(screenNode()).toHaveAttribute('data-screen', '/me'));
+    expect(screenNode()).not.toBe(first);
+  });
+
+  it('starts a new entrance between Work and Projects at desk width', async () => {
+    phoneMedia(false);
+    const { router } = await renderApp('/work');
+    await waitFor(() => expect(screenNode()).not.toBeNull());
+    const first = screenNode();
+    await act(() => router.navigate('/projects'));
+    await waitFor(() => expect(screenNode()).toHaveAttribute('data-screen', '/projects'));
+    expect(screenNode()).not.toBe(first);
+  });
+});
