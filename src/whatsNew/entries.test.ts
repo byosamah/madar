@@ -8,6 +8,18 @@ function wordAt(tree: unknown, path: string[]): unknown {
 }
 
 describe("What's new entries", () => {
+  // Batch A (fbk_038, fbk_040, fbk_043, fbk_045, fbk_046, fbk_047): five lines, newer than every other entry.
+  it('has the five lines of batch A, above the entry of the speed release', () => {
+    const ids = WHATS_NEW.map((entry) => entry.id);
+    const speed = ids.indexOf('2026-10-23-82');
+    for (const n of [83, 84, 85, 86, 87]) {
+      const id = `2026-10-23-${n}`;
+      expect(ids.indexOf(id), id).toBeGreaterThanOrEqual(0);
+      expect(ids.indexOf(id), id).toBeLessThan(speed);
+      for (const tree of [en, ar]) expect(String(wordAt(tree, ['whatsNew', 'items', id, 'body'])).length, id).toBeGreaterThan(20);
+    }
+  });
+
   it('have unique ids in the form YYYY-MM-DD-n', () => {
     const ids = WHATS_NEW.map((entry) => entry.id);
     expect(new Set(ids).size).toBe(ids.length);
@@ -122,7 +134,7 @@ describe("What's new entries", () => {
 
   // The speed release (owner, 2026-10-21: "audit the performance of the full product and make the best"): one line for everyone.
   it('tells everyone that Madar is faster', () => {
-    expect(WHATS_NEW[0]).toEqual({ id: '2026-10-23-82', day: '2026-10-23' });
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-82')).toEqual({ id: '2026-10-23-82', day: '2026-10-23' });
     expect(String(wordAt(en, ['whatsNew', 'items', '2026-10-23-82', 'title']))).toBe('Madar is faster');
     expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-82', 'title']))).toBe('صار مدار أسرع');
   });

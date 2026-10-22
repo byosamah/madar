@@ -3,6 +3,26 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-87": {
+        "title": "Zoom into a picture",
+        "body": "Open a picture in a chat or a comment, then zoom. On a phone, pinch with two fingers, or tap twice. On a computer, use the mouse wheel, click the picture, or press + and -. Press 0 to go back to the full picture."
+      },
+      "2026-10-23-86": {
+        "title": "Put the checklist in your own order",
+        "body": "Drag the grip at the end of a checklist item to move it. Everyone who opens the to-do sees the new order. With the keyboard, press Space on the grip, use the arrow keys, and press Space again."
+      },
+      "2026-10-23-85": {
+        "title": "Paste and drop in the Tracker, posts and minutes",
+        "body": "Paste a picture or drop files into the Tracker log, the box of a project post, or the meeting minutes. The files join the entry. Nothing saves until you press the save button."
+      },
+      "2026-10-23-84": {
+        "title": "A progress bar for every upload",
+        "body": "Every place that uploads a file now shows how much of it went up: the Tracker, posts, to-do comments, meeting minutes, the Files tab, the project cover and reports. You cannot remove a file while it goes up."
+      },
+      "2026-10-23-83": {
+        "title": "File names stay in the chat bubble",
+        "body": "A long file name now stays inside the chat bubble and ends with three dots. A file that you send with no words shows its name once."
+      },
       "2026-10-23-54": {
         "title": "Meetings that repeat",
         "body": "A meeting can repeat every day, every week or every 2 weeks. Choose Repeat under More when you plan it. When you change or cancel a meeting of a series, you choose this meeting or the later meetings."
