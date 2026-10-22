@@ -40,6 +40,10 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
   `~/dev/madar-rb/gcal-reuse`, because `deploy-test` sat on `rb/phone-bar`). `git worktree list | grep '\[main\]'` finds it.
   `all.sh test` also ran with the sandbox off and `< /dev/null`: the prompt took yes, and the record was written.
 - After production: commit the record on main, then `git push origin main` (GitHub holds each release).
+- `all.sh production` can stop at the secrets step with "The Management API refused the key list with 500" (Supabase). Nothing is
+  deployed yet then: run it once more; it passed on the second run on 2026-10-20 and 2026-10-22.
+- Release history: `npx wrangler pages deployment list --project-name madar --environment production --json` gives each production
+  commit (times only as "2 hours ago"); the "Release record: production at <commit>" commits give the exact time.
 - 2026-10-20: after the owner asked, Claude's own `echo production | scripts/deploy/all.sh production` (sandbox off, in the
   background) passed the auto-mode check. While it ran, the check refused an unrelated read-only Bash call as
   "Production Deploy": wait for the run to end. The push still needs the owner's `!`.

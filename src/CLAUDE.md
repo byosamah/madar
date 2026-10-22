@@ -878,6 +878,8 @@ any screen work.
   `madar`, store `data`, key `state`: `session.currentUserId`, `users[id].preferences.language` and `.theme`), then reload.
 - Prototype data with no clicks in the 390 px frame: attach a file with `input.files = dataTransfer.files` and a `change` event; pick a
   mention with Enter (a synthetic click picks nothing); set the box to '' before '@' (a stored draft can hold the same text, and React then sees no change).
+- A download control in the 390 px frame: wrap `URL.createObjectURL` and `HTMLAnchorElement.prototype.click` in the page to keep the
+  Blob and its name in memory, then read the bytes there (a ZIP starts "PK"); no file goes to the disk.
 
 ## Screen test gotchas
 - Links are `#/...` (hash router).
