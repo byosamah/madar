@@ -935,6 +935,8 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
   no avatar stacks, "On track" never shows in lists. Only the tab pill keeps a blur. "Unread badge: red, on the Inbox and the bell only" stays
   true: on a phone the bell count shows on the Inbox tab and on the Notifications segment, and the Chats segment shows the unread chats.
 - Icons: animated Lucide icons from lucide-animated.com through `components/icons/AnimatedIcon.tsx`.
+  An animated icon is an inline svg in a div, so it sits on the text line and rises about 2 px. Where it must sit in the middle of a
+  box, give the holder `[&_svg]:block` (`PhoneTabBar`).
 - Logo: `MadarMark` ("Turning doors"), only in the sign-in frame, the app frame and the office card of the Open space map,
   never in a project list (`MadarMark.test.tsx` lists the files).
 - Fonts: Thmanyah Sans for English and Arabic (files in `design/fonts/`), then Inter and IBM Plex Sans Arabic as the

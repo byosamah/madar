@@ -12,6 +12,8 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
    member@madar.test (passwords in `secrets/test-accounts.env`).
 5. After the owner's OK: `scripts/deploy/all.sh production` from the same commit.
 - Before a production release with a change that people see, add a What's new entry in plain words for the team, in English and Arabic (`src/whatsNew/entries.ts`). Give the entry `right` when only some people can use the feature, and `to` (the address of its screen) for the "Open" link.
+- The deploy suite seeds the sample office at its start and wipes an owner try that is under way: start it only after the owner says
+  the try is done (2026-10-22).
 - The deploy suite takes about 45 minutes. Tell the owner before you start it. When the owner asks for production while
   it runs, stop it, deploy the recorded commit, and write the unfinished suite in the proof.md record.
 - Production refuses, before the typed word: a commit that is not the recorded one, a change that is not committed (also

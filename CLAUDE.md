@@ -91,22 +91,26 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `npm run build:remote -- <test|production>` - the real screens from `config/remote.<env>.env` (public VITE_ names only).
 - `npm run build:server` - the server bundles: `supabase/functions/_build/{api,mcp,jobs}.js` and `dist-server/worker.js`.
 - `npm run typecheck` - both tsconfigs (screens and server).
-- `npm test` - the `unit` and `server` projects (about 9,800 tests, about 5 minutes). Run it alone: next to a build or Playwright,
+- `npm test` - the `unit` and `server` projects (about 11,100 tests, about 7 minutes). Run it alone: next to a build or Playwright,
   screen tests time out. With a load average far above the core count (`uptime`), other screen tests time out on each
   run: run the failed files alone (`--no-file-parallelism --testTimeout=60000`) before you call a test broken.
+  It exits 1 with every test green while the map tests leave "Worker is not defined" errors (TASKS.md): read the Test Files and Tests lines.
 - Put `-u` after the test files: `vitest run -u <file>` reads the file name as the value of `-u` and runs every test in update
   mode (2026-10-20). Under a load average far above the core count, run only the folders that your change touches.
 - A gate under 5 minutes (owner rule for fast batches): `npx vitest run src/api server/mcp server/core server/data/loaders
   server/push server/mail server/google server/jobs server/http/health.test.ts --testTimeout=60000` (217 files, about 35 s),
   then the screen folders that the change touches (10 folders, about 90 s).
-- Port 5173 on this Mac often runs another project. Start Madar with `npx vite --host 127.0.0.1 --port 5180
-  --strictPort` and check that the page title is "Madar". Run it from `deploy-test`: the main folder's `node_modules` can
+- Port 5173 on this Mac often runs another project. Start Madar with `npx vite --mode test --host 127.0.0.1 --port 5180
+  --strictPort` and check that the page title is "Madar". Plain dev mode shows an empty page ("Cannot access 'lazy' before
+  initialization", TASKS.md) until its import cycle is fixed. Run it from `deploy-test`: the main folder's `node_modules` can
   lack a new package, and the page then breaks.
   Another session may hold 5180 too (`lsof -iTCP:5180 -sTCP:LISTEN`): then take a free port, such as 5187.
 - A dev server in a worktree whose `node_modules` links to `deploy-test` answers 403 for the `@fontsource` files (outside
   its root): Arabic screenshots then show a fallback font.
 - `npm run build` and `build:remote` both write `dist/`. In the sandbox, `build:remote` fails with
   `listen EPERM ... tsx-*.pipe`: run it with the sandbox off.
+- While `all.sh` runs in a folder, never build there: a browser check uses the dev server, not the default Playwright config (its
+  webServer runs `npm run build`).
 - A one-off script in the sandbox: `node --import tsx <file>` needs no tsx pipe. Add `NODE_USE_ENV_PROXY=1` when the
   script uses `fetch`. A script outside the repo needs the `.mts` ending.
 - A direct Postgres connection (the pooler, port 5432) fails in the sandbox with `ENOTFOUND`: run it with the sandbox off.

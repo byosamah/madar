@@ -83,3 +83,5 @@ the config, the heartbeat of one run stays and the next run fails.
 ## Rules
 - Never run a shared `supabase functions serve` next to `test:mcp` or `test:it`.
 - A flaky step needs a fix of its cause (a missing wait, an animation), never a longer timeout alone.
+- On a phone a Menu opens as a modal sheet, and the page behind it gets aria-hidden, so a role locator loses the trigger. Keep an
+  element handle of it (`openMenu`, `steps.ts`).
