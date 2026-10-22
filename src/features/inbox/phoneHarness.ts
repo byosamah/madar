@@ -1,6 +1,7 @@
 import { act } from '@testing-library/react';
 import { onTestFinished } from 'vitest';
 import { addGroupConversation } from '../../api/chatState';
+import { chatReadKey } from '../../api/rowKeys';
 import type { State } from '../../api/store';
 import { fakeVisualViewport as baseViewport, phoneMedia } from '../../test/phoneMedia';
 
@@ -59,4 +60,13 @@ export const withEveryKind = (state: State) => {
 /** A group "Tower team" of Hala (usr_001, the maker), Faisal (usr_002) and Reem (usr_003). */
 export const withGroup = (state: State) => {
   addGroupConversation(state, 'Tower team', 'usr_001', ['usr_001', 'usr_002', 'usr_003'], '2026-09-30T09:00:00.000+03:00');
+};
+
+/** The project chat of the Corniche Office Tower is archived for Hala (usr_001). */
+export const withArchivedTower = (state: State) => {
+  const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === 'prj_001');
+  if (!room) throw new Error('The sample has no project chat for prj_001.');
+  state.chatReads[chatReadKey(room.id, 'usr_001')] = {
+    conversationId: room.id, userId: 'usr_001', lastReadAt: '2026-09-30T09:00:00.000+03:00', archivedAt: '2099-01-01T00:00:00.000+03:00',
+  };
 };

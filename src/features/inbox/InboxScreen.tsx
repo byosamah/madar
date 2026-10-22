@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router';
 import { useByPersonName, usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
+import { useIsPhone } from '../../app/useIsPhone';
 import { useRight } from '../../app/useRight';
 import { PersonFace } from '../../components/PersonFace';
 import { Button } from '../../components/Button';
@@ -144,6 +145,9 @@ export function InboxScreen() {
   const markUnread = useMarkUnread();
   const rows = list.data ?? [];
   const open = conversationId !== undefined;
+  const phone = useIsPhone();
+  // A phone shows the list as a page: the page scrolls, and the list has no panel around the search (Direction D).
+  const pageList = phone && !open;
   return (
     <>
       <div className={open ? 'max-sm:hidden' : undefined}>
@@ -152,8 +156,8 @@ export function InboxScreen() {
           action={mayStart ? <Button className="shrink-0" onClick={() => setPicking(true)}>{t('chat.newMessage')}</Button> : undefined}
         />
       </div>
-      <div className={`flex gap-4 ${open ? 'h-[calc(100dvh-9.5rem)] sm:h-[calc(100dvh-15rem)]' : 'h-[calc(100dvh-16rem)] sm:h-[calc(100dvh-15rem)]'} min-h-[26rem]`}>
-        <aside className={`panel hairline flex w-full min-w-0 flex-col overflow-hidden sm:w-[340px] sm:shrink-0 ${open ? 'max-sm:hidden' : ''}`}>
+      <div className={`flex gap-4 ${pageList ? '' : `${open ? 'h-[calc(100dvh-9.5rem)] sm:h-[calc(100dvh-15rem)]' : 'h-[calc(100dvh-16rem)] sm:h-[calc(100dvh-15rem)]'} min-h-[26rem]`}`}>
+        <aside className={`flex w-full min-w-0 flex-col sm:w-[340px] sm:shrink-0 ${phone ? '' : 'panel hairline overflow-hidden'} ${open ? 'max-sm:hidden' : ''}`}>
           {list.error && <div className="p-3"><LoadFailed error={list.error} onRetry={() => void list.refetch()} /></div>}
           {list.data && rows.length === 0 && <div className="p-3"><EmptyState title={t('chat.emptyTitle')} body={t('chat.empty')} /></div>}
           {list.data && rows.length > 0 && <ChatList rows={rows} selectedId={conversationId} onMarkUnread={markUnread} />}

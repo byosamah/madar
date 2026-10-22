@@ -29,6 +29,8 @@ import { reasonLineText } from '../comments/ReasonLine';
 import { useArchive } from './archive';
 import { GroupPicture } from './GroupPicture';
 import { chatState } from './chatBack';
+import { ChatKindChips } from './ChatKindChips';
+import { KINDS, type ChatKind } from './chatKinds';
 
 type Row = CallOutput<'chats.list'>[number];
 
@@ -76,13 +78,6 @@ export function ChatMenu({ id, archived, unread, title, onArchive, onMarkUnread,
   const { t } = useTranslation();
   return <Menu label={t('chat.optionsFor', { title })} items={[...chatMenuItems(t, { id, archived, unread, onArchive, onMarkUnread }), ...extra]} />;
 }
-
-/**
- * The kinds of the filter beside the search (owner, 2026-10-20): Projects holds the project chats, To-dos the threads of to-dos, and
- * People the direct chats and the groups.
- */
-const KINDS = ['all', 'projects', 'todos', 'people'] as const;
-type ChatKind = (typeof KINDS)[number];
 
 function inKind(row: Row, kind: ChatKind): boolean {
   if (kind === 'projects') return row.kind === 'project';
@@ -252,6 +247,17 @@ export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; sele
   const refresh = {};
   const searchLabel = archivedOpen ? t('chat.searchArchived') : t('chat.search');
   const kindLabel = t(`chatFilter.${kind}`);
+  const showArchivedRow = !archivedOpen && needle === '' && archivedRows.length > 0;
+  const archivedButton = (
+    <button
+      type="button"
+      onClick={() => setWantArchived(true)}
+      className="pressable flex min-h-11 w-full shrink-0 items-center justify-between gap-2 px-4 py-2 text-start text-footnote text-ink-2 hover:text-ink"
+    >
+      <span>{t('chat.archivedCount', { count: archivedRows.length })}</span>
+      <AnimatedIcon icon={ChevronRightIcon} size={16} className="rtl:-scale-x-100" aria-hidden />
+    </button>
+  );
   return (
     <>
       {archivedOpen && (
@@ -270,7 +276,7 @@ export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; sele
           <h2 className="min-w-0 truncate text-headline text-ink">{t('chat.archivedTitle')}</h2>
         </div>
       )}
-      <div className="flex items-center gap-2 p-3">
+      <div className={phone ? 'flex flex-col gap-3 pb-3' : 'flex items-center gap-2 p-3'}>
         <div className="relative min-w-0 flex-1">
           <label htmlFor="chat-search" className="sr-only">{searchLabel}</label>
           <AnimatedIcon icon={SearchIcon} size={16} aria-hidden className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-ink-2" />
@@ -282,45 +288,40 @@ export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; sele
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={searchLabel}
-            className="min-h-11 w-full rounded-full bg-fill ps-9 pe-4 text-subheadline text-ink placeholder:text-ink-2"
+            className={`min-h-11 w-full rounded-full bg-fill ps-9 pe-4 ${phone ? 'text-[max(16px,var(--text-subheadline))]' : 'text-subheadline'} text-ink placeholder:text-ink-2`}
           />
         </div>
-        {/* The button names the shown kind, so a person who comes back knows why the list is short. */}
-        <Menu
+        {/* The button names the shown kind, so a person who comes back knows why the list is short. A phone shows chips in its place. */}
+        {phone ? <ChatKindChips kind={kind} onChange={setKind} /> : <Menu
           label={t('chatFilter.label', { kind: kindLabel })}
           text={kindLabel}
           icon={<AnimatedIcon icon={SlidersHorizontalIcon} size={16} aria-hidden />}
           triggerClassName="shrink-0 bg-fill text-ink hover:text-ink-2"
           items={KINDS.map((value) => ({ label: t(`chatFilter.${value}`), checked: value === kind, onSelect: () => setKind(value) }))}
-        />
+        />}
       </div>
-      {!archivedOpen && needle === '' && archivedRows.length > 0 && (
-        <button
-          type="button"
-          onClick={() => setWantArchived(true)}
-          className="pressable flex min-h-11 w-full shrink-0 items-center justify-between gap-2 px-4 py-2 text-start text-footnote text-ink-2 hover:text-ink"
-        >
-          <span>{t('chat.archivedCount', { count: archivedRows.length })}</span>
-          <AnimatedIcon icon={ChevronRightIcon} size={16} className="rtl:-scale-x-100" aria-hidden />
-        </button>
-      )}
-      {shown.length === 0 && needle !== '' && <p className="px-4 pb-4 text-subheadline text-ink-2">{t('chat.noMatch')}</p>}
-      {shown.length === 0 && needle === '' && kind !== 'all' && <p className="px-4 pb-4 text-subheadline text-ink-2">{t('chatFilter.none')}</p>}
+      {showArchivedRow && !phone && archivedButton}
+      {shown.length === 0 && needle !== '' && <p className={`pb-4 text-subheadline text-ink-2 ${phone ? '' : 'px-4'}`}>{t('chat.noMatch')}</p>}
+      {shown.length === 0 && needle === '' && kind !== 'all' && <p className={`pb-4 text-subheadline text-ink-2 ${phone ? '' : 'px-4'}`}>{t('chatFilter.none')}</p>}
       <AgeRefresh.Provider value={refresh}>
-        <ul aria-label={t('chat.list')} className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
-          {shown.slice(0, drawn).map((row) => (
-            <ChatRowItem
-              key={row.id}
-              row={row}
-              selected={row.id === selectedId}
-              swipe={swipe}
-              noMenu={noMenu}
-              showArchived={!archivedOpen}
-              onArchive={onArchive}
-              onMarkUnread={markUnread}
-            />
-          ))}
-        </ul>
+        {(!phone || shown.length > 0 || showArchivedRow) && (
+          <ul aria-label={t('chat.list')} className={phone ? 'panel hairline overflow-hidden' : 'min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2'}>
+            {shown.slice(0, drawn).map((row) => (
+              <ChatRowItem
+                key={row.id}
+                row={row}
+                selected={row.id === selectedId}
+                swipe={swipe}
+                noMenu={noMenu}
+                showArchived={!archivedOpen}
+                onArchive={onArchive}
+                onMarkUnread={markUnread}
+              />
+            ))}
+            {/* On a phone the archived chats are the last row of the panel (Direction D). */}
+            {phone && showArchivedRow && <li className={shown.length > 0 ? 'border-t border-hairline' : ''}>{archivedButton}</li>}
+          </ul>
+        )}
       </AgeRefresh.Provider>
     </>
   );
