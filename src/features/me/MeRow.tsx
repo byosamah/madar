@@ -99,12 +99,12 @@ export function MePanel({ label, children }: { label?: string; children: ReactNo
   return <ul aria-label={label} className="panel hairline overflow-hidden">{children}</ul>;
 }
 
-/** A group word over one or more panels. The panel carries the same word as its name for a screen reader. */
+/** A group word over one or more panels. The group carries the same word as its name for a screen reader. */
 export function MeGroup({ title, children }: { title?: string; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-1.5">
+    <div role="group" aria-label={title} className="flex flex-col gap-1.5">
       {title && <p aria-hidden className="px-5 text-footnote font-medium text-ink-2">{title}</p>}
       {children}
-    </section>
+    </div>
   );
 }

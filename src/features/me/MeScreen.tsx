@@ -1,15 +1,28 @@
 import { useTranslation } from 'react-i18next';
+import { useCall } from '../../app/runtime';
 import { ScreenTitle } from '../../components/ScreenTitle';
+import { MeGroup } from './MeRow';
+import { LookPanel, ProfilePanel } from './PersonPanels';
 
 /**
  * The Me tab of a phone (Direction D): the hub that replaces the Settings page and the person menu. A desk never mounts it: the
- * route sends it to /settings (routes.tsx). It has no main button.
+ * route sends it to /settings (routes.tsx). It has no main button. While the session has no answer, only the title shows, and
+ * the rows fill in later with no spinner.
  */
 export function MeScreen() {
   const { t } = useTranslation();
+  const user = useCall('session.get', {}).data?.user;
   return (
     <div className="flex flex-col gap-6">
       <ScreenTitle title={t('phoneMe.title')} />
+      {user && (
+        <>
+          <ProfilePanel />
+          <MeGroup title={t('phoneMe.groupSettings')}>
+            <LookPanel />
+          </MeGroup>
+        </>
+      )}
     </div>
   );
 }

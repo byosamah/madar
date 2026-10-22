@@ -67,6 +67,6 @@ describe('the row parts of the Me hub', () => {
   it('draws a group with its word hidden from a screen reader and its panels', () => {
     inRouter(<MeGroup title="Office"><MePanel label="Office"><MeRow title="Dashboard" to="/dashboard" /></MePanel></MeGroup>);
     expect(screen.getByText('Office', { selector: 'p' })).toHaveAttribute('aria-hidden', 'true');
-    expect(screen.getByRole('list', { name: 'Office' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Office' })).toContainElement(screen.getByRole('list', { name: 'Office' }));
   });
 });

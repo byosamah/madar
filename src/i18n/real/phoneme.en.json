@@ -7,6 +7,8 @@
     "noticesApp": "In the app",
     "noticesAppEmail": "In the app and by email",
     "gcalOn": "Connected",
-    "gcalBroken": "Connect again"
+    "gcalBroken": "Connect again",
+    "groupSettings": "Settings",
+    "profileLine": "Picture, names, discipline"
   }
 }
