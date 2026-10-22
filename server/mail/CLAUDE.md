@@ -77,6 +77,12 @@ after the commit of the call that asked for it.
   makes no mail. The subject, the footer and the idempotency key `summary-<day>-<person>` are as before. No signed link, no file, no
   tracking pixel and no picture but the Madar mark of the header. Tests: `summaryTasks.test.ts`, `summaryBrief.test.ts` (the outbox driver
   on SQLite), `templates/render.test.ts`.
+- Hidden projects (owner, 2026-10-22, wave D3): a line of the morning summary never names a to-do of a project that the person does not view,
+  though the person leads or helps on it, and the count of the tasks due today leaves it out. `SUMMARY_COUNTS_SQL` (`$4` "See every project",
+  `$5` "See hidden projects") and `SUMMARY_TASKS_SQL` (`$3`, `$4`) join `viewSql`: the holder of `project.hidden`, the leader, a team member,
+  a chosen person (`access.viewerIds`), and the holder of `project.seeAll` when the project is open. `summaryViews` reads the two rights from the
+  roles of `SUMMARY_REVIEWERS_SQL`. The SQLite forms (`liteVisible`) call `mayViewProject`. The reviews that wait are not filtered: the reviewer is
+  the leader or an Admin, and both view the project. Notice mail follows `notify`. Tests: `hiddenProjectSummary.test.ts`.
 - Arabic mail is right to left and uses the `_female` forms for a woman.
 - A mail names a person in the language of the person who gets it (`personName` of `src/lib/personName.ts`).
 - Every word comes from the word files, in English and Arabic. Never use an em-dash.

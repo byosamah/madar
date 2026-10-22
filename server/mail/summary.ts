@@ -1,7 +1,7 @@
 import type { RoleSettings, Task, User } from '../../src/api/contract/entities';
 import { morningSummaryOn, reviewersOfTask } from '../../src/api/notify';
-import { canReview } from '../../src/api/permissions';
-import { withOfficeRights } from '../../src/api/rights';
+import { canReview, mayViewProject } from '../../src/api/permissions';
+import { rightsOf, withOfficeRights } from '../../src/api/rights';
 import type { State } from '../../src/api/store';
 import type { Deps, Query } from '../core/ports';
 import { jsonOf } from '../core/quiet';
@@ -31,13 +31,23 @@ import { renderMail } from './templates';
  */
 
 /**
+ * The view rule of a project for the person $1, in SQL (hidden projects, owner 2026-10-22): a holder of "See hidden projects" ($hidden),
+ * the leader, a team member, a chosen person, and a holder of "See every project" ($all) when the project is open. The line of a task
+ * of a project that the person does not view is left out of the summary, as the Dashboard leaves it out. `p` is the project.
+ */
+export const viewSql = (all: number, hidden: number): string => `($${hidden}::boolean or p.leader_id = $1
+    or exists (select 1 from members mb where mb.project_id = p.id and mb.user_id = $1)
+    or p.doc->'access'->'viewerIds' ? $1
+    or ($${all}::boolean and coalesce((p.doc->'access'->>'hidden')::boolean, false) = false))`;
+
+/**
  * $1 the person, $2 the day "YYYY-MM-DD", $3 the active people who hold the right to review the projects they lead (task.review.lead
  * or more, role rights version 2): a leader outside the list is no reviewer, so the Admins review that project, as for a project with
- * no leader (summaryReviewers).
+ * no leader (summaryReviewers). $4 the person holds "See every project", $5 the person holds "See hidden projects" (summaryViews).
  */
 export const SUMMARY_COUNTS_SQL = `select
   (select count(*)::integer from tasks t left join projects p on p.id = t.project_id
-    where (t.project_id is null or p.status = 'active') and t.due_date = $2 and t.status in ('todo', 'in_progress')
+    where (t.project_id is null or (p.status = 'active' and ${viewSql(4, 5)})) and t.due_date = $2 and t.status in ('todo', 'in_progress')
       and (t.owner_id = $1 or t.doc->'helperIds' ? $1)) as due_today,
   (select count(*)::integer from tasks t join projects p on p.id = t.project_id
     left join users l on l.id = p.leader_id and l.active and l.id = any($3::text[])
@@ -71,11 +81,12 @@ export type Summary = { dueToday: number; reviewsWaiting: number };
 
 /**
  * The open tasks of one person that are due by the end of this week, with the code of their project. $1 the person, $2 the last
- * day of This week (weekEndOf). A task with no date is no row. summaryTasks.ts puts each row in its group.
+ * day of This week (weekEndOf). A task with no date is no row. summaryTasks.ts puts each row in its group. $3 the person holds "See every
+ * project", $4 the person holds "See hidden projects": a task of a project the person does not view is no row.
  */
 export const SUMMARY_TASKS_SQL = `select t.id, t.doc->>'title' as title, t.due_date, (t.doc->>'rank')::float8 as rank, p.code as project_code
 from tasks t left join projects p on p.id = t.project_id
-where (t.project_id is null or p.status = 'active') and t.status in ('todo', 'in_progress')
+where (t.project_id is null or (p.status = 'active' and ${viewSql(3, 4)})) and t.status in ('todo', 'in_progress')
   and t.due_date <= $2 and (t.owner_id = $1 or t.doc->'helperIds' ? $1)`;
 
 // SQLite forms (exit wave 3). The users and projects tables hold only id and doc: the people come from doc, and the counts are
@@ -89,9 +100,16 @@ export const SUMMARY_DUE_LITE = "select doc, project_id from tasks where due_dat
 export const SUMMARY_REVIEW_LITE = "select doc from tasks where status = 'in_review'";
 export const SUMMARY_TASKS_LITE = "select doc, project_id from tasks where due_date <= ?1 and status in ('todo', 'in_progress')";
 
+/** The projects of the summary of one person on SQLite: active, and viewed by the person (the view rule of a project; a task with no project always counts). */
+function liteVisible(lists: Awaited<ReturnType<typeof readLiteOffice>>['lists'], userId: string): (projectId: string | null) => boolean {
+  const state = lists as unknown as State;
+  const viewer = state.users[userId];
+  return (projectId) => projectId === null || (lists.projects[projectId]?.status === 'active' && viewer !== undefined && mayViewProject(state, lists.projects[projectId], viewer));
+}
+
 async function liteSummary(q: Query, userId: string, today: string): Promise<Summary> {
   const { lists } = await readLiteOffice(liteDbOf(q), q);
-  const active = (projectId: string | null) => projectId === null || lists.projects[projectId]?.status === 'active';
+  const active = liteVisible(lists, userId);
   // reviewersOfTask reads only the users and projects of the State, and both are office lists.
   const state = lists as unknown as State;
   const due = await q<{ doc: Task; project_id: string | null }>(SUMMARY_DUE_LITE, [today]);
@@ -112,22 +130,32 @@ export async function summaryReviewers(q: Query): Promise<string[]> {
     .map((row) => row.id);
 }
 
+/** The viewing rights of a person for the SQL of the summary: "See every project" and "See hidden projects". A person who is not an active human views nothing. */
+export async function summaryViews(q: Query, userId: string): Promise<{ all: boolean; hidden: boolean }> {
+  const row = (await q<ReviewerRow>(SUMMARY_REVIEWERS_SQL)).find((one) => one.id === userId);
+  if (!row) return { all: false, hidden: false };
+  const rights = rightsOf({ id: row.id, systemRole: row.system_role ?? 'member', roleId: row.role_id ?? undefined, active: true, kind: 'human' } as User, row.roles ?? undefined);
+  return { all: rights.includes('project.seeAll'), hidden: rights.includes('project.hidden') };
+}
+
 /** The counts of one person and one day, or null when both are 0. */
 export async function buildSummary(q: Query, user: { id: string }, today: string): Promise<Summary | null> {
   if (isLite(q)) {
     const summary = await liteSummary(q, user.id, today);
     return summary.dueToday > 0 || summary.reviewsWaiting > 0 ? summary : null;
   }
-  const [row] = await q<{ due_today: number; reviews_waiting: number }>(SUMMARY_COUNTS_SQL, [user.id, today, await summaryReviewers(q)]);
+  const views = await summaryViews(q, user.id);
+  const [row] = await q<{ due_today: number; reviews_waiting: number }>(SUMMARY_COUNTS_SQL, [user.id, today, await summaryReviewers(q), views.all, views.hidden]);
   const summary = { dueToday: Number(row?.due_today ?? 0), reviewsWaiting: Number(row?.reviews_waiting ?? 0) };
   return summary.dueToday > 0 || summary.reviewsWaiting > 0 ? summary : null;
 }
 
 async function liteOpenTasks(q: Query, userId: string, lastDay: string): Promise<OpenTask[]> {
   const { lists } = await readLiteOffice(liteDbOf(q), q);
+  const visible = liteVisible(lists, userId);
   const rows = await q<{ doc: Task; project_id: string | null }>(SUMMARY_TASKS_LITE, [lastDay]);
   return rows
-    .filter((row) => (row.project_id === null || lists.projects[row.project_id]?.status === 'active') && (row.doc.ownerId === userId || (row.doc.helperIds ?? []).includes(userId)))
+    .filter((row) => visible(row.project_id) && (row.doc.ownerId === userId || (row.doc.helperIds ?? []).includes(userId)))
     .map((row) => ({
       id: row.doc.id, title: row.doc.title, dueDate: row.doc.dueDate as string, rank: row.doc.rank ?? null,
       projectCode: row.project_id === null ? null : lists.projects[row.project_id].code,
@@ -136,7 +164,8 @@ async function liteOpenTasks(q: Query, userId: string, lastDay: string): Promise
 
 async function openTasks(q: Query, userId: string, lastDay: string): Promise<OpenTask[]> {
   if (isLite(q)) return liteOpenTasks(q, userId, lastDay);
-  const rows = await q<{ id: string; title: string; due_date: string; rank: number | null; project_code: string | null }>(SUMMARY_TASKS_SQL, [userId, lastDay]);
+  const views = await summaryViews(q, userId);
+  const rows = await q<{ id: string; title: string; due_date: string; rank: number | null; project_code: string | null }>(SUMMARY_TASKS_SQL, [userId, lastDay, views.all, views.hidden]);
   return rows.map((row) => ({ id: row.id, title: row.title, dueDate: row.due_date, rank: row.rank === null ? null : Number(row.rank), projectCode: row.project_code }));
 }
 

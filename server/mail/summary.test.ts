@@ -52,7 +52,7 @@ describe('buildSummary', () => {
   it('counts the tasks due today and the reviews that wait, for one person and one day', async () => {
     const { mem, asked } = setup({ counts: { due_today: 3, reviews_waiting: 0 } });
     expect(await buildSummary(mem.q, { id: 'usr_002' }, TODAY)).toEqual({ dueToday: 3, reviewsWaiting: 0 });
-    expect(asked).toEqual([['usr_002', TODAY, ['usr_002', 'usr_003']]]);
+    expect(asked).toEqual([['usr_002', TODAY, ['usr_002', 'usr_003'], true, false]]);
   });
 
   it('gives null when there is nothing to say', async () => {
@@ -64,7 +64,7 @@ describe('buildSummary', () => {
     const roles = { off: { member: ['task.review.lead'] } };
     const { mem, asked } = setup({ reviewers: [MEMBER('usr_002', null, roles), MEMBER('usr_003', 'rol_001', { custom: [{ id: 'rol_001', name: 'Lead', nameAr: 'قائد', rights: ['task.review.lead'], off: [] }] }), { id: 'usr_001', system_role: 'admin', role_id: null, roles }] });
     await buildSummary(mem.q, { id: 'usr_001' }, TODAY);
-    expect(asked).toEqual([['usr_001', TODAY, ['usr_003', 'usr_001']]]);
+    expect(asked).toEqual([['usr_001', TODAY, ['usr_003', 'usr_001'], true, true]]);
   });
 
   it('reads the leader condition in the SQL: the leader joins only when the list holds the leader', () => {
@@ -80,7 +80,7 @@ describe('buildSummary', () => {
 
   it('counts the office tasks of the person, and the reviews of the office tasks that the person made (owner, 2026-10-06)', () => {
     const [due, reviews] = SUMMARY_COUNTS_SQL.split('as due_today');
-    expect(due).toMatch(/t\.project_id is null or p\.status = 'active'/);
+    expect(due).toMatch(/t\.project_id is null or \(p\.status = 'active'/);
     expect(reviews).toMatch(/t\.project_id is null and t\.status = 'in_review'/);
     expect(reviews).toContain("t.doc->>'createdBy'");
   });
@@ -105,9 +105,9 @@ describe('buildMorning', () => {
       },
       reviewsWaiting: 2,
     });
-    expect(asked).toEqual([['usr_002', TODAY, ['usr_002', 'usr_003']]]);
+    expect(asked).toEqual([['usr_002', TODAY, ['usr_002', 'usr_003'], true, false]]);
     // The statement takes the person and the last day of This week (the Saturday after Sunday 4 October).
-    expect(askedTasks).toEqual([['usr_002', '2026-10-10']]);
+    expect(askedTasks).toEqual([['usr_002', '2026-10-10', true, false]]);
   });
 
   it('has something to say for a past due task alone, a task due today alone, or a review alone', async () => {
@@ -133,7 +133,7 @@ describe('buildMorning', () => {
 
   it('reads the open tasks that the person leads or helps with, in an active project or with no project, up to the end of the week', () => {
     expect(SUMMARY_TASKS_SQL).toMatch(/status in \('todo', 'in_progress'\)/);
-    expect(SUMMARY_TASKS_SQL).toMatch(/t\.project_id is null or p\.status = 'active'/);
+    expect(SUMMARY_TASKS_SQL).toMatch(/t\.project_id is null or \(p\.status = 'active'/);
     expect(SUMMARY_TASKS_SQL).toContain("doc->'helperIds' ? $1");
     expect(SUMMARY_TASKS_SQL).toContain('t.owner_id = $1');
     expect(SUMMARY_TASKS_SQL).toMatch(/t\.due_date <= \$2/);
