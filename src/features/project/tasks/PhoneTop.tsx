@@ -35,8 +35,9 @@ export function TitleBlock({ panel }: { panel: TaskPanel }) {
   if (!canDetails) return <p dir="auto" className={shape}><bdi>{task.title}</bdi></p>;
   if (!editing) {
     return (
-      <button type="button" onClick={() => setEditing(true)} className={`pressable w-full text-start ${shape}`}>
-        <span dir="auto" className="block">{title}</span>
+      // The press area is 44 px high also for a title of one line (33.6 px high, 36.3 px in Arabic). The text sits in the middle of it.
+      <button type="button" onClick={() => setEditing(true)} className={`pressable flex min-h-11 w-full items-center text-start ${shape}`}>
+        <span dir="auto" className="block min-w-0 flex-1">{title}</span>
         <span className="sr-only"> {t('phoneTask.editTitle')}</span>
       </button>
     );

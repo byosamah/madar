@@ -37,6 +37,14 @@ describe('TitleBlock', () => {
     await waitFor(() => expect(store.state.tasks.tsk_007.title).toBe('Stair and ramp details'));
   });
 
+  it('gives the title button a press area of 44 px, also for a title of one line', async () => {
+    // The title in large type is 33.6 px high in one line (36.3 px in Arabic): the button needs min-h-11 and centres the text in it.
+    await renderPanel('tsk_007', { phone: true, prepare: setupTask('tsk_007', 'usr_002'), render: title });
+    const button = await screen.findByRole('button', { name: /Stair details/ });
+    expect(button).toHaveClass('min-h-11', 'items-center');
+    expect(button).toHaveTextContent('Tap to edit the title');
+  });
+
   it('saves on Enter and puts the old title back on Escape', async () => {
     const { store } = await renderPanel('tsk_007', { phone: true, prepare: setupTask('tsk_007', 'usr_002'), render: title });
     await userEvent.click(await screen.findByRole('button', { name: /Stair details/ }));

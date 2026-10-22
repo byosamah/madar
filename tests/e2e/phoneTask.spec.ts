@@ -65,6 +65,9 @@ for (const lang of ['en', 'ar'] as const) {
         for (const tab of await sheet.getByRole('tab').all()) await expectTarget(tab, 'a switch tab');
         const main = sheet.locator('[data-next-step] .signature').first();
         if (await main.count()) await expectTarget(main, 'the main button');
+        // A person who may edit the title taps it: the press area is 44 px high (33.6 px high before, 36.3 px in Arabic).
+        const editTitle = sheet.getByRole('button', { name: lang === 'en' ? /Tap to edit the title/ : /اضغط على العنوان/ }).first();
+        if (await editTitle.count()) await expectTarget(editTitle, 'the title button');
         // One main button for each view.
         expect(await sheet.locator('.signature').count()).toBeLessThanOrEqual(1);
         // No sideways scroll.
