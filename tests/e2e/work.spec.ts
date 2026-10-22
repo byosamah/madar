@@ -15,10 +15,10 @@ async function useArabic(page: Page): Promise<void> {
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
 }
 
-const SCREENS: { name: string; path: string; ready: (page: Page) => Promise<void>; scope?: string }[] = [
+const SCREENS: { name: string; path: string; ready: (page: Page, lang: 'en' | 'ar') => Promise<void>; scope?: string }[] = [
   { name: 'work', path: '/#/work', ready: async (page) => { await expect(page.getByRole('region').first()).toBeVisible(); } },
   { name: 'meetings', path: '/#/meetings', ready: async (page) => { await expect(page.getByRole('radiogroup').first()).toBeVisible(); } },
-  { name: 'projects', path: '/#/projects', ready: async (page) => { await expect(page.getByRole('list', { name: 'Projects' })).toBeVisible(); } },
+  { name: 'projects', path: '/#/projects', ready: async (page, lang) => { await expect(page.getByRole('list', { name: lang === 'ar' ? 'المشاريع' : 'Projects' })).toBeVisible(); } },
   { name: 'inbox', path: '/#/inbox', ready: async (page) => { await expect(page.locator('aside ul li').first()).toBeVisible(); } },
   { name: 'notifications', path: '/#/notifications', ready: async (page) => { await expect(page.getByRole('heading', { level: 1 })).toBeVisible(); } },
   { name: 'search', path: '/#/search', ready: async (page) => { await page.locator('input[role="combobox"]').fill('a'); await expect(page.locator('[cmdk-root] [role="option"]').first()).toBeVisible(); } },
@@ -32,7 +32,7 @@ for (const width of [390, 1440]) {
       if (lang === 'ar') await useArabic(page);
       for (const screen of SCREENS) {
         await page.goto(screen.path);
-        await screen.ready(page);
+        await screen.ready(page, lang);
         await page.waitForTimeout(1200);
         await page.screenshot({ path: `test-results/work/${width}-${lang}-${screen.name}.png`, fullPage: true });
         await expectNoSeriousA11yIssues(page, screen.scope);
