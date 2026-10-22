@@ -6,9 +6,9 @@ import { WHATS_NEW } from './entries';
 describe("What's new entries of hidden and internal projects", () => {
   it('has the three lines at the top, the Admin line with its right and its link', () => {
     expect(WHATS_NEW.slice(0, 3)).toEqual([
-      { id: '2026-10-23-95', day: '2026-10-23', right: 'admin.manage', to: '/admin/roles' },
-      { id: '2026-10-23-94', day: '2026-10-23', to: '/projects' },
-      { id: '2026-10-23-93', day: '2026-10-23', to: '/projects' },
+      { id: '2026-10-23-95', day: '2026-10-22', right: 'admin.manage', to: '/admin/roles' },
+      { id: '2026-10-23-94', day: '2026-10-22', to: '/projects' },
+      { id: '2026-10-23-93', day: '2026-10-22', to: '/projects' },
     ]);
   });
 

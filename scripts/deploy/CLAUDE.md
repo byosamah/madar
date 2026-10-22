@@ -27,6 +27,7 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
   then fails at db push and removes its record: ask that session first, or ship both in one release.
 - Load the keys first: `set -a; . ./.env.local; set +a`, then `scripts/deploy/all.sh test`.
 - Commit TASKS.md and proof.md before `all.sh test`: any later commit (also a note) needs `all.sh test` again.
+- Before `all.sh test`, give each new What's new entry the day of the planned production release (`day` in `src/whatsNew/entries.ts`).
 - Notes after `all.sh test` (proof, TASKS, a deleted probe) go on the batch branch, not main. After production, fast-forward
   main to that branch with the release record (speed release, 2026-10-22).
 - Another session may leave changes in the main folder. Then deploy from a clean worktree of main: `git fetch . <branch>:main`,

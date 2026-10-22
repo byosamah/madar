@@ -663,6 +663,9 @@ any screen work.
 - A What's new id: take a number above the newest id on main and on every open `rb/*` branch (`git show rb/<x>:src/whatsNew/entries.ts`).
   Sort the ids as numbers (`sort -t- -k4 -n`): a text sort puts `2026-10-23-9` above `-82` (2026-10-22).
   A test finds its entry by id, never by `WHATS_NEW[0]`.
+- What's new dates (owner, 2026-10-22): `day` is the day the entry's production release went live, and the page shows the entries of each
+  day under that date. Write the planned release day before `all.sh test`; when production goes on another day, fix it in the release
+  record commit. The id is only a name and keeps its old form. `entries.test.ts` fails on a day still to come or out of order.
 - What's new (`whatsNew/entries.ts`): an entry may have `right` (the page shows it only to a person who holds it, by `can()`) and
   `to` (one quiet link "Open"). An entry newer than the last one the person saw has the word "New". The person menu shows the word
   "New" after the item, and Home ends its date line with the link "See what's new", until the person opens the page. There is no dot

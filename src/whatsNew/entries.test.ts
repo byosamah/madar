@@ -8,6 +8,23 @@ function wordAt(tree: unknown, path: string[]): unknown {
 }
 
 describe("What's new entries", () => {
+  // The page puts each day of news under its date (owner, 2026-10-22: "add the date of each release when it released"). The day of an
+  // entry is the day its production release went live, never a planned day: before, every entry held 2026-10-23, a day still to come.
+  it('dates each entry on the day of its release: never a day still to come, and never newer than the entry above it', () => {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh' }).format(new Date());
+    for (const [i, entry] of WHATS_NEW.entries()) {
+      expect(entry.day, entry.id).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(entry.day <= today, `${entry.id} ${entry.day}`).toBe(true);
+      if (i > 0) expect(entry.day <= WHATS_NEW[i - 1].day, `${entry.id} ${entry.day}`).toBe(true);
+    }
+  });
+
+  it('keeps the release days of the history (Cloudflare production deploys and the release records)', () => {
+    const dayOf = (id: string) => WHATS_NEW.find((entry) => entry.id === id)?.day;
+    expect(dayOf('2026-10-23-82')).toBe('2026-10-22');
+    expect(new Set(WHATS_NEW.map((entry) => entry.day))).toEqual(new Set(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22']));
+  });
+
   // Batch A (fbk_038, fbk_040, fbk_043, fbk_045, fbk_046, fbk_047): five lines, newer than every other entry.
   it('has the five lines of batch A, above the entry of the speed release', () => {
     const ids = WHATS_NEW.map((entry) => entry.id);
@@ -26,8 +43,10 @@ describe("What's new entries", () => {
     for (const id of ids) expect(id).toMatch(/^\d{4}-\d{2}-\d{2}-\d+$/);
   });
 
-  it('give each entry the day of its id', () => {
-    for (const entry of WHATS_NEW) expect(entry.id.startsWith(`${entry.day}-`)).toBe(true);
+  it('gives each entry its own id, which stays a name and no longer has to match the day (owner, 2026-10-22)', () => {
+    const ids = WHATS_NEW.map((entry) => entry.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const id of ids) expect(id).toMatch(/^\d{4}-\d{2}-\d{2}-\d+$/);
   });
 
   it('list the newest day first', () => {
@@ -69,7 +88,7 @@ describe("What's new entries", () => {
   // Role rights version 2 (owner, 2026-10-21): the 112 switches. Only the Admin makes roles, so only the Admin reads the entry.
   it('shows the entry about the 112 switches to the Admin only, and opens the Roles section', () => {
     // The chat presence entry (2026-10-23-80) came after it, so the entry is found by its id, not by its place.
-    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-75')).toEqual({ id: '2026-10-23-75', day: '2026-10-23', right: 'admin.manage', to: '/admin/roles' });
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-75')).toEqual({ id: '2026-10-23-75', day: '2026-10-21', right: 'admin.manage', to: '/admin/roles' });
     expect(wordAt(en, ['whatsNew', 'items', '2026-10-23-75', 'title'])).toBe('Rights in 112 switches');
     expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-75', 'body']))).toContain('112');
   });
@@ -83,13 +102,13 @@ describe("What's new entries", () => {
 
   // role-rights (owner, 2026-10-23): only the Admin makes roles, so only the Admin reads the entry about the sections of rights.
   it('shows the entry about the rights in sections to the Admin only, and opens the Roles section', () => {
-    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-68')).toEqual({ id: '2026-10-23-68', day: '2026-10-23', right: 'admin.manage', to: '/admin/roles' });
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-68')).toEqual({ id: '2026-10-23-68', day: '2026-10-20', right: 'admin.manage', to: '/admin/roles' });
   });
 
   // Chat design 2026-10-19 (track msg, B17): the message menu, reply, edit, delete, reactions and instant send.
   it('name the message menu of the chats in one entry that opens the Inbox', () => {
     const entry = WHATS_NEW.find((item) => item.id === '2026-10-23-30');
-    expect(entry).toEqual({ id: '2026-10-23-30', day: '2026-10-23', to: '/inbox' });
+    expect(entry).toEqual({ id: '2026-10-23-30', day: '2026-10-20', to: '/inbox' });
     expect(wordAt(en, ['whatsNew', 'items', '2026-10-23-30', 'title'])).toBe('Reply, react and edit in chats');
     expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-30', 'body']))).toContain('أرسلها مجددًا');
   });
@@ -97,7 +116,7 @@ describe("What's new entries", () => {
   // Chat design 2026-10-19 (track find, D13): message search, the Message button and the Project chat button.
   it('name the search of messages in one entry that opens the Search screen, between the notify and the msg lines', () => {
     const entry = WHATS_NEW.find((item) => item.id === '2026-10-23-40');
-    expect(entry).toEqual({ id: '2026-10-23-40', day: '2026-10-23', to: '/search' });
+    expect(entry).toEqual({ id: '2026-10-23-40', day: '2026-10-20', to: '/search' });
     const ids = WHATS_NEW.map((item) => item.id);
     expect(ids.indexOf('2026-10-23-40')).toBeGreaterThan(ids.indexOf('2026-10-23-50'));
     expect(ids.indexOf('2026-10-23-40')).toBeLessThan(ids.indexOf('2026-10-23-30'));
@@ -110,7 +129,7 @@ describe("What's new entries", () => {
   // Meetings, wave 3 (fbk_022): a meeting can repeat every day, every week or every 2 weeks.
   it('name the repeating meetings in one entry that opens the Meetings view, above the Google Calendar line', () => {
     const entry = WHATS_NEW.find((item) => item.id === '2026-10-23-54');
-    expect(entry).toEqual({ id: '2026-10-23-54', day: '2026-10-23', to: '/meetings' });
+    expect(entry).toEqual({ id: '2026-10-23-54', day: '2026-10-20', to: '/meetings' });
     const ids = WHATS_NEW.map((item) => item.id);
     expect(ids.indexOf('2026-10-23-54')).toBeLessThan(ids.indexOf('2026-10-23-53'));
     expect(wordAt(en, ['whatsNew', 'items', '2026-10-23-54', 'title'])).toBe('Meetings that repeat');
@@ -127,14 +146,14 @@ describe("What's new entries", () => {
 
   // The Madar report from the AI assistant (owner, 2026-10-21): only the people with the report right can ask for it.
   it('shows the entry about the Madar report to the people with the report right', () => {
-    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-81')).toEqual({ id: '2026-10-23-81', day: '2026-10-23', right: 'report.office' });
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-81')).toEqual({ id: '2026-10-23-81', day: '2026-10-21', right: 'report.office' });
     expect(String(wordAt(en, ['whatsNew', 'items', '2026-10-23-81', 'body']))).toContain('from 1 to 15 October');
     expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-81', 'title']))).toBe('تقرير مدار من مساعدك الذكي');
   });
 
   // The speed release (owner, 2026-10-21: "audit the performance of the full product and make the best"): one line for everyone.
   it('tells everyone that Madar is faster', () => {
-    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-82')).toEqual({ id: '2026-10-23-82', day: '2026-10-23' });
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-82')).toEqual({ id: '2026-10-23-82', day: '2026-10-22' });
     expect(String(wordAt(en, ['whatsNew', 'items', '2026-10-23-82', 'title']))).toBe('Madar is faster');
     expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-82', 'title']))).toBe('صار مدار أسرع');
   });
@@ -143,9 +162,9 @@ describe("What's new entries", () => {
 // Quiet hours and @everyone (owner, 2026-10-22, fbk_048 and fbk_041). The entries are found by id, never by place.
 describe("the What's new entries of quiet hours and @everyone", () => {
   it('have the three ids, for everyone, with a screen to open', () => {
-    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-88')).toEqual({ id: '2026-10-23-88', day: '2026-10-23', to: '/settings' });
-    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-89')).toEqual({ id: '2026-10-23-89', day: '2026-10-23', to: '/inbox' });
-    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-90')).toEqual({ id: '2026-10-23-90', day: '2026-10-23', to: '/settings' });
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-88')).toEqual({ id: '2026-10-23-88', day: '2026-10-22', to: '/settings' });
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-89')).toEqual({ id: '2026-10-23-89', day: '2026-10-22', to: '/inbox' });
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-90')).toEqual({ id: '2026-10-23-90', day: '2026-10-22', to: '/settings' });
   });
 
   it('say how to change the hours, the three words, and the new time of the summary, in both languages', () => {
