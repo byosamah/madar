@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import { alwaysSignedIn, type AuthPort, type AuthStatus } from '../auth';
-import { clearHomeCache, fingerprintOf, homeKeys, MAX_BYTES, readHomeRecord, startHomeCache } from './homeCache';
+import { phoneMedia } from '../../test/phoneMedia';
+import { clearHomeCache, fingerprintOf, homeKeys, MAX_BYTES, readHomeRecord, saveHomeRecord, startHomeCache } from './homeCache';
 
 const TODAY = '2026-09-30';
 const AUTH = 'auth-user-a';
@@ -58,6 +59,46 @@ describe('what a record holds', () => {
       'subCompanies.list {}', 'users.list {}',
     ]);
     expect(homeKeys('admin', TODAY).map((key) => JSON.stringify(key[2]))).toContain('{"filter":"all","sort":"deadline"}');
+  });
+
+  it('leaves projects.list out of the keys of a phone, and keeps it in the default', () => {
+    const names = (phone?: boolean) => homeKeys('member', TODAY, phone).map((key) => key[1]);
+    expect(names(true)).toEqual(['session.get', 'chats.unreadCount', 'notifications.count', 'tasks.list', 'tasks.list', 'meetings.list', 'subCompanies.list', 'users.list']);
+    expect(names()).toContain('projects.list');
+    expect(homeKeys('admin', TODAY, true).map((key) => key[1])).not.toContain('projects.list');
+  });
+
+  it('writes no projects.list on a phone, and shows no stored projects.list on a phone', async () => {
+    phoneMedia(true);
+    // A: a fresh projects.list answer on a phone is not written.
+    const client = new QueryClient();
+    const stop = startHomeCache(options(client, port(AUTH)));
+    fill(client);
+    client.setQueryData(['api', 'projects.list', { filter: 'mine', status: 'all', sort: 'deadline' }], []);
+    await vi.waitFor(async () => expect(await stored()).not.toBeNull(), { timeout: 3000 });
+    const record = (await stored())!;
+    expect(record.entries.map((entry) => entry.key[1])).not.toContain('projects.list');
+    expect(record.entries.map((entry) => entry.key[1])).toContain('chats.unreadCount');
+    expect(record.entries.filter((entry) => entry.key[1] === 'tasks.list')).toHaveLength(2);
+    stop();
+    await clearHomeCache();
+    // B: a record of a desk browser holds projects.list. A phone shows the other entries and not that one.
+    const at = Date.now();
+    const entry = (key: unknown[], data: unknown) => ({ key, data, at });
+    await saveHomeRecord(AUTH, {
+      build: 'b1', at, fingerprint: fingerprintOf(session()),
+      entries: [
+        entry(['api', 'session.get', {}], session()),
+        entry(['api', 'tasks.list', { filter: 'mine' }], []),
+        entry(['api', 'tasks.list', { filter: 'review_for_me' }], []),
+        entry(['api', 'projects.list', { filter: 'mine', status: 'all', sort: 'deadline' }], [{ project: { id: 'prj_x' } }]),
+      ],
+    });
+    const second = new QueryClient();
+    const stopSecond = startHomeCache(options(second, port(AUTH), { readLimitMs: 5000 }));
+    await vi.waitFor(() => expect(second.getQueryData(['api', 'session.get', {}])).toBeDefined(), { timeout: 3000 });
+    expect(second.getQueryData(['api', 'projects.list', { filter: 'mine', status: 'all', sort: 'deadline' }])).toBeUndefined();
+    stopSecond();
   });
 
   it('changes the fingerprint for another role, another role id or other rights, and not for the same ones in another order', () => {

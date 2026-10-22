@@ -6,6 +6,7 @@ import { createSupabaseAuth } from '../../app/remote/auth';
 import { clearHomeCache, readHomeRecord, saveHomeRecord, HOME_DB, MAX_AGE_MS } from '../../app/remote/homeCache';
 import type { State } from '../../api/store';
 import { renderHeldRemoteApp } from '../../test/heldRemoteApp';
+import { phoneMedia } from '../../test/phoneMedia';
 
 /**
  * Instant Home after a relaunch (performance audit 2026-10-21, DF-14, owner: "keep the last Home lists of each person in the
@@ -87,6 +88,18 @@ describe('Home after a relaunch, real build (DF-14)', () => {
     const names = record!.entries.map((entry) => entry.key[1]).sort();
     expect(names).toEqual(['chats.unreadCount', 'meetings.list', 'notifications.count', 'projects.list', 'session.get', 'subCompanies.list', 'tasks.list', 'tasks.list', 'users.list']);
     expect(JSON.stringify(record)).not.toMatch(/token/i);
+  });
+
+  it('on a phone, writes a record with no project list', async () => {
+    phoneMedia(true);
+    const app = await renderHeldRemoteApp('/', as(MEMBER), { auth: homeAuth(AUTH_A), home: { gapMs: 0 } });
+    await screen.findByRole('region', { name: 'Next for you' }, { timeout: 10_000 });
+    await waitFor(async () => expect(await readHomeRecord(AUTH_A, 5000)).not.toBeNull(), { timeout: 10_000 });
+    app.stopHome();
+    app.unmount();
+    cleanup();
+    const record = await readHomeRecord(AUTH_A, 5000);
+    expect(record!.entries.map((entry) => entry.key[1]).sort()).toEqual(['chats.unreadCount', 'meetings.list', 'notifications.count', 'session.get', 'subCompanies.list', 'tasks.list', 'tasks.list', 'users.list']);
   });
 
   it('shows the stored rows before any answer, then the fresh answers replace them', async () => {

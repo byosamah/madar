@@ -2,6 +2,7 @@ import { hashKey, type QueryClient } from '@tanstack/react-query';
 import type { CallName } from '../../api/calls';
 import { todayMeetingsInput } from '../../features/meetings/readInputs';
 import { todayISO } from '../../lib/dates';
+import { isPhoneNow } from '../useIsPhone';
 import type { AuthPort } from '../auth';
 import type { Runtime } from '../runtime';
 import { whenIdle } from '../whenIdle';
@@ -38,10 +39,13 @@ export const WRITE_GAP_MS = 60_000;
 type Entry = { key: unknown[]; data: unknown; at: number };
 export type HomeRecord = { build: string; at: number; fingerprint: string; entries: Entry[] };
 
-/** The reads of a cold Home in its first request, for a role and a day. The stored list and the written list use this one function. */
-export function homeKeys(role: string | undefined, today: string): unknown[][] {
+/**
+ * The reads of a cold Home in its first request, for a role and a day. The stored list and the written list use this one function.
+ * On a phone the list has no projects.list (Direction D).
+ */
+export function homeKeys(role: string | undefined, today: string, phone = false): unknown[][] {
   const admin = role === 'admin';
-  return [
+  const keys: unknown[][] = [
     ['api', 'session.get', {}],
     ['api', 'chats.unreadCount', {}],
     ['api', 'notifications.count', {}],
@@ -52,6 +56,7 @@ export function homeKeys(role: string | undefined, today: string): unknown[][] {
     ['api', 'subCompanies.list', {}],
     ['api', 'users.list', {}],
   ];
+  return phone ? keys.filter((key) => key[1] !== 'projects.list') : keys;
 }
 
 const HOME_NAMES = new Set<string>(homeKeys(undefined, '').map((key) => key[1] as string));
@@ -241,7 +246,7 @@ function begin(o: HomeCacheOptions, userId: string, hydrateNow: boolean, signedI
       void deleteRecord(userId);
       return;
     }
-    const wanted = new Set(homeKeys(roleOf(record), today()).map(hashOf));
+    const wanted = new Set(homeKeys(roleOf(record), today(), isPhoneNow()).map(hashOf));
     for (const entry of record.entries) {
       const hash = hashOf(entry.key);
       if (!wanted.has(hash) || typeof entry.at !== 'number' || !shapeOk(entry.key[1] as string, entry.data)) continue;
@@ -281,7 +286,7 @@ function begin(o: HomeCacheOptions, userId: string, hydrateNow: boolean, signedI
   function collect(): HomeRecord | null {
     const session = queryClient.getQueryData<SessionLike>(['api', 'session.get', {}]);
     if (!session?.user) return null;
-    const keys = homeKeys(session.user.systemRole, today());
+    const keys = homeKeys(session.user.systemRole, today(), isPhoneNow());
     const entries: Entry[] = [];
     for (const key of keys) {
       const query = cache.find({ queryKey: key, exact: true });
