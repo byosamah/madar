@@ -65,4 +65,35 @@ describe('the Me hub (prototype, phone)', () => {
     expect(screen.queryByRole('link', { name: /Hala Nasser/ })).toBeNull();
     expect(screen.queryByRole('radiogroup')).toBeNull();
   });
+
+  it('has the Quiet hours, Notifications and Google Calendar rows and no real-build rows', async () => {
+    await hub();
+    expect(screen.getByRole('link', { name: /Quiet hours/ })).toHaveAttribute('href', '#/me/quiet-hours');
+    expect(screen.getByRole('link', { name: /Notifications/ })).toHaveAttribute('href', '#/me/notices');
+    expect(screen.getByRole('link', { name: /Google Calendar/ })).toHaveAttribute('href', '#/me/calendar');
+    expect(screen.queryByRole('switch', { name: 'Morning summary' })).toBeNull();
+    expect(screen.queryByRole('switch', { name: 'Notify me on this device' })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Password/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Agents/ })).toBeNull();
+  });
+
+  it('shows the quiet range and the notice line', async () => {
+    await hub();
+    expect(await screen.findByText('Sunday to Thursday, outside 9:00 AM to 5:00 PM')).toBeInTheDocument();
+    expect(screen.getByText('In the app')).toBeInTheDocument();
+  });
+
+  it('shows What reaches me to the Admin only', async () => {
+    const first = await hub();
+    const link = await screen.findByRole('link', { name: /What reaches me/ });
+    expect(link).toHaveAttribute('href', '#/me/reach');
+    expect(link).toHaveTextContent('My work, and the rest in the list');
+    first.unmount();
+    phoneMedia(true);
+    await renderApp('/me', (state) => {
+      state.session.currentUserId = 'usr_005';
+    });
+    await screen.findByRole('link', { name: /Quiet hours/ });
+    expect(screen.queryByRole('link', { name: /What reaches me/ })).toBeNull();
+  });
 });

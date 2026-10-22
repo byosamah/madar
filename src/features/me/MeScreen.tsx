@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { useCall } from '../../app/runtime';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { MeGroup } from './MeRow';
+import { AccountPanel, NoticePanel } from './NoticePanel';
 import { LookPanel, ProfilePanel } from './PersonPanels';
 
 /**
@@ -20,6 +21,8 @@ export function MeScreen() {
           <ProfilePanel />
           <MeGroup title={t('phoneMe.groupSettings')}>
             <LookPanel />
+            <NoticePanel />
+            <AccountPanel />
           </MeGroup>
         </>
       )}

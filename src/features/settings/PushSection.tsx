@@ -17,15 +17,15 @@ export function PushSection() {
   return REMOTE ? <Push /> : null;
 }
 
-/** The word that explains a state that has no switch. */
-const NOTE: Partial<Record<PushStatus, string>> = {
+/** The word that explains a state that has no switch. The Me hub reuses it. */
+export const PUSH_NOTE: Partial<Record<PushStatus, string>> = {
   unsupported: 'push.unsupported', needs_install: 'push.needsInstall', not_set: 'push.notSet', blocked: 'push.blocked',
 };
 
 function Push() {
   const { t } = useTranslation();
   const push = usePushDevice();
-  const note = push.status ? NOTE[push.status] : undefined;
+  const note = push.status ? PUSH_NOTE[push.status] : undefined;
   const hasSwitch = push.status === 'off' || push.status === 'on';
 
   return (
