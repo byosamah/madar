@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { settleAnimations } from './settle';
 
 const ROUTES = ['/', '/projects', '/work', '/dashboard', '/inbox', '/notifications', '/admin', '/search', '/settings', '/me', '/me/profile'];
 const WIDTHS = [390, 820, 1440];
@@ -25,6 +26,7 @@ for (const width of WIDTHS) {
           await page.waitForTimeout(1200); // the entrance and count-up motion settle before the contrast check
           const name = route === '/' ? 'home' : route.slice(1);
           await page.screenshot({ path: `test-results/shell/${width}-${lang}-${theme}-${name}.png`, fullPage: true });
+          await settleAnimations(page); // the screenshot resizes the window, and the entrance of a screen can play again
           const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
           const serious = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
           expect(serious.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { settleAnimations } from './settle';
 
 const ROUTES = [
   '/', '/projects', '/projects/prj_001', '/projects/prj_001?tab=tasks', '/projects/prj_001?tab=activity', '/projects/prj_001?tab=schedule', '/projects/prj_001?tab=files',
@@ -19,6 +20,7 @@ async function sweep(page: Page, folder: string): Promise<void> {
     await page.waitForTimeout(1200);
     const name = route === '/' ? 'home' : route.slice(1).replace(/[/?=&]/g, '-');
     await page.screenshot({ path: `test-results/full/${folder}/${name}.png`, fullPage: true });
+    await settleAnimations(page); // the screenshot resizes the window, and the entrance of a screen can play again
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
     const serious = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
     expect.soft(serious.map((v) => `${route}: ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
