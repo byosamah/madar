@@ -8,6 +8,7 @@ import {
 import { UserCard } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, savePreferences } from '../events';
+import { projectViewer } from '../projectView';
 import { nextId } from '../store';
 import { userCard } from '../views';
 import { holdsAdminRights } from '../permissions';
@@ -51,7 +52,9 @@ export const sessionGet = defineCall({
   readOnly: true,
   prototypeOnly: true,
   run(_input, ctx) {
-    const leaders = new Set(Object.values(ctx.state.projects).map((p) => p.leaderId));
+    // The hint "leader" counts only the projects that the person sees (hidden projects, owner 2026-10-22).
+    const sees = projectViewer(ctx.state, ctx.authority);
+    const leaders = new Set(Object.values(ctx.state.projects).filter(sees).map((p) => p.leaderId));
     // An agent shows only while its person is active, because it cannot act otherwise.
     const canAct = (u: User) => u.kind === 'human' || (u.ownerId !== null && ctx.state.users[u.ownerId]?.active === true);
     const previewUsers = Object.values(ctx.state.users)

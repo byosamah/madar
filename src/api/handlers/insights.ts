@@ -11,6 +11,7 @@ import { pauseKindOf, peopleFilter, staleDaysOf } from '../pause';
 import { reviewersOfTask } from '../notify';
 import { can, mayViewTask } from '../permissions';
 import { assertCan } from './shared';
+import { projectViewer } from '../projectView';
 import { sentToReviewOn } from '../review';
 import { paymentsOf, subCompaniesOf, trackerOf, type State } from '../store';
 import { stageTag, tasksByProject } from '../flow';
@@ -158,7 +159,9 @@ export const dashboardGet = defineCall({
     // The People tab needs its own switch. Without it the answer keeps the weeks, and holds no row and no No-lead row.
     const mayWorkload = can(actor, 'workload.view');
     // The people filters apply to every number, and the lists that the numbers open take the same filters (owner, 2026-10-06).
-    const inFilters = peopleFilter(state, input);
+    // peopleFilter holds the view rule (hidden projects, owner 2026-10-22): every number below counts only the projects that the person sees.
+    const inFilters = peopleFilter(state, input, actor);
+    const sees = projectViewer(state, actor);
     const projects = Object.values(state.projects).filter((p) => (input.status === 'all' || p.status === input.status) && inFilters(p));
     const active = projects.filter((p) => p.status === 'active');
     // Project ids only: an office task (projectId null) is never in a project number (owner, 2026-10-06).
@@ -229,7 +232,7 @@ export const dashboardGet = defineCall({
     }
 
     const inStatus = (p: Project) => (input.status === 'all' ? isLive(p.status) : p.status === input.status);
-    const leaderIds = new Set(Object.values(state.projects).filter(inStatus).flatMap((p) => (p.leaderId ? [p.leaderId] : [])));
+    const leaderIds = new Set(Object.values(state.projects).filter((p) => sees(p) && inStatus(p)).flatMap((p) => (p.leaderId ? [p.leaderId] : [])));
     const leaders = [...leaderIds].map((id) => cardOf(state, id)).sort((a, b) => a.name.localeCompare(b.name));
 
     const weeks = Array.from({ length: 4 }, (_, i) => addDays(weekStart, i * 7));
@@ -339,6 +342,7 @@ export const searchQuery = defineCall({
   readOnly: true,
   run(input, ctx) {
     const { state } = ctx;
+    const sees = projectViewer(state, ctx.authority);
     // The Search switch: a person without it gets a refusal, and so does the agent of that person (role rights version 2).
     assertCan(ctx, 'search.use');
     // A project link in a post reads "#KH-26-001" and a mention "@Name", so Search drops that first mark (audit PER-3).
@@ -348,13 +352,13 @@ export const searchQuery = defineCall({
     const codeOf = (projectId: string | null) => (projectId === null ? '' : state.projects[projectId]?.code ?? '');
     return {
       projects: Object.values(state.projects)
-        .filter((p) => hit(p.code, p.name, p.clientId ? state.clients[p.clientId]?.name : undefined, p.clientId ? state.clients[p.clientId]?.nameAr : undefined))
+        .filter((p) => sees(p) && hit(p.code, p.name, p.clientId ? state.clients[p.clientId]?.name : undefined, p.clientId ? state.clients[p.clientId]?.nameAr : undefined))
         .sort((a, b) => a.name.localeCompare(b.name))
         .slice(0, 5)
         .map((p) => ({ id: p.id, code: p.code, name: p.name, mark: markOf(p) })),
       // The tasks of active projects, and the office tasks that the person sees (owner, 2026-10-06).
       tasks: Object.values(state.tasks)
-        .filter((t) => (t.projectId === null ? mayViewTask(state, ctx.authority, t) : state.projects[t.projectId]?.status === 'active') && hit(t.title))
+        .filter((t) => (t.projectId === null ? mayViewTask(state, ctx.authority, t) : state.projects[t.projectId]?.status === 'active' && sees(state.projects[t.projectId])) && hit(t.title))
         .slice(0, 5)
         .map((t) => ({ id: t.id, title: t.title, projectId: t.projectId, projectCode: codeOf(t.projectId) })),
       people: Object.values(state.users)
@@ -362,16 +366,16 @@ export const searchQuery = defineCall({
         .sort((a, b) => a.name.localeCompare(b.name))
         .slice(0, 5)
         .map((u) => userCard(u)),
-      // Sub-companies are open to every person, like their projects, so this row shows no one anything new (INT-25).
+      // Sub-companies are open to every person, and the number counts the projects that the person sees (INT-25; hidden projects).
       subCompanies: Object.values(subCompaniesOf(state))
         .filter((sub) => hit(sub.name, sub.nameAr))
         .sort((a, b) => a.name.localeCompare(b.name))
         .slice(0, 5)
-        .map((sub) => ({ id: sub.id, name: sub.name, nameAr: sub.nameAr, projects: Object.values(state.projects).filter((p) => p.subCompanyId === sub.id).length })),
+        .map((sub) => ({ id: sub.id, name: sub.name, nameAr: sub.nameAr, projects: Object.values(state.projects).filter((p) => p.subCompanyId === sub.id && sees(p)).length })),
       // A file of a direct chat or a group is found by no search, even by its members: it shows only in its messages (owner, 2026-10-19).
       // The same for a file of a meeting: it shows only in the minutes of its meeting (wave 2).
       files: Object.values(state.files)
-        .filter((f) => f.conversationId === undefined && f.meetingId === undefined && (f.projectId !== null || mayViewFile(state, ctx.authority, f)) && hit(f.name))
+        .filter((f) => f.conversationId === undefined && f.meetingId === undefined && (f.projectId !== null ? sees({ id: f.projectId }) : mayViewFile(state, ctx.authority, f)) && hit(f.name))
         .slice(0, 5)
         .map((f) => ({ id: f.id, name: f.name, projectId: f.projectId, projectCode: codeOf(f.projectId), taskId: f.taskId })),
       // An agent reads chat messages only when its person holds the switch for chats (ai.readChats). A person at the screen reads their own chats.

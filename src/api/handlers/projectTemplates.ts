@@ -10,6 +10,7 @@ import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { hasCycle, watchStage } from '../flow';
 import { notifyIn } from '../notify';
 import { staleDaysOf } from '../pause';
+import { projectViewer } from '../projectView';
 import { can } from '../permissions';
 import { nextId, projectTemplatesOf } from '../store';
 import { markOf } from '../../lib/projectMark';
@@ -44,8 +45,10 @@ function mayChange(ctx: Ctx, template: ProjectTemplate): boolean {
 
 function rowOf(ctx: Ctx, template: ProjectTemplate): ProjectTemplateRow {
   const author = ctx.state.users[template.createdBy];
+  // The number counts the open projects that the person sees (hidden projects, owner 2026-10-22).
+  const sees = projectViewer(ctx.state, ctx.authority);
   const followers = can(ctx.authority, 'templates.updateProjects')
-    ? Object.values(ctx.state.projects).filter((project) => project.templateLink?.templateId === template.id && (project.status === 'active' || project.status === 'on_hold')).length
+    ? Object.values(ctx.state.projects).filter((project) => sees(project) && project.templateLink?.templateId === template.id && (project.status === 'active' || project.status === 'on_hold')).length
     : undefined;
   return {
     ...structuredClone(template), ...namesUnder('createdByName', author), createdByGender: author?.gender, canEdit: mayChange(ctx, template),
@@ -405,7 +408,8 @@ const projectTemplatesUsage = defineCall({
     assertCan(ctx, 'templates.updateProjects');
     const template = templateOf(ctx, input.templateId);
     const row = (project: Project) => ({ project: refOf(project), status: project.status, staleDays: staleDaysOf(ctx.state, project, ctx.today) });
-    const open = Object.values(ctx.state.projects).filter((project) => project.status === 'active' || project.status === 'on_hold').sort(byName);
+    const sees = projectViewer(ctx.state, ctx.authority);
+    const open = Object.values(ctx.state.projects).filter((project) => sees(project) && (project.status === 'active' || project.status === 'on_hold')).sort(byName);
     return {
       linked: open.filter((project) => project.templateLink?.templateId === template.id).map(row),
       notLinked: open.filter((project) => !project.templateLink).map(row),

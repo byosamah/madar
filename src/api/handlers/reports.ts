@@ -5,6 +5,7 @@ import { Day, SubCompanyId, type Event, type Payment, type Project, type Task, t
 import { OfficeReport, type ReportPerson, type ReportProject } from '../contract/views';
 import { computeHealth } from '../health';
 import { can } from '../permissions';
+import { eventProjectViewer, projectViewer } from '../projectView';
 import { REPORT_DESIGN } from '../reportDesign';
 import { REPORT_GUIDE } from '../reportGuide';
 import {
@@ -57,7 +58,9 @@ function buildReport(ctx: Ctx, input: ReportPick & { subCompanyId?: string; guid
 
   // A sub-company filter keeps only its projects. Every count below reads these projects, so the totals, the people, the money
   // and the Tracker count that sub-company alone (INT-09). A sub-company that does not exist matches nothing.
-  const inScope = (project: Project) => !input.subCompanyId || project.subCompanyId === input.subCompanyId;
+  // A project that the person does not see counts in nothing (hidden projects, owner 2026-10-22): no row, no total, no person count.
+  const sees = projectViewer(state, actor);
+  const inScope = (project: Project) => sees(project) && (!input.subCompanyId || project.subCompanyId === input.subCompanyId);
   const projects = Object.values(state.projects).filter(inScope).sort((a, b) => a.code.localeCompare(b.code) || a.id.localeCompare(b.id));
   const scope = new Set(projects.map((project) => project.id));
   const tasks = Object.values(state.tasks).filter((task) => task.projectId !== null && scope.has(task.projectId));
@@ -65,6 +68,8 @@ function buildReport(ctx: Ctx, input: ReportPick & { subCompanyId?: string; guid
   const trackerRows = Object.values(trackerOf(state)).filter((entry) => scope.has(entry.projectId));
   const payments = Object.values(paymentsOf(state)).filter((payment) => scope.has(payment.projectId));
   const events = Object.values(state.events);
+  // The stage moves of the whole office leave out the projects that the person does not see, a deleted hidden project too.
+  const eventSees = eventProjectViewer(state, actor);
 
   const madeIn = (task: Task) => inDays(stampDay(task.createdAt));
   const doneIn = (task: Task) => inDays(dayOf(task.completedAt));
@@ -83,7 +88,7 @@ function buildReport(ctx: Ctx, input: ReportPick & { subCompanyId?: string; guid
   // With a sub-company filter the stage moves count project by project (the loader counts them by project).
   const stageMoves = input.subCompanyId
     ? projects.reduce((sum, project) => sum + count(REPORT_KEYS.stageMovesOf(project.id), () => eventsOf(REPORT_STAGE_VERB).filter((event) => event.projectId === project.id).length), 0)
-    : count(REPORT_KEYS.stageMoves, () => eventsOf(REPORT_STAGE_VERB).length);
+    : count(REPORT_KEYS.stageMoves, () => eventsOf(REPORT_STAGE_VERB).filter(eventSees).length);
   const completedIn = (projectId: string) => count(REPORT_KEYS.completed(projectId), () => eventsOf(REPORT_COMPLETED_VERB)
     .filter((event) => event.projectId === projectId && statusAfter(event) === 'completed').length);
   const pausedIn = (projectId: string) => count(REPORT_KEYS.paused(projectId), () => eventsOf(REPORT_PAUSED_VERB)

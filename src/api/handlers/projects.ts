@@ -316,8 +316,9 @@ export const projectsList = defineCall({
   readOnly: true,
   run(input, ctx) {
     const { state, today, authority } = ctx;
-    const inTeam = teamFilter(state, input.teamId);
-    // The filters that read only the project come first, so the summary is built only for the projects that stay.
+    const inTeam = teamFilter(state, input.teamId, authority);
+    // The filters that read only the project come first, so the summary is built only for the projects that stay. teamFilter holds the view
+    // rule too (hidden projects, owner 2026-10-22): a project that the person does not see never gets a summary.
     return Object.values(state.projects)
       .filter((p) => input.status === 'all' || p.status === input.status)
       .filter((p) => input.filter !== 'mine' || projectRoleOf(state, p.id, authority.id) !== 'other')
@@ -1051,7 +1052,7 @@ export const deadlinesList = defineCall({
   readOnly: true,
   run(input, ctx) {
     const { state, today } = ctx;
-    const inFilters = peopleFilter(state, input);
+    const inFilters = peopleFilter(state, input, ctx.authority);
     return Object.values(state.deadlines)
       .filter((d) => {
         const project = state.projects[d.projectId];

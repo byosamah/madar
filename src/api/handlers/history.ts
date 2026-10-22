@@ -6,6 +6,7 @@ import { ApiError, forbidden, notFound } from '../errors';
 import { DERIVED, FOLLOW_ON, lastProjectCopy, lastTaskCopy, NOT_UNDOABLE, undoEvent } from '../events';
 import { assertHasLead, assertMayFinish, reopenDependents, resyncStage, stageTag } from '../flow';
 import { feedbackNoticeHidden } from '../notify';
+import { eventProjectViewer } from '../projectView';
 import { ensureRights, withRights } from '../rights';
 import { can, holdsAdminRights, holdsRight, mayViewMeeting, mayViewProject, mayViewTask, meetingResource, principalOf, taskResource, type Action, type Resource } from '../permissions';
 import { eventLabel, eventViewOf, mayDeleteTracker, officeResource } from '../views';
@@ -104,8 +105,12 @@ export const eventsList = defineCall({
     const seesFeedback = can(ctx.authority, 'feedback.manage');
     // The contract takes any time offset, so "since" compares times, not text (audit 2026-10-03, API-20).
     const since = input.since ? Date.parse(input.since) : null;
+    // A change of a project that the person does not see is not in the list, and the limit counts only the changes the person reads
+    // (hidden projects, owner 2026-10-22). The change of a deleted hidden project shows to a holder of "See hidden projects" only.
+    const seesProjectOf = eventProjectViewer(ctx.state, ctx.authority);
     return Object.values(ctx.state.events)
       .filter((e) => (seesPayments || e.targetType !== 'payment')
+        && seesProjectOf(e)
         && (seesFeedback || e.targetType !== 'feedback')
         && seesEvent(ctx, e)
         && (!input.projectId || e.projectId === input.projectId)

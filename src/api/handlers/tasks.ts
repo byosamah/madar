@@ -195,7 +195,7 @@ export const tasksList = defineCall({
   run(input, ctx) {
     const { state, today, authority } = ctx;
     const { projectId, ownerId, status, dueFrom, dueTo } = input;
-    const inFilters = peopleFilter(state, input);
+    const inFilters = peopleFilter(state, input, authority);
     // An office task belongs to no project, so a project filter leaves it out. It shows only to its people and the Admin (owner, 2026-10-06).
     const officeIn = !projectId && !input.leaderId && !input.clientId && !input.teamId && !input.subCompanyId;
     const tasks = Object.values(state.tasks).filter((task) => {

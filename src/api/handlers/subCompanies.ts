@@ -3,6 +3,7 @@ import { defineCall, type Ctx } from '../registry';
 import { SubCompany, SubCompanyId } from '../contract/entities';
 import { ApiError, forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete } from '../events';
+import { projectViewer } from '../projectView';
 import { nextId, subCompaniesOf } from '../store';
 import { assertCan, seesProject, touch } from './shared';
 
@@ -34,8 +35,10 @@ const subCompaniesList = defineCall({
   readOnly: true,
   run(_input, ctx) {
     const counts = new Map<string, number>();
+    // The number counts the projects that the person sees (hidden projects, owner 2026-10-22).
+    const sees = projectViewer(ctx.state, ctx.authority);
     for (const project of Object.values(ctx.state.projects)) {
-      if (project.subCompanyId) counts.set(project.subCompanyId, (counts.get(project.subCompanyId) ?? 0) + 1);
+      if (project.subCompanyId && sees(project)) counts.set(project.subCompanyId, (counts.get(project.subCompanyId) ?? 0) + 1);
     }
     return Object.values(subCompaniesOf(ctx.state))
       .sort((a, b) => a.name.localeCompare(b.name))
