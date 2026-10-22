@@ -9,6 +9,8 @@
     }
   },
   "chat": {
-    "searchMessages": "Search messages"
+    "searchMessages": "Search messages",
+    "openProject": "Open the project",
+    "messagePerson": "Message {{name}}"
   }
 }

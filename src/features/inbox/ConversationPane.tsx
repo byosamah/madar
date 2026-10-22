@@ -28,6 +28,7 @@ import { ChatMenu, chatMenuItems } from './ChatList';
 import { GroupPicture } from './GroupPicture';
 import { ChatBackLink } from './chatBack';
 import { ChatHeader } from './ChatHeader';
+import { ChatOptionsSheet, OptionsButton } from './ChatOptionsSheet';
 import { GroupSheets, type GroupMode } from './GroupSheets';
 import { useArchive } from './archive';
 import { useNotifyItems } from './NotifyChoice';
@@ -135,6 +136,9 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   const phone = useIsPhone();
   const session = useCall('session.get', {});
   const [sheet, setSheet] = useState<GroupMode | null>(null);
+  // The options sheet of a phone (Direction D). It holds the people of a group, so the picture and the count open it there.
+  const [options, setOptions] = useState(false);
+  const openPeople = () => (phone ? setOptions(true) : setSheet('people'));
   const thread = useCall('chats.messages', { conversationId: id, ...(focusFromRoute ? { around: focusFromRoute } : {}) });
   const markRead = useAction('chats.markRead');
   const react = useAction('reactions.toggle');
@@ -259,7 +263,7 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   const lead = chat.kind === 'project' && chat.project
     ? <ProjectTile id={chat.project.id} mark={chat.project.mark} size={picture} />
     : isGroup ? (
-      <button type="button" aria-label={t('chat.peopleTitle')} onClick={() => setSheet('people')} className="pressable shrink-0 rounded-full">
+      <button type="button" aria-label={t('chat.peopleTitle')} onClick={openPeople} className="pressable shrink-0 rounded-full">
         <GroupPicture id={chat.id} size={picture} />
       </button>
     )
@@ -269,7 +273,7 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   const context = actorContext(chat.person);
   const subtitle = isGroup
     ? (
-      <button type="button" onClick={() => setSheet('people')} className="pressable -my-3 block max-w-full truncate py-3 text-start hover:text-ink hover:underline">
+      <button type="button" onClick={openPeople} className="pressable -my-3 block max-w-full truncate py-3 text-start hover:text-ink hover:underline">
         {t('chat.people', { count: data.people.length + 1 })}
       </button>
     )
@@ -288,10 +292,15 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   const menu = isGroup
     ? <GroupMenu id={id} archived={chat.archived} unread={chat.unread} title={title} onPick={setSheet} onArchive={archive} onMarkUnread={onMarkUnread} extra={notifyItems} />
     : <ChatMenu id={id} archived={chat.archived} unread={chat.unread} title={title} onArchive={archive} onMarkUnread={onMarkUnread} extra={notifyItems} />;
+  // The sheet repeats the picture at 40 px, but it is no button there.
+  const sheetLead = chat.kind === 'project' && chat.project
+    ? <ProjectTile id={chat.project.id} mark={chat.project.mark} size={40} />
+    : isGroup ? <GroupPicture id={chat.id} size={40} />
+      : chat.person ? <PersonFace user={{ ...chat.person, active: !chat.personLeft }} size={40} /> : null;
   return (
     <ChatDropArea note={chat.kind === 'project' ? t('chat.dropProject') : t('chat.dropChat')}>
       {phone
-        ? <ChatHeader lead={lead} title={title} subtitle={subtitle} action={menu} />
+        ? <ChatHeader lead={lead} title={title} subtitle={subtitle} action={<OptionsButton title={title} onClick={() => setOptions(true)} />} />
         : <Header lead={lead} title={title} subtitle={subtitle} action={menu} />}
       <BubbleActionsContext.Provider value={actions}>
         <EditingContext.Provider value={editingId}>
@@ -327,6 +336,24 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
             }}
           />
         </>
+      )}
+      {phone && (
+        <ChatOptionsSheet
+          open={options}
+          onOpenChange={setOptions}
+          id={id}
+          kind={chat.kind}
+          title={title}
+          lead={sheetLead}
+          line={isGroup ? `${t('chat.groupChat')} · ${t('chat.people', { count: data.people.length + 1 })}` : subtitle}
+          archived={chat.archived}
+          unread={chat.unread}
+          {...(chat.kind === 'project' && chat.project ? { link: { to: `/projects/${chat.project.id}`, label: t('chat.openProject') } } : {})}
+          notify={data.notify ?? 'all'}
+          {...(isGroup ? { group: { people: data.people, me: session.data?.authority, makerId: chat.makerId, name: chat.title, onMode: setSheet } } : {})}
+          onArchive={archive}
+          onMarkUnread={onMarkUnread}
+        />
       )}
       {isGroup && <GroupSheets id={id} mode={sheet} onMode={setSheet} name={chat.title} people={data.people} me={session.data?.authority} makerId={chat.makerId} />}
     </ChatDropArea>
@@ -380,6 +407,7 @@ export function TaskPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
       .filter((user, index, list) => user.id !== me && list.findIndex((other) => other.id === user.id) === index);
   }, [task.data, users.data, project.data, where, me]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [options, setOptions] = useState(false);
   const endEdit = useStableHandler(() => {
     setEditingId(null);
     requestAnimationFrame(() => document.getElementById(`composer-${id}`)?.focus());
@@ -430,7 +458,7 @@ export function TaskPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
     <ChatDropArea note={where ? t('chat.dropProject') : t('chat.dropOfficeTask')}>
       {phone
         // A phone shows one title line and no picture. The Open to-do link is a row of the options sheet there.
-        ? <ChatHeader lead={null} title={task.data.task.title} subtitle={taskLine} action={taskMenu} />
+        ? <ChatHeader lead={null} title={task.data.task.title} subtitle={taskLine} action={<OptionsButton title={task.data.task.title} onClick={() => setOptions(true)} />} />
         : (
           <Header
             lead={<span aria-hidden className="hidden size-10 shrink-0 place-items-center rounded-full bg-fill text-ink-2 sm:grid"><AnimatedIcon icon={ClipboardCheckIcon} size={18} aria-hidden /></span>}
@@ -475,6 +503,22 @@ export function TaskPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
           }}
         />
       ) : <p className="border-t border-hairline p-3 text-footnote text-ink-2">{t('comments.cannot')}</p>}
+      {phone && (
+        <ChatOptionsSheet
+          open={options}
+          onOpenChange={setOptions}
+          id={id}
+          kind="task"
+          title={task.data.task.title}
+          lead={<span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><AnimatedIcon icon={ClipboardCheckIcon} size={18} aria-hidden /></span>}
+          line={taskLine}
+          archived={row?.archived ?? false}
+          unread={row?.unread ?? 0}
+          link={{ to: taskLink(where?.id ?? null, id), label: t('chat.openTask') }}
+          onArchive={archive}
+          onMarkUnread={onMarkUnread}
+        />
+      )}
     </ChatDropArea>
   );
 }

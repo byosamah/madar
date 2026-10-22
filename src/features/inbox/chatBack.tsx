@@ -1,6 +1,7 @@
 import { useEffect, useRef, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate } from 'react-router';
+import { useIsPhone } from '../../app/useIsPhone';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { ChevronLeftIcon } from '../../components/icons/animated/chevron-left';
 
@@ -69,4 +70,18 @@ export function ChatBackLink({ className = '' }: { className?: string }) {
       <AnimatedIcon icon={ChevronLeftIcon} size={22} className="rtl:-scale-x-100" aria-hidden />
     </Link>
   );
+}
+
+/**
+ * Closes the open chat (Direction D). On a phone it takes the Back step, so the screen that opened the chat shows again with its scroll
+ * place. On a desk it goes to /inbox, where the pane shows the empty text. Archive, Mark as unread and Leave group use it.
+ */
+export function useLeaveChat(): () => void {
+  const phone = useIsPhone();
+  const navigate = useNavigate();
+  const { goBack } = useChatBack();
+  return () => {
+    if (phone) goBack();
+    else void navigate('/inbox');
+  };
 }

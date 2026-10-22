@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
 import type { UserCard } from '../../api/contract/views';
 import { useByPersonName, usePersonName } from '../../app/personName';
 import { useAction, useCall } from '../../app/runtime';
@@ -12,11 +11,13 @@ import { TextField } from '../../components/Fields';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { CheckIcon } from '../../components/icons/animated/check';
 import { Sheet } from '../../components/Sheet';
+import { useLeaveChat } from './chatBack';
+import { PeopleRows, type PeopleMe } from './PeopleRows';
 
 /** The sheets of a group: the people (with add, remove and leave), the name, adding people, and leaving. */
 export type GroupMode = 'people' | 'rename' | 'add' | 'leave';
 
-type Me = Pick<UserCard, 'id' | 'name' | 'avatarUrl' | 'kind'> & { nameAr?: string | null };
+type Me = PeopleMe;
 
 /**
  * The people of a group (UX audit 2026-10-19, chats-07): every member sees who is in the group, on every device. "You" marks the
@@ -27,56 +28,19 @@ function PeopleSheet({ id, people, me, makerId, onMode, onClose }: {
   id: string; people: UserCard[]; me: Me | undefined; makerId: string | null; onMode: (mode: GroupMode) => void; onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const nameOf = usePersonName();
-  const toast = useToast();
-  const update = useAction('chats.updateGroup');
-  const isMaker = me !== undefined && me.id === makerId;
   // Add people needs chat.groupChange (role rights version 2). Remove and Leave keep the rule of the maker.
   const mayChange = useRight('chat.groupChange');
-  const members: Array<Me | UserCard> = [...(me ? [me] : []), ...people];
-  const remove = (person: UserCard) => {
-    update.mutate({ conversationId: id, remove: [person.id] }, {
-      onSuccess: () => toast.undo(t('chat.removedToast', { name: nameOf(person) }), () => update.mutate({ conversationId: id, add: [person.id] })),
-    });
-  };
+  const count = people.length + (me ? 1 : 0);
   return (
     <Sheet
       open
       onOpenChange={(open) => { if (!open) onClose(); }}
       title={t('chat.peopleTitle')}
-      description={t('chat.people', { count: members.length })}
+      description={t('chat.people', { count })}
       footer={<Button variant="destructive" onClick={() => onMode('leave')}>{t('chat.leaveGroup')}</Button>}
     >
       {mayChange && <Button variant="plain" onClick={() => onMode('add')}>{t('chat.addPeople')}</Button>}
-      <ul className="flex flex-col">
-        {members.map((person) => {
-          const mine = person.id === me?.id;
-          const notes = [mine ? t('chat.you') : '', person.id === makerId ? t('chat.maker') : ''].filter(Boolean);
-          const other = !mine ? (person as UserCard) : null;
-          return (
-            <li key={person.id} className="flex items-center gap-1">
-              <div className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-1.5">
-                <PersonFace user={person} size={36} />
-                <span className="flex min-w-0 flex-col">
-                  <bdi className="truncate text-subheadline font-medium text-ink">{nameOf(person)}</bdi>
-                  {notes.length > 0 && <span className="truncate text-footnote text-ink-2">{notes.join(' · ')}</span>}
-                </span>
-              </div>
-              {isMaker && other && (
-                <button
-                  type="button"
-                  aria-label={t('chat.removeName', { name: nameOf(other) })}
-                  disabled={update.isPending}
-                  onClick={() => remove(other)}
-                  className="pressable min-h-11 shrink-0 rounded-full px-3 text-footnote font-medium text-late hover:bg-late-bg disabled:opacity-40"
-                >
-                  {t('chat.remove')}
-                </button>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+      <PeopleRows id={id} people={people} me={me} makerId={makerId} />
     </Sheet>
   );
 }
@@ -143,12 +107,12 @@ function AddSheet({ id, people, meId, onClose }: { id: string; people: UserCard[
  */
 function LeaveSheet({ id, name, onClose }: { id: string; name: string; onClose: () => void }) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const leaveChat = useLeaveChat();
   const toast = useToast();
   const leave = useAction('chats.leaveGroup', {
     onSuccess: () => {
       onClose();
-      navigate('/inbox');
+      leaveChat();
       toast.show({ message: t('chat.leaveToast', { name: `\u2068${name}\u2069` }) });
     },
   });
