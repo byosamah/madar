@@ -1,11 +1,11 @@
 import {
-  DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors,
-  type Announcements, type DragEndEvent, type KeyboardCoordinateGetter, type UniqueIdentifier,
+  DndContext, DragOverlay, useDraggable, useDroppable,
+  type Announcements, type DragEndEvent, type DragOverEvent, type KeyboardCoordinateGetter, type UniqueIdentifier,
 } from '@dnd-kit/core';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { GripVerticalIcon } from '../../../components/icons/animated/grip-vertical';
 import { motion } from 'motion/react';
-import { useEffect, useRef, useState, type PointerEventHandler, type ReactNode, type RefObject } from 'react';
+import { useEffect, useRef, useState, type MouseEventHandler, type PointerEventHandler, type ReactNode, type RefObject, type TouchEventHandler } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TaskStatus } from '../../../api/contract/entities';
 import type { TaskRow } from '../../../api/contract/views';
@@ -22,8 +22,9 @@ import { BOARD_COLUMNS, moveTargets, nextColumn } from '../../../lib/board';
 import { todayISO } from '../../../lib/dates';
 import { dueText, dueWord, startsLater, startsText } from '../../../lib/due';
 import { versionOf } from '../../../lib/taskPeople';
-import { prefersReducedMotion } from './dragSensors';
+import { prefersReducedMotion, useDragSensors } from './dragSensors';
 import { useStageBack } from './StageBack';
+import { useTouchPhone } from './useTouchPhone';
 import { isWaiting, waitingNames } from '../../../lib/waiting';
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
 
@@ -50,10 +51,10 @@ function CardFace({ row, lifted = false, across = false, yourReview = false }: {
   const starts = startsLater(row.task.startDate, todayISO(), row.task.status);
   return (
     // The grip and the Move menu cover only the top end of the card, so only the title keeps 96 px free and is tall enough to
-    // clear them. The box of the title follows the page direction, so a Latin title in Arabic keeps the free space on the side
+    // clear them. On a touch phone the grip is gone (a press and hold lifts the card), so the title keeps 48 px free. The box of the title follows the page direction, so a Latin title in Arabic keeps the free space on the side
     // of the buttons. The due words stay on one line, and the waiting label gets a line of its own (audit 2026-10-03, F-13).
-    <div className={`surface flex flex-col gap-2 rounded-2xl p-3 ${lifted ? 'scale-[1.03] shadow-float' : ''}`}>
-      <div className="min-h-8 pe-24">
+    <div className={`surface flex flex-col gap-2 rounded-2xl p-3 ${lifted ? 'scale-[1.03] shadow-float motion-reduce:scale-100' : ''}`}>
+      <div className="min-h-8 pe-24 max-sm:pointer-coarse:pe-12">
         <p dir="auto" className="text-subheadline font-medium text-ink">
           {row.task.title}
           {versionOf(row.task) > 1 && <span title={t('tasks.versionLabel', { n: versionOf(row.task) })} className="tabular ms-2 rounded-full bg-fill-strong px-1.5 text-caption font-semibold text-ink-2">{t('tasks.versionBadge', { n: versionOf(row.task) })}</span>}
@@ -106,24 +107,34 @@ function BoardCard({ row, reviews, across, dragging, onOpen, onSendBack, onMove 
   row: TaskRow; reviews: boolean; across: boolean; dragging: boolean; onOpen: () => void; onSendBack: () => void; onMove: (status: TaskStatus) => void;
 }) {
   const { t } = useTranslation();
+  const touch = useTouchPhone();
   const { attributes, listeners, setNodeRef, setActivatorNodeRef } = useDraggable({
     id: row.task.id, data: { status: row.task.status }, disabled: !row.canMove,
   });
-  // The whole card follows a pointer drag. Only the grip starts a keyboard drag, so Enter on the title opens the task.
-  const pointerOnly = listeners?.onPointerDown ? { onPointerDown: listeners.onPointerDown as PointerEventHandler<HTMLLIElement> } : {};
+  // The whole card follows a pointer drag, or on a touch phone a press and hold (mouse and touch listeners). Only the grip starts a
+  // keyboard drag, so Enter on the title opens the task.
+  const starts = touch
+    ? (listeners?.onTouchStart ? {
+      onMouseDown: listeners.onMouseDown as MouseEventHandler<HTMLLIElement>,
+      onTouchStart: listeners.onTouchStart as TouchEventHandler<HTMLLIElement>,
+      // A long press on a touch screen can fire a context menu. The card stops it.
+      onContextMenu: (event: { preventDefault: () => void }) => event.preventDefault(),
+    } : {})
+    : (listeners?.onPointerDown ? { onPointerDown: listeners.onPointerDown as PointerEventHandler<HTMLLIElement> } : {});
   const reviewing = reviews && row.task.status === 'in_review';
   return (
-    <li ref={setNodeRef} {...pointerOnly} className={`relative ${dragging ? 'opacity-40' : ''}`}>
+    <li ref={setNodeRef} {...starts} className={`relative ${touch ? 'touch-manipulation pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none] ' : ''}${dragging ? 'opacity-40' : ''}`}>
       <button type="button" onClick={onOpen} className="block w-full text-start"><CardFace row={row} across={across} yourReview={across && reviewing} /></button>
       {row.canMove && (
-        <div className="absolute end-1 top-1 flex" onPointerDown={(event) => event.stopPropagation()}>
+        // A press on the grip or the Move menu starts no lift, with a pointer, a mouse or a finger.
+        <div className="absolute end-1 top-1 flex" onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onTouchStart={(event) => event.stopPropagation()}>
           <button
             ref={setActivatorNodeRef}
             type="button"
             {...attributes}
             {...listeners}
             aria-label={t('tasks.drag', { title: row.task.title })}
-            className="grid size-11 cursor-grab place-items-center rounded-full text-label-3 hover:bg-fill"
+            className={touch ? 'sr-only' : 'grid size-11 cursor-grab place-items-center rounded-full text-label-3 hover:bg-fill'}
           >
             <AnimatedIcon icon={GripVerticalIcon} size={16} aria-hidden />
           </button>
@@ -210,10 +221,7 @@ export function TaskBoard({ rows, reviews, across = false, doneNote, onOpen, onS
     message: (output) => (output.result === 'in_review' ? t('tasks.sentToReview') : t('tasks.moved', { status: t(`taskStatus.${output.result}`) })),
     onRefused: (error, input) => back.refused(error, input, (next) => move.mutate(next)),
   });
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: columnKeys }),
-  );
+  const sensors = useDragSensors(8, columnKeys);
   const closedFor = (row: TaskRow, status: TaskStatus) => status !== row.task.status && !moveTargets(row.task.status, reviewsOf(row), row.task.needsReview, row.owner !== null).includes(status);
   // The screen point of the pointer while a card is lifted. The delta of the drag end also counts the scroll of the board
   // and the page since the drag began, so on a phone, where the board scrolls, it missed the column (audit 2026-10-03, F-9).
@@ -224,11 +232,20 @@ export function TaskBoard({ rows, reviews, across = false, doneNote, onOpen, onS
     const track = (event: PointerEvent) => {
       pointer.current = { x: event.clientX, y: event.clientY };
     };
+    // After a touch hold the pointer events stop (the browser keeps the touch), so a finger drag is read from the touch events.
+    const trackTouch = (event: TouchEvent) => {
+      const point = event.changedTouches[0];
+      if (point) pointer.current = { x: point.clientX, y: point.clientY };
+    };
     window.addEventListener('pointermove', track, true);
     window.addEventListener('pointerup', track, true);
+    window.addEventListener('touchmove', trackTouch, { capture: true, passive: true });
+    window.addEventListener('touchend', trackTouch, { capture: true, passive: true });
     return () => {
       window.removeEventListener('pointermove', track, true);
       window.removeEventListener('pointerup', track, true);
+      window.removeEventListener('touchmove', trackTouch, true);
+      window.removeEventListener('touchend', trackTouch, true);
     };
   }, [activeId]);
   const onDragEnd = ({ active, over, activatorEvent }: DragEndEvent) => {
@@ -242,9 +259,10 @@ export function TaskBoard({ rows, reviews, across = false, doneNote, onOpen, onS
     }
     // A closed column takes no drop, so the card went back with no visible reason. When the pointer let go over a closed
     // column, a toast says why and opens the review block (audit 2026-10-03, F-9). Only a card in review or a card with no lead has closed columns.
-    // A keyboard drag has no pointer point and cannot reach a closed column.
+    // A keyboard drag has no pointer point and cannot reach a closed column. A touch hold has one (the touch events), though its
+    // activator event has no `clientX`.
     const at = pointer.current;
-    if (!at || typeof (activatorEvent as Partial<PointerEvent>).clientX !== 'number') return;
+    if (!at || activatorEvent instanceof KeyboardEvent) return;
     const { x, y } = at;
     const refused = BOARD_COLUMNS.some((status) => {
       const box = closedFor(row, status) ? board.current?.querySelector(`[data-column="${status}"]`)?.getBoundingClientRect() : undefined;
@@ -259,6 +277,11 @@ export function TaskBoard({ rows, reviews, across = false, doneNote, onOpen, onS
           ? { message: t('errors.reasons.review_send_back'), action: { label: t('tasks.openTask'), run: () => onOpen(row.task.id), isUndo: false } }
           : { message: t('tasks.waitsForApproval') });
     }
+  };
+  // The keyboard drag scrolls the lane to the column that the card is over, so the column and its dot come into view.
+  const onDragOver = ({ over, activatorEvent }: DragOverEvent) => {
+    if (!over || !(activatorEvent instanceof KeyboardEvent)) return;
+    board.current?.querySelector(`[data-column="${String(over.id)}"]`)?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', inline: 'nearest', block: 'nearest' });
   };
   // The click that ends a pointer drag must not open the task.
   const open = (taskId: string) => {
@@ -281,12 +304,16 @@ export function TaskBoard({ rows, reviews, across = false, doneNote, onOpen, onS
       accessibility={{ announcements, screenReaderInstructions: { draggable: t('tasks.dnd.instructions') } }}
       sensors={sensors}
       onDragStart={({ active }) => setActiveId(String(active.id))}
+      onDragOver={onDragOver}
       onDragEnd={onDragEnd}
-      onDragCancel={() => setActiveId(null)}
+      onDragCancel={() => {
+        setActiveId(null);
+        droppedAt.current = Date.now();
+      }}
     >
       <div
         ref={board}
-        className="-mx-4 grid auto-cols-[minmax(15rem,1fr)] grid-flow-col gap-3 overflow-x-auto px-4 pb-2 max-sm:auto-cols-[calc(100%-3rem)] max-sm:snap-x max-sm:snap-mandatory max-sm:overscroll-x-contain max-sm:scroll-ps-4 sm:mx-0 sm:px-0"
+        className={`-mx-4 grid auto-cols-[minmax(15rem,1fr)] grid-flow-col gap-3 overflow-x-auto px-4 pb-2 max-sm:auto-cols-[calc(100%-3rem)] max-sm:overscroll-x-contain max-sm:scroll-ps-4 sm:mx-0 sm:px-0 ${activeId ? 'max-sm:snap-none' : 'max-sm:snap-x max-sm:snap-mandatory'}`}
       >
         {BOARD_COLUMNS.map((status) => {
           const columnRows = rows.filter((row) => row.task.status === status);
@@ -309,7 +336,7 @@ export function TaskBoard({ rows, reviews, across = false, doneNote, onOpen, onS
         })}
       </div>
       <BoardDots lane={board} counts={BOARD_COLUMNS.map((status) => rows.filter((row) => row.task.status === status).length)} />
-      <DragOverlay dropAnimation={{ duration: 350, easing: 'cubic-bezier(0.2, 0.9, 0.3, 1.15)' }}>
+      <DragOverlay dropAnimation={prefersReducedMotion() ? null : { duration: 350, easing: 'cubic-bezier(0.2, 0.9, 0.3, 1.15)' }}>
         {lifted ? <CardFace row={lifted} lifted across={across} yourReview={across && reviewsOf(lifted) && lifted.task.status === 'in_review'} /> : null}
       </DragOverlay>
       {back.sheet}
