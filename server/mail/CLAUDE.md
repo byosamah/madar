@@ -42,7 +42,8 @@ after the commit of the call that asked for it.
   `mail_outbox` of the object.
 
 ## Quiet hours (owner, 2026-10-22, fbk_048)
-- `sendNoticeMail` (so `mail.chatNotice` too) asks `isQuietNow` (`server/core/quiet.ts`) at send time, after the 10-second wait. A person in quiet hours gets
+- `sendNoticeMail` (so `mail.chatNotice` too) reads the work hours with its own statement (`NOTICE_MAIL_SQL` also gives the office hours; `quietFromColumns`,
+  `server/core/quiet.ts`) at send time, after the 10-second wait. A person in quiet hours gets
   no mail: the row ends as done, no place of the day quota is taken (the place is reserved inside `sendCounted`, after the check), and no mail goes later.
   The bell keeps the notice. The summary is not held: it goes at the start of the work hours, so the person is not quiet then. Tests: `quietMail.test.ts`.
 

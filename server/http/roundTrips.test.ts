@@ -144,7 +144,10 @@ async function measure(calls: { name: string; input: unknown }[]): Promise<Measu
   const mem = memoryData(seed);
   const db = pgDb(LOCAL);
   // A signal port that sends its one realtime.send statement (server/signal/realtime.ts).
-  const deps: Deps = { ...fakeDeps({ db }), signal: { send: async (q) => void (await q('select realtime.send($1)')) } };
+  const base = fakeDeps({ db });
+  // 09:00 in Riyadh on a Sunday: inside the default work hours, so quiet hours hold nothing back (owner, 2026-10-22).
+  base.clock.set(new Date('2026-10-04T06:00:00Z'));
+  const deps: Deps = { ...base, signal: { send: async (q) => void (await q('select realtime.send($1)')) } };
   const data = countingData(mem, db);
   const app = apiApp(deps, {
     runCall: createRunCall({ data: () => data }),

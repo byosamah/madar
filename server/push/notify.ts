@@ -1,6 +1,6 @@
 import type { PushKeys } from '../../src/api/contract/entities';
 import { nowStamp } from '../../src/lib/dates';
-import { isQuietNow } from '../core/quiet';
+import { OFFICE_HOURS_LITE, OFFICE_HOURS_SQL, quietFromColumns } from '../core/quiet';
 import { isLite } from '../data/dialect';
 import type { OutboxRow } from '../core/effects';
 import type { Deps, Query } from '../core/ports';
@@ -30,7 +30,7 @@ import { PushConfigError } from './vapid';
  * - A device that the push service calls gone (404, 410) is removed. A device that took the push gets lastPushAt. A 429, a 5xx or
  *   a network error throws after the other devices were handled, so the outbox tries the row again. A retry posts to every device
  *   of the person again; the tag of the notification (madar-new) makes the browser show one line only.
- * - Quiet hours (owner, 2026-10-22, fbk_048): both effects ask isQuietNow (server/core/quiet.ts) at send time. A person in quiet hours gets no
+ * - Quiet hours (owner, 2026-10-22, fbk_048): both effects read the work hours with the statement of the devices (quietFromColumns, server/core/quiet.ts) at send time. A person in quiet hours gets no
  *   push: the effect marks the devices of the person held (heldAt) and ends as done. The job step held.ts sends ONE push when the quiet
  *   hours are over, and clears the mark.
  * - This is the one effect that writes a State table outside runCall. It touches push_devices only: private rows with no event,
@@ -64,8 +64,11 @@ order by 1`;
 // The SQLite forms of PUSH_STILL_NEW_SQL: one message or comment and one read mark at a time, then the same test in JavaScript.
 export const CHAT_READ_LITE = 'select doc from chat_reads where conversation_id = ?1 and user_id = ?2';
 
-/** $1 the person. The push addresses of an active human, with the keys of each browser (null before 2026-10-21), oldest device first. */
-export const PUSH_DEVICES_SQL = `select d.endpoint, d.doc->'keys' as keys
+/**
+ * $1 the person. The push addresses of an active human, with the keys of each browser (null before 2026-10-21), oldest device first. Each row also
+ * holds the work hours of the person and the office work hours: quiet hours (owner, 2026-10-22) need no statement of their own.
+ */
+export const PUSH_DEVICES_SQL = `select d.endpoint, d.doc->'keys' as keys, u.doc->'preferences'->'workHours' as work_hours, ${OFFICE_HOURS_SQL}
 from push_devices d join users u on u.id = d.user_id
 where d.user_id = $1 and u.kind = 'human' and u.active
 order by d.ord`;
@@ -89,7 +92,7 @@ export const PUSH_RELEASE_SQL = "update push_devices set doc = doc - 'heldAt' wh
 export const PUSH_GONE_SQL = 'delete from push_devices where endpoint = any($1::text[])';
 
 // SQLite forms (exit wave 3). The person of a device is read from the users doc; a list of endpoints goes one statement each.
-export const PUSH_DEVICES_LITE = "select d.rowid as ord, d.endpoint as endpoint, json_extract(d.doc, '$.keys') as keys, u.doc as doc from push_devices d join users u on u.id = d.user_id where d.user_id = ?1";
+export const PUSH_DEVICES_LITE = `select d.rowid as ord, d.endpoint as endpoint, json_extract(d.doc, '$.keys') as keys, u.doc as doc, ${OFFICE_HOURS_LITE} from push_devices d join users u on u.id = d.user_id where d.user_id = ?1`;
 export const PUSH_SENT_LITE = "update push_devices set doc = json_remove(json_set(doc, '$.lastPushAt', ?2), '$.heldAt') where endpoint = ?1";
 export const PUSH_HOLD_LITE = "update push_devices set doc = json_set(doc, '$.heldAt', ?2) where user_id = ?1 and json_extract(doc, '$.heldAt') is null";
 export const PUSH_RELEASE_LITE = "update push_devices set doc = json_remove(doc, '$.heldAt') where user_id = ?1 and json_extract(doc, '$.heldAt') is not null";
@@ -105,15 +108,24 @@ function keysOf(value: unknown): PushKeys | null {
   return typeof p256dh === 'string' && typeof auth === 'string' ? { p256dh, auth } : null;
 }
 
+/** The push addresses of an active human, with their keys, oldest device first, and whether the person is in quiet hours now, on both databases. */
+export async function readDevices(deps: Deps, userId: string): Promise<{ devices: Device[]; quiet: boolean }> {
+  const at = deps.clock.now();
+  if (!isLite(deps.db)) {
+    const rows = await deps.db.statement<{ endpoint: string; keys?: unknown; work_hours?: unknown; office?: unknown }>('write', PUSH_DEVICES_SQL, [userId]);
+    return { devices: rows.map((row) => ({ endpoint: row.endpoint, keys: keysOf(row.keys) })), quiet: rows.length > 0 && quietFromColumns(rows[0].work_hours, rows[0].office, at) };
+  }
+  const rows = await deps.db.statement<{ ord: number; endpoint: string; keys?: unknown; doc: { kind?: string; active?: boolean; preferences?: { workHours?: unknown } }; office?: unknown }>('read', PUSH_DEVICES_LITE, [userId]);
+  const mine = rows.filter((row) => row.doc.kind === 'human' && row.doc.active === true).sort((a, b) => a.ord - b.ord);
+  return {
+    devices: mine.map((row) => ({ endpoint: row.endpoint, keys: keysOf(row.keys) })),
+    quiet: mine.length > 0 && quietFromColumns(mine[0].doc.preferences?.workHours, mine[0].office, at),
+  };
+}
+
 /** The push addresses of an active human, with their keys, oldest device first, on both databases. */
 export async function devicesOf(deps: Deps, userId: string): Promise<Device[]> {
-  if (!isLite(deps.db)) {
-    const rows = await deps.db.statement<{ endpoint: string; keys?: unknown }>('write', PUSH_DEVICES_SQL, [userId]);
-    return rows.map((row) => ({ endpoint: row.endpoint, keys: keysOf(row.keys) }));
-  }
-  const rows = await deps.db.statement<{ ord: number; endpoint: string; keys?: unknown; doc: { kind?: string; active?: boolean } }>('read', PUSH_DEVICES_LITE, [userId]);
-  return rows.filter((row) => row.doc.kind === 'human' && row.doc.active === true).sort((a, b) => a.ord - b.ord)
-    .map((row) => ({ endpoint: row.endpoint, keys: keysOf(row.keys) }));
+  return (await readDevices(deps, userId)).devices;
 }
 
 /**
@@ -200,12 +212,12 @@ export async function sendChatPush(payload: Record<string, unknown>, deps: Deps,
   if (items.length === 0) return;
   const fresh = await stillNewItems(deps, userId, items);
   if (fresh.length === 0) return;
-  // Quiet hours (owner, 2026-10-22): asked at send time, after the wait. A person in quiet hours gets no push now, and the row ends as done.
-  if (await isQuietNow(deps.db, userId, deps.clock.now())) return holdDevices(deps, userId);
   // The line shows the chat of the newest item that is still new.
   const newest = [...items].reverse().find((item) => fresh.includes(item.itemId));
-  const devices = await devicesOf(deps, userId);
+  const { devices, quiet } = await readDevices(deps, userId);
   if (devices.length === 0) return;
+  // Quiet hours (owner, 2026-10-22): asked at send time, after the wait. A person in quiet hours gets no push now, and the row ends as done.
+  if (quiet) return holdDevices(deps, userId);
   const line = newest ? await lineOrNull(deps, devices, () => chatLine(deps, userId, newest.chatId, o)) : null;
   await postToDevices(deps, devices, line);
 }
@@ -213,11 +225,11 @@ export async function sendChatPush(payload: Record<string, unknown>, deps: Deps,
 /** The push.notify effect: one push to each device of one person, with the line of the newest unread notice. */
 export async function sendPushNotify(payload: Record<string, unknown>, deps: Deps, o: LineOptions = {}): Promise<void> {
   const userId = String(payload.userId ?? '');
-  // Quiet hours (owner, 2026-10-22): a person in quiet hours gets no push now, and the row ends as done. The bell keeps the notice.
-  if (await isQuietNow(deps.db, userId, deps.clock.now())) return holdDevices(deps, userId);
   // The primary, never a read copy: the effect runs right after the commit that wrote the notice or the device.
-  const devices = await devicesOf(deps, userId);
+  const { devices, quiet } = await readDevices(deps, userId);
   if (devices.length === 0) return;
+  // Quiet hours (owner, 2026-10-22): a person in quiet hours gets no push now, and the row ends as done. The bell keeps the notice.
+  if (quiet) return holdDevices(deps, userId);
   await postToDevices(deps, devices, await lineOrNull(deps, devices, () => noticeLine(deps, userId, o)));
 }
 

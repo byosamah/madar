@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { State } from '../../src/api/store';
 import { buildSeed } from '../../src/data/seed';
-import { QUIET_SQL } from '../core/quiet';
 import { freshLite } from '../data/lite/testDb';
 import { liteWriteState } from '../data/lite/whole';
 import { fakeDeps } from '../test/fakes/deps';
 import { memoryMailDb } from './memoryMailDb';
-import { ADMINS_SQL, NOTICE_MAIL_SQL, NOTICE_UNREAD_SQL, sendChatNoticeMail, sendNoticeMail } from './notices';
+import { ADMINS_SQL, NOTICE_MAIL_LITE, NOTICE_MAIL_SQL, NOTICE_UNREAD_SQL, sendChatNoticeMail, sendNoticeMail } from './notices';
 import { sentToday } from './quota';
 import { defaultPreferences } from '../../src/api/contract/entities';
 
@@ -76,13 +75,12 @@ describe('the notice mail in quiet hours (SQLite)', () => {
 });
 
 describe('the notice mail in quiet hours (the Postgres statements)', () => {
-  const person = { trigger: 'task_assigned', user_id: 'usr_002', kind: 'human', active: true, email: 'a@madar.test', preferences: defaultPreferences(), gender: null };
+  const person = { trigger: 'task_assigned', user_id: 'usr_002', kind: 'human', active: true, email: 'a@madar.test', gender: null };
 
-  function setup(quiet: boolean) {
+  function setup(workHours: object | undefined) {
     const mem = memoryMailDb((text) => {
       if (text === NOTICE_UNREAD_SQL) return [{ id: 'ntf_1' }];
-      if (text === NOTICE_MAIL_SQL) return [{ ...person, id: 'ntf_1' }];
-      if (text === QUIET_SQL) return [{ person: quiet ? null : { quiet: false, days: [0], from: '09:00', to: '10:00' }, office: null }];
+      if (text === NOTICE_MAIL_SQL) return [{ ...person, id: 'ntf_1', preferences: { ...defaultPreferences(), ...(workHours ? { workHours } : {}) }, office: null }];
       if (text === ADMINS_SQL) return [];
       return undefined;
     });
@@ -91,18 +89,35 @@ describe('the notice mail in quiet hours (the Postgres statements)', () => {
     return { mem, deps };
   }
 
-  it('asks the quiet rule once, after it knows the notice needs a mail, and reserves no place when the person is quiet', async () => {
-    const { mem, deps } = setup(true);
+  it('reads the work hours with the statement of the notice (no statement of their own), and reserves no place when the person is quiet', async () => {
+    const { mem, deps } = setup(undefined);
     await sendNoticeMail({ notificationId: 'ntf_1' }, deps);
     expect(deps.mail.sent).toEqual([]);
     expect(mem.log).toEqual([]);
-    expect(mem.statements.filter((text) => text === QUIET_SQL)).toHaveLength(1);
+    expect(mem.statements).toEqual([NOTICE_MAIL_SQL]);
   });
 
   it('sends the mail to a person who turned quiet hours off', async () => {
-    const { mem, deps } = setup(false);
+    const { mem, deps } = setup({ quiet: false, days: [0], from: '09:00', to: '10:00' });
     await sendNoticeMail({ notificationId: 'ntf_1' }, deps);
     expect(deps.mail.sent).toHaveLength(1);
     expect(mem.log).toHaveLength(1);
+  });
+
+  it('follows the office work hours of the same statement', async () => {
+    const { mem, deps } = setup(undefined);
+    const original = mem.db.statement;
+    mem.db.statement = (async (mode: 'read' | 'write', text: string, values?: unknown[]) => {
+      const rows = (await original(mode, text, values)) as { office?: unknown }[];
+      return text === NOTICE_MAIL_SQL ? rows.map((row) => ({ ...row, office: { days: [0], from: '09:00', to: '21:00', lock: { on: true, days: [0], from: '09:00', to: '21:00' } } })) : rows;
+    }) as never;
+    await sendNoticeMail({ notificationId: 'ntf_1' }, deps);
+    // 19:00 on a Sunday is inside the lock of this office.
+    expect(deps.mail.sent).toHaveLength(1);
+  });
+
+  it('keeps the office hours column in both texts of the statement', () => {
+    expect(NOTICE_MAIL_SQL).toContain("s.id = 'office'");
+    expect(NOTICE_MAIL_LITE).toContain("s.id = 'office'");
   });
 });

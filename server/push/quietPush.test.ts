@@ -151,11 +151,11 @@ describe('a push.notify row in quiet hours ends as done, and never as a retry', 
     vi.unstubAllGlobals();
   });
 
-  it('on the fake Postgres: runs PUSH_HOLD_SQL with the person and the stamp, and asks QUIET_SQL once', async () => {
+  it('on the fake Postgres: reads the work hours with the devices (one statement), then runs PUSH_HOLD_SQL with the person and the stamp', async () => {
     const seen: { text: string; values: unknown[] }[] = [];
     const mem = memoryMailDb((text, values) => {
       seen.push({ text, values });
-      if (text === QUIET_SQL) return [{ person: null, office: null }];
+      if (text === PUSH_DEVICES_SQL) return [{ endpoint: PUSH('aa'), keys: null, work_hours: null, office: null }];
       if (text === PUSH_HOLD_SQL) return [];
       return undefined;
     });
@@ -163,26 +163,39 @@ describe('a push.notify row in quiet hours ends as done, and never as a retry', 
     deps.clock.set(EVENING);
     await sendPushNotify({ userId: 'usr_002' }, deps);
     expect(seen).toEqual([
-      { text: QUIET_SQL, values: ['usr_002'] },
+      { text: PUSH_DEVICES_SQL, values: ['usr_002'] },
       { text: PUSH_HOLD_SQL, values: ['usr_002', '2026-10-04T19:00:00.000+03:00'] },
     ]);
-    // No device was read, so no device was posted to.
-    expect(seen.some((one) => one.text === PUSH_DEVICES_SQL)).toBe(false);
   });
 
-  it('on the fake Postgres: a chat push asks still-new first, then the quiet rule', async () => {
+  it('on the fake Postgres: a person who turned quiet hours off gets the push, with no extra statement', async () => {
+    const seen: string[] = [];
+    const mem = memoryMailDb((text) => {
+      seen.push(text);
+      if (text === PUSH_DEVICES_SQL) return [{ endpoint: PUSH('aa'), keys: null, work_hours: { quiet: false, days: [0], from: '09:00', to: '10:00' }, office: null }];
+      if (text === PUSH_SENT_SQL) return [];
+      return undefined;
+    });
+    const deps = fakeDeps({ db: mem.db, config: { push: { ...(await makeVapidKeys()), subject: 'mailto:madar@vado.sa' } } });
+    deps.clock.set(EVENING);
+    deps.pushFetch = (async () => new Response(null, { status: 201 })) as typeof fetch;
+    await sendPushNotify({ userId: 'usr_002' }, deps);
+    expect(seen).toEqual([PUSH_DEVICES_SQL, PUSH_SENT_SQL]);
+  });
+
+  it('on the fake Postgres: a chat push asks still-new first, then the devices with the work hours, then the hold', async () => {
     const seen: string[] = [];
     const mem = memoryMailDb((text) => {
       seen.push(text);
       if (text === PUSH_STILL_NEW_SQL) return [{ item_id: 'msg_1' }];
-      if (text === QUIET_SQL) return [{ person: { quiet: true, days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00' }, office: null }];
+      if (text === PUSH_DEVICES_SQL) return [{ endpoint: PUSH('aa'), keys: null, work_hours: { quiet: true, days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00' }, office: null }];
       if (text === PUSH_HOLD_SQL) return [];
       return undefined;
     });
     const deps = fakeDeps({ db: mem.db });
     deps.clock.set(EVENING);
     await sendChatPush({ userId: 'usr_002', items: [{ chatId: 'cnv_1', itemId: 'msg_1' }] }, deps);
-    expect(seen).toEqual([PUSH_STILL_NEW_SQL, QUIET_SQL, PUSH_HOLD_SQL]);
+    expect(seen).toEqual([PUSH_STILL_NEW_SQL, PUSH_DEVICES_SQL, PUSH_HOLD_SQL]);
   });
 });
 

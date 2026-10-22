@@ -24,6 +24,21 @@ export function jsonOf<T>(value: unknown): T | undefined {
 
 type Row = { person: unknown; office: unknown };
 
+/**
+ * The same rule from the columns that another statement already read: the work hours of the person (null when none) and the office
+ * work hours. A statement that reads the person for another reason (the devices, the notice mail) adds the office column to its
+ * own text and asks this, so quiet hours cost no round trip of their own (round trips test, SRV-1).
+ */
+export function quietFromColumns(workHours: unknown, office: unknown, at: Date): boolean {
+  const mine = jsonOf<NonNullable<NonNullable<Parameters<typeof isQuiet>[0]>['workHours']>>(workHours);
+  const hours = jsonOf<NonNullable<NonNullable<Parameters<typeof isQuiet>[1]>['workHours']>>(office);
+  return isQuiet(mine ? { workHours: mine } : undefined, hours ? { workHours: hours } : undefined, at);
+}
+
+/** The column of the office work hours that a statement adds to its own text. */
+export const OFFICE_HOURS_SQL = "(select s.doc->'workHours' from settings s where s.id = 'office') as office";
+export const OFFICE_HOURS_LITE = "(select json_extract(s.doc, '$.workHours') from settings s where s.id = 'office') as office";
+
 /** True when the person is in quiet hours at this moment. A person who is not in the database is not quiet. */
 export async function isQuietNow(db: Db, userId: string, at: Date): Promise<boolean> {
   const [row] = await db.statement<Row>('write', isLite(db) ? QUIET_LITE : QUIET_SQL, [userId]);

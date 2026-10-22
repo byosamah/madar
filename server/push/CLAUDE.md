@@ -55,7 +55,8 @@ message from a notice, and the server cannot know that a window is open. The fix
 A person sets work days and one time range (Settings, "Quiet hours"). Outside it Madar is quiet for that person: no push and no email. The bell and
 the Inbox still collect everything. The rule is one pure function, `isQuiet` (`src/lib/quietHours.ts`, Riyadh time). The office sets the default range
 and the lock (Sunday to Thursday, 9 AM to 5 PM, on by default): nobody is quiet inside the lock.
-- Both effects (`sendPushNotify`, `sendChatPush`) ask `isQuietNow` (`server/core/quiet.ts`, one statement, the primary) at send time. `sendChatPush` asks
+- Both effects (`sendPushNotify`, `sendChatPush`) read the work hours at send time with the statement of the devices (`readDevices`: `PUSH_DEVICES_SQL` also
+  gives the work hours of the person and the office; `quietFromColumns` in `server/core/quiet.ts`), so quiet hours add no round trip. `sendChatPush` asks
   after the 10-second wait and after the still-new test. A quiet person gets no post: the effect marks the devices `heldAt` (`PUSH_HOLD_SQL`, once; a
   private field of the device row, so no event, no chg, no signal) and the row ends as done, with no retry.
 - The job step `quietEnd` (`jobs/steps/quietEnd.ts`, `held.ts`) runs after `summary`. For each person with a held device who is no longer quiet it
@@ -74,7 +75,7 @@ and the lock (Sunday to Thursday, 9 AM to 5 PM, on by default): nobody is quiet 
 - `encrypt.ts`: `encryptPush` (RFC 8291). `line.ts`: `noticeLine` and `chatLine`, the line as the person reads it.
 - `words.ts`: the words of the line in an i18next instance of its own (as `server/mail/templates/words.ts`). It imports only the
   `inbox`, `notices` and `push` parts of the word files BY NAME, so the bundle keeps those parts only (the api bundle has a bound of
-  850,000 characters; 843,575 on 2026-10-22 after quiet hours and @everyone). `words.test.ts` checks that its `inbox` words are all the `inbox` words of the screens:
+  850,000 characters; 843,556 on 2026-10-22 after quiet hours and @everyone). `words.test.ts` checks that its `inbox` words are all the `inbox` words of the screens:
   a track that adds a bell sentence in a new word file adds that file to `words.ts`.
 - `notify.ts`: the producer `pushRows`, the effects `sendPushNotify` and `sendChatPush` (each takes `LineOptions` for tests), and
   their SQL texts. `PUSH_DEVICES_SQL` reads the keys of each device (`d.doc->'keys'`, null when none).

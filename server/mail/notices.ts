@@ -5,7 +5,7 @@ import { liteDbOf } from '../data/lite/db';
 import { readLiteOffice } from '../data/lite/office';
 import type { SaveResult } from '../data/save';
 import { processOutbox, writeOutbox, type OutboxRow } from '../core/effects';
-import { isQuietNow } from '../core/quiet';
+import { OFFICE_HOURS_LITE, OFFICE_HOURS_SQL, quietFromColumns } from '../core/quiet';
 import type { Db, Deps, Mail, Query } from '../core/ports';
 import { isChatItemNotice } from '../push/chatRule';
 import { QUOTA_LIMITS, sendCounted, utcDay, type QuotaKind, type SendCounted } from './quota';
@@ -26,7 +26,7 @@ import { renderMail, type RenderedMail } from './templates';
  *   the key notice-<id>, so an effect that runs twice keeps one place and Resend sends one mail.
  * - Notice 91 of the UTC day stays in the app. The first refusal of the day writes one mail.quotaWarning row for each active
  *   Admin in the same transaction as the mark (quota.ts), and those rows run right after.
- * - Quiet hours (owner, 2026-10-22, fbk_048): sendNoticeMail asks isQuietNow (server/core/quiet.ts) at send time, after the wait of a chat mail. A
+ * - Quiet hours (owner, 2026-10-22, fbk_048): sendNoticeMail reads the work hours with the statement of the notice (quietFromColumns, server/core/quiet.ts) at send time, after the wait of a chat mail. A
  *   person in quiet hours gets no mail: the row ends as done, no place of the quota is taken, and no mail goes later. The bell keeps the notice.
  * - The mail carries no client data (plan 2, change 22): the trigger in general words and a link to the notices.
  */
@@ -63,9 +63,9 @@ order by n.ord`;
  */
 export const NEW_NOTICE_LITE = 'select id, user_id, doc from notifications where id = ?1 and read = 0';
 
-/** $1 the notice. The notice and the person who gets it. */
+/** $1 the notice. The notice and the person who gets it, with the office work hours (quiet hours, owner 2026-10-22: no statement of their own). */
 export const NOTICE_MAIL_SQL = `select n.id, n.doc->>'trigger' as trigger, u.id as user_id, u.kind, u.active, u.doc->>'email' as email,
-  u.doc->'preferences' as preferences, u.doc->>'gender' as gender
+  u.doc->'preferences' as preferences, u.doc->>'gender' as gender, ${OFFICE_HOURS_SQL}
 from notifications n join users u on u.id = n.user_id
 where n.id = $1`;
 
@@ -86,13 +86,13 @@ export const ADMIN_MAIL_SQL = `select id as user_id, kind, active, doc->>'email'
 from users where id = $1`;
 
 // SQLite forms (exit wave 3): the users table holds id and doc only, so the person fields come from doc.
-export const NOTICE_MAIL_LITE = "select n.id as id, json_extract(n.doc, '$.trigger') as trigger, u.doc as doc from notifications n join users u on u.id = n.user_id where n.id = ?1";
+export const NOTICE_MAIL_LITE = `select n.id as id, json_extract(n.doc, '$.trigger') as trigger, u.doc as doc, ${OFFICE_HOURS_LITE} from notifications n join users u on u.id = n.user_id where n.id = ?1`;
 export const USER_DOC_LITE = 'select doc from users where id = ?1';
 export const ADMINS_LITE = "select rowid as ord, id from users where json_extract(doc, '$.kind') = 'human' and json_type(doc, '$.active') = 'true' and json_extract(doc, '$.systemRole') = 'admin'";
 
 type NewNotice = { id: string; user_id: string; trigger: Trigger; target_type?: string; message_id?: string | null; kind: string; active: boolean; preferences: Preferences };
 export type PersonRow = { user_id: string; kind: string; active: boolean; email: string; preferences: Preferences; gender: Gender | null };
-type NoticeRow = PersonRow & { id: string; trigger: Trigger };
+type NoticeRow = PersonRow & { id: string; trigger: Trigger; office?: unknown };
 type UserDoc = { id: string; kind: string; active?: boolean; email: string; preferences: Preferences; gender?: Gender | null; systemRole?: string };
 
 /** The row of USER_MAIL_SQL and ADMIN_MAIL_SQL, made from a users doc. */
@@ -113,8 +113,8 @@ export async function adminsOf(q: Query): Promise<{ id: string }[]> {
 
 /** The notice and its person on SQLite, as at most one row of NOTICE_MAIL_SQL. */
 async function liteNotice(db: Db, id: string): Promise<NoticeRow[]> {
-  const rows = await db.statement<{ id: string; trigger: Trigger; doc: UserDoc }>('read', NOTICE_MAIL_LITE, [id]);
-  return rows.map((row) => ({ ...personOfDoc(row.doc), id: row.id, trigger: row.trigger }));
+  const rows = await db.statement<{ id: string; trigger: Trigger; doc: UserDoc; office?: unknown }>('read', NOTICE_MAIL_LITE, [id]);
+  return rows.map((row) => ({ ...personOfDoc(row.doc), id: row.id, trigger: row.trigger, office: row.office }));
 }
 
 /** The screens URL and a path, with one slash between them. */
@@ -199,7 +199,7 @@ export async function sendNoticeMail(payload: Record<string, unknown>, deps: Dep
   if (!isEmailTrigger(trigger) || !inAppOn(preferences, trigger) || !emailOn(preferences, trigger)) return;
   // Quiet hours (owner, 2026-10-22, fbk_048): a person in quiet hours gets no mail at send time. The row ends as done, and no mail goes later.
   // The place of the day quota is taken only inside sendCounted, so nothing is reserved yet and nothing needs to go back.
-  if (await isQuietNow(deps.db, notice.user_id, deps.clock.now())) return;
+  if (quietFromColumns(preferences.workHours, notice.office, deps.clock.now())) return;
   const rendered = renderMail('notice', preferences.language, { trigger, link: appLink(deps.config.appUrl, '/notifications') }, { reader: notice.gender ?? undefined }, { appUrl: deps.config.appUrl });
   await sendWarned(deps, 'notice', mailOf(notice.email, rendered, 'notice', `notice-${id}`), notice.user_id);
 }
