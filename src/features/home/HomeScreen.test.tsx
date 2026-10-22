@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
 import { initI18n } from '../../i18n';
 import { renderApp } from '../../test/render';
+import { phoneMedia } from '../../test/phoneMedia';
 import { TODAY } from '../../test/factories';
 import { addDays } from '../../lib/dates';
 import { withMeeting } from '../meetings/testMeetings';
@@ -198,5 +199,32 @@ describe('Home task panel (own chunk)', () => {
     const panel = await screen.findByRole('dialog', { name: 'Stair details' }, { timeout: 10_000 });
     await userEvent.click(within(panel).getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Stair details' })).toBeNull());
+  });
+});
+
+// Direction D: the line "Done. N more today." lives in HomeScreen, so it shows after a finish made inside the to-do over Today.
+describe('the status line on a phone', () => {
+  it('shows "Done. 1 more today." after tasks.approve made inside the opened to-do', async () => {
+    phoneMedia(true);
+    await renderApp('/', (state) => {
+      as('usr_002')(state);
+      // Faisal gets one due task, so the ring has a total of 1 and one is left after the approval.
+      const task = Object.values(state.tasks).find((item) => item.projectId === 'prj_001' && item.ownerId !== 'usr_002' && item.status === 'todo')!;
+      Object.assign(task, { ownerId: 'usr_002', dueDate: TODAY, startDate: null, prerequisiteIds: [] });
+    });
+    await userEvent.click(within(await next()).getByRole('button', { name: 'Review' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Toilet details' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Approve' }));
+    expect(await screen.findByText('Done. 1 more today.', {}, { timeout: 2000 })).toBeInTheDocument();
+  });
+
+  // Track K gives the to-do the button "Mark done". The lead turns this test live in the join (amendment 16).
+  it.skip('shows the line after a finish made inside the opened to-do (enable after track K merges)', async () => {
+    phoneMedia(true);
+    // usr_006 has 'Stair details' due today and a second due task. Open /?task=tsk_007&project=prj_001, click 'Mark done' in the dialog.
+    await renderApp('/?task=tsk_007&project=prj_001', as('usr_006'));
+    const dialog = await screen.findByRole('dialog', { name: 'Stair details' }, { timeout: 10_000 });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Mark done' }));
+    expect(await within(await next()).findByText(/^Done\. \d+ more today\.$/, {}, { timeout: 2000 })).toBeInTheDocument();
   });
 });

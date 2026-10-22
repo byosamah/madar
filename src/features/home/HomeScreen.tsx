@@ -146,6 +146,7 @@ export function HomeScreen() {
   const [showLeft, setShowLeft] = useState(false);
   const queryClient = useQueryClient();
   // The "Done. N more today." line shows only after the person finishes something here, and fades after 5 seconds (moment 3).
+  // The line lives here, so it shows after the to-do sheet over Home closes or stays open (Direction D).
   useEffect(() => {
     let timer = 0;
     const stop = queryClient.getMutationCache().subscribe((event) => {
