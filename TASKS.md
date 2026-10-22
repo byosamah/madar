@@ -1074,3 +1074,19 @@ Plan and answers: memory and the two design files below. fbk_039 (12-hour clock)
   page (4 names, Arabic intact, "Preparing 2 of 4" to "4 of 4"). Not run: test:db and test:it (no server or SQL change).
 - [x] Production at 139ad4ba (owner: "Production now"); fbk_050 and fbk_051 marked done. The live EU bucket allows the GET (preflight 204);
   a real ZIP press on the live site is still not seen by eye.
+
+## Phone Direction D: Today, Inbox, Work, Me (owner, 2026-10-22: "approved", Opus leads, Sonnet builds)
+Design `docs/superpowers/specs/2026-10-22-madar-phone-d-design.md` (+ `-areas.md`), plan `docs/superpowers/plans/2026-10-22-madar-phone-d-plan.md`
+(+ `phone-d/track-*.md`), mockups on the private canvas https://claude.ai/artifact/AVpT8zSb2Lexjt7v3t2Cgg. Branch `rb/phone-d`.
+- [x] Wave 1 (track S): the four-tab phone bar with words, the top row (mark or back link, one Search), `/me` routes, `--phone-bar`, and the
+  shared props (SegmentedControl fill/layoutId/count, Tabs spread/pill, Sheet tall/phoneHeader/onClosed, SheetOrPopover, Menu sheetOnPhone).
+- [x] Wave 2 (six Sonnet builders): Work (one header, To-dos/Meetings/Projects, press and hold, the board lane), Today (no project list on a
+  phone), a project (five tabs with More), a to-do (the next step first, grouped rows, docked Conversation), Inbox and chat (Chats and
+  Notifications, chips, a full-screen chat with every chat feature), Me (the hub and `/me/:section`).
+- [x] Join and gates: What's new 2026-10-23-99; guides; npm test 11,093 (4 join faults fixed); builds (first load 965,759 B of 970,000);
+  test:db 3,037; test:it 333; prototype smoke 135 of 135 after one fix round (tab-bar fade on a resize, the More slide, the comment under the
+  dock, 44 px press areas); screenshots EN/AR, light/dark, 390/360 px, Chromium and WebKit.
+- [x] Merged main e4fb10c3 (Batch D, fbk_049 to fbk_051): an internal project has no Tracker tab on a phone either; the ZIP title wraps the
+  task Conversation in both layouts.
+- [ ] Test copy (`all.sh test`), deploy suite, the owner's try on an iPhone and an Android phone from the Home Screen, then production on his word.
+- [ ] Later: the project To-dos View button and the Work View toggle look different (pill with words vs round icon); make them one look.
