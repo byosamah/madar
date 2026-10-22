@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { alwaysSignedIn } from '../../app/auth';
 import type { State } from '../../api/store';
 import { renderRemoteApp, type SentCall } from '../../test/renderRemote';
+import { phoneMedia } from '../../test/phoneMedia';
 
 const AUTH_ID = '3f0c2a9e-0000-4000-8000-000000000001';
 const HINT_KEY = `madar.homeRole.${AUTH_ID}`;
@@ -60,5 +61,18 @@ describe("Home asks for the person's project list before session.get answers (pe
     holding = false;
     release();
     await screen.findByRole('list', { name: 'Your projects' });
+  });
+
+  it('feeds no read from the hint on a phone, and still keeps the role for the next start', async () => {
+    phoneMedia(true);
+    window.localStorage.setItem(HINT_KEY, 'admin');
+    let holding = true;
+    const { sent, release } = await renderRemoteApp('/', as('usr_001'), { auth, hold: (name) => holding && name === 'session.get' });
+    await waitFor(() => expect(sent.some((call) => call.name === 'session.get')).toBe(true));
+    holding = false;
+    release();
+    await screen.findByRole('region', { name: 'Next for you' });
+    expect(lists(sent)).toEqual([]);
+    expect(window.localStorage.getItem(HINT_KEY)).toBe('admin');
   });
 });

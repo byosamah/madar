@@ -4,6 +4,7 @@ import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
 import { renderApp } from '../../test/render';
+import { phoneMedia } from '../../test/phoneMedia';
 
 // Each render of a task row and of a project row (one ProgressLine for each project row) (performance audit 2026-10-07, RND-2, RND-M1).
 const counts = vi.hoisted(() => ({ tasks: 0, projects: 0 }));
@@ -50,6 +51,23 @@ describe('Home and the task panel (performance audit 2026-10-07, RND-2, RND-M1)'
     const before = await settled();
     expect(before.tasks).toBeGreaterThan(0);
     expect(before.projects).toBeGreaterThan(0);
+    await userEvent.click(within(today).getByRole('button', { name: /^Stair details/ }));
+    await screen.findByRole('dialog', { name: 'Stair details' });
+    expect(await settled()).toEqual(before);
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Stair details' })).toBeNull());
+    expect(await settled()).toEqual(before);
+  });
+
+  it('does not render the task rows again on a phone when a task panel opens or closes', async () => {
+    phoneMedia(true);
+    counts.tasks = 0;
+    counts.projects = 0;
+    await renderApp('/', as('usr_006'));
+    const today = await screen.findByRole('region', { name: 'Today' });
+    const before = await settled();
+    expect(before.tasks).toBeGreaterThan(0);
+    expect(before.projects).toBe(0);
     await userEvent.click(within(today).getByRole('button', { name: /^Stair details/ }));
     await screen.findByRole('dialog', { name: 'Stair details' });
     expect(await settled()).toEqual(before);

@@ -6,6 +6,7 @@ import { Link, useSearchParams } from 'react-router';
 import { useLang } from '../../app/lang';
 import { usePrefetchCall } from '../../app/prefetch';
 import { usePersonName } from '../../app/personName';
+import { useIsPhone } from '../../app/useIsPhone';
 import type { CallOutput } from '../../api/calls';
 import type { ProjectSummary, TaskRow } from '../../api/contract/views';
 import { useCall, useRuntime } from '../../app/runtime';
@@ -30,12 +31,13 @@ import { WHATS_NEW } from '../../whatsNew/entries';
 import { hasNew, readSeen } from '../../whatsNew/seen';
 
 /**
- * Both columns of Home: the greeting, Next for you, Today and Your projects. It takes only plain props and stable handlers, so a
+ * Both columns of Home: the greeting, Next for you, Today and Your projects. On a phone (Direction D) it is five blocks in one column,
+ * with no project section and no What's new link. It takes only plain props and stable handlers, so a
  * link change that only opens or closes the task panel does not render the rows again (performance audit 2026-10-07, RND-2).
  * "today" and "hour" come from the parent, so a new day or hour still gives a new date, greeting and due words.
  */
-const HomeBody = memo(function HomeBody({ session, mine, review, listed, listedError, showLeft, today, hour, onOpen, onFocus, onRetry }: {
-  session: CallOutput<'session.get'>; mine: TaskRow[]; review: TaskRow[]; listed: ProjectSummary[] | undefined; listedError: unknown; showLeft: boolean;
+const HomeBody = memo(function HomeBody({ session, mine, review, listed, listedError, showLeft, phone, today, hour, onOpen, onFocus, onRetry }: {
+  session: CallOutput<'session.get'>; mine: TaskRow[]; review: TaskRow[]; listed: ProjectSummary[] | undefined; listedError: unknown; showLeft: boolean; phone: boolean;
   today: string; hour: number; onOpen: (projectId: string | null, taskId: string, thread?: boolean) => void; onFocus: (taskId: string) => void;
   onRetry: () => void;
 }) {
@@ -50,32 +52,38 @@ const HomeBody = memo(function HomeBody({ session, mine, review, listed, listedE
   // A day with nothing due shows the next tasks with a date in place of the empty line (owner, 2026-10-07).
   const laterRows = todayRows.length === 0 ? comingUp(mine, today) : [];
   const firstName = nameOf(user).split(' ')[0];
+  const blocks = (
+    <>
+      <ScreenTitle title={t(`home.greeting.${greetingKey(hour)}`, { name: firstName })}>
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span>
+            {formatDay(today, lang, 'weekday')}
+            {/* One count for today (audit PER-12): the ring when it shows. With no task of mine due, the header names what
+                waits, so it never says "1 thing today" above "Nothing is due today" (audit BRW-16). */}
+            {ring.total === 0 && review.length > 0 && <> · {counted(t, 'home.reviewsWaiting', review.length)}</>}
+            {/* One quiet link while the newest What's new entry is not seen; it goes after the visit (UX audit 2026-10-19, chats-16).
+                A phone has it in Me (Direction D). */}
+            {!phone && hasNew(WHATS_NEW, readSeen(user.id)) && (
+              <> · <Link to="/whats-new" className="text-link hover:underline">{t('whatsNew.seeNew')}</Link></>
+            )}
+          </span>
+          <DayRing done={ring.done} total={ring.total} />
+        </span>
+      </ScreenTitle>
+      <NextCard item={next} onOpen={onOpen} onFocus={onFocus} left={showLeft && ring.total - ring.done > 0 ? ring.total - ring.done : null} />
+      <TodayPanel rows={todayRows} later={laterRows} me={session.authority} onOpen={(row, thread) => onOpen(row.project?.id ?? null, row.task.id, thread)} />
+      {/* The meetings of today, only when there is one (fbk_022). It reads its own list. */}
+      <MeetingsCard />
+      {/* The one ask for browser push (owner, 2026-10-09). It sits after Today, so the next step of the day stays first. It has
+          its own state and draws nothing for a device that was asked, so it never renders the rows again. */}
+      <PushAskCard />
+    </>
+  );
+  // A phone gets the blocks as direct children of the grid. A wrapper with display: contents would hide them from .screen-enter.
+  if (phone) return blocks;
   return (
     <>
-      <div className="flex min-w-0 flex-col gap-4">
-        <ScreenTitle title={t(`home.greeting.${greetingKey(hour)}`, { name: firstName })}>
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <span>
-              {formatDay(today, lang, 'weekday')}
-              {/* One count for today (audit PER-12): the ring when it shows. With no task of mine due, the header names what
-                  waits, so it never says "1 thing today" above "Nothing is due today" (audit BRW-16). */}
-              {ring.total === 0 && review.length > 0 && <> · {counted(t, 'home.reviewsWaiting', review.length)}</>}
-              {/* One quiet link while the newest What's new entry is not seen; it goes after the visit (UX audit 2026-10-19, chats-16). */}
-              {hasNew(WHATS_NEW, readSeen(user.id)) && (
-                <> · <Link to="/whats-new" className="text-link hover:underline">{t('whatsNew.seeNew')}</Link></>
-              )}
-            </span>
-            <DayRing done={ring.done} total={ring.total} />
-          </span>
-        </ScreenTitle>
-        <NextCard item={next} onOpen={onOpen} onFocus={onFocus} left={showLeft && ring.total - ring.done > 0 ? ring.total - ring.done : null} />
-        <TodayPanel rows={todayRows} later={laterRows} me={session.authority} onOpen={(row, thread) => onOpen(row.project?.id ?? null, row.task.id, thread)} />
-        {/* The meetings of today, only when there is one (fbk_022). It reads its own list. */}
-        <MeetingsCard />
-        {/* The one ask for browser push (owner, 2026-10-09). It sits after Today, so the next step of the day stays first. It has
-            its own state and draws nothing for a device that was asked, so it never renders the rows again. */}
-        <PushAskCard />
-      </div>
+      <div className="flex min-w-0 flex-col gap-4">{blocks}</div>
       <section aria-labelledby="your-projects" className="flex min-w-0 flex-col gap-3 md:pt-[4.25rem]">
         <div className="flex items-baseline justify-between gap-3 px-1">
           <h2 id="your-projects" className="text-section text-ink">{t('home.projects')}</h2>
@@ -121,7 +129,9 @@ export function HomeScreen() {
     if (authUserId && role) writeRoleHint(authUserId, role);
   }, [authUserId, role]);
   const admin = (role ?? hint) === 'admin';
-  const listed = useCall('projects.list', admin ? { filter: 'all', sort: 'deadline' } : { filter: 'mine', status: 'all', sort: 'deadline' });
+  // A phone has no project list (Direction D), so no read goes out. A turn to landscape starts it.
+  const phone = useIsPhone();
+  const listed = useCall('projects.list', admin ? { filter: 'all', sort: 'deadline' } : { filter: 'mine', status: 'all', sort: 'deadline' }, { enabled: !phone });
   // An office task has no project, so its link names the task alone (owner, 2026-10-06).
   const open = useStableHandler((projectId: string | null, taskId: string, thread: boolean = false) => setParams({ ...(projectId ? { project: projectId } : {}), task: taskId, ...(thread ? { thread: '1' } : {}) }));
   const startFocus = useStableHandler(focus.open);
@@ -166,7 +176,7 @@ export function HomeScreen() {
   const taskId = params.get('task');
   const projectId = params.get('project');
   return (
-    <div className="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-8">
+    <div className={phone ? 'grid grid-cols-[minmax(0,1fr)] gap-4' : 'grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-8'}>
       <HomeBody
         session={session.data}
         mine={mine.data}
@@ -174,6 +184,7 @@ export function HomeScreen() {
         listed={listed.data}
         listedError={listed.error}
         showLeft={showLeft}
+        phone={phone}
         today={today}
         hour={officeHour()}
         onOpen={open}
