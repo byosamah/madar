@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router';
 import type { ProjectDetail, TaskDetail } from '../../../api/contract/views';
 import { ApiError } from '../../../api/errors';
 import { usePrefetchCall } from '../../../app/prefetch';
+import { useIsPhone } from '../../../app/useIsPhone';
 import { useCall } from '../../../app/runtime';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { Sheet } from '../../../components/Sheet';
@@ -12,12 +13,16 @@ import { useFocusLink } from '../../focus/focusLink';
 import { TimerIcon } from '../../../components/icons/animated/timer';
 import { prefetchReads, type Read } from '../reads';
 import { DeskBody } from './DeskBody';
+import { PhoneBody } from './PhoneBody';
+import { PhoneHeader } from './PhoneTop';
 import { useTaskPanel } from './useTaskPanel';
 
 /** detail is null for an office task, which has no project (owner, 2026-10-06): no stage, no prerequisites, no team. */
 function TaskBody({ detail, data, onClose, noteFirst }: { detail: ProjectDetail | null; data: TaskDetail; onClose: () => void; noteFirst: boolean }) {
+  const phone = useIsPhone();
   const panel = useTaskPanel({ detail, data, onClose, noteFirst });
-  return <DeskBody panel={panel} />;
+  // A phone gets its own body (Direction D). Both bodies read the same hook, so no rule exists twice.
+  return phone ? <PhoneBody panel={panel} /> : <DeskBody panel={panel} />;
 }
 
 /**
@@ -50,6 +55,7 @@ export function TaskSheet({ taskId, detail, onClose, noteFirst = false }: { task
   // The files and the comments start with the task, not after it (FET-1).
   usePanelPrefetch(taskId, detail?.project.id ?? null);
   const focus = useFocusLink();
+  const phone = useIsPhone();
   // Only a task that is gone closes the panel. A failed refresh keeps it open with the text a person typed (audit 2026-10-03, PRJ-1).
   const gone = task.error instanceof ApiError && task.error.code === 'not_found';
   useEffect(() => {
@@ -63,6 +69,8 @@ export function TaskSheet({ taskId, detail, onClose, noteFirst = false }: { task
       }}
       title={task.data?.task.title ?? ''}
       blocking={false}
+      tall
+      phoneHeader={phone && task.data ? <PhoneHeader data={task.data} /> : undefined}
       headerAction={(
         <button type="button" onClick={() => focus.open(taskId)} className="pressable inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full bg-fill px-4 text-subheadline font-semibold text-ink hover:bg-fill-strong">
           <AnimatedIcon icon={TimerIcon} size={16} aria-hidden />
