@@ -6,7 +6,7 @@ import type { Attachment } from '../../api/contract/views';
 import { RuntimeProvider, createQueryClient, type Runtime } from '../../app/runtime';
 import { ToastProvider } from '../../app/toasts';
 import { initI18n } from '../../i18n';
-import { AttachmentList, photoOnlyBody } from './PictureAttachments';
+import { AttachmentList, isFileNamesBody } from './PictureAttachments';
 
 const file = (id: string, name: string | null, mimeType?: string): Attachment => ({ id, name, ...(mimeType ? { mimeType } : {}) });
 const PHOTO = file('fil_001', 'Site photo.jpg', 'image/jpeg');
@@ -205,18 +205,23 @@ describe('the files of a message or a comment (owner, 2026-10-19)', () => {
   });
 });
 
-describe('photoOnlyBody', () => {
-  const isPicture = (type: string) => type.startsWith('image/');
-
+describe('isFileNamesBody', () => {
   it('is true when the words are only the file names that the composer put there for a message with no words', () => {
-    expect(photoOnlyBody('Site photo.jpg', [PHOTO], isPicture)).toBe(true);
-    expect(photoOnlyBody('Site photo.jpg, Level 2.png', [PHOTO, SECOND], isPicture)).toBe(true);
+    expect(isFileNamesBody('Site photo.jpg', [PHOTO])).toBe(true);
+    expect(isFileNamesBody('Site photo.jpg, Level 2.png', [PHOTO, SECOND])).toBe(true);
   });
 
-  it('is false when a person wrote words, when a file is not a picture, or when there is no file', () => {
-    expect(photoOnlyBody('The site photo', [PHOTO], isPicture)).toBe(false);
-    expect(photoOnlyBody('Site photo.jpg, Plan.pdf', [PHOTO, PLAN], isPicture)).toBe(false);
-    expect(photoOnlyBody('Site photo.jpg', [], isPicture)).toBe(false);
-    expect(photoOnlyBody('Old.jpg', [file('fil_006', 'Old.jpg')], isPicture)).toBe(false);
+  it('is true for any files, pictures or not, when the words equal the joined names exactly (fbk_040)', () => {
+    expect(isFileNamesBody('Plan.pdf', [PLAN])).toBe(true);
+    expect(isFileNamesBody('Site photo.jpg, Plan.pdf', [PHOTO, PLAN])).toBe(true);
+    expect(isFileNamesBody('Old.jpg', [file('fil_006', 'Old.jpg')])).toBe(true);
+  });
+
+  it('is false when a person wrote words, when the names differ in any way, when a file was removed, or when there is no file', () => {
+    expect(isFileNamesBody('The site photo', [PHOTO])).toBe(false);
+    expect(isFileNamesBody('See Plan.pdf', [PLAN])).toBe(false);
+    expect(isFileNamesBody('Plan.pdf, Site photo.jpg', [PHOTO, PLAN])).toBe(false);
+    expect(isFileNamesBody('Plan.pdf', [PLAN, file('fil_005', null)])).toBe(false);
+    expect(isFileNamesBody('Site photo.jpg', [])).toBe(false);
   });
 });

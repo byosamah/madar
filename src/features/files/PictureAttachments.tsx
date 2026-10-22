@@ -170,12 +170,12 @@ export function AttachmentList({ files }: { files: Attachment[] }) {
 }
 
 /**
- * True when the words of a message are only the names of its pictures. A message with files and no words gets the file names as its
- * words (Composer in Thread.tsx), and beside a preview those names are noise: the bubble then leaves them out. A person who writes
- * words keeps them.
+ * True when the words of a message are only the names of its files. A message with files and no words gets the file names as its words
+ * (Composer in Thread.tsx), and beside a preview or a chip those names are noise: the bubble then leaves them out (fbk_040). It holds for
+ * any file, a picture or not, and only when the words equal the joined names exactly. A person who writes words keeps them. A file that
+ * was removed has no name, so the words stay.
  */
-export function photoOnlyBody(body: string, files: Attachment[], isPicture: (mimeType: string) => boolean): boolean {
-  if (files.length === 0) return false;
-  if (!files.every((file) => file.name !== null && file.mimeType !== undefined && isPicture(file.mimeType))) return false;
+export function isFileNamesBody(body: string, files: Attachment[]): boolean {
+  if (files.length === 0 || files.some((file) => file.name === null)) return false;
   return body.trim() === files.map((file) => file.name).join(', ');
 }

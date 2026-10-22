@@ -3,7 +3,6 @@ import { memo, useContext, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DateMove } from '../../api/contract/entities';
 import type { Attachment, GroupLine, ReplyRef, UserCard } from '../../api/contract/views';
-import { usePictureTest } from '../../app/files';
 import { useLang } from '../../app/lang';
 import { usePersonName } from '../../app/personName';
 import { AgentLabel } from '../../components/AgentLabel';
@@ -13,7 +12,7 @@ import { spring } from '../../design/motion';
 import { clockFormat, listFormat, type Lang } from '../../lib/dates';
 import { actorContext } from '../../lib/grammar';
 import { reasonLineText, type ReasonKind } from '../comments/ReasonLine';
-import { AttachmentList, photoOnlyBody } from '../files/PictureAttachments';
+import { AttachmentList, isFileNamesBody } from '../files/PictureAttachments';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { BadgeAlertIcon } from '../../components/icons/animated/badge-alert';
 import { DateMoveLines } from '../project/tasks/DateReason';
@@ -111,7 +110,6 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh, runSta
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const lang = useLang();
-  const isPicture = usePictureTest();
   const actions = useBubbleActions();
   const coarse = usePointerCoarse();
   const editing = useContext(EditingContext) === bubble.id;
@@ -122,8 +120,8 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh, runSta
   const saved = bubble.status === undefined;
   if (bubble.line) return <GroupLineItem id={bubble.id} line={bubble.line} framed={framed} />;
   if (bubble.reason) return <ReasonLineItem bubble={bubble} reason={bubble.reason} framed={framed} />;
-  // A photo sent with no words has its file name as its words. Beside the preview that name is noise, so the bubble leaves it out.
-  const photoOnly = photoOnlyBody(bubble.body, bubble.files, isPicture);
+  // A file sent with no words has its file name as its words. Beside the preview or the chip that name is noise, so the bubble leaves it out.
+  const fileNamesOnly = isFileNamesBody(bubble.body, bubble.files);
   // The names-you mark is for another person's bubble: your own bubble keeps its blue (item 4).
   const marked = namesMe && !mine;
   // The side spot sits beside the bubble: at its end side for another person, at its start side for your own. It holds the "..." button
@@ -166,7 +164,7 @@ export const MessageBubble = memo(function MessageBubble({ bubble, fresh, runSta
             {marked && <span aria-hidden className="absolute inset-y-2 start-1.5 w-[3px] rounded-full bg-mention-bar" />}
             {marked && <span className="sr-only">{t('chat.namesYou')}</span>}
             {bubble.replyTo && <BubbleReplyQuote replyTo={bubble.replyTo} />}
-            {editing ? <MessageEditForm bubble={bubble} /> : !photoOnly && <RichText body={bubble.body} className="natural-side text-subheadline" />}
+            {editing ? <MessageEditForm bubble={bubble} /> : !fileNamesOnly && <RichText body={bubble.body} className="natural-side text-subheadline" />}
             <AttachmentList files={bubble.files} />
             {(runStart || bubble.edited) && (
               <p className="tabular pt-0.5 text-end text-caption text-ink-2">

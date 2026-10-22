@@ -609,9 +609,10 @@ any screen work.
   rows of the Files tab use it too, BG-7). A picture that breaks, or that the store keeps
   as a download (an SVG in the real build), shows as a chip. A press opens `ImageViewer` (`components/ImageViewer.tsx`): the picture on a
   dark backdrop, the file name, an X, a Download button, Escape and a press on the dark space close it, the arrow keys follow the page
-  direction between the pictures of one message, and the focus returns to the preview. A message of only pictures leaves out the file names
-  that the box put there as its words (`photoOnlyBody`). `MessageLog` keeps the newest message in view while a picture grows its box.
-  Posts and the Tracker keep `FileChips`.
+  direction between the pictures of one message, and the focus returns to the preview. A message with files and no words of its own gets the file names as its
+  words; the bubble leaves them out for any files, pictures or not, when the words equal the joined names exactly (`isFileNamesBody`; the list preview,
+  search, push and the stored body keep them). `MessageLog` keeps the newest message in view while a picture grows its box.
+  Posts and the Tracker keep `FileChips`; its list and items are `min-w-0 max-w-full`, so a long file name is cut with an ellipsis inside its bubble (fbk_040).
 - The quiet lines of a group (`Conversation.log`, `ChatThread.lines`) draw as one grey centered line between the messages
   (`GroupLineItem` in `Thread.tsx`), in the screen language. They are no messages: never unread, no push.
 - The mention list of the Inbox box opens above the box (`MentionField placement="above"`) and ranks the names that start with

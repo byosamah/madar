@@ -230,14 +230,17 @@ export function FileChip({ file }: { file: Attachment }) {
   );
 }
 
-/** The files of a comment or a message, each as a chip. */
+/**
+ * The files of a comment or a message, each as a chip. The list and each item may shrink below the width of the file name
+ * (`min-w-0 max-w-full`), so the chip stays inside its bubble and cuts a long name with an ellipsis (fbk_040).
+ */
 export function FileChips({ files }: { files: Attachment[] }) {
   const { t } = useTranslation();
   if (files.length === 0) return null;
   return (
-    <ul aria-label={t('attachments.files')} className="flex flex-wrap gap-2">
+    <ul aria-label={t('attachments.files')} className="flex min-w-0 max-w-full flex-wrap gap-2">
       {files.map((file) => (
-        <li key={file.id}>
+        <li key={file.id} className="min-w-0 max-w-full">
           <FileChip file={file} />
         </li>
       ))}
