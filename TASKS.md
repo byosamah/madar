@@ -1020,8 +1020,14 @@ Plan and answers: memory and the two design files below. fbk_039 (12-hour clock)
   loader or SQL change; the MCP docs tests are in `npm test`).
 - [x] Test copy and production at 8903f5a7 (owner: "Production now", 2026-10-22). fbk_038, 040, 042, 043, 045, 046 and 047 marked done.
   Not seen in a browser yet: the upload bars (the prototype upload ends at once). Check one upload on the live site.
-- [ ] Batch B (`rb/batch-b`, plan `docs/superpowers/plans/2026-10-22-madar-quiet-hours-everyone-plan.md`): quiet hours (fbk_048) and
-  @everyone (fbk_041). Building. What's new 88 to 90. Needs `test:db`, `test:it` and `test:mcp` at the merge.
+- [x] Batch B (`rb/batch-b`, plan `docs/superpowers/plans/2026-10-22-madar-quiet-hours-everyone-plan.md`): quiet hours (fbk_048) and
+  @everyone (fbk_041), plus the photo decode fix. New right `chat.mentionEveryone` (113 switches). What's new 88 to 90 and 92.
+  Gates on main c83ad4fb plus B: typecheck; npm test 10,074 passed (1 Home timing test failed under load, passes 2 of 2 alone);
+  test:db 3,037; test:it 333 (one pin of the device row updated for the two new columns, 12 of 12 again); test:mcp 335 and conformance
+  5 of 32; the four builds (api.js 843.8 kB of 850,000; first load 947,375 B); screenshots EN and AR, light and dark, 390 px (Quiet
+  hours, the Everyone row, the chip, the bell line with the female form). Not seen: a real push held and sent at the end of quiet hours.
+- [ ] Owner tries B on the test copy, then production. Mark fbk_041 and fbk_048 done after the owner says they are live.
+- [ ] Polish seen in the shots: the mention list is narrow at 390 px, so long names wrap to two lines (it was so before B).
 - [ ] Batch D (`rb/batch-d`, design `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design.md`): hidden projects,
   "See every project" and internal projects (fbk_044). Designed; four build waves wait for the owner's word.
 - [x] `makeThumb` (owner: "add it to Batch B", 2026-10-22): a file over 2 MB decodes straight to 960 px wide (`rb/thumb`, d501f03b, joins
