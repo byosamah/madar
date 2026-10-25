@@ -427,7 +427,24 @@ any screen work.
 - Shell (`app/AppShell.tsx`): from 640 px a floating tab pill at the top centre (Home, Projects, Tasks, Dashboard, Inbox, plus Search and the
   bell), the Madar mark at the top start (a press opens Home) and the person menu at the top end. No sidebar. The desk did not change in
   Direction D. A phone (`useIsPhone`, under 640 px) has a different shell, described in "The phone shell" below.
-- Focus mode is `?focus=<taskId>` with a 25-minute timer.
+- Focus mode is `?focus=<taskId>` with a 25-minute timer. Its dialog is `z-[35]` (fbk_059; it was `z-[70]`): above the tab pill and the corner buttons
+  (`z-30`), below the dim layer of a sheet (`z-40`), the sheets, the picture viewer and the menus (`z-50`) and the toasts (`z-80`), so a layer that
+  the chat opens shows above Focus. Pin every new layer number against these. The Focus chat (fbk_059, owner 2026-10-25): one quiet grey button at
+  the end of the top row, the word `project.chat` (or `chat.taskThread` for an office to-do, which shows its own thread), with no dot and no count.
+  It shows only when `projects.get` gives a `chatId` (null without `chat.project`). A press opens the chat from 1024 px (`useIsWide`,
+  `features/focus/focusChat.ts`) as a panel `aside[data-focus-chat]` on the end side (`fixed inset-y-3 end-3 w-[24rem]`); the dialog gets
+  `lg:pe-[26rem]` and the page keeps its place in the tree, so the timer never starts again (never wrap `FocusPage` in a new parent). The device
+  keeps the choice (`madar.focus.chat`, `open` or `closed`, first value `closed`); a remembered `open` counts only from 1024 px. Under 1024 px
+  the press opens a full page over Focus (`PhoneChatPage` with `layer="z-[36]"` and `inertWhileSheet={false}`: Focus sets `data-panel-open`, which
+  would make the page dead) with "Back to focus" (`focus.backToFocus`, track `focuschat`); the choice stays as it was, and the Focus column is
+  `inert` under the page. The chat code is the lazy chunk `FocusChatPane.tsx` (`lazyOverlay`, warmed at pointer or focus on the button; never import
+  it statically, `app/firstLoadImports.test.ts`). It is the Inbox pane in its embedded form (`embedded` prop of `ChatPane` and `TaskPane`,
+  `EmbeddedHeader`): a slim head (tile, title, Close or Back), no Back link, no menu, no Search, no options sheet, no typing line, no "Show newer
+  messages", no composer autofocus (`Composer` `autoFocus`; Done keeps the focus), and a reply strip to a message older than the loaded pages does
+  nothing (no `navigate`). A closed panel mounts nothing: no `chats.messages`, no read mark. An open panel reads and marks read like the Inbox
+  (visible tab only). Escape that starts inside `[data-focus-chat]`, or that a layer above Focus used (`defaultPrevented`), does not end Focus;
+  with the full page open, Escape on the page behind it brings Focus back first. The draft of the box lives in `madar.draft.*`, so it survives a close.
+  Tests: `FocusChat.test.tsx` (the helper `phoneMedia` answers `(min-width: 1024px)` with `wide`).
 - Tasks (`/work`): one main button, New office task (`features/work/NewOfficeTaskSheet.tsx`: title, lead, due date). A list
   screen opens a task panel with `?task=<id>` and, for a project task, `&project=<id>` (`openTask`, `lib/params.ts`).
   `taskLink(null, id)` sends an office task to `/work?task=<id>`. An office task has no project: the word Office
@@ -601,7 +618,7 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
   (`ps-[5.375rem]`).
 - An open chat on a phone is `PhoneChatPage` (`features/inbox/PhoneChatPage.tsx`): a portal on the body (`[data-chat-page]`, fixed, `z-30`, `overscroll-none`). Its
   top and height follow `visualViewport`, and it sets `--chat-h` inline (not a token; it falls back to `100dvh`). It calls `useSheetToasts(true)`, so toasts move
-  to the top. It becomes `inert` while a sheet is open (it follows the `data-panel-open` mark). The entrance is keyed by the chat id only, so a new `?at=` mark does
+  to the top. It becomes `inert` while a sheet is open (it follows the `data-panel-open` mark); Focus mode turns that off (`inertWhileSheet={false}`) and sets its own layer (`layer`). The entrance is keyed by the chat id only, so a new `?at=` mark does
   not replay it. The list stays mounted but hidden, so its search text and scroll place stay. The load, error and not-found states carry `PhoneBackBar`.
 - Back rule (`features/inbox/chatBack.tsx`): a screen that opens a chat passes `state: { from }`, with `chatState(from)`. The senders are the chat list, New message,
   Notifications, Search hits, the Search person sheet and the Message button of the options sheet (this one sends the real pathname plus search). Projects, Home and

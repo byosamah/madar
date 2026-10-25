@@ -6,16 +6,18 @@ const COARSE = '(pointer: coarse)';
 type Listener = (event: MediaQueryListEvent) => void;
 
 /**
- * Makes jsdom answer as a phone or as a desk, and as a touch screen or a mouse. It answers (max-width: 639px) and
- * (pointer: coarse). Every other query answers false. The helper restores matchMedia when the test ends.
+ * Makes jsdom answer as a phone or as a desk, as a touch screen or a mouse, and as a wide window (1024 px or more, Focus mode
+ * chat). It answers (max-width: 639px), (pointer: coarse) and (min-width: 1024px). Every other query answers false, and the wide
+ * query answers false until a test asks for it. The helper restores matchMedia when the test ends.
  */
-export function phoneMedia(initial: boolean | { phone: boolean; coarse?: boolean }): { set(phone: boolean): void; setCoarse(coarse: boolean): void } {
-  const state = typeof initial === 'boolean' ? { phone: initial, coarse: false } : { phone: initial.phone, coarse: initial.coarse ?? false };
+export function phoneMedia(initial: boolean | { phone: boolean; coarse?: boolean; wide?: boolean }): { set(phone: boolean): void; setCoarse(coarse: boolean): void; setWide(wide: boolean): void } {
+  const state = typeof initial === 'boolean' ? { phone: initial, coarse: false, wide: false } : { phone: initial.phone, coarse: initial.coarse ?? false, wide: initial.wide ?? false };
   const original = window.matchMedia;
   const listeners = new Map<string, Set<Listener>>();
   const valueOf = (query: string): boolean => {
     if (query.includes('max-width: 639px')) return state.phone;
     if (query.includes('pointer: coarse')) return state.coarse;
+    if (query.includes('min-width: 1024px')) return state.wide;
     return false;
   };
   window.matchMedia = ((query: string): MediaQueryList => {
@@ -42,6 +44,7 @@ export function phoneMedia(initial: boolean | { phone: boolean; coarse?: boolean
   return {
     set(phone: boolean) { state.phone = phone; tell('max-width: 639px'); },
     setCoarse(coarse: boolean) { state.coarse = coarse; tell('pointer: coarse'); },
+    setWide(wide: boolean) { state.wide = wide; tell('min-width: 1024px'); },
   };
 }
 

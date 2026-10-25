@@ -19,8 +19,17 @@ import { spring } from '../../design/motion';
 import { FocusTimer } from './FocusTimer';
 import { returnFocus, useFocusLink } from './focusLink';
 import { CircleIcon } from '../../components/icons/animated/circle';
+import { MessageCircleIcon } from '../../components/icons/animated/message-circle';
+import { lazyOverlay } from '../../app/lazyOverlay';
+import { useFocusChat, type FocusChat } from './focusChat';
 
-function FocusPage({ data, onExit }: { data: TaskDetail; onExit: (done?: boolean) => void }) {
+/**
+ * The chat of Focus mode loads at the first press, in a chunk of its own, so Focus stays small (fbk_059). The log, the box and the sheets
+ * of the Inbox pane are in that chunk. Never import `FocusChatPane` here statically (`app/firstLoadImports.test.ts`).
+ */
+const chatPane = lazyOverlay(() => import('./FocusChatPane').then((m) => m.FocusChatPane));
+
+function FocusPage({ data, onExit, chat }: { data: TaskDetail; onExit: (done?: boolean) => void; chat: FocusChat }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const { task, project } = data;
@@ -54,13 +63,37 @@ function FocusPage({ data, onExit }: { data: TaskDetail; onExit: (done?: boolean
     page.current?.querySelector<HTMLElement>('[data-focus-start]')?.focus();
     return () => window.clearTimeout(exitTimer.current);
   }, []);
+  // The chat panel keeps its own Escape: a key that starts inside the chat, or that a layer above Focus already used (a picture, a sheet,
+  // the @ list, a menu), does not end Focus. With the full page open, Escape on the page behind it brings Focus back first.
+  const chatRef = useRef(chat);
+  chatRef.current = chat;
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onExit();
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      if (event.target instanceof Element && event.target.closest('[data-focus-chat]')) return;
+      if (chatRef.current.page) chatRef.current.close();
+      else onExit();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onExit]);
+  // The full page covers Focus: the column behind it takes no focus and no clicks. The timer keeps running, as it is only hidden.
+  useEffect(() => {
+    const column = page.current;
+    if (!column) return undefined;
+    column.inert = chat.page;
+    return () => {
+      column.inert = false;
+    };
+  }, [chat.page]);
+  // The chat closed (Close, or Back to focus): the focus goes back to the button that opened it.
+  const chatButton = useRef<HTMLButtonElement>(null);
+  const chatShown = chat.panel || chat.page;
+  const chatWasShown = useRef(chatShown);
+  useEffect(() => {
+    if (chatWasShown.current && !chatShown && !page.current?.contains(document.activeElement)) chatButton.current?.focus();
+    chatWasShown.current = chatShown;
+  }, [chatShown]);
   const tick = (id: string, done: boolean) => {
     const next = items.map((item) => (item.id === id ? { ...item, done } : item));
     setItems(next);
@@ -76,6 +109,21 @@ function FocusPage({ data, onExit }: { data: TaskDetail; onExit: (done?: boolean
             <bdi className="truncate text-subheadline font-semibold text-ink-2">{project.name}</bdi>
           </span>
         ) : <span className="text-subheadline font-semibold text-ink-2">{t('office.word')}</span>}
+        {/* One quiet grey button, never the main one. It shows no dot and no count for a new message: Focus stays calm (owner, 2026-10-25). */}
+        {chat.target && (
+          <button
+            ref={chatButton}
+            type="button"
+            aria-expanded={chat.panel}
+            onClick={chat.press}
+            onPointerEnter={chatPane.warm}
+            onFocus={chatPane.warm}
+            className="pressable ms-auto inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full bg-fill px-4 text-subheadline font-semibold text-ink hover:bg-fill-strong"
+          >
+            <AnimatedIcon icon={MessageCircleIcon} size={18} aria-hidden />
+            {chat.target.kind === 'task' ? t('chat.taskThread') : t('project.chat')}
+          </button>
+        )}
       </div>
       <div className="flex flex-col gap-4">
         <p className="text-footnote font-semibold uppercase tracking-[0.06em] text-[var(--sig-text)]">{t('focus.label')}</p>
@@ -122,6 +170,7 @@ export function FocusMode() {
   const { taskId, close } = useFocusLink();
   const task = useCall('tasks.get', { id: taskId ?? '' }, { enabled: taskId !== null });
   usePanelOpen(taskId !== null);
+  const chat = useFocusChat(task.data, taskId);
   const visible = taskId !== null && task.data !== undefined;
   // While Focus mode shows, the page and the tab pill behind it take no focus and no clicks (aria-modal).
   useEffect(() => {
@@ -148,9 +197,13 @@ export function FocusMode() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 24 }}
           transition={{ type: 'spring', bounce: 0, duration: 0.35 }}
-          className="fixed inset-0 z-[70] overflow-y-auto bg-[linear-gradient(180deg,var(--c-page-top),var(--c-page-bottom))]"
+          // z-[35]: above the tab pill and the corner buttons (z-30) and below the layers that a chat can open: the dim layer of a sheet
+          // (z-40), the sheets, the picture viewer and the menus (z-50) and the toasts (z-80). It was z-[70], which hid them (fbk_059).
+          // The open panel takes the end side, so the column keeps its tree and only gets room on that side.
+          className={`fixed inset-0 z-[35] overflow-y-auto bg-[linear-gradient(180deg,var(--c-page-top),var(--c-page-bottom))] ${chat.panel ? 'lg:pe-[26rem]' : ''}`}
         >
-          <FocusPage data={task.data} onExit={close} />
+          <FocusPage data={task.data} onExit={close} chat={chat} />
+          {chat.target && (chat.panel || chat.page) && <chatPane.Overlay target={chat.target} page={chat.page} onClose={chat.close} />}
         </motion.div>
       )}
     </AnimatePresence>,
