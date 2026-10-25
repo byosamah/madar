@@ -23,6 +23,14 @@ describe('scrubUrl', () => {
     expect(scrubUrl('')).toBe('');
   });
 
+  it('never returns a value with a query or a hash as it is (fail closed)', () => {
+    expect(scrubUrl('?q=secret')).toBe('');
+    expect(scrubUrl('#code=1')).toBe('');
+    expect(scrubUrl('search?q=x')).toBe('search');
+    expect(scrubUrl('search?tab=files&q=x#h')).toBe('search?tab=files');
+    expect(scrubUrl('page#code=1?x')).toBe('page');
+  });
+
   it('scrubs a path with a query and no host', () => {
     expect(scrubUrl('/settings?x=1#google=finish&code=abc')).toBe('/settings');
     expect(scrubUrl('/projects/prj_1?tab=tasks&task=t1')).toBe('/projects/prj_1?tab=tasks');
@@ -41,6 +49,17 @@ describe('scrubText', () => {
 
   it('scrubs two addresses', () => {
     expect(scrubText('a https://x.test/a?s=1 b http://y.test/b#h c')).toBe('a https://x.test/a b http://y.test/b c');
+  });
+
+  it('scrubs an address with capital letters', () => {
+    expect(scrubText('Failed HTTPS://X.test/a?sig=1 now')).toBe('Failed https://x.test/a now');
+  });
+
+  it('scrubs a path with a query or a hash inside a text', () => {
+    expect(scrubText('Open /settings#google=finish&code=abc now')).toBe('Open /settings now');
+    expect(scrubText('Open /projects/prj_1?task=t1, then')).toBe('Open /projects/prj_1, then');
+    expect(scrubText('/search?q=secret')).toBe('/search');
+    expect(scrubText('Open /projects/prj_1 now')).toBe('Open /projects/prj_1 now');
   });
 
   it('keeps a text with no address', () => {
