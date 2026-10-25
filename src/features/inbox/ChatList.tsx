@@ -251,7 +251,7 @@ export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; sele
   // when nothing else explains the list: no search word and no archived list.
   const hiddenUnread = kind === 'all' || needle !== '' || archivedOpen ? 0 : rows.reduce((sum, row) => sum + (inKind(row, kind) ? 0 : row.unread), 0);
   const hiddenLine = hiddenUnread > 0 && (
-    <div className={`flex shrink-0 flex-wrap items-center gap-x-2 text-footnote text-ink-2 ${phone ? 'mt-3 px-1' : 'border-t border-hairline px-4 py-1'}`}>
+    <div className={`flex shrink-0 flex-wrap items-center gap-x-2 text-footnote text-ink-2 ${phone ? 'mt-3 px-1' : 'border-t border-hairline px-4 py-2'}`}>
       <p>{t('inboxLine.hidden', { count: hiddenUnread })}</p>
       <button type="button" onClick={() => setKind('all')} className="pressable inline-flex min-h-11 items-center text-footnote font-medium text-link">
         {t('inboxLine.showAll')}

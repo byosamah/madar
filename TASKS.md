@@ -1112,3 +1112,4 @@ Plan: `docs/superpowers/plans/2026-10-25-madar-inbox-line-agent-projects-plan.md
 - [ ] Screenshots: the Inbox line (EN/AR, light/dark, 390 px and desk), the role sheet switch
 - [ ] Test copy (`all.sh test`), then production, push, release record
 - [ ] Mark fbk_056 and fbk_057 done in Madar
+- [ ] Found 2026-10-25 (not in this release, propose to the owner): on a 390 px phone in Arabic, the four Inbox kind chips do not fit one row, and «الأشخاص» drops to a second row
