@@ -2477,3 +2477,21 @@ Not proven: a real iPhone. After the deploy, wait 11 minutes on an iPhone, press
   11,088 passed, 6 skipped (944 files), with 8 unhandled "Worker is not defined" errors from the map tests that predate it (TASKS.md);
   the new bar check of `tests/e2e/owner.spec.ts` passed in Chromium and WebKit on the dev server (each icon 0 px from the middle of its
   tab, in English and Arabic); bar screenshots EN/AR, light/dark, 390 px.
+
+### Release record: production at 10c7191b (2026-10-25, the Inbox line of fbk_056 and projects from the AI agent of fbk_057)
+- On the owner's "plan and build both, don't stop until you finish" and his answer "all the way to production" (2026-10-25), Claude ran
+  `all.sh test` and then `echo production | scripts/deploy/all.sh production`, which took 10c7191b at 12:43 (Riyadh) on the first try.
+  Plan: `docs/superpowers/plans/2026-10-25-madar-inbox-line-agent-projects-plan.md`. Two Sonnet builders (`rb/inbox-line`,
+  `rb/agent-projects`), joined on main by the lead with What's new `2026-10-23-100` and `-101`.
+- fbk_056: a filtered Inbox list shows one quiet line with the unread messages of the other kinds and "Show all". The cause was the
+  persistent "People" filter of an Admin; the badge stays as it was. fbk_057: the AI switch `ai.projectSetup` (Admin only by default,
+  118 switches, 89 powers) opens `projects.create`, `clients.create`, `clients.list` and `projectTemplates.list` to an agent (an Admin's
+  agent has 61 tools); the lists are lean (no client phone or email, no template tasks). No migration, no new call.
+- Gates of 10c7191b, each once: typecheck; npm test 11,147 passed, 6 skipped (947 files); prototype smoke 135 of 135 (with
+  `npm run build`); `build:server`; `build:remote -- test`; test:db 3,185 (27 skipped); test:lite 3,185; test:it 333; test:office 40;
+  test:mcp 372 with conformance normal (5 of 32). Screenshots of the Inbox line (desk and 390 px, EN and AR, light and dark) and of the
+  role sheet switch, in the session scratchpad.
+- Live checks: the quick checks of both copies passed (health from supabase, `fileStore` r2, 150 calls; database, lock and
+  asyncContext ok; /mcp with no token 401). The live English words of both copies hold "unread messages are in other chats" and
+  "AI creates projects and clients"; the production page title is Madar and `/favicon.ico` answers 200. The deploy suite did not run:
+  the change has no new call and no migration, and the in-process MCP tests cover the tool lists of each role.
