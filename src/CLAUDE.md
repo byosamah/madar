@@ -699,7 +699,7 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
   Projects (project chats), To-dos (the threads of to-dos) and People (direct chats and groups). The button names the shown kind. The
   choice lasts: it stays after the Inbox closes, after a reload and for the next visit (owner, 2026-10-23; `usePersistentChoice`, key
   `madar.chatKind`, fallback All); the search and "Archived (n)" look only in
-  that kind, and an empty kind says "No chats here.". "Archived (n)" is one quiet row under the search field on a desk (the last row of the list on a phone), only while a chat is archived
+  that kind, and an empty kind says "No chats here.". While a kind other than All is chosen, with no search word and no archived list, one quiet line under the list says "{{count}} unread messages are in other chats." with the text button "Show all" (`inboxLine.*`, fbk_056, owner 2026-10-25). The number is the sum of `unread` over the rows outside the kind, the same count as the badge; the line sits outside the scroll box of the list on a desk and under the panel on a phone, with no red and no badge. "Archived (n)" is one quiet row under the search field on a desk (the last row of the list on a phone), only while a chat is archived
   and nothing is typed. The archived view has a back arrow, the title "Archived chats" and its own search words. A search in the
   main list looks in every chat, and an archived match carries the word "Archived". A group matches by its name (only its members
   have its row). An archive and a move back show a toast with Undo (`archive.ts`, `useArchive`; `chats.archive` writes no event, so
