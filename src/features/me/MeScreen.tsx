@@ -4,6 +4,7 @@ import { ScreenTitle } from '../../components/ScreenTitle';
 import { MeGroup } from './MeRow';
 import { AccountPanel, NoticePanel } from './NoticePanel';
 import { OfficeGroup, PrototypeGroup, SignOutButton } from './OfficeGroup';
+import { UsageDataNote } from '../settings/UsageDataSection';
 import { LookPanel, ProfilePanel } from './PersonPanels';
 
 /**
@@ -28,6 +29,8 @@ export function MeScreen() {
           <OfficeGroup />
           <PrototypeGroup />
           <SignOutButton />
+          {/* What Madar records, as quiet text at the end (insight design, owner 2026-10-25). */}
+          <UsageDataNote />
         </>
       )}
     </div>

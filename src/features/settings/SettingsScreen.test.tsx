@@ -4,6 +4,15 @@ import userEvent from '@testing-library/user-event';
 import { renderApp } from '../../test/render';
 
 describe('settings screen', () => {
+  it('ends with one line about the usage data, with no control (insight design, 2026-10-25)', async () => {
+    await renderApp('/settings');
+    const heading = await screen.findByRole('heading', { level: 2, name: 'Usage data' });
+    const section = heading.closest('section') as HTMLElement;
+    expect(within(section).getByText(/Madar records how people use it/)).toBeInTheDocument();
+    expect(within(section).queryByRole('button')).toBeNull();
+    expect(within(section).queryByRole('switch')).toBeNull();
+  });
+
   it('changes the theme, and has no glass setting left', async () => {
     await renderApp('/settings');
     await userEvent.click(await screen.findByRole('radio', { name: 'Dark' }));

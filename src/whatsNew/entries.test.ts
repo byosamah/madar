@@ -208,4 +208,11 @@ describe("the What's new entries of quiet hours and @everyone", () => {
     expect(text(ar, '2026-10-23-89')).toContain('@الجميع');
     expect(text(ar, '2026-10-23-90')).toContain('بداية ساعات عملك');
   });
+
+  // Insight with PostHog (owner, 2026-10-25): one line for the team, with the way to Settings.
+  it('has the usage data line above every other entry, and it says what is never recorded (insight design, section 8)', () => {
+    expect(WHATS_NEW[0]).toEqual({ id: '2026-10-23-102', day: '2026-10-25', to: '/settings' });
+    expect(String(wordAt(en, ['whatsNew', 'items', '2026-10-23-102', 'body']))).toBe('Madar now records errors and how people use it, so we fix problems faster. It never records what you type, chat messages or amounts. Details in Settings.');
+    expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-102', 'body']))).toBe('صار مدار يحفظ الأخطاء وطريقة استخدامه، لنصلح المشاكل أسرع. لا يحفظ ما تكتبه، ولا رسائل المحادثة، ولا المبالغ. التفاصيل في الإعدادات.');
+  });
 });

@@ -14,6 +14,7 @@ import { PushSection } from './PushSection';
 import { QuietHoursSection } from './QuietHoursSection';
 import { ProfileSection } from './ProfileSection';
 import { SettingsSection as Section } from './Section';
+import { UsageDataSection } from './UsageDataSection';
 
 export function SettingsScreen() {
   const { t } = useTranslation();
@@ -62,6 +63,9 @@ export function SettingsScreen() {
       {/* The real build: the password (track U) and the person's agents (track G). The prototype has no sign-in, so no password. */}
       <PasswordSection />
       <AgentsSection />
+
+      {/* What Madar records, in one line for every person (insight design, owner 2026-10-25). It has no control. */}
+      <UsageDataSection />
 
       {/* The prototype controls stay out of the real build (client map 6). */}
       {PROTOTYPE && <Section title={t('settings.prototype')}><PrototypeTools /></Section>}

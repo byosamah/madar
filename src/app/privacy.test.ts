@@ -35,8 +35,28 @@ describe('the privacy page', () => {
   });
 
   it('holds the date of the last change in both languages', () => {
-    expect(page).toContain('Last change: 23 October 2026');
-    expect(page).toContain('آخر تعديل: 23 أكتوبر 2026');
+    expect(page).toContain('Last change: 25 October 2026');
+    expect(page).toContain('آخر تعديل: 25 أكتوبر 2026');
+  });
+
+  // Insight with PostHog (owner, 2026-10-25): the page names the processor, the region, who sees the data, and what is never recorded.
+  it('names PostHog and its EU cloud in Frankfurt in both languages (insight design, 2026-10-25)', () => {
+    const english = page.slice(0, page.indexOf('<section lang="ar"'));
+    const arabic = page.slice(page.indexOf('<section lang="ar"'));
+    expect(english).toContain('<h2>Usage data and errors</h2>');
+    expect(english).toContain('PostHog');
+    expect(english).toContain('EU cloud in Frankfurt, Germany');
+    expect(english).toContain('Only the office owner sees it.');
+    expect(english).toContain('Madar never records what you type, the text of chat messages, amounts of money, or the pictures of files.');
+    expect(english).toContain('An error carries the name of the person');
+    expect(english).toContain('PostHog keeps replays for 30 days.');
+    expect(arabic).toContain('<h2>بيانات الاستخدام والأخطاء</h2>');
+    expect(arabic).toContain('PostHog');
+    expect(arabic).toContain('فرانكفورت');
+    expect(arabic).toContain('يراها صاحب المكتب فقط.');
+    expect(arabic).toContain('لا يحفظ مدار ما تكتبه، ولا نص رسائل المحادثة، ولا المبالغ المالية، ولا صور الملفات.');
+    expect(arabic).toContain('يحمل الخطأ اسمك');
+    expect(arabic).toContain('30 يومًا');
   });
 
   it('loads no script and no outside file', () => {

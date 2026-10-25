@@ -13,6 +13,15 @@ const hub = async (prepare?: Parameters<typeof renderApp>[1], options?: Paramete
 };
 
 describe('the Me hub (prototype, phone)', () => {
+  it('ends with the quiet line about the usage data (insight design, 2026-10-25)', async () => {
+    await hub();
+    const note = screen.getByText(/Madar records how people use it/);
+    expect(note).toHaveTextContent('Only the office owner sees this data.');
+    // It is the last thing on the page, after the groups (and after Sign out in the real build).
+    expect(note.parentElement?.lastElementChild).toBe(note);
+    expect(note).toHaveClass('text-footnote');
+  });
+
   it('draws the hub title on a phone', async () => {
     phoneMedia(true);
     await renderApp('/me');
