@@ -62,13 +62,17 @@ export const EMOJI_MARKER = 'grinning face';
 /**
  * Text that only code which must stay lazy holds (FL-11). Each marker is a string that the minifier keeps. The first load never holds it:
  * the log of chat messages (`[data-new-line]` of MessageLog), the drawer package of the sheets (`data-vaul-drawer`, in the overlay
- * chunk) and the Supabase storage client (`StorageUnknownError`, which the stand-in of FL-5 keeps out of the build).
+ * chunk), the Supabase storage client (`StorageUnknownError`, which the stand-in of FL-5 keeps out of the build) and the PostHog
+ * library (`$snapshot_data`, a name of its replay packets: it loads in its own chunk after the first screen, insight design).
  */
 export const LAZY_MARKERS = [
   { label: "chat message log ('[data-new-line]')", marker: '[data-new-line]' },
   { label: "sheet drawer package ('data-vaul-drawer')", marker: 'data-vaul-drawer' },
   { label: "Supabase storage client ('StorageUnknownError')", marker: 'StorageUnknownError' },
+  { label: "PostHog library ('$snapshot_data')", marker: '$snapshot_data' },
 ] as const;
+/** Text that only the PostHog library and its client file hold (insight design, section 6). The prototype build never holds either. */
+export const POSTHOG_MARKERS = ['$snapshot_data', 'eu.i.posthog.com'] as const;
 /** Text that only dnd-kit holds (its hidden description of a drag handle). The sortable lists load it after the first screen (FL-2). */
 export const DRAG_MARKER = 'DndDescribedBy';
 export const WORD_MARKERS = {
@@ -174,6 +178,8 @@ export function checkBundles(kind: BundleKind, dir: string, options: BundleOptio
     report("a registration of '/sw.js'", texts.filter((f) => f.text.includes('/sw.js')).map((f) => f.name));
     // The prototype is one script file: the map library (a lazy chunk of the real build) must not be in it (fbk_017).
     report("the map library ('maplibregl-')", texts.filter((f) => f.text.includes(MAP_LIBRARY_MARKER)).map((f) => f.name));
+    // The prototype sends nothing to PostHog and holds none of its code (insight design, section 6).
+    report("the PostHog library or host", texts.filter((f) => POSTHOG_MARKERS.some((marker) => f.text.includes(marker))).map((f) => f.name));
     const js = names.filter((name) => name.endsWith('.js'));
     rule('the prototype is one script file', js.length === 1 ? [] : [`${js.length} script files (${js.join(', ')})`], js.join(', '));
     const early = ['modulepreload', 'preload', 'preconnect'].flatMap((rel) => rels(rel).map(() => rel));

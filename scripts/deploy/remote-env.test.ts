@@ -31,13 +31,20 @@ describe('config/remote.<env>.env', () => {
     it(`${target}: holds a publishable key and no secret key`, () => {
       expect(env.VITE_SUPABASE_PUBLISHABLE_KEY).toMatch(/^sb_publishable_[A-Za-z0-9_-]+$/);
       expect(text).not.toMatch(/sb_secret_|service_role|eyJ[A-Za-z0-9_-]{10,}/);
-      expect(Object.keys(env).sort()).toEqual(['VITE_MADAR_API', 'VITE_MADAR_SATELLITE', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'VITE_SUPABASE_URL', 'VITE_VAPID_PUBLIC_KEY']);
+      // VITE_POSTHOG_KEY is the one optional value (insight design): the owner adds it after he makes the PostHog account.
+      expect(Object.keys(env).filter((name) => name !== 'VITE_POSTHOG_KEY').sort()).toEqual(['VITE_MADAR_API', 'VITE_MADAR_SATELLITE', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'VITE_SUPABASE_URL', 'VITE_VAPID_PUBLIC_KEY']);
     });
 
     // The Satellite button (owner, 2026-10-20). The Esri key is the Pages secret ESRI_KEY: it never goes in a public file.
     it(`${target}: shows the Satellite button, and holds no Esri key`, () => {
       expect(env.VITE_MADAR_SATELLITE).toBe('on');
       expect(text).not.toMatch(/ESRI_KEY=|token=|\bAAP[KT][A-Za-z0-9_-]{10,}/);
+    });
+
+    // The PostHog project key is public (it starts with phc_). The account is not made yet, so the key may be missing: the screens then send nothing.
+    it(`${target}: holds no PostHog key, or a project key of the right shape and no personal key`, () => {
+      if (env.VITE_POSTHOG_KEY !== undefined) expect(env.VITE_POSTHOG_KEY).toMatch(/^phc_[A-Za-z0-9_-]{20,}$/);
+      expect(text).not.toMatch(/phx_|POSTHOG_PERSONAL/);
     });
 
     it(`${target}: holds the public VAPID key of browser push (87 base64url characters of a P-256 point), and no private key`, () => {

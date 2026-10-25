@@ -9,6 +9,8 @@ interface ImportMetaEnv {
   readonly VITE_VAPID_PUBLIC_KEY?: string;
   /** 'on' shows the Satellite button of the maps (config/remote.<env>.env). The Esri key itself is a Pages secret (ESRI_KEY). */
   readonly VITE_MADAR_SATELLITE?: string;
+  /** The public project key of PostHog (config/remote.<env>.env, phc_...). Missing: the real build sends no usage data (insight design). */
+  readonly VITE_POSTHOG_KEY?: string;
   readonly VITE_API_URL?: string;
   /** The build ID (scripts/build-remote.ts): the UTC day of the build, sent as X-Madar-Build. */
   readonly VITE_MADAR_BUILD?: string;

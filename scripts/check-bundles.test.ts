@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CHART_MARKER, checkBundles, FIRST_LOAD_MAX_BYTES, FIRST_LOAD_MAX_FILES, FIRST_LOAD_MAX_GZIP, LAZY_MARKERS, originsOf, SEED_MARKERS, staticImports, tagsOf, WORD_MARKERS, ZOD_MARKER, type BundleOptions } from './check-bundles.ts';
+import { CHART_MARKER, POSTHOG_MARKERS, checkBundles, FIRST_LOAD_MAX_BYTES, FIRST_LOAD_MAX_FILES, FIRST_LOAD_MAX_GZIP, LAZY_MARKERS, originsOf, SEED_MARKERS, staticImports, tagsOf, WORD_MARKERS, ZOD_MARKER, type BundleOptions } from './check-bundles.ts';
 
 const dirs: string[] = [];
 
@@ -230,7 +230,7 @@ describe('the first-load rules of the remote build (performance audit 2026-10-07
   });
 
   it('fail when the first load holds a marker of code that must stay lazy (FL-11)', () => {
-    expect(LAZY_MARKERS.map((entry) => entry.marker)).toEqual(['[data-new-line]', 'data-vaul-drawer', 'StorageUnknownError']);
+    expect(LAZY_MARKERS.map((entry) => entry.marker)).toEqual(['[data-new-line]', 'data-vaul-drawer', 'StorageUnknownError', '$snapshot_data']);
     for (const { label, marker } of LAZY_MARKERS) {
       const result = checkRemote((files) => { files['assets/bootstrap-b1.js'] += `const m="${marker}";`; });
       expect(result.ok, label).toBe(false);
@@ -361,6 +361,22 @@ describe('the push service worker (owner, 2026-10-08)', () => {
     const result = checkBundles('remote', dist({ 'index.html': remoteIndex, 'assets/index-abc.js': 'console.log(1)' }));
     expect(result.ok).toBe(false);
     expect(result.lines.join('\n')).toContain('sw.js');
+  });
+});
+
+describe('the PostHog code (insight design, section 6)', () => {
+  it('fails a prototype dist that holds the PostHog library or host', () => {
+    for (const marker of POSTHOG_MARKERS) {
+      const result = checkBundles('prototype', dist({ 'index.html': prototypeIndex, 'assets/index-abc.js': `const m="${marker}";` }));
+      expect(result.ok, marker).toBe(false);
+      expect(result.lines.join('\n')).toContain('PostHog');
+    }
+  });
+
+  it('passes a prototype dist with no PostHog code', () => {
+    const result = checkBundles('prototype', dist({ 'index.html': prototypeIndex, 'assets/index-abc.js': 'buildSeed()' }));
+    expect(result.ok).toBe(true);
+    expect(result.lines.join('\n')).toContain('PostHog');
   });
 });
 

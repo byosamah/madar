@@ -17,6 +17,7 @@ import { REMOTE } from './app/mode';
 import { hasStoredSession } from './app/remote/authMode';
 import { startHomeCache } from './app/remote/homeCache';
 import { watchInstall } from './app/remote/install';
+import { startInsight } from './app/insight';
 import { createAppRouter, screensAt } from './app/routes';
 import { PREFETCH_AT_ONCE, prefetchOrder, startIdlePrefetch } from './app/idlePrefetch';
 import { warmAtIdle, warmForAddress } from './app/overlays';
@@ -81,13 +82,14 @@ async function main(): Promise<void> {
   // The last Home lists of this person show at once while the fresh ones load (performance audit 2026-10-21, DF-14). It starts next
   // to the first request, never before it, and the real build only: the prototype stores nothing.
   if (REMOTE) startHomeCache({ queryClient, runtime, build: import.meta.env.VITE_MADAR_BUILD?.trim() || '0' });
+  const router = createAppRouter();
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <RuntimeProvider runtime={runtime} queryClient={queryClient}>
         <MotionConfig reducedMotion="user">
           <ToastProvider>
             <AppearanceSync />
-            <RouterProvider router={createAppRouter()} />
+            <RouterProvider router={router} />
           </ToastProvider>
         </MotionConfig>
       </RuntimeProvider>
@@ -114,6 +116,9 @@ async function main(): Promise<void> {
         );
         // The task panel, Focus mode, the feedback sheet and the sheet of an ended session load in their own chunks (FL-1, FL-4).
         warmAtIdle();
+        // Usage data and errors for the owner (insight design). It starts after the first screen shows its data, so Home stays instant.
+        // It does nothing in the prototype, with no key, or while signed out.
+        startInsight({ queryClient, auth: runtime.auth, router });
       },
     });
   }

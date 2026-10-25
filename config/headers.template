@@ -10,13 +10,15 @@
 # The fixed host https://nominatim.openstreetmap.org in connect-src is the place search of the pin picker (Task 12b, fbk_017).
 # The fixed host https://tiles.openfreemap.org in connect-src is the street map: the tiles and the glyphs (owner, 2026-10-19). It is free,
 # with no account and no key. The satellite tiles come from the own route /satellite (functions/satellite), so no Esri host is here.
+# The fixed host https://eu.i.posthog.com in connect-src is PostHog Cloud EU (Frankfurt): usage data, errors and masked replays for the
+# owner (insight design, 2026-10-25). The library loads no script from it, so script-src and worker-src need no change.
 # 'wasm-unsafe-eval' in script-src lets the Arabic text plugin of the map run its WebAssembly. It allows no eval().
 # style-src keeps 'unsafe-inline', because vaul adds a <style> element. img-src keeps blob: for the pictures of a new upload.
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
   X-Frame-Options: DENY
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {{FILES}}; font-src 'self' data:; connect-src 'self' {{SUPABASE}} {{SUPABASE_WSS}} {{FILES}} https://nominatim.openstreetmap.org https://tiles.openfreemap.org; frame-src {{FILES}}; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {{FILES}}; font-src 'self' data:; connect-src 'self' {{SUPABASE}} {{SUPABASE_WSS}} {{FILES}} https://nominatim.openstreetmap.org https://tiles.openfreemap.org https://eu.i.posthog.com; frame-src {{FILES}}; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
