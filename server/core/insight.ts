@@ -1,4 +1,4 @@
-import { redactText, scrubText } from '../../src/lib/urlScrub';
+import { cutText, redactText, scrubText } from '../../src/lib/urlScrub';
 import { requestHost } from './after';
 import type { LogFields, Logger } from './ports';
 
@@ -38,8 +38,8 @@ const text = (value: unknown): string | undefined => (typeof value === 'string' 
  * (`Key (name)=(Secret)`) is cut out. Then `redactText` hides each quoted part, email and long token. The result is short.
  */
 function exceptionText(message: string, error: string | undefined): string {
-  // The cut comes first, so no pattern reads a huge text.
-  const whole = (error === undefined ? message : `${message} ${error}`).slice(0, MAX_TEXT * 2);
+  // The cut comes first, so no pattern reads a huge text. A cut inside a quote or after =( hides the rest of that span.
+  const whole = cutText(error === undefined ? message : `${message} ${error}`, MAX_TEXT * 2);
   return redactText(scrubText(whole.replace(/=\([^)]*\)/g, '=(...)'))).slice(0, MAX_TEXT);
 }
 

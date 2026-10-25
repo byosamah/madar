@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_SCAN, redactText, scrubText, scrubUrl } from './urlScrub';
+import { cutText, MAX_SCAN, redactText, scrubText, scrubUrl } from './urlScrub';
 
 describe('scrubUrl', () => {
   it('keeps the origin, the path and the tab of a project page', () => {
@@ -118,5 +118,66 @@ describe('the work stays small for a huge text (insight design, fourth security 
     expect(redactText('no user a.b@vado.sa')).toBe('no user <email>');
     expect(redactText('mail abcdefghijklmnopqrstuvwxyz@vado.sa failed')).toBe('mail <email> failed');
     expect(redactText('a lone @ and trailing x@ stay')).toBe('a lone @ and trailing x@ stay');
+  });
+});
+
+describe('a cut that leaves a span open fails closed (insight design, fifth security fix)', () => {
+  const pad = (n: number) => 'word '.repeat(Math.ceil(n / 5)).slice(0, n);
+
+  it('hides a quoted part that the cut falls inside, in redactText and in scrubText', () => {
+    const text = `${pad(MAX_SCAN - 20)}"${'secret '.repeat(10)}`;
+    for (const out of [redactText(text), scrubText(text)]) {
+      expect(out.endsWith('"..."')).toBe(true);
+      expect(out).not.toContain('secret');
+    }
+  });
+
+  it('hides a value after =( that the cut falls inside', () => {
+    const text = `${pad(MAX_SCAN - 12)}=(a.b@vado.sa and more words`;
+    for (const out of [redactText(text), scrubText(text)]) {
+      expect(out.endsWith('=(...)')).toBe(true);
+      expect(out).not.toContain('vado');
+      expect(out).not.toContain('more words');
+    }
+  });
+
+  it('hides a single quoted part that the cut falls inside, but not an apostrophe in a word', () => {
+    const open = `${pad(MAX_SCAN - 15)} 'secret words here and more`;
+    for (const out of [redactText(open), scrubText(open)]) {
+      expect(out.endsWith('"..."')).toBe(true);
+      expect(out).not.toContain('secret');
+    }
+    const apostrophe = `${pad(MAX_SCAN - 15)} it's a plain text that goes on`;
+    expect(cutText(apostrophe, MAX_SCAN)).toBe(apostrophe.slice(0, MAX_SCAN));
+  });
+
+  it('cuts a plain long text with no quote as before', () => {
+    const plain = pad(10_000);
+    expect(cutText(plain, MAX_SCAN)).toBe(plain.slice(0, MAX_SCAN));
+    expect(scrubText(plain)).toBe(plain.slice(0, MAX_SCAN));
+  });
+
+  it('closes a span that is already closed: nothing changes', () => {
+    const closed = `${pad(MAX_SCAN - 30)} "closed" and =(closed) and 'closed'`;
+    expect(cutText(closed, MAX_SCAN + 100)).toBe(closed);
+  });
+
+  it('hides from the earliest open span when two are open', () => {
+    const text = `${pad(100)} =(first ${pad(50)} "second ${pad(50)}`;
+    const out = cutText(text, text.length - 1);
+    expect(out.endsWith('=(...)')).toBe(true);
+    expect(out).not.toContain('first');
+    expect(out).not.toContain('second');
+  });
+
+  it('keeps a text that is not cut as it is, also with an open quote', () => {
+    expect(cutText('say "hello', 100)).toBe('say "hello');
+  });
+
+  it('runs a cut of a huge text with many open marks in under 50 ms', () => {
+    const started = performance.now();
+    cutText('=("\''.repeat(100_000), MAX_SCAN);
+    redactText('=("\''.repeat(100_000));
+    expect(performance.now() - started).toBeLessThan(50);
   });
 });

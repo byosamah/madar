@@ -102,6 +102,19 @@ describe('insightLogger', () => {
     expect((t.bodies()[0]!.properties.$exception_list[0].value as string).length).toBeLessThanOrEqual(600);
   });
 
+  it('hides a quoted part, a value after =( and a single quoted part that the cut falls inside (fifth security fix)', async () => {
+    // The text is 15 + 400 + a long tail. The cut at 1,000 falls inside the tail, and the final value stays under 500.
+    const pad = 'word '.repeat(80);
+    for (const tail of [`"${'secret '.repeat(100)}`, `=(${'a.b@vado.sa '.repeat(60)}`, `'${'secret '.repeat(100)}`]) {
+      const t = setup();
+      t.log.error('A call failed.', { error: pad + tail });
+      await Promise.all(t.kept);
+      const value = t.bodies()[0]!.properties.$exception_list[0].value as string;
+      expect(value, tail).not.toMatch(/secret|vado/);
+      expect(value, tail).toMatch(/("\.\.\."|=\(\.\.\.\))$/);
+    }
+  });
+
   it('keeps the error text short', async () => {
     const t = setup();
     t.log.error('A call failed.', { error: 'x'.repeat(5000) });

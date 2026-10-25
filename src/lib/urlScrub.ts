@@ -36,6 +36,48 @@ function scrubLoose(value: string): string {
 /** The most characters that `scrubText` and `redactText` read. A longer text is cut first, so no caller can hand them a huge text. */
 export const MAX_SCAN = 4000;
 
+/**
+ * Cuts a text to `max` characters. A text that is not longer comes back as it is. When the cut falls inside a span that is still open,
+ * it hides everything from the open mark (fail closed), so no half of a quoted value stays: an open `=(` becomes `=(...)`, an open
+ * `"` becomes `"..."`, and an open `'` that starts a quote (not an apostrophe inside a word) becomes `"..."`. With more than one
+ * open span, the earliest one wins. One pass over the text, so the work stays linear.
+ */
+export function cutText(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const open = openSpan(cut);
+  return open ? cut.slice(0, open.at) + open.mark : cut;
+}
+
+/** The earliest span that the end of the text leaves open, or null. */
+function openSpan(text: string): { at: number; mark: string } | null {
+  let best: { at: number; mark: string } | null = null;
+  const take = (at: number, mark: string) => {
+    if (best === null || at < best.at) best = { at, mark };
+  };
+  // =( with no ) after it: the first one at or after the last ")" minus one.
+  const lastParen = text.lastIndexOf(')');
+  const paren = text.indexOf('=(', Math.max(0, lastParen - 1));
+  if (paren !== -1) take(paren, '=(...)');
+  // Quotes pair from the left, so with an odd count the last " is the open one.
+  let doubles = 0;
+  let singleOpen = -1;
+  let lastDouble = -1;
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i]!;
+    if (char === '"') {
+      doubles += 1;
+      lastDouble = i;
+    } else if (char === "'") {
+      if (singleOpen !== -1) singleOpen = -1;
+      else if (i === 0 || !/[A-Za-z0-9]/.test(text[i - 1]!)) singleOpen = i;
+    }
+  }
+  if (doubles % 2 === 1) take(lastDouble, '"..."');
+  if (singleOpen !== -1) take(singleOpen, '"..."');
+  return best;
+}
+
 const END_MARKS = new Set(['.', ',', ';', ':', '!', '?', ')', ']', '}', "'", '"']);
 
 /** The marks that end a sentence or close a bracket. They stay after a scrubbed address. A plain loop keeps the work linear. */
@@ -50,8 +92,7 @@ function withMark(token: string): string {
  * a `#`. A mark right after an address stays.
  */
 export function scrubText(text: string): string {
-  return text
-    .slice(0, MAX_SCAN)
+  return cutText(text, MAX_SCAN)
     .replace(/https?:\/\/\S+/gi, withMark)
     .replace(/(^|[\s("'])(\/\S*[?#]\S*)/g, (_all, before: string, token: string) => before + withMark(token));
 }
@@ -66,8 +107,7 @@ export function scrubText(text: string): string {
  * a browser message such as "Cannot read properties of undefined (reading 'name')" needs its quoted word.
  */
 export function redactText(text: string): string {
-  return text
-    .slice(0, MAX_SCAN)
+  return cutText(text, MAX_SCAN)
     .replace(/"[^"]*"/g, '"..."')
     .replace(/(^|[^A-Za-z0-9])'[^']*'/g, (_all, before: string) => `${before}"..."`)
     .replace(/\S+/g, (word) => (hasInnerAt(word) ? '<email>' : word))
