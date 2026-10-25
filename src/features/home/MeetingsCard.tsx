@@ -1,4 +1,3 @@
-import { useEffect, useReducer } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { MeetingRow } from '../../api/contract/views';
@@ -11,6 +10,7 @@ import { clockFormat, now, todayISO } from '../../lib/dates';
 import { meetingLink, phaseOf } from '../../lib/meetings';
 import { mainAction } from '../meetings/meetingLinks';
 import { todayMeetingsInput } from '../meetings/readInputs';
+import { useMinuteTick } from '../meetings/useMinuteTick';
 
 /** The most rows the card shows. Every meeting of the day is one press away in "All meetings". */
 const ROWS = 3;
@@ -20,18 +20,14 @@ const ROWS = 3;
  * quiet link to all meetings. It draws nothing while it loads and on a day with no such meeting, so Home keeps its one next step.
  * It reads its own list, so a change of the card never renders the rows of Today again.
  * On a phone (Direction D) a row adds the kind and the project under the title, a chevron, and a secondary Join button from 30 minutes
- * before the start. A timer of 60 s draws the card again, so a phone left open shows the Join button with no pull to refresh.
+ * before the start. A tick of 60 s draws the card again on every screen, so a Home left open drops a meeting that ended, and a phone
+ * shows the Join button with no pull to refresh (review 2026-10-25: before, only a phone had the tick). It stops while the page is hidden.
  */
 export function MeetingsCard() {
   const { t } = useTranslation();
   const lang = useLang();
   const phone = useIsPhone();
-  const [, tick] = useReducer((count: number) => count + 1, 0);
-  useEffect(() => {
-    if (!phone) return;
-    const timer = window.setInterval(tick, 60_000);
-    return () => window.clearInterval(timer);
-  }, [phone]);
+  useMinuteTick(true);
   const list = useCall('meetings.list', todayMeetingsInput(todayISO()));
   const at = now();
   const rows = (list.data ?? []).filter((row) => {

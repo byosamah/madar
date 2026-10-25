@@ -3,7 +3,7 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type Compo
 import type { User } from '../../../api/contract/entities';
 import type { TaskRow } from '../../../api/contract/views';
 import { todayISO } from '../../../lib/dates';
-import type { DragRowsProps } from './DragLayer';
+import type { DragRowsProps, RowGroupOf } from './DragLayer';
 import { loadDragLayer, loadedDragLayer } from './dragLayerLoader';
 import { RowGrip } from './RowGrip';
 import { TaskRowItem } from './TaskRowItem';
@@ -40,16 +40,17 @@ export function restoreFocus(list: HTMLUListElement | null, mark: FocusMark): vo
 
 /**
  * The rows of one list that a person drags into a new order (owner, 2026-10-07). The order belongs to the tasks, so everyone who
- * sees them sees it. A drag never leaves the list and never changes a date: the Tasks screen and Home use one date group, the
- * project task list uses one stage. With one task, with no task of the person, or with `draggable` off, it shows no grip.
+ * sees them sees it. A drag never leaves the list and never changes a date: the Tasks screen uses one date group, the project task
+ * list uses one stage. A list of more than one group (the Today list of Home) gives `groupOf`, and a drop in another group saves
+ * nothing. With one task, with no task of the person, or with `draggable` off, it shows no grip.
  *
  * The drag itself (dnd-kit) is a chunk of its own (performance audit 2026-10-21, FL-2). The list first draws static rows with the
  * same markup, and a list with a grip loads the drag layer (`DragLayer.tsx`) and swaps it in. The swap makes new nodes without an
  * entrance (the layer has its own `AnimatePresence initial={false}`), and the focus goes back to the control that had it. A grip that is
  * pressed before the layer loads does nothing.
  */
-export function SortableTaskRows({ rows, me, onOpen, showProject = false, draggable = true, listClassName }: {
-  rows: TaskRow[]; me: User | undefined; onOpen: Open; showProject?: boolean; draggable?: boolean; listClassName?: string;
+export function SortableTaskRows({ rows, me, onOpen, showProject = false, draggable = true, listClassName, groupOf }: {
+  rows: TaskRow[]; me: User | undefined; onOpen: Open; showProject?: boolean; draggable?: boolean; listClassName?: string; groupOf?: RowGroupOf;
 }) {
   const sortable = draggable && rows.length > 1 && rows.some((row) => row.canMove);
   const [Layer, setLayer] = useState<ComponentType<DragRowsProps> | null>(loadedDragLayer);
@@ -76,7 +77,7 @@ export function SortableTaskRows({ rows, me, onOpen, showProject = false, dragga
   // The clock is read here and given to each row, so a row that did not change keeps its due word until the list renders again.
   const today = todayISO();
   if (Layer) {
-    return <Layer rows={rows} me={me} onOpen={onOpen} showProject={showProject} sortable={sortable} today={today} listClassName={listClassName} listRef={listRef} />;
+    return <Layer rows={rows} me={me} onOpen={onOpen} showProject={showProject} sortable={sortable} today={today} listClassName={listClassName} listRef={listRef} groupOf={groupOf} />;
   }
   return (
     <ul ref={listRef} className={listClassName}>

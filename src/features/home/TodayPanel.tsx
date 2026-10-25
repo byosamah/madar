@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import type { User } from '../../api/contract/entities';
 import type { TaskRow } from '../../api/contract/views';
+import { workGroupOf } from '../../lib/myWork';
 import { warmDragLayer } from '../project/tasks/dragLayerLoader';
 import { SortableTaskRows } from '../project/tasks/SortableTaskRows';
 
@@ -22,8 +23,9 @@ export function TodayPanel({ rows, later = [], me, onOpen }: {
     <section aria-labelledby="today-title" className="panel flex flex-col px-3 pb-2 pt-4">
       <h2 id="today-title" className="px-2 pb-1 text-caption font-semibold uppercase tracking-[0.06em] text-ink-2">{t(coming ? 'home.comingUp' : 'home.today')}</h2>
       {shown.length === 0 && <p className="px-2 py-3 text-subheadline text-ink-2">{t('home.todayClear')}</p>}
+      {/* The list holds two date groups, past due and due today, in the order of lib/home.ts. A new order stays inside one group. */}
       {shown.length > 0 && (
-        <SortableTaskRows rows={shown} me={me} onOpen={onOpen} showProject draggable={!coming} listClassName="hairline" />
+        <SortableTaskRows rows={shown} me={me} onOpen={onOpen} showProject draggable={!coming} listClassName="hairline" groupOf={workGroupOf} />
       )}
       <Link to="/work" className="flex min-h-11 items-center px-2 text-subheadline font-semibold text-link">{t('home.allTasks')}</Link>
     </section>

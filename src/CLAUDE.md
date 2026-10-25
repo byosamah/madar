@@ -508,7 +508,8 @@ The owner sees how the team uses Madar, which errors they hit, and replays of th
 - A date group of the Tasks screen, Home Today and each stage of the project task list take a new order by drag (owner,
   2026-10-07 and 2026-10-08): one component, `SortableTaskRows` (`features/project/tasks/`, `@dnd-kit/sortable`), with a grip at
   the end of each row the person may move, and Space plus the arrow keys on the grip. Coming up on Home has no grips, because its
-  tasks fall on different days. The row content sits in an inner box (`RowDrag`, `TaskRowItem.tsx`), so the drag and the slide of
+  tasks fall on different days. Home Today holds two date groups in one list (past due, then due today), so it gives `groupOf`
+  (`workGroupOf`): a drop in the other group saves nothing and the screen reader hears "cancelled" (review 2026-10-25). The row content sits in an inner box (`RowDrag`, `TaskRowItem.tsx`), so the drag and the slide of
   the row never set one transform.
   dnd-kit is a chunk of its own (performance audit 2026-10-21, FL-2): `SortableTaskRows.tsx` draws static rows (the same `TaskRowItem`
   and `RowGrip`, no listeners) and a list with a grip loads `DragLayer.tsx` (`dragLayerLoader.ts`, the loaded-module pattern) and swaps
@@ -623,7 +624,7 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
   projects" section and no "See what's new" link: `useCall('projects.list', ..., { enabled: !phone })` sends no read. A turn to landscape starts the read and
   shows the section. A push link `/?task=` still opens the sheet. `MeetingsCard` adds a line under the title (`meetings.kind.*`, then the project name), a
   chevron, and a secondary Join link (`<a target="_blank">`; it shows from 30 minutes before the start, or while the meeting is on, for an https place only,
-  `mainAction` in `meetingLinks.ts`; the word is `phoneToday.joinLabel`). A 60-second timer redraws the card on a phone. `PushAskCard` shows a 20 px bell
+  `mainAction` in `meetingLinks.ts`; the word is `phoneToday.joinLabel`). A 60-second tick (`useMinuteTick`) redraws the card on every screen, so a desk Home drops a meeting that ended (review 2026-10-25). `PushAskCard` shows a 20 px bell
   (`BellIcon`, `text-ink-2`) before the ask line on a phone only; the iPhone steps card and the Android install card have none. Home selectors in tests are
   `[data-screen] > .grid`, not `main .grid`, because the phone top row has its own grid.
 - Project page on a phone: five tabs, `PHONE_TABS` = Overview, To-dos, Tracker, Files & Links, More (words `phoneproject.*`). Activity, Schedule and Team are pages
@@ -641,7 +642,9 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
   in `ImageViewer`. A PDF opens a sheet with a real `<a target="_blank">` made after the signed link loads (the Arabic word is «افتح الملف», because
   `src/i18n/arabic.test.ts` refuses Latin letters).
 - Task panel on a phone (`features/project/tasks/`): `TaskBody` in `TaskSheet.tsx` draws `PhoneBody`; on a desk it draws `DeskBody` with the same markup as before.
-  Both read one hook, `useTaskPanel.ts`, which holds all state, actions, the save at close and the lead, helper and dates logic. The Sheet gets `tall` and
+  Both read one hook, `useTaskPanel.ts`, which holds all state, actions, the save at close and the lead, helper and dates logic. The title and the
+  description each take a new saved value on their own, and a field that holds typing that is not saved keeps it (review 2026-10-25,
+  `TaskSheetTyping.test.tsx`): one effect for both put back the other field when a save came back. The Sheet gets `tall` and
   `phoneHeader={<PhoneHeader/>}`: the project link (`ProjectTile` 22 and the name) or the word Office, beside the Focus pill and the X. `PhoneBody` order:
   `TitleBlock` (a tap edits, blur or Enter saves, Escape restores), `StateLine`, the office note, `NextStep`, `Tabs variant="pill"` (thumb `layoutId`
   `task-section-thumb`), then `PhoneDetails` or the docked `CommentThread`. `nextStep(data, viewerCan, makerId)` in `nextStep.ts` picks one of nine kinds, in

@@ -68,6 +68,26 @@ describe('the Meetings card on Home', () => {
     expect(await within(await screen.findByRole('region', { name: 'Meetings today' })).findByText('On now')).toBeInTheDocument();
   });
 
+  // The one-minute tick runs on a desk too (review 2026-10-25): a Home left open dropped no meeting that had ended.
+  it('drops a meeting that ends while a desk Home stays open', async () => {
+    const ticks: Array<() => void> = [];
+    const real = window.setInterval.bind(window);
+    vi.spyOn(window, 'setInterval').mockImplementation(((fn: () => void, ms?: number) => {
+      if (ms === 60_000) ticks.push(fn);
+      return real(fn, ms);
+    }) as typeof window.setInterval);
+    phoneMedia(false);
+    await renderApp('/', (state) => {
+      as('usr_002')(state);
+      today(state, 'mtg_001', '08:30', '09:30', { title: 'On now' });
+    });
+    expect(await within(await screen.findByRole('region', { name: 'Meetings today' })).findByText('On now')).toBeInTheDocument();
+    setNow(new Date('2026-09-30T09:31:00.000+03:00'));
+    act(() => { ticks.forEach((tick) => tick()); });
+    expect(screen.queryByRole('region', { name: 'Meetings today' })).toBeNull();
+    vi.restoreAllMocks();
+  });
+
   it('shows three rows at most', async () => {
     await renderApp('/', (state) => {
       as('usr_002')(state);

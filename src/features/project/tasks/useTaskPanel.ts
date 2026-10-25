@@ -110,12 +110,27 @@ export function useTaskPanel({ detail, data, onClose, noteFirst }: TaskPanelProp
   // The title and the description that went to the server and did not come back yet, so a close does not send them twice.
   const sent = useRef<{ title?: string; description?: string }>({});
   const checklistDraft = useRef<ChecklistDraft>({ text: '', items: task.checklist });
+  // Each field takes a new saved value on its own, so the answer of a title save never puts back the description that the person
+  // types now, and the reverse. A field that holds typing that is not saved keeps it, also when another person changes the task
+  // (review 2026-10-25). Typing is a value that is neither the last saved value of the field nor the value that went to the server.
+  const savedText = useRef({ title: task.title, description: task.description });
   useEffect(() => {
-    setTitle(task.title);
+    const typing = title !== savedText.current.title && title.trim() !== sent.current.title;
+    savedText.current.title = task.title;
+    delete sent.current.title;
+    if (!typing) setTitle(task.title);
+    // The effect follows the saved title only; the typed title is the value of this render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.title]);
+  useEffect(() => {
+    const typing = description !== savedText.current.description && description !== sent.current.description;
+    savedText.current.description = task.description;
+    delete sent.current.description;
+    if (typing) return;
     setDescription(task.description);
     setUnsaved(false);
-    sent.current = {};
-  }, [task.title, task.description]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.description]);
 
   const patch = (changes: Patch) => {
     if (changes.title !== undefined) sent.current.title = changes.title;

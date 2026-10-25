@@ -50,17 +50,22 @@ const SortableRow = memo(function SortableRow({ row, me, onOpen, still, sortable
   );
 });
 
+/** The group of a row in a list that holds more than one group (the Today list of Home: past due, then due today). */
+export type RowGroupOf = (row: TaskRow, today: string) => string;
+
 export type DragRowsProps = {
   rows: TaskRow[]; me: User | undefined; onOpen: Open; showProject: boolean; sortable: boolean; today: string; listClassName?: string; listRef: Ref<HTMLUListElement>;
+  groupOf?: RowGroupOf;
 };
 
 /**
  * The rows of one list that a person drags into a new order (owner, 2026-10-07). The order belongs to the tasks, so everyone who
- * sees them sees it. A drag never leaves the list and never changes a date: the Tasks screen and Home use one date group, the
- * project task list uses one stage. The new order shows at once and stays until the answer of the server comes back with the new
- * places.
+ * sees them sees it. A drag never leaves the list and never changes a date: the Tasks screen uses one date group, the project task
+ * list uses one stage. The Today list of Home holds two date groups, so it gives `groupOf`, and a drop in another group saves
+ * nothing: the order lives inside one group (review 2026-10-25). The new order shows at once and stays until the answer of the
+ * server comes back with the new places.
  */
-export function DragRows({ rows, me, onOpen, showProject, sortable, today, listClassName, listRef }: DragRowsProps) {
+export function DragRows({ rows, me, onOpen, showProject, sortable, today, listClassName, listRef, groupOf }: DragRowsProps) {
   const { t } = useTranslation();
   const arrange = useUndoable('tasks.arrange', { message: () => t('work.arrange.saved') });
   const [order, setOrder] = useState<{ key: string; ids: string[] } | null>(null);
@@ -92,9 +97,13 @@ export function DragRows({ rows, me, onOpen, showProject, sortable, today, listC
     droppedAt.current = Date.now();
     settle.current = window.setTimeout(() => setStill(false), 400);
   };
+  const groupAt = (taskId: UniqueIdentifier) => {
+    const row = byId.get(String(taskId));
+    return row && groupOf ? groupOf(row, today) : '';
+  };
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     stop();
-    if (!over || active.id === over.id) return;
+    if (!over || active.id === over.id || groupAt(active.id) !== groupAt(over.id)) return;
     const next = arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)));
     setOrder({ key, ids: next });
     const movable = next.filter((taskId) => byId.get(taskId)?.canMove);
@@ -106,7 +115,7 @@ export function DragRows({ rows, me, onOpen, showProject, sortable, today, listC
   const announcements: Announcements = {
     onDragStart: ({ active }) => t('work.arrange.pickedUp', { title: titleOf(active.id), ...place(active.id) }),
     onDragOver: ({ active, over }) => (over ? t('work.arrange.over', { title: titleOf(active.id), ...place(over.id) }) : undefined),
-    onDragEnd: ({ active, over }) => (over
+    onDragEnd: ({ active, over }) => (over && groupAt(active.id) === groupAt(over.id)
       ? t('work.arrange.dropped', { title: titleOf(active.id), ...place(over.id) })
       : t('tasks.dnd.cancelled', { title: titleOf(active.id) })),
     onDragCancel: ({ active }) => t('tasks.dnd.cancelled', { title: titleOf(active.id) }),
