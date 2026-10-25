@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import type { PaymentRow } from '../../../api/contract/views';
 import { useLang } from '../../../app/lang';
+import { PRIVATE } from '../../../app/privateMark';
 import { useCall } from '../../../app/runtime';
 import { useRight } from '../../../app/useRight';
 import { Button } from '../../../components/Button';
@@ -59,7 +60,7 @@ export function PaymentsPanel({ projectId }: { projectId: string }) {
         <div className="min-w-0">
           <h2 id="overview-payments" className={HEADING}>{t('payments.title')}</h2>
           {rows.length > 0 && (
-            <p className="tabular pt-1 text-footnote text-ink-2">{t('payments.summary', { received: amountText(t, lang, received), total: amountText(t, lang, total) })}</p>
+            <p className={`${PRIVATE} tabular pt-1 text-footnote text-ink-2`}>{t('payments.summary', { received: amountText(t, lang, received), total: amountText(t, lang, total) })}</p>
           )}
         </div>
         {mayAdd && (
@@ -87,7 +88,7 @@ export function PaymentsPanel({ projectId }: { projectId: string }) {
                   <span className="tabular block text-footnote text-ink-2">{t('payments.due', { date: formatDay(row.payment.dueDate, lang) })}</span>
                 </span>
                 <span className="flex shrink-0 flex-col items-end gap-0.5">
-                  <span className="tabular text-subheadline font-semibold text-ink">{amountText(t, lang, row.payment.amount)}</span>
+                  <span className={`${PRIVATE} tabular text-subheadline font-semibold text-ink`}>{amountText(t, lang, row.payment.amount)}</span>
                   <PaymentSign row={row} />
                 </span>
               </button>

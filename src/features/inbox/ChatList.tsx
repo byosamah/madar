@@ -12,6 +12,7 @@ import { ProjectTile } from '../../components/ProjectTile';
 import { normalizeForSearch } from '../../lib/text';
 import { isFinePointer } from '../../lib/calendar';
 import { usePersonName } from '../../app/personName';
+import { PRIVATE } from '../../app/privateMark';
 import { usePersistentChoice } from '../../app/choices';
 import { useStableHandler } from '../../app/useStableHandler';
 import { useTypers } from '../../app/live/typing';
@@ -139,7 +140,7 @@ const ChatRowItem = memo(function ChatRowItem({ row, selected, swipe, noMenu, sh
   const preview = (
     <>
       {reasonText === null && showBy && <bdi className="shrink-0">{by}:</bdi>}
-      <bdi dir="auto" className="min-w-0 truncate">{reasonText ?? row.preview}</bdi>
+      <bdi dir="auto" className={`${PRIVATE} min-w-0 truncate`}>{reasonText ?? row.preview}</bdi>
     </>
   );
   // A swipe on a phone must not also open the chat.

@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import type { ReplyRef } from '../../api/contract/views';
 import { usePersonName } from '../../app/personName';
+import { PRIVATE } from '../../app/privateMark';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { CornerUpLeftIcon } from '../../components/icons/animated/corner-up-left';
 import { XIcon } from '../../components/icons/animated/x';
@@ -28,7 +29,7 @@ export function ComposerReplyStrip({ replyTo, onCancel }: { replyTo: ReplyRef; o
       <AnimatedIcon icon={CornerUpLeftIcon} size={16} className="shrink-0 text-ink-2 rtl:-scale-x-100" aria-hidden />
       <div className="flex min-w-0 flex-1 flex-col">
         <bdi className="truncate text-footnote font-medium text-ink">{t('chat.replyTo', { name: nameOf(replyTo.author) })}</bdi>
-        <span dir="auto" className="truncate text-footnote text-ink-2">{replyTo.firstLine}</span>
+        <span dir="auto" className={`${PRIVATE} truncate text-footnote text-ink-2`}>{replyTo.firstLine}</span>
       </div>
       <button
         type="button"
@@ -58,7 +59,7 @@ export function BubbleReplyQuote({ replyTo }: { replyTo: ReplyRef }) {
   const words = (
     <>
       <bdi className="truncate text-footnote font-medium text-ink">{nameOf(replyTo.author)}</bdi>
-      <span dir="auto" className="truncate text-footnote text-ink-2">{replyTo.firstLine}</span>
+      <span dir="auto" className={`${PRIVATE} truncate text-footnote text-ink-2`}>{replyTo.firstLine}</span>
     </>
   );
   if (!actions) return <div className={look}>{words}</div>;

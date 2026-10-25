@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router';
 import type { CallOutput } from '../../api/calls';
 import { useLang } from '../../app/lang';
 import { usePersonName } from '../../app/personName';
+import { PRIVATE } from '../../app/privateMark';
 import { Avatar } from '../../components/Avatar';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-check';
@@ -68,7 +69,7 @@ export function MessageHits({ hits, words }: { hits: CallOutput<'search.query'>[
               </span>
               <span className="line-clamp-2 text-footnote text-label-2">
                 <bdi className="me-1 font-semibold text-ink">{by}:</bdi>
-                <span dir="auto" className="natural-side">
+                <span dir="auto" className={`${PRIVATE} natural-side`}>
                   {markedParts(hit.line, words).map((part, index) =>
                     part.marked ? <mark key={index} className="rounded-sm bg-fill-strong text-ink">{part.text}</mark> : part.text)}
                 </span>

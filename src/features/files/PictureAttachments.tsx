@@ -2,6 +2,7 @@ import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Attachment } from '../../api/contract/views';
 import { downloadFile, isRemote, useFileLink, usePictureTest } from '../../app/files';
+import { PRIVATE } from '../../app/privateMark';
 import { useRuntime } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { useNearView } from '../../app/useNearView';
@@ -77,7 +78,7 @@ function PictureTile({ file, shape, onOpen, onBroken, tiles }: {
               SHAPES.set(file.id, next);
               setRatio(next);
             }}
-            className="size-full object-cover"
+            className={`${PRIVATE} size-full object-cover`}
           />
         )}
       </button>

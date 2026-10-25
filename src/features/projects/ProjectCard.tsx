@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { ProjectSummary } from '../../api/contract/views';
 import { useFileLink } from '../../app/files';
 import { useLang } from '../../app/lang';
+import { PRIVATE } from '../../app/privateMark';
 import { MarkForm } from '../../components/ProjectTile';
 import { spring } from '../../design/motion';
 import { formatDay } from '../../lib/dates';
@@ -15,7 +16,7 @@ export function ProjectCover({ summary, className = 'aspect-video', layoutId }: 
   const cover = useFileLink(summary.project.coverFileId, summary.coverLetter ?? undefined, 'thumb');
   const label = t('projects.cover', { name: summary.project.name });
   const inner = cover.url
-    ? <img src={cover.url} alt={label} onError={cover.onError} className={`w-full object-cover ${className}`} />
+    ? <img src={cover.url} alt={label} onError={cover.onError} className={`${PRIVATE} w-full object-cover ${className}`} />
     : (
       <div role="img" aria-label={label} data-project-mark={markOf(summary.project)} style={{ background: markGlow(summary.project.id, markOf(summary.project)) }} className={`relative w-full ${className}`}>
         <MarkForm mark={markOf(summary.project)} className="absolute inset-0 m-auto h-[34%] w-auto" />

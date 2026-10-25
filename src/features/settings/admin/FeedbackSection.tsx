@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import { useUndoable } from '../../../app/actions';
 import { useScreenshotLink } from '../../../app/files';
 import { usePersonName } from '../../../app/personName';
+import { PRIVATE } from '../../../app/privateMark';
 import { useAction, useCall } from '../../../app/runtime';
 import { useIsPhone } from '../../../app/useIsPhone';
 import { Age } from '../../../components/Age';
@@ -38,7 +39,7 @@ function Screenshot({ id, index }: { id: string; index: number }) {
     thumb = (
       <button type="button" aria-haspopup="dialog" onClick={() => setOpen(true)} className="pressable rounded-xl">
         {/* A thumbnail loads only near the view: the list keeps done reports too, and each one is a full-size picture. */}
-        <img src={url} alt={name} onError={onError} loading="lazy" decoding="async" className="size-20 rounded-xl object-cover ring-1 ring-inset ring-ink/10" />
+        <img src={url} alt={name} onError={onError} loading="lazy" decoding="async" className={`${PRIVATE} size-20 rounded-xl object-cover ring-1 ring-inset ring-ink/10`} />
       </button>
     );
   }
@@ -48,7 +49,7 @@ function Screenshot({ id, index }: { id: string; index: number }) {
       <Sheet open={open} onOpenChange={setOpen} title={name} wide>
         {/* Broken comes first, as in the thumbnail: a failed new sign keeps the old dead link in the query (review, 2026-10-07). */}
         {broken ? <p className="text-subheadline text-label-2">{t('feedback.screenshotFailed', { n })}</p> : url && (
-          <a href={url} target="_blank" rel="noopener noreferrer" aria-label={t('feedback.openFull', { n })} className="pressable block cursor-zoom-in">
+          <a href={url} target="_blank" rel="noopener noreferrer" aria-label={t('feedback.openFull', { n })} className={`${PRIVATE} pressable block cursor-zoom-in`}>
             <img src={url} alt="" onError={onError} className="mx-auto block max-h-[calc(100dvh-12rem)] w-auto max-w-full rounded-2xl object-contain ring-1 ring-inset ring-ink/10" />
           </a>
         )}

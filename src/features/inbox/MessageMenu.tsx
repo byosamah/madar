@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { REACTIONS } from '../../api/contract/limits';
 import { useLang } from '../../app/lang';
+import { PRIVATE } from '../../app/privateMark';
 import { usePersonName } from '../../app/personName';
 import { useToast } from '../../app/toasts';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
@@ -201,7 +202,7 @@ export function MessageSheet({ bubble, open, onOpenChange }: { bubble: Bubble; o
           }}
         />
       )}
-      <Sheet open={open && picker === 'off'} onOpenChange={onOpenChange} title={`${who} · ${clockFormat(lang).format(new Date(bubble.createdAt))}`} description={`\u2068${firstLineOf(bubble.body)}\u2069`}>
+      <Sheet open={open && picker === 'off'} onOpenChange={onOpenChange} title={`${who} · ${clockFormat(lang).format(new Date(bubble.createdAt))}`} description={`\u2068${firstLineOf(bubble.body)}\u2069`} descriptionPrivate>
         <div className="flex flex-col gap-2">
           {actions.canReact && (
             <div role="group" aria-label={t('chat.reactions')} className="flex gap-2 pb-1">

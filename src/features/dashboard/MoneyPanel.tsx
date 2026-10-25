@@ -5,6 +5,7 @@ import { useLang } from '../../app/lang';
 import { formatDay } from '../../lib/dates';
 import { counted } from '../../lib/grammar';
 import { projectKey } from '../../lib/projectCode';
+import { PRIVATE } from '../../app/privateMark';
 import { amountText } from '../project/payments/PaymentsPanel';
 import type { DashboardData } from './Tiles';
 
@@ -22,7 +23,7 @@ function MoneyRow({ label, rows, late }: { label: string; rows: Money['pastDue']
     <li className="flex flex-col py-2">
       <p id={id} className="flex flex-wrap items-baseline justify-between gap-x-3 py-1">
         <span className="text-subheadline font-semibold text-ink">{label}</span>
-        <span className={`tabular text-subheadline ${late && rows.count > 0 ? 'font-semibold text-attn' : 'text-ink-2'}`}>{summary}</span>
+        <span className={`${PRIVATE} tabular text-subheadline ${late && rows.count > 0 ? 'font-semibold text-attn' : 'text-ink-2'}`}>{summary}</span>
       </p>
       {rows.count > 0 && (
         <ul aria-labelledby={id} className="flex flex-col">
@@ -35,7 +36,7 @@ function MoneyRow({ label, rows, late }: { label: string; rows: Money['pastDue']
                     <bdi>{projectKey(payment.projectCode)}</bdi> · {t('payments.due', { date: formatDay(payment.dueDate, lang) })}
                   </span>
                 </span>
-                <span className="tabular shrink-0 text-subheadline text-ink">{amountText(t, lang, payment.amount)}</span>
+                <span className={`${PRIVATE} tabular shrink-0 text-subheadline text-ink`}>{amountText(t, lang, payment.amount)}</span>
               </Link>
             </li>
           ))}

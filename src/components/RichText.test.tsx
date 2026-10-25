@@ -34,3 +34,10 @@ describe('the everyone words in rich text (fbk_041)', () => {
     expect(container.querySelectorAll('span.text-link')).toHaveLength(0);
   });
 });
+
+describe('the private mark (insight design, section 5)', () => {
+  it('puts the mark on the root, so a replay and a click record leave the written text out', () => {
+    const { container } = render(<MemoryRouter><RichText body="A private line" /></MemoryRouter>);
+    expect(container.firstElementChild).toHaveClass('ph-no-capture');
+  });
+});

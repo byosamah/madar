@@ -1,5 +1,6 @@
 import { Fragment } from 'react';
 import { Link } from 'react-router';
+import { PRIVATE } from '../app/privateMark';
 import { segmentsOf } from '../lib/text';
 
 /** True when the address is outside Madar. An address that does not parse counts as outside. */
@@ -36,7 +37,7 @@ function WebAddress({ url }: { url: string }) {
  */
 export function RichText({ body, className = '', everyone = false }: { body: string; className?: string; everyone?: boolean }) {
   return (
-    <p dir="auto" className={`whitespace-pre-line break-words ${className}`}>
+    <p dir="auto" className={`${PRIVATE} whitespace-pre-line break-words ${className}`}>
       {segmentsOf(body, { everyone }).map((segment, i) => {
         if (segment.kind === 'text') return <Fragment key={i}>{segment.text}</Fragment>;
         if (segment.kind === 'everyone') return <span key={i} className="font-semibold text-link">{segment.word}</span>;

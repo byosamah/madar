@@ -10,6 +10,7 @@ import { newStoryId, useUndoable } from '../../../app/actions';
 import { downloadFile, isRemote, tooLargeText, uploadErrorMessage, useFileLimit, useFileLink, usePictureTest } from '../../../app/files';
 import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
+import { PRIVATE } from '../../../app/privateMark';
 import { useCall, useRuntime } from '../../../app/runtime';
 import { useIsPhone } from '../../../app/useIsPhone';
 import { useNearView } from '../../../app/useNearView';
@@ -71,7 +72,7 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
   const identity = (
     <>
       <span ref={image ? thumbBox : undefined} className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-fill text-label-2">
-        {thumb.url ? <img src={thumb.url} alt="" onError={thumb.onError} loading="lazy" decoding="async" className="size-full object-cover" /> : <AnimatedIcon icon={FileTextIcon} size={20} aria-hidden />}
+        {thumb.url ? <img src={thumb.url} alt="" onError={thumb.onError} loading="lazy" decoding="async" className={`${PRIVATE} size-full object-cover`} /> : <AnimatedIcon icon={FileTextIcon} size={20} aria-hidden />}
       </span>
       <div className="min-w-0 flex-1">
         <p className="flex min-w-0 items-center gap-2">

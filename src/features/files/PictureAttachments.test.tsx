@@ -58,6 +58,8 @@ describe('the files of a message or a comment (owner, 2026-10-19)', () => {
     const preview = await screen.findByRole('button', { name: 'View Site photo.jpg' });
     await waitFor(() => expect(preview.querySelector('img')).toHaveAttribute('src', 'https://store.test/thumb-fil_001-1'));
     const img = preview.querySelector('img') as HTMLImageElement;
+    // A file picture holds client work and its signed link: the replay shows a gray box (insight design, section 5).
+    expect(img).toHaveClass('ph-no-capture');
     // Row pictures load and decode only near the view (src/CLAUDE.md).
     expect(img).toHaveAttribute('loading', 'lazy');
     expect(img).toHaveAttribute('decoding', 'async');

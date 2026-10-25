@@ -5,6 +5,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, type ReactNode,
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Drawer } from 'vaul';
+import { PRIVATE } from '../app/privateMark';
 import { usePanelOpen } from '../app/panelOpen';
 import { isToastPress, useSheetToasts } from '../app/toasts';
 import { useIsPhone } from '../app/useIsPhone';
@@ -15,6 +16,8 @@ type SheetProps = {
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: string;
+  /** The description holds the words of a message: the replay and the click records leave it out (insight design, section 5). */
+  descriptionPrivate?: boolean;
   blocking?: boolean;
   wide?: boolean;
   /** On a desk the sheet fills the screen, 12 px from each edge. A work area such as the template editor uses it. A phone is unchanged. */
@@ -38,6 +41,7 @@ const CLOSE_MS = 500;
 
 const TITLE = 'text-section text-ink [text-wrap:balance]';
 const DESCRIPTION = 'text-footnote text-label-2';
+const descriptionClass = (isPrivate: boolean | undefined) => (isPrivate ? `${DESCRIPTION} ${PRIVATE}` : DESCRIPTION);
 /** A field a person types or picks in: the first one takes the focus when a sheet opens. */
 const FIELD = 'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([disabled]), textarea:not([disabled]), select:not([disabled])';
 
@@ -165,7 +169,7 @@ function Frame({ heading, onClose, headerAction, footer, children }: { heading: 
  * readers, so a person can keep working on the page next to it (spec 5.4). Vaul always runs its dialog as modal, so this
  * panel does not use it (audit 2026-10-03, SHL-2). Escape closes it; the focus goes back to where it was before it opened.
  */
-function SidePanel({ open, onOpenChange, title, description, wide = false, full = false, footer, headerAction, children }: SheetProps) {
+function SidePanel({ open, onOpenChange, title, description, descriptionPrivate, wide = false, full = false, footer, headerAction, children }: SheetProps) {
   const id = useId();
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef(onOpenChange);
@@ -204,7 +208,7 @@ function SidePanel({ open, onOpenChange, title, description, wide = false, full 
             heading={(
               <>
                 <h2 id={`${id}-title`} className={TITLE}>{title}</h2>
-                {description && <p id={`${id}-description`} className={DESCRIPTION}>{description}</p>}
+                {description && <p id={`${id}-description`} className={descriptionClass(descriptionPrivate)}>{description}</p>}
               </>
             )}
             onClose={() => onOpenChange(false)}
@@ -225,7 +229,7 @@ function SidePanel({ open, onOpenChange, title, description, wide = false, full 
  * A blocking sheet dims the page and holds the focus. A non-blocking panel (the task panel) leaves the page usable.
  */
 export function Sheet(props: SheetProps) {
-  const { open, onOpenChange, title, description, blocking = true, wide = false, full = false, footer, headerAction, keepOnOutsidePress = false, tall = false, phoneHeader, onClosed, children } = props;
+  const { open, onOpenChange, title, description, descriptionPrivate, blocking = true, wide = false, full = false, footer, headerAction, keepOnOutsidePress = false, tall = false, phoneHeader, onClosed, children } = props;
   const phone = useIsPhone();
   const direction = phone ? 'bottom' : isRtl() ? 'left' : 'right'; // rtl-ok: Vaul names the screen edge
   const modal = phone || blocking;
@@ -294,7 +298,7 @@ export function Sheet(props: SheetProps) {
               <>
                 <Drawer.Title data-sheet-title tabIndex={-1} className={phone && phoneHeader ? 'sr-only' : `${TITLE} outline-none`}>{title}</Drawer.Title>
                 {phone && phoneHeader}
-                {description && <Drawer.Description className={DESCRIPTION}>{description}</Drawer.Description>}
+                {description && <Drawer.Description className={descriptionClass(descriptionPrivate)}>{description}</Drawer.Description>}
               </>
             )}
             onClose={() => onOpenChange(false)}

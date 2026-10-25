@@ -2,6 +2,7 @@ import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Drawer } from 'vaul';
 import { usePanelOpen } from '../app/panelOpen';
+import { PRIVATE } from '../app/privateMark';
 import { isToastPress, useSheetToasts } from '../app/toasts';
 import { AnimatedIcon } from './icons/AnimatedIcon';
 import { ChevronLeftIcon } from './icons/animated/chevron-left';
@@ -153,7 +154,7 @@ export function ImageViewer({ open, onClose, name, src, placeholder = null, fail
               className={`absolute inset-0 ${zoom.animating ? 'transition-transform duration-150 motion-reduce:transition-none' : ''} ${zoom.zoomed ? 'will-change-transform' : ''}`}
             >
             {placeholder && (
-              <img ref={small} src={placeholder} alt="" draggable={false} onError={onPlaceholderError} className="pointer-events-none absolute inset-0 size-full object-contain sm:inset-6 sm:size-[calc(100%-3rem)]" />
+              <img ref={small} src={placeholder} alt="" draggable={false} onError={onPlaceholderError} className={`${PRIVATE} pointer-events-none absolute inset-0 size-full object-contain sm:inset-6 sm:size-[calc(100%-3rem)]`} />
             )}
             {src && (
               <img
@@ -164,7 +165,7 @@ export function ImageViewer({ open, onClose, name, src, placeholder = null, fail
                 draggable={false}
                 onError={onError}
                 onLoad={() => setShown(src)}
-                className={`pointer-events-none absolute inset-0 size-full object-contain transition-opacity duration-200 motion-reduce:transition-none sm:inset-6 sm:size-[calc(100%-3rem)] ${shown === src ? 'opacity-100' : 'opacity-0'}`}
+                className={`${PRIVATE} pointer-events-none absolute inset-0 size-full object-contain transition-opacity duration-200 motion-reduce:transition-none sm:inset-6 sm:size-[calc(100%-3rem)] ${shown === src ? 'opacity-100' : 'opacity-0'}`}
               />
             )}
             </div>

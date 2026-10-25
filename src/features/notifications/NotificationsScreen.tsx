@@ -7,6 +7,7 @@ import { Link } from 'react-router';
 import type { CallOutput } from '../../api/calls';
 import { useUndoable } from '../../app/actions';
 import { useLang } from '../../app/lang';
+import { PRIVATE } from '../../app/privateMark';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { useIsPhone } from '../../app/useIsPhone';
@@ -81,7 +82,7 @@ const InboxItem = memo(function InboxItem({ view }: { view: NoticeView }) {
         ? <Avatar user={face} size={36} />
         : <span className="grid size-9 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><AnimatedIcon icon={BellIcon} size={16} aria-hidden /></span>}
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className={`text-subheadline ${n.read ? 'text-ink-2' : 'font-medium text-ink'}`}>
+        <span className={`${PRIVATE} text-subheadline ${n.read ? 'text-ink-2' : 'font-medium text-ink'}`}>
           {!n.read && <span className="sr-only">{t('inbox.unread')}: </span>}
           {sentence}
         </span>

@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import type { TaskRow, TrackerRow } from '../../../api/contract/views';
 import { useLang } from '../../../app/lang';
+import { PRIVATE } from '../../../app/privateMark';
 import { useIsPhone } from '../../../app/useIsPhone';
 import { usePersonName } from '../../../app/personName';
 import { useCall } from '../../../app/runtime';
@@ -173,7 +174,7 @@ function Attention({ projectId, rows, tracker, onOpen, seesPayments }: { project
                   <button type="button" onClick={() => toPayment(row.payment.id)} className="pressable flex min-h-11 w-full items-center gap-3 rounded-xl px-2 py-1.5 text-start transition-colors hover:bg-fill/50">
                     <span className="min-w-0 flex-1">
                       <bdi className="block truncate text-subheadline font-medium text-ink">{row.payment.name}</bdi>
-                      <span className="tabular block text-footnote text-ink-2">{amountText(t, lang, row.payment.amount)}</span>
+                      <span className={`${PRIVATE} tabular block text-footnote text-ink-2`}>{amountText(t, lang, row.payment.amount)}</span>
                     </span>
                     {word.tone === 'attn'
                       ? <StatusSign state="late">{dueText(word, t, lang, row.payment.dueDate)}</StatusSign>

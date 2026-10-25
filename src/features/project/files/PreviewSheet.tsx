@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { useIsPhone } from '../../../app/useIsPhone';
 import type { FileView } from '../../../api/contract/views';
 import { downloadFile, isRemote, useFileLink, useFileUrl, usePictureTest } from '../../../app/files';
+import { PRIVATE } from '../../../app/privateMark';
 import { useRuntime } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
@@ -73,7 +74,7 @@ function PhonePdf({ views, index, onIndex, onClose }: PreviewProps) {
             href={link.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="pressable signature inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 text-subheadline font-semibold"
+            className={`${PRIVATE} pressable signature inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 text-subheadline font-semibold`}
           >
             {t('phoneProject.files.openPdf')}
           </a>
@@ -129,8 +130,8 @@ function DeskPreview({ views, index, onIndex, onClose }: PreviewProps) {
         <Button onClick={download}>{t('files.download')}</Button>
       </div>
     );
-  } else if (url && picture) body = <img src={url} alt={view.file.name} className="w-full rounded-2xl bg-white" />;
-  else if (url) body = <iframe src={url} title={view.file.name} className="h-[70dvh] w-full rounded-2xl bg-white" />;
+  } else if (url && picture) body = <img src={url} alt={view.file.name} className={`${PRIVATE} w-full rounded-2xl bg-white`} />;
+  else if (url) body = <iframe src={url} title={view.file.name} className={`${PRIVATE} h-[70dvh] w-full rounded-2xl bg-white`} />;
   const footer = views.length > 1 ? <Steps views={views} index={index} onIndex={onIndex} /> : undefined;
   return (
     <Sheet open onOpenChange={(open) => { if (!open) onClose(); }} title={view.file.name} wide footer={footer}>
