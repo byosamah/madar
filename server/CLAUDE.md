@@ -64,6 +64,13 @@ The other host stays deployed as the way back. Each area below has its own guide
   transactions, and a nested one is refused. `apiApp` turns the join on only with the real `runCall` and the real office read; a
   test that replaces either passes `joinFirst` itself. The office object (`office/batch.ts`) has its own batch and no join.
 
+## Errors to PostHog (insight design, owner 2026-10-25)
+- `server/core/insight.ts`: `insightLogger` wraps the console logger when `POSTHOG_KEY` is set (`loggerOf` in `deps.ts`, from `Config.posthogKey`). Each `error` line
+  also posts one `$exception` record to `https://eu.i.posthog.com/i/v0/e/` through `requestHost().after`, so the answer never waits. A failed send is dropped
+  and never retried. At most `SERVER_SENDS_PER_MINUTE` (60) records go out in a minute. Only `name`, `error`, `personId` and `agentId` of a line go out, never an input.
+  The error text is cut, scrubbed (`scrubText`) and redacted (`redactText`: quoted parts, emails, long tokens). It sends no database write, so the outbox rule does not apply.
+- `runCall` adds `personId` and `agentId` to the line "A call failed.". With no key, nothing changes. The office object logger (exit wave 4) is not wired.
+
 ## Calls
 - `core/serverCallMap.ts` holds every call the server runs: the shared calls of `src/api/sharedCalls.ts` plus the server calls.
 - 14 server-only calls (`calls/index.ts`): `story.start`, `files.uploadStart`, `files.link`, `feedback.uploadStart`,

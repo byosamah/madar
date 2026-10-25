@@ -130,6 +130,31 @@ any screen work.
   `beforeinstallprompt` event (Android only, so a computer keeps the install icon of Chrome) and stops the bar of Chrome; `main.tsx`
   starts it before the first screen. The tap calls `promptInstall` first. Chrome gives the event once, so any answer ends the card.
 
+## Insight (PostHog, owner 2026-10-25)
+The owner sees how the team uses Madar, which errors they hit, and replays of the screen. Design: `docs/superpowers/specs/2026-10-25-madar-posthog-insight-design.md`.
+- Two modules in `app/insight/`. `index.ts` is in the first load and holds no PostHog code: `startInsight` (called in the idle step of
+  `startIdlePrefetch` in `main.tsx`) and the forwarders `reportError`, `noteSlow` and `noteSheet` (they live in `notes.ts`, which imports nothing
+  big, so `RouteError`, `bootstrap.ts` and the sheets import it with no import cycle). `client.ts` is a lazy chunk. Only `client.ts` imports `posthog-js`
+  (`posthog-js/dist/module.full.no-external`, with the replay recorder, the web vitals and the error capture inside; exact version in `package.json`).
+- The start rule: the real build only (`index.ts` folds `import.meta.env.VITE_MADAR_API === 'remote'` itself, so the prototype holds no PostHog code and no
+  chunk), the public key `VITE_POSTHOG_KEY` in `config/remote.<env>.env` (optional: with none, nothing starts), a signed-in person, and an address behind
+  the gate (`screensAt(path, true).gated`). A sign-out stops it (`stop()` drops every record, stops the recorder, resets the ids); the next sign-in starts it
+  for the new person (the same PostHog instance, `init` runs once). A failed import stays quiet and never reloads the page. `check-bundles.ts` fails when
+  `$snapshot_data` reaches the first load, or `$snapshot_data` / `eu.i.posthog.com` reaches the prototype.
+- `posthogOptions` (`client.ts`) holds the privacy rules; `client.test.ts` pins them: ids in `sessionStorage` (no lasting id), `person_profiles: 'identified_only'`
+  (Madar never calls `identify`), clicks only for autocapture, no network timing, no console, masked inputs, no referrer and no campaign values saved.
+  `before_send` runs `scrubEvent` (`scrub.ts`), adds `env` and `build`, and adds `personId` and `personName` to a `$exception` record only. The scrub walks every
+  nested value, cleans every string with `scrubText`, and fails closed (a record it cannot read is dropped). `src/lib/urlScrub.ts` keeps the pure parts, shared with the server.
+- The private class: `PRIVATE` (`app/privateMark.ts`, `ph-no-capture`) hides a part from the replay (a gray box) and from the click records. It sits on the smallest element
+  that holds a chat message (`RichText`, the Inbox row preview, the reply quote and strip, the Search message hit, the `MessageSheet` description through
+  `Sheet descriptionPrivate`, the notice sentence), an amount of money, and a file picture or link. `app/privateMark.test.ts` is a source test: a new file that
+  calls `useFileLink`, `useScreenshotLink`, `useFileUrl` or `amountText` without `PRIVATE` fails it. Put the class on a new place of the same kind.
+- Signals: `watch.ts` (`$pageview` with the `screen` name and the project `tab`; refusals with a reason, failed calls with the person, a plain Error as an exception),
+  `useSheetSteps(name, open)` (`open`, `save`, `close_unsaved` of the seven main sheets; `sheetWiring.test.ts`), `onSlow` of `RemoteApi` (2 s or more).
+  A new main sheet adds its name to `SheetName` and calls `useSheetSteps`.
+- No proxy through the Pages Functions (the replay packets could use the 100,000 requests a day of the free plan). The CSP names only
+  `https://eu.i.posthog.com` in `connect-src`. The team sees one line in Settings (`UsageDataSection`) and in the Me hub (`UsageDataNote`), and one What's new entry.
+
 ## The project pin and the map (owner, 2026-10-18, fbk_017; the free map since 2026-10-19)
 - `src/features/map/`: `MapCanvas.tsx` is the one MapLibre wrapper, `PinPicker.tsx` the one field of the pin, `PinSheet.tsx` the sheet
   around it (Cancel and "Use this place"), `ProjectPin.tsx` the pin of a project, `mapStyle.ts` the Madar style.

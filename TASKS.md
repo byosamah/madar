@@ -1101,6 +1101,17 @@ Design `docs/superpowers/specs/2026-10-22-madar-phone-d-design.md` (+ `-areas.md
   lazyOverlay, the screens, Menu. It came with f08094b5 (the Menu sheet on a phone). Builds are not affected; `--mode test` works.
 - [ ] Later: the project To-dos View button and the Work View toggle look different (pill with words vs round icon); make them one look.
 
+## Insight with PostHog (owner, 2026-10-25: "go ahead"; branch `rb/posthog`)
+
+Design: `docs/superpowers/specs/2026-10-25-madar-posthog-insight-design.md`. Plan: `docs/superpowers/plans/2026-10-25-madar-posthog-insight-plan.md`.
+
+- [x] Built (Tasks 1 to 7): the scrub, the private class, the lazy client, the signals, the server sender, the Settings line, the privacy page, What's new `2026-10-23-102`
+- [ ] Owner: make the PostHog account in the EU region (no card); add `POSTHOG_KEY` to `.env.local`; Claude copies it to `config/remote.*.env` (`VITE_POSTHOG_KEY`) and `secrets/*.env`
+- [ ] Owner: in PostHog turn on "Record user sessions" and "Exception autocapture", "Discard client IP data", and the replay minimum duration of 5 s
+- [ ] Test copy check: a replay shows stars for typed text and gray boxes for a chat message, an amount and a file picture; one forced screen error and one forced server error arrive with the person
+- [ ] Speed check on the test copy: Home and the Inbox as fast as before (desktop Chrome and iPhone Safari); screenshots of the Settings and Me line (EN/AR, light/dark, 390 px)
+- [ ] Connect the PostHog MCP server to Claude (personal API key in `.env.local` as `POSTHOG_PERSONAL_KEY`)
+
 ## fbk_056 and fbk_057 (owner, 2026-10-25: "plan and build both, don't stop until you finish")
 
 Plan: `docs/superpowers/plans/2026-10-25-madar-inbox-line-agent-projects-plan.md`. Voice notes (fbk_054) dropped by the owner.
