@@ -6,7 +6,8 @@ server checks the final object, then saves the record.
 ## Stores
 - Supabase Storage first: the private bucket `madar-files`, 50 MB for each file, 1 GB in total (`supabaseStorage.ts`).
 - R2 behind the S3 interface (`r2.ts`): 250 MB for each file, 10 GB in total. `MADAR_FILE_STORE=r2` switches to it. The
-  owner decided the switch on 2026-10-16 (the test copy first, then production). R2 is not on yet: the owner turns it on.
+  owner decided the switch on 2026-10-16 (the test copy first, then production). R2 is on for both copies since 2026-10-16
+  (production at ae63498, health `"fileStore":"r2"`; proof.md "Files to R2 on production"). Supabase Storage keeps the old files only.
 - The buckets: `madar-files-test` (test copy) and `madar-files` (production), both in the EU jurisdiction, path style on
   `https://<account>.eu.r2.cloudflarestorage.com`. A bucket made without the EU jurisdiction breaks every link, and the
   jurisdiction cannot change later. `scripts/deploy/secrets.ts` refuses the bucket of the other copy.
