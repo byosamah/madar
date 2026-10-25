@@ -2495,3 +2495,25 @@ Not proven: a real iPhone. After the deploy, wait 11 minutes on an iPhone, press
   asyncContext ok; /mcp with no token 401). The live English words of both copies hold "unread messages are in other chats" and
   "AI creates projects and clients"; the production page title is Madar and `/favicon.ico` answers 200. The deploy suite did not run:
   the change has no new call and no migration, and the in-process MCP tests cover the tool lists of each role.
+
+### Release record: production at 4df7db3d (2026-10-25, four team reports, the PostHog insight and three to-do fixes)
+- On the owner's "take the filter too and go production" (2026-10-25), Claude ran `all.sh test` and then `echo production | scripts/deploy/all.sh
+  production`, which took 4df7db3d at 15:28 (Riyadh) on the first try. One release for three sessions, by the owner's choice: madar-6a (lead),
+  madar-52 (`rb/posthog`) and madar-4e (`rb/task-fixes`, cherry-picked on the owner's word).
+- Team reports (plan `docs/superpowers/plans/2026-10-25-madar-team-reports-2-plan.md`): fbk_052 Ctrl+Z on an Arabic keyboard, Undo toasts stay 8 s,
+  a swipe on a notice shows Undo; fbk_055 the Open space "Show more / Show less" with 5 steps, a sub-company column, deadline and checklist cards,
+  the refit on resize, a zoom up to 1.6 on a wide screen, and the phone fixes found by the 390 px check (one screen high, the first view fills the
+  box, short Detail words); fbk_058 the morning summary only on the office work days; fbk_059 the project chat as a docked sidebar in Focus mode
+  with a switch to the to-do thread and a compact box (the owner's three changes during the join). What's new 103 to 106.
+- PostHog insight (design `docs/superpowers/specs/2026-10-25-madar-posthog-insight-design.md`): usage, errors and masked replays; What's new 102
+  stays first. The test copy check of madar-52 passed on 3b40b13c after two fixes: 4d07d7bb (connect-src gains `https://eu-assets.i.posthog.com`
+  for the project settings) and 89ce45c7 (the harmless "ResizeObserver loop" warning stays out of the error list). Production carries both.
+- To-do fixes of madar-4e: the title and the description of the task panel save on their own, a drop across groups saves nothing, the meetings
+  card clock ticks on every screen; What's new 107.
+- Gates of 4df7db3d (npm test and the smoke on 4df7db3d; the database suites on 80b5d585: the later commits 4d07d7bb to 4df7db3d touch
+  screens, the deploy header rules and guides only, no server code): typecheck; npm test 11,395 passed, 6 skipped (963 files); prototype smoke 135 of 135; `build:server`;
+  `build:remote -- test` (first load 293,042 B gzip, 25 files); test:db 3,192 (27 skipped); test:lite 3,192; test:it 333; test:office 40; test:mcp
+  372, conformance normal. Screenshots in the session scratchpad (`shots`, `shots2`, `shots3`).
+- Live checks: the quick checks passed (health from supabase, `fileStore` r2, 150 calls; database, lock and asyncContext ok; /mcp with no token
+  401); the production page title is Madar, `/favicon.ico` 200, the served policy holds `eu-assets.i.posthog.com`, and the live English words hold
+  "Which chat", "Show more", "Undo stays longer", "Morning summary on office days", "Madar records errors and usage" and "Fixes for to-dos and Home".

@@ -82,4 +82,5 @@ What's new, the docs and your replies to the owner in Arabic. The audit of 2026-
 
 ## Tests
 - `keys.test.ts`, `i18n.test.ts` and `arabic.test.ts` check the keys, the placeholders, the Arabic script and the plural forms.
+- Latin text in an Arabic word (a key name such as `Ctrl+Z`) goes into `ALLOWED` of `arabic.test.ts` as a whole name, never as one letter.
 - Mail words have snapshot tests in `server/mail/templates/`. Update a snapshot only when the change is on purpose.

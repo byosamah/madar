@@ -1106,10 +1106,14 @@ Design `docs/superpowers/specs/2026-10-22-madar-phone-d-design.md` (+ `-areas.md
 Design: `docs/superpowers/specs/2026-10-25-madar-posthog-insight-design.md`. Plan: `docs/superpowers/plans/2026-10-25-madar-posthog-insight-plan.md`.
 
 - [x] Built (Tasks 1 to 7): the scrub, the private class, the lazy client, the signals, the server sender, the Settings line, the privacy page, What's new `2026-10-23-102`
-- [ ] Owner: make the PostHog account in the EU region (no card); add `POSTHOG_KEY` to `.env.local`; Claude copies it to `config/remote.*.env` (`VITE_POSTHOG_KEY`) and `secrets/*.env`
+- [x] Owner: make the PostHog account in the EU region (no card); the keys are in `config/remote.*.env` (`VITE_POSTHOG_KEY`) and `secrets/*.env` (`POSTHOG_KEY`)
 - [ ] Owner: in PostHog turn on "Record user sessions" and "Exception autocapture", "Discard client IP data", and the replay minimum duration of 5 s
-- [ ] Test copy check: a replay shows stars for typed text and gray boxes for a chat message, an amount and a file picture; one forced screen error and one forced server error arrive with the person
-- [ ] Speed check on the test copy: Home and the Inbox as fast as before (desktop Chrome and iPhone Safari); screenshots of the Settings and Me line (EN/AR, light/dark, 390 px)
+- [x] Test copy check (madar-52, passed on 3b40b13c): replays with hatched chat bubbles, previews, amounts and file pictures; the test error arrives with the person; clean addresses. Fixes on the way: 4d07d7bb (connect-src `eu-assets.i.posthog.com`) and 89ce45c7 (the ResizeObserver loop warning stays out)
+- [x] Screenshots of the Settings and Me line (EN/AR, light/dark, 390 px)
+- [x] Production at 4df7db3d (2026-10-25 15:28), with the four team reports and the to-do fixes
+- [ ] Speed check: Home and the Inbox as fast as before (desktop Chrome and iPhone Safari)
+- [ ] The office object logger (`server/office/parts.ts`) is not wired to PostHog
+- [ ] Later, by the owner, one feature at a time: the PostHog dashboards and the decisions to hide a feature
 - [ ] Connect the PostHog MCP server to Claude (personal API key in `.env.local` as `POSTHOG_PERSONAL_KEY`)
 
 ## fbk_056 and fbk_057 (owner, 2026-10-25: "plan and build both, don't stop until you finish")
@@ -1132,5 +1136,7 @@ Plan: `docs/superpowers/plans/2026-10-25-madar-team-reports-2-plan.md`.
 - [x] Track D1 (`rb/undo-summary`): Ctrl+Z on an Arabic keyboard, Undo toasts 8 s, the swipe Undo on a notice; the summary on office work days only
 - [x] Track D2 (`rb/space-levels`): the Open space "Show more / Show less" with 5 steps, the sub-company column, deadlines and checklists, the refit
 - [x] Track D3 (`rb/focus-chat`): the Project chat panel in Focus mode, closed at first, the device remembers
-- [ ] Join, What's new 2026-10-23-103 to -106, gates once, screenshots
-- [ ] Test copy, then the owner's word for production, release record, mark the four reports done
+- [x] Join, What's new 2026-10-23-103 to -106, gates once, screenshots; the owner's changes during the join: the docked Focus sidebar, its compact box, the switch to the to-do thread; the phone fixes of the Open space
+- [x] One release with `rb/posthog` and madar-4e's three to-do fixes (owner's choice): test copy, then production at 4df7db3d (2026-10-25 15:28), release record
+- [ ] Mark fbk_052, fbk_055, fbk_058 and fbk_059 done in Madar
+- [ ] Found 2026-10-25 (propose to the owner): in the Focus sidebar (384 px) the message bubbles are narrow, so the text wraps after a few words

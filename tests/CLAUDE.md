@@ -15,6 +15,8 @@ the config, the heartbeat of one run stays and the next run fails.
 - `npm run smoke` (the heavy lock of the root guide, then `playwright test`; `playwright.config.ts`, port 4173). All must pass at each screen merge (135 of 135 on 2026-10-25).
   It runs `npm run build` first, so it rewrites `dist/` (about 8 minutes in all). Never serve `dist/` for screenshots
   while it runs.
+- A Playwright swipe on a row that is a link: a mouse drag starts the browser's link drag, so play touch events
+  (CDP `Input.dispatchTouchEvent`; the notices swipe of fbk_052, 2026-10-25).
 - The sample office follows the real date. An assertion on Home or on due dates must hold on any day: the Home panel is
   "Today" or "Coming up" (`acceptance.spec.ts`, 2026-10-12).
 - Prototype data for screenshots: edit IndexedDB `madar`, store `data`, key `state`, then reload (for example a due date 157 days back).
