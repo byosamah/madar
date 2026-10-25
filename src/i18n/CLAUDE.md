@@ -19,6 +19,9 @@ speaker, so write it as natural Arabic, not as a word-for-word copy of the Engli
   Repeat and Until, the line "Repeats every week", the scope question, the toasts and the refusals `until_before_start`, `until_too_far` and `series_day_one_only`.
   `adminreach` holds the words of "What reaches me" (owner, 2026-10-23): the Settings section, the bell lines of a copy for an Admin
   (`adminReach.copy.*`, with `_female` forms), the plural `adminReach.others`, and the What's new entry `2026-10-23-69`.
+  `space2` holds the words of the Open space levels (fbk_055, 2026-10-25): the Detail control (`space.detail`, `space.more`, `space.less`, the five
+  `space.level*` names), the sentence `space.introDetail`, the deadline and checklist cards (`space.deadline`, `space.itemDone`, `space.itemOpen`, the
+  plural `space.moreItems` with all six Arabic forms). The "No sub-company" card reuses `subCompanies.none`.
   `fbk050` holds the words of "Download all" (`zip.*`: the button, "Preparing n of N...", the failed-file and too-large toasts) and the What's new entry `2026-10-23-97` sits in `whatsnew`.
   `batchd4` holds the words of internal projects and the Team tab block (fbk_044): `project.internal`, `project.hiddenMark`, `projectForm.kind*`, `projectAccess.*`,
   `feed.project.access_changed`, and the reasons `internal_project` and `code_prefix_taken`.

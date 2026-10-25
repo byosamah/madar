@@ -72,6 +72,9 @@ const LEVEL_GAP = 340;
 /**
  * The height of each kind of card, in pixels, as the browser draws it (PRJ-07, 2026-10-19). A row is as tall as its card plus ROW_AIR,
  * so a card never covers the next one. A project card holds a name, a sign, the stage and the summary line, so it is the tallest.
+ * The values of "subcompany", "deadline", "check" and "more" (fbk_055, 2026-10-25) come from the padding and the line heights of the
+ * card, as the stage card and the to-do card do (24 + 20 + 18 = 62, 24 + 18 + 6 + 26 = 74). A browser has not measured them yet:
+ * measure each one again (offsetHeight), and change the value here when it differs.
  */
 export const CARD_HEIGHT = { office: 60, subcompany: 78, project: 133, stage: 62, task: 74, deadline: 58, check: 42, more: 42 } as const;
 export const ROW_AIR = 16;

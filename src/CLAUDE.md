@@ -379,10 +379,29 @@ any screen work.
   new project starts with the only sub-company, or the one of the last project of the same client, until the person taps.
 - The Dashboard filter, the Projects filter, the task lists, the meeting and the Open space read `subCompany` in the link (`useScope`,
   `app/useScope.ts`, names it in a subtitle). The Projects filter has "No sub-company" (`filter=no_sub_company`, a data gap).
-- Open space (`features/space/`): one project open at a time, and the view follows the open (fitView with `nodes`). A person in focus
-  opens every project and stage where the person works (`focusPlan`). A task card opens the task panel over the map (`?task=&project=`).
-  `CARD_HEIGHT` in `spaceTree.ts` is the measured height of each card kind (offsetHeight in a browser): measure again after a card change.
-  The first view fits the office and 4 projects (a phone: 3 projects, no office). The name stays "Open space" (the team's own word).
+- Open space (`features/space/`): the "Detail" control (Show less, the name of the step, Show more) opens one level for the whole map
+  (fbk_055, 2026-10-25). Steps: Sub-companies (only with a sub-company column), Projects (the start), Stages, To-dos and deadlines, Checklists.
+  `openedForLevel` (`spaceTree.ts`) gives the ids that a step opens (plus what a person in focus opens). A tap on a card adds or removes
+  one id (`Taps` in the screen: `extra` and `closed`), and a step change, a focus change and Overview clear the taps. At the Projects step one
+  project opens alone (an accordion); from the Stages step a tap closes only that project. A person in focus opens every project and stage
+  where the person works (`focusPlan`). A task card opens the task panel over the map (`?task=&project=`).
+- Open space cards: office, sub-company, project, stage, to-do, deadline, checklist item, and one "more" card. The sub-company column sits
+  between the office and the projects when `subCompanies.list` has a sub-company and the link does not filter one (`subCompany`); a project with
+  none goes under "No sub-company" (`NO_SUB_ID`), and a sub-company with no open project has no card. A column is the depth of the tree, so
+  no card moves when a level opens (the Arabic map mirrors the columns). A deadline ("milestone", `deadlines.list` with the filters of the
+  map) sits beside the to-dos of its stage in date order, or under the project when it has no stage. A checklist item ("sub-task") shows for an
+  open to-do only, at most `CHECK_CAP` (12) for one to-do, then one "+N more" card that opens the to-do panel. A deadline of a project that
+  is not in `projects.list` never gets a card (the leak test is in `OpenSpaceScreen.test.tsx`). A deadline has no done mark, so all show.
+- Open space fit: the first view shows the office and as many rows as the map box shows at the zoom of the window, and at least three cards
+  of the step (four projects when the box is not measured yet). A `ResizeObserver` on the map box fits again to the last target after 150 ms
+  with no change (a change under 10 percent keeps the view; a pan never fits again; a phone turn takes the same path, with `duration: 0`).
+  `maxZoomFor` gives the ceiling of a fit: 1 up to a 1400 px window, then up to 1.6 at 2200 px. The floors stay 0.7 (0.45 on a phone, which
+  fits the new level alone, three cards). The map uses `onlyRenderVisibleElements` and gives each node `initialWidth` and `initialHeight`;
+  every fit passes `includeHiddenNodes: true`, so a card that is not drawn yet still counts in the fit. The data of a card keeps its object
+  while its fields stay the same, and the toggle never changes, so a tap redraws only the cards that changed. The sample office copied 5 times
+  (about 970 cards at the To-dos step) lays out in under 3 ms.
+  `CARD_HEIGHT` in `spaceTree.ts` is the height of each card kind (offsetHeight in a browser): the four kinds of fbk_055 come from the line heights,
+  so measure them in a browser and change them there. The name stays "Open space" (the team's own word).
 - `AvatarStack`: one hidden person shows as a picture, never as "+1". "+N" names the hidden people on hover and in `aria-label`.
 
 ## Routes and shell
