@@ -1100,3 +1100,15 @@ Design `docs/superpowers/specs/2026-10-22-madar-phone-d-design.md` (+ `-areas.md
   `src/components/Menu.tsx`). In dev, `vite.config.ts` points `./screenLoaders` at `screenLoaders.static.ts`, which makes the cycle Menu,
   lazyOverlay, the screens, Menu. It came with f08094b5 (the Menu sheet on a phone). Builds are not affected; `--mode test` works.
 - [ ] Later: the project To-dos View button and the Work View toggle look different (pill with words vs round icon); make them one look.
+
+## fbk_056 and fbk_057 (owner, 2026-10-25: "plan and build both, don't stop until you finish")
+
+Plan: `docs/superpowers/plans/2026-10-25-madar-inbox-line-agent-projects-plan.md`. Voice notes (fbk_054) dropped by the owner.
+
+- [ ] Track A, the Inbox line (`rb/inbox-line`): one line under a filtered list with the unread messages of the other kinds, and "Show all"
+- [ ] Track B, projects from the AI agent (`rb/agent-projects`): switch `ai.projectSetup` (Admin only), 4 tools, lean lists, words, tests
+- [ ] Join: both branches on main, What's new 2026-10-23-100 and -101, the R2 line of `server/files/CLAUDE.md`
+- [ ] Gates once: typecheck, npm test, builds, test:db, test:it, test:mcp, prototype smoke
+- [ ] Screenshots: the Inbox line (EN/AR, light/dark, 390 px and desk), the role sheet switch
+- [ ] Test copy (`all.sh test`), then production, push, release record
+- [ ] Mark fbk_056 and fbk_057 done in Madar
