@@ -8,7 +8,13 @@ import { XIcon } from '../../components/icons/animated/x';
  * screen, so its one control is a Back button (its label is "Back to focus"). Otherwise it is a side panel with a Close button.
  * The pane then has no Back link to the Inbox, no menu, no Search, no typing line, and nothing in it leaves the screen.
  */
-export type EmbeddedChat = { page: boolean; label: string; onClose: () => void };
+export type EmbeddedChat = {
+  page: boolean;
+  label: string;
+  onClose: () => void;
+  /** A row under the head, before the messages: the switch between the project chat and the to-do thread (owner, 2026-10-25). */
+  below?: ReactNode;
+};
 
 const ROUND = 'pressable grid size-11 shrink-0 place-items-center rounded-full text-ink-2 hover:text-ink';
 
@@ -17,8 +23,9 @@ const ROUND = 'pressable grid size-11 shrink-0 place-items-center rounded-full t
  * the heading cuts at its end, as in the Inbox. A pane that still loads has no title: the head then holds the control only.
  */
 export function EmbeddedHeader({ embedded, lead, title }: { embedded: EmbeddedChat; lead: ReactNode; title: string }) {
-  const { page, label, onClose } = embedded;
+  const { page, label, onClose, below } = embedded;
   return (
+    <>
     <header className={`flex shrink-0 items-center gap-2 border-b border-hairline px-2 ${page ? 'h-[calc(56px+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)]' : 'h-14'}`}>
       {page && (
         <button type="button" aria-label={label} onClick={onClose} className={ROUND}>
@@ -33,5 +40,7 @@ export function EmbeddedHeader({ embedded, lead, title }: { embedded: EmbeddedCh
         </button>
       )}
     </header>
+    {below}
+    </>
   );
 }

@@ -121,7 +121,7 @@ function FocusPage({ data, onExit, chat }: { data: TaskDetail; onExit: (done?: b
             className="pressable ms-auto inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full bg-fill px-4 text-subheadline font-semibold text-ink hover:bg-fill-strong"
           >
             <AnimatedIcon icon={MessageCircleIcon} size={18} aria-hidden />
-            {chat.target.kind === 'task' ? t('chat.taskThread') : t('project.chat')}
+            {chat.choices.some((option) => option.kind === 'chat') ? t('project.chat') : t('chat.taskThread')}
           </button>
         )}
       </div>
@@ -203,7 +203,7 @@ export function FocusMode() {
           className={`fixed inset-0 z-[35] overflow-y-auto bg-[linear-gradient(180deg,var(--c-page-top),var(--c-page-bottom))] ${chat.panel ? 'lg:pe-[24rem]' : ''}`}
         >
           <FocusPage data={task.data} onExit={close} chat={chat} />
-          {chat.target && (chat.panel || chat.page) && <chatPane.Overlay target={chat.target} page={chat.page} onClose={chat.close} />}
+          {chat.target && (chat.panel || chat.page) && <chatPane.Overlay target={chat.target} choices={chat.choices} onPick={chat.pick} page={chat.page} onClose={chat.close} />}
         </motion.div>
       )}
     </AnimatePresence>,

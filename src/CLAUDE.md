@@ -478,7 +478,7 @@ The owner sees how the team uses Madar, which errors they hit, and replays of th
   It shows only when `projects.get` gives a `chatId` (null without `chat.project`). A press opens the chat from 1024 px (`useIsWide`,
   `features/focus/focusChat.ts`) as a docked sidebar `aside[data-focus-chat]` on the end edge (`fixed inset-y-0 end-0 w-[24rem]`, a hairline on its start side, no card look; owner 2026-10-25); the dialog gets
   `lg:pe-[24rem]` and the page keeps its place in the tree, so the timer never starts again (never wrap `FocusPage` in a new parent). The device
-  keeps the choice (`madar.focus.chat`, `open` or `closed`, first value `closed`); a remembered `open` counts only from 1024 px. Under 1024 px
+  keeps the choice (`madar.focus.chat`, `open` or `closed`, first value `closed`); a remembered `open` counts only from 1024 px. A project to-do has two chats, the project chat and its own thread: a two-part switch under the head of the sidebar (`EmbeddedChat.below`) picks one, and the device keeps the pick (`madar.focus.chatKind`, `chat` or `task`); an office to-do and a person who may not open the project chat get the thread only (owner, 2026-10-25). Under 1024 px
   the press opens a full page over Focus (`PhoneChatPage` with `layer="z-[36]"` and `inertWhileSheet={false}`: Focus sets `data-panel-open`, which
   would make the page dead) with "Back to focus" (`focus.backToFocus`, track `focuschat`); the choice stays as it was, and the Focus column is
   `inert` under the page. The chat code is the lazy chunk `FocusChatPane.tsx` (`lazyOverlay`, warmed at pointer or focus on the button; never import

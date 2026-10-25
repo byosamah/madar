@@ -73,9 +73,10 @@ describe('the project chat button in Focus mode', () => {
     expect(window.localStorage.getItem(CHOICE_KEY)).toBeNull();
   });
 
-  it('shows no button to a person who may not open the project chat, and no leak of the chat', async () => {
+  // The owner, 2026-10-25: "allow to switch to the task chat too". A person who may not open the project chat still has the to-do thread.
+  it('gives a person who may not open the project chat only the to-do thread, and no leak of the project chat', async () => {
     wide();
-    const { focus, api } = await openFocus({
+    const { focus, api, store } = await openFocus({
       prepare: (state) => {
         state.settings.roles = { off: { member: ['chat.project.team'] } };
       },
@@ -84,7 +85,13 @@ describe('the project chat button in Focus mode', () => {
     await within(focus).findByRole('heading', { level: 1, name: 'Civil Defense drawings' });
     await settle();
     expect(within(focus).queryByRole('button', { name: 'Project chat' })).toBeNull();
-    expect(calls(spy, 'chats.messages')).toHaveLength(0);
+    await userEvent.click(await within(focus).findByRole('button', { name: 'To-do thread' }));
+    const panel = await screen.findByRole('complementary', { name: 'To-do thread' });
+    await settle();
+    expect(within(panel).queryByRole('radiogroup')).toBeNull();
+    expect(within(panel).queryByText(WALL)).toBeNull();
+    const room = roomOf(store.state).id;
+    expect(calls(spy, 'chats.messages').some(([, input]) => (input as { conversationId?: string })?.conversationId === room)).toBe(false);
   });
 
   it('sends no chat request and no read mark while the panel is closed, and the chat stays unread', async () => {
@@ -131,6 +138,35 @@ describe('the panel on a wide window (1024 px or more)', () => {
     expect(await within(panel).findByText('I will send it today.')).toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'Focus' })).toBeInTheDocument();
     expect(window.location.hash).toContain('focus=tsk_012');
+  });
+
+  // The owner, 2026-10-25: "allow to switch to the task chat too in focus mode". A project to-do has two chats: the project chat and its
+  // own thread. A two-part switch at the top of the sidebar picks one, and the device keeps the pick. The shown chat alone reads and marks.
+  it('switches the sidebar between the project chat and the to-do thread, and the device keeps the pick', async () => {
+    wide();
+    const { focus, unmount } = await openFocus({
+      prepare: (state) => {
+        state.comments.cmt_902 = {
+          id: 'cmt_902', targetType: 'task', targetId: 'tsk_012', authorId: 'usr_002', body: 'Use the new stair widths.',
+          reactions: { '👍': [], '✅': [], '👀': [] }, createdAt: '2026-09-30T07:00:00.000+03:00', editedAt: null,
+        };
+      },
+    });
+    await userEvent.click(await projectChatButton(focus));
+    const panel = await panelOf();
+    const choice = within(panel).getByRole('radiogroup', { name: 'Which chat' });
+    expect(within(choice).getByRole('radio', { name: 'Project chat' })).toBeChecked();
+    expect(await within(panel).findByText(WALL)).toBeInTheDocument();
+    await userEvent.click(within(choice).getByRole('radio', { name: 'To-do thread' }));
+    const thread = await screen.findByRole('complementary', { name: 'To-do thread' });
+    expect(await within(thread).findByText('Use the new stair widths.')).toBeInTheDocument();
+    expect(within(thread).queryByText(WALL)).toBeNull();
+    expect(window.localStorage.getItem('madar.focus.chatKind')).toBe('task');
+    unmount();
+    const again = await openFocus();
+    const kept = await screen.findByRole('complementary', { name: 'To-do thread' });
+    expect(within(kept).getByRole('radio', { name: 'To-do thread' })).toBeChecked();
+    expect(within(again.focus).getByRole('button', { name: 'Project chat' })).toBeInTheDocument();
   });
 
   // The owner, 2026-10-25 ("make this part better"): in the narrow sidebar the full hint took three lines and "Send" a wide button.
@@ -374,6 +410,14 @@ describe('an office to-do', () => {
       reactions: { '👍': [], '✅': [], '👀': [] }, createdAt: '2026-09-30T07:00:00.000+03:00', editedAt: null,
     };
   };
+
+  it('has no switch for an office to-do: its thread is its only chat', async () => {
+    wide();
+    const { focus } = await openFocus({ url: '/work?focus=tsk_900', prepare: OFFICE });
+    await userEvent.click(await within(focus).findByRole('button', { name: 'To-do thread' }));
+    const panel = await screen.findByRole('complementary', { name: 'To-do thread' });
+    expect(within(panel).queryByRole('radiogroup')).toBeNull();
+  });
 
   it('says "To-do thread", shows the comments in the panel and posts a comment', async () => {
     wide();

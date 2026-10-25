@@ -1,5 +1,6 @@
 {
   "focus": {
-    "backToFocus": "Back to focus"
+    "backToFocus": "Back to focus",
+    "chatKind": "Which chat"
   }
 }
