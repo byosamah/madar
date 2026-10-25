@@ -11,7 +11,7 @@ type Words = { roleRights: { sections: Record<string, string>; scopes: Record<st
 const words = (tree: object) => (tree as unknown as Words).roleRights;
 const EM_DASH = String.fromCharCode(0x2014);
 
-describe('the words of the role sheet (117 switches, 88 powers, 13 sections)', () => {
+describe('the words of the role sheet (118 switches, 89 powers, 13 sections)', () => {
   it('has the English label and hint of each power word for word from the catalog', () => {
     for (const section of json.sections) {
       expect(words(en).sections[section.key]).toBe(section.en);
@@ -46,7 +46,7 @@ describe('the words of the role sheet (117 switches, 88 powers, 13 sections)', (
     const r = words(en);
     expect(r.aiWhat).toBe('What it is: an AI app, such as Claude or ChatGPT, that connects to Madar and works for one person.');
     expect(r.aiRule).toBe('The rule: an assistant never does more than its person may do. These switches only take more away from the assistants of this role.');
-    expect(r.aiNever).toBe('An assistant can never: create or delete projects, upload or open files, change people, roles, teams, clients, templates or settings, delete to-dos, edit or delete messages, or send requests and bugs.');
+    expect(r.aiNever).toBe('An assistant can never: delete projects, upload or open files, change people, roles, teams, templates or settings, change or delete clients, delete to-dos, edit or delete messages, or send requests and bugs. It creates projects and clients only with the switch "AI creates projects and clients".');
   });
 
   it('has the same sheet words in both languages, and no em-dash in any of them', () => {

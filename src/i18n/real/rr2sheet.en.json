@@ -9,7 +9,7 @@
     "leaderWarning": "A person who makes a project leads it.",
     "aiWhat": "What it is: an AI app, such as Claude or ChatGPT, that connects to Madar and works for one person.",
     "aiRule": "The rule: an assistant never does more than its person may do. These switches only take more away from the assistants of this role.",
-    "aiNever": "An assistant can never: create or delete projects, upload or open files, change people, roles, teams, clients, templates or settings, delete to-dos, edit or delete messages, or send requests and bugs.",
+    "aiNever": "An assistant can never: delete projects, upload or open files, change people, roles, teams, templates or settings, change or delete clients, delete to-dos, edit or delete messages, or send requests and bugs. It creates projects and clients only with the switch \"AI creates projects and clients\".",
     "line": {
       "standard": "{{name}}: the standard rights.",
       "plus": "{{name}}: standard rights, plus {{more}}.",
@@ -342,6 +342,10 @@
       "aiProjects": {
         "label": "AI changes projects",
         "hint": "Change project details and status, stage dates and deadlines."
+      },
+      "aiProjectSetup": {
+        "label": "AI creates projects and clients",
+        "hint": "Create projects and clients, and read the client and template lists. The person also needs \"Create projects\" and \"Add clients\"."
       },
       "aiPayments": {
         "label": "AI handles payments",

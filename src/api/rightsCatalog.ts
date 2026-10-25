@@ -1,5 +1,5 @@
 /**
- * The catalog of role rights version 2 (owner approved the list on 2026-10-21): 13 sections, 88 powers, 117 switches. It is a plain copy of
+ * The catalog of role rights version 2 (owner approved the list on 2026-10-21): 13 sections, 89 powers, 118 switches. It is a plain copy of
  * docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json, without the words (the labels and the hints are word keys of the
  * screens). A test (rightsCatalog.test.ts) checks that this file and the JSON agree. permissions.ts is in the first load of the real
  * build, so this file takes no value from zod or from the schema files.
@@ -35,7 +35,7 @@ export type CatalogPower = {
 
 export type CatalogSection = { readonly key: string; readonly powers: readonly CatalogPower[] };
 
-/** The 117 switch ids, in the order of the sections of the role sheet. */
+/** The 118 switch ids, in the order of the sections of the role sheet. */
 export const CATALOG_RIGHT_IDS = [
   'project.create', 'client.create', 'project.details.lead', 'project.details.all', 'project.team.lead', 'project.team.all',
   'project.stages.lead', 'project.stages.all', 'project.deadlines.lead', 'project.deadlines.all', 'project.template.lead',
@@ -55,7 +55,7 @@ export const CATALOG_RIGHT_IDS = [
   'templates.projectCreate', 'templates.projectAny', 'templates.taskSave.lead', 'templates.taskSave.all', 'templates.taskAny',
   'templates.updateProjects', 'dashboard.view', 'workload.view', 'search.use', 'gaps.view', 'report.office', 'ai.connect',
   'ai.readWork', 'ai.readChats', 'ai.todos', 'ai.posts', 'ai.messages', 'ai.meetings', 'ai.tracker', 'ai.projects',
-  'ai.payments', 'ai.feedback', 'ai.report', 'ai.undo', 'ai.undoOthers.lead', 'ai.undoOthers.all', 'feedback.send',
+  'ai.projectSetup', 'ai.payments', 'ai.feedback', 'ai.report', 'ai.undo', 'ai.undoOthers.lead', 'ai.undoOthers.all', 'feedback.send',
   'feedback.manage', 'office.settings',
 ] as const;
 export type CatalogRightId = (typeof CATALOG_RIGHT_IDS)[number];
@@ -626,6 +626,12 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
         power: 'ai.projects', mcpTools: ['projects.update', 'projects.setStatus', 'stages.setDates', 'deadlines.create', 'deadlines.update'],
         switches: [
           { id: 'ai.projects', scope: null, basic: true, needs: ['ai.connect'] },
+        ],
+      },
+      {
+        power: 'ai.projectSetup', mcpTools: ['projects.create', 'clients.create', 'clients.list', 'projectTemplates.list'],
+        switches: [
+          { id: 'ai.projectSetup', scope: null, basic: false, newPower: true, needs: ['ai.connect'] },
         ],
       },
       {

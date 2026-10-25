@@ -2184,6 +2184,34 @@
           ]
         },
         {
+          "power": "ai.projectSetup",
+          "en": "AI creates projects and clients",
+          "ar": "ينشئ المساعد المشاريع والعملاء",
+          "hint": "Create projects and clients, and read the client and template lists. The person also needs \"Create projects\" and \"Add clients\".",
+          "mcpTools": [
+            "projects.create",
+            "clients.create",
+            "clients.list",
+            "projectTemplates.list"
+          ],
+          "switches": [
+            {
+              "id": "ai.projectSetup",
+              "scope": null,
+              "basic": false,
+              "newPower": true,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "ai.connect"
+              ]
+            }
+          ]
+        },
+        {
           "power": "ai.payments",
           "en": "AI handles payments",
           "ar": "يدير المساعد الدفعات",

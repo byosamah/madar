@@ -20,7 +20,7 @@ type BuiltIn = (typeof BUILT_IN)[number];
 const MAX_CUSTOM = 20;
 
 const RoleName = z.string().trim().min(1).max(40);
-/** The rights of a save: the 117 ids, and the old ids of 2026-10-23 (they expand to new ids when the role is saved). */
+/** The rights of a save: the 118 ids, and the old ids of 2026-10-23 (they expand to new ids when the role is saved). */
 const Rights = z.array(StoredRight).max(MAX_STORED_RIGHTS);
 /** The basic switches that the role does not hold (role rights version 2). */
 const Off = z.array(OfficeRight).max(MAX_OFF_RIGHTS);

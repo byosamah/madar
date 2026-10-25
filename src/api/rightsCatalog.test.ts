@@ -32,11 +32,11 @@ describe('the catalog module equals the catalog JSON in docs', () => {
     expect(fromModule).toEqual(fromJson);
   });
 
-  it('counts 13 sections, 88 powers and 117 switches (Mention everyone added 1 power and 1 switch on 2026-10-22; hidden projects added 3 powers and 4 switches)', () => {
+  it('counts 13 sections, 89 powers and 118 switches (Mention everyone added 1 power and 1 switch on 2026-10-22; hidden projects added 3 powers and 4 switches; AI project set-up added 1 power and 1 switch on 2026-10-25)', () => {
     expect(CATALOG_SECTIONS).toHaveLength(13);
-    expect(CATALOG_SECTIONS.flatMap((s) => s.powers)).toHaveLength(88);
-    expect(CATALOG_RIGHT_IDS).toHaveLength(117);
-    expect(new Set(CATALOG_RIGHT_IDS).size).toBe(117);
+    expect(CATALOG_SECTIONS.flatMap((s) => s.powers)).toHaveLength(89);
+    expect(CATALOG_RIGHT_IDS).toHaveLength(118);
+    expect(new Set(CATALOG_RIGHT_IDS).size).toBe(118);
     expect(CATALOG_RIGHT_IDS).toEqual(switches.map((w) => w.id));
   });
 
@@ -65,12 +65,17 @@ describe('the catalog module equals the catalog JSON in docs', () => {
     }
     expect(RIGHT_INFO['project.details.lead']).toMatchObject({ power: 'project.details', section: 'projects', scope: 'lead', basic: true });
     expect(RIGHT_INFO['project.delete.all']).toMatchObject({ newPower: true, basic: false });
+    // The AI switch of project set-up (owner, 2026-10-25): a new power, off for every built-in role except the Admin, and it needs ai.connect.
+    expect(RIGHT_INFO['ai.projectSetup']).toMatchObject({ power: 'ai.projectSetup', section: 'ai', scope: null, basic: false, newPower: true, needs: ['ai.connect'] });
+    expect(MCP_TOOLS_BY_SWITCH['ai.projectSetup']).toEqual(['projects.create', 'clients.create', 'clients.list', 'projectTemplates.list']);
+    expect(BASIC_ON).not.toContain('ai.projectSetup');
+    for (const role of ['member', 'management', 'accounting'] as const) expect(DEFAULT_EXTRA[role]).not.toContain('ai.projectSetup');
     expect(switchesOfPower('task.add')).toEqual(['task.add.office', 'task.add.team', 'task.add.all']);
     expect(MCP_TOOLS_BY_SWITCH['ai.readChats']).toEqual(['chats.list', 'chats.messages', 'chats.waiting']);
     // pictures.get came after the catalog was written (owner, 2026-10-21): it reads work data, with the rights of the screens.
     expect(MCP_TOOLS_BY_SWITCH['ai.readWork']).toContain('pictures.get');
     expect(MCP_TOOLS_BY_SWITCH['ai.readWork']).toHaveLength(17);
-    expect(Object.values(MCP_TOOLS_BY_SWITCH).flatMap((tools) => [...(tools ?? [])])).toHaveLength(55);
+    expect(Object.values(MCP_TOOLS_BY_SWITCH).flatMap((tools) => [...(tools ?? [])])).toHaveLength(59);
   });
 
   it('keeps every need inside the catalog, and every .all switch needs its .lead or .team sibling', () => {
@@ -108,6 +113,6 @@ describe('expandRights and withNeeds', () => {
     for (const id of CATALOG_RIGHT_IDS) expect(STORED_RIGHT_IDS).toContain(id);
     for (const id of LEGACY_RIGHT_IDS) expect(STORED_RIGHT_IDS).toContain(id);
     expect(new Set(STORED_RIGHT_IDS).size).toBe(STORED_RIGHT_IDS.length);
-    expect(STORED_RIGHT_IDS).toHaveLength(117 + 12);
+    expect(STORED_RIGHT_IDS).toHaveLength(118 + 12);
   });
 });

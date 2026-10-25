@@ -61,7 +61,7 @@ describe('opensAdminPage: who sees the Admin page (owner, 2026-10-18, fbk_014)',
 describe('rightsOf: the office rights of each person (role rights version 2)', () => {
   it('gives the default switches when the office has no settings', () => {
     expect(sorted(rightsOf(admin, undefined))).toEqual(sorted(ALL));
-    expect(rightsOf(admin, undefined)).toHaveLength(117);
+    expect(rightsOf(admin, undefined)).toHaveLength(118);
     expect(sorted(rightsOf(member, undefined))).toEqual(sorted(BASIC_ON));
     expect(sorted(rightsOf(management, undefined))).toEqual(sorted([...BASIC_ON, ...DEFAULT_EXTRA.management]));
     expect(sorted(rightsOf(accounting, undefined))).toEqual(sorted([...BASIC_ON, ...PAY]));
