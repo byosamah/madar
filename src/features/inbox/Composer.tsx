@@ -36,6 +36,8 @@ type ComposerProps = {
   onEditLast?: () => boolean;
   /** Called with the new text at each change of the field that a key or a paste made (chat presence design B1). A restored draft calls nothing. */
   onTextChange?: (text: string) => void;
+  /** False: the box does not take the focus when the chat opens on a desk. Focus mode (fbk_059) keeps the focus on its Done button. */
+  autoFocus?: boolean;
 };
 
 /**
@@ -53,7 +55,7 @@ export function Composer(props: ComposerProps) {
  * Search unmounts the box; its draft waits until the person comes back or sends it (audit 2026-10-03, SHL-4). The text uses the
  * keys of the comment box (CommentThread), so a task thread and the comments of its task share one draft.
  */
-function ComposerBox({ id, people, everyone, pending, onSend, upload, owner, replyTo, onCancelReply, onEditLast, onTextChange }: ComposerProps & { owner: string }) {
+function ComposerBox({ id, people, everyone, pending, onSend, upload, owner, replyTo, onCancelReply, onEditLast, onTextChange, autoFocus = true }: ComposerProps & { owner: string }) {
   const { t } = useTranslation();
   const toast = useToast();
   // On a phone, Enter makes a new line and only the Send button sends (chat design 2026-10-19, item 7).
@@ -86,7 +88,8 @@ function ComposerBox({ id, people, everyone, pending, onSend, upload, owner, rep
   }, [owner, draftKey, attachments.files]);
   // A phone keeps the field without the focus when a chat opens: the keyboard would cover the last messages and the "New" line (Direction D).
   useEffect(() => {
-    if (!isPhoneNow()) field.current?.focus();
+    if (autoFocus && !isPhoneNow()) field.current?.focus();
+    // Only a new chat moves the focus. The prop is fixed for the life of a pane.
   }, [id]);
   // Files dropped on the chat join the picked chips, and nothing sends until Send (item 14).
   useChatDropReceiver(upload ? (dropped) => { attachments.add(dropped); field.current?.focus(); } : null);

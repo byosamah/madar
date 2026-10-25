@@ -42,6 +42,7 @@ import { useEarlierMessages } from './earlier';
 import { useOpenMark } from './newLine';
 import { bubbleOfComment, useBubbles } from './bubbles';
 import { ChatDropArea } from './ChatDrop';
+import { EmbeddedHeader, type EmbeddedChat } from './EmbeddedHeader';
 import { bubbleOfOutgoing, cardOfUser, keepAsDraft, newOutboxKey, refusedByOutbox, useDraftOnClose, useOutbox, usePaneOpen } from './outbox';
 import { nowStamp } from '../../lib/dates';
 import { NewerMessages } from './NewerMessages';
@@ -130,7 +131,7 @@ function GroupMenu({ id, archived, unread, title, onPick, onArchive, onMarkUnrea
  * A project chat, a direct chat or a group. Opening it marks it read. A link with a message (`?at=`, chat design 2026-10-19, item 17)
  * opens the page that holds that message: when newer messages follow the page, "Show newer messages" and a send go to the newest page.
  */
-export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; focusFromRoute: string | null; onMarkUnread: (id: string) => void }) {
+export function ChatPane({ id, focusFromRoute, onMarkUnread, embedded }: { id: string; focusFromRoute: string | null; onMarkUnread: (id: string) => void; embedded?: EmbeddedChat }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const navigate = useNavigate();
@@ -198,7 +199,8 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   // its own page, as a link with `?at=` does.
   const focusMessage = useStableHandler((target: string) => {
     if (messages.some((view) => view.message.id === target)) setFocusId(target);
-    else navigate(chatLink(id, target));
+    // An embedded pane has no page of its own to go to: a message older than the loaded pages stays where it is (Focus mode, fbk_059).
+    else if (!embedded) navigate(chatLink(id, target));
   });
   // One stable object for all the bubbles (chat design 2026-10-19, item 9): a bubble renders again only when its own Bubble changes.
   const actions = useMemo<BubbleActions>(() => ({
@@ -266,8 +268,9 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
     // The mutation object changes on every render. Only a new count of unread messages, a newer message than the read time, a newer one
     // than the seen time, the tab that shows, or the person who is in use again, matters here.
   }, [id, unread, opened, visible, behind, active, seenBehind]);
-  if (thread.error) return <><PhoneBackBar /><div className="p-4"><LoadFailed error={thread.error} onRetry={() => void thread.refetch()} /></div></>;
-  if (!data || !mark) return <><PhoneBackBar /><div className="flex-1" aria-busy="true" /></>;
+  const bar = embedded ? <EmbeddedHeader embedded={embedded} lead={null} title="" /> : <PhoneBackBar />;
+  if (thread.error) return <>{bar}<div className="p-4"><LoadFailed error={thread.error} onRetry={() => void thread.refetch()} /></div></>;
+  if (!data || !mark) return <>{bar}<div className="flex-1" aria-busy="true" /></>;
   const { chat } = data;
   const isGroup = chat.kind === 'group';
   // A group shows one picture. One press on it, or on the count of people, opens the People sheet (UX audit 2026-10-19, chats-07 and 08).
@@ -300,7 +303,9 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   const seen: SeenInfo | undefined = chat.kind === 'task' ? undefined : {
     kind: chat.kind, readers: data.seen, others: data.others, people: data.people, ...(chat.kind === 'direct' && actorContext(chat.person) ? { context: 'female' as const } : {}),
   };
-  const showNewest = () => navigate(chatLink(id), { replace: true });
+  const showNewest = () => {
+    if (!embedded) navigate(chatLink(id), { replace: true });
+  };
   const menu = isGroup
     ? <GroupMenu id={id} archived={chat.archived} unread={chat.unread} title={title} onPick={setSheet} onArchive={archive} onMarkUnread={onMarkUnread} extra={notifyItems} />
     : <ChatMenu id={id} archived={chat.archived} unread={chat.unread} title={title} onArchive={archive} onMarkUnread={onMarkUnread} extra={notifyItems} />;
@@ -311,9 +316,11 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
       : chat.person ? <PersonFace user={{ ...chat.person, active: !chat.personLeft }} size={40} /> : null;
   return (
     <ChatDropArea note={chat.kind === 'project' ? t('chat.dropProject') : t('chat.dropChat')}>
-      {phone
-        ? <ChatHeader lead={lead} title={title} subtitle={subtitle} action={<OptionsButton title={title} onClick={() => setOptions(true)} />} />
-        : <Header lead={lead} title={title} subtitle={subtitle} action={menu} />}
+      {embedded
+        ? <EmbeddedHeader embedded={embedded} lead={lead} title={title} />
+        : phone
+          ? <ChatHeader lead={lead} title={title} subtitle={subtitle} action={<OptionsButton title={title} onClick={() => setOptions(true)} />} />
+          : <Header lead={lead} title={title} subtitle={subtitle} action={menu} />}
       <BubbleActionsContext.Provider value={actions}>
         <EditingContext.Provider value={editingId}>
           <ZipTitleContext.Provider value={title}>
@@ -321,10 +328,10 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
           </ZipTitleContext.Provider>
         </EditingContext.Provider>
       </BubbleActionsContext.Provider>
-      {newer && <NewerMessages onShow={showNewest} />}
+      {newer && !embedded && <NewerMessages onShow={showNewest} />}
       {chat.personLeft ? <p className={NOTE}>{isGroup ? t('chat.groupAlone') : t('chat.closed')}</p> : !canSend ? <p className={NOTE}>{t('chat.cannotSend')}</p> : (
         <>
-          {live && <TypingLine conversationId={id} />}
+          {live && !embedded && <TypingLine conversationId={id} />}
           <Composer
             id={id}
             people={data.people}
@@ -336,6 +343,7 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
             onCancelReply={() => setReplyTo(null)}
             onEditLast={editLast}
             onTextChange={typing.changed}
+            autoFocus={!embedded}
             onSend={(body, fileIds, clear) => {
               const input = { conversationId: id, body, fileIds, ...(replyTo ? { replyToId: replyTo.id } : {}) };
               const key = newOutboxKey();
@@ -351,7 +359,7 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
           />
         </>
       )}
-      {phone && (
+      {phone && !embedded && (
         <ChatOptionsSheet
           open={options}
           onOpenChange={setOptions}
@@ -369,7 +377,7 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
           onMarkUnread={onMarkUnread}
         />
       )}
-      {isGroup && <GroupSheets id={id} mode={sheet} onMode={setSheet} name={chat.title} people={data.people} me={session.data?.authority} makerId={chat.makerId} />}
+      {isGroup && !embedded && <GroupSheets id={id} mode={sheet} onMode={setSheet} name={chat.title} people={data.people} me={session.data?.authority} makerId={chat.makerId} />}
     </ChatDropArea>
   );
 }
@@ -382,7 +390,7 @@ const NO_PEOPLE: UserCard[] = [];
 const NO_UNSENT: never[] = [];
 
 /** The comments of one task as a chat. A message posts a task comment. A link with a comment (`?at=`) names the comment to frame. */
-export function TaskPane({ id, focusFromRoute, onMarkUnread }: { id: string; focusFromRoute: string | null; onMarkUnread: (id: string) => void }) {
+export function TaskPane({ id, focusFromRoute, onMarkUnread, embedded }: { id: string; focusFromRoute: string | null; onMarkUnread: (id: string) => void; embedded?: EmbeddedChat }) {
   const { t } = useTranslation();
   const phone = useIsPhone();
   const task = useCall('tasks.get', { id });
@@ -469,8 +477,9 @@ export function TaskPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   // A comment that waits for its answer comes last.
   const bubbles = unsentBubbles.length === 0 ? settled : [...settled, ...unsentBubbles];
   const failed = task.error ?? comments.error;
-  if (failed) return <><PhoneBackBar /><div className="p-4"><LoadFailed error={failed} onRetry={() => { void task.refetch(); void comments.refetch(); }} /></div></>;
-  if (!task.data || !comments.data || !mark) return <><PhoneBackBar /><div className="flex-1" aria-busy="true" /></>;
+  const bar = embedded ? <EmbeddedHeader embedded={embedded} lead={null} title="" /> : <PhoneBackBar />;
+  if (failed) return <>{bar}<div className="p-4"><LoadFailed error={failed} onRetry={() => { void task.refetch(); void comments.refetch(); }} /></div></>;
+  if (!task.data || !comments.data || !mark) return <>{bar}<div className="flex-1" aria-busy="true" /></>;
   const editLast = () => {
     const last = bubbles.findLast((bubble) => bubble.canEdit);
     if (!last) return false;
@@ -481,7 +490,9 @@ export function TaskPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
   const taskLine = `${t('chat.taskThread')} · ${where ? where.name : t('office.word')}`;
   return (
     <ChatDropArea note={where ? t('chat.dropProject') : t('chat.dropOfficeTask')}>
-      {phone
+      {embedded
+        ? <EmbeddedHeader embedded={embedded} lead={<span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-fill text-ink-2"><AnimatedIcon icon={ClipboardCheckIcon} size={18} aria-hidden /></span>} title={task.data.task.title} />
+        : phone
         // A phone shows one title line and no picture. The Open to-do link is a row of the options sheet there.
         ? <ChatHeader lead={null} title={task.data.task.title} subtitle={taskLine} action={<OptionsButton title={task.data.task.title} onClick={() => setOptions(true)} />} />
         : (
@@ -520,6 +531,7 @@ export function TaskPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
           replyTo={replyTo}
           onCancelReply={() => setReplyTo(null)}
           onEditLast={editLast}
+          autoFocus={!embedded}
           onSend={(body, fileIds, clear) => {
             const input = { targetType: 'task' as const, targetId: id, body, fileIds, ...(replyTo ? { replyToId: replyTo.id } : {}) };
             const key = newOutboxKey();
@@ -530,7 +542,7 @@ export function TaskPane({ id, focusFromRoute, onMarkUnread }: { id: string; foc
           }}
         />
       ) : <p className={NOTE}>{t('comments.cannot')}</p>}
-      {phone && (
+      {phone && !embedded && (
         <ChatOptionsSheet
           open={options}
           onOpenChange={setOptions}
