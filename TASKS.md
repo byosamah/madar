@@ -1108,8 +1108,8 @@ Plan: `docs/superpowers/plans/2026-10-25-madar-inbox-line-agent-projects-plan.md
 - [x] Track A, the Inbox line (`rb/inbox-line`): one line under a filtered list with the unread messages of the other kinds, and "Show all"
 - [x] Track B, projects from the AI agent (`rb/agent-projects`): switch `ai.projectSetup` (Admin only), 4 tools, lean lists, words, tests
 - [x] Join: both branches on main, What's new 2026-10-23-100 and -101, the R2 line of `server/files/CLAUDE.md`
-- [ ] Gates once: typecheck, npm test, builds, test:db, test:it, test:mcp, prototype smoke
-- [ ] Screenshots: the Inbox line (EN/AR, light/dark, 390 px and desk), the role sheet switch
+- [x] Gates once (also test:lite and test:office): typecheck, npm test, builds, test:db, test:it, test:mcp, prototype smoke
+- [x] Screenshots: the Inbox line (EN/AR, light/dark, 390 px and desk), the role sheet switch
 - [ ] Test copy (`all.sh test`), then production, push, release record
 - [ ] Mark fbk_056 and fbk_057 done in Madar
 - [ ] Found 2026-10-25 (not in this release, propose to the owner): on a 390 px phone in Arabic, the four Inbox kind chips do not fit one row, and «الأشخاص» drops to a second row
