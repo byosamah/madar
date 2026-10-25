@@ -52,6 +52,7 @@ export const FUNCTION_SECRETS = [
   'MIN_CLIENT_BUILD', 'ALLOWED_ORIGINS', 'MCP_FORWARD_REGION', 'MADAR_LOCK_KEY', 'JOBS_SECRET', 'MADAR_SECRET_KEY', 'AUTH_ISSUER',
   'VAPID_PRIVATE_KEY', 'VAPID_PUBLIC_KEY', 'VAPID_SUBJECT',
   'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'MADAR_GOOGLE_KEY',
+  'POSTHOG_KEY',
 ] as const;
 /**
  * The secrets of an office copy (exit wave 4): the export route (GitHub) and the ops routes (the Mac). They go to the Worker only,
@@ -165,6 +166,11 @@ export function checkSecrets(values: Record<string, string>, ref: string): Check
     if (!values.GOOGLE_CLIENT_ID.endsWith('.apps.googleusercontent.com')) throw new Error('GOOGLE_CLIENT_ID must end with .apps.googleusercontent.com.');
     if (/\s/.test(values.GOOGLE_CLIENT_SECRET)) throw new Error('GOOGLE_CLIENT_SECRET must be one word with no space.');
     if (!/^[A-Za-z0-9+/]{43}=$/.test(values.MADAR_GOOGLE_KEY)) throw new Error('MADAR_GOOGLE_KEY must be 32 bytes in base64 (44 characters).');
+  }
+
+  // The PostHog project key is public (insight design). It is optional: with none, the server sends no error record to PostHog.
+  if (values.POSTHOG_KEY !== undefined && !/^phc_[A-Za-z0-9_-]{20,}$/.test(values.POSTHOG_KEY)) {
+    throw new Error('POSTHOG_KEY must be the project key of PostHog: phc_ and at least 20 letters, digits, underscores or dashes.');
   }
 
   if (values.MADAR_LOCK_KEY !== undefined) {

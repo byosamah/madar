@@ -248,6 +248,63 @@ describe('the VAPID keys of browser push (owner, 2026-10-08)', () => {
   });
 });
 
+describe('the PostHog project key (insight design, 2026-10-25)', () => {
+  const KEY = 'phc_abcdefghijklmnopqrstuvwx';
+
+  it('leaves it off when POSTHOG_KEY is not set: config.posthogKey is missing and the logger is the console logger', () => {
+    expect(configFromEnv(reader(FULL)).posthogKey).toBeUndefined();
+    const sent = vi.fn();
+    vi.stubGlobal('fetch', sent);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    buildDeps(reader(FULL)).log.error('A call failed.', { error: 'x' });
+    expect(sent).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('reads POSTHOG_KEY into config.posthogKey', () => {
+    expect(configFromEnv(reader({ ...FULL, POSTHOG_KEY: KEY })).posthogKey).toBe(KEY);
+  });
+
+  it('ignores a key of the wrong shape, so a typo never stops the server', () => {
+    expect(configFromEnv(reader({ ...FULL, POSTHOG_KEY: 'not-a-key' })).posthogKey).toBeUndefined();
+  });
+
+  it('wraps the logger when the key is set: an error line also posts one record, and the line is still logged', async () => {
+    const posted: { url: string; body: Record<string, any> }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+      posted.push({ url, body: JSON.parse(String(init.body)) });
+      return new Response('{}');
+    }));
+    const lines: string[] = [];
+    vi.spyOn(console, 'error').mockImplementation((line: string) => { lines.push(line); });
+    buildDeps(reader({ ...FULL, POSTHOG_KEY: KEY })).log.error('A call failed.', { name: 'tasks.list', error: 'x', personId: 'usr_1' });
+    expect(JSON.parse(lines[0]!)).toMatchObject({ level: 'error', message: 'A call failed.', name: 'tasks.list' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(posted).toHaveLength(1);
+    expect(posted[0]!.url).toBe('https://eu.i.posthog.com/i/v0/e/');
+    // madar.example is no production host.
+    expect(posted[0]!.body.properties.env).toBe('test');
+    vi.unstubAllGlobals();
+  });
+
+  it('marks the records of the production host as production', async () => {
+    const posted: Record<string, any>[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+      posted.push(JSON.parse(String(init.body)));
+      return new Response('{}');
+    }));
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    buildDeps(reader({ ...FULL, APP_URL: 'https://madar.vado.sa', POSTHOG_KEY: KEY })).log.error('A call failed.', { error: 'x' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(posted[0]!.properties.env).toBe('production');
+    vi.unstubAllGlobals();
+  });
+
+  it('names POSTHOG_KEY in the list of values of its header comment', () => {
+    expect(readFileSync(new URL('./deps.ts', import.meta.url), 'utf8')).toContain(' POSTHOG_KEY ');
+  });
+});
+
 describe('the Google Calendar values (fbk_022, owner 2026-10-19)', () => {
   const GOOGLE = { GOOGLE_CLIENT_ID: 'id-made-up.apps.googleusercontent.com', GOOGLE_CLIENT_SECRET: 'cs-made-up', MADAR_GOOGLE_KEY: 'key-made-up' };
 

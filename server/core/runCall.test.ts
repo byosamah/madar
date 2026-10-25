@@ -263,7 +263,7 @@ describe('runCall: a failed call writes nothing (plan 4.5, step 5.11)', () => {
     } });
     const { call, deps } = setup({ calls: mapWith('users.list', crashes) });
     expect(errorOf(await call(ADMIN, 'users.list', {}))).toEqual({ code: 'failed', message: HIDDEN });
-    expect(deps.logs).toEqual([{ level: 'error', message: 'A call failed.', fields: { name: 'users.list', error: 'a bug with private words' } }]);
+    expect(deps.logs).toEqual([{ level: 'error', message: 'A call failed.', fields: { name: 'users.list', error: 'a bug with private words', personId: ADMIN } }]);
   });
 
   it('turns a lock timeout into failed with the reason busy, and logs no error', async () => {

@@ -21,6 +21,8 @@ import { VAPID_NAMES, vapidConfigOf } from '../push/vapid';
 import { resendMailPort } from '../mail/resend';
 import { realtimeSender } from '../signal/realtime';
 import { realtimeTyping } from '../signal/typing';
+import { insightEnv } from '../../src/lib/insightEnv';
+import { insightLogger } from './insight';
 import { FILE_STORE_LIMITS, fileStoreKind, type Config, type Db, type Deps, type LogFields, type Logger } from './ports';
 
 /**
@@ -56,6 +58,7 @@ import { FILE_STORE_LIMITS, fileStoreKind, type Config, type Db, type Deps, type
  *   MCP_FORWARD_REGION     the region of every MCP request (default eu-central-1)
  *   MADAR_LOCK_KEY         the office lock key (default 7310001; never HEALTH_LOCK_KEY)
  *   JOBS_SECRET            the secret of the job runner (x-madar-jobs-secret); it also opens the database check of GET /api/health
+ *   POSTHOG_KEY            the public PostHog project key (phc_...): each error line also goes to PostHog Cloud EU. Optional; none means off
  */
 
 export type ReadEnv = (name: string) => string | undefined;
@@ -165,6 +168,8 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
 
   const push = vapidConfigOf(read);
   const google = googleConfigOf(read);
+  // The key is public. A value of another shape is ignored (the deploy check refuses it by name), so a typo never stops the server.
+  const posthogKey = /^phc_[A-Za-z0-9_-]{20,}$/.test(read('POSTHOG_KEY')?.trim() ?? '') ? read('POSTHOG_KEY')!.trim() : undefined;
   const functions = `${supabaseUrl.replace(/\/+$/, '')}/functions/v1`;
   const origins = read('ALLOWED_ORIGINS');
   const config: Config = {
@@ -182,6 +187,7 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
     limits: { maxFileBytes: FILE_STORE_LIMITS[fileStore].maxFileBytes, filesTotalBytes: FILE_STORE_LIMITS[fileStore].totalBytes },
     ...(push ? { push } : {}),
     ...(google ? { google } : {}),
+    ...(posthogKey ? { posthogKey } : {}),
   };
 
   const jobsSecret = read('JOBS_SECRET');
@@ -206,6 +212,22 @@ export function consoleLogger(): Logger {
   return { info: line('info', (t) => console.log(t)), warn: line('warn', (t) => console.warn(t)), error: line('error', (t) => console.error(t)) };
 }
 
+/**
+ * The logger of a copy: the console logger, and with POSTHOG_KEY also the PostHog sender for the error lines (insight design, section 6).
+ * The `env` of a record is `production` on the production host and `test` on every other host.
+ */
+export function loggerOf(config: Config): Logger {
+  const log = consoleLogger();
+  if (!config.posthogKey) return log;
+  let host = '';
+  try {
+    host = new URL(config.appUrl).host;
+  } catch {
+    // An APP_URL that does not parse counts as a test host.
+  }
+  return insightLogger(log, { key: config.posthogKey, env: insightEnv(host) });
+}
+
 export function buildDeps(read: ReadEnv = env): Deps {
   return depsFrom(serverEnvFrom(read));
 }
@@ -217,7 +239,7 @@ export function buildDeps(read: ReadEnv = env): Deps {
 export function depsFrom(values: ServerEnv, o: { db?: Db } = {}): Deps {
   const { config } = values;
   const db = o.db ?? pgDb(values.database);
-  const log = consoleLogger();
+  const log = loggerOf(config);
   return {
     db,
     clock: { now: () => new Date() },

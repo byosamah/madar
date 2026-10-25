@@ -193,6 +193,38 @@ describe('the VAPID keys of browser push (owner, 2026-10-08)', () => {
 const GOOGLE_ID = '123456789012-madeupmadeupmadeup.apps.googleusercontent.com';
 const GOOGLE_SECRET = 'GOCSPX-made-up-secret-value';
 const GOOGLE_KEY = Buffer.alloc(32, 5).toString('base64');
+const POSTHOG_KEY = 'phc_abcdefghijklmnopqrstuvwx';
+
+describe('the PostHog project key (insight design, 2026-10-25)', () => {
+  const check = (text: string) => checkSecrets(parseSecretsFile(text), TEST);
+
+  it('takes POSTHOG_KEY in the secrets file, and sends it to the functions and to the Worker', async () => {
+    expect(Object.keys(parseSecretsFile(file(TEST, `POSTHOG_KEY=${POSTHOG_KEY}`)))).toContain('POSTHOG_KEY');
+    expect(FUNCTION_SECRETS as readonly string[]).toContain('POSTHOG_KEY');
+    expect(WORKER_SECRETS).toContain('POSTHOG_KEY');
+    const h = harness({ text: file(TEST, `POSTHOG_KEY=${POSTHOG_KEY}`) });
+    await runSecrets(h.run);
+    const body = JSON.parse(String(h.requests[0].init.body)) as { name: string }[];
+    expect(body.map((secret) => secret.name)).toContain('POSTHOG_KEY');
+  });
+
+  it('passes a file without the key: the server then sends nothing to PostHog', () => {
+    expect(() => check(file())).not.toThrow();
+  });
+
+  it('refuses a key of the wrong shape, and the error names the variable and never the value', () => {
+    for (const bad of ['phx_abcdefghijklmnopqrstuvwx', 'phc_short', 'abcdefghijklmnopqrstuvwxyz', 'phc_abcdefghijklmnopqrstuvwx leak']) {
+      try {
+        check(file(TEST, `POSTHOG_KEY=${bad}`));
+        throw new Error('no refusal');
+      } catch (error) {
+        expect(String(error)).toMatch(/POSTHOG_KEY/);
+        expect(String(error)).not.toContain(bad);
+      }
+    }
+  });
+});
+
 const GOOGLE_LINES = `GOOGLE_CLIENT_ID=${GOOGLE_ID}\nGOOGLE_CLIENT_SECRET=${GOOGLE_SECRET}\nMADAR_GOOGLE_KEY=${GOOGLE_KEY}`;
 
 describe('the Google Calendar values (fbk_022, owner 2026-10-19)', () => {

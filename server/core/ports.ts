@@ -129,6 +129,11 @@ export type Config = {
    * signs the state. Left out when the copy has none: Google is off, google.status answers ready false, and the sync does nothing.
    */
   google?: { clientId: string; clientSecret: string; key: string };
+  /**
+   * The public PostHog project key (POSTHOG_KEY, `phc_...`). Left out when the owner has no PostHog account yet: the logger then stays
+   * as it is. With it, each `error` line also posts one record to PostHog Cloud EU (server/core/insight.ts).
+   */
+  posthogKey?: string;
 };
 
 /** The live socket tickets of the office object (exit wave 3): live.ticket mints one, the socket open takes it (server/office/live.ts). */

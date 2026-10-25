@@ -289,7 +289,13 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
       const busy = busyOf(error);
       if (busy) return { ok: false, error: runErrorOf(busy) };
       if (!(error instanceof ApiError)) {
-        deps.log.error('A call failed.', { name: req.name, error: error instanceof Error ? error.message : String(error) });
+        // personId and agentId only name who ran the call (insight design, rule 8). The input never goes into a log line.
+        deps.log.error('A call failed.', {
+          name: req.name,
+          error: error instanceof Error ? error.message : String(error),
+          personId: req.principal.userId,
+          ...(req.principal.agent ? { agentId: req.principal.agent.clientId } : {}),
+        });
       }
       return { ok: false, error: runErrorOf(error) };
     }
