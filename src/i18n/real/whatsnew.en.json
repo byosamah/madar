@@ -3,6 +3,14 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-101": {
+        "title": "Create a project with your AI assistant",
+        "body": "Your AI assistant can now create a project and a client for you. Give it the name, the client, the sub-company, the leader and the team. The leader and the team get a notice. A new project has no Undo, so check the details first. The Admin gives this to a role with the switch \"AI creates projects and clients\"."
+      },
+      "2026-10-23-100": {
+        "title": "Unread messages outside your filter",
+        "body": "When the Inbox shows one kind of chat, a line under the list now says how many unread messages are in the other chats. Press \"Show all\" to see them."
+      },
       "2026-10-23-99": {
         "title": "Madar on the phone: four tabs",
         "body": "On a phone, Madar now has four tabs at the bottom: Today (the sun), Inbox (the tray), Work (the briefcase) and Me (the person). Chats and notifications share the Inbox. To-dos, meetings and projects share Work. Your settings are in Me."

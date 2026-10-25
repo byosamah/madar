@@ -22,7 +22,7 @@ describe("What's new entries", () => {
   it('keeps the release days of the history (Cloudflare production deploys and the release records)', () => {
     const dayOf = (id: string) => WHATS_NEW.find((entry) => entry.id === id)?.day;
     expect(dayOf('2026-10-23-82')).toBe('2026-10-22');
-    expect(new Set(WHATS_NEW.map((entry) => entry.day))).toEqual(new Set(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22']));
+    expect(new Set(WHATS_NEW.map((entry) => entry.day))).toEqual(new Set(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-25']));
   });
 
   // Batch A (fbk_038, fbk_040, fbk_043, fbk_045, fbk_046, fbk_047): five lines, newer than every other entry.
@@ -74,7 +74,7 @@ describe("What's new entries", () => {
   });
 
   it('name a real right and a real address when they have them (chats-14)', () => {
-    const rights = ['admin.manage', 'people.manage', 'payment.manage', 'clients.manage', 'templates.projectAny', 'report.office'];
+    const rights = ['admin.manage', 'people.manage', 'payment.manage', 'clients.manage', 'templates.projectAny', 'report.office', 'ai.projectSetup'];
     for (const entry of WHATS_NEW) {
       if (entry.right) expect(rights, entry.id).toContain(entry.right);
       if (entry.to) expect(entry.to, entry.id).toMatch(/^\/[a-z-]+(\/[a-z-]+)*(\?[a-z]+=[a-z]+)?$/);
@@ -159,8 +159,8 @@ describe("What's new entries", () => {
   });
 
   // Direction D (owner, 2026-10-22): the phone shell has four tabs, icons only. One line for everyone, with no link to open.
-  it('tells everyone that the phone has four tabs, as the newest entry', () => {
-    expect(WHATS_NEW[0]).toEqual({ id: '2026-10-23-99', day: '2026-10-22' });
+  it('tells everyone that the phone has four tabs', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-99')).toEqual({ id: '2026-10-23-99', day: '2026-10-22' });
     expect(wordAt(en, ['whatsNew', 'items', '2026-10-23-99', 'title'])).toBe('Madar on the phone: four tabs');
     expect(wordAt(ar, ['whatsNew', 'items', '2026-10-23-99', 'title'])).toBe('مدار على الجوال: أربعة تبويبات');
     const body = String(wordAt(en, ['whatsNew', 'items', '2026-10-23-99', 'body']));
@@ -172,6 +172,22 @@ describe("What's new entries", () => {
     for (const icon of ['الشمس', 'الصندوق', 'الحقيبة', 'الشخص']) expect(arBody, icon).toContain(icon);
     expect(body).not.toContain('with words');
     expect(arBody).not.toContain('بكلمات');
+  });
+});
+
+// The Inbox line (fbk_056) and projects from the AI agent (fbk_057), owner 2026-10-25. The entries are found by id, never by place.
+describe("the What's new entries of the Inbox line and of projects from the AI agent", () => {
+  it('tells everyone about the Inbox line, with the Inbox to open', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-100')).toEqual({ id: '2026-10-23-100', day: '2026-10-25', to: '/inbox' });
+    expect(String(wordAt(en, ['whatsNew', 'items', '2026-10-23-100', 'body']))).toContain('"Show all"');
+    expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-100', 'body']))).toContain('«اعرض الكل»');
+  });
+
+  it('shows the entry about projects from the AI agent only to the holders of its switch, and names the missing Undo', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-101')).toEqual({ id: '2026-10-23-101', day: '2026-10-25', right: 'ai.projectSetup' });
+    expect(String(wordAt(en, ['whatsNew', 'items', '2026-10-23-101', 'body']))).toContain('no Undo');
+    expect(String(wordAt(en, ['whatsNew', 'items', '2026-10-23-101', 'body']))).toContain('"AI creates projects and clients"');
+    expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-101', 'body']))).toContain('لا تراجع');
   });
 });
 
