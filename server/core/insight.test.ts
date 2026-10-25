@@ -115,6 +115,16 @@ describe('insightLogger', () => {
     }
   });
 
+  it('hides the spans before the address scrub: an open quote in an address hides the rest (seventh fix)', async () => {
+    const t = setup();
+    t.log.error('A route failed.', { error: 'GET https://x.test/a?id=" secret tail' });
+    await Promise.all(t.kept);
+    const value = t.bodies()[0]!.properties.$exception_list[0].value as string;
+    expect(value).not.toContain('secret');
+    expect(value).not.toContain('tail');
+    expect(value).toContain('GET https://x.test/a');
+  });
+
   it('keeps the error text short', async () => {
     const t = setup();
     t.log.error('A call failed.', { error: 'x'.repeat(5000) });
