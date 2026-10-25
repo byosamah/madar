@@ -1,8 +1,8 @@
 /**
  * The written instructions for AI agents (plan 5.6; spec 1, section 17, rule 7). INSTRUCTIONS goes in the answer of
  * server/discover and starts the answer of madar.readFirst (readFirstAnswer adds who the agent acts for). TOOL_DOCS gives each of
- * the 57 tools its title and description. An agent sees a tool only when its person holds the AI switch of the tool (aiSwitches.ts) and,
- * for the 10 right tools, the right too (tools.ts): the Admin holds every switch, so an Admin's agent gets all 57.
+ * the 61 tools its title and description. An agent sees a tool only when its person holds the AI switch of the tool (aiSwitches.ts) and,
+ * for the 12 right tools, the right too (tools.ts): the Admin holds every switch, so an Admin's agent gets all 61.
  * The reader is a model that acts for one person, so the texts are short, exact, and in plain English.
  * tools.test.ts checks that each description is 40 to 600 characters.
  */
@@ -72,7 +72,9 @@ export const INSTRUCTIONS = [
   '',
   'Hidden projects: a project can be hidden from people who do not work on it. A project or a task that answers not_found may be hidden from your person. Never guess its content, and tell your person that you cannot see it.',
   '',
-  'Internal projects: a project with kind internal is the office\'s own work, like a portfolio. It has no client, place, area, sub-company, contract date, payments or Tracker, and its code starts with INT. It starts hidden. payments.create and tracker.log fail on it with the reason internal_project. You cannot make a project: your person does that in the Madar screens.',
+  'Internal projects: a project with kind internal is the office\'s own work, like a portfolio. It has no client, place, area, sub-company, contract date, payments or Tracker, and its code starts with INT. It starts hidden. payments.create and tracker.log fail on it with the reason internal_project. You make one with projects.create and kind internal.',
+  '',
+  'New projects: projects.create makes a project, and tells its leader and its team, who are real people, by notice, push and email. Only an agent whose person holds the switch "AI creates projects and clients" (ai.projectSetup) and the right to create projects sees it. Before you call it, ask your person for the name, the client, the sub-company, the leader and the team. Never choose a leader or a team yourself. Use leader me unless your person names another leader. Look in projects.list for the same name first. If the client is not in clients.list, ask your person before you make it with clients.create. Send codeParts and let Madar build the code. Send a typed code or codeAnyway only when your person gives that code. If the call times out or fails in an unclear way, read projects.list before you try again: a second call makes a second project. A new project has no Undo: events.undo and events.undoStory fail on it, and a story that holds it cannot be undone. To stop work on a wrong project, set its status to archived with projects.setStatus when your person asks. Only an Admin deletes a project, in the Madar screens.',
   '',
   'Google Calendar: a person connects Google Calendar in the Madar Settings screen. You cannot connect, disconnect or read a connection. Madar then writes the meetings of that person to their own Google Calendar, with the title, the time and the place only.',
 ].join('\n');
@@ -247,6 +249,22 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   'projects.setStatus': {
     title: 'Set the project status',
     description: 'Sets the status of one project: active, completed or archived. Needs the switch "Pause, finish and archive" (project.archive): by default the project leader and the Admin. Ask your person before you complete or archive a project. A pause (on_hold) needs a reason: the person pauses a project in the Madar screens. The restart date of a pause (pause.resumeOn) is a reminder only: Madar never restarts a project by itself, and a person resumes it.',
+  },
+  'projects.create': {
+    title: 'Create a project',
+    description: 'Creates one project with its stages. The leader and each team member get a notice, a push and an email, and there is no Undo, so ask your person first. Needs project.create. Send name. Look in projects.list for the same name first. Code: send codeParts (client initials, class, building type); Madar adds the month and the series. A sub-company is needed (subCompanies.list). leader: me (default), none, or a person ID. teamIds: person IDs. template: templateId and startDate (no stages or dates beside it). kind internal: hidden, no client or code. After a timeout, list before you try again.',
+  },
+  'clients.list': {
+    title: 'List clients',
+    description: 'Lists the clients of the office: ID, English name (name), Arabic name (nameAr) and initials. Use the ID as clientId in projects.create. Initials (3 or 4 capital letters) go into the project code. A client with no initials gets the initials of the first code that you make for it. Use a name to find the client; do not make a new client for a name that is in the list.',
+  },
+  'clients.create': {
+    title: 'Create a client',
+    description: 'Creates one client: name or nameAr (one is enough), contactName, phone, email, and initials (3 or 4 capital Latin letters, used in project codes). Read clients.list first and never make a second client for the same name. Needs client.create. Phone and email are data about real people: write only what your person gives you. events.undo takes the client back.',
+  },
+  'projectTemplates.list': {
+    title: 'List project templates',
+    description: 'Lists the project templates: ID, name, roles (ID, name, default person), the stage names and the number of tasks. Use the ID as template.templateId in projects.create. With a template, send startDate (and endDate) inside template, and send no stages or dates beside it. roles maps a role ID to a person ID or null; a role you leave out takes its default person while that person is active.',
   },
   'projects.update': {
     title: 'Change project details',

@@ -28,6 +28,5 @@ describe('the agent docs of the place of a project (owner, 2026-10-19)', () => {
     const names = mcpTools().map((t) => t.name);
     expect(names).not.toContain('projects.addLink');
     expect(names).not.toContain('projects.updateLink');
-    expect(names).not.toContain('projects.create');
   });
 });

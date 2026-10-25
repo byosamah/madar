@@ -92,6 +92,9 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     await run('files.list', { projectId: project.id });
     await run('users.list', { includeInactive: false });
     await run('subCompanies.list', {});
+    // The lists for project set-up (owner, 2026-10-25): the clients and the project templates.
+    await run('clients.list', {});
+    await run('projectTemplates.list', {});
     await run('dashboard.get', { status: 'active' });
     await run('search.query', { text: project.name.split(' ')[0] });
     await run('events.list', { projectId: project.id, limit: 10 });
@@ -188,6 +191,15 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     await run('events.undo', { eventId: statusEvent.id });
 
     await run('events.undoStory', { correlationId: storyId });
+
+    // A new client and a new project (owner, 2026-10-25). Both stay out of the story: a new project has no Undo, so a story that holds it
+    // cannot be taken back. They come after the Undo of the story.
+    await run('clients.create', { name: 'Harbour View Developments', nameAr: 'مطورو هاربر فيو', initials: 'HVD' });
+    const newClient = first(Object.values(s().clients).filter((c) => c.initials === 'HVD'), 'new client');
+    await run('projects.create', {
+      name: 'Harbour View Offices', clientId: newClient.id, leader: 'me', teamIds: [colleague.id],
+      codeParts: { initials: 'HVD', classification: 'COM', type: 'Office' }, startDate: addDays(TODAY, 14), targetEndDate: addDays(TODAY, 300),
+    });
 
     const missing = [...MCP_ALLOW, ...MCP_ADMIN, ...Object.keys(MCP_BY_RIGHT)].filter((name) => !(name in samples));
     if (missing.length > 0) throw new Error(`No sample for: ${missing.join(', ')}`);

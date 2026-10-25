@@ -43,7 +43,7 @@ export async function runTool(tool: ToolDef, args: Record<string, unknown>, ctx:
     batch: { storyRefs: new Map(), office: ctx.office, overviewCalls: 0 },
   });
   return result.ok
-    ? { ...result, output: withoutStorageKeys(tool.name, withPictureLooks(tool.name, withRoleNames(tool.name, result.output, ctx.office.lists.settings.roles), ctx.office, withPictures === true)) }
+    ? { ...result, output: withoutStorageKeys(tool.name, withPictureLooks(tool.name, withLeanLists(tool.name, withRoleNames(tool.name, result.output, ctx.office.lists.settings.roles)), ctx.office, withPictures === true)) }
     : result;
 }
 
@@ -54,6 +54,31 @@ export async function runTool(tool: ToolDef, args: Record<string, unknown>, ctx:
 function withRoleNames(name: string, output: unknown, roles: RoleSettings | undefined): unknown {
   if (name !== 'users.list' || !Array.isArray(output)) return output;
   return output.map((user: { systemRole: Parameters<typeof roleNameOf>[0]['systemRole']; roleId?: string | null }) => ({ ...user, roleName: roleNameOf(user, roles) }));
+}
+
+/**
+ * The lean lists for project set-up (owner, 2026-10-25). clients.list gives the id, the names and the initials only: the contact name,
+ * the phone and the email of a client stay in the screens. projectTemplates.list gives the id, the name, the roles (id, name, default
+ * person), the stage names and the number of tasks: no task text, no creator and no number of followers. A fixed list of fields, so a
+ * new field of a client or a template never reaches an agent by itself.
+ */
+function withLeanLists(name: string, output: unknown): unknown {
+  if (!Array.isArray(output)) return output;
+  if (name === 'clients.list') {
+    return output.map((client: { id: string; name: string; nameAr: string; initials?: string }) => ({
+      id: client.id, name: client.name, nameAr: client.nameAr, initials: client.initials ?? null,
+    }));
+  }
+  if (name === 'projectTemplates.list') {
+    return output.map((template: { id: string; name: string; roles: { id: string; name: string; defaultUserId: string | null }[]; stages: { name: string }[]; tasks: unknown[] }) => ({
+      id: template.id,
+      name: template.name,
+      roles: template.roles.map((role) => ({ id: role.id, name: role.name, defaultUserId: role.defaultUserId })),
+      stageNames: template.stages.map((stage) => stage.name),
+      taskCount: template.tasks.length,
+    }));
+  }
+  return output;
 }
 
 type Report = { screenshots?: unknown };

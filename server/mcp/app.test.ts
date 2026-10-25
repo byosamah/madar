@@ -182,16 +182,17 @@ describe('suite 12: the MCP server in process', () => {
     expect(body.result.ttlMs).toBe(300_000);
   });
 
-  it('lists the 57 tools of an agent of an Admin in their fixed order, with ttlMs and cacheScope "private", and the exact schemas of tools.ts', async () => {
+  it('lists the 61 tools of an agent of an Admin in their fixed order, with ttlMs and cacheScope "private", and the exact schemas of tools.ts', async () => {
     const { body } = await rpc(w, 'tools/list');
     const tools = body.result.tools as { name: string; inputSchema: Record<string, unknown>; annotations: Record<string, unknown> }[];
     const admin = mcpTools({ admin: true });
     expect(tools.map((t) => t.name)).toEqual(admin.map((t) => t.name));
-    expect(tools).toHaveLength(57);
+    expect(tools).toHaveLength(61);
     expect(body.result.ttlMs).toBe(300_000);
     expect(body.result.cacheScope).toBe('private');
     const ajv = new Ajv2020({ strict: true, allErrors: true });
     ajv.addFormat('date', /^\d{4}-\d{2}-\d{2}$/);
+    ajv.addFormat('email', /^[^@\s]+@[^@\s]+$/);
     ajv.addFormat('date-time', { validate: (value: string) => !Number.isNaN(Date.parse(value)) });
     for (const [i, tool] of tools.entries()) {
       expect(tool.inputSchema, tool.name).toEqual(admin[i].inputSchema);
@@ -230,8 +231,8 @@ describe('suite 12: the MCP server in process', () => {
       expect(w.ran).toEqual(['projects.get']);
     });
 
-    it('lists 49 tools on the next request after the Admin becomes a member, and 57 again after the promotion', async () => {
-      expect((await rpc(w, 'tools/list')).body.result.tools).toHaveLength(57);
+    it('lists 49 tools on the next request after the Admin becomes a member, and 61 again after the promotion', async () => {
+      expect((await rpc(w, 'tools/list')).body.result.tools).toHaveLength(61);
       const admin = w.mem.tables.state.users.usr_001;
       w.mem.tables.state.users.usr_001 = { ...admin, systemRole: 'member' };
       w.mem.tables.version += 1;
@@ -243,7 +244,7 @@ describe('suite 12: the MCP server in process', () => {
       expect(refused.body.error?.code).toBe(-32602);
       w.mem.tables.state.users.usr_001 = admin;
       w.mem.tables.version += 1;
-      expect((await rpc(w, 'tools/list')).body.result.tools).toHaveLength(57);
+      expect((await rpc(w, 'tools/list')).body.result.tools).toHaveLength(61);
     });
 
     // Owner, 2026-10-23 (role-rights): the 3 tools of requests and bugs go to an agent whose person holds the feedback right, whether the
@@ -523,9 +524,9 @@ describe('suite 12: the MCP server in process', () => {
         expect(w.limit.hits.size).toBe(0);
       });
 
-      it('does not touch the agents of other people: the agent of the Admin still lists 57 tools', async () => {
+      it('does not touch the agents of other people: the agent of the Admin still lists 61 tools', async () => {
         use(roleWithout(['ai.connect']));
-        expect(await namesOf(await tokenOf())).toHaveLength(57);
+        expect(await namesOf(await tokenOf())).toHaveLength(61);
       });
 
       it('gives the tools back when the switch is on again', async () => {
@@ -557,12 +558,14 @@ describe('suite 12: the MCP server in process', () => {
         return body.result.content[0].text as string;
       };
 
-      it('lists the AI switches of a default Member: all on, none off, and the Undo of other agents on the projects the person leads', async () => {
+      it('lists the AI switches of a default Member: all on except the project set-up switch, and the Undo of other agents on the projects the person leads', async () => {
         const text = await readFirst(await member());
         expect(text.startsWith(INSTRUCTIONS)).toBe(true);
         expect(text).toContain('AI switches that are on: Connect AI assistants (ai.connect), AI reads work data (ai.readWork)');
         expect(text).toContain('AI undoes changes (ai.undo).');
-        expect(text).toContain('AI switches that are off: none.');
+        // ai.projectSetup is off by default (owner, 2026-10-25), with the four tools that it closes.
+        expect(text).toContain('AI switches that are off: AI creates projects and clients (ai.projectSetup), which closes projects.create, clients.create, clients.list, projectTemplates.list.');
+        expect(text).not.toMatch(/AI switches that are on:[^\n]*ai\.projectSetup/);
         expect(text).toContain('You take back the changes of the agents of other people on: the projects your person leads.');
       });
 
@@ -879,7 +882,7 @@ describe('suite 12: the MCP server in process', () => {
     it('gives the legacy answer to a request with no version header', async () => {
       const { status, body } = await post(w, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }, { Authorization: `Bearer ${await tokenOf()}` });
       expect(status).toBe(200);
-      expect(body.result.tools).toHaveLength(57);
+      expect(body.result.tools).toHaveLength(61);
       expect(body.result.resultType).toBeUndefined();
     });
 
@@ -889,7 +892,7 @@ describe('suite 12: the MCP server in process', () => {
       expect(init.body.result.protocolVersion).toBe('2025-11-25');
       expect(init.headers.get('Mcp-Session-Id')).toBeNull();
       const list = await post(w, { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }, auth);
-      expect(list.body.result.tools).toHaveLength(57);
+      expect(list.body.result.tools).toHaveLength(61);
       const read = await post(w, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'projects.get', arguments: { id: 'prj_001' } } }, auth);
       expect(read.body.result.structuredContent.output.project.id).toBe('prj_001');
       // A legacy client cannot answer a question, so a reason comes back as the retry instruction.

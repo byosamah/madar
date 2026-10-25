@@ -21,7 +21,7 @@ const CONNECT_ONLY = [READ_FIRST, 'story.start'];
 
 describe('the map from each MCP tool to its AI switch (role rights version 2, design section 5.12)', () => {
   it('gives every tool of MCP_ALLOW and MCP_BY_RIGHT exactly one AI switch', () => {
-    expect(allTools).toHaveLength(57);
+    expect(allTools).toHaveLength(61);
     for (const tool of allTools) {
       const owners = AI_SWITCHES.filter((id) => toolsOfAiSwitch(id).includes(tool));
       expect(owners, tool).toHaveLength(1);
@@ -54,7 +54,13 @@ describe('the map from each MCP tool to its AI switch (role rights version 2, de
     expect(aiSwitchOf('tasks.help')).toBe('ai.todos');
     expect(aiSwitchOf('tracker.close')).toBe('ai.tracker');
     expect(aiSwitchOf('comments.create')).toBe('ai.posts');
-    expect(aiSwitchOf('projects.create')).toBeUndefined();
+    expect(aiSwitchOf('projects.create')).toBe('ai.projectSetup');
+    expect(aiSwitchOf('clients.create')).toBe('ai.projectSetup');
+    expect(aiSwitchOf('clients.list')).toBe('ai.projectSetup');
+    expect(aiSwitchOf('projectTemplates.list')).toBe('ai.projectSetup');
+    expect(toolsOfAiSwitch('ai.projectSetup')).toEqual(['projects.create', 'clients.create', 'clients.list', 'projectTemplates.list']);
+    // The others stay with no switch: no tool of them exists.
+    expect(aiSwitchOf('projects.setLeader')).toBeUndefined();
     expect(aiSwitchOf('users.create')).toBeUndefined();
   });
 
@@ -82,7 +88,7 @@ describe('the list of tools for each AI switch', () => {
   const everything = mcpTools({ admin: true }).map((tool) => tool.name);
   const without = (id: string) => OFFICE_RIGHTS.filter((right) => right !== id);
 
-  it('drops exactly the tools of one switch when only that switch is off, for each of the 13 switches', () => {
+  it('drops exactly the tools of one switch when only that switch is off, for each of the 14 switches', () => {
     for (const id of AI_SWITCHES) {
       const names = mcpTools({ rights: without(id) }).map((tool) => tool.name);
       expect(names, id).toEqual(everything.filter((name) => !toolsOfAiSwitch(id).includes(name)));
@@ -103,7 +109,8 @@ describe('the list of tools for each AI switch', () => {
   it('needs the right too for a right tool: ai.payments alone gives no payment tool, and the right alone gives none', () => {
     const base = OFFICE_RIGHTS.filter((right) => !right.startsWith('payment.') && right !== 'report.office' && right !== 'feedback.manage');
     const names = mcpTools({ rights: base }).map((tool) => tool.name);
-    for (const tool of Object.keys(MCP_BY_RIGHT).filter((name) => !['dashboard.get', 'search.query'].includes(name))) expect(names, tool).not.toContain(tool);
+    // projects.create and clients.create need the project and client rights, which this list keeps.
+    for (const tool of Object.keys(MCP_BY_RIGHT).filter((name) => !['dashboard.get', 'search.query', 'projects.create', 'clients.create'].includes(name))) expect(names, tool).not.toContain(tool);
     expect(names).toContain('dashboard.get');
     const noAi = OFFICE_RIGHTS.filter((right) => right !== 'ai.payments').map(String);
     expect(mcpTools({ rights: noAi }).map((tool) => tool.name)).not.toContain('payments.create');
@@ -111,9 +118,9 @@ describe('the list of tools for each AI switch', () => {
 
   it('never lists a tool that no AI switch opens', () => {
     const [first] = mcpTools({ admin: true });
-    const stranger: ToolDef = { ...first, name: 'projects.create' as never };
+    const stranger: ToolDef = { ...first, name: 'projects.setLeader' as never };
     expect(visibleTools([stranger], () => true, true)).toEqual([]);
-    expect(toolOfOffSwitch([stranger], () => false, 'projects.create')).toBeUndefined();
+    expect(toolOfOffSwitch([stranger], () => false, 'projects.setLeader')).toBeUndefined();
   });
 
   it('finds the tool of a call only when its AI switch is off', () => {

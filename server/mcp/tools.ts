@@ -9,12 +9,12 @@ import { aiSwitchOf } from './aiSwitches';
 import { PICTURES_GET, PicturesGetInput, WITH_PICTURES_TOOLS, WithPictures } from './pictures';
 
 /**
- * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). An allowlist of 47 tools: the reads and writes an agent
+ * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). An allowlist of 49 tools: the reads and writes an agent
  * can use for an office project, with the three message tools (owner, 2026-10-12), the stage dates (fbk_023), the five meeting tools
- * (fbk_022) and the picture tool (owner, 2026-10-21). The right list adds 10 tools that a right of the person opens: the 4 payment tools,
+ * (fbk_022) and the picture tool (owner, 2026-10-21), and the client and template lists for the AI switch "AI creates projects and clients" (owner, 2026-10-25). The right list adds 12 tools that a right of the person opens: the 4 payment tools,
  * the Dashboard and Search (role rights version 2, 2026-10-21), reports.office for the report right (owner, 2026-10-18, fbk_016), and the
- * 3 tools of requests and bugs for the feedback right (owner, 2026-10-07; role-rights, 2026-10-23). The Admin holds every right, so an
- * Admin's agent gets all 57. Every other call stays on the deny list: screen work (uploads, read marks, counts, archives, group
+ * 3 tools of requests and bugs for the feedback right (owner, 2026-10-07; role-rights, 2026-10-23), and projects.create and clients.create for the
+ * project and client rights (owner, 2026-10-25). The Admin holds every right, so an Admin's agent gets all 61. Every other call stays on the deny list: screen work (uploads, read marks, counts, archives, group
  * changes), the prototype controls, and the other Admin calls. VS Code allows at most 128 tools in one request across all
  * servers, and each tool definition uses model context, so the lists stay short. tools.test.ts fails when a call is in no list.
  *
@@ -28,12 +28,12 @@ export const READ_FIRST = 'madar.readFirst';
 export const NO_CALL_TOOLS: ReadonlySet<string> = new Set([READ_FIRST, PICTURES_GET]);
 
 export const MCP_ALLOW = [
-  // Reads (19). chats.list finds a chat, chats.messages reads one page of it, and chats.waiting lists what waits for the reply of
+  // Reads (21). clients.list and projectTemplates.list belong to the AI switch ai.projectSetup (owner, 2026-10-25). chats.list finds a chat, chats.messages reads one page of it, and chats.waiting lists what waits for the reply of
   // the person (fbk_011, owner 2026-10-18). subCompanies.list gives its logos only with withPictures. meetings.list and meetings.get read
   // the meetings of the person and of a project (fbk_022, owner 2026-10-19). pictures.get gives one picture (owner, 2026-10-21).
   READ_FIRST, PICTURES_GET, 'projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'tracker.list',
   'deadlines.list', 'files.list', 'users.list', 'events.list', 'chats.list', 'subCompanies.list',
-  'chats.messages', 'chats.waiting', 'meetings.list', 'meetings.get',
+  'chats.messages', 'chats.waiting', 'meetings.list', 'meetings.get', 'clients.list', 'projectTemplates.list',
   // Writes (28). tasks.help joins your person to a task as a helper, or takes them off it (fbk_035). chats.openDirect and chats.send message the team: a direct chat, a group or a project chat (task comments and
   // project posts are comments.create and updates.create). stages.setDates sets the dates of one stage, as the Schedule tab does.
   // meetings.create, meetings.update and meetings.cancel tell the attendees, who are real people. meetings.saveMinutes writes the minutes of a meeting
@@ -56,7 +56,7 @@ export const ADMIN_TOOLS: ReadonlySet<string> = new Set<string>(MCP_ADMIN);
  * to an agent only when its person holds the right (rights.ts) and the AI switch of the tool. The handler checks the same right, so a
  * call without it fails too. The payment tools need the payment switches, the Dashboard and Search their own switches, the office report
  * the report right, and the reports of people (feedback.*) the feedback right: the Admin holds it, and a role can hold it (owner,
- * 2026-10-23).
+ * 2026-10-23). projects.create and clients.create need the project and client rights, and the AI switch ai.projectSetup (owner, 2026-10-25).
  */
 export const MCP_BY_RIGHT = {
   'payments.list': 'payment.view',
@@ -69,6 +69,8 @@ export const MCP_BY_RIGHT = {
   'feedback.list': 'feedback.manage',
   'feedback.screenshot': 'feedback.manage',
   'feedback.setStatus': 'feedback.manage',
+  'projects.create': 'project.create',
+  'clients.create': 'client.create',
 } as const satisfies Readonly<Partial<Record<SharedCallName | ServerCallName, OfficeRight>>>;
 const RIGHT_TOOLS = Object.keys(MCP_BY_RIGHT) as (keyof typeof MCP_BY_RIGHT)[];
 
@@ -85,13 +87,13 @@ export const MCP_DENY = [
   'session.get', 'me.updateProfile', 'me.updatePreferences',
   // People, clients, teams, sub-companies and office settings: Admin and Management work in the screens.
   'users.get', 'users.create', 'users.update', 'users.deactivate', 'users.reactivate', 'users.remove', 'users.invites', 'users.resendInvite',
-  'clients.list', 'clients.create', 'clients.update', 'teams.list', 'teams.create', 'teams.update', 'teams.delete',
+  'clients.update', 'teams.list', 'teams.create', 'teams.update', 'teams.delete',
   'subCompanies.save', 'subCompanies.delete',
   'settings.get', 'settings.update',
   // Office roles and their rights: only the Admin makes or changes a role, in the screens (owner, 2026-10-18, fbk_014).
   'roles.create', 'roles.update', 'roles.delete',
   // Project set-up, members, stages (the dates of a stage are a tool, fbk_023), links, health and deletes.
-  'projects.create', 'projects.setLeader', 'projects.pause', 'projects.resume', 'projects.setRestart', 'projects.setAccess', 'projects.addLink', 'projects.updateLink',
+  'projects.setLeader', 'projects.pause', 'projects.resume', 'projects.setRestart', 'projects.setAccess', 'projects.addLink', 'projects.updateLink',
   'projects.removeLink', 'projects.setHealthOverride', 'projects.clearHealthOverride', 'projects.delete',
   'members.add', 'members.addTeam', 'members.remove', 'members.update',
   'stages.replace', 'stages.setPrerequisites', 'deadlines.delete',
@@ -114,7 +116,7 @@ export const MCP_DENY = [
   'chats.createGroup', 'chats.updateGroup', 'chats.leaveGroup',
   // Templates, tracker extras and payment deletes.
   'stageTemplates.list', 'stageTemplates.save', 'stageTemplates.delete',
-  'projectTemplates.list', 'projectTemplates.save', 'projectTemplates.delete',
+  'projectTemplates.save', 'projectTemplates.delete',
   // Linking an older project to a template, the apply of a template to an ongoing project (the leader's menu, fbk_020) and the update of
   // its projects are screen tasks: no agent links, applies, reads the matches, reads the update plan or sends the update.
   'projectTemplates.matchPlan', 'projectTemplates.link', 'projectTemplates.usage', 'projectTemplates.syncPlan', 'projectTemplates.syncApply',
