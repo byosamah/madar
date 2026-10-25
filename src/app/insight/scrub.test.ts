@@ -98,7 +98,7 @@ describe('scrubEvent', () => {
       $prev_pageview_url: '/projects/prj_1',
       $session_entry_pathname: '/tasks',
       note: 'https://madar.vado.sa/a',
-      other: '/not-a-url?kept',
+      other: '/not-a-url',
       list: [{ deep: { href: '' } }],
     });
   });
@@ -127,6 +127,36 @@ describe('scrubEvent', () => {
     });
     expect(JSON.stringify(out)).not.toContain('sig=1');
     expect(JSON.stringify(out)).not.toContain('v=2');
+  });
+
+  it('has no depth limit: an address 8 levels deep is scrubbed', () => {
+    let nested: Record<string, unknown> = { $current_url: 'https://madar.vado.sa/search?q=x', note: 'at https://x.test/a?sig=1' };
+    for (let level = 0; level < 8; level += 1) nested = { level, inner: [nested] };
+    const text = JSON.stringify(scrubEvent({ event: 'x', properties: { nested } }));
+    expect(text).toContain('https://madar.vado.sa/search"');
+    expect(text).not.toContain('q=x');
+    expect(text).not.toContain('sig=1');
+  });
+
+  it('turns a cycle into the text [cycle] and does not throw', () => {
+    const loop: Record<string, unknown> = { name: 'loop' };
+    loop.self = loop;
+    const out = scrubEvent({ event: 'x', properties: { loop } });
+    expect(out!.properties).toEqual({ loop: { name: 'loop', self: '[cycle]' } });
+  });
+
+  it('keeps an object that appears twice and is no cycle', () => {
+    const shared = { $current_url: 'https://madar.vado.sa/a?b=1' };
+    const out = scrubEvent({ event: 'x', properties: { one: shared, two: shared } });
+    expect(out!.properties).toEqual({ one: { $current_url: 'https://madar.vado.sa/a' }, two: { $current_url: 'https://madar.vado.sa/a' } });
+  });
+
+  it('scrubs an address inside free text, whatever the key', () => {
+    const out = scrubEvent({
+      event: '$autocapture',
+      properties: { custom: 'see https://x.test/a?sig=1 now', $el_text: 'Open /projects/prj_1?task=t1 now', $elements: [{ $el_text: 'go https://x.test/b#h' }] },
+    });
+    expect(out!.properties).toEqual({ custom: 'see https://x.test/a now', $el_text: 'Open /projects/prj_1 now', $elements: [{ $el_text: 'go https://x.test/b' }] });
   });
 
   it('fails closed: a record that cannot be read gives null', () => {
