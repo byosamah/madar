@@ -1,27 +1,29 @@
-import type { FocusEvent, KeyboardEvent } from 'react';
+import { memo, type FocusEvent, type KeyboardEvent } from 'react';
 import { Handle, Position, useReactFlow, type Node, type NodeProps } from '@xyflow/react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { useLang } from '../../app/lang';
-import type { Stage } from '../../api/contract/entities';
+import { useSubCompany } from '../../app/subCompanies';
+import type { ChecklistItem, Deadline, Stage } from '../../api/contract/entities';
 import type { ProjectSummary, TaskRow } from '../../api/contract/views';
 import { AvatarStack } from '../../components/AvatarStack';
 import { IconButton } from '../../components/IconButton';
 import { AnimatedIcon } from '../../components/icons/AnimatedIcon';
 import { ArrowUpRightIcon } from '../../components/icons/animated/arrow-up-right';
 import { MadarMark } from '../../components/MadarMark';
+import { SubCompanyLogo } from '../../components/SubCompanyLogo';
 import { ProjectTile } from '../../components/ProjectTile';
 import { StatusSign, signOfProject, type SignState } from '../../components/StatusSign';
 import { formatDay, todayISO, type Lang } from '../../lib/dates';
 import { counted } from '../../lib/grammar';
 import { dueText, dueWord } from '../../lib/due';
-import { CARD_HEIGHT, type SpaceNode as Placed } from './spaceTree';
+import { CARD_HEIGHT, type SpaceKind } from './spaceTree';
 
 /** What one card shows. The screen fills it from the lists it reads. A card with no next level has `expandable` false. */
 export type SpaceCardData = {
   id: string;
-  kind: Placed['kind'];
+  kind: SpaceKind;
   open: boolean;
   faded: boolean;
   expandable: boolean;
@@ -34,6 +36,15 @@ export type SpaceCardData = {
   stage?: Stage;
   current?: boolean;
   row?: TaskRow;
+  /** A sub-company card: its id (null for "No sub-company") and its two facts. */
+  subId?: string | null;
+  subFacts?: { projects: number; late: number };
+  /** A deadline card. */
+  deadline?: Deadline;
+  /** A checklist card: the item of the to-do in `row`. */
+  item?: ChecklistItem;
+  /** A "more" card: the items past the cap of the to-do in `row`. */
+  moreCount?: number;
 };
 
 export type SpaceFlowNode = Node<SpaceCardData, 'space'>;
@@ -171,6 +182,100 @@ function ProjectCard({ data }: { data: SpaceCardData }) {
   );
 }
 
+/** A card of a sub-company: its logo, its name, how many projects it has and how many open to-dos are past due. */
+function SubCompanyCard({ data }: { data: SpaceCardData }) {
+  const { t } = useTranslation();
+  const lang = useLang();
+  const sub = useSubCompany(data.subId);
+  const facts = data.subFacts;
+  const name = data.subId === null || data.subId === undefined ? t('subCompanies.none') : sub ? (lang === 'ar' ? sub.nameAr : sub.name) : '';
+  return (
+    <div {...levelProps(data)}>
+      <span className="flex items-center gap-2.5">
+        {data.subId ? <SubCompanyLogo subCompanyId={data.subId} size={32} /> : <span aria-hidden className="size-8 shrink-0 rounded-full bg-fill" />}
+        <bdi dir="auto" className="min-w-0 truncate text-subheadline font-semibold text-ink">{name}</bdi>
+      </span>
+      {facts && (
+        <span className="mt-1.5 flex items-center gap-x-1.5 whitespace-nowrap text-caption text-ink-2" data-facts>
+          <span>{counted(t, 'subCompanies.projectCount', facts.projects)}</span>
+          {facts.late > 0 && (
+            <>
+              <span aria-hidden>·</span>
+              <span className="font-semibold text-late">{counted(t, 'space.lateCount', facts.late)}</span>
+            </>
+          )}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** The class of a card that has no next level and no panel: the surface, and a fade when the focus leaves it out. */
+const quietClass = (data: SpaceCardData) => `${CARD} flex items-center gap-2.5 ${data.faded ? 'opacity-40' : ''}`;
+
+/** A deadline of a project: a small diamond, its name and its date. The word "Deadline" stays for a screen reader. */
+function DeadlineCard({ data }: { data: SpaceCardData }) {
+  const { t } = useTranslation();
+  const lang = useLang();
+  const deadline = data.deadline;
+  if (!deadline) return null;
+  return (
+    <div data-kind={data.kind} data-open={data.open} data-faded={data.faded} className={quietClass(data)}>
+      <svg viewBox="0 0 12 12" width="14" height="14" aria-hidden className="shrink-0 text-link"><path d="M6 0l6 6-6 6-6-6z" fill="currentColor" /></svg>
+      <span className="flex min-w-0 flex-col">
+        <bdi dir="auto" className="block truncate text-footnote font-semibold text-ink">{deadline.name}</bdi>
+        <span className="text-caption text-ink-2">
+          <span className="sr-only">{t('space.deadline')}</span>
+          <span>{formatDay(deadline.date, lang)}</span>
+        </span>
+      </span>
+    </div>
+  );
+}
+
+/** One item of the checklist of a to-do: a tick box and its text. */
+function CheckCard({ data }: { data: SpaceCardData }) {
+  const { t } = useTranslation();
+  const item = data.item;
+  if (!item) return null;
+  return (
+    <div data-kind={data.kind} data-open={data.open} data-faded={data.faded} className={quietClass(data)}>
+      <span aria-hidden className={`grid size-4 shrink-0 place-items-center rounded border ${item.done ? 'border-done bg-done text-white' : 'border-ink-2/60'}`}>
+        {item.done && <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 6.5l2.5 2.5 4.5-5" /></svg>}
+      </span>
+      <bdi dir="auto" className={`min-w-0 truncate text-footnote ${item.done ? 'text-ink-2 line-through' : 'text-ink'}`}>{item.text}</bdi>
+      <span className="sr-only">{item.done ? t('space.itemDone') : t('space.itemOpen')}</span>
+    </div>
+  );
+}
+
+/** The card for the checklist items past the cap. A press opens the to-do, where the person reads the whole checklist. */
+function MoreCard({ data }: { data: SpaceCardData }) {
+  const { t } = useTranslation();
+  const row = data.row;
+  if (!row || !data.moreCount) return null;
+  const open = () => data.onOpenTask(row.task.id, row.task.projectId);
+  return (
+    <div
+      data-kind={data.kind}
+      data-open={data.open}
+      data-faded={data.faded}
+      role="button"
+      tabIndex={0}
+      aria-haspopup="dialog"
+      onClick={open}
+      onKeyDown={(event) => {
+        if ((event.key !== 'Enter' && event.key !== ' ') || event.target !== event.currentTarget) return;
+        event.preventDefault();
+        open();
+      }}
+      className={`${quietClass(data)} cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-link`}
+    >
+      <span className="text-footnote font-semibold text-link">{counted(t, 'space.moreItems', data.moreCount)}</span>
+    </div>
+  );
+}
+
 function StageCard({ data }: { data: SpaceCardData }) {
   const { t } = useTranslation();
   const lang = useLang();
@@ -232,16 +337,27 @@ function OfficeCard() {
 }
 
 /** The card of one node of the map. React Flow calls it with the node's data and the sides of its handles. */
-export function SpaceCard({ data, sourcePosition, targetPosition, positionAbsoluteX, positionAbsoluteY }: NodeProps<SpaceFlowNode>) {
+function cardBody(data: SpaceCardData) {
+  switch (data.kind) {
+    case 'office': return <OfficeCard />;
+    case 'subcompany': return <SubCompanyCard data={data} />;
+    case 'project': return <ProjectCard data={data} />;
+    case 'stage': return <StageCard data={data} />;
+    case 'deadline': return <DeadlineCard data={data} />;
+    case 'check': return <CheckCard data={data} />;
+    case 'more': return <MoreCard data={data} />;
+    default: return <TaskCard data={data} />;
+  }
+}
+
+/**
+ * The card is a memo: the screen keeps the data of a card that a tap did not touch, so React Flow draws again only the cards that
+ * changed (fbk_055, the speed rule).
+ */
+export const SpaceCard = memo(function SpaceCard({ data, sourcePosition, targetPosition, positionAbsoluteX, positionAbsoluteY }: NodeProps<SpaceFlowNode>) {
   const lang = useLang();
   const view = useReactFlow();
-  const body = data.kind === 'office'
-    ? <OfficeCard />
-    : data.kind === 'project'
-      ? <ProjectCard data={data} />
-      : data.kind === 'stage'
-        ? <StageCard data={data} />
-        : <TaskCard data={data} />;
+  const body = cardBody(data);
   return (
     <>
       <Handle type="target" position={targetPosition ?? Position.Left} isConnectable={false} style={HIDDEN_HANDLE} />
@@ -250,4 +366,4 @@ export function SpaceCard({ data, sourcePosition, targetPosition, positionAbsolu
       <Handle type="source" position={sourcePosition ?? Position.Right} isConnectable={false} style={HIDDEN_HANDLE} />
     </>
   );
-}
+});

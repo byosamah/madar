@@ -1,0 +1,19 @@
+{
+  "space": {
+    "detail": "Detail",
+    "more": "Show more",
+    "less": "Show less",
+    "levelSubCompanies": "Sub-companies",
+    "levelProjects": "Projects",
+    "levelStages": "Stages",
+    "levelTodos": "To-dos and deadlines",
+    "levelChecklists": "Checklists",
+    "introDetail": "Use Show more to open the next level for every project.",
+    "deadline": "Deadline",
+    "itemDone": "Done",
+    "itemOpen": "Not done",
+    "moreItems": "{{n}} more items",
+    "moreItems_one": "1 more item",
+    "moreItems_other": "{{count}} more items"
+  }
+}

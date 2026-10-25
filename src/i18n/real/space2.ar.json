@@ -1,0 +1,23 @@
+{
+  "space": {
+    "detail": "التفاصيل",
+    "more": "أظهر المزيد",
+    "less": "أظهر أقل",
+    "levelSubCompanies": "الشركات الفرعية",
+    "levelProjects": "المشاريع",
+    "levelStages": "المراحل",
+    "levelTodos": "المهام والمواعيد",
+    "levelChecklists": "قوائم التحقق",
+    "introDetail": "اضغط «أظهر المزيد» لفتح المستوى التالي في كل المشاريع.",
+    "deadline": "موعد",
+    "itemDone": "منجز",
+    "itemOpen": "غير منجز",
+    "moreItems": "{{n}} بند آخر",
+    "moreItems_zero": "لا بنود أخرى",
+    "moreItems_one": "بند آخر واحد",
+    "moreItems_two": "بندان آخران",
+    "moreItems_few": "{{count}} بنود أخرى",
+    "moreItems_many": "{{count}} بندًا آخر",
+    "moreItems_other": "{{count}} بند آخر"
+  }
+}
