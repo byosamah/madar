@@ -32,7 +32,7 @@ export function FocusChatPane({ target, page, onClose }: { target: FocusChatTarg
     );
   }
   return (
-    <aside data-focus-chat aria-label={label} className="panel fixed inset-y-3 end-3 z-10 flex w-[24rem] flex-col overflow-hidden">
+    <aside data-focus-chat aria-label={label} className="fixed inset-y-0 end-0 z-10 flex w-[24rem] flex-col overflow-hidden border-s border-hairline bg-panel">
       {pane}
     </aside>
   );

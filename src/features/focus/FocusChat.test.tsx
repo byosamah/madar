@@ -262,10 +262,21 @@ describe('the panel on a wide window (1024 px or more)', () => {
     await userEvent.click(await projectChatButton(focus));
     await panelOf();
     expect(within(focus).getByRole('heading', { level: 1 })).toBe(heading);
-    expect(focus).toHaveClass('lg:pe-[26rem]');
+    expect(focus).toHaveClass('lg:pe-[24rem]');
     await userEvent.click(within(await panelOf()).getByRole('button', { name: 'Close' }));
-    await waitFor(() => expect(focus).not.toHaveClass('lg:pe-[26rem]'));
+    await waitFor(() => expect(focus).not.toHaveClass('lg:pe-[24rem]'));
     expect(within(focus).getByRole('heading', { level: 1 })).toBe(heading);
+  });
+
+  // The owner, 2026-10-25: "the project chat make it open like sidebar". The panel is docked: flush on the end edge, full height,
+  // one hairline on its start side, no card corners or shadow, and the Focus page leaves exactly its width free.
+  it('docks the chat as a sidebar on the end edge, full height, with no card look', async () => {
+    wide();
+    const { focus } = await openFocus();
+    await userEvent.click(await projectChatButton(focus));
+    const panel = await panelOf();
+    for (const name of ['fixed', 'inset-y-0', 'end-0', 'w-[24rem]', 'border-s', 'border-hairline', 'bg-panel']) expect(panel, name).toHaveClass(name);
+    for (const name of ['panel', 'inset-y-3', 'end-3']) expect(panel, name).not.toHaveClass(name);
   });
 });
 

@@ -476,8 +476,8 @@ The owner sees how the team uses Madar, which errors they hit, and replays of th
   the chat opens shows above Focus. Pin every new layer number against these. The Focus chat (fbk_059, owner 2026-10-25): one quiet grey button at
   the end of the top row, the word `project.chat` (or `chat.taskThread` for an office to-do, which shows its own thread), with no dot and no count.
   It shows only when `projects.get` gives a `chatId` (null without `chat.project`). A press opens the chat from 1024 px (`useIsWide`,
-  `features/focus/focusChat.ts`) as a panel `aside[data-focus-chat]` on the end side (`fixed inset-y-3 end-3 w-[24rem]`); the dialog gets
-  `lg:pe-[26rem]` and the page keeps its place in the tree, so the timer never starts again (never wrap `FocusPage` in a new parent). The device
+  `features/focus/focusChat.ts`) as a docked sidebar `aside[data-focus-chat]` on the end edge (`fixed inset-y-0 end-0 w-[24rem]`, a hairline on its start side, no card look; owner 2026-10-25); the dialog gets
+  `lg:pe-[24rem]` and the page keeps its place in the tree, so the timer never starts again (never wrap `FocusPage` in a new parent). The device
   keeps the choice (`madar.focus.chat`, `open` or `closed`, first value `closed`); a remembered `open` counts only from 1024 px. Under 1024 px
   the press opens a full page over Focus (`PhoneChatPage` with `layer="z-[36]"` and `inertWhileSheet={false}`: Focus sets `data-panel-open`, which
   would make the page dead) with "Back to focus" (`focus.backToFocus`, track `focuschat`); the choice stays as it was, and the Focus column is

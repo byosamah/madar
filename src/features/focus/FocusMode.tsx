@@ -200,7 +200,7 @@ export function FocusMode() {
           // z-[35]: above the tab pill and the corner buttons (z-30) and below the layers that a chat can open: the dim layer of a sheet
           // (z-40), the sheets, the picture viewer and the menus (z-50) and the toasts (z-80). It was z-[70], which hid them (fbk_059).
           // The open panel takes the end side, so the column keeps its tree and only gets room on that side.
-          className={`fixed inset-0 z-[35] overflow-y-auto bg-[linear-gradient(180deg,var(--c-page-top),var(--c-page-bottom))] ${chat.panel ? 'lg:pe-[26rem]' : ''}`}
+          className={`fixed inset-0 z-[35] overflow-y-auto bg-[linear-gradient(180deg,var(--c-page-top),var(--c-page-bottom))] ${chat.panel ? 'lg:pe-[24rem]' : ''}`}
         >
           <FocusPage data={task.data} onExit={close} chat={chat} />
           {chat.target && (chat.panel || chat.page) && <chatPane.Overlay target={chat.target} page={chat.page} onClose={chat.close} />}
