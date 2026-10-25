@@ -25,6 +25,21 @@ const toastPresses = new WeakSet<Event>();
 export const isToastPress = (event: Event | undefined): boolean => event !== undefined && toastPresses.has(event);
 let nextToastId = 1;
 const STAY_MS = 5000;
+/** A toast with Undo stays longer, so a person can reach it (fbk_052). */
+const UNDO_STAY_MS = 8000;
+const stayOf = (toast: ToastInput): number => (toast.action?.isUndo ? UNDO_STAY_MS : STAY_MS);
+
+/**
+ * True when a key press is the Z key with Ctrl or Cmd down, and no Shift or Alt (fbk_052). The key "z" is the Z key on a Latin layout.
+ * An Arabic layout sends an Arabic letter on the same physical key, so the code "KeyZ" counts when the key is not a Latin letter.
+ * The code alone is wrong: on a French AZERTY keyboard "KeyZ" is the W key.
+ */
+export const isUndoKey = (event: KeyboardEvent): boolean => {
+  // Chrome sends a keydown with no key when it fills a saved password (fbk_033), so the key can be undefined.
+  if (typeof event.key !== 'string' || !(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return false;
+  if (event.key.toLowerCase() === 'z') return true;
+  return event.code === 'KeyZ' && !/^[A-Za-z]$/.test(event.key);
+};
 
 /**
  * The open sheets, the blocking sheet and the side panel alike (owner, 2026-10-06). When a sheet opens, the toasts without
@@ -65,7 +80,7 @@ type Holder = { pointer: number | null; focus: number | null };
 const isHeld = (holder: Holder) => holder.pointer !== null || holder.focus !== null;
 
 /**
- * Toasts stay 5 seconds (spec 5.5). At most three show at once. The time stops while the pointer or the focus is on a toast,
+ * Toasts stay 5 seconds (spec 5.5), and a toast with Undo stays 8 seconds (fbk_052). At most three show at once. The time stops while the pointer or the focus is on a toast,
  * so a person can read it and reach Undo (audit 2026-10-03, SHL-3).
  */
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -104,8 +119,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const show = useCallback((toast: ToastInput) => {
     const id = nextToastId++;
     setToasts((all) => [...all.slice(-2), { ...toast, id, step: steps.current }]);
-    if (isHeld(holder.current)) timers.current.set(id, { left: STAY_MS, started: 0, handle: 0 });
-    else run(id, STAY_MS);
+    const stay = stayOf(toast);
+    if (isHeld(holder.current)) timers.current.set(id, { left: stay, started: 0, handle: 0 });
+    else run(id, stay);
   }, [run]);
   /** The toast "id" now holds the pointer or the focus, or null when it lets go. */
   const hold = useCallback((what: keyof Holder, id: number | null) => {
@@ -124,9 +140,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, [run]);
   useEffect(() => {
     // Ctrl+Z or Cmd+Z runs the newest Undo, so a keyboard user never has to reach the toast in time.
-    // Chrome sends a keydown with no key when it fills a saved password (fbk_033), so the key can be undefined.
     const onKey = (event: KeyboardEvent) => {
-      if (typeof event.key !== 'string' || event.key.toLowerCase() !== 'z' || !(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return;
+      if (!isUndoKey(event)) return;
       if (event.defaultPrevented || isTextField(event.target)) return;
       const newest = [...latest.current].reverse().find((toast) => toast.action?.isUndo);
       if (!newest?.action) return;

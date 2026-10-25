@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ApiError } from '../api/errors';
 import { Sheet } from '../components/Sheet';
@@ -182,5 +182,100 @@ describe('the standing notice', () => {
     expect(within(lane).getAllByRole('status').map((item) => item.textContent)).toEqual(['Live updates paused. Your changes still save.', 'Saved.']);
     rerender(<ToastProvider><Notice text={null} /></ToastProvider>);
     await waitFor(() => expect(within(lane).queryByText('Live updates paused. Your changes still save.')).toBeNull());
+  });
+});
+
+// fbk_052: Ctrl+Z on an Arabic keyboard, the longer life of an Undo toast, and the text fields that keep their own undo.
+describe('the Undo key and the Undo time (fbk_052)', () => {
+  afterEach(() => vi.useRealTimers());
+
+  function Screen({ undo }: { undo: () => void }) {
+    const toast = useToast();
+    return (
+      <>
+        <button type="button" onClick={() => toast.undo('Task deleted.', undo)}>Delete</button>
+        <button type="button" onClick={() => toast.show({ message: 'Link copied.' })}>Copy</button>
+        <input aria-label="Name" />
+        <textarea aria-label="Note" />
+      </>
+    );
+  }
+  const press = (init: KeyboardEventInit, target: Element | Window = window) => fireEvent.keyDown(target, { ctrlKey: true, ...init });
+
+  it('runs the Undo for an Arabic key on the Z key (code KeyZ)', async () => {
+    initI18n('en');
+    const undo = vi.fn();
+    render(<ToastProvider><Screen undo={undo} /></ToastProvider>);
+    await userEvent.click(screen.getByText('Delete'));
+    press({ key: '\u0638', code: 'KeyZ' });
+    expect(undo).toHaveBeenCalledOnce();
+  });
+
+  it('runs the Undo for Cmd+Z with the key in upper case', async () => {
+    initI18n('en');
+    const undo = vi.fn();
+    render(<ToastProvider><Screen undo={undo} /></ToastProvider>);
+    await userEvent.click(screen.getByText('Delete'));
+    fireEvent.keyDown(window, { metaKey: true, key: 'Z', code: 'KeyZ' });
+    expect(undo).toHaveBeenCalledOnce();
+  });
+
+  it('does not run the Undo for the W key of a French AZERTY keyboard (code KeyZ, key w)', async () => {
+    initI18n('en');
+    const undo = vi.fn();
+    render(<ToastProvider><Screen undo={undo} /></ToastProvider>);
+    await userEvent.click(screen.getByText('Delete'));
+    press({ key: 'w', code: 'KeyZ' });
+    press({ key: 'W', code: 'KeyZ' });
+    expect(undo).not.toHaveBeenCalled();
+  });
+
+  it('does not run the Undo with Shift or Alt, or for a key with no code and no Z', async () => {
+    initI18n('en');
+    const undo = vi.fn();
+    render(<ToastProvider><Screen undo={undo} /></ToastProvider>);
+    await userEvent.click(screen.getByText('Delete'));
+    press({ key: 'z', code: 'KeyZ', shiftKey: true });
+    press({ key: 'z', code: 'KeyZ', altKey: true });
+    press({ key: '\u0638', code: 'KeyX' });
+    expect(undo).not.toHaveBeenCalled();
+  });
+
+  it('leaves Ctrl+Z to the browser inside an input and a textarea', async () => {
+    initI18n('en');
+    const undo = vi.fn();
+    render(<ToastProvider><Screen undo={undo} /></ToastProvider>);
+    await userEvent.click(screen.getByText('Delete'));
+    press({ key: 'z', code: 'KeyZ' }, screen.getByLabelText('Name'));
+    press({ key: '\u0638', code: 'KeyZ' }, screen.getByLabelText('Name'));
+    press({ key: 'z', code: 'KeyZ' }, screen.getByLabelText('Note'));
+    expect(undo).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument();
+  });
+
+  it('keeps an Undo toast for 8 seconds, and a plain toast for 5 seconds', () => {
+    initI18n('en');
+    vi.useFakeTimers();
+    render(<ToastProvider><Screen undo={() => undefined} /></ToastProvider>);
+    fireEvent.click(screen.getByText('Delete'));
+    fireEvent.click(screen.getByText('Copy'));
+    act(() => {
+      vi.advanceTimersByTime(4900);
+    });
+    expect(screen.getByText('Task deleted.')).toBeInTheDocument();
+    expect(screen.getByText('Link copied.')).toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(screen.queryByText('Link copied.')).toBeNull();
+    expect(screen.getByText('Task deleted.')).toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(1900);
+    });
+    expect(screen.getByText('Task deleted.')).toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(1100);
+    });
+    expect(screen.queryByText('Task deleted.')).toBeNull();
   });
 });
