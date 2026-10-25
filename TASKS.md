@@ -1105,7 +1105,7 @@ Design `docs/superpowers/specs/2026-10-22-madar-phone-d-design.md` (+ `-areas.md
 
 Plan: `docs/superpowers/plans/2026-10-25-madar-inbox-line-agent-projects-plan.md`. Voice notes (fbk_054) dropped by the owner.
 
-- [ ] Track A, the Inbox line (`rb/inbox-line`): one line under a filtered list with the unread messages of the other kinds, and "Show all"
+- [x] Track A, the Inbox line (`rb/inbox-line`): one line under a filtered list with the unread messages of the other kinds, and "Show all"
 - [ ] Track B, projects from the AI agent (`rb/agent-projects`): switch `ai.projectSetup` (Admin only), 4 tools, lean lists, words, tests
 - [ ] Join: both branches on main, What's new 2026-10-23-100 and -101, the R2 line of `server/files/CLAUDE.md`
 - [ ] Gates once: typecheck, npm test, builds, test:db, test:it, test:mcp, prototype smoke
