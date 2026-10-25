@@ -1120,6 +1120,6 @@ Plan: `docs/superpowers/plans/2026-10-25-madar-team-reports-2-plan.md`.
 
 - [x] Track D1 (`rb/undo-summary`): Ctrl+Z on an Arabic keyboard, Undo toasts 8 s, the swipe Undo on a notice; the summary on office work days only
 - [ ] Track D2 (`rb/space-levels`): the Open space "Show more / Show less" with 5 steps, the sub-company column, deadlines and checklists, the refit
-- [ ] Track D3 (`rb/focus-chat`): the Project chat panel in Focus mode, closed at first, the device remembers
+- [x] Track D3 (`rb/focus-chat`): the Project chat panel in Focus mode, closed at first, the device remembers
 - [ ] Join, What's new 2026-10-23-103 to -106, gates once, screenshots
 - [ ] Test copy, then the owner's word for production, release record, mark the four reports done
