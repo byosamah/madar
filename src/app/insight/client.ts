@@ -16,6 +16,20 @@ export const POSTHOG_HOST = 'https://eu.i.posthog.com';
 
 export type InsightEnv = 'production' | 'test';
 
+/**
+ * A browser warning with no fault in it: a ResizeObserver callback that changes a size in the same frame. The Open space map gave 8 of
+ * the first 9 errors on the test copy (2026-10-25), so it would fill the error list of the owner.
+ */
+const HARMLESS_ERROR = /ResizeObserver loop/;
+
+/** True for an error record that holds only the harmless warning. */
+function harmlessError(properties: Record<string, unknown> | undefined): boolean {
+  const list = properties?.$exception_list;
+  const first = Array.isArray(list) ? (list[0] as { value?: unknown } | undefined)?.value : undefined;
+  const text = typeof first === 'string' ? first : properties?.$exception_message;
+  return typeof text === 'string' && HARMLESS_ERROR.test(text);
+}
+
 type OptionsInput = {
   env: InsightEnv;
   build: string;
@@ -68,6 +82,7 @@ export function posthogOptions(o: OptionsInput): Partial<PostHogConfig> {
         // A record that the scrub cannot read is dropped (the scrub fails closed).
         const clean = scrubEvent(record);
         if (!clean) return null;
+        if (clean.event === '$exception' && harmlessError(clean.properties)) return null;
         const extra: Record<string, unknown> = { env, build };
         if (clean.event === '$exception') {
           try {

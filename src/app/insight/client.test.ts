@@ -63,6 +63,16 @@ describe('posthogOptions', () => {
     }
   });
 
+  it('drops the harmless ResizeObserver loop warning, and keeps every other error (test copy, 2026-10-25)', () => {
+    const send = beforeSend();
+    const warning = (value: string) => result('$exception', { $exception_list: [{ type: 'Error', value }] });
+    expect(send(warning('ResizeObserver loop completed with undelivered notifications.'))).toBeNull();
+    expect(send(warning('ResizeObserver loop limit exceeded'))).toBeNull();
+    expect(send(result('$exception', { $exception_message: 'ResizeObserver loop limit exceeded' }))).toBeNull();
+    expect(send(warning('Cannot read properties of undefined (reading \'name\')'))).not.toBeNull();
+    expect(send(result('$pageview', { note: 'ResizeObserver loop' }))).not.toBeNull();
+  });
+
   it('adds no person to an error when no person is known', () => {
     const out = beforeSend(options(() => null))(result('$exception'));
     expect(out?.properties).not.toHaveProperty('personId');
