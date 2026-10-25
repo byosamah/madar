@@ -1110,7 +1110,8 @@ Design: `docs/superpowers/specs/2026-10-25-madar-posthog-insight-design.md`. Pla
 - [ ] Owner: in PostHog turn on "Record user sessions" and "Exception autocapture", "Discard client IP data", and the replay minimum duration of 5 s
 - [x] Test copy check (madar-52, passed on 3b40b13c): replays with hatched chat bubbles, previews, amounts and file pictures; the test error arrives with the person; clean addresses. Fixes on the way: 4d07d7bb (connect-src `eu-assets.i.posthog.com`) and 89ce45c7 (the ResizeObserver loop warning stays out)
 - [x] Screenshots of the Settings and Me line (EN/AR, light/dark, 390 px)
-- [x] Production at 4df7db3d (2026-10-25 15:28), with the four team reports and the to-do fixes
+- [x] Production at 4df7db3d (2026-10-25 15:28), with the four team reports and the to-do fixes. PostHog check at 15:35: 2 production
+  page views (`env` production) arrived; no production replay yet (the visit was about 10 s); look again in PostHog later
 - [ ] Speed check: Home and the Inbox as fast as before (desktop Chrome and iPhone Safari)
 - [ ] The office object logger (`server/office/parts.ts`) is not wired to PostHog
 - [ ] Later, by the owner, one feature at a time: the PostHog dashboards and the decisions to hide a feature
@@ -1138,5 +1139,5 @@ Plan: `docs/superpowers/plans/2026-10-25-madar-team-reports-2-plan.md`.
 - [x] Track D3 (`rb/focus-chat`): the Project chat panel in Focus mode, closed at first, the device remembers
 - [x] Join, What's new 2026-10-23-103 to -106, gates once, screenshots; the owner's changes during the join: the docked Focus sidebar, its compact box, the switch to the to-do thread; the phone fixes of the Open space
 - [x] One release with `rb/posthog` and madar-4e's three to-do fixes (owner's choice): test copy, then production at 4df7db3d (2026-10-25 15:28), release record
-- [ ] Mark fbk_052, fbk_055, fbk_058 and fbk_059 done in Madar
+- [x] Mark fbk_052, fbk_055, fbk_058 and fbk_059 done in Madar (2026-10-25 15:30, story sty_heohaeky4y5qqznhxuiag4)
 - [ ] Found 2026-10-25 (propose to the owner): in the Focus sidebar (384 px) the message bubbles are narrow, so the text wraps after a few words
