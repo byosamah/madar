@@ -862,7 +862,8 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
   the typed letters first (`rankedMatches`, `lib/personName.ts`).
 - A What's new id: take a number above the newest id on main and on every open `rb/*` branch (`git show rb/<x>:src/whatsNew/entries.ts`).
   Sort the ids as numbers (`sort -t- -k4 -n`): a text sort puts `2026-10-23-9` above `-82` (2026-10-22).
-  A test finds its entry by id, never by `WHATS_NEW[0]`. `entries.test.ts` also pins the set of release days and the list of rights
+  A test finds its entry by id, never by `WHATS_NEW[0]`. One exception: the usage data entry (`2026-10-23-102`) stays first, and
+  `entries.test.ts` pins `WHATS_NEW[0]` to it, so a new entry goes second. `entries.test.ts` also pins the set of release days and the list of rights
   that an entry may name: a new `day` or a new `right` adds its value there.
 - What's new dates (owner, 2026-10-22): `day` is the day the entry's production release went live, and the page shows the entries of each
   day under that date. Write the planned release day before `all.sh test`; when production goes on another day, fix it in the release
@@ -1083,6 +1084,8 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
 - A read with `wire.output` (`feedback.screenshot`, `files.link`) gives the screen the wire form in the real build. Test such a
   screen with `runtime.mode: 'remote'`: the prototype test alone passed while the real build showed grey boxes.
 - A whole project page can take more than the 1 s `findBy` default. Use `{ timeout: 10_000 }`.
+- The task panel is named after the saved title: `findByRole('dialog', { name: <new title> })` proves that a title save came back
+  (`TaskSheetTyping.test.tsx`). A Home Today test first moves the other tasks of its person out of Today (the sample office has more).
 - A panel that waits for its own query (DecisionsPanel on `projects.get`) can come after the card. Wait for the panel itself.
 - `vite preview` sends no CSP, so only the deploy suite on the test copy catches a policy break.
 - Run `npm test` alone. Next to a build or Playwright, screen tests time out.

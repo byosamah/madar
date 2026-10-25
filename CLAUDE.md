@@ -94,6 +94,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - `npm test` - the `unit` and `server` projects (about 11,100 tests, about 7 minutes). Run it alone: next to a build or Playwright,
   screen tests time out. With a load average far above the core count (`uptime`), other screen tests time out on each
   run: run the failed files alone (`--no-file-parallelism --testTimeout=60000`) before you call a test broken.
+  Run them on the newest main too: a branch behind main can fail a test that main already fixed (2026-10-25, `ReactionAny.test.tsx`).
 - Put `-u` after the test files: `vitest run -u <file>` reads the file name as the value of `-u` and runs every test in update
   mode (2026-10-20). Under a load average far above the core count, run only the folders that your change touches.
 - A gate under 5 minutes (owner rule for fast batches): `npx vitest run src/api server/mcp server/core server/data/loaders
@@ -210,6 +211,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   (it removes the link only): a clean worktree then goes without `--force`.
 - While a release waits on its recorded commit, build the next batch in a worktree branch: production refuses any new commit
   on main, and any changed file in the folder of main (a guide line too). Edit on a branch, and fast-forward main after the release.
+- Before you fast-forward main, message the release lead (the session in `deploy-test`, found with `ListAgents`), and hold a full
+  `npm test` while its gates run: two full runs at once make screen tests time out (2026-10-25).
 - A helper that a subagent starts reports to the main session, not to that subagent: forward what the subagent needs.
 - Claude's `git push origin main` is refused by the auto-mode check. Commit on main in `deploy-test`, then hand the owner
   `! git -C /Users/osamakhalil/dev/madar/.claude/worktrees/deploy-test push origin main` (2026-10-08).

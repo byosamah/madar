@@ -52,6 +52,8 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   stay valid. Two projects of one contract share one code, so the projects table has no unique rule on the code.
 - `projects.create` takes `codeParts`, `code` or `sameContractAs` (at most one); with none, the old automatic code. A typed
   code whose YYMMSS belongs to another contract fails with `code_taken`. `codeParts` initials go onto a client with none.
+  The automatic code (`nextProjectCode`, also every INT code) counts only codes whose end after `<prefix>-YY-` is all digits, so a kept
+  code with that head never gives "NaN" (2026-10-25).
   MCP (owner, 2026-10-25): `projects.create` is on the right list (`project.create`), `clients.create` too (`client.create`), and `clients.list` is on the allow list. All four
   need the AI switch `ai.projectSetup`, off by default except for the Admin. A new project has no Undo (`NOT_UNDOABLE`). The agent gets lean `clients.list` rows (no contact name, phone or email).
 - Only a person with the switch `project.code` corrects a code (`projects.update` `patch.code`, verb `project.code_changed`). The switch
