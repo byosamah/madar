@@ -15,6 +15,7 @@ export type WhatsNewEntry = { id: string; day: string; right?: Action; to?: stri
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   // The usage data line stays first (insight design, section 8): the team reads what Madar records before any other news.
   { id: '2026-10-23-102', day: '2026-10-25', to: '/settings' },
+  { id: '2026-10-23-107', day: '2026-10-25' },
   { id: '2026-10-23-106', day: '2026-10-25', to: '/settings' },
   { id: '2026-10-23-105', day: '2026-10-25' },
   { id: '2026-10-23-104', day: '2026-10-25', right: 'dashboard.view', to: '/dashboard/space' },

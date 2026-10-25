@@ -3,6 +3,10 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-107": {
+        "title": "Fixes for to-dos and Home",
+        "body": "The to-do panel keeps what you type: a save of the title no longer clears the description that you write, and the reverse. On Home, a drag keeps a to-do in its group, past due or due today. On a computer, Meetings today drops a meeting when it ends."
+      },
       "2026-10-23-106": {
         "title": "Morning summary on office days",
         "body": "The morning summary email now comes only on the office work days, also when you set more days for your notifications. Your pushes keep your own days."
