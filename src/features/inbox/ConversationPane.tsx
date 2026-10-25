@@ -344,6 +344,7 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread, embedded }: { id: s
             onEditLast={editLast}
             onTextChange={typing.changed}
             autoFocus={!embedded}
+            compact={!!embedded}
             onSend={(body, fileIds, clear) => {
               const input = { conversationId: id, body, fileIds, ...(replyTo ? { replyToId: replyTo.id } : {}) };
               const key = newOutboxKey();
@@ -532,6 +533,7 @@ export function TaskPane({ id, focusFromRoute, onMarkUnread, embedded }: { id: s
           onCancelReply={() => setReplyTo(null)}
           onEditLast={editLast}
           autoFocus={!embedded}
+          compact={!!embedded}
           onSend={(body, fileIds, clear) => {
             const input = { targetType: 'task' as const, targetId: id, body, fileIds, ...(replyTo ? { replyToId: replyTo.id } : {}) };
             const key = newOutboxKey();

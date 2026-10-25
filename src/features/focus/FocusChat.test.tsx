@@ -133,6 +133,22 @@ describe('the panel on a wide window (1024 px or more)', () => {
     expect(window.location.hash).toContain('focus=tsk_012');
   });
 
+  // The owner, 2026-10-25 ("make this part better"): in the narrow sidebar the full hint took three lines and "Send" a wide button.
+  // The box takes the short hint with the @ tip and the round Send icon of a phone; Enter still sends on a desk.
+  it('gives the box in the sidebar the short hint and the round Send icon, and Enter still sends', async () => {
+    wide();
+    const { focus } = await openFocus();
+    await userEvent.click(await projectChatButton(focus));
+    const panel = await panelOf();
+    const box = await within(panel).findByRole('textbox', { name: 'Message' });
+    expect(box).toHaveAttribute('placeholder', 'Use @ to mention.');
+    const send = within(panel).getByRole('button', { name: 'Send' });
+    expect(send).toHaveClass('rounded-full');
+    expect(send).not.toHaveTextContent('Send');
+    await userEvent.type(box, 'Short box works.{Enter}');
+    expect(await within(panel).findByText('Short box works.')).toBeInTheDocument();
+  });
+
   it('shows a slim header (tile, title, Close) and none of the Inbox controls', async () => {
     wide();
     const { focus } = await openFocus();

@@ -38,6 +38,11 @@ type ComposerProps = {
   onTextChange?: (text: string) => void;
   /** False: the box does not take the focus when the chat opens on a desk. Focus mode (fbk_059) keeps the focus on its Done button. */
   autoFocus?: boolean;
+  /**
+   * True in a narrow place (the sidebar of Focus mode, owner 2026-10-25): the short hint with the @ tip and the round Send icon of a phone,
+   * so the empty box keeps one line. Enter still sends on a desk.
+   */
+  compact?: boolean;
 };
 
 /**
@@ -55,13 +60,15 @@ export function Composer(props: ComposerProps) {
  * Search unmounts the box; its draft waits until the person comes back or sends it (audit 2026-10-03, SHL-4). The text uses the
  * keys of the comment box (CommentThread), so a task thread and the comments of its task share one draft.
  */
-function ComposerBox({ id, people, everyone, pending, onSend, upload, owner, replyTo, onCancelReply, onEditLast, onTextChange, autoFocus = true }: ComposerProps & { owner: string }) {
+function ComposerBox({ id, people, everyone, pending, onSend, upload, owner, replyTo, onCancelReply, onEditLast, onTextChange, autoFocus = true, compact = false }: ComposerProps & { owner: string }) {
   const { t } = useTranslation();
   const toast = useToast();
   // On a phone, Enter makes a new line and only the Send button sends (chat design 2026-10-19, item 7).
   // On a phone the box shows a short hint that keeps the @ tip: the full hint took three lines and made the empty box tall, and a
   // project chat pushes only the people that a message names (owner, 2026-10-20).
   const phone = useIsPhone();
+  // The look of a phone (short hint, round Send, tight row) also serves a narrow place on a desk. Enter keeps the rule of the device.
+  const tight = phone || compact;
   const keyboard = useKeyboardOpen();
   const draftKey = id.startsWith('tsk_') ? `task:${id}` : `chat:${id}`;
   const attachments = useAttachments(MAX_ATTACHMENTS, readDraftFiles(owner, draftKey));
@@ -133,7 +140,7 @@ function ComposerBox({ id, people, everyone, pending, onSend, upload, owner, rep
       {replyTo && onCancelReply && <ComposerReplyStrip replyTo={replyTo} onCancel={onCancelReply} />}
       {upload && <PickedFiles files={attachments.files} onRemove={attachments.remove} progress={attachments.progress} busy={uploading} />}
       {/* On a phone the row is tighter and Send is a round icon, so the box keeps the width it had before the emoji button (chat presence, 2026-10-21). */}
-      <div className={`flex items-end ${phone ? 'gap-1' : 'gap-2'}`}>
+      <div className={`flex items-end ${tight ? 'gap-1' : 'gap-2'}`}>
       {upload && <AttachButton compact onPick={attachments.add} />}
       <EmojiButton ref={emoji} onPick={insertEmoji} returnTo={() => field.current} />
       <div
@@ -175,7 +182,7 @@ function ComposerBox({ id, people, everyone, pending, onSend, upload, owner, rep
           rows={1}
           inputRef={field}
           placement="above"
-          placeholder={phone ? t('chat.placeholderPhone') : t('chat.placeholder')}
+          placeholder={tight ? t('chat.placeholderPhone') : t('chat.placeholder')}
           // On a phone the field stops at 40 percent of the visible height, so the messages stay in view (landscape too).
           className="[&_textarea]:max-h-40 max-sm:[&_textarea]:max-h-[min(9rem,calc(var(--chat-h,100dvh)*0.4))] [&_textarea]:min-h-11 [&_textarea]:resize-none [&_textarea]:[field-sizing:content]"
           {...(phone ? { listMaxHeight: 'min(14.5rem,calc(var(--chat-h,100dvh) - 9rem))' } : {})}
@@ -184,11 +191,11 @@ function ComposerBox({ id, people, everyone, pending, onSend, upload, owner, rep
       <Button
         variant="primary"
         type="submit"
-        aria-label={phone ? t('chat.send') : undefined}
-        className={phone ? 'size-11 shrink-0 rounded-full p-0' : 'shrink-0'}
+        aria-label={tight ? t('chat.send') : undefined}
+        className={tight ? 'size-11 shrink-0 rounded-full p-0' : 'shrink-0'}
         disabled={(!text.trim() && files.length === 0) || pending || uploading}
       >
-        {phone ? <AnimatedIcon icon={SendIcon} size={20} className="rtl:-scale-x-100" aria-hidden /> : t('chat.send')}
+        {tight ? <AnimatedIcon icon={SendIcon} size={20} className="rtl:-scale-x-100" aria-hidden /> : t('chat.send')}
       </Button>
       </div>
     </form>

@@ -484,7 +484,7 @@ The owner sees how the team uses Madar, which errors they hit, and replays of th
   `inert` under the page. The chat code is the lazy chunk `FocusChatPane.tsx` (`lazyOverlay`, warmed at pointer or focus on the button; never import
   it statically, `app/firstLoadImports.test.ts`). It is the Inbox pane in its embedded form (`embedded` prop of `ChatPane` and `TaskPane`,
   `EmbeddedHeader`): a slim head (tile, title, Close or Back), no Back link, no menu, no Search, no options sheet, no typing line, no "Show newer
-  messages", no composer autofocus (`Composer` `autoFocus`; Done keeps the focus), and a reply strip to a message older than the loaded pages does
+  messages", no composer autofocus (`Composer` `autoFocus`; Done keeps the focus), the compact box (`Composer` `compact`: the short hint and the round Send icon of a phone, Enter still sends; owner 2026-10-25), and a reply strip to a message older than the loaded pages does
   nothing (no `navigate`). A closed panel mounts nothing: no `chats.messages`, no read mark. An open panel reads and marks read like the Inbox
   (visible tab only). Escape that starts inside `[data-focus-chat]`, or that a layer above Focus used (`defaultPrevented`), does not end Focus;
   with the full page open, Escape on the page behind it brings Focus back first. The draft of the box lives in `madar.draft.*`, so it survives a close.
