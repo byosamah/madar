@@ -7,6 +7,7 @@ import { createRemoteApi } from '../../api/remote/remoteApi';
 import { setTileTokenSource } from './tileToken';
 import type { Adapter, ChangeSignal } from '../../api/remote/wire';
 import type { AuthPort, AuthStatus } from '../auth';
+import { noteSlow } from '../insight/notes';
 import { remoteFileAdapters } from '../files';
 import type { Runtime } from '../runtime';
 import type { ChangeListener, ChangeSource } from '../signals';
@@ -242,6 +243,8 @@ export async function bootstrapRemote(o: {
     // The Supabase gateway names the project by its public key; the page api of the own stack needs none.
     headers: config.publishableKey ? { apikey: config.publishableKey } : {},
     onSignals: (signals, fresh) => changes?.own(signals, fresh),
+    // A request of 2 s or more is a slow step for the owner's usage data (insight design). It does nothing while no client runs.
+    onSlow: noteSlow,
   });
   // Status and typing (chat presence design). The port exists now; its adapter comes with each sign-in and goes with the sign-out.
   const live = switchedLive();

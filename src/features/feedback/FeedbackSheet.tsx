@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router';
 import type { FeedbackKind } from '../../api/contract/entities';
 import { fieldError } from '../../app/errors';
+import { useSheetSteps } from '../../app/insight/useSheetSteps';
 import { useAction } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { usePointerCoarse } from '../../app/usePointerCoarse';
@@ -47,8 +48,10 @@ export function FeedbackSheet({ open, onOpenChange }: { open: boolean; onOpenCha
   }, [open]);
   // The whole percent of the screenshots that go up, or null when nothing goes up (fbk_045).
   const [percent, setPercent] = useState<number | null>(null);
+  const stepSaved = useSheetSteps('feedback', open);
   const send = useAction('feedback.send', {
     onSuccess: () => {
+      stepSaved();
       toast.show({ message: t('feedback.sent') });
       onOpenChange(false);
     },

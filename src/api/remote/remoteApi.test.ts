@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Calls } from '../calls';
 import { ApiError } from '../errors';
-import { REQUEST_TIMEOUT_MS, canFollow, createRemoteApi, regionUrl, type FollowApi, type RemoteApiOptions } from './remoteApi';
+import { REQUEST_TIMEOUT_MS, SLOW_REQUEST_MS, canFollow, createRemoteApi, regionUrl, type FollowApi, type RemoteApiOptions } from './remoteApi';
 import { isRead } from './keys';
 import type { Adapter, ChangeSignal, WireCall, WireEntry, WireRequest } from './wire';
 
@@ -538,5 +538,62 @@ describe('reads after an own write (performance audit FET-3)', () => {
   it('marks the api of the real build as one that can follow a write', () => {
     expect(canFollow(remote(stubFetch().fetch))).toBe(true);
     expect(canFollow({ call: () => undefined, run: () => undefined })).toBe(false);
+  });
+});
+
+describe('the slow request note (insight design, section 4)', () => {
+  /** A clock that the test moves: each answer of the stub takes `took` ms. */
+  function timed(took: number) {
+    let t = 1_000;
+    const { sent, fetch } = stubFetch((body) => {
+      t += took;
+      return { body: okAll(body) };
+    });
+    return { sent, fetch, now: () => t };
+  }
+
+  it('tells onSlow with the call names and the time when a request takes 2 s or more', async () => {
+    const { fetch, now } = timed(2100);
+    const onSlow = vi.fn();
+    await remote(fetch, { now, onSlow }).call('tasks.list', {});
+    expect(onSlow).toHaveBeenCalledTimes(1);
+    expect(onSlow).toHaveBeenCalledWith(['tasks.list'], 2100);
+  });
+
+  it('names every call of a batch once, in one note', async () => {
+    const { fetch, now } = timed(2500);
+    const onSlow = vi.fn();
+    const api = remote(fetch, { now, onSlow });
+    await Promise.all([api.call('session.get', {}), api.call('projects.get', PROJECT)]);
+    expect(onSlow).toHaveBeenCalledTimes(1);
+    expect(onSlow.mock.calls[0]![0].sort()).toEqual(['projects.get', 'session.get']);
+    expect(onSlow.mock.calls[0]![1]).toBe(2500);
+  });
+
+  it('tells nothing for a request that takes 500 ms, or exactly under the limit', async () => {
+    const onSlow = vi.fn();
+    for (const took of [500, SLOW_REQUEST_MS - 1]) {
+      const { fetch, now } = timed(took);
+      await remote(fetch, { now, onSlow }).call('tasks.list', {});
+    }
+    expect(onSlow).not.toHaveBeenCalled();
+    expect(SLOW_REQUEST_MS).toBe(2000);
+  });
+
+  it('tells nothing for a timeout', async () => {
+    const { fetch } = stubFetch(() => 'hang');
+    const onSlow = vi.fn();
+    await remote(fetch, { onSlow, timeoutMs: 20 }).call('projects.get', PROJECT).catch(() => undefined);
+    expect(onSlow).not.toHaveBeenCalled();
+  });
+
+  it('keeps the answer when onSlow throws', async () => {
+    const { fetch, now } = timed(3000);
+    await expect(remote(fetch, { now, onSlow: () => { throw new Error('bug'); } }).call('projects.get', PROJECT)).resolves.toBeDefined();
+  });
+
+  it('works with no onSlow', async () => {
+    const { fetch, now } = timed(3000);
+    await expect(remote(fetch, { now }).call('projects.get', PROJECT)).resolves.toBeDefined();
   });
 });

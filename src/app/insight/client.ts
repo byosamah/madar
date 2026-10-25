@@ -4,6 +4,7 @@ import { PRIVATE } from '../privateMark';
 import type { AppRouter } from './index';
 import type { InsightClient, InsightPerson } from './notes';
 import { scrubEvent } from './scrub';
+import { watchCalls, watchRoutes } from './watch';
 
 /**
  * The lazy PostHog client of the real screens (insight design, section 6). Only this file imports `posthog-js`. It loads the full
@@ -107,7 +108,7 @@ export function createInsightClient(o: ClientOptions): InsightClient {
     instance = posthog.init(o.key, posthogOptions({ env: o.env, build: o.build, person: () => currentPerson(), active: () => live }));
   }
   const ph = instance;
-  return {
+  const client: InsightClient = {
     track: (event, props) => {
       try {
         ph.capture(event, props);
@@ -123,9 +124,16 @@ export function createInsightClient(o: ClientOptions): InsightClient {
       }
     },
     stop: () => {
-      // Drop first, so nothing goes out while the recorder and the ids are cleared.
+      // Drop first, so nothing goes out while the watchers, the recorder and the ids are cleared.
       live = false;
       currentPerson = () => null;
+      for (const stop of stops) {
+        try {
+          stop();
+        } catch {
+          // A watcher that fails to stop leaves nothing to clean.
+        }
+      }
       try {
         ph.stopSessionRecording();
         ph.reset();
@@ -134,4 +142,11 @@ export function createInsightClient(o: ClientOptions): InsightClient {
       }
     },
   };
+  const stops: (() => void)[] = [];
+  try {
+    stops.push(watchRoutes(o.router, client.track), watchCalls(o.queryClient, client, o.person));
+  } catch {
+    // A watcher that fails to start leaves the others running.
+  }
+  return client;
 }

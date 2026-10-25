@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { TRACKER_TYPES, type TrackerDirection, type TrackerType } from '../../../api/contract/entities';
 import type { UserCard } from '../../../api/contract/views';
 import { newStoryId, useUndoable } from '../../../app/actions';
+import { useSheetSteps } from '../../../app/insight/useSheetSteps';
 import { useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { useIsPhone } from '../../../app/useIsPhone';
@@ -61,9 +62,12 @@ export function QuickLog({ projectId, members: everyone, canReply = true, canAss
   const [replier, setReplier] = useState('');
   const [replyDate, setReplyDate] = useState('');
   const [uploading, setUploading] = useState(false);
+  // Only the phone sheet counts as a sheet. The box on a desk page is no sheet.
+  const stepSaved = useSheetSteps('trackerLog', sheet?.open === true);
   const log = useUndoable('tracker.log', {
     message: () => t('tracker.logged'),
     onSuccess: () => {
+      stepSaved();
       setText('');
       setWait(false);
       setReplier('');

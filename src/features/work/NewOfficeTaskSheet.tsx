@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import { useByPersonName, usePersonName } from '../../app/personName';
+import { useSheetSteps } from '../../app/insight/useSheetSteps';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { useRight } from '../../app/useRight';
@@ -31,8 +32,10 @@ export function NewOfficeTaskSheet({ open, onOpenChange }: { open: boolean; onOp
   const [lead, setLead] = useState('');
   // '' is no date, as DateField gives it.
   const [due, setDue] = useState('');
+  const stepSaved = useSheetSteps('newOfficeTask', open);
   const create = useAction('tasks.create', {
     onSuccess: (detail) => {
+      stepSaved();
       onOpenChange(false);
       toast.show({
         message: t('newTask.created'),

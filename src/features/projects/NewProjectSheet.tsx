@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { tooLargeText, uploadErrorMessage, useFileLimit } from '../../app/files';
 import { useLang } from '../../app/lang';
+import { useSheetSteps } from '../../app/insight/useSheetSteps';
 import { usePrefetchCall } from '../../app/prefetch';
 import { useCall, useRuntime } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
@@ -40,6 +41,8 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
   const { api } = useRuntime();
   const limit = useFileLimit();
   const lang = useLang();
+  // Usage data for the owner: open, save, close with no save (insight design).
+  const stepSaved = useSheetSteps('newProject', open);
   // A closed sheet reads nothing (DF-5). A read that no screen needs yet starts when the sheet opens, or on the press before it.
   const settings = useCall('settings.get', {}, { enabled: open });
   const templates = useCall('projectTemplates.list', {}, { enabled: open });
@@ -129,6 +132,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
       });
       // The key is short and never ends with the dot of a building type ("Dev."), so the sentence never shows two dots.
       toast.show({ message: t('projectForm.created', { code: shownKey(detail.project, t) }) });
+      stepSaved();
       fresh.current = true;
       // The project exists now. The cover goes up on its own, so a failed upload never makes a second project. The sheet stays open
       // while the cover goes up, so the person sees its bar (fbk_045); a failed upload shows its toast with Retry after the sheet closes.

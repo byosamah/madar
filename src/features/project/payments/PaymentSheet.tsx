@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { PaymentRow } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
 import { fieldError } from '../../../app/errors';
+import { useSheetSteps } from '../../../app/insight/useSheetSteps';
 import { useAction } from '../../../app/runtime';
 import { useRight } from '../../../app/useRight';
 import { useToast } from '../../../app/toasts';
@@ -65,14 +66,17 @@ export function PaymentSheet({ projectId, row, onClose, drafts }: { projectId: s
     drafts?.delete(draftKey);
     onClose();
   };
+  // The sheet is mounted only while it is open, so its mount is the open step and its unmount is the close step.
+  const stepSaved = useSheetSteps('payment', true);
   const done = (message: string) => {
+    stepSaved();
     toast.show({ message });
     close();
   };
   const create = useAction('payments.create', { onSuccess: () => done(t('payments.added')) });
   const update = useAction('payments.update', { onSuccess: () => done(t('payments.saved')) });
-  const mark = useUndoable('payments.markReceived', { message: () => t('payments.receivedToast'), onSuccess: close });
-  const remove = useUndoable('payments.delete', { message: () => t('payments.deleted'), onSuccess: close });
+  const mark = useUndoable('payments.markReceived', { message: () => t('payments.receivedToast'), onSuccess: () => { stepSaved(); close(); } });
+  const remove = useUndoable('payments.delete', { message: () => t('payments.deleted'), onSuccess: () => { stepSaved(); close(); } });
   // Role rights version 2: a new payment needs payment.add, a change and a delete need payment.change, and Mark as received needs
   // payment.receive. A person who holds none of them for this payment reads the sheet and changes nothing.
   const mayAdd = useRight('payment.add');

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { useAction, useCall } from '../../app/runtime';
+import { useSheetSteps } from '../../app/insight/useSheetSteps';
 import { useToast } from '../../app/toasts';
 import { Button } from '../../components/Button';
 import { SelectField, TextField } from '../../components/Fields';
@@ -30,9 +31,11 @@ export function NewTaskSheet({ open, onOpenChange }: { open: boolean; onOpenChan
   const dynamic = timing.schedule === 'dynamic';
   const summary = options.find((option) => option.project.id === projectId);
   const back = useStageBack();
+  const stepSaved = useSheetSteps('newTask', open);
   const create = useAction('tasks.create', {
     onRefused: (error, input) => back.refused(error, input, (next) => create.mutate(next)),
     onSuccess: (detail) => {
+      stepSaved();
       onOpenChange(false);
       toast.show({
         message: t('newTask.created'),

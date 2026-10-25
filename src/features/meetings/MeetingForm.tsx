@@ -6,6 +6,7 @@ import type { MeetingDetail } from '../../api/contract/views';
 import { ApiError } from '../../api/errors';
 import { useUndoable } from '../../app/actions';
 import { errorMessage } from '../../app/errors';
+import { useSheetSteps } from '../../app/insight/useSheetSteps';
 import { usePersonName, useByPersonName } from '../../app/personName';
 import { useCall } from '../../app/runtime';
 import { Avatar } from '../../components/Avatar';
@@ -157,10 +158,11 @@ export function MeetingForm({ open, onOpenChange, meeting, project = null }: {
     setProblem(errorMessage(error, t));
     return true;
   };
-  const planned = useUndoable('meetings.create', { message: () => t('meetings.form.planned'), onSuccess: () => onOpenChange(false), onRefused: refused });
+  const stepSaved = useSheetSteps('meeting', open);
+  const planned = useUndoable('meetings.create', { message: () => t('meetings.form.planned'), onSuccess: () => { stepSaved(); onOpenChange(false); }, onRefused: refused });
   const saved = useUndoable('meetings.update', {
     message: () => t(scopeOf.current === 'later' ? 'series.toast.saved' : 'meetings.form.saved'),
-    onSuccess: () => onOpenChange(false),
+    onSuccess: () => { stepSaved(); onOpenChange(false); },
     onRefused: (error) => {
       // A refusal after the question: the form stays open and tells the reason (for example a day that the later meetings cannot take).
       setScoping(null);

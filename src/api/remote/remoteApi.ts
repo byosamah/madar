@@ -17,6 +17,9 @@ import { callCost, type Adapter, type AdapterCtx, type ChangeSignal, type StoryR
 /** The time limit of one request. After it, every entry of the request fails with failed. */
 export const REQUEST_TIMEOUT_MS = 20_000;
 
+/** A request that answers after this time or later is a slow step (insight design, section 4). */
+export const SLOW_REQUEST_MS = 2000;
+
 export type RemoteApiOptions<M extends CallMap> = {
   /** The api of the copy (VITE_API_URL): https://<ref>.supabase.co/functions/v1/api, or the page's own /api on the Worker host. */
   url: string;
@@ -37,6 +40,11 @@ export type RemoteApiOptions<M extends CallMap> = {
   onSignals?: (signals: ChangeSignal[], fresh?: FreshReads) => void;
   /** A refused sign-in: a token that stayed invalid after one refresh, or an account that is turned off (track U). */
   onAuthError?: (error: ApiError) => void;
+  /**
+   * A request that took `SLOW_REQUEST_MS` or more: the call names and the time. It sees no input and no answer. A timeout and a lost
+   * network are no slow request. A throw inside it never changes the answers of the calls.
+   */
+  onSlow?: (calls: string[], ms: number) => void;
   /** Extra headers on each request. */
   headers?: Record<string, string>;
   now?: () => number;
@@ -164,6 +172,15 @@ export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<
     }
   }
 
+  /** The clock for the slow note only. A clock that throws gives NaN, and the answers of the calls stay as they were. */
+  function clock(): number {
+    try {
+      return now();
+    } catch {
+      return Number.NaN;
+    }
+  }
+
   async function send(items: Pending[]): Promise<void> {
     const body: WireRequest = {
       v: 1,
@@ -187,9 +204,19 @@ export function createRemoteApi<M extends CallMap>(o: RemoteApiOptions<M>): Api<
       }
       return;
     }
+    const started = clock();
     let reply = await post(body, token);
     // One token refresh and one resend. The server ran nothing for a 401, so the writes go again with the same keys.
     if (reply.kind === 'status' && reply.status === 401) reply = await post(body, await tokenOf(o.refresh ?? o.token));
+    // A clock that fails gives NaN, so the note is skipped and the calls go on.
+    const took = clock() - started;
+    if (reply.kind !== 'none' && took >= SLOW_REQUEST_MS) {
+      try {
+        o.onSlow?.(items.map((item) => item.name), took);
+      } catch {
+        // The calls are answered below. A listener bug must not change them.
+      }
+    }
 
     if (reply.kind === 'none') {
       for (const item of items) {

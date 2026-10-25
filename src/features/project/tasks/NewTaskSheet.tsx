@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { Stage } from '../../../api/contract/entities';
 import type { ProjectDetail } from '../../../api/contract/views';
 import { useByPersonName, usePersonName } from '../../../app/personName';
+import { useSheetSteps } from '../../../app/insight/useSheetSteps';
 import { useAction, useCall } from '../../../app/runtime';
 import { useRight } from '../../../app/useRight';
 import { useToast } from '../../../app/toasts';
@@ -30,8 +31,10 @@ export function NewTaskSheet({ detail, stage, open, onOpenChange, onOpen }: {
   const [lead, setLead] = useState('');
   // '' is no date, as DateField gives it.
   const [due, setDue] = useState('');
+  const stepSaved = useSheetSteps('newTask', open);
   const create = useAction('tasks.create', {
     onSuccess: (made) => {
+      stepSaved();
       onOpenChange(false);
       toast.show({ message: t('newTask.created'), action: { label: t('newTask.open'), run: () => onOpen(made.task.id), isUndo: false } });
     },

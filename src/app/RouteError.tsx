@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isRouteErrorResponse, Link, useRouteError } from 'react-router';
 import { EmptyState } from '../components/EmptyState';
 import { ScreenTitle } from '../components/ScreenTitle';
+import { reportError } from './insight/notes';
 
 /**
  * What a wrong link or a broken screen shows (spec 11.6): one calm sentence in the person's language and one way Home,
@@ -37,5 +39,10 @@ export function NotFound({ framed = false }: { framed?: boolean } = {}) {
 /** The error page of a route: a screen that broke while it drew or loaded. */
 export function RouteError({ framed = false }: { framed?: boolean }) {
   const error = useRouteError();
-  return <PageProblem missing={isRouteErrorResponse(error) && error.status === 404} framed={framed} />;
+  const missing = isRouteErrorResponse(error) && error.status === 404;
+  // A broken screen goes to the owner's error record, with the person. A wrong link (404) is no error. It does nothing in the prototype.
+  useEffect(() => {
+    if (!missing) reportError(error, 'route');
+  }, [error, missing]);
+  return <PageProblem missing={missing} framed={framed} />;
 }
