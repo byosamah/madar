@@ -1,5 +1,5 @@
 import { nowStamp } from '../../../src/lib/dates';
-import { workStartOn } from '../../../src/lib/quietHours';
+import { summaryStartOn } from '../../../src/lib/quietHours';
 import type { Deps } from '../../core/ports';
 import { sqlFor } from '../../data/dialect';
 import { MailSendError } from '../../mail/resend';
@@ -7,8 +7,9 @@ import { sendSummary, summaryRoster, type SummaryOutcome } from '../../mail/summ
 
 /**
  * Step 2 of the 15-minute job (plan 5.5): the morning summary of N2 (server/mail/summary.ts). It goes to each active human whose Morning
- * summary is on or never set, at the start of the work hours of that person, on the work days of that person (quiet hours, owner
- * 2026-10-22, fbk_048; before, it was 07:30 for everyone on Sunday to Thursday). The first run of the job at or after the start sends it.
+ * summary is on or never set, at the start of the work hours of that person, on the work days of the office that are also work days of that person (quiet
+ * hours, owner 2026-10-22, fbk_048; before, it was 07:30 for everyone on Sunday to Thursday). A day that is not a work day of the office
+ * sends no summary, also for a person who set that day as a work day (summaryStartOn, fbk_058). The first run of the job at or after the start sends it.
  * A person with quiet hours off still has a range: the stored one, else the office default.
  *
  * A job_runs row "summary:<day>:<person>" closes one person for one day. It is written when the outcome is final: sent, nothing to say,
@@ -49,9 +50,9 @@ export async function summary(deps: Deps, at: Date): Promise<SummaryStep> {
   const day = stamp.slice(0, 10);
   const time = stamp.slice(11, 16);
   const roster = await deps.db.tx('read', (q) => summaryRoster(q));
-  // The people whose work hours have started today, on a work day of theirs.
+  // The people whose work hours have started today, on a work day of the office and of theirs (fbk_058).
   const started = roster.filter((one) => {
-    const start = workStartOn(one.person, one.settings, day);
+    const start = summaryStartOn(one.person, one.settings, day);
     return start !== null && time >= start;
   });
   if (started.length === 0) return { due: false };

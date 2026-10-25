@@ -182,11 +182,40 @@ describe('step 2, the morning summary (quiet hours, owner 2026-10-22: it goes at
     expect(deps.mail.sent.map((m) => m.to)).toEqual(['usr_c@madar.test']);
   });
 
-  it('mails on a Friday a person who works on Friday', async () => {
-    const { deps } = setup({ roster: [{ id: 'usr_a', work_hours: { quiet: true, days: [0, 1, 2, 3, 4, 5], from: '09:00', to: '17:00' } }] });
+  // fbk_058: Faisal set all 7 work days, and the summary came on a Friday. It goes only on the work days of the office.
+  it('mails nobody on a Friday or a Saturday when the office keeps Sunday to Thursday, also a person who set all 7 days (fbk_058)', async () => {
+    const all = { quiet: true, days: [0, 1, 2, 3, 4, 5, 6], from: '09:00', to: '17:00' };
+    for (const at of [new Date('2026-10-09T06:00:00Z'), new Date('2026-10-10T06:00:00Z'), new Date('2026-10-10T12:00:00Z')]) {
+      const { r, deps } = setup({ roster: [{ id: 'usr_a', work_hours: all }] });
+      expect(await summary(deps, at)).toEqual({ due: false });
+      expect(r.calls.map((call) => call.text)).toEqual([SUMMARY_PEOPLE_SQL]);
+      expect(deps.mail.sent).toEqual([]);
+    }
+  });
+
+  it('mails a person with all 7 days on a Sunday, at the own start (fbk_058)', async () => {
+    const office = { days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00', lock: { on: false, days: [0], from: '09:00', to: '17:00' } };
+    const { deps } = setup({ roster: [{ id: 'usr_a', work_hours: { quiet: true, days: [0, 1, 2, 3, 4, 5, 6], from: '09:00', to: '17:00' }, office }] });
+    expect(await summary(deps, new Date('2026-10-04T05:59:00Z'))).toEqual({ due: false });
+    expect(await summary(deps, SUN_0900)).toMatchObject({ due: true, sent: 1 });
+  });
+
+  it('mails on a Friday when the office adds Friday to its work days (fbk_058)', async () => {
+    const office = { days: [0, 1, 2, 3, 4, 5], from: '09:00', to: '17:00', lock: { on: false, days: [0], from: '09:00', to: '17:00' } };
+    const { deps } = setup({ roster: [{ id: 'usr_a', work_hours: { quiet: true, days: [0, 1, 2, 3, 4, 5], from: '09:00', to: '17:00' }, office }] });
     const friday = new Date('2026-10-09T06:00:00Z');
     expect(await summary(deps, friday)).toMatchObject({ due: true, sent: 1 });
     expect(deps.mail.sent[0].idempotencyKey).toBe('summary-2026-10-09-usr_a');
+  });
+
+  it('mails on a Saturday when the office adds Saturday, and only the people who work on Saturday (fbk_058)', async () => {
+    const office = { days: [0, 1, 2, 3, 4, 6], from: '09:00', to: '17:00', lock: { on: false, days: [0], from: '09:00', to: '17:00' } };
+    const { deps } = setup({ roster: [
+      { id: 'usr_a', work_hours: { quiet: true, days: [0, 1, 2, 3, 4, 5, 6], from: '09:00', to: '17:00' }, office },
+      { id: 'usr_c', work_hours: { quiet: true, days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00' }, office },
+    ] });
+    expect(await summary(deps, new Date('2026-10-10T06:00:00Z'))).toMatchObject({ due: true, sent: 1 });
+    expect(deps.mail.sent.map((m) => m.to)).toEqual(['usr_a@madar.test']);
   });
 
   it('uses the start of a person who turned quiet hours off, from the stored range', async () => {

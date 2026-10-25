@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_OFFICE_WORK_HOURS, clockSteps, coversLock, isQuiet, officeWorkHoursOf, workHoursOf, workStartOn, type WorkHours,
+  DEFAULT_OFFICE_WORK_HOURS, clockSteps, coversLock, isQuiet, officeWorkHoursOf, summaryStartOn, workHoursOf, workStartOn, type WorkHours,
 } from './quietHours';
 
 /** A Riyadh moment (UTC+3) as a Date. 2026-10-04 is a Sunday. */
@@ -166,6 +166,42 @@ describe('workStartOn', () => {
 
   it('counts a lock day as a work day', () => {
     expect(workStartOn({ workHours: { quiet: true, days: [0, 1, 2, 3], from: '09:00', to: '17:00' } }, undefined, THU)).toBe('08:00');
+  });
+});
+
+describe('summaryStartOn (fbk_058)', () => {
+  const everyDay: WorkHours = { quiet: true, days: [0, 1, 2, 3, 4, 5, 6], from: '08:30', to: '17:00' };
+
+  it('gives null on a Friday and a Saturday for a person with all 7 work days, while the office keeps Sunday to Thursday', () => {
+    expect(summaryStartOn({ workHours: everyDay }, undefined, FRI)).toBeNull();
+    expect(summaryStartOn({ workHours: everyDay }, undefined, SAT)).toBeNull();
+  });
+
+  it('gives the own start on a Sunday for that person', () => {
+    expect(summaryStartOn({ workHours: everyDay }, undefined, SUN)).toBe('08:00');
+    expect(summaryStartOn({ workHours: { ...everyDay, from: '09:00' } }, { workHours: { days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00', lock: { on: false, days: [0], from: '09:00', to: '17:00' } } }, SUN)).toBe('09:00');
+  });
+
+  it('follows the own start of a person on an office work day, as workStartOn does', () => {
+    const early: WorkHours = { quiet: false, days: [0, 1, 2, 3, 4], from: '07:30', to: '16:00' };
+    expect(summaryStartOn({ workHours: early }, undefined, WED)).toBe(workStartOn({ workHours: early }, undefined, WED));
+    expect(summaryStartOn({ workHours: early }, undefined, WED)).toBe('07:30');
+    expect(summaryStartOn(undefined, undefined, WED)).toBe('08:00');
+  });
+
+  it('gives null on an office day off even when the person works that day', () => {
+    expect(summaryStartOn({ workHours: { quiet: true, days: [0, 1, 2, 3, 4, 5], from: '08:00', to: '17:00' } }, undefined, FRI)).toBeNull();
+  });
+
+  it('sends on a Saturday when the office adds Saturday', () => {
+    const settings = { workHours: { days: [0, 1, 2, 3, 4, 6], from: '08:00', to: '17:00', lock: { on: true, days: [0, 1, 2, 3, 4, 6], from: '08:00', to: '17:00' } } };
+    expect(summaryStartOn({ workHours: everyDay }, settings, SAT)).toBe('08:00');
+    expect(summaryStartOn(undefined, settings, SAT)).toBe('08:00');
+    expect(summaryStartOn({ workHours: everyDay }, settings, FRI)).toBeNull();
+  });
+
+  it('gives null on a day off of the person even when it is an office work day', () => {
+    expect(summaryStartOn({ workHours: { quiet: true, days: [0, 2], from: '08:00', to: '17:00' } }, { workHours: { days: [0, 1, 2, 3, 4], from: '09:00', to: '17:00', lock: { on: false, days: [0], from: '09:00', to: '17:00' } } }, WED)).toBeNull();
   });
 });
 

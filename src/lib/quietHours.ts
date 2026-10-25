@@ -98,6 +98,16 @@ export function workStartOn(person: PersonLike, settings: SettingsLike, day: str
   return lockDay ? lock.from : null;
 }
 
+/**
+ * The time of the morning summary of a person on a Riyadh day, or null when no summary goes that day (fbk_058). The summary goes only on
+ * the office work days (Sunday to Thursday by default), also for a person who set more days of their own. On an office work day it goes at
+ * the time of workStartOn, so the own start of the person and the own days still count.
+ */
+export function summaryStartOn(person: PersonLike, settings: SettingsLike, day: string): Clock | null {
+  if (!officeWorkHoursOf(settings).days.includes(dayOfWeek(day))) return null;
+  return workStartOn(person, settings, day);
+}
+
 /** The 30-minute steps that a screen offers, from 06:00 to 23:30. */
 export function clockSteps(): Clock[] {
   const steps: Clock[] = [];
