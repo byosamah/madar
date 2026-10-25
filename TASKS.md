@@ -1113,3 +1113,13 @@ Plan: `docs/superpowers/plans/2026-10-25-madar-inbox-line-agent-projects-plan.md
 - [x] Test copy (`all.sh test`), then production at 10c7191b (2026-10-25 12:43), release record
 - [x] Mark fbk_056 and fbk_057 done in Madar (2026-10-25 12:45, story sty_b5w6qh34op2hvthd2tz4jw)
 - [ ] Found 2026-10-25 (not in this release, propose to the owner): on a 390 px phone in Arabic, the four Inbox kind chips do not fit one row, and «الأشخاص» drops to a second row
+
+## fbk_052, fbk_055, fbk_058, fbk_059 (owner, 2026-10-25: "go ahead"; production waits for the owner)
+
+Plan: `docs/superpowers/plans/2026-10-25-madar-team-reports-2-plan.md`.
+
+- [ ] Track D1 (`rb/undo-summary`): Ctrl+Z on an Arabic keyboard, Undo toasts 8 s, the swipe Undo on a notice; the summary on office work days only
+- [ ] Track D2 (`rb/space-levels`): the Open space "Show more / Show less" with 5 steps, the sub-company column, deadlines and checklists, the refit
+- [ ] Track D3 (`rb/focus-chat`): the Project chat panel in Focus mode, closed at first, the device remembers
+- [ ] Join, What's new 2026-10-23-103 to -106, gates once, screenshots
+- [ ] Test copy, then the owner's word for production, release record, mark the four reports done
