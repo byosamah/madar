@@ -441,7 +441,8 @@ describe('overlays after the audit of 2026-10-03', () => {
       act(() => vi.advanceTimersByTime(8000));
       expect(screen.getByRole('status')).toBeInTheDocument();
       fireEvent.blur(screen.getByRole('button', { name: 'Undo' }));
-      act(() => vi.advanceTimersByTime(5100));
+      // An Undo toast stays 8 seconds (fbk_052).
+      act(() => vi.advanceTimersByTime(8100));
       expect(screen.queryByRole('status')).toBeNull();
     } finally {
       vi.useRealTimers();
@@ -463,7 +464,7 @@ describe('overlays after the audit of 2026-10-03', () => {
       fireEvent.pointerEnter(screen.getAllByRole('status')[0]);
       fireEvent.click(screen.getByRole('button', { name: 'Undo 1' }));
       expect(screen.getAllByRole('status')).toHaveLength(1);
-      act(() => vi.advanceTimersByTime(5100));
+      act(() => vi.advanceTimersByTime(8100));
       expect(screen.queryByRole('status')).toBeNull();
     } finally {
       vi.useRealTimers();
