@@ -98,11 +98,24 @@ const KINDS_OF_LEVEL: Record<Level, SpaceNode['kind'][]> = {
 
 const byTop = (a: SpaceNode, b: SpaceNode) => a.y - b.y || a.x - b.x;
 
-/** The first cards of the new level, from the top, for a phone. A level with no card of its own falls back to the projects. */
-function phoneNodes(tree: SpaceTree, level: Level): string[] {
+/**
+ * The first cards of the new level, from the top, for a phone. A level with no card of its own falls back to the projects. With a
+ * measured box the cards fill its height at the zoom that one card column allows, at least three (phone check, 2026-10-25: three
+ * centred cards left a gap of up to 250 px above them).
+ */
+export function phoneNodes(tree: SpaceTree, level: Level, box: Box, limits: ReturnType<typeof readableLimits>): string[] {
   for (const kinds of [KINDS_OF_LEVEL[level], KINDS_OF_LEVEL.projects]) {
     const found = tree.nodes.filter((node) => kinds.includes(node.kind)).sort(byTop);
-    if (found.length > 0) return found.slice(0, FIRST_PROJECTS_PHONE).map((node) => node.id);
+    if (found.length === 0) continue;
+    let count = FIRST_PROJECTS_PHONE;
+    if (box && box.width > 0 && box.height > 0) {
+      const room = 1 + limits.padding * 2;
+      const zoom = Math.min(limits.maxZoom, Math.max(limits.minZoom, box.width / (CARD_WIDTH * room)));
+      const height = box.height / (room * zoom);
+      const top = found[0].y;
+      count = Math.max(FIRST_PROJECTS_PHONE, found.filter((node) => node.y + CARD_HEIGHT[node.kind] - top <= height).length);
+    }
+    return found.slice(0, count).map((node) => node.id);
   }
   return [];
 }
@@ -152,7 +165,7 @@ function deskNodes(tree: SpaceTree, level: Level, box: Box, limits: ReturnType<t
 function readableView(tree: SpaceTree, level: Level, box: Box) {
   const limits = readableLimits();
   const phone = limits.minZoom < 0.7;
-  const ids = phone ? phoneNodes(tree, level) : deskNodes(tree, level, box, limits);
+  const ids = phone ? phoneNodes(tree, level, box, limits) : deskNodes(tree, level, box, limits);
   return { ...limits, includeHiddenNodes: true, nodes: ids.map((id) => ({ id })) };
 }
 
@@ -546,7 +559,8 @@ function SpaceScreen() {
   const ready = projects.data !== undefined && !subList.isPending;
 
   return (
-    <main className="min-h-dvh p-4 sm:p-6">
+    // On a phone the page is one screen high and the map takes the rest, so the page never scrolls and the zoom buttons stay in view.
+    <main className="flex min-h-dvh flex-col p-4 max-sm:h-dvh sm:p-6">
       <Link to={{ pathname: '/dashboard', search: back }} className="-ms-2 mb-1 inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-subheadline font-semibold text-link hover:underline">
         <AnimatedIcon icon={ChevronLeftIcon} size={20} aria-hidden className="size-5 rtl:-scale-x-100" />
         {t('screens.dashboard')}
@@ -558,9 +572,14 @@ function SpaceScreen() {
             <div role="group" aria-labelledby={detailLabel} className={LABEL}>
               <span id={detailLabel}>{t('space.detail')}</span>
               <div className="mt-1.5 flex items-center gap-1">
-                <Button className="px-3" disabled={position <= 0} onClick={() => changeLevel(-1)}>{t('space.less')}</Button>
+                {/* A phone shows the short words, so the row never wraps; the full words stay the names of the buttons. */}
+                <Button className="px-3" aria-label={t('space.less')} disabled={position <= 0} onClick={() => changeLevel(-1)}>
+                  <span className="sm:hidden">{t('space.lessShort')}</span><span className="max-sm:hidden">{t('space.less')}</span>
+                </Button>
                 <span aria-live="polite" className="min-w-24 px-1 text-center text-subheadline font-semibold text-ink">{levelWord}</span>
-                <Button className="px-3" disabled={position >= steps.length - 1} onClick={() => changeLevel(1)}>{t('space.more')}</Button>
+                <Button className="px-3" aria-label={t('space.more')} disabled={position >= steps.length - 1} onClick={() => changeLevel(1)}>
+                  <span className="sm:hidden">{t('space.moreShort')}</span><span className="max-sm:hidden">{t('space.more')}</span>
+                </Button>
               </div>
             </div>
             <label className={LABEL}>{t('space.focus')}
@@ -586,7 +605,7 @@ function SpaceScreen() {
         <EmptyState title={t('space.title')} body={errorMessage(projects.error, t)} action={<Button onClick={() => void projects.refetch()}>{t('common.retry')}</Button>} />
       )}
       {projects.data && kept.length === 0 && <p className="pb-4 text-subheadline text-ink-2">{t('space.noProjects')}</p>}
-      <div ref={boxElement} data-space-map="" className="relative h-[calc(100dvh-12rem)] min-h-[26rem] overflow-hidden rounded-card">
+      <div ref={boxElement} data-space-map="" className="relative overflow-hidden rounded-card max-sm:min-h-[16rem] max-sm:flex-1 sm:h-[calc(100dvh-12rem)] sm:min-h-[26rem]">
         {/* The map waits for the projects and the sub-companies: fitView sets the first view once, so every card must exist at that first draw. */}
         {ready ? (
           <ReactFlow

@@ -18,6 +18,8 @@
     "moreItems_two": "بندان آخران",
     "moreItems_few": "{{count}} بنود أخرى",
     "moreItems_many": "{{count}} بندًا آخر",
-    "moreItems_other": "{{count}} بند آخر"
+    "moreItems_other": "{{count}} بند آخر",
+    "lessShort": "أقل",
+    "moreShort": "أكثر"
   }
 }

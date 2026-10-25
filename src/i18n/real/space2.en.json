@@ -14,6 +14,8 @@
     "itemOpen": "Not done",
     "moreItems": "{{n}} more items",
     "moreItems_one": "1 more item",
-    "moreItems_other": "{{count}} more items"
+    "moreItems_other": "{{count}} more items",
+    "lessShort": "Less",
+    "moreShort": "More"
   }
 }

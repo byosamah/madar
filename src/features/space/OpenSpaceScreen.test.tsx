@@ -4,6 +4,8 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/re
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
 import { renderApp } from '../../test/render';
+import { phoneNodes } from './OpenSpaceScreen';
+import type { SpaceTree } from './spaceTree';
 
 type FlowNode = { id: string; type: string; data: unknown; position: { x: number; y: number }; sourcePosition?: string; targetPosition?: string };
 type FlowProps = {
@@ -261,6 +263,32 @@ describe('the view of the map (PRJ-05)', () => {
     } finally {
       window.innerWidth = width;
     }
+  });
+
+  // Phone check of 2026-10-25 (owner: "fix first"): at 390 px the map centred three cards in a tall box, so a gap of up to 250 px sat
+  // above the first card, the page scrolled and the zoom buttons were cut. The page is now one screen high, the map takes the rest, and
+  // the first view of a step takes as many cards of the step as fill the box (at least three).
+  it('fills the measured phone box with the cards of the step, at least three', () => {
+    const tasks = Array.from({ length: 9 }, (_, i) => ({ id: `tsk_${i}`, kind: 'task' as const, x: 680, y: i * 90 }));
+    const tree = { nodes: [{ id: 'office', kind: 'office' as const, x: 0, y: 0 }, ...tasks], edges: [] } as unknown as SpaceTree;
+    const limits = { padding: 0.1, minZoom: 0.45, maxZoom: 1 };
+    expect(phoneNodes(tree, 'todos', null, limits)).toHaveLength(3);
+    const filled = phoneNodes(tree, 'todos', { width: 358, height: 540 }, limits);
+    expect(filled.length).toBeGreaterThan(3);
+    expect(filled[0]).toBe('tsk_0');
+    expect(phoneNodes(tree, 'todos', { width: 358, height: 120 }, limits)).toHaveLength(3);
+  });
+
+  it('keeps the phone page one screen high with the map in the rest, and short Detail words that keep their full names', async () => {
+    await renderApp('/dashboard/space');
+    await screen.findByRole('button', { name: /Corniche Office Tower/ });
+    const map = document.querySelector('[data-space-map]')!;
+    expect(map).toHaveClass('max-sm:flex-1');
+    expect(map.closest('main')).toHaveClass('max-sm:h-dvh', 'flex', 'flex-col');
+    const less = screen.getByRole('button', { name: 'Show less' });
+    const more = screen.getByRole('button', { name: 'Show more' });
+    expect(within(less).getByText('Less')).toHaveClass('sm:hidden');
+    expect(within(more).getByText('More')).toHaveClass('sm:hidden');
   });
 
   it('moves the view to the project and its stages when a project opens', async () => {
