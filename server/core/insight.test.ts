@@ -75,6 +75,24 @@ describe('insightLogger', () => {
     expect(value).not.toContain('Secret villa');
   });
 
+  it('redacts quoted parts, emails and long tokens in the error text, and keeps the words (third security fix)', async () => {
+    const t = setup();
+    t.log.error('A call failed.', { name: 'users.invite', personId: 'usr_7', error: 'duplicate key value violates unique constraint "users_email_key" for a.b@vado.sa with eyJhbGciOiJIUzI1NiIsInR5cCI6' });
+    await Promise.all(t.kept);
+    const body = t.bodies()[0]!;
+    const value = body.properties.$exception_list[0].value as string;
+    expect(value).toBe('A call failed. duplicate key value violates unique constraint "..." for <email> with <token>');
+    // The call name and the person stay as separate fields, so the issue is easy to find.
+    expect(body.properties).toMatchObject({ call: 'users.invite', personId: 'usr_7' });
+  });
+
+  it('leaves a plain message as it is', async () => {
+    const t = setup();
+    t.log.error('A call failed.');
+    await Promise.all(t.kept);
+    expect(t.bodies()[0]!.properties.$exception_list[0].value).toBe('A call failed.');
+  });
+
   it('keeps the error text short', async () => {
     const t = setup();
     t.log.error('A call failed.', { error: 'x'.repeat(5000) });

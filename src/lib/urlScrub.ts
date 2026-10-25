@@ -48,3 +48,20 @@ export function scrubText(text: string): string {
     .replace(/https?:\/\/\S+/gi, withMark)
     .replace(/(^|[\s("'])(\/\S*[?#]\S*)/g, (_all, before: string, token: string) => before + withMark(token));
 }
+
+/**
+ * The strict cleaning of a server error text (insight design, third security fix). A database error repeats the values of a row,
+ * a user lookup repeats an email, and a bad token shows in its message. In this order it replaces:
+ *  1. every quoted part ("..." and '...') with "...",
+ *  2. every email-like word with <email>,
+ *  3. every run of 20 or more letters, digits, underscores or dashes with <token>.
+ * An apostrophe inside a word (it's) is no quote. The words around stay, so the message is still useful. The screens do not use this:
+ * a browser message such as "Cannot read properties of undefined (reading 'name')" needs its quoted word.
+ */
+export function redactText(text: string): string {
+  return text
+    .replace(/"[^"]*"/g, '"..."')
+    .replace(/(^|[^A-Za-z0-9])'[^']*'/g, (_all, before: string) => `${before}"..."`)
+    .replace(/\S+@\S+/g, '<email>')
+    .replace(/[A-Za-z0-9_-]{20,}/g, '<token>');
+}

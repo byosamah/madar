@@ -1,4 +1,4 @@
-import { scrubText } from '../../src/lib/urlScrub';
+import { redactText, scrubText } from '../../src/lib/urlScrub';
 import { requestHost } from './after';
 import type { LogFields, Logger } from './ports';
 
@@ -35,11 +35,11 @@ const text = (value: unknown): string | undefined => (typeof value === 'string' 
 
 /**
  * The text of the record: the message and the error text. An address loses its query and hash. A value that a database error repeats
- * (`Key (name)=(Secret)`) is cut out. The result is short.
+ * (`Key (name)=(Secret)`) is cut out. Then `redactText` hides each quoted part, email and long token. The result is short.
  */
 function exceptionText(message: string, error: string | undefined): string {
   const whole = error === undefined ? message : `${message} ${error}`;
-  return scrubText(whole.replace(/=\([^)]*\)/g, '=(...)')).slice(0, MAX_TEXT);
+  return redactText(scrubText(whole.replace(/=\([^)]*\)/g, '=(...)'))).slice(0, MAX_TEXT);
 }
 
 /**

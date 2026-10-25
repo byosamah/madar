@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scrubText, scrubUrl } from './urlScrub';
+import { redactText, scrubText, scrubUrl } from './urlScrub';
 
 describe('scrubUrl', () => {
   it('keeps the origin, the path and the tab of a project page', () => {
@@ -64,5 +64,34 @@ describe('scrubText', () => {
 
   it('keeps a text with no address', () => {
     expect(scrubText('Something broke')).toBe('Something broke');
+  });
+});
+
+describe('redactText (the server record, insight design)', () => {
+  it('keeps the words of a database error and shows its quoted part as "..."', () => {
+    expect(redactText('duplicate key value violates unique constraint "users_email_key"')).toBe('duplicate key value violates unique constraint "..."');
+    expect(redactText("value 'Secret villa' is too long")).toBe('value "..." is too long');
+  });
+
+  it('keeps an apostrophe inside a word', () => {
+    expect(redactText("can't read, it's gone")).toBe("can't read, it's gone");
+  });
+
+  it('replaces an email address with <email>', () => {
+    expect(redactText('no user a.b@vado.sa')).toBe('no user <email>');
+  });
+
+  it('replaces a run of 20 or more letters, digits, underscores or dashes with <token>', () => {
+    expect(redactText('bad token eyJhbGciOiJIUzI1NiIsInR5cCI6')).toBe('bad token <token>');
+    expect(redactText('short abc_def-123 stays')).toBe('short abc_def-123 stays');
+  });
+
+  it('keeps a plain text as it is', () => {
+    expect(redactText('A call failed.')).toBe('A call failed.');
+    expect(redactText('')).toBe('');
+  });
+
+  it('cuts the email before the token, so the address never shows as a token', () => {
+    expect(redactText('mail abcdefghijklmnopqrstuvwxyz@vado.sa failed')).toBe('mail <email> failed');
   });
 });
