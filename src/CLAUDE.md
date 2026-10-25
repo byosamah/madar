@@ -153,7 +153,7 @@ The owner sees how the team uses Madar, which errors they hit, and replays of th
   `useSheetSteps(name, open)` (`open`, `save`, `close_unsaved` of the seven main sheets; `sheetWiring.test.ts`), `onSlow` of `RemoteApi` (2 s or more).
   A new main sheet adds its name to `SheetName` and calls `useSheetSteps`.
 - No proxy through the Pages Functions (the replay packets could use the 100,000 requests a day of the free plan). The CSP names only
-  `https://eu.i.posthog.com` in `connect-src`. The team sees one line in Settings (`UsageDataSection`) and in the Me hub (`UsageDataNote`), and one What's new entry.
+  `https://eu.i.posthog.com` and `https://eu-assets.i.posthog.com` (the settings of the project as JSON: without it, PostHog keeps the replays and the click records off) in `connect-src`. The team sees one line in Settings (`UsageDataSection`) and in the Me hub (`UsageDataNote`), and one What's new entry.
 
 ## The project pin and the map (owner, 2026-10-18, fbk_017; the free map since 2026-10-19)
 - `src/features/map/`: `MapCanvas.tsx` is the one MapLibre wrapper, `PinPicker.tsx` the one field of the pin, `PinSheet.tsx` the sheet

@@ -19,7 +19,8 @@ export function watchRoutes(router: AppRouter, track: InsightClient['track']): (
       const key = `${location.pathname}|${tab ?? ''}`;
       if (key === last) return;
       last = key;
-      const screen = screensAt(location.pathname, true).screens.at(-1) ?? 'unknown';
+      // Home sits in the first script, so the screen table has no name for '/'.
+      const screen = location.pathname === '/' ? 'home' : (screensAt(location.pathname, true).screens.at(-1) ?? 'unknown');
       track('$pageview', {
         screen,
         ...(tab ? { tab } : {}),

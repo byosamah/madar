@@ -483,7 +483,7 @@ describe('token-scope.sh', () => {
 describe('pages.sh', () => {
   // The place search host is the same for every copy (fbk_017), so it is no host of the test copy or of production.
   // PostHog Cloud EU is fixed too (insight design, 2026-10-25).
-  const FIXED_HOSTS = ['https://nominatim.openstreetmap.org', 'https://tiles.openfreemap.org', 'https://eu.i.posthog.com'];
+  const FIXED_HOSTS = ['https://nominatim.openstreetmap.org', 'https://tiles.openfreemap.org', 'https://eu.i.posthog.com', 'https://eu-assets.i.posthog.com'];
   const hosts = (text: string) => [...new Set([...text.matchAll(/(?:https|wss):\/\/[^\s;]+/g)].map((match) => match[0]))].filter((host) => !FIXED_HOSTS.includes(host)).sort();
 
   it('builds test, writes dist/_headers with the test hosts and no other, and uploads to the preview branch', () => {

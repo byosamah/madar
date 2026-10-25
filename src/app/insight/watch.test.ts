@@ -28,6 +28,13 @@ describe('watchRoutes', () => {
     expect(track.mock.calls[2]![1]).not.toHaveProperty('tab');
   });
 
+  it('names Home "home": its screen sits in the first script, so the screen table has no name for /', () => {
+    const track = vi.fn();
+    const r = fakeRouter('/');
+    watchRoutes(r.router, track);
+    expect(track).toHaveBeenLastCalledWith('$pageview', expect.objectContaining({ screen: 'home' }));
+  });
+
   it('sends nothing when only another query value changes, and nothing after the stop', () => {
     const track = vi.fn();
     const r = fakeRouter('/projects/prj_1', '?tab=tasks');
