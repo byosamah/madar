@@ -91,11 +91,14 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
 - A `!` command has no keyboard. Without `echo production |` it stops with "the typed word was not production" and changes
   nothing (2026-10-08). The owner may also run the script in his Terminal window and type the word.
 - `all.sh test` asks "Do you want to push api config to remote? [Y/n]" (`api.enabled`: config.toml false, the hosted projects
-  true). A run with no keyboard takes yes by itself, so the owner runs `all.sh test` in his Terminal and answers (2026-10-08).
+  true). A run with no keyboard passes `--yes` (`yes_unless_terminal`), and yes is the right answer (the push keeps the Data API
+  off, see "Quick check of production"), so Claude may run `all.sh test` in the background (2026-10-12, 2026-10-25).
 - After production, check the live site: `all.sh` ends with `checks.sh` (the health, the database check and `POST /mcp` with no
   token 401, through the page host), then page 200 with the title Madar and `/favicon.ico` 200. Then write the release
-  record: a section before "Performance audit" in `docs/superpowers/real-build/proof.md`, a line in `TASKS.md`, one commit
-  on main. The owner pushes it. That commit changes HEAD, so the next production needs `all.sh test` again.
+  record: a section at the end of `docs/superpowers/real-build/proof.md` (after the last "Release record"), a line in `TASKS.md`,
+  one commit on main. Push it once; after a refusal the owner runs the `!` command. That commit changes HEAD, so the next
+  production needs `all.sh test` again.
+- To prove what a copy serves, grep a new English word in `assets/words.en-*.js` (named in the first-load scripts of `index.html`).
 - Every script refuses production when `CI` or `GITHUB_ACTIONS` is set. A `MADAR_DEPLOY_CONFIRMED` from the shell never counts.
 - The auto-mode safety system may refuse a production deploy or a key change until the owner says so in chat. Respect
   the refusal. Never work around it.

@@ -105,7 +105,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   Another session may hold 5180 too (`lsof -iTCP:5180 -sTCP:LISTEN`): then take a free port, such as 5187.
 - A dev server in a worktree whose `node_modules` links to `deploy-test` answers 403 for the `@fontsource` files (outside
   its root): Arabic screenshots then show a fallback font.
-- `npm run build` and `build:remote` both write `dist/`. In the sandbox, `build:remote` fails with
+- `npm run build`, `build:remote` and `npm run smoke` all write `dist/`: never run two of them side by side. In the sandbox, `build:remote` fails with
   `listen EPERM ... tsx-*.pipe`: run it with the sandbox off.
 - While `all.sh` runs in a folder, never build there: a browser check uses the dev server, not the default Playwright config (its
   webServer runs `npm run build`).
@@ -200,8 +200,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - No separate checker (owner, 2026-10-07): no reviewer, verifier or critic agent after a build. Run each suite once.
   Run it again only after a fix for a failure.
 - Merge gate: rebase on main, typecheck, `npm test`, `npm run build`, `build:server`, `build:remote -- test`,
-  `test:lite`, `test:office` (from exit wave 1 on), `test:db`, `test:it`, and the prototype smoke at screen merges. No merge
-  with a red check.
+  `test:lite`, `test:office` (from exit wave 1 on), `test:db`, `test:it`, `test:mcp`, and the prototype smoke at screen merges
+  (`npm run smoke` runs `npm run build` first, so it covers that gate). No merge with a red check.
 - A task edits only its own files. New words go only into its own `src/i18n/real/<track>` files.
 - Agent tool worktrees live in `.claude/worktrees/agent-*` (Workflow agents: `wf_<run>-<n>`, branch `worktree-wf_<run>-<n>`)
   and may start on an old commit: brief each agent to run

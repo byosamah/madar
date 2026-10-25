@@ -798,7 +798,8 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
   the typed letters first (`rankedMatches`, `lib/personName.ts`).
 - A What's new id: take a number above the newest id on main and on every open `rb/*` branch (`git show rb/<x>:src/whatsNew/entries.ts`).
   Sort the ids as numbers (`sort -t- -k4 -n`): a text sort puts `2026-10-23-9` above `-82` (2026-10-22).
-  A test finds its entry by id, never by `WHATS_NEW[0]`.
+  A test finds its entry by id, never by `WHATS_NEW[0]`. `entries.test.ts` also pins the set of release days and the list of rights
+  that an entry may name: a new `day` or a new `right` adds its value there.
 - What's new dates (owner, 2026-10-22): `day` is the day the entry's production release went live, and the page shows the entries of each
   day under that date. Write the planned release day before `all.sh test`; when production goes on another day, fix it in the release
   record commit. The id is only a name and keeps its old form. `entries.test.ts` fails on a day still to come or out of order.

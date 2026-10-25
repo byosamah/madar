@@ -61,6 +61,7 @@ What's new, the docs and your replies to the owner in Arabic. The audit of 2026-
 - A confirmation is a short passive verb with its vowel mark, never «تم» or «يتم»: «حُفظ ملفك.», «حُذف القالب.», «أُضيف الموعد.».
   Where the name of a person follows and the verb cannot agree, put the verb first: «أُضيف إلى الفريق: {{name}}».
   «نا» always means the office («ردنا», «رددنا»). The screen never says «حفظنا».
+- After «غير», the next word is genitive: «رسالتان غير مقروءتين», «رسائل غير مقروءة», never «غير مقروءتان».
 - Talk to the reader: «ملفك», «مهامك», «ارجع». A switch for a notice starts with «عندما».
 - One word for one thing. Admin = «مدير النظام» (never «المدير»). Dashboard = «لوحة المعلومات». Workload = «عبء العمل».
   Menu of options = «خيارات» (never «إجراءات»). Filter = «تصفية». Acts for = «باسم». Meeting task = «مهمة».
