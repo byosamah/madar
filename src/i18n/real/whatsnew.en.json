@@ -3,6 +3,22 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-106": {
+        "title": "Morning summary on office days",
+        "body": "The morning summary email now comes only on the office work days, also when you set more days for your notifications. Your pushes keep your own days."
+      },
+      "2026-10-23-105": {
+        "title": "Chat in Focus mode",
+        "body": "In Focus mode, press \"Project chat\" to open the chat of the project beside the timer. A to-do with no project shows its own thread. Madar keeps your choice on this device. On a phone the chat opens as a full page."
+      },
+      "2026-10-23-104": {
+        "title": "Open space: show more or less",
+        "body": "The Open space map now fits your screen and grows on a big one. Use \"Show more\" and \"Show less\" to open the map one level at a time: sub-companies, projects, stages, to-dos with deadlines, and checklists."
+      },
+      "2026-10-23-103": {
+        "title": "Undo stays longer",
+        "body": "The Undo button now stays 8 seconds. Ctrl+Z (Cmd+Z on a Mac) takes back the last change while the Undo button shows, also with an Arabic keyboard. On a phone, a swipe on a notice shows Undo too."
+      },
       "2026-10-23-102": {
         "title": "Madar records errors and usage",
         "body": "Madar now records errors and how people use it, so we fix problems faster. It never records what you type, chat messages or amounts. Details in Settings."

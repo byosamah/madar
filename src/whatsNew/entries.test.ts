@@ -74,7 +74,7 @@ describe("What's new entries", () => {
   });
 
   it('name a real right and a real address when they have them (chats-14)', () => {
-    const rights = ['admin.manage', 'people.manage', 'payment.manage', 'clients.manage', 'templates.projectAny', 'report.office', 'ai.projectSetup'];
+    const rights = ['admin.manage', 'people.manage', 'payment.manage', 'clients.manage', 'templates.projectAny', 'report.office', 'ai.projectSetup', 'dashboard.view'];
     for (const entry of WHATS_NEW) {
       if (entry.right) expect(rights, entry.id).toContain(entry.right);
       if (entry.to) expect(entry.to, entry.id).toMatch(/^\/[a-z-]+(\/[a-z-]+)*(\?[a-z]+=[a-z]+)?$/);
@@ -188,6 +188,29 @@ describe("the What's new entries of the Inbox line and of projects from the AI a
     expect(String(wordAt(en, ['whatsNew', 'items', '2026-10-23-101', 'body']))).toContain('no Undo');
     expect(String(wordAt(en, ['whatsNew', 'items', '2026-10-23-101', 'body']))).toContain('"AI creates projects and clients"');
     expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-101', 'body']))).toContain('لا تراجع');
+  });
+});
+
+// Four team reports (owner, 2026-10-25): Undo (fbk_052), the Open space (fbk_055), the chat in Focus mode (fbk_059) and the summary days
+// (fbk_058). The entries are found by id, never by place.
+describe("the What's new entries of the four team reports of 2026-10-25", () => {
+  it('give each change its line, the Open space only to the people who see the Dashboard', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-103')).toEqual({ id: '2026-10-23-103', day: '2026-10-25' });
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-104')).toEqual({ id: '2026-10-23-104', day: '2026-10-25', right: 'dashboard.view', to: '/dashboard/space' });
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-105')).toEqual({ id: '2026-10-23-105', day: '2026-10-25' });
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-106')).toEqual({ id: '2026-10-23-106', day: '2026-10-25', to: '/settings' });
+  });
+
+  it('quote the button words as the screens show them, in both languages', () => {
+    const body = (tree: unknown, id: string) => String(wordAt(tree, ['whatsNew', 'items', id, 'body']));
+    expect(body(en, '2026-10-23-103')).toContain('8 seconds');
+    expect(body(ar, '2026-10-23-103')).toContain('«تراجع»');
+    expect(body(en, '2026-10-23-104')).toContain('"Show more"');
+    expect(body(ar, '2026-10-23-104')).toContain('«أظهر المزيد»');
+    expect(body(en, '2026-10-23-105')).toContain('"Project chat"');
+    expect(body(ar, '2026-10-23-105')).toContain('«محادثة المشروع»');
+    expect(body(en, '2026-10-23-106')).toContain('office work days');
+    expect(body(ar, '2026-10-23-106')).toContain('أيام عمل المكتب');
   });
 });
 

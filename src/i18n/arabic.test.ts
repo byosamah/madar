@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ar } from './trees';
 
 /** Real names that stay in Latin letters in Arabic text: tools, picture formats (WebP, JPEG, PNG), the file format ZIP (Download all, fbk_050), the map credit, Google (the name of the calendar service), and Claude and ChatGPT (the AI apps that the role sheet names). */
-const ALLOWED = ['Revit', 'KH', 'Escape', 'English', 'WebP', 'JPEG', 'PNG', 'ZIP', 'OpenFreeMap', 'OpenMapTiles', 'Google', 'Claude', 'ChatGPT'];
+const ALLOWED = ['Revit', 'KH', 'Escape', 'Ctrl+Z', 'Cmd+Z', 'English', 'WebP', 'JPEG', 'PNG', 'ZIP', 'OpenFreeMap', 'OpenMapTiles', 'Google', 'Claude', 'ChatGPT'];
 
 function values(node: unknown, path = ''): [string, string][] {
   if (typeof node === 'string') return [[path, node]];
