@@ -131,11 +131,16 @@ function codeOfNew(ctx: Ctx, input: CodeInput): string {
   return nextProjectCode(state, state.settings.codePrefix, today);
 }
 
+/**
+ * The next automatic code: the head and the highest number after it, plus one. Only a code whose end after the head is all digits
+ * counts, so a code typed by hand with the same head ("KH-26-014-R") never makes the next code "KH-26-NaN".
+ */
 export function nextProjectCode(state: State, prefix: string, today: string): string {
   const head = `${prefix}-${today.slice(2, 4)}-`;
   const max = Object.values(state.projects)
-    .filter((p) => p.code.startsWith(head))
-    .reduce((highest, p) => Math.max(highest, Number(p.code.slice(head.length))), 0);
+    .map((p) => (p.code.startsWith(head) ? p.code.slice(head.length) : ''))
+    .filter((end) => /^\d+$/.test(end))
+    .reduce((highest, end) => Math.max(highest, Number(end)), 0);
   return `${head}${String(max + 1).padStart(3, '0')}`;
 }
 

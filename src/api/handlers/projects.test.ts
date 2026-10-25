@@ -65,6 +65,20 @@ describe('projects.create', () => {
     expect(nextProjectCode(state, 'KH', '2026-09-30')).toBe('KH-26-002');
     expect(nextProjectCode(state, 'KH', '2027-01-02')).toBe('KH-27-001');
   });
+
+  it('counts only the codes that end in digits, so a code typed by hand never gives KH-26-NaN', async () => {
+    const state = makeWorld();
+    for (const [id, code] of [['prj_t1', 'KH-26-014-R'], ['prj_t2', 'KH-26-draft'], ['prj_t3', 'KH-26-1e3'], ['prj_t4', 'KH-26-0x10']]) {
+      state.projects[id] = { ...state.projects.prj_001, id, code };
+    }
+    expect(nextProjectCode(state, 'KH', '2026-09-30')).toBe('KH-26-002');
+
+    // The same path through the call: a code kept with "Use this code anyway", then a project with no code.
+    const t = testApi(projectCalls);
+    await t.api.call('projects.create', { name: 'Kept code', code: 'KH-26-014-R', codeAnyway: true });
+    const next = await t.api.call('projects.create', { name: 'No code' });
+    expect(next.project.code).toBe('KH-26-002');
+  });
 });
 
 describe('projects.list and the card', () => {
