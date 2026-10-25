@@ -924,6 +924,11 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
 - Judge every choice from the view of the employees with ADHD: one next step, the fewest controls.
 - A notice that stays while a state lasts ("Live updates paused", "No connection") goes through `useStandingNotice` (`toasts.tsx`):
   it floats in the toast lane. Never put a strip above the page: the header floats over it (owner, 2026-10-20).
+- Toast rules (`toasts.tsx`, fbk_052): a toast with Undo stays 8 seconds (`UNDO_STAY_MS`), any other toast 5 seconds. Ctrl+Z or Cmd+Z (no Shift, no
+  Alt) runs the newest Undo (`isUndoKey`): the key is "z", or the code is `KeyZ` and the key is not a Latin letter (an Arabic layout). Never test the code
+  alone: on a French AZERTY keyboard `KeyZ` is the W key. A text field keeps its own undo. A swipe on a phone that marks an unread notice read shows
+  "Marked 1 notification as read." with Undo, and Undo calls `notifications.markUnread` for that notice (a read mark writes no event, so `events.undoStory`
+  cannot undo it). A tap on a row and a swipe on a read notice show no toast.
 - Start from the LIVE app's design system (glow tiles, the tokens), never from the spec alone.
 - The signature is solid navy `#1F2A55` (dark `#C9D4FF`), never a gradient. It goes only on the one main button, the
   open tab, the day ring and the timer.

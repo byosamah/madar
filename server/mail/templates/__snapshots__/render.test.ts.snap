@@ -328,7 +328,7 @@ exports[`renderMail > renders summary in English, and in Arabic with a female ac
 <p style="margin:24px 0;"><a href="https://madar.example/" style="display:inline-block;padding:12px 20px;background:#1c1b19;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Open Madar</a></p>
 <p style="margin:0 0 16px;font-size:14px;color:#5f5c55;margin-bottom:4px;">If the button does not work, copy this link into your browser:</p>
 <p style="margin:0 0 24px;font-size:14px;word-break:break-all;" dir="ltr"><a href="https://madar.example/" style="color:#1c1b19;">https://madar.example/</a></p>
-<p style="margin:0 0 16px;font-size:13px;color:#5f5c55;border-top:1px solid #e6e3dc;padding-top:16px;">You get this summary on your work days, at the start of your work hours (Riyadh time). You can turn it off in Settings, Notifications.</p>
+<p style="margin:0 0 16px;font-size:13px;color:#5f5c55;border-top:1px solid #e6e3dc;padding-top:16px;">You get this summary on the office work days, at the start of your work hours (Riyadh time). You can turn it off in Settings, Notifications.</p>
 </div>
 </body>
 </html>",
@@ -355,7 +355,7 @@ and 3 more to-dos.
 
 Open Madar: https://madar.example/
 
-You get this summary on your work days, at the start of your work hours (Riyadh time). You can turn it off in Settings, Notifications.
+You get this summary on the office work days, at the start of your work hours (Riyadh time). You can turn it off in Settings, Notifications.
 ",
 }
 `;
@@ -382,7 +382,7 @@ exports[`renderMail > renders summary in English, and in Arabic with a female ac
 <p style="margin:24px 0;"><a href="https://madar.example/" style="display:inline-block;padding:12px 20px;background:#1c1b19;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">افتح مدار</a></p>
 <p style="margin:0 0 16px;font-size:14px;color:#5f5c55;margin-bottom:4px;">إذا لم يعمل الزر، انسخي هذا الرابط في المتصفح:</p>
 <p style="margin:0 0 24px;font-size:14px;word-break:break-all;" dir="ltr"><a href="https://madar.example/" style="color:#1c1b19;">https://madar.example/</a></p>
-<p style="margin:0 0 16px;font-size:13px;color:#5f5c55;border-top:1px solid #e6e3dc;padding-top:16px;">يصلك هذا الملخص في أيام عملك، عند بداية ساعات عملك (بتوقيت الرياض). يمكنك إيقافه من الإعدادات، الإشعارات.</p>
+<p style="margin:0 0 16px;font-size:13px;color:#5f5c55;border-top:1px solid #e6e3dc;padding-top:16px;">يصلك هذا الملخص في أيام عمل المكتب، عند بداية ساعات عملك (بتوقيت الرياض). يمكنك إيقافه من الإعدادات، الإشعارات.</p>
 </div>
 </body>
 </html>",
@@ -409,7 +409,7 @@ exports[`renderMail > renders summary in English, and in Arabic with a female ac
 
 افتح مدار: https://madar.example/
 
-يصلك هذا الملخص في أيام عملك، عند بداية ساعات عملك (بتوقيت الرياض). يمكنك إيقافه من الإعدادات، الإشعارات.
+يصلك هذا الملخص في أيام عمل المكتب، عند بداية ساعات عملك (بتوقيت الرياض). يمكنك إيقافه من الإعدادات، الإشعارات.
 ",
 }
 `;

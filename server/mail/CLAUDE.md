@@ -63,8 +63,10 @@ after the commit of the call that asked for it.
   and the notices of a new helper and a deleted task (`helper_joined`, `task_deleted`, fbk_034 and fbk_035)
   never send mail (`IN_APP_ONLY_TRIGGERS`, `emailOn`). A meeting sends no mail: the quota is 100 a day, and calendar apps remind by themselves. `MailData.notice` takes only an
   `EmailTrigger`, and the mail tests iterate `EMAIL_TRIGGERS`.
-- The morning summary goes at the start of the work hours of each person, on the work days of that person (owner, 2026-10-22, fbk_048; it was 07:30
-  for all, Sunday to Thursday). The first run of the 15-minute job at or after the start sends it (`jobs/steps/summary.ts`, `workStartOn`). A job_runs row
+- The morning summary goes at the start of the work hours of each person, only on the work days of the office (Sunday to Thursday by default) that are
+  also work days of that person (owner, 2026-10-22, fbk_048; it was 07:30 for all). A person who set more days of their own, such as all 7, gets no
+  summary on a day off of the office (fbk_058). The first run of the 15-minute job at or after the start sends it (`jobs/steps/summary.ts`,
+  `summaryStartOn` in `src/lib/quietHours.ts`, which calls `workStartOn`). The Postgres path and the office object path share this one step. A job_runs row
   `summary:<day>:<person>` closes one person for one day; the old row `summary:<day>` still closes the whole day. A person with quiet hours off uses the
   stored range, else the office default. The key `summary-<day>-<person>` is as before.
 - The morning summary lists the tasks as follows. It lists the open tasks (to do or in progress) that the person
