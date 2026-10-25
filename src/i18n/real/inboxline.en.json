@@ -1,0 +1,8 @@
+{
+  "inboxLine": {
+    "hidden": "{{count}} unread messages are in other chats.",
+    "hidden_one": "1 unread message is in other chats.",
+    "hidden_other": "{{count}} unread messages are in other chats.",
+    "showAll": "Show all"
+  }
+}

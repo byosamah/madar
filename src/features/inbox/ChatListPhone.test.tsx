@@ -84,4 +84,28 @@ describe('the chat list on a phone (Direction D)', () => {
     expect(await screen.findByText('No chats here.')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Corniche Office Tower/ })).toBeNull();
   });
+
+  it('shows the line of hidden unread messages under the panel, and "Show all" chooses All (fbk_056)', async () => {
+    stubPhone();
+    await renderApp('/inbox', withEveryKind);
+    await userEvent.click(within(await chips()).getByRole('radio', { name: 'People' }));
+    const sentence = await screen.findByText(/unread messages are in other chats\./);
+    expect(sentence).toHaveTextContent('3 unread messages are in other chats.');
+    const chats = await list();
+    expect(chats.contains(sentence)).toBe(false);
+    expect(chats.compareDocumentPosition(sentence) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const button = screen.getByRole('button', { name: 'Show all' });
+    expect(button).toHaveClass('min-h-11');
+    await userEvent.click(button);
+    expect(within(await list()).getByRole('link', { name: /Corniche Office Tower/ })).toBeInTheDocument();
+    expect(within(await chips()).getByRole('radio', { name: 'All' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.queryByText(/unread messages are in other chats/)).toBeNull();
+  });
+
+  it('shows no line on a phone while All is chosen', async () => {
+    stubPhone();
+    await renderApp('/inbox', withEveryKind);
+    await list();
+    expect(screen.queryByText(/in other chats/)).toBeNull();
+  });
 });
