@@ -1,4 +1,4 @@
-import { cutText, redactText, scrubText } from '../../src/lib/urlScrub';
+import { redactText, scrubText } from '../../src/lib/urlScrub';
 import { requestHost } from './after';
 import type { LogFields, Logger } from './ports';
 
@@ -35,12 +35,12 @@ const text = (value: unknown): string | undefined => (typeof value === 'string' 
 
 /**
  * The text of the record: the message and the error text. An address loses its query and hash. A value that a database error repeats
- * (`Key (name)=(Secret)`) is cut out. Then `redactText` hides each quoted part, email and long token. The result is short.
+ * (`Key (name)=(Secret)`) is hidden by `redactText`, with each quoted part, email and long token. The result is short.
  */
 function exceptionText(message: string, error: string | undefined): string {
-  // The cut comes first, so no pattern reads a huge text. A cut inside a quote or after =( hides the rest of that span.
-  const whole = cutText(error === undefined ? message : `${message} ${error}`, MAX_TEXT * 2);
-  return redactText(scrubText(whole.replace(/=\([^)]*\)/g, '=(...)'))).slice(0, MAX_TEXT);
+  // A plain cut comes first, so no pattern reads a huge text. `redactText` hides a span that the cut left open.
+  const whole = (error === undefined ? message : `${message} ${error}`).slice(0, MAX_TEXT * 2);
+  return redactText(scrubText(whole)).slice(0, MAX_TEXT);
 }
 
 /**

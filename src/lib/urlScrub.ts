@@ -36,48 +36,6 @@ function scrubLoose(value: string): string {
 /** The most characters that `scrubText` and `redactText` read. A longer text is cut first, so no caller can hand them a huge text. */
 export const MAX_SCAN = 4000;
 
-/**
- * Cuts a text to `max` characters. A text that is not longer comes back as it is. When the cut falls inside a span that is still open,
- * it hides everything from the open mark (fail closed), so no half of a quoted value stays: an open `=(` becomes `=(...)`, an open
- * `"` becomes `"..."`, and an open `'` that starts a quote (not an apostrophe inside a word) becomes `"..."`. With more than one
- * open span, the earliest one wins. One pass over the text, so the work stays linear.
- */
-export function cutText(text: string, max: number): string {
-  if (text.length <= max) return text;
-  const cut = text.slice(0, max);
-  const open = openSpan(cut);
-  return open ? cut.slice(0, open.at) + open.mark : cut;
-}
-
-/** The earliest span that the end of the text leaves open, or null. */
-function openSpan(text: string): { at: number; mark: string } | null {
-  let best: { at: number; mark: string } | null = null;
-  const take = (at: number, mark: string) => {
-    if (best === null || at < best.at) best = { at, mark };
-  };
-  // =( with no ) after it: the first one at or after the last ")" minus one.
-  const lastParen = text.lastIndexOf(')');
-  const paren = text.indexOf('=(', Math.max(0, lastParen - 1));
-  if (paren !== -1) take(paren, '=(...)');
-  // Quotes pair from the left, so with an odd count the last " is the open one.
-  let doubles = 0;
-  let singleOpen = -1;
-  let lastDouble = -1;
-  for (let i = 0; i < text.length; i += 1) {
-    const char = text[i]!;
-    if (char === '"') {
-      doubles += 1;
-      lastDouble = i;
-    } else if (char === "'") {
-      if (singleOpen !== -1) singleOpen = -1;
-      else if (i === 0 || !/[A-Za-z0-9]/.test(text[i - 1]!)) singleOpen = i;
-    }
-  }
-  if (doubles % 2 === 1) take(lastDouble, '"..."');
-  if (singleOpen !== -1) take(singleOpen, '"..."');
-  return best;
-}
-
 const END_MARKS = new Set(['.', ',', ';', ':', '!', '?', ')', ']', '}', "'", '"']);
 
 /** The marks that end a sentence or close a bracket. They stay after a scrubbed address. A plain loop keeps the work linear. */
@@ -92,29 +50,67 @@ function withMark(token: string): string {
  * a `#`. A mark right after an address stays.
  */
 export function scrubText(text: string): string {
-  return cutText(text, MAX_SCAN)
+  return text
+    .slice(0, MAX_SCAN)
     .replace(/https?:\/\/\S+/gi, withMark)
     .replace(/(^|[\s("'])(\/\S*[?#]\S*)/g, (_all, before: string, token: string) => before + withMark(token));
 }
 
 /**
+ * Hides every span that opens with a quote or with `=(`, in one pass from left to right (insight design, sixth security fix). It has four
+ * states. Plain: each character is copied; a `"` writes `"..."` and opens a double span; a `'` with no letter or digit just before it
+ * writes `"..."` and opens a single span (an apostrophe inside a word, as in don't, stays plain); `=(` writes `=(...)` and opens a paren
+ * span. Double: every character is skipped (also `'` and `(`) up to the next `"`. Single: every character is skipped (also `"`) up to the
+ * next `'`. Paren: every character is skipped up to the next `)`. A span that is still open at the end of the text stays hidden, because
+ * its marker is written and nothing after it was copied, so it fails closed by construction. One pass, linear.
+ */
+export function hideSpans(text: string): string {
+  const out: string[] = [];
+  let state: 'plain' | 'double' | 'single' | 'paren' = 'plain';
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i]!;
+    if (state === 'double') {
+      if (char === '"') state = 'plain';
+    } else if (state === 'single') {
+      if (char === "'") state = 'plain';
+    } else if (state === 'paren') {
+      if (char === ')') state = 'plain';
+    } else if (char === '"') {
+      out.push('"..."');
+      state = 'double';
+    } else if (char === "'" && (i === 0 || !/[A-Za-z0-9]/.test(text[i - 1]!))) {
+      out.push('"..."');
+      state = 'single';
+    } else if (char === '=' && text[i + 1] === '(') {
+      out.push('=(...)');
+      state = 'paren';
+      i += 1;
+    } else {
+      out.push(char);
+    }
+  }
+  return out.join('');
+}
+
+/**
  * The strict cleaning of a server error text (insight design, third security fix). A database error repeats the values of a row,
- * a user lookup repeats an email, and a bad token shows in its message. In this order it replaces:
- *  1. every quoted part ("..." and '...') with "...",
- *  2. every email-like word with <email>,
- *  3. every run of 20 or more letters, digits, underscores or dashes with <token>.
- * An apostrophe inside a word (it's) is no quote. The words around stay, so the message is still useful. The screens do not use this:
- * a browser message such as "Cannot read properties of undefined (reading 'name')" needs its quoted word.
+ * a user lookup repeats an email, and a bad token shows in its message. The text is cut to `MAX_SCAN`, then:
+ *  1. `hideSpans` hides every quoted part and every `=(...)` value (an open one included),
+ *  2. every email-like word becomes <email>,
+ *  3. every run of 20 or more letters, digits, underscores or dashes becomes <token>.
+ * The words around stay, so the message is still useful. The screens do not use this: a browser message such as
+ * "Cannot read properties of undefined (reading 'name')" needs its quoted word.
  */
 export function redactText(text: string): string {
-  return cutText(text, MAX_SCAN)
-    .replace(/"[^"]*"/g, '"..."')
-    .replace(/(^|[^A-Za-z0-9])'[^']*'/g, (_all, before: string) => `${before}"..."`)
+  return hideSpans(text.slice(0, MAX_SCAN))
     .replace(/\S+/g, (word) => (hasInnerAt(word) ? '<email>' : word))
     .replace(/[A-Za-z0-9_-]{20,}/g, '<token>');
 }
 
-/** True for a word with an @ that has a letter before it and a letter after it, like \S+@\S+. One pass, so the work stays linear. */
+/**
+ * True for a word with an @ that has a character before it and a character after it, like \S+@\S+. The pattern /[^\s@]+@[^\s@]+/ tries every
+ * start in a long run with no @ and scans to its end each time, which is quadratic; this reads each word once.
+ */
 function hasInnerAt(word: string): boolean {
   const at = word.indexOf('@', 1);
   return at !== -1 && at < word.length - 1;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cutText, MAX_SCAN, redactText, scrubText, scrubUrl } from './urlScrub';
+import { hideSpans, MAX_SCAN, redactText, scrubText, scrubUrl } from './urlScrub';
 
 describe('scrubUrl', () => {
   it('keeps the origin, the path and the tab of a project page', () => {
@@ -121,63 +121,49 @@ describe('the work stays small for a huge text (insight design, fourth security 
   });
 });
 
-describe('a cut that leaves a span open fails closed (insight design, fifth security fix)', () => {
+describe('hideSpans, the one scanner for quotes and =( values (insight design, sixth security fix)', () => {
   const pad = (n: number) => 'word '.repeat(Math.ceil(n / 5)).slice(0, n);
 
-  it('hides a quoted part that the cut falls inside, in redactText and in scrubText', () => {
-    const text = `${pad(MAX_SCAN - 20)}"${'secret '.repeat(10)}`;
-    for (const out of [redactText(text), scrubText(text)]) {
-      expect(out.endsWith('"..."')).toBe(true);
-      expect(out).not.toContain('secret');
-    }
+  it('hides a double quoted part, a single quoted part and a paren value, and keeps the words around', () => {
+    expect(hideSpans('violates "users_email_key" now')).toBe('violates "..." now');
+    expect(hideSpans("value 'Secret villa' is long")).toBe('value "..." is long');
+    expect(hideSpans('Key (name)=(Secret villa) exists')).toBe('Key (name)=(...) exists');
   });
 
-  it('hides a value after =( that the cut falls inside', () => {
-    const text = `${pad(MAX_SCAN - 12)}=(a.b@vado.sa and more words`;
-    for (const out of [redactText(text), scrubText(text)]) {
-      expect(out.endsWith('=(...)')).toBe(true);
-      expect(out).not.toContain('vado');
-      expect(out).not.toContain('more words');
-    }
+  it('hides every character between an opener and its closer, with mixed nesting', () => {
+    expect(hideSpans(`a 'x "y' z"`)).toBe('a "..." z"..."');
+    expect(hideSpans(`a "x 'y" z'`)).toBe(`a "..." z'`);
+    expect(hideSpans('a "x (y=(z" b')).toBe('a "..." b');
+    expect(hideSpans(`a =(x "y) z`)).toBe('a =(...) z');
+    for (const out of [hideSpans(`a 'x "y' z"`), hideSpans(`a "x 'y" z'`)]) expect(out).not.toMatch(/[xy]/);
   });
 
-  it('hides a single quoted part that the cut falls inside, but not an apostrophe in a word', () => {
-    const open = `${pad(MAX_SCAN - 15)} 'secret words here and more`;
-    for (const out of [redactText(open), scrubText(open)]) {
-      expect(out.endsWith('"..."')).toBe(true);
-      expect(out).not.toContain('secret');
-    }
-    const apostrophe = `${pad(MAX_SCAN - 15)} it's a plain text that goes on`;
-    expect(cutText(apostrophe, MAX_SCAN)).toBe(apostrophe.slice(0, MAX_SCAN));
+  it('hides the rest of the text after an open quote, an open apostrophe-quote or an open =(', () => {
+    expect(hideSpans('start "secret goes on')).toBe('start "..."');
+    expect(hideSpans("start 'secret goes on")).toBe('start "..."');
+    expect(hideSpans('start =(a@b.c and more')).toBe('start =(...)');
+    expect(redactText(`${pad(MAX_SCAN - 20)}"${'secret '.repeat(10)}`).endsWith('"..."')).toBe(true);
+    expect(redactText(`${pad(MAX_SCAN - 20)}"${'secret '.repeat(10)}`)).not.toContain('secret');
+    expect(redactText(`${pad(MAX_SCAN - 12)}=(a.b@vado.sa and more words`).endsWith('=(...)')).toBe(true);
+    expect(redactText(`${pad(MAX_SCAN - 15)} 'secret words here and more`)).not.toContain('secret');
   });
 
-  it('cuts a plain long text with no quote as before', () => {
-    const plain = pad(10_000);
-    expect(cutText(plain, MAX_SCAN)).toBe(plain.slice(0, MAX_SCAN));
-    expect(scrubText(plain)).toBe(plain.slice(0, MAX_SCAN));
+  it('keeps an apostrophe inside a word', () => {
+    expect(hideSpans("don't stop, it's fine")).toBe("don't stop, it's fine");
+    expect(hideSpans("'tis")).toBe('"..."');
   });
 
-  it('closes a span that is already closed: nothing changes', () => {
-    const closed = `${pad(MAX_SCAN - 30)} "closed" and =(closed) and 'closed'`;
-    expect(cutText(closed, MAX_SCAN + 100)).toBe(closed);
+  it('keeps a plain text as it is, and cuts a long plain text to MAX_SCAN', () => {
+    expect(hideSpans('A call failed.')).toBe('A call failed.');
+    expect(hideSpans('')).toBe('');
+    expect(redactText(pad(10_000))).toBe(pad(10_000).slice(0, MAX_SCAN));
   });
 
-  it('hides from the earliest open span when two are open', () => {
-    const text = `${pad(100)} =(first ${pad(50)} "second ${pad(50)}`;
-    const out = cutText(text, text.length - 1);
-    expect(out.endsWith('=(...)')).toBe(true);
-    expect(out).not.toContain('first');
-    expect(out).not.toContain('second');
-  });
-
-  it('keeps a text that is not cut as it is, also with an open quote', () => {
-    expect(cutText('say "hello', 100)).toBe('say "hello');
-  });
-
-  it('runs a cut of a huge text with many open marks in under 50 ms', () => {
+  it('runs a huge text with many open marks in under 50 ms', () => {
     const started = performance.now();
-    cutText('=("\''.repeat(100_000), MAX_SCAN);
+    hideSpans('=("\''.repeat(100_000));
     redactText('=("\''.repeat(100_000));
+    redactText('a'.repeat(200_000));
     expect(performance.now() - started).toBeLessThan(50);
   });
 });
