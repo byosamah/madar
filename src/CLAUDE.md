@@ -425,8 +425,8 @@ The owner sees how the team uses Madar, which errors they hit, and replays of th
   every fit passes `includeHiddenNodes: true`, so a card that is not drawn yet still counts in the fit. The data of a card keeps its object
   while its fields stay the same, and the toggle never changes, so a tap redraws only the cards that changed. The sample office copied 5 times
   (about 970 cards at the To-dos step) lays out in under 3 ms.
-  `CARD_HEIGHT` in `spaceTree.ts` is the height of each card kind (offsetHeight in a browser): the four kinds of fbk_055 come from the line heights,
-  so measure them in a browser and change them there. The name stays "Open space" (the team's own word).
+  `CARD_HEIGHT` in `spaceTree.ts` is the height of each card kind (offsetHeight in a browser): the four kinds of fbk_055 were measured in Chrome on 2026-10-25 (sub-company 80, deadline 58, checklist 42),
+  so a change of a card measures it again. The name stays "Open space" (the team's own word).
 - `AvatarStack`: one hidden person shows as a picture, never as "+1". "+N" names the hidden people on hover and in `aria-label`.
 
 ## Routes and shell

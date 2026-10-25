@@ -76,7 +76,7 @@ const LEVEL_GAP = 340;
  * card, as the stage card and the to-do card do (24 + 20 + 18 = 62, 24 + 18 + 6 + 26 = 74). A browser has not measured them yet:
  * measure each one again (offsetHeight), and change the value here when it differs.
  */
-export const CARD_HEIGHT = { office: 60, subcompany: 78, project: 133, stage: 62, task: 74, deadline: 58, check: 42, more: 42 } as const;
+export const CARD_HEIGHT = { office: 60, subcompany: 80, project: 133, stage: 62, task: 74, deadline: 58, check: 42, more: 42 } as const;
 export const ROW_AIR = 16;
 // A row of cousins (cards of one level under two parents) gets more air, so the two families read apart.
 const COUSIN_AIR = 1.4;
