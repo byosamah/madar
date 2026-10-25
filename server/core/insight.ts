@@ -41,7 +41,9 @@ function exceptionText(message: string, error: string | undefined): string {
   // A plain cut comes first, so no pattern reads a huge text. `redactText` hides a span that the cut left open.
   const whole = (error === undefined ? message : `${message} ${error}`).slice(0, MAX_TEXT * 2);
   // The spans are hidden first, so an open quote inside an address hides the rest of the text. The address scrub runs on what is left.
-  return scrubText(redactText(whole)).slice(0, MAX_TEXT);
+  // Last, each word loses all from its first ? or #: a long token just before an address takes its scheme, and then the address
+  // scrub does not see it (eighth security fix). The pattern is linear. A server error text is for people, so the cut costs nothing.
+  return scrubText(redactText(whole)).replace(/[?#]\S*/g, '').slice(0, MAX_TEXT);
 }
 
 /**

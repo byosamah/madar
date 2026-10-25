@@ -125,6 +125,17 @@ describe('insightLogger', () => {
     expect(value).toContain('GET https://x.test/a');
   });
 
+  it('cuts a query that a long token before the address hid from the address scrub (eighth fix)', async () => {
+    const t = setup();
+    t.log.error('A route failed.', { error: `see ${'a'.repeat(24)}https://x.test/a?sig=SECRET#frag and q?code=SECRET2 end` });
+    await Promise.all(t.kept);
+    const value = t.bodies()[0]!.properties.$exception_list[0].value as string;
+    expect(value).not.toContain('SECRET');
+    expect(value).not.toContain('frag');
+    expect(value).toContain('see');
+    expect(value).toContain('end');
+  });
+
   it('keeps the error text short', async () => {
     const t = setup();
     t.log.error('A call failed.', { error: 'x'.repeat(5000) });
