@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { redactText, scrubText, scrubUrl } from './urlScrub';
+import { MAX_SCAN, redactText, scrubText, scrubUrl } from './urlScrub';
 
 describe('scrubUrl', () => {
   it('keeps the origin, the path and the tab of a project page', () => {
@@ -93,5 +93,30 @@ describe('redactText (the server record, insight design)', () => {
 
   it('cuts the email before the token, so the address never shows as a token', () => {
     expect(redactText('mail abcdefghijklmnopqrstuvwxyz@vado.sa failed')).toBe('mail <email> failed');
+  });
+});
+
+describe('the work stays small for a huge text (insight design, fourth security fix)', () => {
+  const huge = 'a'.repeat(200_000);
+  const marks = '/a('.repeat(70_000);
+
+  it('runs scrubText and redactText on a 200,000 character text in under 50 ms', () => {
+    for (const text of [huge, marks, '"'.repeat(200_000), '.'.repeat(200_000), `https://${'a'.repeat(200_000)}`]) {
+      const started = performance.now();
+      scrubText(text);
+      redactText(text);
+      expect(performance.now() - started).toBeLessThan(50);
+    }
+  });
+
+  it('reads at most MAX_SCAN characters', () => {
+    expect(scrubText('b'.repeat(10_000))).toHaveLength(MAX_SCAN);
+    expect(redactText('x '.repeat(10_000)).length).toBeLessThanOrEqual(MAX_SCAN);
+  });
+
+  it('still finds the emails in a short text', () => {
+    expect(redactText('no user a.b@vado.sa')).toBe('no user <email>');
+    expect(redactText('mail abcdefghijklmnopqrstuvwxyz@vado.sa failed')).toBe('mail <email> failed');
+    expect(redactText('a lone @ and trailing x@ stay')).toBe('a lone @ and trailing x@ stay');
   });
 });

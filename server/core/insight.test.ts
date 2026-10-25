@@ -93,6 +93,15 @@ describe('insightLogger', () => {
     expect(t.bodies()[0]!.properties.$exception_list[0].value).toBe('A call failed.');
   });
 
+  it('cuts a huge error text before any pattern reads it', async () => {
+    const t = setup();
+    const started = performance.now();
+    t.log.error('A call failed.', { error: 'a'.repeat(200_000) });
+    expect(performance.now() - started).toBeLessThan(50);
+    await Promise.all(t.kept);
+    expect((t.bodies()[0]!.properties.$exception_list[0].value as string).length).toBeLessThanOrEqual(600);
+  });
+
   it('keeps the error text short', async () => {
     const t = setup();
     t.log.error('A call failed.', { error: 'x'.repeat(5000) });

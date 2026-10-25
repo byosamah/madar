@@ -33,10 +33,16 @@ function scrubLoose(value: string): string {
   return tab ? `${base}?tab=${encodeURIComponent(tab)}` : base;
 }
 
-/** The marks that end a sentence or close a bracket. They stay after a scrubbed address. */
+/** The most characters that `scrubText` and `redactText` read. A longer text is cut first, so no caller can hand them a huge text. */
+export const MAX_SCAN = 4000;
+
+const END_MARKS = new Set(['.', ',', ';', ':', '!', '?', ')', ']', '}', "'", '"']);
+
+/** The marks that end a sentence or close a bracket. They stay after a scrubbed address. A plain loop keeps the work linear. */
 function withMark(token: string): string {
-  const mark = /[.,;:!?)\]}'"]+$/.exec(token)?.[0] ?? '';
-  return scrubUrl(mark ? token.slice(0, -mark.length) : token) + mark;
+  let end = token.length;
+  while (end > 0 && END_MARKS.has(token[end - 1]!)) end -= 1;
+  return scrubUrl(token.slice(0, end)) + token.slice(end);
 }
 
 /**
@@ -45,6 +51,7 @@ function withMark(token: string): string {
  */
 export function scrubText(text: string): string {
   return text
+    .slice(0, MAX_SCAN)
     .replace(/https?:\/\/\S+/gi, withMark)
     .replace(/(^|[\s("'])(\/\S*[?#]\S*)/g, (_all, before: string, token: string) => before + withMark(token));
 }
@@ -60,8 +67,15 @@ export function scrubText(text: string): string {
  */
 export function redactText(text: string): string {
   return text
+    .slice(0, MAX_SCAN)
     .replace(/"[^"]*"/g, '"..."')
     .replace(/(^|[^A-Za-z0-9])'[^']*'/g, (_all, before: string) => `${before}"..."`)
-    .replace(/\S+@\S+/g, '<email>')
+    .replace(/\S+/g, (word) => (hasInnerAt(word) ? '<email>' : word))
     .replace(/[A-Za-z0-9_-]{20,}/g, '<token>');
+}
+
+/** True for a word with an @ that has a letter before it and a letter after it, like \S+@\S+. One pass, so the work stays linear. */
+function hasInnerAt(word: string): boolean {
+  const at = word.indexOf('@', 1);
+  return at !== -1 && at < word.length - 1;
 }

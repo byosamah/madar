@@ -38,7 +38,8 @@ const text = (value: unknown): string | undefined => (typeof value === 'string' 
  * (`Key (name)=(Secret)`) is cut out. Then `redactText` hides each quoted part, email and long token. The result is short.
  */
 function exceptionText(message: string, error: string | undefined): string {
-  const whole = error === undefined ? message : `${message} ${error}`;
+  // The cut comes first, so no pattern reads a huge text.
+  const whole = (error === undefined ? message : `${message} ${error}`).slice(0, MAX_TEXT * 2);
   return redactText(scrubText(whole.replace(/=\([^)]*\)/g, '=(...)'))).slice(0, MAX_TEXT);
 }
 
