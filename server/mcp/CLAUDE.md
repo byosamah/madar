@@ -30,18 +30,18 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 
 ## Tools
 - MCP spec 2026-07-28, stateless. A 2025-era client gets the stateless legacy answer.
-- 57 tools in all (role rights version 2, 2026-10-21). `MCP_ALLOW` holds 47: `madar.readFirst`, `pictures.get`, `story.start` and the reads and
-  writes of an office project. `MCP_BY_RIGHT` holds 10, each behind a right of the person: `payments.list` (`payment.view`),
+- 61 tools in all (role rights version 2, 2026-10-21; project set-up, 2026-10-25). `MCP_ALLOW` holds 49: `madar.readFirst`, `pictures.get`, `story.start` and the reads and
+  writes of an office project. `MCP_BY_RIGHT` holds 12, each behind a right of the person: `payments.list` (`payment.view`),
   `payments.create` (`payment.add`), `payments.update` (`payment.change`), `payments.markReceived` (`payment.receive`), `dashboard.get`
-  (`dashboard.view`), `search.query` (`search.use`), `reports.office` (`report.office`) and the three `feedback.*` tools (`feedback.manage`).
-  `MCP_ADMIN` is empty since role-rights (owner, 2026-10-23). A default Member agent gets 49 tools, Accounting 53, Management 54, the Admin 57
-  (25 reads and 32 writes). `tasks.help` (fbk_035) joins the person to a task as a helper, or takes them off it.
+  (`dashboard.view`), `search.query` (`search.use`), `reports.office` (`report.office`), the three `feedback.*` tools (`feedback.manage`), `projects.create` (`project.create`) and `clients.create` (`client.create`).
+  `MCP_ADMIN` is empty since role-rights (owner, 2026-10-23). A default Member agent gets 49 tools, Accounting 53, Management 54, the Admin 61
+  (27 reads and 34 writes). `tasks.help` (fbk_035) joins the person to a task as a helper, or takes them off it.
   The factory in `app.ts` picks the list for each request from the office rights of the owner, never the agent user. A 2026-07-28 client can keep tools/list for 5 minutes, and a
   2025-era client keeps it until it connects again (the server says listChanged but never sends that notice). So a role change
   shows late in a client, and tools/call always checks.
 - The AI switches (role rights version 2, design section 5.12; `aiSwitches.ts`). Each tool of both lists has exactly one AI switch, from
   `MCP_TOOLS_BY_SWITCH` (`src/api/rightsCatalog.ts`, the catalog JSON in `docs/superpowers/specs`): `ai.readWork` (17 reads, `pictures.get`
-  included), `ai.readChats` (3), `ai.todos` (9), `ai.posts` (2), `ai.messages` (2), `ai.meetings` (4), `ai.tracker` (3), `ai.projects` (5),
+  included), `ai.readChats` (3), `ai.todos` (9), `ai.posts` (2), `ai.messages` (2), `ai.meetings` (4), `ai.tracker` (3), `ai.projects` (5), `ai.projectSetup` (4),
   `ai.payments` (4), `ai.feedback` (3), `ai.report` (1) and `ai.undo` (2). `madar.readFirst` and `story.start` need only `ai.connect`.
   `ai.undoOthers` has no tool: the Undo rule of the History reads it (`history.ts`, another track). A new tool needs a line in the catalog
   and a test fails without it (`aiSwitches.test.ts`).
@@ -164,6 +164,22 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   their dates, so new dates can move the current stage of the project and its health. `stages.replace` and `stages.setPrerequisites`
   stay on `MCP_DENY`: an agent does not add, remove, rename or reorder stages, or change what a stage needs. INSTRUCTIONS has a
   Stages paragraph that says: change a stage date only when the person asks. The tests are in `stageDates.test.ts`.
+- Project set-up (owner, 2026-10-25, fbk_057): `projects.create`, `clients.create`, `clients.list` and `projectTemplates.list` belong to ONE AI switch,
+  `ai.projectSetup` ("AI creates projects and clients"). It is a non-basic switch with `newPower`: off for Member, Management and Accounting, held by the
+  Admin as every switch, needs `ai.connect`. The Admin turns it on for a custom role (for example "Project managers"). A role saved before keeps its own
+  `rights` and `off` lists and so does not get it (`projectCreate.test.ts`). `projects.create` needs `project.create` too and `clients.create` needs
+  `client.create`: a right closes its tool as an unknown tool, the switch closes it with `ai_off`. Both writes are not additive (the client may ask first).
+  - A new project has NO Undo: `project.created` is in `NOT_UNDOABLE`, so `events.undo` answers `conflict`, and `events.undoStory` of a story that holds
+    it fails as a whole and changes nothing. `projects.setStatus` archives a wrong project when the person asks; only an Admin deletes one, in the screens.
+    A burned code series is not given back. The tool docs and the `New projects:` paragraph of `INSTRUCTIONS` say it, and tell the agent to ask its person
+    for the name, the client, the sub-company, the leader and the team, and never to choose a leader or a team. `clients.create` follows the Undo rule of `client.created`.
+  - The leader and each team member get `added_to_project` (notice, push, email) as for a person. The person of the agent gets none. MCP calls carry no
+    idempotency key, so the words say: after a timeout read `projects.list` before you try again.
+  - Lean lists (`withLeanLists`, `run.ts`): `clients.list` gives `id`, `name`, `nameAr`, `initials` only (no contact name, phone or email).
+    `projectTemplates.list` gives `id`, `name`, `roles` (`id`, `name`, `defaultUserId`), `stageNames` and `taskCount` (no task text, no `followers`).
+    No tool declares an output schema, so only the answer changes. Note: `projects.get` and `projects.list` still carry the full `client` record.
+  - Leaks: `sameContractAs` of a hidden project reads as an unknown project, `code_taken` names no hidden project, and an internal project that an agent made
+    answers `not_found` to the agent of an outsider on every read path. The tests are in `projectCreate.test.ts`.
 - Two refusals need a reason from the person (`reasons.ts`): a move back to an earlier stage and a change of set dates. They
   answer with `input_required`. The agent must ask its person, never invent the reason.
 
@@ -238,7 +254,7 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 - The Madar report (owner, 2026-10-21): the "Reports:" line of `INSTRUCTIONS` sends every request for a Madar report (an office report, a
   weekly report, a report from one day to another) to `reports.office` with `guide: true`, and the agent follows that guide
   (`src/api/reportGuide.ts`, from the owner's Claude skill "madar-office-report"). So the report needs no skill in the AI app, and every
-  person with the report right gets the same report. No new tool: the count stays 57. Tests: `reportGuide.test.ts` (the tools, fields and
+  person with the report right gets the same report. No new tool at that time. Tests: `reportGuide.test.ts` (the tools, fields and
   colors that the guide names) and `tools.test.ts` (the words of the tool text and the line). After a change of the guide, tell the owner
   that a Claude skill with the old text in his AI app can disagree with it.
 
