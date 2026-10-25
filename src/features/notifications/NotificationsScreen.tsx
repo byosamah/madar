@@ -37,18 +37,30 @@ const InboxItem = memo(function InboxItem({ view }: { view: NoticeView }) {
   const lang = useLang();
   const phone = useIsPhone();
   const { notification: n, actor, target, project, link, canApprove, gone } = view;
-  const markRead = useAction('notifications.markRead');
-  const read = () => {
-    if (!n.read) markRead.mutate({ ids: [n.id] });
+  const toast = useToast();
+  const markUnread = useAction('notifications.markUnread');
+  // A swipe marks the notice with no sign, so it also shows a toast with Undo (fbk_052). A tap opens the item and shows no toast.
+  // A read mark writes no event, so Undo calls notifications.markUnread for this notice, as Mark all read does.
+  const fromSwipe = useRef(false);
+  const markRead = useAction('notifications.markRead', {
+    onSuccess: () => {
+      if (!fromSwipe.current) return;
+      fromSwipe.current = false;
+      toast.undo(counted(t, 'inbox.markedRead', 1), () => markUnread.mutate({ ids: [n.id] }));
+    },
+  });
+  const read = (swipe = false) => {
+    if (n.read) return;
+    fromSwipe.current = swipe;
+    markRead.mutate({ ids: [n.id] });
   };
   // The notice turns read only when the approval works; a refused or failed one still waits (audit 2026-10-03, SHL-11).
   // Approve is a change like any other, so its toast offers Undo (audit 2026-10-03, BRW-5).
   // Undo also gives back the unread mark that Approve took, so the bell counts the review again (audit 2026-10-03, V-16).
   const wasUnread = useRef(false);
-  const markUnread = useAction('notifications.markUnread');
   const approve = useUndoable('tasks.approve', {
     message: () => t('taskSheet.approved'),
-    onSuccess: read,
+    onSuccess: () => read(),
     onUndo: () => {
       if (wasUnread.current) markUnread.mutate({ ids: [n.id] });
     },
@@ -106,7 +118,7 @@ const InboxItem = memo(function InboxItem({ view }: { view: NoticeView }) {
       }}
       onDragEnd={(_event, info) => {
         // A swipe to either side marks the item read (plan clarification 7).
-        if (Math.abs(info.offset.x) > 80) read();
+        if (Math.abs(info.offset.x) > 80) read(true);
         window.setTimeout(() => {
           swiped.current = false;
         }, 0);

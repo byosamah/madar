@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { State } from '../../api/store';
 import { stubPhone } from '../inbox/phoneHarness';
@@ -19,6 +19,24 @@ const withNotices = (userId: string, list: Notice[]) => (state: State) => {
 
 const TODAY_8 = '2026-09-30T08:00:00.000+03:00';
 const YESTERDAY = '2026-09-29T16:00:00.000+03:00';
+
+/** A swipe of the finger on a row: a press, a move of `dx` pixels, and a release. Motion reads the pointer events of the window. */
+async function swipe(row: HTMLElement, dx: number) {
+  const point = (type: string, x: number) => {
+    const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: 10, button: 0 });
+    Object.defineProperties(event, { pointerType: { value: 'touch' }, isPrimary: { value: true }, pointerId: { value: 1 }, pageX: { value: x }, pageY: { value: 10 } });
+    return event;
+  };
+  await act(async () => {
+    row.dispatchEvent(point('pointerdown', 200));
+    for (const step of [0.25, 0.5, 0.75, 1]) {
+      window.dispatchEvent(point('pointermove', 200 + dx * step));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    window.dispatchEvent(point('pointerup', 200 + dx));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  });
+}
 
 describe('Notifications on a phone (Direction D)', () => {
   it('puts Mark all read at the end of the heading line of the first day, only while one notice is unread', async () => {
@@ -82,5 +100,48 @@ describe('Notifications on a phone (Direction D)', () => {
     const approve = await screen.findByRole('button', { name: 'Approve “Toilet details”' });
     expect(approve.parentElement!.tagName).toBe('LI');
     expect(screen.getByRole('heading', { level: 1, name: 'Notifications' }).closest('div')!.parentElement).toContainElement(screen.getByRole('button', { name: 'Mark all read' }));
+  });
+  // fbk_052: a swipe marks the notice read with no sign. The toast with Undo gives the way back.
+  describe('the swipe toast (fbk_052)', () => {
+    const twoNotices = [
+      notice('ntf_901', 'task_assigned', 'task', 'tsk_012', TODAY_8),
+      notice('ntf_903', 'overdue', 'task', 'tsk_010', YESTERDAY, null),
+    ];
+    const rowOf = async (text: RegExp) => (await screen.findByText(text)).closest('li') as HTMLElement;
+
+    it('shows Marked 1 notification as read with Undo after a swipe on an unread notice, and Undo makes it unread again', async () => {
+      stubPhone();
+      const { store } = await renderApp('/notifications', withNotices('usr_005', twoNotices));
+      await swipe(await rowOf(/gave you/), 120);
+      await waitFor(() => expect(store.state.notifications.ntf_901.read).toBe(true));
+      expect(await screen.findByText('Marked 1 notification as read.')).toBeInTheDocument();
+      expect(store.state.notifications.ntf_903.read).toBe(false);
+      await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
+      await waitFor(() => expect(store.state.notifications.ntf_901.read).toBe(false));
+      expect(store.state.notifications.ntf_903.read).toBe(false);
+    });
+
+    it('Ctrl+Z after the swipe does the same', async () => {
+      stubPhone();
+      const { store } = await renderApp('/notifications', withNotices('usr_005', twoNotices));
+      await swipe(await rowOf(/gave you/), -120);
+      await waitFor(() => expect(store.state.notifications.ntf_901.read).toBe(true));
+      await screen.findByText('Marked 1 notification as read.');
+      await userEvent.keyboard('{Control>}z{/Control}');
+      await waitFor(() => expect(store.state.notifications.ntf_901.read).toBe(false));
+    });
+
+    it('shows no toast for a swipe on a read notice, a short swipe, or a tap on a row', async () => {
+      stubPhone();
+      const { store } = await renderApp('/notifications', withNotices('usr_005', [{ ...twoNotices[0], read: true }, twoNotices[1]]));
+      await swipe(await rowOf(/gave you/), 120);
+      await swipe(await rowOf(/past due/), 30);
+      expect(store.state.notifications.ntf_903.read).toBe(false);
+      expect(screen.queryByText(/Marked 1 notification/)).toBeNull();
+      await userEvent.click(within(await rowOf(/past due/)).getByRole('link', { name: /past due/ }));
+      await waitFor(() => expect(store.state.notifications.ntf_903.read).toBe(true));
+      expect(screen.queryByText(/Marked 1 notification/)).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+    });
   });
 });

@@ -79,6 +79,18 @@ describe('the notifications screen', () => {
     expect(await screen.findByRole('button', { name: 'Mark all read' })).toBeInTheDocument();
   });
 
+  it('puts all notices back with Ctrl+Z after Mark all read (fbk_052)', async () => {
+    const { store } = await renderApp('/notifications', withNotices('usr_005', [
+      notice('ntf_901', 'task_assigned', 'task', 'tsk_012', TODAY_8),
+      notice('ntf_903', 'overdue', 'task', 'tsk_010', YESTERDAY, null),
+    ]));
+    await userEvent.click(await screen.findByRole('button', { name: 'Mark all read' }));
+    expect(await screen.findByText('Marked 2 notifications as read.')).toBeInTheDocument();
+    await userEvent.keyboard('{Control>}z{/Control}');
+    await waitFor(() => expect(store.state.notifications.ntf_901.read).toBe(false));
+    expect(store.state.notifications.ntf_903.read).toBe(false);
+  });
+
   it('counts every notice that Mark all read marked, also past 200, and Undo puts back all of them (audit 2026-10-03, V-26)', async () => {
     const many = Array.from({ length: 205 }, (_, i) => notice(`ntf_${9000 + i}`, 'task_assigned', 'task', 'tsk_012', TODAY_8));
     const { store } = await renderApp('/notifications', withNotices('usr_005', many));
