@@ -105,6 +105,11 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   --strictPort` and check that the page title is "Madar". Run it from `deploy-test`: the main folder's `node_modules` can
   lack a new package, and the page then breaks.
   Another session may hold 5180 too (`lsof -iTCP:5180 -sTCP:LISTEN`): then take a free port, such as 5187.
+- The MCP cannot read file contents. To study the files of a project (a tile shape, a review), open madar.vado.sa in the owner's Chrome: Files &
+  Links, the file menu, Preview. A large PDF preview fills the window when JS sets its dialog and iframe to `position: fixed; inset: 0` (the browser tool
+  blocks signed links in its output).
+- Drawing checks on this Mac: `qlmanage -t -s 400 -o <dir> <file.svg>` renders an SVG to PNG, PIL is installed, shapely is not. For exact shape geometry
+  (unions, holes), use paper.js from cdnjs in a local page served on 127.0.0.1 and read the paths with the Chrome JS tool.
 - A dev server in a worktree whose `node_modules` links to `deploy-test` answers 403 for the `@fontsource` files (outside
   its root): Arabic screenshots then show a fallback font.
 - `npm run build`, `build:remote` and `npm run smoke` all write `dist/`: never run two of them side by side. In the sandbox, `build:remote` fails with
@@ -234,6 +239,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - Never send a message to a running Workflow agent: it starts a duplicate copy in the same worktree.
 - Before you move main or run `all.sh`, tell the peer sessions (ListAgents, SendMessage) and send "released" after: two releases
   on one main and one test copy break each other (2026-10-21). ListAgents does not name the branch of a session; ask by branch name.
+- Session names change while they run (madar-87 became daftra, 2026-10-26): when SendMessage says a name is not reachable, run ListAgents again.
 - A Workflow agent that stopped (an API error) keeps its commits, but SendMessage cannot resume it, and a re-run
   starts it again from its brief. Start a finisher in the same worktree with the commit list and the transcript
   (`subagents/workflows/<run>/agent-*.jsonl`; `agent-*.meta.json` names the label).

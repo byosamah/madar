@@ -78,7 +78,8 @@ any screen work.
   a connection to each Supabase origin. The vendor, overlay and supabase chunks import no app chunk. The prototype build holds no
   "supabase", is one script file, and its index.html has no early link. The preconnect rule runs only with `VITE_SUPABASE_URL`
   or a full `VITE_API_URL` set (`build:remote` sets them; the page's own `/api` needs no preconnect). A red "no zod schemas" line: a first-load file imports from
-  `contract/entities.ts` or `server.ts`; take the limit from `contract/limits.ts` or use a type-only import.
+  `contract/entities.ts` or `server.ts`, or imports a function of a heavy `src/api` module (`chatState.ts` pulls the rules and the store); take the limit
+  from `contract/limits.ts`, use a type-only import, or move the small pure function into its own file (`api/adminReach.ts`, 2026-10-26).
 - To see which source file pulled code into the first load: build with `--sourcemap` into `$TMPDIR` and read the
   `sources` of `assets/index-*.js.map`.
 
@@ -1145,6 +1146,9 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
 
 ## Before you call a screen change done
 - Tests first. Then screenshots in EN and AR, light and dark, at 390 px.
+- A change to a picture, a ring or a people stack: check it with a real photo, not initials. A photo (an inline img) in a plain box gains a text-line
+  gap, and the prototype people have initials only (production, 2026-10-26: an oval leader ring). Put a photo in the saved office: `users[id].avatarUrl` =
+  a JPEG data address under 24,000 characters (IndexedDB `madar`, store `data`, key `state`), then reload.
 - claude-in-chrome screenshots run inline. Playwright runs only in a delegated subagent.
 - Chrome slows the timers of a hidden tab, so a list can show a change late. Bring the tab to the front
   before you judge it. The tab that claude-in-chrome opens is hidden (`document.hidden` is true), and then `connectChanges` marks
