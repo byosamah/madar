@@ -668,7 +668,8 @@ describe('the lists, the AI switches and the words of the parity track', () => {
     expect(INSTRUCTIONS).toContain('Marks and screen state:');
     expect(INSTRUCTIONS).toContain('Do these only when your person asks.');
     expect(INSTRUCTIONS).toContain('Ask first:');
-    expect(INSTRUCTIONS).toContain('A project delete stays in the Madar screens');
+    // The rule that a project delete stays in the screens has one place: New projects (join check, 2026-10-26).
+    expect(INSTRUCTIONS.match(/delete[s]? a project/g)?.length ?? 0).toBeLessThanOrEqual(1);
     expect(INSTRUCTIONS).toContain('Admin work:');
     expect(INSTRUCTIONS).toContain('Only an Admin deletes a project, in the Madar screens.');
     for (const old of [
