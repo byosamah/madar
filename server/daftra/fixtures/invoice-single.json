@@ -1,0 +1,57 @@
+{
+ "result": "successful",
+ "code": 200,
+ "data": {
+  "Invoice": {
+   "id": "1862",
+   "type": "0",
+   "no": "1521960",
+   "client_id": "823",
+   "currency_code": "SAR",
+   "date": "29/09/2026",
+   "payment_status": 2,
+   "draft": "0",
+   "issued": true,
+   "summary_subtotal": 190,
+   "summary_total": 166.52,
+   "summary_paid": "166.52",
+   "summary_unpaid": 0,
+   "summary_refund": 0,
+   "created": "2026-10-21 16:23:52",
+   "modified": "2026-10-21 16:23:52",
+   "work_order_id": null,
+   "due_date": "29/09/2026",
+   "e_invoice_status": "Not Submitted",
+   "client_business_name": "Client 9",
+   "InvoicePayment": [
+    {
+     "id": "1835",
+     "invoice_id": "1862",
+     "client_id": null,
+     "payment_method": "bank",
+     "amount": "166.52",
+     "date": "2026-09-29 00:00:00",
+     "status": "1",
+     "currency_code": "SAR",
+     "created": "2026-10-21 16:23:53"
+    }
+   ],
+   "InvoiceItem": [
+    {
+     "id": "2075",
+     "invoice_id": "1862",
+     "product_id": "10",
+     "quantity": "2",
+     "unit_price": "95",
+     "tax1": "1",
+     "subtotal": 166.52
+    }
+   ],
+   "Client": {
+    "id": "823",
+    "business_name": "Client 9",
+    "bn1": null
+   }
+  }
+ }
+}

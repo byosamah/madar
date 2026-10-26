@@ -1,0 +1,88 @@
+{
+ "result": "successful",
+ "code": 200,
+ "data": [
+  {
+   "Invoice": {
+    "id": "1830",
+    "type": "0",
+    "no": "1521945",
+    "client_id": "842",
+    "currency_code": "SAR",
+    "date": "2026-10-04",
+    "payment_status": "2",
+    "draft": "0",
+    "issued": "1",
+    "summary_subtotal": "260.87",
+    "summary_total": "260.87",
+    "summary_paid": "860.87",
+    "summary_unpaid": "0",
+    "summary_refund": 0,
+    "summary_credit_note": 0,
+    "created": "2026-10-04 21:39:53",
+    "modified": "2026-10-04 21:39:53",
+    "work_order_id": null,
+    "due_date": "2026-10-04",
+    "e_invoice_status": "Not Submitted",
+    "client_business_name": "Client 1"
+   }
+  },
+  {
+   "Invoice": {
+    "id": "1829",
+    "type": "0",
+    "no": "1521944",
+    "client_id": "842",
+    "currency_code": "SAR",
+    "date": "2026-10-04",
+    "payment_status": "2",
+    "draft": "0",
+    "issued": "1",
+    "summary_subtotal": "260.87",
+    "summary_total": "260.87",
+    "summary_paid": "860.87",
+    "summary_unpaid": "0",
+    "summary_refund": 0,
+    "summary_credit_note": 0,
+    "created": "2026-10-04 21:37:59",
+    "modified": "2026-10-04 21:37:59",
+    "work_order_id": null,
+    "due_date": "2026-10-04",
+    "e_invoice_status": "Not Submitted",
+    "client_business_name": "Client 2"
+   }
+  },
+  {
+   "Invoice": {
+    "id": "1828",
+    "type": "0",
+    "no": "1521943",
+    "client_id": "842",
+    "currency_code": "SAR",
+    "date": "2026-10-04",
+    "payment_status": "2",
+    "draft": "0",
+    "issued": "1",
+    "summary_subtotal": "260.87",
+    "summary_total": "260.87",
+    "summary_paid": "260.87",
+    "summary_unpaid": "0",
+    "summary_refund": 0,
+    "summary_credit_note": 0,
+    "created": "2026-10-04 21:24:29",
+    "modified": "2026-10-04 21:24:29",
+    "work_order_id": null,
+    "due_date": "2026-10-04",
+    "e_invoice_status": "Not Submitted",
+    "client_business_name": "Client 3"
+   }
+  }
+ ],
+ "pagination": {
+  "prev": null,
+  "next": "api2/invoices.json?page=2&limit=5",
+  "page": 1,
+  "page_count": 344,
+  "total_results": 1719
+ }
+}
