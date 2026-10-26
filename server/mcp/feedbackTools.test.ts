@@ -119,4 +119,56 @@ describe('the Admin tools of requests and bugs over MCP (owner, 2026-10-07)', ()
     expect(w.mem.tables.state.feedback!.fbk_001.screenshots).toEqual(seed.feedback!.fbk_001.screenshots);
     expect(w.mem.tables.state.feedback!.fbk_001.status).toBe('done');
   });
+
+  it('lists the five statuses, the reason and the "open" filter in the schemas of the tools (fbk_067)', async () => {
+    const w = world();
+    const response = await w.app.fetch(new Request('http://127.0.0.1/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${TOKEN.token}`,
+        'MCP-Protocol-Version': VERSION, 'Mcp-Method': 'tools/list',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: nextId++, method: 'tools/list',
+        params: { _meta: { 'io.modelcontextprotocol/protocolVersion': VERSION, 'io.modelcontextprotocol/clientCapabilities': {}, 'io.modelcontextprotocol/clientInfo': { name: 'test-agent', version: '1.0.0' } } },
+      }),
+    }));
+    const tools = (await response.json() as { result: { tools: { name: string; inputSchema: { properties: Record<string, { enum?: string[]; maxLength?: number }> } }[] } }).result.tools;
+    const set = tools.find((tool) => tool.name === 'feedback.setStatus')!;
+    expect(set.inputSchema.properties.status.enum).toEqual(['new', 'in_review', 'in_progress', 'rejected', 'done']);
+    expect(set.inputSchema.properties.reason.maxLength).toBe(500);
+    const list = tools.find((tool) => tool.name === 'feedback.list')!;
+    expect(list.inputSchema.properties.status.enum).toEqual(['new', 'in_review', 'in_progress', 'rejected', 'done', 'open']);
+  });
+
+  it('sets each new status for the agent of an Admin: in_review and in_progress send no notice, rejected needs a reason and sends one to the sender only (fbk_067)', async () => {
+    const w = world();
+    const notices = () => Object.values(w.mem.tables.state.notifications).filter((n) => n.trigger === 'feedback_done');
+    for (const status of ['in_review', 'in_progress'] as const) {
+      const { result } = await call(w, 'feedback.setStatus', { id: 'fbk_001', status });
+      expect(result.isError, JSON.stringify(result)).toBeUndefined();
+      expect(result.structuredContent.output).toMatchObject({ id: 'fbk_001', status });
+    }
+    expect(notices()).toEqual([]);
+    const missing = await call(w, 'feedback.setStatus', { id: 'fbk_001', status: 'rejected' });
+    expect(missing.result.isError).toBe(true);
+    expect(w.mem.tables.state.feedback!.fbk_001.status).toBe('in_progress');
+    const { text, result } = await call(w, 'feedback.setStatus', { id: 'fbk_001', status: 'rejected', reason: 'Your person said: not planned.' });
+    expect(result.isError, JSON.stringify(result)).toBeUndefined();
+    expect(text).not.toContain('blobKey');
+    expect(result.structuredContent.output).toMatchObject({ status: 'rejected', rejectReason: 'Your person said: not planned.', screenshots: [{ type: 'image/png' }, { type: 'image/webp' }] });
+    expect(notices().map((n) => [n.userId, n.feedback?.reason])).toEqual([['usr_003', 'Your person said: not planned.']]);
+    expect(w.mem.tables.state.feedback!.fbk_001.screenshots).toEqual(seed.feedback!.fbk_001.screenshots);
+  });
+
+  it('lists the open reports with the open filter, and each status alone (fbk_067)', async () => {
+    const w = world();
+    await call(w, 'feedback.setStatus', { id: 'fbk_001', status: 'in_review' });
+    const ids = async (status: string) => ((await call(w, 'feedback.list', { status })).result.structuredContent.output as { item: Feedback }[]).map((row) => row.item.id);
+    expect(await ids('open')).toEqual(['fbk_001']);
+    expect(await ids('new')).toEqual([]);
+    expect(await ids('in_review')).toEqual(['fbk_001']);
+    expect(await ids('done')).toEqual(['fbk_002']);
+    expect(await ids('rejected')).toEqual([]);
+  });
 });

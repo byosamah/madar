@@ -1,7 +1,6 @@
 {
   "feedback": {
     "screenshotFailed": "Screenshot {{n}} did not load.",
-    "openFull": "Open screenshot {{n}} at full size",
-    "markedDone": "Marked done."
+    "openFull": "Open screenshot {{n}} at full size"
   }
 }

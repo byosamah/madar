@@ -968,6 +968,20 @@ export type Payment = z.infer<typeof Payment>;
 /** A feature request or a bug report from the person menu, with up to three screenshots (owner, 2026-10-01). */
 export const FeedbackKind = z.enum(['feature', 'bug']);
 export type FeedbackKind = z.infer<typeof FeedbackKind>;
+/**
+ * The five statuses of a report (fbk_067, owner 2026-10-26). "new" and "done" keep their old meaning. "open" is not a status: it is a filter
+ * of feedback.list for new, in_review and in_progress.
+ */
+export const FEEDBACK_STATUSES = ['new', 'in_review', 'in_progress', 'rejected', 'done'] as const;
+export const FeedbackStatus = z.enum(FEEDBACK_STATUSES);
+export type FeedbackStatus = z.infer<typeof FeedbackStatus>;
+/** The longest reason for a rejected report. The sender reads it in the bell. */
+export const REJECT_REASON_MAX = 500;
+/** Zero-width and other invisible marks that trim() keeps: a reason made only of them shows as nothing. */
+const INVISIBLE = /[\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180B-\u180F\u200B-\u200F\u202A-\u202E\u2060-\u206F\u3164\uFE00-\uFE0F\uFEFF\uFFA0]/g;
+/** The reason of a rejected report: 1 to 500 characters, trimmed, with at least one visible character. It may run over several lines. */
+export const RejectReason = z.string().trim().min(1, 'Write why you reject it.').max(REJECT_REASON_MAX)
+  .refine((text) => text.replace(INVISIBLE, '').trim() !== '', 'Write why you reject it, with visible words.');
 export const Feedback = z.object({
   id: z.string(),
   kind: FeedbackKind,
@@ -975,11 +989,13 @@ export const Feedback = z.object({
   /** The screen the person was on, so a bug report says where it happened. */
   page: z.string().max(300),
   screenshots: z.array(z.object({ blobKey: z.string(), type: z.string().max(60) })).max(3),
-  status: z.enum(['new', 'done']),
+  status: FeedbackStatus,
   createdBy: UserId,
   createdAt: Stamp,
   doneBy: UserId.nullable(),
   doneAt: Stamp.nullable(),
+  /** Why the report was rejected (fbk_067). Set only while the status is "rejected"; the History keeps each reason. Optional, so older reports load. */
+  rejectReason: RejectReason.nullable().optional(),
 });
 export type Feedback = z.infer<typeof Feedback>;
 
@@ -1022,7 +1038,12 @@ export const FileRec = z.object({
 export type FileRec = z.infer<typeof FileRec>;
 
 /** The kind and the start of the message of a report, so the notice line needs no report row (owner, 2026-10-07). */
-export const NoticeFeedback = z.object({ kind: FeedbackKind, excerpt: z.string().min(1).max(200) });
+export const NoticeFeedback = z.object({
+  kind: FeedbackKind,
+  excerpt: z.string().min(1).max(200),
+  /** The reason of a rejected report (fbk_067). Only the notice of the sender holds it; the done notice has none. Optional, so older notices load. */
+  reason: RejectReason.optional(),
+});
 export type NoticeFeedback = z.infer<typeof NoticeFeedback>;
 
 export const Notification = z.object({

@@ -308,7 +308,18 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - A report notice carries `feedback: { kind, excerpt }` (`NoticeFeedback`), so its line needs no report row. `excerptOf`
   (`lib/text.ts`) makes the excerpt: one space for each run of white space, 80 code points or fewer, cut at a space, then "…".
 - Only the move from open to done sends a notice. Done on a done report and "Open again" send nothing, and the done notice
-  stays. Done after "Open again" sends a second one. `feedback.list` takes `status` (`new` or `done`).
+  stays. Done after "Open again" sends a second one. `feedback.list` takes `status`.
+- Five statuses (fbk_067): `new`, `in_review`, `in_progress`, `rejected`, `done` (`FeedbackStatus`, `entities.ts`). `feedback.list` takes each
+  one, and `open` (new, in_review and in_progress); `new` still means only new. The order is open first, then done, then rejected, newest first
+  in each group. `feedback.setStatus` takes `reason` (`RejectReason`: trimmed, 1 to 500 characters, at least one visible character): it is
+  required with `rejected` and refused with any other status. `Feedback.rejectReason` holds it only while the status is `rejected`; the event
+  keeps each reason. A move into `done` or `rejected` from another status sends one `feedback_done` notice to `principalOf(createdBy)`, under
+  the same switch and the same skips. The rejected notice has `feedback.reason` (`NoticeFeedback`), and `noticeSentence` reads it for the bell
+  and the push line (`inbox.feedback.rejected*`). `in_review`, `in_progress` and `new` send nothing. `rejected` on a rejected report only
+  changes the reason, with no second notice. The Undo of a story keeps one done notice for each standing move into `done` and one rejected
+  notice for each standing move into `rejected` (`movesInto`, `history.ts`). An old report has no `rejectReason` field: `setStatus` writes
+  null first, so a JSON event holds both sides and an Undo restores null. A rollback to a release before fbk_067 cannot read a report with a
+  new status.
 - An Undo keeps a report notice only while a change of the same report stands in its story (`dropNotices`,
   `handlers/history.ts`). So the Undo of one done change takes back only the notice of that report.
 - A done notice stays only once for each standing change of its story that moved the report from `new` to `done`; the newest

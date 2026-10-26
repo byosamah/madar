@@ -530,9 +530,10 @@ for (const { lang, width } of VARIANTS) {
       await shot('report-sheet', 'admin');
       await page.keyboard.press('Escape');
       await expect(sheet).toHaveCount(0);
-      // Mark done offers Undo for a few seconds (rule B20). The walk does not press it.
-      await item.getByRole('button', { name: w('feedback.markDone'), exact: true }).click();
-      await expect(page.getByText(w('feedback.markedDone')).first()).toBeVisible();
+      // The status control is one menu (fbk_067). Done offers Undo for a few seconds (rule B20). The walk does not press it.
+      await item.getByRole('button', { name: w('feedback.statusOf', { status: w('feedback.status.new') }), exact: true }).click();
+      await page.getByRole('menuitemradio', { name: w('feedback.status.done'), exact: true }).click();
+      await expect(page.getByText(w('feedback.statusSet', { status: w('feedback.status.done') })).first()).toBeVisible();
       await expect(page.locator('[data-toasts]').getByRole('button', { name: w('common.undo'), exact: true })).toBeVisible();
       await shot('report-done', 'admin');
       await waitRow('report done', "select 1 from feedback where id = $1 and doc->>'status' = 'done' and doc->>'doneBy' = $2", [ctx.reportId, DEPLOY_ACCOUNTS.admin.userId]);

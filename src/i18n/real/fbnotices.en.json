@@ -2,7 +2,7 @@
   "settings": {
     "triggers": {
       "feedback_sent": "Someone sends a feature request or a bug report",
-      "feedback_done": "My request or bug report is done"
+      "feedback_done": "My request or bug report is done or rejected"
     }
   },
   "inbox": {

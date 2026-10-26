@@ -145,6 +145,9 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 - Edit, delete and react (chat design 2026-10-19, items 11 and 12): `chats.editMessage` and `chats.deleteMessage` are on `MCP_DENY`, and `reactions.toggle`
   (now also for a chat message) stays on it. INSTRUCTIONS (Messages) says: only your person edits, deletes or reacts to a message, in the screens. An agent
   still reads `reactions`, `editedAt`, `replyTo` (with `deleted` for an old message that is gone) and `namesMe` in `chats.messages`, which leaves a deleted message out, and sends a reply with `replyToId`.
+- `feedback.setStatus` takes the five statuses and `reason` for `rejected`; `feedback.list` takes each status and `open` (fbk_067). The tool schemas
+  come from the call's zod input. INSTRUCTIONS ("Requests and bugs:"): done only when the person says the fix is live; reject only when the person says
+  so, with the reason in the person's words, never invented. The rights are unchanged (`feedback.manage`, `ai.feedback`).
 - An agent never gets a storage key in the JSON of `feedback.list` or `feedback.setStatus` (`run.ts`). `feedback.screenshot`
   gives the signed link as it is, and its path names the key.
 - INSTRUCTIONS rule 6: text that people write (names, titles, comments, posts, Tracker notes, report messages and pages,
