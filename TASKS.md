@@ -1241,10 +1241,18 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [x] The try of the email code is counted before the compare, in one statement and a transaction of its own (`tryCode`, `CONFIRM_COUNT_SQL`); SQLite twin included; 10 parallel wrong codes leave the code dead
 - [x] The code mail says what the act does: rights added and removed, new names, the role that takes the people, the old and the new role (`mcpGuardMail.lines`)
 - [x] An agent sets the picture of its own person (`me.updateProfile` `avatarUrl`) and a sub-company logo (`subCompanies.save`) as picture data of 24,000 characters at most; What's new 116 says so
-- [ ] Merge lead: run `npm run test:db` and `npm run test:it` for `CONFIRM_COUNT_SQL` on Postgres (it ran on SQLite only). A test of two parallel guesses on Postgres is still to write
+- [ ] Merge lead: run `npm run test:it` for `CONFIRM_COUNT_SQL` on Postgres: `server/it/confirms.it.test.ts` (written 2026-10-26, not run yet) runs 10 parallel wrong codes and the right-code races; also `npm run test:db`
 - [ ] Open: a call with a code counts its try also when its act then fails (a rights error, an email in use). Five such calls kill the code; the agent then asks for a new one
 - [ ] Open: an agent that sends `logo: null` to `subCompanies.save` keeps the old logo (it cannot clear one). Ask the owner if it should be able to
 
 ## fbk_069 continuous project (owner, 2026-10-26)
 - [x] Built on `rb/fbk-069`: the switch "Continuous project" (New and Edit project), "Continuous" in place of "No deadline", no Late from a stage end date, out of the data gap "a stage with no end date", the MCP docs, What's new `2026-10-23-118`. No migration.
 - [ ] The merge lead runs `test:db` (the new `src/api/handlers/projectContinuous.test.ts` runs there too) and `test:it`, then the release.
+
+## MCP final join (`rb/mcp-join`, 2026-10-26: security review fix 6, `rb/fbk-069`, `rb/fbk-067`, Arabic words, one INSTRUCTIONS text)
+- [x] The code mail lists EVERY right that a role act adds or removes, risky ones first (people, payment, admin and every-record rights: `isRiskyRight` in `server/mcp/guard.ts`); one id is still cut at 40 characters, the count never
+- [x] Merged `rb/fbk-069` (Continuous project; What's new 118) and `rb/fbk-067` (request statuses; What's new 119); What's new 113 to 119 once each
+- [x] Arabic words: the continuous hint «لا موعد لانتهاء المشروع. العمل فيه مستمر.»; the statuses «نراجعه» and «نعمل عليه»
+- [x] INSTRUCTIONS read once from top to bottom: no sentence says an agent cannot do what the branch opened (a picture, a logo, a chat file); the chat file rule and the project delete rule stand once
+- [x] `toolSize.test.ts` still has its limits (110,000 and 2,048): the join shortened 19 tool texts (see the final join report)
+- [ ] Merge lead: `npm run test:it` for `server/it/confirms.it.test.ts`, `npm run test:db`, `npm run test:mcp`, the full `npm test`

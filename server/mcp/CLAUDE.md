@@ -342,7 +342,7 @@ acts, when the ACTOR is an agent, the person of the agent must give a code that 
 - The tools: `confirmCode` (six digits, optional) is an argument of the eight tools only (`tools.ts`, `ConfirmCode`); the `TOOL_DOCS` of each tool and one INSTRUCTIONS paragraph
   ("Codes for risky Admin acts") explain the flow. The job removes rows older than one day (`cleanup.ts`).
 - Not guarded on purpose: `users.resendInvite` (it mails a person who was invited already), `teams.*`, `clients.update`, `subCompanies.*`, `settings.update` (no role field).
-- Tests: `guard.lite.test.ts` (SQLite: all eight acts, the code rules, the mail), the `confirmed` helper and the guard block of `parity.test.ts` (MCP, memory data).
+- Tests: `guard.lite.test.ts` (SQLite: all eight acts, the code rules, the mail), the `confirmed` helper and the guard block of `parity.test.ts` (MCP, memory data). `server/it/confirms.it.test.ts` (Postgres, `test:it`): 10 parallel wrong codes leave the row at 5 tries and dead; parallel right codes claim once.
 
 ## Token and approval
 - The MCP token: ES256, `aud` = MCP_URL (set by the token hook from `platform_config.mcp_url`), `client_id` required, read
