@@ -7,7 +7,10 @@ import type { RunResult } from '../core/types';
 import { liteData } from '../data/lite/callData';
 import { readLiteOffice } from '../data/lite/office';
 import { ensureAgentUser } from './agentUser';
+import { BASIC_ON, CATALOG_RIGHT_IDS } from '../../src/api/rightsCatalog';
+import { inOrder } from '../../src/api/handlers/roles';
 import { CODE_TTL_MS, MAX_NEW_PER_HOUR } from './confirms';
+import { isRiskyRight, listed } from './guard';
 
 /**
  * The email code guard (owner decision, 2026-10-26; server/mcp/guard.ts), run as an agent on node:sqlite, as the office object runs it.
@@ -455,14 +458,93 @@ describe('the mail of the code describes the act (owner decision, 2026-10-26)', 
     expect(mail.text).toContain('Rights it removes: search.use.');
   });
 
-  it('roles.create: a long list says "and N more"', async () => {
-    const t = await signinOffice();
-    const agent = await agentOf(t, 'usr_001');
-    const rights = ['people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove', 'clients.change', 'payment.view', 'payment.add', 'payment.change', 'payment.receive', 'templates.projectCreate', 'templates.projectAny'];
-    const mail = await requestMail(t, agent, 'roles.create', { name: 'Many', nameAr: 'كثير', rights });
-    expect(mail.text).toMatch(/Rights it gives: (?:[\w.]+, ){7}[\w.]+, and 4 more\./);
-    expect(mail.text).not.toContain('payment.receive');
-    expect(mail.text).not.toContain('templates.projectAny');
+  describe('a long list shows every right (security review, fix 6)', () => {
+    /** 30 or more non-basic rights, the safe ones first in the input, so only the mail can put the risky ones first. */
+    const bigList = (): string[] => {
+      const nonBasic = CATALOG_RIGHT_IDS.filter((id) => !(BASIC_ON as readonly string[]).includes(id));
+      const risky = nonBasic.filter(isRiskyRight);
+      const safe = nonBasic.filter((id) => !isRiskyRight(id));
+      return [...safe, ...risky];
+    };
+
+    const itemsOf = (line: string): string[] => line.replace(/\.$/, '').split(/[,،] /).map((x) => x.trim());
+
+    it('roles.create: a diff of 30 or more rights lists every one, risky first, in English', async () => {
+      const t = await signinOffice();
+      const agent = await agentOf(t, 'usr_001');
+      const rights = bigList();
+      const expected = inOrder(rights);
+      expect(expected.length).toBeGreaterThanOrEqual(30);
+      const mail = await requestMail(t, agent, 'roles.create', { name: 'Many', nameAr: 'كثير', rights });
+      const line = mail.text.split('\n').find((one) => one.startsWith('Rights it gives: '))!;
+      expect(line).toBeDefined();
+      expect(line).not.toMatch(/more/);
+      const shown = itemsOf(line.slice('Rights it gives: '.length));
+      expect([...shown].sort()).toEqual([...expected].sort());
+      // The risky rights come first, then the others. Each group keeps the catalog order.
+      const firstSafe = shown.findIndex((id) => !isRiskyRight(id));
+      expect(firstSafe).toBeGreaterThan(0);
+      expect(shown.slice(firstSafe).every((id) => !isRiskyRight(id))).toBe(true);
+      expect(shown.slice(0, firstSafe).every((id) => isRiskyRight(id))).toBe(true);
+      expect(shown[0]).toBe(expected.find(isRiskyRight));
+      for (const id of expected) expect(mail.html).toContain(id);
+    });
+
+    it('roles.create: the same diff in Arabic lists every right too', async () => {
+      const t = await signinOffice();
+      await setLanguage(t, 'ar');
+      const agent = await agentOf(t, 'usr_001');
+      const rights = bigList();
+      const expected = inOrder(rights);
+      const mail = await requestMail(t, agent, 'roles.create', { name: 'Many', nameAr: 'كثير', rights });
+      const line = mail.text.split('\n').find((one) => one.startsWith('الصلاحيات التي يعطيها: '))!;
+      expect(line).toBeDefined();
+      expect(line).not.toContain('أخرى');
+      const shown = itemsOf(line.slice('الصلاحيات التي يعطيها: '.length));
+      expect([...shown].sort()).toEqual([...expected].sort());
+      const firstSafe = shown.findIndex((id) => !isRiskyRight(id));
+      expect(firstSafe).toBeGreaterThan(0);
+      expect(shown.slice(0, firstSafe).every((id) => isRiskyRight(id))).toBe(true);
+    });
+
+    it('roles.update: 30 rights added and 30 removed are all listed, risky first', async () => {
+      const t = await signinOffice();
+      const agent = await agentOf(t, 'usr_001');
+      const all = bigList();
+      const half = Math.floor(all.length / 2);
+      const first = all.slice(0, half);
+      const second = all.slice(half);
+      const role = await person(t, 'roles.create', { name: 'Swap', nameAr: 'تبديل', rights: first });
+      const mail = await requestMail(t, agent, 'roles.update', { role: role.id, rights: second });
+      const added = mail.text.split('\n').find((one) => one.startsWith('Rights it adds: '))!;
+      const removed = mail.text.split('\n').find((one) => one.startsWith('Rights it removes: '))!;
+      const beforeSet = new Set(inOrder(first));
+      const afterSet = new Set(inOrder(second));
+      const wantAdded = [...afterSet].filter((id) => !beforeSet.has(id));
+      const wantRemoved = [...beforeSet].filter((id) => !afterSet.has(id));
+      expect(`${wantAdded.length + wantRemoved.length}`).not.toBe('0');
+      expect([...itemsOf(added.slice('Rights it adds: '.length))].sort()).toEqual([...wantAdded].sort());
+      expect([...itemsOf(removed.slice('Rights it removes: '.length))].sort()).toEqual([...wantRemoved].sort());
+      expect(added + removed).not.toMatch(/more/);
+    });
+
+    it('still cuts one id to 40 characters, never the count', () => {
+      const long = `x.${'y'.repeat(80)}`;
+      const out = listed(['task.work', long, 'people.invite']);
+      // An id outside the catalog counts as risky, so it sits with people.invite, before task.work.
+      expect(out?.items).toEqual([long.slice(0, 40), 'people.invite', 'task.work']);
+      expect(out?.more).toBe(0);
+    });
+
+    it('ranks people, payment, admin and every-record rights as risky, and a plain task right as not risky', () => {
+      for (const id of ['people.invite', 'people.change', 'payment.view', 'payment.receive', 'ai.admin', 'ai.payments', 'project.details.all', 'project.seeAll', 'project.hidden', 'task.officeAll', 'office.settings', 'feedback.manage', 'report.office', 'clients.change']) {
+        expect(isRiskyRight(id), id).toBe(true);
+      }
+      for (const id of ['task.work', 'search.use', 'chat.direct', 'ai.todos', 'project.details.lead']) expect(isRiskyRight(id), id).toBe(false);
+      // An id that is no catalog id (an old name, or a made-up one) is treated as risky: it may be broad.
+      expect(isRiskyRight('people.manage')).toBe(true);
+      expect(isRiskyRight('unknown.thing')).toBe(true);
+    });
   });
 
   it('roles.delete: the role, and the role that takes its people', async () => {

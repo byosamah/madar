@@ -3,6 +3,7 @@ import { User, type Gender, type Language, type RoleSettings } from '../../src/a
 import { ApiError, forbidden } from '../../src/api/errors';
 import { inOrder, offInOrder } from '../../src/api/handlers/roles';
 import { heldRightsOfRole } from '../../src/api/rights';
+import { RIGHT_INFO } from '../../src/api/rightsCatalog';
 import ar from '../../src/i18n/real/mcpguard.ar.json';
 import en from '../../src/i18n/real/mcpguard.en.json';
 import { escapeHtml, fill, page, pick } from '../auth/mail';
@@ -65,7 +66,7 @@ export function takeCode(input: unknown): { input: unknown; code?: string } {
 
 type ActKey = 'usersCreate' | 'usersRole' | 'usersDeactivate' | 'usersReactivate' | 'usersRemove' | 'rolesCreate' | 'rolesUpdate' | 'rolesDelete';
 type RoleLabel = { kind: 'system'; id: 'admin' | 'management' | 'accounting' | 'member' } | { kind: 'custom'; name: string; nameAr: string };
-/** A capped list for the mail: at most LIST_MAX items, and the count of the rest ("and N more"). */
+/** A list for the mail: every item, risky first. `more` is 0 for a new row; a row made before the fix may count the rest ("and N more"). */
 export type Listed = { items: string[]; more: number };
 /**
  * What the mail says: one act, its target (a name in both languages), and for an invitation or a role change the role. The role acts say
@@ -88,13 +89,34 @@ export function cleanText(text: string, max = 60): string {
   return text.replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u2028-\u202F\u2066-\u2069]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
-/** The most items of a list in the mail. */
-const LIST_MAX = 8;
+/**
+ * Rights that give power over people or money, the Admin switch of the AI, or a look at the whole office. They come first in the mail,
+ * so the person sees them before the rest (security review, 2026-10-26). The other rights that reach every project or every record are
+ * found by their scope (`all`) in the catalog (src/api/rightsCatalog.ts).
+ */
+const RISKY_PREFIXES = ['people.', 'payment.', 'clients.', 'subCompanies.', 'office.'] as const;
+const RISKY_IDS: ReadonlySet<string> = new Set([
+  'ai.admin', 'ai.payments', 'feedback.manage', 'report.office', 'gaps.view', 'project.seeAll', 'project.hidden', 'task.officeAll', 'ai.readChats',
+]);
 
-/** A list of right ids for the mail: each id cleaned, the first LIST_MAX kept, the rest counted. Undefined for an empty list. */
-function listed(items: readonly string[]): Listed | undefined {
+/** True when the right is one the person should read first. An id outside the catalog (an old name) may be broad, so it counts as risky. */
+export function isRiskyRight(id: string): boolean {
+  const info = (RIGHT_INFO as Record<string, { scope: string | null } | undefined>)[id];
+  if (!info) return true;
+  return info.scope === 'all' || RISKY_IDS.has(id) || RISKY_PREFIXES.some((prefix) => id.startsWith(prefix));
+}
+
+/** The risky rights first, then the others. Each group keeps its order. */
+const riskyFirst = (items: readonly string[]): string[] => [...items.filter(isRiskyRight), ...items.filter((item) => !isRiskyRight(item))];
+
+/**
+ * A list of right ids for the mail: risky ones first, each id cleaned (one id is cut at 40 characters), and EVERY id kept. The mail never
+ * says "and N more": the person must see all of what a code allows (security review, 2026-10-26). `more` stays 0; it is in the type so a
+ * mail row made before this fix still renders. Undefined for an empty list.
+ */
+export function listed(items: readonly string[]): Listed | undefined {
   if (items.length === 0) return undefined;
-  return { items: items.slice(0, LIST_MAX).map((item) => cleanText(item, 40)), more: Math.max(0, items.length - LIST_MAX) };
+  return { items: riskyFirst(items).map((item) => cleanText(item, 40)), more: 0 };
 }
 
 const without = (items: readonly string[], drop: readonly string[]) => items.filter((item) => !drop.includes(item));
@@ -329,7 +351,7 @@ function text(words: Words, key: string, reader: Gender | undefined): string {
   return pick(words as Record<string, string>, key, reader);
 }
 
-/** A capped list as one text: "a, b, and 4 more". The comma of the language joins the items. */
+/** A list as one text: "a, b, c". The comma of the language joins the items. A row made before the fix may end with "and N more". */
 function listText(lang: Language, words: Words, list: Listed): string {
   const comma = lang === 'ar' ? '، ' : ', ';
   const more = list.more > 0 ? [fill((words.lines as Record<string, string>).more, { n: String(list.more) })] : [];
