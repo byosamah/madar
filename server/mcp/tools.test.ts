@@ -193,8 +193,9 @@ describe('the MCP tool list (plan 5.6, change 20)', () => {
 
   it('keeps on the deny list only the calls that an agent cannot or must not do, each with its reason (MCP parity)', () => {
     expect([...MCP_DENY].sort()).toEqual([
-      'chats.typing', 'feedback.uploadStart', 'files.upload', 'files.uploadStart', 'google.connect', 'google.connectStart', 'google.disconnect', 'google.status',
-      'live.ticket', 'meetings.extend', 'meetings.settle', 'projects.delete', 'push.mine', 'push.register', 'push.remove', 'session.get',
+      'chats.typing', 'daftra.findClients', 'daftra.matchClient', 'daftra.paymentLink', 'daftra.status', 'feedback.uploadStart', 'files.upload', 'files.uploadStart',
+      'google.connect', 'google.connectStart', 'google.disconnect', 'google.status', 'live.ticket', 'meetings.extend', 'meetings.settle', 'payments.linkInvoice',
+      'payments.unlinkInvoice', 'projects.delete', 'push.mine', 'push.register', 'push.remove', 'session.get',
     ]);
   });
 

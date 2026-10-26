@@ -109,7 +109,7 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   (`server/calls/google.ts` and the prototype fake), so no tool of them can work. `INSTRUCTIONS` ends with a `Google Calendar:` paragraph: the meetings of its person reach their own
   Google Calendar with the title, the time and the place only. No tool changed.
 - The Daftra link (owner, 2026-10-26): the six calls `daftra.status`, `daftra.paymentLink`, `daftra.findClients`, `daftra.matchClient`, `payments.linkInvoice` and `payments.unlinkInvoice` are on `MCP_DENY`: an agent
-  never touches Daftra, and the tool counts stay 49, 12 and 61. The `TOOL_DOCS` of `payments.list` name the optional read-only `daftra` field (`invoiceNo`, `total`), and those of `payments.markReceived` say that a
+  never touches Daftra, and the tool counts do not change (127 in `MCP_ALLOW`, 28 in `MCP_BY_RIGHT`, 3 in `MCP_ADMIN` after the join with main; they were 49, 12 and 61 before the parity track). The `TOOL_DOCS` of `payments.list` name the optional read-only `daftra` field (`invoiceNo`, `total`), and those of `payments.markReceived` say that a
   payment with that field gets Received from Daftra by itself. `INSTRUCTIONS` ends with one `Daftra:` rule after the `Google Calendar:` paragraph. The sample answers did not change (the sample office has no linked
   payment). Tests: `daftraTools.test.ts`. The paid write of the job is the internal call `payments.daftraPaid`, which is in no MCP list and in no public map.
 - Sub-companies (review 2026-10-19): `dashboard.get`, `tasks.list`, `deadlines.list`, `projects.list` and `reports.office` take `subCompanyId`;
@@ -123,10 +123,10 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   project every folder tool answers `not_found` as for a missing record (`folderTools.test.ts`). `INSTRUCTIONS` has a `Folders:` line; an agent uploads a file
   into a folder with `files.uploadContent` (see "Uploads by content" below).
 - Every other call is in `MCP_DENY` (`tools.ts`). A test fails for a call in no list or in two, so every new shared call goes
-  into exactly one of them. Since the MCP parity track (owner, 2026-10-26) the deny list holds 16 calls (after the join with `rb/mcp-bulk` and `rb/mcp-upload`), each with its reason in `tools.ts`: `session.get`, `projects.delete`
+  into exactly one of them. Since the MCP parity track (owner, 2026-10-26) the deny list held 16 calls (after the join with `rb/mcp-bulk` and `rb/mcp-upload`) and holds 22 since the join with main (the six Daftra calls), each with its reason in `tools.ts`: `session.get`, `projects.delete`
   (no Undo: only an Admin deletes a project, in the screens), `files.upload`, `files.uploadStart` and `feedback.uploadStart` (the raw upload calls need a signed link and a browser `PUT`: the two upload tools carry the content instead),
   `meetings.settle` and `meetings.extend` (the job does them), the three `push.*` calls (browser push devices: an agent has no device, owner 2026-10-08), `live.ticket` (exit wave 3:
-  an agent opens no socket), `chats.typing`, and the four `google.*` calls (see above).
+  an agent opens no socket), `chats.typing`, the four `google.*` calls (see above) and the six Daftra calls (see the Daftra bullet above).
 - What reaches the Admin (owner, 2026-10-23): `chats.list` of an agent of an Admin follows the choice of its person (`adminReachOf`, `mine` leaves
   out the project chats the Admin neither leads nor works on, `all` counts every message). The agent cannot set it: `me.updatePreferences` is a tool since the MCP
   parity track, but the call refuses `adminReach`, `awayByHand` and `workHours` for an agent. The `TOOL_DOCS` of `chats.list` (600 characters at most) and the Messages paragraph of
@@ -305,6 +305,11 @@ The goal: an agent does what its person does in the screens, with the rights of 
 - Tests: `parity.test.ts` (in process, the shared calls), `parity.lite.test.ts` (SQLite: `users.invites`, `users.resendInvite`, `agents.list`, `agents.remove` as an agent),
   `src/api/handlers/agentProfile.test.ts` (the handler rules), and the updated lists in `tools.test.ts`, `aiSwitches.test.ts` and `app.test.ts`.
   `scripts/record-samples.ts` records a sample for each new tool (`samples.json`).
+
+## Join with main (2026-10-26: Daftra, tile shapes)
+- The six Daftra calls are on `MCP_DENY` (22 names in all). The tile shape is `patch.shape` of `projects.update`: no new tool. `INSTRUCTIONS` holds the `Tile shapes:` paragraph of main word for word (the owner's rule: ask for the inspiration source, show about 5 options, iterate until the person accepts, only then set the shape). Do not shorten it.
+- The Pictures paragraph says what an agent sets: its own profile picture, a sub-company logo, a cover (a file) and the tile shape. Everything else is read only.
+- The size test (`toolSize.test.ts`) had to win bytes after the join: the texts of `payments.list`, `payments.markReceived`, `projects.list`, `projects.get`, `projectTemplates.save`, `feedback.sendWithScreenshots` and `meetings.cancel` are shorter. The list is 109,991 bytes; the room is 9 bytes. Tests pin some words of these texts (`at most 200`, `nameAr`, `look.tile uses shape`, `Quiet hours`): keep them.
 
 ## The email code guard (owner decision, 2026-10-26, after a security review)
 An agent that was tricked (prompt injection) must not invite an outsider, make an Admin, change the role of a person or the rights of a role. So for eight

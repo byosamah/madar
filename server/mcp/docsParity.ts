@@ -224,7 +224,7 @@ export const PARITY_DOCS: Record<string, { title: string; description: string }>
   },
   'projectTemplates.save': {
     title: 'Save a project template',
-    description: 'Saves a whole project template: name, roles, stages and tasks. No id makes a new one (needs templates.projectCreate); an id replaces one (only its maker, or a person with templates.projectAny). To change a template, read it first with projectTemplates.list and its id: you get its stages, tasks and roles in full. Ask your person first.',
+    description: 'Saves a whole project template: name, roles, stages and tasks. No id makes a new one (needs templates.projectCreate); an id replaces one (only its maker, or a person with templates.projectAny). To change one, read it first with projectTemplates.list and its id: you get it in full. Ask your person first.',
   },
   'projectTemplates.delete': {
     title: 'Delete a project template',
