@@ -333,6 +333,11 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       return;
     }
     case 'payment':
+      // The link to a Daftra invoice is a person's act in the screens: an agent never takes it back (MCP deny list), and the person needs the switch.
+      if (event.verb === 'payment.daftra_linked' || event.verb === 'payment.daftra_unlinked') {
+        if (ctx.actor.kind === 'agent') throw forbidden('Only a person changes the Daftra link, in the Madar screens.', { action: 'payment.daftraLink' });
+        return need('payment.daftraLink');
+      }
       // The Undo of a payment event asks the right of that change.
       return need(event.verb === 'payment.created' ? 'payment.add' : event.verb === 'payment.received' ? 'payment.receive' : 'payment.change');
     case 'team':
@@ -502,6 +507,10 @@ function undoOne(ctx: Ctx, event: Event, guard: boolean, followOn = false): Even
   // sees the change gets the same answer.
   if (event.verb === 'meeting.settled') {
     throw new ApiError('conflict', 'Madar marked this meeting as over. This mark has no Undo.', { reason: 'settle_final' });
+  }
+  // Daftra set the day of this payment (the 15-minute job). An Undo would only be set again by the next run, so it has none (the Daftra link, 2026-10-26).
+  if (event.verb === 'payment.received_daftra') {
+    throw new ApiError('conflict', 'Daftra set this payment as received. Unlink the invoice, then change the payment.', { reason: 'daftra_final' });
   }
   assertUndoRight(ctx, event);
   if (!followOn) assertMayUndo(ctx, event);

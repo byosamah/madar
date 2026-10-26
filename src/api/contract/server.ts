@@ -1,19 +1,20 @@
 import { z } from 'zod';
-import { ConversationId, FileId, MeetingId, ProjectId, StageId, TaskId, UserId } from './entities';
+import { ClientId, ConversationId, Day, FileId, MeetingId, PaymentId, ProjectId, StageId, TaskId, UserId } from './entities';
 import { MAX_SHOT_BYTES, PASSWORD_SET_MARK } from './limits';
 
 // The plain limits live in limits.ts, with no zod, for the screens of the first load (performance audit BND-6).
 export { MAX_SHOT_BYTES, PASSWORD_SET_MARK };
 
 /**
- * The 14 calls that only the real build has (plan 4.11; live.ticket from the exit, wave 3; the four google calls of fbk_022; chats.typing of the chat presence design; usage.get and
- * usage.retryEffect went with the usage feature, owner 2026-10-23). They carry the work that State cannot hold: story IDs, file links,
+ * The 18 calls that only the real build has (plan 4.11; live.ticket from the exit, wave 3; the four google calls of fbk_022; chats.typing of the chat presence design; the four daftra calls of the Daftra link,
+ * owner 2026-10-26; usage.get and usage.retryEffect went with the usage feature, owner 2026-10-23). They carry the work that State cannot hold: story IDs, file links,
  * invitations, agents, the ticket of the live socket and the Google Calendar connect. The server runs its own versions; src/api/handlers/serverFakes.ts gives the prototype fake ones. The MCP tool list
  * (track G) reads these contracts, not the server code.
  */
 export const SERVER_CALL_NAMES = [
   'story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove',
   'live.ticket', 'google.status', 'google.connectStart', 'google.connect', 'google.disconnect', 'chats.typing',
+  'daftra.status', 'daftra.paymentLink', 'daftra.findClients', 'daftra.matchClient',
 ] as const;
 export type ServerCallName = (typeof SERVER_CALL_NAMES)[number];
 
@@ -172,6 +173,57 @@ const chatsTyping = {
   readOnly: true,
 };
 
+/**
+ * The Daftra link (owner, 2026-10-26; server/daftra/CLAUDE.md). Madar only reads Daftra and never writes to it. Four server calls, all for a
+ * person who holds the switch payment.daftraLink; all on the MCP deny list, so an agent never touches Daftra. No answer and no error text
+ * ever holds the key, the site or a text of a Daftra answer: only the names, numbers and days below.
+ *
+ * daftra.status says whether the copy has Daftra values and what the last 15-minute read found. daftra.paymentLink reads the cache only, so it
+ * is fast: the client match of the project, one invoice to suggest and up to 10 more. daftra.findClients is the one live read of a screen (a
+ * search by name). daftra.matchClient keeps the match of a Madar client to a Daftra client and fills the cache for it.
+ */
+/** One Daftra invoice as the sheet shows it: the number, the total with VAT in riyals, and the day. */
+export const DaftraInvoiceView = z.object({
+  id: z.string().min(1).max(40),
+  no: z.string().min(1).max(40),
+  total: z.number().nonnegative(),
+  issuedOn: Day,
+});
+export type DaftraInvoiceView = z.infer<typeof DaftraInvoiceView>;
+
+/** The problem that the last read found: a wrong key, a key role that refuses the entity, or a Daftra that did not answer. */
+export const DaftraProblem = z.enum(['bad_key', 'refused', 'unreachable']);
+
+const daftraStatus = {
+  input: Empty,
+  output: z.object({ ready: z.boolean(), lastReadAt: z.string().min(1).nullable(), problem: DaftraProblem.nullable() }),
+  readOnly: true,
+};
+
+const daftraPaymentLink = {
+  input: z.object({ paymentId: PaymentId }),
+  output: z.object({
+    /** The Daftra client that the project client is matched to, by name. Null until a person matches it. */
+    matched: z.object({ name: z.string().min(1).max(200) }).nullable(),
+    projectHasNoClient: z.boolean(),
+    suggested: DaftraInvoiceView.nullable(),
+    others: z.array(DaftraInvoiceView).max(10),
+  }),
+  readOnly: true,
+};
+
+const daftraFindClients = {
+  input: z.object({ query: z.string().trim().min(1).max(100) }),
+  output: z.object({ clients: z.array(z.object({ id: z.string().min(1).max(40), name: z.string().min(1).max(200), number: z.string().max(40) })).max(10) }),
+  readOnly: true,
+};
+
+const daftraMatchClient = {
+  input: z.object({ clientId: ClientId, daftraClientId: z.string().regex(/^[0-9]{1,20}$/, 'A Daftra client id is a number.') }),
+  output: z.object({ matched: z.object({ name: z.string().min(1).max(200) }), invoices: z.number().int().min(0) }),
+  readOnly: false,
+};
+
 export const serverContracts = {
   'story.start': storyStart,
   'files.uploadStart': filesUploadStart,
@@ -187,5 +239,9 @@ export const serverContracts = {
   'google.connectStart': googleConnectStart,
   'google.connect': googleConnect,
   'google.disconnect': googleDisconnect,
+  'daftra.status': daftraStatus,
+  'daftra.paymentLink': daftraPaymentLink,
+  'daftra.findClients': daftraFindClients,
+  'daftra.matchClient': daftraMatchClient,
 } satisfies Record<ServerCallName, { input: z.ZodType; output: z.ZodType; readOnly: boolean }>;
 export type ServerContracts = typeof serverContracts;

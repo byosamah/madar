@@ -8,7 +8,7 @@ import { inboxCount, inboxList } from './inbox';
 import { meetingCall, meetingCancel, meetingChange, meetingExtend, meetingMinutes, meetingsList } from './meetings';
 import { dashboardGet, eventsList, projectsList, searchQuery, tasksList, templateSyncTasks } from './overview';
 import {
-  fileCall, filesList, filesUpload, foldersDelete, paymentCall, paymentsOfProject, projectCall, projectsCreate, stagesReplace, trackerCall, trackerExport,
+  fileCall, filesList, filesUpload, foldersDelete, paymentCall, paymentLinkCall, paymentsOfProject, projectCall, projectsCreate, stagesReplace, trackerCall, trackerExport,
   trackerList, trackerLog, updatesList,
 } from './project';
 import { projectsDelete } from './projectDelete';
@@ -225,6 +225,8 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'payments.update': project(paymentCall),
   'payments.markReceived': project(paymentCall),
   'payments.delete': project(paymentCall),
+  'payments.linkInvoice': project(paymentLinkCall),
+  'payments.unlinkInvoice': project(paymentCall),
 
   'teams.list': office,
   'teams.create': office,

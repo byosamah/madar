@@ -20,7 +20,13 @@ export const DERIVED = new Set(['project.stage_changed']);
  * line that it made has its own Undo (tracker.logged deletes the line). The mark "meeting.extended" (wave 3) only names the series that the
  * job filled: the meetings it added (meeting.added) are the changes, and a person cancels a meeting that is not wanted.
  */
-export const NOT_UNDOABLE = new Set(['project.created', 'project.deleted', 'project.stages_changed', 'meeting.settled', 'meeting.extended', 'undo', ...DERIVED]);
+export const NOT_UNDOABLE = new Set(['project.created', 'project.deleted', 'project.stages_changed', 'meeting.settled', 'meeting.extended', 'payment.received_daftra', 'undo', ...DERIVED]);
+
+/**
+ * Optional fields that an event writes as null on one side, because a JSON event cannot hold a missing key. An undo that restores null
+ * for one of these takes the field away, so the record still parses (the Daftra link of a payment, owner 2026-10-26).
+ */
+const ABSENT_WHEN_NULL = new Set(['payment.daftra']);
 
 /**
  * Changes that Madar makes to other tasks because of a person's change: a done task that opens again, and a date that moves.
@@ -237,7 +243,8 @@ export function undoEvent(ec: EventContext, eventId: string, options: { derived?
     const before: Record<string, unknown> = {};
     for (const field of Object.keys(restore)) {
       before[field] = structuredClone(current[field]);
-      current[field] = structuredClone(restore[field]);
+      if (restore[field] === null && ABSENT_WHEN_NULL.has(`${event.targetType}.${field}`)) delete current[field];
+      else current[field] = structuredClone(restore[field]);
       // The event never held Away by hand (withoutAway), so an undo of preferences keeps the switch that the person has now.
       const away = event.targetType === 'user' && field === 'preferences' ? fieldsOf(before[field])?.awayByHand : undefined;
       if (away !== undefined) current[field] = { ...(current[field] as Fields), awayByHand: away };

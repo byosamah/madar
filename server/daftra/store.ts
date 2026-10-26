@@ -148,3 +148,16 @@ export async function saveProblem(q: Query, problem: DaftraProblem, at: Date): P
   await q(sqlFor(q, PUT_STATE_SQL, PUT_STATE_LITE), [key, at.toISOString()]);
   await q(sqlFor(q, CLEAR_PROBLEMS_SQL, CLEAR_PROBLEMS_LITE), [key]);
 }
+
+// ---- One payment, for the calls that read the cache for it and for the preflight of payments.linkInvoice.
+
+export type PaymentFacts = { id: string; projectId: string; amount: number; dueDate: string; receivedOn: string | null; daftra?: { invoiceId: string } };
+
+const PAYMENT_SQL = 'select doc from payments where id = $1';
+const PAYMENT_LITE = 'select doc from payments where id = ?1';
+
+/** The facts of one payment that the Daftra calls need. The caller checks that the person may see its project. */
+export async function paymentFacts(q: Query, id: string): Promise<PaymentFacts | undefined> {
+  const [row] = await q<{ doc: PaymentFacts }>(sqlFor(q, PAYMENT_SQL, PAYMENT_LITE), [id]);
+  return row?.doc;
+}

@@ -123,6 +123,9 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'payments.update': ['events', 'payments'],
   'payments.markReceived': ['events', 'payments'],
   'payments.delete': ['events', 'payments'],
+  // The Daftra link writes the field Payment.daftra and one event; the unlink the same (owner, 2026-10-26).
+  'payments.linkInvoice': ['events', 'payments'],
+  'payments.unlinkInvoice': ['events', 'payments'],
   'teams.create': ['events', 'teams'],
   'teams.update': ['events', 'teams'],
   'teams.delete': ['events', 'teams'],
@@ -149,4 +152,6 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   // The Google Calendar connect (fbk_022) changes no record of the office and sends no signal.
   'google.connect': [],
   'google.disconnect': [],
+  // The match of a Madar client to a Daftra client is a server row that no screen list shows (owner, 2026-10-26).
+  'daftra.matchClient': [],
 };
