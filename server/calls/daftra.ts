@@ -4,13 +4,14 @@ import { ApiError, forbidden, invalid, notFound } from '../../src/api/errors';
 import type { DaftraSnapshot } from '../../src/api/handlers/payments';
 import { can, type Actor } from '../../src/api/permissions';
 import type { ServerHooks } from '../../src/api/registry';
-import { withRights } from '../../src/api/rights';
+import { withOfficeRights, withRights } from '../../src/api/rights';
 import { addDays, nowStamp, todayISO } from '../../src/lib/dates';
 import { accountOfProject, type AccountOfProject } from '../daftra/account';
 import { daftraAccountsOf, daftraOf, DaftraError, type DaftraClient } from '../daftra/client';
 import { officeOf } from '../daftra/office';
 import { cachedInvoicesOf, clientMatch, paymentFacts, putInvoices, putMatch, readStates, takenInvoiceIds, type PaymentFacts } from '../daftra/store';
 import { chooseFrom, suggestInvoice, type CachedInvoice } from '../daftra/suggest';
+import { readRoles, readUsers } from '../files/records';
 import { assertMayView } from '../files/rights';
 import type { Deps } from '../core/ports';
 import type { OfficeSnapshot, ServerCall } from '../core/types';
@@ -42,6 +43,18 @@ export function linkerOf(office: OfficeSnapshot, userId: string): Actor {
   if (!can(authority, 'payment.view')) throw refuse('payment.view');
   if (!can(authority, 'payment.daftraLink')) throw refuse('payment.daftraLink');
   return authority;
+}
+
+/**
+ * The same check for a hook, which has no office snapshot: the person and the roles come from two single statements (the rule of the file hooks,
+ * server/files/rights.ts). It comes before every other check, so a copy with no Daftra account reads no office for a person who may not.
+ */
+async function linkerFromDb(deps: Deps, userId: string): Promise<void> {
+  const user = (await readUsers(deps.db, [userId])).get(userId);
+  if (!user || user.kind === 'agent') throw refuse('payment.view');
+  const authority = withOfficeRights(user, await readRoles(deps.db));
+  if (!can(authority, 'payment.view')) throw refuse('payment.view');
+  if (!can(authority, 'payment.daftraLink')) throw refuse('payment.daftraLink');
 }
 
 const notReady = () => invalid('daftra', 'Daftra is not set up for this office yet.', 'daftra_not_ready');
@@ -180,8 +193,10 @@ export const daftraMatchClient: ServerCall<'daftra.matchClient'> = async (input,
 export const paymentsLinkInvoiceHooks: ServerHooks<unknown, unknown, Deps> = {
   async preflight(raw, { actorId, deps }): Promise<DaftraSnapshot> {
     const input = raw as { id: string; invoiceId: string };
+    await linkerFromDb(deps, actorId);
+    // A copy with no Daftra account stops here, before any read of the office.
+    if (daftraAccountsOf(deps).length === 0) throw notReady();
     const office = await officeOf(deps);
-    linkerOf(office, actorId);
     const { clientId, where } = await paymentOf(deps, office, actorId, input.id);
     const { account, daftra } = clientFor(deps, where);
     if (clientId === null) throw invalid('invoiceId', 'Add a client to this project to link a Daftra invoice.', 'daftra_no_client');

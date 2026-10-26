@@ -29,7 +29,7 @@ describe('the health check', () => {
     const client = fakeClient();
     const result = await checkHealth({ connect: async () => client, region: 'eu-central-1' });
     expect(result.status).toBe(200);
-    expect(result.body).toEqual({ ok: true, region: 'eu-central-1', calls: 154, checks: { database: 'ok', lock: 'ok', asyncContext: 'ok' } });
+    expect(result.body).toEqual({ ok: true, region: 'eu-central-1', calls: 156, checks: { database: 'ok', lock: 'ok', asyncContext: 'ok' } });
     const starts = ['begin isolation level repeatable read, read only', 'set local statement_timeout', 'select pg_advisory_xact_lock($1::int4, $2::int4)', 'select count(*)::int as held', 'commit'];
     expect(client.seen).toHaveLength(starts.length);
     client.seen.forEach((s, n) => expect(s.text.startsWith(starts[n])).toBe(true));
@@ -97,7 +97,7 @@ describe('GET /api/health', () => {
     const results = await Promise.all(Array.from({ length: 20 }, () => healthAnswer(get(), o)));
     for (const result of results) {
       expect(result.status).toBe(200);
-      expect(result.body).toEqual({ ok: true, region: 'eu-central-1', calls: 154 });
+      expect(result.body).toEqual({ ok: true, region: 'eu-central-1', calls: 156 });
     }
     expect(connects).toBe(0);
   });
@@ -132,7 +132,7 @@ describe('the host and the file store in the health answer (owner, 2026-10-16)',
     let connects = 0;
     const o = { connect: async () => { connects += 1; return fakeClient(); }, region: 'workers-eu-central-1', host: 'workers', fileStore: 'r2', secret: SECRET };
     const result = await healthAnswer(get(), o);
-    expect(result.body).toEqual({ ok: true, region: 'workers-eu-central-1', host: 'workers', fileStore: 'r2', calls: 154 });
+    expect(result.body).toEqual({ ok: true, region: 'workers-eu-central-1', host: 'workers', fileStore: 'r2', calls: 156 });
     expect(connects).toBe(0);
   });
 

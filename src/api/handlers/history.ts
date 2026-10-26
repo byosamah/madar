@@ -508,12 +508,14 @@ function undoOne(ctx: Ctx, event: Event, guard: boolean, followOn = false): Even
   if (event.verb === 'meeting.settled') {
     throw new ApiError('conflict', 'Madar marked this meeting as over. This mark has no Undo.', { reason: 'settle_final' });
   }
-  // Daftra set the day of this payment (the 15-minute job). An Undo would only be set again by the next run, so it has none (the Daftra link, 2026-10-26).
+  assertUndoRight(ctx, event);
+  if (!followOn) assertMayUndo(ctx, event);
+  // Daftra set the day of this payment (the 15-minute job). An Undo would only be set again by the next run, so it has none (the Daftra link,
+  // 2026-10-26). It comes after the rights check: a person who may not change payments gets the same refusal as for any payment event, and learns
+  // nothing about Daftra.
   if (event.verb === 'payment.received_daftra') {
     throw new ApiError('conflict', 'Daftra set this payment as received. Unlink the invoice, then change the payment.', { reason: 'daftra_final' });
   }
-  assertUndoRight(ctx, event);
-  if (!followOn) assertMayUndo(ctx, event);
   const task = event.targetType === 'task' ? ctx.state.tasks[event.targetId] : undefined;
   const was = task?.status;
   if (guard && task && event.before !== null && event.after !== null) {

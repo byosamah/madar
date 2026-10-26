@@ -172,10 +172,9 @@ describe('the paid check', () => {
     const { t } = await build({ edit: linkedBoth, mazj: [invoice('1830', '842', PAID_ON_22)], vado: [invoice('7', '55')] });
     await t.step();
     const [event] = (await t.db.statement('read', "select doc from events where json_extract(doc, '$.verb') = 'payment.received_daftra'")) as { doc: { id: string } }[];
-    for (const who of ['usr_011', 'usr_001']) {
-      const result = await t.call(who, 'events.undo', { eventId: event.doc.id });
-      expect(result, who).toMatchObject({ ok: false, error: { code: 'conflict', details: { reason: 'daftra_final' } } });
-    }
+    // The person that the job acted as (the one who linked it) gets the reason. The Admin may not undo the change of another person at all.
+    expect(await t.call('usr_011', 'events.undo', { eventId: event.doc.id })).toMatchObject({ ok: false, error: { code: 'conflict', details: { reason: 'daftra_final' } } });
+    expect(await t.call('usr_001', 'events.undo', { eventId: event.doc.id })).toMatchObject({ ok: false });
     expect((await t.payment('pay_003'))?.receivedOn).toBe('2026-10-22');
   });
 });

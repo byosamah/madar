@@ -79,6 +79,8 @@ export const INSTRUCTIONS = [
   'New projects: projects.create makes a project, and tells its leader and its team, who are real people, by notice, push and email. Only an agent whose person holds the switch "AI creates projects and clients" (ai.projectSetup) and the right to create projects sees it. Before you call it, ask your person for the name, the client, the sub-company, the leader and the team. Never choose a leader or a team yourself. Use leader me unless your person names another leader. Look in projects.list for the same name first. If the client is not in clients.list, ask your person before you make it with clients.create. Send codeParts and let Madar build the code. Send a typed code or codeAnyway only when your person gives that code. If the call times out or fails in an unclear way, read projects.list before you try again: a second call makes a second project. A new project has no Undo: events.undo and events.undoStory fail on it, and a story that holds it cannot be undone. To stop work on a wrong project, set its status to archived with projects.setStatus when your person asks. Only an Admin deletes a project, in the Madar screens.',
   '',
   'Google Calendar: a person connects Google Calendar in the Madar Settings screen. You cannot connect, disconnect or read a connection. Madar then writes the meetings of that person to their own Google Calendar, with the title, the time and the place only.',
+  '',
+  'Daftra: a payment can be linked to a Daftra invoice in the Madar screens. Daftra then sets Received. Agents cannot link or unlink.',
 ].join('\n');
 
 /** The role names that the Madar screens show. */
@@ -242,11 +244,11 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'payments.list': {
     title: 'List payments',
-    description: 'Lists the payments of one project (projectId): name, amount in Saudi riyals, due date, and the day each came in. Needs the switch "See payments" (payment.view): by default the Admin, Management and Accounting.',
+    description: 'Lists the payments of one project (projectId): name, amount in Saudi riyals, due date, and the day each came in. A payment that a person linked to a Daftra invoice has a "daftra" field: the invoice number (invoiceNo) and the total with VAT (total). You only read it. Needs the switch "See payments" (payment.view): by default the Admin, Management and Accounting.',
   },
   'payments.markReceived': {
     title: 'Mark a payment received',
-    description: 'Marks one payment (id from payments.list) as received, on receivedOn (YYYY-MM-DD) or today when you leave it out. Needs the switch "Mark payments received" (payment.receive): by default the Admin, Management and Accounting.',
+    description: 'Marks one payment (id from payments.list) as received, on receivedOn (YYYY-MM-DD) or today when you leave it out. A payment that has a "daftra" field gets Received from Daftra by itself, when Daftra says the invoice is paid: leave such a payment alone. Needs the switch "Mark payments received" (payment.receive): by default the Admin, Management and Accounting.',
   },
   'payments.update': {
     title: 'Change a payment',

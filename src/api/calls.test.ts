@@ -74,21 +74,23 @@ const PUSH_CALLS = ['push.register', 'push.remove', 'push.mine'];
 const ROLE_CALLS = ['roles.create', 'roles.update', 'roles.delete'];
 // The office report data (owner, 2026-10-18, fbk_016): one read call.
 const REPORT_CALLS = ['reports.office'];
-// The 14 server calls of the real build, with fake versions for the prototype (plan 4.11;
-// live.ticket from the exit, wave 3; the four google calls of fbk_022; chats.typing of the chat presence design).
-const SERVER_CALLS = ['story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove', 'live.ticket', 'google.status', 'google.connectStart', 'google.connect', 'google.disconnect', 'chats.typing'];
+// The 18 server calls of the real build, with fake versions for the prototype (plan 4.11;
+// live.ticket from the exit, wave 3; the four google calls of fbk_022; chats.typing of the chat presence design; the four daftra calls of the Daftra link, owner 2026-10-26).
+const SERVER_CALLS = ['story.start', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'users.invites', 'users.resendInvite', 'agents.list', 'agents.remove', 'live.ticket', 'google.status', 'google.connectStart', 'google.connect', 'google.disconnect', 'chats.typing', 'daftra.status', 'daftra.paymentLink', 'daftra.findClients', 'daftra.matchClient'];
+// The Daftra link (owner, 2026-10-26): a person links a payment to a Daftra invoice or takes the link away. Both are shared writes.
+const DAFTRA_PAYMENT_CALLS = ['payments.linkInvoice', 'payments.unlinkInvoice'];
 // Meetings, client meetings and site visits (fbk_022, owner 2026-10-19).
 const MEETING_CALLS = ['meetings.list', 'meetings.get', 'meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.delete', 'meetings.settle', 'meetings.extend', 'meetings.saveMinutes'];
-const MAP_CALLS = [...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS, ...FEEDBACK_CALLS, ...TEAM_CALLS, ...SUB_COMPANY_CALLS, ...AUDIT_CALLS, ...LEAD_CALLS, ...ORDER_CALLS, ...PROJECT_TEMPLATE_CALLS, ...PUSH_CALLS, ...ROLE_CALLS, ...REPORT_CALLS, ...MEETING_CALLS, ...FOLDER_CALLS];
+const MAP_CALLS = [...SPEC_CALLS, ...EXTRA_CALLS, ...OWNER_CALLS, ...TEMPLATE_CALLS, ...TASK_CALLS, ...CHAT_CALLS, ...SHARE_CALLS, ...TRACKER_CALLS, ...PAYMENT_CALLS, ...FEEDBACK_CALLS, ...TEAM_CALLS, ...SUB_COMPANY_CALLS, ...AUDIT_CALLS, ...LEAD_CALLS, ...ORDER_CALLS, ...PROJECT_TEMPLATE_CALLS, ...PUSH_CALLS, ...ROLE_CALLS, ...REPORT_CALLS, ...MEETING_CALLS, ...FOLDER_CALLS, ...DAFTRA_PAYMENT_CALLS];
 const CHAT_READS =new Set(['chats.list', 'chats.messages', 'chats.unreadCount', 'chats.waiting', 'push.mine']);
 // Server reads named one by one, so the name rule does not decide them by accident.
-const SERVER_READS = new Set(['files.link', 'users.invites', 'agents.list', 'live.ticket', 'google.status', 'google.connectStart', 'chats.typing']);
+const SERVER_READS = new Set(['files.link', 'users.invites', 'agents.list', 'live.ticket', 'google.status', 'google.connectStart', 'chats.typing', 'daftra.status', 'daftra.paymentLink', 'daftra.findClients']);
 
 describe('the call map', () => {
-  it('has every call from the spec plus the documented extras, and the 14 server calls', () => {
+  it('has every call from the spec plus the documented extras, and the 18 server calls', () => {
     expect(Object.keys(mapCalls).sort()).toEqual([...MAP_CALLS].sort());
     expect(Object.keys(calls).sort()).toEqual([...MAP_CALLS, ...SERVER_CALLS].sort());
-    expect(Object.keys(calls)).toHaveLength(172);
+    expect(Object.keys(calls)).toHaveLength(178);
   });
 
   it('marks exactly the read calls as read-only', () => {
@@ -124,17 +126,17 @@ describe('the call map', () => {
     expect(marked).toEqual(Object.keys(calls).filter((name) => name.startsWith('session.')).sort());
   });
 
-  it('has 158 calls in the map', () => {
-    expect(MAP_CALLS).toHaveLength(158);
-    expect(Object.keys(mapCalls)).toHaveLength(158);
+  it('has 160 calls in the map', () => {
+    expect(MAP_CALLS).toHaveLength(160);
+    expect(Object.keys(mapCalls)).toHaveLength(160);
   });
 });
 
 describe('the calls the server runs', () => {
-  it('are the 154 calls of the map without the prototype controls and the blob read', () => {
+  it('are the 156 calls of the map without the prototype controls and the blob read', () => {
     expect([...SERVER_EXCLUDED].sort()).toEqual(['files.get', 'session.previewAs', 'session.resetSampleData', 'session.setSimulateErrors']);
     const names = Object.keys(sharedCalls);
-    expect(names).toHaveLength(154);
+    expect(names).toHaveLength(156);
     for (const name of SERVER_EXCLUDED) expect(names).not.toContain(name);
     for (const name of names) expect(Object.keys(mapCalls)).toContain(name);
     for (const name of SERVER_CALLS) expect(names).not.toContain(name);
