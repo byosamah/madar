@@ -1950,7 +1950,7 @@
           "power": "ai.readWork",
           "en": "AI reads work data",
           "ar": "يقرأ المساعد بيانات العمل",
-          "hint": "Projects, to-dos, comments, posts, meetings, the Tracker, deadlines, file names, people, the Dashboard, the History and Search.",
+          "hint": "Projects, to-dos, comments, posts, meetings, the Tracker, deadlines, file names, people, teams, office settings, the bell, the Dashboard, the History and Search.",
           "mcpTools": [
             "projects.list",
             "projects.get",
@@ -1968,7 +1968,12 @@
             "pictures.get",
             "dashboard.get",
             "events.list",
-            "search.query"
+            "search.query",
+            "notifications.list",
+            "notifications.count",
+            "users.get",
+            "teams.list",
+            "settings.get"
           ],
           "switches": [
             {
@@ -1991,11 +1996,12 @@
           "power": "ai.readChats",
           "en": "AI reads chats",
           "ar": "يقرأ المساعد المحادثات",
-          "hint": "Direct chats, groups and project chats that the person can open. Off also hides messages in Search.",
+          "hint": "Direct chats, groups and project chats that the person can open. It marks a chat read or unread, and archives it, only when the person asks. Off also hides messages in Search.",
           "mcpTools": [
             "chats.list",
             "chats.messages",
-            "chats.waiting"
+            "chats.waiting",
+            "chats.unreadCount"
           ],
           "switches": [
             {
@@ -2018,7 +2024,7 @@
           "power": "ai.todos",
           "en": "AI works on to-dos",
           "ar": "يعمل المساعد على المهام",
-          "hint": "Add, change, finish, move, order, take and join to-dos. Approve and send back.",
+          "hint": "Add, change, finish, move, order, take, join and delete to-dos. Start a to-do from a template. Approve and send back. Manage to-do templates.",
           "mcpTools": [
             "tasks.create",
             "tasks.update",
@@ -2028,7 +2034,14 @@
             "tasks.take",
             "tasks.help",
             "tasks.approve",
-            "tasks.sendBack"
+            "tasks.sendBack",
+            "tasks.createFromTemplate",
+            "tasks.newVersion",
+            "tasks.delete",
+            "taskTemplates.list",
+            "taskTemplates.save",
+            "taskTemplates.rename",
+            "taskTemplates.delete"
           ],
           "switches": [
             {
@@ -2051,10 +2064,15 @@
           "power": "ai.posts",
           "en": "AI posts and comments",
           "ar": "ينشر المساعد التحديثات والتعليقات",
-          "hint": "Post an update on a project, and comment on a to-do.",
+          "hint": "Post an update on a project, and comment on a to-do. Change or delete posts and comments. React to them.",
           "mcpTools": [
             "updates.create",
-            "comments.create"
+            "comments.create",
+            "updates.update",
+            "updates.delete",
+            "comments.update",
+            "comments.delete",
+            "reactions.toggle"
           ],
           "switches": [
             {
@@ -2077,10 +2095,15 @@
           "power": "ai.messages",
           "en": "AI sends messages",
           "ar": "يرسل المساعد الرسائل",
-          "hint": "Send a chat message as the person, and open a direct chat.",
+          "hint": "Send a chat message as the person, and open a direct chat. Change or delete a message of the person. Make, change and leave group chats.",
           "mcpTools": [
             "chats.send",
-            "chats.openDirect"
+            "chats.openDirect",
+            "chats.editMessage",
+            "chats.deleteMessage",
+            "chats.createGroup",
+            "chats.updateGroup",
+            "chats.leaveGroup"
           ],
           "switches": [
             {
@@ -2103,12 +2126,13 @@
           "power": "ai.meetings",
           "en": "AI plans meetings",
           "ar": "يدير المساعد الاجتماعات",
-          "hint": "Plan, change and cancel meetings, and save the minutes.",
+          "hint": "Plan, change, cancel and delete meetings, and save the minutes.",
           "mcpTools": [
             "meetings.create",
             "meetings.update",
             "meetings.cancel",
-            "meetings.saveMinutes"
+            "meetings.saveMinutes",
+            "meetings.delete"
           ],
           "switches": [
             {
@@ -2131,11 +2155,14 @@
           "power": "ai.tracker",
           "en": "AI logs in the Tracker",
           "ar": "يسجل المساعد في المتابعة",
-          "hint": "Log, change and close Tracker entries.",
+          "hint": "Log, change, close and delete Tracker entries. Set who replies, and export the Tracker.",
           "mcpTools": [
             "tracker.log",
             "tracker.update",
-            "tracker.close"
+            "tracker.close",
+            "tracker.delete",
+            "tracker.assignReply",
+            "tracker.export"
           ],
           "switches": [
             {
@@ -2158,7 +2185,7 @@
           "power": "ai.projects",
           "en": "AI changes projects",
           "ar": "يعدّل المساعد المشاريع",
-          "hint": "Change project details and status, stage dates and deadlines.",
+          "hint": "Change project details and status, stage dates and deadlines. Set the leader, the team, the links, the pause and who sees the project. Manage folders and files.",
           "mcpTools": [
             "projects.update",
             "projects.setStatus",
@@ -2168,7 +2195,27 @@
             "folders.create",
             "folders.rename",
             "folders.delete",
-            "files.move"
+            "files.move",
+            "projects.setLeader",
+            "projects.pause",
+            "projects.resume",
+            "projects.setRestart",
+            "projects.setAccess",
+            "projects.addLink",
+            "projects.updateLink",
+            "projects.removeLink",
+            "projects.setHealthOverride",
+            "projects.clearHealthOverride",
+            "members.add",
+            "members.addTeam",
+            "members.remove",
+            "members.update",
+            "stages.setPrerequisites",
+            "deadlines.delete",
+            "files.link",
+            "files.delete",
+            "files.markDelivered",
+            "files.share"
           ],
           "switches": [
             {
@@ -2191,12 +2238,22 @@
           "power": "ai.projectSetup",
           "en": "AI creates projects and clients",
           "ar": "ينشئ المساعد المشاريع والعملاء",
-          "hint": "Create projects and clients, and read the client and template lists. The person also needs \"Create projects\" and \"Add clients\".",
+          "hint": "Create projects and clients, and read the client and template lists. Make, change and delete project templates and stage templates. The person also needs the rights of the screens.",
           "mcpTools": [
             "projects.create",
             "clients.create",
             "clients.list",
-            "projectTemplates.list"
+            "projectTemplates.list",
+            "stageTemplates.list",
+            "stageTemplates.save",
+            "stageTemplates.delete",
+            "projectTemplates.save",
+            "projectTemplates.delete",
+            "projectTemplates.matchPlan",
+            "projectTemplates.link",
+            "projectTemplates.usage",
+            "projectTemplates.syncPlan",
+            "projectTemplates.syncApply"
           ],
           "switches": [
             {
@@ -2219,12 +2276,13 @@
           "power": "ai.payments",
           "en": "AI handles payments",
           "ar": "يدير المساعد الدفعات",
-          "hint": "See, add and change payments. The person also needs the money rights.",
+          "hint": "See, add, change and delete payments. The person also needs the money rights.",
           "mcpTools": [
             "payments.list",
             "payments.create",
             "payments.update",
-            "payments.markReceived"
+            "payments.markReceived",
+            "payments.delete"
           ],
           "switches": [
             {
@@ -2247,11 +2305,12 @@
           "power": "ai.feedback",
           "en": "AI reads requests and bugs",
           "ar": "يقرأ المساعد الطلبات والبلاغات",
-          "hint": "Read the reports of the team and mark them done. The person also needs \"Read requests and bugs\".",
+          "hint": "Read the reports of the team and mark them done. Send a request or a bug for the person. To read the reports, the person also needs \"Read requests and bugs\".",
           "mcpTools": [
             "feedback.list",
             "feedback.screenshot",
-            "feedback.setStatus"
+            "feedback.setStatus",
+            "feedback.send"
           ],
           "switches": [
             {
@@ -2281,6 +2340,83 @@
           "switches": [
             {
               "id": "ai.report",
+              "scope": null,
+              "basic": true,
+              "newPower": false,
+              "defaults": {
+                "member": true,
+                "management": true,
+                "accounting": true
+              },
+              "needs": [
+                "ai.connect"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "ai.admin",
+          "en": "AI does Admin work",
+          "ar": "ينفّذ المساعد أعمال الإدارة",
+          "hint": "Add, change, turn off and remove people. Send invitations. Change clients, teams, sub-companies, roles and office settings. The person also needs the right for each action. Only the Admin holds it by default.",
+          "mcpTools": [
+            "users.create",
+            "users.update",
+            "users.deactivate",
+            "users.reactivate",
+            "users.remove",
+            "users.invites",
+            "users.resendInvite",
+            "clients.update",
+            "teams.create",
+            "teams.update",
+            "teams.delete",
+            "subCompanies.save",
+            "subCompanies.delete",
+            "settings.update",
+            "roles.create",
+            "roles.update",
+            "roles.delete"
+          ],
+          "switches": [
+            {
+              "id": "ai.admin",
+              "scope": null,
+              "basic": false,
+              "newPower": true,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": false
+              },
+              "needs": [
+                "ai.connect"
+              ]
+            }
+          ]
+        },
+        {
+          "power": "ai.myState",
+          "en": "AI changes my own marks and settings",
+          "ar": "يغيّر المساعد علاماتي وإعداداتي",
+          "hint": "Mark notices and chats read or unread, archive a chat, and set Notify me. Change the own profile, settings and AI apps of the person. Only when the person asks.",
+          "mcpTools": [
+            "notifications.markRead",
+            "notifications.markAllRead",
+            "notifications.markUnread",
+            "notifications.updateSettings",
+            "chats.markRead",
+            "chats.markUnread",
+            "chats.archive",
+            "chats.setNotify",
+            "me.updateProfile",
+            "me.updatePreferences",
+            "agents.list",
+            "agents.remove"
+          ],
+          "switches": [
+            {
+              "id": "ai.myState",
               "scope": null,
               "basic": true,
               "newPower": false,

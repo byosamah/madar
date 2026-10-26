@@ -1,5 +1,5 @@
 /**
- * The catalog of role rights version 2 (owner approved the list on 2026-10-21): 13 sections, 89 powers, 118 switches. It is a plain copy of
+ * The catalog of role rights version 2 (owner approved the list on 2026-10-21): 13 sections, 91 powers, 120 switches. It is a plain copy of
  * docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json, without the words (the labels and the hints are word keys of the
  * screens). A test (rightsCatalog.test.ts) checks that this file and the JSON agree. permissions.ts is in the first load of the real
  * build, so this file takes no value from zod or from the schema files.
@@ -35,7 +35,7 @@ export type CatalogPower = {
 
 export type CatalogSection = { readonly key: string; readonly powers: readonly CatalogPower[] };
 
-/** The 118 switch ids, in the order of the sections of the role sheet. */
+/** The 120 switch ids, in the order of the sections of the role sheet. */
 export const CATALOG_RIGHT_IDS = [
   'project.create', 'client.create', 'project.details.lead', 'project.details.all', 'project.team.lead', 'project.team.all',
   'project.stages.lead', 'project.stages.all', 'project.deadlines.lead', 'project.deadlines.all', 'project.template.lead',
@@ -55,7 +55,7 @@ export const CATALOG_RIGHT_IDS = [
   'templates.projectCreate', 'templates.projectAny', 'templates.taskSave.lead', 'templates.taskSave.all', 'templates.taskAny',
   'templates.updateProjects', 'dashboard.view', 'workload.view', 'search.use', 'gaps.view', 'report.office', 'ai.connect',
   'ai.readWork', 'ai.readChats', 'ai.todos', 'ai.posts', 'ai.messages', 'ai.meetings', 'ai.tracker', 'ai.projects',
-  'ai.projectSetup', 'ai.payments', 'ai.feedback', 'ai.report', 'ai.undo', 'ai.undoOthers.lead', 'ai.undoOthers.all', 'feedback.send',
+  'ai.projectSetup', 'ai.payments', 'ai.feedback', 'ai.report', 'ai.admin', 'ai.myState', 'ai.undo', 'ai.undoOthers.lead', 'ai.undoOthers.all', 'feedback.send',
   'feedback.manage', 'office.settings',
 ] as const;
 export type CatalogRightId = (typeof CATALOG_RIGHT_IDS)[number];
@@ -581,67 +581,67 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
         ],
       },
       {
-        power: 'ai.readWork', mcpTools: ['projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'meetings.list', 'meetings.get', 'tracker.list', 'deadlines.list', 'files.list', 'users.list', 'subCompanies.list', 'pictures.get', 'dashboard.get', 'events.list', 'search.query'],
+        power: 'ai.readWork', mcpTools: ['projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'meetings.list', 'meetings.get', 'tracker.list', 'deadlines.list', 'files.list', 'users.list', 'subCompanies.list', 'pictures.get', 'dashboard.get', 'events.list', 'search.query', 'notifications.list', 'notifications.count', 'users.get', 'teams.list', 'settings.get'],
         switches: [
           { id: 'ai.readWork', scope: null, basic: true, needs: ['ai.connect'] },
         ],
       },
       {
-        power: 'ai.readChats', mcpTools: ['chats.list', 'chats.messages', 'chats.waiting'],
+        power: 'ai.readChats', mcpTools: ['chats.list', 'chats.messages', 'chats.waiting', 'chats.unreadCount'],
         switches: [
           { id: 'ai.readChats', scope: null, basic: true, needs: ['ai.connect'] },
         ],
       },
       {
-        power: 'ai.todos', mcpTools: ['tasks.create', 'tasks.update', 'tasks.complete', 'tasks.move', 'tasks.arrange', 'tasks.take', 'tasks.help', 'tasks.approve', 'tasks.sendBack'],
+        power: 'ai.todos', mcpTools: ['tasks.create', 'tasks.update', 'tasks.complete', 'tasks.move', 'tasks.arrange', 'tasks.take', 'tasks.help', 'tasks.approve', 'tasks.sendBack', 'tasks.createFromTemplate', 'tasks.newVersion', 'tasks.delete', 'taskTemplates.list', 'taskTemplates.save', 'taskTemplates.rename', 'taskTemplates.delete'],
         switches: [
           { id: 'ai.todos', scope: null, basic: true, needs: ['ai.connect'] },
         ],
       },
       {
-        power: 'ai.posts', mcpTools: ['updates.create', 'comments.create'],
+        power: 'ai.posts', mcpTools: ['updates.create', 'comments.create', 'updates.update', 'updates.delete', 'comments.update', 'comments.delete', 'reactions.toggle'],
         switches: [
           { id: 'ai.posts', scope: null, basic: true, needs: ['ai.connect'] },
         ],
       },
       {
-        power: 'ai.messages', mcpTools: ['chats.send', 'chats.openDirect'],
+        power: 'ai.messages', mcpTools: ['chats.send', 'chats.openDirect', 'chats.editMessage', 'chats.deleteMessage', 'chats.createGroup', 'chats.updateGroup', 'chats.leaveGroup'],
         switches: [
           { id: 'ai.messages', scope: null, basic: true, needs: ['ai.connect'] },
         ],
       },
       {
-        power: 'ai.meetings', mcpTools: ['meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.saveMinutes'],
+        power: 'ai.meetings', mcpTools: ['meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.saveMinutes', 'meetings.delete'],
         switches: [
           { id: 'ai.meetings', scope: null, basic: true, needs: ['ai.connect'] },
         ],
       },
       {
-        power: 'ai.tracker', mcpTools: ['tracker.log', 'tracker.update', 'tracker.close'],
+        power: 'ai.tracker', mcpTools: ['tracker.log', 'tracker.update', 'tracker.close', 'tracker.delete', 'tracker.assignReply', 'tracker.export'],
         switches: [
           { id: 'ai.tracker', scope: null, basic: true, needs: ['ai.connect'] },
         ],
       },
       {
-        power: 'ai.projects', mcpTools: ['projects.update', 'projects.setStatus', 'stages.setDates', 'deadlines.create', 'deadlines.update', 'folders.create', 'folders.rename', 'folders.delete', 'files.move'],
+        power: 'ai.projects', mcpTools: ['projects.update', 'projects.setStatus', 'stages.setDates', 'deadlines.create', 'deadlines.update', 'folders.create', 'folders.rename', 'folders.delete', 'files.move', 'projects.setLeader', 'projects.pause', 'projects.resume', 'projects.setRestart', 'projects.setAccess', 'projects.addLink', 'projects.updateLink', 'projects.removeLink', 'projects.setHealthOverride', 'projects.clearHealthOverride', 'members.add', 'members.addTeam', 'members.remove', 'members.update', 'stages.setPrerequisites', 'deadlines.delete', 'files.link', 'files.delete', 'files.markDelivered', 'files.share'],
         switches: [
           { id: 'ai.projects', scope: null, basic: true, needs: ['ai.connect'] },
         ],
       },
       {
-        power: 'ai.projectSetup', mcpTools: ['projects.create', 'clients.create', 'clients.list', 'projectTemplates.list'],
+        power: 'ai.projectSetup', mcpTools: ['projects.create', 'clients.create', 'clients.list', 'projectTemplates.list', 'stageTemplates.list', 'stageTemplates.save', 'stageTemplates.delete', 'projectTemplates.save', 'projectTemplates.delete', 'projectTemplates.matchPlan', 'projectTemplates.link', 'projectTemplates.usage', 'projectTemplates.syncPlan', 'projectTemplates.syncApply'],
         switches: [
           { id: 'ai.projectSetup', scope: null, basic: false, newPower: true, needs: ['ai.connect'] },
         ],
       },
       {
-        power: 'ai.payments', mcpTools: ['payments.list', 'payments.create', 'payments.update', 'payments.markReceived'],
+        power: 'ai.payments', mcpTools: ['payments.list', 'payments.create', 'payments.update', 'payments.markReceived', 'payments.delete'],
         switches: [
           { id: 'ai.payments', scope: null, basic: true, needs: ['ai.connect'] },
         ],
       },
       {
-        power: 'ai.feedback', mcpTools: ['feedback.list', 'feedback.screenshot', 'feedback.setStatus'],
+        power: 'ai.feedback', mcpTools: ['feedback.list', 'feedback.screenshot', 'feedback.setStatus', 'feedback.send'],
         switches: [
           { id: 'ai.feedback', scope: null, basic: true, needs: ['ai.connect'] },
         ],
@@ -650,6 +650,18 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
         power: 'ai.report', mcpTools: ['reports.office'],
         switches: [
           { id: 'ai.report', scope: null, basic: true, needs: ['ai.connect'] },
+        ],
+      },
+      {
+        power: 'ai.admin', mcpTools: ['users.create', 'users.update', 'users.deactivate', 'users.reactivate', 'users.remove', 'users.invites', 'users.resendInvite', 'clients.update', 'teams.create', 'teams.update', 'teams.delete', 'subCompanies.save', 'subCompanies.delete', 'settings.update', 'roles.create', 'roles.update', 'roles.delete'],
+        switches: [
+          { id: 'ai.admin', scope: null, basic: false, newPower: true, needs: ['ai.connect'] },
+        ],
+      },
+      {
+        power: 'ai.myState', mcpTools: ['notifications.markRead', 'notifications.markAllRead', 'notifications.markUnread', 'notifications.updateSettings', 'chats.markRead', 'chats.markUnread', 'chats.archive', 'chats.setNotify', 'me.updateProfile', 'me.updatePreferences', 'agents.list', 'agents.remove'],
+        switches: [
+          { id: 'ai.myState', scope: null, basic: true, needs: ['ai.connect'] },
         ],
       },
       {
@@ -692,7 +704,7 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
   },
 ];
 
-/** The 67 switches that a Member holds by default: every scope of today's powers except `all`, and the two new view switches. */
+/** The 68 switches that a Member holds by default: every scope of today's powers except `all`, and the two new view switches. */
 export const BASIC_ON: readonly CatalogRightId[] = [
   'project.create', 'client.create', 'project.details.lead', 'project.team.lead', 'project.stages.lead',
   'project.deadlines.lead', 'project.template.lead', 'project.archive.lead', 'project.leader.lead', 'project.health.lead',
@@ -703,7 +715,7 @@ export const BASIC_ON: readonly CatalogRightId[] = [
   'file.deleteAny.lead', 'chat.direct', 'chat.groupCreate', 'chat.groupChange', 'chat.project.team', 'chat.mentionEveryone', 'tracker.log.team',
   'tracker.reply', 'tracker.export', 'tracker.deleteOwn', 'tracker.deleteAny.lead', 'templates.taskSave.lead',
   'dashboard.view', 'workload.view', 'search.use', 'ai.connect', 'ai.readWork', 'ai.readChats', 'ai.todos', 'ai.posts',
-  'ai.messages', 'ai.meetings', 'ai.tracker', 'ai.projects', 'ai.payments', 'ai.feedback', 'ai.report', 'ai.undo',
+  'ai.messages', 'ai.meetings', 'ai.tracker', 'ai.projects', 'ai.payments', 'ai.feedback', 'ai.report', 'ai.myState', 'ai.undo',
   'ai.undoOthers.lead', 'feedback.send',
 ];
 

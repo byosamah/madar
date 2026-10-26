@@ -31,6 +31,7 @@ speaker, so write it as natural Arabic, not as a word-for-word copy of the Engli
   `work_hours_lock` and `work_hours_default_lock`, the bell sentences `inbox.mentionEveryone*` (also read by the push line), `mentionEveryone.*` (the
   row of the mention list), `roleRights.powers.chatMentionEveryone` and the What's new entries `2026-10-23-88` to `-90`.
   `b26names` holds the words of the names batch of 2026-10-26: `projectForm.nameAr` (the field "Arabic name") and its error `projectForm.errors.nameArLong`, and the What's new entries `2026-10-23-110` and `-111`. The hint of "Only my work" (`adminReach.mine.hint`) was edited in place in `adminreach` to name Home and Projects.
+  `mcpparity` holds the What's new entry `2026-10-23-116` (the AI assistant does more, MCP parity, 2026-10-26). The two new AI switches (`ai.admin`, `ai.myState`) and the new hints of the AI switches sit in `rr2sheet` (`roleRights.powers.aiAdmin`, `.aiMyState`), as the line `roleRights.aiNever`.
   `focuschat` holds the word of the chat in Focus mode (fbk_059): `focus.backToFocus`. The button and the panel reuse `project.chat`, `chat.taskThread` and `common.close`.
   `b26small` holds the words of the small fixes of 2026-10-26: `people.leaderName` (the leader ring of `AvatarStack`), `personMenu.mode` (the Mode row of the person menu)
   and the What's new entries `2026-10-23-108` and `-109`.

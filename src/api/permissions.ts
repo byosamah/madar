@@ -33,7 +33,7 @@ export type Action =
   | 'templates.projectCreate' | 'templates.projectAny' | 'templates.taskSave' | 'templates.taskAny'
   | 'dashboard.view' | 'workload.view' | 'search.use'
   | 'ai.connect' | 'ai.readWork' | 'ai.readChats' | 'ai.todos' | 'ai.posts' | 'ai.messages' | 'ai.meetings' | 'ai.tracker' | 'ai.projects' | 'ai.projectSetup'
-  | 'ai.payments' | 'ai.feedback' | 'ai.report' | 'ai.undo' | 'ai.undoOthers'
+  | 'ai.payments' | 'ai.feedback' | 'ai.report' | 'ai.admin' | 'ai.myState' | 'ai.undo' | 'ai.undoOthers'
   | 'feedback.send' | 'office.settings';
 
 export type ProjectRole = 'leader' | 'team' | 'other';
@@ -47,7 +47,7 @@ export const RIGHT_SECTIONS: readonly { readonly key: string; readonly rights: r
   rights: section.powers.flatMap((power) => power.switches.map((item) => item.id)),
 }));
 
-/** The 118 switches, in the order of the sections. The Admin holds every one of them. */
+/** The 120 switches, in the order of the sections. The Admin holds every one of them. */
 export const OFFICE_RIGHTS: readonly OfficeRight[] = CATALOG_RIGHT_IDS;
 
 export { BASIC_ON, DEFAULT_EXTRA };
@@ -98,7 +98,7 @@ const SIMPLE: ReadonlySet<Action> = new Set<Action>([
   'subCompanies.manage', 'payment.view', 'payment.add', 'payment.change', 'payment.receive', 'templates.projectCreate', 'templates.projectAny',
   'templates.taskAny', 'templates.updateProjects', 'dashboard.view', 'workload.view', 'search.use', 'gaps.view', 'report.office',
   'ai.connect', 'ai.readWork', 'ai.readChats', 'ai.todos', 'ai.posts', 'ai.messages', 'ai.meetings', 'ai.tracker', 'ai.projects',
-  'ai.projectSetup', 'ai.payments', 'ai.feedback', 'ai.report', 'ai.undo', 'feedback.send', 'feedback.manage', 'office.settings',
+  'ai.projectSetup', 'ai.payments', 'ai.feedback', 'ai.report', 'ai.admin', 'ai.myState', 'ai.undo', 'feedback.send', 'feedback.manage', 'office.settings',
 ]);
 
 /**

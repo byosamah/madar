@@ -15,7 +15,7 @@ import type { OfficeSnapshot } from '../core/types';
 
 export const AI_SWITCHES = [
   'ai.connect', 'ai.readWork', 'ai.readChats', 'ai.todos', 'ai.posts', 'ai.messages', 'ai.meetings', 'ai.tracker', 'ai.projects', 'ai.projectSetup', 'ai.payments',
-  'ai.feedback', 'ai.report', 'ai.undo',
+  'ai.feedback', 'ai.report', 'ai.admin', 'ai.myState', 'ai.undo',
 ] as const;
 export type AiSwitch = (typeof AI_SWITCHES)[number];
 
@@ -34,6 +34,8 @@ export const AI_SWITCH_LABELS: Readonly<Record<AiSwitch, string>> = {
   'ai.payments': 'AI handles payments',
   'ai.feedback': 'AI reads requests and bugs',
   'ai.report': 'AI reads the office report',
+  'ai.admin': 'AI does Admin work',
+  'ai.myState': 'AI changes my own marks and settings',
   'ai.undo': 'AI undoes changes',
 };
 

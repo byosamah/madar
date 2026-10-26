@@ -61,13 +61,13 @@ describe('opensAdminPage: who sees the Admin page (owner, 2026-10-18, fbk_014)',
 describe('rightsOf: the office rights of each person (role rights version 2)', () => {
   it('gives the default switches when the office has no settings', () => {
     expect(sorted(rightsOf(admin, undefined))).toEqual(sorted(ALL));
-    expect(rightsOf(admin, undefined)).toHaveLength(118);
+    expect(rightsOf(admin, undefined)).toHaveLength(120);
     expect(sorted(rightsOf(member, undefined))).toEqual(sorted(BASIC_ON));
     expect(sorted(rightsOf(management, undefined))).toEqual(sorted([...BASIC_ON, ...DEFAULT_EXTRA.management]));
     expect(sorted(rightsOf(accounting, undefined))).toEqual(sorted([...BASIC_ON, ...PAY]));
-    expect(rightsOf(member, undefined)).toHaveLength(67);
-    expect(rightsOf(management, undefined)).toHaveLength(77);
-    expect(rightsOf(accounting, undefined)).toHaveLength(71);
+    expect(rightsOf(member, undefined)).toHaveLength(68);
+    expect(rightsOf(management, undefined)).toHaveLength(78);
+    expect(rightsOf(accounting, undefined)).toHaveLength(72);
   });
 
   it('takes the extra switches that the settings give a role, in place of the default extras', () => {
@@ -87,7 +87,7 @@ describe('rightsOf: the office rights of each person (role rights version 2)', (
     const rights = rightsOf(member, roles);
     expect(rights).not.toContain('task.add.team');
     expect(rights).not.toContain('chat.direct');
-    expect(rights).toHaveLength(65);
+    expect(rights).toHaveLength(66);
     expect(rights).toContain('task.add.office');
   });
 
@@ -141,8 +141,8 @@ describe('rightsOf: the office rights of each person (role rights version 2)', (
   });
 
   it('gives the held list of a role to the screens with one function', () => {
-    expect(heldRightsOfRole(undefined, 'member')).toHaveLength(67);
-    expect(heldRightsOfRole(undefined, 'management')).toHaveLength(77);
+    expect(heldRightsOfRole(undefined, 'member')).toHaveLength(68);
+    expect(heldRightsOfRole(undefined, 'management')).toHaveLength(78);
     expect(heldRightsOfRole({ custom: [customRole] }, customRole)).toEqual(rightsOf({ ...member, roleId: 'rol_001' }, { custom: [customRole] }));
   });
 

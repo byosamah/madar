@@ -6,7 +6,7 @@ import { mayAssignTask, mayChangeTask, mayDeleteTask, mayTickChecklist, type Tas
 import { makeUser } from '../test/factories';
 
 /**
- * One test group for each of the 118 switches of role rights version 2 (design section 8): the switch on passes, the switch off
+ * One test group for each of the 120 switches of role rights version 2 (design section 8): the switch on passes, the switch off
  * refuses, and the switch opens its own scope only. A lead switch does not open a project the person only works on. A team switch
  * does not open a project the person is not on. The person in each case holds the switch (with the switches it needs) and nothing else.
  */
@@ -131,6 +131,8 @@ const SPECS: Readonly<Record<string, Spec>> = {
   'ai.tracker': plain('ai.tracker'),
   'ai.projects': plain('ai.projects'),
   'ai.projectSetup': plain('ai.projectSetup'),
+  'ai.admin': plain('ai.admin'),
+  'ai.myState': plain('ai.myState'),
   'ai.payments': plain('ai.payments'),
   'ai.feedback': plain('ai.feedback'),
   'ai.report': plain('ai.report'),
@@ -185,7 +187,7 @@ function actionOf(id: OfficeRight): Action {
   return RIGHT_INFO[id].power === 'task.officeAll' ? 'task.view' : SPECS[RIGHT_INFO[id].power].action;
 }
 
-describe('the 118 switches of role rights version 2', () => {
+describe('the 120 switches of role rights version 2', () => {
   it('has a spec for each power of the catalog', () => {
     for (const id of CATALOG_RIGHT_IDS) expect(SPECS[RIGHT_INFO[id].power], id).toBeDefined();
   });

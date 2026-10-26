@@ -9,7 +9,7 @@
     "leaderWarning": "A person who makes a project leads it.",
     "aiWhat": "What it is: an AI app, such as Claude or ChatGPT, that connects to Madar and works for one person.",
     "aiRule": "The rule: an assistant never does more than its person may do. These switches only take more away from the assistants of this role.",
-    "aiNever": "An assistant can never: delete projects, upload or open files, change people, roles, teams, templates or settings, change or delete clients, delete to-dos, edit or delete messages, or send requests and bugs. It creates projects and clients only with the switch \"AI creates projects and clients\".",
+    "aiNever": "An assistant can never: delete projects, upload files or change pictures. It does Admin work only with the switch \"AI does Admin work\". It creates projects and clients only with the switch \"AI creates projects and clients\".",
     "line": {
       "standard": "{{name}}: the standard rights.",
       "plus": "{{name}}: standard rights, plus {{more}}.",
@@ -313,51 +313,59 @@
       },
       "aiReadWork": {
         "label": "AI reads work data",
-        "hint": "Projects, to-dos, comments, posts, meetings, the Tracker, deadlines, file names, people, the Dashboard, the History and Search."
+        "hint": "Projects, to-dos, comments, posts, meetings, the Tracker, deadlines, file names, people, teams, office settings, the bell, the Dashboard, the History and Search."
       },
       "aiReadChats": {
         "label": "AI reads chats",
-        "hint": "Direct chats, groups and project chats that the person can open. Off also hides messages in Search."
+        "hint": "Direct chats, groups and project chats that the person can open. It marks a chat read or unread, and archives it, only when the person asks. Off also hides messages in Search."
       },
       "aiTodos": {
         "label": "AI works on to-dos",
-        "hint": "Add, change, finish, move, order, take and join to-dos. Approve and send back."
+        "hint": "Add, change, finish, move, order, take, join and delete to-dos. Start a to-do from a template. Approve and send back. Manage to-do templates."
       },
       "aiPosts": {
         "label": "AI posts and comments",
-        "hint": "Post an update on a project, and comment on a to-do."
+        "hint": "Post an update on a project, and comment on a to-do. Change or delete posts and comments. React to them."
       },
       "aiMessages": {
         "label": "AI sends messages",
-        "hint": "Send a chat message as the person, and open a direct chat."
+        "hint": "Send a chat message as the person, and open a direct chat. Change or delete a message of the person. Make, change and leave group chats."
       },
       "aiMeetings": {
         "label": "AI plans meetings",
-        "hint": "Plan, change and cancel meetings, and save the minutes."
+        "hint": "Plan, change, cancel and delete meetings, and save the minutes."
       },
       "aiTracker": {
         "label": "AI logs in the Tracker",
-        "hint": "Log, change and close Tracker entries."
+        "hint": "Log, change, close and delete Tracker entries. Set who replies, and export the Tracker."
       },
       "aiProjects": {
         "label": "AI changes projects",
-        "hint": "Change project details and status, stage dates and deadlines."
+        "hint": "Change project details and status, stage dates and deadlines. Set the leader, the team, the links, the pause and who sees the project. Manage folders and files."
       },
       "aiProjectSetup": {
         "label": "AI creates projects and clients",
-        "hint": "Create projects and clients, and read the client and template lists. The person also needs \"Create projects\" and \"Add clients\"."
+        "hint": "Create projects and clients, and read the client and template lists. Make, change and delete project templates and stage templates. The person also needs the rights of the screens."
       },
       "aiPayments": {
         "label": "AI handles payments",
-        "hint": "See, add and change payments. The person also needs the money rights."
+        "hint": "See, add, change and delete payments. The person also needs the money rights."
       },
       "aiFeedback": {
         "label": "AI reads requests and bugs",
-        "hint": "Read the reports of the team and mark them done. The person also needs \"Read requests and bugs\"."
+        "hint": "Read the reports of the team and mark them done. Send a request or a bug for the person. To read the reports, the person also needs \"Read requests and bugs\"."
       },
       "aiReport": {
         "label": "AI reads the office report",
         "hint": "The person also needs \"Office report\"."
+      },
+      "aiAdmin": {
+        "label": "AI does Admin work",
+        "hint": "Add, change, turn off and remove people. Send invitations. Change clients, teams, sub-companies, roles and office settings. The person also needs the right for each action. Only the Admin holds it by default."
+      },
+      "aiMyState": {
+        "label": "AI changes my own marks and settings",
+        "hint": "Mark notices and chats read or unread, archive a chat, and set Notify me. Change the own profile, settings and AI apps of the person. Only when the person asks."
       },
       "aiUndo": {
         "label": "AI undoes changes",
