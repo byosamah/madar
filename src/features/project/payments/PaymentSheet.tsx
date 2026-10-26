@@ -107,7 +107,7 @@ export function PaymentSheet({ projectId, row, onClose, drafts }: { projectId: s
   };
   const otherBusy = create.isPending || update.isPending || mark.isPending || remove.isPending;
   // The Daftra part (the Daftra link, owner 2026-10-26): it shows only in a copy with Daftra and only to the holder of payment.daftraLink, plus the
-  // read-only lines of a linked payment for everyone who sees payments. Its Link button is the one main button while an invoice waits to be linked.
+  // read-only lines of a linked payment for everyone who sees payments. Its Link button, inside the part, is the one main button while an invoice waits to be linked.
   const daftra = useDaftraPart({ projectId, row, busy: otherBusy, onDone: () => { stepSaved(); close(); } });
   const busy = otherBusy || daftra.pending;
   const footer = (
@@ -116,8 +116,7 @@ export function PaymentSheet({ projectId, row, onClose, drafts }: { projectId: s
       {/* While an invoice is linked, Daftra sets Received when it is paid, so the button stays away. */}
       {saved && !saved.receivedOn && !saved.daftra && mayReceive && <Button disabled={busy} onClick={() => mark.mutate({ id: saved.id })}>{t('payments.markReceived')}</Button>}
       <Button variant="plain" onClick={close}>{mayEdit ? t('common.cancel') : t('common.close')}</Button>
-      {mayEdit && <Button variant={daftra.linkButton ? 'secondary' : 'primary'} disabled={busy} onClick={submit}>{t('common.save')}</Button>}
-      {daftra.linkButton}
+      {mayEdit && <Button variant={daftra.linkShown ? 'secondary' : 'primary'} disabled={busy} onClick={submit}>{t('common.save')}</Button>}
     </>
   );
   return (

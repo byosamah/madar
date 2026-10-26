@@ -199,6 +199,14 @@ describe('state 3: a suggestion', () => {
     expect(within(sheet).queryByText(/The invoice total is/)).toBeNull();
   });
 
+  // Owner, 2026-10-26: in the footer, Link made a fifth button that fell off the sheet. It sits in the Daftra box, under the invoice it links.
+  it('puts Link in the Daftra box, under the invoice, and keeps the footer to its own buttons', async () => {
+    const { sheet } = await open({ answers: { link: () => ({ ...BASE, suggested }) } });
+    const box = await within(sheet).findByRole('region', { name: 'Daftra' });
+    expect(within(box).getByRole('button', { name: 'Link this invoice' })).toHaveClass('signature');
+    expect(within(sheet).getAllByRole('button', { name: 'Link this invoice' })).toHaveLength(1);
+  });
+
   // A wrong match must be easy to fix: the search of state 2 opens again from the client line, and a new match replaces the old one.
   it('changes the Daftra client: the search opens again, Keep closes it, and a new match replaces the old one', async () => {
     const found = { clients: [{ id: '78', name: 'Gulf Crest Holding Co.', number: '000124' }] };

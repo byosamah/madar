@@ -45,7 +45,8 @@ export type DaftraPart = {
   /** The part for the body of the sheet, or null. */
   part: ReactNode;
   /** The main button Link for the footer, or null. When it shows, Save is a plain button. */
-  linkButton: ReactNode;
+  /** True while the Link button shows in the part: the sheet's Save is then a plain button, so the sheet keeps one main button. */
+  linkShown: boolean;
   /** A Daftra write is on its way: the other buttons wait. */
   pending: boolean;
 };
@@ -112,7 +113,7 @@ export function useDaftraPart({ projectId, row, busy, onDone }: { projectId: str
   const unlinkWrite = useUndoable('payments.unlinkInvoice', { message: () => t('daftra.unlinkedToast', { no: isolate(lang, toastNo.current) }), onSuccess: onDone });
   const pending = match.isPending || linkWrite.isPending || unlinkWrite.isPending;
 
-  if (!payment) return { part: null, linkButton: null, pending: false };
+  if (!payment) return { part: null, linkShown: false, pending: false };
 
   const money = (amount: number) => amountText(t, lang, amount);
   const invoiceLine = (invoice: DaftraInvoiceView) => t('daftra.suggested', { no: isolate(lang, invoice.no), amount: money(invoice.total), day: formatDay(invoice.issuedOn, lang) });
@@ -129,7 +130,7 @@ export function useDaftraPart({ projectId, row, busy, onDone }: { projectId: str
     const differs = !paid && inHalalas(linked.total) !== inHalalas(payment.amount);
     return {
       pending,
-      linkButton: null,
+      linkShown: false,
       part: section(
         <>
           <p className="tabular text-subheadline text-ink">
@@ -153,27 +154,27 @@ export function useDaftraPart({ projectId, row, busy, onDone }: { projectId: str
   }
 
   // States 0 to 4 are only for a holder of the switch, on an open payment, in a copy that has Daftra.
-  if (!asking || status.isPending || (status.data && !status.data.ready) || hidden) return { part: null, linkButton: null, pending };
-  if (status.error) return { part: section(<LoadFailed query={status} />), linkButton: null, pending };
-  if (read.isPending) return { part: section(<p className="text-footnote text-ink-2" role="status">{t('daftra.checking')}</p>), linkButton: null, pending };
-  if (read.error && !link) return { part: section(<LoadFailed query={read} />), linkButton: null, pending };
-  if (!link) return { part: null, linkButton: null, pending };
+  if (!asking || status.isPending || (status.data && !status.data.ready) || hidden) return { part: null, linkShown: false, pending };
+  if (status.error) return { part: section(<LoadFailed query={status} />), linkShown: false, pending };
+  if (read.isPending) return { part: section(<p className="text-footnote text-ink-2" role="status">{t('daftra.checking')}</p>), linkShown: false, pending };
+  if (read.error && !link) return { part: section(<LoadFailed query={read} />), linkShown: false, pending };
+  if (!link) return { part: null, linkShown: false, pending };
 
   // State 0: no Daftra account for the project.
-  if (link.noAccount === 'no_sub_company') return { part: section(<p className="text-subheadline text-ink">{t('daftra.noSubCompany')}</p>), linkButton: null, pending };
+  if (link.noAccount === 'no_sub_company') return { part: section(<p className="text-subheadline text-ink">{t('daftra.noSubCompany')}</p>), linkShown: false, pending };
   if (link.noAccount) {
     const name = subCompany ? (lang === 'ar' ? subCompany.nameAr : subCompany.name) : '';
-    return { part: section(<p className="text-subheadline text-ink">{t('daftra.noAccount', { name: isolate(lang, name) })}</p>), linkButton: null, pending };
+    return { part: section(<p className="text-subheadline text-ink">{t('daftra.noAccount', { name: isolate(lang, name) })}</p>), linkShown: false, pending };
   }
   // State 1: the project has no client.
-  if (link.projectHasNoClient) return { part: section(<p className="text-subheadline text-ink">{t('daftra.noClient')}</p>), linkButton: null, pending };
+  if (link.projectHasNoClient) return { part: section(<p className="text-subheadline text-ink">{t('daftra.noClient')}</p>), linkShown: false, pending };
 
   // State 2: the client has no match in Daftra yet, or the person changes the match. No invoice can be linked meanwhile.
   if (link.matched === null || changing) {
     const current = link.matched;
     return {
       pending,
-      linkButton: null,
+      linkShown: false,
       part: section(
         <>
           <p className="text-subheadline text-ink">{t('daftra.findClient', { name: isolate(lang, defaultName) })}</p>
@@ -240,7 +241,7 @@ export function useDaftraPart({ projectId, row, busy, onDone }: { projectId: str
   };
   return {
     pending,
-    linkButton: chosen ? <Button variant="primary" disabled={busy || pending || read.isFetching} onClick={press}>{t('daftra.link')}</Button> : null,
+    linkShown: !!chosen,
     part: section(
       <>
         <p className="text-footnote text-ink-2">{t('daftra.clientLine', { name: isolate(lang, link.matched.name) })}</p>
@@ -251,6 +252,10 @@ export function useDaftraPart({ projectId, row, busy, onDone }: { projectId: str
           <>
             <p className={`${PRIVATE} tabular text-subheadline font-medium text-ink`}>{invoiceLine(chosen)}</p>
             {differs && <p className={`${PRIVATE} tabular text-footnote text-ink-2`}>{t('daftra.differs', { invoice: money(chosen.total), payment: money(payment.amount) })}</p>}
+            {/* Link sits here, under the invoice it links, not in the footer: a fifth footer button fell off the sheet (owner, 2026-10-26). */}
+            <div className="mt-1">
+              <Button variant="primary" disabled={busy || pending || read.isFetching} onClick={press}>{t('daftra.link')}</Button>
+            </div>
           </>
         ) : (
           <p className={`${PRIVATE} text-subheadline text-ink`}>{t('daftra.none', { amount: money(payment.amount) })}</p>

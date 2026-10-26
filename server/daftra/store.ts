@@ -175,6 +175,16 @@ export async function saveProblem(q: Query, account: string, problem: DaftraProb
   await q(sqlFor(q, CLEAR_PROBLEMS_SQL, CLEAR_PROBLEMS_LITE), [`${PROBLEM_PREFIX}${account}:%`, key]);
 }
 
+// ---- When Madar last read the invoices of one client into the copy (the fresh look of daftra.paymentLink, owner 2026-10-26).
+const LAST_FILL_SQL = 'select max(seen_at) as at from daftra_invoices where account = $1 and daftra_client_id = $2';
+const LAST_FILL_LITE = 'select max(seen_at) as at from daftra_invoices where account = ?1 and daftra_client_id = ?2';
+
+/** The time of the newest read of this client's invoices, or null when the copy holds none of them. */
+export async function lastFillOf(q: Query, account: string, daftraClientId: string): Promise<string | null> {
+  const [row] = await q<{ at: string | Date | null }>(sqlFor(q, LAST_FILL_SQL, LAST_FILL_LITE), [account, daftraClientId]);
+  return row?.at ? iso(row.at) : null;
+}
+
 // ---- The time of the last paid check of each linked invoice (code review, 2026-10-26). The job reads the invoice read longest ago first, so a
 // busy account never starves a newer link, and an invoice that Daftra no longer has moves to the back of the line.
 const CHECKED_PREFIX = 'daftra:checked:';

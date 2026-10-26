@@ -47,7 +47,7 @@ Daftra invoice in the screens. The 15-minute job then reads the invoice, and whe
 - The migration and the SQLite step are not released: change them in place until the first release of this link, then add a new file and LITE version.
 
 ## The calls (`server/calls/daftra.ts`)
-- Four server-only calls: `daftra.status` (the accounts and their state), `daftra.paymentLink` (cache only: account, match, one suggestion, up to 10 others),
+- Four server-only calls: `daftra.status` (the accounts and their state), `daftra.paymentLink` (account, match, one suggestion, up to 10 others; from the copy, plus one fresh look in Daftra when no invoice matches and the copy of that client is a minute old or more, `FRESH_LOOK_MS`, owner 2026-10-26; a failed look keeps the copy and logs the code),
   `daftra.findClients` (the one live read of a screen), `daftra.matchClient` (keeps the match, fills the cache). Two shared calls: `payments.linkInvoice` (the preflight
   `paymentsLinkInvoiceHooks` reads the invoice from the account of the project, never from the browser) and `payments.unlinkInvoice`.
 - Rights: `payment.view` first, then `payment.daftraLink`. An agent is refused. A payment of a project that the person may not see reads as `not_found`. A person without

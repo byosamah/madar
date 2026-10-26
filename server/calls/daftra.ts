@@ -9,7 +9,7 @@ import { addDays, nowStamp, todayISO } from '../../src/lib/dates';
 import { accountOfProject, type AccountOfProject } from '../daftra/account';
 import { daftraAccountsOf, daftraOf, DaftraError, type DaftraClient } from '../daftra/client';
 import { officeOf } from '../daftra/office';
-import { cachedInvoicesOf, clientMatch, paymentFacts, putInvoices, putMatch, readStates, takenInvoiceIds, type PaymentFacts } from '../daftra/store';
+import { cachedInvoicesOf, clientMatch, lastFillOf, paymentFacts, putInvoices, putMatch, readStates, takenInvoiceIds, type PaymentFacts } from '../daftra/store';
 import { chooseFrom, suggestInvoice, type CachedInvoice } from '../daftra/suggest';
 import { readRoles, readUsers } from '../files/records';
 import { assertMayView } from '../files/rights';
@@ -115,6 +115,9 @@ export const daftraStatus: ServerCall<'daftra.status'> = async (_input, ctx) => 
 };
 
 /** For the payment sheet: the account, the match of the client, one invoice to suggest and the others. It reads the cache only, so it is fast. */
+/** A fresh look at one client's invoices in Daftra, at most once a minute (the fresh look of daftra.paymentLink, owner 2026-10-26). */
+export const FRESH_LOOK_MS = 60_000;
+
 export const daftraPaymentLink: ServerCall<'daftra.paymentLink'> = async (input, ctx) => {
   const { deps, office } = ctx;
   linkerOf(office, ctx.principal.userId);
@@ -123,21 +126,39 @@ export const daftraPaymentLink: ServerCall<'daftra.paymentLink'> = async (input,
   if (where.account === null) return { output: { account: null, noAccount: where.noAccount, projectHasNoClient: clientId === null, ...empty }, changed: false };
   const account = where.account;
   if (clientId === null) return { output: { account, noAccount: null, projectHasNoClient: true, ...empty }, changed: false };
-  return deps.db.tx('read', async (q) => {
+  const now = ctx.now;
+  const read = () => deps.db.tx('read', async (q) => {
     const match = await clientMatch(q, account, clientId);
-    if (!match) return { output: { account, noAccount: null, projectHasNoClient: false, ...empty }, changed: false };
+    if (!match) return { output: { account, noAccount: null, projectHasNoClient: false, ...empty }, stale: null };
     const matched = { name: match.daftraName };
     // A payment that has its invoice already needs no list.
-    if (payment.daftra) return { output: { account, noAccount: null, projectHasNoClient: false, matched, suggested: null, others: [] }, changed: false };
+    if (payment.daftra) return { output: { account, noAccount: null, projectHasNoClient: false, matched, suggested: null, others: [] }, stale: null };
     const cached = await cachedInvoicesOf(q, account, match.daftraId);
     const taken = await takenInvoiceIds(q, account, cached.map((invoice) => invoice.id), payment.id);
     const suggested = suggestInvoice({ amount: payment.amount, dueDate: payment.dueDate, invoices: cached, taken });
     const others = chooseFrom(cached, taken).filter((invoice) => invoice.id !== suggested?.id).slice(0, 10);
+    // No invoice matches and the copy of this client is older than a minute (or empty): Madar looks in Daftra at once, so an invoice that the
+    // accountant just made shows now, not after the 15-minute job.
+    const lastFill = suggested ? null : await lastFillOf(q, account, match.daftraId);
+    const stale = !suggested && (lastFill === null || now.getTime() - Date.parse(lastFill) >= FRESH_LOOK_MS) ? match.daftraId : null;
     return {
       output: { account, noAccount: null, projectHasNoClient: false, matched, suggested: suggested ? viewOf(suggested) : null, others: others.map(viewOf) },
-      changed: false,
+      stale,
     };
   });
+  const first = await read();
+  const daftra = first.stale === null ? undefined : daftraOf(deps, account);
+  if (first.stale === null || !daftra) return { output: first.output, changed: false };
+  // The look runs outside any transaction. A failure keeps the copy the sheet already has: the log gets the code, the person no error.
+  try {
+    const list = await daftra.invoicesOf(first.stale, addDays(todayISO(now), -MATCH_BACK_DAYS));
+    await deps.db.tx('write', (q) => putInvoices(q, account, list, now));
+  } catch (error) {
+    if (!(error instanceof DaftraError)) throw error;
+    deps.log.warn('A Daftra read failed.', { call: 'daftra.paymentLink', account, code: error.code, ...(error.status > 0 ? { status: error.status } : {}) });
+    return { output: first.output, changed: false };
+  }
+  return { output: (await read()).output, changed: false };
 };
 
 /** The one live read of a screen: a search of the Daftra clients by name, in the account of the payment. */

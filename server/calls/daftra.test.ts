@@ -178,6 +178,44 @@ describe('daftra.paymentLink', () => {
     expect((link.others as { id: string }[]).map((invoice) => invoice.id)).toEqual(['1832', '1830']);
   });
 
+  // Owner, 2026-10-26 ("fix it"): an accountant who just made the invoice in Daftra expects Madar to see it at once, not in 15 minutes.
+  it('looks in Daftra at once when no invoice matches and its copy is older than a minute: the new invoice is the suggestion', async () => {
+    const { t, mazj } = await world();
+    okOf(await t.call('usr_011', 'daftra.matchClient', { paymentId: 'pay_003', daftraClientId: '842' }));
+    okOf(await t.call('usr_011', 'payments.update', { id: 'pay_003', patch: { amount: 34.5 } }));
+    // The accountant makes the invoice in Daftra two minutes later.
+    mazj.invoices.push({ id: '1961', no: '1521961', clientId: '842', total: 34.5, date: '2026-10-26', created: '2026-10-26 09:55:00' });
+    t.deps.clock.set(new Date(t.deps.clock.now().getTime() + 2 * 60_000));
+    mazj.requests.length = 0;
+    const link = okOf(await t.call('usr_011', 'daftra.paymentLink', { paymentId: 'pay_003' }));
+    expect(link.suggested).toEqual({ id: '1961', no: '1521961', total: 34.5, issuedOn: '2026-10-26' });
+    expect(mazj.paths()).toHaveLength(1);
+    expect(mazj.paths()[0]).toMatch(/^invoices\.json\?client_id=842&created_from=/);
+  });
+
+  it('asks Daftra at most once a minute for one client, and never when an invoice already matches', async () => {
+    const { t, mazj } = await world();
+    okOf(await t.call('usr_011', 'daftra.matchClient', { paymentId: 'pay_003', daftraClientId: '842' }));
+    mazj.requests.length = 0;
+    // A suggestion stands: no look.
+    expect(okOf(await t.call('usr_011', 'daftra.paymentLink', { paymentId: 'pay_003' })).suggested).not.toBeNull();
+    // No suggestion, but the match read the client a moment ago: no look.
+    okOf(await t.call('usr_011', 'payments.update', { id: 'pay_003', patch: { amount: 34.5 } }));
+    expect(okOf(await t.call('usr_011', 'daftra.paymentLink', { paymentId: 'pay_003' })).suggested).toBeNull();
+    expect(mazj.requests).toEqual([]);
+  });
+
+  it('gives the copy it holds when the fresh look fails, with no error, and logs only the code', async () => {
+    const { t, mazj } = await world();
+    okOf(await t.call('usr_011', 'daftra.matchClient', { paymentId: 'pay_003', daftraClientId: '842' }));
+    okOf(await t.call('usr_011', 'payments.update', { id: 'pay_003', patch: { amount: 34.5 } }));
+    t.deps.clock.set(new Date(t.deps.clock.now().getTime() + 2 * 60_000));
+    mazj.mode = 503;
+    const link = okOf(await t.call('usr_011', 'daftra.paymentLink', { paymentId: 'pay_003' }));
+    expect(link.suggested).toBeNull();
+    expect((link.others as { id: string }[]).map((invoice) => invoice.id)).toEqual(['1832', '1830']);
+  });
+
   it('keeps the match and the cache of one account apart from another account', async () => {
     const { t } = await world({ edit: (seed) => { seed.projects.prj_009.subCompanyId = seed.projects.prj_002.subCompanyId; } });
     // prj_009 has the client cli_001 like prj_001, but its sub-company is Vado: it has its own match in the Vado account.
