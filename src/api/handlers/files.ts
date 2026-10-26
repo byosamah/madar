@@ -296,8 +296,8 @@ export const filesMove = defineCall({
     if (file.stageId === input.stageId && (file.folderId ?? null) === input.folderId) return fileViewOf(ctx.state, file, ctx.authority);
     // A file saved before folders has no folderId. The event keeps the old value, so the Undo can put it back.
     if (file.folderId === undefined) file.folderId = null;
+    // Organizing is no news: the move leaves the "last update" of the project as it is (no touch).
     applyPatch(ctx, file, { stageId: input.stageId, folderId: input.folderId }, { projectId: project.id, verb: 'file.moved', targetType: 'file', targetId: file.id });
-    touch(ctx, project.id);
     return fileViewOf(ctx.state, file, ctx.authority);
   },
 });

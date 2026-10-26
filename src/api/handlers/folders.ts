@@ -4,7 +4,7 @@ import { FOLDER_NAME_MAX, FolderId, MAX_FOLDERS, ProjectFolder, ProjectId, Stage
 import { invalid, notFound } from '../errors';
 import { applyPatch } from '../events';
 import { nextId } from '../store';
-import { assertCan, requireProject, requireStage, roleIn, seesProject, touch } from './shared';
+import { assertCan, requireProject, requireStage, roleIn, seesProject } from './shared';
 
 /** The folder name as the folders compare it: trimmed, and with no difference of capital letters. */
 const nameKey = (name: string): string => name.trim().toLowerCase();
@@ -40,9 +40,9 @@ export function checkPlace(ctx: Ctx, project: Project, stageId: string | null, f
   if (folder.stageId !== stageId) throw invalid('folderId', 'This folder is in another stage.', 'folder_other_stage');
 }
 
+/** Organizing is no news: the change leaves the "last update" of the project as it is (no touch). */
 function saveFolders(ctx: Ctx, project: Project, folders: ProjectFolder[]): void {
   applyPatch(ctx, project, { folders }, { projectId: project.id, verb: 'project.folders_changed', targetType: 'project', targetId: project.id });
-  touch(ctx, project.id);
 }
 
 function assertNameFree(project: Project, stageId: string, name: string, exceptId?: string): void {

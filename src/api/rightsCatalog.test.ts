@@ -75,7 +75,7 @@ describe('the catalog module equals the catalog JSON in docs', () => {
     // pictures.get came after the catalog was written (owner, 2026-10-21): it reads work data, with the rights of the screens.
     expect(MCP_TOOLS_BY_SWITCH['ai.readWork']).toContain('pictures.get');
     expect(MCP_TOOLS_BY_SWITCH['ai.readWork']).toHaveLength(17);
-    expect(Object.values(MCP_TOOLS_BY_SWITCH).flatMap((tools) => [...(tools ?? [])])).toHaveLength(59);
+    expect(Object.values(MCP_TOOLS_BY_SWITCH).flatMap((tools) => [...(tools ?? [])])).toHaveLength(63);
   });
 
   it('keeps every need inside the catalog, and every .all switch needs its .lead or .team sibling', () => {

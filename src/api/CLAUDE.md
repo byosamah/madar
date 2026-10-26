@@ -783,7 +783,8 @@ Design: `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design
   Rights: `file.upload` of the project for all four (no new switch). A hidden project reads as missing (`requireProject`, `requireFolder`: `not_found Folder`).
   Refusals (reasons): `folder_name_taken` (a name repeats inside one stage, with no difference of capital letters; it may repeat across stages),
   `folder_limit`, `folder_other_stage` (a folder with another stage, or with "No stage"), `folder_missing`. A file of a chat, a meeting or an office task
-  cannot move. A move to the place where the file sits writes nothing.
+  cannot move. A move to the place where the file sits writes nothing. Organizing is no news: no folder call and no move touches the project, so the "last update" order of the
+  projects stays (a move signals the kinds `events` and `files`; a folder change `events` and `projects`).
 - Events: a folder change is a `project.folders_changed` event on the project (before and after hold the whole `folders` list; Undo asks `file.upload`), a move
   is a `file.moved` event (stage and folder together). `folders.delete` writes the `file.moved` events of its files first and the folder event last, so one
   `events.undoStory` brings the folder back before it puts the files in it. Undo of a `file.moved` into a folder needs the folder to stand (`assertReferencesExist`),

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { calls } from '../calls';
-import { makeStage, NOW, testApi } from '../../test/factories';
+import { NOW, testApi } from '../../test/factories';
 import { setNow } from '../../lib/dates';
 
 beforeEach(() => setNow(NOW));
@@ -10,6 +10,14 @@ beforeEach(() => setNow(NOW));
  * is outside the team and cannot upload. The stages are stg_001 (Concept) and stg_002 (Schematic Design).
  */
 const pdf = (text: string) => new Blob([text], { type: 'application/pdf' });
+
+/** A stage of another project, made with the calls. */
+async function otherStage(t: ReturnType<typeof testApi<typeof calls>>): Promise<string> {
+  t.as('usr_002');
+  const made = await t.api.call('projects.create', { name: 'Second project', teamIds: ['usr_003'] });
+  t.as('usr_003');
+  return Object.values(t.store.state.stages).find((stage) => stage.projectId === made.project.id)!.id;
+}
 
 async function world() {
   const t = testApi(calls);
@@ -43,8 +51,8 @@ describe('folders.create', () => {
     const { t } = await world();
     await expect(t.api.call('folders.create', { projectId: 'prj_001', stageId: 'stg_001', name: '   ' })).rejects.toMatchObject({ code: 'invalid_input' });
     await expect(t.api.call('folders.create', { projectId: 'prj_001', stageId: 'stg_001', name: 'x'.repeat(61) })).rejects.toMatchObject({ code: 'invalid_input' });
-    t.store.state.stages.stg_009 = makeStage({ id: 'stg_009', projectId: 'prj_009', name: 'Other' });
-    await expect(t.api.call('folders.create', { projectId: 'prj_001', stageId: 'stg_009', name: 'Plans' })).rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['stageId'] } });
+    const other = await otherStage(t);
+    await expect(t.api.call('folders.create', { projectId: 'prj_001', stageId: other, name: 'Plans' })).rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['stageId'] } });
   });
 
   it('refuses a name that the stage already has, but accepts it in another stage', async () => {
@@ -81,6 +89,20 @@ describe('folders.create', () => {
     const { storyId } = await t.api.run('folders.create', { projectId: 'prj_001', stageId: 'stg_001', name: 'Mood boarding' });
     await t.api.call('events.undoStory', { correlationId: storyId });
     expect(t.store.state.projects.prj_001.folders ?? []).toEqual([]);
+  });
+});
+
+describe('organizing is no news', () => {
+  it('leaves the last update of the project as it is', async () => {
+    const { t, a } = await world();
+    const before = t.store.state.projects.prj_001.updatedAt;
+    // An hour later: a call that touched the project would show a new stamp.
+    setNow(new Date(NOW.getTime() + 3_600_000));
+    const mood = await t.api.call('folders.create', { projectId: 'prj_001', stageId: 'stg_001', name: 'Mood boarding' });
+    await t.api.call('folders.rename', { id: mood.id, name: 'Mood board' });
+    await t.api.call('files.move', { id: a, stageId: 'stg_001', folderId: mood.id });
+    await t.api.call('folders.delete', { id: mood.id });
+    expect(t.store.state.projects.prj_001.updatedAt).toBe(before);
   });
 });
 
@@ -129,11 +151,13 @@ describe('files.move', () => {
 
   it('moves a file out of "No stage" and keeps the task of the file', async () => {
     const { t } = await world();
-    t.store.state.tasks.tsk_001 = { id: 'tsk_001', projectId: 'prj_001', stageId: 'stg_002', title: 'T', description: '', ownerId: 'usr_003', status: 'todo', dueDate: null, flagged: false, needsReview: true, checklist: [], createdBy: 'usr_002' } as never;
-    const up = await t.api.call('files.upload', { projectId: 'prj_001', name: 'Loose.pdf', blob: pdf('l'), taskId: 'tsk_001' });
+    t.as('usr_002');
+    const made = await t.api.call('tasks.create', { projectId: 'prj_001', title: 'A to-do', ownerId: 'usr_003', stageId: 'stg_002' });
+    t.as('usr_003');
+    const up = await t.api.call('files.upload', { projectId: 'prj_001', name: 'Loose.pdf', blob: pdf('l'), taskId: made.task.id });
     expect(up.file.stageId).toBeNull();
     const moved = await t.api.call('files.move', { id: up.file.id, stageId: 'stg_001', folderId: null });
-    expect(moved.file).toMatchObject({ stageId: 'stg_001', taskId: 'tsk_001' });
+    expect(moved.file).toMatchObject({ stageId: 'stg_001', taskId: made.task.id });
   });
 
   it('refuses a folder that is not in the stage, a folder with no stage, and an unknown folder', async () => {
@@ -146,19 +170,17 @@ describe('files.move', () => {
 
   it('refuses a stage of another project, and a person without the upload right', async () => {
     const { t, a } = await world();
-    t.store.state.stages.stg_009 = makeStage({ id: 'stg_009', projectId: 'prj_009', name: 'Other' });
-    await expect(t.api.call('files.move', { id: a, stageId: 'stg_009', folderId: null })).rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['stageId'] } });
+    const other = await otherStage(t);
+    await expect(t.api.call('files.move', { id: a, stageId: other, folderId: null })).rejects.toMatchObject({ code: 'invalid_input', details: { fields: ['stageId'] } });
     t.as('usr_004');
     await expect(t.api.call('files.move', { id: a, stageId: 'stg_002', folderId: null })).rejects.toMatchObject({ code: 'forbidden' });
   });
 
-  it('refuses a file of a chat, and answers not_found for an unknown file', async () => {
+  it('refuses the file of an office task, and answers not_found for an unknown file', async () => {
     const { t } = await world();
-    t.store.state.files.fil_800 = {
-      id: 'fil_800', projectId: null, stageId: null, taskId: null, conversationId: 'cnv_001', name: 'chat.pdf',
-      versions: [{ letter: 'A', blobKey: 'b', mimeType: 'application/pdf', size: 1, uploadedBy: 'usr_003', uploadedAt: '2026-09-30T09:00:00.000+03:00' }],
-    };
-    await expect(t.api.call('files.move', { id: 'fil_800', stageId: 'stg_001', folderId: null })).rejects.toBeDefined();
+    const task = await t.api.call('tasks.create', { title: 'Office errand', ownerId: 'usr_003' });
+    const up = await t.api.call('files.upload', { name: 'Licence.pdf', blob: pdf('l'), taskId: task.task.id });
+    await expect(t.api.call('files.move', { id: up.file.id, stageId: 'stg_001', folderId: null })).rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'file_office_task' } });
     await expect(t.api.call('files.move', { id: 'fil_099', stageId: 'stg_001', folderId: null })).rejects.toMatchObject({ code: 'not_found' });
   });
 

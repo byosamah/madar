@@ -82,7 +82,7 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'files.share': ['chatReads', 'comments', 'events', 'messages'],
   'files.delete': ['events', 'files', 'projects'],
   // Folders live in the project (fbk_066). A delete puts the files of the folder back at the root of their stage.
-  'files.move': ['events', 'files', 'projects'],
+  'files.move': ['events', 'files'],
   'folders.create': ['events', 'projects'],
   'folders.rename': ['events', 'projects'],
   'folders.delete': ['events', 'files', 'projects'],
