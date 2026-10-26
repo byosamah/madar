@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { Feedback, FeedbackKind } from '../contract/entities';
+import { Feedback, FeedbackKind, FeedbackStatus, RejectReason } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { invalid, notFound } from '../errors';
 import { applyPatch, recordCreate } from '../events';
@@ -79,16 +79,27 @@ const feedbackSend = defineCall({
   },
 });
 
-/** A person with the right to manage reports (the Admin, or a role with feedback.manage) reads every report, newest first, open ones before done ones. A status gives only the reports with that status (owner, 2026-10-07). */
+/** The filter of feedback.list: one status, or "open" for new, in_review and in_progress (fbk_067). "new" still means only new. */
+const ListStatus = z.enum([...FeedbackStatus.options, 'open']);
+const OPEN_STATUSES: readonly FeedbackStatus[] = ['new', 'in_review', 'in_progress'];
+/** The open reports come first, then the done ones, then the rejected ones (owner, 2026-10-07; fbk_067). */
+const GROUP: Record<FeedbackStatus, number> = { new: 0, in_review: 0, in_progress: 0, done: 1, rejected: 2 };
+
+/**
+ * A person with the right to manage reports (the Admin, or a role with feedback.manage) reads every report, the open ones first, then the done ones,
+ * then the rejected ones, newest first in each group. A status gives only the reports with that status, and "open" gives new, in_review and in_progress
+ * (owner, 2026-10-07; fbk_067).
+ */
 const feedbackList = defineCall({
-  input: z.object({ status: z.enum(['new', 'done']).optional() }),
+  input: z.object({ status: ListStatus.optional() }),
   output: z.array(FeedbackRow),
   readOnly: true,
   run(input, ctx) {
     assertCan(ctx, 'feedback.manage');
+    const wanted = (item: Feedback) => input.status === undefined || (input.status === 'open' ? OPEN_STATUSES.includes(item.status) : item.status === input.status);
     return Object.values(feedbackOf(ctx.state))
-      .filter((item) => input.status === undefined || item.status === input.status)
-      .sort((a, b) => (a.status === b.status ? b.createdAt.localeCompare(a.createdAt) : a.status === 'new' ? -1 : 1))
+      .filter(wanted)
+      .sort((a, b) => GROUP[a.status] - GROUP[b.status] || b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id, 'en', { numeric: true }))
       .map((item) => ({ item, sender: cardOf(ctx.state, item.createdBy), screenshots: item.screenshots.length }));
   },
 });
@@ -116,25 +127,34 @@ const feedbackScreenshot = defineCall({
 });
 
 /**
- * A person with the right to manage reports marks a report done, or opens it again. Only the move from open to done tells the sender, in the app. Open again
- * sends nothing, and the done notice that the sender has stays (owner, 2026-10-07).
+ * A person with the right to manage reports sets the status of a report: new, in_review, in_progress, rejected or done (fbk_067). Rejected needs a
+ * reason, and only rejected takes one. The sender hears in the app of two moves only: into done, and into rejected (with the reason, in the same
+ * notice channel and under the same switch). In review, in progress and "Open again" send nothing, and a notice that the sender already has stays
+ * (owner, 2026-10-07). A report that an agent sent goes back to the person of the agent.
  */
 const feedbackSetStatus = defineCall({
-  input: z.object({ id: z.string(), status: z.enum(['new', 'done']) }),
+  input: z.object({ id: z.string(), status: FeedbackStatus, reason: RejectReason.optional() })
+    .refine((value) => value.status !== 'rejected' || value.reason !== undefined, { path: ['reason'], message: 'Write why you reject it.' })
+    .refine((value) => value.status === 'rejected' || value.reason === undefined, { path: ['reason'], message: 'A reason goes only with the status rejected.' }),
   output: Feedback,
   run(input, ctx) {
     assertCan(ctx, 'feedback.manage');
     const item = requireFeedback(ctx, input.id);
-    const wasDone = item.status === 'done';
+    const was = item.status;
     const done = input.status === 'done';
-    applyPatch(ctx, item, { status: input.status, doneBy: done ? ctx.actor.id : null, doneAt: done ? ctx.stamp : null }, {
+    const rejected = input.status === 'rejected';
+    const reason = input.status === 'rejected' ? input.reason ?? null : null;
+    // A report from before fbk_067 has no reason field. A JSON event cannot hold a missing key, so the field gets its null first, and an Undo
+    // restores the null, not nothing.
+    if (item.rejectReason === undefined) item.rejectReason = null;
+    applyPatch(ctx, item, { status: input.status, doneBy: done ? ctx.actor.id : null, doneAt: done ? ctx.stamp : null, rejectReason: reason }, {
       projectId: null, verb: 'feedback.status_changed', targetType: 'feedback', targetId: item.id,
     });
-    if (!wasDone && done) {
-      // A report that an agent sent goes back to the person of the agent.
+    if ((done && was !== 'done') || (rejected && was !== 'rejected')) {
+      // The excerpt names the report. The reason sits only in the notice of the sender.
       notifyIn(ctx, {
         userIds: [principalOf(ctx.state, item.createdBy)], trigger: 'feedback_done', targetType: 'feedback', targetId: item.id,
-        feedback: { kind: item.kind, excerpt: excerptOf(item.message) },
+        feedback: { kind: item.kind, excerpt: excerptOf(item.message), ...(rejected && reason !== null ? { reason } : {}) },
       });
     }
     return item;

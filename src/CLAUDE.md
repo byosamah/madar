@@ -605,7 +605,11 @@ The owner sees how the team uses Madar, which errors they hit, and replays of th
 - Admin People (`PeopleSection.tsx`): a turned-off person or agent has "Remove from the list" in the row menu (`RemoveSheet.tsx`, owner
   2026-10-12). The sheet asks first (Cancel has the focus, the confirm sits on the start side) and has no Undo. The person leaves the
   list for good, and the History keeps the name (`api/CLAUDE.md`).
-- Admin Requests and bugs (`FeedbackSection.tsx`) has two tabs, Waiting (the default) and Done. A report moves between them.
+- Admin Requests and bugs (`FeedbackSection.tsx`) has three tabs, Open (the default: new, in review, in progress), Done and Rejected (fbk_067).
+  Each report has one status control: a `Menu` with the five statuses as radio items (its name is "Status: <current>"). Done and Rejected offer
+  Undo; the other moves are plain actions. Rejected opens `RejectSheet` first, which needs a reason (up to 500 characters) and shows it again
+  for a report that is already rejected. The report shows "Reason: ..." under its message. A sender has no list of their own reports: the
+  notice (bell and push, switch `feedback_done`) is the only place they see the status change and the reason.
 - Dashboard (`features/dashboard/`): every link to a list carries the Leader, Client and Team filters (`withFilters`,
   `Tiles.tsx`), and the Projects screen and the Task list read `leader`, `client` and `team` from the link. A new card in the
   pattern of Stale projects uses `AttentionCard.tsx` and shows only when it has a row. Money and Data gaps draw only when

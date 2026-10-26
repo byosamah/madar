@@ -2,7 +2,7 @@
   "settings": {
     "triggers": {
       "feedback_sent": "عندما يرسل أحد طلب ميزة أو بلاغًا عن خلل",
-      "feedback_done": "عندما يُنجز طلبي أو بلاغي"
+      "feedback_done": "عندما يُنجز طلبي أو بلاغي أو يُرفض"
     }
   },
   "inbox": {

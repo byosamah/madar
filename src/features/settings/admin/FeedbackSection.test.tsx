@@ -180,17 +180,23 @@ const withShot = (state: State) => {
   state.feedback = { fbk_001: { ...REPORT, screenshots: [REPORT.screenshots[0]] } };
 };
 
+/** The status control is one menu: open it by its current status, then pick the new one. */
+async function chooseStatus(section: HTMLElement, from: string, to: string) {
+  await userEvent.click(await within(section).findByRole('button', { name: `Status: ${from}` }));
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: to }));
+}
+
 describe('Requests and bugs in the prototype (spec 4.3)', () => {
   const oneReport = (state: State) => {
     state.feedback = { fbk_001: { ...REPORT, screenshots: [] } };
   };
 
-  it('puts Mark done under the message on a phone, so the message keeps the width of the row (2026-10-12)', async () => {
+  it('puts the status control under the message on a phone, so the message keeps the width of the row (2026-10-12)', async () => {
     const spy = phoneWidth();
     try {
       await renderApp('/admin/feedback', oneReport);
       const section = await screen.findByRole('region', { name: /Requests and bugs/ });
-      const button = await within(section).findByRole('button', { name: 'Mark done' });
+      const button = await within(section).findByRole('button', { name: 'Status: New' });
       const message = within(section).getByText(REPORT.message);
       expect(message.parentElement).toContainElement(button);
       expect(message.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -199,10 +205,10 @@ describe('Requests and bugs in the prototype (spec 4.3)', () => {
     }
   });
 
-  it('keeps Mark done beside the message on a wider screen', async () => {
+  it('keeps the status control beside the message on a wider screen', async () => {
     await renderApp('/admin/feedback', oneReport);
     const section = await screen.findByRole('region', { name: /Requests and bugs/ });
-    const button = await within(section).findByRole('button', { name: 'Mark done' });
+    const button = await within(section).findByRole('button', { name: 'Status: New' });
     expect(within(section).getByText(REPORT.message).parentElement).not.toContainElement(button);
   });
 
@@ -226,7 +232,7 @@ describe('Requests and bugs in the prototype (spec 4.3)', () => {
     });
     const section = await screen.findByRole('region', { name: /Requests and bugs/ });
     expect(await within(section).findByText(REPORT.message)).toBeInTheDocument();
-    await userEvent.click(await within(section).findByRole('button', { name: 'Mark done' }));
+    await chooseStatus(section, 'New', 'Done');
     await waitFor(() => expect(store.state.feedback?.fbk_001.status).toBe('done'));
     expect(store.state.feedback?.fbk_001.doneBy).toBe('usr_003');
   });
@@ -241,23 +247,23 @@ describe('Requests and bugs in the prototype (spec 4.3)', () => {
     expect(screen.queryByText(REPORT.message)).toBeNull();
   });
 
-  it('offers Undo after Mark done, and the report is open again after Undo (rule B20)', async () => {
+  it('offers Undo after Done, and the report is open again after Undo (rule B20)', async () => {
     const { store } = await renderApp('/admin/feedback', (state) => {
       state.feedback = { fbk_001: { ...REPORT, screenshots: [] } };
     });
     const doneNotices = () => Object.values(store.state.notifications).filter((n) => n.trigger === 'feedback_done' && n.targetId === 'fbk_001');
     const section = await screen.findByRole('region', { name: /Requests and bugs/ });
-    await userEvent.click(await within(section).findByRole('button', { name: 'Mark done' }));
-    expect(await screen.findByText('Marked done.')).toBeInTheDocument();
-    // A done report moves from the Waiting tab to the Done tab.
+    await chooseStatus(section, 'New', 'Done');
+    expect(await screen.findByText('Status is now Done.')).toBeInTheDocument();
+    // A done report moves from the Open tab to the Done tab.
     await userEvent.click(within(section).getByRole('radio', { name: /^Done/ }));
-    expect(await within(section).findByRole('button', { name: 'Open again' })).toBeInTheDocument();
+    expect(await within(section).findByRole('button', { name: 'Status: Done' })).toBeInTheDocument();
     expect(store.state.feedback?.fbk_001.status).toBe('done');
     // The sender gets the done notice (rule B4), and the Undo takes it back (rule B15).
     expect(doneNotices().map((n) => n.userId)).toEqual(['usr_003']);
     await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
-    await userEvent.click(within(section).getByRole('radio', { name: /^Waiting/ }));
-    expect(await within(section).findByRole('button', { name: 'Mark done' })).toBeInTheDocument();
+    await userEvent.click(within(section).getByRole('radio', { name: /^Open/ }));
+    expect(await within(section).findByRole('button', { name: 'Status: New' })).toBeInTheDocument();
     expect(store.state.feedback?.fbk_001.status).toBe('new');
     await waitFor(() => expect(doneNotices()).toEqual([]));
   });
@@ -282,26 +288,105 @@ describe('Requests and bugs in the prototype (spec 4.3)', () => {
     });
     const section = await screen.findByRole('region', { name: /Requests and bugs/ });
     await userEvent.click(await within(section).findByRole('radio', { name: /^Done/ }));
-    await userEvent.click(await within(section).findByRole('button', { name: 'Open again' }));
-    // The report is open again, so it moves to the Waiting tab.
-    await userEvent.click(within(section).getByRole('radio', { name: /^Waiting/ }));
-    expect(await within(section).findByRole('button', { name: 'Mark done' })).toBeInTheDocument();
+    await chooseStatus(section, 'Done', 'New');
+    // The report is open again, so it moves to the Open tab.
+    await userEvent.click(within(section).getByRole('radio', { name: /^Open/ }));
+    expect(await within(section).findByRole('button', { name: 'Status: New' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
   });
 
-  it('shows the waiting reports on the Waiting tab, and the done reports only on the Done tab', async () => {
+  it('shows the open reports on the Open tab, the done ones on the Done tab and the rejected ones on the Rejected tab', async () => {
     await renderApp('/admin/feedback', (state) => {
       state.feedback = {
         fbk_001: { ...REPORT, screenshots: [] },
         fbk_002: { ...REPORT, id: 'fbk_002', message: 'Already fixed in the last release.', screenshots: [], status: 'done', doneBy: 'usr_001', doneAt: '2026-09-29T10:00:00.000+03:00' },
+        fbk_003: { ...REPORT, id: 'fbk_003', message: 'A report in review.', screenshots: [], status: 'in_review' },
+        fbk_004: { ...REPORT, id: 'fbk_004', message: 'Not for this office.', screenshots: [], status: 'rejected', rejectReason: 'We do not plan this.' },
       };
     });
     const section = await screen.findByRole('region', { name: /Requests and bugs/ });
-    expect(await within(section).findByRole('radio', { name: 'Waiting (1)' })).toHaveAttribute('aria-checked', 'true');
+    expect(await within(section).findByRole('radio', { name: 'Open (2)' })).toHaveAttribute('aria-checked', 'true');
     expect(within(section).getByText('The board does not scroll on my phone.')).toBeInTheDocument();
+    expect(within(section).getByText('A report in review.')).toBeInTheDocument();
+    expect(within(section).getByRole('button', { name: 'Status: In review' })).toBeInTheDocument();
     expect(within(section).queryByText('Already fixed in the last release.')).toBeNull();
     await userEvent.click(within(section).getByRole('radio', { name: 'Done (1)' }));
     expect(within(section).getByText('Already fixed in the last release.')).toBeInTheDocument();
     expect(within(section).queryByText('The board does not scroll on my phone.')).toBeNull();
+    await userEvent.click(within(section).getByRole('radio', { name: 'Rejected (1)' }));
+    expect(within(section).getByText('Not for this office.')).toBeInTheDocument();
+    expect(within(section).getByText(/^Reason: \u2068We do not plan this\.\u2069$/)).toBeInTheDocument();
+  });
+
+  it('moves a report to In review and In progress with no notice and no toast, and it stays on the Open tab', async () => {
+    const { store } = await renderApp('/admin/feedback', (state) => {
+      state.feedback = { fbk_001: { ...REPORT, screenshots: [] } };
+    });
+    const section = await screen.findByRole('region', { name: /Requests and bugs/ });
+    await chooseStatus(section, 'New', 'In review');
+    await waitFor(() => expect(store.state.feedback?.fbk_001.status).toBe('in_review'));
+    await chooseStatus(section, 'In review', 'In progress');
+    await waitFor(() => expect(store.state.feedback?.fbk_001.status).toBe('in_progress'));
+    expect(await within(section).findByRole('button', { name: 'Status: In progress' })).toBeInTheDocument();
+    expect(Object.values(store.state.notifications).filter((n) => n.trigger === 'feedback_done')).toEqual([]);
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+  });
+
+  it('asks for a reason before it rejects: the Reject button waits for text, and the sender gets the reason in a notice', async () => {
+    const { store } = await renderApp('/admin/feedback', (state) => {
+      state.feedback = { fbk_001: { ...REPORT, screenshots: [] } };
+    });
+    const section = await screen.findByRole('region', { name: /Requests and bugs/ });
+    await chooseStatus(section, 'New', 'Rejected');
+    const sheet = await screen.findByRole('dialog', { name: 'Reject this report' });
+    const reject = within(sheet).getByRole('button', { name: 'Reject' });
+    expect(reject).toBeDisabled();
+    expect(store.state.feedback?.fbk_001.status).toBe('new');
+    await userEvent.type(within(sheet).getByRole('textbox', { name: 'Reason' }), '   ');
+    expect(reject).toBeDisabled();
+    await userEvent.type(within(sheet).getByRole('textbox', { name: 'Reason' }), 'We plan this for the next release.');
+    await userEvent.click(reject);
+    await waitFor(() => expect(store.state.feedback?.fbk_001).toMatchObject({ status: 'rejected', rejectReason: 'We plan this for the next release.' }));
+    expect(Object.values(store.state.notifications).filter((n) => n.trigger === 'feedback_done')).toEqual([
+      expect.objectContaining({ userId: 'usr_003', feedback: expect.objectContaining({ reason: 'We plan this for the next release.' }) }),
+    ]);
+    expect(await screen.findByText('Status is now Rejected.')).toBeInTheDocument();
+    await userEvent.click(within(section).getByRole('radio', { name: /^Rejected/ }));
+    expect(await within(section).findByText(/^Reason: \u2068We plan this for the next release\.\u2069$/)).toBeInTheDocument();
+    // The Undo takes the rejection and its notice back.
+    await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(store.state.feedback?.fbk_001.status).toBe('new'));
+    expect(Object.values(store.state.notifications).filter((n) => n.trigger === 'feedback_done')).toEqual([]);
+  });
+
+  it('opens the reject sheet again with the old reason, so the Admin can change the words', async () => {
+    const { store } = await renderApp('/admin/feedback', (state) => {
+      state.feedback = { fbk_001: { ...REPORT, screenshots: [], status: 'rejected', rejectReason: 'Old reason' } };
+    });
+    const section = await screen.findByRole('region', { name: /Requests and bugs/ });
+    await userEvent.click(await within(section).findByRole('radio', { name: /^Rejected/ }));
+    await chooseStatus(section, 'Rejected', 'Rejected');
+    const sheet = await screen.findByRole('dialog', { name: 'Reject this report' });
+    const box = within(sheet).getByRole('textbox', { name: 'Reason' });
+    expect(box).toHaveValue('Old reason');
+    await userEvent.clear(box);
+    await userEvent.type(box, 'New reason');
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Reject' }));
+    await waitFor(() => expect(store.state.feedback?.fbk_001.rejectReason).toBe('New reason'));
+  });
+
+  it('shows the reject sheet and the tabs in Arabic', async () => {
+    const { store } = await renderApp('/admin/feedback', (state) => {
+      state.feedback = { fbk_001: { ...REPORT, screenshots: [] } };
+      state.users.usr_001.preferences.language = 'ar';
+    });
+    const section = await screen.findByRole('region', { name: /الطلبات والبلاغات/ });
+    expect(await within(section).findByRole('radio', { name: 'مفتوحة (1)' })).toBeInTheDocument();
+    expect(within(section).getByRole('radio', { name: 'مرفوضة (0)' })).toBeInTheDocument();
+    await userEvent.click(within(section).getByRole('button', { name: 'الحالة: جديد' }));
+    await userEvent.click(await screen.findByRole('menuitemradio', { name: 'مرفوض' }));
+    const sheet = await screen.findByRole('dialog', { name: 'ارفض الطلب أو البلاغ' });
+    expect(within(sheet).getByRole('button', { name: 'ارفض' })).toBeDisabled();
+    expect(store.state.feedback?.fbk_001.status).toBe('new');
   });
 });

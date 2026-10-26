@@ -601,10 +601,13 @@ function noticeMeetingHidden(ctx: Ctx, targetType: string, targetId: string, per
   return meeting !== undefined && !mayViewMeeting(ctx.state, person, meeting);
 }
 
-/** The number of standing changes that moved this report from open to done. Each one sent the one done notice (owner, 2026-10-07). */
-function movesToDone(standing: Event[], reportId: string): number {
+/**
+ * The number of standing changes that moved this report into a status, from any other one. Each one sent one notice: the done notice for
+ * "done", the rejected notice for "rejected" (owner, 2026-10-07; fbk_067). A move from in_review or in_progress counts as one from new.
+ */
+function movesInto(standing: Event[], reportId: string, status: 'done' | 'rejected'): number {
   return standing.filter((e) => e.targetType === 'feedback' && e.targetId === reportId
-    && fieldsOf(e.before).status === 'new' && fieldsOf(e.after).status === 'done').length;
+    && fieldsOf(e.after).status === status && fieldsOf(e.before).status !== status).length;
 }
 
 /** Oldest first: by time, then by the number in the id, so ntf_1000 comes after ntf_999. */
@@ -634,11 +637,14 @@ function dropNotices(ctx: Ctx, correlationId: string): void {
     if (owner !== undefined && feedbackNoticeHidden(notice, owner)) continue;
     let kept: boolean;
     if (notice.targetType === 'feedback' && notice.trigger === 'feedback_done') {
-      // A done notice stays only once for each move of its report from open to done that still stands in the story. So done, open,
+      // A done notice stays only once for each move of its report into done that still stands in the story. So done, open,
       // done and then the Undo of the last done keeps one notice, as the report has one standing move to done (review 2026-10-07).
-      const room = doneRoom.get(notice.targetId) ?? movesToDone(standing, notice.targetId);
+      // A rejected notice (it holds the reason) counts the same way for the moves into rejected (fbk_067).
+      const outcome = notice.feedback?.reason === undefined ? 'done' : 'rejected';
+      const roomKey = `${notice.targetId}:${outcome}`;
+      const room = doneRoom.get(roomKey) ?? movesInto(standing, notice.targetId, outcome);
       kept = room > 0;
-      doneRoom.set(notice.targetId, kept ? room - 1 : 0);
+      doneRoom.set(roomKey, kept ? room - 1 : 0);
     } else if (notice.targetType === 'feedback') {
       // A report notice stays only while a change of its own report stands, so the Undo of one done change in a story of three
       // takes back only the notice of that report (owner, 2026-10-07).

@@ -25,6 +25,9 @@ speaker, so write it as natural Arabic, not as a word-for-word copy of the Engli
   `daftra` holds the words of the Daftra link (owner, 2026-10-26): the bell sentences `inbox.trigger.payment_due` and `payment_due_past`, `inbox.paymentGone`, and the Settings label
   `settings.triggers.payment_due`. The screens track added the key tree `daftra.*` (the states of the payment sheet, the search, the toasts) and `payments.status.invoiced` (the sign "Invoiced"). `server/push/words.ts` imports its `inbox` part. The What's new entry
   `2026-10-23-113` sits in `whatsnew`.
+  `fbk067` holds the words of the five statuses of requests and bugs (fbk_067): `feedback.tabs.*`, `feedback.status.*`, `feedback.statusOf`, `feedback.statusSet`, the reject sheet
+  (`feedback.reject*`, `feedback.reasonShown`), `feedback.noneOpen` and `noneRejected`, and the bell sentences `inbox.feedback.rejectedFeature` and `rejectedBug`
+  (`server/push/words.ts` imports its `inbox` part). The What's new entry `2026-10-23-119` sits in `whatsnew`. The label `settings.triggers.feedback_done` was edited in place in `fbnotices`.
   `fbk050` holds the words of "Download all" (`zip.*`: the button, "Preparing n of N...", the failed-file and too-large toasts) and the What's new entry `2026-10-23-97` sits in `whatsnew`.
   `batchd4` holds the words of internal projects and the Team tab block (fbk_044): `project.internal`, `project.hiddenMark`, `projectForm.kind*`, `projectAccess.*`,
   `feed.project.access_changed`, and the reasons `internal_project` and `code_prefix_taken`.

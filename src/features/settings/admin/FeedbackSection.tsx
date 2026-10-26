@@ -1,21 +1,25 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
+import { FEEDBACK_STATUSES, REJECT_REASON_MAX, type Feedback, type FeedbackStatus } from '../../../api/contract/entities';
 import { useUndoable } from '../../../app/actions';
 import { useScreenshotLink } from '../../../app/files';
 import { usePersonName } from '../../../app/personName';
 import { PRIVATE } from '../../../app/privateMark';
+import { fieldError } from '../../../app/errors';
 import { useAction, useCall } from '../../../app/runtime';
 import { useIsPhone } from '../../../app/useIsPhone';
 import { Age } from '../../../components/Age';
 import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
+import { ChevronDownIcon } from '../../../components/icons/animated/chevron-down';
 import { FileTextIcon } from '../../../components/icons/animated/file-text';
+import { TextArea } from '../../../components/Fields';
+import { Menu } from '../../../components/Menu';
 import { Sheet } from '../../../components/Sheet';
 import { isAppPath } from '../../../api/handlers/feedback';
 import { SegmentedControl } from '../../../components/SegmentedControl';
-import { StatusSign } from '../../../components/StatusSign';
 
 /**
  * One screenshot (spec 4.3): a grey box while the link loads, a file sign when the picture cannot show, else the picture.
@@ -58,25 +62,85 @@ function Screenshot({ id, index }: { id: string; index: number }) {
   );
 }
 
+/** The three tabs: the open reports (new, in review and in progress), the done ones and the rejected ones (fbk_067). */
+type Tab = 'open' | 'done' | 'rejected';
+const TABS: readonly Tab[] = ['open', 'done', 'rejected'];
+const tabOf = (status: FeedbackStatus): Tab => (status === 'done' ? 'done' : status === 'rejected' ? 'rejected' : 'open');
+
 /**
- * The feature requests and bug reports from the person menu, for the Admin (owner, 2026-10-01). Two tabs (owner, 2026-10-08):
- * Waiting, the open ones, is the first tab; Done holds the reports marked done.
+ * The small sheet that asks why a report is rejected. The reason is required, and the sender reads it in a notice. A report that is already
+ * rejected opens it again with its reason, so the Admin can change the words.
+ */
+function RejectSheet({ item, open, onOpenChange }: { item: Feedback | null; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { t } = useTranslation();
+  const [reason, setReason] = useState('');
+  useEffect(() => {
+    if (open) setReason(item?.rejectReason ?? '');
+  }, [open, item?.id, item?.rejectReason]);
+  // Rejecting tells the sender, so it offers Undo (rule B20).
+  const reject = useUndoable('feedback.setStatus', { message: () => t('feedback.statusSet', { status: t('feedback.status.rejected') }), onSuccess: () => onOpenChange(false) });
+  const text = reason.trim();
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('feedback.rejectTitle')}
+      description={t('feedback.rejectHint')}
+      footer={(
+        <>
+          <Button onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
+          <Button variant="primary" disabled={!text || reject.isPending || !item} onClick={() => item && reject.mutate({ id: item.id, status: 'rejected', reason: text })}>
+            {t('feedback.rejectButton')}
+          </Button>
+        </>
+      )}
+    >
+      <div className="pt-1">
+        <TextArea
+          id="reject-reason"
+          label={t('feedback.rejectReason')}
+          value={reason}
+          dir="auto"
+          maxLength={REJECT_REASON_MAX}
+          error={fieldError(reject.error, 'reason', t, t('errors.invalid_input'))}
+          onChange={(event) => setReason(event.target.value)}
+        />
+      </div>
+    </Sheet>
+  );
+}
+
+/**
+ * The feature requests and bug reports from the person menu, for the Admin (owner, 2026-10-01). Three tabs (owner, 2026-10-26): Open, the
+ * first tab, holds new, in review and in progress; Done and Rejected hold the rest. Each report has one status control: a menu with the five
+ * statuses. Rejected asks for a reason first, and the report shows the reason after.
  */
 export function FeedbackSection() {
   const { t } = useTranslation();
   const phone = useIsPhone();
   const nameOf = usePersonName();
-  const [tab, setTab] = useState<'waiting' | 'done'>('waiting');
+  const [tab, setTab] = useState<Tab>('open');
+  const [rejecting, setRejecting] = useState<Feedback | null>(null);
+  const [rejectOpen, setRejectOpen] = useState(false);
   const list = useCall('feedback.list', {});
-  // Mark done sends the sender a notice, so it offers Undo (rule B20). Open again stays a plain action.
-  const markDone = useUndoable('feedback.setStatus', { message: () => t('feedback.markedDone') });
-  const reopen = useAction('feedback.setStatus');
-  const busy = markDone.isPending || reopen.isPending;
+  // Done tells the sender, so it offers Undo (rule B20). The other moves stay plain actions: the control shows the new status.
+  const markDone = useUndoable('feedback.setStatus', { message: () => t('feedback.statusSet', { status: t('feedback.status.done') }) });
+  const setStatus = useAction('feedback.setStatus');
+  const busy = markDone.isPending || setStatus.isPending;
   const rows = list.data ?? [];
-  const waitingRows = rows.filter((row) => row.item.status !== 'done');
-  const doneRows = rows.filter((row) => row.item.status === 'done');
-  const shown = tab === 'done' ? doneRows : waitingRows;
-  const open = waitingRows.length;
+  const byTab = (which: Tab) => rows.filter((row) => tabOf(row.item.status) === which);
+  const shown = byTab(tab);
+  const open = byTab('open').length;
+  const choose = (item: Feedback, status: FeedbackStatus) => {
+    if (status === 'rejected') {
+      setRejecting(item);
+      setRejectOpen(true);
+    } else if (status === 'done') {
+      if (item.status !== 'done') markDone.mutate({ id: item.id, status });
+    } else if (item.status !== status) {
+      setStatus.mutate({ id: item.id, status });
+    }
+  };
   return (
     <section aria-labelledby="admin-feedback" className="surface flex flex-col gap-3 rounded-card p-5">
       <h2 id="admin-feedback" className="flex items-center gap-2 text-headline">
@@ -89,21 +153,25 @@ export function FeedbackSection() {
           label={t('feedback.adminTitle')}
           value={tab}
           onChange={setTab}
-          options={[
-            { value: 'waiting', label: `${t('feedback.waiting')} (${waitingRows.length})` },
-            { value: 'done', label: `${t('feedback.done')} (${doneRows.length})` },
-          ]}
+          options={TABS.map((value) => ({ value, label: `${t(`feedback.tabs.${value}`)} (${byTab(value).length})` }))}
         />
       )}
-      {rows.length > 0 && shown.length === 0 && <p className="text-subheadline text-ink-2">{t(tab === 'done' ? 'feedback.noneDone' : 'feedback.noneWaiting')}</p>}
+      {rows.length > 0 && shown.length === 0 && <p className="text-subheadline text-ink-2">{t(tab === 'open' ? 'feedback.noneOpen' : tab === 'done' ? 'feedback.noneDone' : 'feedback.noneRejected')}</p>}
       <ul className="hairline flex flex-col">
         {shown.map(({ item, sender }) => {
-          const done = item.status === 'done';
-          // On a phone the button sits under the message, so the message keeps the width of the row (2026-10-12).
+          const finished = item.status === 'done' || item.status === 'rejected';
+          const statusName = t(`feedback.status.${item.status}`);
+          // On a phone the control sits under the message, so the message keeps the width of the row (2026-10-12).
           const action = (
-            <Button disabled={busy} onClick={() => (done ? reopen.mutate({ id: item.id, status: 'new' }) : markDone.mutate({ id: item.id, status: 'done' }))}>
-              {done ? t('feedback.reopen') : t('feedback.markDone')}
-            </Button>
+            <Menu
+              label={t('feedback.statusOf', { status: statusName })}
+              text={statusName}
+              icon={<AnimatedIcon icon={ChevronDownIcon} size={16} aria-hidden />}
+              triggerClassName={`bg-fill text-ink hover:bg-fill-strong ${busy ? 'pointer-events-none opacity-40' : ''}`}
+              align="start"
+              sheetOnPhone
+              items={FEEDBACK_STATUSES.map((status) => ({ label: t(`feedback.status.${status}`), checked: status === item.status, onSelect: () => choose(item, status) }))}
+            />
           );
           return (
             <li key={item.id} className="flex flex-col gap-2 py-3">
@@ -114,9 +182,11 @@ export function FeedbackSection() {
                     <bdi className="font-semibold text-ink">{nameOf(sender)}</bdi>
                     <span className="text-ink-2">{t(`feedback.kinds.${item.kind}`)}</span>
                     <span className="text-ink-2"><Age stamp={item.createdAt} /></span>
-                    {done && <StatusSign state="completed">{t('feedback.done')}</StatusSign>}
                   </p>
-                  <p dir="auto" className={`whitespace-pre-wrap text-body ${done ? 'text-ink-2' : 'text-ink'}`}>{item.message}</p>
+                  <p dir="auto" className={`whitespace-pre-wrap break-words text-body ${finished ? 'text-ink-2' : 'text-ink'}`}>{item.message}</p>
+                  {item.status === 'rejected' && item.rejectReason && (
+                    <p dir="auto" className="whitespace-pre-wrap break-words text-footnote text-ink-2">{t('feedback.reasonShown', { reason: `\u2068${item.rejectReason}\u2069` })}</p>
+                  )}
                   {/* The server accepts only Madar screens, but stored data is checked again: anything else shows as plain text. */}
                   {item.page && (isAppPath(item.page)
                     ? <Link to={item.page} className="text-footnote font-semibold text-link"><bdi dir="ltr">{item.page}</bdi></Link>
@@ -134,6 +204,7 @@ export function FeedbackSection() {
           );
         })}
       </ul>
+      <RejectSheet item={rejecting} open={rejectOpen} onOpenChange={setRejectOpen} />
     </section>
   );
 }

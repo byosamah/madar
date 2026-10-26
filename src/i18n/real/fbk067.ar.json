@@ -1,0 +1,31 @@
+{
+  "feedback": {
+    "tabs": {
+      "open": "مفتوحة",
+      "done": "تم",
+      "rejected": "مرفوضة"
+    },
+    "status": {
+      "new": "جديد",
+      "in_review": "قيد المراجعة",
+      "in_progress": "قيد التنفيذ",
+      "rejected": "مرفوض",
+      "done": "تم"
+    },
+    "statusOf": "الحالة: {{status}}",
+    "statusSet": "الحالة الآن: {{status}}.",
+    "noneOpen": "لا يوجد شيء مفتوح.",
+    "noneRejected": "لا يوجد شيء مرفوض.",
+    "rejectTitle": "ارفض الطلب أو البلاغ",
+    "rejectHint": "يصل سببك إلى صاحب الطلب في إشعار.",
+    "rejectReason": "السبب",
+    "rejectButton": "ارفض",
+    "reasonShown": "السبب: {{reason}}"
+  },
+  "inbox": {
+    "feedback": {
+      "rejectedFeature": "رُفض طلبك: «{{target}}». السبب: {{reason}}",
+      "rejectedBug": "رُفض بلاغك: «{{target}}». السبب: {{reason}}"
+    }
+  }
+}

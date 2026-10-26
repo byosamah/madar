@@ -177,6 +177,9 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   `MCP_DENY` until the MCP parity track (owner, 2026-10-26). They are tools now. The calls still allow only a message of the person or of its agent (`isMine`, reason `not_author`
   for another author). INSTRUCTIONS (Messages) says: ask your person first, and write the words your person approves. An agent also
   reads `reactions`, `editedAt`, `replyTo` (with `deleted` for an old message that is gone) and `namesMe` in `chats.messages`, which leaves a deleted message out, and sends a reply with `replyToId`.
+- `feedback.setStatus` takes the five statuses and `reason` for `rejected`; `feedback.list` takes each status and `open` (fbk_067). The tool schemas
+  come from the call's zod input. INSTRUCTIONS ("Requests and bugs:"): done only when the person says the fix is live; reject only when the person says
+  so, with the reason in the person's words, never invented. The rights are unchanged (`feedback.manage`, `ai.feedback`).
 - An agent never gets a storage key field. `run.ts` (`withoutStorageKeys`) keeps each screenshot of `feedback.list` and `feedback.setStatus` to its type, and drops every
   `blobKey` and `thumbKey` from any other answer (`files.list` and `files.move` too, since the MCP parity track). `feedback.screenshot` and `files.link` give the signed link
   as it is, and its path names the object. `files.link` refuses a file of a meeting with no project for an agent, and a file of a chat that its person may not open (`mayOpenFile`).

@@ -14,11 +14,13 @@ export type NoticeView = CallOutput<'notifications.list'>[number];
 /** The word function of i18next, or of the server's own instance (server/push/words.ts). */
 export type Words = (key: string, params: Record<string, unknown>) => string;
 
-/** The sentence of a report notice (owner, 2026-10-07). A hidden one has no words of its report, so it names nothing. */
+/** The sentence of a report notice (owner, 2026-10-07; rejected, fbk_067). A hidden one has no words of its report, so it names nothing. */
 function reportKey(n: NoticeView['notification']): string {
   if (!n.feedback) return 'inbox.feedback.hidden';
   const bug = n.feedback.kind === 'bug';
   if (n.trigger === 'feedback_sent') return bug ? 'inbox.feedback.sentBug' : 'inbox.feedback.sentFeature';
+  // A notice with a reason says the report was rejected (fbk_067). The done notice has no reason.
+  if (n.feedback.reason !== undefined) return bug ? 'inbox.feedback.rejectedBug' : 'inbox.feedback.rejectedFeature';
   return bug ? 'inbox.feedback.doneBug' : 'inbox.feedback.doneFeature';
 }
 
@@ -103,6 +105,8 @@ export function noticeSentence(view: NoticeView, t: Words, lang: Language): stri
     // The excerpt of a report, the name of a group and the title of a meeting keep their own direction (FSI and PDI), so an English "…" or "?" stays at its end in Arabic.
     people,
     target: report || group || restart || meeting || paymentDue ? `\u2068${shownTarget}\u2069` : shownTarget,
+    // The reason of a rejected report is the Admin's own text, so it keeps its direction too (fbk_067).
+    reason: n.feedback?.reason ? `\u2068${n.feedback.reason}\u2069` : '',
     // The name of a payment is the office's own text, so it keeps its direction too.
     payment: n.payment ? `\u2068${n.payment.name}\u2069` : '',
     // A reminder names its due day, which can be days away after a weekend (audit 2026-10-03, API-11). A meeting notice names the day and the time of the start (fbk_022).

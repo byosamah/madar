@@ -1,0 +1,31 @@
+{
+  "feedback": {
+    "tabs": {
+      "open": "Open",
+      "done": "Done",
+      "rejected": "Rejected"
+    },
+    "status": {
+      "new": "New",
+      "in_review": "In review",
+      "in_progress": "In progress",
+      "rejected": "Rejected",
+      "done": "Done"
+    },
+    "statusOf": "Status: {{status}}",
+    "statusSet": "Status is now {{status}}.",
+    "noneOpen": "Nothing is open.",
+    "noneRejected": "Nothing is rejected.",
+    "rejectTitle": "Reject this report",
+    "rejectHint": "The sender gets your reason in a notice.",
+    "rejectReason": "Reason",
+    "rejectButton": "Reject",
+    "reasonShown": "Reason: {{reason}}"
+  },
+  "inbox": {
+    "feedback": {
+      "rejectedFeature": "Your request was rejected: “{{target}}”. Reason: {{reason}}",
+      "rejectedBug": "Your bug report was rejected: “{{target}}”. Reason: {{reason}}"
+    }
+  }
+}
