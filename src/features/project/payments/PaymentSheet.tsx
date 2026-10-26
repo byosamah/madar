@@ -13,6 +13,7 @@ import { TextArea, TextField } from '../../../components/Fields';
 import { Sheet } from '../../../components/Sheet';
 import { todayISO } from '../../../lib/dates';
 import { areaValue } from '../../projects/projectForm';
+import { useDaftraPart } from './DaftraPart';
 
 type Problems = { name?: string; amount?: string; dueDate?: string; receivedOn?: string };
 
@@ -104,34 +105,44 @@ export function PaymentSheet({ projectId, row, onClose, drafts }: { projectId: s
     if (saved) update.mutate({ id: saved.id, patch: { name: name.trim(), amount: value, dueDate, receivedOn: receivedOn || null, note } });
     else create.mutate({ projectId, name: name.trim(), amount: value, dueDate, receivedOn: receivedOn || null, note });
   };
-  const busy = create.isPending || update.isPending || mark.isPending || remove.isPending;
+  const otherBusy = create.isPending || update.isPending || mark.isPending || remove.isPending;
+  // The Daftra part (the Daftra link, owner 2026-10-26): it shows only in a copy with Daftra and only to the holder of payment.daftraLink, plus the
+  // read-only lines of a linked payment for everyone who sees payments. Its Link button is the one main button while an invoice waits to be linked.
+  const daftra = useDaftraPart({ projectId, row, busy: otherBusy, onDone: () => { stepSaved(); close(); } });
+  const busy = otherBusy || daftra.pending;
   const footer = (
     <>
       {saved && mayChange && <Button variant="destructive" disabled={busy} onClick={() => remove.mutate({ id: saved.id })}>{t('common.delete')}</Button>}
-      {saved && !saved.receivedOn && mayReceive && <Button disabled={busy} onClick={() => mark.mutate({ id: saved.id })}>{t('payments.markReceived')}</Button>}
+      {/* While an invoice is linked, Daftra sets Received when it is paid, so the button stays away. */}
+      {saved && !saved.receivedOn && !saved.daftra && mayReceive && <Button disabled={busy} onClick={() => mark.mutate({ id: saved.id })}>{t('payments.markReceived')}</Button>}
       <Button variant="plain" onClick={close}>{mayEdit ? t('common.cancel') : t('common.close')}</Button>
-      {mayEdit && <Button variant="primary" disabled={busy} onClick={submit}>{t('common.save')}</Button>}
+      {mayEdit && <Button variant={daftra.linkButton ? 'secondary' : 'primary'} disabled={busy} onClick={submit}>{t('common.save')}</Button>}
+      {daftra.linkButton}
     </>
   );
   return (
     <Sheet open onOpenChange={(next) => { if (!next) onClose(); }} title={saved ? t('payments.editTitle') : t('payments.addTitle')} footer={footer}>
-      <form
-        noValidate
-        className="flex flex-col gap-4 pt-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          submit();
-        }}
-      >
-        <TextField id="payment-name" label={t('payments.name')} dir="auto" maxLength={120} readOnly={!mayEdit} value={name} error={problem('name', t('payments.errors.name'))} onChange={(event) => set({ name: event.target.value })} />
-        <TextField id="payment-amount" label={t('payments.amountField')} inputMode="decimal" dir="ltr" readOnly={!mayEdit} value={amount} error={problem('amount', t('payments.errors.amount'))} onChange={(event) => set({ amount: event.target.value })} />
-        {/* The due date is needed, so it changes but never goes empty: no clear control. The received date is empty until the money comes. */}
-        <div className="grid grid-cols-2 gap-4">
-          <DateField id="payment-due" label={t('payments.dueDate')} clearable={false} disabled={!mayEdit} value={dueDate} error={problem('dueDate', t('payments.errors.dueDate'))} onChange={(day) => set({ dueDate: day })} />
-          <DateField id="payment-received" label={t('payments.receivedOn')} max={todayISO()} disabled={!mayEdit} value={receivedOn} error={problem('receivedOn', t('payments.errors.futureReceived'))} onChange={(day) => set({ receivedOn: day })} />
-        </div>
-        <TextArea id="payment-note" label={t('payments.note')} dir="auto" maxLength={500} readOnly={!mayEdit} value={note} onChange={(event) => set({ note: event.target.value })} />
-      </form>
+      <>
+        <form
+          noValidate
+          className="flex flex-col gap-4 pt-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submit();
+          }}
+        >
+          <TextField id="payment-name" label={t('payments.name')} dir="auto" maxLength={120} readOnly={!mayEdit} value={name} error={problem('name', t('payments.errors.name'))} onChange={(event) => set({ name: event.target.value })} />
+          <TextField id="payment-amount" label={t('payments.amountField')} inputMode="decimal" dir="ltr" readOnly={!mayEdit} value={amount} error={problem('amount', t('payments.errors.amount'))} onChange={(event) => set({ amount: event.target.value })} />
+          {/* The due date is needed, so it changes but never goes empty: no clear control. The received date is empty until the money comes. */}
+          <div className="grid grid-cols-2 gap-4">
+            <DateField id="payment-due" label={t('payments.dueDate')} clearable={false} disabled={!mayEdit} value={dueDate} error={problem('dueDate', t('payments.errors.dueDate'))} onChange={(day) => set({ dueDate: day })} />
+            <DateField id="payment-received" label={t('payments.receivedOn')} max={todayISO()} disabled={!mayEdit} value={receivedOn} error={problem('receivedOn', t('payments.errors.futureReceived'))} onChange={(day) => set({ receivedOn: day })} />
+          </div>
+          <TextArea id="payment-note" label={t('payments.note')} dir="auto" maxLength={500} readOnly={!mayEdit} value={note} onChange={(event) => set({ note: event.target.value })} />
+        </form>
+        {/* Outside the form, so Enter in the search field never saves the payment. */}
+        {daftra.part}
+      </>
     </Sheet>
   );
 }

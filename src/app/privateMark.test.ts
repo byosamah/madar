@@ -37,7 +37,7 @@ describe('the private mark', () => {
   });
 
   it('is in every place that shows an amount of money', () => {
-    const places = ['src/features/project/payments/PaymentsPanel.tsx', 'src/features/project/overview/OverviewTab.tsx', 'src/features/dashboard/MoneyPanel.tsx'];
+    const places = ['src/features/project/payments/PaymentsPanel.tsx', 'src/features/project/payments/DaftraPart.tsx', 'src/features/project/overview/OverviewTab.tsx', 'src/features/dashboard/MoneyPanel.tsx'];
     expect(places.filter((file) => !read(file).includes('PRIVATE'))).toEqual([]);
   });
 
