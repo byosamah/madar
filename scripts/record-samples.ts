@@ -6,6 +6,7 @@ import { memoryPersister } from '../src/api/persist';
 import { Store, type State } from '../src/api/store';
 import { buildSeed } from '../src/data/seed';
 import { addDays, setNow } from '../src/lib/dates';
+import { TASKS_CREATE_MANY, TASKS_UPDATE_MANY } from '../server/mcp/bulk';
 import { PICTURES_GET } from '../server/mcp/pictures';
 import { MCP_ADMIN, MCP_ALLOW, MCP_BY_RIGHT, READ_FIRST } from '../server/mcp/tools';
 
@@ -80,6 +81,9 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     samples[READ_FIRST] = {};
     // pictures.get has no call of its own (owner, 2026-10-21): its sample is the tile of the project.
     samples[PICTURES_GET] = { kind: 'projectTile', id: project.id };
+    // The bulk tools have no call of their own (owner, 2026-10-26): each item is the input of tasks.create or tasks.update, so the samples are not run.
+    samples[TASKS_CREATE_MANY] = { items: [{ projectId: project.id, title: 'Check the site drainage levels', stageId: project.currentStageId ?? undefined, ownerId: project.leaderId, dueDate: addDays(TODAY, 7) }] };
+    samples[TASKS_UPDATE_MANY] = { items: [{ id: task.id, patch: { flagged: true } }] };
     await run('projects.list', { filter: 'all', sort: 'deadline' });
     await run('projects.get', { id: project.id });
     await run('tasks.list', { projectId: project.id, includeDone: true });
@@ -199,6 +203,14 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     await run('events.undo', { eventId: statusEvent.id });
 
     await run('events.undoStory', { correlationId: storyId });
+
+    // The stages of the project (owner, 2026-10-26): the whole list in its order, the id of each stage that stays, one stage renamed. It stays out of the
+    // story: a change of stages has no Undo, so a story that holds it cannot be taken back. It comes after the Undo of the story.
+    const stageList = Object.values(s().stages).filter((st) => st.projectId === project.id).sort((a, b) => a.order - b.order);
+    await run('stages.replace', {
+      projectId: project.id,
+      stages: stageList.map((st, i) => ({ id: st.id, name: i === stageList.length - 1 ? `${st.name} and handover` : st.name, startDate: st.startDate, endDate: st.endDate })),
+    });
 
     // A new client and a new project (owner, 2026-10-25). Both stay out of the story: a new project has no Undo, so a story that holds it
     // cannot be taken back. They come after the Undo of the story.

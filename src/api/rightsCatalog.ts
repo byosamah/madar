@@ -593,7 +593,7 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
         ],
       },
       {
-        power: 'ai.todos', mcpTools: ['tasks.create', 'tasks.update', 'tasks.complete', 'tasks.move', 'tasks.arrange', 'tasks.take', 'tasks.help', 'tasks.approve', 'tasks.sendBack'],
+        power: 'ai.todos', mcpTools: ['tasks.create', 'tasks.update', 'tasks.createMany', 'tasks.updateMany', 'tasks.complete', 'tasks.move', 'tasks.arrange', 'tasks.take', 'tasks.help', 'tasks.approve', 'tasks.sendBack'],
         switches: [
           { id: 'ai.todos', scope: null, basic: true, needs: ['ai.connect'] },
         ],
@@ -623,7 +623,7 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
         ],
       },
       {
-        power: 'ai.projects', mcpTools: ['projects.update', 'projects.setStatus', 'stages.setDates', 'deadlines.create', 'deadlines.update', 'folders.create', 'folders.rename', 'folders.delete', 'files.move'],
+        power: 'ai.projects', mcpTools: ['projects.update', 'projects.setStatus', 'stages.setDates', 'stages.replace', 'deadlines.create', 'deadlines.update', 'folders.create', 'folders.rename', 'folders.delete', 'files.move'],
         switches: [
           { id: 'ai.projects', scope: null, basic: true, needs: ['ai.connect'] },
         ],

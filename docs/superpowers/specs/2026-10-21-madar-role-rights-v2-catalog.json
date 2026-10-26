@@ -2022,6 +2022,8 @@
           "mcpTools": [
             "tasks.create",
             "tasks.update",
+            "tasks.createMany",
+            "tasks.updateMany",
             "tasks.complete",
             "tasks.move",
             "tasks.arrange",
@@ -2163,6 +2165,7 @@
             "projects.update",
             "projects.setStatus",
             "stages.setDates",
+            "stages.replace",
             "deadlines.create",
             "deadlines.update",
             "folders.create",

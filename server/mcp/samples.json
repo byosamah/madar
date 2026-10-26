@@ -196,6 +196,53 @@
   "search.query": {
     "text": "Corniche"
   },
+  "stages.replace": {
+    "projectId": "prj_001",
+    "stages": [
+      {
+        "id": "stg_001",
+        "name": "Concept",
+        "startDate": "2026-05-09",
+        "endDate": "2026-06-05"
+      },
+      {
+        "id": "stg_002",
+        "name": "Schematic Design",
+        "startDate": "2026-06-06",
+        "endDate": "2026-07-03"
+      },
+      {
+        "id": "stg_003",
+        "name": "Design Development",
+        "startDate": "2026-07-04",
+        "endDate": "2026-07-31"
+      },
+      {
+        "id": "stg_004",
+        "name": "Construction Documents",
+        "startDate": "2026-08-01",
+        "endDate": "2026-09-27"
+      },
+      {
+        "id": "stg_005",
+        "name": "Permits",
+        "startDate": "2026-09-28",
+        "endDate": "2026-11-01"
+      },
+      {
+        "id": "stg_006",
+        "name": "Tender",
+        "startDate": "2026-11-02",
+        "endDate": "2026-12-06"
+      },
+      {
+        "id": "stg_007",
+        "name": "Supervision and handover",
+        "startDate": "2026-12-07",
+        "endDate": "2027-01-10"
+      }
+    ]
+  },
   "stages.setDates": {
     "stageId": "stg_004",
     "startDate": "2026-08-01",
@@ -227,6 +274,17 @@
     "ownerId": "usr_002",
     "dueDate": "2026-10-07",
     "storyId": "cor_sample_024"
+  },
+  "tasks.createMany": {
+    "items": [
+      {
+        "projectId": "prj_001",
+        "title": "Check the site drainage levels",
+        "stageId": "stg_004",
+        "ownerId": "usr_002",
+        "dueDate": "2026-10-07"
+      }
+    ]
   },
   "tasks.get": {
     "id": "tsk_001"
@@ -261,6 +319,16 @@
       "flagged": true
     },
     "storyId": "cor_sample_024"
+  },
+  "tasks.updateMany": {
+    "items": [
+      {
+        "id": "tsk_001",
+        "patch": {
+          "flagged": true
+        }
+      }
+    ]
   },
   "tracker.close": {
     "id": "trk_023",

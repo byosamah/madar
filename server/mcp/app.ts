@@ -42,7 +42,7 @@ import { allTools, toolOfOffSwitch, visibleTools, type ToolDef } from './tools';
  *      person, over all the person's agents (rate_limits); the 61st gets 429 with Retry-After. The same statement notes when the
  *      agent link was last used.
  *   8. The SDK handler (createMcpHandler, legacy 'stateless', JSON answers): server/discover, tools/list (the tools of the AI switches
- *      and rights of the person: 57 for an Admin; fixed order, 5 minutes, private), tools/call (run.ts, reasons.ts). A 2025-era
+ *      and rights of the person: 68 for an Admin; fixed order, 5 minutes, private), tools/call (run.ts, reasons.ts). A 2025-era
  *      client gets the stateless legacy answer.
  */
 

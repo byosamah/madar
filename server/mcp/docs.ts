@@ -1,8 +1,8 @@
 /**
  * The written instructions for AI agents (plan 5.6; spec 1, section 17, rule 7). INSTRUCTIONS goes in the answer of
  * server/discover and starts the answer of madar.readFirst (readFirstAnswer adds who the agent acts for). TOOL_DOCS gives each of
- * the 65 tools its title and description. An agent sees a tool only when its person holds the AI switch of the tool (aiSwitches.ts) and,
- * for the 12 right tools, the right too (tools.ts): the Admin holds every switch, so an Admin's agent gets all 65.
+ * the 68 tools its title and description. An agent sees a tool only when its person holds the AI switch of the tool (aiSwitches.ts) and,
+ * for the 12 right tools, the right too (tools.ts): the Admin holds every switch, so an Admin's agent gets all 68.
  * The reader is a model that acts for one person, so the texts are short, exact, and in plain English.
  * tools.test.ts checks that each description is 40 to 600 characters.
  */
@@ -36,6 +36,10 @@ export const INSTRUCTIONS = [
   '',
   'Leads: a task can have no lead (ownerId null). A new task has no lead unless you name one. A task with no lead cannot be completed or sent to review: the call fails with reason needs_lead. tasks.take makes your person the lead of a task with no lead. tasks.help makes your person a helper of a project task, or takes them off it. On a project task, the person who added it (its maker) changes it like the project leader while on the team: title, dates, lead, helpers, prerequisites and the delete. The lead of a project task may delete it in the screens too, and its maker then gets a notification. A maker names only people on the team. Reviewing a task and changing its review need need the switch "Review to-dos" (task.review). Naming a person outside the team needs the switch "Change the team" (project.team). By default the project leader and the Admin hold both.',
   '',
+  'Many to-dos: for more than a few to-dos, use tasks.createMany (up to 50 new to-dos in one call) and tasks.updateMany (up to 100 changes in one call, also a move to another stage with patch.stageId), and not one call for each to-do. Madar runs the items in order with the same rights and rules as tasks.create and tasks.update, in one story, and a failed item does not stop the next. Read the results: for an item that needs a reason, ask your person, then send only that item again with reason or dateReason. tasks.move sets the status only.',
+  '',
+  'Long lists: projects.list and tasks.list give a page of 50 short rows. Send limit (200 at most) and offset, follow page.next until it is null, and send full: true only when you need the full rows.',
+  '',
   'Order: inside each date group (Past due, Today, This week, Later, No date), the Tasks screen and Home show the tasks in one shared order: the tasks with a place (rank) first, lowest first, then the others by date. tasks.arrange sets that order. It changes no date, status or lead.',
   '',
   'Office tasks: a task with no project (projectId null) is an office task. tasks.create without projectId makes one, and your person is its maker. It may name any active person as lead (ownerId) and helpers. It has no stage and no prerequisites, and it changes no project. Only its maker, its lead, its helpers and the Admin see it, its comments, its files and its changes; for anyone else every call answers not_found. Its maker reviews it when another person leads it; the lead and the maker change it; the maker or the Admin changes its lead or helpers and deletes it. files.list with taskId alone lists its files.',
@@ -56,7 +60,7 @@ export const INSTRUCTIONS = [
   '',
   'Health: an active project is late when today is after the end date of its current stage. It is at risk when one of its open tasks is 3 or more days past due, or when the stage ends within 7 days and less than 70% of its tasks are done. A task 1 or 2 days past due still counts as past due (tasks.list filter overdue), but it does not put the project at risk.',
   '',
-  'Stages: stages.setDates sets the start and end dates of one stage. It needs the switch "Change stages and stage dates" (project.stages): by default the project leader and the Admin. It needs no reason, unlike a change of a task date, which needs "dateReason". The dates put the stages in time order, and the end date of the current stage decides when the project is late. So change a stage date only when your person asks. Adding, removing and renaming stages is screen work.',
+  'Stages: stages.setDates sets the start and end dates of one stage. It needs the switch "Change stages and stage dates" (project.stages): by default the project leader and the Admin. It needs no reason, unlike a change of a task date, which needs "dateReason". The dates put the stages in time order, and the end date of the current stage decides when the project is late. So change a stage date only when your person asks. stages.replace renames, adds, removes and orders the stages of one project: send the whole list in the new order, keep the id of each stage that stays, and ask your person first. A stage that holds to-dos cannot go (stage_has_tasks): move its to-dos with tasks.update and patch.stageId first. A date you leave out is cleared. It has no Undo, so leave storyId out: events.undoStory fails for a story that holds it.',
   '',
   'IDs have a prefix and a number, for example prj_001, tsk_014, usr_003. Dates are YYYY-MM-DD in Riyadh time. Read before you write: find IDs with the list and get tools.',
   '',
@@ -194,7 +198,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'events.list': {
     title: 'Read the History',
-    description: 'Lists the changes in the History, newest first: who made each change, for whom, and what changed. Filters: projectId, targetType and targetId, correlationId (a storyId), since, limit (1 to 500, default 50). Use it to find the event ID for events.undo.',
+    description: 'Lists the changes in the History, newest first: who made each change, for whom, and what changed. An event carries no before and after. Filters: projectId, targetType and targetId, correlationId (a storyId), since, limit (1 to 500, default 50). Use it to find the event ID for events.undo.',
   },
   'events.undo': {
     title: 'Undo one change',
@@ -262,7 +266,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.list': {
     title: 'List projects',
-    description: 'Lists the projects, with their code, stage, health and leader. A code is 260902AZT-RES-Villa (new form, key 260902AZT) or KH-26-014 (old form). Filters: status, filter (all, mine, at_risk, no_area, stage_no_end: a stage with no end date, no_sub_company), stageName, health, leaderId, clientId, teamId, subCompanyId (see subCompanies.list); sort by updated, deadline (the next named deadline, else the end of the current stage) or name. Each project gives nextDeadline, stageEnd, subCompanyId, geo, access, kind, nameAr, templateId and look. "Only my work" of an Admin does not change this list.',
+    description: 'Lists the projects: code (260902AZT-RES-Villa new form, KH-26-014 old form), stage, health, leader. Filters: status, filter (all, mine, at_risk, no_area, stage_no_end, no_sub_company), stageName, health, leaderId, clientId, teamId, subCompanyId; sort updated, deadline or name. Gives a page of short rows (id, code, name, nameAr, kind, status, stageName, health, leaderName, nextDeadline): limit (default 50, at most 200), offset, and page.next. full: true gives full rows (stageEnd, subCompanyId, geo, access, templateId, look). "Only my work" of an Admin does not change this list.',
   },
   'projects.setStatus': {
     title: 'Set the project status',
@@ -296,6 +300,10 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
     title: 'Set stage dates',
     description: 'Sets the start and end dates (YYYY-MM-DD, or null to clear one) of one stage (stageId, from projects.get). It sets both dates, so send the date that stays too. The end cannot be before the start. Needs the switch "Change stages and stage dates" (project.stages): by default the project leader and the Admin. It needs no reason. Stages sit in time order by their dates, so new dates can reorder them or overlap them, and they can change the current stage of the project and so its health. Change them only when your person asks.',
   },
+  'stages.replace': {
+    title: 'Replace the stages',
+    description: 'Renames, adds, removes and orders the stages of one project (projectId) in one call. Send the whole list in the new order: name, startDate and endDate (YYYY-MM-DD) for each. Keep the id of a stage that stays; a stage with no id is new; a stage left out is removed, and Madar refuses that while it holds to-dos (stage_has_tasks). A date you leave out is cleared. Needs the switch "Change stages and stage dates" (project.stages): by default the project leader and the Admin. No Undo. Ask your person first.',
+  },
   'tasks.approve': {
     title: 'Approve a task',
     description: 'Approves a task that waits in review (status in_review), so it becomes done. Needs the switch "Review to-dos" (task.review): by default the project leader and the Admin. The task owner gets a notification.',
@@ -314,11 +322,11 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'tasks.list': {
     title: 'List tasks',
-    description: 'Lists tasks. Filters: projectId, ownerId, filter (all, mine, overdue, flagged, review_for_me, no_lead, no_date), status, due, created and done date ranges, includeDone, activeProjectsOnly, and the project filters of dashboard.get: leaderId, clientId, teamId, subCompanyId. workOf lists the work of one person as dashboard.get counts it: open tasks the person leads or helps on, and tasks in review that the person reviews. Without includeDone, done tasks are left out. owner is null for a task with no lead. An office task (project null) shows only with no project filter.',
+    description: 'Lists tasks. Filters: projectId, ownerId, filter (all, mine, overdue, flagged, review_for_me, no_lead, no_date), status, due, created and done date ranges, includeDone, activeProjectsOnly, and the project filters of dashboard.get: leaderId, clientId, teamId, subCompanyId. workOf: open tasks a person leads or helps on, and tasks in review that the person reviews. An office task (project null) shows only with no project filter. Gives a page of short rows (id, title, status, project, stage, owner, dueDate, flagged): limit (50, at most 200), offset, page.next. full: true gives full rows.',
   },
   'tasks.move': {
     title: 'Move a task',
-    description: 'Sets the status of one task: todo, in_progress, in_review or done. Done by a non-reviewer on a task that needs review lands on in_review. A move that opens a task in an earlier stage moves the project back, and then the call needs "reason".',
+    description: 'Sets the status of one task only: todo, in_progress, in_review or done. It never changes the stage: to move a task to another stage, call tasks.update with patch.stageId (tasks.updateMany for many tasks). Done by a non-reviewer on a task that needs review lands on in_review. A move that opens a task in an earlier stage moves the project back, and then the call needs "reason".',
   },
   'tasks.sendBack': {
     title: 'Send a task back',
@@ -327,6 +335,14 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   'tasks.arrange': {
     title: 'Put tasks in order',
     description: 'Sets the shared order of tasks inside one date group of the Tasks screen and Home. "ids" is the new order, top first (for example the open tasks of your person that are due today). "moved" (optional) names the task that moved, so only its place changes. Each task needs the right to change it: its lead, its maker, the leader or the Admin. No date, status or lead changes.',
+  },
+  'tasks.createMany': {
+    title: 'Add many tasks',
+    description: 'Makes up to 50 to-dos in one call: items, each the input of tasks.create. Items run in order with the rights and rules of tasks.create, in one story (your storyId, or a new one that this tool starts), so one events.undoStory takes them all back. A failed item does not stop the next. The answer is short: storyId, done, failed and results (index, ok, id, title, stageId, status, or error). A reason request fails only that item: ask your person, then send that item again with reason.',
+  },
+  'tasks.updateMany': {
+    title: 'Change many tasks',
+    description: 'Changes up to 100 to-dos in one call: items, each { id, patch, reason?, dateReason? } as tasks.update takes them. Use it to move many to-dos to another stage (patch.stageId). Items run in order with the rights and rules of tasks.update, in one story, so one events.undoStory takes them back. A failed item does not stop the next. The answer is short: storyId, done, failed, results (index, ok, id, title, stageId, status, or error). A reason request (stage_back_reason, date_reason_needed) fails only that item: ask your person, then send it again with reason or dateReason.',
   },
   'tasks.take': {
     title: 'Take a task',
@@ -338,7 +354,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'tasks.update': {
     title: 'Change a task',
-    description: 'Changes one task: title, description, dates, schedule, stage, owner, helpers, prerequisites, flag, review need or checklist. Send only the fields that change, in "patch". ownerId null takes the lead off an open task. The owner, helpers and prerequisites need the maker of the task, the leader or the Admin; the review need, the leader or the Admin. A change of a date that was already set needs "dateReason". A stage move back needs "reason". The order of the "checklist" list is the order on the screen: to move an item, send the whole list in the new order.',
+    description: 'Changes one task. To move it to another stage, send patch.stageId (a move back needs "reason"). Also title, description, dates, schedule, owner, helpers, prerequisites, flag, review need or checklist. Send only the fields that change, in "patch". ownerId null takes the lead off an open task. The owner, helpers and prerequisites need the maker of the task, the leader or the Admin; the review need, the leader or the Admin. A change of a date that was already set needs "dateReason". For many tasks use tasks.updateMany. To move a checklist item, send the whole "checklist" in the new order.',
   },
   'tracker.close': {
     title: 'Close a tracker wait',

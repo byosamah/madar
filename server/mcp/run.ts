@@ -4,9 +4,11 @@ import type { RunCall } from '../core/runCall';
 import type { OfficeSnapshot, Principal, RunError, RunResult } from '../core/types';
 import type { RoleSettings } from '../../src/api/contract/entities';
 import { rightsOf } from '../../src/api/rights';
+import { BULK_TOOLS, runBulk, type RunOne } from './bulk';
 import { readFirstAnswer, roleNameOf } from './docs';
+import { pageOf, PAGED_TOOLS, pagingOf, shortRows, withoutPaging, type PageInfo } from './paging';
 import { PICTURES_GET, runPicture, withPictureLooks, WITH_PICTURES_TOOLS, type PictureAnswer } from './pictures';
-import { READ_FIRST, type ToolDef } from './tools';
+import { allTools, READ_FIRST, type ToolDef } from './tools';
 
 /**
  * One tool call of an agent (plan 5.6; task G3). Each tool except madar.readFirst runs its call through runCall, with the agent
@@ -18,12 +20,17 @@ import { READ_FIRST, type ToolDef } from './tools';
  * - Each tool call is a batch of one entry: its own story placeholders and the office of this request.
  * - The result: structuredContent { output, storyId? } and the same JSON as text (platform facts 7.2, point 21). An ApiError
  *   gives isError with its code, message and details, so the model can correct itself (point 18).
+ * - A bulk tool (bulk.ts) runs its single tool once for each item, with the same path. A paged list (paging.ts) cuts one page and, without
+ *   full, gives short rows. toolResult takes the before and the after out of every event (owner, 2026-10-26).
  */
 
 /** fetch reads the small picture of a cover (pictures.ts). Tests pass a stub; a host leaves it out and gets the global fetch. */
 export type ToolRunCtx = { deps: Deps; principal: Principal; office: OfficeSnapshot; runCall: RunCall; fetch?: typeof globalThis.fetch };
 
-export async function runTool(tool: ToolDef, args: Record<string, unknown>, ctx: ToolRunCtx): Promise<RunResult> {
+/** The result of a tool: a page also names its place in the whole list. */
+export type ToolRunResult = RunResult & { page?: PageInfo };
+
+export async function runTool(tool: ToolDef, args: Record<string, unknown>, ctx: ToolRunCtx): Promise<ToolRunResult> {
   if (tool.name === READ_FIRST) {
     const agent = ctx.office.lists.users[ctx.principal.userId];
     const person = agent?.ownerId ? ctx.office.lists.users[agent.ownerId] : undefined;
@@ -31,8 +38,15 @@ export async function runTool(tool: ToolDef, args: Record<string, unknown>, ctx:
     return { ok: true, output: readFirstAnswer(person, ctx.office.lists.settings.roles, rightsOf(person, ctx.office.lists.settings.roles)), changed: false };
   }
   if (tool.name === PICTURES_GET) return runPicture(args, ctx);
+  if (BULK_TOOLS[tool.name]) {
+    const runOne: RunOne = (name, input) => runTool(allTools().find((item) => item.name === name)!, input, ctx);
+    return runBulk(tool.name, args, runOne);
+  }
   // withPictures belongs to the tool, not to the call (owner, 2026-10-21).
-  const { withPictures, ...callArgs } = WITH_PICTURES_TOOLS.has(tool.name) ? args : { withPictures: undefined, ...args };
+  const { withPictures, ...rest } = WITH_PICTURES_TOOLS.has(tool.name) ? args : { withPictures: undefined, ...args };
+  // limit, offset and full belong to the tool too (owner, 2026-10-26). Other tools keep their own limit.
+  const paging = PAGED_TOOLS.has(tool.name) ? pagingOf(rest) : undefined;
+  const callArgs = paging ? withoutPaging(rest) : rest;
   const { storyId, ...input } = callArgs;
   const story = tool.takesStory && typeof storyId === 'string' ? { id: storyId } : undefined;
   const result = await ctx.runCall(ctx.deps, {
@@ -42,9 +56,14 @@ export async function runTool(tool: ToolDef, args: Record<string, unknown>, ctx:
     ...(story ? { story } : {}),
     batch: { storyRefs: new Map(), office: ctx.office, overviewCalls: 0 },
   });
-  return result.ok
-    ? { ...result, output: withoutStorageKeys(tool.name, withPictureLooks(tool.name, withLeanLists(tool.name, withRoleNames(tool.name, result.output, ctx.office.lists.settings.roles)), ctx.office, withPictures === true)) }
-    : result;
+  if (!result.ok) return result;
+  if (paging && Array.isArray(result.output)) {
+    // The page is cut first, so the picture looks are built for the rows of the page only. Short rows have no look.
+    const { rows, page } = pageOf(result.output, paging);
+    const output = paging.full ? withPictureLooks(tool.name, rows, ctx.office, withPictures === true) : shortRows(tool.name, rows);
+    return { ...result, output, page };
+  }
+  return { ...result, output: withoutStorageKeys(tool.name, withPictureLooks(tool.name, withLeanLists(tool.name, withRoleNames(tool.name, result.output, ctx.office.lists.settings.roles)), ctx.office, withPictures === true)) };
 }
 
 /**
@@ -104,7 +123,20 @@ export function errorResult(error: RunError, text?: string): CallToolResult {
   return { isError: true, content: [{ type: 'text', text: text ?? JSON.stringify({ error }) }], structuredContent: { error } };
 }
 
-export function toolResult(tool: ToolDef, result: RunResult): CallToolResult {
+/**
+ * An event in the answer of an agent keeps no `before` and no `after` (owner, 2026-10-26). An event is an object with a `verb`. The two
+ * fields hold whole copies of the record, so a to-do answer carried its record three times. The History in the screens keeps them: only the
+ * JSON that the agent reads is lighter.
+ */
+export function withoutEventBodies(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withoutEventBodies);
+  if (value === null || typeof value !== 'object') return value;
+  const object = value as Record<string, unknown>;
+  const isEvent = typeof object.verb === 'string';
+  return Object.fromEntries(Object.entries(object).filter(([key]) => !(isEvent && (key === 'before' || key === 'after'))).map(([key, item]) => [key, withoutEventBodies(item)]));
+}
+
+export function toolResult(tool: ToolDef, result: ToolRunResult): CallToolResult {
   if (!result.ok) return errorResult(result.error);
   if (tool.name === READ_FIRST) return { content: [{ type: 'text', text: String(result.output) }] };
   if (tool.name === PICTURES_GET) {
@@ -113,7 +145,8 @@ export function toolResult(tool: ToolDef, result: RunResult): CallToolResult {
     const text = { type: 'text' as const, text: JSON.stringify({ output }) };
     return { content: image ? [{ type: 'image', data: image.data, mimeType: image.mimeType }, text] : [text], structuredContent: { output } };
   }
-  const structured: Record<string, unknown> = { output: result.output };
+  const structured: Record<string, unknown> = { output: withoutEventBodies(result.output) };
+  if (result.page !== undefined) structured.page = result.page;
   if (result.storyId !== undefined) structured.storyId = result.storyId;
   return { content: [{ type: 'text', text: JSON.stringify(structured) }], structuredContent: structured };
 }
