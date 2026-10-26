@@ -273,6 +273,9 @@ describe("the What's new entry of the MCP parity track", () => {
     // The code guard and the chat files (owner, 2026-10-26): the text of this entry changed, and no new entry came.
     expect(body).toContain('needs a code that Madar sends to your email');
     expect(body).toContain('sends files into your chats and opens the files of your chats');
+    // Pictures are uploads too (owner, 2026-10-26): the assistant sets the picture of its person and a sub-company logo.
+    expect(body).toContain('It sets your profile picture and the logo of a sub-company.');
+    expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-116', 'body']))).toContain('يضع صورتك الشخصية وشعار الشركة الفرعية');
     expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-116', 'body']))).toContain('تحتاج رمزًا يصلك على بريدك');
     expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-116', 'body']))).toContain('«ينفّذ المساعد أعمال الإدارة»');
     expect(String(wordAt(en, ['whatsNew', 'items', '2026-10-23-116', 'title']))).not.toMatch(/[–—]/);

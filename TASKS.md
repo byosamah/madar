@@ -1208,3 +1208,13 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [ ] Open: a tricked agent has 25 guesses an hour for one person (5 codes, 5 wrong tries each, each code mails the person). Lower `MAX_NEW_PER_HOUR` in `confirms.ts` if the owner wants it tighter.
 - [ ] Open: tell the owner that a Claude skill with the old text in his AI app may still say that an agent never opens a chat file
 
+
+## MCP fixes after the security review (`rb/mcp-join`, 2026-10-26)
+- [x] Chat files need the switch `ai.readChats` for an agent (`files.link`, `files.get`, a cover picture); a chat file is never a project cover (`cover_chat_file`, everyone). Tests: `server/mcp/chatSwitches.test.ts`, `src/api/handlers/chatFiles.test.ts`
+- [x] Chat uploads need the switch `ai.messages` for an agent (`chatForUpload` takes the actor)
+- [x] The try of the email code is counted before the compare, in one statement and a transaction of its own (`tryCode`, `CONFIRM_COUNT_SQL`); SQLite twin included; 10 parallel wrong codes leave the code dead
+- [x] The code mail says what the act does: rights added and removed, new names, the role that takes the people, the old and the new role (`mcpGuardMail.lines`)
+- [x] An agent sets the picture of its own person (`me.updateProfile` `avatarUrl`) and a sub-company logo (`subCompanies.save`) as picture data of 24,000 characters at most; What's new 116 says so
+- [ ] Merge lead: run `npm run test:db` and `npm run test:it` for `CONFIRM_COUNT_SQL` on Postgres (it ran on SQLite only). A test of two parallel guesses on Postgres is still to write
+- [ ] Open: a call with a code counts its try also when its act then fails (a rights error, an email in use). Five such calls kill the code; the agent then asks for a new one
+- [ ] Open: an agent that sends `logo: null` to `subCompanies.save` keeps the old logo (it cannot clear one). Ask the owner if it should be able to

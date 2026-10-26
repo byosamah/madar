@@ -88,9 +88,10 @@ describe('files.uploadContent is a tool (owner, 2026-10-26)', () => {
     for (const word of ['files.uploadContent', 'contentBase64', '10 MB', 'upload rights', 'safe-type']) expect(files, word).toContain(word);
     expect(files).not.toContain('the person uses the Madar screens');
     const pictures = INSTRUCTIONS.split('\n').find((text) => text.startsWith('Pictures: '))!;
-    // The join with the MCP parity track: the calls refuse a profile picture and a logo from an agent, so no text asks the agent to send picture data.
-    for (const word of ['files.uploadContent', 'coverFileId', 'cannot set a profile picture or a sub-company logo']) expect(pictures, word).toContain(word);
+    // Pictures are uploads too (owner, 2026-10-26): a small picture goes as a data address, a cover is a file.
+    for (const word of ['files.uploadContent', 'coverFileId', 'me.updateProfile', 'subCompanies.save', '24,000', 'data address']) expect(pictures, word).toContain(word);
     expect(pictures).not.toContain('You cannot upload or change a picture');
+    expect(pictures).not.toContain('cannot set a profile picture or a sub-company logo');
     expect(TOOL_DOCS['files.list'].description).toContain('files.uploadContent');
   });
 });

@@ -227,8 +227,8 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   chat or a group of its person (`conversationId`; owner, 2026-10-26: `chatForUpload` follows the person, and a non-member gets `not_found`); a meeting with no project and an office to-do work as on the screens. The body of
   an upload call may be `UPLOAD_BODY_BYTES` (about 14 MB): `readMcpBody` raises the 256 KB limit only for these two tool names (the `Mcp-Name` header, or the
   name in the first 4 KB of the body for an earlier client), and `app.ts` checks the parsed name again and answers 413 for any other tool; the SDK
-  option `maxRequestBodySize` is raised to the same size (its default is 4 MB). A profile picture and a sub-company logo are refused for an agent by the MCP parity track
-  (INSTRUCTIONS say so); a project cover is a
+  option `maxRequestBodySize` is raised to the same size (its default is 4 MB). A profile picture and a sub-company logo go as picture data inside the call (owner, 2026-10-26, pictures are uploads
+  too; INSTRUCTIONS, Pictures); a project cover is a
   file (`files.uploadContent`, then `projects.update` `coverFileId`). Tests: `uploadContent.test.ts`, `feedbackShots.test.ts` (harness
   `upload.testing.ts`: the fake files database for the intents, a `storeFetch` stub that writes the fake file store).
 - Many to-dos at once (owner, 2026-10-26; `bulk.ts`): `tasks.createMany` (1 to 50 items, each the input of `tasks.create`) and `tasks.updateMany` (1 to 100
@@ -281,8 +281,9 @@ The goal: an agent does what its person does in the screens, with the rights of 
   `ai.feedback` (a request or a bug for the person, with no screenshot: `feedback.send` has no `uploadIds` in the tool); the people, client, team, sub-company, settings and role
   calls and `users.invites` are `ai.admin`; the bell reads are `ai.readWork`, `chats.unreadCount` is `ai.readChats`, and the marks and the own settings are `ai.myState`.
 - Behaviour changes in `src/api` (handlers only, no zod change): `me.updateProfile` and `me.updatePreferences` write the record of the person an agent acts for (they wrote the
-  record of the agent before, which made them useless for an agent); both refuse a picture for an agent; `users.update` refuses `avatarUrl` for an agent; `subCompanies.save` refuses
-  a non-null `logo` for an agent and keeps the stored logo. The tool schema leaves `avatarUrl` and `uploadIds` out (`HIDDEN_FIELDS`, `tools.ts`). `MAX_STORED_RIGHTS` is 126.
+  record of the agent before, which made them useless for an agent); `me.updateProfile` takes `avatarUrl` from an agent for its own person only, as picture data (`PICTURE_DATA`, 24,000 characters at most; an address and null fail with `picture_data`);
+  `users.update` still refuses `avatarUrl` and the email for an agent; `subCompanies.save` takes a `logo` as picture data from an agent with the right (the switch `ai.admin` applies) and
+  keeps the stored logo when it sends `null` (an agent never clears one). The tool schema leaves `patch.avatarUrl` of `users.update` and `uploadIds` out (`HIDDEN_FIELDS`, `tools.ts`); `me.updateProfile` shows `avatarUrl`. `MAX_STORED_RIGHTS` is 126.
 - Not opened, with the reason in `tools.ts`: `projects.delete`, `session.get`, `push.*`, `live.ticket`, `chats.typing`, `google.*` (the server refuses an agent), `meetings.settle`,
   `meetings.extend`, `files.upload`, `files.uploadStart` and `feedback.uploadStart` (`stages.replace` came to the lists with `rb/mcp-bulk`).
 - An agent cannot undo a change to a person, a role or a sub-company (`history.ts`); a message edit or delete has no Undo. `ADDITIVE` (`tools.ts`) lists the new calls that only add a record and

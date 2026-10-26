@@ -325,7 +325,7 @@ describe('the bell, the read marks and the own chat state', () => {
 });
 
 describe('the own profile, preferences, requests and AI apps', () => {
-  it('change the profile and the preferences of the person, not the record of the agent, and refuse a picture', async () => {
+  it('change the profile and the preferences of the person, not the record of the agent, and set the picture of the person as picture data', async () => {
     const w = world(MEMBER);
     const agentBefore = JSON.stringify(stateOf(w).users.usr_903);
     await ok(w, 'me.updateProfile', { discipline: 'Site engineer', nameAr: 'ريم' });
@@ -333,10 +333,32 @@ describe('the own profile, preferences, requests and AI apps', () => {
     await ok(w, 'me.updatePreferences', { theme: 'dark', language: 'ar' });
     expect(stateOf(w).users[MEMBER].preferences).toMatchObject({ theme: 'dark', language: 'ar' });
     expect(JSON.stringify(stateOf(w).users.usr_903)).toBe(agentBefore);
-    const picture = await refused(w, 'me.updateProfile', { avatarUrl: 'https://example.com/me.png' });
-    expect(picture).toMatchObject({ code: 'forbidden', details: { action: 'me.picture' } });
+    const address = await refused(w, 'me.updateProfile', { avatarUrl: 'https://example.com/me.png' });
+    expect(address).toMatchObject({ code: 'invalid_input' });
+    expect(stateOf(w).users[MEMBER].avatarUrl).toBe(seed.users[MEMBER].avatarUrl);
+    await ok(w, 'me.updateProfile', { avatarUrl: 'data:image/png;base64,AAAA' });
+    expect(stateOf(w).users[MEMBER].avatarUrl).toBe('data:image/png;base64,AAAA');
+    expect(stateOf(w).users.usr_903.avatarUrl).toBeNull();
+    // The tool schema shows avatarUrl for me.updateProfile.
     const tool = mcpTools({ admin: true }).find((item) => item.name === 'me.updateProfile')!;
-    expect(Object.keys(tool.inputSchema.properties as object)).not.toContain('avatarUrl');
+    expect(Object.keys(tool.inputSchema.properties as object)).toContain('avatarUrl');
+  });
+
+  it('keep the picture of another person and the email refused, and follow the AI switches for a picture and a logo', async () => {
+    const w = world(ADMIN);
+    // The tool schema has no avatarUrl for users.update, so the MCP check stops it (and the call refuses an agent too: agentProfile.test.ts).
+    const other = await callRaw(w, 'users.update', { id: MEMBER, patch: { avatarUrl: 'data:image/png;base64,AAAA' } });
+    expect(other.error !== undefined || other.result?.isError === true).toBe(true);
+    const email = await refused(w, 'users.update', { id: MEMBER, patch: { email: 'someone.else@madar.test' } });
+    expect(email).toMatchObject({ code: 'forbidden', details: { action: 'people.email' } });
+    expect(stateOf(w).users[MEMBER].avatarUrl).toBe(seed.users[MEMBER].avatarUrl);
+    expect(stateOf(w).users[MEMBER].email).toBe(seed.users[MEMBER].email);
+    // The switch ai.myState closes the own picture, and ai.admin closes the logo of a sub-company.
+    const noMyState = world(MEMBER, (state) => void giveRole(state, MEMBER, roleWithout(['ai.myState'])));
+    expect(await refused(noMyState, 'me.updateProfile', { avatarUrl: 'data:image/png;base64,AAAA' })).toMatchObject({ code: 'forbidden', details: { reason: 'ai_off', right: 'ai.myState' } });
+    const noAdmin = world(ADMIN, (state) => void giveRole(state, ADMIN, roleWithout(['ai.admin'])));
+    expect(await refused(noAdmin, 'subCompanies.save', { name: 'Marsa Design', nameAr: 'مرسى للتصميم', logo: 'data:image/png;base64,AAAA' }))
+      .toMatchObject({ code: 'forbidden', details: { reason: 'ai_off', right: 'ai.admin' } });
   });
 
   it('refuse quiet hours, Away and what reaches the Admin to an agent', async () => {
@@ -441,8 +463,12 @@ describe('the Admin work, for the agent of the Admin', () => {
     expect(stateOf(w).teams![team.id]).toBeUndefined();
     await ok(w, 'subCompanies.save', { name: 'Marsa Design', nameAr: 'مرسى للتصميم', logo: null });
     const sub = Object.values(stateOf(w).subCompanies ?? {}).find((c) => c.name === 'Marsa Design')!;
-    const logo = await refused(w, 'subCompanies.save', { id: sub.id, name: 'Marsa Design', nameAr: 'مرسى للتصميم', logo: 'data:image/png;base64,AAAA' });
-    expect(logo).toMatchObject({ code: 'forbidden', details: { action: 'subCompanies.logo' } });
+    await ok(w, 'subCompanies.save', { id: sub.id, name: 'Marsa Design', nameAr: 'مرسى للتصميم', logo: 'data:image/png;base64,AAAA' });
+    expect(stateOf(w).subCompanies![sub.id].logo).toBe('data:image/png;base64,AAAA');
+    // A logo that is no picture data fails at the MCP check of the arguments or inside the call, and the logo stays.
+    const badLogo = await callRaw(w, 'subCompanies.save', { id: sub.id, name: 'Marsa Design', nameAr: 'مرسى للتصميم', logo: 'https://example.com/logo.png' });
+    expect(badLogo.error !== undefined || badLogo.result?.isError === true).toBe(true);
+    expect(stateOf(w).subCompanies![sub.id].logo).toBe('data:image/png;base64,AAAA');
     await ok(w, 'subCompanies.delete', { id: sub.id, moveToId: null });
     const settings = await ok(w, 'settings.get', {});
     await ok(w, 'settings.update', { staleAfterDays: settings.staleAfterDays + 1 });

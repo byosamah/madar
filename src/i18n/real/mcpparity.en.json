@@ -3,7 +3,7 @@
     "items": {
       "2026-10-23-116": {
         "title": "More work for your AI assistant",
-        "body": "Your AI assistant now does almost everything you do in Madar, with your rights. It sets up projects, works with templates and group chats, changes and deletes your posts and messages, and marks your notices read. It also sends files into your chats and opens the files of your chats. The Admin turns on Admin work for a role with the switch \"AI does Admin work\". It asks you first before a delete or a change of people. A risky Admin act, such as an invitation or a change of a role, needs a code that Madar sends to your email. A project delete stays in the screens."
+        "body": "Your AI assistant now does almost everything you do in Madar, with your rights. It sets up projects, works with templates and group chats, changes and deletes your posts and messages, and marks your notices read. It also sends files into your chats and opens the files of your chats. It sets your profile picture and the logo of a sub-company. The Admin turns on Admin work for a role with the switch \"AI does Admin work\". It asks you first before a delete or a change of people. A risky Admin act, such as an invitation or a change of a role, needs a code that Madar sends to your email. A project delete stays in the screens."
       }
     }
   }

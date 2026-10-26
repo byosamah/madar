@@ -274,7 +274,7 @@ export const PARITY_DOCS: Record<string, { title: string; description: string }>
   // The own profile, preferences, requests and AI apps of the person.
   'me.updateProfile': {
     title: 'Change the profile',
-    description: 'Changes the profile of your person: name, nameAr (the Arabic name) and discipline. Send only what changes. Your person decides the words. A picture stays with the person, in the Madar screens: the call refuses it. Do it only when your person asks.',
+    description: 'Changes the profile of your person: name, nameAr (the Arabic name) and discipline. Send only what changes. Your person decides the words. avatarUrl: the picture of your person, as a data address (WebP, JPEG or PNG, 24,000 characters at most; resize first). Do it only when your person asks.',
   },
   'me.updatePreferences': {
     title: 'Change the preferences',
@@ -303,7 +303,7 @@ export const PARITY_DOCS: Record<string, { title: string; description: string }>
   },
   'users.update': {
     title: 'Change a person',
-    description: 'Changes a person (id), in "patch": name, nameAr, discipline, gender, systemRole, roleId (null takes the custom role away). Needs people.change; the role needs the Admin. An email and a picture never change through an agent. The last Admin stays. Ask your person first. A change of systemRole or roleId needs a code. ' + CODE_RULE,
+    description: 'Changes a person (id), in "patch": name, nameAr, discipline, gender, systemRole, roleId (null takes the custom role away). Needs people.change; the role needs the Admin. An email, and the picture of a person, never change through an agent. The last Admin stays. Ask your person first. A change of systemRole or roleId needs a code. ' + CODE_RULE,
   },
   'users.deactivate': {
     title: 'Turn a person off',
@@ -347,7 +347,7 @@ export const PARITY_DOCS: Record<string, { title: string; description: string }>
   },
   'subCompanies.save': {
     title: 'Save a sub-company',
-    description: 'Makes a sub-company (no id) or changes one (id): name and nameAr, and always logo null. A logo stays with the person, in the Madar screens; an old logo stays. Needs subCompanies.manage. A name that exists fails. An agent cannot undo it. Ask your person first.',
+    description: 'Makes a sub-company (no id) or changes one (id): name and nameAr, and logo: a data address (24,000 characters at most) or null; null keeps the old logo. Needs subCompanies.manage. A name that exists fails. An agent cannot undo it. Ask your person first.',
   },
   'subCompanies.delete': {
     title: 'Delete a sub-company',

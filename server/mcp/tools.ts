@@ -208,13 +208,12 @@ const calls: Record<CallToolName, { input: z.ZodType; readOnly?: boolean; wire?:
 ) as never;
 
 /**
- * The fields of a call that no MCP tool carries (owner, 2026-10-26): a picture is file data, and the upload IDs of feedback.send come from
- * feedback.uploadStart, which stays on the deny list. The tool schema leaves them out. The call still refuses an agent that sends them
- * (people.ts for the pictures), because the MCP check only reads the arguments and runCall parses them again. A "patch." field is inside the
- * object "patch".
+ * The fields of a call that no MCP tool carries (owner, 2026-10-26): the picture of ANOTHER person (an agent sets only the picture of its own
+ * person, with me.updateProfile), and the upload IDs of feedback.send, which come from feedback.uploadStart, which stays on the deny list.
+ * The tool schema leaves them out. The call still refuses an agent that sends them (people.ts for the picture), because the MCP check only
+ * reads the arguments and runCall parses them again. A "patch." field is inside the object "patch".
  */
 const HIDDEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
-  'me.updateProfile': ['avatarUrl'],
   'users.update': ['patch.avatarUrl'],
   'feedback.send': ['uploadIds'],
 };

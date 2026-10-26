@@ -5,6 +5,7 @@ import {
   Client, ClientId, ClientInitials, Glass, Language, OfficeRight, OfficeWorkHours, RoleId, Settings, SystemRole, Theme, User, UserAvatarInput, UserId, WorkHours, defaultPreferences,
   type Preferences,
 } from '../contract/entities';
+import { PICTURE_DATA } from '../contract/limits';
 import { UserCard } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, savePreferences } from '../events';
@@ -246,7 +247,7 @@ export const usersUpdate = defineCall({
   output: User,
   run(input, ctx) {
     assertCan(ctx, 'people.change');
-    if (input.patch.avatarUrl !== undefined && ctx.actor.kind === 'agent') throw forbidden('Only a person changes a picture, in the Madar screens.', { action: 'people.picture' });
+    if (input.patch.avatarUrl !== undefined && ctx.actor.kind === 'agent') throw forbidden('An agent sets only the picture of its own person, with me.updateProfile.', { action: 'people.picture' });
     const user = requireUser(ctx, input.id);
     assertNotRemoved(user);
     assertMayTouch(ctx, user, input.patch.systemRole);
@@ -349,8 +350,11 @@ export const meUpdateProfile = defineCall({
   input: z.object({ name: Name.optional(), nameAr: NameArPatch.optional(), discipline: Discipline.optional(), avatarUrl: UserAvatarInput.optional() }),
   output: User,
   run(input, ctx) {
-    // A picture is file data: an agent does not set one (owner, 2026-10-26). The person does it in the Madar screens.
-    if (input.avatarUrl !== undefined && ctx.actor.kind === 'agent') throw forbidden('Only the person changes the picture, in the Madar screens.', { action: 'me.picture' });
+    // An agent sets the picture of the person it acts for, and no other (owner, 2026-10-26: uploads include pictures). Only inline picture data
+    // (WebP, JPEG or PNG, 24,000 characters at most): no address, because an address makes every viewer load it, and no null.
+    if (input.avatarUrl !== undefined && ctx.actor.kind === 'agent' && (input.avatarUrl === null || !PICTURE_DATA.test(input.avatarUrl))) {
+      throw invalid('avatarUrl', 'Send the picture as picture data (a WebP, JPEG or PNG data address of 24,000 characters at most).', 'picture_data');
+    }
     // The stored record takes the change. A change to the context copy is lost, because the copy holds the office rights. An agent changes the
     // profile of the person it acts for, never the record of the agent (MCP parity, owner 2026-10-26).
     const me = ctx.state.users[ctx.authority.id];
