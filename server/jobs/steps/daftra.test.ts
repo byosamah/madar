@@ -286,7 +286,7 @@ describe('a problem in one account', () => {
     for (const [mode, expected] of [[403, 'refused'], [500, 'unreachable'], ['network', 'unreachable'], ['junk', 'unreachable']] as const) {
       const { t, mazj } = await build({ edit: linkedBoth, mazj: [invoice('1830', '842')] });
       mazj.mode = mode;
-      expect((await t.step()).problems?.[0]).toEqual({ account: 'MAZJ', problem: expected });
+      expect(((await t.step()) as { problems: unknown[] }).problems[0]).toEqual({ account: 'MAZJ', problem: expected });
     }
   });
 
