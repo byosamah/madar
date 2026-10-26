@@ -141,7 +141,7 @@ describe('which payments give a notice', () => {
   it('skips a payment that is received, and a payment that has a Daftra link', () => {
     state.payments!.pay_001.receivedOn = DAY;
     expect(runScheduledTriggers(state, NOW)).toBe(0);
-    state.payments!.pay_001 = payment({ daftra: { invoiceId: '1', invoiceNo: '000001', total: 12500, issuedOn: DAY, linkedBy: 'usr_006', linkedAt: STAMP } });
+    state.payments!.pay_001 = payment({ daftra: { account: 'MAZJ', invoiceId: '1', invoiceNo: '000001', total: 12500, issuedOn: DAY, linkedBy: 'usr_006', linkedAt: STAMP } });
     expect(runScheduledTriggers(state, NOW)).toBe(0);
   });
 

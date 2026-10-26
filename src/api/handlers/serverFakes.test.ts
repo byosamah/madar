@@ -208,9 +208,9 @@ describe('the fake server calls', () => {
   it('daftra.status says the prototype is not ready, and the other three daftra calls refuse with daftra_not_ready (the Daftra link, 2026-10-26)', async () => {
     const t = testApi(CALLS);
     t.as('usr_001');
-    expect(await t.api.call('daftra.status', {})).toEqual({ ready: false, lastReadAt: null, problem: null });
+    expect(await t.api.call('daftra.status', {})).toEqual({ ready: false, accounts: [] });
     for (const [name, input] of [
-      ['daftra.paymentLink', { paymentId: 'pay_001' }], ['daftra.findClients', { query: 'noor' }], ['daftra.matchClient', { clientId: 'cli_001', daftraClientId: '842' }],
+      ['daftra.paymentLink', { paymentId: 'pay_001' }], ['daftra.findClients', { paymentId: 'pay_001', query: 'noor' }], ['daftra.matchClient', { paymentId: 'pay_001', daftraClientId: '842' }],
     ] as const) {
       await expect(t.api.call(name, input), name).rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'daftra_not_ready' } });
     }
@@ -221,7 +221,7 @@ describe('the fake server calls', () => {
     for (const who of ['usr_003', 'usr_005']) {
       t.as(who);
       for (const [name, input] of [
-        ['daftra.status', {}], ['daftra.paymentLink', { paymentId: 'pay_001' }], ['daftra.findClients', { query: 'noor' }], ['daftra.matchClient', { clientId: 'cli_001', daftraClientId: '842' }],
+        ['daftra.status', {}], ['daftra.paymentLink', { paymentId: 'pay_001' }], ['daftra.findClients', { paymentId: 'pay_001', query: 'noor' }], ['daftra.matchClient', { paymentId: 'pay_001', daftraClientId: '842' }],
       ] as const) {
         await expect(t.api.call(name, input), `${who} ${name}`).rejects.toMatchObject({ code: 'forbidden' });
       }
@@ -231,10 +231,10 @@ describe('the fake server calls', () => {
   it('the daftra calls take only a short search, a number for the Daftra client, and a payment id', async () => {
     const t = testApi(CALLS);
     t.as('usr_001');
-    await expect(t.api.call('daftra.findClients', { query: '   ' })).rejects.toMatchObject({ code: 'invalid_input' });
-    await expect(t.api.call('daftra.findClients', { query: 'x'.repeat(101) })).rejects.toMatchObject({ code: 'invalid_input' });
-    await expect(t.api.call('daftra.matchClient', { clientId: 'cli_001', daftraClientId: '12a' })).rejects.toMatchObject({ code: 'invalid_input' });
-    await expect(t.api.call('daftra.matchClient', { clientId: 'cli_001', daftraClientId: '1'.repeat(21) })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('daftra.findClients', { paymentId: 'pay_001', query: '   ' })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('daftra.findClients', { paymentId: 'pay_001', query: 'x'.repeat(101) })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('daftra.matchClient', { paymentId: 'pay_001', daftraClientId: '12a' })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('daftra.matchClient', { paymentId: 'pay_001', daftraClientId: '1'.repeat(21) })).rejects.toMatchObject({ code: 'invalid_input' });
     await expect(t.api.call('daftra.paymentLink', { paymentId: 'prj_001' })).rejects.toMatchObject({ code: 'invalid_input' });
   });
 });

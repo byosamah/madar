@@ -6,7 +6,7 @@ import { BadAnswer, clientAnswerOf, clientsAnswerOf, invoiceAnswerOf, invoicesAn
  * private function that calls fetch (`get`), it sets the method itself, and `client.test.ts` fails if the file holds any other method or
  * a request body. The four methods below are the whole reach of Madar into Daftra.
  *
- * Address `https://<DAFTRA_SITE>/api2/<entity>.json`, header `apikey`. Each call has a 10 second limit, the one documented exception to
+ * Address `https://<DAFTRA_<NAME>_SITE>/api2/<entity>.json`, header `apikey`, for one account at a time (one account for each sub-company). Each call has a 10 second limit, the one documented exception to
  * the 3 second rule of `server/CLAUDE.md` (Daftra answers in 1 to 3.4 s; proof.md). A call never runs inside a screen request, except the
  * live search of `daftra.findClients` and the two reads of `payments.linkInvoice` and `daftra.matchClient` (all outside any lock).
  *
@@ -131,9 +131,17 @@ export function daftraClientOf(settings: DaftraSettings): DaftraClient {
   };
 }
 
-/** The client of the copy, or undefined when it has no Daftra values. `deps.daftraFetch` is the fetch of a test. */
-export function daftraOf(deps: Pick<Deps, 'config' | 'daftraFetch'>): DaftraClient | undefined {
-  const daftra = deps.config.daftra;
+/**
+ * The client of one Daftra account (one account for each sub-company), or undefined when the copy has no values for that account.
+ * `deps.daftraFetch` is the fetch of a test. A client never reads another account than the one it was made for.
+ */
+export function daftraOf(deps: Pick<Deps, 'config' | 'daftraFetch'>, account: string): DaftraClient | undefined {
+  const daftra = deps.config.daftra?.[account];
   if (!daftra) return undefined;
-  return daftraClientOf({ site: daftra.site, apiKey: daftra.apiKey, ...(deps.daftraFetch ? { fetch: deps.daftraFetch } : {}) });
+  return daftraClientOf({ site: daftra.site, apiKey: daftra.key, ...(deps.daftraFetch ? { fetch: deps.daftraFetch } : {}) });
+}
+
+/** The account names that the copy holds keys for. The names are not secret. */
+export function daftraAccountsOf(deps: Pick<Deps, 'config'>): string[] {
+  return Object.keys(deps.config.daftra ?? {}).sort();
 }

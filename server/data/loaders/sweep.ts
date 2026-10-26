@@ -260,7 +260,7 @@ export function writeSweep(office: State): SweepCall[] {
     ['tracker.update', { id: entry.id, waiting: null }, ADMIN],
     ['tracker.delete', { id: entry.id }, ADMIN],
     // The Daftra link (owner, 2026-10-26): the prepared snapshot stands for what the preflight reads from Daftra.
-    ['payments.linkInvoice', { id: payment.id, invoiceId: '1830' }, ADMIN, { invoiceId: '1830', invoiceNo: '1521945', total: payment.amount, issuedOn: '2026-10-01' }],
+    ['payments.linkInvoice', { id: payment.id, invoiceId: '1830' }, ADMIN, { account: 'MAZJ', invoiceId: '1830', invoiceNo: '1521945', total: payment.amount, issuedOn: '2026-10-01' }],
     ['payments.unlinkInvoice', { id: payment.id }, ADMIN],
     ['payments.markReceived', { id: payment.id }, ADMIN],
     ['payments.delete', { id: payment.id }, ADMIN],

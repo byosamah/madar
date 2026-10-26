@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { INITIALS_PATTERN, RECORD_CODE_PATTERN, visibleTextPattern } from '../../lib/projectCode';
 import {
-  DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, MAX_PROJECT_VIEWERS, MEETING_KINDS, MEETING_LIMITS,
+  DAFTRA_ACCOUNT_PATTERN, DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, MAX_PROJECT_VIEWERS, MEETING_KINDS, MEETING_LIMITS,
   NOTIFY_LEVELS, PICTURE_DATA, REACTIONS,
 } from './limits';
 import { isReactionEmoji } from './emoji';
@@ -935,6 +935,8 @@ export const Payment = z.object({
    * reads Daftra. While this is set and `receivedOn` is null, the screens show "Invoiced". Only a person with `payment.view` reads a payment.
    */
   daftra: z.object({
+    /** The Daftra account (one for each sub-company) that holds the invoice, as it was when the person linked it. The paid check reads this account. */
+    account: z.string().regex(DAFTRA_ACCOUNT_PATTERN),
     invoiceId: z.string().min(1).max(40),
     invoiceNo: z.string().min(1).max(40),
     /** The invoice total in riyals, with VAT. */

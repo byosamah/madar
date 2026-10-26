@@ -15,7 +15,8 @@ const FULL: Record<string, string> = {
   SB_REGION: 'eu-central-1',
 };
 
-const reader = (values: Record<string, string>) => (name: string) => (values[name] === '' ? undefined : values[name]);
+const reader = (values: Record<string, string>) =>
+  Object.assign((name: string) => (values[name] === '' ? undefined : values[name]), { names: () => Object.keys(values).filter((name) => values[name] !== '') });
 
 function without(...names: string[]): Record<string, string> {
   const copy = { ...FULL };
@@ -333,30 +334,47 @@ describe('the Google Calendar values (fbk_022, owner 2026-10-19)', () => {
   });
 });
 
-describe('the Daftra values (the Daftra link, 2026-10-26)', () => {
-  const DAFTRA = { DAFTRA_API_KEY: 'k'.repeat(40), DAFTRA_SITE: 'madeup.daftra.com' };
+describe('the Daftra values (the Daftra link, one account for each sub-company, 2026-10-26)', () => {
+  const MAZJ = { DAFTRA_MAZJ_KEY: 'k'.repeat(40), DAFTRA_MAZJ_SITE: 'madeup.daftra.com' };
+  const VADO = { DAFTRA_VADO_KEY: 'v'.repeat(40), DAFTRA_VADO_SITE: 'vado.daftara.com' };
 
-  it('leaves Daftra off when none of the two is set: the server starts, config.daftra is missing', () => {
+  it('leaves Daftra off when no account is set: the server starts, config.daftra is missing', () => {
     expect(configFromEnv(reader(FULL)).daftra).toBeUndefined();
   });
 
-  it('reads the two values into config.daftra when both are set', () => {
-    expect(configFromEnv(reader({ ...FULL, ...DAFTRA })).daftra).toEqual({ apiKey: 'k'.repeat(40), site: 'madeup.daftra.com' });
+  it('leaves Daftra off when the reader cannot list its names (a reader with no names holds no account)', () => {
+    expect(configFromEnv((name) => ({ ...FULL, ...MAZJ })[name]).daftra).toBeUndefined();
   });
 
-  it('stops the start and names the missing variable when only one is set, and never a value', () => {
-    expect(missingOf({ ...FULL, DAFTRA_API_KEY: DAFTRA.DAFTRA_API_KEY })).toEqual(['DAFTRA_SITE']);
-    expect(missingOf({ ...FULL, DAFTRA_SITE: DAFTRA.DAFTRA_SITE })).toEqual(['DAFTRA_API_KEY']);
+  it('reads every pair into config.daftra, by account name', () => {
+    expect(configFromEnv(reader({ ...FULL, ...MAZJ })).daftra).toEqual({ MAZJ: { key: 'k'.repeat(40), site: 'madeup.daftra.com' } });
+    expect(configFromEnv(reader({ ...FULL, ...MAZJ, ...VADO })).daftra).toEqual({
+      MAZJ: { key: 'k'.repeat(40), site: 'madeup.daftra.com' },
+      VADO: { key: 'v'.repeat(40), site: 'vado.daftara.com' },
+    });
+  });
+
+  it('reads an account whose name is not in any fixed list (the name pattern rules)', () => {
+    const extra = { DAFTRA_NEWCO2_KEY: 'n'.repeat(40), DAFTRA_NEWCO2_SITE: 'newco.daftra.com' };
+    expect(Object.keys(configFromEnv(reader({ ...FULL, ...extra })).daftra ?? {})).toEqual(['NEWCO2']);
+  });
+
+  it('stops the start and names the missing variable when an account has one half only, and never a value', () => {
+    expect(missingOf({ ...FULL, DAFTRA_MAZJ_KEY: MAZJ.DAFTRA_MAZJ_KEY })).toEqual(['DAFTRA_MAZJ_SITE']);
+    expect(missingOf({ ...FULL, DAFTRA_MAZJ_SITE: MAZJ.DAFTRA_MAZJ_SITE })).toEqual(['DAFTRA_MAZJ_KEY']);
+    // A whole account does not hide the broken one.
+    expect(missingOf({ ...FULL, ...MAZJ, DAFTRA_VADO_KEY: VADO.DAFTRA_VADO_KEY })).toEqual(['DAFTRA_VADO_SITE']);
     try {
-      configFromEnv(reader({ ...FULL, DAFTRA_API_KEY: DAFTRA.DAFTRA_API_KEY }));
+      configFromEnv(reader({ ...FULL, DAFTRA_MAZJ_KEY: MAZJ.DAFTRA_MAZJ_KEY }));
     } catch (error) {
-      expect((error as Error).message).not.toContain(DAFTRA.DAFTRA_API_KEY);
+      expect((error as Error).message).not.toContain(MAZJ.DAFTRA_MAZJ_KEY);
     }
   });
 
-  it('names the two values in the list of its header comment', () => {
+  it('names the pattern of the two values in the list of its header comment', () => {
     const header = readFileSync(new URL('./deps.ts', import.meta.url), 'utf8');
-    for (const name of ['DAFTRA_API_KEY', 'DAFTRA_SITE']) expect(header).toMatch(new RegExp(`^ \\*   ${name} {2,}\\S`, 'm'));
+    for (const name of ['DAFTRA_<NAME>_KEY', 'DAFTRA_<NAME>_SITE']) expect(header).toMatch(new RegExp(`^ \\*   ${name} {2,}\\S`, 'm'));
+    expect(header).not.toMatch(/DAFTRA_API_KEY|DAFTRA_SITE\b/);
   });
 });
 

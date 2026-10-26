@@ -1,3 +1,4 @@
+import type { DaftraConfig } from '../daftra/config';
 import type { RunCall } from './runCall';
 import type { ServerHost } from './serverHost';
 import type { TypingSignal } from '../../src/api/remote/wire';
@@ -130,10 +131,11 @@ export type Config = {
    */
   google?: { clientId: string; clientSecret: string; key: string };
   /**
-   * The Daftra link values (server/daftra/config.ts): the key and the site of the Daftra account. Left out when the copy has none: the link is
-   * off, the daftra calls answer daftra_not_ready, and the job step does nothing. Never in an answer, a log line or an error text.
+   * The Daftra link values (server/daftra/config.ts): the key and the site of each Daftra account, by account name (one account for each
+   * sub-company). Left out when the copy has none: the link is off, the daftra calls answer daftra_not_ready, and the job step does nothing.
+   * The names are not secret. The keys and the sites never go in an answer, a log line or an error text.
    */
-  daftra?: { apiKey: string; site: string };
+  daftra?: DaftraConfig;
   /**
    * The public PostHog project key (POSTHOG_KEY, `phc_...`). Left out when the owner has no PostHog account yet: the logger then stays
    * as it is. With it, each `error` line also posts one record to PostHog Cloud EU (server/core/insight.ts).

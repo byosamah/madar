@@ -1,7 +1,8 @@
 import type { Deps } from '../core/ports';
 
 /**
- * A stand-in for the Daftra API (the Daftra link, 2026-10-26). A test passes `fake.fetch` as `Deps.daftraFetch`, so no test reaches
+ * A stand-in for one Daftra account (the Daftra link, 2026-10-26; one account for each sub-company, so a test makes one fake for each
+ * account, and `daftraDeps(a, b)` routes each request to the account of its host). A test passes `fake.fetch` as `Deps.daftraFetch`, so no test reaches
  * Daftra. It answers the four GET reads of `client.ts` in the two forms of the real API: the list gives strings and ISO dates, the
  * single invoice gives numbers and the date form of the account (`DD/MM/YYYY`). It records every request, and it refuses any other
  * method with 405, so a test sees a write at once.
@@ -25,9 +26,11 @@ export type FakeInvoice = {
 
 export type FakeClient = { id: string; name: string; number?: string };
 
-export type FakeDaftraOptions = { site?: string; apiKey?: string; clients?: FakeClient[]; invoices?: FakeInvoice[] };
+export type FakeDaftraOptions = { account?: string; site?: string; apiKey?: string; clients?: FakeClient[]; invoices?: FakeInvoice[] };
 
 export type FakeDaftra = {
+  /** The account name, for example MAZJ. */
+  account: string;
   site: string;
   apiKey: string;
   clients: FakeClient[];
@@ -38,24 +41,26 @@ export type FakeDaftra = {
   paths(): string[];
   /** What the next requests do: `ok` (default), a status number, `timeout` (never answers), `network` (throws, with the key in its text), `junk` (200 with no JSON). */
   mode: 'ok' | 'timeout' | 'network' | 'junk' | number;
-  /** The settings for `Deps.config.daftra`. */
-  config: { apiKey: string; site: string };
+  /** The settings of this account for `Deps.config.daftra[account]`. */
+  config: { key: string; site: string };
   fetch: typeof globalThis.fetch;
 };
 
 const dmy = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 
 export function fakeDaftra(o: FakeDaftraOptions = {}): FakeDaftra {
+  const account = o.account ?? 'MAZJ';
   const fake: FakeDaftra = {
-    site: o.site ?? 'madeup.daftra.com',
-    apiKey: o.apiKey ?? 'MadeUpKey0123456789MadeUpKey0123456789',
+    account,
+    site: o.site ?? `${account.toLowerCase()}.daftra.com`,
+    apiKey: o.apiKey ?? `MadeUpKey${account}`.padEnd(40, '0123456789'),
     clients: o.clients ?? [],
     invoices: o.invoices ?? [],
     requests: [],
     paths: () => fake.requests.filter((r) => r.method === 'GET').map((r) => r.url.replace(`https://${fake.site}/api2/`, '')),
     mode: 'ok',
     get config() {
-      return { apiKey: fake.apiKey, site: fake.site };
+      return { key: fake.apiKey, site: fake.site };
     },
     fetch: async (input, init) => {
       const url = String(input instanceof Request ? input.url : input);
@@ -117,7 +122,18 @@ export function fakeDaftra(o: FakeDaftraOptions = {}): FakeDaftra {
   return fake;
 }
 
-/** The two deps of a test that reads Daftra. */
-export function daftraDeps(fake: FakeDaftra): Pick<Deps, 'config' | 'daftraFetch'> {
-  return { config: { daftra: fake.config } as Deps['config'], daftraFetch: fake.fetch };
+/**
+ * The two deps of a test that reads Daftra: the config of every fake, by account name, and one fetch that sends each request to the fake whose
+ * site is the host of the address. An address of another host gets a network error, so a call to a wrong site shows at once.
+ */
+export function daftraDeps(...fakes: FakeDaftra[]): Pick<Deps, 'config' | 'daftraFetch'> {
+  const config: Record<string, { key: string; site: string }> = {};
+  for (const fake of fakes) config[fake.account] = fake.config;
+  const route: typeof globalThis.fetch = async (input, init) => {
+    const host = new URL(String(input instanceof Request ? input.url : input)).host;
+    const fake = fakes.find((candidate) => candidate.site === host);
+    if (!fake) throw new Error(`no fake Daftra for ${host}`);
+    return fake.fetch(input, init);
+  };
+  return { config: { daftra: config } as Deps['config'], daftraFetch: route };
 }

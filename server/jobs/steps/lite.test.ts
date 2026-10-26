@@ -97,7 +97,7 @@ describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
         pay_901: { ...base, id: 'pay_901', name: 'Due today', dueDate: DAY, receivedOn: null },
         pay_902: { ...base, id: 'pay_902', name: 'Received', dueDate: DAY, receivedOn: DAY },
         pay_903: { ...base, id: 'pay_903', name: 'Tomorrow', dueDate: '2026-10-05', receivedOn: null },
-        pay_904: { ...base, id: 'pay_904', name: 'Linked', dueDate: DAY, receivedOn: null, daftra: { invoiceId: '1', invoiceNo: '000001', total: 12500, issuedOn: DAY, linkedBy: 'usr_001', linkedAt: '2026-10-03T09:00:00.000+03:00' } },
+        pay_904: { ...base, id: 'pay_904', name: 'Linked', dueDate: DAY, receivedOn: null, daftra: { account: 'MAZJ', invoiceId: '1', invoiceNo: '000001', total: 12500, issuedOn: DAY, linkedBy: 'usr_001', linkedAt: '2026-10-03T09:00:00.000+03:00' } },
       };
     });
     const accounting = Object.values(seed.users).filter((u) => u.systemRole === 'accounting' && u.active && u.kind === 'human').map((u) => u.id).sort();

@@ -262,7 +262,7 @@ const daftraStatus = defineCall({
   ...c['daftra.status'],
   run(_input, ctx) {
     daftraForPerson(ctx);
-    return { ready: false, lastReadAt: null, problem: null };
+    return { ready: false, accounts: [] };
   },
 });
 

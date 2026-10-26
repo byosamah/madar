@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { DAFTRA_TIMEOUT_MS, DaftraError, daftraClientOf, daftraOf } from './client';
+import { DAFTRA_TIMEOUT_MS, DaftraError, daftraAccountsOf, daftraClientOf, daftraOf } from './client';
 import { daftraDeps, fakeDaftra } from './fakeDaftra';
 
 const source = readFileSync(new URL('./client.ts', import.meta.url), 'utf8');
@@ -179,15 +179,38 @@ describe('the time limit', () => {
   });
 });
 
-describe('daftraOf', () => {
-  it('is undefined with no Daftra config', () => {
-    expect(daftraOf({ config: {} as never })).toBeUndefined();
+describe('daftraOf (one client for one account)', () => {
+  it('is undefined with no Daftra config, and for an account that the copy has no keys for', () => {
+    expect(daftraOf({ config: {} as never }, 'MAZJ')).toBeUndefined();
+    const { fake } = world();
+    expect(daftraOf(daftraDeps(fake), 'VADO')).toBeUndefined();
+    expect(daftraOf(daftraDeps(fake), 'mazj')).toBeUndefined();
   });
 
-  it('makes a client from the config and the injected fetch', async () => {
+  it('makes a client from the config of that account and the injected fetch', async () => {
     const { fake } = world();
-    const client = daftraOf(daftraDeps(fake));
+    const client = daftraOf(daftraDeps(fake), 'MAZJ');
     expect(await client!.client('842')).toMatchObject({ id: '842' });
     expect(fake.requests[0].apikey).toBe(fake.apiKey);
+  });
+
+  it('keeps the accounts apart: each account reads its own site with its own key, never the key of another account', async () => {
+    const mazj = fakeDaftra({ account: 'MAZJ', clients: [{ id: '842', name: 'Mazj Client' }] });
+    const vado = fakeDaftra({ account: 'VADO', clients: [{ id: '842', name: 'Vado Client' }] });
+    expect(mazj.apiKey).not.toBe(vado.apiKey);
+    expect(mazj.site).not.toBe(vado.site);
+    const deps = daftraDeps(mazj, vado);
+    expect(await daftraOf(deps, 'MAZJ')!.client('842')).toMatchObject({ name: 'Mazj Client' });
+    expect(await daftraOf(deps, 'VADO')!.client('842')).toMatchObject({ name: 'Vado Client' });
+    expect(mazj.requests).toHaveLength(1);
+    expect(vado.requests).toHaveLength(1);
+    expect(mazj.requests[0].apikey).toBe(mazj.apiKey);
+    expect(vado.requests[0].apikey).toBe(vado.apiKey);
+  });
+
+  it('lists the account names of the config, sorted, and no key or site', () => {
+    const deps = daftraDeps(fakeDaftra({ account: 'VADO' }), fakeDaftra({ account: 'BUNAH' }));
+    expect(daftraAccountsOf(deps)).toEqual(['BUNAH', 'VADO']);
+    expect(daftraAccountsOf({ config: {} as never })).toEqual([]);
   });
 });

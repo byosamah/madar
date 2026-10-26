@@ -8,7 +8,7 @@ import { DEFAULT_SETTINGS, LITE_SCHEMA_VERSION, SIGNIN_TABLES, applyLiteSchema, 
 import { freshLite } from './testDb';
 
 /** The sha256 of the schema text of LITE_SCHEMA_VERSION. A change of the schema needs a new version and a new value here. */
-const PINNED_SHA256 = 'a1abfa2fed815918c621bf266ab62a975f46558582b48f4b88983e534c9171f3';
+const PINNED_SHA256 = '5c8d5ed41b968d7f0e38d89bfddd1a151c4161a2deab69b831a76e0a287b27ce';
 
 const tablesOf = (raw: DatabaseSync) =>
   (raw.prepare("select name from sqlite_master where type = 'table' and name not like 'sqlite_%' order by name").all() as { name: string }[]).map((r) => r.name);
@@ -173,22 +173,28 @@ describe('the SQLite schema (server/data/lite/schema.ts)', () => {
     raw.exec('update schema_version set version = 10');
     expect(await applyLiteSchema(nodeHost(raw))).toEqual({ applied: true, steps: [11] });
     expect(objects()).toEqual(fresh);
-    expect(columnsOf(raw, 'daftra_clients')).toEqual(['client_id', 'daftra_id', 'daftra_name', 'matched_by', 'matched_at']);
-    expect(columnsOf(raw, 'daftra_invoices')).toEqual(['id', 'daftra_client_id', 'no', 'total_halalas', 'issued_on', 'created_at', 'payment_status', 'paid_on', 'draft', 'seen_at']);
+    expect(columnsOf(raw, 'daftra_clients')).toEqual(['account', 'client_id', 'daftra_id', 'daftra_name', 'matched_by', 'matched_at']);
+    expect(columnsOf(raw, 'daftra_invoices')).toEqual(['account', 'id', 'daftra_client_id', 'no', 'total_halalas', 'issued_on', 'created_at', 'payment_status', 'paid_on', 'draft', 'seen_at']);
   });
 
-  it('keeps one match for each Madar client, one row for each Daftra invoice, and refuses a bad draft flag or a negative total', async () => {
+  it('keeps one match for each Madar client and account, one row for each Daftra invoice and account, and refuses a bad draft flag or a negative total', async () => {
     const { raw } = await freshLite();
-    const match = (client: string, daftra: string) => raw.prepare("insert into daftra_clients (client_id, daftra_id, daftra_name, matched_by, matched_at) values (?, ?, 'Name', 'usr_001', '2026-10-26T06:00:00.000Z')").run(client, daftra);
-    match('cli_001', '842');
-    expect(() => match('cli_001', '99')).toThrow('UNIQUE');
-    match('cli_002', '842');
-    const invoice = (id: string, total: number, draft: number) =>
-      raw.prepare("insert into daftra_invoices (id, daftra_client_id, no, total_halalas, issued_on, created_at, payment_status, paid_on, draft, seen_at) values (?, '842', '1', ?, '2026-10-20', '2026-10-21T10:00:00.000Z', 0, null, ?, '2026-10-26T06:00:00.000Z')").run(id, total, draft);
-    invoice('1830', 1_250_000, 0);
-    expect(() => invoice('1830', 5, 0)).toThrow('UNIQUE');
-    expect(() => invoice('1831', -1, 0)).toThrow('CHECK');
-    expect(() => invoice('1832', 5, 2)).toThrow('CHECK');
+    const match = (account: string, client: string, daftra: string) =>
+      raw.prepare("insert into daftra_clients (account, client_id, daftra_id, daftra_name, matched_by, matched_at) values (?, ?, ?, 'Name', 'usr_001', '2026-10-26T06:00:00.000Z')").run(account, client, daftra);
+    match('MAZJ', 'cli_001', '842');
+    expect(() => match('MAZJ', 'cli_001', '99')).toThrow('UNIQUE');
+    // The same Madar client can have a match in another account (projects under two sub-companies).
+    match('VADO', 'cli_001', '99');
+    match('MAZJ', 'cli_002', '842');
+    const invoice = (account: string, id: string, total: number, draft: number) =>
+      raw.prepare("insert into daftra_invoices (account, id, daftra_client_id, no, total_halalas, issued_on, created_at, payment_status, paid_on, draft, seen_at) values (?, ?, '842', '1', ?, '2026-10-20', '2026-10-21T10:00:00.000Z', 0, null, ?, '2026-10-26T06:00:00.000Z')").run(account, id, total, draft);
+    invoice('MAZJ', '1830', 1_250_000, 0);
+    expect(() => invoice('MAZJ', '1830', 5, 0)).toThrow('UNIQUE');
+    // Invoice ids repeat across accounts, so the same id in another account is another invoice.
+    invoice('VADO', '1830', 5, 0);
+    expect(() => invoice('MAZJ', '1831', -1, 0)).toThrow('CHECK');
+    expect(() => invoice('MAZJ', '1832', 5, 2)).toThrow('CHECK');
+    expect(() => raw.prepare("insert into daftra_clients (client_id, daftra_id, daftra_name, matched_by, matched_at) values ('cli_9', '1', 'N', 'u', 't')").run()).toThrow('NOT NULL');
   });
 
   it('keeps one calendar for each person (fbk_022)', async () => {

@@ -32,7 +32,8 @@ import type { SqlHost } from './host';
  * Version 10 (chat presence design C4): the index chat_reads_conversation on chat_reads (conversation_id), for the read marks of one chat
  * that the chat view reads. Its step is in LITE_STEPS (supabase/migrations/20261022000100_chat_reads_conversation.sql).
  *
- * Version 11 (the Daftra link, owner 2026-10-26): the server tables daftra_clients and daftra_invoices, with the index daftra_invoices_client.
+ * Version 11 (the Daftra link, owner 2026-10-26; one account for each sub-company): the server tables daftra_clients and daftra_invoices, both
+ * keyed by account, with the index daftra_invoices_client.
  * Its step is in LITE_STEPS (supabase/migrations/20261026000100_daftra.sql).
  */
 export const LITE_SCHEMA_VERSION = 11;
@@ -108,11 +109,13 @@ const GOOGLE_INDEXES: readonly LiteIndex[] = [
  * ISO text, a day is YYYY-MM-DD text, money is whole halalas, the draft flag is 0 or 1.
  */
 const DAFTRA_SQL: readonly string[] = [
-  'create table daftra_clients (client_id text primary key, daftra_id text not null, daftra_name text not null, matched_by text not null, matched_at text not null)',
-  'create table daftra_invoices (id text primary key, daftra_client_id text not null, no text not null, total_halalas integer not null check (total_halalas >= 0), '
-  + 'issued_on text not null, created_at text not null, payment_status integer not null, paid_on text, draft integer not null check (draft in (0, 1)), seen_at text not null)',
+  'create table daftra_clients (account text not null, client_id text not null, daftra_id text not null, daftra_name text not null, matched_by text not null, '
+  + 'matched_at text not null, primary key (account, client_id))',
+  'create table daftra_invoices (account text not null, id text not null, daftra_client_id text not null, no text not null, '
+  + 'total_halalas integer not null check (total_halalas >= 0), issued_on text not null, created_at text not null, payment_status integer not null, paid_on text, '
+  + 'draft integer not null check (draft in (0, 1)), seen_at text not null, primary key (account, id))',
 ];
-const DAFTRA_INDEXES: readonly LiteIndex[] = [{ table: 'daftra_invoices', name: 'daftra_invoices_client', columns: 'daftra_client_id' }];
+const DAFTRA_INDEXES: readonly LiteIndex[] = [{ table: 'daftra_invoices', name: 'daftra_invoices_client', columns: 'account, daftra_client_id' }];
 
 /** The server tables of 20261004000101_server_tables.sql, 20261004000600_usage_signals.sql and the agent approvals. */
 const SERVER_SQL: readonly string[] = [

@@ -125,9 +125,10 @@ const paymentsDelete = defineCall({
 
 /**
  * What the server reads from Daftra before the link call (server/calls/daftra.ts, the preflight of payments.linkInvoice): the invoice
- * itself, never the word of the browser. `total` is the total with VAT in riyals. The handler only copies it into Payment.daftra.
+ * itself, never the word of the browser, and the account that it read it from (the account of the project, one for each sub-company). `total`
+ * is the total with VAT in riyals. The handler only copies it into Payment.daftra.
  */
-export type DaftraSnapshot = { invoiceId: string; invoiceNo: string; total: number; issuedOn: string };
+export type DaftraSnapshot = { account: string; invoiceId: string; invoiceNo: string; total: number; issuedOn: string };
 
 /** The Daftra link is for a person, never for an agent (MCP deny list). Rights: see payments, and the switch Link Daftra invoices. */
 function requireDaftraLink(ctx: Ctx): void {
@@ -151,14 +152,17 @@ const paymentsLinkInvoice = defineCall({
     const payment = requirePayment(ctx, input.id);
     if (prepared.invoiceId !== input.invoiceId) throw invalid('invoiceId', 'This invoice changed. Choose it again.', 'daftra_invoice_changed');
     if (payment.daftra) {
-      if (payment.daftra.invoiceId === prepared.invoiceId) return paymentRowOf(ctx.state, payment, ctx.today);
+      if (payment.daftra.account === prepared.account && payment.daftra.invoiceId === prepared.invoiceId) return paymentRowOf(ctx.state, payment, ctx.today);
       throw invalid('invoiceId', 'This payment has another Daftra invoice. Unlink it first.', 'daftra_already_linked');
     }
-    // The loader reads every payment that holds this invoice, so a second link to one invoice is refused inside the lock.
-    const holder = Object.values(paymentsOf(ctx.state)).some((other) => other.id !== payment.id && other.daftra?.invoiceId === prepared.invoiceId);
+    // The loader reads every payment that holds this invoice id, so a second link to one invoice is refused inside the lock. An invoice is
+    // known by its account and its id together: the same id in another account is another invoice.
+    const holder = Object.values(paymentsOf(ctx.state)).some(
+      (other) => other.id !== payment.id && other.daftra?.invoiceId === prepared.invoiceId && other.daftra.account === prepared.account,
+    );
     if (holder) throw invalid('invoiceId', 'Another payment has this Daftra invoice.', 'daftra_invoice_taken');
     const daftra = {
-      invoiceId: prepared.invoiceId, invoiceNo: prepared.invoiceNo, total: prepared.total, issuedOn: prepared.issuedOn, linkedBy: ctx.actor.id, linkedAt: ctx.stamp,
+      account: prepared.account, invoiceId: prepared.invoiceId, invoiceNo: prepared.invoiceNo, total: prepared.total, issuedOn: prepared.issuedOn, linkedBy: ctx.actor.id, linkedAt: ctx.stamp,
     };
     payment.daftra = daftra;
     // The before side holds null, not a missing key, so the Undo can name the field and take it away again (events.ts, ABSENT_WHEN_NULL).

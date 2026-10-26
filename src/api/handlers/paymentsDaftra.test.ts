@@ -11,7 +11,7 @@ beforeEach(() => setNow(NOW));
  * The two payment calls of the Daftra link (owner, 2026-10-26). The server preflight reads the invoice from Daftra and gives the snapshot as
  * `prepared`: here a test prepare stands in for it, so no test reaches Daftra. The prototype prepare of the real call refuses.
  */
-let snapshot: DaftraSnapshot = { invoiceId: '1830', invoiceNo: '1521945', total: 12500, issuedOn: '2026-09-29' };
+let snapshot: DaftraSnapshot = { account: 'MAZJ', invoiceId: '1830', invoiceNo: '1521945', total: 12500, issuedOn: '2026-09-29' };
 const withSnapshot = defineCall({ ...paymentCalls['payments.linkInvoice'], async prepare() { return snapshot; } });
 const calls = { ...paymentCalls, 'payments.linkInvoice': withSnapshot, ...historyCalls };
 
@@ -30,7 +30,7 @@ function world() {
 }
 
 const NEW = { projectId: 'prj_001', name: 'Concept stage fee', amount: 12500, dueDate: '2026-10-10' };
-const LINKED = { invoiceId: '1830', invoiceNo: '1521945', total: 12500, issuedOn: '2026-09-29' };
+const LINKED = { account: 'MAZJ', invoiceId: '1830', invoiceNo: '1521945', total: 12500, issuedOn: '2026-09-29' };
 
 async function withPayment(extra: Partial<typeof NEW> = {}) {
   const t = world();
@@ -97,6 +97,24 @@ describe('payments.linkInvoice', () => {
     expect(Object.values(t.store.state.events).filter((e) => e.verb === 'payment.daftra_linked')).toHaveLength(1);
     snapshot = { ...LINKED, invoiceId: '1831', invoiceNo: '1521946' };
     await expect(t.api.call('payments.linkInvoice', { id, invoiceId: '1831' })).rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'daftra_already_linked' } });
+  });
+
+  it('knows an invoice by its account and its id together: the same id in another account is another invoice', async () => {
+    const { t, id } = await withPayment();
+    await t.api.call('payments.linkInvoice', { id, invoiceId: '1830' });
+    const second = await t.api.call('payments.create', { ...NEW, name: 'Second fee', dueDate: '2026-11-10' });
+    snapshot = { ...LINKED, account: 'VADO' };
+    const row = await t.api.call('payments.linkInvoice', { id: second.payment.id, invoiceId: '1830' });
+    expect(row.payment.daftra).toMatchObject({ account: 'VADO', invoiceId: '1830' });
+    expect(t.store.state.payments?.[id].daftra?.account).toBe('MAZJ');
+  });
+
+  it('refuses a payment that has an invoice of another account as already linked (the account is part of the link)', async () => {
+    const { t, id } = await withPayment();
+    await t.api.call('payments.linkInvoice', { id, invoiceId: '1830' });
+    snapshot = { ...LINKED, account: 'VADO' };
+    await expect(t.api.call('payments.linkInvoice', { id, invoiceId: '1830' })).rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'daftra_already_linked' } });
+    expect(t.store.state.payments?.[id].daftra?.account).toBe('MAZJ');
   });
 
   it('accepts a different amount (a partial invoice is possible) and keeps the total of the invoice', async () => {

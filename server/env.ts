@@ -33,3 +33,23 @@ export function requireEnv(name: string): string {
   if (value === undefined) throw new Error(`${name} is not set.`);
   return value;
 }
+
+/**
+ * The names of all values that the host holds, for a family of secrets whose names follow a pattern (the Daftra accounts,
+ * server/daftra/config.ts). Only names: never a value. A host that cannot list its values gives the names it can.
+ */
+export function envNames(): string[] {
+  const names = new Set<string>();
+  for (const [name, value] of Object.entries(source ?? {})) if (present(value) !== undefined) names.add(name);
+  const deno = (globalThis as { Deno?: { env?: { toObject?: () => Record<string, string> } } }).Deno;
+  try {
+    for (const name of Object.keys(deno?.env?.toObject?.() ?? {})) names.add(name);
+  } catch {
+    // The host refuses to list the environment: the names of the source are enough.
+  }
+  const proc = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
+  for (const [name, value] of Object.entries(proc?.env ?? {})) if (present(value) !== undefined) names.add(name);
+  return [...names];
+}
+
+env.names = envNames;
