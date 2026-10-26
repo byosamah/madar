@@ -1,122 +1,42 @@
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
-import { FileTextIcon } from '../../../components/icons/animated/file-text';
 import { PlusIcon } from '../../../components/icons/animated/plus';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ComponentType, type DragEvent } from 'react';
 import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { ProjectLink } from '../../../api/contract/entities';
-import type { FileView, ProjectDetail } from '../../../api/contract/views';
+import type { FileView } from '../../../api/contract/views';
 import { newStoryId, useUndoable } from '../../../app/actions';
-import { downloadFile, isRemote, tooLargeText, uploadErrorMessage, useFileLimit, useFileLink, usePictureTest } from '../../../app/files';
+import { tooLargeText, uploadErrorMessage, useFileLimit } from '../../../app/files';
 import { useLang } from '../../../app/lang';
-import { usePersonName } from '../../../app/personName';
-import { PRIVATE } from '../../../app/privateMark';
 import { useCall, useRuntime } from '../../../app/runtime';
 import { useIsPhone } from '../../../app/useIsPhone';
-import { useNearView } from '../../../app/useNearView';
-import { useRight } from '../../../app/useRight';
+import { usePointerCoarse } from '../../../app/usePointerCoarse';
 import { useToast } from '../../../app/toasts';
-import { Button } from '../../../components/Button';
 import { EmptyState } from '../../../components/EmptyState';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { SelectField } from '../../../components/Fields';
-import { Menu, type MenuItem } from '../../../components/Menu';
-import { formatDay, formatNumber, stampDay } from '../../../lib/dates';
+import { Menu } from '../../../components/Menu';
 import { UploadList } from '../../files/Attachments';
 import { tabButtonShows } from '../mainButton';
 import { DownloadAllButton } from '../../files/DownloadAll';
 import { shownKey } from '../../../lib/projectLabel';
 import type { TabProps } from '../tabs';
-import { canPreview, PreviewSheet } from './PreviewSheet';
+import { FileGroups, groupsOf, type GroupActions } from './FileGroups';
+import { foldersOf, placeKey, type Place } from './fileDragSlots';
+import { loadedFilesDrag, loadFilesDrag } from './filesDragLoader';
+import type { FilesDragHostProps } from './FilesDragLayer';
+import { MoveFileSheet, placeOfFile } from './MoveFileSheet';
+import { PreviewSheet } from './PreviewSheet';
 import { LinkSheet, ProjectLinks, projectLinkRows } from './ProjectLinks';
-import { ShareFileSheet, sharePlaces } from './ShareFileSheet';
+import { ShareFileSheet } from './ShareFileSheet';
 
-function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail: ProjectDetail; onPreview: () => void; onShare: () => void }) {
-  const { t } = useTranslation();
-  const phone = useIsPhone();
-  const lang = useLang();
-  const nameOf = usePersonName();
-  const runtime = useRuntime();
-  const { api } = runtime;
-  const toast = useToast();
-  const [showVersions, setShowVersions] = useState(false);
-  const { file, latest } = view;
-  const isPicture = usePictureTest();
-  const image = isPicture(latest.mimeType);
-  // The small picture asks for its link only when its row is within 400 px of the screen, as in the chat (performance audit 2026-10-21, BG-7).
-  const thumbBox = useRef<HTMLSpanElement>(null);
-  const near = useNearView(thumbBox);
-  const thumb = useFileLink(image && near ? file.id : null, latest.letter, 'thumb');
-  const remove = useUndoable('files.delete', { message: () => t('files.deleted') });
-  const cover = useUndoable('projects.update', { message: () => t('files.coverSet') });
-  const delivered = useUndoable('files.markDelivered', { message: () => t('files.delivered') });
-  const isCover = detail.project.coverFileId === file.id;
-  // The API says who may delete the file, so the screen keeps no rule of its own (audit 2026-10-03, PRJ-16, V-20).
-  const canDelete = view.canDelete;
-  // Share needs file.share and one place to share into (role rights version 2).
-  const mayShare = useRight('file.share') && sharePlaces(detail.viewerCan, useRight('chat.direct')).length > 0;
-  const size = latest.size < 1024 * 1024
-    ? t('files.kb', { n: formatNumber(Math.max(1, Math.round(latest.size / 1024)), lang) })
-    : t('files.mb', { n: formatNumber(latest.size / (1024 * 1024), lang, 1) });
-  const download = (letter?: string) => {
-    downloadFile(api, file.id, letter, { remote: isRemote(runtime) }).catch((error: unknown) => toast.failed(error));
-  };
-  const items: MenuItem[] = [
-    { label: t('files.preview'), onSelect: onPreview, hidden: !canPreview(latest.mimeType) },
-    { label: t('files.download'), onSelect: () => download() },
-    { label: t('files.share'), onSelect: onShare, hidden: !mayShare },
-    { label: t('files.markDelivered'), onSelect: () => delivered.mutate({ id: file.id }), hidden: !detail.viewerCan.deliver },
-    { label: t('files.setCover'), onSelect: () => cover.mutate({ id: detail.project.id, patch: { coverFileId: file.id } }), hidden: !image || !detail.viewerCan.editDetails || isCover },
-    { label: t('files.delete'), onSelect: () => remove.mutate({ id: file.id }), hidden: !canDelete, destructive: true },
-  ];
-  const identity = (
-    <>
-      <span ref={image ? thumbBox : undefined} className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-fill text-label-2">
-        {thumb.url ? <img src={thumb.url} alt="" onError={thumb.onError} loading="lazy" decoding="async" className={`${PRIVATE} size-full object-cover`} /> : <AnimatedIcon icon={FileTextIcon} size={20} aria-hidden />}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="flex min-w-0 items-center gap-2">
-          <bdi className="truncate text-body">{file.name}</bdi>
-          <span className="shrink-0 rounded-full bg-fill px-2 text-caption font-semibold text-label-2">{t('files.version', { letter: latest.letter })}</span>
-          {isCover && <span className="shrink-0 rounded-full bg-fill px-2 text-caption text-label-2">{t('files.isCover')}</span>}
-        </p>
-        <p className="truncate text-footnote text-label-2">
-          <bdi>{nameOf(view.uploader)}</bdi> · <span className="tabular">{formatDay(stampDay(latest.uploadedAt), lang)} · {size}</span>
-        </p>
-      </div>
-    </>
-  );
-  return (
-    <li className="flex flex-col">
-      {/* On a phone the row is a grid, and Versions goes on its own line under the name, so the name keeps most of the row.
-          From sm up it is one line again (audit 2026-10-03, V-33). */}
-      <div className="grid min-h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-2 sm:flex sm:gap-3">
-        {/* On a phone the picture and the name are one press target that opens the preview (phone D). */}
-        {phone && canPreview(latest.mimeType) ? (
-          <button type="button" aria-label={t('picture.view', { name: file.name })} onClick={onPreview} className="pressable col-span-2 flex min-h-11 min-w-0 items-center gap-3 text-start">
-            {identity}
-          </button>
-        ) : identity}
-        {file.versions.length > 1 && (
-          <Button variant="plain" aria-expanded={showVersions} onClick={() => setShowVersions((open) => !open)} className="col-start-2 row-start-2 -ms-5 justify-self-start sm:ms-0">
-            {t('files.versions')}
-          </Button>
-        )}
-        <Menu label={t('files.actions', { name: file.name })} items={items} sheetOnPhone />
-      </div>
-      {showVersions && (
-        <ol className="ms-14 flex flex-col pb-2">
-          {[...file.versions].reverse().map((version) => (
-            <li key={version.letter} className="flex min-h-11 items-center gap-3 text-footnote">
-              <span className="font-semibold">{t('files.version', { letter: version.letter })}</span>
-              <span className="tabular text-label-2">{formatDay(stampDay(version.uploadedAt), lang)}</span>
-              <Button variant="plain" onClick={() => download(version.letter)}>{t('files.download')}</Button>
-            </li>
-          ))}
-        </ol>
-      )}
-    </li>
-  );
+/**
+ * True when a drag carries files from the computer. The browser drags a picture of a row by itself, with no file in it, and that drag must
+ * never start the drop zone. A test event with no list of types counts as a file drag.
+ */
+function carriesFiles(event: DragEvent): boolean {
+  const types = event.dataTransfer?.types;
+  return types ? [...types].includes('Files') : true;
 }
 
 /**
@@ -127,6 +47,7 @@ function FileRow({ view, detail, onPreview, onShare }: { view: FileView; detail:
 export function FilesTab({ detail }: TabProps) {
   const { t } = useTranslation();
   const phone = useIsPhone();
+  const coarse = usePointerCoarse();
   const lang = useLang();
   const { api } = useRuntime();
   const toast = useToast();
@@ -142,6 +63,10 @@ export function FilesTab({ detail }: TabProps) {
   const [received, setReceived] = useState(false);
   const [preview, setPreview] = useState<FileView | null>(null);
   const [sharing, setSharing] = useState<FileView | null>(null);
+  // "Move to" (fbk_066): the file and the row that anchors the panel on a desk.
+  const [moving, setMoving] = useState<{ view: FileView; anchor: HTMLElement | null } | null>(null);
+  // The place that a file from the computer is over (native drag and drop): its zone shows a frame.
+  const [fileOver, setFileOver] = useState<string | null>(null);
   // The link sheet is the one of the old About panel. A link opens it to edit, the Add menu opens it with no link.
   const [editing, setEditing] = useState<ProjectLink | null>(null);
   const [linkOpen, setLinkOpen] = useState(false);
@@ -164,7 +89,7 @@ export function FilesTab({ detail }: TabProps) {
   }, [linked, files.data, setParams]);
 
   // A failed upload keeps its place in the queue: Retry sends that file and the ones after it, never the ones that went up.
-  const uploadQueue = async (queue: File[], meta: { correlationId: string }): Promise<void> => {
+  const uploadQueue = async (queue: File[], meta: { correlationId: string }, place?: Place): Promise<void> => {
     setUploading(true);
     setGoing(queue);
     setPercents(new Map(queue.map((file) => [file, 0])));
@@ -172,7 +97,9 @@ export function FilesTab({ detail }: TabProps) {
     try {
       for (const file of queue) {
         const onProgress = (done: number, total: number) => setPercent(file, total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0);
-        await api.call('files.upload', { projectId: detail.project.id, name: file.name, blob: file, stageId: stageId || null, receivedFromClient: received }, { ...meta, onProgress });
+        // A file dropped on a folder or a stage group goes there (fbk_066). Any other file goes to the stage of the select, at the root.
+        const where = place ? { stageId: place.stageId, ...(place.folderId ? { folderId: place.folderId } : {}) } : { stageId: stageId || null };
+        await api.call('files.upload', { projectId: detail.project.id, name: file.name, blob: file, ...where, receivedFromClient: received }, { ...meta, onProgress });
         setPercent(file, 100);
         sent += 1;
       }
@@ -180,19 +107,19 @@ export function FilesTab({ detail }: TabProps) {
       setReceived(false);
     } catch (error) {
       const rest = queue.slice(sent);
-      toast.failed(error, { retry: () => void uploadQueue(rest, meta), message: uploadErrorMessage(error, queue[sent]?.name ?? '', t, lang) });
+      toast.failed(error, { retry: () => void uploadQueue(rest, meta, place), message: uploadErrorMessage(error, queue[sent]?.name ?? '', t, lang) });
     } finally {
       setUploading(false);
       setGoing([]);
     }
   };
 
-  const upload = async (list: FileList | null) => {
+  const upload = async (list: FileList | null, place?: Place) => {
     const chosen = [...(list ?? [])];
     // The limit of the active store (50 MB on Supabase Storage, 250 MB on R2), checked before any upload starts (plan 2b, point 1).
     for (const file of chosen.filter((f) => f.size > limit)) toast.show({ tone: 'error', message: tooLargeText(file.name, limit, t, lang) });
     const accepted = chosen.filter((f) => f.size <= limit);
-    if (accepted.length > 0) await uploadQueue(accepted, { correlationId: newStoryId() });
+    if (accepted.length > 0) await uploadQueue(accepted, { correlationId: newStoryId() }, place);
   };
 
   const openLink = (link: ProjectLink | null) => {
@@ -201,18 +128,97 @@ export function FilesTab({ detail }: TabProps) {
   };
   const hasLinks = projectLinkRows(detail.project, '').length > 0;
 
-  const groups = [...detail.stages.map((stage) => ({ id: stage.id as string | null, name: stage.name })), { id: null, name: t('files.noStage') }]
-    .map((group) => ({ ...group, files: (files.data ?? []).filter((view) => view.file.stageId === group.id) }))
-    .filter((group) => group.files.length > 0);
+  // A person who may upload also sees the stages with nothing: "+ Folder" sits in the heading row of its stage (fbk_066). A tab with no file, no
+  // folder and no link shows the empty state alone.
+  const folderCount = foldersOf(detail).length;
+  // The groups wait for the list of files: a folder never shows "No files yet." while its files load.
+  const withFiles = files.data ? groupsOf(detail, files.data, false, t('files.noStage')) : [];
+  const groups = files.data && canUpload && (files.data.length > 0 || folderCount > 0 || hasLinks) ? groupsOf(detail, files.data, true, t('files.noStage')) : withFiles;
 
   // "Download all" (owner, 2026-10-22, fbk_050): the newest version of each file, for one stage and for the whole project. A button shows for two files
   // or more. The whole-project button shows only when the files sit in more than one group, because with one group it would repeat the group button.
   const itemsOf = (views: FileView[]) => views.map((view) => ({ id: view.file.id, name: view.file.name }));
-  const allItems = groups.flatMap((group) => itemsOf(group.files));
+  const allItems = itemsOf(files.data ?? []);
   const projectZip = () => `${shownKey(detail.project, t)} ${detail.project.name}`;
 
+  const stageName = (stageId: string | null) => (stageId === null ? t('files.noStage') : (detail.stages.find((stage) => stage.id === stageId)?.name ?? ''));
+  const placeText = (place: Place): string => {
+    const folder = place.folderId ? foldersOf(detail).find((item) => item.id === place.folderId) : undefined;
+    return folder ? t('folders.placeIn', { stage: stageName(place.stageId), folder: folder.name }) : stageName(place.stageId);
+  };
+  const viewOf = (id: string) => (files.data ?? []).find((view) => view.file.id === id);
+  const nameOfFile = (id: string) => viewOf(id)?.file.name ?? '';
+  const placeOfId = (id: string): Place | undefined => {
+    const view = viewOf(id);
+    return view ? placeOfFile(view, detail) : undefined;
+  };
+
+  // The folder calls and the move. One call for each, so one Undo takes each back (fbk_066). Delete asks nothing: the Undo is the way back.
+  const lastPlace = useRef('');
+  const createFolder = useUndoable('folders.create', { message: () => t('folders.created') });
+  const renameFolder = useUndoable('folders.rename', { message: () => t('folders.renamed') });
+  const deleteFolder = useUndoable('folders.delete', { message: () => t('folders.deleted') });
+  const move = useUndoable('files.move', { message: () => t('folders.moved', { place: lastPlace.current }) });
+  const moveTo = (fileId: string, place: Place) => {
+    lastPlace.current = placeText(place);
+    move.mutate({ id: fileId, stageId: place.stageId, folderId: place.folderId });
+  };
+
+  // The pointer drag is for a desk with a fine pointer, and for a person who may upload. The layer starts to load when the tab opens, so the swap
+  // from the static list happens once, early, and not when the files arrive.
+  const dragOn = !phone && !coarse && canUpload;
+  const [Host, setHost] = useState<ComponentType<FilesDragHostProps> | null>(loadedFilesDrag);
+  useEffect(() => {
+    if (!dragOn || Host) return undefined;
+    let live = true;
+    loadFilesDrag().then((layer) => {
+      if (live) setHost(() => layer);
+    }, () => undefined);
+    return () => {
+      live = false;
+    };
+  }, [dragOn, Host]);
+
+  // A file from the computer dropped on a stage group or a folder goes there; the frame follows the pointer. The place under the pointer wins.
+  const zoneOf: GroupActions['zoneOf'] = (place) => {
+    if (phone || !canUpload) return {};
+    const key = placeKey(place);
+    return {
+      framed: fileOver === key,
+      native: {
+        onDragOver: (event: DragEvent<HTMLElement>) => {
+          if (!carriesFiles(event)) return;
+          event.preventDefault();
+          event.stopPropagation();
+          setDragging(false);
+          setFileOver(key);
+        },
+        onDragLeave: (event: DragEvent<HTMLElement>) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFileOver((current) => (current === key ? null : current));
+        },
+        onDrop: (event: DragEvent<HTMLElement>) => {
+          if (!carriesFiles(event)) return;
+          event.preventDefault();
+          event.stopPropagation();
+          setFileOver(null);
+          void upload(event.dataTransfer.files, place);
+        },
+      },
+    };
+  };
+  const actions: GroupActions = {
+    canUpload,
+    onPreview: setPreview,
+    onShare: setSharing,
+    onMove: (view, anchor) => setMoving({ view, anchor }),
+    createFolder: (stage, name) => createFolder.mutate({ projectId: detail.project.id, stageId: stage, name }),
+    renameFolder: (id, name) => renameFolder.mutate({ id, name }),
+    deleteFolder: (id) => deleteFolder.mutate({ id }),
+    zoneOf,
+  };
+
   // A tab with no files and no links shows one empty state, and the one Add button moves into it (it shows once, never twice).
-  const empty = Boolean(files.data) && groups.length === 0 && !hasLinks;
+  const empty = Boolean(files.data) && withFiles.length === 0 && !hasLinks;
   const add = (canUpload || canLink) && (
     <Menu
       label={t('files.add')}
@@ -229,11 +235,12 @@ export function FilesTab({ detail }: TabProps) {
     />
   );
 
-  return (
+  const tab = (
     <div
-      // A phone has no drag from outside, so it takes no drop and draws no frame.
+      // A phone has no drag from outside, so it takes no drop and draws no frame. Only a file from the computer counts: a picture of a row
+      // that the browser drags by itself, and a row that the drag layer lifts, never start the drop zone (fbk_066).
       onDragOver={phone ? undefined : (event) => {
-        if (!canUpload) return;
+        if (!canUpload || !carriesFiles(event)) return;
         event.preventDefault();
         setDragging(true);
       }}
@@ -241,7 +248,7 @@ export function FilesTab({ detail }: TabProps) {
         if (event.currentTarget === event.target) setDragging(false);
       }}
       onDrop={phone ? undefined : (event) => {
-        if (!canUpload) return;
+        if (!canUpload || !carriesFiles(event)) return;
         event.preventDefault();
         setDragging(false);
         void upload(event.dataTransfer.files);
@@ -287,22 +294,14 @@ export function FilesTab({ detail }: TabProps) {
       <LoadFailed query={files} />
       {empty && <EmptyState title={t('files.emptyTitle')} body={t('files.empty')} action={add} />}
       <ProjectLinks detail={detail} onEdit={openLink} />
-      {groups.length > 1 && <DownloadAllButton items={allItems} zipName={projectZip} all="allFiles" className="px-2" />}
-      {groups.map((group) => {
-        const id = `files-${group.id ?? 'none'}`;
-        return (
-          <section key={id} aria-labelledby={id} className="surface rounded-card p-2">
-            <div className="flex items-center justify-between gap-3 px-2 pt-1">
-              <h3 id={id} dir="auto" className="min-w-0 text-headline">{group.name}</h3>
-              <DownloadAllButton items={itemsOf(group.files)} zipName={() => `${shownKey(detail.project, t)} ${group.name}`} scope={group.name} className="shrink-0" />
-            </div>
-            <ul>{group.files.map((view) => <FileRow key={view.file.id} view={view} detail={detail} onPreview={() => setPreview(view)} onShare={() => setSharing(view)} />)}</ul>
-          </section>
-        );
-      })}
+      {groups.filter((group) => group.total > 0).length > 1 && <DownloadAllButton items={allItems} zipName={projectZip} all="allFiles" className="px-2" />}
+      <FileGroups groups={groups} detail={detail} actions={actions} />
       <LinkSheet detail={detail} link={editing} open={linkOpen} onOpenChange={setLinkOpen} />
       {preview && <PreviewSheet views={[preview]} index={0} onIndex={() => undefined} onClose={() => setPreview(null)} />}
       {sharing && <ShareFileSheet view={sharing} projectId={detail.project.id} projectName={detail.project.name} viewerCan={detail.viewerCan} onClose={() => setSharing(null)} />}
+      {moving && <MoveFileSheet view={moving.view} detail={detail} anchor={moving.anchor} onPick={(place) => moveTo(moving.view.file.id, place)} onClose={() => setMoving(null)} />}
     </div>
   );
+  // The pointer drag (dnd-kit) is a chunk of its own: the tab first draws the static list, and the layer takes its place once it has loaded.
+  return dragOn && Host ? <Host nameOf={nameOfFile} placeText={placeText} placeOf={placeOfId} onMove={moveTo}>{tab}</Host> : tab;
 }

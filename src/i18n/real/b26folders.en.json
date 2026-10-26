@@ -1,0 +1,47 @@
+{
+  "folders": {
+    "add": "+ Folder",
+    "addFor": "Add a folder to {{stage}}",
+    "nameLabel": "Folder name",
+    "namePlaceholder": "Folder name",
+    "created": "Folder added.",
+    "renamed": "Folder renamed.",
+    "deleted": "Folder deleted.",
+    "actions": "Actions for the folder {{name}}",
+    "rename": "Rename",
+    "delete": "Delete",
+    "empty": "No files yet.",
+    "emptyDrag": "No files yet. Drag files here.",
+    "count": "{{n}} files",
+    "count_one": "1 file",
+    "count_other": "{{count}} files",
+    "moveTo": "Move to",
+    "moveTitle": "Move {{name}}",
+    "moveHere": "The file is here now",
+    "moved": "Moved to {{place}}.",
+    "placeIn": "{{stage}}: {{folder}}",
+    "dragHelp": "To move a file with the keyboard, open the menu of the file and choose Move to.",
+    "announce": {
+      "start": "You lifted {{name}}.",
+      "over": "{{name}} is over {{place}}.",
+      "drop": "You moved {{name}} to {{place}}.",
+      "cancel": "{{name}} stays where it is."
+    }
+  },
+  "errors": {
+    "reasons": {
+      "folder_name_taken": "This stage has a folder with this name.",
+      "folder_limit": "A project can hold 100 folders at most.",
+      "folder_other_stage": "This folder is in another stage.",
+      "folder_missing": "This folder is not in the project."
+    }
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-112": {
+        "title": "Folders in Files & Links",
+        "body": "Make a folder inside a stage, for example Mood boarding. Drag files into it, or use Move to in the menu of the file. Folders only organize your files."
+      }
+    }
+  }
+}

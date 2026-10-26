@@ -14,6 +14,7 @@ import { startHomeCache, type HomeCacheOptions } from '../app/remote/homeCache';
 import { createAppRouter } from '../app/routes';
 import { preloadScreens } from '../app/screens';
 import { loadChecklistLayer } from '../features/project/tasks/checklistLayerLoader';
+import { loadFilesDrag } from '../features/project/files/filesDragLoader';
 import { loadDragLayer } from '../features/project/tasks/dragLayerLoader';
 import { RuntimeProvider, createQueryClient, type ChangeSource } from '../app/runtime';
 import { ToastProvider } from '../app/toasts';
@@ -26,6 +27,8 @@ await preloadScreens();
 // The drag layer of the sortable task lists is a chunk of its own (RN-5, FL-2). The tests load it once, so each list starts with the grips live.
 await loadDragLayer();
 await loadChecklistLayer();
+// The file drag layer of the Files & Links list too (fbk_066).
+await loadFilesDrag();
 
 /** One call that the screens asked, with its input and the idempotency key it carried (a write of the real build; a retry carries the key of the failed attempt). */
 export type Asked = { name: string; input: unknown; key?: string };

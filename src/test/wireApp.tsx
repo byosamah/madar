@@ -19,6 +19,7 @@ import { RuntimeProvider, createQueryClient, type ChangeSource, type Runtime } f
 import type { ChangeListener } from '../app/signals';
 import { ToastProvider } from '../app/toasts';
 import { WRITE_KINDS } from '../app/writeKinds';
+import { loadFilesDrag } from '../features/project/files/filesDragLoader';
 import { loadDragLayer } from '../features/project/tasks/dragLayerLoader';
 import { initI18n } from '../i18n';
 import { setNow } from '../lib/dates';
@@ -27,6 +28,8 @@ import { NOW, TODAY } from './factories';
 // The routes start initialized only when their screens are loaded (performance audit BND-1), as in renderHeldRemoteApp.
 await preloadScreens();
 await loadDragLayer();
+// The file drag layer of the Files & Links list too (fbk_066).
+await loadFilesDrag();
 
 /** One request that the real RemoteApi sent: the call names and inputs in order, and the cost of the overview calls in it. */
 export type Trip = { names: string[]; calls: { name: string; input: unknown }[]; cost: number };
