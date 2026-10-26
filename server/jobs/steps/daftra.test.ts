@@ -222,6 +222,45 @@ describe('the budget of a run (20 Daftra calls, 60 seconds, all accounts togethe
     expect(mazj.requests).toHaveLength(17);
   });
 
+  // Code review 2026-10-26: the paid check must never starve. The invoice read longest ago goes first, so over the runs every link gets its turn.
+  it('checks every linked invoice over the runs: the next run starts with the invoices that the last run did not reach', async () => {
+    const { t, mazj } = await build({ edit: many(30, 'MAZJ'), mazj: invoices(30, 2000, '842') });
+    await t.step();
+    const first = mazj.paths();
+    expect(first).toHaveLength(20);
+    mazj.requests.length = 0;
+    t.deps.clock.set(new Date('2026-10-26T06:15:00Z'));
+    await t.step();
+    const second = mazj.paths();
+    expect(second).toHaveLength(20);
+    // The 10 invoices that run 1 did not reach come first in run 2, then the oldest of run 1 again.
+    const unread = Array.from({ length: 30 }, (_, n) => `invoices/${2000 + n}.json`).filter((path) => !first.includes(path));
+    expect(unread).toHaveLength(10);
+    expect(new Set(second.slice(0, 10))).toEqual(new Set(unread));
+    expect(new Set([...first, ...second]).size).toBe(30);
+  });
+
+  it('moves an invoice that Daftra no longer has to the back of the line, so it never blocks the others', async () => {
+    // Invoice 2000 (the oldest link) is gone from Daftra.
+    const { t, mazj } = await build({ edit: many(21, 'MAZJ'), mazj: invoices(21, 2000, '842').filter((one) => one.id !== '2000') });
+    await t.step();
+    mazj.requests.length = 0;
+    t.deps.clock.set(new Date('2026-10-26T06:15:00Z'));
+    await t.step();
+    const second = mazj.paths();
+    expect(second[0]).not.toBe('invoices/2000.json');
+    expect(second.indexOf('invoices/2000.json')).toBeGreaterThan(0);
+  });
+
+  it('fills the cache of an account before its paid checks, so a busy account still gets its suggestions', async () => {
+    const { t, mazj } = await build({ edit: many(30, 'MAZJ'), mazj: [...invoices(30, 2000, '842'), invoice('1900', '842', { created: '2026-10-24 10:00:00' })] });
+    okOf(await t.call('usr_011', 'daftra.matchClient', { paymentId: 'pay_003', daftraClientId: '842' }));
+    mazj.requests.length = 0;
+    const report = await t.step();
+    expect(report).toMatchObject({ calls: 20, filled: 1 });
+    expect(mazj.paths()[0]).toBe('invoices.json?client_id=842&created_from=2026-08-15&limit=50');
+  });
+
   it('stops at 60 seconds: after the clock passes the limit no new call starts', async () => {
     let now = 0;
     const { t, mazj } = await build({ edit: many(10, 'MAZJ'), mazj: invoices(10, 2000, '842') });
@@ -393,6 +432,17 @@ describe('the queues and the actor (pure)', () => {
     expect(queues.get('MAZJ')).toEqual([{ kind: 'paid', payment: linked[0] }]);
     expect(queues.get('VADO')).toEqual([{ kind: 'cache', daftraClientId: '55', from: '2026-08-31' }]);
     expect(queues.has('BUNAH')).toBe(false);
+  });
+
+  it('puts the cache fills of an account before its paid checks, and the paid checks by the time of their last read, never read first', async () => {
+    const { t } = await build({ edit: linkedBoth });
+    const snapshot = await t.db.tx('read', (q) => readLiteOffice(t.db, q));
+    const linked = ['1', '2', '3'].map((id) => ({ ...t.seed.payments!.pay_003, id: `pay_9${id}`, daftra: link('MAZJ', id) }));
+    const checked = new Map([['MAZJ:1', '2026-10-26T06:00:00.000Z'], ['MAZJ:2', '2026-10-25T06:00:00.000Z']]);
+    const queues = queuesOf({
+      office: snapshot, accounts: ['MAZJ'], linked, open: [t.seed.payments!.pay_003], matches: new Map([['MAZJ/cli_001', '842']]), checked,
+    });
+    expect(queues.get('MAZJ')!.map((item) => (item.kind === 'cache' ? 'cache' : item.payment.daftra.invoiceId))).toEqual(['cache', '3', '2', '1']);
   });
 
   it('picks the person who linked while active, else the first active Admin, else nobody', async () => {

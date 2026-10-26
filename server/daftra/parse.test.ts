@@ -92,6 +92,35 @@ describe('clients', () => {
   it('refuses a client with no name', () => {
     expect(() => clientAnswerOf({ data: { Client: { id: '9', business_name: '' } } })).toThrow(BadAnswer);
   });
+
+  // Code review 2026-10-26: an empty client number is no number, not a broken answer.
+  it('reads an empty client number as no number', () => {
+    expect(clientAnswerOf({ data: { Client: { id: '9', client_number: '', business_name: 'Al Noor' } } })).toEqual({ id: '9', name: 'Al Noor', number: '' });
+    expect(clientAnswerOf({ data: { Client: { id: '9', client_number: '  ', business_name: 'Al Noor' } } })).toEqual({ id: '9', name: 'Al Noor', number: '' });
+  });
+});
+
+// Code review 2026-10-26: one odd row must not fail the whole list (the search, or the cache of an account). A list where every row is odd still
+// fails: that is the sign that Daftra changed the shape of its answer.
+describe('a list with one odd row', () => {
+  const good = { id: '1', no: '1521945', client_id: '842', summary_total: '10', payment_status: 0, draft: 0, created: '2026-10-21 10:00:00' };
+
+  it('skips the odd invoice and keeps the others', () => {
+    const body = { data: [{ Invoice: good }, { Invoice: { ...good, id: '2', no: '' } }, { Invoice: { ...good, id: '3', summary_total: '-5' } }] };
+    expect(invoicesAnswerOf(body).map((invoice) => invoice.id)).toEqual(['1']);
+  });
+
+  it('skips the odd client and keeps the others', () => {
+    const body = { data: [{ Client: { id: '9', business_name: 'Al Noor' } }, { Client: { id: '10', business_name: '' } }] };
+    expect(clientsAnswerOf(body).map((client) => client.id)).toEqual(['9']);
+  });
+
+  it('still fails when every row is odd, and an empty list is still a list', () => {
+    expect(() => invoicesAnswerOf({ data: [{ Invoice: { ...good, no: '' } }] })).toThrow(BadAnswer);
+    expect(() => clientsAnswerOf({ data: [{ Client: { id: '10', business_name: '' } }] })).toThrow(BadAnswer);
+    expect(invoicesAnswerOf({ data: [] })).toEqual([]);
+    expect(clientsAnswerOf({ data: [] })).toEqual([]);
+  });
 });
 
 describe('a wrong shape', () => {

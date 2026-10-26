@@ -175,6 +175,23 @@ export async function saveProblem(q: Query, account: string, problem: DaftraProb
   await q(sqlFor(q, CLEAR_PROBLEMS_SQL, CLEAR_PROBLEMS_LITE), [`${PROBLEM_PREFIX}${account}:%`, key]);
 }
 
+// ---- The time of the last paid check of each linked invoice (code review, 2026-10-26). The job reads the invoice read longest ago first, so a
+// busy account never starves a newer link, and an invoice that Daftra no longer has moves to the back of the line.
+const CHECKED_PREFIX = 'daftra:checked:';
+const CHECKED_SQL = "select key, done_at from job_runs where key like 'daftra:checked:%'";
+const CHECKED_LITE = CHECKED_SQL;
+
+/** The time of the last paid check of each invoice, keyed `<ACCOUNT>:<invoice id>`. An invoice that the job never checked is not in the map. */
+export async function checkedTimes(q: Query): Promise<Map<string, string>> {
+  const rows = await q<{ key: string; done_at: string | Date }>(sqlFor(q, CHECKED_SQL, CHECKED_LITE));
+  return new Map(rows.map((row) => [row.key.slice(CHECKED_PREFIX.length), iso(row.done_at)]));
+}
+
+/** One paid check reached Daftra for this invoice (a good answer, or Daftra no longer has it). */
+export async function saveChecked(q: Query, account: string, invoiceId: string, at: Date): Promise<void> {
+  await q(sqlFor(q, PUT_STATE_SQL, PUT_STATE_LITE), [`${CHECKED_PREFIX}${account}:${invoiceId}`, at.toISOString()]);
+}
+
 // ---- One payment, for the calls that read the cache for it and for the preflight of payments.linkInvoice.
 
 export type PaymentFacts = {

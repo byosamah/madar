@@ -114,11 +114,28 @@ export function invoiceAnswerOf(body: unknown): DaftraInvoice {
   return invoiceOf(record(record(body)?.data)?.Invoice);
 }
 
-/** The answer of `GET /invoices.json`. An empty list is a list. */
+/**
+ * The rows of a list that read well. One odd row is left out, so it never fails the whole list (code review, 2026-10-26). A list where every row
+ * is odd still fails with bad_answer: that is the sign that Daftra changed the shape of its answer. An empty list is a list.
+ */
+function goodRows<T>(data: unknown[], read: (item: unknown) => T): T[] {
+  const rows: T[] = [];
+  for (const item of data) {
+    try {
+      rows.push(read(item));
+    } catch (error) {
+      if (!(error instanceof BadAnswer)) throw error;
+    }
+  }
+  if (data.length > 0 && rows.length === 0) throw new BadAnswer();
+  return rows;
+}
+
+/** The answer of `GET /invoices.json`. */
 export function invoicesAnswerOf(body: unknown): DaftraInvoice[] {
   const data = record(body)?.data;
   if (!Array.isArray(data)) throw new BadAnswer();
-  return data.map((item) => invoiceOf(record(item)?.Invoice));
+  return goodRows(data, (item) => invoiceOf(record(item)?.Invoice));
 }
 
 /** The name of a client: the business name, else the first and last name. */
@@ -129,14 +146,16 @@ function clientOf(raw: unknown): DaftraClientRow {
   const person = [row.first_name, row.last_name].filter((part): part is string => typeof part === 'string' && part.trim() !== '').map((part) => part.trim()).join(' ');
   const name = business !== '' ? business : person;
   if (name === '') throw new BadAnswer();
-  return { id: text(row.id, 40), name: name.slice(0, 200), number: row.client_number === undefined || row.client_number === null ? '' : text(row.client_number, 40) };
+  // No number, or an empty one, is no number (code review, 2026-10-26).
+  const blank = row.client_number === undefined || row.client_number === null || (typeof row.client_number === 'string' && row.client_number.trim() === '');
+  return { id: text(row.id, 40), name: name.slice(0, 200), number: blank ? '' : text(row.client_number, 40) };
 }
 
 /** The answer of `GET /clients.json`. */
 export function clientsAnswerOf(body: unknown): DaftraClientRow[] {
   const data = record(body)?.data;
   if (!Array.isArray(data)) throw new BadAnswer();
-  return data.map((item) => clientOf(record(item)?.Client));
+  return goodRows(data, (item) => clientOf(record(item)?.Client));
 }
 
 /** The answer of `GET /clients/<id>.json`. */

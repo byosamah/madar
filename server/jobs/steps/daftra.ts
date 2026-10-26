@@ -4,7 +4,7 @@ import { daftraAccountsOf, daftraOf, DaftraError, type DaftraClient } from '../.
 import { officeOf } from '../../daftra/office';
 import { DAFTRA_INTERNAL_CALLS, DAFTRA_PAID_CALL } from '../../daftra/paidCall';
 import {
-  allMatches, linkedUnpaid, openUnlinked, putInvoices, saveGoodRead, saveProblem, type DaftraProblem, type PaymentFacts,
+  allMatches, checkedTimes, linkedUnpaid, openUnlinked, putInvoices, saveChecked, saveGoodRead, saveProblem, type DaftraProblem, type PaymentFacts,
 } from '../../daftra/store';
 import { dayMinus } from '../../daftra/suggest';
 import { createRunCall, type RunCall } from '../../core/runCall';
@@ -89,15 +89,19 @@ export function paidActorOf(office: OfficeSnapshot, linkedBy: string): string | 
 }
 
 /**
- * The queue of each account: the paid checks first (oldest link first, as the read gives them), then the cache fills (oldest due day first).
- * A payment of an account that the copy has no key for is left out. Pure, so a test can read it.
+ * The queue of each account: the cache fills first (oldest due day first; they feed the suggestions of the sheet, and there are few), then the
+ * paid checks, the invoice read longest ago first and a never read one before all (code review, 2026-10-26: a busy account must never starve a
+ * newer link or its suggestions). Equal times keep the order of the read (oldest link first). A payment of an account that the copy has no key
+ * for is left out. Pure, so a test can read it.
  */
 export function queuesOf(o: {
   office: OfficeSnapshot; accounts: readonly string[]; linked: readonly PaymentFacts[]; open: readonly PaymentFacts[]; matches: ReadonlyMap<string, string>;
+  checked?: ReadonlyMap<string, string>;
 }): Map<string, Item[]> {
   const queues = new Map<string, Item[]>(o.accounts.map((account) => [account, []]));
+  const paid = new Map<string, Linked[]>(o.accounts.map((account) => [account, []]));
   for (const payment of o.linked) {
-    if (payment.daftra) queues.get(payment.daftra.account)?.push({ kind: 'paid', payment: payment as Linked });
+    if (payment.daftra) paid.get(payment.daftra.account)?.push(payment as Linked);
   }
   // The oldest due day of each matched client in each account.
   const oldest = new Map<string, { account: string; daftraClientId: string; due: string }>();
@@ -115,6 +119,12 @@ export function queuesOf(o: {
   for (const { account, daftraClientId, due } of [...oldest.values()].sort((a, b) => a.due.localeCompare(b.due) || a.daftraClientId.localeCompare(b.daftraClientId))) {
     queues.get(account)?.push({ kind: 'cache', daftraClientId, from: dayMinus(due, CACHE_BACK_DAYS) });
   }
+  const lastCheck = (payment: Linked) => o.checked?.get(`${payment.daftra.account}:${payment.daftra.invoiceId}`) ?? '';
+  for (const [account, payments] of paid) {
+    // A stable sort: equal times keep the order of the read.
+    const ordered = [...payments].sort((a, b) => lastCheck(a).localeCompare(lastCheck(b)));
+    queues.get(account)?.push(...ordered.map((payment): Item => ({ kind: 'paid', payment })));
+  }
   return queues;
 }
 
@@ -130,13 +140,14 @@ export async function daftra(deps: Deps, at: Date, o: DaftraStepOptions = {}): P
 
   // One read of everything the run needs, with no lock. The office lists come from the cache (Postgres) or the office rows (SQLite).
   const office = await officeOf(deps);
-  const { linked, open, matches } = await deps.db.tx('read', async (q) => ({
+  const { linked, open, matches, checked } = await deps.db.tx('read', async (q) => ({
     linked: await linkedUnpaid(q),
     open: await openUnlinked(q, addDays(today, CACHE_AHEAD_DAYS)),
     matches: await allMatches(q),
+    checked: await checkedTimes(q),
   }));
   const matched = new Map(matches.map((match) => [`${match.account}/${match.clientId}`, match.daftraId]));
-  const queues = queuesOf({ office, accounts, linked, open, matches: matched });
+  const queues = queuesOf({ office, accounts, linked, open, matches: matched, checked });
   const run = o.run ?? createRunCall({ calls: DAFTRA_INTERNAL_CALLS });
 
   const clients = new Map<string, DaftraClient>();
@@ -168,6 +179,7 @@ export async function daftra(deps: Deps, at: Date, o: DaftraStepOptions = {}): P
         if (item.kind === 'paid') {
           const invoice = await daftraClient.invoice(item.payment.daftra.invoiceId);
           read.add(account);
+          await deps.db.tx('write', (q) => saveChecked(q, account, item.payment.daftra.invoiceId, at));
           if (invoice.paymentStatus === 2) {
             // The day of the last Daftra payment row. A paid invoice with no readable payment row gets the day of this run.
             const receivedOn = invoice.paidOn !== null && invoice.paidOn < today ? invoice.paidOn : today;
@@ -191,6 +203,8 @@ export async function daftra(deps: Deps, at: Date, o: DaftraStepOptions = {}): P
         }
       } catch (error) {
         if (!(error instanceof DaftraError)) throw error;
+        // Daftra no longer has this invoice: it goes to the back of the line, so it never blocks the other links (code review, 2026-10-26).
+        if (error.code === 'not_found' && item.kind === 'paid') await deps.db.tx('write', (q) => saveChecked(q, account, item.payment.daftra.invoiceId, at));
         // The code, the status and the account only: a Daftra text, a key or a site never reaches the log.
         deps.log.warn('A Daftra read failed. The next run tries it again.', { step: 'daftra', account, code: error.code, ...(error.status > 0 ? { status: error.status } : {}) });
         const found = problemOf(error);

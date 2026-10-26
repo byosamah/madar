@@ -121,7 +121,8 @@ describe('the Daftra link on the local database, as madar_server', () => {
     mazj.mode = 'ok';
     expect(report).toMatchObject({ accounts: 2, problems: [{ account: 'MAZJ', problem: 'bad_key' }] });
     const states = await deps.db.tx('read', (q) => readStates(q));
-    expect(states.MAZJ).toEqual({ lastReadAt: '2026-10-04T06:00:00.000Z', problem: 'bad_key' });
+    // The last good read of MAZJ is the second run of the test before (06:15).
+    expect(states.MAZJ).toEqual({ lastReadAt: '2026-10-04T06:15:00.000Z', problem: 'bad_key' });
     expect(states.VADO?.problem).toBeNull();
     const after = await daftraStep(deps, new Date('2026-10-04T06:45:00Z'));
     expect(after).toMatchObject({ problems: [] });
