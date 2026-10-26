@@ -2602,3 +2602,17 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
   and in production (the Projects list).
 - Live checks: the quick checks passed (health from supabase, `fileStore` r2, 156 calls; database, lock and asyncContext ok; /mcp with no token 401);
   the production page title is Madar, `/favicon.ico` 200; the four shapes show in the live Projects list.
+
+### Release record: production at 1f240dbb (2026-10-26, Daftra follow-up: the Link button, the fresh look, the look limit)
+- The owner tried the Daftra link on the test copy with the MAZJ test key (sub-company MAZJ, prj_001, payment pay_003): match a Mazj client, a new
+  invoice (1521961, 34.50 SAR) suggested, Link, "Invoiced", and after Daftra said paid the 13:15 job set "Received 26 Oct" by itself. Two gaps from
+  that try, fixed on `rb/daftra-fix`: Link was a fifth footer button that fell off the sheet (it sits in the Daftra box now), and an invoice made after
+  the last copy waited up to 15 minutes (the sheet now looks in Daftra at once when no invoice matches, at most once a minute for each client).
+  A background security review found that the minute must count from the look itself (a client with no invoice, a failed look): fixed, with a test.
+- Before it, on `rb/daftra` (released in 5bfb2df7): the Undo guard (an Undo never gives one invoice to two payments, also on Postgres), Madar's own
+  read-only lock (`server/daftra/readOnly.ts`: Daftra has no read-only key), and four code review fixes (the job never starves a link; one odd row
+  no longer fails a Daftra list). Claude Security scan of the branch (medium, 132 files): no findings, stamp verified.
+- Gates of the follow-up: typecheck; the touched tests (234); `npm run build`, `build:server`, `build:remote -- test`; `all.sh test`; then
+  `echo production | scripts/deploy/all.sh production`, run by the owner. Not run for the follow-up: the full npm test, test:db, test:it and the deploy
+  suite (owner: speed; the change is one server read and one screen part). Daftra stays dormant in production until the five keys.
+- Live checks: the quick checks passed (health from supabase, `fileStore` r2, 156 calls; database, lock and asyncContext ok; /mcp with no token 401).
