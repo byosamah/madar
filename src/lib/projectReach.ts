@@ -1,4 +1,4 @@
-import { adminReachOf } from '../api/chatState';
+import { adminReachOf } from '../api/adminReach';
 import type { AdminReach } from '../api/contract/entities';
 
 /**

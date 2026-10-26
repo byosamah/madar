@@ -1,3 +1,4 @@
+import { adminReachOf } from './adminReach';
 import { isLiveMessage } from './chatNaming';
 import type { AdminReach, ChatRead, Conversation, Message, NotifyLevel, User } from './contract/entities';
 import { forbidden, invalid, notFound } from './errors';
@@ -131,13 +132,8 @@ export function levelFromRead(read: Pick<ChatRead, 'notify'> | undefined, kind: 
   return read?.notify ?? (kind === 'project' ? 'named' : 'all');
 }
 
-/**
- * What reaches a person (owner, 2026-10-23). Only a person with the Admin role has a choice: every other person reads "mixed", whatever
- * is stored. A missing value means "mixed", which is the rule of chat design item 23. The loader and the handlers both read this one rule.
- */
-export function adminReachOf(user: Pick<User, 'systemRole' | 'preferences'>): AdminReach {
-  return user.systemRole === 'admin' ? (user.preferences.adminReach ?? 'mixed') : 'mixed';
-}
+/** What reaches a person: the one rule lives in adminReach.ts, which the first-load screens can import with no zod code. */
+export { adminReachOf };
 
 /**
  * True when the unread count of a chat holds only the messages that name the person (chat design item 23): the project chat of a project
