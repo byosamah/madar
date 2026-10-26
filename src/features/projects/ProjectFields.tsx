@@ -26,9 +26,9 @@ import { TemplateDetails, TemplatePicker } from './TemplateUse';
 import { PinSheet } from '../map/PinSheet';
 import { googleMapsUrl } from '../../lib/geo';
 import { roleChoice } from './templateForm';
-import { validateProjectForm, type ProjectFormErrors, type ProjectFormRules, type ProjectFormValues } from './projectForm';
+import { NAME_AR_MAX, validateProjectForm, type ProjectFormErrors, type ProjectFormRules, type ProjectFormValues } from './projectForm';
 
-const CHECKED: (keyof ProjectFormErrors)[] = ['name', 'area', 'startDate', 'targetEndDate', 'stages', 'code', 'template', 'subCompanyId', ...CODE_FIELDS];
+const CHECKED: (keyof ProjectFormErrors)[] = ['name', 'nameAr', 'area', 'startDate', 'targetEndDate', 'stages', 'code', 'template', 'subCompanyId', ...CODE_FIELDS];
 
 /**
  * Form state that shows an error only after the person changes a field and leaves it, or on submit (spec 4.4). A field that the
@@ -293,6 +293,19 @@ export function ProjectFields({
         onChange={(event) => set('name', event.target.value)}
         onBlur={() => touch('name')}
         error={error('name')}
+      />
+      {/* The Arabic name is optional and starts empty (owner, 2026-10-26, fbk_062). Its text keeps its own direction. */}
+      <TextField
+        id="project-name-ar"
+        label={t('projectForm.nameAr')}
+        value={values.nameAr}
+        dir="auto"
+        lang="ar"
+        autoComplete="off"
+        maxLength={NAME_AR_MAX}
+        onChange={(event) => set('nameAr', event.target.value)}
+        onBlur={() => touch('nameAr')}
+        error={error('nameAr')}
       />
       {/* The template decides the whole plan, so it is the first choice after the name (ADM-20). */}
       {mode === 'create' && templates.length > 0 && <TemplatePicker form={form} templates={templates} />}

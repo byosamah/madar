@@ -11,6 +11,7 @@ import { Sheet } from '../../../components/Sheet';
 import { formatDay, todayISO } from '../../../lib/dates';
 import { planProject, shiftAdded } from '../../../lib/projectPlan';
 import { DEFAULT_CHOICES } from './SyncSteps';
+import { useProjectName } from '../../../app/projectName';
 
 /** The item of the project for each part of the template: a stage for a stage part, a task for a task part. Null: no item. */
 type Picks = { stages: Record<string, string | null>; tasks: Record<string, string | null> };
@@ -89,6 +90,7 @@ export function LinkProjectSheet({ projectId, template, onClose, onDone, mode = 
   const match = useCall('projectTemplates.matchPlan', { projectId, templateId: template.id });
   const users = useCall('users.list', {});
   const lang = useLang();
+  const projectName = useProjectName();
   // The picks that the Admin changed. Until the Admin changes one, the picks are the matches of the names.
   const [changed, setChanged] = useState<Picks | null>(null);
   const [rest, setRest] = useState<'leave' | 'add'>(mode === 'apply' ? 'add' : 'leave');
@@ -169,7 +171,7 @@ export function LinkProjectSheet({ projectId, template, onClose, onDone, mode = 
     <Sheet
       open
       onOpenChange={(open) => { if (!open) onClose(); }}
-      title={t(mode === 'apply' ? 'projectTemplates.apply.matchTitle' : 'projectTemplates.link.title', { project: project.data?.project.name ?? '', template: template.name })}
+      title={t(mode === 'apply' ? 'projectTemplates.apply.matchTitle' : 'projectTemplates.link.title', { project: project.data ? projectName(project.data.project) : '', template: template.name })}
       footer={(
         <>
           <Button onClick={onClose}>{t('common.cancel')}</Button>

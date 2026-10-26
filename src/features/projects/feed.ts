@@ -17,8 +17,8 @@ export const FEED_EVENT_VERBS = new Set([...SIMPLE, 'meeting.created', 'meeting.
 export function feedText(item: FeedItem, t: TFunction, lang: Lang = i18n.language === 'ar' ? 'ar' : 'en'): string {
   if (item.kind === 'update') return plainText(item.body);
   const { detail } = item;
-  // A member event names the person in the label, with the Arabic name in detail.labelAr.
-  const label = item.verb === 'member.added' ? localName({ label: item.label, labelAr: detail.labelAr }, 'label', lang) : item.label;
+  // A member event names the person in the label, and a project event names the project, each with the Arabic name in detail.labelAr.
+  const label = item.verb === 'member.added' || item.targetType === 'project' ? localName({ label: item.label, labelAr: detail.labelAr }, 'label', lang) : item.label;
   const context = actorContext(item.author);
   // A meeting and a site visit have their own words (fbk_022). The title shows in the sentence, as a task title does.
   // The minutes of a meeting (wave 2) read the same on the Tracker line and on the meeting: "wrote the minutes of the site visit ...".

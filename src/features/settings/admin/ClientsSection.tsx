@@ -18,11 +18,13 @@ import { projectKey } from '../../../lib/projectCode';
 import { normalizeForSearch } from '../../../lib/text';
 import { ClientForm, useClientForm } from '../../projects/ClientForm';
 import { clientPatch, draftOfClient } from '../../projects/clientRules';
+import { useProjectName, useByProjectName } from '../../../app/projectName';
 
 /** One client in a sheet: the client form, then the client's projects as links. Save changes only the fields that changed. */
 function ClientSheet({ client, clients, projects, onClose }: { client: Client; clients: Client[]; projects: ProjectSummary[]; onClose: () => void }) {
   const { t } = useTranslation();
   const lang = useLang();
+  const projectName = useProjectName();
   const toast = useToast();
   // An old client may keep no initials. Once given, initials follow the rule, because project codes name them.
   const form = useClientForm(draftOfClient(client), { initialsOptional: !client.initials });
@@ -60,7 +62,7 @@ function ClientSheet({ client, clients, projects, onClose }: { client: Client; c
                 <li key={summary.project.id}>
                   <Link to={`/projects/${summary.project.id}`} className="pressable flex min-h-12 items-center gap-3 py-2 text-link">
                     <ProjectTile id={summary.project.id} mark={summary.project.mark} size={28} subCompanyId={summary.subCompanyId} />
-                    <bdi className="min-w-0 flex-1 truncate font-semibold">{summary.project.name}</bdi>
+                    <bdi className="min-w-0 flex-1 truncate font-semibold">{projectName(summary.project)}</bdi>
                     <span dir="ltr" className="tabular text-footnote text-ink-2">{projectKey(summary.project.code)}</span>
                   </Link>
                 </li>
@@ -81,6 +83,7 @@ function ClientSheet({ client, clients, projects, onClose }: { client: Client; c
 export function ClientsSection() {
   const { t } = useTranslation();
   const lang = useLang();
+  const byProjectName = useByProjectName();
   const session = useCall('session.get', {});
   const clients = useCall('clients.list', {});
   const projects = useCall('projects.list', { status: 'all' });
@@ -137,7 +140,7 @@ export function ClientsSection() {
           key={opened.id}
           client={opened}
           clients={all}
-          projects={(byClient.get(opened.id) ?? []).sort((a, b) => a.project.name.localeCompare(b.project.name))}
+          projects={(byClient.get(opened.id) ?? []).sort((a, b) => byProjectName(a.project, b.project))}
           onClose={() => setOpenId(null)}
         />
       )}

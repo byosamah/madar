@@ -13,6 +13,7 @@ import { Sheet } from '../../../components/Sheet';
 import { counted } from '../../../lib/grammar';
 import { LinkProjectSheet } from './LinkProjectSheet';
 import { ChangeCard, DEFAULT_CHOICES, KINDS, changesOf, itemsOf, matchesTemplate, movesDates, type SyncRow } from './SyncSteps';
+import { useProjectName } from '../../../app/projectName';
 
 /** The steps in order: pick the projects, review every change on one screen, and the run. */
 type Step = 'pick' | 'review' | 'running';
@@ -32,6 +33,7 @@ const MAX_PROJECTS = 50;
  */
 export function TemplateProjectsSheet({ template, onClose, reviewAll = false }: { template: ProjectTemplate; onClose: () => void; reviewAll?: boolean }) {
   const { t } = useTranslation();
+  const projectName = useProjectName();
   const { api } = useRuntime();
   const toast = useToast();
   const personName = usePersonName();
@@ -157,7 +159,7 @@ export function TemplateProjectsSheet({ template, onClose, reviewAll = false }: 
                     onChange={() => toggle(row.project.id)}
                     className="size-5 accent-[var(--sig-from)]"
                   />
-                  <bdi className="min-w-0 flex-1 truncate">{row.project.name}</bdi>
+                  <bdi className="min-w-0 flex-1 truncate">{projectName(row.project)}</bdi>
                   <span className="text-footnote text-ink-2">{stateOf(row)}</span>
                 </label>
               </li>
@@ -172,9 +174,9 @@ export function TemplateProjectsSheet({ template, onClose, reviewAll = false }: 
           <ul className="hairline flex flex-col">
             {notLinked.map((row) => (
               <li key={row.project.id} className="flex min-h-11 items-center gap-3 py-1">
-                <bdi className="min-w-0 flex-1 truncate text-body text-ink">{row.project.name}</bdi>
+                <bdi className="min-w-0 flex-1 truncate text-body text-ink">{projectName(row.project)}</bdi>
                 <Button
-                  aria-label={t('projectTemplates.update.linkNamed', { name: row.project.name })}
+                  aria-label={t('projectTemplates.update.linkNamed', { name: projectName(row.project) })}
                   onClick={() => setLinking(row.project.id)}
                 >
                   {t('projectTemplates.update.link')}

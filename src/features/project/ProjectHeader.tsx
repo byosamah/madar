@@ -22,7 +22,7 @@ import { ProjectActions, ProjectSheets, type ProjectSheetName } from './ProjectA
 import { StageControl } from './StageControl';
 import type { ProjectTab } from './tabs';
 import { clientName } from '../../lib/clientName';
-import { isHiddenProject, isInternalProject, shownCode } from '../../lib/projectLabel';
+import { isHiddenProject, isInternalProject, shownCode, shownName } from '../../lib/projectLabel';
 import { useLang } from '../../app/lang';
 
 /** The tile and the name alone, drawn at once while the project loads, so the tapped row grows into them (motion moment 1). */
@@ -84,7 +84,7 @@ function PhoneHeader({ detail, onPost, tab, controls }: { detail: ProjectDetail;
         <ProjectTile id={project.id} mark={project.mark} size={48} subCompanyId={detail.subCompanyId} shared />
         <div className="min-w-0 flex-1">
           <h1 dir="auto" className="text-page-title text-ink [text-wrap:balance]">
-            <motion.span layoutId={`name-${project.id}`} transition={spring.expand} className="inline-block">{project.name}</motion.span>
+            <motion.span layoutId={`name-${project.id}`} transition={spring.expand} className="inline-block">{shownName(project, lang)}</motion.span>
           </h1>
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-subheadline text-ink-2">
             <span dir="ltr" className="tabular break-all">{project.code}</span>
@@ -142,7 +142,7 @@ function DeskHeader({ detail, onPost, controls }: { detail: ProjectDetail; onPos
         <ProjectTile id={project.id} mark={project.mark} size={48} subCompanyId={detail.subCompanyId} shared />
         <div className="min-w-0 flex-1 basis-60">
           <h1 dir="auto" className="text-page-title text-ink [text-wrap:balance]">
-            <motion.span layoutId={`name-${project.id}`} transition={spring.expand} className="inline-block">{project.name}</motion.span>
+            <motion.span layoutId={`name-${project.id}`} transition={spring.expand} className="inline-block">{shownName(project, lang)}</motion.span>
             {isHiddenProject(project) && <HiddenMark size={18} className="ms-2" />}
           </h1>
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-subheadline text-ink-2">

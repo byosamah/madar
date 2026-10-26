@@ -7,6 +7,7 @@ import { StatusSign, type SignState } from '../../components/StatusSign';
 import { clockFormat, formatDay, now, stampDay, type DayStyle } from '../../lib/dates';
 import { phaseOf } from '../../lib/meetings';
 import { joinLink, mainAction } from './meetingLinks';
+import { shownName } from '../../lib/projectLabel';
 
 /**
  * One meeting in a list (fbk_022): the time, the title, the kind with the project name or the word Office, and the project tile. The
@@ -28,7 +29,7 @@ export const MeetingListRow = memo(function MeetingListRow({ row, dayStyle, onOp
         <span className="min-w-0 flex-1">
           <bdi className={`block truncate text-subheadline font-medium ${phase === 'cancelled' ? 'text-ink-2 line-through' : 'text-ink'}`}>{row.title}</bdi>
           <span className="block truncate text-footnote text-ink-2">
-            {t(`meetings.kind.${row.kind}`)} · <bdi>{row.project ? row.project.name : t('office.word')}</bdi>
+            {t(`meetings.kind.${row.kind}`)} · <bdi>{row.project ? shownName(row.project, lang) : t('office.word')}</bdi>
             {phase === 'now' || phase === 'cancelled' || phase === 'done' ? <> · {t(`meetings.state.${phase}`)}</> : null}
           </span>
         </span>
@@ -83,7 +84,7 @@ export const MeetingCard = memo(function MeetingCard({ row, dayStyle, nowMs, onO
         {place && <span dir="auto" className="text-subheadline text-ink-2">{place}</span>}
         <span className="flex items-center gap-2 text-subheadline text-ink-2">
           {row.project && <ProjectTile id={row.project.id} mark={row.project.mark} size={24} />}
-          <bdi className="min-w-0 truncate">{row.project ? row.project.name : t('office.word')}</bdi>
+          <bdi className="min-w-0 truncate">{row.project ? shownName(row.project, lang) : t('office.word')}</bdi>
         </span>
         {last && <span className="text-footnote text-ink-2">{last}</span>}
       </button>

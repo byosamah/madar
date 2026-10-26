@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { ProjectSign } from '../../components/ProjectSign';
 import { ProjectTile } from '../../components/ProjectTile';
 import type { DashboardData } from './Tiles';
+import { useProjectName } from '../../app/projectName';
 
 /**
  * The paused projects that waited longer than the office allows (colleague comment 16). They show whatever the status filter
@@ -10,6 +11,7 @@ import type { DashboardData } from './Tiles';
  */
 export function StaleProjects({ view }: { view: DashboardData }) {
   const { t } = useTranslation();
+  const projectName = useProjectName();
   const { stale } = view.attention;
   if (stale.length === 0) return null;
   return (
@@ -28,7 +30,7 @@ export function StaleProjects({ view }: { view: DashboardData }) {
                   text starts from its own width (flex-auto, not flex-1), so the box can see that the name needs the room. */}
               <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
                 <span className="min-w-0 flex-auto">
-                  <bdi className="block break-words text-subheadline font-semibold text-ink">{row.project.name}</bdi>
+                  <bdi className="block break-words text-subheadline font-semibold text-ink">{projectName(row.project)}</bdi>
                   <span className="block text-footnote text-ink-2">{t(`dashboard.stale.${row.kind}`)}</span>
                 </span>
                 <ProjectSign project={{ status: 'on_hold', pause: { kind: row.kind } }} staleDays={row.days} />

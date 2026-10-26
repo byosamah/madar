@@ -5,10 +5,12 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '../../components/Button';
 import type { NextItem } from '../../lib/home';
 import { TimerIcon } from '../../components/icons/animated/timer';
+import { useProjectName } from '../../app/projectName';
 
 /** "Next for you": one thing to do, on the glow (redesign spec 3.2). */
 export function NextCard({ item, onOpen, onFocus, left }: { item: NextItem; onOpen: (projectId: string | null, taskId: string) => void; onFocus: (taskId: string) => void; left: number | null }) {
   const { t } = useTranslation();
+  const projectName = useProjectName();
   let line = t('home.next.clear');
   let context = '';
   let action: { label: string; run: () => void } | null = null;
@@ -16,7 +18,7 @@ export function NextCard({ item, onOpen, onFocus, left }: { item: NextItem; onOp
     const { task, project } = item.row;
     line = t(item.kind === 'review' ? 'home.next.reviewLine' : `home.next.${item.kind}`, { title: task.title });
     // An office task has no project: the line under it says Office (owner, 2026-10-06).
-    context = project ? project.name : t('office.word');
+    context = project ? projectName(project) : t('office.word');
     action = { label: t(item.kind === 'review' ? 'home.next.review' : 'home.next.open'), run: () => onOpen(project?.id ?? null, task.id) };
   }
   return (

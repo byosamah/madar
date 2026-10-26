@@ -22,6 +22,7 @@ import { CircleIcon } from '../../components/icons/animated/circle';
 import { MessageCircleIcon } from '../../components/icons/animated/message-circle';
 import { lazyOverlay } from '../../app/lazyOverlay';
 import { useFocusChat, type FocusChat } from './focusChat';
+import { useProjectName } from '../../app/projectName';
 
 /**
  * The chat of Focus mode loads at the first press, in a chunk of its own, so Focus stays small (fbk_059). The log, the box and the sheets
@@ -31,6 +32,7 @@ const chatPane = lazyOverlay(() => import('./FocusChatPane').then((m) => m.Focus
 
 function FocusPage({ data, onExit, chat }: { data: TaskDetail; onExit: (done?: boolean) => void; chat: FocusChat }) {
   const { t } = useTranslation();
+  const projectName = useProjectName();
   const nameOf = usePersonName();
   const { task, project } = data;
   const [finished, setFinished] = useState(false);
@@ -106,7 +108,7 @@ function FocusPage({ data, onExit, chat }: { data: TaskDetail; onExit: (done?: b
         {project ? (
           <span className="flex min-w-0 items-center gap-3">
             <ProjectTile id={project.id} mark={project.mark} size={32} />
-            <bdi className="truncate text-subheadline font-semibold text-ink-2">{project.name}</bdi>
+            <bdi className="truncate text-subheadline font-semibold text-ink-2">{projectName(project)}</bdi>
           </span>
         ) : <span className="text-subheadline font-semibold text-ink-2">{t('office.word')}</span>}
         {/* One quiet grey button, never the main one. It shows no dot and no count for a new message: Focus stays calm (owner, 2026-10-25). */}

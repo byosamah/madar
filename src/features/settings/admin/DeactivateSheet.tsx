@@ -14,6 +14,7 @@ import { actorContext, counted } from '../../../lib/grammar';
 import { taskLink } from '../../../lib/params';
 import { isLive } from '../../../lib/overview';
 import { shownKey } from '../../../lib/projectLabel';
+import { useProjectName } from '../../../app/projectName';
 
 /** The sheet names this many open tasks. The count in its heading tells the rest. */
 const SHOWN = 8;
@@ -71,6 +72,7 @@ export function useDeactivate(): { ask: (user: User) => void; sheet: ReactNode }
 function DeactivateSheet({ user, work, onClose, onConfirm }: { user: User; work: OpenWork; onClose: () => void; onConfirm: () => void }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
+  const projectName = useProjectName();
   const context = actorContext(user);
   const more = work.tasks.length - SHOWN;
   // Only an Admin or the project's own leader changes a leader. The leader is the person here, so any other viewer, Management
@@ -104,7 +106,7 @@ function DeactivateSheet({ user, work, onClose, onConfirm }: { user: User; work:
                   {/* The Team tab is where the leader changes. */}
                   <Link to={`/projects/${project.id}?tab=team`} onClick={onClose} className="flex min-h-11 items-center gap-3 rounded-xl px-2 hover:bg-fill">
                     <span className="tabular text-footnote text-label-2">{shownKey(project, t)}</span>
-                    <bdi className="min-w-0 flex-1 truncate">{project.name}</bdi>
+                    <bdi className="min-w-0 flex-1 truncate">{projectName(project)}</bdi>
                   </Link>
                 </li>
               ))}
@@ -119,7 +121,7 @@ function DeactivateSheet({ user, work, onClose, onConfirm }: { user: User; work:
                 <li key={task.id}>
                   <Link to={taskLink(project?.id ?? null, task.id)} onClick={onClose} className="flex min-h-11 flex-col justify-center rounded-xl px-2 py-1 hover:bg-fill">
                     <bdi className="truncate">{task.title}</bdi>
-                    <bdi className="truncate text-footnote text-label-2">{project ? project.name : t('office.word')}</bdi>
+                    <bdi className="truncate text-footnote text-label-2">{project ? projectName(project) : t('office.word')}</bdi>
                   </Link>
                 </li>
               ))}

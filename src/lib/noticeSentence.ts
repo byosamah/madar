@@ -87,6 +87,8 @@ export function noticeSentence(view: NoticeView, t: Words, lang: Language): stri
   const people = names.length <= MOST_NAMES
     ? listFormat(lang).format(names)
     : t('adminReach.andOthers', { names: names.slice(0, 2).join(', '), others: t('adminReach.others', { count: names.length - 2 }) });
+  // The name of a project in the target follows the language (owner, 2026-10-26, fbk_062). The other targets have no Arabic twin.
+  const shownTarget = lang === 'ar' && view.targetAr ? view.targetAr : target;
   const sentenceKey = copy ? copyKey(view) : meeting ? meetingKey(n, gone) : report ? reportKey(n) : everyone ? everyoneKey(group, target !== '')
     : reply ? (direct ? 'notices.repliedDirect' : group && target === '' ? 'notices.repliedGroupGone' : 'notices.repliedToYou')
       : direct ? 'inbox.mentionDirect' : group ? groupKey(n.trigger, target !== '') : restartPast ? 'inbox.trigger.resume_due_past' : `inbox.trigger.${n.trigger}`;
@@ -95,7 +97,7 @@ export function noticeSentence(view: NoticeView, t: Words, lang: Language): stri
     context: actorContext(actor),
     // The excerpt of a report, the name of a group and the title of a meeting keep their own direction (FSI and PDI), so an English "…" or "?" stays at its end in Arabic.
     people,
-    target: report || group || restart || meeting ? `\u2068${target}\u2069` : target,
+    target: report || group || restart || meeting ? `\u2068${shownTarget}\u2069` : shownTarget,
     // A reminder names its due day, which can be days away after a weekend (audit 2026-10-03, API-11). A meeting notice names the day and the time of the start (fbk_022).
     day: startsAt ? formatDay(stampDay(startsAt), lang, 'withWeekday') : dueDate ? formatDay(dueDate, lang, 'weekday') : '',
     time: startsAt ? clockFormat(lang).format(new Date(startsAt)) : '',

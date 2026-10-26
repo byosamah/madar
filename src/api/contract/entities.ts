@@ -406,6 +406,8 @@ export const Project = z.object({
   /** The old form KH-26-014, or the new form YYMMSSINI-CLS-Type (owner, 2026-10-05, lib/projectCode.ts). Two projects of one contract share one code. */
   code: ProjectCode,
   name: z.string().trim().min(1).max(120),
+  /** The Arabic name (owner, 2026-10-26, fbk_062). Optional, so projects saved before it still read. An empty value means none. */
+  nameAr: z.string().trim().max(120).optional(),
   clientId: ClientId.nullable(),
   status: ProjectStatus,
   leaderId: UserId.nullable(),

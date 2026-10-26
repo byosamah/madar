@@ -24,6 +24,7 @@ import { CircleDashedIcon } from '../../../components/icons/animated/circle-dash
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
 import { AttachFileIcon } from '../../../components/icons/animated/attach-file';
 import { TaskPeople } from './TaskPeople';
+import { shownName } from '../../../lib/projectLabel';
 
 /** A mark that no translation contains. It shows where the name sits in a translated line. */
 const NAME_MARK = '\u0001';
@@ -180,7 +181,7 @@ export const TaskRowItem = memo(function TaskRowItem({ row, me, onOpen, showProj
             {task.flagged && <span className="inline-flex items-center gap-1 text-attn"><AnimatedIcon icon={BadgeAlertIcon} size={12} aria-hidden />{t('tasks.flagged')}</span>}
             {row.fileCount > 0 && <span className="inline-flex items-center gap-1"><AnimatedIcon icon={AttachFileIcon} size={12} aria-hidden />{t('tasks.files', { n: row.fileCount })}</span>}
             {/* An office task shows the word Office where a project shows (owner, 2026-10-06). */}
-            {showProject && (row.project ? <bdi className="truncate">{row.project.name}</bdi> : <span>{t('office.word')}</span>)}
+            {showProject && (row.project ? <bdi className="truncate">{shownName(row.project, lang)}</bdi> : <span>{t('office.word')}</span>)}
           </span>
         </button>
         {/* The task's conversation, one press away (owner, 2026-10-01). The count shows when there are comments. */}

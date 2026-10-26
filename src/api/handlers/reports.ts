@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { addDays, stampDay } from '../../lib/dates';
-import { markOf } from '../../lib/projectMark';
+import { projectRef } from '../../lib/projectRef';
 import { Day, SubCompanyId, type Event, type Payment, type Project, type Task, type TrackerEntry } from '../contract/entities';
 import { OfficeReport, type ReportPerson, type ReportProject } from '../contract/views';
 import { computeHealth } from '../health';
@@ -127,7 +127,7 @@ function buildReport(ctx: Ctx, input: ReportPick & { subCompanyId?: string; guid
       .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))[0];
     const health = computeHealth({ project, stages: stagesOf(state, project.id), tasks: own }, today);
     return {
-      project: { id: project.id, code: project.code, name: project.name, mark: markOf(project) },
+      project: projectRef(project),
       subCompany: subCompanyOf(project),
       status: project.status,
       stageAtStart: stageOn(project.id, range.from),

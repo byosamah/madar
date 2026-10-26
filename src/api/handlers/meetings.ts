@@ -16,7 +16,7 @@ import {
   SETTLE_BACK_DAYS, stampOn,
 } from '../../lib/meetings';
 import { isLive } from '../../lib/overview';
-import { markOf } from '../../lib/projectMark';
+import { projectRef } from '../../lib/projectRef';
 import { visibleTextPattern } from '../../lib/projectCode';
 import { assertFilesForMeeting, assertFilesInProject } from './attach';
 import { addTrackerEntry } from './tracker';
@@ -99,7 +99,7 @@ export function meetingRowOf(state: State, meeting: Meeting, viewer: Actor): Mee
   return {
     id: meeting.id, kind: meeting.kind, title: meeting.title, status: meeting.status, startsAt: meeting.startsAt, endsAt: meeting.endsAt,
     where: meeting.where, rev: meeting.rev,
-    project: project ? { id: project.id, code: project.code, name: project.name, mark: markOf(project) } : null,
+    project: project ? projectRef(project) : null,
     organizer: cardOf(state, meeting.organizerId),
     attendeeCount: meeting.attendeeIds.length,
     mine: takesPart(meeting, viewer.id),

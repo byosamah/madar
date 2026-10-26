@@ -13,6 +13,7 @@ import { plainText } from '../../../lib/text';
 import { toTsv } from '../../../lib/trackerExport';
 import { FEED_EVENT_VERBS, feedText } from '../../projects/feed';
 import { actionLine } from './actionLine';
+import { shownName } from '../../../lib/projectLabel';
 
 /**
  * `owner`: the person of an action. An action line reads on its own, with no name before it, as in the meeting panel.
@@ -137,7 +138,10 @@ export function MeetingSummary({ agendaIds, names, startedAt, shared, onShared, 
       const owner = view.event.verb === 'task.created' ? localName(view.detail, 'lead', lang) : undefined;
       byProject.set(projectId, [...(byProject.get(projectId) ?? []), { id: view.event.id, who: personName(view.actor, lang), what, time: clockFormat(lang).format(new Date(view.event.createdAt)), owner }]);
     }
-    const nameOf = (id: string) => names.get(id) ?? everyProject.data?.find((row) => row.project.id === id)?.project.name ?? id;
+    const nameOf = (id: string) => {
+      const other = everyProject.data?.find((row) => row.project.id === id)?.project;
+      return names.get(id) ?? (other ? shownName(other, lang) : id);
+    };
     return agendaIds.filter((id) => byProject.has(id)).map((id) => ({ projectId: id, name: nameOf(id), lines: byProject.get(id)! }));
   }, [events.data, agendaIds, names, everyProject.data, t, lang]);
 

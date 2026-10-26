@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import type { TaskDetail } from '../../../api/contract/views';
 import { ProjectTile } from '../../../components/ProjectTile';
 import type { TaskPanel } from './useTaskPanel';
+import { useProjectName } from '../../../app/projectName';
 
 /**
  * The start of the top row of the task panel on a phone: the picture and the name of the project, as a link to the project. An office to-do
@@ -12,12 +13,13 @@ import type { TaskPanel } from './useTaskPanel';
  */
 export function PhoneHeader({ data }: { data: TaskDetail }) {
   const { t } = useTranslation();
+  const projectName = useProjectName();
   const { project } = data;
   if (!project) return <span className="flex min-h-11 items-center text-subheadline font-semibold text-ink-2">{t('office.word')}</span>;
   return (
     <Link to={`/projects/${project.id}`} className="pressable flex min-h-11 min-w-0 max-w-full items-center gap-2 text-subheadline font-semibold text-ink">
       <ProjectTile id={project.id} mark={project.mark} size={22} />
-      <bdi className="truncate">{project.name}</bdi>
+      <bdi className="truncate">{projectName(project)}</bdi>
     </Link>
   );
 }

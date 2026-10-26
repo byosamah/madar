@@ -15,14 +15,15 @@ describe("What's new entries", () => {
     for (const [i, entry] of WHATS_NEW.entries()) {
       expect(entry.day, entry.id).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(entry.day <= today, `${entry.id} ${entry.day}`).toBe(true);
-      if (i > 0) expect(entry.day <= WHATS_NEW[i - 1].day, `${entry.id} ${entry.day}`).toBe(true);
+      // The usage data line is pinned first (insight design, section 8), so the entry under it may be newer than it.
+      if (i > 1) expect(entry.day <= WHATS_NEW[i - 1].day, `${entry.id} ${entry.day}`).toBe(true);
     }
   });
 
   it('keeps the release days of the history (Cloudflare production deploys and the release records)', () => {
     const dayOf = (id: string) => WHATS_NEW.find((entry) => entry.id === id)?.day;
     expect(dayOf('2026-10-23-82')).toBe('2026-10-22');
-    expect(new Set(WHATS_NEW.map((entry) => entry.day))).toEqual(new Set(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-25']));
+    expect(new Set(WHATS_NEW.map((entry) => entry.day))).toEqual(new Set(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-25', '2026-10-26']));
   });
 
   // Batch A (fbk_038, fbk_040, fbk_043, fbk_045, fbk_046, fbk_047): five lines, newer than every other entry.
@@ -50,7 +51,8 @@ describe("What's new entries", () => {
   });
 
   it('list the newest day first', () => {
-    const days = WHATS_NEW.map((entry) => entry.day);
+    // Without the usage data line, which stays first.
+    const days = WHATS_NEW.slice(1).map((entry) => entry.day);
     expect([...days].sort().reverse()).toEqual(days);
   });
 

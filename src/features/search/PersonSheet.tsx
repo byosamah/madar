@@ -11,6 +11,7 @@ import { MessageCircleIcon } from '../../components/icons/animated/message-circl
 import { Sheet } from '../../components/Sheet';
 import { shownKey } from '../../lib/projectLabel';
 import { chatState } from '../inbox/chatBack';
+import { useProjectName } from '../../app/projectName';
 
 /**
  * A person from search: their discipline, email and active projects (plan clarification 8). A grey Message button opens the direct chat
@@ -18,6 +19,7 @@ import { chatState } from '../inbox/chatBack';
  */
 export function PersonSheet({ person, onClose }: { person: UserCard; onClose: () => void }) {
   const { t } = useTranslation();
+  const projectName = useProjectName();
   const nameOf = usePersonName();
   const navigate = useNavigate();
   const session = useCall('session.get', {});
@@ -54,7 +56,7 @@ export function PersonSheet({ person, onClose }: { person: UserCard; onClose: ()
                 <li key={summary.project.id}>
                   <Link to={`/projects/${summary.project.id}`} onClick={onClose} className="flex min-h-11 items-center gap-3 rounded-xl px-2 hover:bg-fill">
                     <span className="tabular text-footnote text-label-2">{shownKey(summary.project, t)}</span>
-                    <bdi className="min-w-0 flex-1 truncate">{summary.project.name}</bdi>
+                    <bdi className="min-w-0 flex-1 truncate">{projectName(summary.project)}</bdi>
                     <span className="text-footnote text-label-2">{summary.leader?.id === person.id ? t('person.leads') : t('person.member')}</span>
                   </Link>
                 </li>

@@ -22,6 +22,7 @@ import { taskLink } from '../../lib/params';
 import { searchWords } from '../../lib/searchMatch';
 import { MessageHits } from './MessageHits';
 import { shownKey } from '../../lib/projectLabel';
+import { useProjectName } from '../../app/projectName';
 
 const GROUP = 'flex flex-col [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-footnote [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-label-2';
 
@@ -35,6 +36,7 @@ function Item({ value, onSelect, onPrepare, children }: { value: string; onSelec
 
 function Results({ query, onPerson, messagesFirst }: { query: string; onPerson: (person: UserCard) => void; messagesFirst: boolean }) {
   const { t } = useTranslation();
+  const projectName = useProjectName();
   const nameOf = usePersonName();
   const lang = useLang();
   const navigate = useNavigate();
@@ -63,7 +65,7 @@ function Results({ query, onPerson, messagesFirst }: { query: string; onPerson: 
           {projects.map((p) => (
             <Item key={p.id} value={`project-${p.id}`} onSelect={() => navigate(`/projects/${p.id}`)}>
               <span className="tabular text-footnote text-label-2">{shownKey(p.code, t)}</span>
-              <bdi>{p.name}</bdi>
+              <bdi>{projectName(p)}</bdi>
             </Item>
           ))}
         </Command.Group>

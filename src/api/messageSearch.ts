@@ -7,7 +7,7 @@ import { can, principalOf, taskResource } from './permissions';
 import type { State } from './store';
 import { cardOf } from './views';
 import { bodySearchText, hitLine, holdsWords, searchesMessages } from '../lib/searchMatch';
-import { markOf } from '../lib/projectMark';
+import { projectRef } from '../lib/projectRef';
 import { plainText } from '../lib/text';
 
 /**
@@ -52,7 +52,7 @@ function chatHit(state: State, viewer: User, conversation: Conversation, message
     chatId: conversation.id,
     kind: conversation.kind,
     title: conversation.kind === 'project' ? (project?.name ?? '') : conversation.kind === 'group' ? (conversation.name ?? '') : (person?.name ?? ''),
-    project: conversation.kind === 'project' && project ? { id: project.id, code: project.code, name: project.name, mark: markOf(project) } : null,
+    project: conversation.kind === 'project' && project ? projectRef(project) : null,
     person,
     author: cardOf(state, message.authorId),
     // The rule of isMine in handlers/chats.ts. This module imports no handler.
@@ -71,7 +71,7 @@ function commentHit(state: State, viewer: User, comment: Comment, words: readonl
     chatId: task.id,
     kind: 'task',
     title: task.title,
-    project: project ? { id: project.id, code: project.code, name: project.name, mark: markOf(project) } : null,
+    project: project ? projectRef(project) : null,
     person: null,
     author: cardOf(state, comment.authorId),
     mine: principalOf(state, comment.authorId) === viewer.id,

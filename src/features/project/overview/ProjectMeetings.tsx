@@ -54,7 +54,7 @@ export function ProjectMeetings({ detail }: TabProps) {
           {t('meetings.project.plan')}
         </button>
       )}
-      {mayPlan && <MeetingForm open={planning} onOpenChange={setPlanning} project={{ id: project.id, name: project.name }} />}
+      {mayPlan && <MeetingForm open={planning} onOpenChange={setPlanning} project={{ id: project.id, name: project.name, nameAr: project.nameAr }} />}
     </section>
   );
 }

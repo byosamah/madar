@@ -342,11 +342,16 @@ The owner sees how the team uses Madar, which errors they hit, and replays of th
 - Home keeps the last role it saw for each auth user in localStorage (`madar.homeRole.<auth user id>`,
   `features/home/roleHint.ts`). Before `session.get` answers, the real build asks for the `projects.list` of that role (a phone asks for none, see "Home on a phone"). The
   session answer always decides. The sign-in port gives the auth user id at once (`AuthPort.userId()`, optional).
+  The hint also carries the Admin's "What reaches me" choice (owner, 2026-10-26, fbk_065): the text is `admin|mine` or `admin|all`, and a plain `admin` means
+  `mixed`. `useRoleHint` (`features/home/useRoleHint.ts`) gives Home and the Projects screen `{ admin, reach, known }` and writes the hint. The input of
+  Home comes from `homeProjectsInput(admin, reach)` (`lib/projectReach.ts`): "Only my work" asks as a Member does (`mine`, status `all`).
 - The last Home lists stay on the device (owner, 2026-10-21, DF-14): `app/remote/homeCache.ts`, started by `main.tsx` in the real build only. The prototype
   stores nothing. One record for each auth user id sits in the IndexedDB `madar-home-cache` (raw IndexedDB, no package). It holds the build
   (`VITE_MADAR_BUILD`), the time, the role and rights of the session, and the answers of the reads that a cold Home sends in its first request
-  (`homeKeys`: `session.get`, both `tasks.list`, `projects.list` of the role, today's `meetings.list`, `chats.unreadCount`, `notifications.count`,
+  (`homeKeys`: `session.get`, both `tasks.list`, `projects.list` of the role and the reach, today's `meetings.list`, `chats.unreadCount`, `notifications.count`,
   `subCompanies.list`, `users.list`). A change to the first request of Home changes `homeKeys` in the same commit; `HomeInstant.test.tsx` pins the names.
+  `homeKeys(role, today, phone, reach)` takes the reach from the session answer (`reachOfSession`) in the stored record and in the fresh cache, so a stored
+  answer of the other input never shows.
   Start: the read runs next to the first request and gives up after 150 ms; each stored answer goes into the query cache with its stored time
   (only where the query has no data), and the same read is sent at once (`fetchQuery`, joined when it is already on the wire), because the real build keeps an
   answer until a change names it. A record of another build, another person or over 7 days is ignored and deleted. Write: after the Home reads
@@ -372,7 +377,8 @@ The owner sees how the team uses Madar, which errors they hit, and replays of th
   `usePrefetchCall`. It starts none when the cached session lacks the switch of the route. A change to a read of one of these screens
   changes its line in `guardReads.ts` in the same commit; `GuardReads.test.tsx` holds every answer and fails on a key that the list missed.
 - A press on a tab of the bar starts the main read of its screen on pointerdown, never on hover (LV-9, 2026-10-21): `usePressReads` and
-  `PRESS_READS` in `app/pressReads.ts` (Projects, Dashboard, Inbox, the bell, `/work`, `/meetings`, `/me`), with the keys of the screen at its link with no filter. A change to
+  `PRESS_READS` in `app/pressReads.ts` (Projects, Dashboard, Inbox, the bell, `/work`, `/meetings`, `/me`), with the keys of the screen at its link with no filter. The Projects line follows the reach of the cached session: an Admin with "Only my work" opens a bare link on `mine`
+  (`projectsDefaultShow`), so the press asks for `filter: 'mine'`. A change to
   one of these reads changes its line there too; `PressReads.test.tsx` holds the keys. Home shows from the cache and starts nothing. `/work` starts
   `MINE_OPEN` and `REVIEW_FOR_ME` (`features/work/readInputs.ts`), `/meetings` starts `meetingsListInput(today)` (`features/meetings/readInputs.ts`),
   `/me` starts `settings.get` (and `google.status` in the real build). The Work tab, the Work segments and the Me hub all use `usePressReads()(path)`.
@@ -801,6 +807,11 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
   for the Admin"). The push of a chat message does not follow the choice: it keeps `levelFromRead` and the default "named" of a project
   chat. The agent of an Admin follows the choice of its person, and cannot set it. The base word tree has no type for the track words, so a
   test reads `adminReach.*` through a cast.
+  `mine` also changes two lists (owner, 2026-10-26, fbk_065): Home "Your projects" on a desk and the Projects screen show only the projects that the Admin leads
+  or works on. The Dashboard, the map and the Open space stay office-wide. `lib/projectReach.ts` holds the rules. On the Projects screen a bare link (no key of
+  `PROJECT_FILTER_KEYS`: filter, leader, client, team, stage, health, subCompany, status) opens on "My projects"; a link with any of these keys keeps "All", so a Dashboard
+  link shows what it promises. "All" in the Filter writes `filter=all` into the link, and a first filter key on a bare link writes `filter=mine` first, so the list does not
+  widen by itself. The default "Show" never counts in the Filter badge. The list waits for `known` (the session answered or the device has a hint).
 - New group (`InboxScreen.tsx`): the title says "New group", a line counts the people, the name field shows from the start and is
   optional (an empty name takes the first names), and one full-width button makes the group.
 - Every chat takes files (owner, 2026-10-19). The box of a project chat uploads into the files of its project. The box of a direct chat
@@ -864,7 +875,8 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
   Sort the ids as numbers (`sort -t- -k4 -n`): a text sort puts `2026-10-23-9` above `-82` (2026-10-22).
   A test finds its entry by id, never by `WHATS_NEW[0]`. One exception: the usage data entry (`2026-10-23-102`) stays first, and
   `entries.test.ts` pins `WHATS_NEW[0]` to it, so a new entry goes second. `entries.test.ts` also pins the set of release days and the list of rights
-  that an entry may name: a new `day` or a new `right` adds its value there.
+  that an entry may name: a new `day` or a new `right` adds its value there. The usage entry is exempt from the order of days (the entry under it may be
+  newer), so one day can head two groups on the page: `WhatsNewScreen` keys each group by its number.
 - What's new dates (owner, 2026-10-22): `day` is the day the entry's production release went live, and the page shows the entries of each
   day under that date. Write the planned release day before `all.sh test`; when production goes on another day, fix it in the release
   record commit. The id is only a name and keeps its old form. `entries.test.ts` fails on a day still to come or out of order.
@@ -1048,6 +1060,11 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
 - A person has an English name (`name`) and maybe an Arabic name (`nameAr`). Every spot that shows a person's name uses
   `usePersonName()` (`app/personName.ts`, the name of the screen language), and lists of people sort with
   `useByPersonName()`. A name that the server writes into a detail has an `Ar` twin: read it with `localName`.
+- A project has an English name (`name`) and maybe an Arabic name (`nameAr`, owner, 2026-10-26, fbk_062; an empty value means none; the field "Arabic name" sits under
+  "Name" in `ProjectFields`). Every spot that shows a project name uses `useProjectName()` (`app/projectName.ts`) or `shownName(project, lang)`
+  (`lib/projectLabel.ts`), and lists sort with `useByProjectName()`: Arabic screens show the Arabic name, else the English name; English screens never change. Every view
+  that names a project builds its ref with `projectRef` or `projectTile` (`lib/projectRef.ts`), which add `nameAr` only when it is set. A text that the server writes with a
+  project name has an Arabic twin: the notice view gives `targetAr`, and a project event gives `detail.labelAr`. The push title follows the language of the person.
 - A person card (`UserCard`) carries no picture data. `Avatar` takes the picture from `users.list` through
   `app/pictures.tsx` (the app frame and the meeting view mount it).
 - A report screenshot uses `useScreenshotLink` (`app/files.ts`). A press opens it in a sheet, and a press on the big

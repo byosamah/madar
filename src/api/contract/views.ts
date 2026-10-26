@@ -51,7 +51,7 @@ export const FeedItem = z.discriminatedUnion('kind', [
 export type FeedItem = z.infer<typeof FeedItem>;
 
 /** A project named in another view, with its picture mark. */
-export const ProjectRef = z.object({ id: ProjectId, code: z.string(), name: z.string(), mark: z.number().int().nonnegative() });
+export const ProjectRef = z.object({ id: ProjectId, code: z.string(), name: z.string(), nameAr: z.string().optional(), mark: z.number().int().nonnegative() });
 export type ProjectRef = z.infer<typeof ProjectRef>;
 
 export const NextDeadline = z.object({ id: DeadlineId, name: z.string(), date: Day, daysLeft: z.number().int() });
@@ -466,7 +466,7 @@ export type PaymentRow = z.infer<typeof PaymentRow>;
  * and gaps is null without the Admin right. Each count is for the days of the period, except the states that are "at the end".
  */
 const ReportCount = z.number().int().min(0);
-const ReportRef = z.object({ id: ProjectId, code: z.string(), name: z.string(), mark: z.number().int().nonnegative() });
+const ReportRef = z.object({ id: ProjectId, code: z.string(), name: z.string(), nameAr: z.string().optional(), mark: z.number().int().nonnegative() });
 const ReportStage = z.object({ id: StageId, name: z.string() });
 const ReportSubCompany = z.object({ id: SubCompanyId, name: z.string(), nameAr: z.string() });
 const ReportDeadlines = z.object({ met: ReportCount, missed: ReportCount });

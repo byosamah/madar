@@ -9,12 +9,14 @@ import { spring } from '../../design/motion';
 import { formatDay } from '../../lib/dates';
 import { dueText, wordForDays } from '../../lib/due';
 import { markGlow, markOf } from '../../lib/projectMark';
+import { useProjectName } from '../../app/projectName';
 
 /** The latest render at 16:9, or the project's picture large when there is no cover (owner, 2026-10-01). */
 export function ProjectCover({ summary, className = 'aspect-video', layoutId }: { summary: ProjectSummary; className?: string; layoutId?: string }) {
   const { t } = useTranslation();
+  const projectName = useProjectName();
   const cover = useFileLink(summary.project.coverFileId, summary.coverLetter ?? undefined, 'thumb');
-  const label = t('projects.cover', { name: summary.project.name });
+  const label = t('projects.cover', { name: projectName(summary.project) });
   const inner = cover.url
     ? <img src={cover.url} alt={label} onError={cover.onError} className={`${PRIVATE} w-full object-cover ${className}`} />
     : (

@@ -21,7 +21,7 @@ import { mentionedUserIds, plainText } from '../../lib/text';
 import { everyoneCountOfChat, everyoneOfChat, namedByEveryone } from './everyone';
 import { listFormat } from '../../lib/dates';
 import { personName } from '../../lib/personName';
-import { markOf } from '../../lib/projectMark';
+import { projectRef } from '../../lib/projectRef';
 
 const PREVIEW_MAX = 140;
 
@@ -98,7 +98,7 @@ function rowOf(state: State, conversation: Conversation, viewer: User): ChatRow 
     kind: conversation.kind,
     id: conversation.id,
     title: conversation.kind === 'project' ? (project?.name ?? '') : group ? (conversation.name ?? '') : (person?.name ?? ''),
-    project: project ? { id: project.id, code: project.code, name: project.name, mark: markOf(project) } : null,
+    project: project ? projectRef(project) : null,
     person,
     taskId: null,
     makerId: group ? (actingMaker(state, conversation) ?? conversation.makerId ?? null) : null,
@@ -183,7 +183,7 @@ function taskRows(state: State, viewer: User): ChatRow[] {
     // The newest item may be a quiet line of a reason: the row then shows its short line, from the kind and the reason (fbk_027).
     const kind = lineKindOf(last);
     return {
-      kind: 'task', id: task.id, title: task.title, project: project ? { id: project.id, code: project.code, name: project.name, mark: markOf(project) } : null, person: null,
+      kind: 'task', id: task.id, title: task.title, project: project ? projectRef(project) : null, person: null,
       makerId: null, members: [], taskId: task.id, preview: previewOf(last.body), previewAuthor: cardOf(state, last.authorId),
       previewMine: principalOf(state, last.authorId) === viewer.id, previewKind: kind === 'message' ? null : kind, lastAt: last.createdAt, unread: taskUnread(state, task.id, comments, viewer.id), personLeft: false,
       archived: isArchived(state.chatReads[chatReadKey(task.id, viewer.id)], last.createdAt),
@@ -746,7 +746,7 @@ function waitingThread(state: State, thread: TaskThread, viewer: User, now: Date
   const waiting = task.ownerId === viewer.id ? others.at(-1) : others.findLast((c) => namesPerson(state, c, viewer.id));
   if (!waiting || answeredByReaction(state, waiting.reactions, viewer.id)) return null;
   return {
-    kind: 'task', id: task.id, title: task.title, project: project ? { id: project.id, code: project.code, name: project.name, mark: markOf(project) } : null,
+    kind: 'task', id: task.id, title: task.title, project: project ? projectRef(project) : null,
     from: cardOf(state, waiting.authorId), body: Array.from(plainText(waiting.body)).slice(0, WAITING_BODY_MAX).join(''),
     at: waiting.createdAt, days: daysSince(waiting.createdAt, now),
   };

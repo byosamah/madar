@@ -11,6 +11,6 @@ import { normalizeForSearch } from '../../lib/text';
 export function searchProjects(rows: ProjectSummary[], query: string): ProjectSummary[] {
   const words = searchWords(query);
   if (words.length === 0) return rows;
-  const kept = rows.filter(({ project, client }) => holdsWords(normalizeForSearch([project.name, project.code, client?.name, client?.nameAr].filter(Boolean).join(' ')), words));
+  const kept = rows.filter(({ project, client }) => holdsWords(normalizeForSearch([project.name, project.nameAr, project.code, client?.name, client?.nameAr].filter(Boolean).join(' ')), words));
   return kept.length === rows.length ? rows : kept;
 }

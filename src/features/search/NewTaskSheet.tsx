@@ -11,6 +11,7 @@ import { Sheet } from '../../components/Sheet';
 import { useStageBack } from '../project/tasks/StageBack';
 import { taskLink } from '../../lib/params';
 import { shownKey } from '../../lib/projectLabel';
+import { useProjectName } from '../../app/projectName';
 
 const NO_TIMING: Timing = { startDate: null, schedule: 'static', durationDays: null, dueDate: null };
 
@@ -20,6 +21,7 @@ const NO_TIMING: Timing = { startDate: null, schedule: 'static', durationDays: n
  */
 export function NewTaskSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation();
+  const projectName = useProjectName();
   const toast = useToast();
   const navigate = useNavigate();
   const projects = useCall('projects.list', { status: 'active', sort: 'name' });
@@ -83,7 +85,7 @@ export function NewTaskSheet({ open, onOpenChange }: { open: boolean; onOpenChan
             }}
           >
             <option value="" disabled>{t('newTask.project')}</option>
-            {options.map((option) => <option key={option.project.id} value={option.project.id}>{`${shownKey(option.project, t)} · ${option.project.name}`}</option>)}
+            {options.map((option) => <option key={option.project.id} value={option.project.id}>{`${shownKey(option.project, t)} · ${projectName(option.project)}`}</option>)}
           </SelectField>
           <TextField id="new-task-title" label={t('newTask.name')} value={title} dir="auto" onChange={(event) => setTitle(event.target.value)} />
           <SelectField id="new-task-stage" label={t('newTask.stage')} value={stageId} disabled={!summary} onChange={(event) => setStageId(event.target.value)}>

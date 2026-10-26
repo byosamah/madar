@@ -6,6 +6,7 @@ import { ProjectTile } from '../../components/ProjectTile';
 import { StatusSign } from '../../components/StatusSign';
 import { isHiddenProject, shownKey } from '../../lib/projectLabel';
 import { HiddenMark } from '../../components/HiddenMark';
+import { useProjectName } from '../../app/projectName';
 
 /**
  * The card of one pin on the Dashboard map (owner, 2026-10-18, fbk_017). It shows the tile with its sub-company badge, the name,
@@ -15,15 +16,16 @@ import { HiddenMark } from '../../components/HiddenMark';
  */
 export function MapPinCard({ summary, variant = 'panel' }: { summary: ProjectSummary; variant?: 'panel' | 'plain' }) {
   const { t } = useTranslation();
+  const projectName = useProjectName();
   const nameOf = usePersonName();
   const { project, currentStage, leader, health } = summary;
   const sign = health && health.value !== 'on_track' ? health.value : null;
   return (
-    <section aria-label={project.name} className={`flex flex-col gap-4 ${variant === 'panel' ? 'panel w-72 max-w-[calc(100vw-3rem)] p-4 shadow-xl' : ''}`}>
+    <section aria-label={projectName(project)} className={`flex flex-col gap-4 ${variant === 'panel' ? 'panel w-72 max-w-[calc(100vw-3rem)] p-4 shadow-xl' : ''}`}>
       <div className="flex items-start gap-3">
         <ProjectTile id={project.id} mark={project.mark} size={34} subCompanyId={summary.subCompanyId} />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="flex items-center gap-2"><bdi dir="auto" className="break-words text-headline text-ink">{project.name}</bdi>{isHiddenProject(project) && <HiddenMark />}</span>
+          <span className="flex items-center gap-2"><bdi dir="auto" className="break-words text-headline text-ink">{projectName(project)}</bdi>{isHiddenProject(project) && <HiddenMark />}</span>
           <span dir="ltr" className="tabular text-footnote text-ink-2 [text-align:start]">{shownKey(project, t)}</span>
           <span dir="auto" className="text-footnote text-ink-2">{t('map.card.stage', { name: currentStage.name })}</span>
           {leader && <span dir="auto" className="text-footnote text-ink-2">{t('dashboard.meeting.leader', { name: nameOf(leader) })}</span>}

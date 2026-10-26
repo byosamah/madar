@@ -36,6 +36,7 @@ import { PicturesProvider } from '../../app/pictures';
 import { SubCompaniesProvider } from '../../app/subCompanies';
 import { usePersonName } from '../../app/personName';
 import { currentTone, DeadlineMarks, stageKind } from './scheduleMarks';
+import { shownName } from '../../lib/projectLabel';
 
 // The same status choices as the Dashboard: Completed or Archived in a link reads as Active (audit 2026-10-03, DSH-13).
 const STATUSES = ['active', 'on_hold', 'all'] as const;
@@ -247,7 +248,7 @@ function MeetingScreen() {
   const schedule = dashboard.data?.schedule;
   const agendaIds = useMemo(() => agendaOrder(schedule ?? []).map((row) => row.project.id), [schedule]);
   const rowOf = useMemo(() => new Map((schedule ?? []).map((row) => [row.project.id, row])), [schedule]);
-  const names = useMemo(() => new Map((schedule ?? []).map((row) => [row.project.id, row.project.name])), [schedule]);
+  const names = useMemo(() => new Map((schedule ?? []).map((row) => [row.project.id, shownName(row.project, lang)])), [schedule, lang]);
   // The summary takes the place of the screen. Back shows the same mode and the same project again.
   const [summaryOpen, setSummaryOpen] = useState(false);
   // The clock of a project runs only while its screen shows, so not on the timeline and not behind the summary.
@@ -456,7 +457,7 @@ function MeetingScreen() {
           )}
           {/* The summary takes the place of the screen, so the controls of the screen below it hide too.
               Done and Skip are the only ways forward on screen. The arrow keys, N and B, and the Agenda still move anywhere. */}
-          {!summaryOpen && mode === 'projects' && shown && <AgendaBar session={session} name={shown.project.name} onOpenSummary={() => setSummaryOpen(true)} />}
+          {!summaryOpen && mode === 'projects' && shown && <AgendaBar session={session} name={shownName(shown.project, lang)} onOpenSummary={() => setSummaryOpen(true)} />}
           {!summaryOpen && mode === 'timeline' && (
           <>
           <SegmentedControl
@@ -539,7 +540,7 @@ function MeetingScreen() {
                         <ProjectTile id={row.project.id} mark={row.project.mark} size={48} subCompanyId={row.project.subCompanyId} />
                         <span className="min-w-0 flex-1">
                           <span className="flex min-w-0 items-center gap-2">
-                            <bdi className="min-w-0 truncate text-[22px] font-semibold text-ink">{row.project.name}</bdi>
+                            <bdi className="min-w-0 truncate text-[22px] font-semibold text-ink">{shownName(row.project, lang)}</bdi>
                             <StateOfRow health={row.health} pause={row.pause} />
                           </span>
                           {tasks.data && <WorkLine work={meetingWork(tasks.data, row.project.id, today)} />}
@@ -548,7 +549,7 @@ function MeetingScreen() {
                         <AnimatedIcon icon={ChevronDownIcon} size={20} aria-hidden className={`size-5 shrink-0 text-ink-2 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                       </button>
                       {isOpen && (
-                        <Button variant="plain" className="ms-[3.75rem]" aria-label={t('dashboard.meeting.openProjectOf', { name: row.project.name })} onClick={() => setMode('projects', row.project.id)}>
+                        <Button variant="plain" className="ms-[3.75rem]" aria-label={t('dashboard.meeting.openProjectOf', { name: shownName(row.project, lang) })} onClick={() => setMode('projects', row.project.id)}>
                           {t('dashboard.meeting.openProject')}
                         </Button>
                       )}
@@ -559,7 +560,7 @@ function MeetingScreen() {
                     </div>
                   </div>
                   {isOpen && (
-                    <div id={`stages-${row.project.id}`} role="group" aria-label={t('dashboard.meeting.stagesOf', { name: row.project.name })} className="pb-3">
+                    <div id={`stages-${row.project.id}`} role="group" aria-label={t('dashboard.meeting.stagesOf', { name: shownName(row.project, lang) })} className="pb-3">
                       <StageLines row={row} span={span} todayAt={todayAt} todayIn={todayIn} />
                     </div>
                   )}

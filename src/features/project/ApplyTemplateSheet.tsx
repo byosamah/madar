@@ -7,6 +7,7 @@ import { LoadFailed } from '../../components/LoadFailed';
 import { Sheet } from '../../components/Sheet';
 import { counted } from '../../lib/grammar';
 import { LinkProjectSheet } from '../settings/admin/LinkProjectSheet';
+import { useProjectName } from '../../app/projectName';
 
 /** "5 stages · 11 tasks". A template that came from a stage template has stages only, so its line names only them. */
 function useSizeLine() {
@@ -25,6 +26,7 @@ function useSizeLine() {
  */
 export function ApplyTemplateSheet({ detail, open, onOpenChange }: { detail: ProjectDetail; open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation();
+  const projectName = useProjectName();
   // A closed sheet reads nothing (performance audit 2026-10-21, DF-5): the menu item starts the read on its press (ProjectActions).
   const templates = useCall('projectTemplates.list', {}, { enabled: open });
   const sizeLine = useSizeLine();
@@ -45,7 +47,7 @@ export function ApplyTemplateSheet({ detail, open, onOpenChange }: { detail: Pro
   };
   return (
     <>
-      <Sheet open={open} onOpenChange={close} title={t('projectTemplates.apply.title')} description={t('projectTemplates.apply.intro', { project: project.name })}>
+      <Sheet open={open} onOpenChange={close} title={t('projectTemplates.apply.title')} description={t('projectTemplates.apply.intro', { project: projectName(project) })}>
         <div className="flex flex-col gap-4 pt-1">
           <LoadFailed query={templates} />
           {followedId !== null && (

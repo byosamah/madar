@@ -15,6 +15,7 @@ import { ProjectPin } from '../map/ProjectPin';
 import { isLive } from '../../lib/overview';
 import { MapPinCard } from './MapPinCard';
 import type { DashboardFilters } from './Tiles';
+import { useProjectName } from '../../app/projectName';
 
 // The street map loads in the real build only. The flag is folded here, as in PinPicker.tsx, so the prototype keeps no map code (fbk_017).
 const MapCanvas = import.meta.env.VITE_MADAR_API === 'remote' ? lazyMapCanvas() : null;
@@ -28,6 +29,7 @@ const MapCanvas = import.meta.env.VITE_MADAR_API === 'remote' ? lazyMapCanvas() 
  */
 export function DashboardMap({ filters }: { filters: DashboardFilters }) {
   const { t } = useTranslation();
+  const projectName = useProjectName();
   const nameOf = usePersonName();
   const phone = useIsPhone();
   const headingId = useId();
@@ -46,7 +48,7 @@ export function DashboardMap({ filters }: { filters: DashboardFilters }) {
   const pinned = rows.flatMap((row) => (row.geo ? [{ row, point: row.geo }] : []));
   const unpinned = rows.filter((row) => row.geo === null);
   const current = pinned.find((item) => item.row.project.id === selected);
-  const pins = pinned.map(({ row, point }) => ({ id: row.project.id, point, label: row.project.name }));
+  const pins = pinned.map(({ row, point }) => ({ id: row.project.id, point, label: projectName(row.project) }));
   const canEditSome = unpinned.some((row) => row.viewerCan.editDetails);
   // The card sits in a sheet on a phone, and when the map cannot show it next to the pin.
   const cardInSheet = phone || mapFailed;
@@ -109,7 +111,7 @@ export function DashboardMap({ filters }: { filters: DashboardFilters }) {
                     >
                       <ProjectTile id={row.project.id} mark={row.project.mark} size={28} subCompanyId={row.subCompanyId} />
                       <span className="flex min-w-0 flex-1 flex-col">
-                        <bdi dir="auto" className="break-words text-subheadline font-semibold text-ink">{row.project.name}</bdi>
+                        <bdi dir="auto" className="break-words text-subheadline font-semibold text-ink">{projectName(row.project)}</bdi>
                         <span dir="ltr" className="tabular text-footnote text-ink-2 [text-align:start]">{projectKey(row.project.code)}</span>
                       </span>
                     </button>
@@ -133,14 +135,14 @@ export function DashboardMap({ filters }: { filters: DashboardFilters }) {
                   <li key={row.project.id} className="flex min-h-14 items-center gap-3 py-2">
                     <ProjectTile id={row.project.id} mark={row.project.mark} size={28} subCompanyId={row.subCompanyId} />
                     <span className="flex min-w-0 flex-1 flex-col">
-                      <bdi dir="auto" className="break-words text-subheadline font-semibold text-ink">{row.project.name}</bdi>
+                      <bdi dir="auto" className="break-words text-subheadline font-semibold text-ink">{projectName(row.project)}</bdi>
                       <span dir="ltr" className="tabular text-footnote text-ink-2 [text-align:start]">{projectKey(row.project.code)}</span>
                       {!row.viewerCan.editDetails && row.leader && (
                         <span dir="auto" className="text-footnote text-ink-2">{t('dashboard.meeting.leader', { name: nameOf(row.leader) })}</span>
                       )}
                     </span>
                     {row.viewerCan.editDetails && (
-                      <Button aria-label={t('map.dashboard.setPinFor', { name: row.project.name })} onClick={() => setEditing(row)}>
+                      <Button aria-label={t('map.dashboard.setPinFor', { name: projectName(row.project) })} onClick={() => setEditing(row)}>
                         {t('map.pin.set')}
                       </Button>
                     )}
@@ -157,7 +159,7 @@ export function DashboardMap({ filters }: { filters: DashboardFilters }) {
           if (!open) setEditing(null);
         }}
         initial={null}
-        description={editing?.project.name}
+        description={editing ? projectName(editing.project) : undefined}
         busy={save.isPending}
         // The pin and its address go in one write, so one Undo takes both back (owner, 2026-10-19).
         onUse={(point, address) => {
@@ -165,7 +167,7 @@ export function DashboardMap({ filters }: { filters: DashboardFilters }) {
         }}
       />
       {cardInSheet && MapCanvas && (
-        <Sheet open={current !== undefined} onOpenChange={(open) => !open && setSelected(null)} title={current?.row.project.name ?? ''}>
+        <Sheet open={current !== undefined} onOpenChange={(open) => !open && setSelected(null)} title={current ? projectName(current.row.project) : ''}>
           {current && <MapPinCard summary={current.row} variant="plain" />}
         </Sheet>
       )}
