@@ -1141,3 +1141,17 @@ Plan: `docs/superpowers/plans/2026-10-25-madar-team-reports-2-plan.md`.
 - [x] One release with `rb/posthog` and madar-4e's three to-do fixes (owner's choice): test copy, then production at 4df7db3d (2026-10-25 15:28), release record
 - [x] Mark fbk_052, fbk_055, fbk_058 and fbk_059 done in Madar (2026-10-25 15:30, story sty_heohaeky4y5qqznhxuiag4)
 - [ ] Found 2026-10-25 (propose to the owner): in the Focus sidebar (384 px) the message bubbles are narrow, so the text wraps after a few words
+
+## fbk_060, fbk_062 to fbk_066 (owner, 2026-10-26: "go ahead build"; Opus leads, Sonnet builds; production waits for the owner)
+
+Owner answers: memory `owner-batch-2026-10-26-fbk060-066`. Three tracks from main 3e3f29f2, joined on `rb/b26-join`.
+
+- [x] Track small (`rb/b26-small`): fbk_064 the lead button never ends on the error page (a failed chunk reloads once; a fault in the list shows a toast), fbk_060 the leader ring, fbk_063 the person menu in two groups
+- [x] Track names (`rb/b26-names`): fbk_065 "Only my work" also limits Home and the Projects screen, fbk_062 the optional Arabic project name
+- [x] Track folders (`rb/b26-folders`): fbk_066 folders in each stage, "+ Folder", Move to, the drag between stages and folders, a computer file dropped on a folder (no migration: the folders live in the project document)
+- [x] Join fixes: What's new "New" follows the newest day (it never showed under the pinned usage entry); the reach rule moved to a light file and the person menu panel loads at its first use, so the first load is 957,655 B (limit 970,000)
+- [x] Gates once: typecheck, npm test (11,559), builds, test:db (3,231), test:it (333), test:mcp
+- [ ] Test copy (`all.sh test`), screenshots (EN/AR, light/dark, 390 px), the owner tries it
+- [ ] Production after the owner's OK, release record, then mark fbk_060, fbk_062 to fbk_066 done in Madar
+- [ ] fbk_064 is not proven on a real stale tab: if Faisal still sees the error page after a reload on the new build, ask for the error text
+- [ ] fbk_061 tile shapes (branch `rb/tile-shape`, after this release, What's new 2026-10-23-114): `Project.shape` set through the MCP; the three internal tools keep their app logos; every client project gets a shape drawn from its own pictures, as BIG draws its icons (study of 20 BIG projects under way)
