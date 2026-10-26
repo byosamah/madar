@@ -168,3 +168,19 @@ describe('sign out from the person menu (plan 5.1, client map 7.3)', () => {
     expect(await screen.findByRole('textbox', { name: 'Message' })).toHaveValue('');
   }, 30000);
 });
+
+describe('the place of Sign out in the person menu (fbk_063, owner 2026-10-26)', () => {
+  it('stands alone in the last group, under a hairline, after the places', async () => {
+    await renderRemoteApp('/');
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
+    const menu = within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('navigation', { name: 'Hala Nasser' });
+    const groups = [...menu.querySelectorAll('[data-menu-group]')];
+    expect(groups.map((group) => group.getAttribute('data-menu-group'))).toEqual(['quick', 'places', 'signout']);
+    const last = within(groups[2] as HTMLElement);
+    expect(last.getAllByRole('button')).toHaveLength(1);
+    expect(last.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+    expect(groups[2]).toHaveClass('border-t', 'border-hairline');
+    // No other group holds Sign out.
+    expect(within(groups[1] as HTMLElement).queryByRole('button', { name: 'Sign out' })).toBeNull();
+  });
+});

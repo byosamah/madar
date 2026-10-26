@@ -428,6 +428,12 @@ The owner sees how the team uses Madar, which errors they hit, and replays of th
   `CARD_HEIGHT` in `spaceTree.ts` is the height of each card kind (offsetHeight in a browser): the four kinds of fbk_055 were measured in Chrome on 2026-10-25 (sub-company 80, deadline 58, checklist 42),
   so a change of a card measures it again. The name stays "Open space" (the team's own word).
 - `AvatarStack`: one hidden person shows as a picture, never as "+1". "+N" names the hidden people on hover and in `aria-label`.
+- The leader ring (owner, 2026-10-26, fbk_060): `AvatarStack` gives the leader picture, when a leader is passed, a 2 px ring in the ink color (`ring-ink`,
+  never the navy, never red) with a 2 px gap in the surface color inside it (`bg-card p-0.5`). The ring and the gap draw outside the box (`-m-0.5`), so the
+  box of the leader is as big as its picture and a row never grows. The first team picture sits `ms-2` (4 px from the ring), the others overlap by 4 px as
+  before, and all pictures sit on one middle line. Every stack with a leader has the ring (Projects list, to-do rows, the Board, Open space); a stack with
+  no leader (Admin Teams) has none. The leader's name reads "Leader: <name>" to a screen reader and in the hover label (`people.leaderName`). Only the
+  Projects list set a new size: 34 px for the leader, 26 px for the team.
 
 ## Routes and shell
 - Routes (`app/routes.tsx`): `/` Home, `/projects`, `/projects/:id` (tabs overview, tasks, activity, tracker, schedule,
@@ -527,8 +533,13 @@ The owner sees how the team uses Madar, which errors they hit, and replays of th
   `TaskPeople`: for a person with `row.canEditPeople` a press opens a small list with the lead first, then the
   team, then the others, who join the team, and a small "+" beside it (it shows on hover or focus, and is gone on a touch screen
   and under 640 px: `pointer-coarse:hidden max-sm:hidden`) opens the helper list. The list also holds an "Add a helper" row,
-  which is the only way on a phone. `TaskPeople.tsx` loads `TaskPeopleList.tsx` lazily, so vaul stays out of the first load: a phone gets a `Sheet`
-  and a desk keeps the `Popover` with `fit`. One press on a name changes the task at once, with an Undo toast and no confirm button. The
+  which is the only way on a phone. `TaskPeople.tsx` loads `TaskPeopleList.tsx` through `lazyOverlay`, so vaul stays out of the first load: a phone gets a `Sheet`
+  and a desk keeps the `Popover` with `fit`. The press on the lead button of a to-do ended on the error page (fbk_064, 2026-10-26, Faisal): a tab that opened
+  before a release asked for a chunk that the host no longer has, and Cloudflare answers such a request with the HTML page (status 200, `text/html`, measured
+  on production), so the import failed and a plain `React.lazy` threw into the route error page. Now a failed import reloads the page once
+  (`reloadOnFailedImport`), a second failure shows the toast of a failed step through `ListGuard` (it also catches any fault inside the list), and the page and
+  the row stay. The press never reproduced in the tests with data (internal project, maker who is not the leader, wire form): the chunk was the cause.
+  A test of a failed import needs its own file for each of the two steps (`TaskPeopleFirstFailure.test.tsx`, `TaskPeopleFailedChunk.test.tsx`): a lazy part keeps its first answer for the life of the page. One press on a name changes the task at once, with an Undo toast and no confirm button. The
   list takes its people from the cached `users.list` and `projects.get`, with the rules of the task panel. A row without the right
   keeps an empty box of the "+" size, so the avatars line up. On a desk the list is a `Popover` with `fit`: it takes the side with room, its
   height stops 8 px inside the screen (`popoverPlace`), and only its list scrolls, so the heading and "Add a helper" stay in view.
@@ -863,7 +874,9 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
 - A What's new id: take a number above the newest id on main and on every open `rb/*` branch (`git show rb/<x>:src/whatsNew/entries.ts`).
   Sort the ids as numbers (`sort -t- -k4 -n`): a text sort puts `2026-10-23-9` above `-82` (2026-10-22).
   A test finds its entry by id, never by `WHATS_NEW[0]`. One exception: the usage data entry (`2026-10-23-102`) stays first, and
-  `entries.test.ts` pins `WHATS_NEW[0]` to it, so a new entry goes second. `entries.test.ts` also pins the set of release days and the list of rights
+  `entries.test.ts` pins `WHATS_NEW[0]` to it, so a new entry goes second. The day-order checks of `entries.test.ts` leave that first entry out, because a new entry can have a newer
+  `day` than it (2026-10-26 under 2026-10-25). The page then shows the day of the usage entry, the new day, and the old day again: `WhatsNewScreen` keys each
+  group by its place. A person who saw the usage entry sees no word "New" for an entry under it (`hasNew` compares the first id only). `entries.test.ts` also pins the set of release days and the list of rights
   that an entry may name: a new `day` or a new `right` adds its value there.
 - What's new dates (owner, 2026-10-22): `day` is the day the entry's production release went live, and the page shows the entries of each
   day under that date. Write the planned release day before `all.sh test`; when production goes on another day, fix it in the release
@@ -1063,6 +1076,13 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
   before you judge it. The tab that claude-in-chrome opens is hidden (`document.hidden` is true), and then `connectChanges` marks
   the lists old and never loads them again: a saved change does not show until a reload (2026-10-12, fbk_006). In that tab run
   `Object.defineProperty(document, 'hidden', { configurable: true, get: () => false })` and dispatch `visibilitychange` first.
+- The person menu (`app/PersonMenu.tsx`, from 640 px; owner, 2026-10-26, fbk_063) has two groups under the header (picture, name, state line; Preview as in the
+  prototype). Group 1 (`data-menu-group="quick"`): Away (the switch, only with a live port), Mode (`SegmentedControl` Light | Dark; the checked part is the
+  theme that shows now, a press saves it with `me.updatePreferences` and the menu stays open) and Language (`SegmentedControl` English | العربية, each in its own
+  language; a press closes the menu, gives the focus back to the picture and runs `switchLanguage`). Each row is `QuickRow`: the label at the start, the control at the end
+  (`shrink-0`), and the nav is `min-w-72` so no control wraps. A press on the part that is already checked sends nothing. Group 2 (`places`): Admin, Settings, What's new and the feedback
+  button. Group 3 (`signout`, real build only): Sign out, alone. A hairline (`border-t border-hairline`) starts every group. The phone has no person menu: the Me hub
+  holds the same choices and did not change. Words: `personMenu.mode`, and the labels `settings.language`, `settings.languages.*`, `settings.themes.*`.
 - Prototype language and theme: the person menu from 640 px, the Me tab on a phone (stored in IndexedDB, not localStorage). A switch takes a few seconds,
   and `<html lang>` can show the old value meanwhile. Wait before a screenshot.
 - The owner likes to choose a visual style from a side-by-side comparison artifact.

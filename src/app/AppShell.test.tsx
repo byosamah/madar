@@ -80,11 +80,13 @@ describe('app shell', () => {
     await waitFor(() => expect(window.location.hash).toBe('#/projects?filter=at_risk'));
   });
 
-  it('opens the person menu with Preview as, language and Settings', async () => {
+  it('opens the person menu with Preview as, the mode and the language choices, and Settings', async () => {
     await renderApp('/dashboard');
     await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
     const menu = screen.getByRole('dialog', { name: 'Hala Nasser' });
     expect(within(menu).getByRole('combobox', { name: /Preview as/ })).toBeInTheDocument();
+    expect(within(menu).getByRole('radiogroup', { name: 'Mode' })).toBeInTheDocument();
+    expect(within(menu).getByRole('radiogroup', { name: 'Language' })).toBeInTheDocument();
     expect(within(menu).getByRole('link', { name: 'Settings' })).toBeInTheDocument();
   });
 
@@ -93,8 +95,9 @@ describe('app shell', () => {
     await renderApp('/dashboard');
     await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
     const menu = within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('navigation', { name: 'Hala Nasser' });
+    // The language and the mode are two-part choices now (fbk_063): the rows left are Admin, Settings, What's new and the feedback button.
     const rows = [...within(menu).getAllByRole('button'), ...within(menu).getAllByRole('link')];
-    expect(rows.length).toBe(6);
+    expect(rows.length).toBe(4);
     for (const row of rows) expect(row).toHaveClass('text-start');
   });
 
@@ -121,9 +124,9 @@ describe('app shell', () => {
   it('switches between light and dark from the person menu', async () => {
     await renderApp('/dashboard');
     await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
-    await userEvent.click(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('button', { name: 'Dark mode' }));
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('radio', { name: 'Dark' }));
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'));
-    await userEvent.click(await within(screen.getByRole('dialog', { name: 'Hala Nasser' })).findByRole('button', { name: 'Light mode' }));
+    await userEvent.click(await within(screen.getByRole('dialog', { name: 'Hala Nasser' })).findByRole('radio', { name: 'Light' }));
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe('light'));
   });
 
@@ -140,7 +143,7 @@ describe('app shell', () => {
   it('switches to Arabic from the person menu and mirrors the page', async () => {
     await renderApp('/dashboard');
     await userEvent.click((await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0]);
-    await userEvent.click(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('button', { name: 'العربية' }));
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('radio', { name: 'العربية' }));
     await waitFor(() => expect(document.documentElement.dir).toBe('rtl'));
     expect(await screen.findByRole('heading', { level: 1, name: 'لوحة المعلومات' })).toBeInTheDocument();
   });
@@ -149,7 +152,7 @@ describe('app shell', () => {
     await renderApp('/dashboard');
     const picture = (await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0];
     await userEvent.click(picture);
-    await userEvent.click(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('button', { name: 'العربية' }));
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Hala Nasser' })).getByRole('radio', { name: 'العربية' }));
     await waitFor(() => expect(document.documentElement.dir).toBe('rtl'));
     expect(screen.queryByRole('dialog', { name: 'Hala Nasser' })).toBeNull();
     expect(document.activeElement).toBe(picture);

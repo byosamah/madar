@@ -50,9 +50,10 @@ export function WhatsNewScreen() {
     <>
       <ScreenTitle title={t('whatsNew.title')} />
       <div className="flex flex-col gap-5">
-        {groupByDay(shown).map((group) => (
-          <section key={group.day} aria-labelledby={`whats-new-${group.day}`} className="surface flex flex-col gap-4 rounded-card p-5">
-            <h2 id={`whats-new-${group.day}`} className="text-footnote text-ink-2">{formatDay(group.day, lang)}</h2>
+        {groupByDay(shown).map((group, position) => (
+          // The usage data entry stays first with its own day, so one day can come twice in the list: the key and the id use the place.
+          <section key={`${position}-${group.day}`} aria-labelledby={`whats-new-${position}`} className="surface flex flex-col gap-4 rounded-card p-5">
+            <h2 id={`whats-new-${position}`} className="text-footnote text-ink-2">{formatDay(group.day, lang)}</h2>
             {group.entries.map((entry) => {
               const title = t(`whatsNew.items.${entry.id}.title`);
               const isNew = seenAt > 0 && WHATS_NEW.findIndex((one) => one.id === entry.id) < seenAt;

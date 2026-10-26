@@ -15,14 +15,15 @@ describe("What's new entries", () => {
     for (const [i, entry] of WHATS_NEW.entries()) {
       expect(entry.day, entry.id).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(entry.day <= today, `${entry.id} ${entry.day}`).toBe(true);
-      if (i > 0) expect(entry.day <= WHATS_NEW[i - 1].day, `${entry.id} ${entry.day}`).toBe(true);
+      // The usage data entry stays first whatever its day, so the order check starts at the third entry (2026-10-26).
+      if (i > 1) expect(entry.day <= WHATS_NEW[i - 1].day, `${entry.id} ${entry.day}`).toBe(true);
     }
   });
 
   it('keeps the release days of the history (Cloudflare production deploys and the release records)', () => {
     const dayOf = (id: string) => WHATS_NEW.find((entry) => entry.id === id)?.day;
     expect(dayOf('2026-10-23-82')).toBe('2026-10-22');
-    expect(new Set(WHATS_NEW.map((entry) => entry.day))).toEqual(new Set(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-25']));
+    expect(new Set(WHATS_NEW.map((entry) => entry.day))).toEqual(new Set(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-25', '2026-10-26']));
   });
 
   // Batch A (fbk_038, fbk_040, fbk_043, fbk_045, fbk_046, fbk_047): five lines, newer than every other entry.
@@ -50,7 +51,8 @@ describe("What's new entries", () => {
   });
 
   it('list the newest day first', () => {
-    const days = WHATS_NEW.map((entry) => entry.day);
+    // The usage data entry stays first (2026-10-23-102), so the check leaves it out.
+    const days = WHATS_NEW.slice(1).map((entry) => entry.day);
     expect([...days].sort().reverse()).toEqual(days);
   });
 
@@ -237,5 +239,24 @@ describe("the What's new entries of quiet hours and @everyone", () => {
     expect(WHATS_NEW[0]).toEqual({ id: '2026-10-23-102', day: '2026-10-25', to: '/settings' });
     expect(String(wordAt(en, ['whatsNew', 'items', '2026-10-23-102', 'body']))).toBe('Madar now records errors and how people use it, so we fix problems faster. It never records what you type, chat messages or amounts. Details in Settings.');
     expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-102', 'body']))).toBe('صار مدار يحفظ الأخطاء وطريقة استخدامه، لنصلح المشاكل أسرع. لا يحفظ ما تكتبه، ولا رسائل المحادثة، ولا المبالغ. التفاصيل في الإعدادات.');
+  });
+});
+
+// The lead button, the leader ring (fbk_064 and fbk_060) and the person menu (fbk_063), owner 2026-10-26. Found by id, never by place.
+describe("the What's new entries of 2026-10-26 (small fixes)", () => {
+  it('has the two entries, right under the usage data entry', () => {
+    expect(WHATS_NEW[0].id).toBe('2026-10-23-102');
+    expect(WHATS_NEW.slice(1, 3).map((entry) => entry.id)).toEqual(['2026-10-23-109', '2026-10-23-108']);
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-108')).toEqual({ id: '2026-10-23-108', day: '2026-10-26', to: '/projects' });
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-109')).toEqual({ id: '2026-10-23-109', day: '2026-10-26' });
+  });
+
+  it('names the lead button and the leader ring, and the groups of the person menu', () => {
+    const body = (tree: typeof en, id: string) => String(wordAt(tree, ['whatsNew', 'items', id, 'body']));
+    expect(body(en, '2026-10-23-108')).toContain('lead button');
+    expect(body(en, '2026-10-23-108')).toContain('dark ring');
+    expect(body(ar, '2026-10-23-108')).toContain('حلقة داكنة');
+    expect(body(en, '2026-10-23-109')).toContain('Away, Mode and Language');
+    expect(body(ar, '2026-10-23-109')).toContain('زر الخروج');
   });
 });
