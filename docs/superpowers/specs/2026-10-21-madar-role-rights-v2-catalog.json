@@ -2160,7 +2160,7 @@
           "power": "ai.projects",
           "en": "AI changes projects",
           "ar": "يعدّل المساعد المشاريع",
-          "hint": "Change project details and status, stage dates and deadlines.",
+          "hint": "Change project details and status, stage dates and deadlines, and upload files.",
           "mcpTools": [
             "projects.update",
             "projects.setStatus",
@@ -2251,7 +2251,7 @@
           "power": "ai.feedback",
           "en": "AI reads requests and bugs",
           "ar": "يقرأ المساعد الطلبات والبلاغات",
-          "hint": "Read the reports of the team and mark them done. The person also needs \"Read requests and bugs\".",
+          "hint": "Read the reports of the team and mark them done, and send a report with pictures. To read reports, the person also needs \"Read requests and bugs\".",
           "mcpTools": [
             "feedback.list",
             "feedback.screenshot",

@@ -341,7 +341,7 @@
       },
       "aiProjects": {
         "label": "AI changes projects",
-        "hint": "Change project details and status, stage dates and deadlines."
+        "hint": "Change project details and status, stage dates and deadlines, and upload files."
       },
       "aiProjectSetup": {
         "label": "AI creates projects and clients",
@@ -353,7 +353,7 @@
       },
       "aiFeedback": {
         "label": "AI reads requests and bugs",
-        "hint": "Read the reports of the team and mark them done. The person also needs \"Read requests and bugs\"."
+        "hint": "Read the reports of the team and mark them done, and send a report with pictures. To read reports, the person also needs \"Read requests and bugs\"."
       },
       "aiReport": {
         "label": "AI reads the office report",
