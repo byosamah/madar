@@ -61,6 +61,16 @@ describe('what a record holds', () => {
     expect(homeKeys('admin', TODAY).map((key) => JSON.stringify(key[2]))).toContain('{"filter":"all","sort":"deadline"}');
   });
 
+  it('asks the Admin with "Only my work" for the Member list, in the keys of Home (owner, 2026-10-26, fbk_065)', () => {
+    const lists = (role: string, reach?: 'mine' | 'mixed' | 'all') =>
+      homeKeys(role, TODAY, false, reach).filter((key) => key[1] === 'projects.list').map((key) => JSON.stringify(key[2]));
+    expect(lists('admin', 'mine')).toEqual(['{"filter":"mine","status":"all","sort":"deadline"}']);
+    expect(lists('admin', 'mixed')).toEqual(['{"filter":"all","sort":"deadline"}']);
+    expect(lists('admin', 'all')).toEqual(['{"filter":"all","sort":"deadline"}']);
+    expect(lists('admin')).toEqual(['{"filter":"all","sort":"deadline"}']);
+    expect(lists('member', 'mine')).toEqual(['{"filter":"mine","status":"all","sort":"deadline"}']);
+  });
+
   it('leaves projects.list out of the keys of a phone, and keeps it in the default', () => {
     const names = (phone?: boolean) => homeKeys('member', TODAY, phone).map((key) => key[1]);
     expect(names(true)).toEqual(['session.get', 'chats.unreadCount', 'notifications.count', 'tasks.list', 'tasks.list', 'meetings.list', 'subCompanies.list', 'users.list']);
@@ -99,6 +109,32 @@ describe('what a record holds', () => {
     await vi.waitFor(() => expect(second.getQueryData(['api', 'session.get', {}])).toBeDefined(), { timeout: 3000 });
     expect(second.getQueryData(['api', 'projects.list', { filter: 'mine', status: 'all', sort: 'deadline' }])).toBeUndefined();
     stopSecond();
+  });
+
+  it('shows the stored list of the reach of the stored session, and never the list of the other input (owner, 2026-10-26, fbk_065)', async () => {
+    const adminMine = { user: { id: 'usr_1', systemRole: 'admin', roleId: null, preferences: { adminReach: 'mine' } }, authority: { officeRights: ['a'] } };
+    const at = Date.now();
+    const entry = (key: unknown[], data: unknown) => ({ key, data, at });
+    const MINE = ['api', 'projects.list', { filter: 'mine', status: 'all', sort: 'deadline' }];
+    const ALL = ['api', 'projects.list', { filter: 'all', sort: 'deadline' }];
+    await saveHomeRecord(AUTH, {
+      build: 'b1', at, fingerprint: fingerprintOf(adminMine),
+      entries: [
+        entry(['api', 'session.get', {}], adminMine),
+        entry(['api', 'tasks.list', { filter: 'mine' }], []),
+        entry(['api', 'tasks.list', { filter: 'review_for_me' }], []),
+        entry(MINE, [{ project: { id: 'prj_mine' } }]),
+        entry(ALL, [{ project: { id: 'prj_all' } }]),
+      ],
+    });
+    const client = new QueryClient();
+    // The fresh reads never answer, so the stored answers stay in the cache.
+    const waiting = { call: () => new Promise(() => undefined) } as never;
+    const stop = startHomeCache({ ...options(client, port(AUTH), { readLimitMs: 5000 }), runtime: { api: waiting, auth: port(AUTH), mode: 'remote' as const } });
+    await vi.waitFor(() => expect(client.getQueryData(['api', 'session.get', {}])).toBeDefined(), { timeout: 3000 });
+    expect(client.getQueryData(MINE)).toEqual([{ project: { id: 'prj_mine' } }]);
+    expect(client.getQueryData(ALL)).toBeUndefined();
+    stop();
   });
 
   it('changes the fingerprint for another role, another role id or other rights, and not for the same ones in another order', () => {

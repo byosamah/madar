@@ -9,7 +9,7 @@ import { usePersonName } from '../../app/personName';
 import { useIsPhone } from '../../app/useIsPhone';
 import type { CallOutput } from '../../api/calls';
 import type { ProjectSummary, TaskRow } from '../../api/contract/views';
-import { useCall, useRuntime } from '../../app/runtime';
+import { useCall } from '../../app/runtime';
 import { useStableHandler } from '../../app/useStableHandler';
 import { LoadFailed } from '../../components/LoadFailed';
 import { ScreenTitle } from '../../components/ScreenTitle';
@@ -26,7 +26,8 @@ import { NextCard } from './NextCard';
 import { PushAskCard } from './PushAskCard';
 import { TodayPanel } from './TodayPanel';
 import { isLive } from '../../lib/overview';
-import { readRoleHint, writeRoleHint } from './roleHint';
+import { homeProjectsInput } from '../../lib/projectReach';
+import { useRoleHint } from './useRoleHint';
 import { WHATS_NEW } from '../../whatsNew/entries';
 import { hasNew, readSeen } from '../../whatsNew/seen';
 
@@ -119,19 +120,13 @@ export function HomeScreen() {
   useEffect(() => prefetch('meetings.list', todayMeetingsInput(today)), [prefetch, today]);
   // The Admin sees every active project; anyone else sees the projects they lead or work on, the paused ones too:
   // a paused or stale project still needs its people, and its row says Paused or Stale (audit PER-13).
-  // Before session.get answers, the real build takes the role that this device saw last for this auth user, so the Admin's list
-  // goes out in the first request. The session answer then decides (performance audit 2026-10-07, FET-8).
-  const { mode, auth } = useRuntime();
-  const authUserId = mode === 'remote' ? auth?.userId?.() ?? null : null;
-  const [hint] = useState(() => readRoleHint(authUserId));
-  const role = session.data?.user.systemRole;
-  useEffect(() => {
-    if (authUserId && role) writeRoleHint(authUserId, role);
-  }, [authUserId, role]);
-  const admin = (role ?? hint) === 'admin';
+  // Before session.get answers, the real build takes the role and the reach that this device saw last for this auth user, so the list
+  // goes out in the first request. The session answer then decides (performance audit 2026-10-07, FET-8). An Admin with "Only my work"
+  // asks as a Member does (owner, 2026-10-26, fbk_065).
+  const { admin, reach } = useRoleHint();
   // A phone has no project list (Direction D), so no read goes out. A turn to landscape starts it.
   const phone = useIsPhone();
-  const listed = useCall('projects.list', admin ? { filter: 'all', sort: 'deadline' } : { filter: 'mine', status: 'all', sort: 'deadline' }, { enabled: !phone });
+  const listed = useCall('projects.list', homeProjectsInput(admin, reach), { enabled: !phone });
   // An office task has no project, so its link names the task alone (owner, 2026-10-06).
   const open = useStableHandler((projectId: string | null, taskId: string, thread: boolean = false) => setParams({ ...(projectId ? { project: projectId } : {}), task: taskId, ...(thread ? { thread: '1' } : {}) }));
   const startFocus = useStableHandler(focus.open);

@@ -4,7 +4,7 @@
     "saved": "Your choice is saved.",
     "mine": {
       "label": "Only my work",
-      "hint": "Your list shows only the chats of your own projects. A message that names you still reaches you."
+      "hint": "Home and Projects show only your projects. Your chat list shows only the chats of your projects. A message that names you still reaches you."
     },
     "mixed": {
       "label": "My work, and the rest in the list",

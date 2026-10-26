@@ -21,6 +21,8 @@ import { ScreenControls } from '../../components/ScreenControls';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { clientName } from '../../lib/clientName';
 import { clientParam, oneOf, subCompanyParam, teamParam, userParam } from '../../lib/params';
+import { projectsDefaultShow } from '../../lib/projectReach';
+import { useRoleHint } from '../home/useRoleHint';
 import { WorkHeader } from '../work/WorkHeader';
 import { NewProjectSheet, usePrepareNewProject } from './NewProjectSheet';
 import { ProjectListRow } from './ProjectListRow';
@@ -104,7 +106,11 @@ export function ProjectsScreen() {
   const search = params.toString();
   useEffect(() => rememberProjectsList(search ? `?${search}` : ''), [search]);
   const stageName = params.get('stage') ?? undefined;
-  const filterParam = oneOf(params.get('filter'), FILTERS, 'all');
+  // An Admin with "Only my work" opens a bare link on "mine"; a link with any filter key keeps "all" (owner, 2026-10-26, fbk_065).
+  const { reach, known } = useRoleHint();
+  const reachMine = reach === 'mine';
+  const defaultShow = projectsDefaultShow(reach, params);
+  const filterParam = oneOf(params.get('filter'), FILTERS, defaultShow);
   const gap = GAPS.find((value) => value === params.get('filter'));
   const filter = stageName ? `stage:${stageName}` : filterParam;
   const status = oneOf(params.get('status'), STATUSES, 'active');
@@ -117,8 +123,11 @@ export function ProjectsScreen() {
   const healthParam = params.get('health');
   const health = HEALTH.includes(healthParam as (typeof HEALTH)[number]) ? (healthParam as (typeof HEALTH)[number]) : undefined;
   // The filters live in the link, so the dashboard can open this screen with a filter set (spec 8.2).
+  // A change to a bare link of an Admin with "Only my work" writes the default "mine" first, so the link does not turn to "all" when
+  // it gets its first filter key.
   const update = (change: (next: URLSearchParams) => void) => setParams((current) => {
     const next = new URLSearchParams(current);
+    if (projectsDefaultShow(reach, current) === 'mine') next.set('filter', 'mine');
     change(next);
     return next;
   }, { replace: true });
@@ -126,7 +135,8 @@ export function ProjectsScreen() {
   const setFilter = (value: string) => update((next) => {
     next.delete('filter');
     next.delete('health');
-    if (value !== 'all') next.set('filter', value);
+    // "Only my work" keeps every choice in the link: a missing key would mean "mine" on a bare link.
+    if (value !== 'all' || reachMine) next.set('filter', value);
   });
   // "No sub-company" is the gap filter no_sub_company. Any other choice leaves that filter.
   const setSubCompany = (value: string) => update((next) => {
@@ -151,6 +161,7 @@ export function ProjectsScreen() {
   const clients = useCall('clients.list', {});
   const subCompanies = useCall('subCompanies.list', {});
   const people = (users.data ?? []).filter((user) => user.kind === 'human').sort(byName);
+  // The list waits until the reach is known (the session answered or the device has a hint), so it never asks for the wrong input first.
   const list = useCall('projects.list', {
     status,
     sort,
@@ -161,8 +172,10 @@ export function ProjectsScreen() {
     leaderId,
     clientId,
     subCompanyId,
-  });
-  const active = [filterParam !== 'all' || gap, stageName, status !== 'active', sort !== 'updated', teamId, leaderId, clientId, subCompanyId].filter(Boolean).length;
+  }, { enabled: known });
+  // The default "Show" of the link is not an active filter for this person. "My projects" is the base of "Only my work".
+  const showActive = filterParam !== defaultShow && !(reachMine && filterParam === 'mine');
+  const active = [showActive || gap, stageName, status !== 'active', sort !== 'updated', teamId, leaderId, clientId, subCompanyId].filter(Boolean).length;
   const setParam = (key: string, value: string) => update((next) => (value ? next.set(key, value) : next.delete(key)));
   const showAll = useStableHandler(() => setParams({ status: 'all' }, { replace: true }));
   const retry = useStableHandler(() => void list.refetch());
@@ -237,7 +250,7 @@ export function ProjectsScreen() {
       {gap && (
         <p className="flex items-center gap-2 text-subheadline text-ink">
           <span className="rounded-full bg-fill px-3 py-1.5">{t(`projects.gap.${gap}`)}</span>
-          <Button variant="plain" onClick={() => update((next) => next.delete('filter'))}>{t('projects.showAll')}</Button>
+          <Button variant="plain" onClick={() => update((next) => (reachMine ? next.set('filter', 'all') : next.delete('filter')))}>{t('projects.showAll')}</Button>
         </p>
       )}
       {health && (

@@ -4,9 +4,9 @@ import { MINE_OPEN, REVIEW_FOR_ME } from '../features/work/readInputs';
 import { todayISO } from '../lib/dates';
 import { PRESS_READS } from './pressReads';
 
-const run = (to: string) => {
+const run = (to: string, reach: 'mine' | 'mixed' | 'all' = 'mixed') => {
   const asked: [string, unknown][] = [];
-  for (const start of PRESS_READS[to]()) start(((name: string, input: unknown) => { asked.push([name, input]); }) as never);
+  for (const start of PRESS_READS[to](reach)) start(((name: string, input: unknown) => { asked.push([name, input]); }) as never);
   return asked;
 };
 
@@ -26,6 +26,13 @@ describe('the press reads of the phone tabs', () => {
     expect(names[0]).toBe('settings.get');
     // The test build is the prototype, so google.status is not asked.
     expect(names).not.toContain('google.status');
+  });
+
+  it('/projects starts the list of "all", and "mine" for an Admin with "Only my work" (owner, 2026-10-26, fbk_065)', () => {
+    const lists = (reach: 'mine' | 'mixed' | 'all') => run('/projects', reach).filter(([name]) => name === 'projects.list').map(([, input]) => input);
+    expect(lists('mixed')).toEqual([{ status: 'active', sort: 'updated', filter: 'all' }]);
+    expect(lists('all')).toEqual([{ status: 'active', sort: 'updated', filter: 'all' }]);
+    expect(lists('mine')).toEqual([{ status: 'active', sort: 'updated', filter: 'mine' }]);
   });
 
   it('/inbox and /notifications stay as they are', () => {
