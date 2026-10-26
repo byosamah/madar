@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { ApiError } from '../../src/api/errors';
 import { can, holdsRight } from '../../src/api/permissions';
 import { withRights } from '../../src/api/rights';
+import { MAX_BODY_BYTES } from '../../src/api/remote/wire';
 import { RATE_LITE, RATE_SQL, type LimitResult } from '../auth/rateLimit';
 import { requestHost } from '../core/after';
 import type { Deps } from '../core/ports';
@@ -15,7 +16,6 @@ import type { OfficeSnapshot, Principal } from '../core/types';
 import { isLite } from '../data/dialect';
 import { readOffice } from '../data/officeCache';
 import { runErrorOf } from '../http/errors';
-import { readBody } from '../http/limits';
 import { ensureAgentUser } from './agentUser';
 import { aiOffError, aiSwitchOf, assertMayConnect } from './aiSwitches';
 import { agentPrincipalResolver, agentTokenCheckerOf, authIssuerOf, type AgentPrincipal, type AgentToken, type AgentTokenChecker } from './auth';
@@ -25,6 +25,7 @@ import { challengeOf, METADATA_PATH, metadataResponse } from './metadata';
 import { argsDigest, askFor, canElicit, ReasonAnswer, reasonCodec, reasonFor, retryText, stateKeyFrom, type ReasonAnswers, type ReasonState } from './reasons';
 import { errorResult, runTool, toolResult } from './run';
 import { allTools, toolOfOffSwitch, visibleTools, type ToolDef } from './tools';
+import { readMcpBody, UPLOAD_BODY_BYTES, UPLOAD_TOOLS } from './upload';
 
 /**
  * The MCP 2026-07-28 server (plan 5.6; task G3), on @modelcontextprotocol/server 2.3.0. The entries mount it at /mcp: the mcp
@@ -37,7 +38,7 @@ import { allTools, toolOfOffSwitch, visibleTools, type ToolDef } from './tools';
  *   5. The token (auth.ts): aud = MCP_URL, client_id required. Any refusal is 401 with WWW-Authenticate.
  *   6. The agent: the agent link with one statement, ensureAgentUser on the first call of a new approval, the session check. A person
  *      without the switch ai.connect stops here: 403, reason ai_off (aiSwitches.ts).
- *   7. The body (256 KB at most). A 2025-era batch with more than one tools/call gets 400 (-32600): the limit counts one hit for
+ *   7. The body (256 KB at most; an upload tool, files.uploadContent or feedback.sendWithScreenshots, up to 14 MB: upload.ts). A 2025-era batch with more than one tools/call gets 400 (-32600): the limit counts one hit for
  *      each request, and 2025-06-18 and 2026-07-28 have no batches. A tools/call counts against 60 tool calls a minute for each
  *      person, over all the person's agents (rate_limits); the 61st gets 429 with Retry-After. The same statement notes when the
  *      agent link was last used.
@@ -89,6 +90,8 @@ export type McpAppOptions = {
   readOffice?: (deps: Deps) => Promise<OfficeSnapshot>;
   limit?: McpLimit;
   fetch?: typeof fetch;
+  /** The fetch that puts the bytes of files.uploadContent to the signed link of the file store. Tests pass a stub; a host leaves it out. */
+  storeFetch?: typeof fetch;
   /** The server secret key: the requestState key (reasons.ts) and the hop key (forward.ts) come from it. */
   secretKey?: string;
   /** A fixed requestState key, for tests. */
@@ -157,7 +160,7 @@ function jsonRpcError(status: number, message: string, o: { id?: unknown; reason
 const hasText = (value: unknown) => typeof value === 'string' && value.trim() !== '';
 
 /** The tools of one request, bound to its agent. */
-async function callTool(tool: ToolDef, args: Record<string, unknown>, ctx: ServerContext, deps: Deps, run: RunCall, codec: RequestStateCodec<ReasonState>): Promise<CallToolResult | InputRequiredResult> {
+async function callTool(tool: ToolDef, args: Record<string, unknown>, ctx: ServerContext, deps: Deps, run: RunCall, codec: RequestStateCodec<ReasonState>, storeFetch?: typeof fetch): Promise<CallToolResult | InputRequiredResult> {
   const extra = ctx.http?.authInfo?.extra as RequestExtra | undefined;
   if (!extra) throw new ProtocolError(ProtocolErrorCode.InternalError, 'The request has no agent.');
   const input: Record<string, unknown> = { ...args };
@@ -185,7 +188,7 @@ async function callTool(tool: ToolDef, args: Record<string, unknown>, ctx: Serve
     Object.assign(input, answers);
   }
 
-  const result = await runTool(tool, input, { deps, principal: extra.principal, office: extra.office, runCall: run });
+  const result = await runTool(tool, input, { deps, principal: extra.principal, office: extra.office, runCall: run, ...(storeFetch ? { storeFetch } : {}) });
   if (!result.ok) {
     const ask = reasonFor(result.error);
     if (ask && !hasText(input[ask.field])) {
@@ -227,7 +230,7 @@ function offToolOf(all: ToolDef[], extra: RequestExtra | undefined): ToolDef | u
   return who && extra?.callName !== undefined ? toolOfOffSwitch(all, who.held, extra.callName) : undefined;
 }
 
-function handlerOf(deps: Deps, run: RunCall, codec: Promise<RequestStateCodec<ReasonState>>): McpHttpHandler {
+function handlerOf(deps: Deps, run: RunCall, codec: Promise<RequestStateCodec<ReasonState>>, storeFetch?: typeof fetch): McpHttpHandler {
   const all = allTools();
   const info = serverInfoFor(deps.config.mcpUrl);
   // The SDK calls the factory once for each request, in both eras, with the authInfo of that request.
@@ -250,7 +253,7 @@ function handlerOf(deps: Deps, run: RunCall, codec: Promise<RequestStateCodec<Re
       server.registerTool(
         tool.name,
         { title: tool.title, description: tool.description, inputSchema: argumentsOf(tool), annotations: tool.annotations },
-        ((args: Record<string, unknown>, ctx: ServerContext) => callTool(tool, args ?? {}, ctx, deps, run, stateCodec)) as never,
+        ((args: Record<string, unknown>, ctx: ServerContext) => callTool(tool, args ?? {}, ctx, deps, run, stateCodec, storeFetch)) as never,
       );
     }
     if (off) {
@@ -266,6 +269,8 @@ function handlerOf(deps: Deps, run: RunCall, codec: Promise<RequestStateCodec<Re
   }, {
     legacy: 'stateless',
     responseMode: 'json',
+    // The SDK default is 4 MB. app.ts has already limited the body for each tool (256 KB, or UPLOAD_BODY_BYTES for an upload tool).
+    maxRequestBodySize: UPLOAD_BODY_BYTES,
     onerror: (error) => deps.log.warn('The MCP handler refused a request.', { error: error.message }),
   });
 }
@@ -293,7 +298,7 @@ export function mcpApp(deps: Deps, o: McpAppOptions = {}): Hono {
     deps.log.warn('The MCP server has no secret key, so a reason question works only in this isolate.');
     return reasonCodec(crypto.getRandomValues(new Uint8Array(32)));
   })();
-  const handler = handlerOf(deps, o.runCall ?? realRunCall, codec);
+  const handler = handlerOf(deps, o.runCall ?? realRunCall, codec, o.storeFetch);
   // No secret: no hop key, so a hop goes with the region alone and Frankfurt counts it once.
   const hopKey = o.secretKey !== undefined ? hopKeyFrom(o.secretKey) : Promise.resolve(undefined);
 
@@ -348,8 +353,9 @@ export function mcpApp(deps: Deps, o: McpAppOptions = {}): Hono {
     }
 
     let text: string;
+    let bytes: number;
     try {
-      text = await readBody(request);
+      ({ text, bytes } = await readMcpBody(request));
     } catch {
       return jsonRpcError(413, 'The request is too large.', { reason: 'too_large' });
     }
@@ -360,6 +366,10 @@ export function mcpApp(deps: Deps, o: McpAppOptions = {}): Hono {
       // The SDK answers a body that is not JSON with its own parse error.
     }
     const calls = toolCallsIn(body);
+    // Only an upload tool may carry more than 256 KB (readMcpBody): the name in the header could be wrong, so the parsed name decides.
+    if (bytes > MAX_BODY_BYTES && !(calls.count === 1 && calls.name !== undefined && UPLOAD_TOOLS.has(calls.name))) {
+      return jsonRpcError(413, 'The request is too large.', { id: calls.id, reason: 'too_large' });
+    }
     if (calls.count > 1) {
       return Response.json({ jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Send one tool call in each request.' } }, { status: 400 });
     }

@@ -2171,7 +2171,8 @@
             "folders.create",
             "folders.rename",
             "folders.delete",
-            "files.move"
+            "files.move",
+            "files.uploadContent"
           ],
           "switches": [
             {
@@ -2254,7 +2255,8 @@
           "mcpTools": [
             "feedback.list",
             "feedback.screenshot",
-            "feedback.setStatus"
+            "feedback.setStatus",
+            "feedback.sendWithScreenshots"
           ],
           "switches": [
             {

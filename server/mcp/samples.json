@@ -66,6 +66,18 @@
     "id": "fbk_001",
     "index": 0
   },
+  "feedback.sendWithScreenshots": {
+    "kind": "bug",
+    "message": "The board does not scroll on my phone.",
+    "page": "/projects",
+    "screenshots": [
+      {
+        "name": "board.png",
+        "type": "image/png",
+        "contentBase64": "iVBORw0KGgo="
+      }
+    ]
+  },
   "feedback.setStatus": {
     "id": "fbk_001",
     "status": "done",
@@ -79,6 +91,12 @@
     "stageId": "stg_004",
     "folderId": "fld_001",
     "storyId": "cor_sample_024"
+  },
+  "files.uploadContent": {
+    "projectId": "prj_001",
+    "name": "Site plan.pdf",
+    "type": "application/pdf",
+    "contentBase64": "UERGLTEuNA=="
   },
   "folders.create": {
     "projectId": "prj_001",

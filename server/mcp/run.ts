@@ -7,8 +7,10 @@ import { rightsOf } from '../../src/api/rights';
 import { BULK_TOOLS, runBulk, type RunOne } from './bulk';
 import { readFirstAnswer, roleNameOf } from './docs';
 import { pageOf, PAGED_TOOLS, pagingOf, shortRows, withoutPaging, type PageInfo } from './paging';
+import { keepStageDates } from './keepDates';
 import { PICTURES_GET, runPicture, withPictureLooks, WITH_PICTURES_TOOLS, type PictureAnswer } from './pictures';
 import { allTools, READ_FIRST, type ToolDef } from './tools';
+import { runUpload, UPLOAD_TOOLS } from './upload';
 
 /**
  * One tool call of an agent (plan 5.6; task G3). Each tool except madar.readFirst runs its call through runCall, with the agent
@@ -20,12 +22,18 @@ import { allTools, READ_FIRST, type ToolDef } from './tools';
  * - Each tool call is a batch of one entry: its own story placeholders and the office of this request.
  * - The result: structuredContent { output, storyId? } and the same JSON as text (platform facts 7.2, point 21). An ApiError
  *   gives isError with its code, message and details, so the model can correct itself (point 18).
+ * - An upload tool (upload.ts) puts the content that the agent sends into the file store, through the calls of the screens. stages.replace
+ *   keeps the dates that the agent leaves out (keepDates.ts).
  * - A bulk tool (bulk.ts) runs its single tool once for each item, with the same path. A paged list (paging.ts) cuts one page and, without
  *   full, gives short rows. toolResult takes the before and the after out of every event (owner, 2026-10-26).
  */
 
 /** fetch reads the small picture of a cover (pictures.ts). Tests pass a stub; a host leaves it out and gets the global fetch. */
-export type ToolRunCtx = { deps: Deps; principal: Principal; office: OfficeSnapshot; runCall: RunCall; fetch?: typeof globalThis.fetch };
+export type ToolRunCtx = {
+  deps: Deps; principal: Principal; office: OfficeSnapshot; runCall: RunCall; fetch?: typeof globalThis.fetch;
+  /** The fetch that puts the bytes of an upload to the signed link of the file store (upload.ts). Tests pass a stub; a host leaves it out. */
+  storeFetch?: typeof globalThis.fetch;
+};
 
 /** The result of a tool: a page also names its place in the whole list. */
 export type ToolRunResult = RunResult & { page?: PageInfo };
@@ -38,6 +46,7 @@ export async function runTool(tool: ToolDef, args: Record<string, unknown>, ctx:
     return { ok: true, output: readFirstAnswer(person, ctx.office.lists.settings.roles, rightsOf(person, ctx.office.lists.settings.roles)), changed: false };
   }
   if (tool.name === PICTURES_GET) return runPicture(args, ctx);
+  if (UPLOAD_TOOLS.has(tool.name)) return runUpload(tool.name, args, ctx);
   if (BULK_TOOLS[tool.name]) {
     const runOne: RunOne = (name, input) => runTool(allTools().find((item) => item.name === name)!, input, ctx);
     return runBulk(tool.name, args, runOne);
@@ -47,12 +56,14 @@ export async function runTool(tool: ToolDef, args: Record<string, unknown>, ctx:
   // limit, offset and full belong to the tool too (owner, 2026-10-26). Other tools keep their own limit.
   const paging = PAGED_TOOLS.has(tool.name) ? pagingOf(rest) : undefined;
   const callArgs = paging ? withoutPaging(rest) : rest;
-  const { storyId, ...input } = callArgs;
+  // stages.replace: a stage that keeps its id keeps the dates the agent leaves out (keepDates.ts).
+  const sent = tool.name === 'stages.replace' ? keepStageDates(callArgs, ctx.office) : callArgs;
+  const { storyId, ...input } = sent;
   const story = tool.takesStory && typeof storyId === 'string' ? { id: storyId } : undefined;
   const result = await ctx.runCall(ctx.deps, {
     principal: ctx.principal,
     name: tool.name,
-    input: tool.takesStory ? input : callArgs,
+    input: tool.takesStory ? input : sent,
     ...(story ? { story } : {}),
     batch: { storyRefs: new Map(), office: ctx.office, overviewCalls: 0 },
   });

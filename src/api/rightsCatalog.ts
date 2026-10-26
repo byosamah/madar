@@ -623,7 +623,7 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
         ],
       },
       {
-        power: 'ai.projects', mcpTools: ['projects.update', 'projects.setStatus', 'stages.setDates', 'stages.replace', 'deadlines.create', 'deadlines.update', 'folders.create', 'folders.rename', 'folders.delete', 'files.move'],
+        power: 'ai.projects', mcpTools: ['projects.update', 'projects.setStatus', 'stages.setDates', 'stages.replace', 'deadlines.create', 'deadlines.update', 'folders.create', 'folders.rename', 'folders.delete', 'files.move', 'files.uploadContent'],
         switches: [
           { id: 'ai.projects', scope: null, basic: true, needs: ['ai.connect'] },
         ],
@@ -641,7 +641,7 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
         ],
       },
       {
-        power: 'ai.feedback', mcpTools: ['feedback.list', 'feedback.screenshot', 'feedback.setStatus'],
+        power: 'ai.feedback', mcpTools: ['feedback.list', 'feedback.screenshot', 'feedback.setStatus', 'feedback.sendWithScreenshots'],
         switches: [
           { id: 'ai.feedback', scope: null, basic: true, needs: ['ai.connect'] },
         ],

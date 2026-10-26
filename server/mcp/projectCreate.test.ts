@@ -131,15 +131,15 @@ describe('the lists: who sees the four tools', () => {
     for (const name of ['clients.list', 'projectTemplates.list']) expect(mcpTools({ admin: true }).find((item) => item.name === name)!.readOnly, name).toBe(true);
   });
 
-  it('gives the agent of an Admin the four tools, 68 in all', async () => {
+  it('gives the agent of an Admin the four tools, 70 in all', async () => {
     const names = await office().as(ADMIN).names();
-    expect(names).toHaveLength(68);
+    expect(names).toHaveLength(70);
     for (const name of FOUR) expect(names, name).toContain(name);
   });
 
   it('gives the agent of a default Member, Management or Accounting none of them, and the old counts', async () => {
     const o = office();
-    for (const [person, count] of [[MEMBER, 56], [ACCOUNTING, 60], [MANAGEMENT, 61]] as const) {
+    for (const [person, count] of [[MEMBER, 58], [ACCOUNTING, 62], [MANAGEMENT, 63]] as const) {
       const names = await o.as(person).names();
       expect(names, person).toHaveLength(count);
       for (const name of FOUR) expect(names, `${person} ${name}`).not.toContain(name);
