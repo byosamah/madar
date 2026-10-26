@@ -41,6 +41,13 @@ export const DB_MODE_SKIP: readonly SkipEntry[] = [
       + 'P the invitations, G the agents.',
   },
   {
+    file: 'src/api/handlers/paymentsDaftra.test.ts',
+    reason:
+      'It replaces the prototype prepare of payments.linkInvoice with a stub snapshot, so no test reaches Daftra. The server never runs that prepare: its preflight '
+      + 'hook reads the invoice from Daftra, and in db mode the copy has no Daftra account, so every link answers daftra_not_ready. The server tests of the link are '
+      + 'server/calls/daftra.test.ts (the preflight, the refusals, the leak probes) and server/it/daftra.it.test.ts (Postgres).',
+  },
+  {
     file: 'src/api/handlers/payments.test.ts',
     test: 'who may use the payment calls refuses an inactive person with the right',
     reason:
