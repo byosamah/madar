@@ -44,7 +44,7 @@ export async function projectsList(L: Load, input: Input): Promise<void> {
     .filter((p) => status === 'all' || p.status === status)
     .filter((p) => input.filter !== 'mine' || (L.authority !== undefined && projectRoleOf(office, p.id, L.authority.id) !== 'other'))
     .filter((p) => input.filter !== 'no_area' || p.areaM2 === null)
-    .filter((p) => input.filter !== 'stage_no_end' || stagesOf(office, p.id).some((stage) => stage.endDate === null))
+    .filter((p) => input.filter !== 'stage_no_end' || (!p.continuous && stagesOf(office, p.id).some((stage) => stage.endDate === null)))
     .filter((p) => input.filter !== 'no_sub_company' || !p.subCompanyId)
     .filter((p) => !input.leaderId || p.leaderId === input.leaderId)
     .filter((p) => !input.clientId || p.clientId === input.clientId)

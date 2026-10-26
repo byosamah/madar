@@ -38,9 +38,11 @@ export function ProjectCover({ summary, className = 'aspect-video', layoutId }: 
  * "Permit set · 12 Oct", or "Permit set · In 3 days". A deadline in the past says so in the attention color (redesign spec 5.4).
  * With no named deadline, "Stage ends · 12 Oct" gives the end of the current stage, the date that the Late tag reads (fbk_004).
  */
-export function NextDeadlineLabel({ deadline, stageEnd }: { deadline: ProjectSummary['nextDeadline']; stageEnd?: ProjectSummary['stageEnd'] }) {
+export function NextDeadlineLabel({ deadline, stageEnd, continuous }: { deadline: ProjectSummary['nextDeadline']; stageEnd?: ProjectSummary['stageEnd']; continuous?: boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
+  // A continuous project (fbk_069) never ends: with no named deadline it says "Continuous", also when a stage has an end date.
+  if (!deadline && continuous) return <span className="text-footnote text-ink-2">{t('projects.continuous')}</span>;
   const shown = deadline ?? (stageEnd ? { name: t('projects.stageEnds'), date: stageEnd.date, daysLeft: stageEnd.daysLeft } : null);
   if (!shown) return <span className="text-footnote text-ink-2">{t('projects.noDeadline')}</span>;
   const word = wordForDays(shown.daysLeft);

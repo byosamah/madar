@@ -60,7 +60,8 @@ function Standing({ detail, rows, phone = false }: TabProps & { rows: TaskRow[];
   const { project, currentStage, stages, health, healthSetBy } = detail;
   const index = stages.findIndex((stage) => stage.id === currentStage.id);
   const standing = stageStanding(rows, currentStage, todayISO());
-  const late = standing.daysLeft !== null && standing.daysLeft < 0;
+  // A stage end date never makes a continuous project late (fbk_069): the date shows plain, with no count of days.
+  const late = !project.continuous && standing.daysLeft !== null && standing.daysLeft < 0;
   return (
     <section aria-labelledby="overview-standing" className="panel flex flex-col gap-4 p-5">
       <h2 id="overview-standing" className={HEADING}>{t('overview.standing')}</h2>
@@ -100,6 +101,7 @@ function Standing({ detail, rows, phone = false }: TabProps & { rows: TaskRow[];
           <dd className={`tabular ${late ? 'text-attn' : 'text-ink'}`}>
             {standing.daysLeft === null || !currentStage.endDate
               ? t('project.noDates')
+              : project.continuous ? formatDay(currentStage.endDate, lang)
               : `${formatDay(currentStage.endDate, lang)} · ${late ? counted(t, 'overview.stageLate', -standing.daysLeft) : standing.daysLeft === 0 ? t('due.today') : counted(t, 'overview.stageLeft', standing.daysLeft)}`}
           </dd>
         </div>
@@ -110,7 +112,7 @@ function Standing({ detail, rows, phone = false }: TabProps & { rows: TaskRow[];
           </div>
         )}
       </dl>
-      {phone && !detail.nextDeadline && !detail.stageEnd && <p className="text-footnote text-ink-2">{t('projects.noDeadline')}</p>}
+      {phone && !detail.nextDeadline && (project.continuous || !detail.stageEnd) && <p className="text-footnote text-ink-2">{t(project.continuous ? 'projects.continuous' : 'projects.noDeadline')}</p>}
       {health?.overridden && health.reason && (
         <p className="rounded-xl bg-fill px-3 py-2 text-footnote text-ink-2">
           <bdi>{healthSetBy ? t('overview.healthNote', { name: nameOf(healthSetBy), context: actorContext(healthSetBy) }) : ''}</bdi> <bdi className="text-ink">{health.reason}</bdi>

@@ -73,6 +73,8 @@ export const DashboardView = z.object({
     pause: z.object({ kind: PauseKind, staleDays: Count.nullable() }).nullable(),
     /** The open client items of the project (Tracker loops): the ones that wait for our reply and the ones that wait for the client. */
     openLoops: z.object({ us: Count, client: Count }),
+    /** True for a continuous project (fbk_069): a stage end date never makes it late, so the meeting view shows that date in the plain color. */
+    continuous: z.boolean().optional(),
   })),
   /** The open client items that wait for the office's reply, for each active project in the filters, the most first (owner, 2026-10-06). */
   waitingForUs: z.array(z.object({ project: Ref, count: Count })),
@@ -119,7 +121,8 @@ function gapsOf(state: State, active: Project[], activeTasks: Task[]) {
     noDueDate: open.filter((t) => t.dueDate === null).length,
     noLead: open.filter((t) => t.ownerId === null).length,
     // Projects, not stages: the number equals the projects.list filter stage_no_end that it opens (review, 2026-10-06).
-    projectsStageNoEnd: active.filter((p) => stagesOf(state, p.id).some((stage) => stage.endDate === null)).length,
+    // A continuous project has no end, so a stage with no end date is no gap there (fbk_069).
+    projectsStageNoEnd: active.filter((p) => !p.continuous && stagesOf(state, p.id).some((stage) => stage.endDate === null)).length,
     // An internal project has no area and no sub-company on purpose, so these two gaps count client projects only (fbk_044).
     noArea: active.filter((p) => p.areaM2 === null && !isInternal(p)).length,
     // Counted only when the office has a sub-company: an office with none has nothing to fill in (INT-10).
@@ -306,6 +309,7 @@ export const dashboardGet = defineCall({
           project: refOf(p), currentStageId: tagOf(p)?.id ?? p.currentStageId, health: healthOf.get(p.id) ?? 'on_track', stages: stagesInTime(state, p.id), deadlines: deadlinesOf(state, p.id),
           pause: p.status === 'on_hold' ? { kind: pauseKindOf(p), staleDays: staleDaysOf(state, p, today) } : null,
           openLoops: loops.get(p.id) ?? { us: 0, client: 0 },
+          ...(p.continuous ? { continuous: true } : {}),
         })),
       inReview: [...reviews]
         .map(([id, rows]) => {

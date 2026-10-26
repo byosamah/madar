@@ -106,7 +106,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
     const template = v.templateId ? templates.data?.find((t) => t.id === v.templateId) : undefined;
     const plan = template
       ? { template: templateInput(template, v, users.data ?? []) }
-      : { startDate: v.startDate || null, targetEndDate: v.targetEndDate || null, stages: v.stages.map((stage) => stage.name.trim()) };
+      : { startDate: v.startDate || null, targetEndDate: v.continuous ? null : v.targetEndDate || null, stages: v.stages.map((stage) => stage.name.trim()) };
     setSaving(true);
     try {
       // An internal project sends none of the client fields and no code: the server gives the INT code and hides the project (fbk_044).
@@ -126,6 +126,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
         ...(v.nameAr.trim() ? { nameAr: v.nameAr.trim() } : {}),
         leader: v.leader,
         ...plan,
+        ...(v.continuous ? { continuous: true } : {}),
         teamIds: v.teamIds,
         modelFolderPath: v.modelFolderPath.trim(),
         description: v.description.trim(),

@@ -71,7 +71,7 @@ export function AboutPanel({ detail }: { detail: ProjectDetail }) {
     ...(templateName ? [[t('projectTemplates.aboutLabel'), <bdi key="template" dir="auto">{templateName}</bdi>] as [string, ReactNode]] : []),
     ...clientFacts.slice(1),
     [t('projectForm.startDate'), project.startDate ? formatDay(project.startDate, lang, 'long') : none],
-    [t('projectForm.endDate'), project.targetEndDate ? formatDay(project.targetEndDate, lang, 'long') : none],
+    [t('projectForm.endDate'), project.continuous ? t('projects.continuous') : project.targetEndDate ? formatDay(project.targetEndDate, lang, 'long') : none],
   ];
   return (
     <section aria-labelledby="about-title" className="panel flex flex-col gap-5 p-5">

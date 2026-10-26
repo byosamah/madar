@@ -1244,3 +1244,7 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [ ] Merge lead: run `npm run test:db` and `npm run test:it` for `CONFIRM_COUNT_SQL` on Postgres (it ran on SQLite only). A test of two parallel guesses on Postgres is still to write
 - [ ] Open: a call with a code counts its try also when its act then fails (a rights error, an email in use). Five such calls kill the code; the agent then asks for a new one
 - [ ] Open: an agent that sends `logo: null` to `subCompanies.save` keeps the old logo (it cannot clear one). Ask the owner if it should be able to
+
+## fbk_069 continuous project (owner, 2026-10-26)
+- [x] Built on `rb/fbk-069`: the switch "Continuous project" (New and Edit project), "Continuous" in place of "No deadline", no Late from a stage end date, out of the data gap "a stage with no end date", the MCP docs, What's new `2026-10-23-118`. No migration.
+- [ ] The merge lead runs `test:db` (the new `src/api/handlers/projectContinuous.test.ts` runs there too) and `test:it`, then the release.

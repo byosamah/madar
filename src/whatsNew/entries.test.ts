@@ -332,3 +332,22 @@ describe("the What's new entry of the Daftra link", () => {
     for (const text of [title(en), body(en), title(ar), body(ar)]) expect(text).not.toMatch(/[\u2013\u2014]/);
   });
 });
+
+// The continuous project (owner, 2026-10-26, fbk_069): one entry for everybody, with a link to Projects.
+describe("the What's new entry of the continuous project", () => {
+  it('is in the newest day, under the usage entry, and opens Projects', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-118')).toEqual({ id: '2026-10-23-118', day: '2026-10-26', to: '/projects' });
+    expect(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-118')).toBeGreaterThan(0);
+  });
+
+  it('says in both languages that the project shows Continuous and that a stage date never makes it Late', () => {
+    const title = (tree: Parameters<typeof wordAt>[0]) => String(wordAt(tree, ['whatsNew', 'items', '2026-10-23-118', 'title']));
+    const body = (tree: Parameters<typeof wordAt>[0]) => String(wordAt(tree, ['whatsNew', 'items', '2026-10-23-118', 'body']));
+    expect(title(en)).toBe('Continuous projects');
+    expect(body(en)).toContain('Continuous project');
+    expect(body(en)).toContain('never makes it Late');
+    expect(title(ar)).toContain('مستمر');
+    expect(body(ar)).toContain('مشروع مستمر');
+    for (const text of [title(en), body(en), title(ar), body(ar)]) expect(text).not.toMatch(/[–—]/);
+  });
+});

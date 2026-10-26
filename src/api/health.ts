@@ -30,10 +30,12 @@ function computeRaw(project: Project, stages: Stage[], tasks: Task[], today: str
   const projectTasks = tasks.filter((task) => task.projectId === project.id);
   // The stage the project is in follows the tasks (owner, 2026-10-02), so it is computed and never read from the saved value.
   const current = stages.length > 0 ? stageTagOf(stages, projectTasks) : null;
-  if (current?.endDate && today > current.endDate) return 'late';
+  // A continuous project has no end (fbk_069): no stage end date makes it Late or At risk. A to-do past due still marks it At risk.
+  const ending = project.continuous ? null : current;
+  if (ending?.endDate && today > ending.endDate) return 'late';
   if (projectTasks.some((task) => putsAtRisk(task, today))) return 'at_risk';
-  if (current?.endDate && diffDays(today, current.endDate) <= 7) {
-    const stageTasks = projectTasks.filter((task) => task.stageId === current.id);
+  if (ending?.endDate && diffDays(today, ending.endDate) <= 7) {
+    const stageTasks = projectTasks.filter((task) => task.stageId === ending.id);
     const done = stageTasks.filter((task) => task.status === 'done').length;
     if (stageTasks.length > 0 && done / stageTasks.length < 0.7) return 'at_risk';
   }

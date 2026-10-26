@@ -177,6 +177,11 @@ function assertInternalUpdate(patch: { clientId?: string | null; areaM2?: number
   if (patch.code !== undefined) throw internalRefusal('code');
 }
 
+/** A continuous project has no target end date (fbk_069). */
+function continuousRefusal(): ApiError {
+  return invalid('targetEndDate', 'A continuous project has no target end date. Turn the switch off first, or leave the date empty.', 'continuous_has_no_end');
+}
+
 function assertDates(start: string | null, end: string | null, field: string): void {
   if (start && end && end <= start) throw invalid(field, 'The end date must be after the start date.');
 }
@@ -362,7 +367,7 @@ export const projectsList = defineCall({
       .filter((p) => input.status === 'all' || p.status === input.status)
       .filter((p) => input.filter !== 'mine' || projectRoleOf(state, p.id, authority.id) !== 'other')
       .filter((p) => input.filter !== 'no_area' || (p.areaM2 === null && !isInternal(p)))
-      .filter((p) => input.filter !== 'stage_no_end' || stagesOf(state, p.id).some((stage) => stage.endDate === null))
+      .filter((p) => input.filter !== 'stage_no_end' || (!p.continuous && stagesOf(state, p.id).some((stage) => stage.endDate === null)))
       .filter((p) => input.filter !== 'no_sub_company' || (!p.subCompanyId && !isInternal(p)))
       .filter((p) => !input.leaderId || p.leaderId === input.leaderId)
       .filter((p) => !input.clientId || p.clientId === input.clientId)
@@ -419,6 +424,8 @@ export const projectsCreate = defineCall({
      * sub-company, contract date or typed code, the automatic code INT-YY-NNN, and it starts hidden from the office.
      */
     kind: ProjectKind.optional(),
+    /** A continuous project never ends (fbk_069, owner 2026-10-26). It takes no target end date. The default is off. */
+    continuous: z.boolean().optional(),
   }),
   output: ProjectDetail,
   run(input, ctx) {
@@ -427,6 +434,7 @@ export const projectsCreate = defineCall({
     const internal = input.kind === 'internal';
     if (internal) assertInternalCreate(input);
     assertDates(input.startDate, input.targetEndDate, 'targetEndDate');
+    if (input.continuous && (input.targetEndDate || input.template?.endDate)) throw continuousRefusal();
     const subCompanyId = internal ? null : subCompanyOfNew(ctx, input.subCompanyId);
     const made = templateMadeOf(ctx, input);
     const leaderId = input.leader === 'me' ? ctx.authority.id : input.leader === 'none' ? null : input.leader;
@@ -461,7 +469,8 @@ export const projectsCreate = defineCall({
     // From a template: the start of the template part, and its end date, else the last due day of the plan (when it comes after the start).
     const planEnd = made?.plan.endDate && made.plan.endDate > made.use.startDate ? made.plan.endDate : null;
     const startDate = made ? made.use.startDate : input.startDate;
-    const targetEndDate = made ? made.use.endDate ?? planEnd : input.targetEndDate;
+    // A continuous project has no end: the end of a template plan does not become its target end date.
+    const targetEndDate = input.continuous ? null : made ? made.use.endDate ?? planEnd : input.targetEndDate;
     const project: Project = {
       id, code, name: input.name, ...(input.nameAr ? { nameAr: input.nameAr } : {}), clientId: input.clientId,
       status: 'active', leaderId, currentStageId: stageIds[0], location: input.location, areaM2: input.areaM2, geo: input.geo,
@@ -469,6 +478,7 @@ export const projectsCreate = defineCall({
       description: input.description, healthOverride: null, mark: pickMark(id, Object.values(state.projects)),
       ...(subCompanyId ? { subCompanyId } : {}),
       ...(internal ? { kind: 'internal' as const, access: { hidden: true, viewerIds: [] } } : {}),
+      ...(input.continuous ? { continuous: true } : {}),
       createdBy: actor.id, createdAt: stamp, updatedAt: stamp,
       // The link keeps the template, the person of each role and a copy of the template parts. No part is dropped yet (fbk_008 item 4, ADM-01).
       ...(made ? { templateLink: { templateId: made.template.id, linkedAt: stamp, syncedAt: null, rolePeople: { ...made.people }, droppedPartIds: [], base: baseOf(made.template, made.plan) } } : {}),
@@ -505,6 +515,8 @@ export const projectsUpdate = defineCall({
       geo: GeoPoint.nullable().optional(),
       startDate: Day.nullable().optional(),
       targetEndDate: Day.nullable().optional(),
+      /** A continuous project never ends (fbk_069). Turning it on clears the target end date in the same change. */
+      continuous: z.boolean().optional(),
       contractStartDate: Day.nullable().optional(),
       modelFolderPath: FolderPath.optional(),
       description: Description.optional(),
@@ -529,6 +541,12 @@ export const projectsUpdate = defineCall({
     if (patch.nameAr === '' && !project.nameAr) delete patch.nameAr;
     // The same for a shape that the project never had.
     if (patch.shape === '' && !project.shape) delete patch.shape;
+    // Turning the switch off on a project that never had it is no change, so it writes no event.
+    if (patch.continuous === false && !project.continuous) delete patch.continuous;
+    // A continuous project has no target end date: the switch clears it, and a date beside the switch is refused.
+    const continuousAfter = patch.continuous ?? project.continuous === true;
+    if (continuousAfter && patch.targetEndDate) throw continuousRefusal();
+    if (patch.continuous && !project.continuous) patch.targetEndDate = null;
     if (patch.subCompanyId !== undefined) assertSubCompany(ctx, patch.subCompanyId);
     const newCode = code !== undefined && code !== project.code ? code : undefined;
     if (newCode !== undefined) {
@@ -553,6 +571,8 @@ export const projectsUpdate = defineCall({
     // A project with no shape yet holds an empty text before the change, so the History records a value that an Undo can bring back: a
     // missing key is lost when the event is saved as JSON. All checks have passed here, so a refused write still changes nothing.
     if (patch.shape && project.shape === undefined) project.shape = '';
+    // The same for the switch: a project that never had it holds false before the change, so an Undo brings that back.
+    if (patch.continuous && project.continuous === undefined) project.continuous = false;
     applyPatch(ctx, project, patch, { projectId: project.id, verb: 'project.updated', targetType: 'project', targetId: project.id });
     touch(ctx, project.id);
     return detail(ctx, project);

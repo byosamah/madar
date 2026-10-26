@@ -171,7 +171,7 @@ function DeskHeader({ detail, onPost, controls }: { detail: ProjectDetail; onPos
           label={t('projects.stageCount', { n: index + 1, total: detail.stages.length })}
           className="w-28 sm:w-36"
         />
-        <NextDeadlineLabel deadline={detail.nextDeadline} stageEnd={detail.stageEnd} />
+        <NextDeadlineLabel deadline={detail.nextDeadline} stageEnd={detail.stageEnd} continuous={detail.project.continuous} />
         <HealthControl detail={detail} open={controls.health} onOpenChange={controls.onHealth} />
       </div>
     </header>

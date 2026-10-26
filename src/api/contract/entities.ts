@@ -480,6 +480,11 @@ export const Project = z.object({
   access: ProjectAccess.optional(),
   /** The kind of the project (fbk_044). Set once when the project is made, and never changes. A missing value is a client project. */
   kind: ProjectKind.optional(),
+  /**
+   * A continuous project (fbk_069, owner 2026-10-26): it never ends, like an internal tool or a retainer. It has no target end date, it is not a
+   * data gap when a stage has no end date, and a stage end date never makes it Late. Optional: a missing value is a project with an end.
+   */
+  continuous: z.boolean().optional(),
   createdBy: UserId,
   createdAt: Stamp,
   updatedAt: Stamp,
