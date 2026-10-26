@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { PauseKind, ProjectStatus } from '../api/contract/entities';
 
-export type SignState = 'on_track' | 'at_risk' | 'late' | 'paused' | 'awaiting_client' | 'stale' | 'completed' | 'archived' | 'active';
+export type SignState = 'on_track' | 'at_risk' | 'late' | 'paused' | 'awaiting_client' | 'stale' | 'completed' | 'archived' | 'active' | 'invoiced';
 
 const COLOR: Partial<Record<SignState, string>> = { on_track: 'text-green-text', at_risk: 'text-orange-text', late: 'text-red-text' };
 
@@ -18,6 +18,8 @@ export function SignGlyph({ state }: { state: SignState }) {
       // A dashed ring with a dot: a pause nobody has touched for a long time.
       case 'stale': return <><circle cx="5.5" cy="5.5" r="4.1" fill="none" stroke="currentColor" strokeWidth="1.4" strokeDasharray="2.2 1.8" /><circle cx="5.5" cy="5.5" r="1.1" fill="currentColor" /></>;
       case 'completed': return <><circle cx="5.5" cy="5.5" r="4.6" fill="none" stroke="currentColor" strokeWidth="1.4" /><path d="m3.3 5.6 1.5 1.5 2.9-2.9" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></>;
+      // A page with two lines: the invoice is out and the payment waits for it. Ink, never red (the Daftra link, owner 2026-10-26).
+      case 'invoiced': return <><path d="M2.4 1.2h4.3l2 2v6.6H2.4Z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" /><path d="M4 5.4h3.2M4 7.5h3.2" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></>;
       case 'archived': return <rect x="1.3" y="1.3" width="8.4" height="8.4" rx="1.6" fill="none" stroke="currentColor" strokeWidth="1.4" />;
       default: return <circle cx="5.5" cy="5.5" r="4" fill="none" stroke="currentColor" strokeWidth="1.5" />;
     }
@@ -62,5 +64,5 @@ export function signOfProject({ project, health, staleDays }: { project: PauseLi
 /** The color of each state, for the sign and for the progress line (owner, 2026-10-01: the line takes the status color). */
 export const SIGN_COLOR: Record<SignState, string> = {
   on_track: 'var(--c-green-text)', at_risk: 'var(--c-orange-text)', late: 'var(--c-red-text)',
-  paused: 'var(--c-ink-2)', awaiting_client: 'var(--c-ink-2)', stale: 'var(--c-ink-2)', completed: 'var(--c-ink-2)', archived: 'var(--c-ink-2)', active: 'var(--c-ink-2)',
+  paused: 'var(--c-ink-2)', awaiting_client: 'var(--c-ink-2)', stale: 'var(--c-ink-2)', completed: 'var(--c-ink-2)', archived: 'var(--c-ink-2)', active: 'var(--c-ink-2)', invoiced: 'var(--c-ink-2)',
 };

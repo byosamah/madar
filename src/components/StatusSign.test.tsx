@@ -33,6 +33,22 @@ describe('the sign of a project', () => {
   });
 });
 
+describe('the Invoiced sign of a payment (the Daftra link, owner, 2026-10-26)', () => {
+  it('has a shape of its own, in ink, and never red, orange or green', () => {
+    const shapes = new Set<string>();
+    for (const state of ['active', 'awaiting_client', 'completed', 'late', 'invoiced'] as const) {
+      const { container, unmount } = render(<StatusSign state={state}>Word</StatusSign>);
+      shapes.add((container.querySelector('svg') as SVGElement).innerHTML);
+      unmount();
+    }
+    expect(shapes.size).toBe(5);
+    const { container } = render(<StatusSign state="invoiced">Invoiced</StatusSign>);
+    expect(container.querySelector('[data-sign="invoiced"]')).not.toBeNull();
+    expect((container.querySelector('svg') as SVGElement).getAttribute('class')).not.toMatch(/red|orange|green/);
+    expect(container.querySelector('[data-sign="invoiced"]')).toHaveClass('text-ink-2');
+  });
+});
+
 describe('a long sign in a narrow line (fbk_036)', () => {
   it('wraps to a second line when the row asks for it, and stays on one line by default', () => {
     const wrapped = render(<StatusSign state="late" wrap>Past due by 157 days</StatusSign>).container.querySelector('[data-sign="late"]') as HTMLElement;

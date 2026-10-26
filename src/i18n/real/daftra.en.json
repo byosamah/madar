@@ -32,6 +32,36 @@
   "payments": {
     "daftraHistory": {
       "received": "Received, set by Daftra"
+    },
+    "status": {
+      "invoiced": "Invoiced"
     }
+  },
+  "daftra": {
+    "title": "Daftra",
+    "checking": "Looking in Daftra...",
+    "noSubCompany": "Pick a sub-company for this project to link a Daftra invoice.",
+    "noAccount": "{{name}} has no Daftra account in Madar yet.",
+    "noClient": "Add a client to this project to link a Daftra invoice.",
+    "findClient": "Find {{name}} in Daftra",
+    "searchLabel": "Client name in Daftra",
+    "noResults": "Daftra has no client with this name.",
+    "matchWith": "Use {{name}}",
+    "matched": "Matched to {{name}} in Daftra.",
+    "clientLine": "Daftra client: {{name}}",
+    "suggested": "Invoice {{no}}, {{amount}}, made {{day}}",
+    "link": "Link this invoice",
+    "linkedToast": "Invoice {{no}} is linked.",
+    "chooseAnother": "Not this one? Choose another",
+    "chooseInvoice": "Choose another invoice",
+    "otherTitle": "Other recent invoices of this client",
+    "noOthers": "Daftra has no other recent invoice for this client.",
+    "none": "No Daftra invoice of {{amount}} yet. Madar looks again every 15 minutes.",
+    "differs": "The invoice total is {{invoice}}. The payment is {{payment}}.",
+    "invoicedLine": "Invoiced: invoice {{no}}.",
+    "waiting": "Daftra sets Received when it is paid.",
+    "paidLine": "Invoice {{no}} is paid in Daftra.",
+    "unlink": "Unlink",
+    "unlinkedToast": "Invoice {{no}} is unlinked."
   }
 }
