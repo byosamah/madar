@@ -65,6 +65,10 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   its `sealed_token` is AES-256-GCM cipher text (`server/google/keys.ts`). `google_events` holds the Google event of a meeting for a person.
   Only `server/google/store.ts` reads and writes them. The nightly backup holds them (cipher text only), and the backup check lists them in
   `OUTSIDE_OFFICE_LOCK`, because the Google effects write them outside the office lock.
+- `daftra_clients` and `daftra_invoices` (`20261026000100_daftra.sql`, the Daftra link, owner 2026-10-26): two server-only tables in `SERVER_TABLES`, both keyed by the Daftra account (one account for each
+  sub-company): `(account, client_id)` and `(account, id)`. The match of a Madar client to a Daftra client, and the cache of recent invoices. Only `server/daftra/store.ts` reads and writes them. They are in
+  `OUTSIDE_OFFICE_LOCK`, because the cache fill writes outside the office lock. See `server/daftra/CLAUDE.md`. `INTERNAL_LOADER_OF` (`loaders/index.ts`) holds the loader of `payments.daftraPaid`, the one call that
+  only the job runs; `loadFor` reads it after `LOADER_OF`.
 - `google_calendars` (`20261021000300_google_calendars.sql`, owner test 2026-10-20): the third Google table, server-only, in `SERVER_TABLES`. One row for each
   person: `user_id` (primary key), `calendar_id`, `changed_at`. It holds the id of the calendar that Madar made, and no key and no event. `google.connect`
   reads it before it makes a calendar and writes it (`rememberCalendar`, an upsert that changes the row only when the id changes) in the transaction that
@@ -244,6 +248,8 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - Schema version 9 (fbk_022, one calendar for each person) adds the server table `google_calendars` (`user_id` primary key, `calendar_id`, `changed_at`). It has
   no extra index. Its step is `GOOGLE_CALENDARS_SQL` in `LITE_STEPS`, and `schema.test.ts` checks that it makes the same objects as a new office. The office
   object has no Google yet, so the table stays empty there.
+- Schema version 11 (the Daftra link, 2026-10-26) adds the two server tables `daftra_clients` and `daftra_invoices` and the index `daftra_invoices_client` (`account, daftra_client_id`). The version and the sha pin
+  in `schema.test.ts` changed in place, because the step was not released. The office object runs no Daftra read yet (the job step returns at once there), but its calls read the cache.
 - The order of versions 6 to 8 comes from the join of 2026-10-20: the chat batch reached main first with version 6, so the meetings settle step
   (version 6 on its branch) became 7 and the Google step (version 7 on its branch) became 8.
 - Each event index costs 1 row written for each event, and a read needs each of the 8. Task 18 dropped four of them, one at a

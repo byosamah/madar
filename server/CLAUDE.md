@@ -73,11 +73,14 @@ The other host stays deployed as the way back. Each area below has its own guide
 
 ## Calls
 - `core/serverCallMap.ts` holds every call the server runs: the shared calls of `src/api/sharedCalls.ts` plus the server calls.
-- 14 server-only calls (`calls/index.ts`): `story.start`, `files.uploadStart`, `files.link`, `feedback.uploadStart`,
+- 18 server-only calls (`calls/index.ts`): `story.start`, `files.uploadStart`, `files.link`, `feedback.uploadStart`,
   `users.invites`, `users.resendInvite`, `agents.list`, `agents.remove`, `live.ticket`, and the four Google
-  Calendar calls `google.status`, `google.connectStart`, `google.connect`, `google.disconnect` (fbk_022, `calls/google.ts`, `server/google/`), and `chats.typing` (chat presence design B, `calls/typing.ts`): it saves nothing,
-  takes no lock, and sends a typing signal (`TypingPort`, `server/signal/typing.ts`, event `typing` on `person:<id>`) to the other members of the chat.
-- Server hooks replace the prototype `prepare` of `files.upload`, `feedback.send`, `feedback.screenshot`, `projects.delete`.
+  Calendar calls `google.status`, `google.connectStart`, `google.connect`, `google.disconnect` (fbk_022, `calls/google.ts`, `server/google/`), `chats.typing` (chat presence design B, `calls/typing.ts`): it saves nothing,
+  takes no lock, and sends a typing signal (`TypingPort`, `server/signal/typing.ts`, event `typing` on `person:<id>`) to the other members of the chat, and the four Daftra calls
+  `daftra.status`, `daftra.paymentLink`, `daftra.findClients`, `daftra.matchClient` (the Daftra link, owner 2026-10-26, `calls/daftra.ts`, `server/daftra/CLAUDE.md`).
+- Server hooks replace the prototype `prepare` of `files.upload`, `feedback.send`, `feedback.screenshot`, `projects.delete`, `payments.linkInvoice` (the preflight reads the invoice from Daftra).
+- The call `payments.daftraPaid` (`daftra/paidCall.ts`) is in no public map: only the job step `daftra` runs it, with `createRunCall({ calls: DAFTRA_INTERNAL_CALLS })`. Its loader is in
+  `INTERNAL_LOADER_OF` (`data/loaders/index.ts`), not in `LOADER_OF`.
 - `SERVER_EXCLUDED` (prototype only): `session.previewAs`, `session.setSimulateErrors`, `session.resetSampleData`, `files.get`.
   runCall answers `not_found` for them.
 - `core/everyCall.ts` gives one input for every call. A test runs each call once on the sample office. On a fresh sample
@@ -125,6 +128,8 @@ The other host stays deployed as the way back. Each area below has its own guide
 - `core/ports.ts`: Db, Clock, FilesPort, MailPort, SignalPort, AuthAdminPort, MeterPort. Fakes in `test/fakes`.
 - `Config.google` (fbk_022): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MADAR_GOOGLE_KEY`, all three or none (`google/keys.ts`; the server refuses to
   start with some and names the absent ones). `Deps.googleFetch` is the fetch of a test stub; no test reaches Google (`google/fakeGoogle.ts`).
+- `Config.daftra` (the Daftra link, owner 2026-10-26): one Daftra account for each sub-company, `DAFTRA_<NAME>_KEY` and `DAFTRA_<NAME>_SITE`, both or none for each name (`daftra/config.ts`, a name
+  pattern, no fixed list; `env.names()` lists the names of the host). `Deps.daftraFetch` is the fetch of a test stub; no test reaches Daftra (`daftra/fakeDaftra.ts`).
 - `buildDeps` (`core/deps.ts`) reads the env. A missing variable gives an error that names the variable, never a value.
 
 ## Rules a change must keep
@@ -134,7 +139,8 @@ The other host stays deployed as the way back. Each area below has its own guide
   writes a State table (`push_devices`) outside `runCall` (`push/CLAUDE.md`).
 - Lock order: the office lock, then the mail lock. The mail reserve takes only the mail lock, in its own transaction.
 - A preflight hook does network work before the transaction and never holds the lock.
-- Every network call has a 3 s timeout.
+- Every network call has a 3 s timeout. Two documented exceptions: the Google calls of `google.connect` (below) and each Daftra call, which has 10 s (`DAFTRA_TIMEOUT_MS`;
+  Daftra answers in 1 to 3.4 s, proof.md). A Daftra call never runs under the office lock or inside a transaction.
 - An effect or a job step that needs what a person may see runs a read call as that person: `(deps.runCall ?? runCall)(deps,
   { principal: { userId }, name, input, batch: { storyRefs: new Map(), overviewCalls: 0 } })`. It works on both databases
   (`server/push/line.ts`, `jobs/steps/meetings.ts`). The one exception: the Google calls of `google.connect` share a budget of 15 s, at most 10 s
@@ -248,7 +254,9 @@ The other host stays deployed as the way back. Each area below has its own guide
 - pg_cron calls `jobs/run` of the Supabase jobs function every 15 minutes, in both host settings (owner, 2026-10-16), with the
   secret header `x-madar-jobs-secret`. The Worker keeps `/jobs` mounted, but nothing calls it: pg_cron and the Vault
   `project_url` do not change. Steps (`jobs/steps/`):
-  heartbeat, triggers, meetings, summary, quietEnd, outbox, cleanup, uploads. Each step is idempotent. `summary` sends the morning summary at
+  heartbeat, triggers, meetings, daftra, summary, quietEnd, outbox, cleanup, uploads. Each step is idempotent. `daftra` (the Daftra link, `jobs/steps/daftra.ts`, `daftra/CLAUDE.md`) reads Daftra
+  one account at a time with no lock and a budget of 20 calls and 60 s, sets "Received" for a paid invoice through the internal call `payments.daftraPaid`, and fills the invoice cache. It returns at once
+  with no Daftra account, and on the office object path until a `NetApi` method exists. `summary` sends the morning summary at
   the start of the work hours of each person (a job_runs row `summary:<day>:<person>` closes one person for one day). `quietEnd` sends the one push
   to a person whose push was held in quiet hours (`push/held.ts`; `server/push/CLAUDE.md`). `core/quiet.ts` reads the work hours for the effects. The triggers step also sends `resume_due`
   (the planned restart day of a paused project) to the leader and to the person who paused it (`src/api/CLAUDE.md`).

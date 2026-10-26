@@ -504,6 +504,17 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   (`real/daftra.*.json`); `server/push/words.ts` imports them for the push line.
 - `loadJobs` (`server/data/loaders/jobs.ts`) loads the open payments of the day of the run (with `LoadCtx.now`). Tests: `paymentDue.test.ts`.
 
+## The Daftra link: two payment calls (owner, 2026-10-26; `server/daftra/CLAUDE.md`)
+- `Payment.daftra` (optional, additive): `{ account, invoiceId, invoiceNo, total, issuedOn, linkedBy, linkedAt }`. `account` is the Daftra account (the sub-company name in capitals) at link time. The
+  status of a `PaymentRow` keeps its three values. The screens show "Invoiced" when `daftra` is set and `receivedOn` is null.
+- `payments.linkInvoice { id, invoiceId }` and `payments.unlinkInvoice { id }` are shared writes for a person who holds `payment.view` and `payment.daftraLink`; an agent gets `forbidden`
+  (both calls are on the MCP deny list). The link takes its numbers from the server `prepare`d snapshot `DaftraSnapshot { account, invoiceId, invoiceNo, total, issuedOn }` that the preflight read
+  from Daftra (`server/calls/daftra.ts`), never from the browser. The prototype `prepare` refuses with `daftra_not_ready`. The handler refuses `daftra_invoice_changed`, `daftra_already_linked` (the
+  payment has another invoice, or the same id in another account) and `daftra_invoice_taken` (another payment of the same account holds the invoice; the loader `paymentLinkCall` reads the holders).
+  A second link to the same invoice is a quiet repeat. Events `payment.daftra_linked` and `payment.daftra_unlinked` have an Undo that needs `payment.daftraLink`; the link event writes `before: { daftra: null }`
+  and `undoEvent` takes the field away (`ABSENT_WHEN_NULL`). The event `payment.received_daftra` (written by the job step) has no Undo: it answers `conflict` with the reason `daftra_final`, after the rights check.
+- `markReceived` and `update` keep their rules for a linked payment: the screens hide "Mark as received" while `daftra` is set and `receivedOn` is null, and the calls do not refuse.
+
 ## The restart reminder of a pause (owner, 2026-10-19, fbk_025)
 - The restart date of a pause (`pause.resumeOn`) is a reminder. Madar never restarts a project by itself: a person resumes it.
 - `runScheduledTriggers` (`notify.ts`) sends `resume_due` on the planned day, or in the first run after it. It goes to the leader
@@ -763,7 +774,7 @@ Design: `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.
 2. If it is server-only: its contract in `contract/server.ts`, its fake in `handlers/serverFakes.ts`, its server body in
-   `server/calls/`. There are 14 server-only calls (`usage.get` and `usage.retryEffect` were removed, 2026-10-23); `live.ticket` (exit wave 3) is the 9th, and the four `google.*` calls (fbk_022) follow it; `chats.typing` (chat presence design) is the 14th.
+   `server/calls/`. There are 18 server-only calls (`usage.get` and `usage.retryEffect` were removed, 2026-10-23); `live.ticket` (exit wave 3) is the 9th, and the four `google.*` calls (fbk_022) follow it; `chats.typing` (chat presence design) is the 14th; the four `daftra.*` calls (the Daftra link, 2026-10-26) are the 15th to the 18th. A server read must also be in `READ_CALLS` (`src/api/remote/keys.ts`), or the browser gives it an idempotency key.
 3. A loader entry in `server/data/loaders/` (a test fails without it).
 4. The MCP allow list, right list (`MCP_BY_RIGHT`, only an agent whose person holds the right sees it; `MCP_ADMIN` is empty) or deny list in `server/mcp/tools.ts`
    (a test fails without it). An allowed or right tool needs `TOOL_DOCS` and one AI switch: add its name to the `mcpTools` list of that

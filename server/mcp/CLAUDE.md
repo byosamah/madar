@@ -89,6 +89,10 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 - Google Calendar (owner, 2026-10-19, fbk_022): the four `google.*` calls are on `MCP_DENY` (a person connects in the Settings screen; an agent cannot
   connect, disconnect or read a connection). `INSTRUCTIONS` ends with a `Google Calendar:` paragraph: the meetings of its person reach their own
   Google Calendar with the title, the time and the place only. No tool changed.
+- The Daftra link (owner, 2026-10-26): the six calls `daftra.status`, `daftra.paymentLink`, `daftra.findClients`, `daftra.matchClient`, `payments.linkInvoice` and `payments.unlinkInvoice` are on `MCP_DENY`: an agent
+  never touches Daftra, and the tool counts stay 49, 12 and 61. The `TOOL_DOCS` of `payments.list` name the optional read-only `daftra` field (`invoiceNo`, `total`), and those of `payments.markReceived` say that a
+  payment with that field gets Received from Daftra by itself. `INSTRUCTIONS` ends with one `Daftra:` rule after the `Google Calendar:` paragraph. The sample answers did not change (the sample office has no linked
+  payment). Tests: `daftraTools.test.ts`. The paid write of the job is the internal call `payments.daftraPaid`, which is in no MCP list and in no public map.
 - Sub-companies (review 2026-10-19): `dashboard.get`, `tasks.list`, `deadlines.list`, `projects.list` and `reports.office` take `subCompanyId`;
   `projects.list` filter `no_sub_company` lists the projects with none; `search.query` and `subCompanies.list` (`projectCount`) carry counts. An agent
   never undoes a sub-company event (`events.undo`, `events.undoStory`).

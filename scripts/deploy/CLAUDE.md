@@ -134,6 +134,12 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
   three lines to `secrets/<env>.env`; it refuses when one of the three lines is there already (a new key makes every sealed token useless).
   Each copy has its own key. The three go to the functions and to the Worker (`WORKER_SECRETS` follows `FUNCTION_SECRETS`). With none, Google
   is off (`google.status` says `ready: false`). See `server/google/` and `src/api/CLAUDE.md`, "Google Calendar".
+- Daftra accounts (the Daftra link, owner 2026-10-26): one Daftra account for each sub-company, so the names follow a pattern: `DAFTRA_<NAME>_KEY` and `DAFTRA_<NAME>_SITE`, both or none for each name.
+  NAME is the English name of the sub-company in capitals, only A to Z and 0 to 9 (`MAZJ`, `VADO`, `BUNAH`, `TUBA`, `ZURAA`; `server/daftra/config.ts`). `parseSecretsFile` takes any name of the pattern (the old
+  `DAFTRA_API_KEY` and `DAFTRA_SITE` are gone); `checkSecrets` wants the key to be 20 to 128 letters and digits and the site to be a bare name on `daftra.com` or `daftara.com` (no `https://`, no slash), and the error
+  names the variable, never the value. The names go to the functions and to the Worker (`workerNamesOf` adds the Daftra names of the file to `WORKER_SECRETS`, the bulk of the Worker, the dry run and the office
+  secrets). A Daftra account that the file drops is not removed from the Worker by the run: remove its two secrets by hand with `wrangler secret delete`. The test copy gets only the MAZJ pair (the owner's test key)
+  until the last step; production gets the five pairs at the last step. Each key role in Daftra should be "Only Allow" `invoice` and `client`. With no pair, the link is off (`daftra.status` says `ready: false`).
 - R2 (owner, 2026-10-16): `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, all four or none. `secrets.ts`
   wants the 32 hex characters of the account, and the bucket of the copy: `madar-files-test` for test, `madar-files` for production.
 

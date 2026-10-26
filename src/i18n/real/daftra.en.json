@@ -10,5 +10,28 @@
     "triggers": {
       "payment_due": "A payment reaches its due day"
     }
+  },
+  "errors": {
+    "reasons": {
+      "daftra_not_ready": "Daftra is not set up for this office yet.",
+      "daftra_bad_key": "Madar cannot sign in to Daftra. Ask an Admin.",
+      "daftra_refused": "Daftra does not let Madar read this. Ask an Admin.",
+      "daftra_unreachable": "Madar could not reach Daftra. Try again in a minute.",
+      "daftra_invoice_not_found": "Daftra has no such invoice.",
+      "daftra_client_not_found": "Daftra has no such client.",
+      "daftra_no_client": "Add a client to this project to link a Daftra invoice.",
+      "daftra_no_match": "Find the client in Daftra first.",
+      "daftra_client_mismatch": "This invoice is for another Daftra client.",
+      "daftra_draft": "This invoice is a draft in Daftra.",
+      "daftra_invoice_taken": "Another payment has this Daftra invoice.",
+      "daftra_invoice_changed": "This invoice changed. Choose it again.",
+      "daftra_already_linked": "This payment has another Daftra invoice. Unlink it first.",
+      "daftra_final": "Daftra set this payment as received. Unlink the invoice, then change the payment."
+    }
+  },
+  "payments": {
+    "daftraHistory": {
+      "received": "Received, set by Daftra"
+    }
   }
 }
