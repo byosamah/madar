@@ -12,9 +12,9 @@ const pdf = (text: string) => new Blob([text], { type: 'application/pdf' });
 const TEN_MINUTES_LATER = '2026-09-30T09:10:00.000+03:00';
 
 describe('the server call contracts', () => {
-  it('name the 14 server calls, and the fakes follow the same contracts', () => {
+  it('name the 18 server calls, and the fakes follow the same contracts', () => {
     expect([...SERVER_CALL_NAMES].sort()).toEqual([
-      'agents.list', 'agents.remove', 'chats.typing', 'feedback.uploadStart', 'files.link', 'files.uploadStart', 'google.connect', 'google.connectStart', 'google.disconnect', 'google.status',
+      'agents.list', 'agents.remove', 'chats.typing', 'daftra.findClients', 'daftra.matchClient', 'daftra.paymentLink', 'daftra.status', 'feedback.uploadStart', 'files.link', 'files.uploadStart', 'google.connect', 'google.connectStart', 'google.disconnect', 'google.status',
       'live.ticket', 'story.start', 'users.invites', 'users.resendInvite',
     ]);
     expect(Object.keys(serverFakes).sort()).toEqual([...SERVER_CALL_NAMES].sort());
@@ -203,5 +203,38 @@ describe('the fake server calls', () => {
     await expect(t.api.call('google.connect', { code: '', state: 's' })).rejects.toMatchObject({ code: 'invalid_input' });
     await expect(t.api.call('google.connect', { code: 'c', state: 'x'.repeat(1025) })).rejects.toMatchObject({ code: 'invalid_input' });
     await expect(t.api.call('google.connect', { code: 'c'.repeat(513), state: 's' })).rejects.toMatchObject({ code: 'invalid_input' });
+  });
+
+  it('daftra.status says the prototype is not ready, and the other three daftra calls refuse with daftra_not_ready (the Daftra link, 2026-10-26)', async () => {
+    const t = testApi(CALLS);
+    t.as('usr_001');
+    expect(await t.api.call('daftra.status', {})).toEqual({ ready: false, accounts: [] });
+    for (const [name, input] of [
+      ['daftra.paymentLink', { paymentId: 'pay_001' }], ['daftra.findClients', { paymentId: 'pay_001', query: 'noor' }], ['daftra.matchClient', { paymentId: 'pay_001', daftraClientId: '842' }],
+    ] as const) {
+      await expect(t.api.call(name, input), name).rejects.toMatchObject({ code: 'invalid_input', details: { reason: 'daftra_not_ready' } });
+    }
+  });
+
+  it('the daftra calls give a person without the switch, and an agent, forbidden: also in the prototype', async () => {
+    const t = testApi(CALLS);
+    for (const who of ['usr_003', 'usr_005']) {
+      t.as(who);
+      for (const [name, input] of [
+        ['daftra.status', {}], ['daftra.paymentLink', { paymentId: 'pay_001' }], ['daftra.findClients', { paymentId: 'pay_001', query: 'noor' }], ['daftra.matchClient', { paymentId: 'pay_001', daftraClientId: '842' }],
+      ] as const) {
+        await expect(t.api.call(name, input), `${who} ${name}`).rejects.toMatchObject({ code: 'forbidden' });
+      }
+    }
+  });
+
+  it('the daftra calls take only a short search, a number for the Daftra client, and a payment id', async () => {
+    const t = testApi(CALLS);
+    t.as('usr_001');
+    await expect(t.api.call('daftra.findClients', { paymentId: 'pay_001', query: '   ' })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('daftra.findClients', { paymentId: 'pay_001', query: 'x'.repeat(101) })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('daftra.matchClient', { paymentId: 'pay_001', daftraClientId: '12a' })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('daftra.matchClient', { paymentId: 'pay_001', daftraClientId: '1'.repeat(21) })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(t.api.call('daftra.paymentLink', { paymentId: 'prj_001' })).rejects.toMatchObject({ code: 'invalid_input' });
   });
 });

@@ -18,6 +18,9 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
   { id: '2026-10-23-117', day: '2026-10-26' },
   { id: '2026-10-23-116', day: '2026-10-26', to: '/settings' },
   { id: '2026-10-23-115', day: '2026-10-26' },
+  { id: '2026-10-23-114', day: '2026-10-26', to: '/projects' },
+  // The Daftra link (owner, 2026-10-26). The lead sets the real release day before the test deploy.
+  { id: '2026-10-23-113', day: '2026-10-26', right: 'payment.daftraLink' },
   { id: '2026-10-23-112', day: '2026-10-26', to: '/projects' },
   { id: '2026-10-23-111', day: '2026-10-26', to: '/projects' },
   { id: '2026-10-23-110', day: '2026-10-26', right: 'admin.manage', to: '/settings' },

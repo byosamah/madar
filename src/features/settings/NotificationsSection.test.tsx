@@ -18,6 +18,10 @@ function remote(on: boolean) {
   mode.PROTOTYPE = !on;
 }
 
+// The Admin gets no due notice of a payment (the Daftra link, owner 2026-10-26), so the Admin sees no switch for it.
+const SHOWN = TRIGGERS.filter((trigger) => trigger !== 'payment_due');
+const IN_APP_SHOWN = IN_APP_ONLY_TRIGGERS.filter((trigger) => trigger !== 'payment_due');
+
 afterEach(() => {
   remote(false);
   initI18n('en');
@@ -50,8 +54,8 @@ describe('the Notifications section (moved out of Settings, plan T0.4)', () => {
     });
     const section = (await screen.findByRole('heading', { name: en.settings.notifications })).closest('section')!;
     const switches = within(section).getAllByRole('switch');
-    expect(switches).toHaveLength(TRIGGERS.length);
-    for (const trigger of TRIGGERS) {
+    expect(switches).toHaveLength(SHOWN.length);
+    for (const trigger of SHOWN) {
       const toggle = within(section).getByRole('switch', { name: triggerWords(en)[trigger] });
       expect(toggle).toHaveAttribute('aria-checked', trigger === 'overdue' ? 'false' : 'true');
     }
@@ -90,7 +94,7 @@ describe('the Notifications section in the remote build (plan 5.4; task N2.2)', 
     const section = await sectionOf(en);
     // The Admin: 17 in-app switches, 10 email switches (the notices of requests and bugs, of a new group, of a meeting, of a new helper and of a
     // deleted task stay in the app) and the Morning summary.
-    expect(within(section).getAllByRole('switch')).toHaveLength(TRIGGERS.length + EMAIL_TRIGGERS.length + 1);
+    expect(within(section).getAllByRole('switch')).toHaveLength(SHOWN.length + EMAIL_TRIGGERS.length + 1);
     expect(within(section).getAllByRole('switch')).toHaveLength(28);
     for (const trigger of EMAIL_TRIGGERS) {
       const row = within(section).getByTestId(`notice-row-${trigger}`);
@@ -98,7 +102,7 @@ describe('the Notifications section in the remote build (plan 5.4; task N2.2)', 
       expect(within(row).getByRole('switch', { name: appName(en, trigger) })).toHaveAttribute('aria-checked', 'true');
       expect(within(row).getByRole('switch', { name: emailName(en, trigger) })).toHaveAttribute('aria-checked', String(EMAIL_DEFAULT_ON.has(trigger)));
     }
-    for (const trigger of IN_APP_ONLY_TRIGGERS) {
+    for (const trigger of IN_APP_SHOWN) {
       const row = within(section).getByTestId(`notice-row-${trigger}`);
       expect(within(row).getAllByRole('switch')).toHaveLength(1);
       expect(within(row).getByRole('switch', { name: appName(en, trigger) })).toHaveAttribute('aria-checked', 'true');
@@ -118,8 +122,8 @@ describe('the Notifications section in the remote build (plan 5.4; task N2.2)', 
     initI18n('ar');
     const section = await sectionOf(ar as unknown as Words);
     expect(section.closest('[dir]')).toHaveAttribute('dir', 'rtl');
-    expect(within(section).getAllByRole('switch')).toHaveLength(TRIGGERS.length + EMAIL_TRIGGERS.length + 1);
-    for (const trigger of TRIGGERS) {
+    expect(within(section).getAllByRole('switch')).toHaveLength(SHOWN.length + EMAIL_TRIGGERS.length + 1);
+    for (const trigger of SHOWN) {
       const row = within(section).getByTestId(`notice-row-${trigger}`);
       expect(within(row).getByRole('switch', { name: appName(ar as unknown as Words, trigger) })).toBeInTheDocument();
       expect(within(row).queryAllByRole('switch', { name: emailName(ar as unknown as Words, trigger) })).toHaveLength(EMAIL_TRIGGERS.includes(trigger as never) ? 1 : 0);
@@ -234,14 +238,14 @@ describe('the switches of requests and bugs', () => {
     };
     await renderWithRuntime(<NotificationsSection />, before);
     let section = await sectionOf(en);
-    for (const trigger of IN_APP_ONLY_TRIGGERS) {
+    for (const trigger of IN_APP_SHOWN) {
       expect(within(section).getByRole('switch', { name: triggerWords(en)[trigger] })).toHaveAttribute('aria-checked', 'true');
     }
     cleanup();
     remote(true);
     await renderWithRuntime(<NotificationsSection />, before);
     section = await sectionOf(en);
-    for (const trigger of IN_APP_ONLY_TRIGGERS) {
+    for (const trigger of IN_APP_SHOWN) {
       expect(within(section).getByRole('switch', { name: appName(en, trigger) })).toHaveAttribute('aria-checked', 'true');
     }
   });
@@ -250,5 +254,52 @@ describe('the switches of requests and bugs', () => {
     const { store } = await renderWithRuntime(<NotificationsSection />, asMember);
     await userEvent.click(await screen.findByRole('switch', { name: triggerWords(en).feedback_done }));
     await waitFor(() => expect(store.state.users.usr_003.preferences.notifications.feedback_done).toBe(false));
+  });
+});
+
+// The switch of a payment due day (the Daftra link, owner 2026-10-26): only a person who gets that notice sees it, never the Admin.
+describe('the switch of a payment due day', () => {
+  const asAccounting = (state: Parameters<NonNullable<Parameters<typeof renderWithRuntime>[1]>>[0]) => {
+    state.session.currentUserId = Object.values(state.users).find((user) => user.systemRole === 'accounting' && user.active && user.kind === 'human')!.id;
+  };
+  const asMember = (state: Parameters<NonNullable<Parameters<typeof renderWithRuntime>[1]>>[0]) => {
+    state.session.currentUserId = 'usr_003';
+  };
+  const asManagement = (state: Parameters<NonNullable<Parameters<typeof renderWithRuntime>[1]>>[0]) => {
+    state.session.currentUserId = Object.values(state.users).find((user) => user.systemRole === 'management' && user.active && user.kind === 'human')!.id;
+  };
+
+  it('shows one switch to Accounting in the prototype build, and none to the Admin, Management or a Member', async () => {
+    await renderWithRuntime(<NotificationsSection />, asAccounting);
+    const accounting = await sectionOf(en);
+    expect(within(accounting).getByRole('switch', { name: triggerWords(en).payment_due })).toHaveAttribute('aria-checked', 'true');
+    expect(within(accounting).getAllByRole('switch')).toHaveLength(17);
+    cleanup();
+    for (const prepare of [undefined, asManagement, asMember]) {
+      await renderWithRuntime(<NotificationsSection />, prepare);
+      const other = await sectionOf(en);
+      expect(within(other).queryByRole('switch', { name: triggerWords(en).payment_due })).toBeNull();
+      cleanup();
+    }
+  });
+
+  it('shows the row last in the remote build with the in-app switch only, in both languages', async () => {
+    remote(true);
+    await renderWithRuntime(<NotificationsSection />, asAccounting);
+    const section = await sectionOf(en);
+    const rows = within(section).getAllByTestId(/^notice-row-/).map((row) => row.dataset.testid);
+    expect(rows.at(-1)).toBe('notice-row-payment_due');
+    const row = within(section).getByTestId('notice-row-payment_due');
+    expect(within(row).getAllByRole('switch')).toHaveLength(1);
+    expect(within(row).getByRole('switch', { name: appName(en, 'payment_due') })).toHaveAttribute('aria-checked', 'true');
+    expect(triggerWords(en).payment_due).toBe('A payment reaches its due day');
+    expect(triggerWords(ar as unknown as Words).payment_due).toBe('عندما يحين موعد دفعة');
+  });
+
+  it('saves the switch of the person', async () => {
+    const { store } = await renderWithRuntime(<NotificationsSection />, asAccounting);
+    await userEvent.click(await screen.findByRole('switch', { name: triggerWords(en).payment_due }));
+    const id = store.state.session.currentUserId;
+    await waitFor(() => expect(store.state.users[id].preferences.notifications.payment_due).toBe(false));
   });
 });

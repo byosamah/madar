@@ -1,5 +1,5 @@
 /**
- * The catalog of role rights version 2 (owner approved the list on 2026-10-21): 13 sections, 91 powers, 120 switches. It is a plain copy of
+ * The catalog of role rights version 2 (owner approved the list on 2026-10-21): 13 sections, 92 powers, 121 switches. It is a plain copy of
  * docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json, without the words (the labels and the hints are word keys of the
  * screens). A test (rightsCatalog.test.ts) checks that this file and the JSON agree. permissions.ts is in the first load of the real
  * build, so this file takes no value from zod or from the schema files.
@@ -35,7 +35,7 @@ export type CatalogPower = {
 
 export type CatalogSection = { readonly key: string; readonly powers: readonly CatalogPower[] };
 
-/** The 120 switch ids, in the order of the sections of the role sheet. */
+/** The 121 switch ids, in the order of the sections of the role sheet. */
 export const CATALOG_RIGHT_IDS = [
   'project.create', 'client.create', 'project.details.lead', 'project.details.all', 'project.team.lead', 'project.team.all',
   'project.stages.lead', 'project.stages.all', 'project.deadlines.lead', 'project.deadlines.all', 'project.template.lead',
@@ -52,7 +52,7 @@ export const CATALOG_RIGHT_IDS = [
   'chat.mentionEveryone', 'tracker.log.team', 'tracker.log.all', 'tracker.reply', 'tracker.export', 'tracker.deleteOwn', 'tracker.deleteAny.lead',
   'tracker.deleteAny.all', 'people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove',
   'clients.change', 'subCompanies.manage', 'payment.view', 'payment.add', 'payment.change', 'payment.receive',
-  'templates.projectCreate', 'templates.projectAny', 'templates.taskSave.lead', 'templates.taskSave.all', 'templates.taskAny',
+  'payment.daftraLink', 'templates.projectCreate', 'templates.projectAny', 'templates.taskSave.lead', 'templates.taskSave.all', 'templates.taskAny',
   'templates.updateProjects', 'dashboard.view', 'workload.view', 'search.use', 'gaps.view', 'report.office', 'ai.connect',
   'ai.readWork', 'ai.readChats', 'ai.todos', 'ai.posts', 'ai.messages', 'ai.meetings', 'ai.tracker', 'ai.projects',
   'ai.projectSetup', 'ai.payments', 'ai.feedback', 'ai.report', 'ai.admin', 'ai.myState', 'ai.undo', 'ai.undoOthers.lead', 'ai.undoOthers.all', 'feedback.send',
@@ -498,6 +498,12 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
           { id: 'payment.receive', scope: null, basic: false, needs: ['payment.view'] },
         ],
       },
+      {
+        power: 'payment.daftraLink',
+        switches: [
+          { id: 'payment.daftraLink', scope: null, basic: false, newPower: true, needs: ['payment.view'] },
+        ],
+      },
     ],
   },
   {
@@ -721,11 +727,11 @@ export const BASIC_ON: readonly CatalogRightId[] = [
 
 /**
  * The switches that a built-in role holds beyond BASIC_ON when the office settings give it none. A Member holds none.
- * Management: the five people switches, the four payment switches and the office report. Accounting: the four payment switches.
+ * Management: the five people switches, the four payment switches and the office report. Accounting: the four payment switches and the Daftra link.
  */
 export const DEFAULT_EXTRA: Readonly<Record<'management' | 'accounting' | 'member', readonly CatalogRightId[]>> = {
   management: ['people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove', 'payment.view', 'payment.add', 'payment.change', 'payment.receive', 'report.office'],
-  accounting: ['payment.view', 'payment.add', 'payment.change', 'payment.receive'],
+  accounting: ['payment.view', 'payment.add', 'payment.change', 'payment.receive', 'payment.daftraLink'],
   member: [],
 };
 

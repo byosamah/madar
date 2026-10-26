@@ -108,6 +108,10 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   connect, disconnect or read a connection). The MCP parity track (owner, 2026-10-26) kept them closed because each of the four refuses an agent with `forbidden`
   (`server/calls/google.ts` and the prototype fake), so no tool of them can work. `INSTRUCTIONS` ends with a `Google Calendar:` paragraph: the meetings of its person reach their own
   Google Calendar with the title, the time and the place only. No tool changed.
+- The Daftra link (owner, 2026-10-26): the six calls `daftra.status`, `daftra.paymentLink`, `daftra.findClients`, `daftra.matchClient`, `payments.linkInvoice` and `payments.unlinkInvoice` are on `MCP_DENY`: an agent
+  never touches Daftra, and the tool counts stay 49, 12 and 61. The `TOOL_DOCS` of `payments.list` name the optional read-only `daftra` field (`invoiceNo`, `total`), and those of `payments.markReceived` say that a
+  payment with that field gets Received from Daftra by itself. `INSTRUCTIONS` ends with one `Daftra:` rule after the `Google Calendar:` paragraph. The sample answers did not change (the sample office has no linked
+  payment). Tests: `daftraTools.test.ts`. The paid write of the job is the internal call `payments.daftraPaid`, which is in no MCP list and in no public map.
 - Sub-companies (review 2026-10-19): `dashboard.get`, `tasks.list`, `deadlines.list`, `projects.list` and `reports.office` take `subCompanyId`;
   `projects.list` filter `no_sub_company` lists the projects with none; `search.query` and `subCompanies.list` (`projectCount`) carry counts. An agent
   never undoes a sub-company event (`events.undo`, `events.undoStory`).
@@ -128,6 +132,13 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   parity track, but the call refuses `adminReach`, `awayByHand` and `workHours` for an agent. The `TOOL_DOCS` of `chats.list` (600 characters at most) and the Messages paragraph of
   INSTRUCTIONS say so. Notices are not an MCP read, so the copies for the bell need no tool text. "Only my work" also changes the Home and Projects screens (fbk_065), but `projects.list` of an agent keeps its explicit `filter` input; the `projects.list` doc and the Messages paragraph of INSTRUCTIONS say so.
 - The Arabic name of a project (fbk_062): `nameAr` goes through the zod input and output of `projects.create`, `projects.update`, `projects.get` and `projects.list`, so no list changes. A `TOOL_DOCS` text is 600 characters at most (tests fail over it): the how-to for a list of Arabic names sits in the line "Arabic names:" of INSTRUCTIONS, and the four project docs only name `nameAr`.
+- The tile shape of a project (fbk_061, owner 2026-10-26): `shape` goes through the zod input of `projects.update` and the output of `projects.get` and
+  `projects.list`, so no list changes (right `project.details`, an empty text clears it, Undo works). `look.tile` (`pictures.ts`, `tileSvg`) draws it at 62%
+  with evenodd. The line "Tile shapes:" of INSTRUCTIONS holds the owner procedure (2026-10-26): an agent never sets a shape on its own idea; it asks for
+  the inspiration source, shows about 5 options (an artifact, each in the tile at 34 and 22 px), works with the person until one is accepted, only then calls
+  `projects.update`, and tells the person (Undo takes it back). It also holds the drawing rules: a solid mass, the real outline from the plan, the special
+  places as holes (1.3 units from each other and the edge), nothing under 2 units, a shape only this project has. The Pictures paragraph says that the shape of a tile is
+  the one picture an agent can change. The three `TOOL_DOCS` of the reads and `projects.update` name `shape` in 600 characters or less.
 - Messages (owner, 2026-10-12): an agent messages the team with `chats.openDirect` (the direct chat with one person, made when
   there is none), `chats.list` (the chats the person may open, to find a project chat) and `chats.send` (one message as the
   person; the author is the agent and `actingForId` the person, so the Inbox shows both names). For one task it uses
@@ -268,6 +279,9 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 - Two refusals need a reason from the person (`reasons.ts`): a move back to an earlier stage and a change of set dates. They
   answer with `input_required`. The agent must ask its person, never invent the reason.
 
+- A running Claude session keeps the MCP tool schema it loaded at its start. After a release that adds an input field, a call with that field
+  still reaches the server and works (`projects.update` patch.shape, 2026-10-26); check the result, because an older server drops the field.
+
 ## MCP parity (owner, 2026-10-26)
 The goal: an agent does what its person does in the screens, with the rights of that person. `can()` and every check of every handler run as before; no right changed.
 88 calls moved from `MCP_DENY` to the lists, each with one AI switch and a `TOOL_DOCS` entry (`docsParity.ts`, added to `TOOL_DOCS` in `docs.ts`).
@@ -283,7 +297,7 @@ The goal: an agent does what its person does in the screens, with the rights of 
 - Behaviour changes in `src/api` (handlers only, no zod change): `me.updateProfile` and `me.updatePreferences` write the record of the person an agent acts for (they wrote the
   record of the agent before, which made them useless for an agent); `me.updateProfile` takes `avatarUrl` from an agent for its own person only, as picture data (`PICTURE_DATA`, 24,000 characters at most; an address and null fail with `picture_data`);
   `users.update` still refuses `avatarUrl` and the email for an agent; `subCompanies.save` takes a `logo` as picture data from an agent with the right (the switch `ai.admin` applies) and
-  keeps the stored logo when it sends `null` (an agent never clears one). The tool schema leaves `patch.avatarUrl` of `users.update` and `uploadIds` out (`HIDDEN_FIELDS`, `tools.ts`); `me.updateProfile` shows `avatarUrl`. `MAX_STORED_RIGHTS` is 126.
+  keeps the stored logo when it sends `null` (an agent never clears one). The tool schema leaves `patch.avatarUrl` of `users.update` and `uploadIds` out (`HIDDEN_FIELDS`, `tools.ts`); `me.updateProfile` shows `avatarUrl`. `MAX_STORED_RIGHTS` is 127 (121 switches with the Daftra switch).
 - Not opened, with the reason in `tools.ts`: `projects.delete`, `session.get`, `push.*`, `live.ticket`, `chats.typing`, `google.*` (the server refuses an agent), `meetings.settle`,
   `meetings.extend`, `files.upload`, `files.uploadStart` and `feedback.uploadStart` (`stages.replace` came to the lists with `rb/mcp-bulk`).
 - An agent cannot undo a change to a person, a role or a sub-company (`history.ts`); a message edit or delete has no Undo. `ADDITIVE` (`tools.ts`) lists the new calls that only add a record and
@@ -302,7 +316,7 @@ acts, when the ACTOR is an agent, the person of the agent must give a code that 
   The handler runs first, then `guardAct` decides, inside the transaction and before the save. So a refused act (rights, bad field, missing record, email in use)
   answers as before and sends no mail.
 - First call, no code: the transaction rolls back (`GuardStop`), then `answerStop` records one confirmation (table `agent_confirms`, migration
-  `20261026000100_agent_confirms.sql`, SQLite schema version 11) and one outbox row `mcp.confirm` in a transaction of its own, and runs the mail (`afterCommit`; not in
+  `20261026000200_agent_confirms.sql`, SQLite schema version 12) and one outbox row `mcp.confirm` in a transaction of its own, and runs the mail (`afterCommit`; not in
   `AFTER_ANSWER_KINDS`, so it runs before the answer, and in the office object the ledger runs it before the answer). The call fails with `forbidden`, `details.reason`
   `confirm_needed` and `expiresInMinutes` 10. One live code for one exact act: a second first call sends no second mail (the same reason, another text). At most 5 new
   codes for one person in one hour (`confirm_limit`, no mail).

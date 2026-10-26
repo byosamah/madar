@@ -57,8 +57,8 @@ const pictureData = (value: string | null | undefined): string | null => (value 
 // The rows as the tools give them. Each one holds more fields; these are the ones read here.
 type UserRow = Pick<User, 'id' | 'kind' | 'avatarUrl'>;
 type SubRow = Pick<SubCompany, 'id' | 'logo'>;
-type ProjectRow = { project: { id: string; mark?: number } };
-type ReportRow = { project: { id: string; mark: number }; subCompany: { id: string } | null };
+type ProjectRow = { project: { id: string; mark?: number; shape?: string | null } };
+type ReportRow = { project: { id: string; mark: number; shape?: string | null }; subCompany: { id: string } | null };
 type ReportPersonRow = { user: UserRow };
 
 /**
@@ -71,7 +71,7 @@ function personLook<T extends UserRow>(user: T, picture: string | null, withPict
   return { ...user, avatarUrl, hasPicture: shown !== null, ...(user.kind === 'human' ? { glow: personGlowCss(user.id) } : {}) };
 }
 
-const projectLook = (project: { id: string; mark?: number }) => ({ color: projectColorLook(project.id), tile: tileSvg(project) });
+const projectLook = (project: { id: string; mark?: number; shape?: string | null }) => ({ color: projectColorLook(project.id), tile: tileSvg(project) });
 
 /**
  * The picture fields of the answers of users.list, subCompanies.list, projects.list, projects.get and reports.office. Without
@@ -156,7 +156,7 @@ export async function runPicture(args: Record<string, unknown>, ctx: PictureCtx)
   }
   const result = await callAs(ctx, 'projects.get', { id });
   if (!result.ok) return result;
-  const project = (result.output as { project: { id: string; code: string; name: string; mark?: number; coverFileId: string | null; subCompanyId?: string | null } }).project;
+  const project = (result.output as { project: { id: string; code: string; name: string; mark?: number; shape?: string | null; coverFileId: string | null; subCompanyId?: string | null } }).project;
   if (kind === 'projectTile') {
     return answer({ output: { kind, id, code: project.code, name: project.name, subCompanyId: project.subCompanyId ?? null, ...projectLook(project) } });
   }

@@ -89,6 +89,27 @@ describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
   });
 
   // The settle of a meeting that ended (fbk_022, wave 2): the step runs the normal call meetings.settle on the SQLite data.
+  // The due notice of a payment (the Daftra link, owner 2026-10-26): Accounting, on the due day only, once for each payment and day.
+  it('tells Accounting once about a payment that falls due today, and nobody about a payment of another day, a received one or a linked one', async () => {
+    const base = { projectId: 'prj_001', amount: 12500, note: '', createdBy: 'usr_001', createdAt: '2026-09-01T09:00:00.000+03:00' };
+    const { db, deps, seed } = await office((edit) => {
+      edit.payments = {
+        pay_901: { ...base, id: 'pay_901', name: 'Due today', dueDate: DAY, receivedOn: null },
+        pay_902: { ...base, id: 'pay_902', name: 'Received', dueDate: DAY, receivedOn: DAY },
+        pay_903: { ...base, id: 'pay_903', name: 'Tomorrow', dueDate: '2026-10-05', receivedOn: null },
+        pay_904: { ...base, id: 'pay_904', name: 'Linked', dueDate: DAY, receivedOn: null, daftra: { account: 'MAZJ', invoiceId: '1', invoiceNo: '000001', total: 12500, issuedOn: DAY, linkedBy: 'usr_001', linkedAt: '2026-10-03T09:00:00.000+03:00' } },
+      };
+    });
+    const accounting = Object.values(seed.users).filter((u) => u.systemRole === 'accounting' && u.active && u.kind === 'human').map((u) => u.id).sort();
+    expect(accounting.length).toBeGreaterThan(0);
+    const due = async () => db.statement<{ user_id: string; payment: string }>('read', "select user_id, json_extract(doc, '$.payment.id') as payment from notifications where json_extract(doc, '$.trigger') = 'payment_due' order by user_id");
+    const first = await triggers(deps, AT);
+    expect(first.notices).toBe(5 + accounting.length);
+    expect(await due()).toEqual(accounting.map((user_id) => ({ user_id, payment: 'pay_901' })));
+    expect(await triggers(deps, AT)).toEqual({ notices: 0, mails: 0 });
+    expect(await due()).toHaveLength(accounting.length);
+  });
+
   it('settles the meetings that ended in the job, with the Tracker line of a project meeting, and settles nothing in a second run', async () => {
     const meeting = (id: string, projectId: string | null, endsAt: string, extra: Record<string, unknown> = {}) => ({
       id, kind: 'client' as const, title: `Review ${id}`, projectId, startsAt: endsAt.replace(/T(\d\d)/, (_m, h: string) => `T${String(Number(h) - 1).padStart(2, '0')}`), endsAt, where: '', guests: '', notes: 'Bring the plans',

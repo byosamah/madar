@@ -102,6 +102,15 @@ export async function paymentCall(L: Load, input: Input): Promise<Payment | unde
   return L.get<Payment>('payments', str(input.id));
 }
 
+/**
+ * payments.linkInvoice: the payment by id, and every payment that holds the same Daftra invoice, so the handler refuses a second link to one
+ * invoice inside the lock (the Daftra link, owner 2026-10-26). `daftra.invoiceId` is a key of the object field `daftra` of the doc.
+ */
+export async function paymentLinkCall(L: Load, input: Input): Promise<Payment | undefined> {
+  await L.select({ c: 'payments', where: [{ field: 'daftra', key: 'invoiceId', in: [str(input.invoiceId) ?? ''] }] });
+  return paymentCall(L, input);
+}
+
 /** tracker.list: every entry of P, with the reply task and the files each one names. */
 export async function trackerList(L: Load, input: Input): Promise<void> {
   const entries = (await L.select({ c: 'tracker', where: [{ col: 'project_id', in: [str(input.projectId) ?? ''] }] })) as TrackerEntry[];

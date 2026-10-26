@@ -4,6 +4,7 @@ import type { SharedCallName } from '../../src/api/sharedCalls';
 import type { Deps } from '../core/ports';
 import type { ServerCall } from '../core/types';
 import { agentsList, agentsRemove } from './agents';
+import { daftraFindClients, daftraMatchClient, daftraPaymentLink, daftraStatus, paymentsLinkInvoiceHooks } from './daftra';
 import { feedbackScreenshotHooks, feedbackSendHooks, feedbackUploadStart } from './feedback';
 import { filesLink, filesUploadHooks, filesUploadStart, projectsDeleteHooks } from './files';
 import { googleConnect, googleConnectStart, googleDisconnect, googleStatus } from './google';
@@ -13,7 +14,7 @@ import { liveTicket } from './live';
 import { chatsTyping } from './typing';
 
 /**
- * The registry of the 14 server calls (plan 4.11). runCall (C3) finds a server call here; each owner track replaces its file's body,
+ * The registry of the 18 server calls (plan 4.11). runCall (C3) finds a server call here; each owner track replaces its file's body,
  * never this list. The contracts are in src/api/contract/server.ts.
  */
 export const SERVER_CALLS: { [N in ServerCallName]: ServerCall<N> } = {
@@ -31,6 +32,10 @@ export const SERVER_CALLS: { [N in ServerCallName]: ServerCall<N> } = {
   'google.connect': googleConnect,
   'google.disconnect': googleDisconnect,
   'chats.typing': chatsTyping,
+  'daftra.status': daftraStatus,
+  'daftra.paymentLink': daftraPaymentLink,
+  'daftra.findClients': daftraFindClients,
+  'daftra.matchClient': daftraMatchClient,
 };
 
 /**
@@ -42,4 +47,6 @@ export const SERVER_HOOKS: Partial<Record<SharedCallName, ServerHooks<unknown, u
   'feedback.send': feedbackSendHooks,
   'feedback.screenshot': feedbackScreenshotHooks,
   'projects.delete': projectsDeleteHooks,
+  // The Daftra link (owner, 2026-10-26): the preflight reads the invoice from Daftra before the lock. The prototype prepare of the call refuses.
+  'payments.linkInvoice': paymentsLinkInvoiceHooks,
 };

@@ -2,7 +2,7 @@ import { sqlFor } from '../data/dialect';
 import type { Query } from '../core/ports';
 
 /**
- * The store of the email code guard (owner decision, 2026-10-26; supabase/migrations/20261026000100_agent_confirms.sql). One row is
+ * The store of the email code guard (owner decision, 2026-10-26; supabase/migrations/20261026000200_agent_confirms.sql). One row is
  * one request of an agent for a risky Admin act: the person, the agent, the call name, a hash of the exact input (without the code), a
  * hash of the 6-digit code, the end time, the count of wrong tries and the time of use. The row never holds the code itself.
  *

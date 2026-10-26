@@ -78,6 +78,7 @@ export function DashboardMap({ filters }: { filters: DashboardFilters }) {
                       <ProjectPin
                         id={row.project.id}
                         mark={row.project.mark}
+                        shape={row.project.shape}
                         subCompanyId={row.subCompanyId}
                         sign={health === 'late' || health === 'at_risk' ? health : null}
                         selected={isSelected}
@@ -109,7 +110,7 @@ export function DashboardMap({ filters }: { filters: DashboardFilters }) {
                       onClick={() => setSelected(row.project.id)}
                       className="pressable flex min-h-14 w-full items-center gap-3 py-2 text-start hover:bg-fill/50"
                     >
-                      <ProjectTile id={row.project.id} mark={row.project.mark} size={28} subCompanyId={row.subCompanyId} />
+                      <ProjectTile id={row.project.id} mark={row.project.mark} shape={row.project.shape} size={28} subCompanyId={row.subCompanyId} />
                       <span className="flex min-w-0 flex-1 flex-col">
                         <bdi dir="auto" className="break-words text-subheadline font-semibold text-ink">{projectName(row.project)}</bdi>
                         <span dir="ltr" className="tabular text-footnote text-ink-2 [text-align:start]">{projectKey(row.project.code)}</span>
@@ -133,7 +134,7 @@ export function DashboardMap({ filters }: { filters: DashboardFilters }) {
               <ul className="hairline flex flex-col">
                 {unpinned.map((row) => (
                   <li key={row.project.id} className="flex min-h-14 items-center gap-3 py-2">
-                    <ProjectTile id={row.project.id} mark={row.project.mark} size={28} subCompanyId={row.subCompanyId} />
+                    <ProjectTile id={row.project.id} mark={row.project.mark} shape={row.project.shape} size={28} subCompanyId={row.subCompanyId} />
                     <span className="flex min-w-0 flex-1 flex-col">
                       <bdi dir="auto" className="break-words text-subheadline font-semibold text-ink">{projectName(row.project)}</bdi>
                       <span dir="ltr" className="tabular text-footnote text-ink-2 [text-align:start]">{projectKey(row.project.code)}</span>

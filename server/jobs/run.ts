@@ -1,5 +1,6 @@
 import type { Deps } from '../core/ports';
 import { cleanup } from './steps/cleanup';
+import { daftra } from './steps/daftra';
 import { heartbeat } from './steps/heartbeat';
 import { meetings } from './steps/meetings';
 import { outboxRetry } from './steps/outbox';
@@ -15,6 +16,8 @@ import { uploads } from './steps/uploads';
  *   heartbeat   the job_runs row "heartbeat" (the health check of the office object reads the last run)
  *   triggers    the due, overdue and restart reminders under the office lock, with their notice mail
  *   meetings    the meetings that ended: the mark and, for a project meeting, the Tracker line (meetings.settle as the organizer)
+ *   daftra      the Daftra link (owner, 2026-10-26): the paid check of the linked payments and the invoice cache, one Daftra account for each
+ *               sub-company, with no lock during a Daftra call and a budget of 20 calls and 60 seconds (server/daftra/CLAUDE.md)
  *   summary     the morning summary at the start of the work hours of each person, on the work days of the person
  *   quietEnd    the one push for each person whose quiet hours ended, when a push was held back (owner, 2026-10-22)
  *   outbox      the effects that did not finish after their commit
@@ -33,6 +36,7 @@ export const JOB_STEPS: readonly JobStep[] = [
   { name: 'heartbeat', run: heartbeat },
   { name: 'triggers', run: triggers },
   { name: 'meetings', run: meetings },
+  { name: 'daftra', run: (deps, at) => daftra(deps, at) },
   { name: 'summary', run: summary },
   { name: 'quietEnd', run: quietEnd },
   { name: 'outbox', run: (deps) => outboxRetry(deps) },

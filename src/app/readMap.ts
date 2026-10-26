@@ -102,6 +102,12 @@ const RULES: Record<string, ReadRule> = {
   // section reads it again after its own connect and disconnect.
   'google.status': rule('none', []),
   'google.connectStart': rule('none', []),
+  // The Daftra link (owner, 2026-10-26): the cache and the match are server rows that no change signal names, so the sheet reads them again
+  // when it opens, and after its own match or link. None of the three reloads on a signal (the prototype fake of each refuses, so no test can trace
+  // a signal read for it). The payment row itself reloads with payments.list, so a link by another person still shows as "Invoiced".
+  'daftra.status': rule('none', []),
+  'daftra.findClients': rule('none', []),
+  'daftra.paymentLink': rule('none', []),
   // The own push devices: no change signal names a device, so no signal reloads this read. The Settings row reads it again itself.
   'push.mine': rule('none', []),
   'files.link': rule('none', []),

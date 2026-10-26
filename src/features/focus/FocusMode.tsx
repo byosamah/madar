@@ -107,7 +107,7 @@ function FocusPage({ data, onExit, chat }: { data: TaskDetail; onExit: (done?: b
         {/* An office task has no project: the word Office takes its place (owner, 2026-10-06). */}
         {project ? (
           <span className="flex min-w-0 items-center gap-3">
-            <ProjectTile id={project.id} mark={project.mark} size={32} />
+            <ProjectTile id={project.id} mark={project.mark} shape={project.shape} size={32} />
             <bdi className="truncate text-subheadline font-semibold text-ink-2">{projectName(project)}</bdi>
           </span>
         ) : <span className="text-subheadline font-semibold text-ink-2">{t('office.word')}</span>}

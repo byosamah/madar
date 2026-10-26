@@ -3,6 +3,7 @@ import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { COPY_HOSTS } from '../../server/core/serverHost.ts';
+import { DAFTRA_KEY_PATTERN, DAFTRA_SITE_PATTERN, daftraAccountsIn, daftraKeyName, daftraSiteName, isDaftraName } from '../../server/daftra/config.ts';
 import { hyperdriveOrigin, type HyperdriveOrigin } from './cloudflare.ts';
 
 /**
@@ -65,6 +66,11 @@ export const KEPT_ON_WORKER = ['MADAR_AUTH_PRIVATE_JWK'] as const;
 const VAPID_NAMES = ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'] as const;
 /** Google Calendar (fbk_022, owner 2026-10-19): all three or none (server/core/deps.ts). scripts/google/setup-secrets.ts writes them. */
 const GOOGLE_NAMES = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'MADAR_GOOGLE_KEY'] as const;
+/**
+ * The Daftra link (owner, 2026-10-26): one account for each sub-company, so the secret names follow a pattern and no fixed list names them.
+ * DAFTRA_<NAME>_KEY and DAFTRA_<NAME>_SITE, both or none for each NAME (server/daftra/config.ts). The key role of each office key should
+ * allow only `invoice` and `client`.
+ */
 export const R2_NAMES = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'] as const;
 /** The R2 bucket of each copy (owner, 2026-10-16). Both are in the EU jurisdiction (server/files/r2.ts signs on the EU endpoint). */
 export const R2_BUCKETS: Record<Target, string> = { test: 'madar-files-test', production: 'madar-files' };
@@ -86,8 +92,11 @@ export function r2Values(values: Record<string, string | undefined>, target: Tar
   return { accountId: values.R2_ACCOUNT_ID!, accessKeyId: values.R2_ACCESS_KEY_ID!, secretAccessKey: values.R2_SECRET_ACCESS_KEY!, bucket: values.R2_BUCKET! };
 }
 
-/** The names that a secrets file may hold: the function secrets and the Worker secrets of an office copy. */
+/** The fixed names that a secrets file may hold: the function secrets and the Worker secrets of an office copy. A Daftra name fits its pattern instead. */
 const FILE_NAMES: readonly string[] = [...FUNCTION_SECRETS, ...OFFICE_WORKER_SECRETS];
+
+/** True when a function (or a Worker) reads this secret: a fixed name, or a Daftra name of the pattern. */
+const isFunctionSecret = (name: string): boolean => (FUNCTION_SECRETS as readonly string[]).includes(name) || isDaftraName(name);
 
 /**
  * The KEY=VALUE lines of secrets/<env>.env. Errors name the line or the name, never a value. file names the file in the refusal
@@ -104,7 +113,9 @@ export function parseSecretsFile(text: string, o: { file?: string } = {}): Recor
     if (name.startsWith('SUPABASE_')) throw new Error(`${name}: Supabase injects every SUPABASE_ name into the functions, and refuses your own.`);
     if (name === 'DATABASE_CA') throw new Error('DATABASE_CA: leave it out. secrets.ts sets the Supabase root certificate (config/supabase-root-2021-ca.crt).');
     if ((KEPT_ON_WORKER as readonly string[]).includes(name)) throw new Error(`${name} must not be in ${o.file ?? 'a secrets file'}: scripts/office/auth-key.ts writes it to the Worker.`);
-    if (!FILE_NAMES.includes(name)) throw new Error(`${name}: the server reads no such value. Known names: ${FILE_NAMES.join(', ')}.`);
+    if (!FILE_NAMES.includes(name) && !isDaftraName(name)) {
+      throw new Error(`${name}: the server reads no such value. Known names: ${FILE_NAMES.join(', ')}, and DAFTRA_<NAME>_KEY and DAFTRA_<NAME>_SITE for each sub-company.`);
+    }
     if (name in values) throw new Error(`${name}: the file sets it twice.`);
     values[name] = line.slice(at + 1).trim().replace(/^(["'])(.*)\1$/, '$2');
   });
@@ -166,6 +177,16 @@ export function checkSecrets(values: Record<string, string>, ref: string): Check
     if (!values.GOOGLE_CLIENT_ID.endsWith('.apps.googleusercontent.com')) throw new Error('GOOGLE_CLIENT_ID must end with .apps.googleusercontent.com.');
     if (/\s/.test(values.GOOGLE_CLIENT_SECRET)) throw new Error('GOOGLE_CLIENT_SECRET must be one word with no space.');
     if (!/^[A-Za-z0-9+/]{43}=$/.test(values.MADAR_GOOGLE_KEY)) throw new Error('MADAR_GOOGLE_KEY must be 32 bytes in base64 (44 characters).');
+  }
+
+  // The Daftra link: each account (one for each sub-company) has a key and a site, both or none. The error names the variable, never the value.
+  for (const account of daftraAccountsIn(Object.keys(values))) {
+    const key = daftraKeyName(account);
+    const site = daftraSiteName(account);
+    const absent = [key, site].filter((name) => !values[name]);
+    if (absent.length > 0) throw new Error(`The Daftra account ${account} needs both ${key} and ${site}. The secrets file needs ${absent.join(', ')}.`);
+    if (!DAFTRA_KEY_PATTERN.test(values[key])) throw new Error(`${key} must be 20 to 128 letters and digits, with no space or dash.`);
+    if (!DAFTRA_SITE_PATTERN.test(values[site])) throw new Error(`${site} must be the site name only, for example name.daftra.com: no scheme and no slash.`);
   }
 
   // The PostHog project key is public (insight design). It is optional: with none, the server sends no error record to PostHog.
@@ -263,7 +284,7 @@ export async function runSecrets(run: SecretsRun): Promise<void> {
   const values = parseSecretsFile(run.text, { file: `secrets/${run.target}.env` });
   const checked = checkSecrets(values, ref);
   // The office secrets go to the Worker only (pushWorker): the functions read no such value.
-  const functionValues = Object.entries(values).filter(([name]) => (FUNCTION_SECRETS as readonly string[]).includes(name));
+  const functionValues = Object.entries(values).filter(([name]) => isFunctionSecret(name));
   const secrets = [...functionValues.map(([name, value]) => ({ name, value })), { name: 'DATABASE_CA', value: run.rootCa }];
   const projectUrl = `https://${ref}.supabase.co`;
   const names = secrets.map((secret) => secret.name).join(', ');
@@ -331,6 +352,15 @@ export const WORKER_SECRETS: readonly string[] = [
   ...OFFICE_WORKER_SECRETS,
 ];
 
+/**
+ * The Worker secret names for one secrets file: the fixed list, and every Daftra name that the file holds (the Daftra names follow a pattern,
+ * so no fixed list holds them). A Daftra account that the file drops is not removed from the Worker by this run: no list of the Worker
+ * secrets exists. The owner removes it by hand (scripts/deploy/CLAUDE.md).
+ */
+export function workerNamesOf(values: Record<string, string | undefined>): string[] {
+  return [...WORKER_SECRETS, ...Object.keys(values).filter((name) => isDaftraName(name) && !WORKER_SECRETS.includes(name))];
+}
+
 export type WorkerPort = {
   /** True when the Worker exists on the Cloudflare account. */
   exists(name: string): Promise<boolean>;
@@ -349,15 +379,15 @@ export type WorkerPort = {
  */
 export function workerSecretsOf(values: Record<string, string>, secretKey: string): Record<string, string | null> {
   const out: Record<string, string | null> = {};
-  for (const name of WORKER_SECRETS) out[name] = name === 'MADAR_SECRET_KEY' ? secretKey : (values[name] ?? null);
+  for (const name of workerNamesOf(values)) out[name] = name === 'MADAR_SECRET_KEY' ? secretKey : (values[name] ?? null);
   return out;
 }
 
 /** The Worker lines of a dry run: names only, and no network call. */
 export function workerDryRun(target: Target, values: Record<string, string>): string[] {
   const hosts = COPY_HOSTS[target].workers;
-  const set = WORKER_SECRETS.filter((name) => name === 'MADAR_SECRET_KEY' || values[name] !== undefined);
-  const removed = WORKER_SECRETS.filter((name) => name !== 'MADAR_SECRET_KEY' && values[name] === undefined);
+  const set = workerNamesOf(values).filter((name) => name === 'MADAR_SECRET_KEY' || values[name] !== undefined);
+  const removed = workerNamesOf(values).filter((name) => name !== 'MADAR_SECRET_KEY' && values[name] === undefined);
   return [
     `Worker ${hosts.name}, when it exists: Hyperdrive ${hosts.hyperdrive} gets the madar_server password of DATABASE_URL (session pooler).`,
     `Worker secrets: ${set.join(', ')}. MADAR_SECRET_KEY comes from the Management API.${values.MCP_URL ? '' : ' MCP_URL is missing: the Worker step would stop.'}`,
@@ -411,7 +441,7 @@ async function pushWorker(run: SecretsRun, ref: string, token: string, values: R
  */
 export function officeSecretsOf(values: Record<string, string>): Record<string, string | null> {
   const out: Record<string, string | null> = {};
-  for (const name of WORKER_SECRETS) if (name !== 'MADAR_SECRET_KEY') out[name] = values[name] ?? null;
+  for (const name of workerNamesOf(values)) if (name !== 'MADAR_SECRET_KEY') out[name] = values[name] ?? null;
   return out;
 }
 

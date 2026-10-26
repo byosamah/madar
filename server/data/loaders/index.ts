@@ -8,7 +8,7 @@ import { inboxCount, inboxList } from './inbox';
 import { meetingCall, meetingCancel, meetingChange, meetingExtend, meetingMinutes, meetingsList } from './meetings';
 import { dashboardGet, eventsList, projectsList, searchQuery, tasksList, templateSyncTasks } from './overview';
 import {
-  fileCall, filesList, filesUpload, foldersDelete, paymentCall, paymentsOfProject, projectCall, projectsCreate, stagesReplace, trackerCall, trackerExport,
+  fileCall, filesList, filesUpload, foldersDelete, paymentCall, paymentLinkCall, paymentsOfProject, projectCall, projectsCreate, stagesReplace, trackerCall, trackerExport,
   trackerList, trackerLog, updatesList,
 } from './project';
 import { projectsDelete } from './projectDelete';
@@ -65,6 +65,14 @@ const meetings = <I>(load: (L: Load, input: I) => Promise<unknown>): LoaderSpec<
 /** The project of a stage or a deadline, from the office. */
 const projectOfStage = (L: Load, stageId: string) => L.office.stages[stageId]?.projectId;
 const projectOfDeadline = (L: Load, id: string) => L.office.deadlines[id]?.projectId;
+
+/**
+ * The loaders of the calls that only the server itself runs, never a person or an agent (server/daftra/paidCall.ts). They are in no public map:
+ * serverCallMap has no entry for these names, and loaders.test.ts checks that no name is in both lists.
+ */
+export const INTERNAL_LOADER_OF: Readonly<Record<string, LoaderSpec<{ id: string }>>> = {
+  'payments.daftraPaid': project(paymentCall),
+};
 
 /** A mapped type, so a call that the server runs without a loader fails the type check (and loaders.test.ts at run time). */
 export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
@@ -225,6 +233,8 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'payments.update': project(paymentCall),
   'payments.markReceived': project(paymentCall),
   'payments.delete': project(paymentCall),
+  'payments.linkInvoice': project(paymentLinkCall),
+  'payments.unlinkInvoice': project(paymentCall),
 
   'teams.list': office,
   'teams.create': office,
@@ -258,7 +268,7 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
  * parsed input of the call. A name without a loader throws: runCall finds every name in serverCallMap first.
  */
 export async function loadFor(name: string, input: unknown, lx: LoadCtx): Promise<State> {
-  const spec = (LOADER_OF as Record<string, LoaderSpec<unknown> | undefined>)[name];
+  const spec = (LOADER_OF as Record<string, LoaderSpec<unknown> | undefined>)[name] ?? (INTERNAL_LOADER_OF as Record<string, LoaderSpec<unknown> | undefined>)[name];
   if (!spec) throw new Error(`The call ${name} has no loader.`);
   const L = new Load(lx);
   await spec.load(L, input);

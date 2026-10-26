@@ -61,7 +61,7 @@ after the commit of the call that asked for it.
   office task) and the due day. It holds no project name, no client name, no comment text and no link of a task. Resend keeps the
   content, so keep it to those three fields: a template reads only the fields of its data type.
 - The two notices of requests and bugs, the notice of a new group, the two notices of a meeting (`meeting_invited`, `meeting_soon`, fbk_022),
-  and the notices of a new helper and a deleted task (`helper_joined`, `task_deleted`, fbk_034 and fbk_035)
+  and the notices of a new helper and a deleted task (`helper_joined`, `task_deleted`, fbk_034 and fbk_035), and the due day of a payment (`payment_due`, 2026-10-26)
   never send mail (`IN_APP_ONLY_TRIGGERS`, `emailOn`). A meeting sends no mail: the quota is 100 a day, and calendar apps remind by themselves. `MailData.notice` takes only an
   `EmailTrigger`, and the mail tests iterate `EMAIL_TRIGGERS`.
 - The morning summary goes at the start of the work hours of each person, only on the work days of the office (Sunday to Thursday by default) that are

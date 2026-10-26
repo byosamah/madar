@@ -23,7 +23,7 @@ export function MapPinCard({ summary, variant = 'panel' }: { summary: ProjectSum
   return (
     <section aria-label={projectName(project)} className={`flex flex-col gap-4 ${variant === 'panel' ? 'panel w-72 max-w-[calc(100vw-3rem)] p-4 shadow-xl' : ''}`}>
       <div className="flex items-start gap-3">
-        <ProjectTile id={project.id} mark={project.mark} size={34} subCompanyId={summary.subCompanyId} />
+        <ProjectTile id={project.id} mark={project.mark} shape={project.shape} size={34} subCompanyId={summary.subCompanyId} />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="flex items-center gap-2"><bdi dir="auto" className="break-words text-headline text-ink">{projectName(project)}</bdi>{isHiddenProject(project) && <HiddenMark />}</span>
           <span dir="ltr" className="tabular text-footnote text-ink-2 [text-align:start]">{shownKey(project, t)}</span>

@@ -25,7 +25,7 @@ Two hosted projects, both in Frankfurt (eu-central-1): `madar-test` = `qdgwpnesx
   token or a turned-off person.
 - `20261022000300_read_indexes_perf2.sql` (speed release perf2): the indexes `comments_author_task`, `notifications_inbox_c` (the old
   `notifications_inbox` is dropped) and the partial `events_report_verbs`, then analyze. The SQLite path needs no twin: its plans are its own.
-- `20261026000100_agent_confirms.sql` (the email code guard of agents, owner 2026-10-26): the server-only table `agent_confirms` with RLS and the `madar_server` policy. Its SQLite twin is
+- `20261026000200_agent_confirms.sql` (the email code guard of agents, owner 2026-10-26): the server-only table `agent_confirms` with RLS and the `madar_server` policy. Its SQLite twin is
   `LITE_SCHEMA_VERSION` 11. The migration needs `npm run test:db` and `npm run test:it` (Docker).
 - The office object has one SQLite schema (`server/data/lite/schema.ts`), not these migrations. Until the switch (wave 6), a
   new table or column needs both: a migration here and the SQLite schema with a new version.

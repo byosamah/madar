@@ -50,9 +50,9 @@ describe('the project row', () => {
     // The team as pictures only, the leader first and bigger (colleague's comment 2).
     const team = within(row.querySelector('[data-team-column]') as HTMLElement).getAllByRole('img');
     expect(team[0]).toHaveAccessibleName('Leader: Faisal Al-Harbi');
-    expect(team[0]).toHaveStyle({ width: '34px' });
+    expect(team[0]).toHaveStyle({ width: '32px' });
     // The leader has the ink ring (fbk_060); a team picture has none.
-    expect(team[0].closest('[data-leader]')).toHaveClass('ring-2', 'ring-ink');
+    expect(team[0].closest('[data-leader]')).toHaveClass('ring-[1.5px]', 'ring-ink');
     expect(team[1].closest('[data-leader]')).toBeNull();
     expect(team[1]).toHaveStyle({ width: '26px' });
     expect(within(row).getByText('Coordination workshop').closest('p')).toHaveTextContent('Coordination workshop · In 5 days');
@@ -148,6 +148,30 @@ describe('the project row', () => {
     const cover = await screen.findByRole('img', { name: 'Cover image of Tamr Boutique Hotel' });
     expect(cover).toHaveAttribute('data-project-mark');
     expect(cover.querySelector('svg path')).not.toBeNull();
+  });
+
+  it('draws the own shape of a project on the cover at a larger size, and on the row tile at 62%', async () => {
+    const shape = 'M0 0H11V5H0Z M13 0H18V11H13Z';
+    const setShape = (state: State) => {
+      state.projects.prj_005.shape = shape;
+      state.projects.prj_001.shape = shape;
+    };
+    await renderWithRuntime(<Cover id="prj_005" />, setShape, { path: '/' });
+    const cover = await screen.findByRole('img', { name: 'Cover image of Tamr Boutique Hotel' });
+    const svg = cover.querySelector('svg')!;
+    expect(svg.querySelector('path')).toHaveAttribute('d', shape);
+    expect(svg.querySelector('path')).toHaveAttribute('fill-rule', 'evenodd');
+    expect(svg).toHaveClass('h-[47%]');
+    expect(svg).not.toHaveClass('h-[34%]');
+  });
+
+  it('draws the own shape on the tile of the row', async () => {
+    const shape = 'M0 0H11V5H0Z M13 0H18V11H13Z';
+    await renderWithRuntime(<Card id="prj_001" />, (state: State) => { state.projects.prj_001.shape = shape; }, { path: '/' });
+    const row = await screen.findByRole('link', { name: /Corniche Office Tower/ });
+    const svg = row.querySelector('[data-project-mark] svg')!;
+    expect(svg.querySelector('path')).toHaveAttribute('d', shape);
+    expect(svg).toHaveClass('size-[62%]');
   });
 
   it('offers a person outside the project only Open and Copy link', async () => {

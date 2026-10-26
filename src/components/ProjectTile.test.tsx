@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import type { SubCompany } from '../api/contract/entities';
 import { SubCompaniesContext } from '../app/subCompanies';
-import { ProjectTile } from './ProjectTile';
+import { OWNER_SHAPES } from '../test/projectShapes';
+import { formPath, decodeMark } from '../lib/projectMark';
+import { MarkForm, ProjectTile } from './ProjectTile';
 
 const vado: SubCompany = { id: 'sub_001', name: 'Vado', nameAr: 'فادو', logo: null, createdBy: 'usr_001', createdAt: '2026-10-18T09:00:00.000+03:00' };
 
@@ -76,5 +78,69 @@ describe('the project tile and its sub-company (fbk_007)', () => {
     expect(container.querySelector('[data-sub-company-badge]')).toBeNull();
     rerender(tile({ subCompanyId: 'sub_099' }));
     expect(container.querySelector('[data-sub-company-badge]')).toBeNull();
+  });
+});
+
+describe('the project tile and its own shape (owner, 2026-10-26)', () => {
+  const pathOf = (container: HTMLElement) => container.querySelector('[data-project-mark] svg path')!;
+
+  const svgOf = (container: HTMLElement) => container.querySelector('[data-project-mark] svg')!;
+
+  it('draws the drawn form, turned, at 45% when the project has no shape', () => {
+    const { container } = render(<ProjectTile id="prj_001" mark={5} />);
+    const { form } = decodeMark(5);
+    expect(svgOf(container)).toHaveClass('size-[45%]');
+    expect(pathOf(container)).not.toHaveAttribute('fill-rule');
+    expect(pathOf(container)).toHaveAttribute('d', formPath(form, 0, 0, 18));
+    expect(pathOf(container)).toHaveAttribute('transform', `rotate(${form.turn * 90} 9 9)`);
+  });
+
+  it('draws the drawn form for a shape that is null or missing', () => {
+    const { container, rerender } = render(<ProjectTile id="prj_001" mark={5} shape={null} />);
+    expect(pathOf(container)).toHaveAttribute('transform');
+    rerender(<ProjectTile id="prj_001" mark={5} shape={undefined} />);
+    expect(pathOf(container)).toHaveAttribute('transform');
+  });
+
+  it.each(Object.entries(OWNER_SHAPES))('draws the shape of %s in the box of 18 by 18, in ink at 86 percent, with no turn', (_name, shape) => {
+    const { container } = render(<ProjectTile id="prj_001" mark={5} shape={shape} />);
+    const path = pathOf(container);
+    expect(path).toHaveAttribute('d', shape);
+    expect(path).not.toHaveAttribute('transform');
+    expect(path).toHaveAttribute('fill', 'currentColor');
+    expect(path).toHaveAttribute('fill-opacity', '0.86');
+    expect(path.closest('svg')).toHaveAttribute('viewBox', '0 0 18 18');
+    expect(path.closest('svg')).toHaveClass('text-ink');
+    // The shape is 62% of the tile, with evenodd, so a courtyard or an arch can be a hole.
+    expect(path).toHaveAttribute('fill-rule', 'evenodd');
+    expect(svgOf(container)).toHaveClass('size-[62%]');
+    expect(svgOf(container)).not.toHaveClass('size-[45%]');
+  });
+
+  it('draws the drawn form for a stored shape that breaks the pattern, and for an empty shape', () => {
+    for (const shape of ['', 'M0 0" onload="x', 'L1 1']) {
+      const { container, unmount } = render(<ProjectTile id="prj_001" mark={5} shape={shape} />);
+      expect(pathOf(container)).toHaveAttribute('transform');
+      expect(svgOf(container)).toHaveClass('size-[45%]');
+      unmount();
+    }
+  });
+
+  it('keeps the glow of the mark when the shape changes: the same data attribute and background', () => {
+    const plain = render(<ProjectTile id="prj_001" mark={5} />);
+    const plainTile = plain.container.querySelector<HTMLElement>('[data-project-mark]')!;
+    const shaped = render(<ProjectTile id="prj_001" mark={5} shape={OWNER_SHAPES.kutla} />);
+    const shapedTile = shaped.container.querySelector<HTMLElement>('[data-project-mark]')!;
+    expect(shapedTile.getAttribute('data-project-mark')).toBe(plainTile.getAttribute('data-project-mark'));
+    expect(shapedTile.style.background).toBe(plainTile.style.background);
+    expect(shapedTile.style.background).not.toBe('');
+  });
+
+  it('lets MarkForm draw the shape by itself, and the form without one', () => {
+    const shaped = render(<MarkForm mark={5} shape={OWNER_SHAPES.madar} />);
+    expect(shaped.container.querySelector('path')).toHaveAttribute('d', OWNER_SHAPES.madar);
+    expect(shaped.container.querySelector('path')).not.toHaveAttribute('transform');
+    const plain = render(<MarkForm mark={5} />);
+    expect(plain.container.querySelector('path')).toHaveAttribute('transform');
   });
 });

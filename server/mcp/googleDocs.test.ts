@@ -18,11 +18,12 @@ describe('the agent docs of Google Calendar (fbk_022)', () => {
     for (const admin of [false, true]) expect(mcpTools({ admin }).map((tool) => tool.name).filter((name) => name.startsWith('google.'))).toEqual([]);
   });
 
-  it('ends the instructions with a Google Calendar paragraph: the person connects, the agent cannot, and Google gets the title, the time and the place only', () => {
+  it('has a Google Calendar paragraph (the Daftra paragraph follows it, owner 2026-10-26): the person connects, the agent cannot, and Google gets the title, the time and the place only', () => {
     const paragraphs = INSTRUCTIONS.split('\n').filter((text) => text !== '');
     const line = paragraphs.find((text) => text.startsWith('Google Calendar:'));
     expect(line).toBeDefined();
-    expect(paragraphs[paragraphs.length - 1]).toBe(line);
+    expect(paragraphs[paragraphs.length - 2]).toBe(line);
+    expect(paragraphs[paragraphs.length - 1]).toMatch(/^Daftra:/);
     for (const word of ['Settings screen', 'cannot connect, disconnect or read a connection', 'own Google Calendar', 'title, the time and the place only']) expect(line, word).toContain(word);
   });
 });

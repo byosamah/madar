@@ -170,6 +170,9 @@ export const MCP_DENY = [
   // Google Calendar (fbk_022, owner 2026-10-19): a person connects it in the Settings screen. All four calls refuse an agent with forbidden (server/calls/google.ts and
   // the prototype fake), so none can work for an agent. The meetings of its person reach their Google Calendar by themselves, with the title, the time and the place only.
   'google.status', 'google.connectStart', 'google.connect', 'google.disconnect',
+  // The Daftra link (owner, 2026-10-26): a person links a payment to a Daftra invoice in the Madar screens, and Daftra then sets Received. An agent
+  // never touches Daftra: it cannot link, unlink, search a Daftra client, match one, or read the state of a Daftra account.
+  'daftra.status', 'daftra.paymentLink', 'daftra.findClients', 'daftra.matchClient', 'payments.linkInvoice', 'payments.unlinkInvoice',
 ] as const satisfies readonly (SharedCallName | ServerCallName)[];
 
 /**

@@ -34,6 +34,7 @@ opens a file in that folder. Read the guide of a part before you change that par
 | CI and backups | `.github/CLAUDE.md` | workflows, their secrets, backups |
 | Browser push | `server/push/CLAUDE.md` | the empty push, VAPID, who gets one, devices, keys, the service worker |
 | Pages Functions | `functions/CLAUDE.md` | the /api and /mcp forwarders on Cloudflare Pages |
+| Daftra link | `server/daftra/CLAUDE.md` | one Daftra account for each sub-company, the GET-only client, the cache, the paid check of the job step |
 
 **Keep the guides true.** When you learn a fact about one part, write it in that part's guide, not here. When a change
 makes a guide line wrong, fix the line in the same commit. A rule that applies to two or more parts stays in this file.
@@ -104,6 +105,11 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
   --strictPort` and check that the page title is "Madar". Run it from `deploy-test`: the main folder's `node_modules` can
   lack a new package, and the page then breaks.
   Another session may hold 5180 too (`lsof -iTCP:5180 -sTCP:LISTEN`): then take a free port, such as 5187.
+- The MCP cannot read file contents. To study the files of a project (a tile shape, a review), open madar.vado.sa in the owner's Chrome: Files &
+  Links, the file menu, Preview. A large PDF preview fills the window when JS sets its dialog and iframe to `position: fixed; inset: 0` (the browser tool
+  blocks signed links in its output).
+- Drawing checks on this Mac: `qlmanage -t -s 400 -o <dir> <file.svg>` renders an SVG to PNG, PIL is installed, shapely is not. For exact shape geometry
+  (unions, holes), use paper.js from cdnjs in a local page served on 127.0.0.1 and read the paths with the Chrome JS tool.
 - A dev server in a worktree whose `node_modules` links to `deploy-test` answers 403 for the `@fontsource` files (outside
   its root): Arabic screenshots then show a fallback font.
 - `npm run build`, `build:remote` and `npm run smoke` all write `dist/`: never run two of them side by side. In the sandbox, `build:remote` fails with
@@ -233,6 +239,7 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - Never send a message to a running Workflow agent: it starts a duplicate copy in the same worktree.
 - Before you move main or run `all.sh`, tell the peer sessions (ListAgents, SendMessage) and send "released" after: two releases
   on one main and one test copy break each other (2026-10-21). ListAgents does not name the branch of a session; ask by branch name.
+- Session names change while they run (madar-87 became daftra, 2026-10-26): when SendMessage says a name is not reachable, run ListAgents again.
 - A Workflow agent that stopped (an API error) keeps its commits, but SendMessage cannot resume it, and a re-run
   starts it again from its brief. Start a finisher in the same worktree with the commit list and the transcript
   (`subagents/workflows/<run>/agent-*.jsonl`; `agent-*.meta.json` names the label).
@@ -242,6 +249,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - Ask each builder to write its report to a file in its worktree before it returns it, so a dropped last call loses nothing.
 - A builder that sends the same report again ("waiting on its own background work") after its work is merged: stop it with
   `TaskStop` (2026-10-20).
+- A build Workflow stopped with `TaskStop` (a design change mid-build) leaves its running agent's edits uncommitted: commit them as WIP in
+  the worktree, edit the script, and resume with `resumeFromRunId`, so the finished agents come from the cache (2026-10-26).
 - A Workflow `scriptPath` must be inside the repo (a path in /tmp is refused): keep it untracked in the worktree, delete it after.
 - Brief parallel builders to run their test files with `--no-file-parallelism --testTimeout=60000`.
 - Parallel waves on one rule: the first builder makes a checkpoint commit of the core (rule, data, rights) that it never rewrites; the

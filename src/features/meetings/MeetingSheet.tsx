@@ -157,7 +157,7 @@ export function MeetingSheet({ meetingId, onClose }: { meetingId: string; onClos
           <Fact label={t('meetings.sheet.project')}>
             {meeting.project ? (
               <Link to={`/projects/${meeting.project.id}`} className="-my-1.5 inline-flex min-h-11 items-center gap-2 text-link">
-                <ProjectTile id={meeting.project.id} mark={meeting.project.mark} size={24} />
+                <ProjectTile id={meeting.project.id} mark={meeting.project.mark} shape={meeting.project.shape} size={24} />
                 <bdi>{shownName(meeting.project, lang)}</bdi>
               </Link>
             ) : (

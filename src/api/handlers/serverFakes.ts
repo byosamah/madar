@@ -249,6 +249,49 @@ const googleDisconnect = defineCall({
   },
 });
 
+/**
+ * The prototype has no Daftra (the Daftra link, owner 2026-10-26): daftra.status says it is not ready, and the other three refuse with
+ * daftra_not_ready, so every Daftra part of a screen stays hidden. The right and the agent check are the same as on the server, so a person
+ * without the switch gets forbidden in both builds.
+ */
+function daftraForPerson(ctx: Parameters<typeof assertCan>[0]): void {
+  if (ctx.actor.kind === 'agent') throw forbidden('An agent never uses the Daftra link.', { action: 'payment.daftraLink' });
+  assertCan(ctx, 'payment.daftraLink');
+}
+const daftraNotReady = () => invalid('daftra', 'The Daftra link works in the real Madar only.', 'daftra_not_ready');
+
+const daftraStatus = defineCall({
+  ...c['daftra.status'],
+  run(_input, ctx) {
+    daftraForPerson(ctx);
+    return { ready: false, accounts: [] };
+  },
+});
+
+const daftraPaymentLink = defineCall({
+  ...c['daftra.paymentLink'],
+  run(_input, ctx) {
+    daftraForPerson(ctx);
+    throw daftraNotReady();
+  },
+});
+
+const daftraFindClients = defineCall({
+  ...c['daftra.findClients'],
+  run(_input, ctx) {
+    daftraForPerson(ctx);
+    throw daftraNotReady();
+  },
+});
+
+const daftraMatchClient = defineCall({
+  ...c['daftra.matchClient'],
+  run(_input, ctx) {
+    daftraForPerson(ctx);
+    throw daftraNotReady();
+  },
+});
+
 export const serverFakes = {
   'story.start': storyStart,
   'files.uploadStart': filesUploadStart,
@@ -264,4 +307,8 @@ export const serverFakes = {
   'google.connectStart': googleConnectStart,
   'google.connect': googleConnect,
   'google.disconnect': googleDisconnect,
+  'daftra.status': daftraStatus,
+  'daftra.paymentLink': daftraPaymentLink,
+  'daftra.findClients': daftraFindClients,
+  'daftra.matchClient': daftraMatchClient,
 };

@@ -20,7 +20,7 @@ export function WaitingForUs({ view }: { view: DashboardData }) {
       {rows.map((row) => (
         <li key={row.project.id}>
           <Link to={`/projects/${row.project.id}?tab=tracker`} className={ROW}>
-            <ProjectTile id={row.project.id} mark={row.project.mark} size={32} subCompanyId={row.project.subCompanyId} />
+            <ProjectTile id={row.project.id} mark={row.project.mark} shape={row.project.shape} size={32} subCompanyId={row.project.subCompanyId} />
             <span className="min-w-0 flex-1">
               <bdi className="block truncate text-subheadline font-semibold text-ink">{projectName(row.project)}</bdi>
               <span className="block truncate text-footnote text-ink-2">{counted(t, 'dashboard.waitingForUs.items', row.count)}</span>

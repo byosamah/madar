@@ -333,6 +333,11 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       return;
     }
     case 'payment':
+      // The link to a Daftra invoice is a person's act in the screens: an agent never takes it back (MCP deny list), and the person needs the switch.
+      if (event.verb === 'payment.daftra_linked' || event.verb === 'payment.daftra_unlinked') {
+        if (ctx.actor.kind === 'agent') throw forbidden('Only a person changes the Daftra link, in the Madar screens.', { action: 'payment.daftraLink' });
+        return need('payment.daftraLink');
+      }
       // The Undo of a payment event asks the right of that change.
       return need(event.verb === 'payment.created' ? 'payment.add' : event.verb === 'payment.received' ? 'payment.receive' : 'payment.change');
     case 'team':
@@ -505,6 +510,12 @@ function undoOne(ctx: Ctx, event: Event, guard: boolean, followOn = false): Even
   }
   assertUndoRight(ctx, event);
   if (!followOn) assertMayUndo(ctx, event);
+  // Daftra set the day of this payment (the 15-minute job). An Undo would only be set again by the next run, so it has none (the Daftra link,
+  // 2026-10-26). It comes after the rights check: a person who may not change payments gets the same refusal as for any payment event, and learns
+  // nothing about Daftra.
+  if (event.verb === 'payment.received_daftra') {
+    throw new ApiError('conflict', 'Daftra set this payment as received. Unlink the invoice, then change the payment.', { reason: 'daftra_final' });
+  }
   const task = event.targetType === 'task' ? ctx.state.tasks[event.targetId] : undefined;
   const was = task?.status;
   if (guard && task && event.before !== null && event.after !== null) {
@@ -557,6 +568,22 @@ function assertFinishedHaveLead(ctx: Ctx, events: Event[]): void {
   for (const event of events) {
     const task = event.targetType === 'task' ? ctx.state.tasks[event.targetId] : undefined;
     if (task && (task.status === 'done' || task.status === 'in_review')) assertHasLead(task);
+  }
+}
+
+/**
+ * An Undo never gives one Daftra invoice to two payments (security review, 2026-10-26). The Undo of an unlink, or of the delete of a linked
+ * payment, brings a link back. When another payment took that invoice since, the call fails and nothing changes. An invoice is its account
+ * and its id together. The story loader reads the payments that hold each invoice that a "before" names (server/data/loaders/story.ts).
+ */
+function assertDaftraLinksUnique(ctx: Ctx, events: Event[]): void {
+  const payments = ctx.state.payments ?? {};
+  for (const event of events) {
+    const payment = event.targetType === 'payment' ? payments[event.targetId] : undefined;
+    const link = payment?.daftra;
+    if (!payment || !link) continue;
+    const taken = Object.values(payments).some((other) => other.id !== payment.id && other.daftra?.invoiceId === link.invoiceId && other.daftra.account === link.account);
+    if (taken) throw new ApiError('conflict', 'Another payment has this Daftra invoice now. Unlink it there first.', { reason: 'daftra_invoice_taken' });
   }
 }
 
@@ -631,6 +658,7 @@ export const eventsUndo = defineCall({
     if (!event) throw notFound('Event', input.eventId);
     const view = undoOne(ctx, event, true);
     assertFinishedHaveLead(ctx, [event]);
+    assertDaftraLinksUnique(ctx, [event]);
     settle(ctx, [event], event.correlationId);
     dropNotices(ctx, event.correlationId);
     return view;
@@ -681,6 +709,7 @@ export const eventsUndoStory = defineCall({
       if (task && task.status !== status && (task.status === 'done' || task.status === 'in_review')) assertMayFinish(ctx.state, task);
     }
     assertFinishedHaveLead(ctx, story);
+    assertDaftraLinksUnique(ctx, story);
     settle(ctx, story, input.correlationId);
     dropNotices(ctx, input.correlationId);
     return { undone };

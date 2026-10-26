@@ -60,6 +60,15 @@ export async function storyCall(L: Load, input: Input): Promise<void> {
     }
   }
 
+  // An Undo never gives one Daftra invoice to two payments (security review, 2026-10-26): the Undo of an unlink, or of the delete of a linked
+  // payment, names the invoice in its "before". Every payment that holds such an invoice now joins, so the check of the handler sees it.
+  const invoiceIds = [...new Set(story.flatMap((event) => {
+    if (event.targetType !== 'payment') return [];
+    const link = ((event.before ?? {}) as { daftra?: { invoiceId?: unknown } }).daftra;
+    return typeof link?.invoiceId === 'string' ? [link.invoiceId] : [];
+  }))];
+  if (invoiceIds.length > 0) await L.select({ c: 'payments', where: [{ field: 'daftra', key: 'invoiceId', in: invoiceIds }] });
+
   for (const event of story) {
     if (event.before !== null) continue;
     const own = OWN[event.targetType];

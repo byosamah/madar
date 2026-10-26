@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { INITIALS_PATTERN, RECORD_CODE_PATTERN, visibleTextPattern } from '../../lib/projectCode';
+import { PROJECT_SHAPE_MAX, PROJECT_SHAPE_PATTERN, PROJECT_SHAPE_RULE, PROJECT_SHAPE_TEXT_PATTERN } from '../../lib/projectShape';
 import {
-  DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, MAX_PROJECT_VIEWERS, MEETING_KINDS, MEETING_LIMITS,
+  DAFTRA_ACCOUNT_PATTERN, DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, MAX_PROJECT_VIEWERS, MEETING_KINDS, MEETING_LIMITS,
   NOTIFY_LEVELS, PICTURE_DATA, REACTIONS,
 } from './limits';
 import { isReactionEmoji } from './emoji';
@@ -10,12 +11,23 @@ import { CATALOG_RIGHT_IDS, STORED_RIGHT_IDS } from '../rightsCatalog';
 
 // The plain limits live in limits.ts, with no zod, for the screens of the first load (performance audit BND-6).
 export {
-  DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, MAX_PROJECT_VIEWERS, MEETING_KINDS, MEETING_LIMITS,
+  DAFTRA_ACCOUNT_PATTERN, DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, MAX_PROJECT_VIEWERS, MEETING_KINDS, MEETING_LIMITS,
   NOTIFY_LEVELS, PICTURE_DATA, REACTIONS,
 };
 
 const id = (prefix: string) =>
   z.string().regex(new RegExp(`^${prefix}_\\d{3,}$`), `Expected an id like ${prefix}_001.`);
+
+/**
+ * The own shape of a project picture (owner, 2026-10-26): one SVG path in a box of 18 by 18. The pattern keeps out quotes, angle brackets
+ * and every letter that is no path command, so the string is safe in SVG text (src/lib/projectShape.ts).
+ */
+export const ProjectShape = z.string().max(PROJECT_SHAPE_MAX, PROJECT_SHAPE_RULE).regex(PROJECT_SHAPE_PATTERN, PROJECT_SHAPE_RULE);
+/**
+ * The same, or an empty text. An empty text means "no shape": a patch with it clears the shape, and a project that lost its shape keeps it.
+ * The History needs a value to bring a shape back, and a missing key is lost when an event is saved as JSON.
+ */
+export const ProjectShapeText = z.string().max(PROJECT_SHAPE_MAX, PROJECT_SHAPE_RULE).regex(PROJECT_SHAPE_TEXT_PATTERN, PROJECT_SHAPE_RULE);
 
 export const UserId = id('usr');
 export const ClientId = id('cli');
@@ -63,7 +75,7 @@ export type Glass = z.infer<typeof Glass>;
 export const TRIGGERS = [
   'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested',
   'task_approved', 'task_sent_back', 'stage_changed', 'added_to_project', 'resume_due',
-  'feedback_sent', 'feedback_done', 'added_to_group', 'meeting_invited', 'meeting_soon', 'helper_joined', 'task_deleted',
+  'feedback_sent', 'feedback_done', 'added_to_group', 'meeting_invited', 'meeting_soon', 'helper_joined', 'task_deleted', 'payment_due',
 ] as const;
 export const Trigger = z.enum(TRIGGERS);
 export type Trigger = z.infer<typeof Trigger>;
@@ -73,8 +85,10 @@ export type Trigger = z.infer<typeof Trigger>;
 // calendar apps remind by themselves (fbk_022, owner 2026-10-19). Both stay in the app and in push, never in email.
 // "helper_joined" (a team member joins a task as a helper, to its lead) and "task_deleted" (another person deletes a task, to its maker):
 // each one gives news and asks for no action, so it stays in the app and in push, never in email (fbk_034, fbk_035, owner 2026-10-20).
+// "payment_due" (a payment reaches its due day, to the people who link Daftra invoices): the mail quota is small, so it stays in the app and
+// in push too (the Daftra link, owner 2026-10-26).
 export const IN_APP_ONLY_TRIGGERS = [
-  'feedback_sent', 'feedback_done', 'added_to_group', 'meeting_invited', 'meeting_soon', 'helper_joined', 'task_deleted',
+  'feedback_sent', 'feedback_done', 'added_to_group', 'meeting_invited', 'meeting_soon', 'helper_joined', 'task_deleted', 'payment_due',
 ] as const satisfies readonly Trigger[];
 export type EmailTrigger = Exclude<Trigger, (typeof IN_APP_ONLY_TRIGGERS)[number]>;
 export function isEmailTrigger(trigger: Trigger): trigger is EmailTrigger {
@@ -177,7 +191,7 @@ export const SystemRole = z.enum(['admin', 'management', 'accounting', 'member']
 export type SystemRole = z.infer<typeof SystemRole>;
 
 /**
- * The office rights (owner, 2026-10-18, fbk_014). Role rights version 2 (owner, 2026-10-21): 120 switches in 13 sections, one id for each
+ * The office rights (owner, 2026-10-18, fbk_014). Role rights version 2 (owner, 2026-10-21): 121 switches in 13 sections, one id for each
  * switch (rightsCatalog.ts, the plain copy of the catalog JSON in docs). A switch opens one power for a person. The Admin holds every
  * switch. A power with scopes has one id for each scope: `<power>.<scope>`.
  * permissions.ts and rightsCatalog.ts hold the same names as plain constants, because they load with the screens and take no zod.
@@ -186,15 +200,15 @@ export const OfficeRight = z.enum(CATALOG_RIGHT_IDS);
 export type OfficeRight = z.infer<typeof OfficeRight>;
 
 /**
- * A right as a stored list holds it: the 120 ids, and the 17 old ids of 2026-10-23 (project.editAny, people.manage, payment.manage and
+ * A right as a stored list holds it: the 121 ids, and the 17 old ids of 2026-10-23 (project.editAny, people.manage, payment.manage and
  * so on). Only RoleSettings.rights, CustomRole.rights and the roles.* inputs take it, so old stored data still parses. rightsOf and the
- * roles calls expand an old id to its new ids (expandRights). Every output gives the 120 ids only.
+ * roles calls expand an old id to its new ids (expandRights). Every output gives the 121 ids only.
  */
 export const StoredRight = z.enum(STORED_RIGHT_IDS);
 export type StoredRight = z.infer<typeof StoredRight>;
 
-/** The most rights in one stored list: the 120 ids, with room for old ids. */
-export const MAX_STORED_RIGHTS = 126;
+/** The most rights in one stored list: the 121 ids, with room for old ids. */
+export const MAX_STORED_RIGHTS = 127;
 /** The most `off` ids in one stored list: the 68 basic switches, with room. */
 export const MAX_OFF_RIGHTS = 70;
 
@@ -446,6 +460,11 @@ export const Project = z.object({
   pause: ProjectPause.nullable().optional(),
   /** The project's picture: one form and a second light, never the same as another project's (owner, 2026-10-01). */
   mark: z.number().int().nonnegative().optional(),
+  /**
+   * The own shape of the picture (owner, 2026-10-26): drawn in ink in the place of the form of the mark. Optional, so older offices still
+   * load. An empty text means a person took the shape off.
+   */
+  shape: ProjectShapeText.optional(),
   /** Optional, so offices saved before links existed still load. */
   links: z.array(ProjectLink).max(20).optional(),
   /** The folders of the Files & Links tab (fbk_066). Optional, so older offices still load. A list row leaves them out (summaryOf). */
@@ -928,6 +947,21 @@ export const Payment = z.object({
   note: z.string().max(500),
   createdBy: UserId,
   createdAt: Stamp,
+  /**
+   * The Daftra invoice that the accountant linked to this payment (owner, 2026-10-26). Optional, so an old row still loads. Madar only
+   * reads Daftra. While this is set and `receivedOn` is null, the screens show "Invoiced". Only a person with `payment.view` reads a payment.
+   */
+  daftra: z.object({
+    /** The Daftra account (one for each sub-company) that holds the invoice, as it was when the person linked it. The paid check reads this account. */
+    account: z.string().regex(DAFTRA_ACCOUNT_PATTERN),
+    invoiceId: z.string().min(1).max(40),
+    invoiceNo: z.string().min(1).max(40),
+    /** The invoice total in riyals, with VAT. */
+    total: z.number().nonnegative().max(1_000_000_000_000),
+    issuedOn: Day,
+    linkedBy: UserId,
+    linkedAt: Stamp,
+  }).optional(),
 });
 export type Payment = z.infer<typeof Payment>;
 
@@ -1021,6 +1055,11 @@ export const Notification = z.object({
   everyone: z.literal(true).optional(),
   /** What happened to the meeting of a meeting_invited notice: it is new for this person, it moved, or it was cancelled (fbk_022). Optional, so older notices load. */
   meeting: z.object({ change: z.enum(['new', 'moved', 'cancelled']) }).optional(),
+  /**
+   * The payment of a payment_due notice (the Daftra link, owner 2026-10-26): its id for the link, and its name for the sentence, so the
+   * notice needs no payment row. A viewer without payment.view reads the notice as gone and sees none of it. Optional, so older notices load.
+   */
+  payment: z.object({ id: PaymentId, name: z.string().min(1).max(120) }).optional(),
   /**
    * Present only on a copy for an Admin who picked "Everything" (owner, 2026-10-23): the people that the original notice went to.
    * A copy sends no push and no mail. Optional, so older notices load.

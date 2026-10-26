@@ -31,6 +31,8 @@ export const EXPECTED_REFUSALS: Readonly<Record<string, string>> = {
   'tasks.take': 'invalid_input',
   'events.undoStory': 'forbidden',
   'payments.markReceived': 'invalid_input',
+  // The copy of a test has no Daftra values, so the preflight of the link answers daftra_not_ready (the Daftra link, owner 2026-10-26).
+  'payments.linkInvoice': 'invalid_input',
   // The sample office has no group, and cnv_001 is a project chat: a group change of it is refused as not a group.
   'chats.updateGroup': 'invalid_input',
   'chats.leaveGroup': 'invalid_input',

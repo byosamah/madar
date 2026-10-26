@@ -39,7 +39,7 @@ export function ProjectByCode() {
             {matches.map((summary) => (
               <li key={summary.project.id}>
                 <Link to={`/projects/${summary.project.id}`} className="pressable flex min-h-14 items-center gap-3 py-2">
-                  <ProjectTile id={summary.project.id} mark={summary.project.mark} size={36} subCompanyId={summary.subCompanyId} />
+                  <ProjectTile id={summary.project.id} mark={summary.project.mark} shape={summary.project.shape} size={36} subCompanyId={summary.subCompanyId} />
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span dir="auto" className="truncate font-semibold text-ink">{projectName(summary.project)}</span>
                     {summary.client && <bdi className="truncate text-footnote text-ink-2">{clientName(summary.client, lang)}</bdi>}

@@ -2,7 +2,7 @@ import { involves } from '../../lib/taskPeople';
 import { z } from 'zod';
 import { defineCall } from '../registry';
 import {
-  ClientId, Day, Deadline, FileId, HealthValue, PauseKind, PaymentId, ProjectId, ProjectStatus, Stage, StageId, SubCompanyId, TaskId, TeamId, UserId, type Payment, type Project, type Task,
+  ClientId, Day, Deadline, FileId, HealthValue, PauseKind, PaymentId, ProjectId, ProjectShape, ProjectStatus, Stage, StageId, SubCompanyId, TaskId, TeamId, UserId, type Payment, type Project, type Task,
 } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { computeHealth, isOverdue } from '../health';
@@ -32,7 +32,7 @@ const MoneyRows = z.object({
   payments: z.array(z.object({ id: PaymentId, projectId: ProjectId, projectCode: z.string(), name: z.string(), amount: z.number().positive(), dueDate: Day })),
 });
 /** subCompanyId: the badge of the project's sub-company, wherever a Dashboard list shows the project picture (PRJ-15). Optional, so an older answer parses. */
-const Ref = z.object({ id: ProjectId, code: z.string(), name: z.string(), nameAr: z.string().optional(), mark: z.number().int().nonnegative(), subCompanyId: SubCompanyId.nullable().optional() });
+const Ref = z.object({ id: ProjectId, code: z.string(), name: z.string(), nameAr: z.string().optional(), mark: z.number().int().nonnegative(), shape: ProjectShape.optional(), subCompanyId: SubCompanyId.nullable().optional() });
 
 export const DashboardView = z.object({
   tiles: z.object({

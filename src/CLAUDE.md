@@ -78,7 +78,8 @@ any screen work.
   a connection to each Supabase origin. The vendor, overlay and supabase chunks import no app chunk. The prototype build holds no
   "supabase", is one script file, and its index.html has no early link. The preconnect rule runs only with `VITE_SUPABASE_URL`
   or a full `VITE_API_URL` set (`build:remote` sets them; the page's own `/api` needs no preconnect). A red "no zod schemas" line: a first-load file imports from
-  `contract/entities.ts` or `server.ts`; take the limit from `contract/limits.ts` or use a type-only import.
+  `contract/entities.ts` or `server.ts`, or imports a function of a heavy `src/api` module (`chatState.ts` pulls the rules and the store); take the limit
+  from `contract/limits.ts`, use a type-only import, or move the small pure function into its own file (`api/adminReach.ts`, 2026-10-26).
 - To see which source file pulled code into the first load: build with `--sourcemap` into `$TMPDIR` and read the
   `sources` of `assets/index-*.js.map`.
 
@@ -93,6 +94,21 @@ any screen work.
   button stays. A refusal of `google.connect` shows the words of its reason inline (no toast).
 - Disconnect asks first: Keep has the focus, and Disconnect sits at the start side (`me-auto`). It has no Undo: Connect is the way back. The calendar "Madar"
   stays in Google. The words are in `src/i18n/real/gcal.*.json`. The privacy page (`public/privacy.html`, `src/app/privacy.test.ts`) says what a disconnect does.
+
+## The Daftra part of the payment sheet (owner, 2026-10-26)
+- `project/payments/DaftraPart.tsx` holds the hook `useDaftraPart`. `PaymentSheet` puts its `part` under the form (outside it, so Enter in the search
+  field never saves the payment) and its `linkButton` in the footer. Madar only reads Daftra. A screen never names a Daftra account: each call takes the
+  payment, and the server finds the sub-company account (`server/daftra/CLAUDE.md`).
+- A holder of `payment.daftraLink` (ask `useRight`, never another way) on an open payment with no link gets the states 0 to 4, only after `daftra.status`
+  says ready. The prototype answers "not ready", so it shows nothing. A payment with a link shows the states 5 and 6 to every person who sees payments, from
+  the payment itself with no Daftra call. Only the holder gets Unlink. A linked payment has no Mark as received. A Daftra read that answers
+  `daftra_not_ready` hides the part.
+- Link is the one main button while an invoice shows (the suggestion, or one that the person chose from the list). Save then turns into a plain button.
+  Link sends only `{ id, invoiceId }`. A link or an unlink closes the sheet and shows an Undo toast (`useUndoable`).
+- `daftra.paymentLink` and `daftra.findClients` have no change signal (`readMap` rule `none`, stale time 0): the sheet reads again each time it opens,
+  after its own match, and after a refused link. The search starts with the name of the project client, and then waits 350 ms after each key.
+- An invoice number and a Daftra name sit in a direction isolate in Arabic (`isolate` in the file). `PaymentSign` shows "Invoiced" (`data-sign="invoiced"`, a page
+  shape, ink) while `payment.daftra` is set and the money has not come. A linked payment keeps it past its due day.
 
 ## Browser push in the screens (owner, 2026-10-08)
 - The push line (owner, 2026-10-21, "Like WhatsApp"): `push.register` takes the keys of the browser (`keysOf`, from
@@ -466,12 +482,14 @@ The owner sees how the team uses Madar, which errors they hit, and replays of th
   `CARD_HEIGHT` in `spaceTree.ts` is the height of each card kind (offsetHeight in a browser): the four kinds of fbk_055 were measured in Chrome on 2026-10-25 (sub-company 80, deadline 58, checklist 42),
   so a change of a card measures it again. The name stays "Open space" (the team's own word).
 - `AvatarStack`: one hidden person shows as a picture, never as "+1". "+N" names the hidden people on hover and in `aria-label`.
-- The leader ring (owner, 2026-10-26, fbk_060): `AvatarStack` gives the leader picture, when a leader is passed, a 2 px ring in the ink color (`ring-ink`,
+- The leader ring (owner, 2026-10-26, fbk_060): `AvatarStack` gives the leader picture, when a leader is passed, a 1.5 px ring in the ink color (`ring-[1.5px] ring-ink`,
   never the navy, never red) with a 2 px gap in the surface color inside it (`bg-card p-0.5`). The ring and the gap draw outside the box (`-m-0.5`), so the
   box of the leader is as big as its picture and a row never grows. The first team picture sits `ms-2` (4 px from the ring), the others overlap by 4 px as
   before, and all pictures sit on one middle line. Every stack with a leader has the ring (Projects list, to-do rows, the Board, Open space); a stack with
   no leader (Admin Teams) has none. The leader's name reads "Leader: <name>" to a screen reader and in the hover label (`people.leaderName`). Only the
-  Projects list set a new size: 34 px for the leader, 26 px for the team.
+  Projects list set a new size: 32 px for the leader (owner, 2026-10-26: 34 was too big), 26 px for the team. Each picture box is `flex shrink-0`: a photo
+  (an inline img) in a plain box sat on a text line, the box grew a gap under it, and the ring drew an oval with the photo at its top (production,
+  2026-10-26). Initials have no gap, so the prototype did not show it: check a stack with a real photo.
 
 ## Routes and shell
 - Routes (`app/routes.tsx`): `/` Home, `/projects`, `/projects/:id` (tabs overview, tasks, activity, tracker, schedule,
@@ -480,7 +498,7 @@ The owner sees how the team uses Madar, which errors they hit, and replays of th
 - Admin: a grouped side list, one section at a time. The sections, their groups and roles are in one registry,
   `features/settings/admin/sections.ts`; a new section is one line there. A section with `right` opens for each person who holds
   that right (owner, 2026-10-18, fbk_014): `sectionsFor` reads the viewer, and `opensAdminPage` (`api/rights.ts`) decides the person
-  menu. The Roles section is the Admin's only: `RolesSection.tsx` is one row for each role (people and rights), `RoleSheet.tsx` is the sheet of one role (people, names, the 120 switches in 13 folded sections, Save role, Delete with a move). A desk opens the first section at `/admin`; a
+  menu. The Roles section is the Admin's only: `RolesSection.tsx` is one row for each role (people and rights), `RoleSheet.tsx` is the sheet of one role (people, names, the 121 switches in 13 folded sections, Save role, Delete with a move). A desk opens the first section at `/admin`; a
   phone shows the list there, and its Admin row sits in the Me tab. An unknown or forbidden section goes back to `/admin`.
 - Project templates: the Admin section (`ProjectTemplatesSection.tsx`) and "Start from a template" in the new-project form
   (`features/projects/TemplateUse.tsx`, `templateForm.ts`; the picker sits right under the Name, and the people of the roles are ticked
@@ -597,16 +615,16 @@ The owner sees how the team uses Madar, which errors they hit, and replays of th
   (see "Hidden and internal projects" below). Payments only for the payment right (by default Admin, Management, Accounting; fbk_014). Agents never join a team. The person who adds a
   project task changes and deletes it like the leader while on the team; the review stays with the leader (owner, 2026-10-07).
   Only the Admin changes a role. Management reads the role of a person as text in the person sheet (owner, 2026-10-18, fbk_014).
-  The rights are 120 switches in 13 sections (role rights version 2, owner 2026-10-21; the AI switch `ai.projectSetup`, "AI creates projects and clients", joined the AI section on 2026-10-25 and is off for every built-in role except the Admin; the AI switches `ai.admin` ("AI does Admin work", off for every built-in role except the Admin) and `ai.myState` ("AI changes my own marks and settings", on for every built-in role) joined it on 2026-10-26, MCP parity; the list is `api/rightsCatalog.ts`, a plain copy of
+  The rights are 121 switches in 13 sections (role rights version 2, owner 2026-10-21; the Money switch `payment.daftraLink`, "Link Daftra invoices", joined on 2026-10-26 and Accounting holds it by default; the AI switch `ai.projectSetup`, "AI creates projects and clients", joined the AI section on 2026-10-25 and is off for every built-in role except the Admin; the AI switches `ai.admin` ("AI does Admin work", off for every built-in role except the Admin) and `ai.myState` ("AI changes my own marks and settings", on for every built-in role) joined it on 2026-10-26, MCP parity; the list is `api/rightsCatalog.ts`, a plain copy of
   `docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json`; `RIGHT_SECTIONS` in `permissions.ts` gives the sections). The
   role sheet (`RoleSheet.tsx`, with `RoleRights.tsx` and `roleSheetLogic.ts`) shows the 13 sections of the catalog, folded, one open at a time.
   The heading row holds the name, the count ("4 of 9 on") and an All control (on, off or mixed; `role="checkbox"` with `aria-checked="mixed"`, because ARIA allows mixed on a checkbox and not on a switch; it looks like the other switches). A power row holds the label, the line and one
   small switch for each scope (`RoleToggle.tsx`, 44 px press area), or one switch. A switch brings the switches it needs; turning a need off
   turns its dependants off (`withRight`, `withSection`). The sheet holds the list of held ids and saves it with one button: the ids that are
-  not basic go in `rights`, the basic ids that are off go in `off` (`saveShape`). "Holds 66 of 120" is live, "Back to the standard list" gives
+  not basic go in `rights`, the basic ids that are off go in `off` (`saveShape`). "Holds 66 of 121" is live, "Back to the standard list" gives
   the default of a built-in role and the Member list for a custom role, and a new role starts as a copy of the Member list. The AI section opens
   with three approved lines (the third says that an assistant creates projects and clients only with the switch "AI creates projects and clients"). A line "A person who makes a project leads it." shows when Create projects is on and three or more "Projects I
-  lead" switches are off. The Roles list ("3 people · 66 of 120 rights") and the person sheet line ("Designer: standard rights, plus 2,
+  lead" switches are off. The Roles list ("3 people · 66 of 121 rights") and the person sheet line ("Designer: standard rights, plus 2,
   without 3.") both read `heldRightsOfRole`. The Admin sections of sub-companies and requests and bugs open for `subCompanies.manage` and
   `feedback.manage`; People for any of the five `people.*` switches, Teams for `people.teams`, Clients for `clients.change`, the project
   templates for `templates.projectCreate`, `templates.projectAny` or `templates.updateProjects`, the to-do templates for `templates.taskAny`,
@@ -918,8 +936,8 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
   Sort the ids as numbers (`sort -t- -k4 -n`): a text sort puts `2026-10-23-9` above `-82` (2026-10-22).
   A test finds its entry by id, never by `WHATS_NEW[0]`. One exception: the usage data entry (`2026-10-23-102`) stays first, and
   `entries.test.ts` pins `WHATS_NEW[0]` to it, so a new entry goes second. The day-order checks of `entries.test.ts` leave that first entry out, because a new entry can have a newer
-  `day` than it (2026-10-26 under 2026-10-25). The page then shows the day of the usage entry, the new day, and the old day again: `WhatsNewScreen` keys each
-  group by its place. The word "New" and the seen mark follow the newest day (`newestId` and `isNewer` in `whatsNew/seen.ts`: the list sorted by `day`,
+  `day` than it (2026-10-26 under 2026-10-25). The page sorts the entries by day (`byAge` in `whatsNew/seen.ts`, list order inside a day), so the usage entry shows
+  at the top of its own day and each day shows once (owner, 2026-10-26: the page showed 25 Oct, 26 Oct, 25 Oct). The word "New" and the seen mark follow the newest day (`newestId` and `isNewer` in `whatsNew/seen.ts`: the list sorted by `day`,
   list order inside a day, so the usage entry sits in the place of its own day), never `WHATS_NEW[0]`: with the first entry, a person who
   saw the usage entry never saw "New" again (2026-10-26). The ids of 2026-10-19 run in list order, so never order by the id number. `entries.test.ts` also pins the set of release days and the list of rights
   that an entry may name: a new `day` or a new `right` adds its value there.
@@ -1056,7 +1074,14 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
 - The signature is solid navy `#1F2A55` (dark `#C9D4FF`), never a gradient. It goes only on the one main button, the
   open tab, the day ring and the timer.
 - The glow (three soft lights) sits only behind "Next for you" and in the logo tile.
-- 8 project hues from a hash of the id. Project pictures are "glow forms" with a unique `mark`.
+- 8 project hues from a hash of the id. Project pictures are "glow forms" with a unique `mark`. A project can also hold its own `shape`
+  (owner, 2026-10-26, fbk_061): one SVG path in the box `0 0 18 18` (`src/lib/projectShape.ts`: path letters, digits, spaces, commas, dots,
+  minus and e/E only; starts with M; 2000 characters at most; an empty text means none). `ProjectTile` and `MarkForm` draw it in ink in the
+  place of the random form, with no turn, with `fill-rule="evenodd"` (a courtyard or an arch is a hole) and at 62% of the tile (the random
+  form stays at 45%; the cover of a project card uses 47% against 34%). The glow, the colours, the sub-company badge and the tile cut do not
+  change. Every project ref (`projectRef`, `projectTile`, `ProjectRef`, `ReportRef`, the Dashboard `Ref`, the notice tile) carries `shape`
+  only when the project has one, and every screen that draws a tile passes `shape={project.shape}`: grep `<ProjectTile` when you add one. No
+  screen control yet: an AI agent sets it with `projects.update` (patch.shape, right `project.details`), and a screen upload comes later.
 - The glow lights of a person and of a project tile come from one rule (`src/lib/glow.ts`, `markLights`). The pictures for AI
   agents (`src/lib/pictureLook.ts`) draw the same lights in the light colours: `glow.test.ts` pins the screen text, and
   `pictureLook.test.ts` pins the colours against tokens.css.
@@ -1121,16 +1146,20 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
 
 ## Before you call a screen change done
 - Tests first. Then screenshots in EN and AR, light and dark, at 390 px.
+- A change to a picture, a ring or a people stack: check it with a real photo, not initials. A photo (an inline img) in a plain box gains a text-line
+  gap, and the prototype people have initials only (production, 2026-10-26: an oval leader ring). Put a photo in the saved office: `users[id].avatarUrl` =
+  a JPEG data address under 24,000 characters (IndexedDB `madar`, store `data`, key `state`), then reload.
 - claude-in-chrome screenshots run inline. Playwright runs only in a delegated subagent.
 - Chrome slows the timers of a hidden tab, so a list can show a change late. Bring the tab to the front
   before you judge it. The tab that claude-in-chrome opens is hidden (`document.hidden` is true), and then `connectChanges` marks
   the lists old and never loads them again: a saved change does not show until a reload (2026-10-12, fbk_006). In that tab run
   `Object.defineProperty(document, 'hidden', { configurable: true, get: () => false })` and dispatch `visibilitychange` first.
 - The person menu (`app/PersonMenu.tsx`, from 640 px; owner, 2026-10-26, fbk_063) has two groups under the header (picture, name, state line; Preview as in the
-  prototype). Group 1 (`data-menu-group="quick"`): Away (the switch, only with a live port), Mode (`SegmentedControl` Light | Dark; the checked part is the
-  theme that shows now, a press saves it with `me.updatePreferences` and the menu stays open) and Language (`SegmentedControl` English | العربية, each in its own
-  language; a press closes the menu, gives the focus back to the picture and runs `switchLanguage`). Each row is `QuickRow`: the label at the start, the control at the end
-  (`shrink-0`), and the nav is `min-w-72` so no control wraps. A press on the part that is already checked sends nothing. Group 2 (`places`): Admin, Settings, What's new and the feedback
+  prototype). Group 1 (`data-menu-group="quick"`): Away (`SwitchButton`, only with a live port), Mode and Language (owner, 2026-10-26: "make them one
+  button"): each is one button that names the other choice. Mode says "Light" in dark mode and "Dark" in light mode (its name is "Light mode" or "Dark mode"),
+  a press saves the theme with `me.updatePreferences`, and the menu stays open. Language says the other language in that language ("العربية" with `lang="ar"`,
+  or "English"); a press closes the menu, gives the focus back to the picture and runs `switchLanguage`. Each row is `QuickRow`: the label at the start, the
+  control in a `w-24` box at the end, 44 px rows, and the switch and both buttons 31 px high, so the three controls share one height and one end edge. Group 2 (`places`): Admin, Settings, What's new and the feedback
   button. Group 3 (`signout`, real build only): Sign out, alone. A hairline (`border-t border-hairline`) starts every group. The phone has no person menu: the Me hub
   holds the same choices and did not change. Words: `personMenu.mode`, and the labels `settings.language`, `settings.languages.*`, `settings.themes.*`.
 - Prototype language and theme: the person menu from 640 px, the Me tab on a phone (stored in IndexedDB, not localStorage). A switch takes a few seconds,

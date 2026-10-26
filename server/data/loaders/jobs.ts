@@ -24,6 +24,8 @@ export const JOB_DUE_AHEAD_DAYS = 4;
  * office. The job passes notify a dedupe lookup backed by the unique index (plan 4.13, A3), so it loads no notices.
  * It also loads the scheduled meetings that start in the next hour (fbk_022), for the reminder of 30 minutes before the start. The job
  * passes the time of its run (LoadCtx.now); without it no meeting is read.
+ * It also loads the open payments that fall due on the day of the run, for the due notice of the Daftra link (owner, 2026-10-26). The
+ * check of a linked payment and of an internal project stays in runScheduledTriggers; the project comes from the office.
  */
 export async function loadJobs(lx: Omit<LoadCtx, 'actorId' | 'write'>): Promise<State> {
   const L = new Load({ ...lx, actorId: '', write: true });
@@ -38,6 +40,10 @@ export async function loadJobs(lx: Omit<LoadCtx, 'actorId' | 'write'>): Promise<
     // The window is twice the reminder: the job runs every 15 minutes, and a late run still falls inside it.
     const hour = new Date(lx.now.getTime() + 2 * MEETING_SOON_MS).toISOString();
     await L.select({ c: 'meetings', where: [{ col: 'status', eq: 'scheduled' }, { col: 'starts_at', atOrAfter: lx.now.toISOString() }, { col: 'starts_at', atBefore: hour }] });
+  }
+  if (lx.now) {
+    // The due notice goes out on the due day only, so the load is the open payments of that one day. Both fields are plain doc fields.
+    await L.select({ c: 'payments', where: [{ field: 'dueDate', in: [todayISO(lx.now)] }, { field: 'receivedOn', null: true }] });
   }
   return L.state();
 }

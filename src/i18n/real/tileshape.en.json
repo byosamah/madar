@@ -1,0 +1,10 @@
+{
+  "whatsNew": {
+    "items": {
+      "2026-10-23-114": {
+        "title": "A drawn shape on the project picture",
+        "body": "The picture of a project can now show a shape that comes from the pictures of the project. The shape is bigger than the old random form. Your AI agent draws it when you ask. The Madar, Hayyez and Kutla projects will show their logos soon after this release."
+      }
+    }
+  }
+}

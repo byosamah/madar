@@ -11,9 +11,11 @@ type Tip = { name: string; x: number; y: number };
 /**
  * The leader first (bigger when `leaderSize` is set), then up to three team members, then "+N" (spec 4.1). The pictures
  * overlap by 4 px only, so the ring of the next one never hides initials, and "+N" keeps its order in Arabic.
- * The leader stands out (owner, 2026-10-26, fbk_060): a 2 px ring in the ink color with a 2 px gap in the surface color inside it, and the
+ * The leader stands out (owner, 2026-10-26, fbk_060): a 1.5 px ring in the ink color with a 2 px gap in the surface color inside it, and the
  * first team picture sits 4 px away from that ring. The gap and the ring draw outside the box (a negative margin), so the box of the leader
  * is as big as its picture and a row never grows. Every stack that has a leader gets the same ring, so one meaning has one look.
+ * Each picture box is a flex box: a photo (an inline img) in a plain box sat on a text line, the box grew a gap under it, and the ring
+ * drew an oval with the photo at its top (production, 2026-10-26). Initials have no such gap, so the prototype did not show it.
  * One hidden person takes the width of "+1" anyway, so that person's picture shows instead (PRJ-18). "+N" names the hidden people on
  * hover and to a screen reader.
  * On hover the pictures slide apart and each one names its person (owner, 2026-10-01, after shadcn studio avatar-18).
@@ -49,7 +51,7 @@ export function AvatarStack({
             data-leader={isLeader ? '' : undefined}
             onMouseEnter={show(name)}
             onMouseLeave={() => setTip(null)}
-            className={`rounded-full ${isLeader ? '-m-0.5 bg-card p-0.5 ring-2 ring-ink' : 'ring-2 ring-card'} ${slide} ${place}`}
+            className={`flex shrink-0 rounded-full ${isLeader ? '-m-0.5 bg-card p-0.5 ring-[1.5px] ring-ink' : 'ring-2 ring-card'} ${slide} ${place}`}
           >
             <Avatar user={person} size={isLeader ? leaderSize : size} label={isLeader ? name : undefined} />
           </span>

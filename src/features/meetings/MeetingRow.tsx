@@ -33,7 +33,7 @@ export const MeetingListRow = memo(function MeetingListRow({ row, dayStyle, onOp
             {phase === 'now' || phase === 'cancelled' || phase === 'done' ? <> · {t(`meetings.state.${phase}`)}</> : null}
           </span>
         </span>
-        {row.project && <ProjectTile id={row.project.id} mark={row.project.mark} size={28} />}
+        {row.project && <ProjectTile id={row.project.id} mark={row.project.mark} shape={row.project.shape} size={28} />}
       </button>
     </li>
   );
@@ -83,7 +83,7 @@ export const MeetingCard = memo(function MeetingCard({ row, dayStyle, nowMs, onO
         <span className="tabular text-subheadline text-ink">{day && <>{day}{' · '}</>}{range}</span>
         {place && <span dir="auto" className="text-subheadline text-ink-2">{place}</span>}
         <span className="flex items-center gap-2 text-subheadline text-ink-2">
-          {row.project && <ProjectTile id={row.project.id} mark={row.project.mark} size={24} />}
+          {row.project && <ProjectTile id={row.project.id} mark={row.project.mark} shape={row.project.shape} size={24} />}
           <bdi className="min-w-0 truncate">{row.project ? shownName(row.project, lang) : t('office.word')}</bdi>
         </span>
         {last && <span className="text-footnote text-ink-2">{last}</span>}

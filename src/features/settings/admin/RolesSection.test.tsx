@@ -49,17 +49,17 @@ const idsOf = (key: string) => SHEET_SECTIONS.find((section) => section.key === 
 const MEMBER = withNeeds([...BASIC_ON]);
 const AI = 'AI assistants (MCP)';
 
-describe('the Admin Roles section (owner, 2026-10-18, fbk_014; 120 switches since 2026-10-25)', () => {
+describe('the Admin Roles section (owner, 2026-10-18, fbk_014; 121 switches since 2026-10-25)', () => {
   it('shows the Admin as locked and one row for each role, with its people and its rights out of 113', async () => {
     await renderApp('/admin/roles', withRoles);
     const section = within(await roles());
     expect(section.getByText('Everything')).toBeInTheDocument();
     expect(section.queryByRole('switch')).toBeNull();
-    expect(await row('Management')).toHaveTextContent('1 person · 78 of 120 rights');
-    expect(await row('Accounting')).toHaveTextContent(/ · 72 of 120 rights$/);
-    expect(await row('Member')).toHaveTextContent(/ · 68 of 120 rights$/);
-    expect(await row('Cashier')).toHaveTextContent('1 person · 72 of 120 rights');
-    expect(await row('Planner')).toHaveTextContent('No one yet · 73 of 120 rights');
+    expect(await row('Management')).toHaveTextContent('1 person · 78 of 121 rights');
+    expect(await row('Accounting')).toHaveTextContent(/ · 73 of 121 rights$/);
+    expect(await row('Member')).toHaveTextContent(/ · 68 of 121 rights$/);
+    expect(await row('Cashier')).toHaveTextContent('1 person · 72 of 121 rights');
+    expect(await row('Planner')).toHaveTextContent('No one yet · 73 of 121 rights');
     // One row for each role, not a wall of switches.
     expect(section.getAllByRole('button').length).toBeLessThan(10);
   });
@@ -69,15 +69,15 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014; 120 switches sinc
       withRoles(state);
       state.settings.roles = { ...state.settings.roles, off: { member: ['search.use', 'task.work'] } };
     });
-    expect(await row('Member')).toHaveTextContent(/ · 66 of 120 rights$/);
+    expect(await row('Member')).toHaveTextContent(/ · 66 of 121 rights$/);
     // A custom role without `off` follows the Member list.
-    expect(await row('Cashier')).toHaveTextContent('1 person · 70 of 120 rights');
+    expect(await row('Cashier')).toHaveTextContent('1 person · 70 of 121 rights');
   });
 
-  it('opens the sheet of a role with its people and "Holds 72 of 120", and shows 13 folded sections', async () => {
+  it('opens the sheet of a role with its people and "Holds 72 of 121", and shows 13 folded sections', async () => {
     const { sheet } = await openSheet('Cashier');
     expect(within(sheet).getByText('Omar Haddad')).toBeInTheDocument();
-    expect(within(sheet).getByText('Holds 72 of 120')).toBeInTheDocument();
+    expect(within(sheet).getByText('Holds 72 of 121')).toBeInTheDocument();
     expect(SHEET_SECTIONS).toHaveLength(13);
     const sections = within(sheet).getAllByRole('region').filter((region) => region.getAttribute('aria-labelledby')?.startsWith('role-section-'));
     expect(sections).toHaveLength(13);
@@ -113,7 +113,7 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014; 120 switches sinc
       }
       // 12 of the 25 switches of Projects are on for a Member: create, add client and the 8 "Projects I lead" powers.
       expect(heading(sheet, 'Projects')).toHaveTextContent('12 of 25 on');
-      expect(within(sheet).getByText('Holds 68 of 120')).toBeInTheDocument();
+      expect(within(sheet).getByText('Holds 68 of 121')).toBeInTheDocument();
     });
 
     it('gives a power with scopes one switch for each scope with its word, and a power with one switch one switch', async () => {
@@ -164,9 +164,9 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014; 120 switches sinc
       await userEvent.click(allSwitch(sheet, 'projects'));
       expect(allSwitch(sheet, 'projects')).toHaveAttribute('aria-checked', 'false');
       expect(heading(sheet, 'Projects')).toHaveTextContent('0 of 25 on');
-      // The other sections stay as they were: Cashier keeps its 4 payment switches.
-      expect(heading(sheet, 'Money')).toHaveTextContent('4 of 4 on');
-      expect(within(sheet).getByText('Holds 60 of 120')).toBeInTheDocument();
+      // The other sections stay as they were: Cashier keeps its 4 payment switches (not the Daftra link).
+      expect(heading(sheet, 'Money')).toHaveTextContent('4 of 5 on');
+      expect(within(sheet).getByText('Holds 60 of 121')).toBeInTheDocument();
     });
 
     it('turns a mixed section on with one press and keeps the other sections as they are', async () => {
@@ -177,13 +177,13 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014; 120 switches sinc
       await userEvent.click(allSwitch(sheet, 'ai'));
       expect(heading(sheet, AI)).toHaveTextContent(`${total} of ${total} on`);
       expect(allSwitch(sheet, 'ai')).toHaveAttribute('aria-checked', 'true');
-      expect(within(sheet).getByText('Holds 75 of 120')).toBeInTheDocument();
+      expect(within(sheet).getByText('Holds 75 of 121')).toBeInTheDocument();
     });
 
     it('turns on the needed switch of another section with a section: the whole Money section brings nothing outside itself', async () => {
       const { sheet } = await openSheet('Member', () => undefined);
       await userEvent.click(allSwitch(sheet, 'money'));
-      expect(within(sheet).getByText('Holds 72 of 120')).toBeInTheDocument();
+      expect(within(sheet).getByText('Holds 72 of 121')).toBeInTheDocument();
       expect(allSwitch(sheet, 'money')).toHaveAttribute('aria-checked', 'true');
     });
 
@@ -198,17 +198,17 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014; 120 switches sinc
     it('turns the needed switch on with the switch that needs it, and turns the dependants off with the needed switch', async () => {
       const { sheet } = await openSheet('Accounting');
       const money = await openSection(sheet, 'Money');
-      // Accounting holds the four payment switches. Turn "See payments" off: the three that need it go off with it.
+      // Accounting holds the four payment switches and the Daftra link. Turn "See payments" off: the four that need it go off with it.
       await userEvent.click(money.getByRole('switch', { name: 'See payments' }));
-      for (const name of ['See payments', 'Add payments', 'Change and delete payments', 'Mark payments received']) {
+      for (const name of ['See payments', 'Add payments', 'Change and delete payments', 'Mark payments received', 'Link Daftra invoices']) {
         expect(money.getByRole('switch', { name }), name).toHaveAttribute('aria-checked', 'false');
       }
-      expect(heading(sheet, 'Money')).toHaveTextContent('0 of 4 on');
+      expect(heading(sheet, 'Money')).toHaveTextContent('0 of 5 on');
       // Turn "Add payments" on: "See payments" comes on with it.
       await userEvent.click(money.getByRole('switch', { name: 'Add payments' }));
       expect(money.getByRole('switch', { name: 'See payments' })).toHaveAttribute('aria-checked', 'true');
       expect(money.getByRole('switch', { name: 'Change and delete payments' })).toHaveAttribute('aria-checked', 'false');
-      expect(heading(sheet, 'Money')).toHaveTextContent('2 of 4 on');
+      expect(heading(sheet, 'Money')).toHaveTextContent('2 of 5 on');
     });
 
     it('moves the scopes together: "Every project" brings "Projects I lead", and turning "Projects I lead" off turns "Every project" off', async () => {
@@ -269,20 +269,20 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014; 120 switches sinc
   describe('Back to the standard list', () => {
     it('brings a built-in role back to its default: Management holds 75', async () => {
       const { sheet } = await openSheet('Management');
-      expect(within(sheet).getByText('Holds 78 of 120')).toBeInTheDocument();
+      expect(within(sheet).getByText('Holds 78 of 121')).toBeInTheDocument();
       const money = await openSection(sheet, 'Money');
       await userEvent.click(money.getByRole('switch', { name: 'See payments' }));
-      expect(within(sheet).getByText('Holds 74 of 120')).toBeInTheDocument();
+      expect(within(sheet).getByText('Holds 74 of 121')).toBeInTheDocument();
       await userEvent.click(within(sheet).getByRole('button', { name: 'Back to the standard list' }));
-      expect(within(sheet).getByText('Holds 78 of 120')).toBeInTheDocument();
+      expect(within(sheet).getByText('Holds 78 of 121')).toBeInTheDocument();
       expect(money.getByRole('switch', { name: 'See payments' })).toHaveAttribute('aria-checked', 'true');
     });
 
     it('brings a custom role back to the Member list', async () => {
       const { sheet } = await openSheet('Cashier');
-      expect(within(sheet).getByText('Holds 72 of 120')).toBeInTheDocument();
+      expect(within(sheet).getByText('Holds 72 of 121')).toBeInTheDocument();
       await userEvent.click(within(sheet).getByRole('button', { name: 'Back to the standard list' }));
-      expect(within(sheet).getByText('Holds 68 of 120')).toBeInTheDocument();
+      expect(within(sheet).getByText('Holds 68 of 121')).toBeInTheDocument();
     });
 
     it('changes nothing in the office before Save role', async () => {
@@ -306,7 +306,7 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014; 120 switches sinc
       expect(store.state.settings.roles?.custom?.[0].rights).toEqual(['payment.view', 'payment.change', 'payment.receive']);
       // The saved role now holds its own full list: 68 - 1 + 3 = 70.
       expect(heldRightsOfRole(store.state.settings.roles, store.state.settings.roles!.custom![0])).toHaveLength(70);
-      expect(await row('Cashier')).toHaveTextContent('1 person · 70 of 120 rights');
+      expect(await row('Cashier')).toHaveTextContent('1 person · 70 of 121 rights');
     });
 
     it('saves a built-in role: the extras of the role as rights, the basic switches that are off as off', async () => {
@@ -319,7 +319,7 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014; 120 switches sinc
       await waitFor(() => expect(store.state.settings.roles?.rights?.accounting).toEqual([]));
       expect(store.state.settings.roles?.off?.accounting).toEqual(['search.use']);
       expect(store.state.settings.roles?.rights?.management).toBeUndefined();
-      expect(await row('Accounting')).toHaveTextContent(/ · 67 of 120 rights$/);
+      expect(await row('Accounting')).toHaveTextContent(/ · 67 of 121 rights$/);
     });
 
     it('writes no change when a built-in role is saved as it was', async () => {
@@ -351,7 +351,7 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014; 120 switches sinc
       await userEvent.click(within(await roles()).getByRole('button', { name: 'New role' }));
       const sheet = await screen.findByRole('dialog', { name: 'New role' });
       // The Member list of this office holds 64 (Search is off).
-      expect(within(sheet).getByText('Holds 67 of 120')).toBeInTheDocument();
+      expect(within(sheet).getByText('Holds 67 of 121')).toBeInTheDocument();
       await userEvent.type(within(sheet).getByLabelText(/Name in English/), 'Site lead');
       await userEvent.type(within(sheet).getByLabelText(/Name in Arabic/), 'مسؤول الموقع');
       const people = await openSection(sheet, 'People and clients');
@@ -360,7 +360,7 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014; 120 switches sinc
       await waitFor(() => expect(store.state.settings.roles?.custom).toHaveLength(3));
       expect(store.state.settings.roles?.custom?.[2]).toMatchObject({ id: 'rol_003', name: 'Site lead', nameAr: 'مسؤول الموقع', rights: ['people.invite'], off: ['search.use'] });
       // The new role holds its own full list: 64 + 1.
-      expect(await row('Site lead')).toHaveTextContent('No one yet · 68 of 120 rights');
+      expect(await row('Site lead')).toHaveTextContent('No one yet · 68 of 121 rights');
     });
 
     it('makes a role with all the switches of two sections from the New role sheet', async () => {

@@ -9,6 +9,7 @@ import { spring } from '../../design/motion';
 import { formatDay } from '../../lib/dates';
 import { dueText, wordForDays } from '../../lib/due';
 import { markGlow, markOf } from '../../lib/projectMark';
+import { isProjectShape } from '../../lib/projectShape';
 import { useProjectName } from '../../app/projectName';
 
 /** The latest render at 16:9, or the project's picture large when there is no cover (owner, 2026-10-01). */
@@ -21,7 +22,7 @@ export function ProjectCover({ summary, className = 'aspect-video', layoutId }: 
     ? <img src={cover.url} alt={label} onError={cover.onError} className={`${PRIVATE} w-full object-cover ${className}`} />
     : (
       <div role="img" aria-label={label} data-project-mark={markOf(summary.project)} style={{ background: markGlow(summary.project.id, markOf(summary.project)) }} className={`relative w-full ${className}`}>
-        <MarkForm mark={markOf(summary.project)} className="absolute inset-0 m-auto h-[34%] w-auto" />
+        <MarkForm mark={markOf(summary.project)} shape={summary.project.shape} className={`absolute inset-0 m-auto w-auto ${isProjectShape(summary.project.shape) ? 'h-[47%]' : 'h-[34%]'}`} />
       </div>
     );
   if (!layoutId) return inner;

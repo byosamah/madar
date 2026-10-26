@@ -21,13 +21,17 @@ export function amountText(t: TFunction, lang: Lang, amount: number): string {
   return t('payments.amount', { n: formatNumber(amount, lang, amount % 1 === 0 ? 0 : 2) });
 }
 
-/** The sign of a milestone: a check with the day it arrived, a quiet "Awaiting", or the late sign. */
+/**
+ * The sign of a milestone: a check with the day it arrived, "Invoiced" while a Daftra invoice is linked and the money has not come (the Daftra
+ * link, owner 2026-10-26), a quiet "Awaiting", or the late sign. A linked payment keeps "Invoiced" even past its day: the invoice is out.
+ */
 export function PaymentSign({ row }: { row: PaymentRow }) {
   const { t } = useTranslation();
   const lang = useLang();
   if (row.status === 'received' && row.payment.receivedOn) {
     return <StatusSign state="completed">{t('payments.status.received', { date: formatDay(row.payment.receivedOn, lang) })}</StatusSign>;
   }
+  if (row.payment.daftra) return <StatusSign state="invoiced">{t('payments.status.invoiced')}</StatusSign>;
   return <StatusSign state={row.status === 'overdue' ? 'late' : 'active'}>{t(`payments.status.${row.status === 'overdue' ? 'overdue' : 'awaiting'}`)}</StatusSign>;
 }
 

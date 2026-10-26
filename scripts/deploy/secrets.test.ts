@@ -13,6 +13,9 @@ import {
   SIGN_IN_WAIT_MS,
   WORKER_SECRETS,
   checkSecrets,
+  workerDryRun,
+  workerNamesOf,
+  workerSecretsOf,
   officeSecretsOf,
   parseSecretsFile,
   runOfficeSecrets,
@@ -267,6 +270,86 @@ describe('the Google Calendar values (fbk_022, owner 2026-10-19)', () => {
       const message = refusal(() => check(file(TEST, lines)));
       expect(message).toMatch(name);
       for (const value of ['plain-client-id', 'a secret with spaces', 'short-key-value', GOOGLE_SECRET, GOOGLE_KEY]) expect(message).not.toContain(value);
+    }
+  });
+});
+
+const DAFTRA_KEY = 'AbCdEfGh0123456789AbCdEfGh0123456789AbCd';
+const DAFTRA_VADO_KEY = 'ZyXwVuTs9876543210ZyXwVuTs9876543210ZyXw';
+const DAFTRA_SITE = 'madeupoffice.daftra.com';
+const MAZJ_LINES = `DAFTRA_MAZJ_KEY=${DAFTRA_KEY}\nDAFTRA_MAZJ_SITE=${DAFTRA_SITE}`;
+const VADO_LINES = `DAFTRA_VADO_KEY=${DAFTRA_VADO_KEY}\nDAFTRA_VADO_SITE=vado.daftara.com`;
+
+describe('the Daftra values (the Daftra link, one account for each sub-company, 2026-10-26)', () => {
+  const check = (text: string) => checkSecrets(parseSecretsFile(text), TEST);
+
+  it('takes any name of the pattern in the secrets file, and the old names are gone', () => {
+    expect(Object.keys(parseSecretsFile(file(TEST, `${MAZJ_LINES}\n${VADO_LINES}`)))).toEqual(
+      expect.arrayContaining(['DAFTRA_MAZJ_KEY', 'DAFTRA_MAZJ_SITE', 'DAFTRA_VADO_KEY', 'DAFTRA_VADO_SITE']),
+    );
+    // A name that fits the pattern but is in no fixed list passes: the sub-companies change.
+    expect(() => parseSecretsFile(file(TEST, 'DAFTRA_NEWCO2_KEY=x\nDAFTRA_NEWCO2_SITE=y'))).not.toThrow();
+    expect(FUNCTION_SECRETS as readonly string[]).not.toContain('DAFTRA_API_KEY');
+    expect(FUNCTION_SECRETS as readonly string[]).not.toContain('DAFTRA_SITE');
+    for (const bad of ['DAFTRA_API_KEY_X=1', 'DAFTRA_SITE=a.daftra.com', 'DAFTRA_mazj_KEY=1', 'DAFTRA_X_KEY=1', 'DAFTRA_MAZJ_TOKEN=1']) {
+      expect(() => parseSecretsFile(file(TEST, bad)), bad).toThrow(/reads no such value|not a NAME=value/);
+    }
+  });
+
+  it('sends every account to the functions and to the Worker, and names no value in the log', async () => {
+    const h = harness({ text: file(TEST, `${MAZJ_LINES}\n${VADO_LINES}`) });
+    await runSecrets(h.run);
+    const body = JSON.parse(String(h.requests[0].init.body)) as { name: string }[];
+    expect(body.map((secret) => secret.name)).toEqual(expect.arrayContaining(['DAFTRA_MAZJ_KEY', 'DAFTRA_MAZJ_SITE', 'DAFTRA_VADO_KEY', 'DAFTRA_VADO_SITE']));
+    expect(h.logs.join('\n')).toContain('DAFTRA_MAZJ_KEY');
+    for (const value of [DAFTRA_KEY, DAFTRA_VADO_KEY]) expect(h.logs.join('\n')).not.toContain(value);
+  });
+
+  it('puts the Daftra names of the file in the Worker lists (bulk, dry run, office), and no name the file lacks', () => {
+    const values = parseSecretsFile(file(TEST, `${MAZJ_LINES}\n${VADO_LINES}`));
+    const bulk = workerSecretsOf(values, 'secret-key');
+    expect(Object.keys(bulk)).toEqual(expect.arrayContaining(['DAFTRA_MAZJ_KEY', 'DAFTRA_MAZJ_SITE', 'DAFTRA_VADO_KEY', 'DAFTRA_VADO_SITE']));
+    expect(bulk.DAFTRA_MAZJ_KEY).toBe(DAFTRA_KEY);
+    expect(Object.keys(workerSecretsOf(parseSecretsFile(file()), 'secret-key')).filter((name) => name.startsWith('DAFTRA'))).toEqual([]);
+    expect(Object.keys(officeSecretsOf(values))).toEqual(expect.arrayContaining(['DAFTRA_VADO_SITE']));
+    expect(workerNamesOf(values)).toEqual(expect.arrayContaining(['DAFTRA_MAZJ_KEY']));
+    expect(WORKER_SECRETS).not.toContain('DAFTRA_API_KEY');
+    const dry = workerDryRun('test', values).join('\n');
+    expect(dry).toContain('DAFTRA_MAZJ_KEY');
+    expect(dry).not.toContain(DAFTRA_KEY);
+  });
+
+  it('needs no Daftra value: Daftra is off without them, and an old secrets file still passes', () => {
+    expect(() => check(file())).not.toThrow();
+  });
+
+  it('needs both values of an account or none, and names the missing one', () => {
+    expect(() => check(file(TEST, `DAFTRA_MAZJ_KEY=${DAFTRA_KEY}`))).toThrow(/needs DAFTRA_MAZJ_SITE/);
+    expect(() => check(file(TEST, `DAFTRA_MAZJ_SITE=${DAFTRA_SITE}`))).toThrow(/needs DAFTRA_MAZJ_KEY/);
+    // A whole account does not hide a broken one.
+    expect(() => check(file(TEST, `${MAZJ_LINES}\nDAFTRA_VADO_KEY=${DAFTRA_VADO_KEY}`))).toThrow(/needs DAFTRA_VADO_SITE/);
+    expect(() => check(file(TEST, `${MAZJ_LINES}\n${VADO_LINES}`))).not.toThrow();
+    expect(() => check(file(TEST, MAZJ_LINES))).not.toThrow();
+  });
+
+  it('accepts the daftara.com site name too', () => {
+    expect(() => check(file(TEST, MAZJ_LINES.replace('daftra.com', 'daftara.com')))).not.toThrow();
+  });
+
+  it('checks the shape of each value of each account, with an error that names the variable and never the value', () => {
+    const bad: [string, RegExp][] = [
+      [MAZJ_LINES.replace(DAFTRA_KEY, 'short'), /DAFTRA_MAZJ_KEY/],
+      [MAZJ_LINES.replace(DAFTRA_KEY, `${DAFTRA_KEY}-with-dash`), /DAFTRA_MAZJ_KEY/],
+      [MAZJ_LINES.replace(DAFTRA_KEY, 'a'.repeat(129)), /DAFTRA_MAZJ_KEY/],
+      [MAZJ_LINES.replace(DAFTRA_SITE, `https://${DAFTRA_SITE}`), /DAFTRA_MAZJ_SITE/],
+      [MAZJ_LINES.replace(DAFTRA_SITE, `${DAFTRA_SITE}/`), /DAFTRA_MAZJ_SITE/],
+      [MAZJ_LINES.replace(DAFTRA_SITE, 'madeupoffice.example.com'), /DAFTRA_MAZJ_SITE/],
+      [`${MAZJ_LINES}\n${VADO_LINES.replace(DAFTRA_VADO_KEY, 'short')}`, /DAFTRA_VADO_KEY/],
+    ];
+    for (const [lines, name] of bad) {
+      const message = refusal(() => check(file(TEST, lines)));
+      expect(message).toMatch(name);
+      for (const value of [DAFTRA_KEY, DAFTRA_VADO_KEY, 'short', 'https://', 'example.com', 'with-dash']) expect(message).not.toContain(value);
     }
   });
 });

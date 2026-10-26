@@ -537,7 +537,7 @@ function MeetingScreen() {
                         onClick={() => toggle(row.project.id)}
                         className="pressable flex w-full min-w-0 items-center gap-3 rounded-2xl text-start"
                       >
-                        <ProjectTile id={row.project.id} mark={row.project.mark} size={48} subCompanyId={row.project.subCompanyId} />
+                        <ProjectTile id={row.project.id} mark={row.project.mark} shape={row.project.shape} size={48} subCompanyId={row.project.subCompanyId} />
                         <span className="min-w-0 flex-1">
                           <span className="flex min-w-0 items-center gap-2">
                             <bdi className="min-w-0 truncate text-[22px] font-semibold text-ink">{shownName(row.project, lang)}</bdi>

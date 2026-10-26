@@ -2547,3 +2547,72 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
 - Key roles (new in the docs since 2026-10-06): Settings, API, API Key, Roles: "Only Allow" a list of entities (for example
   `invoice`, `client`); any other entity answers 403. A role limits the entities, not read against write. The real office key
   should be "Only Allow" `invoice` and `client`.
+
+### Release record: production at a9c0841e (2026-10-26, team reports fbk_060 and fbk_062 to fbk_066)
+- On the owner's "ok production" (2026-10-26), Claude ran `echo production | scripts/deploy/all.sh production` from deploy-test, which took the
+  recorded commit a9c0841e on the first try (the test copy took it the same day, `all.sh test`). Session madar-83 (named madar-tileshape) led;
+  three Sonnet builders, one track each: `rb/b26-small`, `rb/b26-names`, `rb/b26-folders`, joined on `rb/b26-join`.
+- fbk_064 the lead button of a to-do row never ends on the error page: the people list loads through `lazyOverlay` (a failed chunk reloads the
+  page once) and a fault inside the list shows a toast. Faisal's error came 49 minutes after the release of 12:44 on 2026-10-25, so a tab that
+  asked for an old chunk is the likely cause; no data cause was found. fbk_060 the leader picture has an ink ring and is 34 px in project rows.
+  fbk_063 the desk person menu has two groups (Away, Mode, Language first) and loads at its first use. fbk_065 "Only my work" also limits Home
+  "Your projects" and the bare Projects link. fbk_062 a project has an optional Arabic name. fbk_066 folders in each stage of Files & Links,
+  "+ Folder", Move to, the drag between stages and folders, a computer file dropped on a folder (the folders live in the project document, so no
+  migration). What's new 108 to 112. Join fixes: the word "New" of What's new follows the newest day (it never showed under the pinned usage entry);
+  the reach rule lives in a light file and the person menu panel is a lazy chunk, so the first load is 957,655 B raw (limit 970,000) and
+  291,903 B gzip.
+- Gates: typecheck; npm test 11,559 passed, 6 skipped (981 files) on 15d1c5c4, then the touched files of each later fix (doc words, the lazy
+  panel, the light reach file: 128, 203 and 221 tests); `build`, `build:server`, `build:remote -- test` (every bundle line ok); test:db 3,231
+  (27 skipped); test:it 333; test:mcp normal (conformance 5 of 32, 27 expected failures). Not run in this release: test:lite, test:office and the
+  prototype smoke. Screenshots in Chrome (prototype build of a9c0841e): the leader ring (EN light, AR dark), the person menu (AR dark, EN light),
+  folders with Move to (EN light desk, AR dark 390 px), the Arabic name (form, AR header, 390 px), "Only my work" on Projects (AR dark).
+- Live checks: the quick checks passed (health from supabase, `fileStore` r2, 154 calls; database, lock and asyncContext ok; /mcp with no token
+  401); the production page title is Madar, `/favicon.ico` 200, and the served first load holds the new `adminReach` and `projectReach` chunks.
+
+### Release record: production at 7e785d4f (2026-10-26, hotfix: the leader ring, the person menu, the What's new order)
+- On the owner's "production" (2026-10-26), after he saw an oval leader ring and an uneven person menu in production, Claude ran `all.sh test`
+  and then `echo production | scripts/deploy/all.sh production` from deploy-test; both passed on the first try.
+- The leader ring: each picture box of `AvatarStack` is `flex shrink-0`. A photo (an inline img) in a plain box sat on a text line, the box grew a
+  gap under it, and the ring drew an oval with the photo at its top; initials have no gap, so the prototype screenshots of a9c0841e missed it. The
+  ring is 1.5 px, and the leader of a project row is 32 px (owner: a little smaller). Live check: the leader box measures 36 by 36 px on madar.vado.sa.
+- The person menu: Away keeps its switch; Mode and Language are one button each that names the other choice; the three controls share one height
+  (31 px) and one end edge (owner's choice through AskUserQuestion). What's new: the page sorts the entries by day, so each day shows once (it showed
+  25 Oct, 26 Oct, 25 Oct).
+- Gates: typecheck; check-rtl; the touched and caller tests (components, projects, space, project tasks, Admin, app shell, auth, Me, settings,
+  What's new: 731 and 76 tests); `all.sh test` builds (remote screens, server, every bundle line ok). Not run: the full npm test and the database
+  suites (screens only, no server change). `focusInert.test.tsx` fails under a load of 16 on the production commit a9c0841e too (TASKS). Screenshots
+  in Chrome with real photos: the Home rows (prototype EN dark, production dark), the menu (EN dark, AR light).
+- Live checks: the quick checks passed (health from supabase, `fileStore` r2, 154 calls; database, lock and asyncContext ok; /mcp with no token 401);
+  the production page title is Madar, `/favicon.ico` 200.
+
+### Release record: production at 5bfb2df7 (2026-10-26, tile shapes fbk_061 and the Daftra link, one release)
+- On the owner's "khalas go to production" (2026-10-26), Claude (madar-tileshape) shipped `rb/tile-shape` on top of `rb/daftra` (bbc0a779): the
+  daftra session had already put bbc0a779 on main and on the test copy (migration 20261026000100_daftra.sql on madar-test), so a rewind was not
+  possible; the owner chose "both together" (in the daftra session). `all.sh test` and `echo production | scripts/deploy/all.sh production` both
+  passed on the first try; 156 calls. Daftra is dormant in production (no DAFTRA keys): only the role switch, the due notice and one What's new line show.
+- Tile shapes: `Project.shape` (one SVG path in the 18 box, empty clears), set by `projects.update` patch.shape under project.details, drawn by
+  `ProjectTile` and `MarkForm` at 62% with evenodd (the random form stays at 45%), and by `look.tile`. The MCP INSTRUCTIONS carry the owner's procedure
+  (ask for the inspiration source, about 5 options as an artifact, iterate until the person accepts, only then set the shape) and the drawing rules
+  (a solid mass, the real outline, special places as holes). What's new 114. Shapes set after the release (story sty_2ofxcyenxnamn4f7uot2yy): Madar,
+  Hayyez and Kutla logos on prj_015, prj_016, prj_017; the Eastern Corniche (prj_010) the owner's pick B4 (the plaza and the leaf on the promenade wave).
+- Gates for the tile shapes: typecheck; the builder's wide runs (src/api, server/data, server/mcp 4,117; the tile screens 1,777; 1,333 more); the overlap
+  tests after the rebase on Daftra (623); `npm run build` (prototype bundle check ok); `all.sh test` builds. The full npm test was stopped after it ran
+  long under the Docker load of daftra (owner rule: stop past 5 minutes and deploy); the one failure seen, ReactionAny, passed alone. Not run for the
+  tile shapes: test:db, test:it (Daftra ran its own full gates on bbc0a779). Screenshots: shaped tiles in the prototype (EN dark desk, AR light 390 px)
+  and in production (the Projects list).
+- Live checks: the quick checks passed (health from supabase, `fileStore` r2, 156 calls; database, lock and asyncContext ok; /mcp with no token 401);
+  the production page title is Madar, `/favicon.ico` 200; the four shapes show in the live Projects list.
+
+### Release record: production at 1f240dbb (2026-10-26, Daftra follow-up: the Link button, the fresh look, the look limit)
+- The owner tried the Daftra link on the test copy with the MAZJ test key (sub-company MAZJ, prj_001, payment pay_003): match a Mazj client, a new
+  invoice (1521961, 34.50 SAR) suggested, Link, "Invoiced", and after Daftra said paid the 13:15 job set "Received 26 Oct" by itself. Two gaps from
+  that try, fixed on `rb/daftra-fix`: Link was a fifth footer button that fell off the sheet (it sits in the Daftra box now), and an invoice made after
+  the last copy waited up to 15 minutes (the sheet now looks in Daftra at once when no invoice matches, at most once a minute for each client).
+  A background security review found that the minute must count from the look itself (a client with no invoice, a failed look): fixed, with a test.
+- Before it, on `rb/daftra` (released in 5bfb2df7): the Undo guard (an Undo never gives one invoice to two payments, also on Postgres), Madar's own
+  read-only lock (`server/daftra/readOnly.ts`: Daftra has no read-only key), and four code review fixes (the job never starves a link; one odd row
+  no longer fails a Daftra list). Claude Security scan of the branch (medium, 132 files): no findings, stamp verified.
+- Gates of the follow-up: typecheck; the touched tests (234); `npm run build`, `build:server`, `build:remote -- test`; `all.sh test`; then
+  `echo production | scripts/deploy/all.sh production`, run by the owner. Not run for the follow-up: the full npm test, test:db, test:it and the deploy
+  suite (owner: speed; the change is one server read and one screen part). Daftra stays dormant in production until the five keys.
+- Live checks: the quick checks passed (health from supabase, `fileStore` r2, 156 calls; database, lock and asyncContext ok; /mcp with no token 401).

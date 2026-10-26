@@ -14,6 +14,7 @@ import '../google/effects';
 import { pgDb } from '../data/sql';
 import { env } from '../env';
 import { r2FilesPort } from '../files/r2';
+import { daftraConfigOf, daftraMissing } from '../daftra/config';
 import { GOOGLE_NAMES, googleConfigOf } from '../google/keys';
 import { supabaseStorageFilesPort } from '../files/supabaseStorage';
 import { outboxMailPort } from '../mail/outboxDriver';
@@ -46,6 +47,9 @@ import { FILE_STORE_LIMITS, fileStoreKind, type Config, type Db, type Deps, type
  *   GOOGLE_CLIENT_ID       Google Calendar: the OAuth client of the Google Cloud project (all three GOOGLE values or none)
  *   GOOGLE_CLIENT_SECRET   Google Calendar: the secret of that client
  *   MADAR_GOOGLE_KEY       Google Calendar: 32 random bytes in base64; it seals the refresh tokens and signs the connect state
+ *   DAFTRA_<NAME>_KEY      the Daftra link: the key of the Daftra account of one sub-company (NAME is its English name in capitals, A to Z and
+ *                          0 to 9, for example MAZJ). Madar only reads Daftra with it. Both values of an account or none
+ *   DAFTRA_<NAME>_SITE     the Daftra link: the site name of that account, for example name.daftra.com
  *   MADAR_FILE_STORE       supabase (default, bucket FILES_BUCKET or madar-files) or r2 (needs the four R2_ values). The store
  *                          does not follow the host: the Supabase functions and the Worker of one copy get the same values
  *   FILES_PUBLIC_URL       the address of the Supabase Storage links for the browser (default SUPABASE_URL), where the function
@@ -61,7 +65,11 @@ import { FILE_STORE_LIMITS, fileStoreKind, type Config, type Db, type Deps, type
  *   POSTHOG_KEY            the public PostHog project key (phc_...): each error line also goes to PostHog Cloud EU. Optional; none means off
  */
 
-export type ReadEnv = (name: string) => string | undefined;
+/**
+ * A reader of the environment. `names` lists the names that it holds, for the families of secrets whose names follow a pattern (the Daftra
+ * accounts). A reader with no `names` holds no such family.
+ */
+export type ReadEnv = { (name: string): string | undefined; names?: () => readonly string[] };
 
 export const DEFAULT_LOCK_KEY = 7_310_001;
 /** The class of the health check lock (server/http/health.ts), in the two-key space. Never the office lock key. */
@@ -150,6 +158,10 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
   const googleSet = GOOGLE_NAMES.filter((name) => read(name) !== undefined);
   if (googleSet.length > 0 && googleSet.length < GOOGLE_NAMES.length) missing.push(...GOOGLE_NAMES.filter((name) => read(name) === undefined));
 
+  // Each Daftra account needs its key and its site, or neither. With no account, the link is off: daftra.status says so and the job step does nothing.
+  const daftraNames = read.names?.() ?? [];
+  missing.push(...daftraMissing(read, daftraNames));
+
   const fileStore = fileStoreKind(read('MADAR_FILE_STORE'));
   const r2 = fileStore === 'r2'
     ? { accountId: need('R2_ACCOUNT_ID'), accessKeyId: need('R2_ACCESS_KEY_ID'), secretAccessKey: need('R2_SECRET_ACCESS_KEY'), bucket: need('R2_BUCKET') }
@@ -168,6 +180,7 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
 
   const push = vapidConfigOf(read);
   const google = googleConfigOf(read);
+  const daftra = daftraConfigOf(read, daftraNames);
   // The key is public. A value of another shape is ignored (the deploy check refuses it by name), so a typo never stops the server.
   const posthogKey = /^phc_[A-Za-z0-9_-]{20,}$/.test(read('POSTHOG_KEY')?.trim() ?? '') ? read('POSTHOG_KEY')!.trim() : undefined;
   const functions = `${supabaseUrl.replace(/\/+$/, '')}/functions/v1`;
@@ -187,6 +200,7 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
     limits: { maxFileBytes: FILE_STORE_LIMITS[fileStore].maxFileBytes, filesTotalBytes: FILE_STORE_LIMITS[fileStore].totalBytes },
     ...(push ? { push } : {}),
     ...(google ? { google } : {}),
+    ...(daftra ? { daftra } : {}),
     ...(posthogKey ? { posthogKey } : {}),
   };
 

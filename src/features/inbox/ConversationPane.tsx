@@ -278,7 +278,7 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread, embedded }: { id: s
   // A group shows one picture. One press on it, or on the count of people, opens the People sheet (UX audit 2026-10-19, chats-07 and 08).
   const picture = phone ? 38 : 40;
   const lead = chat.kind === 'project' && chat.project
-    ? <ProjectTile id={chat.project.id} mark={chat.project.mark} size={picture} />
+    ? <ProjectTile id={chat.project.id} mark={chat.project.mark} shape={chat.project.shape} size={picture} />
     : isGroup ? (
       <button type="button" aria-label={t('chat.peopleTitle')} onClick={openPeople} className="pressable shrink-0 rounded-full">
         <GroupPicture id={chat.id} size={picture} />
@@ -313,7 +313,7 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread, embedded }: { id: s
     : <ChatMenu id={id} archived={chat.archived} unread={chat.unread} title={title} onArchive={archive} onMarkUnread={onMarkUnread} extra={notifyItems} />;
   // The sheet repeats the picture at 40 px, but it is no button there.
   const sheetLead = chat.kind === 'project' && chat.project
-    ? <ProjectTile id={chat.project.id} mark={chat.project.mark} size={40} />
+    ? <ProjectTile id={chat.project.id} mark={chat.project.mark} shape={chat.project.shape} size={40} />
     : isGroup ? <GroupPicture id={chat.id} size={40} />
       : chat.person ? <PersonFace user={{ ...chat.person, active: !chat.personLeft }} size={40} /> : null;
   return (

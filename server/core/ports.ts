@@ -1,3 +1,4 @@
+import type { DaftraConfig } from '../daftra/config';
 import type { RunCall } from './runCall';
 import type { ServerHost } from './serverHost';
 import type { TypingSignal } from '../../src/api/remote/wire';
@@ -130,6 +131,12 @@ export type Config = {
    */
   google?: { clientId: string; clientSecret: string; key: string };
   /**
+   * The Daftra link values (server/daftra/config.ts): the key and the site of each Daftra account, by account name (one account for each
+   * sub-company). Left out when the copy has none: the link is off, the daftra calls answer daftra_not_ready, and the job step does nothing.
+   * The names are not secret. The keys and the sites never go in an answer, a log line or an error text.
+   */
+  daftra?: DaftraConfig;
+  /**
    * The public PostHog project key (POSTHOG_KEY, `phc_...`). Left out when the owner has no PostHog account yet: the logger then stays
    * as it is. With it, each `error` line also posts one record to PostHog Cloud EU (server/core/insight.ts).
    */
@@ -168,6 +175,11 @@ export type Deps = {
    * calls then use the global fetch. The office path has no Google yet (docs/superpowers/real-build/exit-handoff.md).
    */
   googleFetch?: typeof globalThis.fetch;
+  /**
+   * The fetch of a Daftra call (server/daftra/client.ts). Tests pass a stub, so no test reaches Daftra. Left out on every host: the
+   * client then uses the global fetch. The office path has no Daftra yet (server/daftra/CLAUDE.md).
+   */
+  daftraFetch?: typeof globalThis.fetch;
   /** The typing signals. Left out where the host has no sender (the office object gets its own): chats.typing then tells nobody. */
   typing?: TypingPort;
   /** The live socket tickets. Only the office object has them; live.ticket answers not_found without them. */

@@ -21,7 +21,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 
 ## Rules
 - `User.avatarUrl` takes picture data (WebP, JPEG or PNG, up to 24,000 characters) or an https address (`UserAvatarInput`).
-  `userCard()` leaves picture data out, so lists stay small. `User.nameAr` is the Arabic name; an empty value means none. `Project.nameAr` is the same for a project (fbk_062): optional, trimmed, 120 characters at most; `projects.create` leaves it out when it is empty, and `projects.update` with an empty value clears it (and writes no event when there was none). A view that names a project builds the ref with `projectRef` or `projectTile` (`src/lib/projectRef.ts`), never by hand, so `nameAr` comes along.
+  `userCard()` leaves picture data out, so lists stay small. `User.nameAr` is the Arabic name; an empty value means none. `Project.nameAr` is the same for a project (fbk_062): optional, trimmed, 120 characters at most; `projects.create` leaves it out when it is empty, and `projects.update` with an empty value clears it (and writes no event when there was none). A view that names a project builds the ref with `projectRef` or `projectTile` (`src/lib/projectRef.ts`), never by hand, so `nameAr` and `shape` come along. `Project.shape` (owner, 2026-10-26, fbk_061) is the own drawn shape of the tile: `ProjectShapeText` (an SVG path in the box 18 by 18, 2000 characters at most, or an empty text for none). `projects.update` with `patch.shape` sets it, and an empty text clears it (no event when there was none). A project with no shape gets an empty text before the first set, so the History holds a value that Undo brings back (a missing key is lost in JSON). A ref carries `shape` only when it is not empty, and `ProjectRef.shape` refuses an empty text. A view that draws a tile needs `shape` in its ref.
 - `src/api` never imports `server/` or `src/app/`.
 - The output is checked inside the change, so a wrong shape rolls it back (`execute.ts`).
 - One permission function: `can()`. No screen and no handler checks a right another way. An agent acts with its owner's
@@ -390,7 +390,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   - MCP: `TOOL_DOCS` of `projects.update` (600 characters, at the limit) and `projects.get`, and the `Place:` line of `INSTRUCTIONS`.
 
 ## Office rights and roles (owner, 2026-10-18, fbk_014; role rights version 2, 2026-10-21)
-- The rights are 120 switches in 13 sections (`OfficeRight`, `contract/entities.ts`; 91 powers; "Mention everyone" joined the Chat section on 2026-10-22; the four hidden-project rights joined the Projects section on 2026-10-22; the AI switch `ai.projectSetup` joined the AI section on 2026-10-25; the AI switches `ai.admin`, "AI does Admin work" (off for every built-in role), and `ai.myState`, "AI changes my own marks and settings" (on for every built-in role), joined it on 2026-10-26 with the MCP parity track; `MAX_STORED_RIGHTS` is 126). The one source is the catalog JSON in
+- The rights are 121 switches in 13 sections (`OfficeRight`, `contract/entities.ts`; 92 powers; "Mention everyone" joined the Chat section on 2026-10-22; the four hidden-project rights joined the Projects section on 2026-10-22; the AI switch `ai.projectSetup` joined the AI section on 2026-10-25; the AI switches `ai.admin`, "AI does Admin work" (off for every built-in role), and `ai.myState`, "AI changes my own marks and settings" (on for every built-in role), joined it on 2026-10-26 with the MCP parity track; the Money switch `payment.daftraLink`, "Link Daftra invoices", joined on 2026-10-26: it needs `payment.view` and Accounting holds it by default; `MAX_STORED_RIGHTS` is 127). The one source is the catalog JSON in
   `docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json`; `rightsCatalog.ts` is its plain copy (no zod), and
   `rightsCatalog.test.ts` checks that the two agree. The Admin holds all of them. A switch id is `<power>.<scope>` for a power with
   scopes (`lead`, `team`, `all`, `office`, `none`), or the power name for a power with one switch. `BASIC_ON` is the 67 switches a Member holds.
@@ -403,7 +403,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   `off`) plus the expanded `rights` (or `DEFAULT_EXTRA`), minus each switch whose need on another power is off (`dropUnmetNeeds`, fail
   closed: `ai.connect` off turns every AI switch off; the sheet turns needs on with `withNeeds`); a custom role with no `off` = the Member switches
   plus its own (the meaning of before); with `off` = its own full list; a deleted role leaves the Member switches. `heldRightsOfRole` gives
-  the list to the screens. `session.get` and every output give the 120 ids only. A save writes new ids only (`roles.*` expand old ids).
+  the list to the screens. `session.get` and every output give the 121 ids only. A save writes new ids only (`roles.*` expand old ids).
   Caps: `rights` 120, `off` 70.
 - The actions of `can()` are the power names. The stand-ins of the first release are gone (`project.edit`, `project.changeLeader`,
   `project.healthOverride`, `project.editCode`, `content.post`, `content.editOwn`, `task.createForSelf`, `task.createForAnyone`,
@@ -414,7 +414,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   (the Roles section and the role events). With the default settings the answers equal the answers of before
   (`server/core/rightsParity.test.ts` proves it against a record made on the code before this release). A stored list may still hold an
   old id (`LEGACY_RIGHTS` of `rightsCatalog.ts`); that is a stored right, never an action. The pure power actions are in
-  `rightSwitches.test.ts`, one group of tests for each of the 120 switches. A to-do rule that combines the own power and `task.any` lives
+  `rightSwitches.test.ts`, one group of tests for each of the 121 switches. A to-do rule that combines the own power and `task.any` lives
   in `taskGates.ts` (`mayChangeTask`, `mayAssignTask`, `mayDeleteTask`, `mayTickChecklist`).
 - A right gives only its own power. Before a right passes an action, grep every use of that action and check what it stands in for.
 - A check of an office right reads the person with the rights attached. A handler gets them in `ctx.authority` (`execute.ts`); the
@@ -492,6 +492,30 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   started as the owner's Claude skill "madar-office-report". Only on request, because it is about 17,000 characters. A change of a tool name,
   a field or a color that the guide names fails `server/mcp/reportGuide.test.ts`. `design.colors` holds the status colors too (`onTrack`,
   `atRisk`, `late`, `muted`).
+
+## The due notice of a payment (the Daftra link, owner 2026-10-26)
+- `payment_due` is in `TRIGGERS`, `IN_APP_ONLY_TRIGGERS` (no mail) and `ACTION_TRIGGERS` (the bell counts it). It is not in `COPY_TRIGGERS`: the Admin gets no copy.
+- `runScheduledTriggers` sends it on the due day only (`payment.dueDate` equals today). A payment that is already past due on release day gets none.
+  It skips a payment with `receivedOn` set, a payment with `daftra` set, and a payment of an internal project. The dedupe key is
+  `payment_due:<paymentId>:<dueDate>`, so a payment that moves to a new day tells again. The state may have no `payments` list: read `state.payments ?? {}`.
+- The people are `paymentDuePeople`: active humans whose role is not `admin` and who hold `payment.view` and `payment.daftraLink` (`getsPaymentDue`).
+  `notify` then skips a person who may not view the project. `visibleTriggers` shows the Settings switch only to the same people.
+- The notice is `targetType: 'project'` with the snapshot `Notification.payment { id, name }`, so the bell needs no payment row. The link is
+  `/projects/<id>?payment=<paymentId>`. A viewer without `payment.view` reads the notice as gone: `notifications.list` takes out the payment, the day,
+  the link, the project and the dedupe key (`hiddenPayment`). The words are `inbox.trigger.payment_due`, `payment_due_past` and `inbox.paymentGone`
+  (`real/daftra.*.json`); `server/push/words.ts` imports them for the push line.
+- `loadJobs` (`server/data/loaders/jobs.ts`) loads the open payments of the day of the run (with `LoadCtx.now`). Tests: `paymentDue.test.ts`.
+
+## The Daftra link: two payment calls (owner, 2026-10-26; `server/daftra/CLAUDE.md`)
+- `Payment.daftra` (optional, additive): `{ account, invoiceId, invoiceNo, total, issuedOn, linkedBy, linkedAt }`. `account` is the Daftra account (the sub-company name in capitals) at link time. The
+  status of a `PaymentRow` keeps its three values. The screens show "Invoiced" when `daftra` is set and `receivedOn` is null.
+- `payments.linkInvoice { id, invoiceId }` and `payments.unlinkInvoice { id }` are shared writes for a person who holds `payment.view` and `payment.daftraLink`; an agent gets `forbidden`
+  (both calls are on the MCP deny list). The link takes its numbers from the server `prepare`d snapshot `DaftraSnapshot { account, invoiceId, invoiceNo, total, issuedOn }` that the preflight read
+  from Daftra (`server/calls/daftra.ts`), never from the browser. The prototype `prepare` refuses with `daftra_not_ready`. The handler refuses `daftra_invoice_changed`, `daftra_already_linked` (the
+  payment has another invoice, or the same id in another account) and `daftra_invoice_taken` (another payment of the same account holds the invoice; the loader `paymentLinkCall` reads the holders).
+  A second link to the same invoice is a quiet repeat. Events `payment.daftra_linked` and `payment.daftra_unlinked` have an Undo that needs `payment.daftraLink`; the link event writes `before: { daftra: null }`
+  and `undoEvent` takes the field away (`ABSENT_WHEN_NULL`). The event `payment.received_daftra` (written by the job step) has no Undo: it answers `conflict` with the reason `daftra_final`, after the rights check.
+- `markReceived` and `update` keep their rules for a linked payment: the screens hide "Mark as received" while `daftra` is set and `receivedOn` is null, and the calls do not refuse.
 
 ## The restart reminder of a pause (owner, 2026-10-19, fbk_025)
 - The restart date of a pause (`pause.resumeOn`) is a reminder. Madar never restarts a project by itself: a person resumes it.
@@ -665,7 +689,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 
 ## Hidden projects (owner, 2026-10-22)
 Design: `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design.md`. Wave D1 builds the core.
-- Four rights joined the catalog (117 switches and 88 powers then; 118 and 89 since 2026-10-25, 120 and 91 since 2026-10-26): `project.seeAll` (See every project) and `project.access.lead` (Choose who sees a
+- Four rights joined the catalog (117 switches and 88 powers then; 118 and 89 since 2026-10-25, 120 and 91 since the MCP parity track on 2026-10-26; 121 and 92 with the Daftra switch): `project.seeAll` (See every project) and `project.access.lead` (Choose who sees a
   project, Projects I lead) are basic and on for every role. `project.access.all` and `project.hidden` (See hidden projects) are for the
   Admin only. The Admin always holds every switch (`heldSet`), so an Admin without `project.hidden` cannot exist. Management can get it.
 - `Project.access` is `{ hidden, viewerIds }`, optional, at most `MAX_PROJECT_VIEWERS` (50). Missing means open with no chosen people.
@@ -752,7 +776,7 @@ Design: `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design
 ## A new call: the checklist
 1. `defineCall` in its handler file, with tests.
 2. If it is server-only: its contract in `contract/server.ts`, its fake in `handlers/serverFakes.ts`, its server body in
-   `server/calls/`. There are 14 server-only calls (`usage.get` and `usage.retryEffect` were removed, 2026-10-23); `live.ticket` (exit wave 3) is the 9th, and the four `google.*` calls (fbk_022) follow it; `chats.typing` (chat presence design) is the 14th.
+   `server/calls/`. There are 18 server-only calls (`usage.get` and `usage.retryEffect` were removed, 2026-10-23); `live.ticket` (exit wave 3) is the 9th, and the four `google.*` calls (fbk_022) follow it; `chats.typing` (chat presence design) is the 14th; the four `daftra.*` calls (the Daftra link, 2026-10-26) are the 15th to the 18th. A server read must also be in `READ_CALLS` (`src/api/remote/keys.ts`), or the browser gives it an idempotency key.
 3. A loader entry in `server/data/loaders/` (a test fails without it).
 4. The MCP allow list, right list (`MCP_BY_RIGHT`, only an agent whose person holds the right sees it; `MCP_ADMIN` is empty) or deny list in `server/mcp/tools.ts`
    (a test fails without it). An allowed or right tool needs `TOOL_DOCS` and one AI switch: add its name to the `mcpTools` list of that

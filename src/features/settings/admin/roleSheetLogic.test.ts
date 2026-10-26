@@ -7,7 +7,7 @@ import {
 const MEMBER: readonly CatalogRightId[] = withNeeds([...BASIC_ON]);
 
 describe('the sections of the role sheet', () => {
-  it('hold the 120 switches once each, in 13 sections', () => {
+  it('hold the 121 switches once each, in 13 sections', () => {
     expect(SHEET_SECTIONS).toHaveLength(13);
     expect(SHEET_SECTIONS.flatMap((section) => section.ids)).toEqual([...CATALOG_RIGHT_IDS]);
   });
@@ -15,7 +15,7 @@ describe('the sections of the role sheet', () => {
   it('give each power a word key that no other power has', () => {
     const keys = SHEET_SECTIONS.flatMap((section) => section.powers.map((power) => power.key));
     expect(new Set(keys).size).toBe(keys.length);
-    expect(keys).toHaveLength(91);
+    expect(keys).toHaveLength(92);
     expect(powerKey('project.create')).toBe('projectCreate');
     expect(powerKey('templates.taskSave')).toBe('templatesTaskSave');
     expect(powerKey('subCompanies.manage')).toBe('subCompaniesManage');
@@ -77,7 +77,7 @@ describe('the standard list and the save shape', () => {
   it('gives the Member list 68 switches and the default extras to the other roles', () => {
     expect(standardListOf('member')).toHaveLength(68);
     expect(standardListOf('management')).toEqual(withNeeds([...BASIC_ON, ...DEFAULT_EXTRA.management]));
-    expect(standardListOf('accounting')).toHaveLength(68 + 4);
+    expect(standardListOf('accounting')).toHaveLength(68 + 5);
   });
 
   it('saves the switches that are not basic as rights, and the basic switches that are off as off', () => {

@@ -69,3 +69,9 @@ export const MEETING_LIMITS = {
   titleMax: 120, whereMax: 200, guestsMax: 200, notesMax: 2000, attendeesMax: 30,
   minMinutes: 15, maxMinutes: 720, pastDays: 14, windowDaysMax: 400, listMax: 200, listDefaultDays: 60, minutesMax: 10_000,
 } as const;
+
+/**
+ * The name of a Daftra account (the Daftra link, owner 2026-10-26): the English name of a sub-company in capitals, only A to Z and 0 to 9
+ * (server/daftra/account.ts). It is also the middle of the secret names DAFTRA_<NAME>_KEY and DAFTRA_<NAME>_SITE. The names are not secret.
+ */
+export const DAFTRA_ACCOUNT_PATTERN = /^[A-Z][A-Z0-9]{1,19}$/;
