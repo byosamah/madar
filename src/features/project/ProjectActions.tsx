@@ -21,6 +21,7 @@ import { todayISO, addDays } from '../../lib/dates';
 import { EditProjectSheet } from '../projects/EditProjectSheet';
 import { shownKey } from '../../lib/projectLabel';
 import { ApplyTemplateSheet } from './ApplyTemplateSheet';
+import { useProjectName } from '../../app/projectName';
 
 type SheetProps = { detail: ProjectDetail; open: boolean; onOpenChange: (open: boolean) => void };
 
@@ -63,6 +64,7 @@ export function LeaderSheet({ detail, open, onOpenChange, pick }: SheetProps & {
 /** The only confirmation in the app (spec 10.7). */
 function DeleteProjectSheet({ detail, open, onOpenChange }: SheetProps) {
   const { t } = useTranslation();
+  const projectName = useProjectName();
   const toast = useToast();
   const navigate = useNavigate();
   const remove = useAction('projects.delete', {
@@ -76,7 +78,7 @@ function DeleteProjectSheet({ detail, open, onOpenChange }: SheetProps) {
     <Sheet
       open={open}
       onOpenChange={onOpenChange}
-      title={t('project.deleteTitle', { name: detail.project.name })}
+      title={t('project.deleteTitle', { name: projectName(detail.project) })}
       description={t('project.deleteBody')}
       footer={(
         <>
@@ -87,7 +89,7 @@ function DeleteProjectSheet({ detail, open, onOpenChange }: SheetProps) {
         </>
       )}
     >
-      <p dir="auto" className="tabular text-subheadline text-label-2">{shownKey(detail.project, t)} · {detail.project.name}</p>
+      <p dir="auto" className="tabular text-subheadline text-label-2">{shownKey(detail.project, t)} · {projectName(detail.project)}</p>
     </Sheet>
   );
 }

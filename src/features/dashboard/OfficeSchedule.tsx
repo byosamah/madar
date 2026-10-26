@@ -14,7 +14,7 @@ import { stageOverlaps, type Overlap } from '../../lib/stageFlow';
 import { HatchSwitch, useHatchOverlap } from './hatch';
 import { currentTone, DeadlineMarks, stageKind, useWidth, type StageKind } from './scheduleMarks';
 import type { DashboardData } from './Tiles';
-import { shownKey } from '../../lib/projectLabel';
+import { shownKey, shownName } from '../../lib/projectLabel';
 
 type Row = DashboardData['schedule'][number];
 
@@ -168,7 +168,7 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
                     >
                       <span className="min-w-0 flex-1">
                         <span className="tabular block text-caption text-ink-2">{shownKey(row.project.code, t)}</span>
-                        <bdi className="block truncate text-subheadline text-ink">{row.project.name}</bdi>
+                        <bdi className="block truncate text-subheadline text-ink">{shownName(row.project, lang)}</bdi>
                         {/* A paused row has the grey of On track, so it carries the meeting's sign. The sign has its own line, so the
                             name keeps the width of the narrow column (audit 2026-10-03, V-7). */}
                         {row.pause && <span className="block"><ProjectSign project={{ status: 'on_hold', pause: row.pause }} staleDays={row.pause.staleDays} /></span>}
@@ -178,7 +178,7 @@ export function OfficeSchedule({ view }: { view: DashboardData }) {
                       </span>
                       <AnimatedIcon icon={ChevronDownIcon} size={16} aria-hidden className={`shrink-0 text-ink-2 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                     </button>
-                    <Link to={`/projects/${row.project.id}`} aria-label={t('dashboard.meeting.openProjectOf', { name: row.project.name })} className="pressable grid size-11 shrink-0 place-items-center rounded-full text-ink-2 hover:text-ink">
+                    <Link to={`/projects/${row.project.id}`} aria-label={t('dashboard.meeting.openProjectOf', { name: shownName(row.project, lang) })} className="pressable grid size-11 shrink-0 place-items-center rounded-full text-ink-2 hover:text-ink">
                       <AnimatedIcon icon={ExternalLinkIcon} size={16} aria-hidden />
                     </Link>
                   </div>

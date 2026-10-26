@@ -13,7 +13,7 @@ import { commentCountKey, fileCountKey, projectTemplatesOf, type State } from '.
 import { lineKindOf } from '../lib/commentLine';
 import { diffDays } from '../lib/dates';
 import { pinFromLinks } from '../lib/geo';
-import { markOf } from '../lib/projectMark';
+import { projectRef } from '../lib/projectRef';
 import { helpersOf, involves } from '../lib/taskPeople';
 import { openPrerequisites, openPrerequisiteStages, stagesChrono, stageTagOf, tasksChrono } from '../lib/stageFlow';
 import { staleDaysOf } from './pause';
@@ -119,26 +119,26 @@ export function eventLabel(state: State, event: Event): { label: string; detail:
     }
     case 'project': {
       const name = state.projects[event.targetId]?.name ?? '';
-      if (event.verb === 'project.code_changed' && typeof after.code === 'string') return { label: name, detail: { code: after.code } };
+      // The Arabic name goes in detail.labelAr, as the Arabic name of a member does (owner, 2026-10-26, fbk_062).
+      const nameAr = state.projects[event.targetId]?.nameAr;
+      const named = (detail: Record<string, string>) => ({ label: name, detail: nameAr ? { ...detail, labelAr: nameAr } : detail });
+      if (event.verb === 'project.code_changed' && typeof after.code === 'string') return named({ code: after.code });
       // One cause line for the many changes of a template update (INT-13): the name of the template.
       if (event.verb === 'project.template_synced') {
         const templateId = (after.templateLink as { templateId?: string } | null | undefined)?.templateId;
-        return { label: name, detail: { template: (templateId && projectTemplatesOf(state)[templateId]?.name) || '' } };
+        return named({ template: (templateId && projectTemplatesOf(state)[templateId]?.name) || '' });
       }
       // The apply of a template (fbk_020): the name of the template and what came in. The event keeps the numbers (addedParts).
       if (event.verb === 'project.template_applied') {
         const templateId = (after.templateLink as { templateId?: string } | null | undefined)?.templateId;
         const added = after.addedParts as { stages?: number; tasks?: number } | undefined;
-        return {
-          label: name,
-          detail: { template: (templateId && projectTemplatesOf(state)[templateId]?.name) || '', stages: String(added?.stages ?? 0), tasks: String(added?.tasks ?? 0) },
-        };
+        return named({ template: (templateId && projectTemplatesOf(state)[templateId]?.name) || '', stages: String(added?.stages ?? 0), tasks: String(added?.tasks ?? 0) });
       }
-      if (typeof after.currentStageId === 'string') return { label: name, detail: { stage: state.stages[after.currentStageId]?.name ?? '' } };
+      if (typeof after.currentStageId === 'string') return named({ stage: state.stages[after.currentStageId]?.name ?? '' });
       if ('leaderId' in after) {
-        return { label: name, detail: typeof after.leaderId === 'string' ? namesUnder('leader', state.users[after.leaderId]) : { leader: '' } };
+        return named(typeof after.leaderId === 'string' ? namesUnder('leader', state.users[after.leaderId]) : { leader: '' });
       }
-      return { label: name, detail: {} };
+      return named({});
     }
     case 'meeting': {
       // The title of the meeting, for the project feed and the History (fbk_022). The kind helps a screen choose its words.
@@ -348,7 +348,7 @@ export function taskRowOf(state: State, task: Task, today: string, viewer: User)
     owner: task.ownerId === null ? null : cardOf(state, task.ownerId),
     helpers: helpersOf(task).map((id) => cardOf(state, id)),
     // An office task has no project and no stage (owner, 2026-10-06).
-    project: task.projectId === null ? null : { id: task.projectId, code: project?.code ?? '', name: project?.name ?? '', mark: markOf(project ?? { id: task.projectId }) },
+    project: task.projectId === null ? null : projectRef({ id: task.projectId, code: project?.code ?? '', name: project?.name ?? '', nameAr: project?.nameAr, mark: project?.mark }),
     stage: task.stageId === null ? null : { id: task.stageId, name: stage?.name ?? '' },
     commentCount: countComments(state, 'task', task.id),
     fileCount: countFiles(state, task.id),

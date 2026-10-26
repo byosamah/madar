@@ -32,6 +32,7 @@ import { GroupPicture } from './GroupPicture';
 import { chatState } from './chatBack';
 import { ChatKindChips } from './ChatKindChips';
 import { KINDS, type ChatKind } from './chatKinds';
+import { useProjectName } from '../../app/projectName';
 
 type Row = CallOutput<'chats.list'>[number];
 
@@ -46,7 +47,9 @@ function Lead({ row }: { row: Row }) {
 /** The title of a row: a direct chat shows the other person's name in the screen language (owner item 12). */
 export function useTitleOf(): (row: Row) => string {
   const nameOf = usePersonName();
-  return (row) => (row.kind === 'direct' && row.person ? nameOf(row.person) : row.title);
+  const projectName = useProjectName();
+  // A project chat is titled by its project, so it follows the screen language (owner, 2026-10-26, fbk_062).
+  return (row) => (row.kind === 'direct' && row.person ? nameOf(row.person) : row.kind === 'project' && row.project ? projectName(row.project) : row.title);
 }
 
 /**
@@ -237,7 +240,7 @@ export function ChatList({ rows, selectedId, onMarkUnread }: { rows: Row[]; sele
   // The main list holds the chats that are not archived; a search looks in all of them. The archived list holds the archived chats.
   const listed = archivedOpen ? archivedRows : needle === '' ? kindRows.filter((row) => !row.archived) : kindRows;
   // A direct chat matches both names of the person (owner item 12). A group matches its name, and only its members have its row.
-  const shown = needle === '' ? listed : listed.filter((row) => normalizeForSearch(`${row.title} ${row.person?.nameAr ?? ''} ${row.project?.name ?? ''}`).includes(needle));
+  const shown = needle === '' ? listed : listed.filter((row) => normalizeForSearch(`${row.title} ${row.person?.nameAr ?? ''} ${row.project?.name ?? ''} ${row.project?.nameAr ?? ''}`).includes(needle));
   // The first rows draw at once and the others at an idle moment (RN-2). The last list is the same list.
   const drawn = useStaged(shown.length, FIRST_ROWS);
   // A finger swipes. A mouse or a trackpad uses the button that shows on hover.

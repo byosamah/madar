@@ -73,6 +73,29 @@ describe('a press on a main tab starts the read of its screen (LV-9)', () => {
   }, 60_000);
 });
 
+describe('a press on the Projects tab for an Admin with "Only my work" (owner, 2026-10-26, fbk_065)', () => {
+  it('starts the read of "mine", and the screen asks the server for it once', async () => {
+    const app = await renderHeldRemoteApp('/work', (state) => {
+      state.session.currentUserId = 'usr_001';
+      state.users.usr_001.preferences.adminReach = 'mine';
+    });
+    await waitFor(() => expect(app.queryClient.getQueryData(['api', 'session.get', {}])).toBeDefined(), { timeout: 10_000 });
+    await flush(150);
+    app.hold();
+    const input = { status: 'active', sort: 'updated', filter: 'mine' };
+    const link = (await screen.findAllByRole('link', { name: /^Projects/ }))[0];
+    fireEvent.pointerDown(link);
+    await flush();
+    expect(timesAsked(app.asked, 'projects.list', input)).toBe(1);
+    await act(async () => { await app.router.navigate('/projects'); });
+    app.release();
+    await waitFor(() => expect(observed(app.queryClient, 'projects.list', input)).toBeGreaterThan(0), { timeout: 10_000 });
+    await flush(100);
+    expect(timesAsked(app.asked, 'projects.list', input)).toBe(1);
+    expect(timesAsked(app.asked, 'projects.list', { status: 'active', sort: 'updated', filter: 'all' })).toBe(0);
+  }, 60_000);
+});
+
 describe('a press on a phone tab starts the reads of its target', () => {
   const PHONE_CASES: [string, string, string, { name: string; input: unknown }[]][] = [
     ['Work', '^Work', '/work', [

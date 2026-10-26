@@ -10,6 +10,7 @@ import {
 } from '../../lib/projectCode';
 import { codePreview, isCodeWarning, upperCodeHead, type CodeErrors, type CodeMode } from './codeForm';
 import type { ProjectForm } from './ProjectFields';
+import { useProjectName, useByProjectName } from '../../app/projectName';
 
 /** The examples in the hints. They are code, so they stay in Latin letters in both languages. */
 const EXAMPLES = { initials: 'AZT', type: 'Villa, Office Tower', code: '260902AZT-RES-Villa' };
@@ -39,6 +40,8 @@ export function CodeAnywayTick({ id, checked, onChange }: { id: string; checked:
  */
 export function ProjectCodeFields({ form, clients }: { form: ProjectForm; clients: Client[] }) {
   const { t } = useTranslation();
+  const projectName = useProjectName();
+  const byProjectName = useByProjectName();
   const list = useCall('projects.list', { status: 'all' });
   const { values, errors, set, touch } = form;
   const client = clients.find((item) => item.id === values.clientId);
@@ -58,7 +61,7 @@ export function ProjectCodeFields({ form, clients }: { form: ProjectForm; client
   }, [values.clientId, locked]);
 
   // An internal project has no contract, so another project cannot share its code (fbk_044).
-  const projects = [...(list.data ?? [])].filter((summary) => summary.project.kind !== 'internal').sort((a, b) => a.project.name.localeCompare(b.project.name));
+  const projects = [...(list.data ?? [])].filter((summary) => summary.project.kind !== 'internal').sort((a, b) => byProjectName(a.project, b.project));
   const yymm = codeMonth(todayISO());
   const series = nextSeries(projects.map((summary) => summary.project.code), yymm);
   const sameCode = projects.find((summary) => summary.project.id === values.sameAs)?.project.code ?? null;
@@ -116,7 +119,7 @@ export function ProjectCodeFields({ form, clients }: { form: ProjectForm; client
         >
           <option value="">{t('projectCode.chooseProject')}</option>
           {projects.map((summary) => (
-            <option key={summary.project.id} value={summary.project.id}>{`${projectKey(summary.project.code)} · ${summary.project.name}`}</option>
+            <option key={summary.project.id} value={summary.project.id}>{`${projectKey(summary.project.code)} · ${projectName(summary.project)}`}</option>
           ))}
         </SelectField>
       )}

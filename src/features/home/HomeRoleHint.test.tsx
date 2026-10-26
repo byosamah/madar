@@ -53,6 +53,33 @@ describe("Home asks for the person's project list before session.get answers (pe
     expect(window.localStorage.getItem(HINT_KEY)).toBe('member');
   });
 
+  it('asks for the Member list at once when the device saw an Admin with "Only my work", and keeps the choice for the next start', async () => {
+    window.localStorage.setItem(HINT_KEY, 'admin|mine');
+    let holding = true;
+    const { sent, release } = await renderRemoteApp('/', (state) => {
+      state.session.currentUserId = 'usr_001';
+      state.users.usr_001.preferences.adminReach = 'mine';
+    }, { auth, hold: (name) => holding && name === 'session.get' });
+    await waitFor(() => expect(lists(sent)).toEqual([MINE_LIST]));
+    holding = false;
+    release();
+    await screen.findByRole('list', { name: 'Your projects' });
+    expect(lists(sent)).toEqual([MINE_LIST]);
+    expect(window.localStorage.getItem(HINT_KEY)).toBe('admin|mine');
+  });
+
+  it('lets the session decide when the stored choice is out of date', async () => {
+    window.localStorage.setItem(HINT_KEY, 'admin|mine');
+    let holding = true;
+    const { sent, release } = await renderRemoteApp('/', as('usr_001'), { auth, hold: (name) => holding && name === 'session.get' });
+    await waitFor(() => expect(lists(sent)).toEqual([MINE_LIST]));
+    holding = false;
+    release();
+    await screen.findByRole('list', { name: 'Your projects' });
+    await waitFor(() => expect(lists(sent)).toEqual([MINE_LIST, ADMIN_LIST]));
+    expect(window.localStorage.getItem(HINT_KEY)).toBe('admin');
+  });
+
   it('reads no hint without an auth user, as in the prototype', async () => {
     window.localStorage.setItem(HINT_KEY, 'admin');
     let holding = true;

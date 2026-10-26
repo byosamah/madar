@@ -21,6 +21,7 @@ import { joinLink, mainAction } from './meetingLinks';
 import { AddMinutes, MinutesBody, QUIET } from './MinutesPart';
 import { MinutesSheet } from './MinutesSheet';
 import { ScopeSheet, type Scope } from './ScopeSheet';
+import { shownName } from '../../lib/projectLabel';
 
 const MAIN_LINK = 'pressable signature inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 text-subheadline font-semibold shadow-[0_4px_14px_rgba(31,42,85,0.22)] transition-[box-shadow,filter,transform] duration-150 hover:-translate-y-px hover:shadow-[0_8px_20px_rgba(31,42,85,0.28)] hover:brightness-110';
 
@@ -157,7 +158,7 @@ export function MeetingSheet({ meetingId, onClose }: { meetingId: string; onClos
             {meeting.project ? (
               <Link to={`/projects/${meeting.project.id}`} className="-my-1.5 inline-flex min-h-11 items-center gap-2 text-link">
                 <ProjectTile id={meeting.project.id} mark={meeting.project.mark} size={24} />
-                <bdi>{meeting.project.name}</bdi>
+                <bdi>{shownName(meeting.project, lang)}</bdi>
               </Link>
             ) : (
               <>

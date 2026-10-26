@@ -23,6 +23,8 @@ import { LENGTHS, REPEATS, defaultSlot, lengthWords, splitStamp, stampOf, type R
 import { ScopeSheet, type Scope } from './ScopeSheet';
 import { TimeField } from './TimeField';
 import { usePlanRights } from './planRights';
+import { shownName } from '../../lib/projectLabel';
+import { useLang } from '../../app/lang';
 
 const L = MEETING_LIMITS;
 
@@ -93,10 +95,11 @@ export function MeetingForm({ open, onOpenChange, meeting, project = null }: {
   /** The meeting to edit. Without it, the form plans a new meeting. */
   meeting?: MeetingDetail;
   /** The project that a new meeting starts in (the Meetings panel of a project). */
-  project?: { id: string; name: string } | null;
+  project?: { id: string; name: string; nameAr?: string } | null;
 }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
+  const lang = useLang();
   const byName = useByPersonName();
   const edit = meeting !== undefined;
   const session = useCall('session.get', {});
@@ -219,7 +222,7 @@ export function MeetingForm({ open, onOpenChange, meeting, project = null }: {
   const newDay = meeting !== undefined && scoping !== null && 'startsAt' in scoping && splitStamp(startsAt).day !== splitStamp(meeting.startsAt).day;
 
   const today = todayISO();
-  const projectName = meeting?.project?.name ?? '';
+  const projectLabel = meeting?.project ? shownName(meeting.project, lang) : '';
   return (
     <>
       <Sheet
@@ -248,11 +251,11 @@ export function MeetingForm({ open, onOpenChange, meeting, project = null }: {
               hint={draft.projectId === '' ? t('meetings.form.officeHint') : undefined} onChange={(event) => onProject(event.target.value)}
             >
               {rights.none && <option value="">{t('meetings.form.noProject')}</option>}
-              {project && !live.some((summary) => summary.project.id === project.id) && <option value={project.id}>{project.name}</option>}
-              {live.map((summary) => <option key={summary.project.id} value={summary.project.id}>{summary.project.name}</option>)}
+              {project && !live.some((summary) => summary.project.id === project.id) && <option value={project.id}>{shownName(project, lang)}</option>}
+              {live.map((summary) => <option key={summary.project.id} value={summary.project.id}>{shownName(summary.project, lang)}</option>)}
             </SelectField>
           )}
-          {edit && projectName !== '' && <p className="-mt-2 text-footnote text-ink-2"><bdi>{projectName}</bdi></p>}
+          {edit && projectLabel !== '' && <p className="-mt-2 text-footnote text-ink-2"><bdi>{projectLabel}</bdi></p>}
           <div className="grid grid-cols-3 gap-3">
             <DateField
               id="meeting-day" label={t('meetings.form.day')} required disabled={locked} value={draft.day} min={edit ? undefined : addDays(today, -L.pastDays)}

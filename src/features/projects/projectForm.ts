@@ -6,6 +6,9 @@ import { planOfForm } from './templateForm';
 /** The project template to start from (owner, 2026-10-05, item 6a). templateId '' is no template. See templateForm.ts. */
 export type TemplateChoice = { templateId: string; templateRoles: Record<string, string>; templateStretch: Record<string, boolean> };
 
+/** The longest Arabic name of a project: the same limit as projects.create. */
+export const NAME_AR_MAX = 120;
+
 export function emptyTemplateChoice(): TemplateChoice {
   return { templateId: '', templateRoles: {}, templateStretch: {} };
 }
@@ -16,6 +19,8 @@ export type ProjectFormValues = CodeValues & TemplateChoice & {
   /** client or internal (fbk_044). An internal project hides the code, client, place, area, sub-company and contract date. */
   kind: ProjectKind;
   name: string;
+  /** The Arabic name (owner, 2026-10-26, fbk_062). Optional, so an empty text means none. */
+  nameAr: string;
   clientId: string;
   /** The sub-company (fbk_007). Empty is no sub-company. */
   subCompanyId: string;
@@ -36,7 +41,7 @@ export type ProjectFormValues = CodeValues & TemplateChoice & {
 
 /** Each value is a text key, so the form shows the message in the current language. */
 /** "template" has no field text: the line under the dates says why the plan does not fit. It only stops the create. */
-export type ProjectFormErrors = Partial<Record<'name' | 'area' | 'startDate' | 'targetEndDate' | 'stages' | 'code' | 'template' | 'subCompanyId', string>> & CodeErrors;
+export type ProjectFormErrors = Partial<Record<'name' | 'nameAr' | 'area' | 'startDate' | 'targetEndDate' | 'stages' | 'code' | 'template' | 'subCompanyId', string>> & CodeErrors;
 
 /**
  * Which extra rules apply: the code group of a new project, or the Admin's code correction in the edit form. "templates" are the
@@ -51,7 +56,7 @@ export type ProjectFormRules = {
 
 export function emptyProjectForm(stages: string[]): ProjectFormValues {
   return {
-    name: '', kind: 'client', clientId: '', subCompanyId: '', leader: 'me', location: '', geo: null, area: '', contractStartDate: '', startDate: '', targetEndDate: '',
+    name: '', nameAr: '', kind: 'client', clientId: '', subCompanyId: '', leader: 'me', location: '', geo: null, area: '', contractStartDate: '', startDate: '', targetEndDate: '',
     stages: stages.map((name) => ({ name })), teamIds: [], modelFolderPath: '', description: '', code: '', ...emptyCodeValues(),
     ...emptyTemplateChoice(),
   };
@@ -74,6 +79,7 @@ export function areaValue(text: string): number | null {
 export function validateProjectForm(values: ProjectFormValues, rules: ProjectFormRules = {}): ProjectFormErrors {
   const errors: ProjectFormErrors = {};
   if (!values.name.trim()) errors.name = 'projectForm.errors.nameRequired';
+  if (values.nameAr.trim().length > NAME_AR_MAX) errors.nameAr = 'projectForm.errors.nameArLong';
   const area = areaValue(values.area);
   if (area !== null && !(area >= 0)) errors.area = 'projectForm.errors.areaNumber';
   if (values.startDate && values.targetEndDate && values.targetEndDate <= values.startDate) errors.targetEndDate = 'projectForm.errors.endAfterStart';

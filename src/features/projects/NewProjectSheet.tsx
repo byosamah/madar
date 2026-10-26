@@ -123,6 +123,7 @@ export function NewProjectSheet({ open, onOpenChange }: { open: boolean; onOpenC
         };
       const detail = await api.call('projects.create', {
         name: v.name.trim(),
+        ...(v.nameAr.trim() ? { nameAr: v.nameAr.trim() } : {}),
         leader: v.leader,
         ...plan,
         teamIds: v.teamIds,

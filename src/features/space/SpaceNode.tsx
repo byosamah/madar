@@ -19,6 +19,7 @@ import { formatDay, todayISO, type Lang } from '../../lib/dates';
 import { counted } from '../../lib/grammar';
 import { dueText, dueWord } from '../../lib/due';
 import { CARD_HEIGHT, type SpaceKind } from './spaceTree';
+import { useProjectName } from '../../app/projectName';
 
 /** What one card shows. The screen fills it from the lists it reads. A card with no next level has `expandable` false. */
 export type SpaceCardData = {
@@ -143,6 +144,7 @@ function Facts({ facts }: { facts: NonNullable<SpaceCardData['facts']> }) {
 
 function ProjectCard({ data }: { data: SpaceCardData }) {
   const { t } = useTranslation();
+  const projectName = useProjectName();
   const navigate = useNavigate();
   const summary = data.summary;
   if (!summary) return null;
@@ -157,7 +159,7 @@ function ProjectCard({ data }: { data: SpaceCardData }) {
         <span className="flex items-center gap-2.5 pe-9">
           <ProjectTile id={summary.project.id} mark={summary.project.mark} size={32} subCompanyId={summary.subCompanyId} />
           <span className="flex min-w-0 flex-col gap-0.5">
-            <bdi dir="auto" className="truncate text-subheadline font-semibold text-ink">{summary.project.name}</bdi>
+            <bdi dir="auto" className="truncate text-subheadline font-semibold text-ink">{projectName(summary.project)}</bdi>
             {/* On track is the normal state, so its word stays for a screen reader only. */}
             <StatusSign state={state}>{state === 'on_track' ? <span className="sr-only">{word}</span> : word}</StatusSign>
           </span>

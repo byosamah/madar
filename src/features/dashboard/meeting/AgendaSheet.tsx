@@ -9,6 +9,7 @@ import { Switch } from '../../../components/Switch';
 import { counted } from '../../../lib/grammar';
 import type { DashboardData } from '../Tiles';
 import { MEETING_MINUTES, type MeetingMinutes, type MeetingSession } from './session';
+import { useProjectName } from '../../../app/projectName';
 
 type Row = DashboardData['schedule'][number];
 
@@ -32,6 +33,7 @@ export function AgendaSheet({ rows, session, bigScreen, onBigScreen, onPick, onS
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const projectName = useProjectName();
   const [asking, setAsking] = useState(false);
   return (
     <Sheet
@@ -74,7 +76,7 @@ export function AgendaSheet({ rows, session, bigScreen, onBigScreen, onPick, onS
                   <span className="tabular w-6 shrink-0 text-[15px] text-ink-2">{index + 1}</span>
                   <ProjectTile id={row.project.id} mark={row.project.mark} size={36} subCompanyId={row.project.subCompanyId} />
                   {/* A discussed project fades and carries the check, so the eye goes to what is left. */}
-                  <bdi className={`min-w-0 flex-1 truncate text-[17px] ${now ? 'font-bold text-ink' : discussed ? 'font-medium text-ink-2' : 'font-semibold text-ink'}`}>{row.project.name}</bdi>
+                  <bdi className={`min-w-0 flex-1 truncate text-[17px] ${now ? 'font-bold text-ink' : discussed ? 'font-medium text-ink-2' : 'font-semibold text-ink'}`}>{projectName(row.project)}</bdi>
                   {discussed && <StatusSign state="completed">{t('dashboard.meeting.discussed')}</StatusSign>}
                   {states.length > 0 && <span className="shrink-0 text-[15px] text-ink-2">{states.join(' · ')}</span>}
                 </button>

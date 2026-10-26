@@ -27,6 +27,7 @@ import { MeetingPayments } from './meeting/MeetingPayments';
 import { PeopleStrip } from './meeting/PeopleStrip';
 import type { DashboardData } from './Tiles';
 import { prefetchReads, sessionSeesPayments, type Read } from '../project/reads';
+import { shownName } from '../../lib/projectLabel';
 
 type Row = DashboardData['schedule'][number];
 
@@ -107,14 +108,14 @@ export function MeetingProject({ row, tasks, discussed = false, onOpenTask }: { 
   const open = (item: TaskRow) => onOpenTask(item.task.id);
   const stageLeft = stage?.endDate ? diffDays(today, stage.endDate) : null;
   return (
-    <article aria-label={row.project.name} className="flex min-h-0 flex-1 flex-col gap-5">
+    <article aria-label={shownName(row.project, lang)} className="flex min-h-0 flex-1 flex-col gap-5">
       <header className="panel flex shrink-0 flex-wrap items-center gap-x-6 gap-y-4 p-6">
         <ProjectTile id={row.project.id} mark={row.project.mark} size={64} subCompanyId={row.project.subCompanyId} />
         {/* The header holds who, where and how: the name, the people with open work, and the stage with its state. */}
         <div className="flex min-w-0 flex-1 basis-80 flex-col gap-3">
           <div>
             {discussed && <StatusSign state="completed">{t('dashboard.meeting.discussed')}</StatusSign>}
-            <h2 dir="auto" className="text-[34px] font-bold leading-tight tracking-[-0.02em] text-ink [text-wrap:balance]">{row.project.name}</h2>
+            <h2 dir="auto" className="text-[34px] font-bold leading-tight tracking-[-0.02em] text-ink [text-wrap:balance]">{shownName(row.project, lang)}</h2>
           </div>
           <PeopleStrip tasks={mine} onOpenTask={onOpenTask} />
         </div>

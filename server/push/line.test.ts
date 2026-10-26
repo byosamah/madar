@@ -121,6 +121,36 @@ describe('noticeLine', () => {
     expect(line!.body).toContain(nameOf(w.office, 'usr_001'));
   });
 
+  it('titles the push of a notice with the Arabic name of the project for a person on Arabic screens (owner, 2026-10-26, fbk_062)', async () => {
+    const w = world((office) => {
+      office.users.usr_002.preferences.language = 'ar';
+    });
+    const task = Object.values(w.office.tasks).find((one) => one.projectId !== null && one.ownerId !== 'usr_002' && one.status !== 'done')!;
+    await w.call('usr_001', 'projects.update', { id: task.projectId, patch: { nameAr: 'برج الكورنيش' } });
+    await w.call('usr_001', 'tasks.update', { id: task.id, patch: { ownerId: 'usr_002' } });
+    const line = await noticeLine(w.deps, 'usr_002', { run: w.run });
+    expect(line).toMatchObject({ title: 'برج الكورنيش', lang: 'ar' });
+  });
+
+  it('keeps the English title for a person on English screens, also when the project has an Arabic name', async () => {
+    const w = world();
+    const task = Object.values(w.office.tasks).find((one) => one.projectId !== null && one.ownerId !== 'usr_002' && one.status !== 'done')!;
+    await w.call('usr_001', 'projects.update', { id: task.projectId, patch: { nameAr: 'برج الكورنيش' } });
+    await w.call('usr_001', 'tasks.update', { id: task.id, patch: { ownerId: 'usr_002' } });
+    const [view] = await w.call<Array<{ project: { name: string } | null }>>('usr_002', 'notifications.list', { unreadOnly: true });
+    expect(await noticeLine(w.deps, 'usr_002', { run: w.run })).toMatchObject({ title: view.project!.name, lang: 'en' });
+  });
+
+  it('titles the push of a project chat with the project name in the language of the person', async () => {
+    const w = world((office) => {
+      office.users.usr_002.preferences.language = 'ar';
+    });
+    await w.call('usr_001', 'projects.update', { id: 'prj_001', patch: { nameAr: 'برج الكورنيش' } });
+    const chat = Object.values(w.office.conversations).find((one) => one.kind === 'project' && one.projectId === 'prj_001')!;
+    await w.call('usr_001', 'chats.send', { conversationId: chat.id, body: 'A note for the team.' });
+    expect(await chatLine(w.deps, 'usr_002', chat.id, { run: w.run })).toMatchObject({ title: 'برج الكورنيش', lang: 'ar' });
+  });
+
   it('gives nothing when the person has no unread notice', async () => {
     const w = world((office) => {
       for (const notice of Object.values(office.notifications)) notice.read = true;

@@ -5,6 +5,7 @@ import type { ItemRef, PartRef, Span, SyncChoices, SyncDiff } from '../../../api
 import { useLang } from '../../../app/lang';
 import { counted } from '../../../lib/grammar';
 import { formatDay, listFormat, type Lang } from '../../../lib/dates';
+import { useProjectName } from '../../../app/projectName';
 
 /** The kinds of change that the Admin picks, in the order of the cards. */
 export const KINDS = ['add', 'bringBack', 'removed', 'text', 'dates', 'leads', 'closed', 'stages', 'edited'] as const;
@@ -148,6 +149,7 @@ export function ChangeCard({ kind, rows, choices, onChoose, nameOf }: {
 }) {
   const { t } = useTranslation();
   const lang = useLang();
+  const projectName = useProjectName();
   const [all, setAll] = useState(false);
   const withItems = rows.filter((row) => itemsOf(row.diff, kind) > 0);
   const items = withItems.reduce((sum, row) => sum + itemsOf(row.diff, kind), 0);
@@ -182,7 +184,7 @@ export function ChangeCard({ kind, rows, choices, onChoose, nameOf }: {
           if (visible.length === 0) return null;
           return (
             <li key={row.project.id} className="flex flex-col gap-0.5">
-              {rows.length > 1 && <bdi className="text-footnote font-semibold text-ink">{row.project.name}</bdi>}
+              {rows.length > 1 && <bdi className="text-footnote font-semibold text-ink">{projectName(row.project)}</bdi>}
               <ul className="flex flex-col gap-0.5">
                 {visible.map((text, index) => <li key={index} dir="auto" className="text-footnote text-ink-2">{text}</li>)}
               </ul>

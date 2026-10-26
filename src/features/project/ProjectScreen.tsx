@@ -21,6 +21,7 @@ import { useIsPhone } from '../../app/useIsPhone';
 import { projectsListLink } from '../../app/lastList';
 import { MoreSubPage } from './MoreTab';
 import { TAB_BODY, isMorePage, litPhoneTab, phoneTabsOf, tabOfLink, tabReads, tabSearch, tabsOf, type ProjectTab } from './tabs';
+import { useProjectName } from '../../app/projectName';
 
 /** A tab change on a phone brings the tab row to the top when the header has scrolled away (the row is sticky). */
 function scrollToTabRow(): void {
@@ -33,6 +34,7 @@ function scrollToTabRow(): void {
 /** One project with the tabs Overview, Tasks, Schedule, Files & Links and Team (spec 5). The tab lives in the link. */
 export function ProjectScreen() {
   const { t } = useTranslation();
+  const projectName = useProjectName();
   const { projectId = '' } = useParams();
   const [params, setParams] = useSearchParams();
   const raw = params.get('tab');
@@ -77,7 +79,7 @@ export function ProjectScreen() {
   if (!detail.data) {
     const summary = queryClient.getQueriesData<ProjectSummary[]>({ queryKey: ['api', 'projects.list'] })
       .flatMap(([, list]) => list ?? []).find((item) => item.project.id === projectId);
-    return summary ? <LayoutGroup id={sharedSource()}><HeaderShell id={summary.project.id} name={summary.project.name} mark={summary.project.mark} /></LayoutGroup> : null;
+    return summary ? <LayoutGroup id={sharedSource()}><HeaderShell id={summary.project.id} name={projectName(summary.project)} mark={summary.project.mark} /></LayoutGroup> : null;
   }
   // The tabs of this project: an internal project has no Tracker, so the address of that tab opens the Overview.
   const shown = tabsOf(detail.data.project);

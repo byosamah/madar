@@ -24,12 +24,15 @@ import { planProject, type ProjectPlan } from '../../lib/projectPlan';
 import { workingDaysInclusive } from '../../lib/templatePlan';
 import { pinFromLinks, samePoint } from '../../lib/geo';
 import { baseOf } from '../templateSync';
-import { markOf, pickMark } from '../../lib/projectMark';
+import { pickMark } from '../../lib/projectMark';
+import { projectRef } from '../../lib/projectRef';
 import { involves } from '../../lib/taskPeople';
 import { addMember, assertCan, requireProject, requireStage, requireUser, roleIn, seesProject, touch } from './shared';
 import { addTrackerEntry } from './tracker';
 
 const ProjectName = z.string().trim().min(1).max(120);
+/** The Arabic name (owner, 2026-10-26, fbk_062). Optional. An empty value means none. */
+const ProjectNameAr = z.string().trim().max(120);
 const StageName = z.string().trim().min(1).max(60);
 const Location = z.string().trim().max(120);
 
@@ -385,6 +388,7 @@ export const projectsGet = defineCall({
 export const projectsCreate = defineCall({
   input: z.object({
     name: ProjectName,
+    nameAr: ProjectNameAr.optional(),
     clientId: ClientId.nullable().default(null),
     /** The sub-company (fbk_007). An office with sub-companies needs one; an office with none takes none. */
     subCompanyId: SubCompanyId.nullable().optional(),
@@ -459,7 +463,7 @@ export const projectsCreate = defineCall({
     const startDate = made ? made.use.startDate : input.startDate;
     const targetEndDate = made ? made.use.endDate ?? planEnd : input.targetEndDate;
     const project: Project = {
-      id, code, name: input.name, clientId: input.clientId,
+      id, code, name: input.name, ...(input.nameAr ? { nameAr: input.nameAr } : {}), clientId: input.clientId,
       status: 'active', leaderId, currentStageId: stageIds[0], location: input.location, areaM2: input.areaM2, geo: input.geo,
       startDate, targetEndDate, contractStartDate: input.contractStartDate, coverFileId: null, modelFolderPath: input.modelFolderPath,
       description: input.description, healthOverride: null, mark: pickMark(id, Object.values(state.projects)),
@@ -490,6 +494,8 @@ export const projectsUpdate = defineCall({
     id: ProjectId,
     patch: z.object({
       name: ProjectName.optional(),
+      /** The Arabic name. An empty value takes it off (owner, 2026-10-26, fbk_062). */
+      nameAr: ProjectNameAr.optional(),
       clientId: ClientId.nullable().optional(),
       location: Location.optional(),
       areaM2: Area.nullable().optional(),
@@ -517,6 +523,8 @@ export const projectsUpdate = defineCall({
     if (isInternal(project)) assertInternalUpdate(input.patch);
     // The rule of the place comes before any change, so a refused write changes nothing.
     const patch = placeRule(project, asked);
+    // Clearing an Arabic name that the project never had is no change, so it writes no event.
+    if (patch.nameAr === '' && !project.nameAr) delete patch.nameAr;
     if (patch.subCompanyId !== undefined) assertSubCompany(ctx, patch.subCompanyId);
     const newCode = code !== undefined && code !== project.code ? code : undefined;
     if (newCode !== undefined) {
@@ -1112,7 +1120,7 @@ export const deadlinesList = defineCall({
       .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
       .map((d) => {
         const project = state.projects[d.projectId];
-        return { deadline: d, project: { id: project.id, code: project.code, name: project.name, mark: markOf(project) }, daysLeft: diffDays(today, d.date) };
+        return { deadline: d, project: projectRef(project), daysLeft: diffDays(today, d.date) };
       });
   },
 });

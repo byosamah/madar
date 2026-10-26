@@ -98,7 +98,8 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 - What reaches the Admin (owner, 2026-10-23): `chats.list` of an agent of an Admin follows the choice of its person (`adminReachOf`, `mine` leaves
   out the project chats the Admin neither leads nor works on, `all` counts every message). The agent cannot set it: `me.updatePreferences` and
   `notifications.updateSettings` stay on the deny list. The `TOOL_DOCS` of `chats.list` (600 characters at most) and the Messages paragraph of
-  INSTRUCTIONS say so. Notices are not an MCP read, so the copies for the bell need no tool text.
+  INSTRUCTIONS say so. Notices are not an MCP read, so the copies for the bell need no tool text. "Only my work" also changes the Home and Projects screens (fbk_065), but `projects.list` of an agent keeps its explicit `filter` input; the `projects.list` doc and the Messages paragraph of INSTRUCTIONS say so.
+- The Arabic name of a project (fbk_062): `nameAr` goes through the zod input and output of `projects.create`, `projects.update`, `projects.get` and `projects.list`, so no list changes. A `TOOL_DOCS` text is 600 characters at most (tests fail over it): the how-to for a list of Arabic names sits in the line "Arabic names:" of INSTRUCTIONS, and the four project docs only name `nameAr`.
 - Messages (owner, 2026-10-12): an agent messages the team with `chats.openDirect` (the direct chat with one person, made when
   there is none), `chats.list` (the chats the person may open, to find a project chat) and `chats.send` (one message as the
   person; the author is the agent and `actingForId` the person, so the Inbox shows both names). For one task it uses

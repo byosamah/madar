@@ -22,7 +22,7 @@ import { searchWords } from '../../lib/searchMatch';
 import { normalizeForSearch } from '../../lib/text';
 import { isOpen } from '../../lib/tracker';
 import { isLive } from '../../lib/overview';
-import { markOf } from '../../lib/projectMark';
+import { projectRef } from '../../lib/projectRef';
 
 const Count = z.number().int().min(0);
 /** Payments not yet received: how many, their total in Saudi riyals, and each one, the soonest first. */
@@ -32,7 +32,7 @@ const MoneyRows = z.object({
   payments: z.array(z.object({ id: PaymentId, projectId: ProjectId, projectCode: z.string(), name: z.string(), amount: z.number().positive(), dueDate: Day })),
 });
 /** subCompanyId: the badge of the project's sub-company, wherever a Dashboard list shows the project picture (PRJ-15). Optional, so an older answer parses. */
-const Ref = z.object({ id: ProjectId, code: z.string(), name: z.string(), mark: z.number().int().nonnegative(), subCompanyId: SubCompanyId.nullable().optional() });
+const Ref = z.object({ id: ProjectId, code: z.string(), name: z.string(), nameAr: z.string().optional(), mark: z.number().int().nonnegative(), subCompanyId: SubCompanyId.nullable().optional() });
 
 export const DashboardView = z.object({
   tiles: z.object({
@@ -189,7 +189,7 @@ export const dashboardGet = defineCall({
 
     const weekStart = weekStartOf(today);
     const humans = Object.values(state.users).filter((u) => u.kind === 'human' && u.active).sort((a, b) => a.name.localeCompare(b.name));
-    const refOf = (p: Project) => ({ id: p.id, code: p.code, name: p.name, mark: markOf(p), subCompanyId: p.subCompanyId ?? null });
+    const refOf = (p: Project) => ({ ...projectRef(p), subCompanyId: p.subCompanyId ?? null });
 
     const order = state.settings.defaultStages;
     const rank = (name: string) => (order.includes(name) ? order.indexOf(name) : order.length);
@@ -354,10 +354,10 @@ export const searchQuery = defineCall({
     const codeOf = (projectId: string | null) => (projectId === null ? '' : state.projects[projectId]?.code ?? '');
     return {
       projects: Object.values(state.projects)
-        .filter((p) => sees(p) && hit(p.code, p.name, p.clientId ? state.clients[p.clientId]?.name : undefined, p.clientId ? state.clients[p.clientId]?.nameAr : undefined))
+        .filter((p) => sees(p) && hit(p.code, p.name, p.nameAr, p.clientId ? state.clients[p.clientId]?.name : undefined, p.clientId ? state.clients[p.clientId]?.nameAr : undefined))
         .sort((a, b) => a.name.localeCompare(b.name))
         .slice(0, 5)
-        .map((p) => ({ id: p.id, code: p.code, name: p.name, mark: markOf(p) })),
+        .map((p) => projectRef(p)),
       // The tasks of active projects, and the office tasks that the person sees (owner, 2026-10-06).
       tasks: Object.values(state.tasks)
         .filter((t) => (t.projectId === null ? mayViewTask(state, ctx.authority, t) : state.projects[t.projectId]?.status === 'active' && sees(state.projects[t.projectId])) && hit(t.title))

@@ -11,7 +11,7 @@ import { ClipboardCheckIcon } from '../../components/icons/animated/clipboard-ch
 import { ProjectTile } from '../../components/ProjectTile';
 import { formatDay, stampDay } from '../../lib/dates';
 import { chatLink } from '../../lib/params';
-import { shownKey } from '../../lib/projectLabel';
+import { shownKey, shownName } from '../../lib/projectLabel';
 import { markedParts } from '../../lib/searchMatch';
 import { chatState } from '../inbox/chatBack';
 import { GroupPicture } from '../inbox/GroupPicture';
@@ -49,7 +49,7 @@ export function MessageHits({ hits, words }: { hits: CallOutput<'search.query'>[
       className="flex flex-col [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-footnote [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-label-2"
     >
       {hits.map((hit) => {
-        const name = hit.kind === 'direct' && hit.person ? nameOf(hit.person) : hit.title;
+        const name = hit.kind === 'direct' && hit.person ? nameOf(hit.person) : hit.kind === 'project' && hit.project ? shownName(hit.project, lang) : hit.title;
         const by = hit.mine ? t('chat.you') : nameOf(hit.author).split(' ')[0];
         // A task shows its project key beside its title, and an office task the word Office (as the Tasks group does).
         const key = hit.kind === 'task' ? (hit.project ? shownKey(hit.project.code, t) : t('office.word')) : null;

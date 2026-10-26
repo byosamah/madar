@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { ProjectDetail } from '../../../api/contract/views';
 import { lazyMapCanvas } from '../../map/mapLib';
 import { ProjectPin } from '../../map/ProjectPin';
+import { useProjectName } from '../../../app/projectName';
 
 // The real build only: the prototype has no street map, and its bundle must not hold the map code (check-bundles).
 // The library starts with the canvas chunk (lazyMapCanvas, FL-17).
@@ -14,6 +15,7 @@ const MapCanvas = import.meta.env.VITE_MADAR_API === 'remote' ? lazyMapCanvas() 
  */
 export function ProjectPlace({ detail }: { detail: ProjectDetail }) {
   const { t } = useTranslation();
+  const projectName = useProjectName();
   const point = detail.geo;
   if (!MapCanvas || !point) return null;
   const { project } = detail;
@@ -21,7 +23,7 @@ export function ProjectPlace({ detail }: { detail: ProjectDetail }) {
   return (
     <Suspense fallback={<div className="h-56" />}>
       <MapCanvas
-        pins={[{ id: project.id, point, label: project.name }]}
+        pins={[{ id: project.id, point, label: projectName(project) }]}
         compact
         fullscreen
         label={t('map.overview.label')}

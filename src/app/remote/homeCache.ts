@@ -1,7 +1,9 @@
 import { hashKey, type QueryClient } from '@tanstack/react-query';
 import type { CallName } from '../../api/calls';
+import type { AdminReach } from '../../api/contract/entities';
 import { todayMeetingsInput } from '../../features/meetings/readInputs';
 import { todayISO } from '../../lib/dates';
+import { homeProjectsInput, reachOfSession } from '../../lib/projectReach';
 import { isPhoneNow } from '../useIsPhone';
 import type { AuthPort } from '../auth';
 import type { Runtime } from '../runtime';
@@ -41,9 +43,10 @@ export type HomeRecord = { build: string; at: number; fingerprint: string; entri
 
 /**
  * The reads of a cold Home in its first request, for a role and a day. The stored list and the written list use this one function.
- * On a phone the list has no projects.list (Direction D).
+ * On a phone the list has no projects.list (Direction D). The projects.list input follows the role and, for an Admin, the "What reaches me"
+ * choice (owner, 2026-10-26, fbk_065): "Only my work" asks as a Member does, so a stored answer of the other input never shows.
  */
-export function homeKeys(role: string | undefined, today: string, phone = false): unknown[][] {
+export function homeKeys(role: string | undefined, today: string, phone = false, reach: AdminReach = 'mixed'): unknown[][] {
   const admin = role === 'admin';
   const keys: unknown[][] = [
     ['api', 'session.get', {}],
@@ -52,7 +55,7 @@ export function homeKeys(role: string | undefined, today: string, phone = false)
     ['api', 'tasks.list', { filter: 'mine' }],
     ['api', 'tasks.list', { filter: 'review_for_me' }],
     ['api', 'meetings.list', todayMeetingsInput(today)],
-    ['api', 'projects.list', admin ? { filter: 'all', sort: 'deadline' } : { filter: 'mine', status: 'all', sort: 'deadline' }],
+    ['api', 'projects.list', homeProjectsInput(admin, reach)],
     ['api', 'subCompanies.list', {}],
     ['api', 'users.list', {}],
   ];
@@ -246,7 +249,7 @@ function begin(o: HomeCacheOptions, userId: string, hydrateNow: boolean, signedI
       void deleteRecord(userId);
       return;
     }
-    const wanted = new Set(homeKeys(roleOf(record), today(), isPhoneNow()).map(hashOf));
+    const wanted = new Set(homeKeys(roleOf(record), today(), isPhoneNow(), reachOfSession(storedSession(record))).map(hashOf));
     for (const entry of record.entries) {
       const hash = hashOf(entry.key);
       if (!wanted.has(hash) || typeof entry.at !== 'number' || !shapeOk(entry.key[1] as string, entry.data)) continue;
@@ -286,7 +289,7 @@ function begin(o: HomeCacheOptions, userId: string, hydrateNow: boolean, signedI
   function collect(): HomeRecord | null {
     const session = queryClient.getQueryData<SessionLike>(['api', 'session.get', {}]);
     if (!session?.user) return null;
-    const keys = homeKeys(session.user.systemRole, today(), isPhoneNow());
+    const keys = homeKeys(session.user.systemRole, today(), isPhoneNow(), reachOfSession(session));
     const entries: Entry[] = [];
     for (const key of keys) {
       const query = cache.find({ queryKey: key, exact: true });
@@ -358,8 +361,12 @@ function shapeOk(name: string, data: unknown): boolean {
   return Array.isArray(data);
 }
 
+/** The session answer inside a record. */
+function storedSession(record: HomeRecord): SessionLike | undefined {
+  return record.entries.find((entry) => entry.key[1] === 'session.get')?.data as SessionLike | undefined;
+}
+
 /** The role of a record: the system role inside its stored session answer. */
 function roleOf(record: HomeRecord): string | undefined {
-  const session = record.entries.find((entry) => entry.key[1] === 'session.get')?.data as SessionLike | undefined;
-  return session?.user?.systemRole;
+  return storedSession(record)?.user?.systemRole;
 }

@@ -25,7 +25,7 @@ import { formatDay, formatNumber, stampDay } from '../../../lib/dates';
 import { UploadList } from '../../files/Attachments';
 import { tabButtonShows } from '../mainButton';
 import { DownloadAllButton } from '../../files/DownloadAll';
-import { shownKey } from '../../../lib/projectLabel';
+import { shownKey, shownName } from '../../../lib/projectLabel';
 import type { TabProps } from '../tabs';
 import { canPreview, PreviewSheet } from './PreviewSheet';
 import { LinkSheet, ProjectLinks, projectLinkRows } from './ProjectLinks';
@@ -209,7 +209,7 @@ export function FilesTab({ detail }: TabProps) {
   // or more. The whole-project button shows only when the files sit in more than one group, because with one group it would repeat the group button.
   const itemsOf = (views: FileView[]) => views.map((view) => ({ id: view.file.id, name: view.file.name }));
   const allItems = groups.flatMap((group) => itemsOf(group.files));
-  const projectZip = () => `${shownKey(detail.project, t)} ${detail.project.name}`;
+  const projectZip = () => `${shownKey(detail.project, t)} ${shownName(detail.project, lang)}`;
 
   // A tab with no files and no links shows one empty state, and the one Add button moves into it (it shows once, never twice).
   const empty = Boolean(files.data) && groups.length === 0 && !hasLinks;
@@ -302,7 +302,7 @@ export function FilesTab({ detail }: TabProps) {
       })}
       <LinkSheet detail={detail} link={editing} open={linkOpen} onOpenChange={setLinkOpen} />
       {preview && <PreviewSheet views={[preview]} index={0} onIndex={() => undefined} onClose={() => setPreview(null)} />}
-      {sharing && <ShareFileSheet view={sharing} projectId={detail.project.id} projectName={detail.project.name} viewerCan={detail.viewerCan} onClose={() => setSharing(null)} />}
+      {sharing && <ShareFileSheet view={sharing} projectId={detail.project.id} projectName={shownName(detail.project, lang)} viewerCan={detail.viewerCan} onClose={() => setSharing(null)} />}
     </div>
   );
 }

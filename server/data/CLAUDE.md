@@ -11,6 +11,7 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - Each entity table: `id text pk`, `ord bigserial`, `doc jsonb` (the whole zod record), generated key columns,
   `search_text`, `chg` (`supabase/migrations/20261004000100_core.sql`).
 - A new zod collection needs a table in a new migration and an entry in `tables.ts`.
+- `Project.nameAr` (fbk_062) lives in the `projects.doc` jsonb: no column and no migration. The `projects.search_text` server column holds it (`tables.ts`), so a save of a project writes it and the search loader finds a project by the Arabic name. A project saved before the field has no Arabic name in its `search_text` and needs none.
 - The loops of `20261004000102_guards.sql` and `20261004000103_roles.sql` ran once, so a table of a later migration gives
   itself RLS, the revoke from public, anon and authenticated, the madar_server grants and the `server_all` policy
   (`20261005000100_project_templates.sql` is the pattern).

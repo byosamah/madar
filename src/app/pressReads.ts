@@ -1,8 +1,11 @@
 import { useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import type { AdminReach } from '../api/contract/entities';
 import { meetingsListInput } from '../features/meetings/readInputs';
 import { PROJECT_SORT_KEY, PROJECT_SORTS } from '../features/projects/sort';
 import { MINE_OPEN, REVIEW_FOR_ME } from '../features/work/readInputs';
 import { todayISO } from '../lib/dates';
+import { projectsDefaultShow, reachOfSession } from '../lib/projectReach';
 import { GUARD_READS, read, type GuardRead } from './guardReads';
 import { REMOTE } from './mode';
 import { usePrefetchCall } from './prefetch';
@@ -25,16 +28,19 @@ function storedSort(): (typeof PROJECT_SORTS)[number] {
   }
 }
 
-/** features/projects/ProjectsScreen.tsx at /projects. */
-function projects(): GuardRead[] {
+/**
+ * features/projects/ProjectsScreen.tsx at /projects. The link has no filter, so an Admin with "Only my work" opens it on "mine"
+ * (owner, 2026-10-26, fbk_065): the read follows the reach of the cached session.
+ */
+function projects(reach: AdminReach): GuardRead[] {
   return [
-    read('projects.list', { status: 'active', sort: storedSort(), filter: 'all' }),
+    read('projects.list', { status: 'active', sort: storedSort(), filter: projectsDefaultShow(reach, new URLSearchParams()) }),
     read('settings.get', {}), read('teams.list', {}), read('users.list', {}), read('clients.list', {}), read('subCompanies.list', {}),
   ];
 }
 
 /** The reads by the link of the tab. */
-export const PRESS_READS: Record<string, () => GuardRead[]> = {
+export const PRESS_READS: Record<string, (reach: AdminReach) => GuardRead[]> = {
   '/projects': projects,
   '/dashboard': () => GUARD_READS.dashboard!(new URLSearchParams(), undefined),
   '/work': () => [read('tasks.list', MINE_OPEN), read('tasks.list', REVIEW_FOR_ME)],
@@ -47,7 +53,9 @@ export const PRESS_READS: Record<string, () => GuardRead[]> = {
 /** The function for onPointerDown of a tab link: it starts the main reads of the tab, when it has any. */
 export function usePressReads(): (to: string) => void {
   const prefetch = usePrefetchCall();
+  const client = useQueryClient();
   return useCallback((to: string) => {
-    for (const start of PRESS_READS[to]?.() ?? []) start(prefetch);
-  }, [prefetch]);
+    const reach = reachOfSession(client.getQueryData(['api', 'session.get', {}]));
+    for (const start of PRESS_READS[to]?.(reach) ?? []) start(prefetch);
+  }, [prefetch, client]);
 }

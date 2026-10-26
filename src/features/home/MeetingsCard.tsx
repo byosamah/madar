@@ -11,6 +11,7 @@ import { meetingLink, phaseOf } from '../../lib/meetings';
 import { mainAction } from '../meetings/meetingLinks';
 import { todayMeetingsInput } from '../meetings/readInputs';
 import { useMinuteTick } from '../meetings/useMinuteTick';
+import { useProjectName } from '../../app/projectName';
 
 /** The most rows the card shows. Every meeting of the day is one press away in "All meetings". */
 const ROWS = 3;
@@ -57,11 +58,12 @@ export function MeetingsCard() {
 /** The title with the kind and the project under it (one line each). An office meeting names only the kind. */
 function PhoneTitle({ row }: { row: MeetingRow }) {
   const { t } = useTranslation();
+  const projectName = useProjectName();
   return (
     <span className="flex min-w-0 flex-1 flex-col">
       <bdi className="block min-w-0 truncate text-subheadline text-ink">{row.title}</bdi>
       <span className="block min-w-0 truncate text-footnote text-ink-2">
-        {t(`meetings.kind.${row.kind}`)}{row.project && <> · <bdi>{row.project.name}</bdi></>}
+        {t(`meetings.kind.${row.kind}`)}{row.project && <> · <bdi>{projectName(row.project)}</bdi></>}
       </span>
     </span>
   );

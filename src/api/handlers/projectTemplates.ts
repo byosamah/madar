@@ -13,7 +13,7 @@ import { staleDaysOf } from '../pause';
 import { projectViewer } from '../projectView';
 import { can } from '../permissions';
 import { nextId, projectTemplatesOf } from '../store';
-import { markOf } from '../../lib/projectMark';
+import { projectRef } from '../../lib/projectRef';
 import { shiftAdded } from '../../lib/projectPlan';
 import { matchByNames } from '../../lib/templateMatch';
 import { workingDaysInclusive } from '../../lib/templatePlan';
@@ -375,7 +375,7 @@ const SyncCounts = z.object({
   leads: z.number().int(), closed: z.number().int(), stages: z.number().int(), edited: z.number().int(),
 });
 
-const refOf = (project: Project) => ({ id: project.id, code: project.code, name: project.name, mark: markOf(project) });
+const refOf = (project: Project) => projectRef(project);
 
 function templateOf(ctx: Ctx, templateId: string): ProjectTemplate {
   const template = projectTemplatesOf(ctx.state)[templateId];

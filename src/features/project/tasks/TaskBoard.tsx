@@ -27,6 +27,7 @@ import { useStageBack } from './StageBack';
 import { useTouchPhone } from './useTouchPhone';
 import { isWaiting, waitingNames } from '../../../lib/waiting';
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
+import { shownName } from '../../../lib/projectLabel';
 
 /** Arrow keys move a lifted card to the next column. The end-side arrow moves forward (spec 10.9). */
 const columnKeys: KeyboardCoordinateGetter = (event, { context }) => {
@@ -62,7 +63,7 @@ function CardFace({ row, lifted = false, across = false, yourReview = false }: {
       </div>
       {across && (
         <p className="flex items-center gap-2 text-footnote text-ink-2">
-          {row.project ? <bdi className="truncate">{row.project.name}</bdi> : <span>{t('office.word')}</span>}
+          {row.project ? <bdi className="truncate">{shownName(row.project, lang)}</bdi> : <span>{t('office.word')}</span>}
           {yourReview && <span className="ms-auto shrink-0 font-semibold text-ink">{t('workView.yourReview')}</span>}
         </p>
       )}

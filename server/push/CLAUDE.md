@@ -8,7 +8,7 @@ Firefox and Safari on a computer, on Android, and on an iPhone once Madar is on 
 - The push carries a line: a title, a body, a link in Madar, a tag and a language. A chat gives the name of the sender (a direct
   chat), of the group or of the project as the title, and "Name: first words" as the body (the words alone in a direct chat). A task
   comment gives the task title and "Name: words". A notice gives its project (or "Madar") and the sentence of the bell. The person's
-  own language, with the Arabic name on Arabic screens. The body stops at 180 characters. A press opens that chat, task thread or
+  own language, with the Arabic name on Arabic screens (a person, and a project too, since fbk_062: `shownName` in `line.ts`). The body stops at 180 characters. A press opens that chat, task thread or
   notice. The lock screen shows it: the Settings hint says so.
 - `line.ts` makes the line by reading AS THE PERSON who gets the push, with the read calls of the screens (`session.get`,
   `notifications.list`, `chats.list`, and `comments.list` with `tasks.get` for a task thread with no Inbox row): a chat or a task

@@ -20,3 +20,10 @@ describe('the MCP side of "What reaches me"', () => {
     expect(TOOL_DOCS['chats.list'].description).toContain('Settings can change this');
   });
 });
+
+describe('the MCP side of the project lists under "Only my work" (owner, 2026-10-26, fbk_065)', () => {
+  it('says that Only my work changes the screens, and that projects.list follows the filter of the agent', () => {
+    expect(INSTRUCTIONS).toContain('Only my work also changes the Home and Projects screens of your person');
+    expect(TOOL_DOCS['projects.list'].description).toContain('"Only my work" of an Admin does not change this list');
+  });
+});

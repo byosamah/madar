@@ -48,6 +48,7 @@ import { nowStamp } from '../../lib/dates';
 import { NewerMessages } from './NewerMessages';
 import type { SeenInfo } from './SeenLine';
 import { TypingLine } from './TypingLine';
+import { useProjectName } from '../../app/projectName';
 
 /**
  * The head of a pane. The title is a plain string: the `<bdi>` inside the heading is the element that cuts (`block truncate`), never the
@@ -134,6 +135,7 @@ function GroupMenu({ id, archived, unread, title, onPick, onArchive, onMarkUnrea
 export function ChatPane({ id, focusFromRoute, onMarkUnread, embedded }: { id: string; focusFromRoute: string | null; onMarkUnread: (id: string) => void; embedded?: EmbeddedChat }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
+  const projectName = useProjectName();
   const navigate = useNavigate();
   const { live } = useRuntime();
   const phone = useIsPhone();
@@ -296,7 +298,7 @@ export function ChatPane({ id, focusFromRoute, onMarkUnread, embedded }: { id: s
       : chat.personLeft ? t('chat.inactive', { context })
         // With a live port the line says whether the person is here. Without one the old line stays, because every person would read Offline.
         : live && chat.person ? <PersonStateLine person={chat.person} /> : t('chat.directChat');
-  const title = chat.kind === 'direct' && chat.person ? nameOf(chat.person) : chat.title;
+  const title = chat.kind === 'direct' && chat.person ? nameOf(chat.person) : chat.kind === 'project' && chat.project ? projectName(chat.project) : chat.title;
   // The window of an old message ends before the newest message: the newest page is the chat without the mark in its link.
   const newer = data.newer;
   // The Seen line under the last own message (chat presence design C). A person who left closes the chat, so a direct chat shows it still.
@@ -393,6 +395,7 @@ const NO_UNSENT: never[] = [];
 /** The comments of one task as a chat. A message posts a task comment. A link with a comment (`?at=`) names the comment to frame. */
 export function TaskPane({ id, focusFromRoute, onMarkUnread, embedded }: { id: string; focusFromRoute: string | null; onMarkUnread: (id: string) => void; embedded?: EmbeddedChat }) {
   const { t } = useTranslation();
+  const projectName = useProjectName();
   const phone = useIsPhone();
   const task = useCall('tasks.get', { id });
   // An office task has no project (owner, 2026-10-06): its people are its maker, its lead and its helpers.
@@ -488,7 +491,7 @@ export function TaskPane({ id, focusFromRoute, onMarkUnread, embedded }: { id: s
     return true;
   };
   const taskMenu = <ChatMenu id={id} archived={row?.archived ?? false} unread={row?.unread ?? 0} title={task.data.task.title} onArchive={archive} onMarkUnread={onMarkUnread} />;
-  const taskLine = `${t('chat.taskThread')} · ${where ? where.name : t('office.word')}`;
+  const taskLine = `${t('chat.taskThread')} · ${where ? projectName(where) : t('office.word')}`;
   return (
     <ChatDropArea note={where ? t('chat.dropProject') : t('chat.dropOfficeTask')}>
       {embedded

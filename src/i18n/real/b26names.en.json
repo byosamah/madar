@@ -1,0 +1,20 @@
+{
+  "projectForm": {
+    "nameAr": "Arabic name",
+    "errors": {
+      "nameArLong": "Use 120 characters or less."
+    }
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-110": {
+        "title": "Only my work: Home and Projects",
+        "body": "If you pick “Only my work” in Settings, Home and Projects show only your projects. The Dashboard stays for the whole office. In the Filter of Projects, press All to see every project."
+      },
+      "2026-10-23-111": {
+        "title": "Arabic name of a project",
+        "body": "A project can now have an Arabic name. Add it in New Project or Edit project. The Arabic screens then show this name. The English screens do not change."
+      }
+    }
+  }
+}

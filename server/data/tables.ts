@@ -58,7 +58,7 @@ const TABLE_OF: { [C in TableCollection]: Omit<TableSpec, 'collection' | 'office
     serverColumns: {
       search_text: (rec, state) => {
         const client = typeof rec.clientId === 'string' ? state.clients[rec.clientId] : undefined;
-        return searchText(rec.code, rec.name, client?.name, client?.nameAr);
+        return searchText(rec.code, rec.name, rec.nameAr, client?.name, client?.nameAr);
       },
     },
   },

@@ -16,6 +16,7 @@ function valuesOf(detail: ProjectDetail): ProjectFormValues {
   const { project } = detail;
   return {
     name: project.name,
+    nameAr: project.nameAr ?? '',
     kind: project.kind ?? 'client',
     clientId: project.clientId ?? '',
     subCompanyId: project.subCompanyId ?? '',
@@ -73,6 +74,7 @@ export function EditProjectSheet({ detail, open, onOpenChange }: { detail: Proje
         id: detail.project.id,
         patch: {
           name: v.name.trim(),
+          nameAr: v.nameAr.trim(),
           clientId: v.clientId || null,
           ...subCompanyPatch,
           location: v.location.trim(),

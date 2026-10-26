@@ -3,6 +3,7 @@ import type { ChatRow, CommentView, TaskDetail } from '../../src/api/contract/vi
 import { noticeSentence, type NoticeView } from '../../src/lib/noticeSentence';
 import { chatLink } from '../../src/lib/params';
 import { personName } from '../../src/lib/personName';
+import { shownName } from '../../src/lib/projectLabel';
 import { plainText } from '../../src/lib/text';
 import type { Deps } from '../core/ports';
 import { runCall, type RunCall } from '../core/runCall';
@@ -52,7 +53,7 @@ export async function noticeLine(deps: Deps, userId: string, o: LineOptions = {}
   if (!view) return null;
   const t = pushWords(lang);
   return {
-    title: view.project?.name ?? t('push.notificationTitle'),
+    title: view.project ? shownName(view.project, lang) : t('push.notificationTitle'),
     body: clip(noticeSentence(view, (key, params) => t(key, params), lang)),
     url: view.link || '/notifications',
     tag: `madar-${view.notification.targetType}-${view.notification.targetId}`,
@@ -85,7 +86,7 @@ export async function chatLine(deps: Deps, userId: string, chatId: string, o: Li
   const author = personName(row.previewAuthor, lang);
   const direct = row.kind === 'direct';
   return {
-    title: direct ? (row.person ? personName(row.person, lang) : author) : row.title || pushWords(lang)('push.notificationTitle'),
+    title: direct ? (row.person ? personName(row.person, lang) : author) : (row.kind === 'project' && row.project ? shownName(row.project, lang) : row.title) || pushWords(lang)('push.notificationTitle'),
     body: clip(direct ? row.preview : `${author}: ${row.preview}`),
     url: chatLink(chatId),
     tag: `madar-chat-${chatId}`,

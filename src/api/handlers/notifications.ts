@@ -10,7 +10,7 @@ import { feedbackNoticeHidden } from '../notify';
 import type { State } from '../store';
 import { can, mayViewMeeting, mayViewTask, taskResource } from '../permissions';
 import { cardOf } from '../views';
-import { markOf } from '../../lib/projectMark';
+import { projectTile } from '../../lib/projectRef';
 import { meetingLink } from '../../lib/meetings';
 import { chatLink, taskLink } from '../../lib/params';
 import { stampDay } from '../../lib/dates';
@@ -28,9 +28,11 @@ export const NotificationView = z.object({
   notification: Notification,
   actor: UserCard.nullable(),
   target: z.string(),
+  /** The Arabic name of the project, when the target is a project name (a post, a project chat or a project) and the project has one (owner, 2026-10-26, fbk_062). */
+  targetAr: z.string().optional(),
   projectCode: z.string().nullable(),
   /** The project, for its color tile in the Inbox (redesign spec 3.7). Null for a timesheet notice or a deleted project. */
-  project: z.object({ id: z.string(), name: z.string(), mark: z.number().int().nonnegative() }).nullable(),
+  project: z.object({ id: z.string(), name: z.string(), nameAr: z.string().optional(), mark: z.number().int().nonnegative() }).nullable(),
   link: z.string(),
   needsAction: z.boolean(),
   canApprove: z.boolean(),
@@ -127,6 +129,7 @@ function peopleOfCopy(state: State, n: Notification, viewer: User, gone: boolean
 
 function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   let target = '';
+  let targetAr = '';
   let projectCode: string | null = null;
   let tile: { id: string; name: string; mark: number } | null = null;
   let link = '/notifications';
@@ -152,7 +155,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     const project = state.projects[text(copy?.projectId)];
     target = text(copy?.title);
     projectCode = project?.code ?? null;
-    tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
+    tile = project ? projectTile(project) : null;
     // A notice of a comment opens the Inbox task thread at that comment (chat design 2026-10-19, item 17). Any other notice of a task
     // opens the task panel.
     if (task) link = n.messageId?.startsWith('cmt_') ? chatLink(task.id, n.messageId) : taskLink(task.projectId, task.id);
@@ -165,8 +168,9 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     const copy: Copy | null = update ?? deletedCopy(state, 'update', n.targetId);
     const project = state.projects[text(copy?.projectId)];
     target = project?.name ?? '';
+    targetAr = project?.nameAr ?? '';
     projectCode = project?.code ?? null;
-    tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
+    tile = project ? projectTile(project) : null;
     if (update) link = `/projects/${update.projectId}?tab=activity&update=${update.id}`;
   } else if (n.targetType === 'chat') {
     const conversation = state.conversations[n.targetId];
@@ -175,15 +179,17 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     // screen says "a direct message" (audit 2026-10-03, SHL-14). A group notice names the group while the viewer is in it.
     chatKind = conversation?.kind ?? null;
     target = project?.name ?? (conversation?.kind === 'group' && !gone ? (conversation.name ?? '') : '');
+    targetAr = project?.nameAr ?? '';
     projectCode = project?.code ?? null;
-    tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
+    tile = project ? projectTile(project) : null;
     if (!gone) link = chatLink(n.targetId, n.messageId);
   } else if (n.targetType === 'project') {
     const project = state.projects[n.targetId];
     const copy: Copy | null = project ?? deletedCopy(state, 'project', n.targetId);
     target = text(copy?.name);
+    targetAr = text(copy?.nameAr);
     projectCode = copy ? text(copy.code) || null : null;
-    tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
+    tile = project ? projectTile(project) : null;
     if (project) link = `/projects/${project.id}`;
     // A restart reminder names its planned day, so the screen says "is today" or "was <day>" (fbk_025). A notice saved before it
     // kept the day takes the day it was made: the job makes it on the planned day or the first run after it.
@@ -195,7 +201,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
       const project = meeting.projectId ? state.projects[meeting.projectId] : undefined;
       target = meeting.title;
       projectCode = project?.code ?? null;
-      tile = project ? { id: project.id, name: project.name, mark: markOf(project) } : null;
+      tile = project ? projectTile(project) : null;
       link = meetingLink(meeting.id);
       startsAt = meeting.startsAt;
     }
@@ -215,7 +221,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     link = n.trigger === 'feedback_sent' ? '/admin/feedback' : '';
   }
   return {
-    notification: n, actor: n.actorId ? cardOf(state, n.actorId) : null, target, projectCode, project: tile, link,
+    notification: n, actor: n.actorId ? cardOf(state, n.actorId) : null, target, ...(targetAr ? { targetAr } : {}), projectCode, project: tile, link,
     needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove, gone, dueDate, chatKind, startsAt, forPeople: peopleOfCopy(state, n, viewer, gone),
   };
 }

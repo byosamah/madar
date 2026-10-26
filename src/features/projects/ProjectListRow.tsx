@@ -16,8 +16,9 @@ import { usePrefetchCall } from '../../app/prefetch';
 import { useCardMenu } from './cardMenu';
 import { NextDeadlineLabel } from './ProjectCard';
 import { clientName } from '../../lib/clientName';
-import { isHiddenProject, isInternalProject } from '../../lib/projectLabel';
+import { isHiddenProject, isInternalProject, shownName } from '../../lib/projectLabel';
 import { useLang } from '../../app/lang';
+import { useProjectName } from '../../app/projectName';
 
 /** The word a row shows only when there is something to say: Late, At risk, or the status of a project that is not active. */
 export function ProjectStateWord({ summary }: { summary: ProjectSummary }) {
@@ -34,8 +35,9 @@ export function ProjectStateWord({ summary }: { summary: ProjectSummary }) {
  */
 function RowMenu({ summary, point, onClose }: { summary: ProjectSummary; point: { x: number; y: number } | null; onClose: () => void }) {
   const { t } = useTranslation();
+  const projectName = useProjectName();
   const items = useCardMenu(summary);
-  return <ContextMenu label={t('projects.menu', { name: summary.project.name })} items={items} point={point} onClose={onClose} />;
+  return <ContextMenu label={t('projects.menu', { name: projectName(summary.project) })} items={items} point={point} onClose={onClose} />;
 }
 
 /**
@@ -70,7 +72,7 @@ export const ProjectListRow = memo(function ProjectListRow({ summary, source }: 
         <ProjectTile id={project.id} mark={project.mark} subCompanyId={summary.subCompanyId} shared />
         <span className="min-w-0">
           <span className="flex min-w-0 items-center gap-2">
-            <motion.span layoutId={`name-${project.id}`} transition={spring.expand} dir="auto" className="truncate text-[calc(15px*var(--boost))] font-semibold text-ink">{project.name}</motion.span>
+            <motion.span layoutId={`name-${project.id}`} transition={spring.expand} dir="auto" className="truncate text-[calc(15px*var(--boost))] font-semibold text-ink">{shownName(project, lang)}</motion.span>
             {isHiddenProject(project) && <HiddenMark />}
             <ProjectStateWord summary={summary} />
           </span>
