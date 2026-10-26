@@ -1,8 +1,8 @@
 /**
  * The written instructions for AI agents (plan 5.6; spec 1, section 17, rule 7). INSTRUCTIONS goes in the answer of
  * server/discover and starts the answer of madar.readFirst (readFirstAnswer adds who the agent acts for). TOOL_DOCS gives each of
- * the 61 tools its title and description. An agent sees a tool only when its person holds the AI switch of the tool (aiSwitches.ts) and,
- * for the 12 right tools, the right too (tools.ts): the Admin holds every switch, so an Admin's agent gets all 61.
+ * the 65 tools its title and description. An agent sees a tool only when its person holds the AI switch of the tool (aiSwitches.ts) and,
+ * for the 12 right tools, the right too (tools.ts): the Admin holds every switch, so an Admin's agent gets all 65.
  * The reader is a model that acts for one person, so the texts are short, exact, and in plain English.
  * tools.test.ts checks that each description is 40 to 600 characters.
  */
@@ -28,6 +28,7 @@ export const INSTRUCTIONS = [
   'Reasons: some changes need a reason in words. A task change that moves the project back to an earlier stage needs "reason". A change of a task date that was already set needs "dateReason". When a call needs one, the server asks for it, or the call fails with a message that names the field. Ask your person for the reason, then call again with the same arguments plus that field. Never invent a reason.',
   '',
   'Files: you can list files and refer to them by ID. To upload a file, the person uses the Madar screens.',
+  'Folders: a project keeps folders in its stages (one level, in a real stage) to organize files. projects.get lists them (folders) and each file has a folderId. You can make, rename and delete a folder, and move a file to a stage and a folder. A delete never deletes a file: its files go back to the stage. A person uploads files in the screens.',
   '',
   'Pictures: you can read the pictures that your person sees in Madar: profile pictures, sub-company logos, project tiles and covers. To keep your context small, the lists give the rules of each picture, not its data. users.list gives hasPicture and glow: the CSS background of the round picture (the profile picture covers it, else the initials show on it in ink). subCompanies.list gives hasLogo. projects.list and projects.get give look: color (the project color: its name, fg and bg) and tile (the project picture as an SVG drawing of 34 px). With a sub-company, the screens put its round logo on the bottom end corner of the tile, its center on the corner, 45% of the tile side and at least 18 px, and cut a gap 2 px wider around it out of the tile. withPictures: true on users.list, subCompanies.list and reports.office adds the picture data: data addresses of up to 16 KB each (reports.office gives each logo once, in subCompanyLogos). pictures.get gives one picture, and shows it to you as an image. Ask for picture data only when you build a document with the pictures. The colors are those of the light theme, for a white page. You cannot upload or change a picture: your person does that in the Madar screens.',
   '',
@@ -216,7 +217,23 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'files.list': {
     title: 'List files',
-    description: 'Lists the files of one project (projectId), optionally of one stage (stageId) or one task (taskId). For an office task (no project), send taskId alone. Each file has its versions and their letters. You cannot read file contents or upload here: the person does that in the Madar screens. A file of a direct or group chat is never in this list.',
+    description: 'Lists the files of one project (projectId), optionally of one stage (stageId) or one task (taskId). For an office task (no project), send taskId alone. Each file has its versions and their letters, and a folderId (null: at the root of its stage; the folders come from projects.get). You cannot read file contents or upload here: the person does that in the Madar screens. A file of a direct or group chat is never in this list.',
+  },
+  'folders.create': {
+    title: 'Make a folder',
+    description: 'Makes a folder in one stage of a project (projectId, stageId, name of 1 to 60 letters). A folder holds files only: no folder inside a folder. A stage cannot have two folders with one name (reason folder_name_taken); a project holds up to 100 (folder_limit). Needs the right to upload to the project. Returns the folder with its id.',
+  },
+  'folders.rename': {
+    title: 'Rename a folder',
+    description: 'Gives a folder (id from projects.get, folders) a new name of 1 to 60 letters. Fails with folder_name_taken when the stage has a folder with that name. Needs the right to upload to the project. events.undo takes the change back.',
+  },
+  'folders.delete': {
+    title: 'Delete a folder',
+    description: 'Deletes a folder (id from projects.get, folders). No file is deleted: the files in the folder go back to the root of their stage. Needs the right to upload to the project. Tell your person first when the folder holds files. events.undoStory brings the folder and the place of its files back.',
+  },
+  'files.move': {
+    title: 'Move a file',
+    description: 'Moves one file (id from files.list) to a stage and a folder: stageId is a stage of the project, or null for No stage; folderId is a folder of that stage, or null for the root of the stage. A folder of another stage fails with folder_other_stage. The task of the file stays. Needs the right to upload to the project. events.undo takes the move back.',
   },
   'payments.create': {
     title: 'Add a payment',
@@ -240,7 +257,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.get': {
     title: 'Get a project',
-    description: 'Returns one project by id: its code, stages, team, leader, client, dates, health, deadlines and links. The code is 260902AZT-RES-Villa (new) or KH-26-014 (old). nextDeadline is the next named deadline. stageEnd ends the current stage, or null. subCompanyId: the sub-company. geo is the pin ({ lat, lng }) or null. location is the address of the pin. templateId: the template, or null. chatId: the project chat, or null. access: { hidden, viewerIds }. kind: client or internal (no client, place, area, payments or Tracker; code starts with INT). look: color and tile.',
+    description: 'Returns one project by id: its code, stages, team, leader, client, dates, health, deadlines, links and folders (id, stageId, name). The code is 260902AZT-RES-Villa (new) or KH-26-014 (old). nextDeadline is the next named deadline. stageEnd ends the current stage, or null. subCompanyId: the sub-company. geo is the pin ({ lat, lng }) or null. location is the address of the pin. templateId: the template, or null. chatId: the project chat, or null. access: { hidden, viewerIds }. kind: client or internal (no client, place, area, payments or Tracker; code starts with INT). look: color and tile.',
   },
   'projects.list': {
     title: 'List projects',

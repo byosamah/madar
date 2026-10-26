@@ -26,6 +26,7 @@ export const TaskId = id('tsk');
 export const UpdateId = id('upd');
 export const CommentId = id('cmt');
 export const FileId = id('fil');
+export const FolderId = id('fld');
 export const NotificationId = id('ntf');
 export const EventId = id('evt');
 export const ConversationId = id('cnv');
@@ -401,6 +402,25 @@ export type ProjectAccess = z.infer<typeof ProjectAccess>;
 export const ProjectKind = z.enum(['client', 'internal']);
 export type ProjectKind = z.infer<typeof ProjectKind>;
 
+/** The most folders that one project holds (fbk_066). */
+export const MAX_FOLDERS = 100;
+/** The longest folder name, in letters (fbk_066). */
+export const FOLDER_NAME_MAX = 60;
+
+/**
+ * A folder of the Files & Links tab (fbk_066, owner 2026-10-26). It is only for organizing: it sits in one real stage of its project, one level
+ * deep, and holds files. The project keeps the list (Project.folders, as it keeps its links), so a folder is seen by exactly the people who see the
+ * project and its files, and no table is needed. A folder name may repeat across stages, never inside one stage.
+ */
+export const ProjectFolder = z.object({
+  id: FolderId,
+  stageId: StageId,
+  name: z.string().trim().min(1).max(FOLDER_NAME_MAX),
+  createdBy: UserId,
+  createdAt: Stamp,
+});
+export type ProjectFolder = z.infer<typeof ProjectFolder>;
+
 export const Project = z.object({
   id: ProjectId,
   /** The old form KH-26-014, or the new form YYMMSSINI-CLS-Type (owner, 2026-10-05, lib/projectCode.ts). Two projects of one contract share one code. */
@@ -426,6 +446,8 @@ export const Project = z.object({
   mark: z.number().int().nonnegative().optional(),
   /** Optional, so offices saved before links existed still load. */
   links: z.array(ProjectLink).max(20).optional(),
+  /** The folders of the Files & Links tab (fbk_066). Optional, so older offices still load. A list row leaves them out (summaryOf). */
+  folders: z.array(ProjectFolder).max(MAX_FOLDERS).optional(),
   stageBack: StageBack.nullable().optional(),
   /** The day the client's contract starts (colleague comment 7, 2026-10-01). Optional, so older offices still load. */
   contractStartDate: Day.nullable().optional(),
@@ -953,6 +975,11 @@ export const FileRec = z.object({
    * taskId are null. The people who see that meeting open the file, and nobody else. Optional, so older files load.
    */
   meetingId: MeetingId.optional(),
+  /**
+   * The folder that holds the file (fbk_066, owner 2026-10-26). A folder sits in one stage, so the file has the stageId of that folder. Null or
+   * missing: the file sits at the root of its stage. Optional, so older files load.
+   */
+  folderId: FolderId.nullable().optional(),
   name: z.string().trim().min(1).max(200),
   versions: z.array(FileVersion).min(1),
 });

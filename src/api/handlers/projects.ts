@@ -981,7 +981,15 @@ export const stagesReplace = defineCall({
     for (const stage of removed) {
       delete state.stages[stage.id];
       for (const d of Object.values(state.deadlines)) if (d.stageId === stage.id) d.stageId = null;
-      for (const f of Object.values(state.files)) if (f.stageId === stage.id) f.stageId = null;
+      // The files of a removed stage go to "No stage", also the files in its folders; the folders go with the stage (fbk_066).
+      for (const f of Object.values(state.files)) {
+        if (f.stageId !== stage.id) continue;
+        f.stageId = null;
+        if (f.folderId) f.folderId = null;
+      }
+    }
+    if (project.folders?.some((folder) => removed.some((stage) => stage.id === folder.stageId))) {
+      project.folders = project.folders.filter((folder) => !removed.some((stage) => stage.id === folder.stageId));
     }
     input.stages.forEach((stage, order) => {
       const id = stage.id ?? nextId(state, 'stg');

@@ -9,12 +9,12 @@ import { aiSwitchOf } from './aiSwitches';
 import { PICTURES_GET, PicturesGetInput, WITH_PICTURES_TOOLS, WithPictures } from './pictures';
 
 /**
- * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). An allowlist of 49 tools: the reads and writes an agent
+ * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). An allowlist of 53 tools: the reads and writes an agent
  * can use for an office project, with the three message tools (owner, 2026-10-12), the stage dates (fbk_023), the five meeting tools
  * (fbk_022) and the picture tool (owner, 2026-10-21), and the client and template lists for the AI switch "AI creates projects and clients" (owner, 2026-10-25). The right list adds 12 tools that a right of the person opens: the 4 payment tools,
  * the Dashboard and Search (role rights version 2, 2026-10-21), reports.office for the report right (owner, 2026-10-18, fbk_016), and the
  * 3 tools of requests and bugs for the feedback right (owner, 2026-10-07; role-rights, 2026-10-23), and projects.create and clients.create for the
- * project and client rights (owner, 2026-10-25). The Admin holds every right, so an Admin's agent gets all 61. Every other call stays on the deny list: screen work (uploads, read marks, counts, archives, group
+ * project and client rights (owner, 2026-10-25). The Admin holds every right, so an Admin's agent gets all 65. Every other call stays on the deny list: screen work (uploads, read marks, counts, archives, group
  * changes), the prototype controls, and the other Admin calls. VS Code allows at most 128 tools in one request across all
  * servers, and each tool definition uses model context, so the lists stay short. tools.test.ts fails when a call is in no list.
  *
@@ -34,7 +34,7 @@ export const MCP_ALLOW = [
   READ_FIRST, PICTURES_GET, 'projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'tracker.list',
   'deadlines.list', 'files.list', 'users.list', 'events.list', 'chats.list', 'subCompanies.list',
   'chats.messages', 'chats.waiting', 'meetings.list', 'meetings.get', 'clients.list', 'projectTemplates.list',
-  // Writes (28). tasks.help joins your person to a task as a helper, or takes them off it (fbk_035). chats.openDirect and chats.send message the team: a direct chat, a group or a project chat (task comments and
+  // Writes (32). tasks.help joins your person to a task as a helper, or takes them off it (fbk_035). chats.openDirect and chats.send message the team: a direct chat, a group or a project chat (task comments and
   // project posts are comments.create and updates.create). stages.setDates sets the dates of one stage, as the Schedule tab does.
   // meetings.create, meetings.update and meetings.cancel tell the attendees, who are real people. meetings.saveMinutes writes the minutes of a meeting
   // that ended (wave 2); it tells nobody.
@@ -42,6 +42,8 @@ export const MCP_ALLOW = [
   'updates.create', 'tracker.log', 'tracker.update', 'tracker.close',
   'deadlines.create', 'deadlines.update', 'projects.update', 'projects.setStatus', 'events.undo', 'events.undoStory',
   'chats.openDirect', 'chats.send', 'stages.setDates', 'meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.saveMinutes',
+  // Folders of the Files & Links tab (fbk_066, owner 2026-10-26): an agent makes, renames and deletes folders and moves files; a person uploads in the screens.
+  'folders.create', 'folders.rename', 'folders.delete', 'files.move',
 ] as const satisfies readonly (typeof READ_FIRST | typeof PICTURES_GET | SharedCallName | ServerCallName)[];
 
 /**
@@ -147,7 +149,7 @@ export const MCP_DENY = [
  * other write (a change, a status change, an undo) is destructive, and the client may ask its person before it runs one.
  */
 const ADDITIVE = new Set<string>([
-  'story.start', 'tasks.create', 'comments.create', 'updates.create', 'tracker.log', 'payments.create', 'deadlines.create', 'meetings.create',
+  'story.start', 'tasks.create', 'comments.create', 'updates.create', 'tracker.log', 'payments.create', 'deadlines.create', 'meetings.create', 'folders.create',
 ]);
 
 /** A story ID from story.start (plan 4.9): the changes that share it undo together. */

@@ -81,6 +81,11 @@ export const WRITE_KINDS: Readonly<Record<string, readonly Kind[]>> = {
   'files.markDelivered': ['events', 'files', 'tracker'],
   'files.share': ['chatReads', 'comments', 'events', 'messages'],
   'files.delete': ['events', 'files', 'projects'],
+  // Folders live in the project (fbk_066). A delete puts the files of the folder back at the root of their stage.
+  'files.move': ['events', 'files', 'projects'],
+  'folders.create': ['events', 'projects'],
+  'folders.rename': ['events', 'projects'],
+  'folders.delete': ['events', 'files', 'projects'],
   'events.undo': EVERY_KIND,
   'events.undoStory': EVERY_KIND,
   'notifications.markRead': ['notifications'],

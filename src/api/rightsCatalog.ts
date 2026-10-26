@@ -623,7 +623,7 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
         ],
       },
       {
-        power: 'ai.projects', mcpTools: ['projects.update', 'projects.setStatus', 'stages.setDates', 'deadlines.create', 'deadlines.update'],
+        power: 'ai.projects', mcpTools: ['projects.update', 'projects.setStatus', 'stages.setDates', 'deadlines.create', 'deadlines.update', 'folders.create', 'folders.rename', 'folders.delete', 'files.move'],
         switches: [
           { id: 'ai.projects', scope: null, basic: true, needs: ['ai.connect'] },
         ],

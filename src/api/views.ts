@@ -251,13 +251,15 @@ function viewerCanOf(viewer: User, projectRole: ProjectRole, project: Pick<Proje
 
 /**
  * The project as a screen reads it, without the copy of the template parts that its link keeps (ADM-01). Only the template update
- * reads that copy, on the server, so a project list does not carry up to 200 descriptions for each project.
+ * reads that copy, on the server, so a project list does not carry up to 200 descriptions for each project. It also leaves out the folders
+ * (fbk_066): they travel in ProjectDetail.folders, so a list never carries the folder names of a project.
  */
 function withoutBase(project: Project): Project {
   const link = project.templateLink;
-  if (!link?.base) return project;
+  const { folders: _folders, ...shown } = project;
+  if (!link?.base) return shown;
   const { base: _base, ...rest } = link;
-  return { ...project, templateLink: rest };
+  return { ...shown, templateLink: rest };
 }
 
 /** "viewer" is the person whose rights apply: the user, or the person an agent acts for. */
@@ -320,7 +322,7 @@ export function detailOf(state: State, project: Project, today: string, viewer: 
   // The project chat, when the viewer may open it (an outsider gets null, and no id of the chat).
   const room = Object.values(state.conversations).find((c) => c.kind === 'project' && c.projectId === project.id);
   const chatId = room && canSeeConversation(state, room, viewer) ? room.id : null;
-  return { ...summary, members, deadlines: deadlinesOf(state, project.id), chatId };
+  return { ...summary, members, deadlines: deadlinesOf(state, project.id), chatId, folders: structuredClone(project.folders ?? []) };
 }
 
 export function eventViewOf(state: State, event: Event): EventView {

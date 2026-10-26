@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { ConversationId, FileId, FileVersion, MAX_FILE_BYTES, MeetingId, ProjectId, StageId, TaskId, type FileRec, type FileVersion as Version, type Task } from '../contract/entities';
+import { ConversationId, FileId, FileVersion, FolderId, MAX_FILE_BYTES, MeetingId, ProjectId, StageId, TaskId, type FileRec, type FileVersion as Version, type Task } from '../contract/entities';
 import { FileView, TrackerRow } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
@@ -10,6 +10,7 @@ import { minutesRefusal, requireMeeting } from './meetings';
 import { fileViewOf, mayDeleteFile, mayOpenFile, mayViewFile, trackerRowOf } from '../views';
 import { assertCan, requireProject, requireStage, requireTask, roleIn, taskRole, touch } from './shared';
 import { addTrackerEntry } from './tracker';
+import { checkPlace } from './folders';
 
 /** A, B, ... Z, AA, AB: the version letters. */
 export function nextLetter(previous: string): string {
@@ -84,6 +85,8 @@ const UploadFields = z.object({
   meetingId: MeetingId.optional(),
   name: z.string().trim().min(1).max(200),
   stageId: StageId.nullable().default(null),
+  /** A folder of the stage (fbk_066). The file takes the stage of the folder; a stage that differs is refused. Optional, so older calls still parse. */
+  folderId: FolderId.nullable().optional(),
   taskId: TaskId.nullable().default(null),
   asCover: z.boolean().default(false),
   /** The client sent this file: the upload also logs a File entry on the tracker. */
@@ -91,7 +94,7 @@ const UploadFields = z.object({
 });
 
 /** A new file or a new version: the same name on the same place (a project, or one office task) adds the next letter. */
-function addVersion(ctx: Ctx, place: { projectId: string | null; stageId: string | null; taskId: string | null }, name: string, version: Version): FileRec {
+function addVersion(ctx: Ctx, place: { projectId: string | null; stageId: string | null; taskId: string | null; folderId?: string | null }, name: string, version: Version): FileRec {
   const same = Object.values(ctx.state.files).find((f) => f.projectId === place.projectId
     && (place.projectId !== null || f.taskId === place.taskId) && f.name.toLowerCase() === name.toLowerCase());
   if (same) {
@@ -102,7 +105,7 @@ function addVersion(ctx: Ctx, place: { projectId: string | null; stageId: string
     return same;
   }
   const id = nextId(ctx.state, 'fil');
-  const file: FileRec = { id, projectId: place.projectId, stageId: place.stageId, taskId: place.taskId, name, versions: [version] };
+  const file: FileRec = { id, projectId: place.projectId, stageId: place.stageId, taskId: place.taskId, ...(place.folderId ? { folderId: place.folderId } : {}), name, versions: [version] };
   ctx.state.files[id] = file;
   recordCreate(ctx, { projectId: place.projectId, verb: 'file.added', targetType: 'file', targetId: id, entity: file });
   return file;
@@ -209,14 +212,17 @@ export const filesUpload = defineCall({
     // "Received from the client" also writes a Tracker line, so it needs the delivery switch. The cover changes the project details.
     if (input.receivedFromClient) assertCan(ctx, 'file.deliver', { projectRole: role });
     if (input.asCover) assertCan(ctx, 'project.details', { projectRole: role });
-    if (input.stageId) requireStage(ctx, project.id, input.stageId);
+    // A folder fixes the stage of the file (fbk_066): without a stage, the file takes the stage of the folder.
+    const folderId = input.folderId ?? null;
+    const stageId = input.stageId ?? (folderId ? (project.folders?.find((item) => item.id === folderId)?.stageId ?? null) : null);
+    checkPlace(ctx, project, stageId, folderId);
     if (input.taskId && ctx.state.tasks[input.taskId]?.projectId !== project.id) throw invalid('taskId', 'This task is not in the project.');
     if (input.asCover && !prepared.mimeType.startsWith('image/')) throw invalid('asCover', 'The cover must be an image.', 'cover_not_image');
     const version: Version = {
       letter: 'A', blobKey: prepared.blobKey, mimeType: prepared.mimeType, size: prepared.size,
       uploadedBy: ctx.actor.id, uploadedAt: ctx.stamp, ...(prepared.thumbKey ? { thumbKey: prepared.thumbKey } : {}),
     };
-    const file = addVersion(ctx, { projectId: project.id, stageId: input.stageId, taskId: input.taskId }, input.name, version);
+    const file = addVersion(ctx, { projectId: project.id, stageId, taskId: input.taskId, folderId }, input.name, version);
     if (input.asCover) {
       applyPatch(ctx, project, { coverFileId: file.id }, { projectId: project.id, verb: 'project.cover_changed', targetType: 'project', targetId: project.id });
     }
@@ -270,10 +276,37 @@ export const filesDelete = defineCall({
   },
 });
 
+/**
+ * Moves a file to another stage, another folder, or both (fbk_066, owner 2026-10-26): one call for a drag, for "Move to" and for a drop. The place
+ * is a stage of the project (null: No stage) and a folder of that stage (null: the root). The task of the file stays. The person who may upload
+ * may move.
+ */
+export const filesMove = defineCall({
+  input: z.object({ id: FileId, stageId: StageId.nullable(), folderId: FolderId.nullable().default(null) }),
+  output: FileView,
+  run(input, ctx) {
+    const file = ctx.state.files[input.id];
+    if (!file || !mayViewFile(ctx.state, ctx.authority, file)) throw notFound('File', input.id);
+    if (file.conversationId !== undefined) throw invalid('id', 'A file of a chat stays in its chat.', 'file_chat');
+    if (file.meetingId !== undefined) throw invalid('id', 'A file of a meeting stays with its meeting.', 'file_meeting');
+    if (file.projectId === null) throw invalid('id', 'A file of an office task stays on its task.', 'file_office_task');
+    const project = requireProject(ctx, file.projectId);
+    assertCan(ctx, 'file.upload', { projectRole: roleIn(ctx, project.id) });
+    checkPlace(ctx, project, input.stageId, input.folderId);
+    if (file.stageId === input.stageId && (file.folderId ?? null) === input.folderId) return fileViewOf(ctx.state, file, ctx.authority);
+    // A file saved before folders has no folderId. The event keeps the old value, so the Undo can put it back.
+    if (file.folderId === undefined) file.folderId = null;
+    applyPatch(ctx, file, { stageId: input.stageId, folderId: input.folderId }, { projectId: project.id, verb: 'file.moved', targetType: 'file', targetId: file.id });
+    touch(ctx, project.id);
+    return fileViewOf(ctx.state, file, ctx.authority);
+  },
+});
+
 export const fileCalls = {
   'files.list': filesList,
   'files.get': filesGet,
   'files.upload': filesUpload,
   'files.delete': filesDelete,
   'files.markDelivered': filesMarkDelivered,
+  'files.move': filesMove,
 };

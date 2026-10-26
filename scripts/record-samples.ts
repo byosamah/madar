@@ -181,6 +181,14 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     // The dates of the current stage (fbk_023): both dates go in, the end a week later. A stage date needs no reason.
     const currentStage = s().stages[stageId];
     await write('stages.setDates', { stageId, startDate: currentStage.startDate ?? TODAY, endDate: addDays(currentStage.endDate ?? addDays(TODAY, 30), 7) });
+    // The folders of the Files & Links tab (fbk_066): make one in the current stage, rename it, move a file into it, and delete it (the file goes back
+    // to the root of its stage). The Undo of the story takes all of it back.
+    await write('folders.create', { projectId: project.id, stageId, name: 'Mood boarding' });
+    const folderId = first(s().projects[project.id].folders ?? [], 'new folder').id;
+    await write('folders.rename', { id: folderId, name: 'Mood board' });
+    const projectFile = first(Object.values(s().files).filter((f) => f.projectId === project.id), 'file of the project');
+    await write('files.move', { id: projectFile.id, stageId, folderId });
+    await write('folders.delete', { id: folderId });
     await write('projects.update', { id: project.id, patch: { description: 'A four-storey office building with a basement car park.' } });
     await write('feedback.setStatus', { id: report.id, status: 'done' });
 

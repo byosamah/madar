@@ -3,6 +3,7 @@ import type { Api } from './client';
 import { chatCalls } from './handlers/chats';
 import { contentCalls } from './handlers/content';
 import { fileCalls } from './handlers/files';
+import { folderCalls } from './handlers/folders';
 import { historyCalls } from './handlers/history';
 import { insightCalls } from './handlers/insights';
 import { meetingCalls } from './handlers/meetings';
@@ -33,6 +34,7 @@ export const mapCalls = {
   ...taskCalls,
   ...contentCalls,
   ...fileCalls,
+  ...folderCalls,
   ...shareCalls,
   ...historyCalls,
   ...notificationCalls,

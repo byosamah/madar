@@ -2164,7 +2164,11 @@
             "projects.setStatus",
             "stages.setDates",
             "deadlines.create",
-            "deadlines.update"
+            "deadlines.update",
+            "folders.create",
+            "folders.rename",
+            "folders.delete",
+            "files.move"
           ],
           "switches": [
             {

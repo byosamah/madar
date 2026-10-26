@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { NOTIFY_LEVELS } from './limits';
 import {
   Client, Comment, ConversationId, Day, Deadline, DeadlineId, Event, EventId, EventTarget, FileId, FileRec, FileVersion, Gender, GeoPoint, HealthValue,
-  MeetingId, MeetingKind, MeetingRepeat, Message, Payment, Project, ProjectTemplateId, Team,
+  MeetingId, MeetingKind, MeetingRepeat, Message, Payment, Project, ProjectFolder, ProjectTemplateId, Team,
   ProjectId, ProjectStatus, Stage, StageId, Stamp, SubCompanyId, Task, TaskId, TaskStatus, TrackerDirection, TrackerEntry, TrackerId, TrackerType, TrackerWaiting, UpdateId, UserId,
 } from './entities';
 import { ReportPeriodKind } from '../reportPeriod';
@@ -157,6 +157,8 @@ export const ProjectDetail = ProjectSummary.extend({
   deadlines: z.array(Deadline),
   /** The project chat when the viewer may open it, else null (chat design 2026-10-19, item 18): the Project chat button needs it. */
   chatId: ConversationId.nullable().default(null),
+  /** The folders of the Files & Links tab (fbk_066), in the order they were made. A list row leaves them out. Optional in the input, so older answers parse. */
+  folders: z.array(ProjectFolder).default([]),
 });
 export type ProjectDetail = z.infer<typeof ProjectDetail>;
 

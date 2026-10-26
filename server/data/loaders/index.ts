@@ -8,7 +8,7 @@ import { inboxCount, inboxList } from './inbox';
 import { meetingCall, meetingCancel, meetingChange, meetingExtend, meetingMinutes, meetingsList } from './meetings';
 import { dashboardGet, eventsList, projectsList, searchQuery, tasksList, templateSyncTasks } from './overview';
 import {
-  fileCall, filesList, filesUpload, paymentCall, paymentsOfProject, projectCall, projectsCreate, stagesReplace, trackerCall, trackerExport,
+  fileCall, filesList, filesUpload, foldersDelete, paymentCall, paymentsOfProject, projectCall, projectsCreate, stagesReplace, trackerCall, trackerExport,
   trackerList, trackerLog, updatesList,
 } from './project';
 import { projectsDelete } from './projectDelete';
@@ -146,6 +146,11 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'files.delete': project(fileCall),
   'files.markDelivered': project(fileCall),
   'files.share': chat(filesShare),
+  // A move reads the file by id; the folders live in the project, which is in the office (fbk_066).
+  'files.move': project(fileCall),
+  'folders.create': office,
+  'folders.rename': office,
+  'folders.delete': project(foldersDelete),
 
   'events.list': overview(eventsList),
   'events.undo': { loader: 'story', load: storyCall },
