@@ -1186,7 +1186,7 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [x] `stages.replace` through MCP keeps the dates that the agent leaves out (`keepDates.ts`); a null clears
 - [x] INSTRUCTIONS: Files, Pictures (a cover is a file: upload it, then `projects.update coverFileId`); What's new 2026-10-23-117
 - [ ] The merge lead runs `test:mcp`, `test:db` and `test:it` (Docker), and tries one real upload on the local stack (MinIO and Storage)
-- [ ] Open: an agent cannot upload into a direct chat or a group (`chatForUpload` refuses an agent). Ask the owner if that stays.
+- [x] An agent uploads into a direct chat or a group of its person and opens chat files (owner, 2026-10-26; see "MCP guard" below). It was open: `chatForUpload` refused every agent.
 - [ ] Open: measure a 10 MB upload on the test copy (Supabase function memory 256 MB, Worker 128 MB, Worker CPU 10 ms on the free plan; in Node the server work is 50 to 80 ms)
 - [x] `files.list` gave `blobKey` and `thumbKey` to an agent: `rb/mcp-parity` drops both from every answer (`withoutStorageKeys` in `run.ts`)
 
@@ -1195,3 +1195,16 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [x] One tool list: `stages.replace` is a tool (`ai.projects`), `feedback.sendWithScreenshots` sits beside `feedback.send` (`ai.feedback`), the two bulk to-do tools are in `ai.todos`, `files.uploadContent` is in `ai.projects`
 - [x] One INSTRUCTIONS text; every `TOOL_DOCS` entry is 600 characters or less; What's new 115, 116 and 117
 - [ ] Merge lead: `test:mcp`, `test:db`, `test:it`, one real upload on the local stack, then the full `npm test` once
+
+## MCP guard (`rb/mcp-join`, owner decisions of 2026-10-26: the email code guard, chat files, a slimmer tool list)
+
+- [x] The email code guard: eight risky Admin acts of an agent (`users.create`, `users.update` with a role change, `users.deactivate`, `users.reactivate`, `users.remove`, `roles.create`, `roles.update`, `roles.delete`) need a 6-digit code that Madar emails to the PERSON of the agent. `server/mcp/guard.ts`, table `agent_confirms` (migration `20261026000100_agent_confirms.sql`, SQLite schema version 11), effect `mcp.confirm`, words `mcpGuardMail`; tests `guard.lite.test.ts` and `parity.test.ts`
+- [x] Chat files: the agent of a member sends a file into a chat (`files.uploadContent` with `conversationId`) and opens chat files (`files.link`); the agent of a non-member gets `not_found` on every path (leak tests in `uploadContent.test.ts`, `chatFiles.test.ts`)
+- [x] A slimmer tool list: the Admin's `tools/list` is under 110 KB, and no tool is over 2 KB (`toolSize.test.ts`); the right ids of a role are plain strings, listed by `madar.readFirst`
+- [x] `projectTemplates.list` with `id` gives one template in full, so an agent reads it before `projectTemplates.save`
+- [x] What's new 2026-10-23-116 says that a risky Admin act asks for a code and that the assistant sends and opens chat files (no new entry)
+- [ ] Merge lead: `npm run test:db` and `npm run test:it` (the new migration and the `agent_confirms` cleanup and backup lists), then `npm run test:mcp`
+- [ ] Open: `users.resendInvite` needs no code (it mails a person who was invited already). Ask the owner if it should.
+- [ ] Open: a tricked agent has 25 guesses an hour for one person (5 codes, 5 wrong tries each, each code mails the person). Lower `MAX_NEW_PER_HOUR` in `confirms.ts` if the owner wants it tighter.
+- [ ] Open: tell the owner that a Claude skill with the old text in his AI app may still say that an agent never opens a chat file
+

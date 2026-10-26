@@ -8,7 +8,7 @@ import { loadFor, sqlSource, type Source } from '../data/loaders/index';
 import { save, type SaveOptions, type SaveResult } from '../data/save';
 import { runErrorOf } from '../http/errors';
 import type { ConfirmStore } from '../mcp/confirms';
-import { GuardStop, answerStop, guardAct, guardApplies, requireCode, takeCode } from '../mcp/guard';
+import { GuardStop, answerStop, guardAct, guardApplies, requireCode, takeCode, type Stop } from '../mcp/guard';
 import { resolveActor } from './actor';
 import { requestHost } from './after';
 import { AFTER_ANSWER_KINDS, CHAT_WAIT_MS, outboxRowsOf, processOutbox, WAITED_KINDS, writeOutbox, type OutboxRow } from './effects';
@@ -252,17 +252,20 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
       if (saved.signals.length > 0) await deps.signal.send(t.q, saved.signals);
       return { result, replayed: false, signals: saved.signals, effects, ...(story.ref ? { ref: story.ref } : {}), officeChanged: saved.officeVersion !== undefined };
     };
-    let done: Done;
+    let finished: Done | undefined;
+    let stopped: Stop | undefined;
     try {
-      done = await data.tx('write', work);
+      finished = await data.tx('write', work);
     } catch (error) {
-      // The transaction rolled back, so the act changed nothing. The answer is the code request or the refusal of the code.
-      if (error instanceof GuardStop) throw await answerStop(deps, data, afterCommit, error.stop);
-      throw error;
+      // The transaction rolled back, so the act changed nothing. The answer (below) is the code request or the refusal of the code.
+      if (!(error instanceof GuardStop)) throw error;
+      stopped = error.stop;
     } finally {
-      // Every hold is logged, also the hold of a call that failed after it took the lock.
+      // Every hold is logged, also the hold of a call that failed after it took the lock. The mail of a code request is not part of the hold.
       if (lockedAt > 0) logLockHold(deps, entry.name, Math.round(performance.now() - lockedAt));
     }
+    if (!finished) throw await answerStop(deps, data, afterCommit, stopped!);
+    const done: Done = finished;
 
     if (done.ref !== undefined && done.result.storyId !== undefined) req.batch.storyRefs.set(done.ref, done.result.storyId);
     if (done.officeChanged) req.batch.office = undefined;

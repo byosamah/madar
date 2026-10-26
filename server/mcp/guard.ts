@@ -286,7 +286,7 @@ export function renderConfirmMail(
 const PERSON_SQL = 'select doc from users where id = $1';
 const PERSON_LITE = 'select doc from users where id = ?1';
 /** Removes the code from the outbox row once the mail went (or can never go). */
-export const SCRUB_SQL = "update outbox set payload = payload - 'code' where kind = 'mcp.confirm' and payload->>'confirmId' = $1";
+export const SCRUB_SQL = "update outbox set payload = payload - 'code'::text where kind = 'mcp.confirm' and payload->>'confirmId' = $1";
 export const SCRUB_LITE = "update outbox set payload = json_remove(payload, '$.code') where kind = 'mcp.confirm' and json_extract(payload, '$.confirmId') = ?1";
 
 async function scrub(deps: Deps, confirmId: string): Promise<void> {

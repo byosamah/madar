@@ -38,6 +38,8 @@ The other host stays deployed as the way back. Each area below has its own guide
   runs preflight outside the lock, then `set local lock_timeout 5s` and `statement_timeout 10s` (joined with BEGIN in one
   query, see `data/CLAUDE.md`), the office lock, the idempotency check, the story, the loader, `executeParsed`, the diff
   save, the outbox rows, the signals, the commit.
+- The email code guard (owner, 2026-10-26; `mcp/guard.ts`, flow in `mcp/CLAUDE.md`) sits in the write step of `runCall`: for eight risky Admin acts of an agent the transaction stops after the handler and before the
+  save unless the call carries the right `confirmCode`. It writes the server table `agent_confirms` and the outbox row `mcp.confirm` in a transaction of its own, so every route (Pages, mcp function, Worker, office object) passes it.
 - After the commit, `processOutbox` runs the effects once. The 15-minute job retries the rest. `core/after.ts` keeps work
   alive after the answer on both hosts: on Supabase within the 150 s of the function, on the Worker through waitUntil for
   about 30 s after the answer. A long mail or push chain can stop part way there; the 15-minute job retries the outbox.
