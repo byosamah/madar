@@ -101,7 +101,7 @@ export const ProjectListRow = memo(function ProjectListRow({ summary, source }: 
               <AvatarStack leader={summary.leader} team={summary.team} max={summary.leader ? 2 : 3} size={26} leaderSize={32} />
             </span>
             <span className="min-w-0 max-w-full @4xl:text-end">
-              <NextDeadlineLabel deadline={summary.nextDeadline} stageEnd={summary.stageEnd} />
+              <NextDeadlineLabel deadline={summary.nextDeadline} stageEnd={summary.stageEnd} continuous={summary.project.continuous} />
             </span>
           </span>
         </span>

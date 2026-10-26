@@ -15,6 +15,7 @@ import { DateField } from '../../components/DateField';
 import { SelectField, TextArea, TextField } from '../../components/Fields';
 import { SegmentedControl } from '../../components/SegmentedControl';
 import { SubCompanyLogo } from '../../components/SubCompanyLogo';
+import { Switch } from '../../components/Switch';
 import { IconButton } from '../../components/IconButton';
 import { clientName } from '../../lib/clientName';
 import { ClientForm, useClientForm } from './ClientForm';
@@ -390,7 +391,8 @@ export function ProjectFields({
           onBlur={() => touch('startDate')}
           error={template ? error('startDate') : undefined}
         />
-        <DateField
+        {/* A continuous project has no target end date, so its field is not there while the switch is on (fbk_069). */}
+        {!values.continuous && <DateField
           id="project-end"
           label={t('projectForm.endDate')}
           hint={template ? t('templateUse.endHint') : undefined}
@@ -401,8 +403,19 @@ export function ProjectFields({
           onChange={(day) => set('targetEndDate', day)}
           onBlur={() => touch('targetEndDate')}
           error={error('targetEndDate')}
-        />
+        />}
       </div>
+      <Switch
+        id="project-continuous"
+        label={t('projectForm.continuous')}
+        description={t('projectForm.continuousHint')}
+        checked={values.continuous}
+        onChange={(on) => {
+          set('continuous', on);
+          // The switch on clears the target end date, so the form never holds both (the server refuses both).
+          if (on) set('targetEndDate', '');
+        }}
+      />
       {template
         ? <TemplateDetails form={form} template={template} people={humans} />
         : (mode === 'create' || editStages) && <StageList stages={values.stages} onChange={(stages) => set('stages', stages)} onBlur={() => touch('stages')} error={error('stages')} />}

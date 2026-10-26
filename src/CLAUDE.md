@@ -1232,3 +1232,9 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
   the letters start `everyone`, `all` or `الجميع`; a pick puts `@everyone` (English screens) or `@الجميع` (Arabic screens) into the box. The count
   comes from `chats.messages` and `tasks.get`; no count (a direct chat, no right) means no row. `RichText everyone` draws the three words as a mention
   chip when the message or the comment named people. The words are `batchb.en.json` and `batchb.ar.json`.
+
+- A continuous project (owner, 2026-10-26, fbk_069): the New and Edit project sheets have the switch "Continuous project" (`Switch`, id `project-continuous`) right under the dates,
+  with the hint "No deadline. The project goes on." While it is on, the Target end date field is not there and its value is empty (the switch clears it). `NextDeadlineLabel` takes
+  `continuous`: with no named deadline it says "Continuous" («مستمر», key `projects.continuous`) in place of "No deadline" and in place of "Stage ends · date" (project header,
+  Projects list row). The About panel shows "Continuous" for the end date; the Overview "Stage ends" row shows the plain date, never a late count; the meeting view shows a past
+  stage end in the plain color. The words are `real/fbk069.en.json` and `fbk069.ar.json`. Tests: `features/projects/ProjectContinuous.test.tsx`.

@@ -40,6 +40,7 @@ speaker, so write it as natural Arabic, not as a word-for-word copy of the Engli
   `b26folders` holds the words of the folders of the Files & Links tab (fbk_066): `folders.*` (the button "+ Folder", the name field, the toasts, the folder
   menu, the count with the six Arabic forms, "Move to", the drag announcements), the reasons `folder_name_taken`, `folder_limit`, `folder_other_stage` and
   `folder_missing`, and the What's new entry `2026-10-23-112`.
+  `fbk069` holds the words of the continuous project (fbk_069): `projects.continuous` ("Continuous" / «مستمر»), `projectForm.continuous` and `projectForm.continuousHint`, the reason `continuous_has_no_end`, and the What's new entry `2026-10-23-118`.
 - A task adds new words only to its own track files.
 - Server code reads the word files with plain JSON imports (no `import.meta.glob`).
 - The push line (2026-10-21) writes the bell sentences on the server: `server/push/words.ts` imports the `inbox`, `notices` and `push`

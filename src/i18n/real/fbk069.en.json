@@ -1,0 +1,22 @@
+{
+  "projects": {
+    "continuous": "Continuous"
+  },
+  "projectForm": {
+    "continuous": "Continuous project",
+    "continuousHint": "No deadline. The project goes on."
+  },
+  "errors": {
+    "reasons": {
+      "continuous_has_no_end": "A continuous project has no target end date."
+    }
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-118": {
+        "title": "Continuous projects",
+        "body": "Some projects never end, such as an internal tool or a retainer. Turn on “Continuous project” in New Project or Edit project. The project then shows “Continuous” in place of “No deadline”. A stage end date never makes it Late."
+      }
+    }
+  }
+}

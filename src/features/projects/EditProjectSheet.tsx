@@ -28,6 +28,7 @@ function valuesOf(detail: ProjectDetail): ProjectFormValues {
     contractStartDate: project.contractStartDate ?? '',
     startDate: project.startDate ?? '',
     targetEndDate: project.targetEndDate ?? '',
+    continuous: project.continuous === true,
     stages: detail.stages.map((stage) => ({ id: stage.id, name: stage.name })),
     teamIds: [],
     modelFolderPath: project.modelFolderPath,
@@ -82,7 +83,9 @@ export function EditProjectSheet({ detail, open, onOpenChange }: { detail: Proje
           areaM2: areaValue(v.area),
           contractStartDate: v.contractStartDate || null,
           startDate: v.startDate || null,
-          targetEndDate: v.targetEndDate || null,
+          targetEndDate: v.continuous ? null : v.targetEndDate || null,
+          // Sent only when the person changed it, so a save never writes the switch by mistake (fbk_069).
+          ...(v.continuous !== (detail.project.continuous === true) ? { continuous: v.continuous } : {}),
           modelFolderPath: v.modelFolderPath.trim(),
           description: v.description.trim(),
           ...(code !== undefined ? { code } : {}),

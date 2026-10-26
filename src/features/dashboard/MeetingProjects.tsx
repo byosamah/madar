@@ -106,7 +106,8 @@ export function MeetingProject({ row, tasks, discussed = false, onOpenTask }: { 
   const latest = posts.data?.find((item) => item.kind === 'update' && !(item.decision && item.at >= startedAt));
   const attentionCount = work.pastDue.length + work.review.length + work.flagged.length;
   const open = (item: TaskRow) => onOpenTask(item.task.id);
-  const stageLeft = stage?.endDate ? diffDays(today, stage.endDate) : null;
+  // A stage end date never makes a continuous project late (fbk_069), so its date shows in the plain color.
+  const stageLeft = stage?.endDate ? (row.continuous ? Math.max(0, diffDays(today, stage.endDate)) : diffDays(today, stage.endDate)) : null;
   return (
     <article aria-label={shownName(row.project, lang)} className="flex min-h-0 flex-1 flex-col gap-5">
       <header className="panel flex shrink-0 flex-wrap items-center gap-x-6 gap-y-4 p-6">

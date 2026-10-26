@@ -15,6 +15,7 @@ export type WhatsNewEntry = { id: string; day: string; right?: Action; to?: stri
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   // The usage data line stays first (insight design, section 8): the team reads what Madar records before any other news.
   { id: '2026-10-23-102', day: '2026-10-25', to: '/settings' },
+  { id: '2026-10-23-118', day: '2026-10-26', to: '/projects' },
   { id: '2026-10-23-114', day: '2026-10-26', to: '/projects' },
   // The Daftra link (owner, 2026-10-26). The lead sets the real release day before the test deploy.
   { id: '2026-10-23-113', day: '2026-10-26', right: 'payment.daftraLink' },

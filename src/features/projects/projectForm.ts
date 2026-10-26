@@ -33,6 +33,8 @@ export type ProjectFormValues = CodeValues & TemplateChoice & {
   contractStartDate: string;
   startDate: string;
   targetEndDate: string;
+  /** A continuous project never ends (fbk_069). While it is on, the target end date is empty and its field is hidden. */
+  continuous: boolean;
   stages: { id?: string; name: string }[];
   teamIds: string[];
   modelFolderPath: string;
@@ -56,7 +58,7 @@ export type ProjectFormRules = {
 
 export function emptyProjectForm(stages: string[]): ProjectFormValues {
   return {
-    name: '', nameAr: '', kind: 'client', clientId: '', subCompanyId: '', leader: 'me', location: '', geo: null, area: '', contractStartDate: '', startDate: '', targetEndDate: '',
+    name: '', nameAr: '', kind: 'client', clientId: '', subCompanyId: '', leader: 'me', location: '', geo: null, area: '', contractStartDate: '', startDate: '', targetEndDate: '', continuous: false,
     stages: stages.map((name) => ({ name })), teamIds: [], modelFolderPath: '', description: '', code: '', ...emptyCodeValues(),
     ...emptyTemplateChoice(),
   };
@@ -82,7 +84,7 @@ export function validateProjectForm(values: ProjectFormValues, rules: ProjectFor
   if (values.nameAr.trim().length > NAME_AR_MAX) errors.nameAr = 'projectForm.errors.nameArLong';
   const area = areaValue(values.area);
   if (area !== null && !(area >= 0)) errors.area = 'projectForm.errors.areaNumber';
-  if (values.startDate && values.targetEndDate && values.targetEndDate <= values.startDate) errors.targetEndDate = 'projectForm.errors.endAfterStart';
+  if (!values.continuous && values.startDate && values.targetEndDate && values.targetEndDate <= values.startDate) errors.targetEndDate = 'projectForm.errors.endAfterStart';
   if (values.templateId) {
     // A template gives the stages. It needs a start date, and its locked tasks must fit before the end date.
     const template = rules.templates?.find((t) => t.id === values.templateId);
