@@ -482,7 +482,7 @@ The owner sees how the team uses Madar, which errors they hit, and replays of th
 - Admin: a grouped side list, one section at a time. The sections, their groups and roles are in one registry,
   `features/settings/admin/sections.ts`; a new section is one line there. A section with `right` opens for each person who holds
   that right (owner, 2026-10-18, fbk_014): `sectionsFor` reads the viewer, and `opensAdminPage` (`api/rights.ts`) decides the person
-  menu. The Roles section is the Admin's only: `RolesSection.tsx` is one row for each role (people and rights), `RoleSheet.tsx` is the sheet of one role (people, names, the 118 switches in 13 folded sections, Save role, Delete with a move). A desk opens the first section at `/admin`; a
+  menu. The Roles section is the Admin's only: `RolesSection.tsx` is one row for each role (people and rights), `RoleSheet.tsx` is the sheet of one role (people, names, the 119 switches in 13 folded sections, Save role, Delete with a move). A desk opens the first section at `/admin`; a
   phone shows the list there, and its Admin row sits in the Me tab. An unknown or forbidden section goes back to `/admin`.
 - Project templates: the Admin section (`ProjectTemplatesSection.tsx`) and "Start from a template" in the new-project form
   (`features/projects/TemplateUse.tsx`, `templateForm.ts`; the picker sits right under the Name, and the people of the roles are ticked
@@ -599,16 +599,16 @@ The owner sees how the team uses Madar, which errors they hit, and replays of th
   (see "Hidden and internal projects" below). Payments only for the payment right (by default Admin, Management, Accounting; fbk_014). Agents never join a team. The person who adds a
   project task changes and deletes it like the leader while on the team; the review stays with the leader (owner, 2026-10-07).
   Only the Admin changes a role. Management reads the role of a person as text in the person sheet (owner, 2026-10-18, fbk_014).
-  The rights are 118 switches in 13 sections (role rights version 2, owner 2026-10-21; the AI switch `ai.projectSetup`, "AI creates projects and clients", joined the AI section on 2026-10-25 and is off for every built-in role except the Admin; the list is `api/rightsCatalog.ts`, a plain copy of
+  The rights are 119 switches in 13 sections (role rights version 2, owner 2026-10-21; the Money switch `payment.daftraLink`, "Link Daftra invoices", joined on 2026-10-26 and Accounting holds it by default; the AI switch `ai.projectSetup`, "AI creates projects and clients", joined the AI section on 2026-10-25 and is off for every built-in role except the Admin; the list is `api/rightsCatalog.ts`, a plain copy of
   `docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json`; `RIGHT_SECTIONS` in `permissions.ts` gives the sections). The
   role sheet (`RoleSheet.tsx`, with `RoleRights.tsx` and `roleSheetLogic.ts`) shows the 13 sections of the catalog, folded, one open at a time.
   The heading row holds the name, the count ("4 of 9 on") and an All control (on, off or mixed; `role="checkbox"` with `aria-checked="mixed"`, because ARIA allows mixed on a checkbox and not on a switch; it looks like the other switches). A power row holds the label, the line and one
   small switch for each scope (`RoleToggle.tsx`, 44 px press area), or one switch. A switch brings the switches it needs; turning a need off
   turns its dependants off (`withRight`, `withSection`). The sheet holds the list of held ids and saves it with one button: the ids that are
-  not basic go in `rights`, the basic ids that are off go in `off` (`saveShape`). "Holds 65 of 118" is live, "Back to the standard list" gives
+  not basic go in `rights`, the basic ids that are off go in `off` (`saveShape`). "Holds 65 of 119" is live, "Back to the standard list" gives
   the default of a built-in role and the Member list for a custom role, and a new role starts as a copy of the Member list. The AI section opens
   with three approved lines (the third says that an assistant creates projects and clients only with the switch "AI creates projects and clients"). A line "A person who makes a project leads it." shows when Create projects is on and three or more "Projects I
-  lead" switches are off. The Roles list ("3 people · 65 of 118 rights") and the person sheet line ("Designer: standard rights, plus 2,
+  lead" switches are off. The Roles list ("3 people · 65 of 119 rights") and the person sheet line ("Designer: standard rights, plus 2,
   without 3.") both read `heldRightsOfRole`. The Admin sections of sub-companies and requests and bugs open for `subCompanies.manage` and
   `feedback.manage`; People for any of the five `people.*` switches, Teams for `people.teams`, Clients for `clients.change`, the project
   templates for `templates.projectCreate`, `templates.projectAny` or `templates.updateProjects`, the to-do templates for `templates.taskAny`,

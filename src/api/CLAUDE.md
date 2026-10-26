@@ -388,7 +388,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   - MCP: `TOOL_DOCS` of `projects.update` (600 characters, at the limit) and `projects.get`, and the `Place:` line of `INSTRUCTIONS`.
 
 ## Office rights and roles (owner, 2026-10-18, fbk_014; role rights version 2, 2026-10-21)
-- The rights are 118 switches in 13 sections (`OfficeRight`, `contract/entities.ts`; 89 powers; "Mention everyone" joined the Chat section on 2026-10-22; the four hidden-project rights joined the Projects section on 2026-10-22; the AI switch `ai.projectSetup` joined the AI section on 2026-10-25). The one source is the catalog JSON in
+- The rights are 119 switches in 13 sections (`OfficeRight`, `contract/entities.ts`; 90 powers; "Mention everyone" joined the Chat section on 2026-10-22; the four hidden-project rights joined the Projects section on 2026-10-22; the AI switch `ai.projectSetup` joined the AI section on 2026-10-25; the Money switch `payment.daftraLink`, "Link Daftra invoices", joined on 2026-10-26: it needs `payment.view` and Accounting holds it by default). The one source is the catalog JSON in
   `docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json`; `rightsCatalog.ts` is its plain copy (no zod), and
   `rightsCatalog.test.ts` checks that the two agree. The Admin holds all of them. A switch id is `<power>.<scope>` for a power with
   scopes (`lead`, `team`, `all`, `office`, `none`), or the power name for a power with one switch. `BASIC_ON` is the 67 switches a Member holds.
@@ -401,7 +401,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   `off`) plus the expanded `rights` (or `DEFAULT_EXTRA`), minus each switch whose need on another power is off (`dropUnmetNeeds`, fail
   closed: `ai.connect` off turns every AI switch off; the sheet turns needs on with `withNeeds`); a custom role with no `off` = the Member switches
   plus its own (the meaning of before); with `off` = its own full list; a deleted role leaves the Member switches. `heldRightsOfRole` gives
-  the list to the screens. `session.get` and every output give the 118 ids only. A save writes new ids only (`roles.*` expand old ids).
+  the list to the screens. `session.get` and every output give the 119 ids only. A save writes new ids only (`roles.*` expand old ids).
   Caps: `rights` 120, `off` 70.
 - The actions of `can()` are the power names. The stand-ins of the first release are gone (`project.edit`, `project.changeLeader`,
   `project.healthOverride`, `project.editCode`, `content.post`, `content.editOwn`, `task.createForSelf`, `task.createForAnyone`,
@@ -412,7 +412,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   (the Roles section and the role events). With the default settings the answers equal the answers of before
   (`server/core/rightsParity.test.ts` proves it against a record made on the code before this release). A stored list may still hold an
   old id (`LEGACY_RIGHTS` of `rightsCatalog.ts`); that is a stored right, never an action. The pure power actions are in
-  `rightSwitches.test.ts`, one group of tests for each of the 118 switches. A to-do rule that combines the own power and `task.any` lives
+  `rightSwitches.test.ts`, one group of tests for each of the 119 switches. A to-do rule that combines the own power and `task.any` lives
   in `taskGates.ts` (`mayChangeTask`, `mayAssignTask`, `mayDeleteTask`, `mayTickChecklist`).
 - A right gives only its own power. Before a right passes an action, grep every use of that action and check what it stands in for.
 - A check of an office right reads the person with the rights attached. A handler gets them in `ctx.authority` (`execute.ts`); the
@@ -490,6 +490,19 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   started as the owner's Claude skill "madar-office-report". Only on request, because it is about 17,000 characters. A change of a tool name,
   a field or a color that the guide names fails `server/mcp/reportGuide.test.ts`. `design.colors` holds the status colors too (`onTrack`,
   `atRisk`, `late`, `muted`).
+
+## The due notice of a payment (the Daftra link, owner 2026-10-26)
+- `payment_due` is in `TRIGGERS`, `IN_APP_ONLY_TRIGGERS` (no mail) and `ACTION_TRIGGERS` (the bell counts it). It is not in `COPY_TRIGGERS`: the Admin gets no copy.
+- `runScheduledTriggers` sends it on the due day only (`payment.dueDate` equals today). A payment that is already past due on release day gets none.
+  It skips a payment with `receivedOn` set, a payment with `daftra` set, and a payment of an internal project. The dedupe key is
+  `payment_due:<paymentId>:<dueDate>`, so a payment that moves to a new day tells again. The state may have no `payments` list: read `state.payments ?? {}`.
+- The people are `paymentDuePeople`: active humans whose role is not `admin` and who hold `payment.view` and `payment.daftraLink` (`getsPaymentDue`).
+  `notify` then skips a person who may not view the project. `visibleTriggers` shows the Settings switch only to the same people.
+- The notice is `targetType: 'project'` with the snapshot `Notification.payment { id, name }`, so the bell needs no payment row. The link is
+  `/projects/<id>?payment=<paymentId>`. A viewer without `payment.view` reads the notice as gone: `notifications.list` takes out the payment, the day,
+  the link, the project and the dedupe key (`hiddenPayment`). The words are `inbox.trigger.payment_due`, `payment_due_past` and `inbox.paymentGone`
+  (`real/daftra.*.json`); `server/push/words.ts` imports them for the push line.
+- `loadJobs` (`server/data/loaders/jobs.ts`) loads the open payments of the day of the run (with `LoadCtx.now`). Tests: `paymentDue.test.ts`.
 
 ## The restart reminder of a pause (owner, 2026-10-19, fbk_025)
 - The restart date of a pause (`pause.resumeOn`) is a reminder. Madar never restarts a project by itself: a person resumes it.
@@ -663,7 +676,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 
 ## Hidden projects (owner, 2026-10-22)
 Design: `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design.md`. Wave D1 builds the core.
-- Four rights joined the catalog (117 switches and 88 powers then; 118 and 89 since 2026-10-25): `project.seeAll` (See every project) and `project.access.lead` (Choose who sees a
+- Four rights joined the catalog (117 switches and 88 powers then; 118 and 89 since 2026-10-25; 119 and 90 since 2026-10-26): `project.seeAll` (See every project) and `project.access.lead` (Choose who sees a
   project, Projects I lead) are basic and on for every role. `project.access.all` and `project.hidden` (See hidden projects) are for the
   Admin only. The Admin always holds every switch (`heldSet`), so an Admin without `project.hidden` cannot exist. Management can get it.
 - `Project.access` is `{ hidden, viewerIds }`, optional, at most `MAX_PROJECT_VIEWERS` (50). Missing means open with no chosen people.

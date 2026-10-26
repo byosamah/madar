@@ -1,0 +1,14 @@
+{
+  "inbox": {
+    "trigger": {
+      "payment_due": "{{target}}: حان موعد {{payment}} اليوم.",
+      "payment_due_past": "{{target}}: كان موعد {{payment}} {{day}}."
+    },
+    "paymentGone": "دفعة لم تعد تراها"
+  },
+  "settings": {
+    "triggers": {
+      "payment_due": "عندما يحين موعد دفعة"
+    }
+  }
+}

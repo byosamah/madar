@@ -77,6 +77,10 @@ export function noticeSentence(view: NoticeView, t: Words, lang: Language): stri
   const restart = n.trigger === 'resume_due';
   const restartPast = restart && dueDate !== null && dueDate < todayISO();
   const meeting = n.targetType === 'meeting';
+  // A payment reminder says "is due today" on its day and "was due <day>" after it (the Daftra link, owner 2026-10-26). A payment notice of a viewer
+  // who may not see payments has no payment (the server takes it out), so its sentence names nothing.
+  const paymentDue = n.trigger === 'payment_due';
+  const paymentPast = paymentDue && dueDate !== null && dueDate < todayISO();
   // A reply to a message of the person says "replied to you" (chat design 2026-10-19, item 10). The place is named as for a mention.
   const reply = n.trigger === 'mention' && n.reply === true;
   // A mention that came from @everyone has its own sentence (owner, 2026-10-22, fbk_041).
@@ -91,13 +95,16 @@ export function noticeSentence(view: NoticeView, t: Words, lang: Language): stri
   const shownTarget = lang === 'ar' && view.targetAr ? view.targetAr : target;
   const sentenceKey = copy ? copyKey(view) : meeting ? meetingKey(n, gone) : report ? reportKey(n) : everyone ? everyoneKey(group, target !== '')
     : reply ? (direct ? 'notices.repliedDirect' : group && target === '' ? 'notices.repliedGroupGone' : 'notices.repliedToYou')
-      : direct ? 'inbox.mentionDirect' : group ? groupKey(n.trigger, target !== '') : restartPast ? 'inbox.trigger.resume_due_past' : `inbox.trigger.${n.trigger}`;
+      : direct ? 'inbox.mentionDirect' : group ? groupKey(n.trigger, target !== '') : restartPast ? 'inbox.trigger.resume_due_past'
+        : paymentDue && !n.payment ? 'inbox.paymentGone' : paymentPast ? 'inbox.trigger.payment_due_past' : `inbox.trigger.${n.trigger}`;
   return t(sentenceKey, {
     actor: actor ? nameOf(actor) : t('inbox.someone', {}),
     context: actorContext(actor),
     // The excerpt of a report, the name of a group and the title of a meeting keep their own direction (FSI and PDI), so an English "…" or "?" stays at its end in Arabic.
     people,
-    target: report || group || restart || meeting ? `\u2068${shownTarget}\u2069` : shownTarget,
+    target: report || group || restart || meeting || paymentDue ? `\u2068${shownTarget}\u2069` : shownTarget,
+    // The name of a payment is the office's own text, so it keeps its direction too.
+    payment: n.payment ? `\u2068${n.payment.name}\u2069` : '',
     // A reminder names its due day, which can be days away after a weekend (audit 2026-10-03, API-11). A meeting notice names the day and the time of the start (fbk_022).
     day: startsAt ? formatDay(stampDay(startsAt), lang, 'withWeekday') : dueDate ? formatDay(dueDate, lang, 'weekday') : '',
     time: startsAt ? clockFormat(lang).format(new Date(startsAt)) : '',

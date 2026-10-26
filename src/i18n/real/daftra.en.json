@@ -1,0 +1,14 @@
+{
+  "inbox": {
+    "trigger": {
+      "payment_due": "{{target}}: {{payment}} is due today.",
+      "payment_due_past": "{{target}}: {{payment}} was due {{day}}."
+    },
+    "paymentGone": "A payment that you can no longer see"
+  },
+  "settings": {
+    "triggers": {
+      "payment_due": "A payment reaches its due day"
+    }
+  }
+}

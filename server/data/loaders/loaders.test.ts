@@ -1340,6 +1340,32 @@ describe('meetings (fbk_022, owner 2026-10-19)', () => {
     expect(reminders.map((n) => [n.targetId, n.userId]).sort()).toEqual([[soon, 'usr_003'], [soon, 'usr_004']]);
   });
 
+  it('the jobs load brings the open payments of the day of the run, so Accounting gets the due notice, and no other payment', async () => {
+    const state = office();
+    const at = new Date('2026-10-04T06:00:00Z');
+    const base = { projectId: 'prj_001', amount: 12500, note: '', createdBy: ADMIN, createdAt: '2026-09-01T09:00:00.000+03:00' };
+    state.payments = {
+      pay_901: { ...base, id: 'pay_901', name: 'Due today', dueDate: '2026-10-04', receivedOn: null },
+      pay_902: { ...base, id: 'pay_902', name: 'Received', dueDate: '2026-10-04', receivedOn: '2026-10-03' },
+      pay_903: { ...base, id: 'pay_903', name: 'Tomorrow', dueDate: '2026-10-05', receivedOn: null },
+      pay_904: { ...base, id: 'pay_904', name: 'Yesterday', dueDate: '2026-10-03', receivedOn: null },
+    };
+    const whole = structuredClone(state);
+    const wholeBefore = structuredClone(whole);
+    const count = runScheduledTriggers(whole, at);
+    const loaded = await loadJobs({ src: memorySource(state), office: snapshotOf(state, 1), now: at });
+    expect(Object.keys(loaded.payments ?? {})).toEqual(['pay_901']);
+    const scoped = structuredClone(loaded);
+    const dedupeUsed = (k: string) => Object.values(state.notifications).some((n) => n.dedupeKey === k);
+    expect(runScheduledTriggers(scoped, at, { dedupeUsed })).toBe(count);
+    expect(changesOf(loaded, scoped)).toEqual(changesOf(wholeBefore, whole));
+    const due = Object.values(scoped.notifications).filter((n) => n.trigger === 'payment_due');
+    expect(due.length).toBeGreaterThan(0);
+    expect(new Set(due.map((n) => n.payment?.id))).toEqual(new Set(['pay_901']));
+    // Without the time of the run no payment is read, as for the meetings.
+    expect(Object.keys((await loadJobs({ src: memorySource(state), office: snapshotOf(state, 1) })).payments ?? {})).toEqual([]);
+  });
+
   it('meetings.list keeps a meeting at 23:30 Riyadh on its own day on both loads', async () => {
     const state = office();
     const maker = 'usr_003';

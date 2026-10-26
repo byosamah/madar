@@ -21,7 +21,7 @@ import { stampDay } from '../../lib/dates';
  */
 export const ACTION_TRIGGERS: ReadonlySet<string> = new Set([
   'task_assigned', 'mention', 'due_tomorrow', 'overdue', 'review_requested', 'task_sent_back', 'resume_due', 'feedback_sent', 'feedback_done',
-  'meeting_invited', 'meeting_soon',
+  'meeting_invited', 'meeting_soon', 'payment_due',
 ]);
 
 export const NotificationView = z.object({
@@ -99,9 +99,17 @@ function hiddenProject(state: State, n: Notification, viewer: User): boolean {
   return noticeProjectHidden(state, n.targetType, n.targetId, viewer);
 }
 
+/**
+ * The notice of a payment due day for a viewer who no longer holds "See payments" (the Daftra link, owner 2026-10-26). It reads as gone
+ * and names nothing: no payment, no day, no link. The viewer carries the office rights (the notices call attaches them).
+ */
+function hiddenPayment(n: Notification, viewer: User): boolean {
+  return n.trigger === 'payment_due' && !can(viewer, 'payment.view');
+}
+
 /** True when the item of a notice is gone, or is a chat the viewer can no longer see. It builds no text, so the badge count stays cheap. */
 function isGone(state: State, n: Notification, viewer: User): boolean {
-  if (hiddenProject(state, n, viewer)) return true;
+  if (hiddenProject(state, n, viewer) || hiddenPayment(n, viewer)) return true;
   if (n.targetType === 'task') return !state.tasks[n.targetId] || hiddenTask(state, n, viewer);
   if (n.targetType === 'meeting') return !state.meetings?.[n.targetId] || hiddenMeeting(state, n, viewer);
   if (n.targetType === 'update') return !state.updates[n.targetId];
@@ -138,12 +146,12 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   let dueDate: string | null = null;
   let chatKind: NotificationView['chatKind'] = null;
   let startsAt: string | null = null;
-  if (hiddenProject(state, n, viewer)) {
+  if (hiddenProject(state, n, viewer) || hiddenPayment(n, viewer)) {
     // Nothing of an item of a project that the viewer may not view: no title, no project, no day, no link, no actor, no message, no story,
-    // no people of a copy and no id of the item (hidden projects, owner 2026-10-22; the report branch below does the same).
-    const { messageId: _message, correlationId: _story, dueDate: _day, forUserIds: _people, ...rest } = n;
+    // no people of a copy, no payment (and no key, which holds its id) and no id of the item (hidden projects, owner 2026-10-22; the report branch below does the same).
+    const { messageId: _message, correlationId: _story, dueDate: _day, forUserIds: _people, payment: _payment, ...rest } = n;
     return {
-      notification: { ...rest, actorId: null, targetId: 'hidden' }, actor: null, target: '', projectCode: null, project: null, link,
+      notification: { ...rest, actorId: null, targetId: 'hidden', ...(n.trigger === 'payment_due' ? { dedupeKey: null } : {}) }, actor: null, target: '', projectCode: null, project: null, link,
       needsAction: ACTION_TRIGGERS.has(n.trigger), canApprove: false, gone: true, dueDate: null, chatKind: null, startsAt: null, forPeople: [],
     };
   }
@@ -190,10 +198,11 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
     targetAr = text(copy?.nameAr);
     projectCode = copy ? text(copy.code) || null : null;
     tile = project ? projectTile(project) : null;
-    if (project) link = `/projects/${project.id}`;
+    // A payment notice opens the money panel at its payment (the Daftra link, owner 2026-10-26).
+    if (project) link = n.payment ? `/projects/${project.id}?payment=${n.payment.id}` : `/projects/${project.id}`;
     // A restart reminder names its planned day, so the screen says "is today" or "was <day>" (fbk_025). A notice saved before it
     // kept the day takes the day it was made: the job makes it on the planned day or the first run after it.
-    if (n.trigger === 'resume_due') dueDate = n.dueDate ?? stampDay(n.createdAt);
+    if (n.trigger === 'resume_due' || n.trigger === 'payment_due') dueDate = n.dueDate ?? stampDay(n.createdAt);
   } else if (n.targetType === 'meeting') {
     // Nothing of a meeting that the viewer does not see or that is gone: no title, no time, no project, no link.
     const meeting = gone ? undefined : state.meetings?.[n.targetId];

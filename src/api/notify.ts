@@ -32,6 +32,8 @@ export type NotifyInput = {
   everyone?: true;
   /** What happened to the meeting of a meeting_invited notice (fbk_022). */
   meeting?: Notification['meeting'];
+  /** The payment of a payment_due notice: its id and its name (the Daftra link, owner 2026-10-26). */
+  payment?: Notification['payment'];
 };
 
 /** True when the person gets the in-app notice of this trigger. A switch the person never set means on (owner, 2026-10-07). */
@@ -60,11 +62,23 @@ export function activeAdmins(state: Pick<State, 'users' | 'settings'>): string[]
 }
 
 /**
- * The switches that the person sees in Settings: the switch of a new report only with the right to manage reports (owner, 2026-10-07).
+ * True for a person who gets the due notice of a payment (the Daftra link, owner 2026-10-26): not an Admin, and a holder of "See payments"
+ * and "Link Daftra invoices". The Admin holds every switch, so the role test comes first: the Admin has Daftra switches but no copy of
+ * this notice. The person comes with the office rights attached.
+ */
+export function getsPaymentDue(user: Actor): boolean {
+  return user.systemRole !== 'admin' && can(user, 'payment.view') && can(user, 'payment.daftraLink');
+}
+
+/**
+ * The switches that the person sees in Settings: the switch of a new report only with the right to manage reports (owner, 2026-10-07),
+ * and the switch of a payment due day only for a person who gets that notice (the Daftra link, owner 2026-10-26).
  * The person comes with the office rights attached (session.get), so a person with none attached sees no such switch.
  */
 export function visibleTriggers(user: Actor): Trigger[] {
-  return can(user, 'feedback.manage') ? [...TRIGGERS] : TRIGGERS.filter((trigger) => !ADMIN_ONLY_TRIGGERS.has(trigger));
+  const reports = can(user, 'feedback.manage');
+  const payments = getsPaymentDue(user);
+  return TRIGGERS.filter((trigger) => (reports || !ADMIN_ONLY_TRIGGERS.has(trigger)) && (payments || trigger !== 'payment_due'));
 }
 
 /**
@@ -122,6 +136,7 @@ export function notify(state: State, actor: User | null, stamp: string, input: N
       ...(input.reply ? { reply: true as const } : {}),
       ...(input.everyone ? { everyone: true as const } : {}),
       ...(input.meeting ? { meeting: { ...input.meeting } } : {}),
+      ...(input.payment ? { payment: { ...input.payment } } : {}),
     };
     state.notifications[id] = notification;
     created.push(notification);
@@ -189,6 +204,14 @@ function lastWorkingDayBefore(day: string): string {
   return out;
 }
 
+/**
+ * The people who get the due notice of a payment: active people, not agents, whose role is not admin, who hold "See payments" and
+ * "Link Daftra invoices" (the Daftra link, owner 2026-10-26). notify then skips a person who may not view the project.
+ */
+function paymentDuePeople(state: State): string[] {
+  return Object.values(state.users).filter((u) => u.kind === 'human' && u.active && getsPaymentDue(withRights(state, u))).map((u) => u.id);
+}
+
 /** Time-based triggers. The app runs them at start and every minute. Dedupe keys stop repeats. */
 export function runScheduledTriggers(state: State, at: Date, options: NotifyOptions = {}): number {
   const clock = officeClock(at);
@@ -232,6 +255,20 @@ export function runScheduledTriggers(state: State, at: Date, options: NotifyOpti
     count += notify(state, null, stamp, {
       userIds: [meeting.organizerId, ...meeting.attendeeIds], trigger: 'meeting_soon', targetType: 'meeting', targetId: meeting.id,
       dedupeKey: `meeting_soon:${meeting.id}:${meeting.startsAt}`,
+    }, options).length;
+  }
+  // A payment reaches its due day: Accounting gets one notice, to link the Daftra invoice (the Daftra link, owner 2026-10-26). Only the
+  // due day counts: a payment that is past due on release day gets none. A linked or received payment, and a payment of an internal
+  // project, get none. The key holds the day, so a payment that moves to a new day tells again. The state may have no payments list.
+  let accounting: string[] | null = null;
+  for (const payment of Object.values(state.payments ?? {})) {
+    if (payment.dueDate !== today || payment.receivedOn !== null || payment.daftra !== undefined) continue;
+    const project = state.projects[payment.projectId];
+    if (!project || project.kind === 'internal') continue;
+    accounting ??= paymentDuePeople(state);
+    count += notify(state, null, stamp, {
+      userIds: accounting, trigger: 'payment_due', targetType: 'project', targetId: project.id, dedupeKey: `payment_due:${payment.id}:${payment.dueDate}`,
+      dueDate: payment.dueDate, payment: { id: payment.id, name: payment.name },
     }, options).length;
   }
   return count;

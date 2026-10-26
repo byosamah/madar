@@ -228,8 +228,9 @@ describe('the switches and the notices of requests and bugs', () => {
   it('shows the switch of a new report only to a person who manages the office', () => {
     expect(visibleTriggers(state.users.usr_003)).not.toContain('feedback_sent');
     expect(visibleTriggers(state.users.usr_003)).toContain('feedback_done');
-    expect(visibleTriggers(state.users.usr_003)).toHaveLength(TRIGGERS.length - 1);
-    expect(visibleTriggers(state.users.usr_001)).toEqual([...TRIGGERS]);
+    // Neither person gets the due notice of a payment (the Daftra link, owner 2026-10-26), so neither sees that switch.
+    expect(visibleTriggers(state.users.usr_003)).toHaveLength(TRIGGERS.length - 2);
+    expect(visibleTriggers(state.users.usr_001)).toEqual(TRIGGERS.filter((trigger) => trigger !== 'payment_due'));
     expect(visibleTriggers(state.users.usr_001)).toHaveLength(17);
   });
 
