@@ -76,7 +76,7 @@ describe("What's new entries", () => {
   });
 
   it('name a real right and a real address when they have them (chats-14)', () => {
-    const rights = ['admin.manage', 'people.manage', 'payment.manage', 'clients.manage', 'templates.projectAny', 'report.office', 'ai.projectSetup', 'dashboard.view'];
+    const rights = ['admin.manage', 'people.manage', 'payment.manage', 'clients.manage', 'templates.projectAny', 'report.office', 'ai.projectSetup', 'dashboard.view', 'payment.daftraLink'];
     for (const entry of WHATS_NEW) {
       if (entry.right) expect(rights, entry.id).toContain(entry.right);
       if (entry.to) expect(entry.to, entry.id).toMatch(/^\/[a-z-]+(\/[a-z-]+)*(\?[a-z]+=[a-z]+)?$/);
@@ -260,5 +260,25 @@ describe("the What's new entries of 2026-10-26 (small fixes)", () => {
     expect(body(ar, '2026-10-23-108')).toContain('حلقة داكنة');
     expect(body(en, '2026-10-23-109')).toContain('Away, Mode and Language');
     expect(body(ar, '2026-10-23-109')).toContain('زر الخروج');
+  });
+});
+
+// The Daftra link (owner, 2026-10-26): one line for the people who link invoices. The usage data line stays first, this one is second.
+describe("the What's new entry of the Daftra link", () => {
+  it('is second in the list, for the people who hold the switch "Link Daftra invoices", with no screen to open', () => {
+    expect(WHATS_NEW[1]).toEqual({ id: '2026-10-23-113', day: '2026-10-26', right: 'payment.daftraLink' });
+  });
+
+  it('says in both languages that a payment shows its Daftra invoice and that Received sets itself, and that Madar never changes Daftra', () => {
+    const title = (tree: Parameters<typeof wordAt>[0]) => String(wordAt(tree, ['whatsNew', 'items', '2026-10-23-113', 'title']));
+    const body = (tree: Parameters<typeof wordAt>[0]) => String(wordAt(tree, ['whatsNew', 'items', '2026-10-23-113', 'body']));
+    expect(title(en)).toBe('Link a payment to its Daftra invoice');
+    expect(body(en)).toContain('Daftra invoice');
+    expect(body(en)).toContain('Received');
+    expect(body(en)).toContain('never changes');
+    expect(title(ar)).toContain('دفترة');
+    expect(body(ar)).toContain('استُلمت');
+    expect(body(ar)).toContain('دفترة');
+    for (const text of [title(en), body(en), title(ar), body(ar)]) expect(text).not.toMatch(/[\u2013\u2014]/);
   });
 });

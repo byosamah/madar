@@ -3,6 +3,10 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-113": {
+        "title": "Link a payment to its Daftra invoice",
+        "body": "Madar now shows the Daftra invoice of a payment. Open the payment and link the invoice that Madar suggests. When Daftra says the invoice is paid, Madar sets the payment to Received. Madar only reads Daftra. It never changes anything there."
+      },
       "2026-10-23-107": {
         "title": "Fixes for to-dos and Home",
         "body": "The to-do panel keeps what you type: a save of the title no longer clears the description that you write, and the reverse. On Home, a drag keeps a to-do in its group, past due or due today. On a computer, Meetings today drops a meeting when it ends."
