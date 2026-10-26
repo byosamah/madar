@@ -2627,3 +2627,23 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
 - `all.sh test` on 2c3d2018 (no code change since 1f240dbb: guides and records only), then `echo production | scripts/deploy/all.sh production`, run by
   the owner. The function secrets and the Worker secrets of production list the ten Daftra names.
 - Live checks: the quick checks passed (health from supabase, `fileStore` r2, 156 calls; database, lock and asyncContext ok; /mcp with no token 401).
+
+### Release record: production at 605084ab (2026-10-26, MCP parity, the email code guard, uploads, fbk_067, fbk_068, fbk_069)
+- The owner's goal (2026-10-26): the MCP does everything a person can do in Madar, with that person's rights. Branch `rb/mcp-join` (madar-mcp):
+  `rb/mcp-bulk` (stages.replace on MCP, tasks.createMany and tasks.updateMany, paged short lists, light answers), `rb/mcp-upload`
+  (files.uploadContent and feedback.sendWithScreenshots, the keep-dates fix of stages.replace), `rb/mcp-parity` (about 88 calls opened; the AI
+  switches ai.admin and ai.myState), the email code guard (migration 20261026000200_agent_confirms.sql, SQLite version 12: a 6-digit code mailed to
+  the person for each invitation, role change of a person, turn off, turn on, remove, and roles.create, update and delete by an agent), chat files
+  (send and open, with ai.readChats and ai.messages), slim tool schemas (the Admin list 109,987 bytes under 110,000; no tool over 2,048), six fixes
+  from automated security reviews, `rb/fbk-069` (Continuous project) and `rb/fbk-067` (request statuses with a reject reason). fbk_068 (roles through
+  the MCP, Admin only) is part of the parity work. What's new 115 to 119. 158 tools for an Admin's agent; projects.delete stays in the screens.
+- Gates on rb/mcp-join (main e4ee6961 merged first): typecheck; test:db 180 files (after the harness fix 5344c4c8); test:it 42 files, 346 tests,
+  plus the real upload on local Storage and MinIO (8a86ca50) and the Postgres try-count test (confirms.it.test.ts); test:mcp 608 tests, conformance
+  5 of 32 scenarios pass, 27 expected failures; npm test 12,250 passed after one fix (605084ab: the api bundle bound is 950,000; the bundle is
+  916,094); npm run build, build:server, build:remote -- test pass. The Docker suites ran under the lock madar-mcp-gates (released).
+- The deploy suite did NOT run: the owner chose to skip it (2026-10-26) and gave his OK for production. Claude checked the test copy in Chrome instead
+  (signed in as the admin sample): Continuous on prj_001 turned Late into At risk (a to-do 3 days past due) with a plain stage end; a test request
+  was sent and rejected with a reason, and the Rejected tab shows the reason. Both stay on the test copy until the next seed.
+- `all.sh test` (605084a on the test copy, quick checks pass), then `echo production | scripts/deploy/all.sh production` run by Claude with the
+  owner's OK. Live checks: health from supabase, `fileStore` r2, 156 calls; database, lock and asyncContext ok; /mcp with no token 401; through the
+  connector, projects.list answers 15 short rows with page { total 15, offset 0, limit 50, next null }.

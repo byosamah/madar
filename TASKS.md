@@ -1179,8 +1179,8 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [x] Handler fixes for agents: `me.updateProfile` and `me.updatePreferences` change the person (not the agent record); no picture, no logo, no email through an agent
 - [x] Still closed, with the reason in `tools.ts`: `projects.delete` (no Undo), `session.get`, `push.*`, `live.ticket`, `chats.typing`, `google.*` (the server refuses an agent), `meetings.settle`, `meetings.extend`, and the raw upload calls (`files.upload`, `files.uploadStart`, `feedback.uploadStart`; the two upload tools of `rb/mcp-upload` carry the content instead)
 - [x] Joined with `rb/mcp-bulk` and `rb/mcp-upload` on `rb/mcp-join` (see the section "MCP join" below); the tile shape (`Project.shape`) and the Daftra link came in with main (see "MCP main merge" below)
-- [ ] Merge lead: run `test:mcp`, `test:db`, `test:it`; look at the 158-tool list of an Admin's agent in Claude (VS Code allows 128 tools in one request)
-- [ ] Later track: an MCP tool that takes file content (uploads), then `files.upload`, `files.uploadStart` and `feedback.uploadStart` can open
+- [x] Merge lead: run `test:mcp`, `test:db`, `test:it`; look at the 158-tool list of an Admin's agent in Claude (VS Code allows 128 tools in one request) (the suites done 2026-10-26, production at 605084ab; the 158-tool look in Claude stays open below)
+- [x] Later track: an MCP tool that takes file content (uploads), then `files.upload`, `files.uploadStart` and `feedback.uploadStart` can open (done 2026-10-26: production at 605084ab)
 ## MCP: stages, many to-dos, long lists (owner, 2026-10-26; branch `rb/mcp-bulk`)
 
 - [x] `stages.replace` is a tool (AI switch `ai.projects`, right `project.stages`); the docs say it has no Undo
@@ -1188,7 +1188,7 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [x] `projects.list` and `tasks.list` take `limit`, `offset`, `full`; short rows and `page` by default
 - [x] An event in an MCP answer keeps no `before` and no `after`
 - [x] `tasks.move` and `tasks.update` docs name the stage move; What's new 2026-10-23-115
-- [ ] The merge lead runs `test:mcp`, `test:db` and `test:it` (they need Docker)
+- [x] The merge lead runs `test:mcp`, `test:db` and `test:it` (they need Docker) (done 2026-10-26: production at 605084ab)
 - [ ] Open: 100 items in one batch are 100 transactions in one request. Measure the Worker CPU time on the test copy before the owner relies on 100.
 - [ ] Open: `project.stages_changed` has no Undo. Decide with the owner if an agent change of stages needs one.
 
@@ -1199,7 +1199,7 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [x] The body limit of `/mcp` is 256 KB, except for these two tools (about 14 MB); the SDK limit of 4 MB is raised to match
 - [x] `stages.replace` through MCP keeps the dates that the agent leaves out (`keepDates.ts`); a null clears
 - [x] INSTRUCTIONS: Files, Pictures (a cover is a file: upload it, then `projects.update coverFileId`); What's new 2026-10-23-117
-- [ ] The merge lead runs `test:mcp`, `test:db` and `test:it` (Docker), and tries one real upload on the local stack (MinIO and Storage)
+- [x] The merge lead runs `test:mcp`, `test:db` and `test:it` (Docker), and tries one real upload on the local stack (MinIO and Storage) (done 2026-10-26: production at 605084ab)
 - [x] An agent uploads into a direct chat or a group of its person and opens chat files (owner, 2026-10-26; see "MCP guard" below). It was open: `chatForUpload` refused every agent.
 - [ ] Open: measure a 10 MB upload on the test copy (Supabase function memory 256 MB, Worker 128 MB, Worker CPU 10 ms on the free plan; in Node the server work is 50 to 80 ms)
 - [x] `files.list` gave `blobKey` and `thumbKey` to an agent: `rb/mcp-parity` drops both from every answer (`withoutStorageKeys` in `run.ts`)
@@ -1208,7 +1208,7 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 
 - [x] One tool list: `stages.replace` is a tool (`ai.projects`), `feedback.sendWithScreenshots` sits beside `feedback.send` (`ai.feedback`), the two bulk to-do tools are in `ai.todos`, `files.uploadContent` is in `ai.projects`
 - [x] One INSTRUCTIONS text; every `TOOL_DOCS` entry is 600 characters or less; What's new 115, 116 and 117
-- [ ] Merge lead: `test:mcp`, `test:db`, `test:it`, one real upload on the local stack, then the full `npm test` once
+- [x] Merge lead: `test:mcp`, `test:db`, `test:it`, one real upload on the local stack, then the full `npm test` once (done 2026-10-26: production at 605084ab)
 
 ## MCP guard (`rb/mcp-join`, owner decisions of 2026-10-26: the email code guard, chat files, a slimmer tool list)
 
@@ -1217,7 +1217,7 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [x] A slimmer tool list: the Admin's `tools/list` is under 110 KB, and no tool is over 2 KB (`toolSize.test.ts`); the right ids of a role are plain strings, listed by `madar.readFirst`
 - [x] `projectTemplates.list` with `id` gives one template in full, so an agent reads it before `projectTemplates.save`
 - [x] What's new 2026-10-23-116 says that a risky Admin act asks for a code and that the assistant sends and opens chat files (no new entry)
-- [ ] Merge lead: `npm run test:db` and `npm run test:it` (the new migration and the `agent_confirms` cleanup and backup lists), then `npm run test:mcp`
+- [x] Merge lead: `npm run test:db` and `npm run test:it` (the new migration and the `agent_confirms` cleanup and backup lists), then `npm run test:mcp` (done 2026-10-26: production at 605084ab)
 - [ ] Open: `users.resendInvite` needs no code (it mails a person who was invited already). Ask the owner if it should.
 - [ ] Open: a tricked agent has 25 guesses an hour for one person (5 codes, 5 wrong tries each, each code mails the person). Lower `MAX_NEW_PER_HOUR` in `confirms.ts` if the owner wants it tighter.
 - [ ] Open: tell the owner that a Claude skill with the old text in his AI app may still say that an agent never opens a chat file
@@ -1232,7 +1232,7 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [x] The six Daftra calls are on `MCP_DENY` (22 names); the tool lists do not change (158 tools for an Admin: `MCP_ALLOW` 127, `MCP_BY_RIGHT` 28, `MCP_ADMIN` 3)
 - [x] `toolSize.test.ts`: the join made the Admin list 110,268 bytes (the Daftra and shape texts); six tool texts are shorter now (109,991 bytes; the largest tool is `projects.create`, 2,027 bytes). Limits unchanged
 - [x] What's new: 113 (Daftra), 114 (tile shapes), 115, 116, 117 (MCP)
-- [ ] Merge lead: `npm run test:db`, `npm run test:it` (the new migration order, schema version 12 on a version 11 office), `npm run test:mcp`, then the full `npm test`
+- [x] Merge lead: `npm run test:db`, `npm run test:it` (the new migration order, schema version 12 on a version 11 office), `npm run test:mcp`, then the full `npm test` (done 2026-10-26: production at 605084ab)
 - [ ] Open: the Admin list has only 9 bytes of room under 110,000. The next tool text must shorten another one, or the limit needs the owner's word
 
 ## MCP fixes after the security review (`rb/mcp-join`, 2026-10-26)
@@ -1241,13 +1241,13 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [x] The try of the email code is counted before the compare, in one statement and a transaction of its own (`tryCode`, `CONFIRM_COUNT_SQL`); SQLite twin included; 10 parallel wrong codes leave the code dead
 - [x] The code mail says what the act does: rights added and removed, new names, the role that takes the people, the old and the new role (`mcpGuardMail.lines`)
 - [x] An agent sets the picture of its own person (`me.updateProfile` `avatarUrl`) and a sub-company logo (`subCompanies.save`) as picture data of 24,000 characters at most; What's new 116 says so
-- [ ] Merge lead: run `npm run test:it` for `CONFIRM_COUNT_SQL` on Postgres: `server/it/confirms.it.test.ts` (written 2026-10-26, not run yet) runs 10 parallel wrong codes and the right-code races; also `npm run test:db`
+- [x] Merge lead: run `npm run test:it` for `CONFIRM_COUNT_SQL` on Postgres: `server/it/confirms.it.test.ts` (written 2026-10-26, not run yet) runs 10 parallel wrong codes and the right-code races; also `npm run test:db` (done 2026-10-26: production at 605084ab)
 - [ ] Open: a call with a code counts its try also when its act then fails (a rights error, an email in use). Five such calls kill the code; the agent then asks for a new one
 - [ ] Open: an agent that sends `logo: null` to `subCompanies.save` keeps the old logo (it cannot clear one). Ask the owner if it should be able to
 
 ## fbk_069 continuous project (owner, 2026-10-26)
 - [x] Built on `rb/fbk-069`: the switch "Continuous project" (New and Edit project), "Continuous" in place of "No deadline", no Late from a stage end date, out of the data gap "a stage with no end date", the MCP docs, What's new `2026-10-23-118`. No migration.
-- [ ] The merge lead runs `test:db` (the new `src/api/handlers/projectContinuous.test.ts` runs there too) and `test:it`, then the release.
+- [x] The merge lead runs `test:db` (the new `src/api/handlers/projectContinuous.test.ts` runs there too) and `test:it`, then the release. (done 2026-10-26: production at 605084ab)
 
 ## MCP final join (`rb/mcp-join`, 2026-10-26: security review fix 6, `rb/fbk-069`, `rb/fbk-067`, Arabic words, one INSTRUCTIONS text)
 - [x] The code mail lists EVERY right that a role act adds or removes, risky ones first (people, payment, admin and every-record rights: `isRiskyRight` in `server/mcp/guard.ts`); one id is still cut at 40 characters, the count never
@@ -1255,4 +1255,6 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [x] Arabic words: the continuous hint «لا موعد لانتهاء المشروع. العمل فيه مستمر.»; the statuses «نراجعه» and «نعمل عليه»
 - [x] INSTRUCTIONS read once from top to bottom: no sentence says an agent cannot do what the branch opened (a picture, a logo, a chat file); the chat file rule and the project delete rule stand once
 - [x] `toolSize.test.ts` still has its limits (110,000 and 2,048): the join shortened 19 tool texts (see the final join report)
-- [ ] Merge lead: `npm run test:it` for `server/it/confirms.it.test.ts`, `npm run test:db`, `npm run test:mcp`, the full `npm test`
+- [x] Merge lead: `npm run test:it` for `server/it/confirms.it.test.ts`, `npm run test:db`, `npm run test:mcp`, the full `npm test` (done 2026-10-26: production at 605084ab)
+
+- [ ] Look at the 158-tool list of an Admin's agent in a fresh Claude session (VS Code allows 128 tools in one request); production at 605084ab
