@@ -115,6 +115,8 @@ export const SERVER_TABLES = [
   'agent_links', 'mail_log', 'mail_outbox', 'usage_month', 'usage_warnings', 'rate_limits', 'job_runs',
   // Google Calendar (fbk_022): the connection of a person, the Google event of a meeting and the calendar of a person. No State collection reads them.
   'google_connections', 'google_events', 'google_calendars',
+  // The Daftra link (owner, 2026-10-26): the match of a Madar client to a Daftra client, and the cache of recent Daftra invoices. No State collection reads them.
+  'daftra_clients', 'daftra_invoices',
 ] as const;
 
 /** The rows of one collection, in the order of its State map. Settings is one row with the key "office". */

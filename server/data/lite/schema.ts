@@ -31,8 +31,11 @@ import type { SqlHost } from './host';
  *
  * Version 10 (chat presence design C4): the index chat_reads_conversation on chat_reads (conversation_id), for the read marks of one chat
  * that the chat view reads. Its step is in LITE_STEPS (supabase/migrations/20261022000100_chat_reads_conversation.sql).
+ *
+ * Version 11 (the Daftra link, owner 2026-10-26): the server tables daftra_clients and daftra_invoices, with the index daftra_invoices_client.
+ * Its step is in LITE_STEPS (supabase/migrations/20261026000100_daftra.sql).
  */
-export const LITE_SCHEMA_VERSION = 10;
+export const LITE_SCHEMA_VERSION = 11;
 
 export type LiteIndex = { table: string; name: string; columns: string; unique?: true; where?: string };
 
@@ -100,6 +103,17 @@ const GOOGLE_INDEXES: readonly LiteIndex[] = [
   { table: 'google_events', name: 'google_events_meeting', columns: 'meeting_id' },
 ];
 
+/**
+ * The server tables of the Daftra link (version 11; supabase/migrations/20261026000100_daftra.sql). No State collection reads them. Times are
+ * ISO text, a day is YYYY-MM-DD text, money is whole halalas, the draft flag is 0 or 1.
+ */
+const DAFTRA_SQL: readonly string[] = [
+  'create table daftra_clients (client_id text primary key, daftra_id text not null, daftra_name text not null, matched_by text not null, matched_at text not null)',
+  'create table daftra_invoices (id text primary key, daftra_client_id text not null, no text not null, total_halalas integer not null check (total_halalas >= 0), '
+  + 'issued_on text not null, created_at text not null, payment_status integer not null, paid_on text, draft integer not null check (draft in (0, 1)), seen_at text not null)',
+];
+const DAFTRA_INDEXES: readonly LiteIndex[] = [{ table: 'daftra_invoices', name: 'daftra_invoices_client', columns: 'daftra_client_id' }];
+
 /** The server tables of 20261004000101_server_tables.sql, 20261004000600_usage_signals.sql and the agent approvals. */
 const SERVER_SQL: readonly string[] = [
   'create table counters (prefix text primary key, n integer not null check (n >= 0))',
@@ -121,6 +135,7 @@ const SERVER_SQL: readonly string[] = [
   USAGE_DAY_SQL,
   ...GOOGLE_SQL,
   GOOGLE_CALENDARS_SQL,
+  ...DAFTRA_SQL,
   // The sign-in rows (Supabase exit, wave 2). id is the auth.users id of Supabase for an imported person, else a new uuid.
   `create table auth_users (id text primary key, user_id text, email text not null, password_hash text, password_set integer not null default 0, email_confirmed integer not null default 0, banned integer not null default 0, created_at text not null default (${NOW}), updated_at text not null default (${NOW}))`,
   `create table auth_links (token_hash text primary key, auth_id text not null, type text not null check (type in ('invite', 'recovery')), expires_at text not null, used_at text, created_at text not null default (${NOW}))`,
@@ -147,6 +162,7 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
   // The invitation texts of server/auth/invite.ts repeat this exact term, else SQLite scans the whole outbox (checked on node:sqlite).
   { table: 'outbox', name: 'outbox_signin', columns: 'kind', where: "kind in ('auth.invite', 'auth.email')" },
   ...GOOGLE_INDEXES,
+  ...DAFTRA_INDEXES,
 ];
 
 /**
@@ -162,6 +178,7 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
  * Version 8 adds the two server tables of the Google Calendar connect and their indexes, as in liteSchemaSql.
  * Version 9 adds the server table google_calendars (fbk_022, one calendar for each person), as in liteSchemaSql.
  * Version 10 adds the index chat_reads_conversation (chat presence design C4), as in liteSchemaSql.
+ * Version 11 adds the two server tables of the Daftra link and the index daftra_invoices_client, as in liteSchemaSql.
  */
 export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   3: [USAGE_DAY_SQL],
@@ -179,6 +196,7 @@ export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   ],
   9: [GOOGLE_CALENDARS_SQL],
   10: ['create index chat_reads_conversation on chat_reads (conversation_id)'],
+  11: [...DAFTRA_SQL, ...DAFTRA_INDEXES.map(indexSql)],
 };
 
 /** The sign-in tables of wave 2: the import of wave 4 and the restore check copy them with the office. */

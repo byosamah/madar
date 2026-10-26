@@ -163,7 +163,7 @@ describe('compareCounts', () => {
 
   it('only notes a manifest difference of a table that gets writes outside the office lock, but still fails its restore', () => {
     expect(OUTSIDE_OFFICE_LOCK).toEqual(
-      expect.arrayContaining(['public.rate_limits', 'public.upload_intents', 'public.mail_log', 'public.mail_outbox', 'public.stories', 'public.outbox', 'public.google_connections', 'public.google_events']),
+      expect.arrayContaining(['public.rate_limits', 'public.upload_intents', 'public.mail_log', 'public.mail_outbox', 'public.stories', 'public.outbox', 'public.google_connections', 'public.google_events', 'public.daftra_clients', 'public.daftra_invoices']),
     );
     const loose = { ...manifest, 'public.rate_limits': 3 };
     const dump = { ...manifest, 'public.rate_limits': 4 };
