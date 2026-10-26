@@ -21,6 +21,8 @@ Daftra invoice in the screens. The 15-minute job then reads the invoice, and whe
   "Only Allow" `invoice` and `client`.
 - Test copy setup (2026-10-26): `secrets/test.env` holds the `DAFTRA_MAZJ_*` pair, and the sample office has the sub-company MAZJ (مزج)
   with prj_001 under it. Its links point at real Mazj invoices: read only, and a payment recorded in Mazj Daftra is a real entry there.
+- Check a key role from the Mac with one GET of `/api2/products.json`: 403 means the role "Only Allow" `invoice` and `client` holds; 200 means
+  it is not on (2026-10-26: all five production keys answered 200; Madar's own lock keeps them GET-only).
 
 ## The client (`client.ts`)
 - GET only. One private function (`get`) calls fetch and sets `method: 'GET'`; `client.test.ts` fails when the file holds any other method or a body.
