@@ -228,6 +228,10 @@ describe('suite 10: the 15-minute job on the local database, as madar_server', (
     );
     await office.sql("insert into office_deletes (tbl, id, chg, created_at) values ('clients', 'old-n3', 0, $1), ('clients', 'new-n3', 0, $2)", [t(7 * DAY + HOUR), t(7 * DAY - HOUR)]);
     await office.sql("insert into rate_limits (key, window_start, count) values ('old-n3', $1, 1), ('new-n3', $2, 1)", [t(DAY + HOUR), t(DAY - HOUR)]);
+    await office.sql(
+      "insert into agent_confirms (id, person_id, agent_id, call_name, input_hash, code_hash, expires_at, created_at) values ('cnf_old_n3', 'usr_001', 'usr_009', 'users.create', 'h', 'c', $1, $1), ('cnf_new_n3', 'usr_001', 'usr_009', 'users.create', 'h', 'c', $2, $2)",
+      [t(DAY + HOUR), t(DAY - HOUR)],
+    );
     const result = await cleanup(deps, NOW);
     expect(result).toMatchObject({ stories: expect.any(Number), idempotency: expect.any(Number) });
     expect(Object.values(result).every((n) => n >= 1)).toBe(true);
@@ -235,6 +239,7 @@ describe('suite 10: the 15-minute job on the local database, as madar_server', (
     expect(await office.sql("select key from idempotency where key like '%-n3'")).toEqual([{ key: 'new-n3' }]);
     expect(await office.sql("select id from office_deletes where id like '%-n3'")).toEqual([{ id: 'new-n3' }]);
     expect(await office.sql("select key from rate_limits where key like '%-n3'")).toEqual([{ key: 'new-n3' }]);
+    expect(await office.sql("select id from agent_confirms where id like '%_n3'")).toEqual([{ id: 'cnf_new_n3' }]);
     expect(await office.sql("select id from google_connections where id like '%-n3' order by id")).toEqual([{ id: 'gc-live-n3' }, { id: 'gc-new-n3' }]);
   });
 

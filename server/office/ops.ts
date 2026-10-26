@@ -39,7 +39,7 @@ export const ROWID_ALIAS: ReadonlyMap<string, string> = new Map(tablesOf().flatM
  */
 export const DRIFT_TABLES: readonly string[] = [
   'auth_users', 'auth_links', 'auth_sessions', 'oauth_clients', 'oauth_requests', 'agent_approvals', 'rate_limits', 'outbox', 'mail_log',
-  'mail_outbox', 'usage_day', 'usage_month', 'usage_warnings',
+  'mail_outbox', 'usage_day', 'usage_month', 'usage_warnings', 'agent_confirms',
 ];
 
 /** An export holds the office for at most 5 minutes (spec section 2); an import for at most 30 minutes. */

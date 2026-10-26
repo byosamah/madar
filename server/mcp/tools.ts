@@ -6,6 +6,7 @@ import { serverContracts, type ServerCallName } from '../../src/api/contract/ser
 import { sharedCalls, type SharedCallName } from '../../src/api/sharedCalls';
 import { TOOL_DOCS } from './docs';
 import { aiSwitchOf } from './aiSwitches';
+import { ConfirmCode, GUARDED_CALLS } from './guardCalls';
 import { BULK_INPUTS, TASKS_CREATE_MANY, TASKS_UPDATE_MANY } from './bulk';
 import { PAGED_TOOLS, PagingArgs } from './paging';
 import { PICTURES_GET, PicturesGetInput, WITH_PICTURES_TOOLS, WithPictures } from './pictures';
@@ -265,7 +266,9 @@ function build(name: McpToolName): ToolDef {
   const withPictures = WITH_PICTURES_TOOLS.has(name) ? callInput.extend({ withPictures: WithPictures }) : callInput;
   // limit, offset and full are arguments of the tool only (owner, 2026-10-26): run.ts takes them out before the call and cuts the page.
   const paged = PAGED_TOOLS.has(name) ? withPictures.extend(PagingArgs) : withPictures;
-  const input = takesStory ? paged.extend({ storyId: StoryId.optional() }) : paged;
+  // confirmCode is an argument of the tool only (owner, 2026-10-26): the email code of the risky Admin acts (guard.ts). runCall takes it out before the parse.
+  const confirmed = GUARDED_CALLS.has(name) ? paged.extend({ confirmCode: ConfirmCode.optional() }) : paged;
+  const input = takesStory ? confirmed.extend({ storyId: StoryId.optional() }) : confirmed;
   const { $schema: _dialect, ...schema } = z.toJSONSchema(input, { io: 'input', override: shortDates }) as Record<string, unknown>;
   const doc = TOOL_DOCS[name];
   return {

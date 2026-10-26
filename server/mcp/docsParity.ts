@@ -4,6 +4,12 @@
  * people, and every change of a person, a role or the office settings. docs.ts adds this object to TOOL_DOCS.
  * A right in a text is the id of the switch of the role sheet. The call checks it, so a person without it gets the same refusal as in the screens.
  */
+/**
+ * The email code guard (owner, 2026-10-26; guard.ts): the sentence that ends the text of each guarded act. The first call fails with
+ * confirm_needed and emails a 6-digit code to your person. The second call has the same arguments and confirmCode.
+ */
+const CODE_RULE = 'The first call emails your person a 6-digit code and fails with confirm_needed. Ask your person for the code. Then call again with the same arguments and confirmCode.';
+
 export const PARITY_DOCS: Record<string, { title: string; description: string }> = {
   // Project set-up.
   'projects.setLeader': {
@@ -293,23 +299,23 @@ export const PARITY_DOCS: Record<string, { title: string; description: string }>
   },
   'users.create': {
     title: 'Add a person',
-    description: 'Adds a person and sends the invitation email: name, email, discipline, optionally nameAr, systemRole (member by default), roleId (a custom role of a Member), gender and language. Needs people.invite. Only an Admin makes an Admin. A real person gets a real email: ask your person for every field, and wait for yes.',
+    description: 'Adds a person and sends the invitation email: name, email, discipline, optionally nameAr, systemRole (member by default), roleId (a custom role of a Member), gender and language. Needs people.invite. Only an Admin makes an Admin. A real person gets a real email: ask your person for every field, and wait for yes. Needs a code. ' + CODE_RULE,
   },
   'users.update': {
     title: 'Change a person',
-    description: 'Changes a person (id), in "patch": name, nameAr, discipline, gender, systemRole, roleId (null takes the custom role away). Needs people.change; the role needs the Admin. An email and a picture never change through an agent. The last Admin stays. Ask your person first.',
+    description: 'Changes a person (id), in "patch": name, nameAr, discipline, gender, systemRole, roleId (null takes the custom role away). Needs people.change; the role needs the Admin. An email and a picture never change through an agent. The last Admin stays. Ask your person first. A change of systemRole or roleId needs a code. ' + CODE_RULE,
   },
   'users.deactivate': {
     title: 'Turn a person off',
-    description: 'Turns a person off (id): they cannot sign in, and their AI apps stop. Needs people.turnOff. Not your own person. Ask your person first. users.reactivate turns the person on again.',
+    description: 'Turns a person off (id): they cannot sign in, and their AI apps stop. Needs people.turnOff. Not your own person. Ask your person first. users.reactivate turns the person on again. Needs a code. ' + CODE_RULE,
   },
   'users.reactivate': {
     title: 'Turn a person on again',
-    description: 'Turns a turned-off person on again (id), with their account and history. Needs people.turnOff. A removed person does not come back. Ask your person first.',
+    description: 'Turns a turned-off person on again (id), with their account and history. Needs people.turnOff. A removed person does not come back. Ask your person first. Needs a code. ' + CODE_RULE,
   },
   'users.remove': {
     title: 'Remove a person from the list',
-    description: 'Removes a turned-off person from every list for good (id): the people list, the pickers and the teams. Their history keeps the name. The AI apps of the person go too. Needs people.remove. Turn the person off first. Nothing brings the person back. Ask your person first.',
+    description: 'Removes a turned-off person from every list for good (id): the people list, the pickers and the teams. Their history keeps the name. The AI apps of the person go too. Needs people.remove. Turn the person off first. Nothing brings the person back. Ask your person first. Needs a code. ' + CODE_RULE,
   },
   'users.invites': {
     title: 'See who is invited',
@@ -357,14 +363,14 @@ export const PARITY_DOCS: Record<string, { title: string; description: string }>
   },
   'roles.create': {
     title: 'Make a role',
-    description: 'Makes a custom role for Members: name, nameAr and rights (the switch IDs of the role sheet). A role holds the standard Member switches, the ones you list in rights, and not the ones you list in off. Needs the Admin. The role changes nobody until a person gets it. Ask your person first.',
+    description: 'Makes a custom role for Members: name, nameAr and rights (the switch IDs of the role sheet). A role holds the standard Member switches, the ones you list in rights, and not the ones you list in off. Needs the Admin. The role changes nobody until a person gets it. Ask your person first. Needs a code. ' + CODE_RULE,
   },
   'roles.update': {
     title: 'Change a role',
-    description: 'Changes a role: role (management, accounting, member, or a custom role ID), and any of name, nameAr, rights, off. It changes what every person with the role may do, and what their AI assistants may do. Needs the Admin. An agent cannot undo it. Ask your person first, and say what changes.',
+    description: 'Changes a role: role (management, accounting, member, or a custom role ID), and any of name, nameAr, rights, off. It changes what every person with the role may do, and what their AI assistants may do. Needs the Admin. An agent cannot undo it. Ask your person first, and say what changes. Needs a code. ' + CODE_RULE,
   },
   'roles.delete': {
     title: 'Delete a role',
-    description: 'Deletes a custom role (id). Its people move to moveTo (management, accounting, member or another role); the call fails when people hold the role and you send none. Needs the Admin. An agent cannot undo it. Ask your person first.',
+    description: 'Deletes a custom role (id). Its people move to moveTo (management, accounting, member or another role); the call fails when people hold the role and you send none. Needs the Admin. An agent cannot undo it. Ask your person first. Needs a code. ' + CODE_RULE,
   },
 };

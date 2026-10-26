@@ -5,6 +5,7 @@ import { memorySource } from '../data/loaders/index';
 import { diffState, writeDiff } from '../data/save';
 import { tableOf } from '../data/tables';
 import { PROJECT_KEYS_SQL } from '../files/effects';
+import { memoryConfirms, type MemoryConfirm } from '../mcp/confirms';
 import { INTENTS_SELECT_SQL } from '../files/intents';
 import { FEEDBACK_DOC_SQL, FILE_DOC_SQL, FILES_DOCS_SQL, SETTINGS_SQL, USERS_SQL } from '../files/records';
 import type { OutboxRow } from './effects';
@@ -42,6 +43,8 @@ export type MemoryTables = {
   stories: Map<string, StoryRow>;
   keys: Map<string, KeyRow & { at: Date }>;
   outbox: (OutboxRow & { id: string })[];
+  /** The codes of the email code guard (server/mcp/guard.ts). */
+  confirms: Map<string, MemoryConfirm>;
 };
 
 export type MemoryData = {
@@ -76,7 +79,7 @@ function apply(state: State, diff: ReturnType<typeof diffState>): void {
 
 export function memoryData(office: State): MemoryData {
   let tables: MemoryTables = {
-    state: structuredClone(office), version: 1, officeSeq: 0, personSeq: new Map(), stories: new Map(), keys: new Map(), outbox: [],
+    state: structuredClone(office), version: 1, officeSeq: 0, personSeq: new Map(), stories: new Map(), keys: new Map(), outbox: [], confirms: new Map(),
   };
   let snapshot: OfficeSnapshot | undefined;
   let writes: Promise<unknown> = Promise.resolve();
@@ -161,6 +164,7 @@ export function memoryData(office: State): MemoryData {
           draft.keys.set(id, { name: row.name, digest: row.digest, result: structuredClone(row.result), at: row.at });
         },
       },
+      confirms: memoryConfirms(draft.confirms),
       async outbox(rows) {
         return rows.map((row) => {
           const id = String(nextOutbox++);

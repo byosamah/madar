@@ -1,0 +1,27 @@
+{
+  "mcpGuardMail": {
+    "subject": "رمزك في مدار",
+    "title": "مساعدك يحتاج موافقتك",
+    "act": {
+      "usersCreate": "مساعدك {{agent}} يريد أن يدعو {{target}} ({{detail}}) إلى مدار بدور {{role}}.",
+      "usersRole": "مساعدك {{agent}} يريد أن يغيّر دور {{target}} إلى {{role}}.",
+      "usersDeactivate": "مساعدك {{agent}} يريد أن يوقف حساب {{target}}.",
+      "usersReactivate": "مساعدك {{agent}} يريد أن يفعّل حساب {{target}} من جديد.",
+      "usersRemove": "مساعدك {{agent}} يريد أن يحذف {{target}} من مدار.",
+      "rolesCreate": "مساعدك {{agent}} يريد أن ينشئ دورًا باسم {{target}}.",
+      "rolesUpdate": "مساعدك {{agent}} يريد أن يغيّر الدور {{target}}.",
+      "rolesDelete": "مساعدك {{agent}} يريد أن يحذف الدور {{target}}."
+    },
+    "codeIntro": "إذا وافقت، أعطِ مساعدك هذا الرمز:",
+    "codeIntro_female": "إذا وافقتِ، أعطي مساعدك هذا الرمز:",
+    "validity": "الرمز يعمل مرة واحدة، ولمدة 10 دقائق.",
+    "note": "لم تطلب هذا؟ لا تعطِ الرمز لأحد. لن يحدث شيء بدونه.",
+    "note_female": "لم تطلبي هذا؟ لا تعطي الرمز لأحد. لن يحدث شيء بدونه.",
+    "roleNames": {
+      "admin": "مدير النظام",
+      "management": "الإدارة العليا",
+      "accounting": "المحاسبة",
+      "member": "عضو"
+    }
+  }
+}

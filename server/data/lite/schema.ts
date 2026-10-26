@@ -31,8 +31,11 @@ import type { SqlHost } from './host';
  *
  * Version 10 (chat presence design C4): the index chat_reads_conversation on chat_reads (conversation_id), for the read marks of one chat
  * that the chat view reads. Its step is in LITE_STEPS (supabase/migrations/20261022000100_chat_reads_conversation.sql).
+ *
+ * Version 11 (the email code guard of an agent, owner 2026-10-26): the server table agent_confirms and its two indexes. Its step is in
+ * LITE_STEPS (supabase/migrations/20261026000100_agent_confirms.sql).
  */
-export const LITE_SCHEMA_VERSION = 10;
+export const LITE_SCHEMA_VERSION = 11;
 
 export type LiteIndex = { table: string; name: string; columns: string; unique?: true; where?: string };
 
@@ -95,6 +98,17 @@ const GOOGLE_SQL: readonly string[] = [
  * index: user_id is its primary key. A new connect reads it to reuse the calendar of the person.
  */
 const GOOGLE_CALENDARS_SQL = 'create table google_calendars (user_id text primary key, calendar_id text not null, changed_at text not null)';
+/**
+ * The server table of the email code guard (version 11, owner 2026-10-26; supabase/migrations/20261026000100_agent_confirms.sql): the codes
+ * that an agent needs for a risky Admin act. It holds hashes only, never a code. Its indexes are in CONFIRM_INDEXES.
+ */
+const AGENT_CONFIRMS_SQL =
+  'create table agent_confirms (id text primary key, person_id text not null, agent_id text not null, call_name text not null, input_hash text not null, '
+  + 'code_hash text not null, expires_at text not null, tries integer not null default 0 check (tries >= 0), used_at text, created_at text not null)';
+const CONFIRM_INDEXES: readonly LiteIndex[] = [
+  { table: 'agent_confirms', name: 'agent_confirms_lookup', columns: 'agent_id, call_name, input_hash' },
+  { table: 'agent_confirms', name: 'agent_confirms_person', columns: 'person_id, created_at' },
+];
 const GOOGLE_INDEXES: readonly LiteIndex[] = [
   { table: 'google_connections', name: 'google_connections_person', columns: 'user_id', unique: true, where: "state <> 'revoking'" },
   { table: 'google_events', name: 'google_events_meeting', columns: 'meeting_id' },
@@ -121,6 +135,7 @@ const SERVER_SQL: readonly string[] = [
   USAGE_DAY_SQL,
   ...GOOGLE_SQL,
   GOOGLE_CALENDARS_SQL,
+  AGENT_CONFIRMS_SQL,
   // The sign-in rows (Supabase exit, wave 2). id is the auth.users id of Supabase for an imported person, else a new uuid.
   `create table auth_users (id text primary key, user_id text, email text not null, password_hash text, password_set integer not null default 0, email_confirmed integer not null default 0, banned integer not null default 0, created_at text not null default (${NOW}), updated_at text not null default (${NOW}))`,
   `create table auth_links (token_hash text primary key, auth_id text not null, type text not null check (type in ('invite', 'recovery')), expires_at text not null, used_at text, created_at text not null default (${NOW}))`,
@@ -147,6 +162,7 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
   // The invitation texts of server/auth/invite.ts repeat this exact term, else SQLite scans the whole outbox (checked on node:sqlite).
   { table: 'outbox', name: 'outbox_signin', columns: 'kind', where: "kind in ('auth.invite', 'auth.email')" },
   ...GOOGLE_INDEXES,
+  ...CONFIRM_INDEXES,
 ];
 
 /**
@@ -162,6 +178,7 @@ export const SERVER_INDEXES: readonly LiteIndex[] = [
  * Version 8 adds the two server tables of the Google Calendar connect and their indexes, as in liteSchemaSql.
  * Version 9 adds the server table google_calendars (fbk_022, one calendar for each person), as in liteSchemaSql.
  * Version 10 adds the index chat_reads_conversation (chat presence design C4), as in liteSchemaSql.
+ * Version 11 adds the server table agent_confirms and its two indexes (the email code guard of an agent), as in liteSchemaSql.
  */
 export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   3: [USAGE_DAY_SQL],
@@ -179,6 +196,7 @@ export const LITE_STEPS: Readonly<Record<number, readonly string[]>> = {
   ],
   9: [GOOGLE_CALENDARS_SQL],
   10: ['create index chat_reads_conversation on chat_reads (conversation_id)'],
+  11: [AGENT_CONFIRMS_SQL, ...CONFIRM_INDEXES.map(indexSql)],
 };
 
 /** The sign-in tables of wave 2: the import of wave 4 and the restore check copy them with the office. */

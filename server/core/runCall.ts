@@ -7,6 +7,8 @@ import { beforeOf } from '../data/loaders/build';
 import { loadFor, sqlSource, type Source } from '../data/loaders/index';
 import { save, type SaveOptions, type SaveResult } from '../data/save';
 import { runErrorOf } from '../http/errors';
+import type { ConfirmStore } from '../mcp/confirms';
+import { GuardStop, answerStop, guardAct, guardApplies, requireCode, takeCode } from '../mcp/guard';
 import { resolveActor } from './actor';
 import { requestHost } from './after';
 import { AFTER_ANSWER_KINDS, CHAT_WAIT_MS, outboxRowsOf, processOutbox, WAITED_KINDS, writeOutbox, type OutboxRow } from './effects';
@@ -36,6 +38,10 @@ import type { ChangeSignal, OfficeSnapshot, RunRequest, RunResult } from './type
  *      Every other kind runs before the answer. With no after, every kind runs before it, with no wait.
  *   7. An ApiError becomes { ok: false, error }. Any other error becomes failed, and the log gets the call name.
  *
+ * The email code guard (owner decision, 2026-10-26; mcp/guard.ts) sits in step 5: when the actor is an agent and the call is one of the
+ * risky Admin acts, the transaction stops after the handler ran and before the save, unless the call carries the right confirmCode. The
+ * code is no part of the input: run() takes it out before the parse. A person in the screens is no agent and needs no code.
+ *
  * The office: each call reads office_meta through the office cache (plan 4.7), a read inside its snapshot and a write after the
  * lock, so a write never runs on an office older than the last commit. The cache gives back the same frozen snapshot while the
  * version stays, so the batch reads the office lists once. runCall keeps that snapshot in BatchScope.office for the server calls
@@ -54,6 +60,8 @@ export interface CallTx {
   readonly stories: StoryStore;
   readonly keys: KeyStore;
   outbox(rows: OutboxRow[]): Promise<string[]>;
+  /** The codes of the email code guard. Absent: the SQL form on q (mcp/confirms.ts). The memory data of the unit tests has its own. */
+  readonly confirms?: ConfirmStore;
 }
 
 export interface CallData {
@@ -191,7 +199,7 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
     return { ok: true, output, changed: false };
   }
 
-  async function runWrite(deps: Deps, req: RunRequest, entry: SharedEntry, parsed: unknown, data: CallData): Promise<RunResult> {
+  async function runWrite(deps: Deps, req: RunRequest, entry: SharedEntry, parsed: unknown, data: CallData, code?: { value?: string }): Promise<RunResult> {
     const actorId = req.principal.userId;
     const hooks = entry.hooks;
     let preflight: unknown;
@@ -201,6 +209,8 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
       preflight = await hooks.preflight(parsed, { actorId, now: deps.clock.now(), deps });
     }
     const digest = req.key !== undefined ? await digestOf(entry.name, parsed) : undefined;
+    // The hash of the exact input, without the code, for the email code guard. Only a guarded act of an agent needs it.
+    const inputHash = code ? await digestOf(entry.name, parsed) : undefined;
 
     let lockedAt = 0;
     type Effect = { id: string; kind: string };
@@ -224,6 +234,15 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
       const before = beforeOf(state, office);
       const { authority } = resolveAuthority(state, actorId, entry.def);
       const output = executeParsed(entry.def, entry.name, parsed, state, baseOf(deps, actorId, authority.id, story.storyId, now), prepared);
+      if (code && inputHash) {
+        // The handler passed (rights, fields, records), so a refused act sends no code. The office here is the one the act ran on.
+        const act = guardAct(entry.name, parsed, office);
+        if (act) {
+          await requireCode(t, {
+            personId: authority.id, agentId: actorId, agent: office.lists.users[actorId]?.name ?? '', call: entry.name, inputHash, act, code: code.value, now,
+          });
+        }
+      }
       const saved = await t.save(before, state, { story: { storyId: story.storyId, actorId } });
       const rows = await outboxRowsOf(entry.name, output, saved, t.q, now);
       // The ids come back in the order of the rows (writeOutbox), so each id keeps the kind of its row.
@@ -236,6 +255,10 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
     let done: Done;
     try {
       done = await data.tx('write', work);
+    } catch (error) {
+      // The transaction rolled back, so the act changed nothing. The answer is the code request or the refusal of the code.
+      if (error instanceof GuardStop) throw await answerStop(deps, data, afterCommit, error.stop);
+      throw error;
     } finally {
       // Every hold is logged, also the hold of a call that failed after it took the lock.
       if (lockedAt > 0) logLockHold(deps, entry.name, Math.round(performance.now() - lockedAt));
@@ -279,12 +302,15 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
     try {
       const entry = calls.get(req.name);
       if (!entry) throw new ApiError('not_found', `There is no call named ${req.name}.`);
-      const parsed = parseInput(entry, req.input);
+      // The email code guard: the code of an agent is no part of the input of the call (mcp/guard.ts).
+      const guarded = entry.kind === 'shared' && !entry.readOnly && guardApplies(req.name, req.principal);
+      const taken = guarded ? takeCode(req.input) : undefined;
+      const parsed = parseInput(entry, taken ? taken.input : req.input);
       const data = dataOf(deps);
       if (req.open && !joinsFirstRead(req.name, calls)) throw new Error(`The call ${req.name} cannot run inside the open sign-in transaction.`);
       if (entry.kind === 'server') return await runServerCall(deps, req, entry, parsed, data);
       if (entry.readOnly) return await runRead(deps, req, entry, parsed, data);
-      return await runWrite(deps, req, entry, parsed, data);
+      return await runWrite(deps, req, entry, parsed, data, taken ? { value: taken.code } : undefined);
     } catch (error) {
       const busy = busyOf(error);
       if (busy) return { ok: false, error: runErrorOf(busy) };

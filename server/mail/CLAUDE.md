@@ -8,6 +8,7 @@ after the commit of the call that asked for it.
 - `notices.ts` (notice mail), `summary.ts` (the morning summary), `summaryTasks.ts` (its three task groups), `templates/` (layout, words, and
   the snapshot tests).
 - The sign-in mail (invitation, reset, email-changed notice) is in `server/auth/mail.ts`.
+- The code mail of an agent act (owner, 2026-10-26, effect `mcp.confirm`) is in `server/mcp/guard.ts`; the words are `mcpGuardMail` (`src/i18n/real/mcpguard.*.json`).
 
 ## Drivers
 - `MAIL_DRIVER=resend` (the default, needs `RESEND_API_KEY`) or `outbox`. `MAIL_FROM` is required (`server/core/deps.ts`).
@@ -32,7 +33,7 @@ after the commit of the call that asked for it.
 
 ## Quota
 - The Resend free plan sends 100 mails a UTC day. `QUOTA_LIMITS` (`quota.ts`): notice 90, summary 90, signin 98, warning 98.
-- Every invitation and reset counts as signin.
+- Every invitation and reset counts as signin. The code mail of an agent act (`mcp.confirm`) counts as signin too.
 - A full day throws `QuotaFull`: the row waits until the next UTC midnight.
 - `release()` gives back the place of a row that never made a link.
 - The mail reserve takes only the mail lock, in its own transaction. Lock order: the office lock, then the mail lock.
@@ -88,6 +89,12 @@ after the commit of the call that asked for it.
 - Arabic mail is right to left and uses the `_female` forms for a woman.
 - A mail names a person in the language of the person who gets it (`personName` of `src/lib/personName.ts`).
 - Every word comes from the word files, in English and Arabic. Never use an em-dash.
+
+## The code mail of an agent act (owner, 2026-10-26)
+- `mcp.confirm` goes to the PERSON of the agent, never to the agent and never to another address, with one plain line of what the agent asks, a 6-digit code and "one time,
+  10 minutes". It holds no link, no token and no client data. The names in the line are cut to 60 characters and have no control or direction mark. It runs before the
+  answer (it is not in `AFTER_ANSWER_KINDS`), so the answer to the agent can tell the person to look. A full day leaves the row for the job, but a code is dead after 10 minutes,
+  so the late row sends nothing. At most 5 new codes for one person in one hour. Flow: `server/mcp/CLAUDE.md`, "The email code guard".
 
 ## Deliverability
 - vado.sa has DKIM and SPF from Resend, and DMARC `p=none` (since 2026-10-05).

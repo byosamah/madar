@@ -59,6 +59,7 @@ export function officeData(o: { meter: OfficeMeter; ledgerOf: (deps: Deps) => Ef
             save: t.save,
             stories: t.stories,
             keys: t.keys,
+            ...(t.confirms ? { confirms: t.confirms } : {}),
             outbox: async (rows) => {
               const ids = await t.outbox(rows);
               o.ledgerOf(deps)?.wrote(ids, rows.map((row) => row.kind));

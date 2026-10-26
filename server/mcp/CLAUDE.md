@@ -277,6 +277,33 @@ The goal: an agent does what its person does in the screens, with the rights of 
 - The MCP token: ES256, `aud` = MCP_URL (set by the token hook from `platform_config.mcp_url`), `client_id` required, read
   only from the Authorization header. Every 401 carries `WWW-Authenticate` with `resource_metadata`.
 - Madar records its own approval before Auth approves (`approval.ts`). Reason: Auth lets an agent token approve a client itself.
+## The email code guard (owner decision, 2026-10-26, after a security review)
+An agent that was tricked (prompt injection) must not invite an outsider, make an Admin, change the role of a person or the rights of a role. So for eight
+acts, when the ACTOR is an agent, the person of the agent must give a code that Madar emails to that person. A person in the screens needs no code.
+- The acts (`GUARDED_CALLS`, `guardCalls.ts`): `users.create` (every invitation), `users.update` when `systemRole` or `roleId` would change (compared with the stored
+  user, so a plain save that keeps both asks no code), `users.deactivate`, `users.reactivate`, `users.remove`, `roles.create`, `roles.update`, `roles.delete`.
+- Where: `runCall` (`server/core/runCall.ts`, `runWrite`), so the Pages Function, the mcp function, the Worker and the office object all pass it. `run()` takes
+  `confirmCode` out of the input before the parse (only for an agent and a guarded call). The code is no part of the input; the hash is `digestOf(name, parsed input)`.
+  The handler runs first, then `guardAct` decides, inside the transaction and before the save. So a refused act (rights, bad field, missing record, email in use)
+  answers as before and sends no mail.
+- First call, no code: the transaction rolls back (`GuardStop`), then `answerStop` records one confirmation (table `agent_confirms`, migration
+  `20261026000100_agent_confirms.sql`, SQLite schema version 11) and one outbox row `mcp.confirm` in a transaction of its own, and runs the mail (`afterCommit`; not in
+  `AFTER_ANSWER_KINDS`, so it runs before the answer, and in the office object the ledger runs it before the answer). The call fails with `forbidden`, `details.reason`
+  `confirm_needed` and `expiresInMinutes` 10. One live code for one exact act: a second first call sends no second mail (the same reason, another text). At most 5 new
+  codes for one person in one hour (`confirm_limit`, no mail).
+- Second call, same arguments plus `confirmCode`: `requireCode` finds the live row of the same person, agent, call and input hash (not used, not expired, fewer than 5 wrong
+  tries), compares the code hash, and claims the row in the SAME transaction as the act: a failed act keeps the code, two calls never both use it. A wrong code counts a
+  try in a transaction of its own (`confirm_wrong`); the fifth wrong try kills the row, and the sixth try fails even with the right code. A code for other arguments, an
+  expired, used or dead code, and the code of another agent fail with `confirm_invalid`; the answer to the agent is to call again without the code.
+- The mail (`guard.ts`, `renderConfirmMail`, words `mcpGuardMail` in `src/i18n/real/mcpguard.*.json`): to the address of the PERSON only (read again when it runs), in the
+  language of the person, with one plain line of the act (names cleaned: no control or direction mark, 60 characters), the code, "one time, 10 minutes", and no link. It counts
+  as sign-in mail against the day quota (`sendCounted`, key `mcp-confirm-<id>`). A row that runs after the end time sends nothing. The code sits in the outbox payload until the
+  mail goes; the effect then removes it (`SCRUB_SQL`, as the invitation removes its token). The table keeps a hash of `<id>:<code>` only. The code is in no answer, log line or event.
+- The tools: `confirmCode` (six digits, optional) is an argument of the eight tools only (`tools.ts`, `ConfirmCode`); the `TOOL_DOCS` of each tool and one INSTRUCTIONS paragraph
+  ("Codes for risky Admin acts") explain the flow. The job removes rows older than one day (`cleanup.ts`).
+- Not guarded on purpose: `users.resendInvite` (it mails a person who was invited already), `teams.*`, `clients.update`, `subCompanies.*`, `settings.update` (no role field).
+- Tests: `guard.lite.test.ts` (SQLite: all eight acts, the code rules, the mail), the `confirmed` helper and the guard block of `parity.test.ts` (MCP, memory data).
+
 - The consent screen is `src/features/oauth/`. `safeRedirect` (`knownHosts.ts`) refuses script schemes. An unknown host gets
   a warning.
 - An agent user is reused only for the same person, the same app name and the same sorted set of redirect addresses

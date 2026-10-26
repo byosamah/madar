@@ -38,7 +38,11 @@ describe('the invitation calls for the agent of an Admin, on SQLite', () => {
   it('lists who is invited, and sends an invitation again with the mail of the person', async () => {
     const t = await signinOffice();
     const agent = await agentOf(t, 'usr_001');
-    const created = (await asAgent(t, agent, 'users.create', { name: 'New Person', email: 'new.person@madar.test', systemRole: 'member', discipline: 'Architect' })) as { ok: boolean; output: { id: string } };
+    // An invitation of an agent needs the email code of its person (guard.ts): the first call fails, the second sends the code.
+    const person = { name: 'New Person', email: 'new.person@madar.test', systemRole: 'member', discipline: 'Architect' };
+    expect(await asAgent(t, agent, 'users.create', person)).toMatchObject({ ok: false, error: { details: { reason: 'confirm_needed' } } });
+    const [mail] = t.deps.mail.sent.filter((item) => item.tag === 'confirm');
+    const created = (await asAgent(t, agent, 'users.create', { ...person, confirmCode: /\b(\d{6})\b/.exec(mail.text)![1] })) as { ok: boolean; output: { id: string } };
     expect(created.ok).toBe(true);
     const rows = (await asAgent(t, agent, 'users.invites', {})) as { ok: boolean; output: { userId: string; state: string; sentAt: string | null }[] };
     expect(rows.ok).toBe(true);

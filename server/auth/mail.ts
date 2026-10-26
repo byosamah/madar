@@ -42,14 +42,14 @@ function wordsOf(lang: Language, kind: MailWordsKind): Words & { linkHint: strin
   };
 }
 
-function pick(words: Words, key: string, reader: Gender | undefined): string {
+export function pick(words: Words, key: string, reader: Gender | undefined): string {
   const female = reader === 'female' ? words[`${key}_female`] : undefined;
   const text = female ?? words[key];
   if (text === undefined) throw new Error(`The sign-in mail has no text for ${key}.`);
   return text;
 }
 
-function fill(text: string, values: Record<string, string>): string {
+export function fill(text: string, values: Record<string, string>): string {
   return text.replace(/\{\{(\w+)\}\}/g, (all, name: string) => values[name] ?? all);
 }
 
@@ -67,7 +67,7 @@ export function signinLink(appUrl: string, screen: 'welcome' | 'reset', tokenHas
   return `${appUrl.replace(/\/+$/, '')}/${screen}?${query.toString()}`;
 }
 
-function page(lang: Language, parts: string[]): string {
+export function page(lang: Language, parts: string[]): string {
   const dir = lang === 'ar' ? 'rtl' : 'ltr';
   const align = lang === 'ar' ? 'right' : 'left';
   return [

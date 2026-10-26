@@ -152,8 +152,19 @@ describe('the 15-minute job on SQLite (server/jobs/steps)', () => {
     await db.statement('write', "insert into stories (id, actor_id, created_at) values ('sty_old', 'usr_001', ?1), ('sty_new', 'usr_001', ?2)", [old, AT.toISOString()]);
     await db.statement('write', "insert into idempotency (actor_id, key, name, digest, result, created_at) values ('usr_001', 'k', 'n', 'd', '{}', ?1)", [old]);
     await db.statement('write', "insert into rate_limits (key, window_start, count) values ('forgot:x', ?1, 1)", [old]);
-    expect(await cleanup(deps, AT)).toEqual({ stories: 1, idempotency: 1, officeDeletes: 0, rateLimits: 1, googleRevoking: 0 });
+    expect(await cleanup(deps, AT)).toEqual({ stories: 1, idempotency: 1, officeDeletes: 0, rateLimits: 1, googleRevoking: 0, agentConfirms: 0 });
     expect(await db.statement('read', 'select id from stories')).toEqual([{ id: 'sty_new' }]);
+  });
+
+  it('removes the codes of agents after a day, and keeps a new one (the email code guard)', async () => {
+    const { db, deps } = await office();
+    const hoursAgo = (hours: number) => new Date(AT.getTime() - hours * 3_600_000).toISOString();
+    const add = (id: string, made: string) =>
+      db.statement('write', "insert into agent_confirms (id, person_id, agent_id, call_name, input_hash, code_hash, expires_at, created_at) values (?1, 'usr_001', 'usr_009', 'users.create', 'h', 'c', ?2, ?2)", [id, made]);
+    await add('cnf_old', hoursAgo(25));
+    await add('cnf_new', hoursAgo(1));
+    expect(await cleanup(deps, AT)).toMatchObject({ agentConfirms: 1 });
+    expect(await db.statement('read', 'select id from agent_confirms')).toEqual([{ id: 'cnf_new' }]);
   });
 
   it('removes a revoking Google row after 25 hours, and keeps one of 23 hours and the live rows (fbk_022)', async () => {

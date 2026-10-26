@@ -93,6 +93,20 @@ async function refused(w: World, name: string, args: Record<string, unknown> = {
   return body.result!.structuredContent.error;
 }
 
+/**
+ * A risky Admin act of an agent (guard.ts): the first call fails with confirm_needed, the person reads the code in the email, and the second
+ * call sends it with the same arguments. The memory world runs no mail, so the test reads the code from the outbox row (the effect removes it
+ * after the mail goes; guard.lite.test.ts checks that on SQLite).
+ */
+async function confirmed(w: World, name: string, args: Record<string, unknown> = {}): Promise<any> {
+  const first = await refused(w, name, args);
+  expect(first, name).toMatchObject({ code: 'forbidden', details: { reason: 'confirm_needed' } });
+  const rows = w.mem.tables.outbox.filter((row) => row.kind === 'mcp.confirm');
+  const code = String(rows[rows.length - 1].payload.code);
+  expect(code).toMatch(/^\d{6}$/);
+  return ok(w, name, { ...args, confirmCode: code });
+}
+
 /** A tool that the list never named: the server answers with an unknown tool (-32602). */
 async function unknown(w: World, name: string, args: Record<string, unknown> = {}): Promise<void> {
   const body = await callRaw(w, name, args);
@@ -390,16 +404,16 @@ describe('the templates, the Tracker, payments and meetings', () => {
 describe('the Admin work, for the agent of the Admin', () => {
   it('add, change, turn off, turn on and remove a person, and read the invitations', async () => {
     const w = world();
-    const created = await ok(w, 'users.create', { name: 'Layla Hassan', nameAr: 'ليلى حسن', email: 'layla@madar.test', discipline: 'Architect', systemRole: 'member' });
+    const created = await confirmed(w, 'users.create', { name: 'Layla Hassan', nameAr: 'ليلى حسن', email: 'layla@madar.test', discipline: 'Architect', systemRole: 'member' });
     expect(created).toMatchObject({ name: 'Layla Hassan', systemRole: 'member', active: true });
     expect((await ok(w, 'users.get', { id: created.id })).email).toBe('layla@madar.test');
     await ok(w, 'users.update', { id: created.id, patch: { discipline: 'Site engineer' } });
     expect(stateOf(w).users[created.id].discipline).toBe('Site engineer');
-    await ok(w, 'users.deactivate', { id: created.id });
+    await confirmed(w, 'users.deactivate', { id: created.id });
     expect(stateOf(w).users[created.id].active).toBe(false);
-    await ok(w, 'users.reactivate', { id: created.id });
-    await ok(w, 'users.deactivate', { id: created.id });
-    await ok(w, 'users.remove', { id: created.id });
+    await confirmed(w, 'users.reactivate', { id: created.id });
+    await confirmed(w, 'users.deactivate', { id: created.id });
+    await confirmed(w, 'users.remove', { id: created.id });
     expect(stateOf(w).users[created.id].removed).toBe(true);
     // The email and the picture of a person never change through an agent.
     const email = await refused(w, 'users.update', { id: MEMBER, patch: { email: 'new@madar.test' } });
@@ -433,16 +447,16 @@ describe('the Admin work, for the agent of the Admin', () => {
     const settings = await ok(w, 'settings.get', {});
     await ok(w, 'settings.update', { staleAfterDays: settings.staleAfterDays + 1 });
     expect(stateOf(w).settings.staleAfterDays).toBe(settings.staleAfterDays + 1);
-    await ok(w, 'roles.create', { name: 'Site supervisors', nameAr: 'مشرفو المواقع', rights: ['task.deleteOwn'] });
+    await confirmed(w, 'roles.create', { name: 'Site supervisors', nameAr: 'مشرفو المواقع', rights: ['task.deleteOwn'] });
     const role = stateOf(w).settings.roles!.custom!.find((r) => r.name === 'Site supervisors')!;
-    await ok(w, 'roles.update', { role: role.id, name: 'Site supervisors, Al Khobar' });
-    await ok(w, 'roles.delete', { id: role.id });
+    await confirmed(w, 'roles.update', { role: role.id, name: 'Site supervisors, Al Khobar' });
+    await confirmed(w, 'roles.delete', { id: role.id });
     expect(stateOf(w).settings.roles?.custom?.some((r) => r.id === role.id)).toBe(false);
   });
 
   it('record the changes of people and roles with both names, and refuse an agent the Undo of them', async () => {
     const w = world();
-    await ok(w, 'roles.create', { name: 'Site supervisors', nameAr: 'مشرفو المواقع', rights: ['task.deleteOwn'] });
+    await confirmed(w, 'roles.create', { name: 'Site supervisors', nameAr: 'مشرفو المواقع', rights: ['task.deleteOwn'] });
     const event = Object.values(stateOf(w).events).find((item) => item.verb === 'role.created')!;
     expect(event).toMatchObject({ actorId: 'usr_009', actingForId: ADMIN, actorKind: 'agent' });
     const undo = await refused(w, 'events.undo', { eventId: event.id });
@@ -500,6 +514,73 @@ describe('the Admin work, for a person without the Admin right or the AI switch'
     const names = await listed(w);
     expect(names).not.toContain('users.create');
     await unknown(w, 'users.create', { name: 'X', email: 'x@madar.test', systemRole: 'member', discipline: 'Design' });
+  });
+});
+
+describe('the email code guard through MCP (owner decision, 2026-10-26)', () => {
+  const GUARDED = ['users.create', 'users.update', 'users.deactivate', 'users.reactivate', 'users.remove', 'roles.create', 'roles.update', 'roles.delete'];
+
+  it('gives confirmCode to the eight guarded tools and to no other tool', () => {
+    for (const tool of mcpTools({ admin: true })) {
+      const properties = (tool.inputSchema.properties ?? {}) as Record<string, { type?: string }>;
+      expect('confirmCode' in properties, tool.name).toBe(GUARDED.includes(tool.name));
+      expect((tool.inputSchema.required as string[] | undefined) ?? [], tool.name).not.toContain('confirmCode');
+    }
+    // A code is six digits: the check of the tool refuses another shape before the call runs.
+    const tool = mcpTools({ admin: true }).find((item) => item.name === 'users.deactivate')!;
+    expect(tool.input.safeParse({ id: MEMBER, confirmCode: '12345' }).success).toBe(false);
+    expect(tool.input.safeParse({ id: MEMBER, confirmCode: 'abcdef' }).success).toBe(false);
+    expect(tool.input.safeParse({ id: MEMBER, confirmCode: '123456' }).success).toBe(true);
+    expect(tool.input.safeParse({ id: MEMBER }).success).toBe(true);
+  });
+
+  it('explains the flow in the text of each guarded tool and in the instructions, and keeps each text at 600 characters at most', () => {
+    for (const name of GUARDED) {
+      const text = TOOL_DOCS[name].description;
+      expect(text, name).toContain('confirmCode');
+      expect(text, name).toContain('confirm_needed');
+      expect(text.length, name).toBeLessThanOrEqual(600);
+    }
+    expect(INSTRUCTIONS).toContain('Codes for risky Admin acts');
+    expect(INSTRUCTIONS).toContain('confirm_needed');
+    for (const name of GUARDED) expect(INSTRUCTIONS, name).toContain(name);
+  });
+
+  it('answers the first call with confirm_needed, changes nothing, and writes one mail row to the person with the code in it', async () => {
+    const w = world();
+    const users = Object.keys(stateOf(w).users).length;
+    const error = await refused(w, 'users.create', { name: 'Layla Hassan', email: 'layla@madar.test', discipline: 'Architect', systemRole: 'admin' });
+    expect(error).toMatchObject({ code: 'forbidden', details: { reason: 'confirm_needed', expiresInMinutes: 10 } });
+    expect(error.message).toContain('confirmCode');
+    expect(Object.keys(stateOf(w).users)).toHaveLength(users);
+    const rows = w.mem.tables.outbox.filter((row) => row.kind === 'mcp.confirm');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].payload).toMatchObject({ personId: ADMIN, agent: expect.any(String), act: { key: 'usersCreate' } });
+    // The answer never holds the code.
+    expect(JSON.stringify(error)).not.toContain(String(rows[0].payload.code));
+  });
+
+  it('refuses a wrong code and a code for other arguments through MCP', async () => {
+    const w = world();
+    const args = { id: MEMBER };
+    await refused(w, 'users.deactivate', args);
+    const rows = () => w.mem.tables.outbox.filter((row) => row.kind === 'mcp.confirm');
+    const code = String(rows()[0].payload.code);
+    const wrong = code === '000000' ? '111111' : '000000';
+    expect(await refused(w, 'users.deactivate', { ...args, confirmCode: wrong })).toMatchObject({ code: 'forbidden', details: { reason: 'confirm_wrong' } });
+    expect(await refused(w, 'users.deactivate', { id: 'usr_004', confirmCode: code })).toMatchObject({ code: 'forbidden', details: { reason: 'confirm_invalid' } });
+    expect(stateOf(w).users[MEMBER].active).toBe(true);
+    await ok(w, 'users.deactivate', { ...args, confirmCode: code });
+    expect(stateOf(w).users[MEMBER].active).toBe(false);
+    expect(rows()).toHaveLength(1);
+  });
+
+  it('asks no code for the calls that only look like the guarded ones', async () => {
+    const w = world();
+    await ok(w, 'users.update', { id: MEMBER, patch: { discipline: 'Planner' } });
+    await ok(w, 'teams.create', { name: 'Site visits', memberIds: [MEMBER] });
+    await ok(w, 'settings.update', { staleAfterDays: 9 });
+    expect(w.mem.tables.outbox.filter((row) => row.kind === 'mcp.confirm')).toHaveLength(0);
   });
 });
 
