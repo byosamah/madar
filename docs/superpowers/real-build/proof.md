@@ -2584,3 +2584,21 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
   in Chrome with real photos: the Home rows (prototype EN dark, production dark), the menu (EN dark, AR light).
 - Live checks: the quick checks passed (health from supabase, `fileStore` r2, 154 calls; database, lock and asyncContext ok; /mcp with no token 401);
   the production page title is Madar, `/favicon.ico` 200.
+
+### Release record: production at 5bfb2df7 (2026-10-26, tile shapes fbk_061 and the Daftra link, one release)
+- On the owner's "khalas go to production" (2026-10-26), Claude (madar-tileshape) shipped `rb/tile-shape` on top of `rb/daftra` (bbc0a779): the
+  daftra session had already put bbc0a779 on main and on the test copy (migration 20261026000100_daftra.sql on madar-test), so a rewind was not
+  possible; the owner chose "both together" (in the daftra session). `all.sh test` and `echo production | scripts/deploy/all.sh production` both
+  passed on the first try; 156 calls. Daftra is dormant in production (no DAFTRA keys): only the role switch, the due notice and one What's new line show.
+- Tile shapes: `Project.shape` (one SVG path in the 18 box, empty clears), set by `projects.update` patch.shape under project.details, drawn by
+  `ProjectTile` and `MarkForm` at 62% with evenodd (the random form stays at 45%), and by `look.tile`. The MCP INSTRUCTIONS carry the owner's procedure
+  (ask for the inspiration source, about 5 options as an artifact, iterate until the person accepts, only then set the shape) and the drawing rules
+  (a solid mass, the real outline, special places as holes). What's new 114. Shapes set after the release (story sty_2ofxcyenxnamn4f7uot2yy): Madar,
+  Hayyez and Kutla logos on prj_015, prj_016, prj_017; the Eastern Corniche (prj_010) the owner's pick B4 (the plaza and the leaf on the promenade wave).
+- Gates for the tile shapes: typecheck; the builder's wide runs (src/api, server/data, server/mcp 4,117; the tile screens 1,777; 1,333 more); the overlap
+  tests after the rebase on Daftra (623); `npm run build` (prototype bundle check ok); `all.sh test` builds. The full npm test was stopped after it ran
+  long under the Docker load of daftra (owner rule: stop past 5 minutes and deploy); the one failure seen, ReactionAny, passed alone. Not run for the
+  tile shapes: test:db, test:it (Daftra ran its own full gates on bbc0a779). Screenshots: shaped tiles in the prototype (EN dark desk, AR light 390 px)
+  and in production (the Projects list).
+- Live checks: the quick checks passed (health from supabase, `fileStore` r2, 156 calls; database, lock and asyncContext ok; /mcp with no token 401);
+  the production page title is Madar, `/favicon.ico` 200; the four shapes show in the live Projects list.
