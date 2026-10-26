@@ -2616,3 +2616,14 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
   `echo production | scripts/deploy/all.sh production`, run by the owner. Not run for the follow-up: the full npm test, test:db, test:it and the deploy
   suite (owner: speed; the change is one server read and one screen part). Daftra stays dormant in production until the five keys.
 - Live checks: the quick checks passed (health from supabase, `fileStore` r2, 156 calls; database, lock and asyncContext ok; /mcp with no token 401).
+
+### Release record: production at 2c3d2018 (2026-10-26, the five Daftra keys: the Daftra link is on in production)
+- The owner made one Daftra API key in each of the five sub-company accounts and put the ten lines `DAFTRA_<NAME>_KEY` and `DAFTRA_<NAME>_SITE`
+  (BUNAH, MAZJ, TUBA, VADO, ZURAA) in `secrets/production.env` himself (TextEdit; no key passed through chat). Claude checked the shapes without
+  printing a value (five distinct keys of 40 letters and digits, five sites on `daftra.com`) and read each account once with GET: invoices and clients
+  answered 200 for all five (Bunah 109 invoices and 22 clients, MAZJ 1,720 and 837, Tuba 6 and 3, Vado 180 and 43, Zuraa 137 and 27).
+- Open: the stock items (`products.json`) also answered 200 on all five keys, so the Daftra key role "Only Allow" `invoice` and `client` is not
+  active yet. Madar's own read-only lock (`server/daftra/readOnly.ts`) keeps every key to GET. Set the role in each Daftra account later and check again.
+- `all.sh test` on 2c3d2018 (no code change since 1f240dbb: guides and records only), then `echo production | scripts/deploy/all.sh production`, run by
+  the owner. The function secrets and the Worker secrets of production list the ten Daftra names.
+- Live checks: the quick checks passed (health from supabase, `fileStore` r2, 156 calls; database, lock and asyncContext ok; /mcp with no token 401).
