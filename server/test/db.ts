@@ -18,6 +18,7 @@ import { localClient } from '../it/migrate';
 import { skipReason } from './db-mode.skip';
 import { createDbApi, type MirrorBackend } from './dbApi';
 import { downChanges } from './down';
+import { runWithCode } from './confirmGuard';
 import { fakeDeps, type FakeDeps } from './fakes/deps';
 import { createGate, fullName, type Gate } from './gate';
 import { harnessDbUrl, workerBaseline, workerLockKey, workerSchema, type ProvidedDb } from './global-setup';
@@ -260,7 +261,7 @@ export class Worker {
     await this.q(AS_SERVER);
     const started = performance.now();
     try {
-      return await run(this.deps, req);
+      return await runWithCode((one) => run(this.deps, one), req, this.deps.mail.sent);
     } finally {
       this.#calls.n += 1;
       this.#calls.ms += performance.now() - started;

@@ -24,6 +24,10 @@ function world() {
   return t;
 }
 type T = ReturnType<typeof world>;
+// In db mode and lite mode the server turns a turned-off person away before any rule: unauthenticated, reason account_off
+// (server/core/actor.ts). The unit run has no actor check, so the same person meets the rule and gets forbidden.
+const SERVER_ACTOR = process.env.MADAR_DB === '1';
+const refusal = (userId: string) => (SERVER_ACTOR && userId === 'usr_004' ? { code: 'unauthenticated' } : { code: 'forbidden', message: 'You cannot do this.' });
 type Status = 'new' | 'in_review' | 'in_progress' | 'rejected' | 'done';
 
 const send = async (t: T, userId = 'usr_003', message = MESSAGE) => {
@@ -348,6 +352,10 @@ describe('the reason never reaches another person', () => {
     await mark(t, 'usr_001', report.id, 'rejected', REASON);
     for (const userId of OTHERS) {
       t.as(userId);
+      if (SERVER_ACTOR && userId === 'usr_004') {
+        await expect(t.api.call('notifications.list', {})).rejects.toMatchObject({ code: 'unauthenticated' });
+        continue;
+      }
       const text = JSON.stringify(await t.api.call('notifications.list', {}));
       expect(text, userId).not.toContain('SECRET-REASON-4471');
     }
@@ -371,10 +379,10 @@ describe('the reason never reaches another person', () => {
     const report = await send(t);
     for (const userId of ['usr_003', 'usr_004', 'usr_005']) {
       const error = await mark(t, userId, report.id, 'rejected', REASON).catch((e: unknown) => e as { code: string; message: string; details?: unknown });
-      expect(error, userId).toMatchObject({ code: 'forbidden', message: 'You cannot do this.' });
+      expect(error, userId).toMatchObject(refusal(userId));
       expect(JSON.stringify(error)).not.toContain('SECRET-REASON-4471');
       const fake = await mark(t, userId, 'fbk_999', 'rejected', REASON).catch((e: unknown) => e);
-      expect(fake).toMatchObject({ code: 'forbidden' });
+      expect(fake).toMatchObject({ code: refusal(userId).code });
     }
     expect(stored(t, report.id).status).toBe('new');
   });
@@ -386,7 +394,7 @@ describe('the reason never reaches another person', () => {
     for (const userId of ['usr_003', 'usr_004', 'usr_005']) {
       t.as(userId);
       for (const status of [undefined, 'rejected', 'open'] as const) {
-        await expect(t.api.call('feedback.list', status ? { status } : {}), `${userId} ${status}`).rejects.toMatchObject({ code: 'forbidden', message: 'You cannot do this.' });
+        await expect(t.api.call('feedback.list', status ? { status } : {}), `${userId} ${status}`).rejects.toMatchObject(refusal(userId));
       }
     }
   });

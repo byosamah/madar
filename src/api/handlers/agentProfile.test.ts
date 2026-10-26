@@ -24,11 +24,11 @@ describe('me.updateProfile and me.updatePreferences for an agent', () => {
   it('changes the profile of the person and leaves the record of the agent as it is', async () => {
     const t = testApi(calls);
     t.as('usr_005');
-    const agentBefore = JSON.stringify(t.store.state.users.usr_005);
+    const agentBefore = structuredClone(t.store.state.users.usr_005);
     const saved = await t.api.call('me.updateProfile', { discipline: 'Site engineer', nameAr: 'سارة' });
     expect(saved.id).toBe('usr_003');
     expect(t.store.state.users.usr_003).toMatchObject({ discipline: 'Site engineer', nameAr: 'سارة' });
-    expect(JSON.stringify(t.store.state.users.usr_005)).toBe(agentBefore);
+    expect(t.store.state.users.usr_005).toEqual(agentBefore);
     const event = Object.values(t.store.state.events).find((item) => item.verb === 'user.profile_changed')!;
     expect(event).toMatchObject({ targetId: 'usr_003', actorId: 'usr_005', actingForId: 'usr_003', actorKind: 'agent' });
   });
@@ -36,10 +36,10 @@ describe('me.updateProfile and me.updatePreferences for an agent', () => {
   it('changes the preferences of the person, and refuses quiet hours, Away and the choice of the Admin', async () => {
     const t = testApi(calls);
     t.as('usr_005');
-    const agentBefore = JSON.stringify(t.store.state.users.usr_005.preferences);
+    const agentBefore = structuredClone(t.store.state.users.usr_005.preferences);
     await t.api.call('me.updatePreferences', { theme: 'dark', language: 'ar' });
     expect(t.store.state.users.usr_003.preferences).toMatchObject({ theme: 'dark', language: 'ar' });
-    expect(JSON.stringify(t.store.state.users.usr_005.preferences)).toBe(agentBefore);
+    expect(t.store.state.users.usr_005.preferences).toEqual(agentBefore);
     expect(await failureOf(t.api.call('me.updatePreferences', { awayByHand: true }))).toMatchObject({ code: 'forbidden', details: { action: 'me.away' } });
     expect(await failureOf(t.api.call('me.updatePreferences', { workHours: { quiet: false, days: [0], from: '08:00', to: '17:00' } }))).toMatchObject({ code: 'forbidden', details: { action: 'me.workHours' } });
   });
@@ -47,11 +47,11 @@ describe('me.updateProfile and me.updatePreferences for an agent', () => {
   it('sets the picture of its own person as picture data, and leaves the record of the agent as it is', async () => {
     const t = testApi(calls);
     t.as('usr_005');
-    const agentBefore = JSON.stringify(t.store.state.users.usr_005);
+    const agentBefore = structuredClone(t.store.state.users.usr_005);
     const saved = await t.api.call('me.updateProfile', { avatarUrl: PNG });
     expect(saved.id).toBe('usr_003');
     expect(t.store.state.users.usr_003.avatarUrl).toBe(PNG);
-    expect(JSON.stringify(t.store.state.users.usr_005)).toBe(agentBefore);
+    expect(t.store.state.users.usr_005).toEqual(agentBefore);
     // WebP and JPEG work too.
     expect((await t.api.call('me.updateProfile', { avatarUrl: 'data:image/webp;base64,AAAA' })).avatarUrl).toBe('data:image/webp;base64,AAAA');
     expect((await t.api.call('me.updateProfile', { avatarUrl: 'data:image/jpeg;base64,AAAA' })).avatarUrl).toBe('data:image/jpeg;base64,AAAA');

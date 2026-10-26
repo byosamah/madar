@@ -16,6 +16,7 @@ import { applyLiteSchema, EVENT_GUARDS, eventGuardsSql } from '../data/lite/sche
 import { liteLoadWhole } from '../data/lite/whole';
 import type { MirrorBackend } from './dbApi';
 import { downChanges } from './down';
+import { runWithCode } from './confirmGuard';
 import { fakeDeps, type FakeDeps } from './fakes/deps';
 import type { Gate } from './gate';
 import type { WorkerStats } from './speed';
@@ -174,7 +175,7 @@ export class LiteWorker {
     const from = this.deps.logs.length;
     const started = performance.now();
     try {
-      const result = await run(this.deps, req);
+      const result = await runWithCode((one) => run(this.deps, one), req, this.deps.mail.sent);
       // A text with no SQLite form fails inside runCall or inside an effect, and both log it: a call or kind of a later wave may.
       const missing = this.deps.logs.slice(from).filter((line) => {
         const text = `${line.message} ${String(line.fields?.error ?? '')}`;
