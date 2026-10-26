@@ -416,7 +416,8 @@ describe('a file of a group chat over MCP (owner, 2026-10-19)', () => {
     const messages = result.structuredContent.output.messages as { message: Message; files: { id: string; name: string | null }[] }[];
     expect(messages.find((m) => m.message.id === 'msg_991')?.files).toEqual([{ id: 'fil_991', name: CHAT_FILE_NAME, mimeType: 'image/jpeg' }]);
     const { MCP_ALLOW } = await import('./tools');
-    for (const name of ['files.link', 'files.upload', 'files.uploadStart', 'files.share', 'files.delete']) expect(MCP_ALLOW as readonly string[], name).not.toContain(name);
+    // The upload calls stay closed. files.link, files.share and files.delete are tools now (MCP parity), and the calls refuse a file of a chat (below).
+    for (const name of ['files.upload', 'files.uploadStart']) expect(MCP_ALLOW as readonly string[], name).not.toContain(name);
   });
 
   it('lists the file in no files.list and finds it in no search, for the agent of a member', async () => {
@@ -541,17 +542,19 @@ describe('the texts of the message tools', () => {
   });
 });
 
-// Track msg B8 to B10 (chat design 2026-10-19, items 11 and 12): only the person edits, deletes or reacts to a message, in the screens.
-describe('edit, delete and reaction of a message are for the person only', () => {
-  it('keeps the new message calls on the deny list and out of every tool list of an agent', async () => {
-    const { INSTRUCTIONS } = await import('./docs');
-    const { MCP_ADMIN, MCP_ALLOW, MCP_DENY, mcpTools } = await import('./tools');
+// Track msg B8 to B10 (chat design 2026-10-19, items 11 and 12). Since the MCP parity track (owner, 2026-10-26) an agent edits and deletes a message of its
+// person, and reacts, as tools. The calls still allow only a message of the person (parity.test.ts probes it).
+describe('edit, delete and reaction of a message are tools of an agent (MCP parity)', () => {
+  it('puts the message calls on the allow list and in the tool list, and tells the agent to ask its person first', async () => {
+    const { INSTRUCTIONS, TOOL_DOCS } = await import('./docs');
+    const { MCP_ALLOW, MCP_DENY, mcpTools } = await import('./tools');
     const listed = new Set(mcpTools({ admin: true }).map((tool) => tool.name as string));
-    for (const name of ['chats.editMessage', 'chats.deleteMessage']) {
-      expect(MCP_DENY, name).toContain(name);
-      expect([...MCP_ALLOW, ...MCP_ADMIN], name).not.toContain(name);
-      expect(listed.has(name), name).toBe(false);
+    for (const name of ['chats.editMessage', 'chats.deleteMessage', 'reactions.toggle']) {
+      expect(MCP_ALLOW as readonly string[], name).toContain(name);
+      expect(MCP_DENY as readonly string[], name).not.toContain(name);
+      expect(listed.has(name), name).toBe(true);
     }
-    expect(INSTRUCTIONS).toContain('Only your person edits, deletes or reacts to a message, in the screens.');
+    expect(INSTRUCTIONS).toContain('You change or delete only a message of your person, with chats.editMessage and chats.deleteMessage: ask your person first');
+    for (const name of ['chats.editMessage', 'chats.deleteMessage']) expect(TOOL_DOCS[name].description, name).toContain('Ask your person first');
   });
 });

@@ -24,9 +24,9 @@ describe('the agent docs of the place of a project (owner, 2026-10-19)', () => {
     expect(tool.input.safeParse({ id: 'prj_001', patch: { geo: { lat: 26.28, lng: 50.21 }, location: 'King Fahd Road, Dammam' } }).success).toBe(true);
   });
 
-  it('keep the link calls out of the tool list: a location link is set in the screens', () => {
+  it('put the link calls in the tool list (MCP parity, owner 2026-10-26): a location link can move the pin, and the docs say how', () => {
     const names = mcpTools().map((t) => t.name);
-    expect(names).not.toContain('projects.addLink');
-    expect(names).not.toContain('projects.updateLink');
+    for (const name of ['projects.addLink', 'projects.updateLink', 'projects.removeLink']) expect(names).toContain(name);
+    expect(TOOL_DOCS['projects.addLink'].description).toContain('location');
   });
 });

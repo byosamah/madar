@@ -56,7 +56,7 @@ describe('the agent docs name the switch of each right (role rights version 2)',
     expect(INSTRUCTIONS).not.toContain('Role rights:');
     const line = INSTRUCTIONS.split('\n').find((text) => text.startsWith('Switches:'));
     expect(line).toBeDefined();
-    expect(line).toContain('You never change the switches of a role.');
+    expect(line).toContain('You change the switches of a role only as an Admin\'s agent with roles.update');
   });
 
   it('name the switches for the review, the team, the minutes, the stage dates, the code and the chat messages in the instructions', () => {

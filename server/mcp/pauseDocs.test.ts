@@ -15,9 +15,12 @@ describe('the agent docs of the restart date of a pause (fbk_025)', () => {
     expect(TOOL_DOCS['projects.setStatus'].description).toContain('never restarts a project by itself');
   });
 
-  it('give an agent no call to pause, resume or move the date', () => {
+  it('give an agent the calls to pause, resume and move the date, for the person who asks (MCP parity, owner 2026-10-26)', () => {
     const names = mcpTools().map((tool) => tool.name);
-    for (const name of ['projects.pause', 'projects.resume', 'projects.setRestart']) expect(names).not.toContain(name);
+    for (const name of ['projects.pause', 'projects.resume', 'projects.setRestart']) expect(names).toContain(name);
+    const line = INSTRUCTIONS.split('\n').find((text) => text.startsWith('Pauses:'));
+    for (const word of ['projects.pause', 'projects.resume', 'projects.setRestart', 'only when your person asks']) expect(line, word).toContain(word);
+    expect(line).not.toContain('in the Madar screens');
   });
 });
 

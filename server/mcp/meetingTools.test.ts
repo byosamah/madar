@@ -325,12 +325,14 @@ describe('a repeating series over MCP (wave 3, owner 2026-10-19)', () => {
     expect(mcpTools().map((tool) => tool.name)).not.toContain('meetings.extend');
   });
 
-  it('put meetings.delete on the deny list only: a person deletes a cancelled meeting in the screens, an agent cancels (owner, 2026-10-23)', () => {
-    expect(MCP_DENY as readonly string[]).toContain('meetings.delete');
-    expect(MCP_ALLOW as readonly string[]).not.toContain('meetings.delete');
-    expect(mcpTools().map((tool) => tool.name)).not.toContain('meetings.delete');
-    expect(INSTRUCTIONS).toContain('never delete one');
-    expect(TOOL_DOCS['meetings.cancel'].description).toContain('You cannot delete a meeting');
+  it('put meetings.delete on the allow list: an agent deletes a cancelled meeting after its person says yes (MCP parity, owner 2026-10-26)', () => {
+    expect(MCP_ALLOW as readonly string[]).toContain('meetings.delete');
+    expect(MCP_DENY as readonly string[]).not.toContain('meetings.delete');
+    expect(mcpTools().map((tool) => tool.name)).toContain('meetings.delete');
+    expect(INSTRUCTIONS).toContain('meetings.delete deletes a cancelled meeting: ask your person first');
+    expect(INSTRUCTIONS).not.toContain('never delete one');
+    expect(TOOL_DOCS['meetings.cancel'].description).toContain('use meetings.delete');
+    expect(TOOL_DOCS['meetings.delete'].description).toContain('Ask your person first');
   });
 
   it('plans a series as the person, changes the later meetings with the scope, and cancels them', async () => {

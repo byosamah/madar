@@ -208,7 +208,7 @@ function heldOf(extra: RequestExtra | undefined): { held: (id: string) => boolea
  * The tools of one request (owner, 2026-10-07; rights, 2026-10-18; role rights version 2, 2026-10-21). A tool goes to an agent only when
  * its person holds the AI switch of the tool (aiSwitches.ts) and, for a right tool (tools.ts, MCP_BY_RIGHT), its right: the payment
  * switches, the Dashboard, Search, the report right, or the feedback right for the tools of requests and bugs (role-rights, 2026-10-23).
- * The Admin tools (MCP_ADMIN, none today) go only to an agent whose person has admin.manage. The check reads the person with the office
+ * The Admin tools (MCP_ADMIN, the three role calls) go only to an agent whose person has admin.manage and the switch ai.admin. The check reads the person with the office
  * rights, never the agent user. An agent has the role member (agentUser.ts), and the handler checks the same right. With no person, the
  * request gets no tool. A role change shows on the next request. A client can keep its tools/list for 5 minutes. A tools/call of a
  * tool that is not registered fails before runCall.
@@ -224,7 +224,7 @@ function toolsFor(all: ToolDef[], extra: RequestExtra | undefined): ToolDef[] {
  */
 function offToolOf(all: ToolDef[], extra: RequestExtra | undefined): ToolDef | undefined {
   const who = heldOf(extra);
-  return who && extra?.callName !== undefined ? toolOfOffSwitch(all, who.held, extra.callName) : undefined;
+  return who && extra?.callName !== undefined ? toolOfOffSwitch(all, who.held, extra.callName, who.admin) : undefined;
 }
 
 function handlerOf(deps: Deps, run: RunCall, codec: Promise<RequestStateCodec<ReasonState>>): McpHttpHandler {

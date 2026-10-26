@@ -45,7 +45,8 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
   setNow(NOW);
   try {
     const state = await buildSeed(TODAY, async () => undefined);
-    const store = new Store(state, memoryPersister());
+    const persister = memoryPersister();
+    const store = new Store(state, persister);
     const api = createApi(calls, { store, latencyMs: 0 });
     const callApi = api.call as (name: string, input: unknown, meta: { correlationId: string }) => Promise<unknown>;
     const s = () => store.state;
@@ -66,9 +67,15 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
       const correlationId = storyId ?? `cor_sample_${String(n).padStart(3, '0')}`;
       const callInput = { ...input };
       delete callInput.storyId;
-      const output = await callApi(name, callInput, { correlationId });
-      samples[name] = input;
-      return output;
+      try {
+        const output = await callApi(name, callInput, { correlationId });
+        samples[name] = input;
+        return output;
+      } catch (error) {
+        // Name the call, so a failed sample is easy to find.
+        const details = (error as { details?: unknown }).details;
+        throw new Error(`record-samples: ${name} failed: ${(error as Error).message} ${JSON.stringify(details)}`, { cause: error });
+      }
     };
 
     // The reads.
@@ -199,6 +206,155 @@ export async function recordSamples(): Promise<Record<string, Sample>> {
     await run('events.undo', { eventId: statusEvent.id });
 
     await run('events.undoStory', { correlationId: storyId });
+
+    // The tools of the MCP parity track (owner, 2026-10-26). They come after the Undo of the story and stay out of it: a change to a person, a
+    // role or a sub-company cannot be undone by an agent, a message has no Undo, and a new project is not undoable either. Each run needs a record
+    // to work on, so the script makes it with a direct call (callApi) that records no sample.
+    const owner = agent.ownerId ?? '';
+    const make = async <T,>(name: string, input: Sample): Promise<T> => callApi(name, input, { correlationId: `cor_sample_make_${name}_${Object.keys(input).length}_${n}` }) as Promise<T>;
+    const stageOf = s().stages[stageId];
+
+    // Project set-up. The leader stays the same person. A pause, its new restart date and the resume come one after the other.
+    await run('projects.setLeader', { id: project.id, leaderId: project.leaderId });
+    await run('projects.pause', { id: project.id, reason: 'The client has not sent the survey yet.', resumeOn: addDays(TODAY, 20), kind: 'internal' });
+    await run('projects.setRestart', { id: project.id, resumeOn: addDays(TODAY, 25) });
+    await run('projects.resume', { id: project.id });
+    await run('projects.setAccess', { id: project.id, hidden: false, viewerIds: [] });
+    await run('projects.addLink', { projectId: project.id, kind: 'moodboard', label: 'Moodboard', url: 'https://example.com/moodboard' });
+    const link = (s().projects[project.id].links ?? []).slice(-1)[0];
+    await run('projects.updateLink', { projectId: project.id, linkId: link.id, label: 'Moodboard, second round' });
+    await run('projects.removeLink', { projectId: project.id, linkId: link.id });
+    await run('projects.setHealthOverride', { id: project.id, value: 'at_risk', reason: 'The survey of the site is late.' });
+    await run('projects.clearHealthOverride', { id: project.id });
+    const onTeam = new Set(Object.values(s().members).filter((m) => m.projectId === project.id).map((m) => m.userId));
+    const newcomer = first(Object.values(s().users).filter((u) => u.kind === 'human' && u.active && !onTeam.has(u.id) && u.id !== agent.ownerId), 'person outside the team');
+    await run('members.add', { projectId: project.id, userId: newcomer.id, discipline: 'Architect' });
+    await run('members.update', { projectId: project.id, userId: newcomer.id, discipline: 'Site engineer' });
+    await run('members.remove', { projectId: project.id, userId: newcomer.id });
+    await run('teams.create', { name: 'Site visits', memberIds: [colleague.id] });
+    const team = first(Object.values(s().teams ?? {}).filter((t) => t.name === 'Site visits'), 'new team');
+    await run('members.addTeam', { projectId: project.id, teamId: team.id });
+    const ordered = Object.values(s().stages).filter((st) => st.projectId === project.id).sort((a, b) => a.order - b.order);
+    await run('stages.setPrerequisites', { stageId: ordered[1].id, prerequisiteIds: [ordered[0].id] });
+    await make('deadlines.create', { projectId: project.id, name: 'Sample deadline to delete', date: addDays(TODAY, 40) });
+    const spareDeadline = first(Object.values(s().deadlines).filter((d) => d.name === 'Sample deadline to delete'), 'new deadline');
+    await run('deadlines.delete', { id: spareDeadline.id });
+
+    // To-dos: a template, a to-do from it, a new version of a finished to-do, the delete, and the template calls.
+    await run('taskTemplates.save', { name: 'Check the drainage levels', stageName: stageOf.name, description: 'Compare the levels with the survey.', checklist: ['Read the survey', 'Compare the levels'], needsReview: true, schedule: 'static' });
+    const template = first(Object.values(s().taskTemplates ?? {}).filter((t) => t.name === 'Check the drainage levels'), 'new task template');
+    await run('taskTemplates.list', { stageName: stageOf.name });
+    await run('taskTemplates.rename', { id: template.id, name: 'Check the drainage levels again' });
+    await run('tasks.createFromTemplate', { templateId: template.id, stageId, ownerId: project.leaderId ?? undefined });
+    const fromTemplate = first(Object.values(s().tasks).filter((t) => t.title === 'Check the drainage levels again'), 'task from the template');
+    const doneTask = first(Object.values(s().tasks).filter((t) => t.projectId === project.id && t.status === 'done'), 'done task');
+    await run('tasks.newVersion', { id: doneTask.id, reason: 'The client asked for a change to the plan.' });
+    await run('tasks.delete', { id: fromTemplate.id });
+    await run('taskTemplates.delete', { id: template.id });
+
+    // Posts, comments, reactions and messages of the person (the calls allow the author only).
+    const post = await make<{ id: string }>('updates.create', { projectId: project.id, body: 'A post to change.' });
+    await run('updates.update', { id: post.id, body: 'A post to change, with the new levels.' });
+    await run('updates.delete', { id: post.id });
+    const comment = await make<{ comment: { id: string } }>('comments.create', { targetType: 'task', targetId: task.id, body: 'A comment to change.' });
+    await run('comments.update', { id: comment.comment.id, body: 'A comment to change, with the new levels.' });
+    await run('reactions.toggle', { commentId: comment.comment.id, emoji: '👍' });
+    await run('comments.delete', { id: comment.comment.id });
+    const message = await make<{ message: { id: string } }>('chats.send', { conversationId: chat.id, body: 'A message to change.' });
+    await run('chats.editMessage', { id: message.message.id, body: 'A message to change, with the new levels.' });
+    await run('chats.deleteMessage', { id: message.message.id });
+    const group = (await run('chats.createGroup', { name: 'Site team', memberIds: [colleague.id, newcomer.id] })) as { id: string };
+    await run('chats.updateGroup', { conversationId: group.id, name: 'Site team, Al Khobar' });
+    await run('chats.leaveGroup', { conversationId: group.id });
+
+    // Files without upload. The script gives one file its data, so the link can open it.
+    const sampleFile = first(Object.values(s().files).filter((f) => f.projectId === project.id), 'file of the project');
+    await persister.putBlob(sampleFile.versions[sampleFile.versions.length - 1].blobKey, new Blob(['x'], { type: 'image/png' }));
+    await run('files.link', { id: sampleFile.id, variant: 'full', disposition: 'inline' });
+    await run('files.markDelivered', { id: sampleFile.id });
+    await run('files.share', { fileId: sampleFile.id, target: { kind: 'project_chat' }, message: 'The latest drawing.' });
+    await run('files.delete', { id: sampleFile.id });
+
+    // The bell, the read marks and the own chat state of the person.
+    const notice = first(Object.values(s().notifications).filter((n) => n.userId === agent.ownerId), 'notice of the person');
+    await run('notifications.list', { unreadOnly: false, limit: 20 });
+    await run('notifications.count', {});
+    await run('notifications.markRead', { ids: [notice.id] });
+    await run('notifications.markUnread', { ids: [notice.id] });
+    await run('notifications.markAllRead', {});
+    await run('notifications.updateSettings', { channel: 'app', trigger: 'mention', on: true });
+    await run('chats.unreadCount', {});
+    await run('chats.markRead', { conversationId: projectChat.id });
+    await run('chats.markUnread', { conversationId: projectChat.id });
+    await run('chats.setNotify', { conversationId: projectChat.id, notify: 'named' });
+    await run('chats.archive', { conversationId: projectChat.id, archived: true });
+
+    // Templates of stages and projects.
+    await run('stageTemplates.save', { name: 'Small villa stages', stages: ['Concept', 'Design', 'Documents'] });
+    await run('stageTemplates.list', {});
+    const stageTemplate = first(Object.values(s().stageTemplates ?? {}).filter((t) => t.name === 'Small villa stages'), 'new stage template');
+    await run('stageTemplates.delete', { id: stageTemplate.id });
+    const baseTemplate = first(Object.values(s().projectTemplates ?? {}), 'project template');
+    const parts = { name: baseTemplate.name, roles: baseTemplate.roles, stages: baseTemplate.stages, tasks: baseTemplate.tasks };
+    await run('projectTemplates.save', { id: baseTemplate.id, ...parts });
+    const copy = await make<{ id: string }>('projectTemplates.save', { ...parts, name: `${baseTemplate.name}, copy` });
+    await run('projectTemplates.delete', { id: copy.id });
+    await run('projectTemplates.usage', { templateId: baseTemplate.id });
+    const open = first(projects.filter((p) => p.id !== project.id && p.id !== other.id), 'open project for the template');
+    await run('projectTemplates.matchPlan', { projectId: open.id, templateId: baseTemplate.id });
+    await run('projectTemplates.syncPlan', { templateId: baseTemplate.id, projectIds: [open.id] });
+    await run('projectTemplates.link', { projectId: open.id, templateId: baseTemplate.id, stageMatches: {}, taskMatches: {}, rolePeople: {}, replace: false });
+    await run('projectTemplates.syncApply', {
+      templateId: baseTemplate.id, projectId: open.id,
+      choices: { add: false, bringBack: false, removed: 'keep', text: false, dates: false, leads: false, closed: 'leave', stages: false },
+    });
+
+    // Tracker, payments and meetings.
+    const waiting = await make<{ entry: { id: string } }>('tracker.log', { projectId: project.id, type: 'message', direction: 'in', title: 'The client asked for the revised plan', waiting: 'us', date: TODAY });
+    await run('tracker.assignReply', { id: waiting.entry.id, userId: colleague.id, dueDate: addDays(TODAY, 3) });
+    await run('tracker.export', { projectId: project.id });
+    await run('tracker.delete', { id: waiting.entry.id });
+    await make('payments.create', { projectId: project.id, name: 'Sample fee to delete', amount: 1000, dueDate: addDays(TODAY, 60) });
+    const spent = first(Object.values(s().payments ?? {}).filter((p) => p.name === 'Sample fee to delete'), 'payment to delete');
+    await run('payments.delete', { id: spent.id });
+    await make('meetings.create', { kind: 'team', title: 'Sample meeting to delete', startsAt: `${addDays(TODAY, 6)}T09:00:00+03:00` });
+    const gone = first(Object.values(s().meetings ?? {}).filter((m) => m.title === 'Sample meeting to delete'), 'meeting to delete');
+    await make('meetings.cancel', { id: gone.id });
+    await run('meetings.delete', { id: gone.id });
+
+    // The own profile, preferences, requests and AI apps of the person.
+    await run('me.updateProfile', { nameAr: s().users[owner].nameAr ?? 'أسامة' });
+    await run('me.updatePreferences', { theme: 'dark' });
+    await run('feedback.send', { kind: 'feature', message: 'Add a print view to the Tracker.', page: '/projects' });
+    await run('agents.list', {});
+    const spareAgent = await make<{ id: string }>('users.create', { name: 'Spare Agent', email: 'spare.agent@madar.test', kind: 'agent', ownerId: owner, discipline: 'Assistant' });
+    await run('agents.remove', { agentId: spareAgent.id });
+
+    // Admin work. The agent acts for the Admin, who holds every right.
+    await run('users.create', { name: 'Layla Hassan', nameAr: 'ليلى حسن', email: 'layla.hassan@madar.test', discipline: 'Architect', systemRole: 'member', language: 'en' });
+    const layla = first(Object.values(s().users).filter((u) => u.email === 'layla.hassan@madar.test'), 'new person');
+    await run('users.get', { id: layla.id });
+    await run('users.update', { id: layla.id, patch: { discipline: 'Site engineer' } });
+    await run('users.invites', {});
+    await run('users.resendInvite', { id: layla.id });
+    await run('users.deactivate', { id: layla.id });
+    await run('users.reactivate', { id: layla.id });
+    await make('users.deactivate', { id: layla.id });
+    await run('users.remove', { id: layla.id });
+    const oldClient = first(Object.values(s().clients), 'client');
+    await run('clients.update', { id: oldClient.id, patch: { phone: '+966 13 555 0100' } });
+    await run('teams.list', {});
+    await run('teams.update', { id: team.id, name: 'Site visits and surveys' });
+    await run('teams.delete', { id: team.id });
+    await run('subCompanies.save', { name: 'Marsa Design', nameAr: 'مرسى للتصميم', logo: null });
+    const subCompany = first(Object.values(s().subCompanies ?? {}).filter((c) => c.name === 'Marsa Design'), 'new sub-company');
+    await run('subCompanies.delete', { id: subCompany.id, moveToId: null });
+    await run('settings.get', {});
+    await run('settings.update', { staleAfterDays: s().settings.staleAfterDays });
+    await run('roles.create', { name: 'Site supervisors', nameAr: 'مشرفو المواقع', rights: ['task.deleteOwn'] });
+    const role = first((s().settings.roles?.custom ?? []).filter((r) => r.name === 'Site supervisors'), 'new role');
+    await run('roles.update', { role: role.id, name: 'Site supervisors, Al Khobar' });
+    await run('roles.delete', { id: role.id });
 
     // A new client and a new project (owner, 2026-10-25). Both stay out of the story: a new project has no Undo, so a story that holds it
     // cannot be taken back. They come after the Undo of the story.

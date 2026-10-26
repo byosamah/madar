@@ -9,16 +9,20 @@ import { aiSwitchOf } from './aiSwitches';
 import { PICTURES_GET, PicturesGetInput, WITH_PICTURES_TOOLS, WithPictures } from './pictures';
 
 /**
- * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). An allowlist of 53 tools: the reads and writes an agent
- * can use for an office project, with the three message tools (owner, 2026-10-12), the stage dates (fbk_023), the five meeting tools
- * (fbk_022) and the picture tool (owner, 2026-10-21), and the client and template lists for the AI switch "AI creates projects and clients" (owner, 2026-10-25). The right list adds 12 tools that a right of the person opens: the 4 payment tools,
- * the Dashboard and Search (role rights version 2, 2026-10-21), reports.office for the report right (owner, 2026-10-18, fbk_016), and the
- * 3 tools of requests and bugs for the feedback right (owner, 2026-10-07; role-rights, 2026-10-23), and projects.create and clients.create for the
- * project and client rights (owner, 2026-10-25). The Admin holds every right, so an Admin's agent gets all 65. Every other call stays on the deny list: screen work (uploads, read marks, counts, archives, group
- * changes), the prototype controls, and the other Admin calls. VS Code allows at most 128 tools in one request across all
- * servers, and each tool definition uses model context, so the lists stay short. tools.test.ts fails when a call is in no list.
+ * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). An allowlist: the reads and writes an agent can use for an office
+ * project, with the message tools (owner, 2026-10-12), the stage dates (fbk_023), the meeting tools (fbk_022), the picture tool (owner,
+ * 2026-10-21), the client and template lists for the AI switch "AI creates projects and clients" (owner, 2026-10-25), and the MCP parity
+ * track (owner, 2026-10-26): an agent does what its person does in the screens, with the rights of that person. That track opened the
+ * project set-up, the edits and deletes, the files without upload, the bell and the read marks, the group chats, the templates, the
+ * Tracker, payment and meeting deletes, the own profile and settings, and the Admin work. The right list holds the tools that a right of
+ * the person opens (the payment tools, the Dashboard, Search, the report, the requests and bugs, the project and client rights, and the
+ * Admin rights). MCP_ADMIN holds the three role tools, which need the Admin right admin.manage. The Admin holds every right, so an
+ * Admin's agent gets every tool. Only these stay on the deny list: the delete of a project, the uploads, the session, the push and live
+ * calls, the typing signal, Google, the settling of a meeting and the replace of the stages. VS Code allows at most 128 tools in one
+ * request across all servers, so an Admin's agent that connects to VS Code with other servers may hit the limit (the lists are still
+ * short for any other role). tools.test.ts fails when a call is in no list.
  *
- * Every tool of both lists also belongs to one AI switch of the role sheet (aiSwitches.ts, from the catalog): an agent sees a tool only
+ * Every tool of the lists also belongs to one AI switch of the role sheet (aiSwitches.ts, from the catalog): an agent sees a tool only
  * when its person holds the AI switch of the tool AND, for a right tool, the right (role rights version 2, design section 5.12).
  */
 
@@ -44,13 +48,40 @@ export const MCP_ALLOW = [
   'chats.openDirect', 'chats.send', 'stages.setDates', 'meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.saveMinutes',
   // Folders of the Files & Links tab (fbk_066, owner 2026-10-26): an agent makes, renames and deletes folders and moves files; a person uploads in the screens.
   'folders.create', 'folders.rename', 'folders.delete', 'files.move',
+  // MCP parity (owner, 2026-10-26). Every call keeps its rights check, so an agent does only what its person may do.
+  // Project set-up: the leader, the pause, who sees a project, the links, the health, the team and what a stage needs. A change of a person's access
+  // or of the team tells real people, so TOOL_DOCS says: ask your person first.
+  'projects.setLeader', 'projects.pause', 'projects.resume', 'projects.setRestart', 'projects.setAccess',
+  'projects.addLink', 'projects.updateLink', 'projects.removeLink', 'projects.setHealthOverride', 'projects.clearHealthOverride',
+  'members.add', 'members.addTeam', 'members.remove', 'members.update', 'stages.setPrerequisites', 'deadlines.delete',
+  // To-dos from a template, a new version, and the delete of a to-do. The task templates are to-do work.
+  'tasks.createFromTemplate', 'tasks.newVersion', 'tasks.delete',
+  'taskTemplates.list', 'taskTemplates.save', 'taskTemplates.rename', 'taskTemplates.delete',
+  // Posts, comments and reactions: the calls allow the author (or the leader) only, as in the screens.
+  'updates.update', 'updates.delete', 'comments.update', 'comments.delete', 'reactions.toggle',
+  // Messages: the calls allow only a message of the person (or of its agent). Group chats are messages too.
+  'chats.editMessage', 'chats.deleteMessage', 'chats.createGroup', 'chats.updateGroup', 'chats.leaveGroup',
+  // Files without upload. files.link gives a signed link and never a storage key; a file of a chat or a meeting stays closed to an agent.
+  'files.link', 'files.delete', 'files.markDelivered', 'files.share',
+  // The bell, the read marks and the own chat state (AI switch ai.myState, ai.readWork, ai.readChats). An agent marks and archives only when its person asks.
+  'notifications.list', 'notifications.count', 'chats.unreadCount',
+  'notifications.markRead', 'notifications.markAllRead', 'notifications.markUnread', 'notifications.updateSettings',
+  'chats.markRead', 'chats.markUnread', 'chats.archive', 'chats.setNotify',
+  // The own profile, the own preferences and the own AI apps of the person. The calls refuse a picture, quiet hours, away and the email settings for an agent.
+  'me.updateProfile', 'me.updatePreferences', 'agents.list', 'agents.remove',
+  // Templates of projects and stages (AI switch ai.projectSetup).
+  'stageTemplates.list', 'stageTemplates.save', 'stageTemplates.delete', 'projectTemplates.save', 'projectTemplates.delete',
+  'projectTemplates.matchPlan', 'projectTemplates.link', 'projectTemplates.usage', 'projectTemplates.syncPlan', 'projectTemplates.syncApply',
+  // Tracker and meeting deletes, and the reads of people, teams, the office settings and the invitations (the call checks the people right).
+  'tracker.delete', 'tracker.assignReply', 'tracker.export', 'meetings.delete',
+  'users.get', 'users.invites', 'teams.list', 'settings.get',
 ] as const satisfies readonly (typeof READ_FIRST | typeof PICTURES_GET | SharedCallName | ServerCallName)[];
 
 /**
- * The tools that only an agent of an Admin gets. The list is empty since role-rights (owner, 2026-10-23): the 3 tools of requests and bugs
- * moved to the right list (MCP_BY_RIGHT), under the feedback right, which a role can hold. The name stays for the code that reads it.
+ * The tools that only an agent of an Admin gets: the three role calls, which need admin.manage (the Admin only, no switch grants it). They also
+ * need the AI switch ai.admin (MCP parity, owner 2026-10-26). The agent of a person without admin.manage never sees them.
  */
-export const MCP_ADMIN = [] as const satisfies readonly SharedCallName[];
+export const MCP_ADMIN = ['roles.create', 'roles.update', 'roles.delete'] as const satisfies readonly SharedCallName[];
 export const ADMIN_TOOLS: ReadonlySet<string> = new Set<string>(MCP_ADMIN);
 
 /**
@@ -59,6 +90,7 @@ export const ADMIN_TOOLS: ReadonlySet<string> = new Set<string>(MCP_ADMIN);
  * call without it fails too. The payment tools need the payment switches, the Dashboard and Search their own switches, the office report
  * the report right, and the reports of people (feedback.*) the feedback right: the Admin holds it, and a role can hold it (owner,
  * 2026-10-23). projects.create and clients.create need the project and client rights, and the AI switch ai.projectSetup (owner, 2026-10-25).
+ * The Admin work of the MCP parity track needs the people, client, sub-company and settings rights (owner, 2026-10-26).
  */
 export const MCP_BY_RIGHT = {
   'payments.list': 'payment.view',
@@ -73,6 +105,23 @@ export const MCP_BY_RIGHT = {
   'feedback.setStatus': 'feedback.manage',
   'projects.create': 'project.create',
   'clients.create': 'client.create',
+  // MCP parity (owner, 2026-10-26): a payment delete is a payment change; feedback.send is for every person; the rest is Admin work (AI switch ai.admin),
+  // and each call needs the right of the screens.
+  'payments.delete': 'payment.change',
+  'feedback.send': 'feedback.send',
+  'users.create': 'people.invite',
+  'users.resendInvite': 'people.invite',
+  'users.update': 'people.change',
+  'users.deactivate': 'people.turnOff',
+  'users.reactivate': 'people.turnOff',
+  'users.remove': 'people.remove',
+  'teams.create': 'people.teams',
+  'teams.update': 'people.teams',
+  'teams.delete': 'people.teams',
+  'clients.update': 'clients.change',
+  'subCompanies.save': 'subCompanies.manage',
+  'subCompanies.delete': 'subCompanies.manage',
+  'settings.update': 'office.settings',
 } as const satisfies Readonly<Partial<Record<SharedCallName | ServerCallName, OfficeRight>>>;
 const RIGHT_TOOLS = Object.keys(MCP_BY_RIGHT) as (keyof typeof MCP_BY_RIGHT)[];
 
@@ -85,62 +134,26 @@ export type McpToolName = (typeof MCP_ALLOW)[number] | (typeof MCP_ADMIN)[number
 type CallToolName = Exclude<McpToolName, typeof READ_FIRST | typeof PICTURES_GET>;
 
 export const MCP_DENY = [
-  // The session and the person's own settings.
-  'session.get', 'me.updateProfile', 'me.updatePreferences',
-  // People, clients, teams, sub-companies and office settings: Admin and Management work in the screens.
-  'users.get', 'users.create', 'users.update', 'users.deactivate', 'users.reactivate', 'users.remove', 'users.invites', 'users.resendInvite',
-  'clients.update', 'teams.list', 'teams.create', 'teams.update', 'teams.delete',
-  'subCompanies.save', 'subCompanies.delete',
-  'settings.get', 'settings.update',
-  // Office roles and their rights: only the Admin makes or changes a role, in the screens (owner, 2026-10-18, fbk_014).
-  'roles.create', 'roles.update', 'roles.delete',
-  // Project set-up, members, stages (the dates of a stage are a tool, fbk_023), links, health and deletes.
-  'projects.setLeader', 'projects.pause', 'projects.resume', 'projects.setRestart', 'projects.setAccess', 'projects.addLink', 'projects.updateLink',
-  'projects.removeLink', 'projects.setHealthOverride', 'projects.clearHealthOverride', 'projects.delete',
-  'members.add', 'members.addTeam', 'members.remove', 'members.update',
-  'stages.replace', 'stages.setPrerequisites', 'deadlines.delete',
-  // Task work that needs a person's eye: templates, versions, deletes.
-  'tasks.createFromTemplate', 'tasks.newVersion', 'tasks.delete',
-  'updates.update', 'updates.delete', 'comments.update', 'comments.delete', 'reactions.toggle',
-  // Only the person edits, deletes or reacts to a chat message, in the screens (chat design 2026-10-19, items 11 and 12).
-  'chats.editMessage', 'chats.deleteMessage',
-  // Files: uploads and links happen in the Madar screens.
-  'files.upload', 'files.uploadStart', 'files.link', 'files.delete', 'files.markDelivered', 'files.share',
-  // Notifications and read marks: screen state of one person. An agent reads the chats of its person (fbk_011, owner 2026-10-18), but
-  // a read mark is the person's own act: an agent never marks a chat read (owner, 2026-10-12).
-  // An archive mark is screen state too: an agent never archives a chat (owner, 2026-10-18). Nor does it mark a chat unread (fbk_028,
-  // owner 2026-10-23): an unread mark is the person's own reminder, and a bold row with nothing new in it would only confuse the person.
-  'notifications.list', 'notifications.count', 'notifications.markRead', 'notifications.markAllRead', 'notifications.markUnread',
-  'notifications.updateSettings', 'chats.markRead', 'chats.markUnread', 'chats.unreadCount', 'chats.archive',
-  // A Notify me choice is screen state of one person, as an archive mark (design item 21).
-  'chats.setNotify',
-  // Group chats are screen work (fbk_011): an agent may send to a group, but it does not make, rename or leave one.
-  'chats.createGroup', 'chats.updateGroup', 'chats.leaveGroup',
-  // Templates, tracker extras and payment deletes.
-  'stageTemplates.list', 'stageTemplates.save', 'stageTemplates.delete',
-  'projectTemplates.save', 'projectTemplates.delete',
-  // Linking an older project to a template, the apply of a template to an ongoing project (the leader's menu, fbk_020) and the update of
-  // its projects are screen tasks: no agent links, applies, reads the matches, reads the update plan or sends the update.
-  'projectTemplates.matchPlan', 'projectTemplates.link', 'projectTemplates.usage', 'projectTemplates.syncPlan', 'projectTemplates.syncApply',
-  'taskTemplates.list', 'taskTemplates.save', 'taskTemplates.rename', 'taskTemplates.delete',
-  'tracker.delete', 'tracker.assignReply', 'tracker.export', 'payments.delete',
+  // The session of the screens: an agent reads the person it acts for from madar.readFirst.
+  'session.get',
+  // A project delete has no Undo (owner, 2026-10-26): only an Admin deletes a project, in the screens. An agent archives with projects.setStatus.
+  'projects.delete',
+  // An agent does not add, remove, rename or reorder the stages of a project.
+  'stages.replace',
+  // Uploads need file content, which no MCP tool carries yet (owner, 2026-10-26: a later track).
+  'files.upload', 'files.uploadStart', 'feedback.uploadStart',
   // A meeting that ended is settled by the 15-minute job and by the minutes call (fbk_022, wave 2): Madar makes its Tracker line, an agent does not.
   'meetings.settle',
   // A series is kept full by the job and by the prototype timer (fbk_022, wave 3): the agent plans a series with meetings.create and repeat.
   'meetings.extend',
-  // A person deletes a cancelled meeting in the screens (owner, 2026-10-23). An agent cancels only: the delete has no confirm step for an agent.
-  'meetings.delete',
-  // Feedback: a report comes in from the screens only. Agents.
-  'feedback.send', 'feedback.uploadStart',
-  'agents.list', 'agents.remove',
   // Browser push devices (owner, 2026-10-08): a device is the browser of a person. An agent has none and reads none.
   'push.register', 'push.remove', 'push.mine',
   // Live updates (exit wave 3): the ticket opens a browser socket. An agent has no socket.
   'live.ticket',
   // The typing signal is live and personal, like the push calls: an agent never types (chat presence design B).
   'chats.typing',
-  // Google Calendar (fbk_022, owner 2026-10-19): a person connects it in the Settings screen. An agent cannot connect, disconnect or read
-  // a connection. The meetings of its person reach their Google Calendar by themselves, with the title, the time and the place only.
+  // Google Calendar (fbk_022, owner 2026-10-19): a person connects it in the Settings screen. All four calls refuse an agent with forbidden (server/calls/google.ts and
+  // the prototype fake), so none can work for an agent. The meetings of its person reach their Google Calendar by themselves, with the title, the time and the place only.
   'google.status', 'google.connectStart', 'google.connect', 'google.disconnect',
 ] as const satisfies readonly (SharedCallName | ServerCallName)[];
 
@@ -150,6 +163,8 @@ export const MCP_DENY = [
  */
 const ADDITIVE = new Set<string>([
   'story.start', 'tasks.create', 'comments.create', 'updates.create', 'tracker.log', 'payments.create', 'deadlines.create', 'meetings.create', 'folders.create',
+  // MCP parity (owner, 2026-10-26): calls that only add a record and send nothing outside Madar. users.create sends an invitation by email, so it is not here.
+  'tasks.createFromTemplate', 'feedback.send', 'teams.create', 'roles.create', 'chats.createGroup', 'stageTemplates.save', 'taskTemplates.save',
 ]);
 
 /** A story ID from story.start (plan 4.9): the changes that share it undo together. */
@@ -176,6 +191,33 @@ const calls: Record<CallToolName, { input: z.ZodType; readOnly?: boolean; wire?:
   }),
 ) as never;
 
+/**
+ * The fields of a call that no MCP tool carries (owner, 2026-10-26): a picture is file data, and the upload IDs of feedback.send come from
+ * feedback.uploadStart, which stays on the deny list. The tool schema leaves them out. The call still refuses an agent that sends them
+ * (people.ts for the pictures), because the MCP check only reads the arguments and runCall parses them again. A "patch." field is inside the
+ * object "patch".
+ */
+const HIDDEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  'me.updateProfile': ['avatarUrl'],
+  'users.update': ['patch.avatarUrl'],
+  'feedback.send': ['uploadIds'],
+};
+
+function withoutHidden(name: string, wire: z.ZodObject): z.ZodObject {
+  let result = wire;
+  for (const field of HIDDEN_FIELDS[name] ?? []) {
+    const [head, rest] = field.split('.');
+    if (rest === undefined) {
+      result = result.omit({ [head]: true } as never);
+    } else {
+      const inner = result.shape[head];
+      if (!(inner instanceof z.ZodObject)) throw new Error(`The field ${head} of ${name} is not an object.`);
+      result = result.extend({ [head]: inner.omit({ [rest]: true } as never) });
+    }
+  }
+  return result;
+}
+
 function inputOf(name: McpToolName): { input: z.ZodObject; readOnly: boolean } {
   if (name === READ_FIRST) return { input: z.strictObject({}), readOnly: true };
   if (name === PICTURES_GET) return { input: PicturesGetInput, readOnly: true };
@@ -184,7 +226,7 @@ function inputOf(name: McpToolName): { input: z.ZodObject; readOnly: boolean } {
   // The form on the wire, when it differs from the form the screens pass (files.upload, feedback.send).
   const wire = def.wire?.input ?? def.input;
   if (!(wire instanceof z.ZodObject)) throw new Error(`The input of ${name} is not an object, and an MCP inputSchema must be one.`);
-  return { input: wire, readOnly: Boolean(def.readOnly) };
+  return { input: withoutHidden(name, wire), readOnly: Boolean(def.readOnly) };
 }
 
 /**
@@ -239,11 +281,11 @@ export function allTools(): ToolDef[] {
 /**
  * The tools that a person sees (role rights version 2, design section 5.12). held answers for the rights of the person: the AI switch
  * of a tool must be held, and for a right tool the right too. A tool that no AI switch opens is never listed (fail closed). admin: the
- * person holds admin.manage, which the Admin tools need (none today).
+ * person holds admin.manage, which the Admin tools need (the three role calls). An Admin tool also needs its AI switch (ai.admin).
  */
 export function visibleTools(all: readonly ToolDef[], held: (id: string) => boolean, admin: boolean): ToolDef[] {
   return all.filter((tool) => {
-    if (ADMIN_TOOLS.has(tool.name)) return admin;
+    if (ADMIN_TOOLS.has(tool.name) && !admin) return false;
     const aiSwitch = aiSwitchOf(tool.name);
     if (aiSwitch === undefined || !held(aiSwitch)) return false;
     const right = rightOf(tool.name);
@@ -253,23 +295,25 @@ export function visibleTools(all: readonly ToolDef[], held: (id: string) => bool
 
 /**
  * The tool that a call names, when it exists and the person lacks its AI switch: the call then fails with ai_off and not as an unknown
- * tool. A tool that only the right of the person closes stays unknown (the list never named it).
+ * tool. A tool that only the right of the person closes stays unknown (the list never named it). An Admin tool stays unknown to a person
+ * without admin.manage (admin false), so the switch refusal never shows that the tool exists.
  */
-export function toolOfOffSwitch(all: readonly ToolDef[], held: (id: string) => boolean, name: string): ToolDef | undefined {
+export function toolOfOffSwitch(all: readonly ToolDef[], held: (id: string) => boolean, name: string, admin = true): ToolDef | undefined {
   const tool = all.find((item) => item.name === name);
-  if (!tool || ADMIN_TOOLS.has(tool.name)) return undefined;
+  if (!tool || (ADMIN_TOOLS.has(tool.name) && !admin)) return undefined;
   const aiSwitch = aiSwitchOf(tool.name);
   return aiSwitch !== undefined && !held(aiSwitch) ? tool : undefined;
 }
 
 /**
- * The tools in their fixed order. admin: every tool (an Admin holds every switch and every right). rights: the ids that the person
- * holds (rightsOf); a tool shows when the person holds its AI switch and, for a right tool, the right. With no rights, the list is the
+ * The tools in their fixed order. admin alone: every tool (an Admin holds every switch and every right). rights: the ids that the person
+ * holds (rightsOf); a tool shows when the person holds its AI switch and, for a right tool, the right. admin with rights: the person holds
+ * admin.manage too, so the three role tools can show. With no rights, the list is the
  * base list: the tools that no right opens, with the AI switches not asked. It reads sharedCalls and the server contracts, never the
  * server code of a call.
  */
 export function mcpTools({ admin = false, rights }: { admin?: boolean; rights?: readonly string[] } = {}): ToolDef[] {
-  if (admin) return [...allTools()];
+  if (admin && rights === undefined) return [...allTools()];
   if (rights === undefined) return allTools().filter((tool) => !ADMIN_TOOLS.has(tool.name) && rightOf(tool.name) === undefined);
-  return visibleTools(allTools(), (id) => rights.includes(id), false);
+  return visibleTools(allTools(), (id) => rights.includes(id), admin);
 }

@@ -1,5 +1,36 @@
 {
+  "agents.list": {},
+  "agents.remove": {
+    "agentId": "usr_012"
+  },
+  "chats.archive": {
+    "conversationId": "cnv_001",
+    "archived": true
+  },
+  "chats.createGroup": {
+    "name": "Site team",
+    "memberIds": [
+      "usr_002",
+      "usr_003"
+    ]
+  },
+  "chats.deleteMessage": {
+    "id": "msg_023"
+  },
+  "chats.editMessage": {
+    "id": "msg_023",
+    "body": "A message to change, with the new levels."
+  },
+  "chats.leaveGroup": {
+    "conversationId": "cnv_016"
+  },
   "chats.list": {},
+  "chats.markRead": {
+    "conversationId": "cnv_001"
+  },
+  "chats.markUnread": {
+    "conversationId": "cnv_001"
+  },
   "chats.messages": {
     "conversationId": "cnv_001",
     "limit": 20
@@ -13,6 +44,15 @@
     "body": "The drainage check is done. I posted the result on the project.",
     "storyId": "cor_sample_024"
   },
+  "chats.setNotify": {
+    "conversationId": "cnv_001",
+    "notify": "named"
+  },
+  "chats.unreadCount": {},
+  "chats.updateGroup": {
+    "conversationId": "cnv_016",
+    "name": "Site team, Al Khobar"
+  },
   "chats.waiting": {},
   "clients.create": {
     "name": "Harbour View Developments",
@@ -20,15 +60,28 @@
     "initials": "HVD"
   },
   "clients.list": {},
+  "clients.update": {
+    "id": "cli_001",
+    "patch": {
+      "phone": "+966 13 555 0100"
+    }
+  },
   "comments.create": {
     "targetType": "task",
     "targetId": "tsk_145",
     "body": "The levels match the survey.",
     "storyId": "cor_sample_024"
   },
+  "comments.delete": {
+    "id": "cmt_036"
+  },
   "comments.list": {
     "targetType": "task",
     "targetId": "tsk_007"
+  },
+  "comments.update": {
+    "id": "cmt_036",
+    "body": "A comment to change, with the new levels."
   },
   "dashboard.get": {
     "status": "active"
@@ -39,6 +92,9 @@
     "date": "2026-10-21",
     "stageId": "stg_004",
     "storyId": "cor_sample_024"
+  },
+  "deadlines.delete": {
+    "id": "ddl_038"
   },
   "deadlines.list": {
     "from": "2026-09-30",
@@ -66,19 +122,42 @@
     "id": "fbk_001",
     "index": 0
   },
+  "feedback.send": {
+    "kind": "feature",
+    "message": "Add a print view to the Tracker.",
+    "page": "/projects"
+  },
   "feedback.setStatus": {
     "id": "fbk_001",
     "status": "done",
     "storyId": "cor_sample_024"
   },
+  "files.delete": {
+    "id": "fil_001"
+  },
+  "files.link": {
+    "id": "fil_001",
+    "variant": "full",
+    "disposition": "inline"
+  },
   "files.list": {
     "projectId": "prj_001"
+  },
+  "files.markDelivered": {
+    "id": "fil_001"
   },
   "files.move": {
     "id": "fil_001",
     "stageId": "stg_004",
     "folderId": "fld_001",
     "storyId": "cor_sample_024"
+  },
+  "files.share": {
+    "fileId": "fil_001",
+    "target": {
+      "kind": "project_chat"
+    },
+    "message": "The latest drawing."
   },
   "folders.create": {
     "projectId": "prj_001",
@@ -96,6 +175,12 @@
     "storyId": "cor_sample_024"
   },
   "madar.readFirst": {},
+  "me.updatePreferences": {
+    "theme": "dark"
+  },
+  "me.updateProfile": {
+    "nameAr": "هالة ناصر"
+  },
   "meetings.cancel": {
     "id": "mtg_001",
     "storyId": "cor_sample_024"
@@ -110,6 +195,9 @@
       "usr_002"
     ],
     "storyId": "cor_sample_024"
+  },
+  "meetings.delete": {
+    "id": "mtg_003"
   },
   "meetings.get": {
     "id": "mtg_001"
@@ -130,12 +218,54 @@
     "where": "Site office",
     "storyId": "cor_sample_024"
   },
+  "members.add": {
+    "projectId": "prj_001",
+    "userId": "usr_003",
+    "discipline": "Architect"
+  },
+  "members.addTeam": {
+    "projectId": "prj_001",
+    "teamId": "tm_005"
+  },
+  "members.remove": {
+    "projectId": "prj_001",
+    "userId": "usr_003"
+  },
+  "members.update": {
+    "projectId": "prj_001",
+    "userId": "usr_003",
+    "discipline": "Site engineer"
+  },
+  "notifications.count": {},
+  "notifications.list": {
+    "unreadOnly": false,
+    "limit": 20
+  },
+  "notifications.markAllRead": {},
+  "notifications.markRead": {
+    "ids": [
+      "ntf_013"
+    ]
+  },
+  "notifications.markUnread": {
+    "ids": [
+      "ntf_013"
+    ]
+  },
+  "notifications.updateSettings": {
+    "channel": "app",
+    "trigger": "mention",
+    "on": true
+  },
   "payments.create": {
     "projectId": "prj_001",
     "name": "Design development fee",
     "amount": 25000,
     "dueDate": "2026-10-30",
     "storyId": "cor_sample_024"
+  },
+  "payments.delete": {
+    "id": "pay_013"
   },
   "payments.list": {
     "projectId": "prj_001"
@@ -156,7 +286,92 @@
     "kind": "projectTile",
     "id": "prj_001"
   },
+  "projectTemplates.delete": {
+    "id": "ptp_004"
+  },
+  "projectTemplates.link": {
+    "projectId": "prj_003",
+    "templateId": "ptp_001",
+    "stageMatches": {},
+    "taskMatches": {},
+    "rolePeople": {},
+    "replace": false
+  },
   "projectTemplates.list": {},
+  "projectTemplates.matchPlan": {
+    "projectId": "prj_003",
+    "templateId": "ptp_001"
+  },
+  "projectTemplates.save": {
+    "id": "ptp_001",
+    "name": "Interior fit-out",
+    "roles": [],
+    "stages": [
+      {
+        "id": "s1",
+        "name": "Concept",
+        "startOffset": null,
+        "durationDays": null
+      },
+      {
+        "id": "s2",
+        "name": "Design Development",
+        "startOffset": null,
+        "durationDays": null
+      },
+      {
+        "id": "s3",
+        "name": "Construction Documents",
+        "startOffset": null,
+        "durationDays": null
+      },
+      {
+        "id": "s4",
+        "name": "Permits",
+        "startOffset": null,
+        "durationDays": null
+      },
+      {
+        "id": "s5",
+        "name": "Supervision",
+        "startOffset": null,
+        "durationDays": null
+      }
+    ],
+    "tasks": []
+  },
+  "projectTemplates.syncApply": {
+    "templateId": "ptp_001",
+    "projectId": "prj_003",
+    "choices": {
+      "add": false,
+      "bringBack": false,
+      "removed": "keep",
+      "text": false,
+      "dates": false,
+      "leads": false,
+      "closed": "leave",
+      "stages": false
+    }
+  },
+  "projectTemplates.syncPlan": {
+    "templateId": "ptp_001",
+    "projectIds": [
+      "prj_003"
+    ]
+  },
+  "projectTemplates.usage": {
+    "templateId": "ptp_001"
+  },
+  "projects.addLink": {
+    "projectId": "prj_001",
+    "kind": "moodboard",
+    "label": "Moodboard",
+    "url": "https://example.com/moodboard"
+  },
+  "projects.clearHealthOverride": {
+    "id": "prj_001"
+  },
   "projects.create": {
     "name": "Harbour View Offices",
     "clientId": "cli_007",
@@ -179,6 +394,37 @@
     "filter": "all",
     "sort": "deadline"
   },
+  "projects.pause": {
+    "id": "prj_001",
+    "reason": "The client has not sent the survey yet.",
+    "resumeOn": "2026-10-20",
+    "kind": "internal"
+  },
+  "projects.removeLink": {
+    "projectId": "prj_001",
+    "linkId": "lnk_007"
+  },
+  "projects.resume": {
+    "id": "prj_001"
+  },
+  "projects.setAccess": {
+    "id": "prj_001",
+    "hidden": false,
+    "viewerIds": []
+  },
+  "projects.setHealthOverride": {
+    "id": "prj_001",
+    "value": "at_risk",
+    "reason": "The survey of the site is late."
+  },
+  "projects.setLeader": {
+    "id": "prj_001",
+    "leaderId": "usr_002"
+  },
+  "projects.setRestart": {
+    "id": "prj_001",
+    "resumeOn": "2026-10-25"
+  },
   "projects.setStatus": {
     "id": "prj_002",
     "status": "completed"
@@ -190,11 +436,50 @@
     },
     "storyId": "cor_sample_024"
   },
+  "projects.updateLink": {
+    "projectId": "prj_001",
+    "linkId": "lnk_007",
+    "label": "Moodboard, second round"
+  },
+  "reactions.toggle": {
+    "commentId": "cmt_036",
+    "emoji": "👍"
+  },
   "reports.office": {
     "period": "month"
   },
+  "roles.create": {
+    "name": "Site supervisors",
+    "nameAr": "مشرفو المواقع",
+    "rights": [
+      "task.deleteOwn"
+    ]
+  },
+  "roles.delete": {
+    "id": "rol_002"
+  },
+  "roles.update": {
+    "role": "rol_002",
+    "name": "Site supervisors, Al Khobar"
+  },
   "search.query": {
     "text": "Corniche"
+  },
+  "settings.get": {},
+  "settings.update": {
+    "staleAfterDays": 30
+  },
+  "stageTemplates.delete": {
+    "id": "stt_003"
+  },
+  "stageTemplates.list": {},
+  "stageTemplates.save": {
+    "name": "Small villa stages",
+    "stages": [
+      "Concept",
+      "Design",
+      "Documents"
+    ]
   },
   "stages.setDates": {
     "stageId": "stg_004",
@@ -202,8 +487,44 @@
     "endDate": "2026-10-04",
     "storyId": "cor_sample_024"
   },
+  "stages.setPrerequisites": {
+    "stageId": "stg_002",
+    "prerequisiteIds": [
+      "stg_001"
+    ]
+  },
   "story.start": {},
+  "subCompanies.delete": {
+    "id": "sub_001",
+    "moveToId": null
+  },
   "subCompanies.list": {},
+  "subCompanies.save": {
+    "name": "Marsa Design",
+    "nameAr": "مرسى للتصميم",
+    "logo": null
+  },
+  "taskTemplates.delete": {
+    "id": "ttp_007"
+  },
+  "taskTemplates.list": {
+    "stageName": "Construction Documents"
+  },
+  "taskTemplates.rename": {
+    "id": "ttp_007",
+    "name": "Check the drainage levels again"
+  },
+  "taskTemplates.save": {
+    "name": "Check the drainage levels",
+    "stageName": "Construction Documents",
+    "description": "Compare the levels with the survey.",
+    "checklist": [
+      "Read the survey",
+      "Compare the levels"
+    ],
+    "needsReview": true,
+    "schedule": "static"
+  },
   "tasks.approve": {
     "id": "tsk_010",
     "storyId": "cor_sample_024"
@@ -228,6 +549,14 @@
     "dueDate": "2026-10-07",
     "storyId": "cor_sample_024"
   },
+  "tasks.createFromTemplate": {
+    "templateId": "ttp_007",
+    "stageId": "stg_004",
+    "ownerId": "usr_002"
+  },
+  "tasks.delete": {
+    "id": "tsk_146"
+  },
   "tasks.get": {
     "id": "tsk_001"
   },
@@ -244,6 +573,10 @@
     "id": "tsk_145",
     "status": "in_progress",
     "storyId": "cor_sample_024"
+  },
+  "tasks.newVersion": {
+    "id": "tsk_001",
+    "reason": "The client asked for a change to the plan."
   },
   "tasks.sendBack": {
     "id": "tsk_023",
@@ -262,9 +595,34 @@
     },
     "storyId": "cor_sample_024"
   },
+  "teams.create": {
+    "name": "Site visits",
+    "memberIds": [
+      "usr_002"
+    ]
+  },
+  "teams.delete": {
+    "id": "tm_005"
+  },
+  "teams.list": {},
+  "teams.update": {
+    "id": "tm_005",
+    "name": "Site visits and surveys"
+  },
+  "tracker.assignReply": {
+    "id": "trk_026",
+    "userId": "usr_002",
+    "dueDate": "2026-10-03"
+  },
   "tracker.close": {
     "id": "trk_023",
     "storyId": "cor_sample_024"
+  },
+  "tracker.delete": {
+    "id": "trk_026"
+  },
+  "tracker.export": {
+    "projectId": "prj_001"
   },
   "tracker.list": {
     "projectId": "prj_001",
@@ -289,12 +647,49 @@
     "body": "The drainage check is done. The levels match the survey.",
     "storyId": "cor_sample_024"
   },
+  "updates.delete": {
+    "id": "upd_062"
+  },
   "updates.list": {
     "projectId": "prj_001",
     "filter": "all",
     "limit": 20
   },
+  "updates.update": {
+    "id": "upd_062",
+    "body": "A post to change, with the new levels."
+  },
+  "users.create": {
+    "name": "Layla Hassan",
+    "nameAr": "ليلى حسن",
+    "email": "layla.hassan@madar.test",
+    "discipline": "Architect",
+    "systemRole": "member",
+    "language": "en"
+  },
+  "users.deactivate": {
+    "id": "usr_013"
+  },
+  "users.get": {
+    "id": "usr_013"
+  },
+  "users.invites": {},
   "users.list": {
     "includeInactive": false
+  },
+  "users.reactivate": {
+    "id": "usr_013"
+  },
+  "users.remove": {
+    "id": "usr_013"
+  },
+  "users.resendInvite": {
+    "id": "usr_013"
+  },
+  "users.update": {
+    "id": "usr_013",
+    "patch": {
+      "discipline": "Site engineer"
+    }
   }
 }

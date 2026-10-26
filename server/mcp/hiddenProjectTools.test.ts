@@ -122,9 +122,10 @@ describe('the tools that name a hidden project, for the agent of a person who do
 });
 
 describe('the lists and the words of the hidden projects', () => {
-  it('keep projects.setAccess on the deny list, and tell the agent in the instructions and in the docs', () => {
-    expect(MCP_DENY as readonly string[]).toContain('projects.setAccess');
-    expect(MCP_ALLOW as readonly string[]).not.toContain('projects.setAccess');
+  it('put projects.setAccess on the allow list (MCP parity, owner 2026-10-26), and tell the agent in the instructions and in the docs', () => {
+    expect(MCP_ALLOW as readonly string[]).toContain('projects.setAccess');
+    expect(MCP_DENY as readonly string[]).not.toContain('projects.setAccess');
+    expect(TOOL_DOCS['projects.setAccess'].description).toContain('Ask your person first');
     expect(INSTRUCTIONS).toContain('may be hidden from your person');
     expect(INSTRUCTIONS).not.toMatch(/[–—]/);
     for (const name of ['projects.get', 'projects.list']) {

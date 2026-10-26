@@ -7,9 +7,9 @@ import { MCP_ALLOW, MCP_DENY } from './tools';
  * the choice: the calls that save a preference stay on the deny list.
  */
 describe('the MCP side of "What reaches me"', () => {
-  it('keeps the calls that save a preference away from agents', () => {
-    expect(MCP_DENY).toEqual(expect.arrayContaining(['me.updatePreferences', 'notifications.updateSettings']));
-    expect(MCP_ALLOW as readonly string[]).not.toContain('me.updatePreferences');
+  it('lets an agent save a preference as a tool (MCP parity, owner 2026-10-26), while the call refuses the choice of what reaches the Admin', () => {
+    expect(MCP_ALLOW as readonly string[]).toEqual(expect.arrayContaining(['me.updatePreferences', 'notifications.updateSettings']));
+    expect(MCP_DENY as readonly string[]).not.toContain('me.updatePreferences');
   });
 
   it('tells the agent in the instructions and in chats.list that the list follows the choice of its person', () => {

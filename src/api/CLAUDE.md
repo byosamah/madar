@@ -54,7 +54,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   code whose YYMMSS belongs to another contract fails with `code_taken`. `codeParts` initials go onto a client with none.
   The automatic code (`nextProjectCode`, also every INT code) counts only codes whose end after `<prefix>-YY-` is all digits, so a kept
   code with that head never gives "NaN" (2026-10-25).
-  MCP (owner, 2026-10-25): `projects.create` is on the right list (`project.create`), `clients.create` too (`client.create`), and `clients.list` is on the allow list. All four
+  MCP (owner, 2026-10-25; the rest of the project set-up tools are in `server/mcp/CLAUDE.md`, MCP parity 2026-10-26): `projects.create` is on the right list (`project.create`), `clients.create` too (`client.create`), and `clients.list` is on the allow list. All four
   need the AI switch `ai.projectSetup`, off by default except for the Admin. A new project has no Undo (`NOT_UNDOABLE`). The agent gets lean `clients.list` rows (no contact name, phone or email).
 - Only a person with the switch `project.code` corrects a code (`projects.update` `patch.code`, verb `project.code_changed`). The switch
   passes only where `project.details` passes, so a holder who is not the leader and has no `project.details.all` is refused.
@@ -74,7 +74,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - `ProjectTemplate` (`ptp_`): roles (a name and a default person), stages, and tasks with a start day and a length in working
   days (Sunday to Thursday, day 0 is the project start) and `flexible`. Ids inside a template (`r1`, `s1`, `t1`) are unique in it.
 - `projectTemplates.list`, `.save` (no `id` makes one, an `id` changes one) and `.delete`. A new template needs `templates.projectCreate`
-  (off for a Member by default, owner 2026-10-21). A change or a delete needs the person who saved it, or `templates.projectAny`. MCP: `.list` is on the allow list (lean rows, AI switch `ai.projectSetup`); `.save`, `.delete` and the link and update calls stay on the deny list.
+  (off for a Member by default, owner 2026-10-21). A change or a delete needs the person who saved it, or `templates.projectAny`. MCP: `.list` is on the allow list (lean rows, AI switch `ai.projectSetup`); `.save`, `.delete` and the link and update calls are tools since the MCP parity track (owner, 2026-10-26), with the same switch.
 - `projects.create` takes `template: { templateId, startDate, endDate?, roles, fixedTaskIds }`, never with `stages`, `startDate`
   or `targetEndDate`. The plan comes from `lib/projectPlan.ts`, the same function as the screen. Locked tasks that do not fit
   refuse with reason `template_too_short` (`names` holds the days they need). A role person joins the team; a role with no
@@ -90,7 +90,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   migration `20261005000100_project_templates.sql` made one project template from each stage template, once.
 - Link an older project (fbk_008 item 4): `projectTemplates.matchPlan` reads the matches by name (`matchByNames`,
   `src/lib/templateMatch.ts`). `projectTemplates.link` writes one story: the `templateLink`, each matched part id, and `droppedPartIds`
-  for each part with no pick. A second link is refused (`already_linked`). Both calls are on the MCP deny list.
+  for each part with no pick. A second link is refused (`already_linked`). Both calls are MCP tools since the MCP parity track (owner, 2026-10-26; `ai.projectSetup`).
 - Apply a template to an ongoing project (owner, 2026-10-19, fbk_020): `matchPlan`, `link` and the adding need `project.template` on the
   target project (the leader and the Admin), and the project must be open (`active` or `on_hold`; else reason `project_closed`),
   `assertMayApply`. A project holds one `templateLink`. `link` with `replace: true` takes another template for a project that follows
@@ -102,11 +102,11 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   starts today; an old item never moves. The lead of a new task is the role's person from `link.rolePeople` (the sheet sends the
   default person only when active) and gets the `task_assigned` notice. The closing event is `project.template_applied`
   (a feed verb; `after.addedParts` holds `{ stages, tasks }`) in place of `project.template_synced`. Template edits, `usage`,
-  `syncPlan` and the update of many projects stay with the Admin. All five calls stay on the MCP deny list: an agent cannot apply.
+  `syncPlan` and the update of many projects stay with the Admin. All five calls are MCP tools since the MCP parity track (owner, 2026-10-26; `ai.projectSetup`): their `TOOL_DOCS` say to ask the person first.
 - Update of linked projects (fbk_008 item 4, Admin only): `projectTemplates.usage` lists the open projects, linked or not.
   `projectTemplates.syncPlan` gives the diff (`syncDiff`, `src/api/templateSync.ts`) of each listed project linked to the template.
   `projectTemplates.syncApply` makes the picked changes of one project, in one story. A closed task keeps its dates and its lead.
-  A dropped part comes back only with `bringBack`. The plan uses the template lengths from the project start. All three are on the MCP deny list.
+  A dropped part comes back only with `bringBack`. The plan uses the template lengths from the project start. All three are MCP tools since the MCP parity track (owner, 2026-10-26).
 - The team's own edits stay (ADM-01, `src/api/templateSync.ts`): `templateLink.base` keeps a copy of each template part as it was when
   the project was made, linked or last updated (`baseOf`; the dates are the dates the project got). A part counts as changed only when the
   template differs from that copy. When the project item also differs from it, the diff puts the item in `edited`, and the update keeps the
@@ -173,7 +173,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   (`chats.markRead`, `chats.send`, an archive) drops the field. An archived chat comes back to the Inbox, so the badge never counts a chat that is out of
   the list. It writes no event, no notice and no push, and its only signal is the kind `chatReads` to the person. The checks are those of
   `chats.markRead` and `chats.archive`, so a hidden chat answers the same way. Its loader is that of `chats.archive`; `WRITE_KINDS`: `['chatReads']`.
-  MCP: deny list, as `chats.markRead` (an unread mark is the own reminder of the person; `INSTRUCTIONS` says so). `chats.waiting` stays in the contract
+  MCP: a tool since the MCP parity track (owner, 2026-10-26; `ai.myState`), as `chats.markRead`: an agent marks only when its person asks (`INSTRUCTIONS`). `chats.waiting` stays in the contract
   and on the MCP allow list, with the waits rule of chat design item 22 (a 👍 or ✅ answers, a group waits only when it names you), but no screen reads
   it any more (owner, 2026-10-20: Mark as unread is the one reminder). The mark counts at least 1 also in the Admin's other project chats
   (`countsNamedOnly`, item 23), and also when a server loader gave the count (`state.counts`).
@@ -279,7 +279,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - The rules: `people.remove`, `assertMayTouch` (Management never removes an Admin or the agent of an Admin), never yourself, and only a
   person who is off (reason `still_active`). The agents of a removed person go with them, turned off first. A second call is harmless
   and writes no second event. Event verb `user.removed`. No screen brings a removed person back, so the sheet asks first and has no Undo.
-- MCP: deny list (people work is in the screens). The sweep (`everyCall.ts`) runs it after `users.deactivate`, because it is a remover.
+- MCP: a tool since the MCP parity track (owner, 2026-10-26; `ai.admin`, right `people.remove`): the docs tell the agent to ask first. The sweep (`everyCall.ts`) runs it after `users.deactivate`, because it is a remover.
 
 ## Facts of a row for the list screens (feedback, 2026-10-11)
 - `ProjectSummary.stageEnd { date, daysLeft }` is the end date of the current stage (`stageTagOf`, the same stage that the Late tag
@@ -346,7 +346,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - `PushDevice` (`pdv_`): `userId`, `endpoint`, `label`, `createdAt`, `lastPushAt`. `State.pushDevices` is optional (`pushDevicesOf`), so
   there is no `STATE_VERSION` step. It is private to its person: nobody else reads it, the Admin included.
 - `push.register {endpoint, label}`, `push.remove {endpoint}`, `push.mine {}` (the own devices: id, label, endpoint, createdAt). Only a
-  person, for the person: an agent gets `forbidden`, and all three are on the MCP deny list. They write NO event and NO History
+  person, for the person: an agent gets `forbidden`, and all three stay on the MCP deny list. They write NO event and NO History
   row, and the save sends NO change signal for a device. `WRITE_KINDS` is `[]` for both writes and `push.mine` is `rule('none', [])`,
   so the Settings switch reads the browser first and asks `push.mine` itself.
 - One row for each endpoint. A register of an endpoint that another person holds MOVES it to the current person (a shared browser;
@@ -360,7 +360,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   `none`, `ok`, `not_synced`, `broken`. `google.connectStart` (read) gives the Google address with a signed state. `google.connect { code, state }`
   swaps the code and gets the calendar "Madar" in the Google account of the person: the one that Madar made before (it remembers the id, and a disconnect
   keeps it), else a new one. `google.disconnect` stops the sync. Only a person, for the person:
-  an agent gets `forbidden`, and no call takes the id of another person. All four are on the MCP deny list.
+  an agent gets `forbidden`, and no call takes the id of another person. All four stay on the MCP deny list: none can work for an agent (MCP parity, owner 2026-10-26).
 - They touch only the three server-only tables `google_connections`, `google_events` and `google_calendars` (`server/google/store.ts`). No State collection reads them, so the
   calls write no event, no History row and no change signal, and `WRITE_KINDS` has `[]` for the two writes. The prototype fakes give `ready: false`
   and refuse the other three with `google_not_ready`.
@@ -383,12 +383,12 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   - A `location` alone, with no `geo`, fails with reason `location_needs_pin` while the project has a pin, unless it is the same text.
     A project with no pin (old data) still takes a text alone.
   - `projects.addLink` and `projects.updateLink` take an optional `location`: the address of the pin that the link sets. The server uses it
-    only when the link moves the pin. Without it, the text is cleared. Both calls stay on the MCP deny list.
+    only when the link moves the pin. Without it, the text is cleared. Both calls are MCP tools since the MCP parity track (owner, 2026-10-26; `TOOL_DOCS` of `projects.addLink` names `location`).
   - `search.query` does not read `location`.
   - MCP: `TOOL_DOCS` of `projects.update` (600 characters, at the limit) and `projects.get`, and the `Place:` line of `INSTRUCTIONS`.
 
 ## Office rights and roles (owner, 2026-10-18, fbk_014; role rights version 2, 2026-10-21)
-- The rights are 118 switches in 13 sections (`OfficeRight`, `contract/entities.ts`; 89 powers; "Mention everyone" joined the Chat section on 2026-10-22; the four hidden-project rights joined the Projects section on 2026-10-22; the AI switch `ai.projectSetup` joined the AI section on 2026-10-25). The one source is the catalog JSON in
+- The rights are 120 switches in 13 sections (`OfficeRight`, `contract/entities.ts`; 91 powers; "Mention everyone" joined the Chat section on 2026-10-22; the four hidden-project rights joined the Projects section on 2026-10-22; the AI switch `ai.projectSetup` joined the AI section on 2026-10-25; the AI switches `ai.admin`, "AI does Admin work" (off for every built-in role), and `ai.myState`, "AI changes my own marks and settings" (on for every built-in role), joined it on 2026-10-26 with the MCP parity track; `MAX_STORED_RIGHTS` is 126). The one source is the catalog JSON in
   `docs/superpowers/specs/2026-10-21-madar-role-rights-v2-catalog.json`; `rightsCatalog.ts` is its plain copy (no zod), and
   `rightsCatalog.test.ts` checks that the two agree. The Admin holds all of them. A switch id is `<power>.<scope>` for a power with
   scopes (`lead`, `team`, `all`, `office`, `none`), or the power name for a power with one switch. `BASIC_ON` is the 67 switches a Member holds.
@@ -401,7 +401,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   `off`) plus the expanded `rights` (or `DEFAULT_EXTRA`), minus each switch whose need on another power is off (`dropUnmetNeeds`, fail
   closed: `ai.connect` off turns every AI switch off; the sheet turns needs on with `withNeeds`); a custom role with no `off` = the Member switches
   plus its own (the meaning of before); with `off` = its own full list; a deleted role leaves the Member switches. `heldRightsOfRole` gives
-  the list to the screens. `session.get` and every output give the 118 ids only. A save writes new ids only (`roles.*` expand old ids).
+  the list to the screens. `session.get` and every output give the 120 ids only. A save writes new ids only (`roles.*` expand old ids).
   Caps: `rights` 120, `off` 70.
 - The actions of `can()` are the power names. The stand-ins of the first release are gone (`project.edit`, `project.changeLeader`,
   `project.healthOverride`, `project.editCode`, `content.post`, `content.editOwn`, `task.createForSelf`, `task.createForAnyone`,
@@ -412,7 +412,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   (the Roles section and the role events). With the default settings the answers equal the answers of before
   (`server/core/rightsParity.test.ts` proves it against a record made on the code before this release). A stored list may still hold an
   old id (`LEGACY_RIGHTS` of `rightsCatalog.ts`); that is a stored right, never an action. The pure power actions are in
-  `rightSwitches.test.ts`, one group of tests for each of the 118 switches. A to-do rule that combines the own power and `task.any` lives
+  `rightSwitches.test.ts`, one group of tests for each of the 120 switches. A to-do rule that combines the own power and `task.any` lives
   in `taskGates.ts` (`mayChangeTask`, `mayAssignTask`, `mayDeleteTask`, `mayTickChecklist`).
 - A right gives only its own power. Before a right passes an action, grep every use of that action and check what it stands in for.
 - A check of an office right reads the person with the rights attached. A handler gets them in `ctx.authority` (`execute.ts`); the
@@ -424,7 +424,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - Only the Admin changes a role: `systemRole` or `roleId`. The reason is `admin_only`. A save with the same value is no change.
 - The Undo asks the right of its own act (`handlers/history.ts`, `assertMayUndo`): the Undo of a new to-do asks `task.add`, the Undo of
   a delete asks the delete switch. Role events keep `admin.manage`; a `settings.updated` event asks `office.settings`. An agent never takes
-  back a role change, also the agent of an Admin (`rolesLeaks.test.ts`). The MCP deny list holds `roles.*`, `users.create`, `users.update`.
+  back a role change, also the agent of an Admin (`rolesLeaks.test.ts`). `roles.*`, `users.create` and `users.update` are MCP tools since the MCP parity track (owner, 2026-10-26; `ai.admin`), and an agent still cannot undo them.
 - The Undo of a CREATE event (a to-do, a file or a version, a post, a comment, a Tracker entry, a meeting) uses the create right only when the
   event is the change of the caller (`isOwnChange`: `actingForId` is the caller, also through the caller's own agent). An item that another
   person's agent made, which the leader takes back through `ai.undoOthers`, needs the right that deletes the item: `task.any` or `task.deleteOwn`,
@@ -446,7 +446,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - `roles.create`, `roles.update` and `roles.delete` (`handlers/roles.ts`) need `admin.manage`. Each change writes one settings event:
   `role.created`, `role.updated` or `role.deleted`; the event keeps `rights` and `off` (an `off: null` on the old side says the role had
   none). Its target is the role id, or `management`, `accounting` or `member`. `undoRoleChange` takes these back; an Undo of an old
-  event expands its old ids. MCP: deny list.
+  event expands its old ids. MCP: tools since the MCP parity track (owner, 2026-10-26; `ai.admin`, `admin.manage`).
 - `roles.delete` takes `moveTo` (ADM-14): a built-in role (not Admin) or another custom role. The people of the deleted role move to it
   (`user.updated` events) before the role goes, all in one story. Without `moveTo`, a role that people hold is still refused (`role_in_use`).
 - The gates of the office calls (track gates-office). Projects: `projects.update` asks `project.details` (the code field also `project.code`;
@@ -500,7 +500,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   and `resume_due_past`).
 - `projects.setRestart { id, resumeOn }` changes only the date of a paused project. The date must be after today. It needs `project.archive`,
   as Pause and Resume do. The reason, the kind, the person and the day of the pause stay. It writes the event verb `project.restart_moved`
-  and asks no reason, because the date of a reminder is no plan date. A new date gives a new notice. MCP: deny list.
+  and asks no reason, because the date of a reminder is no plan date. A new date gives a new notice. MCP: a tool since the MCP parity track (owner, 2026-10-26; `ai.projects`).
 
 ## Quiet lines of a task thread (owner, 2026-10-19, fbk_027)
 - A comment of a task is a message or a quiet line (`lineKindOf`, `lib/commentLine.ts`): `due_date` or `start_date` (the reason of a date
@@ -531,7 +531,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   output is a `CommentView` or a `MessageView`. The loader reads the message with `chatMessageRows`, and `WRITE_KINDS` adds `messages`.
 - The three calls name only the kinds `messages` and `notifications` (the reaction only `messages`). In a direct chat or a group their signal goes
   to the members only, as a person signal (owner, 2026-10-21; it replaces the nameless office signal of INT-16).
-  MCP: edit, delete and the reaction are on the deny list.
+  MCP: edit, delete and the reaction are tools since the MCP parity track (owner, 2026-10-26; `ai.messages`, `ai.posts`).
 
 ## Meetings (owner, 2026-10-19, fbk_022)
 - `Meeting` (`mtg_`, `contract/entities.ts`): a meeting, a client meeting, a team meeting or a site visit (`MeetingKind`). Kind and project are two
@@ -609,7 +609,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   name the first as their cause, all in one story. A delete changes NO repeat rule (the cancel did that). It sends no notice; a notice of the meeting then reads as gone
   (`inbox.meetingGone`). `seesEvent` (history.ts) reads the last copy of a deleted meeting for an Undo (`lastMeetingCopy`), so the people of a meeting with no project take the delete
   back, and nobody else does (`not_found`). `MeetingDetail.viewerCan.delete` is true for a cancelled meeting that the person may change. The call is in `GCAL_CALLS` (a cancel whose
-  sync never ran leaves a Google event row; the delete sends a sync row for it). MCP: deny list (an agent cancels only). Tests: `meetingDelete.test.ts`.
+  sync never ran leaves a Google event row; the delete sends a sync row for it). MCP: a tool since the MCP parity track (owner, 2026-10-26; `ai.meetings`): the agent asks its person first. Tests: `meetingDelete.test.ts`.
 - Settle (wave 2, owner 2026-10-19; `meetings.settle { id }`, `settleMeeting`, `dueToSettle` in `handlers/meetings.ts`): after `endsAt` Madar marks the
   meeting as over (`settledAt`, event verb `meeting.settled`) and, when `hasTrackerLine` (`lib/meetings.ts`: a project meeting that is not a team
   meeting), makes its Tracker line: type `meeting`, side `both`, the title and notes of the meeting, the day of the start, the organizer and the
@@ -620,7 +620,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
   and the prototype minute timer call it for each meeting of `dueToSettle` (scheduled, not settled, ended in the last `SETTLE_BACK_DAYS` days).
   The mark has no Undo: `events.undo` answers `conflict`, reason `settle_final` (`meeting.settled` is in `NOT_UNDOABLE`, and `undoOne` raises the
   reason first), because the next job run would settle the meeting again. The Undo of `tracker.logged` deletes the line, as for any line; the
-  meeting then keeps `trackerEntryId`, which `REFERENCE_FIELDS` leaves out on purpose, so the delete is not refused. MCP: deny list.
+  meeting then keeps `trackerEntryId`, which `REFERENCE_FIELDS` leaves out on purpose, so the delete is not refused. MCP: `meetings.settle` stays on the deny list.
   The author of the line (`createdBy`) is always the organizer, whoever settles (the job, the first minutes save, or any person who sees the
   meeting); the events name the caller as the actor (security fix, 2026-10-19). `mayDeleteTracker` (`views.ts`) gives a line with `auto: 'meeting'`
   no author delete: only the project leader or the Admin deletes it, and so only they undo its `tracker.logged` (`history.ts` uses the same rule).
@@ -663,7 +663,7 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 
 ## Hidden projects (owner, 2026-10-22)
 Design: `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design.md`. Wave D1 builds the core.
-- Four rights joined the catalog (117 switches and 88 powers then; 118 and 89 since 2026-10-25): `project.seeAll` (See every project) and `project.access.lead` (Choose who sees a
+- Four rights joined the catalog (117 switches and 88 powers then; 118 and 89 since 2026-10-25, 120 and 91 since 2026-10-26): `project.seeAll` (See every project) and `project.access.lead` (Choose who sees a
   project, Projects I lead) are basic and on for every role. `project.access.all` and `project.hidden` (See hidden projects) are for the
   Admin only. The Admin always holds every switch (`heldSet`), so an Admin without `project.hidden` cannot exist. Management can get it.
 - `Project.access` is `{ hidden, viewerIds }`, optional, at most `MAX_PROJECT_VIEWERS` (50). Missing means open with no chosen people.
@@ -680,7 +680,7 @@ Design: `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design
 - `projects.setAccess { id, hidden, viewerIds }` (needs `project.access` with its scope on the project): writes the event
   `project.access_changed` (before and after of `access`, Undo asks `project.access`), keeps the chosen people also while the project is
   open, sends `added_to_project` to a new chosen person who is not on the team, and writes nothing when the value is the same. A new
-  person must be active and human (reasons `person_inactive`, `viewer_agent`). MCP: deny list. `WRITE_KINDS`: `events`, `projects`.
+  person must be active and human (reasons `person_inactive`, `viewer_agent`). MCP: a tool since the MCP parity track (owner, 2026-10-26; `ai.projects`). `WRITE_KINDS`: `events`, `projects`.
 - The doors (wave D1): `requireProject` (`handlers/shared.ts`) answers `not_found Project <id>` for a project the person does not see, before
   any `assertCan`. `seesProject(ctx, id)` is the same test for a child record. A record that sits in a project answers as an unknown record
   of its own kind: `requireDeadline`, the stage of `stages.setDates` and `stages.setPrerequisites`, the stage of `tasks.createFromTemplate`

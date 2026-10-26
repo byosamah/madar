@@ -13,7 +13,7 @@ describe('the MCP side of quiet hours and @everyone', () => {
     expect(INSTRUCTIONS).toContain('no push and no email');
     expect(INSTRUCTIONS).toContain('one push');
     expect(INSTRUCTIONS).toContain('an email never comes');
-    expect(INSTRUCTIONS).toContain('You cannot read or change quiet hours');
+    expect(INSTRUCTIONS).toContain('You cannot change the quiet hours or the Away mark of your person');
   });
 
   it('names the three words, the switch and the audience in INSTRUCTIONS', () => {
@@ -28,8 +28,10 @@ describe('the MCP side of quiet hours and @everyone', () => {
     }
   });
 
-  it('keeps the two calls of the settings on the deny list', () => {
-    for (const name of ['me.updatePreferences', 'settings.update']) expect(MCP_DENY as readonly string[], name).toContain(name);
+  it('makes the two calls of the settings tools (MCP parity, owner 2026-10-26), and the call refuses quiet hours for an agent', () => {
+    for (const name of ['me.updatePreferences', 'settings.update']) expect(MCP_DENY as readonly string[], name).not.toContain(name);
+    expect(TOOL_DOCS['me.updatePreferences'].description).toContain('Quiet hours');
+    expect(TOOL_DOCS['me.updatePreferences'].description).toContain('refuses an agent');
   });
 
   it('keeps "Mention everyone" out of the AI section: it is a chat switch and opens no tool', () => {

@@ -90,14 +90,21 @@ function shotTypesOnly<T extends Report>(report: T): T {
 }
 
 /**
- * An agent never gets a storage key from the Admin tools of requests and bugs (owner, 2026-10-07). A report row of feedback.list and
- * the report of feedback.setStatus keep the type of each screenshot, and the count stays. feedback.screenshot gives a signed link
- * ({ url, expiresAt }) as it is.
+ * An agent never gets a storage key (owner, 2026-10-07; every answer since the MCP parity track, 2026-10-26). A report row of feedback.list and
+ * the report of feedback.setStatus keep the type of each screenshot, and the count stays. feedback.screenshot and files.link give a signed
+ * link ({ url, expiresAt }) as it is. Any other answer that holds a file (files.list, files.move, a file in a feed) loses its blobKey and thumbKey.
  */
 function withoutStorageKeys(name: string, output: unknown): unknown {
-  if (name === 'feedback.list' && Array.isArray(output)) return output.map((row: { item?: Report }) => (row.item ? { ...row, item: shotTypesOnly(row.item) } : row));
-  if (name === 'feedback.setStatus' && output !== null && typeof output === 'object') return shotTypesOnly(output as Report);
-  return output;
+  if (name === 'feedback.list' && Array.isArray(output)) return dropStorageKeys(output.map((row: { item?: Report }) => (row.item ? { ...row, item: shotTypesOnly(row.item) } : row)));
+  if (name === 'feedback.setStatus' && output !== null && typeof output === 'object') return dropStorageKeys(shotTypesOnly(output as Report));
+  return dropStorageKeys(output);
+}
+
+/** A copy of the answer without the stored keys of files: every property named blobKey or thumbKey, at any depth. */
+function dropStorageKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(dropStorageKeys);
+  if (value === null || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'blobKey' && key !== 'thumbKey').map(([key, item]) => [key, dropStorageKeys(item)]));
 }
 
 export function errorResult(error: RunError, text?: string): CallToolResult {

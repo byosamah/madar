@@ -52,6 +52,8 @@ const subCompaniesSave = defineCall({
   output: SubCompany,
   run(input, ctx) {
     assertCan(ctx, 'subCompanies.manage');
+    // A logo is picture data: an agent never sets or clears one (owner, 2026-10-26). It sends logo null, and an old logo stays.
+    if (ctx.actor.kind === 'agent' && input.logo !== null) throw forbidden('Only a person changes a logo, in the Madar screens. Send logo null.', { action: 'subCompanies.logo' });
     if (input.id === undefined) {
       assertNamesFree(ctx, input, null);
       const id = nextId(ctx.state, 'sub');
@@ -62,7 +64,7 @@ const subCompaniesSave = defineCall({
     }
     const sub = requireSubCompany(ctx, input.id);
     assertNamesFree(ctx, input, sub.id);
-    applyPatch(ctx, sub, { name: input.name, nameAr: input.nameAr, logo: input.logo }, { projectId: null, verb: 'subCompany.updated', targetType: 'subCompany', targetId: sub.id });
+    applyPatch(ctx, sub, { name: input.name, nameAr: input.nameAr, logo: ctx.actor.kind === 'agent' ? sub.logo : input.logo }, { projectId: null, verb: 'subCompany.updated', targetType: 'subCompany', targetId: sub.id });
     return sub;
   },
 });

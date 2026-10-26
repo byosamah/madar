@@ -246,6 +246,7 @@ export const usersUpdate = defineCall({
   output: User,
   run(input, ctx) {
     assertCan(ctx, 'people.change');
+    if (input.patch.avatarUrl !== undefined && ctx.actor.kind === 'agent') throw forbidden('Only a person changes a picture, in the Madar screens.', { action: 'people.picture' });
     const user = requireUser(ctx, input.id);
     assertNotRemoved(user);
     assertMayTouch(ctx, user, input.patch.systemRole);
@@ -348,9 +349,12 @@ export const meUpdateProfile = defineCall({
   input: z.object({ name: Name.optional(), nameAr: NameArPatch.optional(), discipline: Discipline.optional(), avatarUrl: UserAvatarInput.optional() }),
   output: User,
   run(input, ctx) {
-    // The stored record takes the change. A change to the context copy is lost, because the copy holds the office rights.
-    const me = ctx.state.users[ctx.actor.id];
-    applyPatch(ctx, me, input, { projectId: null, verb: 'user.profile_changed', targetType: 'user', targetId: ctx.actor.id });
+    // A picture is file data: an agent does not set one (owner, 2026-10-26). The person does it in the Madar screens.
+    if (input.avatarUrl !== undefined && ctx.actor.kind === 'agent') throw forbidden('Only the person changes the picture, in the Madar screens.', { action: 'me.picture' });
+    // The stored record takes the change. A change to the context copy is lost, because the copy holds the office rights. An agent changes the
+    // profile of the person it acts for, never the record of the agent (MCP parity, owner 2026-10-26).
+    const me = ctx.state.users[ctx.authority.id];
+    applyPatch(ctx, me, input, { projectId: null, verb: 'user.profile_changed', targetType: 'user', targetId: ctx.authority.id });
     return me;
   },
 });
@@ -379,7 +383,8 @@ export const meUpdatePreferences = defineCall({
     if (input.workHours !== undefined && ctx.actor.kind === 'agent') {
       throw forbidden('Only the person sets quiet hours.', { action: 'me.workHours' });
     }
-    const current = ctx.actor.preferences;
+    // An agent changes the preferences of the person it acts for, never the record of the agent (MCP parity, owner 2026-10-26).
+    const current = ctx.authority.preferences;
     // The email switches and the morning summary stay as they are: this call never names them (review 2026-10-03).
     const next: Preferences = {
       ...current,
@@ -392,8 +397,8 @@ export const meUpdatePreferences = defineCall({
       ...(workHours !== undefined && { workHours }),
     };
     // The stored record takes the change. A change to the context copy is lost, because the copy holds the office rights.
-    const me = ctx.state.users[ctx.actor.id];
-    savePreferences(ctx, me, next, { projectId: null, verb: 'user.preferences_changed', targetType: 'user', targetId: ctx.actor.id });
+    const me = ctx.state.users[ctx.authority.id];
+    savePreferences(ctx, me, next, { projectId: null, verb: 'user.preferences_changed', targetType: 'user', targetId: ctx.authority.id });
     return me;
   },
 });
