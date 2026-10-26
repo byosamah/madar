@@ -7,8 +7,8 @@
     },
     "status": {
       "new": "جديد",
-      "in_review": "قيد المراجعة",
-      "in_progress": "قيد التنفيذ",
+      "in_review": "نراجعه",
+      "in_progress": "نعمل عليه",
       "rejected": "مرفوض",
       "done": "تم"
     },

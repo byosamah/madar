@@ -4,7 +4,7 @@
   },
   "projectForm": {
     "continuous": "مشروع مستمر",
-    "continuousHint": "بلا موعد انتهاء. المشروع يستمر."
+    "continuousHint": "لا موعد لانتهاء المشروع. العمل فيه مستمر."
   },
   "errors": {
     "reasons": {
