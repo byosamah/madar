@@ -270,6 +270,10 @@ describe("the What's new entry of the MCP parity track", () => {
     const body = String(wordAt(en, ['whatsNew', 'items', '2026-10-23-116', 'body']));
     expect(body).toContain('"AI does Admin work"');
     expect(body).toContain('A project delete stays in the screens.');
+    // The code guard and the chat files (owner, 2026-10-26): the text of this entry changed, and no new entry came.
+    expect(body).toContain('needs a code that Madar sends to your email');
+    expect(body).toContain('sends files into your chats and opens the files of your chats');
+    expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-116', 'body']))).toContain('تحتاج رمزًا يصلك على بريدك');
     expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-116', 'body']))).toContain('«ينفّذ المساعد أعمال الإدارة»');
     expect(String(wordAt(en, ['whatsNew', 'items', '2026-10-23-116', 'title']))).not.toMatch(/[–—]/);
   });

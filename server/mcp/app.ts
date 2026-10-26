@@ -24,7 +24,7 @@ import { forwardOnce, hopKeyFrom } from './forward';
 import { challengeOf, METADATA_PATH, metadataResponse } from './metadata';
 import { argsDigest, askFor, canElicit, ReasonAnswer, reasonCodec, reasonFor, retryText, stateKeyFrom, type ReasonAnswers, type ReasonState } from './reasons';
 import { errorResult, runTool, toolResult } from './run';
-import { allTools, toolOfOffSwitch, visibleTools, type ToolDef } from './tools';
+import { allTools, toolOfOffSwitch, visibleTools, wireTool, type ToolDef } from './tools';
 import { readMcpBody, UPLOAD_BODY_BYTES, UPLOAD_TOOLS } from './upload';
 
 /**
@@ -252,7 +252,7 @@ function handlerOf(deps: Deps, run: RunCall, codec: Promise<RequestStateCodec<Re
     for (const tool of tools) {
       server.registerTool(
         tool.name,
-        { title: tool.title, description: tool.description, inputSchema: argumentsOf(tool), annotations: tool.annotations },
+        { ...wireTool(tool), inputSchema: argumentsOf(tool) },
         ((args: Record<string, unknown>, ctx: ServerContext) => callTool(tool, args ?? {}, ctx, deps, run, stateCodec, storeFetch)) as never,
       );
     }
@@ -261,7 +261,7 @@ function handlerOf(deps: Deps, run: RunCall, codec: Promise<RequestStateCodec<Re
       const refused = errorResult(runErrorOf(aiOffError(aiSwitchOf(off.name)!)));
       server.registerTool(
         off.name,
-        { title: off.title, description: off.description, inputSchema: argumentsOf({ ...off, input: z.looseObject({}) }), annotations: off.annotations },
+        { ...wireTool(off), inputSchema: argumentsOf({ ...off, input: z.looseObject({}) }) },
         (() => refused) as never,
       );
     }

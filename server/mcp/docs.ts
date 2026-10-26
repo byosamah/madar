@@ -8,6 +8,7 @@
  */
 
 import type { RoleSettings, SystemRole, User } from '../../src/api/contract/entities';
+import { CATALOG_RIGHT_IDS } from '../../src/api/rightsCatalog';
 import { AI_SWITCH_LABELS, AI_SWITCHES, toolsOfAiSwitch } from './aiSwitches';
 import { PARITY_DOCS } from './docsParity';
 
@@ -134,7 +135,15 @@ export function aiSwitchLines(held: readonly string[]): string {
  */
 export function readFirstAnswer(person: Pick<User, 'name' | 'systemRole' | 'roleId'>, roles?: RoleSettings, held?: readonly string[]): string {
   const who = `You act for ${person.name}, whose role in Madar is ${roleNameOf(person, roles)}.`;
-  return `${INSTRUCTIONS}\n\n${who}${held ? `\n${aiSwitchLines(held)}` : ''}`;
+  return `${INSTRUCTIONS}\n\n${who}${held ? `\n${aiSwitchLines(held)}` : ''}${person.systemRole === 'admin' ? `\n${roleRightsLine()}` : ''}`;
+}
+
+/**
+ * The switch IDs of a role (owner, 2026-10-26). roles.create and roles.update take them as plain strings, so the tool list does not carry the 120
+ * IDs twice (toolSize.test.ts); the call still refuses an unknown ID. Only the Admin gets the line (admin.manage is the Admin only), as only the Admin gets the tools.
+ */
+export function roleRightsLine(): string {
+  return `Switch IDs for roles.create and roles.update (rights lists the switches a role holds; off lists the basic switches it does not hold): ${CATALOG_RIGHT_IDS.join(', ')}.`;
 }
 
 export const TOOL_DOCS: Record<string, { title: string; description: string }> = {
@@ -295,7 +304,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.create': {
     title: 'Create a project',
-    description: 'Creates one project with its stages. The leader and team get a notice, a push and an email, and there is no Undo, so ask your person first. Needs project.create. Send name, and nameAr only if your person gives it. Check projects.list for the name first. Code: send codeParts (client initials, class, building type); Madar adds the rest. A sub-company is needed (subCompanies.list). leader: me (default), none, or a person ID. teamIds: person IDs. template: templateId and startDate (no stages or dates beside it). kind internal: hidden, no client or code. After a timeout, list before you try again.',
+    description: 'Creates one project. There is no Undo: ask your person first. Send name (nameAr only if your person gives it) and codeParts (initials, class, type). A sub-company is needed. leader: me (default), none or a person ID. template: templateId and startDate, no stages or dates. kind internal: hidden, no client or code. After a timeout, list before you try again.',
   },
   'clients.list': {
     title: 'List clients',
@@ -307,7 +316,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projectTemplates.list': {
     title: 'List project templates',
-    description: 'Lists the project templates: ID, name, roles (ID, name, default person), the stage names and the number of tasks. Use the ID as template.templateId in projects.create. With a template, send startDate (and endDate) inside template, and send no stages or dates beside it. roles maps a role ID to a person ID or null; a role you leave out takes its default person while that person is active.',
+    description: 'Lists the project templates: ID, name, roles (ID, name, default person), the stage names and the number of tasks. Use the ID as template.templateId in projects.create. Send id to read one template in full (roles, stages and tasks), to change it with projectTemplates.save. With a template, send startDate (and endDate) inside template, and send no stages or dates beside it. roles maps a role ID to a person ID or null; a role you leave out takes its default person while that person is active.',
   },
   'projects.update': {
     title: 'Change project details',

@@ -43,6 +43,15 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   The factory in `app.ts` picks the list for each request from the office rights of the owner, never the agent user. A 2026-07-28 client can keep tools/list for 5 minutes, and a
   2025-era client keeps it until it connects again (the server says listChanged but never sends that notice). So a role change
   shows late in a client, and tools/call always checks.
+- The size of the tool list (owner, 2026-10-26; `toolSize.test.ts`): the Admin's `tools/list` (158 tools) was 167 KB of JSON and is under 110 KB, and no tool is over 2 KB (name, title,
+  text, schema and annotations). The zod input of a tool stays whole and checks every rule on the server (`argumentsOf` validates with it, `runCall` parses again); `slimSchema` (`tools.ts`)
+  only shortens the JSON Schema that the agent reads: every pattern but the client initials, the lengths, counts and number bounds, empty defaults, `additionalProperties: false`, an enum of
+  more than 20 values (the 120 right ids of `roles.create` and `roles.update`: `madar.readFirst` lists them for the Admin, `roleRightsLine`, and a wrong id gets the list in the error), the
+  text of `storyId` and of the paging arguments, and the item schema of the two bulk tools (the item is the input of the single tool, named in the text). A union of one type and null is a type
+  list. `wireAnnotations` (`tools.ts`) leaves out the title and the hints that equal the defaults of the MCP spec (`readOnlyHint` false, `destructiveHint` true, `idempotentHint` false); `ToolDef.annotations`
+  keeps all of them. A new text or field must fit: run `toolSize.test.ts` and shorten the text, not the test.
+- `projectTemplates.list` takes the tool-only argument `id` (owner, 2026-10-26): it gives that one template in full (the row of the screens: roles, stages, tasks), so an agent reads a template before
+  `projectTemplates.save`. Without it the list stays lean. An unknown id answers `not_found`.
 - The AI switches (role rights version 2, design section 5.12; `aiSwitches.ts`). Each tool of both lists has exactly one AI switch, from
   `MCP_TOOLS_BY_SWITCH` (`src/api/rightsCatalog.ts`, the catalog JSON in `docs/superpowers/specs`): `ai.readWork` (22: the 17 reads, `pictures.get` included, and
   `notifications.list`, `notifications.count`, `users.get`, `teams.list`, `settings.get`), `ai.readChats` (4), `ai.todos` (18, `tasks.createMany` and `tasks.updateMany` included), `ai.posts` (7), `ai.messages` (7), `ai.meetings` (5),

@@ -43,11 +43,13 @@ describe('the three arguments in the tool schema', () => {
   it('belong to projects.list and tasks.list only', () => {
     const tools = mcpTools({ admin: true });
     for (const name of ['projects.list', 'tasks.list']) {
-      const properties = tools.find((t) => t.name === name)!.inputSchema.properties as Record<string, { maximum?: number; minimum?: number }>;
+      const tool = tools.find((t) => t.name === name)!;
+      const properties = tool.inputSchema.properties as Record<string, { type?: string }>;
       expect(Object.keys(properties), name).toEqual(expect.arrayContaining(['limit', 'offset', 'full']));
-      expect(properties.limit.maximum).toBe(200);
-      expect(properties.limit.minimum).toBe(1);
-      expect(properties.offset.minimum).toBe(0);
+      // The list schema leaves the bounds out (toolSize.test.ts); the text of the tool names the 200, and the check of the tool keeps 1 to 200 and 0 up.
+      expect(tool.description, name).toContain('at most 200');
+      expect(tool.input.safeParse({ limit: 200, offset: 0 }).success, name).toBe(true);
+      expect(tool.input.safeParse({ limit: 0 }).success, name).toBe(false);
     }
     // Other tools keep their own limit and have no offset or full.
     for (const name of ['events.list', 'updates.list', 'chats.messages', 'deadlines.list']) {

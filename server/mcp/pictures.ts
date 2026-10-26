@@ -33,7 +33,7 @@ export const PicturesGetInput = z.strictObject({
 /** The tools that take withPictures: true to add the picture data to their answer. */
 export const WITH_PICTURES_TOOLS: ReadonlySet<string> = new Set(['users.list', 'subCompanies.list', 'reports.office']);
 export const WithPictures = z.boolean().optional()
-  .describe('True adds the picture data (a data address, up to 16 KB each). Leave it out unless you build a document with the pictures.');
+  .describe('True adds the picture data (16 KB each at most).');
 
 /** One picture as data: its type, its size in bytes and the data address. */
 type PictureData = { mimeType: string; bytes: number; dataUrl: string };

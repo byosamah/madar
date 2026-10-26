@@ -546,7 +546,7 @@ describe('the words for the agent', () => {
   it('tells the agent in projects.create that there is no Undo and that it must ask first, in 600 characters or fewer', () => {
     const doc = TOOL_DOCS['projects.create'];
     expect(doc.title).toBe('Create a project');
-    for (const word of ['no Undo', 'ask your person first', 'codeParts', 'sub-company', 'leader', 'teamIds', 'template', 'kind internal', 'After a timeout, list before you try again']) {
+    for (const word of ['no Undo', 'ask your person first', 'codeParts', 'sub-company', 'leader', 'template', 'kind internal', 'After a timeout, list before you try again']) {
       expect(doc.description, word).toContain(word);
     }
   });

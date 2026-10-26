@@ -19,7 +19,7 @@ import { HOP_HEADER, hopHeaderOf, hopKeyFrom } from './forward';
 import { heldRightsOfRole } from '../../src/api/rights';
 import { AI_SWITCHES, toolsOfAiSwitch } from './aiSwitches';
 import { builtInWithout, giveRole, roleWithout } from './aiRoles.testing';
-import { mcpTools } from './tools';
+import { mcpTools, wireTool } from './tools';
 
 /**
  * Suite 12 of TM 7, in process (plan 5.6; task G3): the MCP app with a real token check (local ES256 keys), the real runCall on
@@ -196,7 +196,7 @@ describe('suite 12: the MCP server in process', () => {
     ajv.addFormat('date-time', { validate: (value: string) => !Number.isNaN(Date.parse(value)) });
     for (const [i, tool] of tools.entries()) {
       expect(tool.inputSchema, tool.name).toEqual(admin[i].inputSchema);
-      expect(tool.annotations, tool.name).toEqual(admin[i].annotations);
+      expect(tool.annotations, tool.name).toEqual(wireTool(admin[i]).annotations);
       const validate = ajv.compile(tool.inputSchema);
       expect(validate(samples[tool.name]), `${tool.name}: ${JSON.stringify(validate.errors)}`).toBe(true);
     }

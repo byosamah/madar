@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ToolAnnotations } from '@modelcontextprotocol/server';
-import type { OfficeRight } from '../../src/api/contract/entities';
+import { ProjectTemplateId, type OfficeRight } from '../../src/api/contract/entities';
 import type { Action } from '../../src/api/permissions';
 import { serverContracts, type ServerCallName } from '../../src/api/contract/server';
 import { sharedCalls, type SharedCallName } from '../../src/api/sharedCalls';
@@ -30,6 +30,9 @@ import { FEEDBACK_SEND_WITH_SCREENSHOTS, FILES_UPLOAD_CONTENT, UPLOAD_INPUTS } f
  * Every tool of the lists also belongs to one AI switch of the role sheet (aiSwitches.ts, from the catalog): an agent sees a tool only
  * when its person holds the AI switch of the tool AND, for a right tool, the right (role rights version 2, design section 5.12).
  */
+
+/** The list of project templates. With the tool-only argument id it gives one template in full (run.ts). */
+export const PROJECT_TEMPLATES_LIST = 'projectTemplates.list';
 
 /** A tool with no call behind it: it gives the written instructions (docs.ts). pictures.get (pictures.ts) is the other one. */
 export const READ_FIRST = 'madar.readFirst';
@@ -248,6 +251,76 @@ function inputOf(name: McpToolName): { input: z.ZodObject; readOnly: boolean } {
  * A date field keeps its "format" and loses the long pattern that zod adds (about 350 characters each), because each tool
  * definition uses model context. The zod input still checks the exact form when the tool runs.
  */
+/**
+ * The slim form of a JSON Schema (owner, 2026-10-26). The Admin's tool list was about 156 KB of JSON, and a client keeps the whole list in the
+ * context of the model. The zod input of a tool stays whole and checks every rule on the server (argumentsOf validates with it, and runCall parses
+ * again); only the JSON Schema that the agent reads loses what it does not need:
+ *  - every pattern but the client initials (the id patterns such as "^usr_\d{3,}$", the long text patterns, the email pattern; format "email" stays);
+ *  - a default that says nothing (null, [], {}, "", false), a minLength of 1, every maxLength, maxItems, minItems, minimum and maximum, additionalProperties false
+ *    (the keys of a strict object) and propertyNames;
+ *  - an enum of more than 20 values (the 120 right ids of a role: they appeared twice) becomes a plain string, and madar.readFirst lists them;
+ *  - a union of one type and null becomes a type list ("type": ["string", "null"]), and a union of strings becomes one string;
+ * The test toolSize.test.ts pins the sizes.
+ */
+/** The only pattern that stays: the three or four capital letters of the client initials in a project code. Every other pattern is a check for the server. */
+const KEEP_PATTERNS = new Set(['^[A-Z]{3,4}$']);
+const EMPTY_DEFAULTS = new Set(['null', '[]', '{}', '""', 'false']);
+const LONG_ENUM = 20;
+
+function slimNode(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(slimNode);
+  if (node === null || typeof node !== 'object') return node;
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(node as Record<string, unknown>)) {
+    if (key === 'pattern' && typeof item === 'string' && !KEEP_PATTERNS.has(item)) continue;
+    if (key === 'maximum' && item === Number.MAX_SAFE_INTEGER) continue;
+    if (key === 'propertyNames') continue;
+    if (key === 'minLength' && item === 1) continue;
+    // The length and count limits are checks of the server; the answer of a refused call names the field.
+    if (key === 'maxLength' || key === 'maxItems' || key === 'minItems') continue;
+    if (key === 'minimum' || key === 'maximum' || key === 'exclusiveMinimum' || key === 'exclusiveMaximum') continue;
+    if (key === 'additionalProperties' && item === false) continue;
+    // The value type of a record (a role ID to a person ID) is a check for the server; the text of the tool says what the record holds.
+    if (key === 'additionalProperties' && item !== null && typeof item === 'object' && Object.keys(item).length === 1 && 'type' in item) continue;
+    if (key === 'default' && EMPTY_DEFAULTS.has(JSON.stringify(item))) continue;
+    // The keys of "properties" are field names, not schema keywords.
+    out[key] = key === 'properties' && item !== null && typeof item === 'object'
+      ? Object.fromEntries(Object.entries(item as Record<string, unknown>).map(([field, value]) => [field, slimNode(value)]))
+      : slimNode(item);
+  }
+  if (Array.isArray(out.enum) && out.enum.length > LONG_ENUM) delete out.enum;
+  if (Array.isArray(out.anyOf)) {
+    const members = out.anyOf as Record<string, unknown>[];
+    const only = (member: Record<string, unknown>, type: string) => member.type === type && Object.keys(member).every((key) => key === 'type' || key === 'const');
+    // Several strings (the leader: me, none, or a person ID) are one string: the text of the tool names the words.
+    if (members.length > 1 && members.every((member) => only(member, 'string'))) {
+      const { anyOf: _strings, ...rest } = out;
+      return { ...rest, type: 'string' };
+    }
+    // One type or null becomes a type list: valid JSON Schema, and shorter than a union.
+    if (members.length === 2) {
+      const nullAt = members.findIndex((member) => Object.keys(member).length === 1 && member.type === 'null');
+      const other = nullAt === -1 ? undefined : members[1 - nullAt];
+      if (other && typeof other.type === 'string' && other.anyOf === undefined) {
+        const { anyOf: _union, ...rest } = out;
+        return { ...rest, ...other, type: [other.type, 'null'] };
+      }
+    }
+  }
+  return out;
+}
+
+/** The story ID is the same on every write and INSTRUCTIONS rule 3 explains it, so its field is a bare string. */
+function slimSchema(name: string, schema: Record<string, unknown>): Record<string, unknown> {
+  const slim = slimNode(schema) as Record<string, unknown>;
+  const properties = slim.properties as Record<string, Record<string, unknown>> | undefined;
+  if (properties?.storyId !== undefined) properties.storyId = { type: 'string' };
+  // The items of a bulk tool are the input of the single tool, which is in the list beside it and which the description names. The server checks each item with it.
+  if (properties?.items !== undefined && name === 'tasks.createMany') properties.items.items = { type: 'object' };
+  if (properties?.items !== undefined && name === 'tasks.updateMany') properties.items.items = { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] };
+  return slim;
+}
+
 function shortDates(ctx: { jsonSchema: Record<string, unknown> }): void {
   const format = ctx.jsonSchema.format;
   if ((format === 'date' || format === 'date-time') && typeof ctx.jsonSchema.pattern === 'string') delete ctx.jsonSchema.pattern;
@@ -268,8 +341,11 @@ function build(name: McpToolName): ToolDef {
   const paged = PAGED_TOOLS.has(name) ? withPictures.extend(PagingArgs) : withPictures;
   // confirmCode is an argument of the tool only (owner, 2026-10-26): the email code of the risky Admin acts (guard.ts). runCall takes it out before the parse.
   const confirmed = GUARDED_CALLS.has(name) ? paged.extend({ confirmCode: ConfirmCode.optional() }) : paged;
-  const input = takesStory ? confirmed.extend({ storyId: StoryId.optional() }) : confirmed;
-  const { $schema: _dialect, ...schema } = z.toJSONSchema(input, { io: 'input', override: shortDates }) as Record<string, unknown>;
+  // id is an argument of the tool only (owner, 2026-10-26): projectTemplates.list with an id gives that one template in full, as the screens edit it (run.ts).
+  const templated = name === PROJECT_TEMPLATES_LIST ? confirmed.extend({ id: ProjectTemplateId.optional() }) : confirmed;
+  const input = takesStory ? templated.extend({ storyId: StoryId.optional() }) : templated;
+  const { $schema: _dialect, ...full } = z.toJSONSchema(input, { io: 'input', override: shortDates }) as Record<string, unknown>;
+  const schema = slimSchema(name, full);
   const doc = TOOL_DOCS[name];
   return {
     name,
@@ -286,6 +362,26 @@ function build(name: McpToolName): ToolDef {
       openWorldHint: false,
     },
   };
+}
+
+/**
+ * The annotations as the list sends them (owner, 2026-10-26, toolSize.test.ts): a hint that equals the default of the MCP spec is left out. The
+ * defaults are readOnlyHint false, destructiveHint true and idempotentHint false, so a client reads the same hints. The title is the title of the
+ * tool, which the list holds already. openWorldHint stays: its default is true, and Madar is a closed world.
+ */
+export function wireAnnotations(annotations: ToolAnnotations): ToolAnnotations {
+  const { title: _title, readOnlyHint, destructiveHint, idempotentHint, openWorldHint } = annotations;
+  return {
+    ...(readOnlyHint === true ? { readOnlyHint } : {}),
+    ...(readOnlyHint !== true && destructiveHint === false ? { destructiveHint } : {}),
+    ...(idempotentHint === true ? { idempotentHint } : {}),
+    ...(openWorldHint !== undefined ? { openWorldHint } : {}),
+  };
+}
+
+/** One tool as the list sends it. app.ts registers this, and toolSize.test.ts measures it. */
+export function wireTool(tool: Pick<ToolDef, 'title' | 'description' | 'annotations'>): { title: string; description: string; annotations: ToolAnnotations } {
+  return { title: tool.title, description: tool.description, annotations: wireAnnotations(tool.annotations) };
 }
 
 /** All the tools in their fixed order (the list of an Admin, who holds every right), built once. */

@@ -15,9 +15,10 @@ export const DEFAULT_LIMIT = 50;
 export const MAX_LIMIT = 200;
 
 export const PagingArgs = {
-  limit: z.number().int().min(1).max(MAX_LIMIT).optional().describe('How many rows (default 50, at most 200).'),
-  offset: z.number().int().min(0).optional().describe('The row to start at (default 0). Use page.next of the last answer.'),
-  full: z.boolean().optional().describe('True gives the full rows. Leave it out for short rows.'),
+  // No text here: INSTRUCTIONS ("Long lists:") and the tool text explain the three arguments, and the list stays short (toolSize.test.ts).
+  limit: z.number().int().min(1).max(MAX_LIMIT).optional(),
+  offset: z.number().int().min(0).optional(),
+  full: z.boolean().optional(),
 };
 
 export type PageInfo = { total: number; offset: number; limit: number; next: number | null };

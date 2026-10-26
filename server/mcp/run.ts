@@ -9,7 +9,7 @@ import { readFirstAnswer, roleNameOf } from './docs';
 import { pageOf, PAGED_TOOLS, pagingOf, shortRows, withoutPaging, type PageInfo } from './paging';
 import { keepStageDates } from './keepDates';
 import { PICTURES_GET, runPicture, withPictureLooks, WITH_PICTURES_TOOLS, type PictureAnswer } from './pictures';
-import { allTools, READ_FIRST, type ToolDef } from './tools';
+import { allTools, PROJECT_TEMPLATES_LIST, READ_FIRST, type ToolDef } from './tools';
 import { runUpload, UPLOAD_TOOLS } from './upload';
 
 /**
@@ -57,7 +57,10 @@ export async function runTool(tool: ToolDef, args: Record<string, unknown>, ctx:
   const paging = PAGED_TOOLS.has(tool.name) ? pagingOf(rest) : undefined;
   const callArgs = paging ? withoutPaging(rest) : rest;
   // stages.replace: a stage that keeps its id keeps the dates the agent leaves out (keepDates.ts).
-  const sent = tool.name === 'stages.replace' ? keepStageDates(callArgs, ctx.office) : callArgs;
+  const stageSent = tool.name === 'stages.replace' ? keepStageDates(callArgs, ctx.office) : callArgs;
+  // id belongs to projectTemplates.list as a tool (owner, 2026-10-26): one template in full, so an agent reads it before projectTemplates.save.
+  const { id: templateId, ...withoutTemplateId } = stageSent;
+  const sent = tool.name === PROJECT_TEMPLATES_LIST ? withoutTemplateId : stageSent;
   const { storyId, ...input } = sent;
   const story = tool.takesStory && typeof storyId === 'string' ? { id: storyId } : undefined;
   const result = await ctx.runCall(ctx.deps, {
@@ -68,6 +71,12 @@ export async function runTool(tool: ToolDef, args: Record<string, unknown>, ctx:
     batch: { storyRefs: new Map(), office: ctx.office, overviewCalls: 0 },
   });
   if (!result.ok) return result;
+  if (tool.name === PROJECT_TEMPLATES_LIST && typeof templateId === 'string' && Array.isArray(result.output)) {
+    // The row of the screens, with its stages, its roles and its tasks in full (no lean form). The template of an id the person cannot list does not exist for the agent.
+    const row = (result.output as { id: string }[]).find((item) => item.id === templateId);
+    if (!row) return { ok: false, error: { code: 'not_found', message: `Project template ${templateId} does not exist.`, details: { id: templateId } } };
+    return { ...result, output: [row] };
+  }
   if (paging && Array.isArray(result.output)) {
     // The page is cut first, so the picture looks are built for the rows of the page only. Short rows have no look.
     const { rows, page } = pageOf(result.output, paging);

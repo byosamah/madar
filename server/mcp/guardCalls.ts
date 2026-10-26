@@ -12,4 +12,4 @@ export const GUARDED_CALLS: ReadonlySet<string> = new Set([
 export const CONFIRM_FIELD = 'confirmCode';
 
 /** The argument of the tool: six digits from the email of the person. */
-export const ConfirmCode = z.string().regex(/^\d{6}$/).describe('Six digits from the Madar email of your person.');
+export const ConfirmCode = z.string().regex(/^\d{6}$/);

@@ -41,17 +41,18 @@ const PUT_TIMEOUT_MS = 60_000;
 /** The characters that one atob call decodes (a multiple of 4). */
 const DECODE_CHUNK = 1 << 16;
 
-const Base64 = z.string().min(1).describe('The file content as standard base64 text: one line, no spaces, no data: prefix. At most 10 MB decoded.');
+// The texts of the fields are short on purpose: the tool text says the place, the type and the limit, and the list must stay small (toolSize.test.ts).
+const Base64 = z.string().min(1).describe('Standard base64 in one line, no data: prefix.');
 
 export const FilesUploadContentInput = z.strictObject({
-  projectId: ProjectId.optional().describe('The project of the file. Leave it out for a to-do with no project (taskId alone), a chat or a meeting.'),
-  conversationId: ConversationId.optional().describe('A direct chat or a group of your person. The file stays in that chat: send it with chats.send and fileIds. Any other chat answers not_found.'),
-  meetingId: MeetingId.optional().describe('A meeting with no project.'),
-  stageId: StageId.nullable().optional().describe('A stage of the project.'),
-  taskId: TaskId.nullable().optional().describe('A to-do. With no projectId, an office to-do.'),
-  folderId: FolderId.nullable().optional().describe('A folder of the stage (from projects.get).'),
-  name: z.string().trim().min(1).max(200).describe('The file name, with its ending. The same name in the same place adds a new version.'),
-  type: z.string().min(1).max(100).describe('The file type (MIME), for example application/pdf or image/png.'),
+  projectId: ProjectId.optional(),
+  conversationId: ConversationId.optional(),
+  meetingId: MeetingId.optional(),
+  stageId: StageId.nullable().optional(),
+  taskId: TaskId.nullable().optional(),
+  folderId: FolderId.nullable().optional(),
+  name: z.string().trim().min(1).max(200).describe('The file name, with its ending.'),
+  type: z.string().min(1).max(100),
   contentBase64: Base64,
   receivedFromClient: z.boolean().optional().describe('True when the client sent this file: the upload also logs a Tracker line.'),
 });

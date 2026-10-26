@@ -8,7 +8,7 @@
  * The email code guard (owner, 2026-10-26; guard.ts): the sentence that ends the text of each guarded act. The first call fails with
  * confirm_needed and emails a 6-digit code to your person. The second call has the same arguments and confirmCode.
  */
-const CODE_RULE = 'The first call emails your person a 6-digit code and fails with confirm_needed. Ask your person for the code. Then call again with the same arguments and confirmCode.';
+const CODE_RULE = 'The first call fails with confirm_needed and emails your person a 6-digit code. Ask for it, then call again with the same arguments and confirmCode.';
 
 export const PARITY_DOCS: Record<string, { title: string; description: string }> = {
   // Project set-up.
@@ -224,7 +224,7 @@ export const PARITY_DOCS: Record<string, { title: string; description: string }>
   },
   'projectTemplates.save': {
     title: 'Save a project template',
-    description: 'Saves a whole project template: name, roles, stages and tasks (see the input schema). No id makes a new one (needs templates.projectCreate); an id replaces one (only its maker, or a person with templates.projectAny). projectTemplates.list gives names only, so you cannot read the parts of an old template to change it. Ask your person first.',
+    description: 'Saves a whole project template: name, roles, stages and tasks. No id makes a new one (needs templates.projectCreate); an id replaces one (only its maker, or a person with templates.projectAny). To change a template, read it first with projectTemplates.list and its id: you get its stages, tasks and roles in full. Ask your person first.',
   },
   'projectTemplates.delete': {
     title: 'Delete a project template',
@@ -363,11 +363,11 @@ export const PARITY_DOCS: Record<string, { title: string; description: string }>
   },
   'roles.create': {
     title: 'Make a role',
-    description: 'Makes a custom role for Members: name, nameAr and rights (the switch IDs of the role sheet). A role holds the standard Member switches, the ones you list in rights, and not the ones you list in off. Needs the Admin. The role changes nobody until a person gets it. Ask your person first. Needs a code. ' + CODE_RULE,
+    description: 'Makes a custom role for Members: name, nameAr and rights (switch IDs: the list is in madar.readFirst). A role holds the standard Member switches, the ones you list in rights, and not the ones you list in off. Needs the Admin. The role changes nobody until a person gets it. Ask your person first. Needs a code. ' + CODE_RULE,
   },
   'roles.update': {
     title: 'Change a role',
-    description: 'Changes a role: role (management, accounting, member, or a custom role ID), and any of name, nameAr, rights, off. It changes what every person with the role may do, and what their AI assistants may do. Needs the Admin. An agent cannot undo it. Ask your person first, and say what changes. Needs a code. ' + CODE_RULE,
+    description: 'Changes a role: role (management, accounting, member, or a custom role ID), and any of name, nameAr, rights, off (switch IDs: the list is in madar.readFirst). It changes what every person with the role may do, and what their AI assistants may do. Needs the Admin. An agent cannot undo it. Ask your person first, and say what changes. Needs a code. ' + CODE_RULE,
   },
   'roles.delete': {
     title: 'Delete a role',
