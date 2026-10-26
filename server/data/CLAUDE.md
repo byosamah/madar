@@ -72,7 +72,7 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   (`revokeRowsOf`). It is not in `OUTSIDE_OFFICE_LOCK`: both writers hold the office lock. The migration follows the pattern of `google_connections`.
 - `agent_confirms` (`20261026000100_agent_confirms.sql`, owner 2026-10-26, SQLite schema version 11): the codes of the email code guard of agents. Server-only, in `SERVER_TABLES`,
   written outside the office lock (so it is in `OUTSIDE_OFFICE_LOCK` of the backup check and in `DRIFT_TABLES` of the office export). One row for each request of an agent for a risky Admin
-  act: person, agent, call name, hash of the exact input, hash of the code (never the code), end time, count of wrong tries, time of use. `server/mcp/confirms.ts` is the store
+  act: person, agent, call name, hash of the exact input, hash of the code (never the code), end time, count of tries (wrong ones and the right one), time of use. `server/mcp/confirms.ts` is the store
   (`sqlConfirms` on both databases, `memoryConfirms` in `memoryData`); `CallTx.confirms` is optional. The claim of a code runs in the transaction of the act, so it rolls back with it.
   The job deletes rows older than one day.
 - `events` only grows: a trigger refuses update and delete, and madar_server has only select and insert. Undo is a new

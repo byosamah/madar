@@ -8,7 +8,7 @@ import { loadFor, sqlSource, type Source } from '../data/loaders/index';
 import { save, type SaveOptions, type SaveResult } from '../data/save';
 import { runErrorOf } from '../http/errors';
 import type { ConfirmStore } from '../mcp/confirms';
-import { GuardStop, answerStop, guardAct, guardApplies, requireCode, takeCode, type Stop } from '../mcp/guard';
+import { GuardStop, answerStop, guardAct, guardApplies, requireCode, takeCode, tryCode, type Stop, type TriedCode } from '../mcp/guard';
 import { resolveActor } from './actor';
 import { requestHost } from './after';
 import { AFTER_ANSWER_KINDS, CHAT_WAIT_MS, outboxRowsOf, processOutbox, WAITED_KINDS, writeOutbox, type OutboxRow } from './effects';
@@ -211,6 +211,16 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
     const digest = req.key !== undefined ? await digestOf(entry.name, parsed) : undefined;
     // The hash of the exact input, without the code, for the email code guard. Only a guarded act of an agent needs it.
     const inputHash = code ? await digestOf(entry.name, parsed) : undefined;
+    // A call with a code counts its try BEFORE the compare, in a transaction of its own that commits, and before the lock (mcp/guard.ts tryCode).
+    // A call with no live row for it (a plain act that needs no code) counts nothing and meets no row.
+    let tried: TriedCode | undefined;
+    if (code?.value !== undefined && inputHash) {
+      const known = req.batch.office ?? (await data.office());
+      const agent = resolveActor(known, req.principal);
+      if (agent.kind === 'agent' && agent.ownerId) {
+        tried = await tryCode(data, { personId: agent.ownerId, agentId: actorId, call: entry.name, inputHash, code: code.value, now: deps.clock.now() });
+      }
+    }
 
     let lockedAt = 0;
     type Effect = { id: string; kind: string };
@@ -239,7 +249,7 @@ export function createRunCall(o: RunCallOptions = {}): RunCall {
         const act = guardAct(entry.name, parsed, office);
         if (act) {
           await requireCode(t, {
-            personId: authority.id, agentId: actorId, agent: office.lists.users[actorId]?.name ?? '', call: entry.name, inputHash, act, code: code.value, now,
+            personId: authority.id, agentId: actorId, agent: office.lists.users[actorId]?.name ?? '', call: entry.name, inputHash, act, tried, now,
           });
         }
       }

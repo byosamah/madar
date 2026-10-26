@@ -19,6 +19,8 @@ export const MAX_NEW_PER_HOUR = 5;
 export const HOUR_MS = 3_600_000;
 
 export type ConfirmRow = { id: string; codeHash: string; tries: number; expiresAt: Date };
+/** The row that a try counted on: its id and code hash, to compare. */
+export type CountedRow = { id: string; codeHash: string };
 export type NewConfirm = {
   id: string; personId: string; agentId: string; call: string; inputHash: string; codeHash: string; expiresAt: Date; createdAt: Date;
 };
@@ -27,9 +29,13 @@ export interface ConfirmStore {
   /** The newest row of this agent, call and input hash that is not used, not expired and not dead. */
   live(o: { personId: string; agentId: string; call: string; inputHash: string; now: Date }): Promise<ConfirmRow | undefined>;
   add(row: NewConfirm): Promise<void>;
-  /** One more wrong try. */
-  wrong(id: string): Promise<void>;
-  /** Marks the row used, once. False when it was used, expired or dead already (a second call with the same code). */
+  /**
+   * Counts one try on the newest live row of this agent, call and input hash, in ONE statement: the row must be live (not used, not expired, fewer
+   * than 5 tries) at the moment of the count. Undefined: no live row, so the code is dead. The caller commits the count in a transaction of its
+   * own BEFORE it compares the code, so parallel guesses cannot pass 5.
+   */
+  count(o: { personId: string; agentId: string; call: string; inputHash: string; now: Date }): Promise<CountedRow | undefined>;
+  /** Marks the row used, once. False when it was used, expired or dead already (a second call with the same code). The tries include the right one. */
   claim(id: string, now: Date): Promise<boolean>;
   /** How many rows this person got since the given time. */
   madeSince(personId: string, since: Date): Promise<number>;
@@ -45,12 +51,24 @@ export const CONFIRM_ADD_SQL =
   'insert into agent_confirms (id, person_id, agent_id, call_name, input_hash, code_hash, expires_at, created_at) values ($1, $2, $3, $4, $5, $6, $7, $8)';
 export const CONFIRM_ADD_LITE =
   'insert into agent_confirms (id, person_id, agent_id, call_name, input_hash, code_hash, expires_at, created_at) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)';
-export const CONFIRM_WRONG_SQL = 'update agent_confirms set tries = tries + 1 where id = $1';
-export const CONFIRM_WRONG_LITE = 'update agent_confirms set tries = tries + 1 where id = ?1';
+/**
+ * One statement counts the try: the subquery picks the newest live row, the outer predicates check that it is still live when the update
+ * runs. A parallel statement waits on the row, then meets the new count (Postgres re-checks the where clause on the updated row; SQLite
+ * runs one writer at a time), so a sixth try finds no row.
+ */
+export const CONFIRM_COUNT_SQL =
+  'update agent_confirms set tries = tries + 1 where id = (select id from agent_confirms where person_id = $1 and agent_id = $2 and call_name = $3 '
+  + 'and input_hash = $4 and used_at is null and tries < $5 and expires_at > $6 order by created_at desc, id desc limit 1) '
+  + 'and used_at is null and tries < $5 and expires_at > $6 returning id, code_hash';
+export const CONFIRM_COUNT_LITE =
+  'update agent_confirms set tries = tries + 1 where id = (select id from agent_confirms where person_id = ?1 and agent_id = ?2 and call_name = ?3 '
+  + 'and input_hash = ?4 and used_at is null and tries < ?5 and expires_at > ?6 order by created_at desc, id desc limit 1) '
+  + 'and used_at is null and tries < ?5 and expires_at > ?6 returning id, code_hash';
+// The claim allows tries up to MAX_TRIES: the count of the try that carries the right code is in the row already.
 export const CONFIRM_CLAIM_SQL =
-  'update agent_confirms set used_at = $2 where id = $1 and used_at is null and tries < $3 and expires_at > $2 returning id';
+  'update agent_confirms set used_at = $2 where id = $1 and used_at is null and tries <= $3 and expires_at > $2 returning id';
 export const CONFIRM_CLAIM_LITE =
-  'update agent_confirms set used_at = ?2 where id = ?1 and used_at is null and tries < ?3 and expires_at > ?2 returning id';
+  'update agent_confirms set used_at = ?2 where id = ?1 and used_at is null and tries <= ?3 and expires_at > ?2 returning id';
 export const CONFIRM_MADE_SQL = 'select count(*) as n from agent_confirms where person_id = $1 and created_at >= $2';
 export const CONFIRM_MADE_LITE = 'select count(*) as n from agent_confirms where person_id = ?1 and created_at >= ?2';
 
@@ -70,8 +88,11 @@ export function sqlConfirms(q: Query): ConfirmStore {
         row.id, row.personId, row.agentId, row.call, row.inputHash, row.codeHash, row.expiresAt.toISOString(), row.createdAt.toISOString(),
       ]);
     },
-    async wrong(id) {
-      await q(sqlFor(q, CONFIRM_WRONG_SQL, CONFIRM_WRONG_LITE), [id]);
+    async count(o) {
+      const [row] = await q<{ id: string; code_hash: string }>(sqlFor(q, CONFIRM_COUNT_SQL, CONFIRM_COUNT_LITE), [
+        o.personId, o.agentId, o.call, o.inputHash, MAX_TRIES, o.now.toISOString(),
+      ]);
+      return row ? { id: row.id, codeHash: row.code_hash } : undefined;
     },
     async claim(id, now) {
       const rows = await q(sqlFor(q, CONFIRM_CLAIM_SQL, CONFIRM_CLAIM_LITE), [id, now.toISOString(), MAX_TRIES]);
@@ -101,13 +122,18 @@ export function memoryConfirms(rows: Map<string, MemoryConfirm>): ConfirmStore {
       if (rows.has(row.id)) throw new Error(`duplicate key value: agent_confirms ${row.id}`);
       rows.set(row.id, { ...row, tries: 0, usedAt: null });
     },
-    async wrong(id) {
-      const row = rows.get(id);
-      if (row) row.tries += 1;
+    async count(o) {
+      const found = [...rows.values()]
+        .filter((row) => row.personId === o.personId && row.agentId === o.agentId && row.call === o.call && row.inputHash === o.inputHash
+          && row.usedAt === null && row.tries < MAX_TRIES && row.expiresAt.getTime() > o.now.getTime())
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : -1))[0];
+      if (!found) return undefined;
+      found.tries += 1;
+      return { id: found.id, codeHash: found.codeHash };
     },
     async claim(id, now) {
       const row = rows.get(id);
-      if (!row || row.usedAt !== null || row.tries >= MAX_TRIES || row.expiresAt.getTime() <= now.getTime()) return false;
+      if (!row || row.usedAt !== null || row.tries > MAX_TRIES || row.expiresAt.getTime() <= now.getTime()) return false;
       row.usedAt = now;
       return true;
     },

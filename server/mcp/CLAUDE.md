@@ -305,10 +305,13 @@ acts, when the ACTOR is an agent, the person of the agent must give a code that 
   `AFTER_ANSWER_KINDS`, so it runs before the answer, and in the office object the ledger runs it before the answer). The call fails with `forbidden`, `details.reason`
   `confirm_needed` and `expiresInMinutes` 10. One live code for one exact act: a second first call sends no second mail (the same reason, another text). At most 5 new
   codes for one person in one hour (`confirm_limit`, no mail).
-- Second call, same arguments plus `confirmCode`: `requireCode` finds the live row of the same person, agent, call and input hash (not used, not expired, fewer than 5 wrong
-  tries), compares the code hash, and claims the row in the SAME transaction as the act: a failed act keeps the code, two calls never both use it. A wrong code counts a
-  try in a transaction of its own (`confirm_wrong`); the fifth wrong try kills the row, and the sixth try fails even with the right code. A code for other arguments, an
-  expired, used or dead code, and the code of another agent fail with `confirm_invalid`; the answer to the agent is to call again without the code.
+- Second call, same arguments plus `confirmCode`: first `tryCode` (before the lock) counts one try on the live row of the same person, agent, call and input hash (not used,
+  not expired, fewer than 5 tries) in ONE statement (`CONFIRM_COUNT_SQL`) and a transaction of its own that commits, and only then compares the code hash. So ten parallel
+  guesses count five tries, and the other five meet a dead row (`confirm_invalid`). A wrong code answers `confirm_wrong`. A right code is claimed by `requireCode` in the SAME
+  transaction as the act: a failed act keeps the code, two calls never both use it. The tries include the right one, so the claim allows `tries <= 5`. A call with a code
+  counts its try also when its act then fails. The fifth wrong try kills the row, and the sixth try fails even with the right code. A code for other arguments, an
+  expired, used or dead code, and the code of another agent fail with `confirm_invalid`; the answer to the agent is to call again without the code. The count SQL has run on
+  SQLite only (Postgres re-checks the `where` on the updated row when a parallel statement waits; `test:db` has no test of it yet).
 - The mail (`guard.ts`, `renderConfirmMail`, words `mcpGuardMail` in `src/i18n/real/mcpguard.*.json`): to the address of the PERSON only (read again when it runs), in the
   language of the person, with one plain line of the act (names cleaned: no control or direction mark, 60 characters), the code, "one time, 10 minutes", and no link. It counts
   as sign-in mail against the day quota (`sendCounted`, key `mcp-confirm-<id>`). A row that runs after the end time sends nothing. The code sits in the outbox payload until the

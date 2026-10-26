@@ -35,11 +35,13 @@ export { CONFIRM_FIELD, GUARDED_CALLS };
  *      answers as before, and no mail goes for a call that would fail). Then the transaction stops BEFORE the save, and nothing changes.
  *      Madar records one confirmation (confirms.ts) and writes one mail row to the outbox in a transaction of its own, then runs the mail.
  *      The call fails with forbidden and the reason confirm_needed.
- *   2. The second call has the same arguments and confirmCode. The code is checked inside the transaction of the act, after the handler
- *      ran: the row of the same person, agent, call and hash of the input must be live (not used, not expired, fewer than 5 wrong tries)
- *      and its code hash must match. The claim of the row is part of the transaction, so a failed act keeps the code, and two calls with
- *      one code never both run.
- *   3. A wrong code counts one try, in a transaction of its own (the transaction of the act rolled back). The fifth wrong try kills the row.
+ *   2. The second call has the same arguments and confirmCode. First, in a transaction of its own and BEFORE the compare, the call counts
+ *      one try on the live row (tryCode: one statement, so parallel guesses cannot pass 5). The row is the one of the same person, agent,
+ *      call and hash of the input, not used, not expired, with fewer than 5 tries. Then the code hash is compared. A right code claims the
+ *      row inside the transaction of the act (requireCode), after the handler ran, so a failed act keeps the code, and two calls with one
+ *      code never both run.
+ *   3. A wrong code has its try counted already. The fifth try kills the row: the sixth call fails even with the right code. A right code
+ *      uses one try too (the tries include the right one). A call that carries a code counts one try also when its act then fails.
  *
  * The code is in the mail and in the outbox row until the mail goes (the effect removes it, as the invitation removes its token), never
  * in an answer, a log line or an event. The table keeps a hash only.
@@ -134,8 +136,11 @@ export function guardAct(name: string, parsed: unknown, office: OfficeSnapshot):
 /** Why the act stopped. runCall throws it inside the transaction, which rolls back, and then answers from it. */
 export type Stop =
   | { kind: 'needed'; personId: string; agentId: string; agent: string; call: string; inputHash: string; act: GuardAct }
-  | { kind: 'wrong'; id: string }
+  | { kind: 'wrong' }
   | { kind: 'invalid' };
+
+/** What the count and the compare of a code found (tryCode). right: the row that the act claims. */
+export type TriedCode = { kind: 'right'; id: string } | { kind: 'wrong' } | { kind: 'dead' };
 
 export class GuardStop extends Error {
   readonly stop: Stop;
@@ -150,19 +155,29 @@ export class GuardStop extends Error {
 const storeOf = (t: CallTx): ConfirmStore => t.confirms ?? sqlConfirms(t.q);
 
 /**
- * Inside the transaction of the act, after the handler passed and before the save. Returns when the code is right and claimed. Throws
- * GuardStop otherwise; the transaction then rolls back, so the claim of a failed act is undone.
+ * Before the transaction of the act (and before the lock): counts one try on the live row in a transaction of its own, which commits, and
+ * only then compares the code. The count is one statement with the live test inside (confirms.ts), so ten parallel guesses count five
+ * tries and the other five meet a dead row. The compare needs no lock. The answer is used by requireCode, inside the act.
+ */
+export async function tryCode(data: CallData, o: { personId: string; agentId: string; call: string; inputHash: string; code: string; now: Date }): Promise<TriedCode> {
+  const counted = await data.tx('write', async (t) => storeOf(t).count({ personId: o.personId, agentId: o.agentId, call: o.call, inputHash: o.inputHash, now: o.now }));
+  if (!counted) return { kind: 'dead' };
+  return sameHash(counted.codeHash, await codeHashOf(counted.id, o.code)) ? { kind: 'right', id: counted.id } : { kind: 'wrong' };
+}
+
+/**
+ * Inside the transaction of the act, after the handler passed and before the save. `tried` is the answer of tryCode, or undefined when the
+ * call carried no code. Returns when the code is right and claimed. Throws GuardStop otherwise; the transaction then rolls back, so the
+ * claim of a failed act is undone.
  */
 export async function requireCode(t: CallTx, o: {
-  personId: string; agentId: string; agent: string; call: string; inputHash: string; act: GuardAct; code: string | undefined; now: Date;
+  personId: string; agentId: string; agent: string; call: string; inputHash: string; act: GuardAct; tried: TriedCode | undefined; now: Date;
 }): Promise<void> {
-  const { code } = o;
-  if (code === undefined) throw new GuardStop({ kind: 'needed', personId: o.personId, agentId: o.agentId, agent: o.agent, call: o.call, inputHash: o.inputHash, act: o.act });
-  const store = storeOf(t);
-  const live = await store.live({ personId: o.personId, agentId: o.agentId, call: o.call, inputHash: o.inputHash, now: o.now });
-  if (!live) throw new GuardStop({ kind: 'invalid' });
-  if (!sameHash(live.codeHash, await codeHashOf(live.id, code))) throw new GuardStop({ kind: 'wrong', id: live.id });
-  if (!(await store.claim(live.id, o.now))) throw new GuardStop({ kind: 'invalid' });
+  const { tried } = o;
+  if (tried === undefined) throw new GuardStop({ kind: 'needed', personId: o.personId, agentId: o.agentId, agent: o.agent, call: o.call, inputHash: o.inputHash, act: o.act });
+  if (tried.kind === 'dead') throw new GuardStop({ kind: 'invalid' });
+  if (tried.kind === 'wrong') throw new GuardStop({ kind: 'wrong' });
+  if (!(await storeOf(t).claim(tried.id, o.now))) throw new GuardStop({ kind: 'invalid' });
 }
 
 const MINUTES = CODE_TTL_MS / 60_000;
@@ -180,10 +195,8 @@ export async function answerStop(
   deps: Deps, data: CallData, afterCommit: (deps: Deps, ids: string[]) => Promise<unknown>, stop: Stop,
 ): Promise<ApiError> {
   if (stop.kind === 'invalid') return forbidden(INVALID, { reason: 'confirm_invalid' });
-  if (stop.kind === 'wrong') {
-    await data.tx('write', async (t) => storeOf(t).wrong(stop.id));
-    return forbidden(WRONG, { reason: 'confirm_wrong', maxTries: MAX_TRIES });
-  }
+  // A wrong code has its try counted already (tryCode), before the compare.
+  if (stop.kind === 'wrong') return forbidden(WRONG, { reason: 'confirm_wrong', maxTries: MAX_TRIES });
   const now = deps.clock.now();
   const made = await data.tx('write', async (t) => {
     const store = storeOf(t);

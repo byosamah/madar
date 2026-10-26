@@ -192,6 +192,40 @@ describe('the email code guard, for an agent on SQLite', () => {
     expect((await asAgent(t, agent, 'users.deactivate', { ...input, confirmCode: codeOf(confirmMails(t)[1]) })).ok).toBe(true);
   });
 
+  it('counts the try before the compare: 10 parallel wrong codes give 5 wrong answers, the rest are dead, and the act does not run', async () => {
+    const t = await signinOffice();
+    const agent = await agentOf(t, 'usr_001');
+    const input = { id: 'usr_004' };
+    await asAgent(t, agent, 'users.deactivate', input);
+    const right = codeOf(confirmMails(t)[0]);
+    const guesses = Array.from({ length: 10 }, (_, i) => String(100_000 + i * 7919));
+    expect(guesses).not.toContain(right);
+    const answers = await Promise.all(guesses.map((confirmCode) => asAgent(t, agent, 'users.deactivate', { ...input, confirmCode })));
+    const reasons = answers.map(reasonOf);
+    // Only five tries reach the compare. The other five meet a dead code.
+    expect(reasons.filter((reason) => reason === 'confirm_wrong')).toHaveLength(5);
+    expect(reasons.filter((reason) => reason === 'confirm_invalid')).toHaveLength(5);
+    expect(rowsOf(t)[0].tries).toBe(5);
+    expect((await officeOf(t)).lists.users.usr_004.active).toBe(true);
+    // The row is dead, so the right code fails too, and the act stays undone.
+    expect(reasonOf(await asAgent(t, agent, 'users.deactivate', { ...input, confirmCode: right }))).toBe('confirm_invalid');
+    expect((await officeOf(t)).lists.users.usr_004.active).toBe(true);
+    expect(rowsOf(t)[0].used_at).toBeNull();
+  });
+
+  it('lets the right code win as the fifth try, and counts it as a try', async () => {
+    const t = await signinOffice();
+    const agent = await agentOf(t, 'usr_001');
+    const input = { id: 'usr_004' };
+    await asAgent(t, agent, 'users.deactivate', input);
+    const right = codeOf(confirmMails(t)[0]);
+    const wrong = right === '000000' ? '111111' : '000000';
+    for (let i = 0; i < 4; i += 1) await asAgent(t, agent, 'users.deactivate', { ...input, confirmCode: wrong });
+    expect((await asAgent(t, agent, 'users.deactivate', { ...input, confirmCode: right })).ok).toBe(true);
+    expect(rowsOf(t)[0].tries).toBe(5);
+    expect(rowsOf(t)[0].used_at).not.toBeNull();
+  });
+
   it('counts four wrong codes and still accepts the right one', async () => {
     const t = await signinOffice();
     const agent = await agentOf(t, 'usr_001');
