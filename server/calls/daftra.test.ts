@@ -205,6 +205,25 @@ describe('daftra.paymentLink', () => {
     expect(mazj.requests).toEqual([]);
   });
 
+  // Security review 2026-10-26: the minute counts from the look itself, not from the invoices in the copy. A client with no invoice, or a look
+  // that failed, leaves no invoice row, and must still not send one Daftra request for each open of the sheet.
+  it('asks Daftra at most once a minute also for a client with no invoice and after a failed look', async () => {
+    const { t, mazj } = await world();
+    mazj.clients.push({ id: '950', name: 'Quiet Client Co' });
+    okOf(await t.call('usr_011', 'daftra.matchClient', { paymentId: 'pay_003', daftraClientId: '950' }));
+    t.deps.clock.set(new Date(t.deps.clock.now().getTime() + 2 * 60_000));
+    mazj.requests.length = 0;
+    await t.call('usr_011', 'daftra.paymentLink', { paymentId: 'pay_003' });
+    await t.call('usr_011', 'daftra.paymentLink', { paymentId: 'pay_003' });
+    expect(mazj.requests).toHaveLength(1);
+    // A minute later, a failed look counts too.
+    t.deps.clock.set(new Date(t.deps.clock.now().getTime() + 2 * 60_000));
+    mazj.mode = 503;
+    await t.call('usr_011', 'daftra.paymentLink', { paymentId: 'pay_003' });
+    await t.call('usr_011', 'daftra.paymentLink', { paymentId: 'pay_003' });
+    expect(mazj.requests).toHaveLength(2);
+  });
+
   it('gives the copy it holds when the fresh look fails, with no error, and logs only the code', async () => {
     const { t, mazj } = await world();
     okOf(await t.call('usr_011', 'daftra.matchClient', { paymentId: 'pay_003', daftraClientId: '842' }));

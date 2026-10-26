@@ -9,7 +9,7 @@ import { addDays, nowStamp, todayISO } from '../../src/lib/dates';
 import { accountOfProject, type AccountOfProject } from '../daftra/account';
 import { daftraAccountsOf, daftraOf, DaftraError, type DaftraClient } from '../daftra/client';
 import { officeOf } from '../daftra/office';
-import { cachedInvoicesOf, clientMatch, lastFillOf, paymentFacts, putInvoices, putMatch, readStates, takenInvoiceIds, type PaymentFacts } from '../daftra/store';
+import { cachedInvoicesOf, clientMatch, lastFillOf, lastLookOf, paymentFacts, putInvoices, putMatch, readStates, saveLook, takenInvoiceIds, type PaymentFacts } from '../daftra/store';
 import { chooseFrom, suggestInvoice, type CachedInvoice } from '../daftra/suggest';
 import { readRoles, readUsers } from '../files/records';
 import { assertMayView } from '../files/rights';
@@ -139,8 +139,11 @@ export const daftraPaymentLink: ServerCall<'daftra.paymentLink'> = async (input,
     const others = chooseFrom(cached, taken).filter((invoice) => invoice.id !== suggested?.id).slice(0, 10);
     // No invoice matches and the copy of this client is older than a minute (or empty): Madar looks in Daftra at once, so an invoice that the
     // accountant just made shows now, not after the 15-minute job.
-    const lastFill = suggested ? null : await lastFillOf(q, account, match.daftraId);
-    const stale = !suggested && (lastFill === null || now.getTime() - Date.parse(lastFill) >= FRESH_LOOK_MS) ? match.daftraId : null;
+    // The minute counts from the newer of the last read of its invoices and the last look itself (a client with no invoice, or a failed look,
+    // leaves no invoice row: security review, 2026-10-26).
+    const recent = suggested ? null : [await lastFillOf(q, account, match.daftraId), await lastLookOf(q, account, match.daftraId)]
+      .filter((at): at is string => at !== null).sort().at(-1) ?? null;
+    const stale = !suggested && (recent === null || now.getTime() - Date.parse(recent) >= FRESH_LOOK_MS) ? match.daftraId : null;
     return {
       output: { account, noAccount: null, projectHasNoClient: false, matched, suggested: suggested ? viewOf(suggested) : null, others: others.map(viewOf) },
       stale,
@@ -149,9 +152,12 @@ export const daftraPaymentLink: ServerCall<'daftra.paymentLink'> = async (input,
   const first = await read();
   const daftra = first.stale === null ? undefined : daftraOf(deps, account);
   if (first.stale === null || !daftra) return { output: first.output, changed: false };
-  // The look runs outside any transaction. A failure keeps the copy the sheet already has: the log gets the code, the person no error.
+  // The look is marked first, so it counts whatever its result. It runs outside any transaction. A failure keeps the copy the sheet already
+  // has: the log gets the code, the person no error.
+  const daftraClientId = first.stale;
+  await deps.db.tx('write', (q) => saveLook(q, account, daftraClientId, now));
   try {
-    const list = await daftra.invoicesOf(first.stale, addDays(todayISO(now), -MATCH_BACK_DAYS));
+    const list = await daftra.invoicesOf(daftraClientId, addDays(todayISO(now), -MATCH_BACK_DAYS));
     await deps.db.tx('write', (q) => putInvoices(q, account, list, now));
   } catch (error) {
     if (!(error instanceof DaftraError)) throw error;

@@ -185,6 +185,23 @@ export async function lastFillOf(q: Query, account: string, daftraClientId: stri
   return row?.at ? iso(row.at) : null;
 }
 
+// ---- The time of the last fresh look at one client (security review, 2026-10-26). It is saved before the look, whatever its result, so a client
+// with no invoice or a failed look still counts against the minute.
+const LOOK_PREFIX = 'daftra:look:';
+const LOOK_SQL = 'select done_at from job_runs where key = $1';
+const LOOK_LITE = 'select done_at from job_runs where key = ?1';
+
+/** The time of the last fresh look at this client, or null. */
+export async function lastLookOf(q: Query, account: string, daftraClientId: string): Promise<string | null> {
+  const [row] = await q<{ done_at: string | Date }>(sqlFor(q, LOOK_SQL, LOOK_LITE), [`${LOOK_PREFIX}${account}:${daftraClientId}`]);
+  return row ? iso(row.done_at) : null;
+}
+
+/** Marks a fresh look at this client now, before the request goes. */
+export async function saveLook(q: Query, account: string, daftraClientId: string, at: Date): Promise<void> {
+  await q(sqlFor(q, PUT_STATE_SQL, PUT_STATE_LITE), [`${LOOK_PREFIX}${account}:${daftraClientId}`, at.toISOString()]);
+}
+
 // ---- The time of the last paid check of each linked invoice (code review, 2026-10-26). The job reads the invoice read longest ago first, so a
 // busy account never starves a newer link, and an invoice that Daftra no longer has moves to the back of the line.
 const CHECKED_PREFIX = 'daftra:checked:';
