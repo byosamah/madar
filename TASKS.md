@@ -236,7 +236,11 @@ Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts a
   - [ ] Set the key role "Only Allow" `invoice` and `client` on each of the five Daftra keys (today each key also reads stock items; Madar's own lock keeps them read-only), then recheck
   - [x] The What's new day of 2026-10-23-113 is 2026-10-26, the production release day
   - [ ] Later: the Daftra job step does nothing on the office object path (SQLite, `MADAR_DATA=office`) until a `NetApi` method exists
-  - [ ] Later: the paid check takes the 20 oldest links each run; with more than 20 linked unpaid payments, rotate the start
+  - [x] The paid check reads the invoice read longest ago first, and the cache fills go first (code review fix, released 2026-10-26)
+  - [ ] Screenshots of the Daftra part of the payment sheet: English and Arabic, light and dark, 390 px (owed since the build)
+  - [ ] Later: a rename of a sub-company's English name changes its Daftra account name (`DAFTRA_<NAME>_*`): rename the two secrets in the same step
+  - [ ] Later (code review, low): a Link press in the same second as a sub-company change can store the old account; a person who loses "Link Daftra invoices" still sees old due notices
+  - [ ] Later (owner may choose): Admin, Roles shows "No one yet" for each role while the people load; show nothing until they load
   - [ ] Later: the Link press does not save unsaved edits of the payment form (as Mark as received)
 - [ ] Pilot (Z8), owner steps: the team list (English and Arabic names, emails, roles) and an OK to send the invitations. The accountant joins with the Accounting role (owner, 2026-10-06). Production has 3 active people today, all Admins (Osama Khalil, Ahmed Al Sawy, Faisal Al Howshani); Osama Khalil and Faisal have no Arabic name
 - [x] Test copy: the seed makes file rows with no Storage objects, so every sample file and the cover picture of prj_001 fail to open there (proof.md, Z7). Fixed 2026-10-06 (owner OK): the seed gives each version a real object key and uploads it; the pictures are PNG, because the real store serves an SVG only as a download
