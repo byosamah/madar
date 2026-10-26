@@ -23,7 +23,7 @@ speaker, so write it as natural Arabic, not as a word-for-word copy of the Engli
   `space.level*` names), the sentence `space.introDetail`, the deadline and checklist cards (`space.deadline`, `space.itemDone`, `space.itemOpen`, the
   plural `space.moreItems` with all six Arabic forms). The "No sub-company" card reuses `subCompanies.none`.
   `daftra` holds the words of the Daftra link (owner, 2026-10-26): the bell sentences `inbox.trigger.payment_due` and `payment_due_past`, `inbox.paymentGone`, and the Settings label
-  `settings.triggers.payment_due`. Later tracks of the link add the sheet words to the same pair. `server/push/words.ts` imports its `inbox` part. The What's new entry
+  `settings.triggers.payment_due`. The screens track added the key tree `daftra.*` (the states of the payment sheet, the search, the toasts) and `payments.status.invoiced` (the sign "Invoiced"). `server/push/words.ts` imports its `inbox` part. The What's new entry
   `2026-10-23-113` sits in `whatsnew`.
   `fbk050` holds the words of "Download all" (`zip.*`: the button, "Preparing n of N...", the failed-file and too-large toasts) and the What's new entry `2026-10-23-97` sits in `whatsnew`.
   `batchd4` holds the words of internal projects and the Team tab block (fbk_044): `project.internal`, `project.hiddenMark`, `projectForm.kind*`, `projectAccess.*`,

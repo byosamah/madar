@@ -94,6 +94,21 @@ any screen work.
 - Disconnect asks first: Keep has the focus, and Disconnect sits at the start side (`me-auto`). It has no Undo: Connect is the way back. The calendar "Madar"
   stays in Google. The words are in `src/i18n/real/gcal.*.json`. The privacy page (`public/privacy.html`, `src/app/privacy.test.ts`) says what a disconnect does.
 
+## The Daftra part of the payment sheet (owner, 2026-10-26)
+- `project/payments/DaftraPart.tsx` holds the hook `useDaftraPart`. `PaymentSheet` puts its `part` under the form (outside it, so Enter in the search
+  field never saves the payment) and its `linkButton` in the footer. Madar only reads Daftra. A screen never names a Daftra account: each call takes the
+  payment, and the server finds the sub-company account (`server/daftra/CLAUDE.md`).
+- A holder of `payment.daftraLink` (ask `useRight`, never another way) on an open payment with no link gets the states 0 to 4, only after `daftra.status`
+  says ready. The prototype answers "not ready", so it shows nothing. A payment with a link shows the states 5 and 6 to every person who sees payments, from
+  the payment itself with no Daftra call. Only the holder gets Unlink. A linked payment has no Mark as received. A Daftra read that answers
+  `daftra_not_ready` hides the part.
+- Link is the one main button while an invoice shows (the suggestion, or one that the person chose from the list). Save then turns into a plain button.
+  Link sends only `{ id, invoiceId }`. A link or an unlink closes the sheet and shows an Undo toast (`useUndoable`).
+- `daftra.paymentLink` and `daftra.findClients` have no change signal (`readMap` rule `none`, stale time 0): the sheet reads again each time it opens,
+  after its own match, and after a refused link. The search starts with the name of the project client, and then waits 350 ms after each key.
+- An invoice number and a Daftra name sit in a direction isolate in Arabic (`isolate` in the file). `PaymentSign` shows "Invoiced" (`data-sign="invoiced"`, a page
+  shape, ink) while `payment.daftra` is set and the money has not come. A linked payment keeps it past its due day.
+
 ## Browser push in the screens (owner, 2026-10-08)
 - The push line (owner, 2026-10-21, "Like WhatsApp"): `push.register` takes the keys of the browser (`keysOf`, from
   `subscription.toJSON().keys`), and `syncThisDevice` saves a listed device again when `push.mine` says `hasKeys: false`. A browser that
