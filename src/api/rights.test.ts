@@ -11,6 +11,8 @@ import { makeUser, makeWorld } from '../test/factories';
 const ALL = [...OFFICE_RIGHTS] as string[];
 const sorted = (rights: readonly string[]) => [...rights].sort();
 const PAY = ['payment.view', 'payment.add', 'payment.change', 'payment.receive'];
+/** The default extras of Accounting: the four payment switches and the Daftra link (owner, 2026-10-26). */
+const ACCOUNTING_EXTRA = [...PAY, 'payment.daftraLink'];
 
 const admin = makeUser('usr_001', { systemRole: 'admin' });
 const management = makeUser('usr_006', { systemRole: 'management' });
@@ -61,19 +63,19 @@ describe('opensAdminPage: who sees the Admin page (owner, 2026-10-18, fbk_014)',
 describe('rightsOf: the office rights of each person (role rights version 2)', () => {
   it('gives the default switches when the office has no settings', () => {
     expect(sorted(rightsOf(admin, undefined))).toEqual(sorted(ALL));
-    expect(rightsOf(admin, undefined)).toHaveLength(118);
+    expect(rightsOf(admin, undefined)).toHaveLength(119);
     expect(sorted(rightsOf(member, undefined))).toEqual(sorted(BASIC_ON));
     expect(sorted(rightsOf(management, undefined))).toEqual(sorted([...BASIC_ON, ...DEFAULT_EXTRA.management]));
-    expect(sorted(rightsOf(accounting, undefined))).toEqual(sorted([...BASIC_ON, ...PAY]));
+    expect(sorted(rightsOf(accounting, undefined))).toEqual(sorted([...BASIC_ON, ...ACCOUNTING_EXTRA]));
     expect(rightsOf(member, undefined)).toHaveLength(67);
     expect(rightsOf(management, undefined)).toHaveLength(77);
-    expect(rightsOf(accounting, undefined)).toHaveLength(71);
+    expect(rightsOf(accounting, undefined)).toHaveLength(72);
   });
 
   it('takes the extra switches that the settings give a role, in place of the default extras', () => {
     const roles: RoleSettings = { rights: { management: ['clients.change'] } };
     expect(sorted(rightsOf(management, roles))).toEqual(sorted([...BASIC_ON, 'clients.change']));
-    expect(sorted(rightsOf(accounting, roles))).toEqual(sorted([...BASIC_ON, ...PAY]));
+    expect(sorted(rightsOf(accounting, roles))).toEqual(sorted([...BASIC_ON, ...ACCOUNTING_EXTRA]));
   });
 
   it('reads an old stored list: an old id stands for the new switches it names', () => {

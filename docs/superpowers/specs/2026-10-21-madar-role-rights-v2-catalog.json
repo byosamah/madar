@@ -1688,6 +1688,28 @@
               ]
             }
           ]
+        },
+        {
+          "power": "payment.daftraLink",
+          "en": "Link Daftra invoices",
+          "ar": "ربط فواتير دفترة",
+          "hint": "Link a payment to its Daftra invoice. When Daftra says the invoice is paid, Madar marks the payment as received. Needs \"See payments\".",
+          "switches": [
+            {
+              "id": "payment.daftraLink",
+              "scope": null,
+              "basic": false,
+              "newPower": true,
+              "defaults": {
+                "member": false,
+                "management": false,
+                "accounting": true
+              },
+              "needs": [
+                "payment.view"
+              ]
+            }
+          ]
         }
       ]
     },

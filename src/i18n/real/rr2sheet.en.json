@@ -267,6 +267,10 @@
         "label": "Mark payments received",
         "hint": "Mark a payment as received, with its date. Needs \"See payments\"."
       },
+      "paymentDaftraLink": {
+        "label": "Link Daftra invoices",
+        "hint": "Link a payment to its Daftra invoice. When Daftra says the invoice is paid, Madar marks the payment as received. Needs \"See payments\"."
+      },
       "templatesProjectCreate": {
         "label": "Make project templates",
         "hint": "Make a new project template. You can always change your own. Today no screen lets a Member do this."

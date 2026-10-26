@@ -179,7 +179,7 @@ describe('the old stored forms', () => {
     const t = world();
     const settings = await t.api.call('roles.update', { role: 'accounting', rights: ['payment.manage'] });
     expect(settings.custom?.[0].rights).toEqual(['payment.manage']);
-    expect(DEFAULT_EXTRA.accounting).toHaveLength(4);
+    expect(DEFAULT_EXTRA.accounting).toHaveLength(5);
     expect(BASIC_ON).toHaveLength(67);
   });
 });

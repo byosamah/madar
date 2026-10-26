@@ -382,7 +382,7 @@ describe('Undo never takes back a role change for an agent (security review 2026
     expect(t.store.state.settings.roles?.rights?.accounting).toEqual(['payment.view', 'payment.add', 'payment.change', 'payment.receive', 'report.office']);
     t.as('usr_001');
     await t.api.call('events.undo', { eventId: change.id });
-    expect(t.store.state.settings.roles?.rights?.accounting).toEqual(['payment.view', 'payment.add', 'payment.change', 'payment.receive']);
+    expect(t.store.state.settings.roles?.rights?.accounting).toEqual(['payment.view', 'payment.add', 'payment.change', 'payment.receive', 'payment.daftraLink']);
   });
 
   it('refuses an agent of the Admin the Undo of the story of a role change, and leaves the whole story as it was', async () => {
