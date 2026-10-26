@@ -2568,3 +2568,19 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
   folders with Move to (EN light desk, AR dark 390 px), the Arabic name (form, AR header, 390 px), "Only my work" on Projects (AR dark).
 - Live checks: the quick checks passed (health from supabase, `fileStore` r2, 154 calls; database, lock and asyncContext ok; /mcp with no token
   401); the production page title is Madar, `/favicon.ico` 200, and the served first load holds the new `adminReach` and `projectReach` chunks.
+
+### Release record: production at 7e785d4f (2026-10-26, hotfix: the leader ring, the person menu, the What's new order)
+- On the owner's "production" (2026-10-26), after he saw an oval leader ring and an uneven person menu in production, Claude ran `all.sh test`
+  and then `echo production | scripts/deploy/all.sh production` from deploy-test; both passed on the first try.
+- The leader ring: each picture box of `AvatarStack` is `flex shrink-0`. A photo (an inline img) in a plain box sat on a text line, the box grew a
+  gap under it, and the ring drew an oval with the photo at its top; initials have no gap, so the prototype screenshots of a9c0841e missed it. The
+  ring is 1.5 px, and the leader of a project row is 32 px (owner: a little smaller). Live check: the leader box measures 36 by 36 px on madar.vado.sa.
+- The person menu: Away keeps its switch; Mode and Language are one button each that names the other choice; the three controls share one height
+  (31 px) and one end edge (owner's choice through AskUserQuestion). What's new: the page sorts the entries by day, so each day shows once (it showed
+  25 Oct, 26 Oct, 25 Oct).
+- Gates: typecheck; check-rtl; the touched and caller tests (components, projects, space, project tasks, Admin, app shell, auth, Me, settings,
+  What's new: 731 and 76 tests); `all.sh test` builds (remote screens, server, every bundle line ok). Not run: the full npm test and the database
+  suites (screens only, no server change). `focusInert.test.tsx` fails under a load of 16 on the production commit a9c0841e too (TASKS). Screenshots
+  in Chrome with real photos: the Home rows (prototype EN dark, production dark), the menu (EN dark, AR light).
+- Live checks: the quick checks passed (health from supabase, `fileStore` r2, 154 calls; database, lock and asyncContext ok; /mcp with no token 401);
+  the production page title is Madar, `/favicon.ico` 200.
