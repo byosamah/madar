@@ -15,6 +15,7 @@ import { createAppRouter } from '../app/routes';
 import { preloadScreens } from '../app/screens';
 import { loadChecklistLayer } from '../features/project/tasks/checklistLayerLoader';
 import { loadFilesDrag } from '../features/project/files/filesDragLoader';
+import { loadPersonMenuPanel } from '../app/overlays';
 import { loadDragLayer } from '../features/project/tasks/dragLayerLoader';
 import { RuntimeProvider, createQueryClient, type ChangeSource } from '../app/runtime';
 import { ToastProvider } from '../app/toasts';
@@ -29,6 +30,8 @@ await loadDragLayer();
 await loadChecklistLayer();
 // The file drag layer of the Files & Links list too (fbk_066).
 await loadFilesDrag();
+// The panel of the person menu is a chunk of its own: it starts loaded, so a menu opens in the first frame.
+await loadPersonMenuPanel();
 
 /** One call that the screens asked, with its input and the idempotency key it carried (a write of the real build; a retry carries the key of the failed attempt). */
 export type Asked = { name: string; input: unknown; key?: string };

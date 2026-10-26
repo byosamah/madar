@@ -20,6 +20,7 @@ import type { ChangeListener } from '../app/signals';
 import { ToastProvider } from '../app/toasts';
 import { WRITE_KINDS } from '../app/writeKinds';
 import { loadFilesDrag } from '../features/project/files/filesDragLoader';
+import { loadPersonMenuPanel } from '../app/overlays';
 import { loadDragLayer } from '../features/project/tasks/dragLayerLoader';
 import { initI18n } from '../i18n';
 import { setNow } from '../lib/dates';
@@ -30,6 +31,8 @@ await preloadScreens();
 await loadDragLayer();
 // The file drag layer of the Files & Links list too (fbk_066).
 await loadFilesDrag();
+// The panel of the person menu is a chunk of its own: it starts loaded, so a menu opens in the first frame.
+await loadPersonMenuPanel();
 
 /** One request that the real RemoteApi sent: the call names and inputs in order, and the cost of the overview calls in it. */
 export type Trip = { names: string[]; calls: { name: string; input: unknown }[]; cost: number };

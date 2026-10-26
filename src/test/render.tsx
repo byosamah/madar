@@ -16,6 +16,7 @@ import { RuntimeProvider, createQueryClient } from '../app/runtime';
 import { preloadScreens } from '../app/screens';
 import { loadChecklistLayer } from '../features/project/tasks/checklistLayerLoader';
 import { loadFilesDrag } from '../features/project/files/filesDragLoader';
+import { loadPersonMenuPanel } from '../app/overlays';
 import { loadDragLayer } from '../features/project/tasks/dragLayerLoader';
 import { ToastProvider } from '../app/toasts';
 import { initI18n } from '../i18n';
@@ -30,6 +31,8 @@ await loadDragLayer();
 await loadChecklistLayer();
 // The file drag layer of the Files & Links list too (fbk_066).
 await loadFilesDrag();
+// The panel of the person menu is a chunk of its own: it starts loaded, so a menu opens in the first frame.
+await loadPersonMenuPanel();
 
 /** Renders the whole app over the sample office, at a hash route, with no latency. "prepare" may change the office first. */
 /** failFirst makes the first call of that name fail, as the "Simulate errors" switch can. */

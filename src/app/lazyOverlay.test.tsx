@@ -37,6 +37,15 @@ describe('lazyOverlay (performance audit 2026-10-21, FL-1 and FL-4)', () => {
     expect(load).toHaveBeenCalledTimes(1);
   });
 
+  it('ready() resolves when the part is in memory, and rejects when the import fails', async () => {
+    const part = lazyOverlay(async () => Panel);
+    await part.ready();
+    expect(part.isLoaded()).toBe(true);
+    const broken = lazyOverlay<object>(async () => { throw new Error('offline'); });
+    await expect(broken.ready()).rejects.toThrow('offline');
+    expect(broken.isLoaded()).toBe(false);
+  });
+
   it('renders a loaded part in the first render, with no Suspense step', async () => {
     const part = lazyOverlay(async () => Panel);
     part.warm();

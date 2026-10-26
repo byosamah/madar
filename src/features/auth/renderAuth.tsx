@@ -15,6 +15,7 @@ import type { Language } from '../../api/contract/entities';
 import { ApiError } from '../../api/errors';
 import { AppearanceSync } from '../../app/AppearanceSync';
 import { appRoutes } from '../../app/routes';
+import { loadPersonMenuPanel } from '../../app/overlays';
 import { preloadScreens } from '../../app/screens';
 import { fakeAuth, type FakeAuth } from './fakeAuth';
 import { ForgotScreen } from './ForgotScreen';
@@ -27,6 +28,8 @@ configure({ asyncUtilTimeout: 5000 });
 
 // The screens load on demand (src/app/screens.ts). The tests load all of them once, so each router starts with every screen.
 await preloadScreens();
+// The panel of the person menu is a chunk of its own: it starts loaded, so a menu opens in the first frame.
+await loadPersonMenuPanel();
 
 /** Shows where the router went, for the tests of a screen that moves on. */
 function Where() {

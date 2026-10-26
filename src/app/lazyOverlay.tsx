@@ -53,6 +53,8 @@ export function lazyOverlay<P extends object>(load: () => Promise<ComponentType<
     Overlay,
     /** Starts the import. It never throws: a failure shows at the first use. */
     warm: (): void => void warm().catch(() => undefined),
+    /** Resolves once the component is in memory. The test helpers await it, so a part starts loaded. A failed import rejects. */
+    ready: (): Promise<void> => warm().then(() => undefined),
     /** True once the component is in memory (the tests use it). */
     isLoaded: (): boolean => loaded !== null,
   };

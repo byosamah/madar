@@ -337,12 +337,14 @@ The owner sees how the team uses Madar, which errors they hit, and replays of th
   is its own small component, as `RowMenu` in `features/projects/ProjectListRow.tsx`.
 - A part that most sessions never open loads in its own chunk through `lazyOverlay` (`app/lazyOverlay.tsx`; audit 2026-10-21, FL-1, FL-4):
   the Home task panel (`features/home/HomeTaskSheet.tsx`), Focus mode, the feedback sheet and the sheet of an ended session
-  (`app/overlays.tsx`). `lazyOverlay.tsx` takes `reloadOnFailedImport` from `app/importReload.ts`, which imports nothing: an import of `screens.ts`
+  (`app/overlays.tsx`), and the panel of the person menu (`app/PersonMenuPanel.tsx`; `PersonMenu.tsx` keeps the picture, the open state and the feedback
+  sheet; the picture warms the panel at pointerdown and at focus; the test helpers `render.tsx`, `heldRemoteApp.tsx` and `wireApp.tsx` await
+  `loadPersonMenuPanel()`, so a menu opens in the first frame). `lazyOverlay.tsx` takes `reloadOnFailedImport` from `app/importReload.ts`, which imports nothing: an import of `screens.ts`
   there made a loop through every screen in the prototype dev server, and plain `npx vite` showed an empty page (`importCycle.test.ts`). `warm()` keeps the loaded component in a module variable: a part that mounts after it renders with no Suspense
   step (a plain `React.lazy` adds about 500 ms to the first press), and a part that mounts before it keeps `React.lazy` for its whole
   life, so the chunk never remounts it. `useOnceOn` mounts a sheet at its first use and keeps it, so the closing animation stays. Home
-  warms the panel 1 s after its three first reads answered (not after the mount, and a stored Home answer does not count; `HomeWarm.test.tsx`), `main.tsx` warms it at once for `/?task=`, and `warmAtIdle` warms the three shell parts after the first data (`app/idlePrefetch.ts`). A failed
-  import at the first use reloads the page once (`reloadOnFailedImport` in `app/importReload.ts`). Never import these four files statically
+  warms the panel 1 s after its three first reads answered (not after the mount, and a stored Home answer does not count; `HomeWarm.test.tsx`), `main.tsx` warms it at once for `/?task=`, and `warmAtIdle` warms the four shell parts after the first data (`app/idlePrefetch.ts`). A failed
+  import at the first use reloads the page once (`reloadOnFailedImport` in `app/importReload.ts`). Never import these files statically
   from the shell, Home or `AuthGate`: `app/firstLoadImports.test.ts` and the bundle rules of `check-bundles.ts` fail on it.
 - `useLang` (`app/lang.ts`) reads the language with `useSyncExternalStore` over the one i18next instance and its
   `languageChanged` event. It does not call `useTranslation`.
