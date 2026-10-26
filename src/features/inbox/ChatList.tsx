@@ -37,7 +37,7 @@ import { useProjectName } from '../../app/projectName';
 type Row = CallOutput<'chats.list'>[number];
 
 function Lead({ row }: { row: Row }) {
-  if (row.kind === 'project' && row.project) return <ProjectTile id={row.project.id} mark={row.project.mark} size={40} />;
+  if (row.kind === 'project' && row.project) return <ProjectTile id={row.project.id} mark={row.project.mark} shape={row.project.shape} size={40} />;
   if (row.kind === 'direct' && row.person) return <PersonFace user={{ ...row.person, active: !row.personLeft }} size={40} />;
   // A group has one picture of its own, never a stack of faces (UX audit 2026-10-19, chats-08).
   if (row.kind === 'group') return <GroupPicture id={row.id} size={40} />;

@@ -350,7 +350,7 @@ export function taskRowOf(state: State, task: Task, today: string, viewer: User)
     owner: task.ownerId === null ? null : cardOf(state, task.ownerId),
     helpers: helpersOf(task).map((id) => cardOf(state, id)),
     // An office task has no project and no stage (owner, 2026-10-06).
-    project: task.projectId === null ? null : projectRef({ id: task.projectId, code: project?.code ?? '', name: project?.name ?? '', nameAr: project?.nameAr, mark: project?.mark }),
+    project: task.projectId === null ? null : projectRef({ id: task.projectId, code: project?.code ?? '', name: project?.name ?? '', nameAr: project?.nameAr, mark: project?.mark, shape: project?.shape }),
     stage: task.stageId === null ? null : { id: task.stageId, name: stage?.name ?? '' },
     commentCount: countComments(state, 'task', task.id),
     fileCount: countFiles(state, task.id),

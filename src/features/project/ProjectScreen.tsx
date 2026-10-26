@@ -79,7 +79,7 @@ export function ProjectScreen() {
   if (!detail.data) {
     const summary = queryClient.getQueriesData<ProjectSummary[]>({ queryKey: ['api', 'projects.list'] })
       .flatMap(([, list]) => list ?? []).find((item) => item.project.id === projectId);
-    return summary ? <LayoutGroup id={sharedSource()}><HeaderShell id={summary.project.id} name={projectName(summary.project)} mark={summary.project.mark} /></LayoutGroup> : null;
+    return summary ? <LayoutGroup id={sharedSource()}><HeaderShell id={summary.project.id} name={projectName(summary.project)} mark={summary.project.mark} shape={summary.project.shape} /></LayoutGroup> : null;
   }
   // The tabs of this project: an internal project has no Tracker, so the address of that tab opens the Overview.
   const shown = tabsOf(detail.data.project);

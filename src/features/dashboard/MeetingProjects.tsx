@@ -110,7 +110,7 @@ export function MeetingProject({ row, tasks, discussed = false, onOpenTask }: { 
   return (
     <article aria-label={shownName(row.project, lang)} className="flex min-h-0 flex-1 flex-col gap-5">
       <header className="panel flex shrink-0 flex-wrap items-center gap-x-6 gap-y-4 p-6">
-        <ProjectTile id={row.project.id} mark={row.project.mark} size={64} subCompanyId={row.project.subCompanyId} />
+        <ProjectTile id={row.project.id} mark={row.project.mark} shape={row.project.shape} size={64} subCompanyId={row.project.subCompanyId} />
         {/* The header holds who, where and how: the name, the people with open work, and the stage with its state. */}
         <div className="flex min-w-0 flex-1 basis-80 flex-col gap-3">
           <div>

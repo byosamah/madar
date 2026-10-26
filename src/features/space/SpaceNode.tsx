@@ -157,7 +157,7 @@ function ProjectCard({ data }: { data: SpaceCardData }) {
       <button type="button" aria-expanded={data.expandable ? data.open : undefined} className="block w-full min-w-0 text-start">
         {/* The first row leaves room for the Open project button at the end of the card. */}
         <span className="flex items-center gap-2.5 pe-9">
-          <ProjectTile id={summary.project.id} mark={summary.project.mark} size={32} subCompanyId={summary.subCompanyId} />
+          <ProjectTile id={summary.project.id} mark={summary.project.mark} shape={summary.project.shape} size={32} subCompanyId={summary.subCompanyId} />
           <span className="flex min-w-0 flex-col gap-0.5">
             <bdi dir="auto" className="truncate text-subheadline font-semibold text-ink">{projectName(summary.project)}</bdi>
             {/* On track is the normal state, so its word stays for a screen reader only. */}

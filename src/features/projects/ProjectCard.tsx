@@ -21,7 +21,7 @@ export function ProjectCover({ summary, className = 'aspect-video', layoutId }: 
     ? <img src={cover.url} alt={label} onError={cover.onError} className={`${PRIVATE} w-full object-cover ${className}`} />
     : (
       <div role="img" aria-label={label} data-project-mark={markOf(summary.project)} style={{ background: markGlow(summary.project.id, markOf(summary.project)) }} className={`relative w-full ${className}`}>
-        <MarkForm mark={markOf(summary.project)} className="absolute inset-0 m-auto h-[34%] w-auto" />
+        <MarkForm mark={markOf(summary.project)} shape={summary.project.shape} className="absolute inset-0 m-auto h-[34%] w-auto" />
       </div>
     );
   if (!layoutId) return inner;

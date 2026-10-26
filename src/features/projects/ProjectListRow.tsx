@@ -69,7 +69,7 @@ export const ProjectListRow = memo(function ProjectListRow({ summary, source }: 
         onPointerDown={() => prefetch('projects.get', { id: project.id })}
         className="pressable grid grid-cols-[34px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-4 py-3.5 hover:bg-fill/50 @xl:grid-cols-[34px_minmax(0,1fr)_minmax(0,18rem)] @xl:gap-x-4 @4xl:grid-cols-[34px_minmax(0,1fr)_minmax(0,13rem)_7rem_minmax(0,14rem)] @4xl:gap-x-8"
       >
-        <ProjectTile id={project.id} mark={project.mark} subCompanyId={summary.subCompanyId} shared />
+        <ProjectTile id={project.id} mark={project.mark} shape={project.shape} subCompanyId={summary.subCompanyId} shared />
         <span className="min-w-0">
           <span className="flex min-w-0 items-center gap-2">
             <motion.span layoutId={`name-${project.id}`} transition={spring.expand} dir="auto" className="truncate text-[calc(15px*var(--boost))] font-semibold text-ink">{shownName(project, lang)}</motion.span>

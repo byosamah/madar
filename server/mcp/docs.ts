@@ -260,11 +260,11 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.get': {
     title: 'Get a project',
-    description: 'Returns one project by id: its code, stages, team, leader, client, dates, health, deadlines, links and folders (id, stageId, name). Code: 260902AZT-RES-Villa (new) or KH-26-014 (old). nextDeadline: the next named deadline. stageEnd ends the current stage, or null. subCompanyId: the sub-company. geo: the pin ({ lat, lng }) or null. location is the address of the pin. templateId: template or null. chatId: project chat or null. access: { hidden, viewerIds }. kind: client or internal (no client, place, area, payments or Tracker; code starts with INT). nameAr: the Arabic name. look: color and tile.',
+    description: 'Returns one project by id: code, stages, team, leader, client, dates, health, deadlines, links, folders (id, stageId, name). Code: 260902AZT-RES-Villa or KH-26-014. nextDeadline: the next deadline. stageEnd ends the current stage, or null. subCompanyId: the sub-company. geo: the pin ({ lat, lng }) or null. location is the address of the pin. templateId: template or null. chatId: project chat or null. access: { hidden, viewerIds }. kind: client or internal (no client, place, area, payments or Tracker; code starts with INT). nameAr: the Arabic name. look: color and tile (look.tile uses shape).',
   },
   'projects.list': {
     title: 'List projects',
-    description: 'Lists the projects, with their code, stage, health and leader. A code is 260902AZT-RES-Villa (new form, key 260902AZT) or KH-26-014 (old form). Filters: status, filter (all, mine, at_risk, no_area, stage_no_end: a stage with no end date, no_sub_company), stageName, health, leaderId, clientId, teamId, subCompanyId (see subCompanies.list); sort by updated, deadline (the next named deadline, else the end of the current stage) or name. Each project gives nextDeadline, stageEnd, subCompanyId, geo, access, kind, nameAr, templateId and look. "Only my work" of an Admin does not change this list.',
+    description: 'Lists the projects, with their code, stage, health and leader. A code is 260902AZT-RES-Villa (new form, key 260902AZT) or KH-26-014 (old form). Filters: status, filter (all, mine, at_risk, no_area, stage_no_end: a stage with no end date, no_sub_company), stageName, health, leaderId, clientId, teamId, subCompanyId (see subCompanies.list); sort by updated, deadline (next deadline, else stage end) or name. Each project gives nextDeadline, stageEnd, subCompanyId, geo, access, kind, nameAr, templateId and look (look.tile uses shape). "Only my work" of an Admin does not change this list.',
   },
   'projects.setStatus': {
     title: 'Set the project status',

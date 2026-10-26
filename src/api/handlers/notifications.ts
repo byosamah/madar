@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
-import { Day, isEmailTrigger, Notification, NotificationId, Stamp, Trigger, User, type Event, type Task } from '../contract/entities';
+import { Day, isEmailTrigger, Notification, NotificationId, ProjectShape, Stamp, Trigger, User, type Event, type Task } from '../contract/entities';
 import { UserCard } from '../contract/views';
 import { forbidden, invalid, notFound } from '../errors';
 import { canSeeConversation } from '../chatState';
@@ -32,7 +32,7 @@ export const NotificationView = z.object({
   targetAr: z.string().optional(),
   projectCode: z.string().nullable(),
   /** The project, for its color tile in the Inbox (redesign spec 3.7). Null for a timesheet notice or a deleted project. */
-  project: z.object({ id: z.string(), name: z.string(), nameAr: z.string().optional(), mark: z.number().int().nonnegative() }).nullable(),
+  project: z.object({ id: z.string(), name: z.string(), nameAr: z.string().optional(), mark: z.number().int().nonnegative(), shape: ProjectShape.optional() }).nullable(),
   link: z.string(),
   needsAction: z.boolean(),
   canApprove: z.boolean(),
@@ -139,7 +139,7 @@ function viewOf(state: State, n: Notification, viewer: User): NotificationView {
   let target = '';
   let targetAr = '';
   let projectCode: string | null = null;
-  let tile: { id: string; name: string; mark: number } | null = null;
+  let tile: { id: string; name: string; mark: number; shape?: string } | null = null;
   let link = '/notifications';
   let canApprove = false;
   const gone = isGone(state, n, viewer);

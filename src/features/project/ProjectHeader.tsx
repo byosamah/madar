@@ -26,10 +26,10 @@ import { isHiddenProject, isInternalProject, shownCode, shownName } from '../../
 import { useLang } from '../../app/lang';
 
 /** The tile and the name alone, drawn at once while the project loads, so the tapped row grows into them (motion moment 1). */
-export function HeaderShell({ id, name, mark }: { id: string; name: string; mark?: number }) {
+export function HeaderShell({ id, name, mark, shape }: { id: string; name: string; mark?: number; shape?: string | null }) {
   return (
     <div className="flex items-start gap-4 pt-14">
-      <ProjectTile id={id} mark={mark} size={48} shared />
+      <ProjectTile id={id} mark={mark} shape={shape} size={48} shared />
       <p dir="auto" className="text-page-title text-ink">
         <motion.span layoutId={`name-${id}`} transition={spring.expand} className="inline-block">{name}</motion.span>
       </p>
@@ -81,7 +81,7 @@ function PhoneHeader({ detail, onPost, tab, controls }: { detail: ProjectDetail;
   return (
     <header className="flex flex-col gap-3">
       <div className="flex items-start gap-3">
-        <ProjectTile id={project.id} mark={project.mark} size={48} subCompanyId={detail.subCompanyId} shared />
+        <ProjectTile id={project.id} mark={project.mark} shape={project.shape} size={48} subCompanyId={detail.subCompanyId} shared />
         <div className="min-w-0 flex-1">
           <h1 dir="auto" className="text-page-title text-ink [text-wrap:balance]">
             <motion.span layoutId={`name-${project.id}`} transition={spring.expand} className="inline-block">{shownName(project, lang)}</motion.span>
@@ -139,7 +139,7 @@ function DeskHeader({ detail, onPost, controls }: { detail: ProjectDetail; onPos
         {t('project.back')}
       </Link>
       <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
-        <ProjectTile id={project.id} mark={project.mark} size={48} subCompanyId={detail.subCompanyId} shared />
+        <ProjectTile id={project.id} mark={project.mark} shape={project.shape} size={48} subCompanyId={detail.subCompanyId} shared />
         <div className="min-w-0 flex-1 basis-60">
           <h1 dir="auto" className="text-page-title text-ink [text-wrap:balance]">
             <motion.span layoutId={`name-${project.id}`} transition={spring.expand} className="inline-block">{shownName(project, lang)}</motion.span>

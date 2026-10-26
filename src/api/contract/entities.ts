@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { INITIALS_PATTERN, RECORD_CODE_PATTERN, visibleTextPattern } from '../../lib/projectCode';
+import { PROJECT_SHAPE_MAX, PROJECT_SHAPE_PATTERN, PROJECT_SHAPE_RULE } from '../../lib/projectShape';
 import {
   DAFTRA_ACCOUNT_PATTERN, DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, MAX_PROJECT_VIEWERS, MEETING_KINDS, MEETING_LIMITS,
   NOTIFY_LEVELS, PICTURE_DATA, REACTIONS,
@@ -16,6 +17,12 @@ export {
 
 const id = (prefix: string) =>
   z.string().regex(new RegExp(`^${prefix}_\\d{3,}$`), `Expected an id like ${prefix}_001.`);
+
+/**
+ * The own shape of a project picture (owner, 2026-10-26): one SVG path in a box of 18 by 18. The pattern keeps out quotes, angle brackets
+ * and every letter that is no path command, so the string is safe in SVG text (src/lib/projectShape.ts).
+ */
+export const ProjectShape = z.string().max(PROJECT_SHAPE_MAX, PROJECT_SHAPE_RULE).regex(PROJECT_SHAPE_PATTERN, PROJECT_SHAPE_RULE);
 
 export const UserId = id('usr');
 export const ClientId = id('cli');
@@ -448,6 +455,11 @@ export const Project = z.object({
   pause: ProjectPause.nullable().optional(),
   /** The project's picture: one form and a second light, never the same as another project's (owner, 2026-10-01). */
   mark: z.number().int().nonnegative().optional(),
+  /**
+   * The own shape of the picture (owner, 2026-10-26): drawn in ink in the place of the form of the mark. Optional, so older offices still
+   * load. null means a person took the shape off: the History needs a value to bring a shape back, and a missing key is lost in JSON.
+   */
+  shape: ProjectShape.nullable().optional(),
   /** Optional, so offices saved before links existed still load. */
   links: z.array(ProjectLink).max(20).optional(),
   /** The folders of the Files & Links tab (fbk_066). Optional, so older offices still load. A list row leaves them out (summaryOf). */

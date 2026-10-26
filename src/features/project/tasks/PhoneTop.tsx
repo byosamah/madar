@@ -18,7 +18,7 @@ export function PhoneHeader({ data }: { data: TaskDetail }) {
   if (!project) return <span className="flex min-h-11 items-center text-subheadline font-semibold text-ink-2">{t('office.word')}</span>;
   return (
     <Link to={`/projects/${project.id}`} className="pressable flex min-h-11 min-w-0 max-w-full items-center gap-2 text-subheadline font-semibold text-ink">
-      <ProjectTile id={project.id} mark={project.mark} size={22} />
+      <ProjectTile id={project.id} mark={project.mark} shape={project.shape} size={22} />
       <bdi className="truncate">{projectName(project)}</bdi>
     </Link>
   );

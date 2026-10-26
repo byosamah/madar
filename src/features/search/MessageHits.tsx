@@ -22,7 +22,7 @@ const PICTURE = 32;
 
 /** The picture of the chat of a hit: the project, the other person, the group, or the task (an office task has the task circle). */
 function Lead({ hit }: { hit: Hit }) {
-  if (hit.project) return <ProjectTile id={hit.project.id} mark={hit.project.mark} size={PICTURE} />;
+  if (hit.project) return <ProjectTile id={hit.project.id} mark={hit.project.mark} shape={hit.project.shape} size={PICTURE} />;
   if (hit.kind === 'direct' && hit.person) return <Avatar user={hit.person} size={PICTURE} />;
   if (hit.kind === 'group') return <GroupPicture id={hit.chatId} size={PICTURE} />;
   return (

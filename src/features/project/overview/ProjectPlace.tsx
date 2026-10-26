@@ -31,6 +31,7 @@ export function ProjectPlace({ detail }: { detail: ProjectDetail }) {
           <ProjectPin
             id={project.id}
             mark={project.mark}
+            shape={project.shape}
             subCompanyId={detail.subCompanyId}
             sign={health === 'late' || health === 'at_risk' ? health : null}
             selected={false}

@@ -197,7 +197,7 @@ export const TaskRowItem = memo(function TaskRowItem({ row, me, onOpen, showProj
           )}
         </button>
         {showProject && row.project
-          ? <span className="pe-2"><ProjectTile id={row.project.id} mark={row.project.mark} size={22} /></span>
+          ? <span className="pe-2"><ProjectTile id={row.project.id} mark={row.project.mark} shape={row.project.shape} size={22} /></span>
           : <span className="pe-1"><TaskPeople row={row} /></span>}
         {drag?.grip}
       </div>

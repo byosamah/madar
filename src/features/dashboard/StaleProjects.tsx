@@ -24,7 +24,7 @@ export function StaleProjects({ view }: { view: DashboardData }) {
         {stale.map((row) => (
           <li key={row.project.id}>
             <Link to={`/projects/${row.project.id}`} className="pressable flex min-h-14 items-center gap-3 py-2 hover:bg-fill/50">
-              <ProjectTile id={row.project.id} mark={row.project.mark} size={32} subCompanyId={row.project.subCompanyId} />
+              <ProjectTile id={row.project.id} mark={row.project.mark} shape={row.project.shape} size={32} subCompanyId={row.project.subCompanyId} />
               {/* The name never cuts to "...". The text and the sign share one box that wraps: on a wide card the sign stays at
                   the end, and when the name needs the room (a phone) the sign moves to the next line (owner, 2026-10-06). The
                   text starts from its own width (flex-auto, not flex-1), so the box can see that the name needs the room. */}

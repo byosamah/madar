@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { personLights } from './glow';
 import { HUES, projectHue } from './projectColor';
 import { decodeMark, formPath, markLights, markOf } from './projectMark';
+import { OWNER_SHAPES } from '../test/projectShapes';
 import { LIGHT_LOOK, personGlowCss, projectColorLook, tileSvg } from './pictureLook';
 
 /** The values of the first root block of tokens.css: the light theme. */
@@ -64,5 +65,44 @@ describe('the pictures for agents in the light theme (owner, 2026-10-21)', () =>
     expect(tileSvg({ id: 'prj_009' })).not.toContain('t-prj_001-a');
     // A character that an XML id may not hold leaves the id.
     expect(tileSvg({ id: 'prj"<9', mark: 1 })).toContain('id="t-prj9-a"');
+  });
+});
+
+describe('the project tile with its own shape (owner, 2026-10-26)', () => {
+  it('draws the shape in the place of the form, scaled from the box of 18 to the form box, with no turn', () => {
+    const svg = tileSvg({ id: 'prj_003', mark: 42, shape: OWNER_SHAPES.kutla });
+    const { form } = decodeMark(42);
+    // The form box is 45% of 34 = 15.3, from 9.35. The scale is 15.3 / 18 = 0.85.
+    expect(svg).toContain(`<path d="${OWNER_SHAPES.kutla}" transform="translate(9.35 9.35) scale(0.85)" fill="#1D1D1F" fill-opacity="0.86"/>`);
+    expect(svg).not.toContain('rotate(');
+    expect(svg).not.toContain(formPath(form, 9.35, 9.35, 15.3));
+    expect(svg.endsWith('</svg>')).toBe(true);
+  });
+
+  it('keeps the panel, both lights and the ring exactly as they are', () => {
+    const plain = tileSvg({ id: 'prj_003', mark: 42 });
+    const shaped = tileSvg({ id: 'prj_003', mark: 42, shape: OWNER_SHAPES.madar });
+    const frame = (svg: string) => svg.slice(0, svg.lastIndexOf('<path'));
+    expect(frame(shaped)).toBe(frame(plain));
+  });
+
+  it('takes all three shapes of the owner', () => {
+    for (const shape of Object.values(OWNER_SHAPES)) expect(tileSvg({ id: 'prj_003', mark: 42, shape })).toContain(`d="${shape}"`);
+  });
+
+  it('draws the form for a shape that is null or missing', () => {
+    const plain = tileSvg({ id: 'prj_003', mark: 42 });
+    expect(tileSvg({ id: 'prj_003', mark: 42, shape: null })).toBe(plain);
+    expect(tileSvg({ id: 'prj_003', mark: 42, shape: undefined })).toBe(plain);
+  });
+
+  it('never puts a refused string in the drawing: it falls back to the form', () => {
+    const plain = tileSvg({ id: 'prj_003', mark: 42 });
+    for (const shape of ['', 'M0 0"/><script>alert(1)</script>', 'M0 0" onload="x', '<svg/>', 'L1 1', `M${'1'.repeat(2000)}`]) {
+      const svg = tileSvg({ id: 'prj_003', mark: 42, shape });
+      expect(svg, shape).toBe(plain);
+      expect(svg).not.toContain('<script');
+      expect(svg).not.toContain('onload');
+    }
   });
 });
