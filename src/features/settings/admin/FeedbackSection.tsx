@@ -185,7 +185,7 @@ export function FeedbackSection() {
                   </p>
                   <p dir="auto" className={`whitespace-pre-wrap break-words text-body ${finished ? 'text-ink-2' : 'text-ink'}`}>{item.message}</p>
                   {item.status === 'rejected' && item.rejectReason && (
-                    <p dir="auto" className="whitespace-pre-wrap break-words text-footnote text-ink-2">{t('feedback.reasonShown', { reason: `⁨${item.rejectReason}⁩` })}</p>
+                    <p dir="auto" className="whitespace-pre-wrap break-words text-footnote text-ink-2">{t('feedback.reasonShown', { reason: `\u2068${item.rejectReason}\u2069` })}</p>
                   )}
                   {/* The server accepts only Madar screens, but stored data is checked again: anything else shows as plain text. */}
                   {item.page && (isAppPath(item.page)
