@@ -133,3 +133,49 @@ describe('a chat file needs the switch "AI reads chats" (ai.readChats)', () => {
     expect(screens.ok, JSON.stringify(screens)).toBe(true);
   });
 });
+
+describe('a chat upload needs the switch "AI sends messages" (ai.messages)', () => {
+  it('refuses files.uploadContent into a chat when the switch is off, with the reason of chats.send, and does no store work', async () => {
+    const w = world('usr_002', ['ai.messages']);
+    const result = await call(w, 'files.uploadContent', chatUpload);
+    expect(errorOf(result)).toMatchObject(refused('ai.messages'));
+    const sent = await call(w, 'chats.send', { conversationId: 'cnv_901', body: 'Hello.' });
+    expect(errorOf(sent)).toMatchObject(refused('ai.messages'));
+    expect(errorOf(result)!.message).toBe(errorOf(sent)!.message);
+    expect(w.files.calls).toEqual([]);
+    expect(w.puts).toEqual([]);
+    expect(w.filesDb.intents.size).toBe(0);
+    expect(Object.values(w.mem.tables.state.files).filter((f) => f.conversationId === 'cnv_901')).toEqual([]);
+  });
+
+  it('refuses the start of the upload and the upload alone for an agent, as files.uploadContent runs them', async () => {
+    const w = world('usr_002', ['ai.messages']);
+    const start = await screensCall(w, w.agentId, 'files.uploadStart', { conversationId: 'cnv_901', name: 'Chat-photo.png', size: 4, mimeType: 'image/png' });
+    expect(start).toMatchObject({ ok: false, error: { code: 'forbidden', details: { reason: 'ai_off', right: 'ai.messages' } } });
+    expect(w.files.calls).toEqual([]);
+  });
+
+  it('uploads into the chat when the switch is on', async () => {
+    const w = world('usr_002');
+    const result = await call(w, 'files.uploadContent', chatUpload);
+    expect(result.isError, JSON.stringify(result)).toBeUndefined();
+  });
+
+  it('keeps a person who is no member at not_found, with the switch off too', async () => {
+    const w = world('usr_003', ['ai.messages']);
+    const result = await call(w, 'files.uploadContent', chatUpload);
+    expect(errorOf(result)).toMatchObject({ code: 'not_found', message: 'Conversation cnv_901 does not exist.' });
+  });
+
+  it('needs no switch for a person at the screen', async () => {
+    const w = world('usr_002', ['ai.messages']);
+    const start = await screensCall(w, 'usr_002', 'files.uploadStart', { conversationId: 'cnv_901', name: 'Chat-photo.png', size: 4, mimeType: 'image/png' });
+    expect(start.ok, JSON.stringify(start)).toBe(true);
+  });
+
+  it('does not touch a project upload: the switch ai.messages is no part of it', async () => {
+    const w = world('usr_002', ['ai.messages']);
+    const result = await call(w, 'files.uploadContent', { projectId: 'prj_001', name: 'Plan.png', type: 'image/png', contentBase64: base64Of(PNG) });
+    expect(result.isError, JSON.stringify(result)).toBeUndefined();
+  });
+});

@@ -98,7 +98,8 @@ export function assertMayViewChatFile(office: OfficeSnapshot, userId: string, co
 /** The chat that a person may start an upload for: chatForUpload on the office snapshot, after the person check. */
 export function assertMayUploadToChat(office: OfficeSnapshot, userId: string, conversationId: string): Conversation {
   const authority = withRights(office.lists, authorityOf(officeUsers(office), userId));
-  return chatForUpload(office.lists as unknown as State, conversationId, authority);
+  // An agent also needs the AI switch "AI sends messages" (chatForUpload asks it after the member check).
+  return chatForUpload(office.lists as unknown as State, conversationId, authority, office.lists.users[userId] ?? authority);
 }
 
 /** The State that the meeting rules read: the office lists, and the one meeting (a meeting is not an office list). */

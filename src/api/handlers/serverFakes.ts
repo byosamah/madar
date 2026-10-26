@@ -70,7 +70,7 @@ const filesUploadStart = defineCall({
     } else if (input.conversationId !== undefined) {
       // A file of a direct chat or a group: a member who may send in that chat adds it (owner, 2026-10-19).
       if (input.projectId !== undefined) throw invalid('conversationId', 'Name the project, or the chat of the file, not both.', 'file_chat');
-      chatForUpload(ctx.state, input.conversationId, ctx.authority);
+      chatForUpload(ctx.state, input.conversationId, ctx.authority, ctx.actor);
       if (input.stageId || input.taskId) throw invalid(input.stageId ? 'stageId' : 'taskId', 'A file of a chat belongs to no stage and no task. It stays in its chat.', 'file_chat');
     } else if (input.projectId === undefined) {
       // A file of an office task: a person who sees the task adds it (owner, 2026-10-06).

@@ -379,6 +379,20 @@ describe('the AI switches on the files of a chat (security review 2026-10-26)', 
     expect(person.name).toBe(GROUP_FILE);
   });
 
+  it('lets the agent of a member upload into a chat only when its person holds ai.messages', async () => {
+    const w = await world();
+    const ok = await as(w, SARA_AGENT, () => w.t.api.call('files.uploadStart', { conversationId: w.group, name: 'a.jpg', size: 4, mimeType: 'image/jpeg' }));
+    expect(ok.uploadId).toBeTruthy();
+    withoutSwitch(w, ['ai.messages']);
+    const start = await failureOf(as(w, SARA_AGENT, () => w.t.api.call('files.uploadStart', { conversationId: w.group, name: 'a.jpg', size: 4, mimeType: 'image/jpeg' })));
+    expect(start).toMatchObject({ code: 'forbidden', details: { reason: 'ai_off', right: 'ai.messages' } });
+    const upload = await failureOf(as(w, SARA_AGENT, () => w.t.api.call('files.upload', { name: 'a.jpg', conversationId: w.group, blob: photo() })));
+    expect(upload).toMatchObject({ code: 'forbidden', details: { reason: 'ai_off', right: 'ai.messages' } });
+    // The person at the screen needs no AI switch.
+    const person = await as(w, SARA, () => w.t.api.call('files.upload', { name: 'b.jpg', conversationId: w.group, blob: photo() }));
+    expect(person.file.name).toBe('b.jpg');
+  });
+
   it('keeps the agent of a person outside the chat at not_found when the switch is off', async () => {
     const w = await world();
     const state = w.t.store.state;
@@ -386,6 +400,8 @@ describe('the AI switches on the files of a chat (security review 2026-10-26)', 
     state.users[OMAR] = { ...state.users[OMAR], systemRole: 'member', roleId: 'rol_902' };
     const link = await failureOf(as(w, OMAR_AGENT, () => w.t.api.call('files.link', { id: w.groupFile, variant: 'full', disposition: 'inline' })));
     expect(link).toMatchObject({ code: 'not_found' });
+    const upload = await failureOf(as(w, OMAR_AGENT, () => w.t.api.call('files.uploadStart', { conversationId: w.group, name: 'a.jpg', size: 4, mimeType: 'image/jpeg' })));
+    expect(upload).toMatchObject({ code: 'not_found' });
   });
 
   it('refuses a chat file as a project cover, for a person and for an agent', async () => {

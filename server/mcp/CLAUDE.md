@@ -156,6 +156,8 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   `chat.direct`, an active person, a chat that is not closed (`person_left`), and a project chat that uses the files of its project.
   AI switches (security review 2026-10-26): opening a chat file (`files.link`, `files.get`, a cover picture) needs `ai.readChats`, as `chats.messages` does
   (`assertAgentMayOpenChatFile`, `assertMayViewChatFile`: `forbidden`, reason `ai_off`, checked after the member check, so a non-member still gets not_found).
+  A chat upload (`files.uploadContent` with `conversationId`, and the `files.uploadStart` and `files.upload` it runs) needs `ai.messages`, as `chats.send` does
+  (`chatForUpload` takes the actor; the check follows the member check).
   A chat file is never a project cover (`projects.update` refuses it with reason `cover_chat_file`, for everyone). `files.list` and
   `search.query` show no chat file, for a person or an agent. Before 2026-10-26 `chatForUpload` and `mayOpenFile` refused every agent; only the file of a
   meeting with no project stays closed to an agent. INSTRUCTIONS (Files, Messages) and the `TOOL_DOCS` of `chats.messages`, `files.link` and

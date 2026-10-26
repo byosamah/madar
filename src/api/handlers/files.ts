@@ -134,7 +134,7 @@ function uploadOfficeFile(ctx: Ctx, input: { name: string; stageId: string | nul
  * the same name is a new file, not a new version: an old message keeps the file that it carried.
  */
 function uploadChatFile(ctx: Ctx, input: { name: string; stageId: string | null; taskId: string | null; asCover: boolean; receivedFromClient: boolean; conversationId?: string }, prepared: UploadPrepared): FileView {
-  const conversation = chatForUpload(ctx.state, input.conversationId ?? '', ctx.authority);
+  const conversation = chatForUpload(ctx.state, input.conversationId ?? '', ctx.authority, ctx.actor);
   const misuse = input.stageId ? 'stageId' : input.taskId ? 'taskId' : input.asCover ? 'asCover' : input.receivedFromClient ? 'receivedFromClient' : null;
   if (misuse) throw invalid(misuse, 'A file of a chat belongs to no stage, no task and no cover. It stays in its chat.', 'file_chat');
   const id = nextId(ctx.state, 'fil');
