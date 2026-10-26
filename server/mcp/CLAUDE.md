@@ -84,6 +84,8 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   `seen` (the members who looked, and when), `seenUpTo` and `others`, and its `TOOL_DOCS` say so. A reaction is any one emoji (`TOOL_DOCS` of `chats.messages` and
   `comments.list`); `reactions.toggle` is a tool since the MCP parity track.
 - 60 tool calls a minute for each person (`TOOL_CALLS_PER_MINUTE`, `app.ts`).
+- After a release, a running session keeps its old tool list: a new argument goes out with the old schema (a number arrives as text:
+  "expected number, received string"). Reconnect the Madar connector or start a new session before you use a new tool or argument (2026-10-26).
 - Meetings (owner, 2026-10-19, fbk_022): `meetings.list` and `meetings.get` (reads) and `meetings.create`, `meetings.update` and `meetings.cancel`
   (writes) are on `MCP_ALLOW`. `meetings.create` is additive; the other two writes are not. They tell the attendees, who are real people, so
   `TOOL_DOCS` and the `Meetings:` paragraph of `INSTRUCTIONS` say: ask your person before you add attendees. A meeting with no project is

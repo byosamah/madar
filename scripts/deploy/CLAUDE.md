@@ -16,6 +16,8 @@ The test copy is the staging step. There is no third copy: Supabase gives 2 free
   the try is done (2026-10-22).
 - The deploy suite takes about 45 minutes. Tell the owner before you start it. When the owner asks for production while
   it runs, stop it, deploy the recorded commit, and write the unfinished suite in the proof.md record.
+- When the owner skips the deploy suite, check the test copy in the owner's Chrome (it holds a session as the admin sample, so no
+  password), try each changed screen, and write the skip and the checks in the release record (2026-10-26).
 - Production refuses, before the typed word: a commit that is not the recorded one, a change that is not committed (also
   a new file), and a folder that is not a git checkout. A new commit (also a merge or a rebase) needs `all.sh test` again.
 - `all.sh test` removes the record before its first step, so a test deploy that stops part way blocks production. A
