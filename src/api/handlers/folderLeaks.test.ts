@@ -97,7 +97,7 @@ describe('a hidden folder answers a person outside the project as a missing one'
         const label = `${person} ${name}`;
         expect(seen, label).not.toBeNull();
         expect(seen!.code, label).toBe('not_found');
-        expect(shape(seen, id), label).toEqual(shape(gone, missing && JSON.stringify(missing).match(/"((?:prj|fld|fil|evt)_999)"/)![1]));
+        expect(shape(seen, id), label).toEqual(shape(gone, JSON.stringify(missing).match(/"((?:prj|fld|fil|evt)_999)"/)![1]));
         // No error text names the folder, its id or its file.
         expect(JSON.stringify(seen), label).not.toContain(SECRET);
       }
