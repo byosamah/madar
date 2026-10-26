@@ -265,8 +265,10 @@ describe("the What's new entries of 2026-10-26 (small fixes)", () => {
 
 // The Daftra link (owner, 2026-10-26): one line for the people who link invoices. The usage data line stays first, this one is second.
 describe("the What's new entry of the Daftra link", () => {
-  it('is second in the list, for the people who hold the switch "Link Daftra invoices", with no screen to open', () => {
-    expect(WHATS_NEW[1]).toEqual({ id: '2026-10-23-113', day: '2026-10-26', right: 'payment.daftraLink' });
+  it('is in the newest day, under the usage entry, for the people who hold the switch "Link Daftra invoices", with no screen to open', () => {
+    // A test finds its entry by id (src/CLAUDE.md): the tile shapes entry 2026-10-23-114 came in the same release.
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-113')).toEqual({ id: '2026-10-23-113', day: '2026-10-26', right: 'payment.daftraLink' });
+    expect(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-113')).toBeGreaterThan(0);
   });
 
   it('says in both languages that a payment shows its Daftra invoice and that Received sets itself, and that Madar never changes Daftra', () => {
