@@ -571,6 +571,22 @@ function assertFinishedHaveLead(ctx: Ctx, events: Event[]): void {
   }
 }
 
+/**
+ * An Undo never gives one Daftra invoice to two payments (security review, 2026-10-26). The Undo of an unlink, or of the delete of a linked
+ * payment, brings a link back. When another payment took that invoice since, the call fails and nothing changes. An invoice is its account
+ * and its id together. The story loader reads the payments that hold each invoice that a "before" names (server/data/loaders/story.ts).
+ */
+function assertDaftraLinksUnique(ctx: Ctx, events: Event[]): void {
+  const payments = ctx.state.payments ?? {};
+  for (const event of events) {
+    const payment = event.targetType === 'payment' ? payments[event.targetId] : undefined;
+    const link = payment?.daftra;
+    if (!payment || !link) continue;
+    const taken = Object.values(payments).some((other) => other.id !== payment.id && other.daftra?.invoiceId === link.invoiceId && other.daftra.account === link.account);
+    if (taken) throw new ApiError('conflict', 'Another payment has this Daftra invoice now. Unlink it there first.', { reason: 'daftra_invoice_taken' });
+  }
+}
+
 /** True for a notice of an office task, live or deleted, that the person may not see: the rule of a gone notice (notifications.ts). */
 function noticeTaskHidden(ctx: Ctx, targetType: string, targetId: string, person: User): boolean {
   if (targetType !== 'task') return false;
@@ -642,6 +658,7 @@ export const eventsUndo = defineCall({
     if (!event) throw notFound('Event', input.eventId);
     const view = undoOne(ctx, event, true);
     assertFinishedHaveLead(ctx, [event]);
+    assertDaftraLinksUnique(ctx, [event]);
     settle(ctx, [event], event.correlationId);
     dropNotices(ctx, event.correlationId);
     return view;
@@ -692,6 +709,7 @@ export const eventsUndoStory = defineCall({
       if (task && task.status !== status && (task.status === 'done' || task.status === 'in_review')) assertMayFinish(ctx.state, task);
     }
     assertFinishedHaveLead(ctx, story);
+    assertDaftraLinksUnique(ctx, story);
     settle(ctx, story, input.correlationId);
     dropNotices(ctx, input.correlationId);
     return { undone };

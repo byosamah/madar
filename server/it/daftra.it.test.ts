@@ -128,6 +128,23 @@ describe('the Daftra link on the local database, as madar_server', () => {
     expect((await deps.db.tx('read', (q) => readStates(q))).MAZJ).toEqual({ lastReadAt: '2026-10-04T06:45:00.000Z', problem: null });
   });
 
+  // Security review 2026-10-26: the story loader reads the payments that hold the invoice of a "before", so the Undo check sees them on Postgres.
+  it('refuses the Undo of an unlink when another payment holds the invoice now (the story loader reads the holders)', async () => {
+    mazj.invoices.push({ id: '1950', no: '1522001', clientId: '842', total: 7, date: '2026-10-03', created: '2026-10-03 10:00:00' });
+    const made = async (name: string) =>
+      okOf<{ payment: { id: string } }>(await call('usr_011', 'payments.create', { projectId: 'prj_001', name, amount: 7, dueDate: '2026-10-04' })).payment.id;
+    const first = await made('Undo fee one');
+    okOf(await call('usr_011', 'payments.linkInvoice', { id: first, invoiceId: '1950' }));
+    okOf(await call('usr_011', 'payments.unlinkInvoice', { id: first }));
+    const second = await made('Undo fee two');
+    okOf(await call('usr_011', 'payments.linkInvoice', { id: second, invoiceId: '1950' }));
+    const [unlink] = await office.sql<{ id: string }>(`select id from events where doc->>'verb' = 'payment.daftra_unlinked' and doc->>'targetId' = '${first}'`);
+    const refused = await call('usr_011', 'events.undo', { eventId: unlink.id });
+    expect(refused).toMatchObject({ ok: false, error: { code: 'conflict', details: { reason: 'daftra_invoice_taken' } } });
+    const [row] = await office.sql<{ linked: boolean }>(`select (doc ? 'daftra') as linked from payments where id = '${first}'`);
+    expect(row.linked).toBe(false);
+  });
+
   it('answers daftra.status for the accounts, with no key and no site', async () => {
     const status = okOf<{ ready: boolean; accounts: { name: string }[] }>(await call('usr_011', 'daftra.status', {}));
     expect(status.ready).toBe(true);

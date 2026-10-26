@@ -1,4 +1,5 @@
 import type { Deps } from '../core/ports';
+import { readOnlyFetch } from './readOnly';
 import { BadAnswer, clientAnswerOf, clientsAnswerOf, invoiceAnswerOf, invoicesAnswerOf, type DaftraClientRow, type DaftraInvoice } from './parse';
 
 /**
@@ -16,7 +17,8 @@ import { BadAnswer, clientAnswerOf, clientsAnswerOf, invoiceAnswerOf, invoicesAn
 
 export const DAFTRA_TIMEOUT_MS = 10_000;
 
-export type DaftraErrorCode = 'bad_key' | 'refused' | 'not_found' | 'rate_limited' | 'server' | 'timeout' | 'unreachable' | 'bad_answer';
+/** `read_only`: the guard of readOnly.ts refused a request that is not a read. It never leaves Madar, and it never comes back on a retry. */
+export type DaftraErrorCode = 'bad_key' | 'refused' | 'not_found' | 'rate_limited' | 'server' | 'timeout' | 'unreachable' | 'bad_answer' | 'read_only';
 const RETRY: ReadonlySet<DaftraErrorCode> = new Set(['rate_limited', 'server', 'timeout', 'unreachable']);
 
 export class DaftraError extends Error {
@@ -66,7 +68,8 @@ export function daftraClientOf(settings: DaftraSettings): DaftraClient {
   const timeoutMs = settings.timeoutMs ?? DAFTRA_TIMEOUT_MS;
 
   async function get(path: string, query: Record<string, string> = {}): Promise<unknown> {
-    const run = settings.fetch ?? globalThis.fetch;
+    // The read-only lock (readOnly.ts): every request goes through it, so a request that is not a GET never leaves Madar.
+    const run = readOnlyFetch(settings.fetch ?? globalThis.fetch);
     const url = `https://${settings.site}/api2/${path}${Object.keys(query).length > 0 ? `?${new URLSearchParams(query).toString()}` : ''}`;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;

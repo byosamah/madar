@@ -22,6 +22,10 @@ Daftra invoice in the screens. The 15-minute job then reads the invoice, and whe
 
 ## The client (`client.ts`)
 - GET only. One private function (`get`) calls fetch and sets `method: 'GET'`; `client.test.ts` fails when the file holds any other method or a body.
+- The read-only lock is Madar's own (owner, 2026-10-26): Daftra has no read-only key, and a key role ("Only Allow") limits the record types,
+  not the changes. `readOnly.ts` wraps the fetch of `client.ts` and refuses any request that is not a GET or that has a body, with the code
+  `read_only`, before it leaves. `client.ts` is the one door to `/api2/` (`readOnly.test.ts` scans `server/`). To let Madar write to Daftra,
+  the owner decides first; then `DAFTRA_READ_ONLY` and the tests change in one commit.
   `daftraOf(deps, account)` gives a client for one account (undefined without keys for it), `daftraClientOf` is the same with explicit values.
   Address `https://<site>/api2/<entity>.json`, header `apikey`. `Deps.daftraFetch` is the fetch of a test: no test reaches Daftra (`fakeDaftra.ts`, one fake for each
   account, and `daftraDeps(...fakes)` routes each request by host).

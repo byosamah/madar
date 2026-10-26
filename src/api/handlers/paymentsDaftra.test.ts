@@ -202,6 +202,41 @@ describe('Undo of the link and the unlink', () => {
     expect(t.store.state.payments![id].daftra).toMatchObject({ invoiceId: '1830', linkedBy: 'usr_007' });
   });
 
+  // Security review 2026-10-26: an Undo must never give one Daftra invoice to two payments. Two links to one invoice would let one
+  // payment in Daftra mark two payments in Madar as received.
+  it('refuses the Undo of an unlink when another payment took the invoice since (daftra_invoice_taken), and changes nothing', async () => {
+    const { t, id } = await withPayment();
+    await t.api.call('payments.linkInvoice', { id, invoiceId: '1830' });
+    await t.api.call('payments.unlinkInvoice', { id });
+    const second = await t.api.call('payments.create', { ...NEW, name: 'Second fee', dueDate: '2026-11-10' });
+    await t.api.call('payments.linkInvoice', { id: second.payment.id, invoiceId: '1830' });
+    const unlink = Object.values(t.store.state.events).find((e) => e.verb === 'payment.daftra_unlinked')!;
+    await expect(t.api.call('events.undo', { eventId: unlink.id })).rejects.toMatchObject({ code: 'conflict', details: { reason: 'daftra_invoice_taken' } });
+    await expect(t.api.call('events.undoStory', { correlationId: unlink.correlationId })).rejects.toMatchObject({ code: 'conflict', details: { reason: 'daftra_invoice_taken' } });
+    expect(t.store.state.payments![id].daftra).toBeUndefined();
+    expect(t.store.state.payments![second.payment.id].daftra?.invoiceId).toBe('1830');
+  });
+
+  it('refuses the Undo of a delete that would bring back a link to an invoice that another payment took since', async () => {
+    const { t, id } = await withPayment();
+    await t.api.call('payments.linkInvoice', { id, invoiceId: '1830' });
+    await t.api.call('payments.delete', { id });
+    const second = await t.api.call('payments.create', { ...NEW, name: 'Second fee', dueDate: '2026-11-10' });
+    await t.api.call('payments.linkInvoice', { id: second.payment.id, invoiceId: '1830' });
+    const deleted = Object.values(t.store.state.events).find((e) => e.verb === 'payment.deleted')!;
+    await expect(t.api.call('events.undo', { eventId: deleted.id })).rejects.toMatchObject({ code: 'conflict', details: { reason: 'daftra_invoice_taken' } });
+    expect(t.store.state.payments![id]).toBeUndefined();
+  });
+
+  it('still brings back a deleted linked payment when no other payment holds its invoice', async () => {
+    const { t, id } = await withPayment();
+    await t.api.call('payments.linkInvoice', { id, invoiceId: '1830' });
+    await t.api.call('payments.delete', { id });
+    const deleted = Object.values(t.store.state.events).find((e) => e.verb === 'payment.deleted')!;
+    await t.api.call('events.undo', { eventId: deleted.id });
+    expect(t.store.state.payments![id].daftra?.invoiceId).toBe('1830');
+  });
+
   it('asks the switch Link Daftra invoices, and an agent never undoes it, even for its own person', async () => {
     const { t, id } = await withPayment();
     await t.api.call('payments.linkInvoice', { id, invoiceId: '1830' });
