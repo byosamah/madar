@@ -244,9 +244,11 @@ describe("the What's new entries of quiet hours and @everyone", () => {
 
 // The lead button, the leader ring (fbk_064 and fbk_060) and the person menu (fbk_063), owner 2026-10-26. Found by id, never by place.
 describe("the What's new entries of 2026-10-26 (small fixes)", () => {
-  it('has the two entries, right under the usage data entry', () => {
+  it('has the two entries, under the usage data entry, in the 2026-10-26 group', () => {
     expect(WHATS_NEW[0].id).toBe('2026-10-23-102');
-    expect(WHATS_NEW.slice(1, 3).map((entry) => entry.id)).toEqual(['2026-10-23-109', '2026-10-23-108']);
+    const day = WHATS_NEW.filter((entry) => entry.day === '2026-10-26').map((entry) => entry.id);
+    expect(day).toEqual(expect.arrayContaining(['2026-10-23-109', '2026-10-23-108']));
+    expect(day.indexOf('2026-10-23-109')).toBeLessThan(day.indexOf('2026-10-23-108'));
     expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-108')).toEqual({ id: '2026-10-23-108', day: '2026-10-26', to: '/projects' });
     expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-109')).toEqual({ id: '2026-10-23-109', day: '2026-10-26' });
   });

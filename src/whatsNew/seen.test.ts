@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WHATS_NEW } from './entries';
-import { hasNew, markSeen, readSeen } from './seen';
+import { hasNew, isNewer, markSeen, newestId, readSeen } from './seen';
 
 describe("What's new seen mark", () => {
   afterEach(() => {
@@ -13,7 +13,7 @@ describe("What's new seen mark", () => {
   });
 
   it('clears the mark after the newest entry is marked seen', () => {
-    markSeen('usr_001', WHATS_NEW[0].id);
+    markSeen('usr_001', newestId(WHATS_NEW)!);
     expect(hasNew(WHATS_NEW, readSeen('usr_001'))).toBe(false);
   });
 
@@ -43,5 +43,26 @@ describe("What's new seen mark", () => {
       throw new Error('full');
     });
     expect(() => markSeen('usr_001', WHATS_NEW[0].id)).not.toThrow();
+  });
+
+  it('takes the newest entry by its day, not the pinned first entry (2026-10-26)', () => {
+    const entries = [{ id: '2026-10-23-102', day: '2026-10-25' }, { id: '2026-10-23-112', day: '2026-10-26' }, { id: '2026-10-23-111', day: '2026-10-26' }, { id: '2026-10-23-107', day: '2026-10-25' }];
+    expect(newestId(entries)).toBe('2026-10-23-112');
+    expect(newestId([{ id: '2026-10-23-102', day: '2026-10-25' }, { id: '2026-10-23-107', day: '2026-10-25' }])).toBe('2026-10-23-102');
+  });
+
+  it('shows the mark when the person saw only the pinned usage entry and a newer entry came (2026-10-26)', () => {
+    const entries = [{ id: '2026-10-23-102', day: '2026-10-25' }, { id: '2026-10-23-112', day: '2026-10-26' }, { id: '2026-10-23-107', day: '2026-10-25' }];
+    expect(hasNew(entries, '2026-10-23-102')).toBe(true);
+    expect(hasNew(entries, '2026-10-23-112')).toBe(false);
+  });
+
+  it('counts as newer only the entries above the seen one, with the pinned entry in the place of its day', () => {
+    const entries = [{ id: '2026-10-23-102', day: '2026-10-25' }, { id: '2026-10-23-112', day: '2026-10-26' }, { id: '2026-10-23-107', day: '2026-10-25' }];
+    expect(isNewer(entries, '2026-10-23-112', '2026-10-23-102')).toBe(true);
+    expect(isNewer(entries, '2026-10-23-107', '2026-10-23-102')).toBe(false);
+    expect(isNewer(entries, '2026-10-23-102', '2026-10-23-107')).toBe(true);
+    expect(isNewer(entries, '2026-10-23-112', null)).toBe(false);
+    expect(isNewer(entries, '2026-10-23-112', '2000-01-01-1')).toBe(false);
   });
 });

@@ -3,6 +3,7 @@ import { screen, within } from '@testing-library/react';
 import { renderApp } from '../../test/render';
 import { renderRemoteApp } from '../../test/renderRemote';
 import { WHATS_NEW } from '../../whatsNew/entries';
+import { newestId } from '../../whatsNew/seen';
 
 describe("What's new screen", () => {
   it('shows the title, the entry title and the entry text in English', async () => {
@@ -23,7 +24,14 @@ describe("What's new screen", () => {
   it('marks the newest entry seen when the page opens', async () => {
     await renderApp('/whats-new');
     await screen.findByRole('heading', { level: 1, name: "What's new" });
-    expect(window.localStorage.getItem('madar.whatsNewSeen.usr_001')).toBe(WHATS_NEW[0].id);
+    expect(window.localStorage.getItem('madar.whatsNewSeen.usr_001')).toBe(newestId(WHATS_NEW));
+  });
+
+  it('marks an entry under the pinned usage entry New for a person who saw only the usage entry (2026-10-26)', async () => {
+    window.localStorage.setItem('madar.whatsNewSeen.usr_001', '2026-10-23-102');
+    await renderApp('/whats-new');
+    await screen.findByRole('heading', { level: 1, name: "What's new" });
+    expect(screen.queryAllByText('New').length).toBeGreaterThan(0);
   });
 
   it('opens in the real build too', async () => {

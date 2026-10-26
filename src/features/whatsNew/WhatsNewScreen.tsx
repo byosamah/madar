@@ -7,7 +7,7 @@ import { useCall } from '../../app/runtime';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { formatDay } from '../../lib/dates';
 import { WHATS_NEW, type WhatsNewEntry } from '../../whatsNew/entries';
-import { markSeen, readSeen } from '../../whatsNew/seen';
+import { isNewer, markSeen, newestId, readSeen } from '../../whatsNew/seen';
 
 /** The entries of each day, in the order of the list. */
 function groupByDay(entries: readonly WhatsNewEntry[]): { day: string; entries: WhatsNewEntry[] }[] {
@@ -41,10 +41,10 @@ export function WhatsNewScreen() {
     // Read the mark first: the updater of a state runs later, after the line below has written the newest entry.
     const before = readSeen(userId);
     setSeenBefore((known) => (known === undefined ? before : known));
-    markSeen(userId, WHATS_NEW[0].id);
+    const newest = newestId(WHATS_NEW);
+    if (newest) markSeen(userId, newest);
   }, [userId]);
   // With no known seen entry (a first visit), every entry is new, so the word would tell nothing and the page leaves it out.
-  const seenAt = seenBefore ? WHATS_NEW.findIndex((entry) => entry.id === seenBefore) : -1;
   const shown = WHATS_NEW.filter((entry) => !entry.right || (session !== undefined && can(session.authority, entry.right)));
   return (
     <>
@@ -56,7 +56,7 @@ export function WhatsNewScreen() {
             <h2 id={`whats-new-${position}`} className="text-footnote text-ink-2">{formatDay(group.day, lang)}</h2>
             {group.entries.map((entry) => {
               const title = t(`whatsNew.items.${entry.id}.title`);
-              const isNew = seenAt > 0 && WHATS_NEW.findIndex((one) => one.id === entry.id) < seenAt;
+              const isNew = isNewer(WHATS_NEW, entry.id, seenBefore ?? null);
               return (
                 <article key={entry.id} className="flex max-w-[40rem] flex-col gap-1">
                   <h3 className="flex items-baseline gap-2 text-headline text-ink">

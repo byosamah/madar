@@ -258,7 +258,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   },
   'projects.get': {
     title: 'Get a project',
-    description: 'Returns one project by id: its code, stages, team, leader, client, dates, health, deadlines, links and folders (id, stageId, name). Code: 260902AZT-RES-Villa (new) or KH-26-014 (old). nextDeadline is the next named deadline. stageEnd ends the current stage, or null. subCompanyId: the sub-company. geo is the pin ({ lat, lng }) or null. location: the address of the pin. templateId: template or null. chatId: project chat or null. access: { hidden, viewerIds }. kind: client or internal (no client, place, area, payments or Tracker; code starts with INT). nameAr: the Arabic name. look: color and tile.',
+    description: 'Returns one project by id: its code, stages, team, leader, client, dates, health, deadlines, links and folders (id, stageId, name). Code: 260902AZT-RES-Villa (new) or KH-26-014 (old). nextDeadline: the next named deadline. stageEnd ends the current stage, or null. subCompanyId: the sub-company. geo: the pin ({ lat, lng }) or null. location: the address of the pin. templateId: template or null. chatId: project chat or null. access: { hidden, viewerIds }. kind: client or internal (no client, place, area, payments or Tracker; code starts with INT). nameAr: the Arabic name. look: color and tile.',
   },
   'projects.list': {
     title: 'List projects',
