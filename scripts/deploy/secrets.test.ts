@@ -271,6 +271,60 @@ describe('the Google Calendar values (fbk_022, owner 2026-10-19)', () => {
   });
 });
 
+const DAFTRA_KEY = 'AbCdEfGh0123456789AbCdEfGh0123456789AbCd';
+const DAFTRA_SITE = 'madeupoffice.daftra.com';
+const DAFTRA_LINES = `DAFTRA_API_KEY=${DAFTRA_KEY}\nDAFTRA_SITE=${DAFTRA_SITE}`;
+
+describe('the Daftra values (the Daftra link, 2026-10-26)', () => {
+  const check = (text: string) => checkSecrets(parseSecretsFile(text), TEST);
+
+  it('takes the two names in the secrets file, and sends them to the functions and to the Worker', async () => {
+    for (const name of ['DAFTRA_API_KEY', 'DAFTRA_SITE']) {
+      expect(FUNCTION_SECRETS as readonly string[], name).toContain(name);
+      expect(WORKER_SECRETS, name).toContain(name);
+    }
+    expect(Object.keys(parseSecretsFile(file(TEST, DAFTRA_LINES)))).toEqual(
+      expect.arrayContaining(['DAFTRA_API_KEY', 'DAFTRA_SITE']),
+    );
+    const h = harness({ text: file(TEST, DAFTRA_LINES) });
+    await runSecrets(h.run);
+    const body = JSON.parse(String(h.requests[0].init.body)) as { name: string }[];
+    expect(body.map((secret) => secret.name)).toEqual(expect.arrayContaining(['DAFTRA_API_KEY', 'DAFTRA_SITE']));
+    expect(h.logs.join('\n')).toContain('DAFTRA_API_KEY');
+    expect(h.logs.join('\n')).not.toContain(DAFTRA_KEY);
+  });
+
+  it('needs no Daftra value: Daftra is off without them, and an old secrets file still passes', () => {
+    expect(() => check(file())).not.toThrow();
+  });
+
+  it('needs both or none, and names the missing one', () => {
+    expect(() => check(file(TEST, `DAFTRA_API_KEY=${DAFTRA_KEY}`))).toThrow(/needs DAFTRA_SITE/);
+    expect(() => check(file(TEST, `DAFTRA_SITE=${DAFTRA_SITE}`))).toThrow(/needs DAFTRA_API_KEY/);
+    expect(() => check(file(TEST, DAFTRA_LINES))).not.toThrow();
+  });
+
+  it('accepts the daftara.com site name too', () => {
+    expect(() => check(file(TEST, DAFTRA_LINES.replace('daftra.com', 'daftara.com')))).not.toThrow();
+  });
+
+  it('checks the shape of each value, with an error that names the variable and never the value', () => {
+    const bad: [string, RegExp][] = [
+      [DAFTRA_LINES.replace(DAFTRA_KEY, 'short'), /DAFTRA_API_KEY/],
+      [DAFTRA_LINES.replace(DAFTRA_KEY, `${DAFTRA_KEY}-with-dash`), /DAFTRA_API_KEY/],
+      [DAFTRA_LINES.replace(DAFTRA_KEY, 'a'.repeat(129)), /DAFTRA_API_KEY/],
+      [DAFTRA_LINES.replace(DAFTRA_SITE, `https://${DAFTRA_SITE}`), /DAFTRA_SITE/],
+      [DAFTRA_LINES.replace(DAFTRA_SITE, `${DAFTRA_SITE}/`), /DAFTRA_SITE/],
+      [DAFTRA_LINES.replace(DAFTRA_SITE, 'madeupoffice.example.com'), /DAFTRA_SITE/],
+    ];
+    for (const [lines, name] of bad) {
+      const message = refusal(() => check(file(TEST, lines)));
+      expect(message).toMatch(name);
+      for (const value of [DAFTRA_KEY, 'short', 'https://', 'example.com', 'with-dash']) expect(message).not.toContain(value);
+    }
+  });
+});
+
 describe('checkSecrets', () => {
   const check = (ref: string, text: string) => checkSecrets(parseSecretsFile(text), ref);
 

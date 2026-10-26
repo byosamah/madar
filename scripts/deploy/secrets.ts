@@ -52,6 +52,7 @@ export const FUNCTION_SECRETS = [
   'MIN_CLIENT_BUILD', 'ALLOWED_ORIGINS', 'MCP_FORWARD_REGION', 'MADAR_LOCK_KEY', 'JOBS_SECRET', 'MADAR_SECRET_KEY', 'AUTH_ISSUER',
   'VAPID_PRIVATE_KEY', 'VAPID_PUBLIC_KEY', 'VAPID_SUBJECT',
   'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'MADAR_GOOGLE_KEY',
+  'DAFTRA_API_KEY', 'DAFTRA_SITE',
   'POSTHOG_KEY',
 ] as const;
 /**
@@ -65,6 +66,8 @@ export const KEPT_ON_WORKER = ['MADAR_AUTH_PRIVATE_JWK'] as const;
 const VAPID_NAMES = ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'] as const;
 /** Google Calendar (fbk_022, owner 2026-10-19): all three or none (server/core/deps.ts). scripts/google/setup-secrets.ts writes them. */
 const GOOGLE_NAMES = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'MADAR_GOOGLE_KEY'] as const;
+/** The Daftra link (owner, 2026-10-26): both or none (server/daftra/config.ts). The key role of the office key should allow only `invoice` and `client`. */
+const DAFTRA_NAMES = ['DAFTRA_API_KEY', 'DAFTRA_SITE'] as const;
 export const R2_NAMES = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'] as const;
 /** The R2 bucket of each copy (owner, 2026-10-16). Both are in the EU jurisdiction (server/files/r2.ts signs on the EU endpoint). */
 export const R2_BUCKETS: Record<Target, string> = { test: 'madar-files-test', production: 'madar-files' };
@@ -166,6 +169,13 @@ export function checkSecrets(values: Record<string, string>, ref: string): Check
     if (!values.GOOGLE_CLIENT_ID.endsWith('.apps.googleusercontent.com')) throw new Error('GOOGLE_CLIENT_ID must end with .apps.googleusercontent.com.');
     if (/\s/.test(values.GOOGLE_CLIENT_SECRET)) throw new Error('GOOGLE_CLIENT_SECRET must be one word with no space.');
     if (!/^[A-Za-z0-9+/]{43}=$/.test(values.MADAR_GOOGLE_KEY)) throw new Error('MADAR_GOOGLE_KEY must be 32 bytes in base64 (44 characters).');
+  }
+
+  if (DAFTRA_NAMES.some((name) => values[name] !== undefined)) {
+    const absent = DAFTRA_NAMES.filter((name) => !values[name]);
+    if (absent.length > 0) throw new Error(`The Daftra link needs all of ${DAFTRA_NAMES.join(', ')}. The secrets file needs ${absent.join(', ')}.`);
+    if (!/^[A-Za-z0-9]{20,128}$/.test(values.DAFTRA_API_KEY)) throw new Error('DAFTRA_API_KEY must be 20 to 128 letters and digits, with no space or dash.');
+    if (!/^[A-Za-z0-9-]+\.(daftra|daftara)\.com$/.test(values.DAFTRA_SITE)) throw new Error('DAFTRA_SITE must be the site name only, for example name.daftra.com: no scheme and no slash.');
   }
 
   // The PostHog project key is public (insight design). It is optional: with none, the server sends no error record to PostHog.

@@ -14,6 +14,7 @@ import '../google/effects';
 import { pgDb } from '../data/sql';
 import { env } from '../env';
 import { r2FilesPort } from '../files/r2';
+import { DAFTRA_NAMES, daftraConfigOf } from '../daftra/config';
 import { GOOGLE_NAMES, googleConfigOf } from '../google/keys';
 import { supabaseStorageFilesPort } from '../files/supabaseStorage';
 import { outboxMailPort } from '../mail/outboxDriver';
@@ -46,6 +47,8 @@ import { FILE_STORE_LIMITS, fileStoreKind, type Config, type Db, type Deps, type
  *   GOOGLE_CLIENT_ID       Google Calendar: the OAuth client of the Google Cloud project (all three GOOGLE values or none)
  *   GOOGLE_CLIENT_SECRET   Google Calendar: the secret of that client
  *   MADAR_GOOGLE_KEY       Google Calendar: 32 random bytes in base64; it seals the refresh tokens and signs the connect state
+ *   DAFTRA_API_KEY         the Daftra link: the key of the Daftra account (both DAFTRA values or none); Madar only reads Daftra with it
+ *   DAFTRA_SITE            the Daftra link: the site name of the account, for example name.daftra.com
  *   MADAR_FILE_STORE       supabase (default, bucket FILES_BUCKET or madar-files) or r2 (needs the four R2_ values). The store
  *                          does not follow the host: the Supabase functions and the Worker of one copy get the same values
  *   FILES_PUBLIC_URL       the address of the Supabase Storage links for the browser (default SUPABASE_URL), where the function
@@ -150,6 +153,10 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
   const googleSet = GOOGLE_NAMES.filter((name) => read(name) !== undefined);
   if (googleSet.length > 0 && googleSet.length < GOOGLE_NAMES.length) missing.push(...GOOGLE_NAMES.filter((name) => read(name) === undefined));
 
+  // The Daftra link needs both values or none. With none, the link is off: daftra.status says so and the job step does nothing.
+  const daftraSet = DAFTRA_NAMES.filter((name) => read(name) !== undefined);
+  if (daftraSet.length > 0 && daftraSet.length < DAFTRA_NAMES.length) missing.push(...DAFTRA_NAMES.filter((name) => read(name) === undefined));
+
   const fileStore = fileStoreKind(read('MADAR_FILE_STORE'));
   const r2 = fileStore === 'r2'
     ? { accountId: need('R2_ACCOUNT_ID'), accessKeyId: need('R2_ACCESS_KEY_ID'), secretAccessKey: need('R2_SECRET_ACCESS_KEY'), bucket: need('R2_BUCKET') }
@@ -168,6 +175,7 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
 
   const push = vapidConfigOf(read);
   const google = googleConfigOf(read);
+  const daftra = daftraConfigOf(read);
   // The key is public. A value of another shape is ignored (the deploy check refuses it by name), so a typo never stops the server.
   const posthogKey = /^phc_[A-Za-z0-9_-]{20,}$/.test(read('POSTHOG_KEY')?.trim() ?? '') ? read('POSTHOG_KEY')!.trim() : undefined;
   const functions = `${supabaseUrl.replace(/\/+$/, '')}/functions/v1`;
@@ -187,6 +195,7 @@ export function serverEnvFrom(read: ReadEnv = env, o: { database?: ServerEnv['da
     limits: { maxFileBytes: FILE_STORE_LIMITS[fileStore].maxFileBytes, filesTotalBytes: FILE_STORE_LIMITS[fileStore].totalBytes },
     ...(push ? { push } : {}),
     ...(google ? { google } : {}),
+    ...(daftra ? { daftra } : {}),
     ...(posthogKey ? { posthogKey } : {}),
   };
 

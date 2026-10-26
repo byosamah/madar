@@ -333,6 +333,33 @@ describe('the Google Calendar values (fbk_022, owner 2026-10-19)', () => {
   });
 });
 
+describe('the Daftra values (the Daftra link, 2026-10-26)', () => {
+  const DAFTRA = { DAFTRA_API_KEY: 'k'.repeat(40), DAFTRA_SITE: 'madeup.daftra.com' };
+
+  it('leaves Daftra off when none of the two is set: the server starts, config.daftra is missing', () => {
+    expect(configFromEnv(reader(FULL)).daftra).toBeUndefined();
+  });
+
+  it('reads the two values into config.daftra when both are set', () => {
+    expect(configFromEnv(reader({ ...FULL, ...DAFTRA })).daftra).toEqual({ apiKey: 'k'.repeat(40), site: 'madeup.daftra.com' });
+  });
+
+  it('stops the start and names the missing variable when only one is set, and never a value', () => {
+    expect(missingOf({ ...FULL, DAFTRA_API_KEY: DAFTRA.DAFTRA_API_KEY })).toEqual(['DAFTRA_SITE']);
+    expect(missingOf({ ...FULL, DAFTRA_SITE: DAFTRA.DAFTRA_SITE })).toEqual(['DAFTRA_API_KEY']);
+    try {
+      configFromEnv(reader({ ...FULL, DAFTRA_API_KEY: DAFTRA.DAFTRA_API_KEY }));
+    } catch (error) {
+      expect((error as Error).message).not.toContain(DAFTRA.DAFTRA_API_KEY);
+    }
+  });
+
+  it('names the two values in the list of its header comment', () => {
+    const header = readFileSync(new URL('./deps.ts', import.meta.url), 'utf8');
+    for (const name of ['DAFTRA_API_KEY', 'DAFTRA_SITE']) expect(header).toMatch(new RegExp(`^ \\*   ${name} {2,}\\S`, 'm'));
+  });
+});
+
 describe('FILES_PUBLIC_URL (whole-product check after wave 4)', () => {
   afterEach(() => vi.restoreAllMocks());
 
