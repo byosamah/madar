@@ -202,6 +202,9 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 - Two refusals need a reason from the person (`reasons.ts`): a move back to an earlier stage and a change of set dates. They
   answer with `input_required`. The agent must ask its person, never invent the reason.
 
+- A running Claude session keeps the MCP tool schema it loaded at its start. After a release that adds an input field, a call with that field
+  still reaches the server and works (`projects.update` patch.shape, 2026-10-26); check the result, because an older server drops the field.
+
 ## Token and approval
 - The MCP token: ES256, `aud` = MCP_URL (set by the token hook from `platform_config.mcp_url`), `client_id` required, read
   only from the Authorization header. Every 401 carries `WWW-Authenticate` with `resource_metadata`.
