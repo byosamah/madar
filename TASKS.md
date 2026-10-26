@@ -1141,3 +1141,14 @@ Plan: `docs/superpowers/plans/2026-10-25-madar-team-reports-2-plan.md`.
 - [x] One release with `rb/posthog` and madar-4e's three to-do fixes (owner's choice): test copy, then production at 4df7db3d (2026-10-25 15:28), release record
 - [x] Mark fbk_052, fbk_055, fbk_058 and fbk_059 done in Madar (2026-10-25 15:30, story sty_heohaeky4y5qqznhxuiag4)
 - [ ] Found 2026-10-25 (propose to the owner): in the Focus sidebar (384 px) the message bubbles are narrow, so the text wraps after a few words
+
+## MCP: stages, many to-dos, long lists (owner, 2026-10-26; branch `rb/mcp-bulk`)
+
+- [x] `stages.replace` is a tool (AI switch `ai.projects`, right `project.stages`); the docs say it has no Undo
+- [x] `tasks.createMany` (50) and `tasks.updateMany` (100): one story, a failed item does not stop the next, one tool call for the limit
+- [x] `projects.list` and `tasks.list` take `limit`, `offset`, `full`; short rows and `page` by default
+- [x] An event in an MCP answer keeps no `before` and no `after`
+- [x] `tasks.move` and `tasks.update` docs name the stage move; What's new 2026-10-23-115
+- [ ] The merge lead runs `test:mcp`, `test:db` and `test:it` (they need Docker)
+- [ ] Open: 100 items in one batch are 100 transactions in one request. Measure the Worker CPU time on the test copy before the owner relies on 100.
+- [ ] Open: `project.stages_changed` has no Undo. Decide with the owner if an agent change of stages needs one.

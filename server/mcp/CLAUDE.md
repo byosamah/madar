@@ -30,18 +30,18 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 
 ## Tools
 - MCP spec 2026-07-28, stateless. A 2025-era client gets the stateless legacy answer.
-- 65 tools in all (role rights version 2, 2026-10-21; project set-up, 2026-10-25; folders, 2026-10-26). `MCP_ALLOW` holds 53: `madar.readFirst`, `pictures.get`, `story.start` and the reads and
+- 68 tools in all (role rights version 2, 2026-10-21; project set-up, 2026-10-25; folders, 2026-10-26; stages and bulk to-dos, 2026-10-26). `MCP_ALLOW` holds 56: `madar.readFirst`, `pictures.get`, `story.start` and the reads and
   writes of an office project. `MCP_BY_RIGHT` holds 12, each behind a right of the person: `payments.list` (`payment.view`),
   `payments.create` (`payment.add`), `payments.update` (`payment.change`), `payments.markReceived` (`payment.receive`), `dashboard.get`
   (`dashboard.view`), `search.query` (`search.use`), `reports.office` (`report.office`), the three `feedback.*` tools (`feedback.manage`), `projects.create` (`project.create`) and `clients.create` (`client.create`).
-  `MCP_ADMIN` is empty since role-rights (owner, 2026-10-23). A default Member agent gets 53 tools, Accounting 57, Management 58, the Admin 65
-  (27 reads and 38 writes). `tasks.help` (fbk_035) joins the person to a task as a helper, or takes them off it.
+  `MCP_ADMIN` is empty since role-rights (owner, 2026-10-23). A default Member agent gets 56 tools, Accounting 60, Management 61, the Admin 68
+  (27 reads and 41 writes). `tasks.help` (fbk_035) joins the person to a task as a helper, or takes them off it.
   The factory in `app.ts` picks the list for each request from the office rights of the owner, never the agent user. A 2026-07-28 client can keep tools/list for 5 minutes, and a
   2025-era client keeps it until it connects again (the server says listChanged but never sends that notice). So a role change
   shows late in a client, and tools/call always checks.
 - The AI switches (role rights version 2, design section 5.12; `aiSwitches.ts`). Each tool of both lists has exactly one AI switch, from
   `MCP_TOOLS_BY_SWITCH` (`src/api/rightsCatalog.ts`, the catalog JSON in `docs/superpowers/specs`): `ai.readWork` (17 reads, `pictures.get`
-  included), `ai.readChats` (3), `ai.todos` (9), `ai.posts` (2), `ai.messages` (2), `ai.meetings` (4), `ai.tracker` (3), `ai.projects` (9), `ai.projectSetup` (4),
+  included), `ai.readChats` (3), `ai.todos` (11), `ai.posts` (2), `ai.messages` (2), `ai.meetings` (4), `ai.tracker` (3), `ai.projects` (10), `ai.projectSetup` (4),
   `ai.payments` (4), `ai.feedback` (3), `ai.report` (1) and `ai.undo` (2). `madar.readFirst` and `story.start` need only `ai.connect`.
   `ai.undoOthers` has no tool: the Undo rule of the History reads it (`history.ts`, another track). A new tool needs a line in the catalog
   and a test fails without it (`aiSwitches.test.ts`).
@@ -159,6 +159,7 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   `run.ts` takes it out before the call) adds the data on `users.list`, `subCompanies.list` and `reports.office` (each logo once, in
   `subCompanyLogos`). The colors are the light theme (`src/lib/pictureLook.ts`, checked against tokens.css), for a white page. The glow and
   the tile come from the same rules as the screens (`src/lib/glow.ts`, `markLights`).
+- `NO_CALL_TOOLS` holds four tools: `madar.readFirst`, `pictures.get` and the two bulk tools below (`tools.test.ts` lists them).
 - `pictures.get` has no call of its own (`NO_CALL_TOOLS`, as `madar.readFirst`). It runs the calls of the screens inside it, with their
   rights: `users.list`, `subCompanies.list`, `projects.get`, and `files.link` for a cover. An answer with a picture holds an MCP image
   block (the agent sees it) and the JSON; a profile picture or a logo also as a data address. A cover is the small picture of the upload
@@ -169,9 +170,32 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 - Stage dates (owner, fbk_023): `stages.setDates` is on `MCP_ALLOW`. It sets both dates of one stage, as the Schedule tab does, for the
   project leader and the Admin by default (`project.stages`, with the scope of the person); an agent of a person without it gets `forbidden`. It needs no reason: the
   call never asks for one, so it has no `dateReason` field (that field belongs to `tasks.update`). The stages sit in time order by
-  their dates, so new dates can move the current stage of the project and its health. `stages.replace` and `stages.setPrerequisites`
-  stay on `MCP_DENY`: an agent does not add, remove, rename or reorder stages, or change what a stage needs. INSTRUCTIONS has a
+  their dates, so new dates can move the current stage of the project and its health. `INSTRUCTIONS` has a
   Stages paragraph that says: change a stage date only when the person asks. The tests are in `stageDates.test.ts`.
+- Stages as a tool (owner, 2026-10-26): `stages.replace` moved from `MCP_DENY` to `MCP_ALLOW`, with the AI switch `ai.projects` and the right
+  `project.stages`, as `stages.setDates`. It renames, adds, removes and orders the stages of one project: the whole list in the new order, the id of
+  each stage that stays, a stage with no id is new, a stage left out is removed (`stage_has_tasks` while it holds to-dos). A date left out is cleared
+  (the call defaults both dates to null), so `TOOL_DOCS` tell the agent to send the dates of a stage that stays. `project.stages_changed` is in
+  `NOT_UNDOABLE`: the change has no Undo, and `events.undoStory` fails for a story that holds it, so the docs say to leave `storyId` out and to ask the
+  person first. `stages.setPrerequisites` stays on `MCP_DENY`. The tests are in `stageReplace.test.ts`.
+- Many to-dos at once (owner, 2026-10-26; `bulk.ts`): `tasks.createMany` (1 to 50 items, each the input of `tasks.create`) and `tasks.updateMany` (1 to 100
+  items, each the input of `tasks.update`: `id`, `patch`, `reason`, `dateReason`) are MCP-only tools in `NO_CALL_TOOLS`, with the AI switch `ai.todos`
+  like their single call. `runBulk` runs the single tool once for each item through `runTool` (the same path, rights and refusals), in order, in one
+  story (the given `storyId`, or one that `story.start` makes). A failed item does not stop the next. A reason request is the error of that item only
+  (`details.reason` `stage_back_reason` or `date_reason_needed`): the agent asks its person and sends that item again with `reason` or `dateReason`. A
+  `storyId` that is not the agent's fails the whole tool (`story_not_yours`). The answer is `{ storyId, done, failed, results }` with a short row for
+  each item. The whole batch is one tool call for the 60 a minute limit (the limit counts the request). Each item still runs its own transaction, so a
+  batch of 100 is 100 transactions: the Worker CPU time is open (see the owner list). The tests are in `bulkTasks.test.ts`.
+- Long lists (owner, 2026-10-26; `paging.ts`): `projects.list` and `tasks.list` take `limit` (default 50, at most 200), `offset` and `full` as arguments of the tool
+  only (`run.ts` takes them out before the call, so the call does not change; other tools keep their own `limit`). The answer keeps `output` as the array
+  of rows and adds `page: { total, offset, limit, next }` beside it. Without `full` the rows are short (`shortTaskRow`, `shortProjectRow`: no look, no
+  client record, no stage list); with `full` they are the rows of the screens, cut to the page. The page is cut before the picture looks are built. The
+  tests are in `pagedLists.test.ts`.
+- Light answers (owner, 2026-10-26; `toolResult`, `run.ts`): an event object (it has `verb`) in an MCP answer keeps no `before` and no `after`, at any depth, so
+  `events.list` gives none either. The screens still get both. The description of a to-do stays once in the task record, so a `tasks.create` answer is
+  about 60% of the old size (its history under a quarter); a `tasks.update` of a long description is under half. The tests are in `lightAnswers.test.ts`.
+- Names (owner, 2026-10-26): `tasks.move` sets the status only; a move to another stage is `tasks.update` with `patch.stageId` (`tasks.updateMany` for many).
+  `TOOL_DOCS` of both say so. `INSTRUCTIONS` has the lines "Many to-dos:" and "Long lists:".
 - Project set-up (owner, 2026-10-25, fbk_057): `projects.create`, `clients.create`, `clients.list` and `projectTemplates.list` belong to ONE AI switch,
   `ai.projectSetup` ("AI creates projects and clients"). It is a non-basic switch with `newPower`: off for Member, Management and Accounting, held by the
   Admin as every switch, needs `ai.connect`. The Admin turns it on for a custom role (for example "Project managers"). A role saved before keeps its own

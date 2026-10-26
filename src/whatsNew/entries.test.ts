@@ -262,3 +262,17 @@ describe("the What's new entries of 2026-10-26 (small fixes)", () => {
     expect(body(ar, '2026-10-23-109')).toContain('زر الخروج');
   });
 });
+
+// The AI assistant: stages, many to-dos at once and long lists in pages (owner, 2026-10-26). Found by id, never by place.
+describe("the What's new entry of the AI assistant (2026-10-26)", () => {
+  it('has its line in the 2026-10-26 group, for everyone', () => {
+    expect(WHATS_NEW[0].id).toBe('2026-10-23-102');
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-115')).toEqual({ id: '2026-10-23-115', day: '2026-10-26' });
+  });
+
+  it('names the three changes in both languages', () => {
+    const body = (tree: typeof en) => String(wordAt(tree, ['whatsNew', 'items', '2026-10-23-115', 'body']));
+    for (const word of ['stages', 'many to-dos', 'page by page']) expect(body(en)).toContain(word);
+    for (const word of ['المراحل', 'عدة مهام', 'صفحة بعد صفحة']) expect(body(ar)).toContain(word);
+  });
+});
