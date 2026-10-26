@@ -2517,3 +2517,33 @@ Not proven: a real iPhone. After the deploy, wait 11 minutes on an iPhone, press
 - Live checks: the quick checks passed (health from supabase, `fileStore` r2, 150 calls; database, lock and asyncContext ok; /mcp with no token
   401); the production page title is Madar, `/favicon.ico` 200, the served policy holds `eu-assets.i.posthog.com`, and the live English words hold
   "Which chat", "Show more", "Undo stays longer", "Morning summary on office days", "Madar records errors and usage" and "Fixes for to-dos and Home".
+
+## Daftra study on the Mazj account (2026-10-26)
+
+A read-only study for the Daftra link (`TASKS.md`, flow A: Madar only reads Daftra). The owner gave a key of the Mazj Daftra
+account (`DAFTRA_MAZJ_KEY`, `DAFTRA_MAZJ_SITE` in `.env.local`). The probe `scripts/proof/daftra-read.sh` sent GET only. Nothing in
+the Mazj books changed. Mazj is a business incubator, not the office: its invoices are small and it has no work orders.
+
+- Address and key: `https://<site>/api2/<entity>.json`, header `apikey: <key>`. The site of the account works (the docs name
+  `{subdomain}.daftara.com`). `site_info.json` answers the account: currency SAR, country SA.
+- Size of Mazj: 1,719 invoices, 837 clients, 1,734 invoice payments, 43 products, 0 work orders.
+- Speed: one call takes 1.0 to 1.4 s; a page of 100 invoices takes 3.4 s and 523 KB. No rate-limit header comes back, and the docs
+  name no limit. So Daftra calls belong in a job, never inside a screen request, and a read asks small pages with filters.
+- Filters that the study used: `client_id`, `payment_status` (0 unpaid, 1 part paid, 2 paid; -2 due, -3 overdue, -1 draft),
+  `created_from` and `created_to` (also `date_from`, `due_date_from`). `limit` has no maximum.
+- The invoice list sorts by the invoice date, not by the day of entry: a back-dated invoice (entered 2026-10-21, dated 2026-09-29)
+  sits below newer dates. So "new invoices since the last look" uses `created_from`.
+- `summary_total` is the amount with VAT. `summary_paid` can be larger than the total (860.87 paid on a 260.87 invoice): never
+  compare it with the total. The paid state is `payment_status` 2.
+- `GET /invoices/<id>.json` holds the invoice with `InvoiceItem`, `InvoicePayment`, `InvoiceTax` and `Client` inside the `Invoice`
+  object. So Madar needs only two entities: invoices and clients.
+- The list and the single answer differ in types and dates: the list gives strings and ISO dates (`2026-10-04`); the single
+  invoice gives numbers and the date format of the account (`29/09/2026`). Read the dates from `created` or the payment rows,
+  or parse both forms.
+- An invoice payment row gives `date` (the day the money arrived, not the day of entry) and `amount` with up to 4 decimals
+  (`283.9465`). Round to 2 decimals before a match. "Received" takes the date of the last payment row.
+- Clients: the VAT number (`bn1`) was empty on 5 of 5 sampled clients. A client match by VAT number fails; the accountant
+  confirms each client match once.
+- Key roles (new in the docs since 2026-10-06): Settings, API, API Key, Roles: "Only Allow" a list of entities (for example
+  `invoice`, `client`); any other entity answers 403. A role limits the entities, not read against write. The real office key
+  should be "Only Allow" `invoice` and `client`.
