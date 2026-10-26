@@ -150,6 +150,30 @@ describe('the project row', () => {
     expect(cover.querySelector('svg path')).not.toBeNull();
   });
 
+  it('draws the own shape of a project on the cover at a larger size, and on the row tile at 62%', async () => {
+    const shape = 'M0 0H11V5H0Z M13 0H18V11H13Z';
+    const setShape = (state: State) => {
+      state.projects.prj_005.shape = shape;
+      state.projects.prj_001.shape = shape;
+    };
+    await renderWithRuntime(<Cover id="prj_005" />, setShape, { path: '/' });
+    const cover = await screen.findByRole('img', { name: 'Cover image of Tamr Boutique Hotel' });
+    const svg = cover.querySelector('svg')!;
+    expect(svg.querySelector('path')).toHaveAttribute('d', shape);
+    expect(svg.querySelector('path')).toHaveAttribute('fill-rule', 'evenodd');
+    expect(svg).toHaveClass('h-[47%]');
+    expect(svg).not.toHaveClass('h-[34%]');
+  });
+
+  it('draws the own shape on the tile of the row', async () => {
+    const shape = 'M0 0H11V5H0Z M13 0H18V11H13Z';
+    await renderWithRuntime(<Card id="prj_001" />, (state: State) => { state.projects.prj_001.shape = shape; }, { path: '/' });
+    const row = await screen.findByRole('link', { name: /Corniche Office Tower/ });
+    const svg = row.querySelector('[data-project-mark] svg')!;
+    expect(svg.querySelector('path')).toHaveAttribute('d', shape);
+    expect(svg).toHaveClass('size-[62%]');
+  });
+
   it('offers a person outside the project only Open and Copy link', async () => {
     await renderWithRuntime(<Card id="prj_001" />, as('usr_004'), { path: '/' });
     expect(await openMenu()).toEqual(['Open', 'Copy link']);

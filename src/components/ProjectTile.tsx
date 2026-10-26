@@ -10,15 +10,16 @@ import { SubCompanyLogo } from './SubCompanyLogo';
 const MIN_BADGE = 18;
 
 /**
- * The mark's drawing symbol in ink, turned about its center. It fills its box, so the caller sets the size. A project with its own shape
- * (owner, 2026-10-26) draws that path in the same box in its place, with no turn. The contract keeps the string safe (src/lib/projectShape.ts).
+ * The mark's drawing symbol in ink, turned about its center. It fills its box, so the caller sets the size: 45% of the tile for a drawn
+ * form, 62% for a shape. A project with its own shape (owner, 2026-10-26) draws that path in the same box in its place, with no turn and
+ * with evenodd, so a courtyard or an arch can be a hole. The contract keeps the string safe (src/lib/projectShape.ts).
  */
 export function MarkForm({ mark, shape, className = '' }: { mark: number; shape?: string | null; className?: string }) {
   const { form } = decodeMark(mark);
   return (
     <svg viewBox="0 0 18 18" aria-hidden="true" className={`block shrink-0 text-ink ${className}`}>
       {shape && isProjectShape(shape)
-        ? <path d={shape} fill="currentColor" fillOpacity={0.86} />
+        ? <path d={shape} fill="currentColor" fillOpacity={0.86} fillRule="evenodd" />
         : <path d={formPath(form, 0, 0, 18)} transform={`rotate(${form.turn * 90} 9 9)`} fill="currentColor" fillOpacity={0.86} />}
     </svg>
   );
@@ -51,7 +52,7 @@ export function ProjectTile({ id, mark, shape, size = 34, shared = false, subCom
         style={{ width: size, height: size, background: markGlow(id, value), ...cut }}
         className={`grid shrink-0 place-items-center rounded-[30%] ring-1 ring-inset ring-ink/10 ${sub ? 'tile-cut' : ''}`}
       >
-        <MarkForm mark={value} shape={shape} className="size-[45%]" />
+        <MarkForm mark={value} shape={shape} className={shape && isProjectShape(shape) ? 'size-[62%]' : 'size-[45%]'} />
       </motion.span>
       {sub && (
         // A flex box, so its height is the logo, not a line of text: an inline box drew the old ring as a pill (owner, 2026-10-20).

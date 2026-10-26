@@ -156,7 +156,7 @@ export async function runPicture(args: Record<string, unknown>, ctx: PictureCtx)
   }
   const result = await callAs(ctx, 'projects.get', { id });
   if (!result.ok) return result;
-  const project = (result.output as { project: { id: string; code: string; name: string; mark?: number; coverFileId: string | null; subCompanyId?: string | null } }).project;
+  const project = (result.output as { project: { id: string; code: string; name: string; mark?: number; shape?: string | null; coverFileId: string | null; subCompanyId?: string | null } }).project;
   if (kind === 'projectTile') {
     return answer({ output: { kind, id, code: project.code, name: project.name, subCompanyId: project.subCompanyId ?? null, ...projectLook(project) } });
   }

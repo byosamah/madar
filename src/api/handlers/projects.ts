@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineCall, type Ctx } from '../registry';
 import {
-  ClientId, ClientInitials, Day, DeadlineId, FileId, GeoPoint, HealthValue, LinkKind, linkUrlOk, MAX_PREREQUISITES, MAX_PROJECT_VIEWERS, PauseKind, ProjectId, ProjectKind, ProjectShape, ProjectStatus, ProjectTemplateId, StageId,
+  ClientId, ClientInitials, Day, DeadlineId, FileId, GeoPoint, HealthValue, LinkKind, linkUrlOk, MAX_PREREQUISITES, MAX_PROJECT_VIEWERS, PauseKind, ProjectId, ProjectKind, ProjectShapeText, ProjectStatus, ProjectTemplateId, StageId,
   SubCompanyId, TeamId, UserId, type Deadline, type Project, type ProjectTemplate, type Stage, type Task,
 } from '../contract/entities';
 import { DeadlineRow, ProjectDetail, ProjectSummary } from '../contract/views';
@@ -496,8 +496,8 @@ export const projectsUpdate = defineCall({
       name: ProjectName.optional(),
       /** The Arabic name. An empty value takes it off (owner, 2026-10-26, fbk_062). */
       nameAr: ProjectNameAr.optional(),
-      /** The own shape of the picture (owner, 2026-10-26): one SVG path in a box of 18 by 18. null takes it off, so the drawn form comes back. */
-      shape: ProjectShape.nullable().optional(),
+      /** The own shape of the picture (owner, 2026-10-26): one SVG path in a box of 18 by 18. An empty text takes it off, so the drawn form comes back. */
+      shape: ProjectShapeText.optional(),
       clientId: ClientId.nullable().optional(),
       location: Location.optional(),
       areaM2: Area.nullable().optional(),
@@ -528,7 +528,7 @@ export const projectsUpdate = defineCall({
     // Clearing an Arabic name that the project never had is no change, so it writes no event.
     if (patch.nameAr === '' && !project.nameAr) delete patch.nameAr;
     // The same for a shape that the project never had.
-    if (patch.shape === null && !project.shape) delete patch.shape;
+    if (patch.shape === '' && !project.shape) delete patch.shape;
     if (patch.subCompanyId !== undefined) assertSubCompany(ctx, patch.subCompanyId);
     const newCode = code !== undefined && code !== project.code ? code : undefined;
     if (newCode !== undefined) {
@@ -548,9 +548,9 @@ export const projectsUpdate = defineCall({
     if (newCode !== undefined) {
       applyPatch(ctx, project, { code: newCode }, { projectId: project.id, verb: 'project.code_changed', targetType: 'project', targetId: project.id });
     }
-    // A project with no shape yet holds null before the change, so the History records a value that an Undo can bring back: a missing key
-    // is lost when the event is saved as JSON. All checks have passed here, so a refused write still changes nothing.
-    if (patch.shape && project.shape === undefined) project.shape = null;
+    // A project with no shape yet holds an empty text before the change, so the History records a value that an Undo can bring back: a
+    // missing key is lost when the event is saved as JSON. All checks have passed here, so a refused write still changes nothing.
+    if (patch.shape && project.shape === undefined) project.shape = '';
     applyPatch(ctx, project, patch, { projectId: project.id, verb: 'project.updated', targetType: 'project', targetId: project.id });
     touch(ctx, project.id);
     return detail(ctx, project);

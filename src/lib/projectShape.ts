@@ -8,8 +8,20 @@
 export const PROJECT_SHAPE_MAX = 2000;
 export const PROJECT_SHAPE_PATTERN = /^[Mm][MmLlHhVvCcSsQqTtAaZz0-9 ,.eE-]*$/;
 
+/** The same pattern, or an empty text (no shape). A regex, so the input schema of the MCP tool shows the rule. */
+export const PROJECT_SHAPE_TEXT_PATTERN = /^$|^[Mm][MmLlHhVvCcSsQqTtAaZz0-9 ,.eE-]*$/;
+
+/** The shape draws at 62% of the tile side (owner, 2026-10-26). The random forms stay at 45%. */
+export const SHAPE_SIDE_PERCENT = 62;
+export const FORM_SIDE_PERCENT = 45;
+
 /** The words of the refusal, for the contract and the screens. */
 export const PROJECT_SHAPE_RULE = 'Use one SVG path that starts with M, in a box of 18 by 18, of 2000 characters or less.';
+
+/** An empty text means "no shape": the text of a patch that clears the shape, and the text a cleared project keeps. */
+export function isProjectShapeText(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= PROJECT_SHAPE_MAX && PROJECT_SHAPE_TEXT_PATTERN.test(value);
+}
 
 export function isProjectShape(value: unknown): value is string {
   return typeof value === 'string' && value.length <= PROJECT_SHAPE_MAX && PROJECT_SHAPE_PATTERN.test(value);

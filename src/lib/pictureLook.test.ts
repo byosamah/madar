@@ -69,13 +69,17 @@ describe('the pictures for agents in the light theme (owner, 2026-10-21)', () =>
 });
 
 describe('the project tile with its own shape (owner, 2026-10-26)', () => {
-  it('draws the shape in the place of the form, scaled from the box of 18 to the form box, with no turn', () => {
+  it('draws the shape in the place of the form, scaled from the box of 18 to 62% of the tile, with evenodd and no turn', () => {
     const svg = tileSvg({ id: 'prj_003', mark: 42, shape: OWNER_SHAPES.kutla });
     const { form } = decodeMark(42);
-    // The form box is 45% of 34 = 15.3, from 9.35. The scale is 15.3 / 18 = 0.85.
-    expect(svg).toContain(`<path d="${OWNER_SHAPES.kutla}" transform="translate(9.35 9.35) scale(0.85)" fill="#1D1D1F" fill-opacity="0.86"/>`);
+    // The shape box is 62% of 34 = 21.08, from 6.46. The scale is 21.08 / 18 = 1.171.
+    expect(svg).toContain(`<path d="${OWNER_SHAPES.kutla}" transform="translate(6.46 6.46) scale(1.171)" fill="#1D1D1F" fill-opacity="0.86" fill-rule="evenodd"/>`);
     expect(svg).not.toContain('rotate(');
     expect(svg).not.toContain(formPath(form, 9.35, 9.35, 15.3));
+    // The drawn form keeps 45% and no evenodd.
+    const plain = tileSvg({ id: 'prj_003', mark: 42 });
+    expect(plain).toContain(formPath(form, 9.35, 9.35, 15.3));
+    expect(plain).not.toContain('evenodd');
     expect(svg.endsWith('</svg>')).toBe(true);
   });
 

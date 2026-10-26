@@ -1,7 +1,7 @@
 import { glowCss, personLights, type GlowLight } from './glow';
 import { projectHue, type Hue } from './projectColor';
 import { decodeMark, formPath, markLights, markOf } from './projectMark';
-import { isProjectShape } from './projectShape';
+import { FORM_SIDE_PERCENT, isProjectShape, SHAPE_SIDE_PERCENT } from './projectShape';
 
 /**
  * The pictures of the screens as an agent gets them (owner, 2026-10-21): the same lights and forms, with the colors of the light
@@ -56,7 +56,7 @@ export function projectColorLook(id: string): { name: Hue; fg: string; bg: strin
  * The project tile (ProjectTile) as one SVG drawing of 34 px: the panel, the two lights, the ring and the form. The ids inside it
  * hold the project id, so many tiles can sit in one page. The sub-company badge is not in it: the screens put it on the tile.
  * A project with its own shape (owner, 2026-10-26) gets that path in the place of the form: scaled from the box of 18 to the form box, with
- * no turn. The shape goes into the text only when it passes the pattern of the contract, so a stored string that breaks it never gets here.
+ * no turn, at 62% of the tile, with evenodd. The shape goes into the text only when it passes the pattern of the contract, so a stored string that breaks it never gets here.
  */
 export function tileSvg(project: { id: string; mark?: number; shape?: string | null }): string {
   const mark = markOf(project);
@@ -72,15 +72,17 @@ export function tileSvg(project: { id: string; mark?: number; shape?: string | n
   // The form is 45% of the side, in the middle.
   const radius = round(TILE * 0.3);
   const box = (fill: string) => `<rect width="${TILE}" height="${TILE}" rx="${radius}" fill="${fill}"/>`;
-  const side = round(TILE * 0.45);
+  const own = project.shape && isProjectShape(project.shape) ? project.shape : null;
+  // A shape is 62% of the side (owner, 2026-10-26), the drawn form 45%.
+  const side = round(TILE * (own ? SHAPE_SIDE_PERCENT : FORM_SIDE_PERCENT) / 100);
   const start = round((TILE - side) / 2);
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${TILE} ${TILE}" width="${TILE}" height="${TILE}">`
     + `<defs>${gradient(first, `${key}-a`)}${gradient(second, `${key}-b`)}</defs>`
     // CSS paints its first light on top, so the drawing paints it last.
     + `${box(LIGHT_LOOK.panel)}${box(`url(#${key}-b)`)}${box(`url(#${key}-a)`)}`
     + `<rect x="0.5" y="0.5" width="${TILE - 1}" height="${TILE - 1}" rx="${round(radius - 0.5)}" fill="none" stroke="${LIGHT_LOOK.ink}" stroke-opacity="0.1" vector-effect="non-scaling-stroke"/>`
-    + (project.shape && isProjectShape(project.shape)
-      ? `<path d="${project.shape}" transform="translate(${start} ${start}) scale(${round(side / 18)})" fill="${LIGHT_LOOK.ink}" fill-opacity="0.86"/>`
+    + (own
+      ? `<path d="${own}" transform="translate(${start} ${start}) scale(${round(side / 18)})" fill="${LIGHT_LOOK.ink}" fill-opacity="0.86" fill-rule="evenodd"/>`
       : `<path d="${formPath(form, start, start, side)}" transform="rotate(${form.turn * 90} ${TILE / 2} ${TILE / 2})" fill="${LIGHT_LOOK.ink}" fill-opacity="0.86"/>`)
     + '</svg>';
 }

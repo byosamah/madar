@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { INITIALS_PATTERN, RECORD_CODE_PATTERN, visibleTextPattern } from '../../lib/projectCode';
-import { PROJECT_SHAPE_MAX, PROJECT_SHAPE_PATTERN, PROJECT_SHAPE_RULE } from '../../lib/projectShape';
+import { PROJECT_SHAPE_MAX, PROJECT_SHAPE_PATTERN, PROJECT_SHAPE_RULE, PROJECT_SHAPE_TEXT_PATTERN } from '../../lib/projectShape';
 import {
   DAFTRA_ACCOUNT_PATTERN, DEFAULT_STALE_DAYS, GROUP_LOG_MAX, GROUP_MAX, GROUP_NAME_MAX, MAX_ATTACHMENTS, MAX_FILE_BYTES, MAX_HELPERS, MAX_PREREQUISITES, MAX_PROJECT_VIEWERS, MEETING_KINDS, MEETING_LIMITS,
   NOTIFY_LEVELS, PICTURE_DATA, REACTIONS,
@@ -23,6 +23,11 @@ const id = (prefix: string) =>
  * and every letter that is no path command, so the string is safe in SVG text (src/lib/projectShape.ts).
  */
 export const ProjectShape = z.string().max(PROJECT_SHAPE_MAX, PROJECT_SHAPE_RULE).regex(PROJECT_SHAPE_PATTERN, PROJECT_SHAPE_RULE);
+/**
+ * The same, or an empty text. An empty text means "no shape": a patch with it clears the shape, and a project that lost its shape keeps it.
+ * The History needs a value to bring a shape back, and a missing key is lost when an event is saved as JSON.
+ */
+export const ProjectShapeText = z.string().max(PROJECT_SHAPE_MAX, PROJECT_SHAPE_RULE).regex(PROJECT_SHAPE_TEXT_PATTERN, PROJECT_SHAPE_RULE);
 
 export const UserId = id('usr');
 export const ClientId = id('cli');
@@ -457,9 +462,9 @@ export const Project = z.object({
   mark: z.number().int().nonnegative().optional(),
   /**
    * The own shape of the picture (owner, 2026-10-26): drawn in ink in the place of the form of the mark. Optional, so older offices still
-   * load. null means a person took the shape off: the History needs a value to bring a shape back, and a missing key is lost in JSON.
+   * load. An empty text means a person took the shape off.
    */
-  shape: ProjectShape.nullable().optional(),
+  shape: ProjectShapeText.optional(),
   /** Optional, so offices saved before links existed still load. */
   links: z.array(ProjectLink).max(20).optional(),
   /** The folders of the Files & Links tab (fbk_066). Optional, so older offices still load. A list row leaves them out (summaryOf). */

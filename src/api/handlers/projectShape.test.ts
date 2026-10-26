@@ -22,18 +22,24 @@ describe('the shape of a project: the contract', () => {
 
   it('reads a project with no shape, and takes the three shapes of the owner', () => {
     expect(Project.parse(base).shape).toBeUndefined();
+    // An empty text is a project that lost its shape.
+    expect(Project.parse({ ...base, shape: '' }).shape).toBe('');
     for (const shape of Object.values(OWNER_SHAPES)) expect(Project.parse({ ...base, shape }).shape).toBe(shape);
   });
 
   it.each([
-    ['an empty string', ''],
     ['a quote', 'M0 0" onload="x'],
     ['an angle bracket', 'M0 0<'],
     ['a letter that is no command', 'M0 0 B1'],
     ['a start that is not M', 'L1 1'],
     ['more than 2000 characters', `M${'1'.repeat(2000)}`],
+    ['a space before the M', ' M0 0'],
   ])('refuses %s', (_name, shape) => {
     expect(Project.safeParse({ ...base, shape }).success).toBe(false);
+  });
+
+  it('takes a path of exactly 2000 characters', () => {
+    expect(Project.safeParse({ ...base, shape: `M${'1'.repeat(1999)}` }).success).toBe(true);
   });
 
   it('carries the shape in the project reference and the report reference, and keeps the old form without it', () => {
@@ -41,6 +47,7 @@ describe('the shape of a project: the contract', () => {
     expect(ProjectRef.parse({ ...ref, shape: OWNER_SHAPES.kutla }).shape).toBe(OWNER_SHAPES.kutla);
     expect(ProjectRef.parse(ref)).toEqual(ref);
     expect(ProjectRef.safeParse({ ...ref, shape: 'M0 0<' }).success).toBe(false);
+    expect(ProjectRef.safeParse({ ...ref, shape: '' }).success).toBe(false);
   });
 });
 
@@ -53,8 +60,8 @@ describe('the shape of a project: projects.update', () => {
     expect(set.project.shape).toBe(OWNER_SHAPES.madar);
     const changed = await t.api.call('projects.update', { id: 'prj_001', patch: { shape: OWNER_SHAPES.hayyez } });
     expect(changed.project.shape).toBe(OWNER_SHAPES.hayyez);
-    const cleared = await t.api.call('projects.update', { id: 'prj_001', patch: { shape: null } });
-    expect(cleared.project.shape ?? null).toBeNull();
+    const cleared = await t.api.call('projects.update', { id: 'prj_001', patch: { shape: '' } });
+    expect(cleared.project.shape ?? '').toBe('');
     const events = Object.values(t.store.state.events).filter((event) => event.verb === 'project.updated' && event.targetId === 'prj_001');
     expect(events).toHaveLength(3);
     expect(events[0].after).toEqual({ shape: OWNER_SHAPES.madar });
@@ -64,7 +71,7 @@ describe('the shape of a project: projects.update', () => {
     const t = testApi(calls);
     t.as('usr_002');
     const before = Object.keys(t.store.state.events).length;
-    await t.api.call('projects.update', { id: 'prj_001', patch: { shape: null } });
+    await t.api.call('projects.update', { id: 'prj_001', patch: { shape: '' } });
     expect(Object.keys(t.store.state.events).length).toBe(before);
     await t.api.call('projects.update', { id: 'prj_001', patch: { shape: OWNER_SHAPES.kutla } });
     const once = Object.keys(t.store.state.events).length;
@@ -72,10 +79,10 @@ describe('the shape of a project: projects.update', () => {
     expect(Object.keys(t.store.state.events).length).toBe(once);
   });
 
-  it('refuses an unsafe, empty or long shape and changes nothing', async () => {
+  it('refuses an unsafe or long shape and changes nothing', async () => {
     const t = testApi(calls);
     t.as('usr_002');
-    for (const shape of ['', 'M0 0" onload="x', '<svg>', 'L1 1', `M${'1'.repeat(2000)}`]) {
+    for (const shape of ['M0 0" onload="x', '<svg>', 'L1 1', `M${'1'.repeat(2000)}`]) {
       await expect(t.api.call('projects.update', { id: 'prj_001', patch: { shape } })).rejects.toMatchObject({ code: 'invalid_input' });
     }
     expect(t.store.state.projects.prj_001.shape).toBeUndefined();
@@ -85,7 +92,7 @@ describe('the shape of a project: projects.update', () => {
     const t = testApi(calls);
     t.as('usr_003');
     await expect(t.api.call('projects.update', { id: 'prj_001', patch: { shape: OWNER_SHAPES.madar } })).rejects.toMatchObject({ code: 'forbidden' });
-    await expect(t.api.call('projects.update', { id: 'prj_001', patch: { shape: null } })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(t.api.call('projects.update', { id: 'prj_001', patch: { shape: '' } })).rejects.toMatchObject({ code: 'forbidden' });
     expect(t.store.state.projects.prj_001.shape).toBeUndefined();
     t.as('usr_001');
     expect((await t.api.call('projects.update', { id: 'prj_001', patch: { shape: OWNER_SHAPES.kutla } })).project.shape).toBe(OWNER_SHAPES.kutla);
@@ -104,12 +111,12 @@ describe('the shape of a project: projects.update', () => {
     t.as('usr_001');
     await t.api.call('projects.update', { id: 'prj_001', patch: { shape: OWNER_SHAPES.madar } });
     const set = Object.values(t.store.state.events).find((event) => event.verb === 'project.updated')!;
-    await t.api.call('projects.update', { id: 'prj_001', patch: { shape: null } });
+    await t.api.call('projects.update', { id: 'prj_001', patch: { shape: '' } });
     const clear = Object.values(t.store.state.events).filter((event) => event.verb === 'project.updated')[1];
     await t.api.call('events.undo', { eventId: clear.id });
     expect(t.store.state.projects.prj_001.shape).toBe(OWNER_SHAPES.madar);
     await t.api.call('events.undo', { eventId: set.id });
-    expect(t.store.state.projects.prj_001.shape ?? null).toBeNull();
+    expect(t.store.state.projects.prj_001.shape ?? '').toBe('');
   });
 });
 

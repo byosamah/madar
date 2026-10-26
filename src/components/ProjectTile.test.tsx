@@ -84,9 +84,13 @@ describe('the project tile and its sub-company (fbk_007)', () => {
 describe('the project tile and its own shape (owner, 2026-10-26)', () => {
   const pathOf = (container: HTMLElement) => container.querySelector('[data-project-mark] svg path')!;
 
-  it('draws the drawn form, turned, when the project has no shape', () => {
+  const svgOf = (container: HTMLElement) => container.querySelector('[data-project-mark] svg')!;
+
+  it('draws the drawn form, turned, at 45% when the project has no shape', () => {
     const { container } = render(<ProjectTile id="prj_001" mark={5} />);
     const { form } = decodeMark(5);
+    expect(svgOf(container)).toHaveClass('size-[45%]');
+    expect(pathOf(container)).not.toHaveAttribute('fill-rule');
     expect(pathOf(container)).toHaveAttribute('d', formPath(form, 0, 0, 18));
     expect(pathOf(container)).toHaveAttribute('transform', `rotate(${form.turn * 90} 9 9)`);
   });
@@ -107,6 +111,19 @@ describe('the project tile and its own shape (owner, 2026-10-26)', () => {
     expect(path).toHaveAttribute('fill-opacity', '0.86');
     expect(path.closest('svg')).toHaveAttribute('viewBox', '0 0 18 18');
     expect(path.closest('svg')).toHaveClass('text-ink');
+    // The shape is 62% of the tile, with evenodd, so a courtyard or an arch can be a hole.
+    expect(path).toHaveAttribute('fill-rule', 'evenodd');
+    expect(svgOf(container)).toHaveClass('size-[62%]');
+    expect(svgOf(container)).not.toHaveClass('size-[45%]');
+  });
+
+  it('draws the drawn form for a stored shape that breaks the pattern, and for an empty shape', () => {
+    for (const shape of ['', 'M0 0" onload="x', 'L1 1']) {
+      const { container, unmount } = render(<ProjectTile id="prj_001" mark={5} shape={shape} />);
+      expect(pathOf(container)).toHaveAttribute('transform');
+      expect(svgOf(container)).toHaveClass('size-[45%]');
+      unmount();
+    }
   });
 
   it('keeps the glow of the mark when the shape changes: the same data attribute and background', () => {

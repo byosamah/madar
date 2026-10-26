@@ -490,7 +490,10 @@ Soft, consistent corners that grow with the size of the surface.
   on a glow tile with 30% corners. It appears in the sign-in frame, at the top start of the app, as the app icon and in
   the email header. Never inside a project list, so nobody reads it as a project.
 - **Project pictures** ("glow forms"): a tile with the project's light, a second light, and one ink drawing symbol (arch,
-  door swing, wedge, dome, stair, slab, column, each in turns). Each project stores a unique mark. No letters.
+  door swing, wedge, dome, stair, slab, column, each in turns). Each project stores a unique mark. No letters. A project can instead
+  hold its own drawn shape (one SVG path in a box of 18 by 18, set by an AI agent from the project's own pictures): the tile draws it in
+  ink at 62% of the tile side with the even-odd rule, with no turn, where the random forms fill 45%. The lights, the colours and the
+  badge of a sub-company do not change.
 - **Status signs** are small shapes, so the meaning never rests on colour alone: a full circle (on track), a half circle
   (at risk), a triangle (late), two bars (paused), an hourglass (waiting for the client), a dashed ring (stale), a check in
   a ring (completed), a square (archived).

@@ -1073,7 +1073,14 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
 - The signature is solid navy `#1F2A55` (dark `#C9D4FF`), never a gradient. It goes only on the one main button, the
   open tab, the day ring and the timer.
 - The glow (three soft lights) sits only behind "Next for you" and in the logo tile.
-- 8 project hues from a hash of the id. Project pictures are "glow forms" with a unique `mark`.
+- 8 project hues from a hash of the id. Project pictures are "glow forms" with a unique `mark`. A project can also hold its own `shape`
+  (owner, 2026-10-26, fbk_061): one SVG path in the box `0 0 18 18` (`src/lib/projectShape.ts`: path letters, digits, spaces, commas, dots,
+  minus and e/E only; starts with M; 2000 characters at most; an empty text means none). `ProjectTile` and `MarkForm` draw it in ink in the
+  place of the random form, with no turn, with `fill-rule="evenodd"` (a courtyard or an arch is a hole) and at 62% of the tile (the random
+  form stays at 45%; the cover of a project card uses 47% against 34%). The glow, the colours, the sub-company badge and the tile cut do not
+  change. Every project ref (`projectRef`, `projectTile`, `ProjectRef`, `ReportRef`, the Dashboard `Ref`, the notice tile) carries `shape`
+  only when the project has one, and every screen that draws a tile passes `shape={project.shape}`: grep `<ProjectTile` when you add one. No
+  screen control yet: an AI agent sets it with `projects.update` (patch.shape, right `project.details`), and a screen upload comes later.
 - The glow lights of a person and of a project tile come from one rule (`src/lib/glow.ts`, `markLights`). The pictures for AI
   agents (`src/lib/pictureLook.ts`) draw the same lights in the light colours: `glow.test.ts` pins the screen text, and
   `pictureLook.test.ts` pins the colours against tokens.css.
