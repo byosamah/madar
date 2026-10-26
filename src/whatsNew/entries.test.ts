@@ -276,3 +276,18 @@ describe("the What's new entry of the AI assistant (2026-10-26)", () => {
     for (const word of ['المراحل', 'عدة مهام', 'صفحة بعد صفحة']) expect(body(ar)).toContain(word);
   });
 });
+
+// The AI assistant uploads files by content (owner, 2026-10-26). Found by id, never by place.
+describe("the What's new entry of the AI upload (2026-10-26)", () => {
+  it('has its line in the 2026-10-26 group, for everyone', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-117')).toEqual({ id: '2026-10-23-117', day: '2026-10-26' });
+  });
+
+  it('names the file, the places and the limit in both languages, and uses no dash', () => {
+    const body = (tree: typeof en) => String(wordAt(tree, ['whatsNew', 'items', '2026-10-23-117', 'body']));
+    const title = (tree: typeof en) => String(wordAt(tree, ['whatsNew', 'items', '2026-10-23-117', 'title']));
+    for (const word of ['upload a file', 'project', 'to-do', 'meeting', '10 MB', '3 pictures']) expect(body(en), word).toContain(word);
+    for (const word of ['يرفع ملفًا', 'مشروع', 'مهمة', 'اجتماع', '10 ميغابايت', '3 صور']) expect(body(ar), word).toContain(word);
+    for (const text of [body(en), body(ar), title(en), title(ar)]) expect(text).not.toMatch(/[–—]/);
+  });
+});

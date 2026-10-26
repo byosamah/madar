@@ -1152,3 +1152,15 @@ Plan: `docs/superpowers/plans/2026-10-25-madar-team-reports-2-plan.md`.
 - [ ] The merge lead runs `test:mcp`, `test:db` and `test:it` (they need Docker)
 - [ ] Open: 100 items in one batch are 100 transactions in one request. Measure the Worker CPU time on the test copy before the owner relies on 100.
 - [ ] Open: `project.stages_changed` has no Undo. Decide with the owner if an agent change of stages needs one.
+
+## MCP: uploads by content (owner, 2026-10-26: "the agent sends the file content in the call"; branch `rb/mcp-upload`)
+
+- [x] `files.uploadContent` (AI switch `ai.projects`): project, stage, folder, office to-do and meeting; 10 MB decoded; the rights and refusals of the screens; no key and no link in the answer
+- [x] `feedback.sendWithScreenshots` (AI switch `ai.feedback`): a report with 1 to 3 pictures, 10 MB together
+- [x] The body limit of `/mcp` is 256 KB, except for these two tools (about 14 MB); the SDK limit of 4 MB is raised to match
+- [x] `stages.replace` through MCP keeps the dates that the agent leaves out (`keepDates.ts`); a null clears
+- [x] INSTRUCTIONS: Files, Pictures (24,000 characters, resize first, a cover is a file); What's new 2026-10-23-117
+- [ ] The merge lead runs `test:mcp`, `test:db` and `test:it` (Docker), and tries one real upload on the local stack (MinIO and Storage)
+- [ ] Open: an agent cannot upload into a direct chat or a group (`chatForUpload` refuses an agent). Ask the owner if that stays.
+- [ ] Open: measure a 10 MB upload on the test copy (Supabase function memory 256 MB, Worker 128 MB, Worker CPU 10 ms on the free plan; in Node the server work is 50 to 80 ms)
+- [ ] Open: `files.list` gives `blobKey` and `thumbKey` of each version to an agent. The rule is that an agent never gets a storage key. Decide with the owner.

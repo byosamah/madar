@@ -30,19 +30,19 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 
 ## Tools
 - MCP spec 2026-07-28, stateless. A 2025-era client gets the stateless legacy answer.
-- 68 tools in all (role rights version 2, 2026-10-21; project set-up, 2026-10-25; folders, 2026-10-26; stages and bulk to-dos, 2026-10-26). `MCP_ALLOW` holds 56: `madar.readFirst`, `pictures.get`, `story.start` and the reads and
+- 70 tools in all (role rights version 2, 2026-10-21; project set-up, 2026-10-25; folders, 2026-10-26; stages and bulk to-dos, 2026-10-26; uploads, 2026-10-26). `MCP_ALLOW` holds 58: `madar.readFirst`, `pictures.get`, `story.start` and the reads and
   writes of an office project. `MCP_BY_RIGHT` holds 12, each behind a right of the person: `payments.list` (`payment.view`),
   `payments.create` (`payment.add`), `payments.update` (`payment.change`), `payments.markReceived` (`payment.receive`), `dashboard.get`
   (`dashboard.view`), `search.query` (`search.use`), `reports.office` (`report.office`), the three `feedback.*` tools (`feedback.manage`), `projects.create` (`project.create`) and `clients.create` (`client.create`).
-  `MCP_ADMIN` is empty since role-rights (owner, 2026-10-23). A default Member agent gets 56 tools, Accounting 60, Management 61, the Admin 68
-  (27 reads and 41 writes). `tasks.help` (fbk_035) joins the person to a task as a helper, or takes them off it.
+  `MCP_ADMIN` is empty since role-rights (owner, 2026-10-23). A default Member agent gets 58 tools, Accounting 62, Management 63, the Admin 70
+  (27 reads and 43 writes). `tasks.help` (fbk_035) joins the person to a task as a helper, or takes them off it.
   The factory in `app.ts` picks the list for each request from the office rights of the owner, never the agent user. A 2026-07-28 client can keep tools/list for 5 minutes, and a
   2025-era client keeps it until it connects again (the server says listChanged but never sends that notice). So a role change
   shows late in a client, and tools/call always checks.
 - The AI switches (role rights version 2, design section 5.12; `aiSwitches.ts`). Each tool of both lists has exactly one AI switch, from
   `MCP_TOOLS_BY_SWITCH` (`src/api/rightsCatalog.ts`, the catalog JSON in `docs/superpowers/specs`): `ai.readWork` (17 reads, `pictures.get`
-  included), `ai.readChats` (3), `ai.todos` (11), `ai.posts` (2), `ai.messages` (2), `ai.meetings` (4), `ai.tracker` (3), `ai.projects` (10), `ai.projectSetup` (4),
-  `ai.payments` (4), `ai.feedback` (3), `ai.report` (1) and `ai.undo` (2). `madar.readFirst` and `story.start` need only `ai.connect`.
+  included), `ai.readChats` (3), `ai.todos` (11), `ai.posts` (2), `ai.messages` (2), `ai.meetings` (4), `ai.tracker` (3), `ai.projects` (11, `files.uploadContent` included), `ai.projectSetup` (4),
+  `ai.payments` (4), `ai.feedback` (4, `feedback.sendWithScreenshots` included), `ai.report` (1) and `ai.undo` (2). `madar.readFirst` and `story.start` need only `ai.connect`.
   `ai.undoOthers` has no tool: the Undo rule of the History reads it (`history.ts`, another track). A new tool needs a line in the catalog
   and a test fails without it (`aiSwitches.test.ts`).
   - The list: `toolsFor` (`app.ts`) shows a tool when the person holds its AI switch AND, for a right tool, its right. A tool that no
@@ -159,7 +159,7 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   `run.ts` takes it out before the call) adds the data on `users.list`, `subCompanies.list` and `reports.office` (each logo once, in
   `subCompanyLogos`). The colors are the light theme (`src/lib/pictureLook.ts`, checked against tokens.css), for a white page. The glow and
   the tile come from the same rules as the screens (`src/lib/glow.ts`, `markLights`).
-- `NO_CALL_TOOLS` holds four tools: `madar.readFirst`, `pictures.get` and the two bulk tools below (`tools.test.ts` lists them).
+- `NO_CALL_TOOLS` holds six tools: `madar.readFirst`, `pictures.get`, the two bulk tools and the two upload tools below (`tools.test.ts` lists them).
 - `pictures.get` has no call of its own (`NO_CALL_TOOLS`, as `madar.readFirst`). It runs the calls of the screens inside it, with their
   rights: `users.list`, `subCompanies.list`, `projects.get`, and `files.link` for a cover. An answer with a picture holds an MCP image
   block (the agent sees it) and the JSON; a profile picture or a logo also as a data address. A cover is the small picture of the upload
@@ -174,10 +174,29 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   Stages paragraph that says: change a stage date only when the person asks. The tests are in `stageDates.test.ts`.
 - Stages as a tool (owner, 2026-10-26): `stages.replace` moved from `MCP_DENY` to `MCP_ALLOW`, with the AI switch `ai.projects` and the right
   `project.stages`, as `stages.setDates`. It renames, adds, removes and orders the stages of one project: the whole list in the new order, the id of
-  each stage that stays, a stage with no id is new, a stage left out is removed (`stage_has_tasks` while it holds to-dos). A date left out is cleared
-  (the call defaults both dates to null), so `TOOL_DOCS` tell the agent to send the dates of a stage that stays. `project.stages_changed` is in
+  each stage that stays, a stage with no id is new, a stage left out is removed (`stage_has_tasks` while it holds to-dos). A date left out stays as it is: the call defaults both
+  dates to null, so `run.ts` fills each missing date of a stage that keeps its id from the current stage of the same project before the call runs
+  (`keepDates.ts`, `keepStageDates`; the owner asked for it on 2026-10-26). A null that the agent sends clears the date, a new stage has none, and an id of
+  another project copies nothing (the call refuses it). Tests: `keepDates.test.ts`. `project.stages_changed` is in
   `NOT_UNDOABLE`: the change has no Undo, and `events.undoStory` fails for a story that holds it, so the docs say to leave `storyId` out and to ask the
   person first. `stages.setPrerequisites` stays on `MCP_DENY`. The tests are in `stageReplace.test.ts`.
+- Uploads by content (owner, 2026-10-26: "the agent sends the file content in the call"; `upload.ts`): `files.uploadContent` (AI switch `ai.projects`, as `files.move`)
+  and `feedback.sendWithScreenshots` (AI switch `ai.feedback`) are MCP-only tools in `NO_CALL_TOOLS`. `files.uploadContent` takes the place as
+  `files.uploadStart` does (`projectId` with `stageId`, `taskId` and `folderId`; `taskId` alone for an office to-do; `meetingId`; `conversationId`),
+  `name`, `type` (MIME), `contentBase64` and `receivedFromClient`. No fetch of an outside address and no limit but 10 MB decoded (`MAX_UPLOAD_BYTES`,
+  also the total of the 1 to 3 pictures of a report). A text longer than the base64 of 10 MB, and bytes over 10 MB, are refused with `file_too_large`
+  before any store work. The tool runs `files.uploadStart` through `ctx.runCall` (same person, rights and refusals as the screens), puts the bytes with
+  `PUT` to the signed link from the server (`ToolRunCtx.storeFetch`, default the global `fetch`; the link never leaves the function), then runs
+  `files.upload` with the upload ID, so the preflight copies and checks the FINAL object (size, type, inline-safe rule). The answer is the id, name,
+  version, size, type and place: no storage key and no link. The same name in the same place adds a version, as on the screens. No cleanup of our own: a
+  failure after the PUT leaves one staging object, and the `uploads` job step removes it after 2 hours 10 minutes. An agent never uploads into a direct
+  chat or a group (`chatForUpload` refuses an agent: `not_found`); a meeting with no project and an office to-do work as on the screens. The body of
+  an upload call may be `UPLOAD_BODY_BYTES` (about 14 MB): `readMcpBody` raises the 256 KB limit only for these two tool names (the `Mcp-Name` header, or the
+  name in the first 4 KB of the body for an earlier client), and `app.ts` checks the parsed name again and answers 413 for any other tool; the SDK
+  option `maxRequestBodySize` is raised to the same size (its default is 4 MB). A picture of a profile or a logo is a data
+  address of at most 24,000 characters (`PICTURE_DATA`) in `me.updateProfile` and `subCompanies.save` (opened by the parity track): the server cannot resize, so INSTRUCTIONS tell the agent to resize first; a project cover is a
+  file (`files.uploadContent`, then `projects.update` `coverFileId`). Tests: `uploadContent.test.ts`, `feedbackShots.test.ts` (harness
+  `upload.testing.ts`: the fake files database for the intents, a `storeFetch` stub that writes the fake file store).
 - Many to-dos at once (owner, 2026-10-26; `bulk.ts`): `tasks.createMany` (1 to 50 items, each the input of `tasks.create`) and `tasks.updateMany` (1 to 100
   items, each the input of `tasks.update`: `id`, `patch`, `reason`, `dateReason`) are MCP-only tools in `NO_CALL_TOOLS`, with the AI switch `ai.todos`
   like their single call. `runBulk` runs the single tool once for each item through `runTool` (the same path, rights and refusals), in order, in one

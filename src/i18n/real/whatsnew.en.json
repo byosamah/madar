@@ -3,6 +3,10 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-117": {
+        "title": "Your AI assistant can upload files",
+        "body": "Your AI assistant can now upload a file to a project, a to-do or a meeting. The file can be up to 10 MB. It can also send a report with up to 3 pictures."
+      },
       "2026-10-23-115": {
         "title": "Your AI assistant does more at once",
         "body": "Your AI assistant can now rename and add stages, change many to-dos in one step, and read long lists page by page."
