@@ -1,6 +1,9 @@
-import { lazy, Suspense, useCallback, useState } from 'react';
+import { Component, useCallback, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TaskRow } from '../../../api/contract/views';
+import { lazyOverlay } from '../../../app/lazyOverlay';
+import { useToast } from '../../../app/toasts';
+import { reportError } from '../../../app/insight/notes';
 import { Avatar } from '../../../components/Avatar';
 import { AvatarStack } from '../../../components/AvatarStack';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
@@ -8,9 +11,31 @@ import { PlusIcon } from '../../../components/icons/animated/plus';
 import { NoLeadMark } from '../../../components/NoLeadMark';
 
 // The list is a part of its own: it holds the sheet of a phone, and the sheet package stays out of the first load (check-bundles).
-const loadList = () => import('./TaskPeopleList');
-const PeopleList = lazy(loadList);
+// It follows the rule of every lazy part (`lazyOverlay`): a tab that opened before a release asks for a chunk that the host no longer
+// has, and the first failed import reloads the page once to get the new build (fbk_064, 2026-10-26).
+const peopleList = lazyOverlay(() => import('./TaskPeopleList').then((module) => module.default));
 type Mode = 'lead' | 'helper';
+
+/**
+ * A fault inside the list closes the list and shows the toast of a failed step. It never takes the whole page down: the press of a
+ * small control must not end in the error page of the route (fbk_064).
+ */
+class ListGuard extends Component<{ onFail: (error: unknown) => void; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    reportError(error, 'taskPeople');
+    this.props.onFail(error);
+  }
+
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
 
 /** The picture of the task people: the lead alone, the lead with the helpers, or the dashed mark of a task with no lead. */
 function Picture({ row }: { row: TaskRow }) {
@@ -27,9 +52,14 @@ function Picture({ row }: { row: TaskRow }) {
  */
 export function TaskPeople({ row }: { row: TaskRow }) {
   const { t } = useTranslation();
+  const toast = useToast();
   const [open, setOpen] = useState<{ mode: Mode; anchor: HTMLElement } | null>(null);
   const close = useCallback(() => setOpen(null), []);
   const setMode = useCallback((mode: Mode) => setOpen((current) => (current ? { ...current, mode } : current)), []);
+  const failList = useCallback((error: unknown) => {
+    setOpen(null);
+    toast.failed(error);
+  }, [toast]);
   if (!row.canEditPeople) {
     return (
       <span className="flex items-center">
@@ -46,7 +76,7 @@ export function TaskPeople({ row }: { row: TaskRow }) {
         aria-haspopup="dialog"
         aria-expanded={open?.mode === 'lead'}
         onClick={(event) => setOpen({ mode: 'lead', anchor: event.currentTarget })}
-        onPointerDown={() => void loadList()}
+        onPointerDown={peopleList.warm}
         className="pressable -m-1 flex items-center rounded-full p-1 max-sm:m-0 max-sm:min-h-11 max-sm:min-w-11 max-sm:justify-center max-sm:p-0"
       >
         <Picture row={row} />
@@ -61,7 +91,11 @@ export function TaskPeople({ row }: { row: TaskRow }) {
       >
         <AnimatedIcon icon={PlusIcon} size={14} aria-hidden />
       </button>
-      {open && <Suspense fallback={null}><PeopleList row={row} mode={open.mode} anchor={open.anchor} onMode={setMode} onClose={close} /></Suspense>}
+      {open && (
+        <ListGuard onFail={failList}>
+          <peopleList.Overlay row={row} mode={open.mode} anchor={open.anchor} onMode={setMode} onClose={close} />
+        </ListGuard>
+      )}
     </span>
   );
 }

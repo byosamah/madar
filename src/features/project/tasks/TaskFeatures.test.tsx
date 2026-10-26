@@ -224,7 +224,7 @@ describe('a lead with helpers', () => {
     }));
     const row = await rowOf('Stair details');
     const lead = store.state.users.usr_006.name;
-    expect(within(row).getByRole('img', { name: lead })).toBeInTheDocument();
+    expect(within(row).getByRole('img', { name: `Leader: ${lead}` })).toBeInTheDocument();
     for (const id of ['usr_001', 'usr_003', 'usr_004']) expect(within(row).getByRole('img', { name: store.state.users[id].name })).toBeInTheDocument();
     expect(within(row).queryByRole('img', { name: store.state.users.usr_005.name })).toBeNull();
     expect(within(row).getByText('+2')).toBeInTheDocument();

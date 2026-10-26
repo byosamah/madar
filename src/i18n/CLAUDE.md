@@ -31,6 +31,8 @@ speaker, so write it as natural Arabic, not as a word-for-word copy of the Engli
   `work_hours_lock` and `work_hours_default_lock`, the bell sentences `inbox.mentionEveryone*` (also read by the push line), `mentionEveryone.*` (the
   row of the mention list), `roleRights.powers.chatMentionEveryone` and the What's new entries `2026-10-23-88` to `-90`.
   `focuschat` holds the word of the chat in Focus mode (fbk_059): `focus.backToFocus`. The button and the panel reuse `project.chat`, `chat.taskThread` and `common.close`.
+  `b26small` holds the words of the small fixes of 2026-10-26: `people.leaderName` (the leader ring of `AvatarStack`), `personMenu.mode` (the Mode row of the person menu)
+  and the What's new entries `2026-10-23-108` and `-109`.
 - A task adds new words only to its own track files.
 - Server code reads the word files with plain JSON imports (no `import.meta.glob`).
 - The push line (2026-10-21) writes the bell sentences on the server: `server/push/words.ts` imports the `inbox`, `notices` and `push`

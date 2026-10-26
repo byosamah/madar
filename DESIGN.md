@@ -456,7 +456,7 @@ A calm single column on a phone, a centred column with side panels on a desk, an
   {spacing.panel} of padding. Lay out sibling groups with flex or grid gaps, not with margins on each element.
 - **The shell:** no sidebar. From 640 px a floating tab pill holds Home, Projects, Tasks, Dashboard and Inbox, plus Search and the
   bell, at the top centre. The Madar mark sits at the top start of every screen and opens Home; the person's picture sits at the top
-  end and opens the person menu (language, theme, Settings, Admin, sign out). The picture and the person menu exist from 640 px only.
+  end and opens the person menu (Away, mode and language as quick choices, then Settings, Admin and the other places, then sign out alone). The picture and the person menu exist from 640 px only.
   On a phone the bar sits at the bottom centre with four tabs that show only their icon: Today, Inbox, Work and Me. The bar
   is 60 px high, and it hides in an open chat, with the keyboard open and in Focus mode. The top row of a phone holds the Madar
   mark (or the back link of its screen) and one Search icon, and nothing else: no bell and no person picture. The Me tab holds
@@ -548,7 +548,8 @@ Every component exists to make the next step obvious. All live in `src/component
 - **Notes** ({components.attention-note}, {components.late-note}): a soft tinted line for "3 days past due" or "Late".
 - **Avatars:** the person's profile picture when there is one (a 128 px square that the browser makes, Settings), else a
   "Glow" picture: two soft lights in one colour with ink letters (two Arabic letters, apart, for an Arabic name); no stacks
-  of faces in lists.
+  of faces in lists. Where a short stack of people stays (project row, to-do row), the leader first has a 2 px ring in the ink colour
+  with a 2 px surface gap inside it (never navy, never red), so one meaning has one look.
 - **Toasts:** solid, short, with Undo when the action can be undone. Ctrl or Cmd + Z runs the newest Undo.
 - **Empty states:** one sentence that says what will appear here and, at most, one action.
 

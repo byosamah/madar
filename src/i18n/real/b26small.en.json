@@ -1,0 +1,20 @@
+{
+  "people": {
+    "leaderName": "Leader: {{name}}"
+  },
+  "personMenu": {
+    "mode": "Mode"
+  },
+  "whatsNew": {
+    "items": {
+      "2026-10-23-109": {
+        "title": "A simpler person menu",
+        "body": "Press your picture to see the new menu. Away, Mode and Language come first, each with its own switch. Settings, What's new and the other places come next. Sign out stands alone at the end."
+      },
+      "2026-10-23-108": {
+        "title": "The lead button works, and the leader stands out",
+        "body": "The lead button of a to-do no longer shows the error page. When Madar has a new version, the page loads again once by itself. In the Projects list, the leader now has a bigger picture with a dark ring."
+      }
+    }
+  }
+}
