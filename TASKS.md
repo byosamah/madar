@@ -1217,6 +1217,18 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [ ] Open: tell the owner that a Claude skill with the old text in his AI app may still say that an agent never opens a chat file
 
 
+## MCP main merge (`rb/mcp-join` + main at 2c3d2018: Daftra, tile shapes, the b26 batch)
+
+- [x] Rights: 121 switches and 92 powers (`payment.daftraLink` from main, `ai.admin` and `ai.myState` from the branch); `MAX_STORED_RIGHTS` 127; counts of Member 68, Management 78, Accounting 73
+- [x] SQLite schema: version 11 stays the Daftra tables (main, already live), version 12 is `agent_confirms`; the sha pin of `schema.test.ts` is new
+- [x] Migration `agent_confirms` renamed to `20261026000200_agent_confirms.sql` so it sorts after `20261026000100_daftra.sql`
+- [x] `INSTRUCTIONS`: the `Tile shapes:` paragraph is word for word from main; the Pictures paragraph keeps the picture rules of the branch (profile picture, logo, cover) and the tile shape; the `Daftra:` rule ends the text
+- [x] The six Daftra calls are on `MCP_DENY` (22 names); the tool lists do not change (158 tools for an Admin: `MCP_ALLOW` 127, `MCP_BY_RIGHT` 28, `MCP_ADMIN` 3)
+- [x] `toolSize.test.ts`: the join made the Admin list 110,268 bytes (the Daftra and shape texts); six tool texts are shorter now (109,991 bytes; the largest tool is `projects.create`, 2,027 bytes). Limits unchanged
+- [x] What's new: 113 (Daftra), 114 (tile shapes), 115, 116, 117 (MCP)
+- [ ] Merge lead: `npm run test:db`, `npm run test:it` (the new migration order, schema version 12 on a version 11 office), `npm run test:mcp`, then the full `npm test`
+- [ ] Open: the Admin list has only 9 bytes of room under 110,000. The next tool text must shorten another one, or the limit needs the owner's word
+
 ## MCP fixes after the security review (`rb/mcp-join`, 2026-10-26)
 - [x] Chat files need the switch `ai.readChats` for an agent (`files.link`, `files.get`, a cover picture); a chat file is never a project cover (`cover_chat_file`, everyone). Tests: `server/mcp/chatSwitches.test.ts`, `src/api/handlers/chatFiles.test.ts`
 - [x] Chat uploads need the switch `ai.messages` for an agent (`chatForUpload` takes the actor)
