@@ -124,7 +124,7 @@ function StageGroup({ group, detail, actions }: { group: GroupData; detail: Proj
   const all = [...group.loose, ...group.folders.flatMap((folder) => folder.files)];
   return (
     <Zone place={place} as="section" aria-labelledby={id} className="surface rounded-card p-2" {...actions.zoneOf(place)}>
-      <div className="flex items-center justify-between gap-3 px-2 pt-1">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-2 pt-1">
         <h3 id={id} dir="auto" className="min-w-0 text-headline">{group.name}</h3>
         <div className="flex shrink-0 items-center gap-3">
           {/* "+ Folder" is a quiet text button before "Download all" (fbk_066). "No stage" has none: a folder always sits in a real stage. */}

@@ -768,7 +768,30 @@ Design: `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design
 
 ## A new record type
 - A new zod collection needs a table in a new migration and an entry in `server/data/tables.ts`.
+- A small list that belongs to one record can live in that record's `doc`, as the links and the folders of a project do (no table, no migration, no loader).
 - The prototype store needs a new `STATE_VERSION` and a step in `src/data/migrate.ts`.
+
+## Folders of the Files & Links tab (owner, 2026-10-26, fbk_066)
+- `Project.folders` (optional, up to `MAX_FOLDERS` 100): `ProjectFolder` = id (`fld_`), `stageId` (a real stage of the project), `name` (trimmed, 1 to
+  `FOLDER_NAME_MAX` 60 letters), `createdBy`, `createdAt`. Choice: the folders live in the project record, as its links do, and not in a table of their own.
+  So a folder is seen by exactly the people who see the project and its files (the hidden-project doors guard it with no new rule), the office cache and the
+  loaders need nothing new, and no migration or `STATE_VERSION` step is needed. The record has no `projectId`: the project that holds it is the project. A list
+  row leaves the folders out (`withoutBase` in `views.ts`); `ProjectDetail.folders` carries them (default `[]`). `FileRec.folderId` (null or missing: the root
+  of its stage) is optional, so older files load; a file in a folder has the stage of the folder.
+- Calls (`handlers/folders.ts`, `files.ts`): `folders.create { projectId, stageId, name }`, `folders.rename { id, name }`, `folders.delete { id }` and
+  `files.move { id, stageId | null, folderId | null }`; `files.upload` takes `folderId` (the file takes the stage of the folder; another `stageId` is refused).
+  Rights: `file.upload` of the project for all four (no new switch). A hidden project reads as missing (`requireProject`, `requireFolder`: `not_found Folder`).
+  Refusals (reasons): `folder_name_taken` (a name repeats inside one stage, with no difference of capital letters; it may repeat across stages),
+  `folder_limit`, `folder_other_stage` (a folder with another stage, or with "No stage"), `folder_missing`. A file of a chat, a meeting or an office task
+  cannot move. A move to the place where the file sits writes nothing.
+- Events: a folder change is a `project.folders_changed` event on the project (before and after hold the whole `folders` list; Undo asks `file.upload`), a move
+  is a `file.moved` event (stage and folder together). `folders.delete` writes the `file.moved` events of its files first and the folder event last, so one
+  `events.undoStory` brings the folder back before it puts the files in it. Undo of a `file.moved` into a folder needs the folder to stand (`assertReferencesExist`),
+  and the Undo of a folder change sends the files of a folder that is gone back to the root (`releaseFilesOfGoneFolders`). Neither event is in `FEED_VERBS`.
+- A removed stage (`stages.replace`): its files go to "No stage" as before, the files in its folders too (`folderId` cleared), and its folders go with it
+  (silently, as the files do; `project.stages_changed` has no Undo).
+- MCP: the four calls are on the allow list (`ai.projects`); `projects.get` lists the folders and `files.list` gives `folderId` (`server/mcp/CLAUDE.md`).
+  Leak tests: `handlers/folderLeaks.test.ts`, `server/data/folderSignals.test.ts` (Realtime), `server/mcp/folderTools.test.ts`.
 
 ## Prototype data
 - `src/data/seed.ts` builds the sample office (Hala Nasser is Admin). `STATE_VERSION` is 9 (`store.ts`).

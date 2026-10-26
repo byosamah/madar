@@ -30,18 +30,18 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 
 ## Tools
 - MCP spec 2026-07-28, stateless. A 2025-era client gets the stateless legacy answer.
-- 61 tools in all (role rights version 2, 2026-10-21; project set-up, 2026-10-25). `MCP_ALLOW` holds 49: `madar.readFirst`, `pictures.get`, `story.start` and the reads and
+- 65 tools in all (role rights version 2, 2026-10-21; project set-up, 2026-10-25; folders, 2026-10-26). `MCP_ALLOW` holds 53: `madar.readFirst`, `pictures.get`, `story.start` and the reads and
   writes of an office project. `MCP_BY_RIGHT` holds 12, each behind a right of the person: `payments.list` (`payment.view`),
   `payments.create` (`payment.add`), `payments.update` (`payment.change`), `payments.markReceived` (`payment.receive`), `dashboard.get`
   (`dashboard.view`), `search.query` (`search.use`), `reports.office` (`report.office`), the three `feedback.*` tools (`feedback.manage`), `projects.create` (`project.create`) and `clients.create` (`client.create`).
-  `MCP_ADMIN` is empty since role-rights (owner, 2026-10-23). A default Member agent gets 49 tools, Accounting 53, Management 54, the Admin 61
-  (27 reads and 34 writes). `tasks.help` (fbk_035) joins the person to a task as a helper, or takes them off it.
+  `MCP_ADMIN` is empty since role-rights (owner, 2026-10-23). A default Member agent gets 53 tools, Accounting 57, Management 58, the Admin 65
+  (27 reads and 38 writes). `tasks.help` (fbk_035) joins the person to a task as a helper, or takes them off it.
   The factory in `app.ts` picks the list for each request from the office rights of the owner, never the agent user. A 2026-07-28 client can keep tools/list for 5 minutes, and a
   2025-era client keeps it until it connects again (the server says listChanged but never sends that notice). So a role change
   shows late in a client, and tools/call always checks.
 - The AI switches (role rights version 2, design section 5.12; `aiSwitches.ts`). Each tool of both lists has exactly one AI switch, from
   `MCP_TOOLS_BY_SWITCH` (`src/api/rightsCatalog.ts`, the catalog JSON in `docs/superpowers/specs`): `ai.readWork` (17 reads, `pictures.get`
-  included), `ai.readChats` (3), `ai.todos` (9), `ai.posts` (2), `ai.messages` (2), `ai.meetings` (4), `ai.tracker` (3), `ai.projects` (5), `ai.projectSetup` (4),
+  included), `ai.readChats` (3), `ai.todos` (9), `ai.posts` (2), `ai.messages` (2), `ai.meetings` (4), `ai.tracker` (3), `ai.projects` (9), `ai.projectSetup` (4),
   `ai.payments` (4), `ai.feedback` (3), `ai.report` (1) and `ai.undo` (2). `madar.readFirst` and `story.start` need only `ai.connect`.
   `ai.undoOthers` has no tool: the Undo rule of the History reads it (`history.ts`, another track). A new tool needs a line in the catalog
   and a test fails without it (`aiSwitches.test.ts`).
@@ -92,6 +92,13 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
 - Sub-companies (review 2026-10-19): `dashboard.get`, `tasks.list`, `deadlines.list`, `projects.list` and `reports.office` take `subCompanyId`;
   `projects.list` filter `no_sub_company` lists the projects with none; `search.query` and `subCompanies.list` (`projectCount`) carry counts. An agent
   never undoes a sub-company event (`events.undo`, `events.undoStory`).
+- Folders (fbk_066, owner 2026-10-26): `folders.create`, `folders.rename`, `folders.delete` and `files.move` are on `MCP_ALLOW` and belong to the AI switch
+  `ai.projects` (the label and the hint of that switch stay as they were). `folders.create` is additive; the other three are destructive. The handlers
+  ask the upload right (`file.upload`) of the person, so an agent of a person who cannot upload gets `forbidden`. A folder lives in the project, so
+  `projects.get` lists the folders (`folders`: id, stageId, name) and `files.list` gives each file a `folderId` (null: the root of its stage). A delete
+  never deletes a file, and `events.undoStory` brings the folder and the place of its files back. For an agent of a person who does not see a hidden
+  project every folder tool answers `not_found` as for a missing record (`folderTools.test.ts`). `INSTRUCTIONS` has a `Folders:` line; an agent does not
+  upload files (a person does, in the screens, and a file dropped on a folder goes into it).
 - Every other call is in `MCP_DENY` (`tools.ts`). A test fails for a call in no list or in two, so every new shared call goes
   into exactly one of them. The three `push.*` calls (browser push devices) are on it: an agent has no device (owner, 2026-10-08).
   `live.ticket` (exit wave 3) is on it too: an agent opens no socket.

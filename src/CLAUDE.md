@@ -226,6 +226,36 @@ The owner sees how the team uses Madar, which errors they hit, and replays of th
   "Download all files (N)" sits above the first group, for the whole project. Each takes the newest version of each file (the same as a plain tap). A list with fewer
   than two files shows no button, and the whole-project button hides when only one group holds files, because it would repeat that group's button. ZIP names:
   "<project key> <stage name>.zip" and "<project key> <project name>.zip" (`shownKey`, so an internal project says "Internal"). How it works: the chat part above.
+- **Folders in Files & Links (owner, 2026-10-26, fbk_066).** A stage group holds files and folders: one level, always inside a real stage ("No stage" has none).
+  Files (`FilesTab.tsx`, `FileGroups.tsx`, `FileRow.tsx`, `MoveFileSheet.tsx`, `FolderNameField.tsx`):
+  - Each real stage heading row has a quiet text button "+ Folder" before "Download all (N)", only for `viewerCan.upload` (the same gate as the upload and
+    as the four calls). A press opens one inline name field (`FolderNameField`): Enter or a blur with text saves (toast with Undo), Escape or an empty field
+    cancels. A name that the stage already has gets the refusal as a toast (`folder_name_taken`); there is no check on the screen.
+  - A person who may upload sees every stage as a group once the tab has a file, a folder or a link, so a folder can start in any stage (an empty stage is
+    only its heading row). With nothing at all, the empty state shows alone, as before. A person who may not upload sees only the groups with files or folders.
+    The groups wait for `files.list`, so a folder never shows "No files yet." while its files load.
+  - In a group: first the files with no folder, then each folder in the order it was made: a sub-heading (folder icon, name, "n files", a "..." menu with
+    Rename, "Download all (n)" for two files or more, and Delete), then its files, indented. An empty folder says "No files yet. Drag files here." on a desk
+    and "No files yet." on a phone. Delete asks nothing: the toast "Folder deleted." has Undo, which brings back the folder and the folder of its files
+    (`events.undoStory`). "Download all" of a folder makes "<project key> <stage name> <folder name>.zip"; the button of the stage counts the files of
+    its folders too. A file whose `folderId` is not a folder of its stage reads as at the root, so a file is never hidden (`groupsOf`, `placeOfFile`).
+  - "Move to" is in the "..." menu of every file for `viewerCan.upload`, on a desk and a phone (the keyboard path too). It opens `MoveFileSheet`
+    (`SheetOrPopover`): each stage with its folders under it, then "No stage"; the place of the file has `aria-current` and a check mark. One press moves
+    (`files.move`, toast "Moved to <place>." with Undo); a press on the current place only closes. The panel is anchored to the row on a desk.
+  - The pointer drag is for a desk with a fine pointer and `viewerCan.upload` (`dragOn`). dnd-kit is a chunk of its own: `FilesDragLayer.tsx`, loaded by
+    `filesDragLoader.ts` (the loaded-module pattern of `dragLayerLoader.ts`; `check-bundles.ts` refuses `DndDescribedBy` in the first load, and
+    `filesDragImports.test.ts` holds the imports). The list first draws static slots (`fileDragSlots.tsx`: a `Row` slot for a file row and a `Zone` slot for
+    a stage group or a folder); the layer gives lifting rows and droppable zones in a context. The swap makes new nodes once, early (the load starts when the
+    tab opens). A drop on a zone calls `files.move`; the zone under the pointer shows a dashed frame, and when zones sit inside each other (a folder in a stage
+    group) the smallest wins (`innermost`). There is no keyboard drag (it is "Move to") and no touch drag. The test helpers (`test/render.tsx`,
+    `heldRemoteApp.tsx`, `wireApp.tsx`) load the layer first, so a test list starts with live rows; a test of the swap calls `forgetFilesDragForTests()`.
+  - A file from the computer dropped on a folder uploads into it (`files.upload` with `folderId`; the file takes the stage of the folder); dropped on a stage
+    group, into that stage at the root; dropped on the rest of the tab, into the stage of the "Stage for new files" select, as before. A native drop counts only
+    when the drag carries `Files` (`carriesFiles`): a picture that the browser drags by itself, and a row that the layer lifts, never start the drop zone. An
+    upload with the name of a file that the project already has adds a version to that file and leaves it where it is (the rule of `addVersion`).
+  - Tests: `Folders.test.tsx` (the field, the groups, rename, delete with Undo, Move to on a desk and a phone, the pointer drag, the drop of a computer file).
+    A pointer drag in jsdom: `fireEvent.pointerDown` on the row (`isPrimary`, `button: 0`), two `pointerMove` on `document` (the first past 6 px), then
+    `pointerUp`; `getBoundingClientRect` is mocked by the `aria-labelledby` of each zone (`layout()` in the test).
 - **One gate for Nominatim.** `src/lib/nominatimGate.ts` (`gated`) runs every request to Nominatim one at a time and at least 1 s after the
   last start, for the place search and the address lookup together. No header and no referrer of our own (`Referrer-Policy: no-referrer`).
   A test that sends a search calls `resetGate()` first. The About panel shows the address, then "Open in Google Maps"; with a pin and no
