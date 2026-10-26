@@ -49,6 +49,8 @@
     "matchWith": "اختر {{name}}",
     "matched": "رُبط العميل بـ {{name}} في دفترة.",
     "clientLine": "العميل في دفترة: {{name}}",
+    "changeClient": "غيّر العميل في دفترة",
+    "keepMatch": "أبقِ {{name}}",
     "suggested": "الفاتورة {{no}}، {{amount}}، صدرت {{day}}",
     "link": "اربط هذه الفاتورة",
     "linkedToast": "رُبطت الفاتورة {{no}}.",

@@ -70,7 +70,9 @@ export function useDaftraPart({ projectId, row, busy, onDone }: { projectId: str
   const detail = useCall('projects.get', { id: projectId }, { enabled: ready });
   const subCompany = useSubCompany(detail.data?.project.subCompanyId);
   const defaultName = detail.data?.client ? clientName(detail.data.client, lang) : '';
-  const needsMatch = !!link && !link.noAccount && !link.projectHasNoClient && link.matched === null;
+  // A matched client can change: the search of state 2 opens again, and a new match replaces the old one (daftra.matchClient).
+  const [changing, setChanging] = useState(false);
+  const needsMatch = !!link && !link.noAccount && !link.projectHasNoClient && (link.matched === null || changing);
   const [typed, setTyped] = useState<string | null>(null);
   const [settled, setSettled] = useState('');
   useEffect(() => {
@@ -91,6 +93,10 @@ export function useDaftraPart({ projectId, row, busy, onDone }: { projectId: str
   const match = useAction('daftra.matchClient', {
     onSuccess: (output) => {
       toast.show({ message: t('daftra.matched', { name: isolate(lang, output.matched.name) }) });
+      // A new client means new invoices: the old pick and the open list go.
+      setChanging(false);
+      setPicked(null);
+      setListing(false);
       void read.refetch();
     },
   });
@@ -162,14 +168,20 @@ export function useDaftraPart({ projectId, row, busy, onDone }: { projectId: str
   // State 1: the project has no client.
   if (link.projectHasNoClient) return { part: section(<p className="text-subheadline text-ink">{t('daftra.noClient')}</p>), linkButton: null, pending };
 
-  // State 2: the client has no match in Daftra yet.
-  if (link.matched === null) {
+  // State 2: the client has no match in Daftra yet, or the person changes the match. No invoice can be linked meanwhile.
+  if (link.matched === null || changing) {
+    const current = link.matched;
     return {
       pending,
       linkButton: null,
       part: section(
         <>
           <p className="text-subheadline text-ink">{t('daftra.findClient', { name: isolate(lang, defaultName) })}</p>
+          {current && (
+            <button type="button" className={QUIET} disabled={pending} onClick={() => { setChanging(false); setTyped(null); }}>
+              {t('daftra.keepMatch', { name: isolate(lang, current.name) })}
+            </button>
+          )}
           <TextField id="daftra-search" label={t('daftra.searchLabel')} dir="auto" maxLength={100} value={typed ?? defaultName} onChange={(event) => setTyped(event.target.value)} />
           {found.error && !found.data && <LoadFailed query={found} />}
           {found.isFetching && !found.data && <p className="text-footnote text-ink-2" role="status">{t('daftra.checking')}</p>}
@@ -232,6 +244,9 @@ export function useDaftraPart({ projectId, row, busy, onDone }: { projectId: str
     part: section(
       <>
         <p className="text-footnote text-ink-2">{t('daftra.clientLine', { name: isolate(lang, link.matched.name) })}</p>
+        <button type="button" className={QUIET} disabled={busy || pending} onClick={() => { setChanging(true); setTyped(null); setListing(false); }}>
+          {t('daftra.changeClient')}
+        </button>
         {chosen ? (
           <>
             <p className={`${PRIVATE} tabular text-subheadline font-medium text-ink`}>{invoiceLine(chosen)}</p>

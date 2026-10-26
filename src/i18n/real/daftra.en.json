@@ -49,6 +49,8 @@
     "matchWith": "Use {{name}}",
     "matched": "Matched to {{name}} in Daftra.",
     "clientLine": "Daftra client: {{name}}",
+    "changeClient": "Change the Daftra client",
+    "keepMatch": "Keep {{name}}",
     "suggested": "Invoice {{no}}, {{amount}}, made {{day}}",
     "link": "Link this invoice",
     "linkedToast": "Invoice {{no}} is linked.",

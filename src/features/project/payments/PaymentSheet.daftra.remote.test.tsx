@@ -199,6 +199,31 @@ describe('state 3: a suggestion', () => {
     expect(within(sheet).queryByText(/The invoice total is/)).toBeNull();
   });
 
+  // A wrong match must be easy to fix: the search of state 2 opens again from the client line, and a new match replaces the old one.
+  it('changes the Daftra client: the search opens again, Keep closes it, and a new match replaces the old one', async () => {
+    const found = { clients: [{ id: '78', name: 'Gulf Crest Holding Co.', number: '000124' }] };
+    let name = 'Gulf Crest Trading';
+    const { sheet, askedOf, payment } = await open({
+      answers: {
+        link: () => ({ ...BASE, matched: { name }, suggested }),
+        find: () => found,
+        match: () => { name = 'Gulf Crest Holding Co.'; return { matched: { name }, invoices: 1 }; },
+      },
+    });
+    await userEvent.click(await within(sheet).findByRole('button', { name: 'Change the Daftra client' }));
+    expect(within(sheet).getByRole('textbox', { name: 'Client name in Daftra' })).toBeInTheDocument();
+    // While the person changes the client, no invoice of the old client can be linked.
+    expect(within(sheet).queryByRole('button', { name: 'Link this invoice' })).toBeNull();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Keep Gulf Crest Trading' }));
+    expect(within(sheet).queryByRole('textbox', { name: 'Client name in Daftra' })).toBeNull();
+    expect(within(sheet).getByRole('button', { name: 'Link this invoice' })).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Change the Daftra client' }));
+    await userEvent.click(await within(sheet).findByRole('button', { name: 'Use Gulf Crest Holding Co.' }));
+    expect(askedOf('daftra.matchClient')[0].input).toEqual({ paymentId: payment.id, daftraClientId: '78' });
+    expect(await within(sheet).findByText('Daftra client: Gulf Crest Holding Co.')).toBeInTheDocument();
+    expect(within(sheet).queryByRole('textbox', { name: 'Client name in Daftra' })).toBeNull();
+  });
+
   it('sends only the payment and the invoice with Link, and shows a toast with Undo', async () => {
     standIn();
     const { sheet, sent, payment, store } = await open({ answers: { link: () => ({ ...BASE, suggested }) } });
