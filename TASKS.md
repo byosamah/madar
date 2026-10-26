@@ -237,7 +237,8 @@ Branch `fb/2026-10-05`. Wave 1 tracks run in parallel worktrees. Wave 2 starts a
   - [x] The What's new day of 2026-10-23-113 is 2026-10-26, the production release day
   - [ ] Later: the Daftra job step does nothing on the office object path (SQLite, `MADAR_DATA=office`) until a `NetApi` method exists
   - [x] The paid check reads the invoice read longest ago first, and the cache fills go first (code review fix, released 2026-10-26)
-  - [ ] Screenshots of the Daftra part of the payment sheet: English and Arabic, light and dark, 390 px (owed since the build)
+  - [x] Screenshots of the Daftra part of the payment sheet at desk width: English and Arabic, light and dark (test copy, 2026-10-26)
+  - [ ] The same at 390 px: the test copy refuses to load in a frame, so it needs a Playwright run with a test sign-in
   - [ ] Later: a rename of a sub-company's English name changes its Daftra account name (`DAFTRA_<NAME>_*`): rename the two secrets in the same step
   - [ ] Later (code review, low): a Link press in the same second as a sub-company change can store the old account; a person who loses "Link Daftra invoices" still sees old due notices
   - [ ] Later (owner may choose): Admin, Roles shows "No one yet" for each role while the people load; show nothing until they load
