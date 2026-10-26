@@ -24,20 +24,22 @@ const office = { version: 0, lists: {} } as never;
 const ctx = { deps, principal: { userId: 'usr_001' }, office, batch: { storyRefs: new Map(), overviewCalls: 0 }, now: new Date() };
 
 describe('the registries', () => {
-  it('list the 14 server calls by name, and every stub refuses until its track builds it (story.start: server/core/runCall.test.ts; users.invites and users.resendInvite: server/calls/people.test.ts; the file calls: server/calls/{files,feedback}.test.ts; agents.list and agents.remove: server/calls/agents.test.ts; live.ticket: server/calls/live.test.ts; the four google calls: server/calls/google.test.ts; chats.typing: server/calls/typing.test.ts)', async () => {
+  it('list the 18 server calls by name, and every stub refuses until its track builds it (story.start: server/core/runCall.test.ts; users.invites and users.resendInvite: server/calls/people.test.ts; the file calls: server/calls/{files,feedback}.test.ts; agents.list and agents.remove: server/calls/agents.test.ts; live.ticket: server/calls/live.test.ts; the four google calls: server/calls/google.test.ts; chats.typing: server/calls/typing.test.ts; the four daftra calls: server/calls/daftra.test.ts)', async () => {
     expect(Object.keys(SERVER_CALLS).sort()).toEqual([...SERVER_CALL_NAMES].sort());
-    const built = ['story.start', 'users.invites', 'users.resendInvite', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'agents.list', 'agents.remove', 'live.ticket', 'google.status', 'google.connectStart', 'google.connect', 'google.disconnect', 'chats.typing'];
+    const built = ['story.start', 'users.invites', 'users.resendInvite', 'files.uploadStart', 'files.link', 'feedback.uploadStart', 'agents.list', 'agents.remove', 'live.ticket', 'google.status', 'google.connectStart', 'google.connect', 'google.disconnect', 'chats.typing', 'daftra.status', 'daftra.paymentLink', 'daftra.findClients', 'daftra.matchClient'];
     for (const name of SERVER_CALL_NAMES.filter((n) => !built.includes(n))) await refusesNotBuilt(() => SERVER_CALLS[name](undefined as never, ctx));
   });
 
-  it('hold the server hooks of files.upload, feedback.send, feedback.screenshot and projects.delete, never for an excluded call', async () => {
-    expect(Object.keys(SERVER_HOOKS).sort()).toEqual(['feedback.screenshot', 'feedback.send', 'files.upload', 'projects.delete']);
+  it('hold the server hooks of files.upload, feedback.send, feedback.screenshot, payments.linkInvoice and projects.delete, never for an excluded call', async () => {
+    expect(Object.keys(SERVER_HOOKS).sort()).toEqual(['feedback.screenshot', 'feedback.send', 'files.upload', 'payments.linkInvoice', 'projects.delete']);
     for (const name of Object.keys(SERVER_HOOKS)) expect(SERVER_EXCLUDED as readonly string[]).not.toContain(name);
     // Track F built every hook (server/calls/{files,feedback}.test.ts): each one has its functions.
     expect(Object.fromEntries(Object.entries(SERVER_HOOKS).map(([name, hooks]) => [name, Object.keys(hooks ?? {}).sort()]))).toEqual({
       'files.upload': ['preflight', 'prepare'],
       'feedback.send': ['preflight', 'prepare'],
       'feedback.screenshot': ['preflight'],
+      // The Daftra link reads the invoice from Daftra before the lock (server/calls/daftra.ts).
+      'payments.linkInvoice': ['preflight'],
       'projects.delete': ['prepare'],
     });
   });

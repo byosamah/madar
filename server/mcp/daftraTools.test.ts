@@ -25,9 +25,10 @@ describe('the agent tools and the Daftra link', () => {
     }
   });
 
-  it('keeps the count of tools as it was: 49 allowed, 12 for a right, 61 for an Admin', () => {
-    expect(MCP_ALLOW).toHaveLength(49);
-    expect(mcpTools({ admin: true, rights: OFFICE_RIGHTS })).toHaveLength(61);
+  // The counts of server/mcp/tools.test.ts on main (53 allowed, 65 for an Admin, after the file folders of fbk_066): Daftra adds none.
+  it('keeps the count of tools of main: 53 allowed, 65 for an Admin', () => {
+    expect(MCP_ALLOW).toHaveLength(53);
+    expect(mcpTools({ admin: true, rights: OFFICE_RIGHTS })).toHaveLength(65);
   });
 
   it('tells the agent in payments.list that a linked payment has a read-only daftra field, with the invoice number and the total', () => {
