@@ -858,3 +858,15 @@ Design: `docs/superpowers/specs/2026-10-22-madar-hidden-internal-projects-design
   a person for the first time only. An @everyone notice makes no Admin copy (`makesCopies`) and no email (`NEW_NOTICES_SQL`,
   `liteNoticeRows`); it gives the push through the normal notice path. `chats.messages` and `tasks.get` give the count for the mention
   list row (`everyone`, missing when it is 0). Tests: `handlers/everyone.test.ts`, `server/push/everyoneLeaks.test.ts` (the leak probes).
+
+## A continuous project (owner, 2026-10-26, fbk_069)
+- `Project.continuous` is an optional boolean: a project that never ends (an internal tool, a retainer). A missing value is a project with an end. Every project
+  starts with it off, internal ones too. It is saved only as `true` on create, and as `true` or `false` on update (no event when `false` meets a project that never had it).
+- `projects.create` takes `continuous`; `projects.update` takes `patch.continuous` with the right `project.details`. Turning it on clears `targetEndDate` in the same
+  change (one event, one Undo). A target end date beside the switch (create, or a patch while it is on) fails with `invalid_input`, reason `continuous_has_no_end`.
+  A template plan end does not become the target end date of a continuous project.
+- Health (`health.ts`): a continuous project never turns Late from a stage end date, and the "stage ends within 7 days with less than 70% done" At risk rule skips it. A to-do
+  3 or more days past due still makes it At risk. A health override still wins.
+- The gap "a stage with no end date" skips it, in the same three places so the count equals the list: `dashboard.get` gaps (`projectsStageNoEnd`), the `projects.list` filter
+  `stage_no_end` (also the loader `server/data/loaders/overview.ts`), and the line of `reports.office` gaps.
+- `dashboard.get` `schedule[].continuous` (optional) lets the meeting view show a stage end date in the plain color. Tests: `handlers/projectContinuous.test.ts`.

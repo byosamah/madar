@@ -228,7 +228,8 @@ function trackerCounts(entries: TrackerEntry[], range: DayRange) {
 function gapsOf(state: State, tasks: Task[], projects: Project[]): string[] {
   const open = tasks.filter((task) => task.status !== 'done');
   const active = projects.filter((project) => project.status === 'active');
-  const noStageEnd = active.filter((project) => stagesOf(state, project.id).some((stage) => stage.endDate === null)).length;
+  // A continuous project has no end, so a stage with no end date is no gap there (fbk_069).
+  const noStageEnd = active.filter((project) => !project.continuous && stagesOf(state, project.id).some((stage) => stage.endDate === null)).length;
   const counts: [string, number][] = [
     ['Open to-dos with no due date', open.filter((task) => task.dueDate === null).length],
     ['Open to-dos with no lead', open.filter((task) => task.ownerId === null).length],

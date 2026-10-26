@@ -270,3 +270,5 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
   (`tests/e2e-deploy/office.ts`): a list goes as JSON text into `json_each(?n)`, and `json_group_array` gives one back.
 - `LATER_CALLS` and `LATER_KINDS` (`server/test/liteHarness.ts`) are empty since the merge of waves 2 and 3: a new server call or
   effect kind with no SQLite form fails `test:lite`.
+
+- `Project.continuous` (fbk_069) lives in the `projects.doc` jsonb: no column, no migration, no change in `tables.ts`.
