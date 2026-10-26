@@ -11,6 +11,9 @@ type Tip = { name: string; x: number; y: number };
 /**
  * The leader first (bigger when `leaderSize` is set), then up to three team members, then "+N" (spec 4.1). The pictures
  * overlap by 4 px only, so the ring of the next one never hides initials, and "+N" keeps its order in Arabic.
+ * The leader stands out (owner, 2026-10-26, fbk_060): a 2 px ring in the ink color with a 2 px gap in the surface color inside it, and the
+ * first team picture sits 4 px away from that ring. The gap and the ring draw outside the box (a negative margin), so the box of the leader
+ * is as big as its picture and a row never grows. Every stack that has a leader gets the same ring, so one meaning has one look.
  * One hidden person takes the width of "+1" anyway, so that person's picture shows instead (PRJ-18). "+N" names the hidden people on
  * hover and to a screen reader.
  * On hover the pictures slide apart and each one names its person (owner, 2026-10-01, after shadcn studio avatar-18).
@@ -27,6 +30,7 @@ export function AvatarStack({
   const hidden = team.slice(fits);
   const extra = hidden.length;
   const hiddenNames = hidden.map((person) => nameOf(person)).join(', ');
+  const hasLeader = Boolean(leader);
   const slide = 'transition-[margin] duration-300 ease-in-out motion-reduce:transition-none';
   const show = (name: string) => (event: React.MouseEvent<HTMLElement>) => {
     const box = event.currentTarget.getBoundingClientRect();
@@ -34,16 +38,23 @@ export function AvatarStack({
   };
   return (
     <div className="group/stack flex shrink-0 items-center" onMouseLeave={() => setTip(null)}>
-      {shown.map((person, i) => (
-        <span
-          key={person.id}
-          onMouseEnter={show(nameOf(person))}
-          onMouseLeave={() => setTip(null)}
-          className={`rounded-full ring-2 ring-card ${slide} ${i > 0 ? '-ms-1 group-hover/stack:ms-1' : ''}`}
-        >
-          <Avatar user={person} size={leader && i === 0 ? leaderSize : size} />
-        </span>
-      ))}
+      {shown.map((person, i) => {
+        const isLeader = hasLeader && i === 0;
+        const name = isLeader ? t('people.leaderName', { name: nameOf(person) }) : nameOf(person);
+        // The first team picture sits 4 px from the ring of the leader; the others overlap by 4 px as before.
+        const place = i === 0 ? '' : hasLeader && i === 1 ? 'ms-2 group-hover/stack:ms-3' : '-ms-1 group-hover/stack:ms-1';
+        return (
+          <span
+            key={person.id}
+            data-leader={isLeader ? '' : undefined}
+            onMouseEnter={show(name)}
+            onMouseLeave={() => setTip(null)}
+            className={`rounded-full ${isLeader ? '-m-0.5 bg-card p-0.5 ring-2 ring-ink' : 'ring-2 ring-card'} ${slide} ${place}`}
+          >
+            <Avatar user={person} size={isLeader ? leaderSize : size} label={isLeader ? name : undefined} />
+          </span>
+        );
+      })}
       {extra > 0 && (
         <span
           role="img"

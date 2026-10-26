@@ -49,8 +49,11 @@ describe('the project row', () => {
     expect(within(row).queryByText(/Construction Documents ·/)).toBeNull();
     // The team as pictures only, the leader first and bigger (colleague's comment 2).
     const team = within(row.querySelector('[data-team-column]') as HTMLElement).getAllByRole('img');
-    expect(team[0]).toHaveAccessibleName('Faisal Al-Harbi');
-    expect(team[0]).toHaveStyle({ width: '30px' });
+    expect(team[0]).toHaveAccessibleName('Leader: Faisal Al-Harbi');
+    expect(team[0]).toHaveStyle({ width: '34px' });
+    // The leader has the ink ring (fbk_060); a team picture has none.
+    expect(team[0].closest('[data-leader]')).toHaveClass('ring-2', 'ring-ink');
+    expect(team[1].closest('[data-leader]')).toBeNull();
     expect(team[1]).toHaveStyle({ width: '26px' });
     expect(within(row).getByText('Coordination workshop').closest('p')).toHaveTextContent('Coordination workshop · In 5 days');
     expect(within(row).queryByRole('list', { name: 'Latest updates' })).toBeNull();
@@ -64,7 +67,7 @@ describe('the project row', () => {
     const pictures = team.getAllByRole('img');
     // Three pictures and the "+2" circle, which carries the names of the two hidden people.
     expect(pictures).toHaveLength(4);
-    expect(pictures[0]).toHaveAccessibleName('Faisal Al-Harbi');
+    expect(pictures[0]).toHaveAccessibleName('Leader: Faisal Al-Harbi');
     expect(pictures[1]).toHaveAccessibleName('Omar Haddad');
     expect(pictures[2]).toHaveAccessibleName('Reem Al-Ghamdi');
     expect(team.getByText('+2')).toBeInTheDocument();

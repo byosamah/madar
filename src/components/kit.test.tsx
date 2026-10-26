@@ -29,7 +29,7 @@ describe('the display kit', () => {
     const team = [person('usr_005', 'Sara A'), person('usr_006', 'Yousef S'), person('usr_007', 'Lina M'), person('usr_008', 'Khalid M'), person('usr_009', 'Noor K')];
     render(<AvatarStack leader={person('usr_002', 'Faisal Al-Harbi')} team={team} />);
     const avatars = screen.getAllByRole('img');
-    expect(avatars[0]).toHaveAccessibleName('Faisal Al-Harbi');
+    expect(avatars[0]).toHaveAccessibleName('Leader: Faisal Al-Harbi');
     // The leader, three of the team, and the "+2" circle, which names the two people it hides.
     expect(avatars).toHaveLength(5);
     expect(screen.getByText('+2')).toBeInTheDocument();
@@ -59,9 +59,10 @@ describe('the display kit', () => {
     const more = screen.getByText('+2');
     expect(more.tagName).toBe('BDI');
     expect(more).toHaveAttribute('dir', 'ltr');
-    const [, second] = screen.getAllByRole('img');
-    expect(second.parentElement).toHaveClass('-ms-1');
-    expect(second.parentElement).not.toHaveClass('-ms-1.5');
+    // The first team picture sits 4 px from the ring of the leader (fbk_060); the next ones overlap by 4 px.
+    const [, , third] = screen.getAllByRole('img');
+    expect(third.parentElement).toHaveClass('-ms-1');
+    expect(third.parentElement).not.toHaveClass('-ms-1.5');
   });
 
   it('can draw the leader bigger and names each picture on hover, in a label outside any clipping box', async () => {
