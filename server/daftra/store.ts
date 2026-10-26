@@ -177,7 +177,10 @@ export async function saveProblem(q: Query, account: string, problem: DaftraProb
 
 // ---- One payment, for the calls that read the cache for it and for the preflight of payments.linkInvoice.
 
-export type PaymentFacts = { id: string; projectId: string; amount: number; dueDate: string; receivedOn: string | null; daftra?: { account: string; invoiceId: string } };
+export type PaymentFacts = {
+  id: string; projectId: string; amount: number; dueDate: string; receivedOn: string | null;
+  daftra?: { account: string; invoiceId: string; linkedBy: string; linkedAt: string };
+};
 
 const PAYMENT_SQL = 'select doc from payments where id = $1';
 const PAYMENT_LITE = 'select doc from payments where id = ?1';
@@ -186,4 +189,27 @@ const PAYMENT_LITE = 'select doc from payments where id = ?1';
 export async function paymentFacts(q: Query, id: string): Promise<PaymentFacts | undefined> {
   const [row] = await q<{ doc: PaymentFacts }>(sqlFor(q, PAYMENT_SQL, PAYMENT_LITE), [id]);
   return row?.doc;
+}
+
+/** The most payments that the job reads in one run for each of its two lists. The budget of the run (20 Daftra calls) is far smaller. */
+export const JOB_READ_MAX = 500;
+
+const LINKED_SQL =
+  `select doc from payments where doc->'daftra' is not null and doc->>'receivedOn' is null order by doc->'daftra'->>'linkedAt' collate "C", id limit ${JOB_READ_MAX}`;
+const LINKED_LITE =
+  `select doc from payments where json_extract(doc, '$.daftra') is not null and json_extract(doc, '$.receivedOn') is null order by json_extract(doc, '$.daftra.linkedAt'), id limit ${JOB_READ_MAX}`;
+
+/** The payments that have a Daftra invoice and no received day, the oldest link first. The paid check of the job reads them. */
+export async function linkedUnpaid(q: Query): Promise<PaymentFacts[]> {
+  return (await q<{ doc: PaymentFacts }>(sqlFor(q, LINKED_SQL, LINKED_LITE))).map((row) => row.doc);
+}
+
+const OPEN_SQL =
+  `select doc from payments where doc->'daftra' is null and doc->>'receivedOn' is null and doc->>'dueDate' collate "C" <= $1 order by doc->>'dueDate' collate "C", id limit ${JOB_READ_MAX}`;
+const OPEN_LITE =
+  `select doc from payments where json_extract(doc, '$.daftra') is null and json_extract(doc, '$.receivedOn') is null and json_extract(doc, '$.dueDate') <= ?1 order by json_extract(doc, '$.dueDate'), id limit ${JOB_READ_MAX}`;
+
+/** The payments with no invoice and no received day that fall due on or before `lastDay`, past due ones included. The cache fill of the job reads them. */
+export async function openUnlinked(q: Query, lastDay: string): Promise<PaymentFacts[]> {
+  return (await q<{ doc: PaymentFacts }>(sqlFor(q, OPEN_SQL, OPEN_LITE), [lastDay])).map((row) => row.doc);
 }

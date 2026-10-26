@@ -8,9 +8,9 @@ import { withRights } from '../../src/api/rights';
 import { addDays, nowStamp, todayISO } from '../../src/lib/dates';
 import { accountOfProject, type AccountOfProject } from '../daftra/account';
 import { daftraAccountsOf, daftraOf, DaftraError, type DaftraClient } from '../daftra/client';
+import { officeOf } from '../daftra/office';
 import { cachedInvoicesOf, clientMatch, paymentFacts, putInvoices, putMatch, readStates, takenInvoiceIds, type PaymentFacts } from '../daftra/store';
 import { chooseFrom, suggestInvoice, type CachedInvoice } from '../daftra/suggest';
-import { readOffice } from '../data/officeCache';
 import { assertMayView } from '../files/rights';
 import type { Deps } from '../core/ports';
 import type { OfficeSnapshot, ServerCall } from '../core/types';
@@ -180,7 +180,7 @@ export const daftraMatchClient: ServerCall<'daftra.matchClient'> = async (input,
 export const paymentsLinkInvoiceHooks: ServerHooks<unknown, unknown, Deps> = {
   async preflight(raw, { actorId, deps }): Promise<DaftraSnapshot> {
     const input = raw as { id: string; invoiceId: string };
-    const office = await readOffice(deps);
+    const office = await officeOf(deps);
     linkerOf(office, actorId);
     const { clientId, where } = await paymentOf(deps, office, actorId, input.id);
     const { account, daftra } = clientFor(deps, where);

@@ -66,6 +66,14 @@ const meetings = <I>(load: (L: Load, input: I) => Promise<unknown>): LoaderSpec<
 const projectOfStage = (L: Load, stageId: string) => L.office.stages[stageId]?.projectId;
 const projectOfDeadline = (L: Load, id: string) => L.office.deadlines[id]?.projectId;
 
+/**
+ * The loaders of the calls that only the server itself runs, never a person or an agent (server/daftra/paidCall.ts). They are in no public map:
+ * serverCallMap has no entry for these names, and loaders.test.ts checks that no name is in both lists.
+ */
+export const INTERNAL_LOADER_OF: Readonly<Record<string, LoaderSpec<{ id: string }>>> = {
+  'payments.daftraPaid': project(paymentCall),
+};
+
 /** A mapped type, so a call that the server runs without a loader fails the type check (and loaders.test.ts at run time). */
 export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
   'session.get': office,
@@ -260,7 +268,7 @@ export const LOADER_OF: { [N in SharedCallName]: LoaderSpec<InputOf<N>> } = {
  * parsed input of the call. A name without a loader throws: runCall finds every name in serverCallMap first.
  */
 export async function loadFor(name: string, input: unknown, lx: LoadCtx): Promise<State> {
-  const spec = (LOADER_OF as Record<string, LoaderSpec<unknown> | undefined>)[name];
+  const spec = (LOADER_OF as Record<string, LoaderSpec<unknown> | undefined>)[name] ?? (INTERNAL_LOADER_OF as Record<string, LoaderSpec<unknown> | undefined>)[name];
   if (!spec) throw new Error(`The call ${name} has no loader.`);
   const L = new Load(lx);
   await spec.load(L, input);

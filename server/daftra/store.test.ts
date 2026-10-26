@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { freshLite } from '../data/lite/testDb';
 import type { DaftraInvoice } from './parse';
-import { allMatches, cachedInvoicesOf, clientMatch, putInvoices, putMatch, readStates, saveGoodRead, saveProblem, takenInvoiceIds } from './store';
+import { allMatches, cachedInvoicesOf, clientMatch, linkedUnpaid, openUnlinked, putInvoices, putMatch, readStates, saveGoodRead, saveProblem, takenInvoiceIds } from './store';
 
 const AT = new Date('2026-10-26T06:00:00.000Z');
 const invoice = (over: Partial<DaftraInvoice> & { id: string }): DaftraInvoice => ({
@@ -113,6 +113,29 @@ describe('the Daftra store on SQLite (one account for each sub-company)', () => 
       expect((await q<{ key: string }>("select key from job_runs where key like 'daftra:%' order by key")).map((r) => r.key)).toEqual([
         'daftra:problem:MAZJ:refused', 'daftra:problem:VADO:unreachable', 'daftra:read:MAZJ',
       ]);
+    });
+  });
+
+  it('lists the payments that have an invoice and no received day, the oldest link first, and the open ones that fall due by a day', async () => {
+    const { db } = await freshLite();
+    const doc = (id: string, o: { due?: string; received?: string | null; daftra?: { account: string; invoiceId: string; linkedBy: string; linkedAt: string } } = {}) =>
+      JSON.stringify({
+        id, projectId: 'prj_001', name: 'P', amount: 5, dueDate: o.due ?? '2026-10-26', receivedOn: o.received ?? null, note: '', createdBy: 'usr_001',
+        createdAt: '2026-10-01T00:00:00.000+03:00', ...(o.daftra ? { daftra: o.daftra } : {}),
+      });
+    const link = (account: string, invoiceId: string, linkedAt: string) => ({ account, invoiceId, linkedBy: 'usr_011', linkedAt });
+    await db.tx('write', async (q) => {
+      const put = (id: string, text: string) => q('insert into payments (id, doc) values (?1, ?2)', [id, text]);
+      await put('pay_001', doc('pay_001', { daftra: link('MAZJ', '1', '2026-10-20T10:00:00.000+03:00') }));
+      await put('pay_002', doc('pay_002', { daftra: link('VADO', '2', '2026-10-10T10:00:00.000+03:00') }));
+      await put('pay_003', doc('pay_003', { daftra: link('MAZJ', '3', '2026-10-15T10:00:00.000+03:00'), received: '2026-10-21' }));
+      await put('pay_004', doc('pay_004', { due: '2026-10-20' }));
+      await put('pay_005', doc('pay_005', { due: '2026-11-25' }));
+      await put('pay_006', doc('pay_006', { due: '2026-09-01' }));
+      await put('pay_007', doc('pay_007', { due: '2026-10-01', received: '2026-10-02' }));
+      expect((await linkedUnpaid(q)).map((p) => p.id)).toEqual(['pay_002', 'pay_001']);
+      expect((await openUnlinked(q, '2026-11-25')).map((p) => p.id)).toEqual(['pay_006', 'pay_004', 'pay_005']);
+      expect((await openUnlinked(q, '2026-10-26')).map((p) => p.id)).toEqual(['pay_006', 'pay_004']);
     });
   });
 });
