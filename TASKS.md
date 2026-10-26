@@ -1163,3 +1163,7 @@ Owner answers: memory `owner-batch-2026-10-26-fbk060-066`. Three tracks from mai
 - [ ] `src/features/me/focusInert.test.tsx` fails under a high load (16) on the production commit too: make its wait robust (found 2026-10-26)
 - [ ] fbk_064 is not proven on a real stale tab: if Faisal still sees the error page after a reload on the new build, ask for the error text
 - [x] fbk_061 tile shapes (production at 5bfb2df7 with Daftra, 2026-10-26; shapes set on prj_010, 015, 016, 017): `Project.shape` set through the MCP; the three internal tools keep their app logos; every client project gets a shape drawn from its own pictures, as BIG draws its icons (study of 20 BIG projects under way)
+
+## fbk_069 continuous project (owner, 2026-10-26)
+- [x] Built on `rb/fbk-069`: the switch "Continuous project" (New and Edit project), "Continuous" in place of "No deadline", no Late from a stage end date, out of the data gap "a stage with no end date", the MCP docs, What's new `2026-10-23-118`. No migration.
+- [ ] The merge lead runs `test:db` (the new `src/api/handlers/projectContinuous.test.ts` runs there too) and `test:it`, then the release.

@@ -285,3 +285,7 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   "Mention everyone" (`chat.mentionEveryone`) is a Chat switch, not an AI switch, and opens no tool. An agent writes `@everyone` with the rights of its
   person. `INSTRUCTIONS` has the line "Quiet hours:" and `TOOL_DOCS` of `chats.send` (599 characters) and `comments.create` (571) name the words, the
   switch, "a notice and a push, no email" and the quiet hours hold. Test: `quietEveryone.test.ts`.
+
+- A continuous project (fbk_069): `continuous` goes through the zod input and output of `projects.create`, `projects.update` (`patch.continuous`), `projects.get` and `projects.list`, so no list
+  changes. The four docs name it; all four sit at 590 to 600 characters (a test fails over 600), so the rule is in INSTRUCTIONS: "Health:" (a continuous project never turns late from a stage date,
+  the 7-day rule skips it, a to-do 3 or more days past due still puts it at risk) and "New projects:" (continuous: true, no target end date, the `stage_no_end` filter skips it). Test: `projectContinuous.test.ts`.
