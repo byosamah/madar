@@ -15,6 +15,7 @@ import type { LivePort } from '../app/live/types';
 import { RuntimeProvider, createQueryClient } from '../app/runtime';
 import { preloadScreens } from '../app/screens';
 import { loadChecklistLayer } from '../features/project/tasks/checklistLayerLoader';
+import { loadFilesDrag } from '../features/project/files/filesDragLoader';
 import { loadDragLayer } from '../features/project/tasks/dragLayerLoader';
 import { ToastProvider } from '../app/toasts';
 import { initI18n } from '../i18n';
@@ -27,6 +28,8 @@ await preloadScreens();
 // The drag layer of the sortable task lists is a chunk of its own (RN-5, FL-2). The tests load it once, so each list starts with the grips live.
 await loadDragLayer();
 await loadChecklistLayer();
+// The file drag layer of the Files & Links list too (fbk_066).
+await loadFilesDrag();
 
 /** Renders the whole app over the sample office, at a hash route, with no latency. "prepare" may change the office first. */
 /** failFirst makes the first call of that name fail, as the "Simulate errors" switch can. */

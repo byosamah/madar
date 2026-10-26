@@ -183,6 +183,13 @@ function assertReferencesExist(state: State, targetType: EventTarget, values: Re
     // The sub-company list is optional in an office saved before it existed, so an absent list counts as empty.
     if (!((state[key] ?? {}) as Record<string, unknown>)[value]) throw conflict('Something this change needs is gone. Undo is not available.');
   }
+  // A file goes back into a folder only while the folder stands (fbk_066). The folders live in the projects.
+  if (targetType === 'file' && typeof values.folderId === 'string') {
+    const folderId = values.folderId;
+    if (!Object.values(state.projects).some((project) => project.folders?.some((folder) => folder.id === folderId))) {
+      throw conflict('Something this change needs is gone. Undo is not available.');
+    }
+  }
   // Only a whole comment names its target. A change of some fields (an edit, a reaction) keeps the target it has (audit 2026-10-03, API-19).
   if (targetType === 'comment' && 'targetId' in values) {
     const target = values.targetType === 'task' ? state.tasks[String(values.targetId)] : state.updates[String(values.targetId)];

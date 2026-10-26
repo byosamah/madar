@@ -181,6 +181,27 @@ function hiddenProjectTrap(state: State): void {
   state.projects[HIDDEN_PROJECT].access = { hidden: true, viewerIds: [HIDDEN_VIEWER] };
 }
 
+/**
+ * The folders of a project (fbk_066): move the file to the other stage, make a folder, move the file into it, rename the folder, and delete it with a
+ * file in it. The folder takes the id after the last one of the office. A project with one stage only moves the file in and out.
+ */
+function folderWrites(office: State, file: State['files'][string]): SweepCall[] {
+  const projectId = file.projectId;
+  if (!projectId) return [];
+  const stages = Object.values(office.stages).filter((stage) => stage.projectId === projectId);
+  if (stages.length === 0) return [];
+  const folder = `fld_${String((office.counters.fld ?? 0) + 1).padStart(3, '0')}`;
+  return [
+    // The first files.move of the list names no folder: the list of every call runs the first line of each name in the order of the call map,
+    // where files.move comes before folders.create.
+    ['files.move', { id: file.id, stageId: (stages[1] ?? stages[0]).id, folderId: null }, ADMIN],
+    ['folders.create', { projectId, stageId: stages[0].id, name: 'Sweep folder' }, ADMIN],
+    ['files.move', { id: file.id, stageId: stages[0].id, folderId: folder }, ADMIN],
+    ['folders.rename', { id: folder, name: 'Sweep renamed' }, ADMIN],
+    ['folders.delete', { id: folder }, ADMIN],
+  ];
+}
+
 /** One write call for each kind of write, on records of the office. */
 export function writeSweep(office: State): SweepCall[] {
   const tasks = Object.values(office.tasks);
@@ -229,6 +250,7 @@ export function writeSweep(office: State): SweepCall[] {
     // The reaction on a chat message (chat design item 12): the newest message of the project chat cnv_001, by a member of its team.
     ...(roomMessage ? [['reactions.toggle', { messageId: roomMessage.id, emoji: '👍' }, leader] as SweepCall] : []),
     ['files.upload', { projectId: file.projectId, name: file.name, uploadId: 'upl_1' }, ADMIN, { blobKey: 'blob_sweep', mimeType: 'application/pdf', size: 3 }],
+    ...folderWrites(office, file),
     ['files.delete', { id: file.id }, ADMIN],
     ['files.markDelivered', { id: file.id }, ADMIN],
     ['files.share', { fileId: file.id, target: { kind: 'project_chat' } }, ADMIN],

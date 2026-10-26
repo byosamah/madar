@@ -228,6 +228,8 @@ function assertMayUndo(ctx: Ctx, event: Event): void {
       if (event.verb === 'project.leader_changed') return need('project.leader');
       if (event.verb === 'project.code_changed') return need('project.code');
       if (event.verb === 'project.access_changed') return need('project.access');
+      // The folders of the Files & Links tab follow the upload right (fbk_066).
+      if (event.verb === 'project.folders_changed') return need('file.upload');
       // Deleting the cover file also clears the cover. Whoever may bring that file back may bring the cover back with it.
       if (event.verb === 'project.cover_changed' && coverComesBackWithFile(ctx, event)) return;
       if (ARCHIVE_VERBS.has(event.verb)) return need('project.archive');
@@ -482,6 +484,17 @@ function takeBackTemplatePart(ctx: Ctx, taskId: string, projectId: string | null
  * "guard" is true for a single Undo: it may not finish a task whose prerequisite is open. A story brings every task back together, so it skips the guard.
  * "followOn" is true for a follow-on change in a story with the change that caused it: the person's right to that change covers it.
  */
+/**
+ * The Undo of a new folder takes the folder away, also when files were moved into it later (fbk_066). Those files go back to the root of their
+ * stage, as when the folder is deleted, so no file keeps the id of a folder that is gone.
+ */
+function releaseFilesOfGoneFolders(ctx: Ctx, projectId: string): void {
+  const alive = new Set((ctx.state.projects[projectId]?.folders ?? []).map((folder) => folder.id));
+  for (const file of Object.values(ctx.state.files)) {
+    if (file.projectId === projectId && file.folderId && !alive.has(file.folderId)) file.folderId = null;
+  }
+}
+
 function undoOne(ctx: Ctx, event: Event, guard: boolean, followOn = false): EventView {
   // A change that the person does not see reads as missing, before any other rule (owner, 2026-10-06).
   if (!seesEvent(ctx, event, true)) throw notFound('Event', event.id);
@@ -507,6 +520,7 @@ function undoOne(ctx: Ctx, event: Event, guard: boolean, followOn = false): Even
   // The cause of these reopens is the Undo itself, which is never in a story, so a story Undo never relieves them (audit 2026-10-03, V-2).
   if (was === 'done' && now && now.status !== 'done') reopenDependents(ctx, now, undo.id);
   if (event.verb === 'task.deleted') takeBackTemplatePart(ctx, event.targetId, event.projectId);
+  if (event.verb === 'project.folders_changed') releaseFilesOfGoneFolders(ctx, event.targetId);
   if (event.projectId && ctx.state.projects[event.projectId]) touch(ctx, event.projectId);
   return eventViewOf(ctx.state, undo);
 }

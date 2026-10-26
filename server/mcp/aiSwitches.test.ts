@@ -21,7 +21,7 @@ const CONNECT_ONLY = [READ_FIRST, 'story.start'];
 
 describe('the map from each MCP tool to its AI switch (role rights version 2, design section 5.12)', () => {
   it('gives every tool of MCP_ALLOW and MCP_BY_RIGHT exactly one AI switch', () => {
-    expect(allTools).toHaveLength(61);
+    expect(allTools).toHaveLength(65);
     for (const tool of allTools) {
       const owners = AI_SWITCHES.filter((id) => toolsOfAiSwitch(id).includes(tool));
       expect(owners, tool).toHaveLength(1);

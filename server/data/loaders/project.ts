@@ -31,6 +31,16 @@ export async function stagesReplace(L: Load, input: Input): Promise<void> {
   await L.select({ c: 'files', where: [{ col: 'stage_id', in: stageIds }] });
 }
 
+/**
+ * folders.delete: every file of the project that holds the folder, because the files in it go back to the root of their stage (fbk_066). The
+ * folders live in the project, which is in the office, so the project of a folder id comes from the office lists.
+ */
+export async function foldersDelete(L: Load, input: Input): Promise<void> {
+  const id = str(input.id) ?? '';
+  const project = Object.values(L.office.projects).find((item) => item.folders?.some((folder) => folder.id === id));
+  if (project) await L.select({ c: 'files', where: [{ col: 'project_id', in: [project.id] }] });
+}
+
 /** projects.create: a new project has nothing in the database yet. The office lists hold the codes, marks and people. */
 export async function projectsCreate(): Promise<void> {}
 

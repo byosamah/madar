@@ -87,7 +87,8 @@ describe('Download all on the Files tab (fbk_050)', () => {
     renderTab(TWO_STAGES);
     const heading = await screen.findByRole('heading', { name: 'Concept Design' });
     const button = screen.getByRole('button', { name: 'Download all files of Concept Design (2)' });
-    expect(heading.parentElement).toBe(button.parentElement);
+    // The heading row also holds "+ Folder" before the button (fbk_066), so the button sits in the row of the heading, not beside it directly.
+    expect(heading.parentElement).toContainElement(button);
   });
 
   it('shows one button for the whole project when the files sit in more than one group', async () => {

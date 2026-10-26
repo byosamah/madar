@@ -73,6 +73,12 @@ and saves the difference. Migration rules are in `supabase/CLAUDE.md`.
 - `events` only grows: a trigger refuses update and delete, and madar_server has only select and insert. Undo is a new
   event (`undoes`). The save never writes `undoneBy`.
 
+- Folders of the Files & Links tab (fbk_066, owner 2026-10-26) live in the `doc` of their project (`Project.folders`): no table and no migration. The
+  project is an office list, so a loader finds the project of a folder id in `L.office.projects`. `folders.create` and `folders.rename` need only the office;
+  `folders.delete` also loads the files of the project (`foldersDelete`, `loaders/project.ts`); `files.move` loads the file by id (`fileCall`). The story loader
+  reads the files of a project whose folder event is in the story. `FileRec.folderId` lives in the `files` doc, as `conversationId` does: no column, no index.
+  A folder change is a change of the `projects` kind, so a hidden project sends it only as person signals (`server/data/folderSignals.test.ts`).
+
 ## Counters, stories, idempotency
 - Counters are a table under the office lock, so they have no gaps.
 - Story IDs: `sty_` + 22 base32 characters, under 24 hours old, the same actor.

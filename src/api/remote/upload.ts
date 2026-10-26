@@ -111,7 +111,7 @@ async function sessionLimit(ctx: AdapterCtx): Promise<number | undefined> {
 }
 
 /** The fields of files.upload that go on the wire next to the upload ID (the wire form is strict). */
-const SHARED_FIELDS = ['projectId', 'conversationId', 'meetingId', 'name', 'stageId', 'taskId', 'asCover', 'receivedFromClient'] as const;
+const SHARED_FIELDS = ['projectId', 'conversationId', 'meetingId', 'name', 'stageId', 'folderId', 'taskId', 'asCover', 'receivedFromClient'] as const;
 
 type ScreenUpload = {
   /** None: a file of the office task taskId (owner, 2026-10-06), or of the direct chat or group conversationId (owner, 2026-10-19). */
@@ -122,6 +122,8 @@ type ScreenUpload = {
   name: string;
   blob: Blob;
   stageId?: string | null;
+  /** A folder of the stage (fbk_066). It goes to files.upload only; files.uploadStart needs no folder. */
+  folderId?: string | null;
   taskId?: string | null;
   asCover?: boolean;
   receivedFromClient?: boolean;

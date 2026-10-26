@@ -56,7 +56,7 @@
     "limit": 10
   },
   "events.undo": {
-    "eventId": "evt_374"
+    "eventId": "evt_379"
   },
   "events.undoStory": {
     "correlationId": "cor_sample_024"
@@ -73,6 +73,27 @@
   },
   "files.list": {
     "projectId": "prj_001"
+  },
+  "files.move": {
+    "id": "fil_001",
+    "stageId": "stg_004",
+    "folderId": "fld_001",
+    "storyId": "cor_sample_024"
+  },
+  "folders.create": {
+    "projectId": "prj_001",
+    "stageId": "stg_004",
+    "name": "Mood boarding",
+    "storyId": "cor_sample_024"
+  },
+  "folders.delete": {
+    "id": "fld_001",
+    "storyId": "cor_sample_024"
+  },
+  "folders.rename": {
+    "id": "fld_001",
+    "name": "Mood board",
+    "storyId": "cor_sample_024"
   },
   "madar.readFirst": {},
   "meetings.cancel": {

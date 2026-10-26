@@ -64,6 +64,9 @@ server checks the final object, then saves the record.
   meeting is gone get not_found, as for a missing file. No search, `files.list`, project page or History line shows the file. The upload writes no event;
   its save is a private change of the meeting (`officeMeetings` in `data/save.ts`): person signals to the people of the meeting only, with the kind
   `files` and no name. It cannot go into another place (`file_meeting`), and it is never deleted or shared.
+- A project file may sit in a folder (`FileRec.folderId`, fbk_066; the folders live in the project, `src/api/CLAUDE.md`). `files.upload` takes `folderId` next to
+  the signed upload: the intent and the object keys know nothing of folders. `files.uploadStart` needs no folder (the screens leave it out), and the
+  upload adapter sends `folderId` only on `files.upload`. A move changes the record only, never the stored object.
 - Inline only for pictures, PDF, plain text, video and audio (`INLINE_SAFE`). Every other type is stored as
   `application/octet-stream`.
 - Check `project.view`, and that the person is active, right before you sign any link (`rights.ts`). The start of an upload asks `file.upload` (`assertMayPost`, and
