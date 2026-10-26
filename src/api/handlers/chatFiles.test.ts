@@ -221,16 +221,77 @@ describe('an outsider opens nothing of a chat file', () => {
   });
 });
 
-describe('the agent of a member', () => {
-  it('reads the file name in a message, as its person does, and never opens the file', async () => {
+describe('the agent of a member (owner, 2026-10-26: an agent follows exactly the rights of its person)', () => {
+  it('reads the file name in a message, and opens the file of a chat of its person', async () => {
     const w = await world();
     const thread = await as(w, SARA_AGENT, () => w.t.api.call('chats.messages', { conversationId: w.group }));
     expect(thread.messages.find((m) => m.message.body === 'The site photo.')?.files).toEqual([{ id: w.groupFile, name: GROUP_FILE, mimeType: 'image/jpeg' }]);
-    for (const call of ['files.get', 'files.link'] as const) {
-      const input = call === 'files.get' ? { id: w.groupFile } : { id: w.groupFile, variant: 'full' as const, disposition: 'inline' as const };
-      const refused = await failureOf(w.t.api.call(call, input as never));
-      expect(refused, call).toMatchObject({ code: 'not_found', message: `File ${w.groupFile} does not exist.` });
+    const opened = await as(w, SARA_AGENT, () => w.t.api.call('files.get', { id: w.groupFile }));
+    expect(opened.file.file.name).toBe(GROUP_FILE);
+    const link = await as(w, SARA_AGENT, () => w.t.api.call('files.link', { id: w.groupFile, variant: 'full', disposition: 'inline' }));
+    expect(link).toHaveProperty('url');
+  });
+
+  it('sends a file into a group and a direct chat of its person, and the people of the chat read it', async () => {
+    const w = await world();
+    for (const chat of [w.group, w.direct]) {
+      const up = await as(w, SARA_AGENT, () => w.t.api.call('files.upload', { name: 'Agent-plan.pdf', conversationId: chat, blob: pdf() }));
+      expect(up.file).toMatchObject({ conversationId: chat, projectId: null, name: 'Agent-plan.pdf' });
+      expect(up.latest.uploadedBy).toBe(SARA_AGENT);
+      const sent = await as(w, SARA_AGENT, () => w.t.api.call('chats.send', { conversationId: chat, body: 'The plan.', fileIds: [up.file.id] }));
+      expect(sent.files).toEqual([{ id: up.file.id, name: 'Agent-plan.pdf', mimeType: 'application/pdf' }]);
+      const opened = await as(w, FAISAL, () => w.t.api.call('files.get', { id: up.file.id }));
+      expect(opened.file.file.name).toBe('Agent-plan.pdf');
     }
+  });
+
+  it('keeps every person rule: a closed group and a project chat refuse the agent as they refuse its person', async () => {
+    const w = await world();
+    const projectRefused = await as(w, SARA_AGENT, () => failureOf(w.t.api.call('files.upload', { name: 'x.pdf', conversationId: w.projectChat, blob: pdf() })));
+    expect(projectRefused).toMatchObject({ code: 'invalid_input' });
+    for (const leaver of [FAISAL, NOUR]) await as(w, leaver, () => w.t.api.call('chats.leaveGroup', { conversationId: w.group }));
+    const closed = await as(w, SARA_AGENT, () => failureOf(w.t.api.call('files.upload', { name: 'x.pdf', conversationId: w.group, blob: pdf() })));
+    expect(closed).toMatchObject({ code: 'forbidden', details: { reason: 'person_left' } });
+  });
+});
+
+describe('the agent of a person who is no member of the chat (the leak tests of 2026-10-26)', () => {
+  it('gets not_found from the upload, the start of an upload, the open and the link, and no file name in any text', async () => {
+    const w = await world();
+    for (const reader of [OMAR_AGENT]) {
+      for (const chat of [w.group, w.direct]) {
+        const upload = await as(w, reader, () => failureOf(w.t.api.call('files.upload', { name: 'Leak.pdf', conversationId: chat, blob: pdf() })));
+        const start = await as(w, reader, () => failureOf(w.t.api.call('files.uploadStart', { name: 'x.pdf', conversationId: chat, size: 1, mimeType: 'application/pdf' })));
+        const messages = await as(w, reader, () => failureOf(w.t.api.call('chats.messages', { conversationId: chat })));
+        for (const refused of [upload, start, messages]) {
+          expect(refused, `${reader} ${chat}`).toMatchObject({ code: 'not_found', message: `Conversation ${chat} does not exist.` });
+          expect(JSON.stringify(refused)).not.toMatch(/Hidden-|Leak/);
+        }
+      }
+      for (const id of [w.groupFile, w.directFile]) {
+        for (const refused of [
+          await as(w, reader, () => failureOf(w.t.api.call('files.get', { id }))),
+          await as(w, reader, () => failureOf(w.t.api.call('files.link', { id, variant: 'full', disposition: 'inline' }))),
+          await as(w, reader, () => failureOf(w.t.api.call('files.link', { id, variant: 'thumb', disposition: 'attachment' }))),
+        ]) {
+          expect(refused, `${reader} ${id}`).toMatchObject({ code: 'not_found', message: `File ${id} does not exist.` });
+          expect(JSON.stringify(refused)).not.toMatch(/Hidden-/);
+        }
+      }
+    }
+    expect(Object.values(w.t.store.state.files).filter((f) => f.name === 'Leak.pdf')).toEqual([]);
+  });
+
+  it('gets not_found for the direct chat of two other people, also when the agent belongs to a member of a group', async () => {
+    const w = await world();
+    // Sara is in both chats. The agent of Nour (a member of the group only) opens the group file and not the direct file.
+    w.t.store.state.users.usr_009 = makeUser('usr_009', { name: 'Nour Agent', kind: 'agent', discipline: 'Agent', ownerId: NOUR });
+    const groupOpen = await as(w, 'usr_009', () => w.t.api.call('files.get', { id: w.groupFile }));
+    expect(groupOpen.file.file.name).toBe(GROUP_FILE);
+    const directOpen = await as(w, 'usr_009', () => failureOf(w.t.api.call('files.get', { id: w.directFile })));
+    expect(directOpen).toMatchObject({ code: 'not_found', message: `File ${w.directFile} does not exist.` });
+    const directUpload = await as(w, 'usr_009', () => failureOf(w.t.api.call('files.upload', { name: 'Leak.pdf', conversationId: w.direct, blob: pdf() })));
+    expect(directUpload).toMatchObject({ code: 'not_found' });
   });
 });
 

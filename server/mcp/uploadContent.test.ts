@@ -82,7 +82,7 @@ describe('files.uploadContent is a tool (owner, 2026-10-26)', () => {
   it('has a short doc, and INSTRUCTIONS tells the agent how to upload, the limit, the rights and the picture rules', () => {
     const doc = TOOL_DOCS['files.uploadContent'].description;
     expect(doc.length).toBeLessThanOrEqual(600);
-    for (const word of ['contentBase64', '10 MB', 'upload rights', 'safe-type', 'new version', 'never gives a link', 'not_found']) expect(doc, word).toContain(word);
+    for (const word of ['contentBase64', '10 MB', 'upload rights', 'safe-type', 'new version', 'never gives a link', 'conversationId', 'chats.send']) expect(doc, word).toContain(word);
     expect(doc).not.toMatch(/[–—]/);
     const files = INSTRUCTIONS.split('\n').find((text) => text.startsWith('Files: '))!;
     for (const word of ['files.uploadContent', 'contentBase64', '10 MB', 'upload rights', 'safe-type']) expect(files, word).toContain(word);
@@ -214,18 +214,81 @@ describe('files.uploadContent keeps the refusals of the screens', () => {
     }
   });
 
-  it('refuses a chat upload by a non-member, and by a member too (an agent never uploads into a chat), with not_found and no store work', async () => {
-    for (const person of ['usr_003', 'usr_002']) {
+  it('refuses a chat upload by a person who is no member, with not_found and no store work, as the screens do', async () => {
+    for (const person of ['usr_003', 'usr_001']) {
       const w = world(person);
       const result = await call(w, 'files.uploadContent', { conversationId: 'cnv_901', name: 'Photo.png', type: 'image/png', contentBase64: base64Of(PDF) });
-      expect(errorOf(result), person).toMatchObject({ code: 'not_found' });
+      expect(errorOf(result), person).toMatchObject({ code: 'not_found', message: 'Conversation cnv_901 does not exist.' });
       expect(Object.values(w.mem.tables.state.files).filter((f) => f.conversationId === 'cnv_901'), person).toEqual([]);
       noStoreWork(w);
+      const screens = await screensCall(w, person, 'files.uploadStart', { conversationId: 'cnv_901', name: 'Photo.png', size: 4, mimeType: 'image/png' });
+      expect(screens).toMatchObject({ ok: false, error: { code: 'not_found' } });
     }
-    // The screens refuse the non-member the same way.
-    const w = world('usr_003');
-    const screens = await screensCall(w, 'usr_003', 'files.uploadStart', { conversationId: 'cnv_901', name: 'Photo.png', size: 4, mimeType: 'image/png' });
-    expect(screens).toMatchObject({ ok: false, error: { code: 'not_found' } });
+    // A chat that does not exist answers the same.
+    const w = world('usr_002');
+    const missing = await call(w, 'files.uploadContent', { conversationId: 'cnv_404', name: 'Photo.png', type: 'image/png', contentBase64: base64Of(PDF) });
+    expect(errorOf(missing)).toMatchObject({ code: 'not_found', message: 'Conversation cnv_404 does not exist.' });
+    noStoreWork(w);
+  });
+
+  it('sends a file into a direct chat of its person (owner, 2026-10-26): the file stays in the chat, a message carries it, and the other member opens it', async () => {
+    const w = world('usr_002');
+    const result = await call(w, 'files.uploadContent', { conversationId: 'cnv_901', name: 'Photo.png', type: 'image/png', contentBase64: base64Of(PDF) });
+    expect(result.isError, JSON.stringify(result)).toBeUndefined();
+    const out = answerOf(result);
+    expect(out.place).toMatchObject({ projectId: null, taskId: null, conversationId: 'cnv_901' });
+    expect(w.mem.tables.state.files[out.id]).toMatchObject({ conversationId: 'cnv_901', projectId: null, name: 'Photo.png' });
+    expect(w.mem.tables.state.files[out.id].versions[0].uploadedBy).toBe('usr_950');
+    const final = [...w.files.objects.keys()].filter((key) => key.startsWith('chat/cnv-901/') && key.endsWith('/file'));
+    expect(final).toHaveLength(1);
+    // The file is no part of any list or search. A chat message carries it, and the agent reads the id, the name and the type there.
+    const sent = await call(w, 'chats.send', { conversationId: 'cnv_901', body: 'The photo.', fileIds: [out.id] });
+    expect(sent.isError, JSON.stringify(sent)).toBeUndefined();
+    const read = await call(w, 'chats.messages', { conversationId: 'cnv_901' });
+    const rows = read.structuredContent.output.messages as { message: { body: string }; files: { id: string; name: string }[] }[];
+    expect(rows.find((row) => row.message.body === 'The photo.')?.files).toEqual([{ id: out.id, name: 'Photo.png', mimeType: 'image/png' }]);
+    const link = await call(w, 'files.link', { id: out.id, variant: 'full', disposition: 'inline' });
+    expect(link.isError, JSON.stringify(link)).toBeUndefined();
+    expect(link.structuredContent.output.url).toMatch(/^https:\/\//);
+    // The other member opens it too, and a person outside the chat does not.
+    const member = world('usr_004');
+    member.mem.tables.state.files[out.id] = w.mem.tables.state.files[out.id];
+    member.mem.tables.version += 1;
+    expect((await call(member, 'files.link', { id: out.id, variant: 'full', disposition: 'inline' })).isError).toBeUndefined();
+  });
+
+  it('keeps every person rule on a chat upload: a project chat and a closed chat refuse the agent as they refuse its person', async () => {
+    const w = world('usr_002', (state) => {
+      state.conversations = {
+        ...state.conversations,
+        cnv_902: { id: 'cnv_902', kind: 'direct', projectId: null, memberIds: ['usr_002', 'usr_011'], createdAt: '2026-10-04T09:00:00+03:00' } as never,
+      };
+      state.users.usr_011 = { ...state.users.usr_011, active: false };
+    });
+    const closed = await call(w, 'files.uploadContent', { conversationId: 'cnv_902', name: 'Photo.png', type: 'image/png', contentBase64: base64Of(PDF) });
+    expect(errorOf(closed)).toMatchObject({ code: 'forbidden', details: { reason: 'person_left' } });
+    const screens = await screensCall(w, 'usr_002', 'files.uploadStart', { conversationId: 'cnv_902', name: 'Photo.png', size: 4, mimeType: 'image/png' });
+    expect(screens).toMatchObject({ ok: false, error: { code: 'forbidden', details: { reason: 'person_left' } } });
+    noStoreWork(w);
+  });
+
+  it('gives the agent of an outsider not_found on every path of a chat file: the upload, the link and the messages, with no file name', async () => {
+    const owner = world('usr_002');
+    const out = answerOf(await call(owner, 'files.uploadContent', { conversationId: 'cnv_901', name: 'Hidden-chat-photo.png', type: 'image/png', contentBase64: base64Of(PDF) }));
+    for (const person of ['usr_003', 'usr_001']) {
+      const w = world(person);
+      w.mem.tables.state.files[out.id] = owner.mem.tables.state.files[out.id];
+      w.mem.tables.version += 1;
+      const link = await call(w, 'files.link', { id: out.id, variant: 'full', disposition: 'inline' });
+      expect(errorOf(link), person).toMatchObject({ code: 'not_found', message: `File ${out.id} does not exist.` });
+      const messages = await call(w, 'chats.messages', { conversationId: 'cnv_901' });
+      expect(errorOf(messages), person).toMatchObject({ code: 'not_found' });
+      const upload = await call(w, 'files.uploadContent', { conversationId: 'cnv_901', name: 'Leak.png', type: 'image/png', contentBase64: base64Of(PDF) });
+      expect(errorOf(upload), person).toMatchObject({ code: 'not_found' });
+      for (const result of [link, messages, upload]) expect(JSON.stringify(result), person).not.toContain('Hidden-chat-photo');
+      expect(w.puts, person).toEqual([]);
+      expect(w.files.calls.filter((c) => c.op === 'presignGet'), person).toEqual([]);
+    }
   });
 
   it('refuses a hidden project as a missing project', async () => {

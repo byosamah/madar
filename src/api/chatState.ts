@@ -110,12 +110,14 @@ export function closedChatError(conversation: Conversation) {
 
 /**
  * The chat that a person may put a file into (owner, 2026-10-19): a direct chat or a group that the person may open, and that is not
- * closed. A chat that the person may not open reads as a missing chat, for a direct chat and for a group alike, and so does every
- * agent: an agent never uploads. A project chat uses the files of its project. The browser and the server both use this rule.
+ * closed. A chat that the person may not open reads as a missing chat, for a direct chat and for a group alike. An agent follows exactly
+ * the rule of its person (owner, 2026-10-26: an agent sends a file into a chat of its person, and a person who is no member, also the agent of
+ * that person, gets not_found); `person` is the person whose rights apply. A project chat uses the files of its project. The browser and the
+ * server both use this rule.
  */
-export function chatForUpload(state: State, conversationId: string, person: User, actor: User): Conversation {
+export function chatForUpload(state: State, conversationId: string, person: User): Conversation {
   const conversation = state.conversations[conversationId];
-  if (!conversation || actor.kind === 'agent' || !canSeeConversation(state, conversation, person)) throw notFound('Conversation', conversationId);
+  if (!conversation || !canSeeConversation(state, conversation, person)) throw notFound('Conversation', conversationId);
   if (conversation.kind === 'project') throw invalid('conversationId', 'A project chat uses the files of its project. Name the project.', 'file_chat');
   // A file in a direct chat or a group is a message: it needs chat.direct, as a send does (role rights version 2, design 5.6).
   if (!can(ensureRights(state, person), 'chat.direct')) throw forbidden('You cannot do this.', { action: 'chat.direct' });

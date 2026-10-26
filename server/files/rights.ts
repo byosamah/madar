@@ -80,22 +80,21 @@ export function assertMayViewOfficeFile(office: OfficeSnapshot, userId: string, 
 
 /**
  * The view right on a file of a direct chat or a group, right before a link is signed (owner, 2026-10-19): the people who read the
- * messages of that chat, and nobody else. The Admin who is not a member, a person who left, an agent and everyone, when the chat is
- * gone, get the answer of a missing file, with no file name. An agent never opens a chat file, though it acts with its person's rights.
+ * messages of that chat, and nobody else. The Admin who is not a member, a person who left, and everyone, when the chat is gone, get the
+ * answer of a missing file, with no file name. An agent acts with the rights of its person (owner, 2026-10-26): the agent of a member opens
+ * the file, and the agent of a person who is no member gets the same answer as that person.
  */
 export function assertMayViewChatFile(office: OfficeSnapshot, userId: string, conversationId: string, fileId: string): User {
   const authority = withRights(office.lists, authorityOf(officeUsers(office), userId));
   const conversation = office.lists.conversations[conversationId];
-  const actor = office.lists.users[userId];
-  if (!conversation || actor?.kind === 'agent' || !canSeeConversation(office.lists as unknown as State, conversation, authority)) throw notFound('File', fileId);
+  if (!conversation || !canSeeConversation(office.lists as unknown as State, conversation, authority)) throw notFound('File', fileId);
   return authority;
 }
 
 /** The chat that a person may start an upload for: chatForUpload on the office snapshot, after the person check. */
 export function assertMayUploadToChat(office: OfficeSnapshot, userId: string, conversationId: string): Conversation {
   const authority = withRights(office.lists, authorityOf(officeUsers(office), userId));
-  const actor = office.lists.users[userId];
-  return chatForUpload(office.lists as unknown as State, conversationId, authority, actor ?? authority);
+  return chatForUpload(office.lists as unknown as State, conversationId, authority);
 }
 
 /** The State that the meeting rules read: the office lists, and the one meeting (a meeting is not an office list). */

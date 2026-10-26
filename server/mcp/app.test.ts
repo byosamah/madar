@@ -670,9 +670,9 @@ describe('suite 12: the MCP server in process', () => {
       }
     });
 
-    it('never gives a file of a direct or group chat, even when a cover points at one, and names no file in the refusal', async () => {
+    it('never gives a file of a direct or group chat of other people, even when a cover points at one, and names no file in the refusal', async () => {
       const state = w.mem.tables.state;
-      state.conversations = { ...state.conversations, cnv_900: { id: 'cnv_900', kind: 'direct', projectId: null, memberIds: ['usr_001', 'usr_002'], createdAt: '2026-10-04T09:00:00+03:00' } as never };
+      state.conversations = { ...state.conversations, cnv_900: { id: 'cnv_900', kind: 'direct', projectId: null, memberIds: ['usr_003', 'usr_002'], createdAt: '2026-10-04T09:00:00+03:00' } as never };
       state.files.fil_900 = {
         id: 'fil_900', projectId: null, stageId: null, taskId: null, conversationId: 'cnv_900', name: 'Private-photo.jpg',
         versions: [{ letter: 'A', blobKey: 'chat/cnv-900/upl-a/file', thumbKey: 'chat/cnv-900/upl-a/thumb', mimeType: 'image/jpeg', size: 10, uploadedBy: 'usr_002', uploadedAt: '2026-10-04T09:00:00+03:00' }],
@@ -688,6 +688,25 @@ describe('suite 12: the MCP server in process', () => {
         expect(body.result.content[0].text).not.toContain('Private');
         expect(w.deps.files.calls.filter((c) => c.op === 'presignGet')).toEqual([]);
         expect(fetch).not.toHaveBeenCalled();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('gives a file of a chat of its person as a cover picture, because an agent follows the rights of its person (owner, 2026-10-26)', async () => {
+      const state = w.mem.tables.state;
+      state.conversations = { ...state.conversations, cnv_900: { id: 'cnv_900', kind: 'direct', projectId: null, memberIds: ['usr_001', 'usr_002'], createdAt: '2026-10-04T09:00:00+03:00' } as never };
+      state.files.fil_900 = {
+        id: 'fil_900', projectId: null, stageId: null, taskId: null, conversationId: 'cnv_900', name: 'Chat-photo.jpg',
+        versions: [{ letter: 'A', blobKey: 'chat/cnv-900/upl-a/file', thumbKey: 'chat/cnv-900/upl-a/thumb', mimeType: 'image/jpeg', size: 10, uploadedBy: 'usr_002', uploadedAt: '2026-10-04T09:00:00+03:00' }],
+      } as never;
+      state.projects.prj_001 = { ...state.projects.prj_001, coverFileId: 'fil_900' };
+      w.mem.tables.version += 1;
+      vi.stubGlobal('fetch', vi.fn(async () => new Response(WEBP)));
+      try {
+        const { body } = await call(w, 'pictures.get', { kind: 'projectCover', id: 'prj_001' });
+        expect(body.result.isError).toBeUndefined();
+        expect(w.deps.files.calls.filter((c) => c.op === 'presignGet')).toHaveLength(1);
       } finally {
         vi.unstubAllGlobals();
       }

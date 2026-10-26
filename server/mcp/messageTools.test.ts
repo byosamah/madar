@@ -408,7 +408,7 @@ describe('a file of a group chat over MCP (owner, 2026-10-19)', () => {
     w.mem.tables.version += 1;
   }
 
-  it('shows the file name in the message to the agent of a member, and the agent opens nothing', async () => {
+  it('shows the file name in the message to the agent of a member (the agent opens the file with files.link, uploadContent.test.ts)', async () => {
     const w = world();
     plantChatFile(w);
     const { result } = await call(w, 'chats.messages', { conversationId: groupRoom });
@@ -416,8 +416,9 @@ describe('a file of a group chat over MCP (owner, 2026-10-19)', () => {
     const messages = result.structuredContent.output.messages as { message: Message; files: { id: string; name: string | null }[] }[];
     expect(messages.find((m) => m.message.id === 'msg_991')?.files).toEqual([{ id: 'fil_991', name: CHAT_FILE_NAME, mimeType: 'image/jpeg' }]);
     const { MCP_ALLOW } = await import('./tools');
-    // The upload calls stay closed. files.link, files.share and files.delete are tools now (MCP parity), and the calls refuse a file of a chat (below).
+    // The raw upload calls stay closed: files.uploadContent carries the content (also into a chat of the person). files.link opens a chat file for a member.
     for (const name of ['files.upload', 'files.uploadStart']) expect(MCP_ALLOW as readonly string[], name).not.toContain(name);
+    expect(MCP_ALLOW as readonly string[]).toContain('files.link');
   });
 
   it('lists the file in no files.list and finds it in no search, for the agent of a member', async () => {
@@ -446,15 +447,18 @@ describe('a file of a group chat over MCP (owner, 2026-10-19)', () => {
     }
   });
 
-  it('keeps the texts true: the model reads that it never opens a file of a direct or group chat', async () => {
+  it('keeps the texts true: the model reads that it sends and opens the files of a chat of its person (owner, 2026-10-26)', async () => {
     const { INSTRUCTIONS, TOOL_DOCS } = await import('./docs');
-    expect(INSTRUCTIONS).toContain('You never open a file of a direct or group chat');
+    expect(INSTRUCTIONS).not.toContain('You never open a file of a direct or group chat');
+    expect(INSTRUCTIONS).toContain('send a file into a direct chat or a group of your person');
+    expect(INSTRUCTIONS).toContain('files.link opens one, for a chat that your person may open');
     for (const name of ['chats.messages', 'chats.send', 'files.list', 'search.query']) {
       const text = TOOL_DOCS[name].description;
       expect(text.length, name).toBeGreaterThanOrEqual(40);
       expect(text.length, name).toBeLessThanOrEqual(600);
     }
-    expect(TOOL_DOCS['chats.messages'].description).toContain('direct or group chat');
+    expect(TOOL_DOCS['chats.messages'].description).toContain('open one with files.link');
+    expect(TOOL_DOCS['files.link'].description).toContain('opens only when your person may open that chat');
     expect(TOOL_DOCS['files.list'].description).toContain('direct or group chat');
   });
 });
@@ -464,7 +468,7 @@ describe('the new view fields in the texts of the message tools (base B5)', () =
   it('names the new message fields in chats.messages and comments.list', async () => {
     const { TOOL_DOCS } = await import('./docs');
     const read = TOOL_DOCS['chats.messages'].description;
-    for (const word of ['reactions', 'editedAt', 'replyTo', 'namesMe', 'readUpTo', 'Deleted messages are left out', 'direct or group chat', 'quiet lines']) expect(read, word).toContain(word);
+    for (const word of ['reactions', 'editedAt', 'replyTo', 'namesMe', 'readUpTo', 'Deleted messages are left out', 'files.link', 'quiet lines']) expect(read, word).toContain(word);
     // 540 left 60 characters for the "around" input of track find; the tool limit is 600.
     expect(read.length).toBeLessThanOrEqual(600);
     for (const word of ['replyTo', 'namesMe']) expect(TOOL_DOCS['comments.list'].description, word).toContain(word);

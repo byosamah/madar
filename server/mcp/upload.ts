@@ -45,7 +45,7 @@ const Base64 = z.string().min(1).describe('The file content as standard base64 t
 
 export const FilesUploadContentInput = z.strictObject({
   projectId: ProjectId.optional().describe('The project of the file. Leave it out for a to-do with no project (taskId alone), a chat or a meeting.'),
-  conversationId: ConversationId.optional().describe('A direct chat or a group. An agent cannot upload there: the call answers not_found.'),
+  conversationId: ConversationId.optional().describe('A direct chat or a group of your person. The file stays in that chat: send it with chats.send and fileIds. Any other chat answers not_found.'),
   meetingId: MeetingId.optional().describe('A meeting with no project.'),
   stageId: StageId.nullable().optional().describe('A stage of the project.'),
   taskId: TaskId.nullable().optional().describe('A to-do. With no projectId, an office to-do.'),

@@ -38,7 +38,7 @@ server checks the final object, then saves the record.
    the size and the type of the FINAL object (`confirm.ts`). A confirmed version never changes.
 4. The prepare marks the intent used inside the lock. A retry with the same idempotency key gets the stored answer.
 - The `uploads` job step removes staging objects older than 2 hours 10 minutes, and the copies of calls that failed.
-- An agent over MCP uploads with `files.uploadContent` (`server/mcp/upload.ts`): the same steps 1 to 4, run on the server. It sends the file as base64 text (10 MB at most), puts the bytes to the signed link itself, and never gets a key or a link back. An agent cannot upload into a direct chat or a group.
+- An agent over MCP uploads with `files.uploadContent` (`server/mcp/upload.ts`): the same steps 1 to 4, run on the server. It sends the file as base64 text (10 MB at most), puts the bytes to the signed link itself, and never gets a key or a link back. It uploads into a direct chat or a group of its person with `conversationId`, as that person does (owner, 2026-10-26).
 
 ## Rules
 - Object keys hold only `[a-z0-9/-]` (`keys.ts`), so a key never leaves its folder. Each upload is a folder with `file`
@@ -50,9 +50,11 @@ server checks the final object, then saves the record.
   record names its chat (`FileRec.conversationId`, in the jsonb doc: no migration) and has no project, stage or task. Who may start
   an upload: a member of that chat, active, in a chat that is not closed (`chatForUpload`, `assertMayUploadToChat`); a project chat
   uses the files of its project. Who gets a link: exactly the people who read the messages of that chat (`assertMayViewChatFile`,
-  `canSeeConversation`). The Admin who is not a member, a person who left, an agent, and everyone when the chat is gone get
-  not_found, as for a missing file. An agent never opens a chat file, and no search, `files.list`, project page or History line
-  shows one. The file writes no History event. Its save sends a person signal with the kind `files` to each member of the chat and no
+  `canSeeConversation`). The Admin who is not a member, a person who left, and everyone when the chat is gone get
+  not_found, as for a missing file. An agent follows exactly the rights of its person (owner, 2026-10-26; before, an agent never uploaded into
+  a chat and never opened a chat file): the agent of a member uploads into the chat and opens its files, and the agent of a person who is no
+  member gets the same not_found as that person on every path (upload start, upload, link, messages), with no file name. Only the file of a meeting
+  with no project stays closed to an agent. No search, `files.list`, project page or History line shows a chat file. The file writes no History event. Its save sends a person signal with the kind `files` to each member of the chat and no
   office signal (`diffState`, `Diff.chatKinds`; owner 2026-10-21, replacing the anonymous office signal): no file and no chat in it. It cannot go into
   another chat, a task, a post or the Tracker (`file_chat`), and it is never deleted or shared. A second upload with the same name
   is a new file, not a new version.

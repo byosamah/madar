@@ -470,11 +470,12 @@ export function mayViewFile(state: State, viewer: User, file: FileRec): boolean 
 }
 
 /**
- * True when the actor may open the data of a file: the person who may view it. An agent acts with the rights of its person, but it never
- * opens a file of a direct chat, a group or a meeting: it reads the name in the message or in the minutes, and nothing more (owner, 2026-10-19).
+ * True when the actor may open the data of a file: the person who may view it. An agent acts with the rights of its person, so it opens a file
+ * of a direct chat or a group when its person may (owner, 2026-10-26; before, an agent never did). It still never opens the file of a meeting
+ * with no project: it reads the name in the minutes, and nothing more (owner, 2026-10-19).
  */
 export function mayOpenFile(state: State, viewer: User, actor: User, file: FileRec): boolean {
-  return mayViewFile(state, viewer, file) && !((file.conversationId !== undefined || file.meetingId !== undefined) && actor.kind === 'agent');
+  return mayViewFile(state, viewer, file) && !(file.meetingId !== undefined && actor.kind === 'agent');
 }
 
 export function fileViewOf(state: State, file: FileRec, viewer: User): FileView {

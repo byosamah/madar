@@ -69,7 +69,7 @@ export const filesGet = defineCall({
   },
   run(input, ctx, prepared) {
     const file = ctx.state.files[input.id];
-    // An agent never opens a file of a direct chat or a group (owner, 2026-10-19).
+    // An agent never opens the file of a meeting with no project (owner, 2026-10-19). A chat file follows its person (owner, 2026-10-26).
     if (!file || !mayOpenFile(ctx.state, ctx.authority, ctx.actor, file)) throw notFound('File', input.id);
     return { file: fileViewOf(ctx.state, file, ctx.authority), version: prepared.version, blob: prepared.blob };
   },
@@ -133,7 +133,7 @@ function uploadOfficeFile(ctx: Ctx, input: { name: string; stageId: string | nul
  * the same name is a new file, not a new version: an old message keeps the file that it carried.
  */
 function uploadChatFile(ctx: Ctx, input: { name: string; stageId: string | null; taskId: string | null; asCover: boolean; receivedFromClient: boolean; conversationId?: string }, prepared: UploadPrepared): FileView {
-  const conversation = chatForUpload(ctx.state, input.conversationId ?? '', ctx.authority, ctx.actor);
+  const conversation = chatForUpload(ctx.state, input.conversationId ?? '', ctx.authority);
   const misuse = input.stageId ? 'stageId' : input.taskId ? 'taskId' : input.asCover ? 'asCover' : input.receivedFromClient ? 'receivedFromClient' : null;
   if (misuse) throw invalid(misuse, 'A file of a chat belongs to no stage, no task and no cover. It stays in its chat.', 'file_chat');
   const id = nextId(ctx.state, 'fil');

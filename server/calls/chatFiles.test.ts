@@ -26,6 +26,10 @@ const USERS: Record<string, User> = {
   usr_005: user('usr_005'),
   usr_006: user('usr_006'),
   usr_011: user('usr_011', { kind: 'agent', ownerId: 'usr_002' }),
+  // The agent of a person who is no member of cnv_001 (owner, 2026-10-26: an agent follows exactly the rights of its person).
+  usr_012: user('usr_012', { kind: 'agent', ownerId: 'usr_006' }),
+  // The agent of the Admin, who is no member either.
+  usr_013: user('usr_013', { kind: 'agent', ownerId: 'usr_001' }),
 };
 
 const chat = (id: string, kind: 'group' | 'direct' | 'project', memberIds: string[], more: Record<string, unknown> = {}) =>
@@ -87,12 +91,24 @@ describe('files.uploadStart for a chat', () => {
     expect(output.put.url).toContain(`up/${part}/file`);
     expect(output.thumbPut).toBeDefined();
     expect(deps.files.calls.length).toBeGreaterThan(0);
-    for (const userId of ['usr_004', 'usr_005']) await expect(filesUploadStart(START, ctx(userId)), userId).resolves.toBeDefined();
+    for (const userId of ['usr_004', 'usr_005', 'usr_011']) await expect(filesUploadStart(START, ctx(userId)), userId).resolves.toBeDefined();
     await expect(filesUploadStart({ ...START, conversationId: 'cnv_002' }, ctx('usr_004'))).resolves.toBeDefined();
   });
 
-  it('refuses a person outside the chat, the Admin who is not a member, and an agent, as for a chat that does not exist', async () => {
-    for (const [userId, conversationId] of [['usr_006', 'cnv_001'], ['usr_001', 'cnv_001'], ['usr_001', 'cnv_002'], ['usr_005', 'cnv_002'], ['usr_011', 'cnv_001'], ['usr_002', 'cnv_404']] as const) {
+  it('starts an upload for the agent of a member, as for its person: the intent names the agent, the key sits under the chat', async () => {
+    const { db, ctx } = setup();
+    const { output } = await filesUploadStart(START, ctx('usr_011'));
+    expect(db.intents.get(output.uploadId)).toMatchObject({ actorId: 'usr_011', projectId: null, key: `chat/cnv-001/${output.uploadId.replace('_', '-')}/file` });
+    // The agent of a member follows the rest of the rules of its person: a closed chat and a project chat refuse as for the person.
+    await expect(filesUploadStart({ ...START, conversationId: 'cnv_004' }, ctx('usr_011'))).rejects.toMatchObject({ code: 'forbidden', details: { reason: 'person_left' } });
+    await expect(filesUploadStart({ ...START, conversationId: 'cnv_003' }, ctx('usr_011'))).rejects.toMatchObject({ code: 'invalid_input' });
+  });
+
+  it('refuses a person outside the chat, the Admin who is not a member, and the agent of each, as for a chat that does not exist', async () => {
+    for (const [userId, conversationId] of [
+      ['usr_006', 'cnv_001'], ['usr_001', 'cnv_001'], ['usr_001', 'cnv_002'], ['usr_005', 'cnv_002'], ['usr_002', 'cnv_404'],
+      ['usr_012', 'cnv_001'], ['usr_012', 'cnv_002'], ['usr_013', 'cnv_001'], ['usr_013', 'cnv_002'], ['usr_011', 'cnv_404'],
+    ] as const) {
       const { db, deps, ctx } = setup();
       await expect(filesUploadStart({ ...START, conversationId }, ctx(userId)), `${userId} ${conversationId}`)
         .rejects.toMatchObject({ code: 'not_found', message: `Conversation ${conversationId} does not exist.` });
@@ -138,8 +154,20 @@ describe('files.link for a chat file', () => {
     await expect(filesLink({ id: 'fil_062', ...LINK }, ctx('usr_004'))).resolves.toMatchObject({ output: { name: 'Direct.pdf' } });
   });
 
-  it('answers not_found, with no file name, to a person outside the chat, the Admin who is not a member, and an agent, and signs nothing', async () => {
-    for (const [userId, id] of [['usr_006', 'fil_060'], ['usr_001', 'fil_060'], ['usr_001', 'fil_062'], ['usr_005', 'fil_062'], ['usr_011', 'fil_060']] as const) {
+  it('signs for the agent of a member of the chat, as for its person, and for its small picture', async () => {
+    const { ctx, gets } = setup();
+    await expect(filesLink({ id: 'fil_060', ...LINK }, ctx('usr_011'))).resolves.toMatchObject({ output: { name: 'Hidden-photo.jpg' } });
+    await expect(filesLink({ id: 'fil_060', variant: 'thumb', disposition: 'inline' }, ctx('usr_011'))).resolves.toBeDefined();
+    expect(gets.map((g) => g.key)).toEqual(['chat/cnv-001/upl-c/file', 'chat/cnv-001/upl-c/thumb']);
+    // The agent of a member of the group is no member of the direct chat of two other people.
+    await expect(filesLink({ id: 'fil_062', ...LINK }, ctx('usr_011'))).resolves.toMatchObject({ output: { name: 'Direct.pdf' } });
+  });
+
+  it('answers not_found, with no file name, to a person outside the chat, the Admin who is not a member, and the agent of each, and signs nothing', async () => {
+    for (const [userId, id] of [
+      ['usr_006', 'fil_060'], ['usr_001', 'fil_060'], ['usr_001', 'fil_062'], ['usr_005', 'fil_062'],
+      ['usr_012', 'fil_060'], ['usr_012', 'fil_062'], ['usr_013', 'fil_060'], ['usr_013', 'fil_062'],
+    ] as const) {
       const { ctx, gets } = setup();
       for (const variant of ['full', 'thumb'] as const) {
         const refused = await filesLink({ id, variant, disposition: 'attachment' }, ctx(userId)).then(() => null, (error: { code: string; message: string; details?: unknown }) => error);
@@ -151,7 +179,7 @@ describe('files.link for a chat file', () => {
   });
 
   it('answers not_found to everyone, the Admin too, for a file whose chat is gone', async () => {
-    for (const userId of ['usr_001', 'usr_002']) {
+    for (const userId of ['usr_001', 'usr_002', 'usr_011', 'usr_013']) {
       const { ctx, gets } = setup();
       await expect(filesLink({ id: 'fil_061', ...LINK }, ctx(userId)), userId).rejects.toMatchObject({ code: 'not_found', message: 'File fil_061 does not exist.' });
       expect(gets).toEqual([]);

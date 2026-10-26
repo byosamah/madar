@@ -205,8 +205,10 @@ handlers inside `runCall` (see `server/CLAUDE.md`). An AI agent reaches the allo
 - Files of a direct chat or a group (owner, 2026-10-19): `files.upload` and `files.uploadStart` take `conversationId` in place of a
   project or an office task. `FileRec.conversationId` (optional, so older files load) names the chat; `projectId`, `stageId` and `taskId`
   are null. `mayViewFile` is `canSeeConversation` of that chat: exactly the people who read its messages, never the Admin who is not a
-  member. `chatForUpload` (`chatState.ts`) is the rule of who uploads, for the browser and the server alike. The upload writes no event
-  (`uploadChatFile`). `mayOpenFile` keeps an agent from opening one (`files.get`, the `files.link` fake). `assertFilesForDirect` takes a
+  member. `chatForUpload` (`chatState.ts`, `(state, conversationId, person)`) is the rule of who uploads, for the browser and the server alike. The upload writes no event
+  (`uploadChatFile`). An agent follows exactly the rights of its person (owner, 2026-10-26; it was refused before): `chatForUpload` and `mayOpenFile` read the
+  person, so the agent of a member uploads and opens, and the agent of a person who is no member gets not_found on every path. `mayOpenFile` still keeps an agent
+  from opening the file of a meeting with no project (`files.get`, the `files.link` fake). `assertFilesForDirect` takes a
   chat file only for its own chat; every other carrier (project chat, comment, post, Tracker, `files.share`) refuses it with reason
   `file_chat`. `files.delete` and `files.markDelivered` refuse it too, and `mayDeleteFile` is false. `search.query` finds no chat file,
   and `files.list` never lists one. The leak tests: `handlers/chatFiles.test.ts`, `server/calls/chatFiles.test.ts`.
