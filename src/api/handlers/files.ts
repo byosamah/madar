@@ -7,7 +7,7 @@ import { applyPatch, recordCreate, recordDelete, writeEvent } from '../events';
 import { nextId } from '../store';
 import { chatForUpload } from '../chatState';
 import { minutesRefusal, requireMeeting } from './meetings';
-import { fileViewOf, mayDeleteFile, mayOpenFile, mayViewFile, trackerRowOf } from '../views';
+import { assertAgentMayOpenChatFile, fileViewOf, mayDeleteFile, mayOpenFile, mayViewFile, trackerRowOf } from '../views';
 import { assertCan, requireProject, requireStage, requireTask, roleIn, taskRole, touch } from './shared';
 import { addTrackerEntry } from './tracker';
 import { checkPlace } from './folders';
@@ -71,6 +71,7 @@ export const filesGet = defineCall({
     const file = ctx.state.files[input.id];
     // An agent never opens the file of a meeting with no project (owner, 2026-10-19). A chat file follows its person (owner, 2026-10-26).
     if (!file || !mayOpenFile(ctx.state, ctx.authority, ctx.actor, file)) throw notFound('File', input.id);
+    assertAgentMayOpenChatFile(ctx.state, ctx.actor, ctx.authority, file);
     return { file: fileViewOf(ctx.state, file, ctx.authority), version: prepared.version, blob: prepared.blob };
   },
 });

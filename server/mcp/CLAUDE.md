@@ -153,7 +153,10 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   `files.uploadContent` (`conversationId`; then `chats.send` with `fileIds` posts it) and opens a file with `files.link`. The agent of a person who is no
   member (the Admin too, when not a member) gets not_found on every path: the upload start and the upload, the link, `chats.messages`, with no file name in
   the text (leak tests: `uploadContent.test.ts`, `src/api/handlers/chatFiles.test.ts`, `server/calls/chatFiles.test.ts`). Every rule of the person stays:
-  `chat.direct`, an active person, a chat that is not closed (`person_left`), and a project chat that uses the files of its project. `files.list` and
+  `chat.direct`, an active person, a chat that is not closed (`person_left`), and a project chat that uses the files of its project.
+  AI switches (security review 2026-10-26): opening a chat file (`files.link`, `files.get`, a cover picture) needs `ai.readChats`, as `chats.messages` does
+  (`assertAgentMayOpenChatFile`, `assertMayViewChatFile`: `forbidden`, reason `ai_off`, checked after the member check, so a non-member still gets not_found).
+  A chat file is never a project cover (`projects.update` refuses it with reason `cover_chat_file`, for everyone). `files.list` and
   `search.query` show no chat file, for a person or an agent. Before 2026-10-26 `chatForUpload` and `mayOpenFile` refused every agent; only the file of a
   meeting with no project stays closed to an agent. INSTRUCTIONS (Files, Messages) and the `TOOL_DOCS` of `chats.messages`, `files.link` and
   `files.uploadContent` say so. A file row also carries its type (`mimeType`), so the agent sees `image/jpeg` beside the name (owner, 2026-10-19).

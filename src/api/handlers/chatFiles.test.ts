@@ -356,3 +356,43 @@ describe('the members of a chat change', () => {
     await expect(as(w, FAISAL, () => w.t.api.call('files.get', { id: w.directFile }))).rejects.toMatchObject({ code: 'not_found' });
   });
 });
+
+describe('the AI switches on the files of a chat (security review 2026-10-26)', () => {
+  /** Sara gets a custom role without the given AI switches, as the role sheet saves it. */
+  function withoutSwitch(w: World, ids: string[]) {
+    const state = w.t.store.state;
+    state.settings.roles = { custom: [{ id: 'rol_901', name: 'No chat AI', nameAr: 'بلا ذكاء', rights: [], off: ids as never }] };
+    state.users[SARA] = { ...state.users[SARA], systemRole: 'member', roleId: 'rol_901' };
+  }
+
+  it('lets the agent of a member open a chat file only when its person holds ai.readChats', async () => {
+    const w = await world();
+    const on = await as(w, SARA_AGENT, () => w.t.api.call('files.link', { id: w.groupFile, variant: 'full', disposition: 'inline' }));
+    expect(on.name).toBe(GROUP_FILE);
+    withoutSwitch(w, ['ai.readChats']);
+    const off = await failureOf(as(w, SARA_AGENT, () => w.t.api.call('files.link', { id: w.groupFile, variant: 'full', disposition: 'inline' })));
+    expect(off).toMatchObject({ code: 'forbidden', details: { reason: 'ai_off', right: 'ai.readChats' } });
+    const get = await failureOf(as(w, SARA_AGENT, () => w.t.api.call('files.get', { id: w.groupFile })));
+    expect(get).toMatchObject({ code: 'forbidden', details: { reason: 'ai_off', right: 'ai.readChats' } });
+    // The person at the screen needs no AI switch.
+    const person = await as(w, SARA, () => w.t.api.call('files.link', { id: w.groupFile, variant: 'full', disposition: 'inline' }));
+    expect(person.name).toBe(GROUP_FILE);
+  });
+
+  it('keeps the agent of a person outside the chat at not_found when the switch is off', async () => {
+    const w = await world();
+    const state = w.t.store.state;
+    state.settings.roles = { custom: [{ id: 'rol_902', name: 'No chat AI', nameAr: 'بلا ذكاء', rights: [], off: ['ai.readChats', 'ai.messages'] as never }] };
+    state.users[OMAR] = { ...state.users[OMAR], systemRole: 'member', roleId: 'rol_902' };
+    const link = await failureOf(as(w, OMAR_AGENT, () => w.t.api.call('files.link', { id: w.groupFile, variant: 'full', disposition: 'inline' })));
+    expect(link).toMatchObject({ code: 'not_found' });
+  });
+
+  it('refuses a chat file as a project cover, for a person and for an agent', async () => {
+    const w = await world();
+    const person = await failureOf(as(w, FAISAL, () => w.t.api.call('projects.update', { id: 'prj_001', patch: { coverFileId: w.groupFile } })));
+    expect(person).toMatchObject({ code: 'invalid_input', details: { reason: 'cover_chat_file' } });
+    const admin = await failureOf(as(w, ADMIN, () => w.t.api.call('projects.update', { id: 'prj_001', patch: { coverFileId: w.groupFile } })));
+    expect(admin).toMatchObject({ code: 'invalid_input' });
+  });
+});

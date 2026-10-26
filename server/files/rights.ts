@@ -1,4 +1,5 @@
 import type { Conversation, Meeting, Task, User } from '../../src/api/contract/entities';
+import { assertAiSwitch } from '../../src/api/aiOff';
 import { canSeeConversation, chatForUpload } from '../../src/api/chatState';
 import { ApiError, forbidden, invalid, notFound } from '../../src/api/errors';
 import { minutesRefusal } from '../../src/api/handlers/meetings';
@@ -82,12 +83,15 @@ export function assertMayViewOfficeFile(office: OfficeSnapshot, userId: string, 
  * The view right on a file of a direct chat or a group, right before a link is signed (owner, 2026-10-19): the people who read the
  * messages of that chat, and nobody else. The Admin who is not a member, a person who left, and everyone, when the chat is gone, get the
  * answer of a missing file, with no file name. An agent acts with the rights of its person (owner, 2026-10-26): the agent of a member opens
- * the file, and the agent of a person who is no member gets the same answer as that person.
+ * the file when its person also holds the AI switch "AI reads chats" (else forbidden, ai_off), and the agent of a person who is no member gets
+ * the same answer as that person.
  */
 export function assertMayViewChatFile(office: OfficeSnapshot, userId: string, conversationId: string, fileId: string): User {
   const authority = withRights(office.lists, authorityOf(officeUsers(office), userId));
   const conversation = office.lists.conversations[conversationId];
   if (!conversation || !canSeeConversation(office.lists as unknown as State, conversation, authority)) throw notFound('File', fileId);
+  // An agent also needs the AI switch "AI reads chats", as chats.messages does. It comes after the member check, so an outsider learns nothing.
+  assertAiSwitch(office.lists.users[userId] ?? authority, authority, 'ai.readChats');
   return authority;
 }
 

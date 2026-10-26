@@ -150,7 +150,7 @@ export const PARITY_DOCS: Record<string, { title: string; description: string }>
   // Files without upload.
   'files.link': {
     title: 'Get a link to a file',
-    description: 'Gives a signed link to one file (id from files.list, or from the files of a message in chats.messages): optionally letter (a version), variant full or thumb, and disposition inline or attachment. The link works for a short time. Download at once, and never put the link in chat, code or commits. A file of a direct chat or a group opens only when your person may open that chat. A file of a meeting never opens for an agent. You never get a storage key.',
+    description: 'Gives a signed link to one file (id from files.list, or from the files of a message in chats.messages): optionally letter (a version), variant full or thumb, and disposition inline or attachment. The link works for a short time. Download at once, and never put the link in chat, code or commits. A file of a direct chat or a group opens only when your person may open that chat and the AI switch ai.readChats is on. A file of a meeting never opens for an agent. You never get a storage key.',
   },
   'files.delete': {
     title: 'Delete a file',

@@ -2,6 +2,7 @@ import { PICTURE_DATA, type Comment, type Deadline, type Event, type FileRec, ty
 import type {
   Attachment, CommentView, EventView, FeedItem, FileView, MinutesView, ProjectDetail, ProjectSummary, PaymentRow, TaskDetail, TaskRow, TrackerRow, UserCard,
 } from './contract/views';
+import { assertAiSwitch } from './aiOff';
 import { canSeeConversation } from './chatState';
 import { namesPerson, replyRefOf } from './chatNaming';
 import { computeHealth, isOverdue } from './health';
@@ -476,6 +477,15 @@ export function mayViewFile(state: State, viewer: User, file: FileRec): boolean 
  */
 export function mayOpenFile(state: State, viewer: User, actor: User, file: FileRec): boolean {
   return mayViewFile(state, viewer, file) && !(file.meetingId !== undefined && actor.kind === 'agent');
+}
+
+/**
+ * A file of a direct chat or a group is chat data: the agent of a member opens it only when its person holds the AI switch "AI reads chats",
+ * as chats.messages needs it (security review 2026-10-26). Call it after mayOpenFile, so a person who is no member keeps the answer of a
+ * missing file and learns nothing from the switch. A person at the screen needs no switch. It throws the ai_off refusal.
+ */
+export function assertAgentMayOpenChatFile(state: State, actor: User, viewer: User, file: FileRec): void {
+  if (file.conversationId !== undefined) assertAiSwitch(actor, ensureRights(state, viewer), 'ai.readChats');
 }
 
 export function fileViewOf(state: State, file: FileRec, viewer: User): FileView {

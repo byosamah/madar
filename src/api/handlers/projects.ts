@@ -538,6 +538,8 @@ export const projectsUpdate = defineCall({
     if (patch.clientId && !ctx.state.clients[patch.clientId]) throw invalid('clientId', 'This client does not exist.');
     if (patch.coverFileId) {
       const file = ctx.state.files[patch.coverFileId];
+      // A cover shows to every viewer of the project, so a file of a chat never is one (security review 2026-10-26). The screens offer none.
+      if (file?.conversationId !== undefined) throw invalid('coverFileId', 'A file of a chat cannot be a cover. It stays in its chat.', 'cover_chat_file');
       if (!file || file.projectId !== project.id) throw invalid('coverFileId', 'This file is not in the project.');
       if (!file.versions[file.versions.length - 1].mimeType.startsWith('image/')) throw invalid('coverFileId', 'The cover must be an image.', 'cover_not_image');
     }

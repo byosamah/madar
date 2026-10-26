@@ -6,7 +6,7 @@ import { applyPatch } from '../events';
 import { principalOf } from '../permissions';
 import { withRights } from '../rights';
 import { chatForUpload, typingRecipients } from '../chatState';
-import { mayOpenFile } from '../views';
+import { assertAgentMayOpenChatFile, mayOpenFile } from '../views';
 import { officeTaskOfCall } from './files';
 import { minutesRefusal, requireMeeting } from './meetings';
 import { nowStamp } from '../../lib/dates';
@@ -108,6 +108,7 @@ const filesLink = defineCall({
     // agent, which never opens one (owner, 2026-10-19).
     // A file of a project that the person does not see reads as missing too, never as a refusal (hidden projects, owner 2026-10-22).
     if (!mayOpenFile(p.state, viewer, p.actor, file)) throw notFound('File', input.id);
+    assertAgentMayOpenChatFile(p.state, p.actor, viewer, file);
     const version = input.letter ? file.versions.find((v) => v.letter === input.letter) : file.versions[file.versions.length - 1];
     if (!version) throw notFound('Version', input.letter ?? '');
     const key = input.variant === 'thumb' && version.thumbKey ? version.thumbKey : version.blobKey;
@@ -125,6 +126,7 @@ const filesLink = defineCall({
     const file = ctx.state.files[input.id];
     if (!file) throw notFound('File', input.id);
     if (!mayOpenFile(ctx.state, ctx.authority, ctx.actor, file)) throw notFound('File', input.id);
+    assertAgentMayOpenChatFile(ctx.state, ctx.actor, ctx.authority, file);
     const { version } = prepared;
     return { url: prepared.url, expiresAt: later(ctx.now, UPLOAD_LIFE_MS), name: file.name, mimeType: version.mimeType, size: version.size };
   },
