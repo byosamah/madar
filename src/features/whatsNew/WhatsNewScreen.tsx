@@ -7,7 +7,7 @@ import { useCall } from '../../app/runtime';
 import { ScreenTitle } from '../../components/ScreenTitle';
 import { formatDay } from '../../lib/dates';
 import { WHATS_NEW, type WhatsNewEntry } from '../../whatsNew/entries';
-import { isNewer, markSeen, newestId, readSeen } from '../../whatsNew/seen';
+import { byAge, isNewer, markSeen, newestId, readSeen } from '../../whatsNew/seen';
 
 /** The entries of each day, in the order of the list. */
 function groupByDay(entries: readonly WhatsNewEntry[]): { day: string; entries: WhatsNewEntry[] }[] {
@@ -50,8 +50,8 @@ export function WhatsNewScreen() {
     <>
       <ScreenTitle title={t('whatsNew.title')} />
       <div className="flex flex-col gap-5">
-        {groupByDay(shown).map((group, position) => (
-          // The usage data entry stays first with its own day, so one day can come twice in the list: the key and the id use the place.
+        {groupByDay(byAge(shown)).map((group, position) => (
+          // The page sorts the entries by day, so the usage data entry (first in the list) shows at the top of its own day (2026-10-26).
           <section key={`${position}-${group.day}`} aria-labelledby={`whats-new-${position}`} className="surface flex flex-col gap-4 rounded-card p-5">
             <h2 id={`whats-new-${position}`} className="text-footnote text-ink-2">{formatDay(group.day, lang)}</h2>
             {group.entries.map((entry) => {

@@ -7,7 +7,7 @@ const keyOf = (userId: string): string => `madar.whatsNewSeen.${userId}`;
  * The entries from the newest day to the oldest. The usage data entry stays first in the list whatever its day (insight design, section 8),
  * so the first entry is not always the newest one (2026-10-26). The sort keeps the list order inside one day.
  */
-function byAge(entries: readonly WhatsNewEntry[]): readonly WhatsNewEntry[] {
+export function byAge(entries: readonly WhatsNewEntry[]): readonly WhatsNewEntry[] {
   return [...entries].sort((one, other) => (one.day === other.day ? 0 : one.day > other.day ? -1 : 1));
 }
 

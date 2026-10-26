@@ -918,8 +918,8 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
   Sort the ids as numbers (`sort -t- -k4 -n`): a text sort puts `2026-10-23-9` above `-82` (2026-10-22).
   A test finds its entry by id, never by `WHATS_NEW[0]`. One exception: the usage data entry (`2026-10-23-102`) stays first, and
   `entries.test.ts` pins `WHATS_NEW[0]` to it, so a new entry goes second. The day-order checks of `entries.test.ts` leave that first entry out, because a new entry can have a newer
-  `day` than it (2026-10-26 under 2026-10-25). The page then shows the day of the usage entry, the new day, and the old day again: `WhatsNewScreen` keys each
-  group by its place. The word "New" and the seen mark follow the newest day (`newestId` and `isNewer` in `whatsNew/seen.ts`: the list sorted by `day`,
+  `day` than it (2026-10-26 under 2026-10-25). The page sorts the entries by day (`byAge` in `whatsNew/seen.ts`, list order inside a day), so the usage entry shows
+  at the top of its own day and each day shows once (owner, 2026-10-26: the page showed 25 Oct, 26 Oct, 25 Oct). The word "New" and the seen mark follow the newest day (`newestId` and `isNewer` in `whatsNew/seen.ts`: the list sorted by `day`,
   list order inside a day, so the usage entry sits in the place of its own day), never `WHATS_NEW[0]`: with the first entry, a person who
   saw the usage entry never saw "New" again (2026-10-26). The ids of 2026-10-19 run in list order, so never order by the id number. `entries.test.ts` also pins the set of release days and the list of rights
   that an entry may name: a new `day` or a new `right` adds its value there.

@@ -92,5 +92,14 @@ describe("What's new screen", () => {
     await screen.findByRole('heading', { level: 3, name: 'Group chats' });
     expect(screen.queryAllByText('New')).toHaveLength(0);
   });
-});
 
+  it('shows each day once, newest first, with the pinned usage entry inside its own day (2026-10-26)', async () => {
+    await renderApp('/whats-new');
+    await screen.findByRole('heading', { level: 1, name: "What's new" });
+    const days = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
+    expect(new Set(days).size).toBe(days.length);
+    const usage = WHATS_NEW.find((entry) => entry.id === '2026-10-23-102')!;
+    const newest = [...WHATS_NEW].sort((a, b) => (a.day < b.day ? 1 : -1))[0];
+    if (newest.day !== usage.day) expect(screen.getAllByRole('region')[0]).not.toHaveTextContent('Madar records errors and usage');
+  });
+});
