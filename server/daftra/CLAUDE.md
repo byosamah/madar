@@ -19,6 +19,8 @@ Daftra invoice in the screens. The 15-minute job then reads the invoice, and whe
   link is stored in `Payment.daftra.account` at link time: the paid check reads that account, even when the sub-company changes later.
 - The test copy gets only the MAZJ pair (the owner's test key) until the last step. Production gets the five pairs at the last step. Each key role should be
   "Only Allow" `invoice` and `client`.
+- Test copy setup (2026-10-26): `secrets/test.env` holds the `DAFTRA_MAZJ_*` pair, and the sample office has the sub-company MAZJ (مزج)
+  with prj_001 under it. Its links point at real Mazj invoices: read only, and a payment recorded in Mazj Daftra is a real entry there.
 
 ## The client (`client.ts`)
 - GET only. One private function (`get`) calls fetch and sets `method: 'GET'`; `client.test.ts` fails when the file holds any other method or a body.

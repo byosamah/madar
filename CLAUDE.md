@@ -249,6 +249,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - Ask each builder to write its report to a file in its worktree before it returns it, so a dropped last call loses nothing.
 - A builder that sends the same report again ("waiting on its own background work") after its work is merged: stop it with
   `TaskStop` (2026-10-20).
+- A build Workflow stopped with `TaskStop` (a design change mid-build) leaves its running agent's edits uncommitted: commit them as WIP in
+  the worktree, edit the script, and resume with `resumeFromRunId`, so the finished agents come from the cache (2026-10-26).
 - A Workflow `scriptPath` must be inside the repo (a path in /tmp is refused): keep it untracked in the worktree, delete it after.
 - Brief parallel builders to run their test files with `--no-file-parallelism --testTimeout=60000`.
 - Parallel waves on one rule: the first builder makes a checkpoint commit of the core (rule, data, rights) that it never rewrites; the
