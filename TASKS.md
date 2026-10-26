@@ -1163,6 +1163,35 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [x] 88 calls moved from the deny list to the lists, each with one AI switch and a `TOOL_DOCS` entry: project set-up, to-dos and words, files without upload, the bell and the read marks, group chats, templates, Tracker, payments and meeting deletes, the own profile and settings, and the Admin work
 - [x] Two new AI switches: `ai.admin` ("AI does Admin work", off for every built-in role) and `ai.myState` ("AI changes my own marks and settings", on for every built-in role); the role sheet words in English and Arabic
 - [x] Handler fixes for agents: `me.updateProfile` and `me.updatePreferences` change the person (not the agent record); no picture, no logo, no email through an agent
-- [x] Still closed, with the reason in `tools.ts`: `projects.delete` (no Undo), `session.get`, `push.*`, `live.ticket`, `chats.typing`, `google.*` (the server refuses an agent), `meetings.settle`, `meetings.extend`, the uploads, `stages.replace`
-- [ ] Merge lead: join with `rb/mcp-bulk` (`stages.replace`, `run.ts` shaping, new tools) and `rb/tile-shape`; run `test:mcp`, `test:db`, `test:it`; look at the 153-tool list of an Admin's agent in Claude (VS Code allows 128 tools in one request)
+- [x] Still closed, with the reason in `tools.ts`: `projects.delete` (no Undo), `session.get`, `push.*`, `live.ticket`, `chats.typing`, `google.*` (the server refuses an agent), `meetings.settle`, `meetings.extend`, and the raw upload calls (`files.upload`, `files.uploadStart`, `feedback.uploadStart`; the two upload tools of `rb/mcp-upload` carry the content instead)
+- [x] Joined with `rb/mcp-bulk` and `rb/mcp-upload` on `rb/mcp-join` (see the section "MCP join" below); still to join: `rb/tile-shape`
+- [ ] Merge lead: run `test:mcp`, `test:db`, `test:it`; look at the 158-tool list of an Admin's agent in Claude (VS Code allows 128 tools in one request)
 - [ ] Later track: an MCP tool that takes file content (uploads), then `files.upload`, `files.uploadStart` and `feedback.uploadStart` can open
+## MCP: stages, many to-dos, long lists (owner, 2026-10-26; branch `rb/mcp-bulk`)
+
+- [x] `stages.replace` is a tool (AI switch `ai.projects`, right `project.stages`); the docs say it has no Undo
+- [x] `tasks.createMany` (50) and `tasks.updateMany` (100): one story, a failed item does not stop the next, one tool call for the limit
+- [x] `projects.list` and `tasks.list` take `limit`, `offset`, `full`; short rows and `page` by default
+- [x] An event in an MCP answer keeps no `before` and no `after`
+- [x] `tasks.move` and `tasks.update` docs name the stage move; What's new 2026-10-23-115
+- [ ] The merge lead runs `test:mcp`, `test:db` and `test:it` (they need Docker)
+- [ ] Open: 100 items in one batch are 100 transactions in one request. Measure the Worker CPU time on the test copy before the owner relies on 100.
+- [ ] Open: `project.stages_changed` has no Undo. Decide with the owner if an agent change of stages needs one.
+
+## MCP: uploads by content (owner, 2026-10-26: "the agent sends the file content in the call"; branch `rb/mcp-upload`)
+
+- [x] `files.uploadContent` (AI switch `ai.projects`): project, stage, folder, office to-do and meeting; 10 MB decoded; the rights and refusals of the screens; no key and no link in the answer
+- [x] `feedback.sendWithScreenshots` (AI switch `ai.feedback`, listed beside `feedback.send` in `MCP_BY_RIGHT` with the right `feedback.send`): a report with 1 to 3 pictures, 10 MB together
+- [x] The body limit of `/mcp` is 256 KB, except for these two tools (about 14 MB); the SDK limit of 4 MB is raised to match
+- [x] `stages.replace` through MCP keeps the dates that the agent leaves out (`keepDates.ts`); a null clears
+- [x] INSTRUCTIONS: Files, Pictures (a cover is a file: upload it, then `projects.update coverFileId`); What's new 2026-10-23-117
+- [ ] The merge lead runs `test:mcp`, `test:db` and `test:it` (Docker), and tries one real upload on the local stack (MinIO and Storage)
+- [ ] Open: an agent cannot upload into a direct chat or a group (`chatForUpload` refuses an agent). Ask the owner if that stays.
+- [ ] Open: measure a 10 MB upload on the test copy (Supabase function memory 256 MB, Worker 128 MB, Worker CPU 10 ms on the free plan; in Node the server work is 50 to 80 ms)
+- [x] `files.list` gave `blobKey` and `thumbKey` to an agent: `rb/mcp-parity` drops both from every answer (`withoutStorageKeys` in `run.ts`)
+
+## MCP join (`rb/mcp-join`: `rb/mcp-parity` + `rb/mcp-upload`, which holds `rb/mcp-bulk`)
+
+- [x] One tool list: `stages.replace` is a tool (`ai.projects`), `feedback.sendWithScreenshots` sits beside `feedback.send` (`ai.feedback`), the two bulk to-do tools are in `ai.todos`, `files.uploadContent` is in `ai.projects`
+- [x] One INSTRUCTIONS text; every `TOOL_DOCS` entry is 600 characters or less; What's new 115, 116 and 117
+- [ ] Merge lead: `test:mcp`, `test:db`, `test:it`, one real upload on the local stack, then the full `npm test` once

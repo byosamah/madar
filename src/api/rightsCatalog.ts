@@ -593,7 +593,7 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
         ],
       },
       {
-        power: 'ai.todos', mcpTools: ['tasks.create', 'tasks.update', 'tasks.complete', 'tasks.move', 'tasks.arrange', 'tasks.take', 'tasks.help', 'tasks.approve', 'tasks.sendBack', 'tasks.createFromTemplate', 'tasks.newVersion', 'tasks.delete', 'taskTemplates.list', 'taskTemplates.save', 'taskTemplates.rename', 'taskTemplates.delete'],
+        power: 'ai.todos', mcpTools: ['tasks.create', 'tasks.update', 'tasks.createMany', 'tasks.updateMany', 'tasks.complete', 'tasks.move', 'tasks.arrange', 'tasks.take', 'tasks.help', 'tasks.approve', 'tasks.sendBack', 'tasks.createFromTemplate', 'tasks.newVersion', 'tasks.delete', 'taskTemplates.list', 'taskTemplates.save', 'taskTemplates.rename', 'taskTemplates.delete'],
         switches: [
           { id: 'ai.todos', scope: null, basic: true, needs: ['ai.connect'] },
         ],
@@ -623,7 +623,7 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
         ],
       },
       {
-        power: 'ai.projects', mcpTools: ['projects.update', 'projects.setStatus', 'stages.setDates', 'deadlines.create', 'deadlines.update', 'folders.create', 'folders.rename', 'folders.delete', 'files.move', 'projects.setLeader', 'projects.pause', 'projects.resume', 'projects.setRestart', 'projects.setAccess', 'projects.addLink', 'projects.updateLink', 'projects.removeLink', 'projects.setHealthOverride', 'projects.clearHealthOverride', 'members.add', 'members.addTeam', 'members.remove', 'members.update', 'stages.setPrerequisites', 'deadlines.delete', 'files.link', 'files.delete', 'files.markDelivered', 'files.share'],
+        power: 'ai.projects', mcpTools: ['projects.update', 'projects.setStatus', 'stages.setDates', 'stages.replace', 'deadlines.create', 'deadlines.update', 'folders.create', 'folders.rename', 'folders.delete', 'files.move', 'projects.setLeader', 'projects.pause', 'projects.resume', 'projects.setRestart', 'projects.setAccess', 'projects.addLink', 'projects.updateLink', 'projects.removeLink', 'projects.setHealthOverride', 'projects.clearHealthOverride', 'members.add', 'members.addTeam', 'members.remove', 'members.update', 'stages.setPrerequisites', 'deadlines.delete', 'files.link', 'files.delete', 'files.markDelivered', 'files.share', 'files.uploadContent'],
         switches: [
           { id: 'ai.projects', scope: null, basic: true, needs: ['ai.connect'] },
         ],
@@ -641,7 +641,7 @@ export const CATALOG_SECTIONS: readonly CatalogSection[] = [
         ],
       },
       {
-        power: 'ai.feedback', mcpTools: ['feedback.list', 'feedback.screenshot', 'feedback.setStatus', 'feedback.send'],
+        power: 'ai.feedback', mcpTools: ['feedback.list', 'feedback.screenshot', 'feedback.setStatus', 'feedback.send', 'feedback.sendWithScreenshots'],
         switches: [
           { id: 'ai.feedback', scope: null, basic: true, needs: ['ai.connect'] },
         ],

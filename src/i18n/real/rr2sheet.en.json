@@ -341,7 +341,7 @@
       },
       "aiProjects": {
         "label": "AI changes projects",
-        "hint": "Change project details and status, stage dates and deadlines. Set the leader, the team, the links, the pause and who sees the project. Manage folders and files."
+        "hint": "Change project details and status, stage dates and deadlines. Set the leader, the team, the links, the pause and who sees the project. Manage folders and files, and upload files."
       },
       "aiProjectSetup": {
         "label": "AI creates projects and clients",
@@ -353,7 +353,7 @@
       },
       "aiFeedback": {
         "label": "AI reads requests and bugs",
-        "hint": "Read the reports of the team and mark them done. Send a request or a bug for the person. To read the reports, the person also needs \"Read requests and bugs\"."
+        "hint": "Read the reports of the team and mark them done. Send a request or a bug for the person, with or without pictures. To read the reports, the person also needs \"Read requests and bugs\"."
       },
       "aiReport": {
         "label": "AI reads the office report",

@@ -91,9 +91,9 @@ describe('stages.setDates over MCP (fbk_023)', () => {
     expect(tool.annotations.destructiveHint).toBe(true);
     const properties = Object.keys(tool.inputSchema.properties as Record<string, unknown>);
     expect(properties.sort()).toEqual(['endDate', 'stageId', 'startDate', 'storyId']);
-    // stages.replace stays screen work: an agent does not add, remove or reorder stages. What a stage needs is a tool since the MCP parity track.
-    expect(MCP_DENY).toContain('stages.replace');
-    expect(MCP_ALLOW as readonly string[]).not.toContain('stages.replace');
+    // stages.replace became a tool on 2026-10-26 (stageReplace.test.ts). What a stage needs is a tool since the MCP parity track.
+    expect(MCP_DENY).not.toContain('stages.replace');
+    expect(MCP_ALLOW as readonly string[]).toContain('stages.replace');
     expect(MCP_ALLOW as readonly string[]).toContain('stages.setPrerequisites');
   });
 

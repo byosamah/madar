@@ -6,21 +6,25 @@ import { serverContracts, type ServerCallName } from '../../src/api/contract/ser
 import { sharedCalls, type SharedCallName } from '../../src/api/sharedCalls';
 import { TOOL_DOCS } from './docs';
 import { aiSwitchOf } from './aiSwitches';
+import { BULK_INPUTS, TASKS_CREATE_MANY, TASKS_UPDATE_MANY } from './bulk';
+import { PAGED_TOOLS, PagingArgs } from './paging';
 import { PICTURES_GET, PicturesGetInput, WITH_PICTURES_TOOLS, WithPictures } from './pictures';
+import { FEEDBACK_SEND_WITH_SCREENSHOTS, FILES_UPLOAD_CONTENT, UPLOAD_INPUTS } from './upload';
 
 /**
  * The tools that the MCP server shows to an AI agent (plan 5.6, change 20). An allowlist: the reads and writes an agent can use for an office
  * project, with the message tools (owner, 2026-10-12), the stage dates (fbk_023), the meeting tools (fbk_022), the picture tool (owner,
- * 2026-10-21), the client and template lists for the AI switch "AI creates projects and clients" (owner, 2026-10-25), and the MCP parity
- * track (owner, 2026-10-26): an agent does what its person does in the screens, with the rights of that person. That track opened the
- * project set-up, the edits and deletes, the files without upload, the bell and the read marks, the group chats, the templates, the
- * Tracker, payment and meeting deletes, the own profile and settings, and the Admin work. The right list holds the tools that a right of
- * the person opens (the payment tools, the Dashboard, Search, the report, the requests and bugs, the project and client rights, and the
- * Admin rights). MCP_ADMIN holds the three role tools, which need the Admin right admin.manage. The Admin holds every right, so an
- * Admin's agent gets every tool. Only these stay on the deny list: the delete of a project, the uploads, the session, the push and live
- * calls, the typing signal, Google, the settling of a meeting and the replace of the stages. VS Code allows at most 128 tools in one
- * request across all servers, so an Admin's agent that connects to VS Code with other servers may hit the limit (the lists are still
- * short for any other role). tools.test.ts fails when a call is in no list.
+ * 2026-10-21), the client and template lists for the AI switch "AI creates projects and clients" (owner, 2026-10-25), the stage replace, the
+ * two bulk to-do tools and the two upload tools (owner, 2026-10-26), and the MCP parity track (owner, 2026-10-26): an agent does what its person
+ * does in the screens, with the rights of that person. That track opened the project set-up, the edits and deletes, the files without upload,
+ * the bell and the read marks, the group chats, the templates, the Tracker, payment and meeting deletes, the own profile and settings, and the
+ * Admin work. The right list holds the tools that a right of the person opens (the payment tools, the Dashboard, Search, the report, the
+ * requests and bugs with their upload form, the project and client rights, and the Admin rights). MCP_ADMIN holds the three role tools, which
+ * need the Admin right admin.manage. The Admin holds every right, so an Admin's agent gets every tool. Only these stay on the deny list: the
+ * delete of a project, the raw upload calls (the two upload tools carry the content instead), the session, the push and live calls, the typing
+ * signal, Google and the settling of a meeting. VS Code allows at most 128 tools in one request across all servers, so an Admin's agent that
+ * connects to VS Code with other servers may hit the limit (the lists are still short for any other role). tools.test.ts fails when a call is
+ * in no list.
  *
  * Every tool of the lists also belongs to one AI switch of the role sheet (aiSwitches.ts, from the catalog): an agent sees a tool only
  * when its person holds the AI switch of the tool AND, for a right tool, the right (role rights version 2, design section 5.12).
@@ -28,8 +32,12 @@ import { PICTURES_GET, PicturesGetInput, WITH_PICTURES_TOOLS, WithPictures } fro
 
 /** A tool with no call behind it: it gives the written instructions (docs.ts). pictures.get (pictures.ts) is the other one. */
 export const READ_FIRST = 'madar.readFirst';
-/** The tools with no call of their own. pictures.get runs the calls of the screens inside it, with their rights. */
-export const NO_CALL_TOOLS: ReadonlySet<string> = new Set([READ_FIRST, PICTURES_GET]);
+/**
+ * The tools with no call of their own. pictures.get runs the calls of the screens inside it, with their rights. tasks.createMany and
+ * tasks.updateMany run tasks.create and tasks.update once for each item (bulk.ts, owner 2026-10-26). files.uploadContent and
+ * feedback.sendWithScreenshots take the content of a file in the call and run the upload calls of the screens inside them (upload.ts, owner 2026-10-26).
+ */
+export const NO_CALL_TOOLS: ReadonlySet<string> = new Set([READ_FIRST, PICTURES_GET, TASKS_CREATE_MANY, TASKS_UPDATE_MANY, FILES_UPLOAD_CONTENT, FEEDBACK_SEND_WITH_SCREENSHOTS]);
 
 export const MCP_ALLOW = [
   // Reads (21). clients.list and projectTemplates.list belong to the AI switch ai.projectSetup (owner, 2026-10-25). chats.list finds a chat, chats.messages reads one page of it, and chats.waiting lists what waits for the reply of
@@ -38,14 +46,14 @@ export const MCP_ALLOW = [
   READ_FIRST, PICTURES_GET, 'projects.list', 'projects.get', 'tasks.list', 'tasks.get', 'comments.list', 'updates.list', 'tracker.list',
   'deadlines.list', 'files.list', 'users.list', 'events.list', 'chats.list', 'subCompanies.list',
   'chats.messages', 'chats.waiting', 'meetings.list', 'meetings.get', 'clients.list', 'projectTemplates.list',
-  // Writes (32). tasks.help joins your person to a task as a helper, or takes them off it (fbk_035). chats.openDirect and chats.send message the team: a direct chat, a group or a project chat (task comments and
+  // Writes (35). tasks.createMany and tasks.updateMany run tasks.create and tasks.update for up to 50 and 100 items (owner, 2026-10-26). stages.replace renames, adds, removes and orders the stages of one project. tasks.help joins your person to a task as a helper, or takes them off it (fbk_035). chats.openDirect and chats.send message the team: a direct chat, a group or a project chat (task comments and
   // project posts are comments.create and updates.create). stages.setDates sets the dates of one stage, as the Schedule tab does.
   // meetings.create, meetings.update and meetings.cancel tell the attendees, who are real people. meetings.saveMinutes writes the minutes of a meeting
   // that ended (wave 2); it tells nobody.
-  'story.start', 'tasks.create', 'tasks.update', 'tasks.take', 'tasks.help', 'tasks.arrange', 'tasks.move', 'tasks.complete', 'tasks.approve', 'tasks.sendBack', 'comments.create',
+  'story.start', 'tasks.create', 'tasks.createMany', 'tasks.update', 'tasks.updateMany', 'tasks.take', 'tasks.help', 'tasks.arrange', 'tasks.move', 'tasks.complete', 'tasks.approve', 'tasks.sendBack', 'comments.create',
   'updates.create', 'tracker.log', 'tracker.update', 'tracker.close',
   'deadlines.create', 'deadlines.update', 'projects.update', 'projects.setStatus', 'events.undo', 'events.undoStory',
-  'chats.openDirect', 'chats.send', 'stages.setDates', 'meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.saveMinutes',
+  'chats.openDirect', 'chats.send', 'stages.setDates', 'stages.replace', 'meetings.create', 'meetings.update', 'meetings.cancel', 'meetings.saveMinutes',
   // Folders of the Files & Links tab (fbk_066, owner 2026-10-26): an agent makes, renames and deletes folders and moves files; a person uploads in the screens.
   'folders.create', 'folders.rename', 'folders.delete', 'files.move',
   // MCP parity (owner, 2026-10-26). Every call keeps its rights check, so an agent does only what its person may do.
@@ -75,7 +83,10 @@ export const MCP_ALLOW = [
   // Tracker and meeting deletes, and the reads of people, teams, the office settings and the invitations (the call checks the people right).
   'tracker.delete', 'tracker.assignReply', 'tracker.export', 'meetings.delete',
   'users.get', 'users.invites', 'teams.list', 'settings.get',
-] as const satisfies readonly (typeof READ_FIRST | typeof PICTURES_GET | SharedCallName | ServerCallName)[];
+  // Uploads by content (owner, 2026-10-26): the agent sends the file in the call, as base64 text, 10 MB at most. The screens' upload calls run inside.
+  // (feedback.sendWithScreenshots sends a request or bug report with up to three pictures: it sits in MCP_BY_RIGHT beside feedback.send.)
+  FILES_UPLOAD_CONTENT,
+] as const satisfies readonly (typeof READ_FIRST | typeof PICTURES_GET | typeof TASKS_CREATE_MANY | typeof TASKS_UPDATE_MANY | typeof FILES_UPLOAD_CONTENT | SharedCallName | ServerCallName)[];
 
 /**
  * The tools that only an agent of an Admin gets: the three role calls, which need admin.manage (the Admin only, no switch grants it). They also
@@ -109,6 +120,8 @@ export const MCP_BY_RIGHT = {
   // and each call needs the right of the screens.
   'payments.delete': 'payment.change',
   'feedback.send': 'feedback.send',
+  // The upload form of feedback.send (upload.ts, owner 2026-10-26): same right, same AI switch (ai.feedback).
+  [FEEDBACK_SEND_WITH_SCREENSHOTS]: 'feedback.send',
   'users.create': 'people.invite',
   'users.resendInvite': 'people.invite',
   'users.update': 'people.change',
@@ -122,7 +135,7 @@ export const MCP_BY_RIGHT = {
   'subCompanies.save': 'subCompanies.manage',
   'subCompanies.delete': 'subCompanies.manage',
   'settings.update': 'office.settings',
-} as const satisfies Readonly<Partial<Record<SharedCallName | ServerCallName, OfficeRight>>>;
+} as const satisfies Readonly<Partial<Record<SharedCallName | ServerCallName | typeof FEEDBACK_SEND_WITH_SCREENSHOTS, OfficeRight>>>;
 const RIGHT_TOOLS = Object.keys(MCP_BY_RIGHT) as (keyof typeof MCP_BY_RIGHT)[];
 
 /** The office right that a tool needs, or undefined for a tool that no right opens. */
@@ -131,16 +144,14 @@ export function rightOf(name: string): (OfficeRight & Action) | undefined {
 }
 
 export type McpToolName = (typeof MCP_ALLOW)[number] | (typeof MCP_ADMIN)[number] | keyof typeof MCP_BY_RIGHT;
-type CallToolName = Exclude<McpToolName, typeof READ_FIRST | typeof PICTURES_GET>;
+type CallToolName = Exclude<McpToolName, typeof READ_FIRST | typeof PICTURES_GET | typeof TASKS_CREATE_MANY | typeof TASKS_UPDATE_MANY | typeof FILES_UPLOAD_CONTENT | typeof FEEDBACK_SEND_WITH_SCREENSHOTS>;
 
 export const MCP_DENY = [
   // The session of the screens: an agent reads the person it acts for from madar.readFirst.
   'session.get',
   // A project delete has no Undo (owner, 2026-10-26): only an Admin deletes a project, in the screens. An agent archives with projects.setStatus.
   'projects.delete',
-  // An agent does not add, remove, rename or reorder the stages of a project.
-  'stages.replace',
-  // Uploads need file content, which no MCP tool carries yet (owner, 2026-10-26: a later track).
+  // The raw upload calls need a signed link and a browser PUT. An agent sends the content with files.uploadContent or feedback.sendWithScreenshots instead.
   'files.upload', 'files.uploadStart', 'feedback.uploadStart',
   // A meeting that ended is settled by the 15-minute job and by the minutes call (fbk_022, wave 2): Madar makes its Tracker line, an agent does not.
   'meetings.settle',
@@ -162,7 +173,8 @@ export const MCP_DENY = [
  * other write (a change, a status change, an undo) is destructive, and the client may ask its person before it runs one.
  */
 const ADDITIVE = new Set<string>([
-  'story.start', 'tasks.create', 'comments.create', 'updates.create', 'tracker.log', 'payments.create', 'deadlines.create', 'meetings.create', 'folders.create',
+  'story.start', 'tasks.create', 'tasks.createMany', 'comments.create', 'updates.create', 'tracker.log', 'payments.create', 'deadlines.create', 'meetings.create', 'folders.create',
+  FILES_UPLOAD_CONTENT, FEEDBACK_SEND_WITH_SCREENSHOTS,
   // MCP parity (owner, 2026-10-26): calls that only add a record and send nothing outside Madar. users.create sends an invitation by email, so it is not here.
   'tasks.createFromTemplate', 'feedback.send', 'teams.create', 'roles.create', 'chats.createGroup', 'stageTemplates.save', 'taskTemplates.save',
 ]);
@@ -221,6 +233,8 @@ function withoutHidden(name: string, wire: z.ZodObject): z.ZodObject {
 function inputOf(name: McpToolName): { input: z.ZodObject; readOnly: boolean } {
   if (name === READ_FIRST) return { input: z.strictObject({}), readOnly: true };
   if (name === PICTURES_GET) return { input: PicturesGetInput, readOnly: true };
+  if (name === TASKS_CREATE_MANY || name === TASKS_UPDATE_MANY) return { input: BULK_INPUTS[name], readOnly: false };
+  if (name === FILES_UPLOAD_CONTENT || name === FEEDBACK_SEND_WITH_SCREENSHOTS) return { input: UPLOAD_INPUTS[name], readOnly: false };
   const def = calls[name];
   if (!def) throw new Error(`The MCP tool ${name} has no call.`);
   // The form on the wire, when it differs from the form the screens pass (files.upload, feedback.send).
@@ -249,7 +263,9 @@ function build(name: McpToolName): ToolDef {
   const takesStory = !readOnly && name !== 'story.start';
   // withPictures is an argument of the tool only (owner, 2026-10-21): run.ts takes it out before the call, and adds the picture data.
   const withPictures = WITH_PICTURES_TOOLS.has(name) ? callInput.extend({ withPictures: WithPictures }) : callInput;
-  const input = takesStory ? withPictures.extend({ storyId: StoryId.optional() }) : withPictures;
+  // limit, offset and full are arguments of the tool only (owner, 2026-10-26): run.ts takes them out before the call and cuts the page.
+  const paged = PAGED_TOOLS.has(name) ? withPictures.extend(PagingArgs) : withPictures;
+  const input = takesStory ? paged.extend({ storyId: StoryId.optional() }) : paged;
   const { $schema: _dialect, ...schema } = z.toJSONSchema(input, { io: 'input', override: shortDates }) as Record<string, unknown>;
   const doc = TOOL_DOCS[name];
   return {

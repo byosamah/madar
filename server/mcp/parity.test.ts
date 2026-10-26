@@ -540,7 +540,7 @@ describe('the lists, the AI switches and the words of the parity track', () => {
 
   it('keeps on the deny list the calls that cannot work for an agent or that the owner kept in the screens', () => {
     for (const name of ['projects.delete', 'session.get', 'push.register', 'push.remove', 'push.mine', 'live.ticket', 'chats.typing', 'google.connectStart', 'google.connect', 'google.status', 'google.disconnect',
-      'meetings.settle', 'meetings.extend', 'files.upload', 'files.uploadStart', 'feedback.uploadStart', 'stages.replace']) {
+      'meetings.settle', 'meetings.extend', 'files.upload', 'files.uploadStart', 'feedback.uploadStart']) {
       expect(MCP_DENY as readonly string[], name).toContain(name);
     }
   });

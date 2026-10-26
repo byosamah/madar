@@ -21,7 +21,7 @@ const CONNECT_ONLY = [READ_FIRST, 'story.start'];
 
 describe('the map from each MCP tool to its AI switch (role rights version 2, design section 5.12)', () => {
   it('gives every tool of MCP_ALLOW and MCP_BY_RIGHT exactly one AI switch', () => {
-    expect(allTools).toHaveLength(153);
+    expect(allTools).toHaveLength(158);
     for (const tool of allTools) {
       const owners = AI_SWITCHES.filter((id) => toolsOfAiSwitch(id).includes(tool));
       expect(owners, tool).toHaveLength(1);
@@ -80,7 +80,7 @@ describe('the map from each MCP tool to its AI switch (role rights version 2, de
     expect(aiSwitchOf('roles.update')).toBe('ai.admin');
     expect(aiSwitchOf('settings.update')).toBe('ai.admin');
     // The calls that stay closed have no switch: no tool of them exists.
-    for (const name of ['projects.delete', 'files.upload', 'google.status', 'chats.typing', 'stages.replace']) expect(aiSwitchOf(name), name).toBeUndefined();
+    for (const name of ['projects.delete', 'files.upload', 'google.status', 'chats.typing']) expect(aiSwitchOf(name), name).toBeUndefined();
   });
 
   it('has no tool in the catalog that the lists lack, and no tool in the lists that the catalog lacks', () => {

@@ -38,6 +38,7 @@ server checks the final object, then saves the record.
    the size and the type of the FINAL object (`confirm.ts`). A confirmed version never changes.
 4. The prepare marks the intent used inside the lock. A retry with the same idempotency key gets the stored answer.
 - The `uploads` job step removes staging objects older than 2 hours 10 minutes, and the copies of calls that failed.
+- An agent over MCP uploads with `files.uploadContent` (`server/mcp/upload.ts`): the same steps 1 to 4, run on the server. It sends the file as base64 text (10 MB at most), puts the bytes to the signed link itself, and never gets a key or a link back. An agent cannot upload into a direct chat or a group.
 
 ## Rules
 - Object keys hold only `[a-z0-9/-]` (`keys.ts`), so a key never leaves its folder. Each upload is a folder with `file`
