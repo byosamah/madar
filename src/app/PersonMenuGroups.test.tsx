@@ -14,11 +14,12 @@ const openMenu = async () => {
 };
 const nav = (menu: HTMLElement) => within(menu).getByRole('navigation', { name: 'Hala Nasser' });
 
-/** The names of the rows in the order they stand in the menu: a switch, a choice group, a link or a button. */
+/** The names of the rows in the order they stand in the menu: the label of each quick row, then each place. */
 function rowNames(menu: HTMLElement): string[] {
-  const rows = [...nav(menu).querySelectorAll<HTMLElement>('[role="switch"], [role="radiogroup"], a, button:not([role="radio"])')];
-  const text = (row: HTMLElement) => row.textContent?.replace(/\s+/g, ' ').trim() ?? '';
-  return rows.map((row) => row.getAttribute('aria-label') ?? (row.getAttribute('role') === 'switch' ? text(document.querySelector(`label[for="${row.id}"]`) as HTMLElement) : text(row)));
+  const text = (row: Element) => row.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+  const quick = [...nav(menu).querySelectorAll('[data-quick-row]')].map((row) => text(row.firstElementChild!));
+  const places = [...nav(menu).querySelectorAll('[data-menu-group="places"] a, [data-menu-group="places"] button')].map(text);
+  return [...quick, ...places];
 }
 
 describe('the person menu groups (fbk_063)', () => {
@@ -39,75 +40,54 @@ describe('the person menu groups (fbk_063)', () => {
     expect(groups[1]).toHaveClass('border-t', 'border-hairline');
   });
 
-  it('shows the Mode choice with the resolved theme selected, and a press saves the theme and keeps the menu open', async () => {
+  it('names the other mode on one button; a press saves the theme, keeps the menu open and names the mode back (owner, 2026-10-26)', async () => {
     const { api, store } = await renderApp('/dashboard');
     const call = vi.spyOn(api, 'call');
     const menu = await openMenu();
-    const mode = within(menu).getByRole('radiogroup', { name: 'Mode' });
-    expect(within(mode).getAllByRole('radio').map((radio) => radio.textContent)).toEqual(['Light', 'Dark']);
-    expect(within(mode).getByRole('radio', { name: 'Light' })).toBeChecked();
-    await userEvent.click(within(mode).getByRole('radio', { name: 'Dark' }));
+    const toDark = within(menu).getByRole('button', { name: 'Dark mode' });
+    expect(toDark).toHaveTextContent(/^Dark$/);
+    await userEvent.click(toDark);
     await waitFor(() => expect(call).toHaveBeenCalledWith('me.updatePreferences', { theme: 'dark' }, expect.anything()));
     await waitFor(() => expect(store.state.users.usr_001.preferences.theme).toBe('dark'));
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'));
-    // The menu stays open, and the other part is now the checked one.
     expect(screen.getByRole('dialog', { name: 'Hala Nasser' })).toBeInTheDocument();
-    await waitFor(() => expect(within(mode).getByRole('radio', { name: 'Dark' })).toBeChecked());
+    expect(await within(menu).findByRole('button', { name: 'Light mode' })).toHaveTextContent(/^Light$/);
   });
 
-  it('sends nothing when the checked part of Mode is pressed again', async () => {
-    const { api } = await renderApp('/dashboard');
-    const menu = await openMenu();
-    const call = vi.spyOn(api, 'call');
-    await userEvent.click(within(within(menu).getByRole('radiogroup', { name: 'Mode' })).getByRole('radio', { name: 'Light' }));
-    expect(call).not.toHaveBeenCalledWith('me.updatePreferences', expect.anything(), expect.anything());
-  });
-
-  it('shows the Language choice with each language in its own language, and a press switches the language and gives the focus back to the picture', async () => {
+  it('names the other language, in that language, on one button; a press switches the language and gives the focus back to the picture', async () => {
     await renderApp('/dashboard');
     const picture = (await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0];
     await userEvent.click(picture);
     const menu = screen.getByRole('dialog', { name: 'Hala Nasser' });
-    const language = within(menu).getByRole('radiogroup', { name: 'Language' });
-    expect(within(language).getAllByRole('radio').map((radio) => radio.textContent)).toEqual(['English', 'العربية']);
-    expect(within(language).getByRole('radio', { name: 'English' })).toBeChecked();
-    await userEvent.click(within(language).getByRole('radio', { name: 'العربية' }));
+    expect(within(menu).queryByRole('button', { name: 'English' })).toBeNull();
+    const toArabic = within(menu).getByRole('button', { name: 'العربية' });
+    expect(toArabic).toHaveAttribute('lang', 'ar');
+    await userEvent.click(toArabic);
     await waitFor(() => expect(document.documentElement.dir).toBe('rtl'));
     expect(screen.queryByRole('dialog', { name: 'Hala Nasser' })).toBeNull();
     expect(document.activeElement).toBe(picture);
   });
 
-  it('keeps each choice as one Tab stop with the arrow keys, and Escape gives the focus back to the picture', async () => {
-    await renderApp('/dashboard');
+  it('gives the three quick controls one height and one end edge, and Escape gives the focus back to the picture', async () => {
+    const live = fakeLive({ usr_001: 'online' });
+    await renderApp('/dashboard', undefined, { live: live.port });
     const picture = (await screen.findAllByRole('button', { name: 'Hala Nasser' }))[0];
     await userEvent.click(picture);
     const menu = screen.getByRole('dialog', { name: 'Hala Nasser' });
-    for (const name of ['Mode', 'Language']) {
-      const radios = within(within(menu).getByRole('radiogroup', { name })).getAllByRole('radio');
-      expect(radios.filter((radio) => radio.tabIndex === 0)).toHaveLength(1);
-      expect(radios.filter((radio) => radio.tabIndex === -1)).toHaveLength(1);
+    const rows = [...nav(menu).querySelectorAll<HTMLElement>('[data-quick-row]')];
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      expect(row).toHaveClass('flex', 'min-h-11', 'items-center', 'justify-between');
+      // One box of one width at the end of each row, so the switch and the two buttons end on one edge.
+      expect(row.lastElementChild).toHaveClass('w-24', 'shrink-0', 'justify-end');
     }
-    const mode = within(menu).getByRole('radiogroup', { name: 'Mode' });
-    within(mode).getByRole('radio', { name: 'Light' }).focus();
-    await userEvent.keyboard('{ArrowRight}');
-    await waitFor(() => expect(within(mode).getByRole('radio', { name: 'Dark' })).toBeChecked());
+    expect(within(rows[0]).getByRole('switch', { name: 'Show me as Away' })).toHaveClass('h-[31px]');
+    for (const name of ['Dark mode', 'العربية']) expect(within(menu).getByRole('button', { name })).toHaveClass('h-[31px]', 'w-24');
+    expect(nav(menu)).toHaveClass('min-w-72');
+    within(menu).getByRole('button', { name: 'Dark mode' }).focus();
     await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Hala Nasser' })).toBeNull());
     expect(document.activeElement).toBe(picture);
-  });
-
-  it('keeps the label at the start and the control at the end of each quick row, and no row wraps', async () => {
-    const live = fakeLive({ usr_001: 'online' });
-    await renderApp('/dashboard', undefined, { live: live.port });
-    const menu = await openMenu();
-    for (const name of ['Mode', 'Language']) {
-      const group = within(menu).getByRole('radiogroup', { name });
-      const row = group.closest('[data-quick-row]') as HTMLElement;
-      expect(row).toHaveClass('flex', 'items-center', 'justify-between');
-      expect(row.firstElementChild).toHaveTextContent(name);
-      expect(group.parentElement).toHaveClass('shrink-0');
-    }
-    expect(nav(menu)).toHaveClass('min-w-72');
   });
 
   it('has no Away row on a screen with no live port', async () => {

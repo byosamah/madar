@@ -466,12 +466,14 @@ The owner sees how the team uses Madar, which errors they hit, and replays of th
   `CARD_HEIGHT` in `spaceTree.ts` is the height of each card kind (offsetHeight in a browser): the four kinds of fbk_055 were measured in Chrome on 2026-10-25 (sub-company 80, deadline 58, checklist 42),
   so a change of a card measures it again. The name stays "Open space" (the team's own word).
 - `AvatarStack`: one hidden person shows as a picture, never as "+1". "+N" names the hidden people on hover and in `aria-label`.
-- The leader ring (owner, 2026-10-26, fbk_060): `AvatarStack` gives the leader picture, when a leader is passed, a 2 px ring in the ink color (`ring-ink`,
+- The leader ring (owner, 2026-10-26, fbk_060): `AvatarStack` gives the leader picture, when a leader is passed, a 1.5 px ring in the ink color (`ring-[1.5px] ring-ink`,
   never the navy, never red) with a 2 px gap in the surface color inside it (`bg-card p-0.5`). The ring and the gap draw outside the box (`-m-0.5`), so the
   box of the leader is as big as its picture and a row never grows. The first team picture sits `ms-2` (4 px from the ring), the others overlap by 4 px as
   before, and all pictures sit on one middle line. Every stack with a leader has the ring (Projects list, to-do rows, the Board, Open space); a stack with
   no leader (Admin Teams) has none. The leader's name reads "Leader: <name>" to a screen reader and in the hover label (`people.leaderName`). Only the
-  Projects list set a new size: 34 px for the leader, 26 px for the team.
+  Projects list set a new size: 32 px for the leader (owner, 2026-10-26: 34 was too big), 26 px for the team. Each picture box is `flex shrink-0`: a photo
+  (an inline img) in a plain box sat on a text line, the box grew a gap under it, and the ring drew an oval with the photo at its top (production,
+  2026-10-26). Initials have no gap, so the prototype did not show it: check a stack with a real photo.
 
 ## Routes and shell
 - Routes (`app/routes.tsx`): `/` Home, `/projects`, `/projects/:id` (tabs overview, tasks, activity, tracker, schedule,
@@ -1127,10 +1129,11 @@ chunks (the first-load limit is in `scripts/check-bundles.ts`).
   the lists old and never loads them again: a saved change does not show until a reload (2026-10-12, fbk_006). In that tab run
   `Object.defineProperty(document, 'hidden', { configurable: true, get: () => false })` and dispatch `visibilitychange` first.
 - The person menu (`app/PersonMenu.tsx`, from 640 px; owner, 2026-10-26, fbk_063) has two groups under the header (picture, name, state line; Preview as in the
-  prototype). Group 1 (`data-menu-group="quick"`): Away (the switch, only with a live port), Mode (`SegmentedControl` Light | Dark; the checked part is the
-  theme that shows now, a press saves it with `me.updatePreferences` and the menu stays open) and Language (`SegmentedControl` English | العربية, each in its own
-  language; a press closes the menu, gives the focus back to the picture and runs `switchLanguage`). Each row is `QuickRow`: the label at the start, the control at the end
-  (`shrink-0`), and the nav is `min-w-72` so no control wraps. A press on the part that is already checked sends nothing. Group 2 (`places`): Admin, Settings, What's new and the feedback
+  prototype). Group 1 (`data-menu-group="quick"`): Away (`SwitchButton`, only with a live port), Mode and Language (owner, 2026-10-26: "make them one
+  button"): each is one button that names the other choice. Mode says "Light" in dark mode and "Dark" in light mode (its name is "Light mode" or "Dark mode"),
+  a press saves the theme with `me.updatePreferences`, and the menu stays open. Language says the other language in that language ("العربية" with `lang="ar"`,
+  or "English"); a press closes the menu, gives the focus back to the picture and runs `switchLanguage`. Each row is `QuickRow`: the label at the start, the
+  control in a `w-24` box at the end, 44 px rows, and the switch and both buttons 31 px high, so the three controls share one height and one end edge. Group 2 (`places`): Admin, Settings, What's new and the feedback
   button. Group 3 (`signout`, real build only): Sign out, alone. A hairline (`border-t border-hairline`) starts every group. The phone has no person menu: the Me hub
   holds the same choices and did not change. Words: `personMenu.mode`, and the labels `settings.language`, `settings.languages.*`, `settings.themes.*`.
 - Prototype language and theme: the person menu from 640 px, the Me tab on a phone (stored in IndexedDB, not localStorage). A switch takes a few seconds,

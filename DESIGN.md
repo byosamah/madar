@@ -548,7 +548,7 @@ Every component exists to make the next step obvious. All live in `src/component
 - **Notes** ({components.attention-note}, {components.late-note}): a soft tinted line for "3 days past due" or "Late".
 - **Avatars:** the person's profile picture when there is one (a 128 px square that the browser makes, Settings), else a
   "Glow" picture: two soft lights in one colour with ink letters (two Arabic letters, apart, for an Arabic name); no stacks
-  of faces in lists. Where a short stack of people stays (project row, to-do row), the leader first has a 2 px ring in the ink colour
+  of faces in lists. Where a short stack of people stays (project row, to-do row), the leader first has a 1.5 px ring in the ink colour
   with a 2 px surface gap inside it (never navy, never red), so one meaning has one look.
 - **Toasts:** solid, short, with Undo when the action can be undone. Ctrl or Cmd + Z runs the newest Undo.
 - **Empty states:** one sentence that says what will appear here and, at most, one action.

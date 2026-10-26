@@ -6,8 +6,7 @@ import { SettingsIcon } from '../components/icons/animated/settings';
 import { LogoutIcon } from '../features/auth/LogoutIcon';
 import { PersonFace } from '../components/PersonFace';
 import { Popover } from '../components/Popover';
-import { SegmentedControl } from '../components/SegmentedControl';
-import { Switch } from '../components/Switch';
+import { SwitchButton } from '../components/Switch';
 import { actorContext } from '../lib/grammar';
 import { useMyState } from './live/hooks';
 import { readEnvironment, resolveAppearance } from './appearance';
@@ -26,17 +25,21 @@ import { opensAdminPage } from '../api/rights';
 import { can } from '../api/permissions';
 
 /**
- * One quick choice of the person menu: the label at the start and its control at the end. The control keeps its width, so a row
- * never wraps (fbk_063, owner 2026-10-26).
+ * One quick choice of the person menu: the label at the start and its control at the end, in a box of one width, so the three controls end on
+ * one edge and keep one height (31 px). The row is 44 px high (owner, 2026-10-26: "no spaces, no alignments, something off").
  */
-function QuickRow({ label, children }: { label: string; children: ReactNode }) {
+function QuickRow({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
+  const text = 'min-w-0 text-body text-ink';
   return (
     <div data-quick-row className="flex min-h-11 items-center justify-between gap-4 px-2">
-      <span className="min-w-0 text-body text-ink">{label}</span>
-      <div className="flex shrink-0">{children}</div>
+      {htmlFor ? <label htmlFor={htmlFor} className={text}>{label}</label> : <span className={text}>{label}</span>}
+      <div className="flex w-24 shrink-0 justify-end">{children}</div>
     </div>
   );
 }
+
+/** The one button of Mode and of Language: it names the other choice, and a press takes it (owner, 2026-10-26). */
+const QUICK_BUTTON = 'pressable inline-flex h-[31px] w-24 items-center justify-center rounded-full bg-fill text-subheadline font-medium text-ink hover:bg-fill-strong';
 
 /** A group of the person menu. A hairline separates it from the one above, and from the header for the first group. */
 const GROUP = 'flex flex-col border-t border-hairline pt-1 mt-1';
@@ -74,8 +77,8 @@ export function PersonMenuPanel({ id, anchor, onClose, onLeave, onFeedback }: Pe
   const myState = useMyState();
   const signOut = useSignOut();
   if (!user) return null;
-  const language = user.preferences.language === 'ar' ? 'ar' : 'en';
-  // The checked part of Mode is the theme that shows now. Settings keeps the third choice, System.
+  const otherLanguage = user.preferences.language === 'ar' ? 'en' : 'ar';
+  // The theme that shows now; the Mode button names the other one. Settings keeps the third choice, System.
   const theme = resolveAppearance(user.preferences, readEnvironment()).theme === 'dark' ? 'dark' : 'light';
   // A button centres its text by default. text-start keeps a label on two lines next to its icon (audit 2026-10-03, F-6).
   const row = 'pressable flex min-h-11 items-center gap-3 rounded-xl px-2 text-start text-body text-ink hover:bg-fill';
@@ -92,35 +95,29 @@ export function PersonMenuPanel({ id, anchor, onClose, onLeave, onFeedback }: Pe
         </span>
       </div>
       {PROTOTYPE && <PreviewAs id={`preview-as-${id}`} />}
-      {/* min-w-72 keeps the two choices with their labels on one line each, in English and in Arabic. */}
+      {/* min-w-72 keeps each label and its control on one line, in English and in Arabic. */}
       <nav aria-label={nameOf(user)} className="-mx-2 flex min-w-72 flex-col">
         <div data-menu-group="quick" className={GROUP}>
           {live && (
-            <div className="px-2">
-              <Switch
-                id="away-by-hand"
-                label={t('presence.showAway', { context: actorContext(user) })}
-                checked={user.preferences.awayByHand === true}
-                onChange={(next) => preferences.mutate({ awayByHand: next })}
-              />
-            </div>
+            <QuickRow label={t('presence.showAway', { context: actorContext(user) })} htmlFor="away-by-hand">
+              <SwitchButton id="away-by-hand" checked={user.preferences.awayByHand === true} onChange={(next) => preferences.mutate({ awayByHand: next })} />
+            </QuickRow>
           )}
           <QuickRow label={t('personMenu.mode')}>
-            <SegmentedControl
-              label={t('personMenu.mode')}
-              value={theme}
-              options={[{ value: 'light', label: t('settings.themes.light') }, { value: 'dark', label: t('settings.themes.dark') }]}
-              onChange={(next) => { if (next !== theme) preferences.mutate({ theme: next }); }}
-            />
+            <button
+              type="button"
+              aria-label={t(theme === 'dark' ? 'nav.lightMode' : 'nav.darkMode')}
+              onClick={() => preferences.mutate({ theme: theme === 'dark' ? 'light' : 'dark' })}
+              className={QUICK_BUTTON}
+            >
+              {t(theme === 'dark' ? 'settings.themes.light' : 'settings.themes.dark')}
+            </button>
           </QuickRow>
           <QuickRow label={t('settings.language')}>
-            <SegmentedControl
-              label={t('settings.language')}
-              value={language}
-              options={[{ value: 'en', label: t('settings.languages.en') }, { value: 'ar', label: t('settings.languages.ar') }]}
-              // onClose() gives the focus back to the picture, as the other items do (audit 2026-10-03, F-3).
-              onChange={(next) => { if (next !== language) { onClose(); switchLanguage(next); } }}
-            />
+            {/* onClose() gives the focus back to the picture, as the other items do (audit 2026-10-03, F-3). */}
+            <button type="button" lang={otherLanguage} onClick={() => { onClose(); switchLanguage(otherLanguage); }} className={QUICK_BUTTON}>
+              {t(`settings.languages.${otherLanguage}`)}
+            </button>
           </QuickRow>
         </div>
         <div data-menu-group="places" className={GROUP}>

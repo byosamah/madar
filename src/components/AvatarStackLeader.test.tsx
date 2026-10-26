@@ -14,13 +14,13 @@ const leader = person('usr_002', 'Faisal Al-Harbi');
 const team = [person('usr_005', 'Sara A'), person('usr_006', 'Yousef S'), person('usr_007', 'Lina M')];
 
 describe('the leader of an avatar stack', () => {
-  it('has a 2 px ink ring and a 2 px surface gap, and never the navy or the red', () => {
+  it('has a 1.5 px ink ring and a 2 px surface gap, and never the navy or the red', () => {
     render(<AvatarStack leader={leader} team={team} size={26} leaderSize={34} />);
     const [first, second] = screen.getAllByRole('img');
     const ring = first.closest('[data-leader]') as HTMLElement;
     expect(ring).not.toBeNull();
-    expect(ring).toHaveClass('ring-2', 'ring-ink', 'p-0.5', 'bg-card', 'rounded-full');
-    expect(ring.className.split(/\s+/).filter((name) => name.startsWith('ring'))).toEqual(['ring-2', 'ring-ink']);
+    expect(ring).toHaveClass('ring-[1.5px]', 'ring-ink', 'p-0.5', 'bg-card', 'rounded-full');
+    expect(ring.className.split(/\s+/).filter((name) => name.startsWith('ring'))).toEqual(['ring-[1.5px]', 'ring-ink']);
     expect(first).toHaveStyle({ width: '34px' });
     // A team picture has the surface ring only, never the ink ring.
     expect(second.closest('[data-leader]')).toBeNull();
@@ -68,5 +68,13 @@ describe('the leader of an avatar stack', () => {
     const four = many.slice(0, 3);
     render(<AvatarStack leader={leader} team={four} max={2} size={26} leaderSize={34} />);
     expect(screen.queryByText('+1')).toBeNull();
+  });
+
+  it('puts each picture in a flex box, so a photo gets no text-line gap and the ring stays a circle (production, 2026-10-26)', () => {
+    const { container } = render(<AvatarStack leader={leader} team={team} size={26} leaderSize={32} />);
+    const boxes = [...container.querySelectorAll('div.group\\/stack > span')].filter((box) => !box.getAttribute('role'));
+    expect(boxes.length).toBeGreaterThan(1);
+    for (const box of boxes) expect(box.className).toMatch(/(^| )flex( |$)/);
+    expect(container.querySelector('[data-leader]')!.className).toContain('ring-[1.5px]');
   });
 });

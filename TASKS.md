@@ -1154,5 +1154,6 @@ Owner answers: memory `owner-batch-2026-10-26-fbk060-066`. Three tracks from mai
 - [x] Test copy (`all.sh test`, a9c0841e), screenshots in Chrome (EN/AR, light/dark, 390 px)
 - [x] Production at a9c0841e (2026-10-26, owner: "ok production"), release record
 - [x] Mark fbk_060, fbk_062 to fbk_066 done in Madar (2026-10-26 12:05, story sty_pxf4rzxoxogvy4tkvl2ljt)
+- [ ] `src/features/me/focusInert.test.tsx` fails under a high load (16) on the production commit too: make its wait robust (found 2026-10-26)
 - [ ] fbk_064 is not proven on a real stale tab: if Faisal still sees the error page after a reload on the new build, ask for the error text
 - [ ] fbk_061 tile shapes (branch `rb/tile-shape`, after this release, What's new 2026-10-23-114): `Project.shape` set through the MCP; the three internal tools keep their app logos; every client project gets a shape drawn from its own pictures, as BIG draws its icons (study of 20 BIG projects under way)

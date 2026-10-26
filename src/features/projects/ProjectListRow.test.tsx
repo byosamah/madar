@@ -50,9 +50,9 @@ describe('the project row', () => {
     // The team as pictures only, the leader first and bigger (colleague's comment 2).
     const team = within(row.querySelector('[data-team-column]') as HTMLElement).getAllByRole('img');
     expect(team[0]).toHaveAccessibleName('Leader: Faisal Al-Harbi');
-    expect(team[0]).toHaveStyle({ width: '34px' });
+    expect(team[0]).toHaveStyle({ width: '32px' });
     // The leader has the ink ring (fbk_060); a team picture has none.
-    expect(team[0].closest('[data-leader]')).toHaveClass('ring-2', 'ring-ink');
+    expect(team[0].closest('[data-leader]')).toHaveClass('ring-[1.5px]', 'ring-ink');
     expect(team[1].closest('[data-leader]')).toBeNull();
     expect(team[1]).toHaveStyle({ width: '26px' });
     expect(within(row).getByText('Coordination workshop').closest('p')).toHaveTextContent('Coordination workshop · In 5 days');

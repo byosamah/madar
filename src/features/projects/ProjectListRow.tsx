@@ -98,7 +98,7 @@ export const ProjectListRow = memo(function ProjectListRow({ summary, source }: 
           {/* The team as pictures only, the leader first, bigger and with a ring (colleague's comment 2; 34 px and the ink ring, owner 2026-10-26, fbk_060). The row shows three pictures at most, then "+N" (owner, 2026-10-18). With a leader, the stack shows two team members after the leader. Beside the deadline until the row is wide. */}
           <span className="flex min-w-0 items-center justify-between gap-3 @4xl:contents">
             <span data-team-column className="order-last @4xl:order-none">
-              <AvatarStack leader={summary.leader} team={summary.team} max={summary.leader ? 2 : 3} size={26} leaderSize={34} />
+              <AvatarStack leader={summary.leader} team={summary.team} max={summary.leader ? 2 : 3} size={26} leaderSize={32} />
             </span>
             <span className="min-w-0 max-w-full @4xl:text-end">
               <NextDeadlineLabel deadline={summary.nextDeadline} stageEnd={summary.stageEnd} />
