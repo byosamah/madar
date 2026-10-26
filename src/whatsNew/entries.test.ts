@@ -262,3 +262,15 @@ describe("the What's new entries of 2026-10-26 (small fixes)", () => {
     expect(body(ar, '2026-10-23-109')).toContain('زر الخروج');
   });
 });
+
+// MCP parity (owner, 2026-10-26): the AI assistant does what its person does in the screens. The entry is found by id, never by place.
+describe("the What's new entry of the MCP parity track", () => {
+  it('tells everyone that the assistant does more, names the Admin work switch and the project delete that stays in the screens', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-116')).toEqual({ id: '2026-10-23-116', day: '2026-10-26', to: '/settings' });
+    const body = String(wordAt(en, ['whatsNew', 'items', '2026-10-23-116', 'body']));
+    expect(body).toContain('"AI does Admin work"');
+    expect(body).toContain('A project delete stays in the screens.');
+    expect(String(wordAt(ar, ['whatsNew', 'items', '2026-10-23-116', 'body']))).toContain('«ينفّذ المساعد أعمال الإدارة»');
+    expect(String(wordAt(en, ['whatsNew', 'items', '2026-10-23-116', 'title']))).not.toMatch(/[–—]/);
+  });
+});

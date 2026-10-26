@@ -1155,3 +1155,14 @@ Owner answers: memory `owner-batch-2026-10-26-fbk060-066`. Three tracks from mai
 - [ ] Production after the owner's OK, release record, then mark fbk_060, fbk_062 to fbk_066 done in Madar
 - [ ] fbk_064 is not proven on a real stale tab: if Faisal still sees the error page after a reload on the new build, ask for the error text
 - [ ] fbk_061 tile shapes (branch `rb/tile-shape`, after this release, What's new 2026-10-23-114): `Project.shape` set through the MCP; the three internal tools keep their app logos; every client project gets a shape drawn from its own pictures, as BIG draws its icons (study of 20 BIG projects under way)
+
+## MCP parity (owner, 2026-10-26: "make the mcp do everything that the user can do on madar without open madar each based on their permissions"; team report fbk_068)
+
+Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, section "MCP parity". What's new 2026-10-23-116.
+
+- [x] 88 calls moved from the deny list to the lists, each with one AI switch and a `TOOL_DOCS` entry: project set-up, to-dos and words, files without upload, the bell and the read marks, group chats, templates, Tracker, payments and meeting deletes, the own profile and settings, and the Admin work
+- [x] Two new AI switches: `ai.admin` ("AI does Admin work", off for every built-in role) and `ai.myState` ("AI changes my own marks and settings", on for every built-in role); the role sheet words in English and Arabic
+- [x] Handler fixes for agents: `me.updateProfile` and `me.updatePreferences` change the person (not the agent record); no picture, no logo, no email through an agent
+- [x] Still closed, with the reason in `tools.ts`: `projects.delete` (no Undo), `session.get`, `push.*`, `live.ticket`, `chats.typing`, `google.*` (the server refuses an agent), `meetings.settle`, `meetings.extend`, the uploads, `stages.replace`
+- [ ] Merge lead: join with `rb/mcp-bulk` (`stages.replace`, `run.ts` shaping, new tools) and `rb/tile-shape`; run `test:mcp`, `test:db`, `test:it`; look at the 153-tool list of an Admin's agent in Claude (VS Code allows 128 tools in one request)
+- [ ] Later track: an MCP tool that takes file content (uploads), then `files.upload`, `files.uploadStart` and `feedback.uploadStart` can open
