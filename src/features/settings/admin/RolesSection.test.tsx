@@ -183,7 +183,7 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014; 121 switches sinc
     it('turns on the needed switch of another section with a section: the whole Money section brings nothing outside itself', async () => {
       const { sheet } = await openSheet('Member', () => undefined);
       await userEvent.click(allSwitch(sheet, 'money'));
-      expect(within(sheet).getByText('Holds 72 of 121')).toBeInTheDocument();
+      expect(within(sheet).getByText('Holds 73 of 121')).toBeInTheDocument();
       expect(allSwitch(sheet, 'money')).toHaveAttribute('aria-checked', 'true');
     });
 
@@ -450,7 +450,7 @@ describe('the Admin Roles section (owner, 2026-10-18, fbk_014; 121 switches sinc
     });
     await userEvent.click(await within(await screen.findByRole('region', { name: 'الأدوار' })).findByRole('button', { name: /^أمين الصندوق/ }));
     const sheet = await screen.findByRole('dialog', { name: 'أمين الصندوق' });
-    expect(within(sheet).getByText('يملك هذا الدور 72 من 120')).toBeInTheDocument();
+    expect(within(sheet).getByText('يملك هذا الدور 72 من 121')).toBeInTheDocument();
     await userEvent.click(within(sheet).getByRole('button', { name: /^المشاريع \d+ من \d+/ }));
     expect(within(sheet).getByRole('switch', { name: 'تعديل بيانات المشروع، مشاريع أقودها' })).toBeInTheDocument();
     expect(within(sheet).getByRole('switch', { name: 'إنشاء المشاريع' })).toBeInTheDocument();

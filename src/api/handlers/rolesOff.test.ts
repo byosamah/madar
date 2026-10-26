@@ -52,14 +52,14 @@ describe('roles.create with off', () => {
     expect(role.rights).toEqual(['clients.change']);
   });
 
-  it('refuses a list over the caps: 126 stored rights and 70 off ids', async () => {
+  it('refuses a list over the caps: 127 stored rights and 70 off ids', async () => {
     const t = world();
-    const tooMany = Array.from({ length: 127 }, () => 'report.office' as const);
+    const tooMany = Array.from({ length: 128 }, () => 'report.office' as const);
     await expect(t.api.call('roles.create', { name: 'Big', nameAr: 'كبير', rights: tooMany })).rejects.toMatchObject({ code: 'invalid_input' });
     const offTooMany = Array.from({ length: 71 }, () => 'chat.direct' as const);
     await expect(t.api.call('roles.create', { name: 'Big', nameAr: 'كبير', rights: [], off: offTooMany })).rejects.toMatchObject({ code: 'invalid_input' });
-    // The caps still allow a full list: 126 ids and 70 ids.
-    const full = Array.from({ length: 126 }, () => 'report.office' as const);
+    // The caps still allow a full list: 127 ids and 70 ids.
+    const full = Array.from({ length: 127 }, () => 'report.office' as const);
     const role = await t.api.call('roles.create', { name: 'Full', nameAr: 'كامل', rights: full, off: Array.from({ length: 70 }, () => 'chat.direct' as const) });
     expect(role.rights).toEqual(['report.office']);
   });
