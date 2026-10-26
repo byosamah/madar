@@ -4,13 +4,23 @@
     "title": "Your assistant needs your OK",
     "act": {
       "usersCreate": "Your assistant {{agent}} wants to invite {{target}} ({{detail}}) to Madar with the role {{role}}.",
-      "usersRole": "Your assistant {{agent}} wants to change the role of {{target}} to {{role}}.",
+      "usersRole": "Your assistant {{agent}} wants to change the role of {{target}} from {{from}} to {{role}}.",
       "usersDeactivate": "Your assistant {{agent}} wants to turn off the account of {{target}}.",
       "usersReactivate": "Your assistant {{agent}} wants to turn on the account of {{target}}.",
       "usersRemove": "Your assistant {{agent}} wants to remove {{target}} from Madar.",
       "rolesCreate": "Your assistant {{agent}} wants to make the role {{target}}.",
       "rolesUpdate": "Your assistant {{agent}} wants to change the role {{target}}.",
       "rolesDelete": "Your assistant {{agent}} wants to delete the role {{target}}."
+    },
+    "lines": {
+      "rightsGive": "Rights it gives: {{list}}.",
+      "basicsOff": "Basic rights it turns off: {{list}}.",
+      "rightsAdd": "Rights it adds: {{list}}.",
+      "rightsRemove": "Rights it removes: {{list}}.",
+      "newName": "New name: {{name}}.",
+      "newNameAr": "New Arabic name: {{name}}.",
+      "moveTo": "The people of this role move to the role {{role}}.",
+      "more": "and {{n}} more"
     },
     "codeIntro": "To allow it, give this code to your assistant:",
     "validity": "The code works one time, for 10 minutes.",

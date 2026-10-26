@@ -31,9 +31,9 @@ const isBuiltIn = (role: string): role is BuiltIn => (BUILT_IN as readonly strin
  * The rights of a save, as the store holds them: the new ids only (an old id expands to the switches it stands for), each one once, in
  * the order of the catalog, and without the basic switches. A basic switch is on by default, so only `off` can change it.
  */
-const inOrder = (rights: readonly string[]): OfficeRight[] => expandRights(rights).filter((right) => !BASIC_ON.includes(right));
+export const inOrder = (rights: readonly string[]): OfficeRight[] => expandRights(rights).filter((right) => !BASIC_ON.includes(right));
 /** The turned-off basic switches of a save: only basic ids, each one once, in the order of the catalog. */
-const offInOrder = (off: readonly string[]): OfficeRight[] => BASIC_ON.filter((right) => off.includes(right));
+export const offInOrder = (off: readonly string[]): OfficeRight[] => BASIC_ON.filter((right) => off.includes(right));
 /**
  * True when both lists mean the same switches, in any order and in any form: an old id and the new ids it stands for are the same
  * (role rights version 2). A save that changes nothing writes no event.

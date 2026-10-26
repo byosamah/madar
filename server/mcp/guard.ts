@@ -1,6 +1,8 @@
 import { z } from 'zod';
-import { User, type Gender, type Language } from '../../src/api/contract/entities';
+import { User, type Gender, type Language, type RoleSettings } from '../../src/api/contract/entities';
 import { ApiError, forbidden } from '../../src/api/errors';
+import { inOrder, offInOrder } from '../../src/api/handlers/roles';
+import { heldRightsOfRole } from '../../src/api/rights';
 import ar from '../../src/i18n/real/mcpguard.ar.json';
 import en from '../../src/i18n/real/mcpguard.en.json';
 import { escapeHtml, fill, page, pick } from '../auth/mail';
@@ -63,8 +65,20 @@ export function takeCode(input: unknown): { input: unknown; code?: string } {
 
 type ActKey = 'usersCreate' | 'usersRole' | 'usersDeactivate' | 'usersReactivate' | 'usersRemove' | 'rolesCreate' | 'rolesUpdate' | 'rolesDelete';
 type RoleLabel = { kind: 'system'; id: 'admin' | 'management' | 'accounting' | 'member' } | { kind: 'custom'; name: string; nameAr: string };
-/** What the mail says: one act, its target (a name in both languages), and for an invitation or a role change the role. */
-export type GuardAct = { key: ActKey; target: { name: string; nameAr: string }; detail?: string; role?: RoleLabel };
+/** A capped list for the mail: at most LIST_MAX items, and the count of the rest ("and N more"). */
+export type Listed = { items: string[]; more: number };
+/**
+ * What the mail says: one act, its target (a name in both languages), and for an invitation or a role change the role. The role acts say
+ * more (fix of 2026-10-26, so the person sees what the code allows):
+ * - users.update: `from`, the role before (`role` is the role after).
+ * - roles.create: `added` the rights it gives, `removed` the basic rights it turns off.
+ * - roles.update: `added` and `removed` against the stored role (the rights it holds after the change against before), and the new names.
+ * - roles.delete: `moveTo`, the role that takes the people of the deleted role.
+ */
+export type GuardAct = {
+  key: ActKey; target: { name: string; nameAr: string }; detail?: string; role?: RoleLabel; from?: RoleLabel;
+  added?: Listed; removed?: Listed; newName?: string; newNameAr?: string; moveTo?: RoleLabel;
+};
 
 type Input = Record<string, unknown>;
 const BUILT_IN_ROLES = ['admin', 'management', 'accounting', 'member'] as const;
@@ -73,6 +87,17 @@ const BUILT_IN_ROLES = ['admin', 'management', 'accounting', 'member'] as const;
 export function cleanText(text: string, max = 60): string {
   return text.replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u2028-\u202F\u2066-\u2069]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 }
+
+/** The most items of a list in the mail. */
+const LIST_MAX = 8;
+
+/** A list of right ids for the mail: each id cleaned, the first LIST_MAX kept, the rest counted. Undefined for an empty list. */
+function listed(items: readonly string[]): Listed | undefined {
+  if (items.length === 0) return undefined;
+  return { items: items.slice(0, LIST_MAX).map((item) => cleanText(item, 40)), more: Math.max(0, items.length - LIST_MAX) };
+}
+
+const without = (items: readonly string[], drop: readonly string[]) => items.filter((item) => !drop.includes(item));
 
 const nameOf = (user: Pick<User, 'name' | 'nameAr'> | undefined, fallback: string) => ({
   name: cleanText(user?.name ?? fallback), nameAr: cleanText(user?.nameAr || user?.name || fallback),
@@ -108,7 +133,9 @@ export function guardAct(name: string, parsed: unknown, office: OfficeSnapshot):
       if (!systemRoleChanged && !roleIdChanged) return undefined;
       const nextSystem = typeof patch.systemRole === 'string' ? patch.systemRole : stored.systemRole;
       const nextRoleId = patch.roleId !== undefined ? (patch.roleId as string | null) : stored.roleId;
-      return { key: 'usersRole', target: nameOf(stored, String(input.id)), role: roleLabel(office, nextSystem, nextRoleId) };
+      return {
+        key: 'usersRole', target: nameOf(stored, String(input.id)), role: roleLabel(office, nextSystem, nextRoleId), from: roleLabel(office, stored.systemRole, stored.roleId),
+      };
     }
     case 'users.deactivate':
       return { key: 'usersDeactivate', target: nameOf(users[String(input.id)], String(input.id)) };
@@ -116,17 +143,55 @@ export function guardAct(name: string, parsed: unknown, office: OfficeSnapshot):
       return { key: 'usersReactivate', target: nameOf(users[String(input.id)], String(input.id)) };
     case 'users.remove':
       return { key: 'usersRemove', target: nameOf(users[String(input.id)], String(input.id)) };
-    case 'roles.create':
-      return { key: 'rolesCreate', target: { name: cleanText(String(input.name ?? '')), nameAr: cleanText(String(input.nameAr ?? input.name ?? '')) } };
+    case 'roles.create': {
+      const added = listed(inOrder((input.rights as string[] | undefined) ?? []));
+      const removed = listed(offInOrder((input.off as string[] | undefined) ?? []));
+      return {
+        key: 'rolesCreate', target: { name: cleanText(String(input.name ?? '')), nameAr: cleanText(String(input.nameAr ?? input.name ?? '')) },
+        ...(added ? { added } : {}), ...(removed ? { removed } : {}),
+      };
+    }
     case 'roles.update': {
       const id = String(input.role);
-      const custom = office.lists.settings.roles?.custom?.find((role) => role.id === id);
+      const settings = office.lists.settings.roles;
+      const custom = settings?.custom?.find((role) => role.id === id);
       const label = custom ? { name: cleanText(custom.name), nameAr: cleanText(custom.nameAr) } : { name: cleanText(id), nameAr: cleanText(id) };
-      return { key: 'rolesUpdate', target: label, ...((BUILT_IN_ROLES as readonly string[]).includes(id) ? { role: { kind: 'system' as const, id: id as 'member' } } : {}) };
+      const builtIn = (BUILT_IN_ROLES as readonly string[]).includes(id);
+      const rights = input.rights !== undefined ? inOrder(input.rights as string[]) : undefined;
+      const off = input.off !== undefined ? offInOrder(input.off as string[]) : undefined;
+      // The rights that the role holds before and after, as the role sheet counts them (basic switches, the turned-off ones, the extra ones).
+      let before: readonly string[] = [];
+      let after: readonly string[] = [];
+      if (builtIn) {
+        const role = id as 'member';
+        const next: RoleSettings = {
+          ...(settings ?? {}),
+          ...(rights !== undefined ? { rights: { ...(settings?.rights ?? {}), [role]: rights } } : {}),
+          ...(off !== undefined ? { off: { ...(settings?.off ?? {}), [role]: off } } : {}),
+        };
+        before = heldRightsOfRole(settings, role);
+        after = heldRightsOfRole(next, role);
+      } else if (custom) {
+        before = heldRightsOfRole(settings, custom);
+        after = heldRightsOfRole(settings, { ...custom, ...(rights !== undefined ? { rights } : {}), ...(off !== undefined ? { off } : {}) });
+      }
+      const added = listed(without(after, before));
+      const removed = listed(without(before, after));
+      const newName = custom && typeof input.name === 'string' && input.name !== custom.name ? cleanText(input.name) : undefined;
+      const newNameAr = custom && typeof input.nameAr === 'string' && input.nameAr !== custom.nameAr ? cleanText(input.nameAr) : undefined;
+      return {
+        key: 'rolesUpdate', target: label, ...(builtIn ? { role: { kind: 'system' as const, id: id as 'member' } } : {}),
+        ...(added ? { added } : {}), ...(removed ? { removed } : {}), ...(newName ? { newName } : {}), ...(newNameAr ? { newNameAr } : {}),
+      };
     }
     case 'roles.delete': {
       const custom = office.lists.settings.roles?.custom?.find((role) => role.id === String(input.id));
-      return { key: 'rolesDelete', target: custom ? { name: cleanText(custom.name), nameAr: cleanText(custom.nameAr) } : { name: cleanText(String(input.id)), nameAr: cleanText(String(input.id)) } };
+      const moveTo = typeof input.moveTo === 'string' ? input.moveTo : undefined;
+      return {
+        key: 'rolesDelete',
+        target: custom ? { name: cleanText(custom.name), nameAr: cleanText(custom.nameAr) } : { name: cleanText(String(input.id)), nameAr: cleanText(String(input.id)) },
+        ...(moveTo ? { moveTo: (BUILT_IN_ROLES as readonly string[]).includes(moveTo) ? roleLabel(office, moveTo, null) : roleLabel(office, 'member', moveTo) } : {}),
+      };
     }
     default:
       return undefined;
@@ -233,6 +298,7 @@ const RoleLabelSchema = z.union([
   z.object({ kind: z.literal('system'), id: z.enum(BUILT_IN_ROLES) }),
   z.object({ kind: z.literal('custom'), name: z.string(), nameAr: z.string() }),
 ]);
+const ListedSchema = z.object({ items: z.array(z.string()), more: z.number().int().min(0) });
 const Payload = z.object({
   confirmId: z.string().min(1),
   personId: z.string().min(1),
@@ -242,6 +308,12 @@ const Payload = z.object({
     target: z.object({ name: z.string(), nameAr: z.string() }),
     detail: z.string().optional(),
     role: RoleLabelSchema.optional(),
+    from: RoleLabelSchema.optional(),
+    added: ListedSchema.optional(),
+    removed: ListedSchema.optional(),
+    newName: z.string().optional(),
+    newNameAr: z.string().optional(),
+    moveTo: RoleLabelSchema.optional(),
   }),
   code: z.string().regex(/^\d{6}$/).optional(),
   expiresAt: z.string().min(1),
@@ -257,6 +329,31 @@ function text(words: Words, key: string, reader: Gender | undefined): string {
   return pick(words as Record<string, string>, key, reader);
 }
 
+/** A capped list as one text: "a, b, and 4 more". The comma of the language joins the items. */
+function listText(lang: Language, words: Words, list: Listed): string {
+  const comma = lang === 'ar' ? '، ' : ', ';
+  const more = list.more > 0 ? [fill((words.lines as Record<string, string>).more, { n: String(list.more) })] : [];
+  return [...list.items, ...more].join(comma);
+}
+
+/** The lines of the mail after the first one, for the role acts. */
+function detailLines(lang: Language, words: Words, act: z.infer<typeof Payload>['act'], roleText: (label: z.infer<typeof RoleLabelSchema> | undefined) => string): string[] {
+  const lines = words.lines as Record<string, string>;
+  const out: string[] = [];
+  if (act.key === 'rolesCreate') {
+    if (act.added) out.push(fill(lines.rightsGive, { list: listText(lang, words, act.added) }));
+    if (act.removed) out.push(fill(lines.basicsOff, { list: listText(lang, words, act.removed) }));
+  }
+  if (act.key === 'rolesUpdate') {
+    if (act.newName) out.push(fill(lines.newName, { name: act.newName }));
+    if (act.newNameAr) out.push(fill(lines.newNameAr, { name: act.newNameAr }));
+    if (act.added) out.push(fill(lines.rightsAdd, { list: listText(lang, words, act.added) }));
+    if (act.removed) out.push(fill(lines.rightsRemove, { list: listText(lang, words, act.removed) }));
+  }
+  if (act.key === 'rolesDelete' && act.moveTo) out.push(fill(lines.moveTo, { role: roleText(act.moveTo) }));
+  return out;
+}
+
 export type RenderedConfirmMail = { subject: string; html: string; text: string };
 
 /**
@@ -268,7 +365,9 @@ export function renderConfirmMail(
 ): RenderedConfirmMail {
   const words = wordsOf(lang);
   const roleNames = words.roleNames as Record<string, string>;
-  const role = data.act.role?.kind === 'custom' ? (lang === 'ar' ? data.act.role.nameAr : data.act.role.name) : data.act.role ? roleNames[data.act.role.id] : '';
+  const roleText = (label: z.infer<typeof RoleLabelSchema> | undefined) =>
+    label?.kind === 'custom' ? (lang === 'ar' ? label.nameAr : label.name) : label ? roleNames[label.id] : '';
+  const role = roleText(data.act.role);
   // A built-in role has no name of its own in the office: its target shows the name of the role in the word files.
   const builtIn = data.act.key === 'rolesUpdate' && data.act.role?.kind === 'system';
   const line = fill((words.act as Record<string, string>)[data.act.key], {
@@ -276,18 +375,21 @@ export function renderConfirmMail(
     target: builtIn ? role : lang === 'ar' ? data.act.target.nameAr : data.act.target.name,
     detail: data.act.detail ?? '',
     role,
+    from: roleText(data.act.from),
   });
+  // The lines after the first say what the act does: the rights, the names and the people who move (fix of 2026-10-26).
+  const lines = [line, ...detailLines(lang, words, data.act, roleText)];
   const subject = text(words, 'subject', reader);
   const title = text(words, 'title', reader);
   const intro = text(words, 'codeIntro', reader);
   const validity = text(words, 'validity', reader);
   const note = text(words, 'note', reader);
   const dir = lang === 'ar' ? 'rtl' : 'ltr';
-  const mailText = [title, '', line, '', intro, data.code, '', validity, '', note].join('\n');
+  const mailText = [title, '', ...lines, '', intro, data.code, '', validity, '', note].join('\n');
   const html = page(lang, [
     brandHeader(mailWords(lang)('mail.common.brand'), dir, data.appUrl ? logoAddress(data.appUrl) : undefined),
     `<h1 style="font-size:20px;margin:0 0 16px">${escapeHtml(title)}</h1>`,
-    `<p style="font-size:15px;line-height:1.5;margin:0 0 24px">${escapeHtml(line)}</p>`,
+    ...lines.map((one, i) => `<p style="font-size:15px;line-height:1.5;margin:0 0 ${i === lines.length - 1 ? 24 : 8}px">${escapeHtml(one)}</p>`),
     `<p style="font-size:15px;line-height:1.5;margin:0 0 8px">${escapeHtml(intro)}</p>`,
     `<p dir="ltr" style="font-size:32px;line-height:1.2;letter-spacing:6px;font-weight:700;margin:0 0 24px;text-align:center">${escapeHtml(data.code)}</p>`,
     `<p style="font-size:13px;line-height:1.5;color:#6e6e73;margin:0 0 16px">${escapeHtml(validity)}</p>`,

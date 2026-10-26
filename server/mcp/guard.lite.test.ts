@@ -402,3 +402,137 @@ describe('the email code guard, for an agent on SQLite', () => {
     expect(mail.text).not.toContain('x'.repeat(45));
   });
 });
+
+/** The mail of the first request for an act (fix of 2026-10-26: the mail says what the act does). */
+async function requestMail(t: TestOffice, agent: Agent, name: string, input: unknown): Promise<Mail> {
+  const before = confirmMails(t).length;
+  expect(reasonOf(await asAgent(t, agent, name, input)), name).toBe('confirm_needed');
+  const mails = confirmMails(t);
+  expect(mails).toHaveLength(before + 1);
+  return mails[before];
+}
+
+async function setLanguage(t: TestOffice, language: 'ar' | 'en'): Promise<void> {
+  await t.db.tx('write', async (q) => {
+    const [row] = await q<{ doc: string | object }>("select doc from users where id = 'usr_001'");
+    const doc = typeof row.doc === 'string' ? JSON.parse(row.doc) : row.doc as any;
+    doc.preferences = { ...doc.preferences, language };
+    await q("update users set doc = ?1 where id = 'usr_001'", [JSON.stringify(doc)]);
+  });
+}
+
+describe('the mail of the code describes the act (owner decision, 2026-10-26)', () => {
+  it('roles.create: the name and the rights it gives, and the basic rights it turns off', async () => {
+    const t = await signinOffice();
+    const agent = await agentOf(t, 'usr_001');
+    const mail = await requestMail(t, agent, 'roles.create', { name: 'Site supervisors', nameAr: 'مشرفو المواقع', rights: ['payment.view', 'people.invite'], off: ['search.use'] });
+    expect(mail.text).toContain('wants to make the role Site supervisors.');
+    expect(mail.text).toContain('Rights it gives: people.invite, payment.view.');
+    expect(mail.text).toContain('Basic rights it turns off: search.use.');
+    expect(mail.html).toContain('people.invite');
+    expect(mail.text).not.toMatch(/https?:/);
+  });
+
+  it('roles.update of a custom role: the rights added and removed against the stored role, and the new names', async () => {
+    const t = await signinOffice();
+    const agent = await agentOf(t, 'usr_001');
+    const role = await person(t, 'roles.create', { name: 'Site supervisors', nameAr: 'مشرفو المواقع', rights: ['payment.view', 'people.change'] });
+    const mail = await requestMail(t, agent, 'roles.update', { role: role.id, name: 'Site leads', nameAr: 'قادة المواقع', rights: ['people.change', 'people.invite'] });
+    expect(mail.text).toContain('wants to change the role Site supervisors.');
+    expect(mail.text).toContain('Rights it adds: people.invite.');
+    expect(mail.text).toContain('Rights it removes: payment.view.');
+    expect(mail.text).not.toContain('people.change');
+    expect(mail.text).toContain('New name: Site leads.');
+    expect(mail.text).toContain('New Arabic name: قادة المواقع.');
+  });
+
+  it('roles.update of a built-in role: the rights added and removed against the stored role', async () => {
+    const t = await signinOffice();
+    const agent = await agentOf(t, 'usr_001');
+    const mail = await requestMail(t, agent, 'roles.update', { role: 'member', rights: ['payment.view'], off: ['search.use'] });
+    expect(mail.text).toContain('wants to change the role Member.');
+    expect(mail.text).toContain('Rights it adds: payment.view.');
+    expect(mail.text).toContain('Rights it removes: search.use.');
+  });
+
+  it('roles.create: a long list says "and N more"', async () => {
+    const t = await signinOffice();
+    const agent = await agentOf(t, 'usr_001');
+    const rights = ['people.invite', 'people.change', 'people.teams', 'people.turnOff', 'people.remove', 'clients.change', 'payment.view', 'payment.add', 'payment.change', 'payment.receive', 'templates.projectCreate', 'templates.projectAny'];
+    const mail = await requestMail(t, agent, 'roles.create', { name: 'Many', nameAr: 'كثير', rights });
+    expect(mail.text).toMatch(/Rights it gives: (?:[\w.]+, ){7}[\w.]+, and 4 more\./);
+    expect(mail.text).not.toContain('payment.receive');
+    expect(mail.text).not.toContain('templates.projectAny');
+  });
+
+  it('roles.delete: the role, and the role that takes its people', async () => {
+    const t = await signinOffice();
+    const agent = await agentOf(t, 'usr_001');
+    const role = await person(t, 'roles.create', { name: 'Site supervisors', nameAr: 'مشرفو المواقع', rights: ['task.deleteOwn'] });
+    await person(t, 'users.update', { id: 'usr_003', patch: { roleId: role.id } });
+    const mail = await requestMail(t, agent, 'roles.delete', { id: role.id, moveTo: 'accounting' });
+    expect(mail.text).toContain('wants to delete the role Site supervisors.');
+    expect(mail.text).toContain('The people of this role move to the role Accounting.');
+    // moveTo a custom role names that role.
+    const other = await person(t, 'roles.create', { name: 'Drafters', nameAr: 'رسامون', rights: [] });
+    const second = await requestMail(t, agent, 'roles.delete', { id: role.id, moveTo: other.id });
+    expect(second.text).toContain('The people of this role move to the role Drafters.');
+  });
+
+  it('roles.delete: no line about people when no one moves', async () => {
+    const t = await signinOffice();
+    const agent = await agentOf(t, 'usr_001');
+    const role = await person(t, 'roles.create', { name: 'Site supervisors', nameAr: 'مشرفو المواقع', rights: ['task.deleteOwn'] });
+    const mail = await requestMail(t, agent, 'roles.delete', { id: role.id });
+    expect(mail.text).toContain('wants to delete the role Site supervisors.');
+    expect(mail.text).not.toContain('move to the role');
+  });
+
+  it('users.update: the old role and the new role', async () => {
+    const t = await signinOffice();
+    const agent = await agentOf(t, 'usr_001');
+    const mail = await requestMail(t, agent, 'users.update', { id: 'usr_003', patch: { systemRole: 'management' } });
+    expect(mail.text).toMatch(/wants to change the role of .+ from Member to Management\./);
+    // From a custom role to a system role, and back.
+    const role = await person(t, 'roles.create', { name: 'Site supervisors', nameAr: 'مشرفو المواقع', rights: [] });
+    await person(t, 'users.update', { id: 'usr_004', patch: { roleId: role.id } });
+    const second = await requestMail(t, agent, 'users.update', { id: 'usr_004', patch: { systemRole: 'accounting', roleId: null } });
+    expect(second.text).toMatch(/from Site supervisors to Accounting\./);
+  });
+
+  it('users.create: the email, the name and the role', async () => {
+    const t = await signinOffice();
+    const agent = await agentOf(t, 'usr_001');
+    const mail = await requestMail(t, agent, 'users.create', { name: 'New Person', email: 'new.person@madar.test', systemRole: 'management', discipline: 'Architect' });
+    expect(mail.text).toContain('wants to invite New Person (new.person@madar.test) to Madar with the role Management.');
+  });
+
+  it('writes the lines in Arabic for a person whose screens are in Arabic', async () => {
+    const t = await signinOffice();
+    await setLanguage(t, 'ar');
+    const agent = await agentOf(t, 'usr_001');
+    const created = await requestMail(t, agent, 'roles.create', { name: 'Site supervisors', nameAr: 'مشرفو المواقع', rights: ['payment.view'], off: ['search.use'] });
+    expect(created.text).toContain('مشرفو المواقع');
+    expect(created.text).toContain('الصلاحيات التي يعطيها: payment.view.');
+    expect(created.text).toContain('الصلاحيات الأساسية التي يوقفها: search.use.');
+    const role = await person(t, 'roles.create', { name: 'Drafters', nameAr: 'رسامون', rights: ['payment.view'] });
+    const updated = await requestMail(t, agent, 'roles.update', { role: role.id, name: 'Draft leads', rights: ['people.invite'] });
+    expect(updated.text).toContain('الصلاحيات التي يضيفها: people.invite.');
+    expect(updated.text).toContain('الصلاحيات التي يزيلها: payment.view.');
+    expect(updated.text).toContain('الاسم الجديد بالإنجليزية: Draft leads.');
+    await person(t, 'users.update', { id: 'usr_003', patch: { roleId: role.id } });
+    const moved = await requestMail(t, agent, 'roles.delete', { id: role.id, moveTo: 'accounting' });
+    expect(moved.text).toContain('ينتقل أصحاب هذا الدور إلى دور المحاسبة.');
+    const changed = await requestMail(t, agent, 'users.update', { id: 'usr_004', patch: { systemRole: 'management' } });
+    expect(changed.text).toContain('من عضو إلى الإدارة العليا');
+  });
+
+  it('keeps the whole mail one plain text with no link, and no right id outside the lines of the act', async () => {
+    const t = await signinOffice();
+    const agent = await agentOf(t, 'usr_001');
+    const mail = await requestMail(t, agent, 'roles.create', { name: 'Site supervisors', nameAr: 'مشرفو المواقع', rights: ['payment.view'] });
+    expect(mail.text).not.toMatch(/https?:/);
+    expect(mail.html).not.toMatch(/href=/);
+    expect(mail.text).toContain(codeOf(mail));
+  });
+});

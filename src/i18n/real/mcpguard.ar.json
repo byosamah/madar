@@ -4,13 +4,23 @@
     "title": "مساعدك يحتاج موافقتك",
     "act": {
       "usersCreate": "مساعدك {{agent}} يريد أن يدعو {{target}} ({{detail}}) إلى مدار بدور {{role}}.",
-      "usersRole": "مساعدك {{agent}} يريد أن يغيّر دور {{target}} إلى {{role}}.",
+      "usersRole": "مساعدك {{agent}} يريد أن يغيّر دور {{target}} من {{from}} إلى {{role}}.",
       "usersDeactivate": "مساعدك {{agent}} يريد أن يوقف حساب {{target}}.",
       "usersReactivate": "مساعدك {{agent}} يريد أن يفعّل حساب {{target}} من جديد.",
       "usersRemove": "مساعدك {{agent}} يريد أن يحذف {{target}} من مدار.",
       "rolesCreate": "مساعدك {{agent}} يريد أن ينشئ دورًا باسم {{target}}.",
       "rolesUpdate": "مساعدك {{agent}} يريد أن يغيّر الدور {{target}}.",
       "rolesDelete": "مساعدك {{agent}} يريد أن يحذف الدور {{target}}."
+    },
+    "lines": {
+      "rightsGive": "الصلاحيات التي يعطيها: {{list}}.",
+      "basicsOff": "الصلاحيات الأساسية التي يوقفها: {{list}}.",
+      "rightsAdd": "الصلاحيات التي يضيفها: {{list}}.",
+      "rightsRemove": "الصلاحيات التي يزيلها: {{list}}.",
+      "newName": "الاسم الجديد بالإنجليزية: {{name}}.",
+      "newNameAr": "الاسم الجديد بالعربية: {{name}}.",
+      "moveTo": "ينتقل أصحاب هذا الدور إلى دور {{role}}.",
+      "more": "و{{n}} أخرى"
     },
     "codeIntro": "إذا وافقت، أعطِ مساعدك هذا الرمز:",
     "codeIntro_female": "إذا وافقتِ، أعطي مساعدك هذا الرمز:",
