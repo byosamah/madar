@@ -79,6 +79,8 @@ makes a guide line wrong, fix the line in the same commit. A rule that applies t
 - To get a secret from the owner: `open -a TextEdit .env.local` and ask him to add a `NAME=value` line, then check its
   shape without printing it. Never ask for a secret in chat: Supermemory also saves what is pasted in chat.
   The sandbox blocks `open`: ask the owner to type `! open -a TextEdit <file>` in the prompt.
+- Example lines of a secrets file for the owner use placeholders that fail the shape check (`<the Bunah key>`, `<the Bunah address>`), never
+  a plausible value: `bunah.daftra.com` from an example passed the check while the real address was not set (2026-10-26).
 - Rotated 2026-10-05: both database passwords, the Supabase token, and the Resend key in `.env.local` (the Resend keys
   are listed in `server/mail/CLAUDE.md`).
 - The backup private key is not on the Mac. The owner holds it (password manager and paper). Opening a backup needs him.
