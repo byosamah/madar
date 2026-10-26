@@ -91,11 +91,9 @@ describe('stages.setDates over MCP (fbk_023)', () => {
     expect(tool.annotations.destructiveHint).toBe(true);
     const properties = Object.keys(tool.inputSchema.properties as Record<string, unknown>);
     expect(properties.sort()).toEqual(['endDate', 'stageId', 'startDate', 'storyId']);
-    // The two other stage calls stay screen work: an agent does not add, remove or reorder stages, or change what a stage needs.
-    for (const name of ['stages.replace', 'stages.setPrerequisites']) {
-      expect(MCP_DENY, name).toContain(name);
-      expect(MCP_ALLOW as readonly string[], name).not.toContain(name);
-    }
+    // What a stage needs stays screen work (stages.replace became a tool on 2026-10-26: stageReplace.test.ts).
+    expect(MCP_DENY).toContain('stages.setPrerequisites');
+    expect(MCP_ALLOW as readonly string[]).not.toContain('stages.setPrerequisites');
   });
 
   it('tells the agent what it changes, who may, that no reason is needed, and what the dates move', () => {

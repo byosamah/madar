@@ -16,6 +16,7 @@ const LEADER_SWITCH: Record<string, string> = {
   'projects.setStatus': 'project.archive',
   'projects.update': 'project.details',
   'stages.setDates': 'project.stages',
+  'stages.replace': 'project.stages',
   'tasks.approve': 'task.review',
   'tasks.sendBack': 'task.review',
 };

@@ -43,7 +43,7 @@ describe('an MCP client library against the own OAuth server (@modelcontextproto
     const first = await mcpPost(w.root, tokens.access_token);
     expect(first.status).toBe(200);
     // usr_002 is a Member: 47 tools of the allowlist, the Dashboard and Search.
-    expect(first.body.result.tools).toHaveLength(53);
+    expect(first.body.result.tools).toHaveLength(56);
     expect(w.t.raw.prepare('select owner_user_id from agent_links').get()).toEqual({ owner_user_id: 'usr_002' });
 
     const again = await refreshAuthorization(TEST_MCP_URL, { metadata, clientInformation: client, refreshToken: tokens.refresh_token!, resource: new URL(TEST_MCP_URL), fetchFn });
