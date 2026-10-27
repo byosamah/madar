@@ -15,7 +15,7 @@ import { PARITY_DOCS } from './docsParity';
 export const INSTRUCTIONS = [
   'Madar is the project tool of an architecture office: projects, stages, tasks, updates, comments, the client tracker, payments and deadlines.',
   '',
-  'Call madar.readFirst once before your first change. It returns this text.',
+  'Call madar.readFirst once, before you call any other tool. It returns this text in full and names the person you act for. Your client may show you only the start of this text.',
   '',
   'Rules:',
   '1. You act for one person, with that person\'s rights and never more. You have no role of your own. A call that the person may not make fails for you too.',
@@ -158,7 +158,7 @@ export const TOOL_DOCS: Record<string, { title: string; description: string }> =
   ...PARITY_DOCS,
   'madar.readFirst': {
     title: 'Read this first',
-    description: 'Returns the rules for agents in Madar: who you act for, how stories and Undo work, when a change needs a reason, and what only the screens can do. Call it once before your first change.',
+    description: 'Returns the rules for agents in Madar: who you act for, how stories and Undo work, when a change needs a reason, and what only the screens can do. Call it once before any other tool.',
   },
   'story.start': {
     title: 'Start a story',

@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { INSTRUCTIONS } from './docs';
+import { INSTRUCTIONS, TOOL_DOCS } from './docs';
 import { MCP_ALLOW, MCP_BY_RIGHT } from './tools';
 
 /**
  * The context rule (owner, 2026-10-27): the answer to a question about a project or a to-do is often in a chat, not in the record.
  * So the agent reads the chats before it answers. A client can show only the start of the instructions: Claude Code cut the Madar
- * instructions at about 4,100 characters (2026-10-27), and an agent that only reads never calls madar.readFirst. So the rule sits
- * near the top.
+ * instructions at about 4,100 characters (2026-10-27), and an agent can skip madar.readFirst. So the rule sits near the top.
  */
 const SHOWN_START = 4000;
 
@@ -34,5 +33,25 @@ describe('the context rule of the agent instructions (owner, 2026-10-27)', () =>
     const named = (contextLine().match(/\b[a-z]+\.[a-z][A-Za-z]+\b/g) ?? []).filter((name) => !name.startsWith('ai.'));
     expect(named.length).toBeGreaterThan(4);
     for (const name of named) expect(tools.has(name), name).toBe(true);
+  });
+});
+
+/**
+ * madar.readFirst before any call (owner, 2026-10-27): a client may show only the start of the instructions, so an agent that
+ * only reads missed most of the rules. The first rule now asks for madar.readFirst before any other tool, not before the first change.
+ */
+describe('the call of madar.readFirst before any other tool (owner, 2026-10-27)', () => {
+  it('asks for madar.readFirst before any other tool in the start of the instructions, and says why', () => {
+    const line = INSTRUCTIONS.split('\n').find((text) => text.startsWith('Call madar.readFirst'));
+    expect(line).toBeDefined();
+    for (const word of ['once', 'before you call any other tool', 'in full', 'only the start']) expect(line, word).toContain(word);
+    expect(INSTRUCTIONS.indexOf(line!) + line!.length).toBeLessThan(SHOWN_START);
+    expect(INSTRUCTIONS).not.toContain('before your first change');
+  });
+
+  it('says the same in the tool text of madar.readFirst', () => {
+    const doc = TOOL_DOCS['madar.readFirst'].description;
+    expect(doc).toContain('before any other tool');
+    expect(doc).not.toContain('first change');
   });
 });

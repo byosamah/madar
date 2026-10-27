@@ -160,6 +160,8 @@ Connect Claude Code with `claude mcp add --transport http madar https://madar.va
   a question about a project or a to-do, or writes a summary, a plan or a report of one, and to say in which chat it found the answer. A client can show
   only the start of the instructions: Claude Code cut them at about 4,100 of 24,330 characters (2026-10-27), and an agent that only reads may never call
   `madar.readFirst`. So a rule that an agent needs for a read goes in the first 4,000 characters. `contextDocs.test.ts` pins the place.
+  The first line of `INSTRUCTIONS` and the text of `madar.readFirst` ask for that call once, before any other tool (owner, 2026-10-27; it was "before
+  your first change"), so an agent that only reads gets every rule too. The cost: one call and about 24,000 characters at the start of a session.
 - `search.query` finds the messages of the chats that the person may open (`messages`, the newest 5; chat design 2026-10-19, item 16).
   The `TOOL_DOCS` of `search.query` and the Messages paragraph of INSTRUCTIONS say so. Search finds no chat file (owner, 2026-10-19); an agent opens a chat file with `files.link` since 2026-10-26 (see Chat files).
 - A chat that the person may not open answers `not_found` for the agent too, for every kind (chat design 2026-10-19, item 17): it was
