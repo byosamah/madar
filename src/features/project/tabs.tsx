@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react';
 import type { SetURLSearchParams } from 'react-router';
 import type { ProjectDetail } from '../../api/contract/views';
-import { oneOf } from '../../lib/params';
+import { oneOf, replaceParam } from '../../lib/params';
 import { MoreTab } from './MoreTab';
 import { projectMeetingsInput } from '../meetings/readInputs';
 import { FilesTab } from './files/FilesTab';
@@ -67,12 +67,7 @@ export function tabSearch(current: URLSearchParams, next: ProjectTab): URLSearch
 
 /** A change to one filter of the link. It replaces the link, so Back leaves the screen and does not step through filters. */
 export function setFilterParam(setParams: SetURLSearchParams, key: (typeof FILTER_PARAMS)[number], value: string | null): void {
-  setParams((current) => {
-    const next = new URLSearchParams(current);
-    if (value === null) next.delete(key);
-    else next.set(key, value);
-    return next;
-  }, { replace: true });
+  replaceParam(setParams, key, value);
 }
 
 /** MoreTab imports this file for its links, so the entry is a wrapper: no import cycle reads MoreTab while the modules load. */

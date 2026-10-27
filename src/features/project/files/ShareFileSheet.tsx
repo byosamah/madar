@@ -47,15 +47,16 @@ export function ShareFileSheet({ view, projectId, projectName, viewerCan, onClos
   // The toast says where the file went, and Open goes there: the chat, or the conversation of the task (audit 2026-10-03, F-20).
   const share = useAction('files.share', {
     onSuccess: (place) => {
-      const message = place.kind === 'project_chat'
+      const person = people.find((p) => p.id === userId);
+      const sharedMessage = place.kind === 'project_chat'
         ? t('files.sharedChat', { project: projectName })
         : place.kind === 'person'
-          ? t('files.sharedPerson', { name: ((found) => (found ? nameOf(found) : ''))(people.find((person) => person.id === userId)) })
+          ? t('files.sharedPerson', { name: person ? nameOf(person) : '' })
           : t('files.sharedTask', { title: tasks.data?.find((row) => row.task.id === place.id)?.task.title ?? '' });
       // A chat opens full screen on a phone. Back returns to the screen that opened it (phone D, lead amendment 6).
       const from = location.pathname + location.search;
       const to = place.kind === 'task' ? taskLink(projectId, place.id, true) : `/inbox/${place.id}`;
-      toast.show({ message, action: { label: t('files.sharedOpen'), run: () => navigate(to, place.kind === 'task' ? undefined : { state: { from } }), isUndo: false } });
+      toast.show({ message: sharedMessage, action: { label: t('files.sharedOpen'), run: () => navigate(to, place.kind === 'task' ? undefined : { state: { from } }), isUndo: false } });
       onClose();
     },
   });

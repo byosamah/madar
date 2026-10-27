@@ -9,6 +9,7 @@ import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { MentionField } from '../../../components/MentionField';
 import { prefersReducedMotion } from '../../../lib/motion';
+import { replaceParam } from '../../../lib/params';
 import { withMentionMarkup } from '../../../lib/text';
 import { AttachButton, PickedFiles, onPastePictures, useAttachments, useBlockFileDrop } from '../../files/Attachments';
 import { ChatDropArea, DropReceiver } from '../../inbox/ChatDrop';
@@ -43,11 +44,7 @@ export function Composer({ detail, compact = false }: { detail: ProjectDetail; c
     if (phone) {
       area.current?.scrollIntoView?.({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
     }
-    setParams((current) => {
-      const next = new URLSearchParams(current);
-      next.delete('compose');
-      return next;
-    }, { replace: true });
+    replaceParam(setParams, 'compose', null);
   }, [params, setParams, phone]);
 
   const post = async (event: FormEvent) => {

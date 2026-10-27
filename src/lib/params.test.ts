@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { chatLink, clientParam, closeMeeting, dayParam, meetingParam, messageParam, oneOf, openMeeting, trackerEntryLink, userParam } from './params';
+import { describe, expect, it, vi } from 'vitest';
+import { chatLink, clientParam, closeMeeting, dayParam, meetingParam, messageParam, oneOf, openMeeting, replaceParam, trackerEntryLink, userParam } from './params';
 
 describe('link values', () => {
   it('keeps a known value and falls back on anything else', () => {
@@ -53,3 +53,40 @@ describe('trackerEntryLink (wave 2)', () => {
   });
 });
 
+
+describe('replaceParam', () => {
+  /** Runs replaceParam on a link and returns the options it passed and the link that its update gives. */
+  function run(link: string, key: string, value: string | null) {
+    const setParams = vi.fn();
+    replaceParam(setParams, key, value);
+    expect(setParams).toHaveBeenCalledTimes(1);
+    const [update, options] = setParams.mock.calls[0] as [(current: URLSearchParams) => URLSearchParams, unknown];
+    const current = new URLSearchParams(link);
+    const next = update(current);
+    return { options, next: next.toString(), current: current.toString() };
+  }
+
+  it('sets a value and replaces the link, so Back does not step through it', () => {
+    const { options, next } = run('tab=files', 'compose', '1');
+    expect(options).toEqual({ replace: true });
+    expect(next).toBe('tab=files&compose=1');
+  });
+
+  it('changes a value that the link has', () => {
+    expect(run('tab=tasks&show=open', 'show', 'done').next).toBe('tab=tasks&show=done');
+  });
+
+  it('removes the key when the value is null, and keeps the other keys', () => {
+    const { options, next } = run('tab=files&file=fil_001', 'file', null);
+    expect(options).toEqual({ replace: true });
+    expect(next).toBe('tab=files');
+  });
+
+  it('leaves the link as it is when it has no such key to remove', () => {
+    expect(run('tab=files', 'compose', null).next).toBe('tab=files');
+  });
+
+  it('never changes the link that it gets', () => {
+    expect(run('tab=files&file=fil_001', 'file', null).current).toBe('tab=files&file=fil_001');
+  });
+});

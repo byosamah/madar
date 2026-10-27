@@ -4,18 +4,17 @@ import { useContext, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FileView, ProjectDetail } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
-import { downloadFile, isRemote, usePictureTest, useFileLink } from '../../../app/files';
+import { useDownloadFile, usePictureTest, useFileLink } from '../../../app/files';
 import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
 import { PRIVATE } from '../../../app/privateMark';
-import { useRuntime } from '../../../app/runtime';
 import { useIsPhone } from '../../../app/useIsPhone';
 import { useNearView } from '../../../app/useNearView';
 import { useRight } from '../../../app/useRight';
-import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { Menu, type MenuItem } from '../../../components/Menu';
-import { formatDay, formatNumber, stampDay } from '../../../lib/dates';
+import { formatDay, stampDay } from '../../../lib/dates';
+import { fileSizeText } from '../../../lib/fileSize';
 import { FileDragContext } from './fileDragSlots';
 import { canPreview } from './PreviewSheet';
 import { sharePlaces } from './ShareFileSheet';
@@ -31,9 +30,6 @@ export function FileRow({ view, detail, onPreview, onShare, onMove }: {
   const phone = useIsPhone();
   const lang = useLang();
   const nameOf = usePersonName();
-  const runtime = useRuntime();
-  const { api } = runtime;
-  const toast = useToast();
   const [showVersions, setShowVersions] = useState(false);
   const { Row } = useContext(FileDragContext);
   const rowRef = useRef<HTMLLIElement>(null);
@@ -52,15 +48,11 @@ export function FileRow({ view, detail, onPreview, onShare, onMove }: {
   const canDelete = view.canDelete;
   // Share needs file.share and one place to share into (role rights version 2).
   const mayShare = useRight('file.share') && sharePlaces(detail.viewerCan, useRight('chat.direct')).length > 0;
-  const size = latest.size < 1024 * 1024
-    ? t('files.kb', { n: formatNumber(Math.max(1, Math.round(latest.size / 1024)), lang) })
-    : t('files.mb', { n: formatNumber(latest.size / (1024 * 1024), lang, 1) });
-  const download = (letter?: string) => {
-    downloadFile(api, file.id, letter, { remote: isRemote(runtime) }).catch((error: unknown) => toast.failed(error));
-  };
+  const size = fileSizeText(latest.size, t, lang);
+  const download = useDownloadFile();
   const items: MenuItem[] = [
     { label: t('files.preview'), onSelect: onPreview, hidden: !canPreview(latest.mimeType) },
-    { label: t('files.download'), onSelect: () => download() },
+    { label: t('files.download'), onSelect: () => download(file.id) },
     { label: t('files.share'), onSelect: onShare, hidden: !mayShare },
     { label: t('files.markDelivered'), onSelect: () => delivered.mutate({ id: file.id }), hidden: !detail.viewerCan.deliver },
     { label: t('files.setCover'), onSelect: () => cover.mutate({ id: detail.project.id, patch: { coverFileId: file.id } }), hidden: !image || !detail.viewerCan.editDetails || isCover },
@@ -109,7 +101,7 @@ export function FileRow({ view, detail, onPreview, onShare, onMove }: {
             <li key={version.letter} className="flex min-h-11 items-center gap-3 text-footnote">
               <span className="font-semibold">{t('files.version', { letter: version.letter })}</span>
               <span className="tabular text-label-2">{formatDay(stampDay(version.uploadedAt), lang)}</span>
-              <Button variant="plain" onClick={() => download(version.letter)}>{t('files.download')}</Button>
+              <Button variant="plain" onClick={() => download(file.id, version.letter)}>{t('files.download')}</Button>
             </li>
           ))}
         </ol>

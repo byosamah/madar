@@ -1,6 +1,21 @@
+import type { SetURLSearchParams } from 'react-router';
+
 /** A value from the link, when it is one of the allowed values. Anything else gives the fallback. */
 export function oneOf<T extends string>(value: string | null, allowed: readonly T[], fallback: T): T {
   return allowed.includes(value as T) ? (value as T) : fallback;
+}
+
+/**
+ * Sets one value of the link, or removes it when the value is null. It replaces the link, so Back leaves the screen and does not
+ * step through the change.
+ */
+export function replaceParam(setParams: SetURLSearchParams, key: string, value: string | null): void {
+  setParams((current) => {
+    const next = new URLSearchParams(current);
+    if (value === null) next.delete(key);
+    else next.set(key, value);
+    return next;
+  }, { replace: true });
 }
 
 /** A day from the link, when it is a real calendar day. A person can type anything into a link. */

@@ -161,22 +161,24 @@ export function ProjectLinks({ detail, onEdit }: { detail: ProjectDetail; onEdit
       <h3 id="links-title" className="px-2 pt-1 text-headline">{t('links.title')}</h3>
       <ul>
         {rows.map((link) => {
-          const name = link.label || (isNetworkPath(link.url) ? link.url : hostOf(link.url));
+          const network = isNetworkPath(link.url);
+          // The server refuses other links, but stored data is checked again here: only a web link ever gets an href.
+          const plain = !network && !linkUrlOk('other', link.url);
+          const name = link.label || (network ? link.url : hostOf(link.url));
           const body = (
             <>
               <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-fill text-label-2"><AnimatedIcon icon={ICON[link.kind]} size={20} aria-hidden /></span>
               <span className="min-w-0 flex-1">
-                <bdi dir={isNetworkPath(link.url) ? 'ltr' : 'auto'} className="block truncate text-body">{name}</bdi>
+                <bdi dir={network ? 'ltr' : 'auto'} className="block truncate text-body">{name}</bdi>
                 <span className="block truncate text-footnote text-label-2">{t(`links.kinds.${link.kind}`)}</span>
               </span>
             </>
           );
           return (
             <li key={link.id} className="flex min-h-14 flex-wrap items-center gap-1 px-2">
-              {/* The server refuses other links, but stored data is checked again here: only a web link ever gets an href. */}
-              {!linkUrlOk('other', link.url) && !isNetworkPath(link.url) ? (
+              {plain ? (
                 <span className="flex min-w-0 flex-1 items-center gap-3">{body}</span>
-              ) : isNetworkPath(link.url) ? (
+              ) : network ? (
                 <span className="flex min-w-0 flex-1 items-center gap-3">
                   {body}
                   <button type="button" onClick={() => copy(link)} aria-label={t('links.copy', { name })} className="pressable grid size-11 shrink-0 place-items-center rounded-full text-label-2 hover:bg-fill hover:text-ink">

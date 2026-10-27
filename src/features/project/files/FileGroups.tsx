@@ -17,6 +17,9 @@ export type FolderData = { folder: ProjectFolder; files: FileView[] };
 /** One group of the list: a stage (or "No stage") with the files that sit at its root, and its folders. `total` counts all of its files. */
 export type GroupData = { stageId: string | null; name: string; loose: FileView[]; folders: FolderData[]; total: number };
 
+/** True for a group with a file or a folder. A group with nothing in it shows only for a person who may upload. */
+export const hasContent = (group: GroupData): boolean => group.total > 0 || group.folders.length > 0;
+
 /**
  * The groups of the list (fbk_066). A file sits in a folder only when that folder is in the stage of the file: any other folderId reads as
  * the root of the stage, so no file is hidden. A group shows when it has files or folders. A person who may upload also sees the stages with
@@ -37,7 +40,7 @@ export function groupsOf(detail: ProjectDetail, views: FileView[], showEmptyStag
         total: mine.length,
       };
     })
-    .filter((group) => group.total > 0 || group.folders.length > 0 || (showEmptyStages && group.stageId !== null));
+    .filter((group) => hasContent(group) || (showEmptyStages && group.stageId !== null));
 }
 
 /** What a group needs from the tab: the actions on files and folders, and the frame of a file that comes from the computer. */
@@ -70,7 +73,8 @@ function FileList({ files, detail, actions, className }: { files: FileView[]; de
   );
 }
 
-const itemsOf = (views: FileView[]) => views.map((view) => ({ id: view.file.id, name: view.file.name }));
+/** The files of a list as the items of "Download all": the id and the name of each file. */
+export const itemsOf = (views: FileView[]) => views.map((view) => ({ id: view.file.id, name: view.file.name }));
 
 function FolderBlock({ data, stageName, detail, actions }: { data: FolderData; stageName: string; detail: ProjectDetail; actions: GroupActions }) {
   const { t } = useTranslation();

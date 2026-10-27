@@ -1,10 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { useIsPhone } from '../../../app/useIsPhone';
 import type { FileView } from '../../../api/contract/views';
-import { downloadFile, isRemote, useFileLink, useFileUrl, usePictureTest } from '../../../app/files';
+import { useDownloadFile, useFileLink, useFileUrl, usePictureTest } from '../../../app/files';
 import { PRIVATE } from '../../../app/privateMark';
-import { useRuntime } from '../../../app/runtime';
-import { useToast } from '../../../app/toasts';
 import { Button } from '../../../components/Button';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { FileTextIcon } from '../../../components/icons/animated/file-text';
@@ -32,8 +30,7 @@ function Steps({ views, index, onIndex }: Pick<PreviewProps, 'views' | 'index' |
  * views get Previous picture and Next picture there, and the move can land on a PDF.
  */
 function PhonePicture({ views, index, onIndex, onClose }: PreviewProps) {
-  const runtime = useRuntime();
-  const toast = useToast();
+  const download = useDownloadFile();
   const view = views[index];
   const small = useFileLink(view.file.id, view.latest.letter, 'thumb');
   const big = useFileLink(view.file.id, view.latest.letter, 'full');
@@ -47,9 +44,7 @@ function PhonePicture({ views, index, onIndex, onClose }: PreviewProps) {
       failed={big.broken && small.broken}
       onError={big.onError}
       onPlaceholderError={small.onError}
-      onDownload={() => {
-        downloadFile(runtime.api, view.file.id, view.latest.letter, { remote: isRemote(runtime) }).catch((error: unknown) => toast.failed(error));
-      }}
+      onDownload={() => download(view.file.id, view.latest.letter)}
       position={views.length > 1 ? { index, count: views.length, onMove: onIndex } : undefined}
     />
   );
@@ -105,8 +100,7 @@ export function PreviewSheet(props: PreviewProps) {
 
 function DeskPreview({ views, index, onIndex, onClose }: PreviewProps) {
   const { t } = useTranslation();
-  const runtime = useRuntime();
-  const toast = useToast();
+  const download = useDownloadFile();
   const isPicture = usePictureTest();
   const view = views[index];
   const type = view.latest.mimeType;
@@ -115,10 +109,6 @@ function DeskPreview({ views, index, onIndex, onClose }: PreviewProps) {
   // Only a picture that the picture test refuses gets the icon and a download; any other type keeps the plain line.
   const refusedPicture = type.startsWith('image/') && !picture;
   const url = useFileUrl(shown ? view.file.id : null, view.latest.letter);
-  const download = () => {
-    downloadFile(runtime.api, view.file.id, view.latest.letter, { remote: isRemote(runtime) })
-      .catch((error: unknown) => toast.failed(error));
-  };
   let body = <p className="text-subheadline text-label-2">{t('files.noPreview')}</p>;
   if (refusedPicture) {
     body = (
@@ -127,7 +117,7 @@ function DeskPreview({ views, index, onIndex, onClose }: PreviewProps) {
           <AnimatedIcon icon={FileTextIcon} size={32} aria-hidden />
         </span>
         <p className="text-subheadline text-label-2">{t('files.noPreview')}</p>
-        <Button onClick={download}>{t('files.download')}</Button>
+        <Button onClick={() => download(view.file.id, view.latest.letter)}>{t('files.download')}</Button>
       </div>
     );
   } else if (url && picture) body = <img src={url} alt={view.file.name} className={`${PRIVATE} w-full rounded-2xl bg-white`} />;

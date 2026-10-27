@@ -1,6 +1,6 @@
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../../components/icons/animated/plus';
-import { useEffect, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { ProjectLink } from '../../../api/contract/entities';
@@ -19,10 +19,11 @@ import { Menu } from '../../../components/Menu';
 import { UploadList } from '../../files/Attachments';
 import { tabButtonShows } from '../mainButton';
 import { DownloadAllButton } from '../../files/DownloadAll';
+import { replaceParam } from '../../../lib/params';
 import { shownKey, shownName } from '../../../lib/projectLabel';
 import type { TabProps } from '../tabs';
 import { useLayerSwap } from '../tasks/lazyLayer';
-import { FileGroups, groupsOf, type GroupActions } from './FileGroups';
+import { FileGroups, groupsOf, hasContent, itemsOf, type GroupActions } from './FileGroups';
 import { foldersOf, placeKey, type Place } from './fileDragSlots';
 import { loadedFilesDrag, loadFilesDrag } from './filesDragLoader';
 import { MoveFileSheet, placeOfFile } from './MoveFileSheet';
@@ -61,7 +62,8 @@ export function FilesTab({ detail }: TabProps) {
   // The files of the queue that is going up, each with its whole percent (fbk_045). The list is empty when nothing goes up.
   const [going, setGoing] = useState<File[]>([]);
   const [percents, setPercents] = useState<ReadonlyMap<File, number>>(() => new Map());
-  const setPercent = (file: File, percent: number) => setPercents((current) => new Map(current).set(file, percent));
+  // The same Map when the percent did not change, so React skips the render.
+  const setPercent = (file: File, percent: number) => setPercents((current) => (current.get(file) === percent ? current : new Map(current).set(file, percent)));
   const [received, setReceived] = useState(false);
   const [preview, setPreview] = useState<FileView | null>(null);
   const [sharing, setSharing] = useState<FileView | null>(null);
@@ -83,11 +85,7 @@ export function FilesTab({ detail }: TabProps) {
     if (!linked || !files.data) return;
     const view = files.data.find((item) => item.file.id === linked);
     if (view) setPreview(view);
-    setParams((current) => {
-      const next = new URLSearchParams(current);
-      next.delete('file');
-      return next;
-    }, { replace: true });
+    replaceParam(setParams, 'file', null);
   }, [linked, files.data, setParams]);
 
   // A failed upload keeps its place in the queue: Retry sends that file and the ones after it, never the ones that went up.
@@ -113,6 +111,8 @@ export function FilesTab({ detail }: TabProps) {
     } finally {
       setUploading(false);
       setGoing([]);
+      // Clear the percents, so the Map does not keep the File objects of finished uploads.
+      setPercents(new Map());
     }
   };
 
@@ -131,19 +131,22 @@ export function FilesTab({ detail }: TabProps) {
   const hasLinks = projectLinkRows(detail.project, '').length > 0;
 
   // A person who may upload also sees the stages with nothing: "+ Folder" sits in the heading row of its stage (fbk_066). A tab with no file, no
-  // folder and no link shows the empty state alone.
-  const folderCount = foldersOf(detail).length;
+  // folder and no link shows the empty state alone. A file or a folder of a stage that is gone fills no group, but it still opens the empty stages.
   // The groups wait for the list of files: a folder never shows "No files yet." while its files load.
-  const withFiles = files.data ? groupsOf(detail, files.data, false, t('files.noStage')) : [];
-  const groups = files.data && canUpload && (files.data.length > 0 || folderCount > 0 || hasLinks) ? groupsOf(detail, files.data, true, t('files.noStage')) : withFiles;
+  const noStage = t('files.noStage');
+  const { groups, empty } = useMemo(() => {
+    if (!files.data) return { groups: [], empty: false };
+    const showEmptyStages = canUpload && (files.data.length > 0 || foldersOf(detail).length > 0 || hasLinks);
+    const built = groupsOf(detail, files.data, showEmptyStages, noStage);
+    return { groups: built, empty: !hasLinks && !built.some(hasContent) };
+  }, [detail, files.data, canUpload, hasLinks, noStage]);
 
   // "Download all" (owner, 2026-10-22, fbk_050): the newest version of each file, for one stage and for the whole project. A button shows for two files
   // or more. The whole-project button shows only when the files sit in more than one group, because with one group it would repeat the group button.
-  const itemsOf = (views: FileView[]) => views.map((view) => ({ id: view.file.id, name: view.file.name }));
   const allItems = itemsOf(files.data ?? []);
   const projectZip = () => `${shownKey(detail.project, t)} ${shownName(detail.project, lang)}`;
 
-  const stageName = (stageId: string | null) => (stageId === null ? t('files.noStage') : (detail.stages.find((stage) => stage.id === stageId)?.name ?? ''));
+  const stageName = (stageId: string | null) => (stageId === null ? noStage : (detail.stages.find((stage) => stage.id === stageId)?.name ?? ''));
   const placeText = (place: Place): string => {
     const folder = place.folderId ? foldersOf(detail).find((item) => item.id === place.folderId) : undefined;
     return folder ? t('folders.placeIn', { stage: stageName(place.stageId), folder: folder.name }) : stageName(place.stageId);
@@ -210,7 +213,6 @@ export function FilesTab({ detail }: TabProps) {
   };
 
   // A tab with no files and no links shows one empty state, and the one Add button moves into it (it shows once, never twice).
-  const empty = Boolean(files.data) && withFiles.length === 0 && !hasLinks;
   const add = (canUpload || canLink) && (
     <Menu
       label={t('files.add')}
