@@ -68,8 +68,8 @@ const VAPID_NAMES = ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'] a
 const GOOGLE_NAMES = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'MADAR_GOOGLE_KEY'] as const;
 /**
  * The Daftra link (owner, 2026-10-26): one account for each sub-company, so the secret names follow a pattern and no fixed list names them.
- * DAFTRA_<NAME>_KEY and DAFTRA_<NAME>_SITE, both or none for each NAME (server/daftra/config.ts). The key role of each office key should
- * allow only `invoice` and `client`.
+ * DAFTRA_<NAME>_KEY and DAFTRA_<NAME>_SITE, both or none for each NAME (server/daftra/config.ts). The owner set no key role (2026-10-26):
+ * each key has the rights of its account, and the client sends only GET requests (server/daftra/CLAUDE.md).
  */
 export const R2_NAMES = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'] as const;
 /** The R2 bucket of each copy (owner, 2026-10-16). Both are in the EU jurisdiction (server/files/r2.ts signs on the EU endpoint). */

@@ -19,8 +19,8 @@ import type { Db, Query } from '../core/ports';
  * BEGIN and the set local lines go as one simple query, so the start of a transaction is one round trip (performance audit
  * SRV-9; proof.md: the settings hold inside the transaction and end with it, also through the transaction pooler).
  *
- * Idle connections (performance audit SRV-3; proof.md): a pool keeps its idle connection 120 s, under the 150 s life of a
- * worker, with TCP keepalive, so a click after a pause does not open a new TLS connection. The pg default is 10 s.
+ * Idle connections: a pool closes an idle connection after IDLE_TIMEOUT_MS (below), with TCP keepalive. The 120 s of
+ * performance audit SRV-3 saved no connect and filled the client limit of the pooler (proof.md).
  */
 
 /**

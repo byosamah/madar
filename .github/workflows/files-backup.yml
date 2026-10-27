@@ -1,3 +1,6 @@
+# PAUSED (disabled in GitHub). The owner chose R2 alone and no Backblaze B2 (2026-10-18). This file still copies to a B2
+# crypt remote: change the target before you enable it (.github/CLAUDE.md).
+#
 # The weekly file copy (plan 5.7 and 2b point 1, change 21; task O2): Friday 03:07 Riyadh.
 #
 # rclone sync from the file store to a Backblaze B2 crypt remote. While MADAR_FILE_STORE is supabase (the default), the source

@@ -2,8 +2,8 @@ import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 /**
- * When the Mac database backup is due (owner, 2026-10-20; .github/CLAUDE.md). Each session of the owner runs
- * `mac-backup.sh --if-due` on each owner message, so the backup does not wait for one open session. The backup is due outside
+ * When the Mac database backup is due (owner, 2026-10-20; .github/CLAUDE.md). A session runs
+ * `mac-backup.sh --if-due` only when the owner asks for a backup (root CLAUDE.md). The backup is due outside
  * the office hours of Riyadh, when GitHub made no backup in the last GITHUB_FRESH_HOURS, when the newest database backup is
  * MIN_AGE_HOURS old or more, and only until the end of October 2026.
  *
