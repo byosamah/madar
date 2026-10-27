@@ -26,13 +26,14 @@ function DayLock({ label }: { label: string }) {
 /**
  * `order` "work" (the Admin blocks, which pass their own `labels`) shows the start, then the end of the range. "quiet" (the Settings
  * section, fbk_051) shows the end of work first, then the start, so the fields read in the order of the line "Madar is quiet from 5:00 PM
- * to 8:00 AM". Without `labels` the fields are named "Quiet from" and "Until". The values and the saved range stay the same: only the
- * order changes.
+ * to 8:00 AM". The default words are those of the quiet order ("Quiet from" and "Until"), so the type asks the work order for its own
+ * `labels`. The values and the saved range stay the same: only the order changes.
  */
+type RangeWords = { days: string; from: string; to: string };
+
 export function WorkRangeFields({ idPrefix, value, onChange, lock, labels, order = 'work' }: {
   idPrefix: string; value: WorkRange; onChange: (next: { days: number[]; from: Clock; to: Clock }) => void; lock?: RangeLock;
-  labels?: { days: string; from: string; to: string }; order?: 'work' | 'quiet';
-}) {
+} & ({ order: 'quiet'; labels?: RangeWords } | { order?: 'work'; labels: RangeWords })) {
   const { t } = useTranslation();
   const lang = useLang();
   const words = labels ?? { days: t('quietHours.days'), from: t('quietHours.until'), to: t('quietHours.quietFrom') };

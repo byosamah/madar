@@ -7,8 +7,8 @@ Settings (desk) and the same sections on the Me tab (phone), and the Admin secti
   that right. `sectionsFor` reads the viewer, and `opensAdminPage` (`api/rights.ts`) decides the person menu. A desk opens the first section at
   `/admin`. A phone shows the list there. An unknown or forbidden section goes back to `/admin`. A person who is not the Admin sees "Office"
   as the page title.
-- A section draws its shell with `AdminPanel` (`AdminPanel.tsx`): the section tag, the title, and the header row when it gets an `action`.
-  `AddButton` is the plus button. `action={null}` keeps the row with no button. A tick box with its label is `CheckRow`. Only `admin/`
+- A section draws its shell with `AdminPanel` (`AdminPanel.tsx`): the section tag, then a header row with the title and the `action`
+  when the section has one. `AddButton` is the plus button. A tick box with its label is `CheckRow`. Only `admin/`
   files import them. `LinkProjectSheet.tsx` also loads on the project page, so it imports neither. A section asks `useRight` or `useCan`
   (`app/useRight.tsx`) for a right, never the session. The name of a role comes from `roleLabel` and `customRoleName` (`roleSheetLogic.ts`).
 - Roles (`RolesSection.tsx`, `RoleSheet.tsx`, `RoleRights.tsx`, `roleSheetLogic.ts`, `RoleToggle.tsx`): the Roles section is the Admin's only.
@@ -25,7 +25,7 @@ Settings (desk) and the same sections on the Me tab (phone), and the Admin secti
   `TemplateDetails.tsx` shows the fields beside it (a Sheet on a phone). The editor works on a text draft (`templateDraft.ts`): a stage
   start moves its tasks by the same days (`moveStageStart`, on blur), a new wait that points back moves the part that waits (`addWait`, with an
   Undo toast), and Cancel, Escape and the close button ask "Discard the changes?" when the draft changed. A control with `data-autofocus`
-  takes the focus in a sheet. The limits of the editor are `DAYS_MAX` (365 days) and `NAME_MAX` (60 letters) in `templateDraft.ts`: the
+  takes the focus in a sheet. The limits of the editor are `DAYS_MAX` (365 days for a task) and `NAME_MAX` (60 letters) in `templateDraft.ts`: the
   chart and the fields import them. A wait ends with `removeWait`.
 - `moveTaskToStage` (`templateDraft.ts`) has one rule: the move changes the stage and nothing else, so the days of a task stay and the waits
   stay true. A note says when the days are outside the new stage (`taskOutsideStage`). The one exception is a task that Add task just made

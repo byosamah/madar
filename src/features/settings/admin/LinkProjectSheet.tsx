@@ -124,8 +124,8 @@ export function LinkProjectSheet({ projectId, template, onClose, onDone, mode = 
   const matchedCount = stageParts.length + taskParts.length - unmatchedCount;
   // The dates that the added parts get: the plan from the project start, moved forward when it is past (the server uses the same function).
   const startDate = project.data?.project.startDate ?? null;
-  const plan = useMemo(() => (startDate ? planProject(template, { startDate, fixedIds: [] }) : null), [startDate, template]);
-  // The dates show only for "Add them", so a pick does not work them out for "Leave them out".
+  // The dates show only for "Add them": "Leave them out" plans nothing, and a pick does not plan the template again.
+  const plan = useMemo(() => (rest === 'add' && startDate ? planProject(template, { startDate, fixedIds: [] }) : null), [rest, startDate, template]);
   const addedDates = useMemo(() => {
     if (rest !== 'add' || !plan?.ok) return null;
     const open = (kind: 'stages' | 'tasks', parts: { id: string }[]) => parts.filter((part) => !picks[kind][part.id]).map((part) => part.id);

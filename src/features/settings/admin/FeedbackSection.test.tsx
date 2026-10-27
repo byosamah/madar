@@ -81,6 +81,27 @@ describe('Requests and bugs in the real build: the screenshots (spec 4.3)', () =
     expect(thumb).toHaveAttribute('decoding', 'async');
   });
 
+  it('signs the screenshot links of a report only when its row comes near the view (code review 2026-10-27)', async () => {
+    let seen: IntersectionObserverCallback = () => undefined;
+    vi.stubGlobal('IntersectionObserver', class {
+      constructor(callback: IntersectionObserverCallback) { seen = callback; }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    });
+    try {
+      const { api, signs } = remoteApi();
+      renderRemote(api);
+      await screen.findByRole('heading', { name: 'Requests and bugs' });
+      await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+      expect(signs).toEqual([]);
+      act(() => seen([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver));
+      await waitFor(() => expect(signs).toHaveLength(2));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('asks for one new link when a picture breaks', async () => {
     const { api, signs } = remoteApi();
     renderRemote(api);

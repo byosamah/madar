@@ -31,7 +31,7 @@ export type TemplateDraft = { name: string; roles: DraftRole[]; stages: DraftSta
 export type TemplateParts = { name: string; roles: TemplateRole[]; stages: TemplateStage[]; tasks: TemplateTask[] };
 
 const OFFSET_MAX = 2000;
-/** The longest length of a task or a stage, in working days. The editor, the chart and the server all refuse a longer one. */
+/** The longest length of a task, in working days. The editor, the chart and the server all refuse a longer one. A stage has no length of its own. */
 export const DAYS_MAX = 365;
 /** The longest name of a template, a role or a stage. The editor and the server both refuse a longer one. */
 export const NAME_MAX = 60;

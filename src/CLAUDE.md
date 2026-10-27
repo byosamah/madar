@@ -34,6 +34,10 @@ before any screen work. The root `CLAUDE.md` rules apply (ADHD test, screenshots
   `src/api` module (`chatState.ts` pulls the rules and the store). Take the limit from `contract/limits.ts`, use a type-only import, or move
   the small pure function into its own file (`api/adminReach.ts`). To see which source file pulled code into the first load, build with
   `--sourcemap` into `$TMPDIR` and read the `sources` of `assets/index-*.js.map`.
+- A red "first load starts 35 files or fewer" line with no new code: a new shared module that a first-load file and a lazy screen both
+  import can cut code out of the index chunk into many small chunks. One loader file shared by the task rows and the Files tab took the
+  first load from 30 to 48 files (2026-10-27). Run `build:remote` after a cleanup that adds a shared file. To find the cause, build each
+  commit from `git archive` and compare the chunk names of the first load.
 
 ## The API address
 - `build:remote` sets `VITE_API_URL` from `config/server-host.json` (`scripts/build-remote.ts`, `remotePublicEnv`): the page's own `/api` when the
@@ -154,3 +158,5 @@ before any screen work. The root `CLAUDE.md` rules apply (ADHD test, screenshots
 - `renderRemoteApp` (`test/renderRemote.tsx`) renders the app with runtime mode remote and the query client of the real build. `sent` lists each
   call in order, and `hold` keeps the calls it picks until `release()`. A render-count test wraps a component with
   `vi.mock(path, importOriginal)` and waits until the count is stable before it compares.
+- `vi.mock` replaces an export for the other modules only. A hook in the same file that calls that export calls its own copy, and the test
+  no longer sees the call. Put such a hook in its own file that imports the export (`app/useDownloadFile.ts`, 2026-10-27).
