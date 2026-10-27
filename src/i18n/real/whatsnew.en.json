@@ -3,6 +3,10 @@
     "menu": "What's new",
     "title": "What's new",
     "items": {
+      "2026-10-23-120": {
+        "title": "Your AI assistant reads the chats too",
+        "body": "When you ask your AI assistant about a project or a to-do, it now also reads the project chat, the posts and the to-do thread. It tells you in which chat it found the answer. Start a new chat with your assistant to get this."
+      },
       "2026-10-23-119": {
         "title": "More statuses for requests and bugs",
         "body": "The Admin can now set a request or a bug report to In review, In progress, Done or Rejected. When your report is rejected, you get a notice with the reason."

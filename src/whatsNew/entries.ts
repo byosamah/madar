@@ -15,6 +15,8 @@ export type WhatsNewEntry = { id: string; day: string; right?: Action; to?: stri
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   // The usage data line stays first (insight design, section 8): the team reads what Madar records before any other news.
   { id: '2026-10-23-102', day: '2026-10-25', to: '/settings' },
+  // The AI assistant reads the chats before it answers about a project or a to-do (owner, 2026-10-27). The lead sets the real release day before the test deploy.
+  { id: '2026-10-23-120', day: '2026-10-27', right: 'ai.readChats' },
   // Five statuses for requests and bugs, and the reason of a rejected report (fbk_067). The lead sets the real release day before the test deploy.
   { id: '2026-10-23-119', day: '2026-10-26' },
   { id: '2026-10-23-118', day: '2026-10-26', to: '/projects' },

@@ -23,7 +23,7 @@ describe("What's new entries", () => {
   it('keeps the release days of the history (Cloudflare production deploys and the release records)', () => {
     const dayOf = (id: string) => WHATS_NEW.find((entry) => entry.id === id)?.day;
     expect(dayOf('2026-10-23-82')).toBe('2026-10-22');
-    expect(new Set(WHATS_NEW.map((entry) => entry.day))).toEqual(new Set(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-25', '2026-10-26']));
+    expect(new Set(WHATS_NEW.map((entry) => entry.day))).toEqual(new Set(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-25', '2026-10-26', '2026-10-27']));
   });
 
   // Batch A (fbk_038, fbk_040, fbk_043, fbk_045, fbk_046, fbk_047): five lines, newer than every other entry.
@@ -76,7 +76,7 @@ describe("What's new entries", () => {
   });
 
   it('name a real right and a real address when they have them (chats-14)', () => {
-    const rights = ['admin.manage', 'people.manage', 'payment.manage', 'clients.manage', 'templates.projectAny', 'report.office', 'ai.projectSetup', 'dashboard.view', 'payment.daftraLink'];
+    const rights = ['admin.manage', 'people.manage', 'payment.manage', 'clients.manage', 'templates.projectAny', 'report.office', 'ai.projectSetup', 'dashboard.view', 'payment.daftraLink', 'ai.readChats'];
     for (const entry of WHATS_NEW) {
       if (entry.right) expect(rights, entry.id).toContain(entry.right);
       if (entry.to) expect(entry.to, entry.id).toMatch(/^\/[a-z-]+(\/[a-z-]+)*(\?[a-z]+=[a-z]+)?$/);
@@ -348,6 +348,28 @@ describe("the What's new entry of the continuous project", () => {
     expect(body(en)).toContain('never makes it Late');
     expect(title(ar)).toContain('مستمر');
     expect(body(ar)).toContain('مشروع مستمر');
+    for (const text of [title(en), body(en), title(ar), body(ar)]) expect(text).not.toMatch(/[–—]/);
+  });
+});
+
+// The AI assistant reads the chats before it answers about a project or a to-do (owner, 2026-10-27). Only for the holders of
+// "AI reads chats": an assistant without it cannot read them.
+describe("the What's new entry of the context rule of the AI assistant", () => {
+  it('is in the newest day, under the usage entry, for the holders of the switch "AI reads chats"', () => {
+    expect(WHATS_NEW.find((entry) => entry.id === '2026-10-23-120')).toEqual({ id: '2026-10-23-120', day: '2026-10-27', right: 'ai.readChats' });
+    expect(WHATS_NEW.findIndex((entry) => entry.id === '2026-10-23-120')).toBe(1);
+  });
+
+  it('names the project chat and the to-do thread in the screen words, and says to start a new chat', () => {
+    const title = (tree: Parameters<typeof wordAt>[0]) => String(wordAt(tree, ['whatsNew', 'items', '2026-10-23-120', 'title']));
+    const body = (tree: Parameters<typeof wordAt>[0]) => String(wordAt(tree, ['whatsNew', 'items', '2026-10-23-120', 'body']));
+    expect(title(en)).toContain('AI assistant');
+    expect(body(en)).toContain('project chat');
+    expect(body(en)).toContain('to-do thread');
+    expect(body(en)).toContain('new chat');
+    expect(title(ar)).toContain('مساعدك');
+    expect(body(ar)).toContain('محادثة المشروع');
+    expect(body(ar)).toContain('نقاش المهمة');
     for (const text of [title(en), body(en), title(ar), body(ar)]) expect(text).not.toMatch(/[–—]/);
   });
 });
