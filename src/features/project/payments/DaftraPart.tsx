@@ -26,7 +26,7 @@ import { amountText } from './PaymentsPanel';
  *   daftra.status says ready. With no Daftra in the copy (the prototype) nothing shows.
  * - A payment that carries a link shows the states 5 and 6 to every person who sees payments. Only a holder of the switch gets Unlink.
  *   These lines come from the payment itself, so they need no Daftra call.
- * - The one main button is Link, in the sheet footer, while a suggestion or a chosen invoice shows. Then Save is a plain button.
+ * - The one main button is Link, inside this part, while a suggestion or a chosen invoice shows (`linkShown`). Then Save is a plain button.
  * - Every state is calm: one line, one next step. A failed read shows the reason and Retry (LoadFailed); the rest of the sheet keeps working.
  */
 
