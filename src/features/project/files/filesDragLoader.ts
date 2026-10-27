@@ -1,4 +1,4 @@
-import { createLayerLoader } from '../tasks/lazyLayer';
+import { createLayerLoader } from '../lazyLayer';
 import type { FilesDragHostProps } from './FilesDragLayer';
 
 /**

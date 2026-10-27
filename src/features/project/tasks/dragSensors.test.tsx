@@ -3,7 +3,8 @@ import { KeyboardSensor, MouseSensor, PointerSensor, TouchSensor } from '@dnd-ki
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { act, renderHook } from '@testing-library/react';
 import { phoneMedia } from '../../../test/phoneMedia';
-import { HOLD_MS, HOLD_TOLERANCE_PX, prefersReducedMotion, useDragSensors } from './dragSensors';
+import { prefersReducedMotion } from '../../../lib/motion';
+import { HOLD_MS, HOLD_TOLERANCE_PX, useDragSensors } from './dragSensors';
 import { reduceMotion } from './testMotion';
 import { useTouchPhone } from './useTouchPhone';
 

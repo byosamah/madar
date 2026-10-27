@@ -10,7 +10,7 @@ import { FilterButton } from '../../../components/FilterButton';
 import { oneOf } from '../../../lib/params';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { TASK_PANEL, usePanelLink } from '../panelLink';
-import { RadioChoice } from '../RadioChoice';
+import { CHOICE_ROW, RadioChoice } from '../RadioChoice';
 import { setFilterParam, type TabProps } from '../tabs';
 import { TaskBoard } from './TaskBoard';
 import { TaskList } from './TaskList';
@@ -22,7 +22,6 @@ const FILTERS = ['all', 'mine', 'overdue', 'flagged', 'no_lead'] as const;
 export { FILTERS as TASK_FILTERS };
 const VIEWS = ['list', 'board'] as const;
 const LEGEND = 'pb-1 text-footnote font-semibold text-ink-2';
-const RADIO = 'flex min-h-11 items-center gap-3 text-body text-ink';
 
 type Filter = (typeof FILTERS)[number];
 type View = (typeof VIEWS)[number];
@@ -53,7 +52,7 @@ const TasksBody = memo(function TasksBody({ detail, filter, showDone, view, rows
             ))}
           </fieldset>
           {view === 'list' && (
-            <label className={`${RADIO} border-t border-hairline pt-1`}>
+            <label className={`${CHOICE_ROW} border-t border-hairline pt-1`}>
               <input type="checkbox" className="size-5 accent-[var(--sig-from)]" checked={showDone} onChange={(event) => onShowDone(event.target.checked)} />
               {t('tasks.showDone')}
             </label>

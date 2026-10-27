@@ -5,7 +5,7 @@ import type { TaskRow } from '../../../api/contract/views';
 import { todayISO } from '../../../lib/dates';
 import type { RowGroupOf } from './DragLayer';
 import { loadDragLayer, loadedDragLayer } from './dragLayerLoader';
-import { useLayerSwap } from './lazyLayer';
+import { useLayerSwap } from '../lazyLayer';
 import { RowGrip } from './RowGrip';
 import { TaskRowItem } from './TaskRowItem';
 

@@ -1,6 +1,6 @@
 import { whenIdle } from '../../../app/whenIdle';
 import type { DragRowsProps } from './DragLayer';
-import { createLayerLoader } from './lazyLayer';
+import { createLayerLoader } from '../lazyLayer';
 
 /**
  * The loader of the drag layer (performance audit 2026-10-21, FL-2). dnd-kit is about 18 KB of script, so it is a chunk of its own and

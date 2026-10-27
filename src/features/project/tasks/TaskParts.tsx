@@ -2,10 +2,10 @@ import { memo, useEffect, useRef, useState, type MutableRefObject, type ReactNod
 import { useTranslation } from 'react-i18next';
 import type { ChecklistItem, Task } from '../../../api/contract/entities';
 import type { FileView, TaskDetail } from '../../../api/contract/views';
-import { downloadFile } from '../../../app/files';
+import { useDownloadFile } from '../../../app/files';
 import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
-import { useAction, useRuntime } from '../../../app/runtime';
+import { useAction } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { Age } from '../../../components/Age';
 import { AgentLabel } from '../../../components/AgentLabel';
@@ -21,7 +21,7 @@ import { Group } from './DetailRows';
 import { loadChecklistLayer, loadedChecklistLayer } from './checklistLayerLoader';
 import { ChecklistRow, ItemGrip } from './ChecklistRow';
 import { historyText } from './history';
-import { useLayerSwap } from './lazyLayer';
+import { useLayerSwap } from '../lazyLayer';
 
 export type Patch = Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startDate' | 'schedule' | 'durationDays' | 'ownerId' | 'helperIds' | 'prerequisiteIds' | 'flagged' | 'needsReview' | 'checklist'>> & { stageId?: string };
 
@@ -143,12 +143,11 @@ export const EMPTY_FILES: FileView[] = Object.freeze([]) as unknown as FileView[
 export const TaskFiles = memo(function TaskFiles({ views, layout = 'plain' }: { views: FileView[]; layout?: 'plain' | 'rows' }) {
   const { t } = useTranslation();
   const lang = useLang();
-  const { api } = useRuntime();
-  const toast = useToast();
+  const download = useDownloadFile();
   const [preview, setPreview] = useState<FileView | null>(null);
   const open = (view: FileView) => {
     if (canPreview(view.latest.mimeType)) setPreview(view);
-    else downloadFile(api, view.file.id).catch((error: unknown) => toast.failed(error));
+    else download(view.file.id);
   };
   const sheet = preview && <PreviewSheet views={[preview]} index={0} onIndex={() => undefined} onClose={() => setPreview(null)} />;
   if (layout === 'rows') {

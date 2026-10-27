@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { TrackerRow } from '../../../api/contract/views';
 import { useLang } from '../../../app/lang';
 import { StatusSign } from '../../../components/StatusSign';
-import { formatDay, todayISO } from '../../../lib/dates';
+import { formatDay } from '../../../lib/dates';
 import { groupByWeek, isOpen } from '../../../lib/tracker';
 import { FileChips } from '../../files/Attachments';
 import { DirectionMark, TypeIcon } from './marks';
@@ -33,11 +33,14 @@ const Line = memo(function Line({ row, onOpen }: { row: TrackerRow; onOpen: (id:
   );
 });
 
-/** Every entry, newest first, in one list per week. A line opens the entry. */
-export const History = memo(function History({ rows, onOpen }: { rows: TrackerRow[]; onOpen: (id: string) => void }) {
+/**
+ * Every entry, newest first, in one list per week. A line opens the entry. The caller gives today: the list is memoized, so a day read
+ * here would keep the old week names while the rows stay the same.
+ */
+export const History = memo(function History({ rows, onOpen, today }: { rows: TrackerRow[]; onOpen: (id: string) => void; today: string }) {
   const { t } = useTranslation();
   const lang = useLang();
-  const groups = groupByWeek(rows, (row) => row.entry.date, todayISO());
+  const groups = groupByWeek(rows, (row) => row.entry.date, today);
   return (
     <div className="flex flex-col gap-1">
       {groups.map((group) => {

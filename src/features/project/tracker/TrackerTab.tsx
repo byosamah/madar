@@ -13,6 +13,7 @@ import { FilterButton } from '../../../components/FilterButton';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { DownloadIcon } from '../../../components/icons/animated/download';
+import { todayISO } from '../../../lib/dates';
 import { oneOf } from '../../../lib/params';
 import { activeMembers } from '../../../lib/tracker';
 import { ENTRY_PANEL, usePanelLink } from '../panelLink';
@@ -153,7 +154,7 @@ export function TrackerTab({ detail }: TabProps) {
           ? active > 0
             ? <p className="text-subheadline text-ink-2">{t('tracker.emptyFilter')}</p>
             : <EmptyState title={t('tracker.emptyTitle')} body={t('tracker.empty')} />
-          : <History rows={history.data ?? []} onOpen={setOpenId} />}
+          : <History rows={history.data ?? []} onOpen={setOpenId} today={todayISO()} />}
       </section>
       {exporting && mayExport && (
         <ExportSheet

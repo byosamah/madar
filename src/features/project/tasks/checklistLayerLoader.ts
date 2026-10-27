@@ -1,5 +1,5 @@
 import type { DragChecklistProps } from './ChecklistDrag';
-import { createLayerLoader } from './lazyLayer';
+import { createLayerLoader } from '../lazyLayer';
 
 /**
  * The loader of the drag layer of the checklist (fbk_043). It follows `dragLayerLoader.ts`: dnd-kit stays out of the first load, so the

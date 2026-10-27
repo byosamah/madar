@@ -3,11 +3,7 @@ import {
   type KeyboardCoordinateGetter, type SensorDescriptor, type SensorOptions,
 } from '@dnd-kit/core';
 import { useMemo } from 'react';
-import { prefersReducedMotion } from '../../../lib/motion';
 import { useTouchPhone } from './useTouchPhone';
-
-// DragLayer and TaskBoard take the reduced-motion test from here. The test itself sits in `lib/motion.ts`, which a screen file can import.
-export { prefersReducedMotion };
 
 /** The time a finger stays still on a row or a card before it lifts (phone design D, owner 2026-10-22). */
 export const HOLD_MS = 400;

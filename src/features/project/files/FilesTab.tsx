@@ -22,7 +22,7 @@ import { DownloadAllButton } from '../../files/DownloadAll';
 import { replaceParam } from '../../../lib/params';
 import { shownKey, shownName } from '../../../lib/projectLabel';
 import type { TabProps } from '../tabs';
-import { useLayerSwap } from '../tasks/lazyLayer';
+import { useLayerSwap } from '../lazyLayer';
 import { FileGroups, groupsOf, hasContent, itemsOf, type GroupActions } from './FileGroups';
 import { foldersOf, placeKey, type Place } from './fileDragSlots';
 import { loadedFilesDrag, loadFilesDrag } from './filesDragLoader';
