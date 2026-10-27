@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
+import { useLang } from '../../app/lang';
 import { useAction, useCall } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
 import { Switch } from '../../components/Switch';
-import type { Lang } from '../../lib/dates';
 import { officeWorkHoursOf, type WorkHours } from '../../lib/quietHours';
 import { SettingsSection } from './Section';
 import { WorkRangeFields } from './WorkRangeFields';
@@ -16,8 +16,8 @@ import { clockLabel, daysPhrase, effectiveWorkHours, quietSentence } from './wor
  * switch off, the day and time controls hide, and the line says that Madar notifies at any time.
  */
 export function QuietHoursSection() {
-  const { t, i18n } = useTranslation();
-  const lang: Lang = i18n.language === 'ar' ? 'ar' : 'en';
+  const { t } = useTranslation();
+  const lang = useLang();
   const toast = useToast();
   const session = useCall('session.get', {});
   const settings = useCall('settings.get', {});

@@ -22,8 +22,6 @@
     "title": "When Madar notifies you",
     "switch": "Notify me only in my work hours",
     "days": "My work days",
-    "from": "From",
-    "to": "To",
     "lockLine": "Your office keeps notifications on {{days}}, {{from}} to {{to}}.",
     "dayRange": "{{from}} to {{to}}",
     "lockedDay": "The office keeps notifications on this day.",

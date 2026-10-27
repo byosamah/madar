@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { widenToLock } from './workRange';
+import { weekdayName, widenToLock } from './workRange';
 
 describe('widenToLock', () => {
   const lock = { on: true, days: [0, 1, 2, 3, 4], from: '08:00', to: '17:00' };
@@ -17,5 +17,26 @@ describe('widenToLock', () => {
     const result = widenToLock(range, { ...lock, on: false });
     expect(result).toEqual(range);
     expect(result.days).not.toBe(range.days);
+  });
+});
+
+// The texts of weekdayName before it used the shared formatters of lib/dates.ts: they stay the same, character for character.
+describe('weekdayName', () => {
+  const OLD = {
+    'en|short': ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    'en|long': ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+    'ar|short': ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'],
+    'ar|long': ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'],
+  } as const;
+
+  it.each(['en', 'ar'] as const)('keeps the old text of the seven days, short and long (%s)', (lang) => {
+    for (const style of ['short', 'long'] as const) {
+      expect([0, 1, 2, 3, 4, 5, 6].map((day) => weekdayName(day, lang, style))).toEqual(OLD[`${lang}|${style}`]);
+    }
+  });
+
+  it('gives the short name when no style is passed', () => {
+    expect(weekdayName(0, 'en')).toBe('Sun');
+    expect(weekdayName(6, 'ar')).toBe('السبت');
   });
 });

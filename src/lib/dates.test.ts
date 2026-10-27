@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clockTime } from '../features/inbox/Thread';
-import { addDays, clockFormat, dayOfWeek, diffDays, formatDay, formatMonth, formatMonthYear, formatNumber, formatWeekday, formatWeekdayHead, maxDay, minDay, now, nowStamp, officeClock, setNow, stampDay, todayISO, weekStartOf } from './dates';
+import { addDays, clockFormat, dayOfWeek, diffDays, formatDay, formatMonth, formatMonthYear, formatNumber, formatWeekday, formatWeekdayHead, formatWeekdayLong, maxDay, minDay, now, nowStamp, officeClock, setNow, stampDay, todayISO, weekStartOf } from './dates';
 import recorded from './dates.recorded.json';
 import { waitingNames } from './waiting';
 
@@ -130,6 +130,13 @@ describe('formatWeekday', () => {
   it('gives the short weekday name in both languages', () => {
     expect(formatWeekday('2026-09-27', 'en')).toBe('Sun');
     expect(formatWeekday('2026-09-27', 'ar')).toBe('الأحد');
+  });
+});
+
+describe('formatWeekdayLong', () => {
+  it('gives the long weekday name in both languages', () => {
+    expect(formatWeekdayLong('2026-09-30', 'en')).toBe('Wednesday');
+    expect(formatWeekdayLong('2026-09-30', 'ar')).toBe('الأربعاء');
   });
 });
 

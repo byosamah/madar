@@ -32,9 +32,10 @@ export function ProfileSection({ user }: { user: User }) {
   // The file just chosen, while the frame step is open.
   const [framing, setFraming] = useState<File | null>(null);
   const [pictureProblem, setPictureProblem] = useState<string | null>(null);
-  const [name, setName] = useState('');
-  const [nameAr, setNameAr] = useState('');
-  const [discipline, setDiscipline] = useState('');
+  // The fields start from the person, so the first paint shows the names. The effect follows a save or a change of person.
+  const [name, setName] = useState(user.name);
+  const [nameAr, setNameAr] = useState(user.nameAr ?? '');
+  const [discipline, setDiscipline] = useState(user.discipline);
 
   useEffect(() => {
     setName(user.name);

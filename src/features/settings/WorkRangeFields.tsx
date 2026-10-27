@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
+import { useLang } from '../../app/lang';
 import { SelectField } from '../../components/Fields';
-import type { Lang } from '../../lib/dates';
 import type { Clock, WorkRange } from '../../lib/quietHours';
 import { WEEKDAYS, clockLabel, endOptions, startOptions, weekdayName } from './workRange';
 
@@ -24,19 +24,18 @@ function DayLock({ label }: { label: string }) {
 }
 
 /**
- * `order` "work" (the Admin blocks) shows the start, then the end of the range. "quiet" (the Settings section, fbk_051) shows the end of
- * work as "Quiet from", then the start as "Until", so the fields read in the order of the line "Madar is quiet from 5:00 PM to 8:00 AM".
- * The values and the saved range stay the same: only the order and the words change.
+ * `order` "work" (the Admin blocks, which pass their own `labels`) shows the start, then the end of the range. "quiet" (the Settings
+ * section, fbk_051) shows the end of work first, then the start, so the fields read in the order of the line "Madar is quiet from 5:00 PM
+ * to 8:00 AM". Without `labels` the fields are named "Quiet from" and "Until". The values and the saved range stay the same: only the
+ * order changes.
  */
 export function WorkRangeFields({ idPrefix, value, onChange, lock, labels, order = 'work' }: {
   idPrefix: string; value: WorkRange; onChange: (next: { days: number[]; from: Clock; to: Clock }) => void; lock?: RangeLock;
   labels?: { days: string; from: string; to: string }; order?: 'work' | 'quiet';
 }) {
-  const { t, i18n } = useTranslation();
-  const lang: Lang = i18n.language === 'ar' ? 'ar' : 'en';
-  const words = labels ?? (order === 'quiet'
-    ? { days: t('quietHours.days'), from: t('quietHours.until'), to: t('quietHours.quietFrom') }
-    : { days: t('quietHours.days'), from: t('quietHours.from'), to: t('quietHours.to') });
+  const { t } = useTranslation();
+  const lang = useLang();
+  const words = labels ?? { days: t('quietHours.days'), from: t('quietHours.until'), to: t('quietHours.quietFrom') };
   const lockedDays = lock?.on ? lock.days : [];
   const send = (next: Partial<{ days: readonly number[]; from: Clock; to: Clock }>) => {
     const days = [...(next.days ?? value.days)].sort((a, b) => a - b);

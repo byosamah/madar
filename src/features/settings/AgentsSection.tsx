@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import type { Language } from '../../api/contract/entities';
+import { useLang } from '../../app/lang';
 import { REMOTE } from '../../app/mode';
 import { useCall, useRuntime } from '../../app/runtime';
 import { useToast } from '../../app/toasts';
@@ -45,8 +45,8 @@ async function revokeEach(revoke: (clientId: string) => Promise<void>, clientIds
 }
 
 function Agents() {
-  const { t, i18n } = useTranslation();
-  const language = (i18n.language === 'ar' ? 'ar' : 'en') as Language;
+  const { t } = useTranslation();
+  const lang = useLang();
   const { api } = useRuntime();
   const { port } = useOAuth();
   const toast = useToast();
@@ -55,7 +55,8 @@ function Agents() {
   const aiOn = useRight('ai.connect', undefined, true);
   const agents = useCall('agents.list', {});
   const grants = useQuery({ queryKey: ['oauth', 'grants'], queryFn: () => port.listGrants(), retry: false });
-  const [busy, setBusy] = useState<string | null>(null);
+  // True while a remove or a retry runs: every button waits.
+  const [busy, setBusy] = useState(false);
   const [unfinished, setUnfinished] = useState<Unfinished | null>(null);
 
   const active = (agents.data ?? []).filter((agent) => agent.active);
@@ -64,7 +65,7 @@ function Agents() {
     ...active.map((agent) => ({
       key: agent.agentId,
       name: agent.name,
-      meta: [agent.redirectHost, agent.lastUsedAt ? t('agents.lastUsed', { date: formatDay(stampDay(agent.lastUsedAt), language) }) : t('agents.notUsed')].filter(Boolean).join(' · '),
+      meta: [agent.redirectHost, agent.lastUsedAt ? t('agents.lastUsed', { date: formatDay(stampDay(agent.lastUsedAt), lang) }) : t('agents.notUsed')].filter(Boolean).join(' · '),
       agentId: agent.agentId,
       clientIds: agent.clientIds,
     })),
@@ -90,23 +91,23 @@ function Agents() {
   };
 
   const remove = async (item: Item) => {
-    setBusy(item.key);
+    setBusy(true);
     try {
       if (item.agentId !== null) await api.call('agents.remove', { agentId: item.agentId });
     } catch (error) {
       toast.failed(error);
-      setBusy(null);
+      setBusy(false);
       return;
     }
     if (await finish(item.name, item.clientIds)) toast.show({ message: t('agents.removed', { name: item.name }) });
-    setBusy(null);
+    setBusy(false);
   };
 
   const retry = async () => {
     if (!unfinished) return;
-    setBusy('retry');
+    setBusy(true);
     await finish(unfinished.name, unfinished.clientIds);
-    setBusy(null);
+    setBusy(false);
   };
 
   return (
@@ -124,7 +125,7 @@ function Agents() {
                 <p className="truncate text-body font-semibold text-ink">{item.name}</p>
                 <p className="text-footnote text-ink-2">{item.meta}</p>
               </div>
-              <Button aria-label={t('agents.removeName', { name: item.name })} disabled={busy !== null} onClick={() => void remove(item)}>
+              <Button aria-label={t('agents.removeName', { name: item.name })} disabled={busy} onClick={() => void remove(item)}>
                 {t('agents.remove')}
               </Button>
             </li>
@@ -134,7 +135,7 @@ function Agents() {
       {unfinished && (
         <div className="flex flex-col items-start gap-2">
           <FormError text={t('agents.revokeFailed', { name: unfinished.name })} />
-          <Button disabled={busy !== null} onClick={() => void retry()}>{t('common.retry')}</Button>
+          <Button disabled={busy} onClick={() => void retry()}>{t('common.retry')}</Button>
         </div>
       )}
     </Section>

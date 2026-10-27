@@ -115,6 +115,7 @@ const dayFormat = (lang: Lang, style: DayStyle) => once(`day|${lang}|${style}`, 
 const monthFormat = (lang: Lang) => once(`month|${lang}`, () => new Intl.DateTimeFormat(LOCALES[lang], { month: 'short', timeZone: 'UTC' }));
 const monthYearFormat = (lang: Lang) => once(`monthYear|${lang}`, () => new Intl.DateTimeFormat(LOCALES[lang], { month: 'long', year: 'numeric', timeZone: 'UTC' }));
 const weekdayFormat = (lang: Lang) => once(`weekday|${lang}`, () => new Intl.DateTimeFormat(LOCALES[lang], { weekday: 'short', timeZone: 'UTC' }));
+const weekdayLongFormat = (lang: Lang) => once(`weekdayLong|${lang}`, () => new Intl.DateTimeFormat(LOCALES[lang], { weekday: 'long', timeZone: 'UTC' }));
 const weekdayHeadFormat = (lang: Lang) => once(`weekdayHead|${lang}`, () => new Intl.DateTimeFormat(LOCALES[lang], { weekday: lang === 'ar' ? 'narrow' : 'short', timeZone: 'UTC' }));
 const numberFormat = (lang: Lang, fractionDigits: number) => once(`number|${lang}|${fractionDigits}`, () => new Intl.NumberFormat(LOCALES[lang], { maximumFractionDigits: fractionDigits }));
 
@@ -145,6 +146,11 @@ export function formatMonthYear(day: string, lang: Lang): string {
 /** The short weekday name, for the timesheet columns. */
 export function formatWeekday(day: string, lang: Lang): string {
   return weekdayFormat(lang).format(new Date(toMs(day)));
+}
+
+/** The long weekday name, for a label that a screen reader reads and for a sentence ("Sunday"). */
+export function formatWeekdayLong(day: string, lang: Lang): string {
+  return weekdayLongFormat(lang).format(new Date(toMs(day)));
 }
 
 /** The weekday name for the head of a calendar column: short in English, one letter in Arabic (the long Arabic names touch). */

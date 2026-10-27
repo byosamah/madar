@@ -1,22 +1,16 @@
 import type { TFunction } from 'i18next';
-import { clockFormat, listFormat, localeFor, type Lang } from '../../lib/dates';
+import { addDays, clockFormat, formatWeekday, formatWeekdayLong, listFormat, type Lang } from '../../lib/dates';
 import { clockSteps, officeWorkHoursOf, workHoursOf, type Clock, type PersonLike, type SettingsLike, type WorkHours, type WorkLock, type WorkRange } from '../../lib/quietHours';
 
 /** The words of the weekdays and the times of the work range, for the Settings section and the Admin block (fbk_048). */
 
 const WEEK = [0, 1, 2, 3, 4, 5, 6];
 
-const weekdayFormats = new Map<string, Intl.DateTimeFormat>();
 /** The name of a weekday (0 is Sunday): short ("Sun", «الأحد») or long. */
 export function weekdayName(weekday: number, lang: Lang, style: 'short' | 'long' = 'short'): string {
-  const key = `${lang}|${style}`;
-  let format = weekdayFormats.get(key);
-  if (!format) {
-    format = new Intl.DateTimeFormat(localeFor(lang), { weekday: style, timeZone: 'UTC' });
-    weekdayFormats.set(key, format);
-  }
   // 2026-10-04 is a Sunday.
-  return format.format(new Date(Date.UTC(2026, 9, 4 + weekday)));
+  const day = addDays('2026-10-04', weekday);
+  return style === 'long' ? formatWeekdayLong(day, lang) : formatWeekday(day, lang);
 }
 
 /** The seven weekdays in the order of the office week, from Sunday. */
