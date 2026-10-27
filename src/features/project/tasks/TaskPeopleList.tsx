@@ -14,6 +14,7 @@ import { Popover } from '../../../components/Popover';
 import { Sheet } from '../../../components/Sheet';
 import { actorContext } from '../../../lib/grammar';
 import { helpersOf } from '../../../lib/taskPeople';
+import { useLeadChoices } from './useLeadChoices';
 
 export type Mode = 'lead' | 'helper';
 
@@ -36,9 +37,8 @@ export default function PeopleList({ row, mode, anchor, onMode, onClose }: {
   const detail = project.data;
   const ready = Boolean(everyone.data) && (!projectId || Boolean(detail));
   const humans = (everyone.data ?? []).filter((person) => person.kind === 'human');
-  // An office task has no team, so nobody joins one.
-  const teamIds = detail ? new Set([...detail.members.map((member) => member.user.id), ...(detail.leader ? [detail.leader.id] : [])]) : new Set(humans.map((person) => person.id));
-  const pickable: UserCard[] = detail && !detail.viewerCan.editTeam ? humans.filter((person) => teamIds.has(person.id)) : humans;
+  // The list does not count the lead as on the team: a lead who left it reads as outside, as before.
+  const { teamIds, pickable, changeLead } = useLeadChoices<UserCard>({ taskId: row.task.id, humans, detail, leadOnTeam: null });
   const helperIds = helpersOf(row.task);
   const lead = row.owner;
   const candidates = mode === 'lead'
@@ -48,11 +48,6 @@ export default function PeopleList({ row, mode, anchor, onMode, onClose }: {
   const rank = (person: UserCard) => (mode === 'lead' && person.id === row.task.ownerId ? 0 : teamIds.has(person.id) ? 1 : 2);
   const people = [...candidates].sort((a, b) => rank(a) - rank(b) || byName(a, b));
   const joins = useRef(false);
-  const newLead = useUndoable('tasks.update', {
-    message: (output) => (output.owner
-      ? t(joins.current ? 'taskSheet.newLeadJoined' : 'taskSheet.newLead', { name: nameOf(output.owner), context: actorContext(output.owner) })
-      : t('lead.removed')),
-  });
   const addHelper = useUndoable('tasks.update', {
     message: (output) => {
       const added = output.helpers[output.helpers.length - 1];
@@ -60,10 +55,10 @@ export default function PeopleList({ row, mode, anchor, onMode, onClose }: {
     },
   });
   const pick = (person: UserCard) => {
-    joins.current = !teamIds.has(person.id);
     if (mode === 'lead') {
-      if (person.id !== row.task.ownerId) newLead.mutate({ id: row.task.id, patch: { ownerId: person.id } });
+      if (person.id !== row.task.ownerId) changeLead(person.id);
     } else {
+      joins.current = !teamIds.has(person.id);
       addHelper.mutate({ id: row.task.id, patch: { helperIds: [...helperIds, person.id] } });
     }
     onClose();

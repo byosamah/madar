@@ -32,10 +32,10 @@ export function nextStep(data: TaskDetail, viewerCan: TaskDetail['viewerCan'], m
     return { kind: 'complete', completeWord: completeWordOf(data, makerId) };
   }
   if (waiting && data.canMove) return { kind: 'waiting' };
-  if (task.ownerId === null && data.canMove && !viewerCan.take) return { kind: 'needs_lead' };
+  if (task.ownerId === null && data.canMove) return { kind: 'needs_lead' };
   if (task.status === 'in_review' && data.canMove) return { kind: 'wait_approval' };
   if (viewerCan.newVersion) return { kind: 'new_version' };
-  if (!mayChange && !viewerCan.take && viewerCan.help === true && !viewerCan.editAll) return { kind: 'join' };
-  if (!mayChange && !viewerCan.take) return { kind: 'none' };
+  if (!mayChange && viewerCan.help === true) return { kind: 'join' };
+  if (!mayChange) return { kind: 'none' };
   return null;
 }

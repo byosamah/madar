@@ -1,11 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import { TabPanel, Tabs } from '../../../components/Tabs';
-import { CommentThread } from '../../comments/CommentThread';
+import { ConversationView, sectionOptions } from './Conversation';
 import { NextStep } from './NextStepSlot';
 import { PhoneDetails } from './PhoneDetails';
 import { TitleBlock } from './PhoneTop';
 import { StateLine } from './StateLine';
-import { ZipTitleContext } from '../../files/zipTitle';
 import type { TaskPanel } from './useTaskPanel';
 
 /**
@@ -16,7 +15,7 @@ import type { TaskPanel } from './useTaskPanel';
  */
 export function PhoneBody({ panel }: { panel: TaskPanel }) {
   const { t } = useTranslation();
-  const { data, detail, task, viewerCan, people, section, setSection, root, back, dates } = panel;
+  const { data, detail, section, setSection, root, back, dates } = panel;
   return (
     <div ref={root} className="flex min-h-full flex-col gap-4 pt-1">
       <TitleBlock panel={panel} />
@@ -30,24 +29,12 @@ export function PhoneBody({ panel }: { panel: TaskPanel }) {
         idPrefix="task-section"
         value={section}
         onChange={setSection}
-        options={[
-          { value: 'details', label: t('taskSheet.details') },
-          { value: 'conversation', label: data.commentCount > 0 ? t('taskSheet.conversationCount', { n: data.commentCount }) : t('taskSheet.conversation') },
-        ]}
+        options={sectionOptions(t, data.commentCount)}
       />
       {section === 'conversation' ? (
         // The same markup as TabPanel, with a column that fills the sheet for the docked box.
         <div id="task-section-panel" role="tabpanel" aria-labelledby="task-section-conversation" className="flex flex-1 flex-col">
-          <ZipTitleContext.Provider value={task.title}>
-            <CommentThread
-              targetType="task" targetId={task.id} projectId={detail?.project.id ?? null} stageId={task.stageId} people={people}
-              canPost={viewerCan.comment === true}
-              canAttach={viewerCan.upload === true}
-              everyone={data.everyone}
-              docked
-              hideTitle
-            />
-          </ZipTitleContext.Provider>
+          <ConversationView panel={panel} docked />
         </div>
       ) : (
         <TabPanel value="details" idPrefix="task-section">

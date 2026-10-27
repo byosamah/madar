@@ -4,22 +4,22 @@ import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { BadgeAlertIcon } from '../../../components/icons/animated/badge-alert';
 import { useLang } from '../../../app/lang';
 import { usePersonName } from '../../../app/personName';
-import { Button } from '../../../components/Button';
-import { SelectField, TextArea, TextField } from '../../../components/Fields';
+import { SelectField, TextField } from '../../../components/Fields';
 import { RichText } from '../../../components/RichText';
 import { Switch } from '../../../components/Switch';
 import { TabPanel, Tabs } from '../../../components/Tabs';
-import { BOARD_COLUMNS, moveTargets } from '../../../lib/board';
-import { formatDay } from '../../../lib/dates';
-import { CommentThread } from '../../comments/CommentThread';
 import type { TaskStatus } from '../../../api/contract/entities';
 import { DateNotes, TaskNeeds } from './TaskNeeds';
 import { Checklist, Fact, History, TaskFiles } from './TaskParts';
-import { personOption, TaskHelpers } from './TaskHelpers';
-import { durationText, TaskTiming } from './TaskTiming';
+import { ConversationView, sectionOptions } from './Conversation';
+import { JoinBlock, ReviewBlock, TakeBlock, type StepLook } from './StepBlocks';
+import { TaskHelpers } from './TaskHelpers';
+import { DescriptionField, FooterActions, readOnlyDates } from './TaskPanelParts';
+import { TaskTiming } from './TaskTiming';
 import { NewVersion, TaskVersions } from './TaskVersions';
-import { ZipTitleContext } from '../../files/zipTitle';
 import type { TaskPanel } from './useTaskPanel';
+
+const LOOK: StepLook = { variant: 'primary', hint: 'text-footnote text-label-2' };
 
 /** The desk layout of the task panel: the same markup and ids as before the split. The phone has its own body (PhoneBody). */
 export function DeskBody({ panel }: { panel: TaskPanel }) {
@@ -27,10 +27,10 @@ export function DeskBody({ panel }: { panel: TaskPanel }) {
   const lang = useLang();
   const nameOf = usePersonName();
   const {
-    data, detail, task, viewerCan, noteFirst, canDetails, canDates, mayChange, root, reviewBlock, title, setTitle, description, setDescription, unsaved,
-    note, setNote, patch, move, approve, sendBack, take, join, leave, remove, saveTemplate, newLead, leadJoins, people, choices, teamIds, makerId,
-    helping, canUndoAgent, files, section, setSection, timingKey, failures, dates, back, checklistDraft,
+    data, detail, task, viewerCan, canDetails, canDates, mayChange, root, title, setTitle, patch, move, changeLead, statusOptions, ownerOptions,
+    choices, teamIds, makerId, canUndoAgent, files, section, setSection, timingKey, failures, dates, back, checklistDraft,
   } = panel;
+  const readOnly = readOnlyDates(task, lang, t);
   // A new object on each render: the ages of the history read the clock on each key, as before the memo (RND-4).
   const refresh = {};
   return (
@@ -40,21 +40,11 @@ export function DeskBody({ panel }: { panel: TaskPanel }) {
         idPrefix="task-section"
         value={section}
         onChange={setSection}
-        options={[
-          { value: 'details', label: t('taskSheet.details') },
-          { value: 'conversation', label: data.commentCount > 0 ? t('taskSheet.conversationCount', { n: data.commentCount }) : t('taskSheet.conversation') },
-        ]}
+        options={sectionOptions(t, data.commentCount)}
       />
       {section === 'conversation' ? (
         <TabPanel value="conversation" idPrefix="task-section">
-          <ZipTitleContext.Provider value={task.title}>
-            <CommentThread
-              targetType="task" targetId={task.id} projectId={detail?.project.id ?? null} stageId={task.stageId} people={people}
-              canPost={viewerCan.comment === true}
-              canAttach={viewerCan.upload === true}
-              everyone={data.everyone}
-            />
-          </ZipTitleContext.Provider>
+          <ConversationView panel={panel} />
         </TabPanel>
       ) : (
         <TabPanel value="details" idPrefix="task-section">
@@ -63,30 +53,9 @@ export function DeskBody({ panel }: { panel: TaskPanel }) {
             {!detail && <p className="text-footnote text-label-2">{t('office.sheetNote')}</p>}
             {/* A team member who neither leads nor helps joins as a helper in one press, so their part shows on the task (fbk_035).
                 The leader and the maker name helpers in the people fields, so they get no second way. */}
-            {!mayChange && !viewerCan.take && (viewerCan.help && !viewerCan.editAll ? (
-              <section aria-label={t('taskHelp.join')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
-                <p className="text-footnote text-label-2">{t('taskHelp.hint')}</p>
-                <Button disabled={join.isPending} onClick={() => join.mutate({ taskId: task.id, help: true })}>{t('taskHelp.join')}</Button>
-              </section>
-            ) : <p className="rounded-2xl bg-fill p-3 text-footnote text-label-2">{t(detail ? 'taskSheet.readOnly' : 'office.readOnly')}</p>)}
-            {/* A task with no lead: one next step, Take it (owner, 2026-10-05). Nobody can finish the task before it has a lead. */}
-            {viewerCan.take && (
-              <section aria-label={t('lead.noLead')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
-                <p className="text-footnote text-label-2">{t('lead.takeHint')}</p>
-                <Button variant="primary" disabled={take.isPending} onClick={() => take.mutate({ taskId: task.id })}>{t('lead.takeIt')}</Button>
-              </section>
-            )}
-            {/* For the person who reviews a task in review, Approve and Send back are the one next step, so they come first (audit 2026-10-03, PRJ-8). */}
-            {/* After "Send back with a note" on the board, the note takes the focus, Send back is the main button and Approve
-                steps back to the end (audit 2026-10-03, F-8). */}
-            {viewerCan.review && (
-              <section ref={reviewBlock} aria-label={t('taskSheet.review')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
-                {!noteFirst && <Button variant="primary" disabled={approve.isPending} onClick={() => approve.mutate({ id: task.id })}>{t('taskSheet.approve')}</Button>}
-                <TextArea id="task-note" label={t('taskSheet.sendBackNote')} value={note} dir="auto" onChange={(event) => setNote(event.target.value)} />
-                <Button variant={noteFirst ? 'primary' : 'secondary'} disabled={!note.trim() || sendBack.isPending} onClick={() => sendBack.mutate({ id: task.id, note: note.trim() })}>{t('taskSheet.sendBack')}</Button>
-                {noteFirst && <Button disabled={approve.isPending} onClick={() => approve.mutate({ id: task.id })}>{t('taskSheet.approve')}</Button>}
-              </section>
-            )}
+            {!mayChange && !viewerCan.take && (viewerCan.help ? <JoinBlock panel={panel} look={LOOK} /> : <p className="rounded-2xl bg-fill p-3 text-footnote text-label-2">{t(detail ? 'taskSheet.readOnly' : 'office.readOnly')}</p>)}
+            {viewerCan.take && <TakeBlock panel={panel} look={LOOK} />}
+            {viewerCan.review && <ReviewBlock panel={panel} look={LOOK} />}
             {canDetails ? (
               <TextField
                 id="task-title"
@@ -103,9 +72,7 @@ export function DeskBody({ panel }: { panel: TaskPanel }) {
               {/* The reviewer finishes or returns a task in review with Approve or Send back only, so the Status menu hides (audit 2026-10-03, PRJ-2). */}
               {data.canMove && !viewerCan.review ? (
                 <SelectField id="task-status" label={t('taskSheet.status')} value={task.status} onChange={(event) => move.mutate({ id: task.id, status: event.target.value as TaskStatus })}>
-                  {/* While the task waits for review, its lead gets the pull-back choices and no Done (audit 2026-10-03, F-19). */}
-                  {BOARD_COLUMNS.filter((status) => status === task.status || moveTargets(task.status, false, task.needsReview, task.ownerId !== null).includes(status))
-                    .map((status) => <option key={status} value={status}>{t(`taskStatus.${status}`)}</option>)}
+                  {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </SelectField>
               ) : <Fact label={t('taskSheet.status')}>{t(`taskStatus.${task.status}`)}</Fact>}
               {viewerCan.editAll ? (
@@ -113,16 +80,10 @@ export function DeskBody({ panel }: { panel: TaskPanel }) {
                   id="task-owner"
                   label={t('taskSheet.owner')}
                   value={task.ownerId ?? ''}
-                  onChange={(event) => {
-                    const next = event.target.value || null;
-                    leadJoins.current = next !== null && !teamIds.has(next);
-                    newLead.mutate({ id: task.id, patch: { ownerId: next } });
-                  }}
+                  onChange={(event) => changeLead(event.target.value || null)}
                 >
-                  {/* "No lead" comes first (owner, 2026-10-05). A task in review or done keeps its lead, so it offers no "No lead". */}
-                  {(task.ownerId === null || task.status === 'todo' || task.status === 'in_progress') && <option value="">{t('lead.noLead')}</option>}
-                  {(data.owner && !choices.some((person) => person.id === task.ownerId) ? [...choices, data.owner] : choices)
-                    .map((person) => <option key={person.id} value={person.id}>{personOption(person, teamIds.has(person.id), t)}</option>)}
+                  {ownerOptions.showNoLead && <option value="">{t('lead.noLead')}</option>}
+                  {ownerOptions.people.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </SelectField>
               ) : <Fact label={t('taskSheet.owner')}>{data.owner ? <bdi>{nameOf(data.owner)}</bdi> : t('lead.noLead')}</Fact>}
               {/* An office task has no stage. A stage name is long, so the field takes a full row from 640 px up (its first letters were cut in Arabic). */}
@@ -154,9 +115,9 @@ export function DeskBody({ panel }: { panel: TaskPanel }) {
               />
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
-                <Fact label={t('taskSheet.startDate')}>{task.startDate ? formatDay(task.startDate, lang, 'long') : t('overview.none')}</Fact>
-                <Fact label={t('taskSheet.dueDate')}>{task.dueDate ? formatDay(task.dueDate, lang, 'long') : t('overview.none')}</Fact>
-                {task.schedule === 'dynamic' && task.durationDays && <Fact label={t('taskSheet.duration')}>{durationText(task.durationDays, t)}</Fact>}
+                <Fact label={t('taskSheet.startDate')}>{readOnly.start}</Fact>
+                <Fact label={t('taskSheet.dueDate')}>{readOnly.due}</Fact>
+                {readOnly.duration && <Fact label={t('taskSheet.duration')}>{readOnly.duration}</Fact>}
               </div>
             )}
             <DateNotes data={data} />
@@ -171,36 +132,14 @@ export function DeskBody({ panel }: { panel: TaskPanel }) {
                 checked={task.needsReview} onChange={(on) => patch({ needsReview: on })}
               />
             )}
-            {canDetails ? (
-              <TextArea
-                id="task-description"
-                label={t('taskSheet.description')}
-                value={description}
-                dir="auto"
-                error={unsaved && description !== task.description ? t('taskSheet.notSaved') : undefined}
-                onChange={(event) => setDescription(event.target.value)}
-                onBlur={() => {
-                  if (description !== task.description) patch({ description });
-                }}
-              />
-            ) : task.description && <Fact label={t('taskSheet.description')}><RichText body={task.description} /></Fact>}
+            {canDetails ? <DescriptionField panel={panel} /> : task.description && <Fact label={t('taskSheet.description')}><RichText body={task.description} /></Fact>}
             <Checklist key={failures} task={task} edit={canDetails} tick={viewerCan.contribute} onChange={(checklist) => patch({ checklist })} draft={checklistDraft} />
             <TaskVersions task={task} />
             <TaskFiles views={files} />
             <AgeRefresh.Provider value={refresh}>
               <History data={data} canUndoAgent={canUndoAgent} />
             </AgeRefresh.Provider>
-            {(viewerCan.saveTemplate || viewerCan.delete || helping) && (
-              <div className="flex flex-wrap gap-3">
-                {helping && <Button disabled={leave.isPending} onClick={() => leave.mutate({ taskId: task.id, help: false })}>{t('taskHelp.leave')}</Button>}
-                {viewerCan.saveTemplate && (
-                  <Button disabled={saveTemplate.isPending} onClick={() => saveTemplate.mutate({ fromTaskId: task.id })}>{t('taskSheet.saveTemplate')}</Button>
-                )}
-                {viewerCan.delete && (
-                  <Button variant="destructive" disabled={remove.isPending} onClick={() => remove.mutate({ id: task.id })}>{t('taskSheet.delete')}</Button>
-                )}
-              </div>
-            )}
+            <FooterActions panel={panel} className="flex flex-wrap gap-3" />
           </div>
         </TabPanel>
       )}

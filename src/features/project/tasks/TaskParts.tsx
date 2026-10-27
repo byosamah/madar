@@ -222,11 +222,30 @@ export const TaskFiles = memo(function TaskFiles({ views, layout = 'plain' }: { 
   );
 });
 
-/** Memoized (RND-4): it renders again when the task data or the Undo rule changes. Its ages refresh through AgeRefresh. */
-export const History = memo(function History({ data, canUndoAgent, layout = 'plain' }: { data: TaskDetail; canUndoAgent: (actingForId: string) => boolean; layout?: 'plain' | 'rows' }) {
+type HistoryRow = TaskDetail['history'][number];
+
+/** Who did it and what: the name, the AI label for an agent, and the sentence of the event. The desk and the phone box it in their own way. */
+function HistoryText({ row: { event, actor } }: { row: HistoryRow }) {
   const { t } = useTranslation();
   const nameOf = usePersonName();
   const lang = useLang();
+  return (
+    <>
+      <bdi className="font-semibold">{nameOf(actor)}</bdi>{' '}
+      {actor.kind === 'agent' && <><AgentLabel />{' '}</>}
+      <span className="text-label-2">{historyText(event, t, lang, actor.gender)}</span>
+    </>
+  );
+}
+
+/** True when the Undo button of an agent change shows on this row: the change is live, and the viewer may undo it. */
+function canUndoRow(event: HistoryRow['event'], canUndoAgent: (actingForId: string) => boolean): boolean {
+  return event.actorKind === 'agent' && !event.undoneBy && event.verb !== 'undo' && canUndoAgent(event.actingForId);
+}
+
+/** Memoized (RND-4): it renders again when the task data or the Undo rule changes. Its ages refresh through AgeRefresh. */
+export const History = memo(function History({ data, canUndoAgent, layout = 'plain' }: { data: TaskDetail; canUndoAgent: (actingForId: string) => boolean; layout?: 'plain' | 'rows' }) {
+  const { t } = useTranslation();
   const toast = useToast();
   const undo = useAction('events.undo', { onSuccess: () => toast.show({ message: t('taskSheet.undone') }) });
   const [all, setAll] = useState(false);
@@ -237,22 +256,21 @@ export const History = memo(function History({ data, canUndoAgent, layout = 'pla
       <Group title={t('taskSheet.history')}>
         {data.history.length === 0 ? <p className="flex min-h-12 items-center px-4 py-1.5 text-footnote text-ink-2">{t('taskSheet.noHistory')}</p> : (
           <ol className="hairline">
-            {shown.map(({ event, actor }) => (
-              <li key={event.id} className="flex items-start gap-3 px-4 py-2.5 text-footnote">
-                <Avatar user={actor} size={24} />
-                <div className="min-w-0 flex-1">
-                  <p>
-                    <bdi className="font-semibold">{nameOf(actor)}</bdi>{' '}
-                    {actor.kind === 'agent' && <><AgentLabel />{' '}</>}
-                    <span className="text-label-2">{historyText(event, t, lang, actor.gender)}</span>
-                  </p>
-                  <span className="text-caption text-label-2"><Age stamp={event.createdAt} /></span>
-                  {event.actorKind === 'agent' && !event.undoneBy && event.verb !== 'undo' && canUndoAgent(event.actingForId) && (
-                    <div><Button variant="plain" className="-ms-3 min-h-11" onClick={() => undo.mutate({ eventId: event.id })}>{t('taskSheet.undoAgent')}</Button></div>
-                  )}
-                </div>
-              </li>
-            ))}
+            {shown.map((row) => {
+              const { event, actor } = row;
+              return (
+                <li key={event.id} className="flex items-start gap-3 px-4 py-2.5 text-footnote">
+                  <Avatar user={actor} size={24} />
+                  <div className="min-w-0 flex-1">
+                    <p><HistoryText row={row} /></p>
+                    <span className="text-caption text-label-2"><Age stamp={event.createdAt} /></span>
+                    {canUndoRow(event, canUndoAgent) && (
+                      <div><Button variant="plain" className="-ms-3 min-h-11" onClick={() => undo.mutate({ eventId: event.id })}>{t('taskSheet.undoAgent')}</Button></div>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ol>
         )}
         {!all && data.history.length > 3 && (
@@ -266,20 +284,19 @@ export const History = memo(function History({ data, canUndoAgent, layout = 'pla
       <h3 className="text-headline">{t('taskSheet.history')}</h3>
       {data.history.length === 0 ? <p className="text-footnote text-label-2">{t('taskSheet.noHistory')}</p> : (
         <ol className="flex flex-col gap-2">
-          {data.history.map(({ event, actor }) => (
-            <li key={event.id} className="flex items-center gap-2 text-footnote">
-              <Avatar user={actor} size={24} />
-              <p className="min-w-0 flex-1">
-                <bdi className="font-semibold">{nameOf(actor)}</bdi>{' '}
-                {actor.kind === 'agent' && <><AgentLabel />{' '}</>}
-                <span className="text-label-2">{historyText(event, t, lang, actor.gender)}</span>
-              </p>
-              <span className="shrink-0 text-caption text-label-2"><Age stamp={event.createdAt} /></span>
-              {event.actorKind === 'agent' && !event.undoneBy && event.verb !== 'undo' && canUndoAgent(event.actingForId) && (
-                <Button variant="plain" onClick={() => undo.mutate({ eventId: event.id })}>{t('taskSheet.undoAgent')}</Button>
-              )}
-            </li>
-          ))}
+          {data.history.map((row) => {
+            const { event, actor } = row;
+            return (
+              <li key={event.id} className="flex items-center gap-2 text-footnote">
+                <Avatar user={actor} size={24} />
+                <p className="min-w-0 flex-1"><HistoryText row={row} /></p>
+                <span className="shrink-0 text-caption text-label-2"><Age stamp={event.createdAt} /></span>
+                {canUndoRow(event, canUndoAgent) && (
+                  <Button variant="plain" onClick={() => undo.mutate({ eventId: event.id })}>{t('taskSheet.undoAgent')}</Button>
+                )}
+              </li>
+            );
+          })}
         </ol>
       )}
     </section>

@@ -26,6 +26,35 @@ export function personOption(
   return onTeam ? name : t('taskSheet.joinsTeam', { name, context: actorContext(person) });
 }
 
+/** One helper: the picture, the name and, for an editor, the X that removes them. With `rows` it is a row of a Group on the phone. */
+function HelperRow({ helper, rows, onRemove }: { helper: UserCard; rows: boolean; onRemove?: () => void }) {
+  const { t } = useTranslation();
+  const nameOf = usePersonName();
+  const Row = rows ? 'div' : 'li';
+  return (
+    <Row className={rows ? 'flex min-h-12 items-center gap-3 ps-4 pe-1' : 'flex min-h-11 items-center gap-3'}>
+      <Avatar user={helper} size={26} />
+      <bdi className="min-w-0 flex-1 truncate">{nameOf(helper)}</bdi>
+      {onRemove && (
+        <IconButton label={t('taskSheet.removeHelper', { name: nameOf(helper) })} onClick={onRemove}>
+          <AnimatedIcon icon={XIcon} size={16} aria-hidden />
+        </IconButton>
+      )}
+    </Row>
+  );
+}
+
+/** The choices of the "Add a helper" picker: the empty choice, then each person who can still be added. */
+function HelperOptions({ choices, teamIds }: { choices: User[]; teamIds: Set<string> }) {
+  const { t } = useTranslation();
+  return (
+    <>
+      <option value="">{t('taskSheet.pickHelper')}</option>
+      {choices.map((person) => <option key={person.id} value={person.id}>{personOption(person, teamIds.has(person.id), t)}</option>)}
+    </>
+  );
+}
+
 /**
  * The people who help the lead (colleague comment 9). They tick checklist items and comment; the lead finishes the task.
  * The leader and the Admin add and remove them, and may pick someone outside the team, who then joins it.
@@ -40,7 +69,6 @@ export function TaskHelpers({ helpers, leadId, people, teamIds, canEdit, onChang
   layout?: 'plain' | 'rows';
 }) {
   const { t } = useTranslation();
-  const nameOf = usePersonName();
   if (!canEdit && helpers.length === 0) return null;
   const ids = helpers.map((helper) => helper.id);
   const choices = people.filter((person) => person.id !== leadId && !ids.includes(person.id));
@@ -49,20 +77,11 @@ export function TaskHelpers({ helpers, leadId, people, teamIds, canEdit, onChang
       <>
         {helpers.length === 0 && <p className="flex min-h-12 items-center px-4 py-1.5 text-footnote text-ink-2">{t('taskSheet.noHelpers')}</p>}
         {helpers.map((helper) => (
-          <div key={helper.id} className="flex min-h-12 items-center gap-3 ps-4 pe-1">
-            <Avatar user={helper} size={26} />
-            <bdi className="min-w-0 flex-1 truncate">{nameOf(helper)}</bdi>
-            {canEdit && (
-              <IconButton label={t('taskSheet.removeHelper', { name: nameOf(helper) })} onClick={() => onChange(ids.filter((id) => id !== helper.id))}>
-                <AnimatedIcon icon={XIcon} size={16} aria-hidden />
-              </IconButton>
-            )}
-          </div>
+          <HelperRow key={helper.id} helper={helper} rows onRemove={canEdit ? () => onChange(ids.filter((id) => id !== helper.id)) : undefined} />
         ))}
         {canEdit && ids.length < MAX_HELPERS && choices.length > 0 && (
           <PickRow id="task-add-helper" label={t('taskSheet.addHelper')} value="" display="" onChange={(value) => { if (value) onChange([...ids, value]); }}>
-            <option value="">{t('taskSheet.pickHelper')}</option>
-            {choices.map((person) => <option key={person.id} value={person.id}>{personOption(person, teamIds.has(person.id), t)}</option>)}
+            <HelperOptions choices={choices} teamIds={teamIds} />
           </PickRow>
         )}
       </>
@@ -74,15 +93,7 @@ export function TaskHelpers({ helpers, leadId, people, teamIds, canEdit, onChang
       {helpers.length === 0 && <p className="text-footnote text-label-2">{t('taskSheet.noHelpers')}</p>}
       <ul>
         {helpers.map((helper) => (
-          <li key={helper.id} className="flex min-h-11 items-center gap-3">
-            <Avatar user={helper} size={26} />
-            <bdi className="min-w-0 flex-1 truncate">{nameOf(helper)}</bdi>
-            {canEdit && (
-              <IconButton label={t('taskSheet.removeHelper', { name: nameOf(helper) })} onClick={() => onChange(ids.filter((id) => id !== helper.id))}>
-                <AnimatedIcon icon={XIcon} size={16} aria-hidden />
-              </IconButton>
-            )}
-          </li>
+          <HelperRow key={helper.id} helper={helper} rows={false} onRemove={canEdit ? () => onChange(ids.filter((id) => id !== helper.id)) : undefined} />
         ))}
       </ul>
       {canEdit && ids.length < MAX_HELPERS && choices.length > 0 && (
@@ -95,8 +106,7 @@ export function TaskHelpers({ helpers, leadId, people, teamIds, canEdit, onChang
             if (event.target.value) onChange([...ids, event.target.value]);
           }}
         >
-          <option value="">{t('taskSheet.pickHelper')}</option>
-          {choices.map((person) => <option key={person.id} value={person.id}>{personOption(person, teamIds.has(person.id), t)}</option>)}
+          <HelperOptions choices={choices} teamIds={teamIds} />
         </SelectField>
       )}
     </section>

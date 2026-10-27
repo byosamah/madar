@@ -9,12 +9,12 @@ import { AvatarStack } from '../../../components/AvatarStack';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { PlusIcon } from '../../../components/icons/animated/plus';
 import { NoLeadMark } from '../../../components/NoLeadMark';
+import type { Mode } from './TaskPeopleList';
 
 // The list is a part of its own: it holds the sheet of a phone, and the sheet package stays out of the first load (check-bundles).
 // It follows the rule of every lazy part (`lazyOverlay`): a tab that opened before a release asks for a chunk that the host no longer
 // has, and the first failed import reloads the page once to get the new build (fbk_064, 2026-10-26).
 const peopleList = lazyOverlay(() => import('./TaskPeopleList').then((module) => module.default));
-type Mode = 'lead' | 'helper';
 
 /**
  * A fault inside the list closes the list and shows the toast of a failed step. It never takes the whole page down: the press of a

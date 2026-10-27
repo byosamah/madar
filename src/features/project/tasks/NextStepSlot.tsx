@@ -3,18 +3,19 @@ import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLang } from '../../../app/lang';
 import { Button } from '../../../components/Button';
-import { TextArea } from '../../../components/Fields';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { CircleCheckIcon } from '../../../components/icons/animated/circle-check';
 import { PauseIcon } from '../../../components/icons/animated/pause';
 import { fade } from '../../../design/motion';
 import { waitingNames } from '../../../lib/waiting';
 import { nextStep } from './nextStep';
+import { JoinBlock, ReviewBlock, TakeBlock, type StepLook } from './StepBlocks';
 import { NewVersion } from './TaskVersions';
 import type { TaskPanel } from './useTaskPanel';
 
 const QUIET = 'rounded-2xl bg-fill p-3 text-footnote text-ink-2';
 const MAIN = 'min-h-[52px] w-full';
+const HINT = 'text-footnote text-ink-2';
 
 /**
  * The one next step of a to-do on a phone, in one slot. `nextStep` picks the answer; this part draws it. One main button at most. In the
@@ -37,27 +38,16 @@ export function NextStep({ panel, demote = false }: { panel: TaskPanel; demote?:
 function Step({ kind, word, panel, demote }: { kind: NonNullable<ReturnType<typeof nextStep>>['kind']; word?: 'markDone' | 'sendToReview'; panel: TaskPanel; demote: boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
-  const { task, detail, noteFirst, approve, sendBack, take, join, complete, note, setNote, reviewBlock } = panel;
+  const { task, detail, complete } = panel;
   const main = demote ? 'secondary' : 'primary';
+  const look: StepLook = { variant: main, className: MAIN, hint: HINT };
   // The press flag shuts a second tap at once. The pending flag of the call follows one render later.
   const pressed = useRef(false);
   switch (kind) {
     case 'review':
-      return (
-        <section ref={reviewBlock} aria-label={t('taskSheet.review')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
-          {!noteFirst && <Button variant={main} className={MAIN} disabled={approve.isPending} onClick={() => approve.mutate({ id: task.id })}>{t('taskSheet.approve')}</Button>}
-          <TextArea id="task-note" label={t('taskSheet.sendBackNote')} value={note} dir="auto" onChange={(event) => setNote(event.target.value)} />
-          <Button variant={noteFirst ? main : 'secondary'} className={noteFirst ? MAIN : undefined} disabled={!note.trim() || sendBack.isPending} onClick={() => sendBack.mutate({ id: task.id, note: note.trim() })}>{t('taskSheet.sendBack')}</Button>
-          {noteFirst && <Button disabled={approve.isPending} onClick={() => approve.mutate({ id: task.id })}>{t('taskSheet.approve')}</Button>}
-        </section>
-      );
+      return <ReviewBlock panel={panel} look={look} />;
     case 'take':
-      return (
-        <section aria-label={t('lead.noLead')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
-          <p className="text-footnote text-ink-2">{t('lead.takeHint')}</p>
-          <Button variant={main} className={MAIN} disabled={take.isPending} onClick={() => take.mutate({ taskId: task.id })}>{t('lead.takeIt')}</Button>
-        </section>
-      );
+      return <TakeBlock panel={panel} look={look} />;
     case 'complete':
       return (
         <Button
@@ -94,12 +84,7 @@ function Step({ kind, word, panel, demote }: { kind: NonNullable<ReturnType<type
     case 'new_version':
       return <NewVersion key={task.version ?? 1} task={task} />;
     case 'join':
-      return (
-        <section aria-label={t('taskHelp.join')} className="flex flex-col gap-3 rounded-2xl bg-fill p-3">
-          <p className="text-footnote text-ink-2">{t('taskHelp.hint')}</p>
-          <Button disabled={join.isPending} onClick={() => join.mutate({ taskId: task.id, help: true })}>{t('taskHelp.join')}</Button>
-        </section>
-      );
+      return <JoinBlock panel={panel} look={look} />;
     case 'none':
       return <p className={QUIET}>{t(detail ? 'taskSheet.readOnly' : 'office.readOnly')}</p>;
   }

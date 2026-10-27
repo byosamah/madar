@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useState, type InputHTMLAttributes } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TaskSchedule } from '../../../api/contract/entities';
 import { useLang } from '../../../app/lang';
@@ -35,48 +35,66 @@ export function DurationField({ id, label, value, onCommit, row = false }: { id:
     }
     onCommit(days);
   };
+  // The desk field and the row of the phone take the same input props.
+  const input: InputHTMLAttributes<HTMLInputElement> = {
+    type: 'number',
+    inputMode: 'numeric',
+    min: 1,
+    max: 365,
+    step: 1,
+    value: draft,
+    onChange: (event) => setDraft(event.target.value),
+    onBlur: commit,
+    onKeyDown: (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      commit();
+    },
+  };
   if (row) {
     return (
       <label className="flex min-h-12 items-center justify-between gap-3 px-4 py-1">
         <span className="min-w-0 flex-1 text-body">{label}</span>
         <input
           id={id}
-          type="number"
-          inputMode="numeric"
-          min={1}
-          max={365}
-          step={1}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={commit}
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter') return;
-            event.preventDefault();
-            commit();
-          }}
+          {...input}
           className="tabular min-h-11 w-24 rounded-xl bg-transparent px-2 text-end text-body outline-none hover:bg-fill-strong focus-visible:outline-2 focus-visible:outline-link"
         />
       </label>
     );
   }
+  return <TextField id={id} label={label} {...input} />;
+}
+
+/** The two ways to time a task, with the hint. The desk and the phone panel draw the same control. */
+function ScheduleMode({ value, onPatch }: { value: Timing; onPatch: (changes: Partial<Timing>) => void }) {
+  const { t } = useTranslation();
   return (
-    <TextField
-      id={id}
-      label={label}
-      type="number"
-      inputMode="numeric"
-      min={1}
-      max={365}
-      step={1}
-      value={draft}
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={commit}
-      onKeyDown={(event) => {
-        if (event.key !== 'Enter') return;
-        event.preventDefault();
-        commit();
-      }}
-    />
+    <>
+      <SegmentedControl<TaskSchedule>
+        label={t('taskSheet.scheduleMode')}
+        value={value.schedule}
+        options={[{ value: 'static', label: t('taskSheet.scheduleStatic') }, { value: 'dynamic', label: t('taskSheet.scheduleDynamic') }]}
+        onChange={(schedule) => {
+          if (schedule === value.schedule) return;
+          onPatch(schedule === 'dynamic' ? { schedule, durationDays: value.durationDays ?? STARTING_DURATION } : { schedule });
+        }}
+      />
+      <p className="text-caption text-ink-2">{t('taskSheet.scheduleHint')}</p>
+    </>
+  );
+}
+
+/** The due date of a dynamic task in words, or the line that asks for a start date. The caller gives the spacing classes. */
+function ComputedDue({ due, days, className }: { due: string | null; days: number | null; className: string }) {
+  const { t } = useTranslation();
+  const lang = useLang();
+  return (
+    <p className={className} aria-live="polite">
+      {due && days
+        ? t('taskSheet.computedDue', { date: formatDay(due, lang, 'withWeekday'), duration: durationText(days, t) })
+        : t('taskSheet.needsStart')}
+    </p>
   );
 }
 
@@ -91,7 +109,6 @@ export function TaskTiming({ idPrefix, value, onPatch, layout = 'plain' }: {
   layout?: 'plain' | 'rows';
 }) {
   const { t } = useTranslation();
-  const lang = useLang();
   const dynamic = value.schedule === 'dynamic';
   // The saved due date is the server's answer. A form that is not saved yet counts it here, for the words only.
   const due = value.dueDate ?? (value.startDate && value.durationDays ? dueFromDuration(value.startDate, value.durationDays) : null);
@@ -101,25 +118,12 @@ export function TaskTiming({ idPrefix, value, onPatch, layout = 'plain' }: {
       <DateDraftField id={`${idPrefix}-start`} label={t('taskSheet.startDate')} value={value.startDate ?? ''} onCommit={(startDate) => onPatch({ startDate })} />
       <div className="flex flex-col gap-1.5 sm:col-span-2">
         <span className="field-label">{t('taskSheet.scheduleMode')}</span>
-        <SegmentedControl<TaskSchedule>
-          label={t('taskSheet.scheduleMode')}
-          value={value.schedule}
-          options={[{ value: 'static', label: t('taskSheet.scheduleStatic') }, { value: 'dynamic', label: t('taskSheet.scheduleDynamic') }]}
-          onChange={(schedule) => {
-            if (schedule === value.schedule) return;
-            onPatch(schedule === 'dynamic' ? { schedule, durationDays: value.durationDays ?? STARTING_DURATION } : { schedule });
-          }}
-        />
-        <p className="text-caption text-ink-2">{t('taskSheet.scheduleHint')}</p>
+        <ScheduleMode value={value} onPatch={onPatch} />
       </div>
       {dynamic ? (
         <div className="flex flex-col gap-1.5">
           <DurationField id={`${idPrefix}-duration`} label={t('taskSheet.duration')} value={value.durationDays} onCommit={(durationDays) => onPatch({ durationDays })} />
-          <p className="tabular text-footnote text-ink-2" aria-live="polite">
-            {due && value.durationDays
-              ? t('taskSheet.computedDue', { date: formatDay(due, lang, 'withWeekday'), duration: durationText(value.durationDays, t) })
-              : t('taskSheet.needsStart')}
-          </p>
+          <ComputedDue due={due} days={value.durationDays} className="tabular text-footnote text-ink-2" />
         </div>
       ) : (
         <DateDraftField id={`${idPrefix}-due`} label={t('taskSheet.dueDate')} value={value.dueDate ?? ''} onCommit={(dueDate) => onPatch({ dueDate })} />
@@ -139,7 +143,6 @@ export function durationText(days: number, t: ReturnType<typeof useTranslation>[
  */
 function TimingRows({ idPrefix, value, onPatch, due }: { idPrefix: string; value: Timing; onPatch: (changes: Partial<Timing>) => void; due: string | null }) {
   const { t } = useTranslation();
-  const lang = useLang();
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const dynamic = value.schedule === 'dynamic';
@@ -172,16 +175,7 @@ function TimingRows({ idPrefix, value, onPatch, due }: { idPrefix: string; value
               className="overflow-hidden"
             >
               <div className="flex flex-col gap-2 px-4 pb-3">
-                <SegmentedControl<TaskSchedule>
-                  label={t('taskSheet.scheduleMode')}
-                  value={value.schedule}
-                  options={[{ value: 'static', label: t('taskSheet.scheduleStatic') }, { value: 'dynamic', label: t('taskSheet.scheduleDynamic') }]}
-                  onChange={(schedule) => {
-                    if (schedule === value.schedule) return;
-                    onPatch(schedule === 'dynamic' ? { schedule, durationDays: value.durationDays ?? STARTING_DURATION } : { schedule });
-                  }}
-                />
-                <p className="text-caption text-ink-2">{t('taskSheet.scheduleHint')}</p>
+                <ScheduleMode value={value} onPatch={onPatch} />
               </div>
             </motion.div>
           )}
@@ -190,11 +184,7 @@ function TimingRows({ idPrefix, value, onPatch, due }: { idPrefix: string; value
       {dynamic ? (
         <div>
           <DurationField row id={`${idPrefix}-duration`} label={t('taskSheet.duration')} value={value.durationDays} onCommit={(durationDays) => onPatch({ durationDays })} />
-          <p className="tabular px-4 pb-2.5 text-footnote text-ink-2" aria-live="polite">
-            {due && value.durationDays
-              ? t('taskSheet.computedDue', { date: formatDay(due, lang, 'withWeekday'), duration: durationText(value.durationDays, t) })
-              : t('taskSheet.needsStart')}
-          </p>
+          <ComputedDue due={due} days={value.durationDays} className="tabular px-4 pb-2.5 text-footnote text-ink-2" />
         </div>
       ) : (
         <DateRow id={`${idPrefix}-due`} label={t('taskSheet.dueDate')} value={value.dueDate ?? ''} onCommit={(dueDate) => onPatch({ dueDate })} />

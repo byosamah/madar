@@ -84,8 +84,11 @@ projects. The sheets of the Projects list (new, edit): `src/features/projects/CL
   life of the page. One press on a name changes the task at once with an Undo toast. A row without the right keeps an empty box of the "+"
   size, so the avatars line up. The desk list is a `Popover` with `fit` (`popoverPlace`).
 - The task panel on a phone: `TaskBody` in `TaskSheet.tsx` draws `PhoneBody`, and on a desk `DeskBody`. Both read `useTaskPanel.ts`, which
-  holds all state and actions. The title and the description each take a new saved value on their own, and a field with unsaved typing keeps
-  it (`TaskSheetTyping.test.tsx`). `nextStep(data, viewerCan, makerId)` in `nextStep.ts` picks one next step; `NextStepSlot.tsx` draws it. The
+  holds all state and actions, and both draw the same shared parts: the Review, Take and Join blocks (`StepBlocks.tsx`), the description,
+  the read-only dates and the footer buttons (`TaskPanelParts.tsx`), the two views and the comment thread (`Conversation.tsx`). The lead and
+  status choices and the lead change come from `useLeadChoices.ts` through `useTaskPanel` (`statusOptions`, `ownerOptions`, `changeLead`);
+  the lazy `TaskPeopleList.tsx` reads the same hook, so the file imports no vaul and no dnd-kit. The title and the description each take a
+  new saved value on their own, and a field with unsaved typing keeps it (`TaskSheetTyping.test.tsx`). `nextStep(data, viewerCan, makerId)` in `nextStep.ts` picks one next step; `NextStepSlot.tsx` draws it. The
   file name differs in case from `nextStep.ts` on purpose, because macOS resolves `./NextStep` to the `.ts` file. At most one main button;
   in the Conversation view it is secondary (`demote`).
 - Hooks kept at 390 px for the browser specs: `#task-owner`, `#task-status`, `#task-review`, `#task-note`, `#task-title`,

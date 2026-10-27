@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MAX_PREREQUISITES } from '../../../api/contract/limits';
 import type { TaskDetail } from '../../../api/contract/views';
@@ -14,29 +14,15 @@ import { formatDay } from '../../../lib/dates';
 import { counted } from '../../../lib/grammar';
 import { Group, PickRow } from './DetailRows';
 
-/** One line of a task list: the title, and its state in a word. Done tasks read quietly; open ones say so. */
-function Line({ title, status, onRemove, removeLabel }: { title: string; status: string; onRemove?: () => void; removeLabel?: string }) {
+/**
+ * One line of a task list: the title, and its state in a word. Done tasks read quietly; open ones say so. With `rows` it is a row in a
+ * Group of the phone panel, with an X of 44 px for an editor.
+ */
+function NeedLine({ title, status, onRemove, removeLabel, rows = false }: { title: string; status: string; onRemove?: () => void; removeLabel?: string; rows?: boolean }) {
   const { t } = useTranslation();
   const done = status === 'done';
   return (
-    <li className="flex min-h-11 items-center gap-3">
-      <bdi className={`min-w-0 flex-1 truncate ${done ? 'text-label-2 line-through' : ''}`}>{title}</bdi>
-      <span className="shrink-0 text-footnote text-label-2">{t(`taskStatus.${status}`)}</span>
-      {onRemove && (
-        <IconButton label={removeLabel ?? ''} onClick={onRemove}>
-          <AnimatedIcon icon={XIcon} size={16} aria-hidden />
-        </IconButton>
-      )}
-    </li>
-  );
-}
-
-/** One row of a task list in a Group of the phone panel: the title, its state in a word, and an X of 44 px for an editor. */
-function RowLine({ title, status, onRemove, removeLabel }: { title: string; status: string; onRemove?: () => void; removeLabel?: string }) {
-  const { t } = useTranslation();
-  const done = status === 'done';
-  return (
-    <li className={`flex min-h-12 items-center gap-3 ps-4 ${onRemove ? 'pe-1' : 'pe-4'}`}>
+    <li className={rows ? `flex min-h-12 items-center gap-3 ps-4 ${onRemove ? 'pe-1' : 'pe-4'}` : 'flex min-h-11 items-center gap-3'}>
       <bdi className={`min-w-0 flex-1 truncate ${done ? 'text-label-2 line-through' : ''}`}>{title}</bdi>
       <span className="shrink-0 text-footnote text-label-2">{t(`taskStatus.${status}`)}</span>
       {onRemove && (
@@ -63,8 +49,11 @@ export function TaskNeeds({ data, canEdit, onChange, layout = 'plain' }: {
   const project = useCall('tasks.list', { projectId: task.projectId ?? undefined, activeProjectsOnly: false }, { enabled: canEdit && task.projectId !== null });
   const ids = needsFirst.map((need) => need.id);
   // A task that waits for this one cannot also be needed first: the server would refuse it as a cycle.
-  const blocked = new Set([task.id, ...ids, ...unlocks.map((unlock) => unlock.id)]);
-  const choices = (project.data ?? []).filter((row) => !blocked.has(row.task.id));
+  const choices = useMemo(() => {
+    const blocked = new Set([task.id, ...needsFirst.map((need) => need.id), ...unlocks.map((unlock) => unlock.id)]);
+    return (project.data ?? []).filter((row) => !blocked.has(row.task.id));
+  }, [project.data, task.id, needsFirst, unlocks]);
+  const options = useMemo(() => choices.map((row) => <option key={row.task.id} value={row.task.id}>{row.task.title}</option>), [choices]);
   const [adding, setAdding] = useState(false);
   const canAdd = canEdit && ids.length < MAX_PREREQUISITES && choices.length > 0;
   if (layout === 'rows') {
@@ -76,7 +65,8 @@ export function TaskNeeds({ data, canEdit, onChange, layout = 'plain' }: {
             {needsFirst.length > 0 && (
               <ul className="hairline">
                 {needsFirst.map((need) => (
-                  <RowLine
+                  <NeedLine
+                    rows
                     key={need.id}
                     title={need.title}
                     status={need.status}
@@ -89,14 +79,14 @@ export function TaskNeeds({ data, canEdit, onChange, layout = 'plain' }: {
             {canAdd && (
               <PickRow id="task-add-need" label={t('taskSheet.addNeed')} value="" display="" onChange={(value) => { if (value) onChange([...ids, value]); }}>
                 <option value="">{t('taskSheet.pickNeed')}</option>
-                {choices.map((row) => <option key={row.task.id} value={row.task.id}>{row.task.title}</option>)}
+                {options}
               </PickRow>
             )}
           </Group>
         )}
         {unlocks.length > 0 && (
           <Group title={t('taskSheet.unlocks')} hint={t('taskSheet.unlocksHint')}>
-            <ul className="hairline">{unlocks.map((unlock) => <RowLine key={unlock.id} title={unlock.title} status={unlock.status} />)}</ul>
+            <ul className="hairline">{unlocks.map((unlock) => <NeedLine rows key={unlock.id} title={unlock.title} status={unlock.status} />)}</ul>
           </Group>
         )}
       </>
@@ -118,7 +108,7 @@ export function TaskNeeds({ data, canEdit, onChange, layout = 'plain' }: {
           {needsFirst.length > 0 && <p className="text-footnote text-label-2">{t('taskSheet.needsFirstHint')}</p>}
           <ul>
             {needsFirst.map((need) => (
-              <Line
+              <NeedLine
                 key={need.id}
                 title={need.title}
                 status={need.status}
@@ -138,7 +128,7 @@ export function TaskNeeds({ data, canEdit, onChange, layout = 'plain' }: {
               }}
             >
               <option value="">{t('taskSheet.pickNeed')}</option>
-              {choices.map((row) => <option key={row.task.id} value={row.task.id}>{row.task.title}</option>)}
+              {options}
             </SelectField>
           )}
         </section>
@@ -147,7 +137,7 @@ export function TaskNeeds({ data, canEdit, onChange, layout = 'plain' }: {
         <section aria-labelledby="task-unlocks" className="flex flex-col gap-1">
           <h3 id="task-unlocks" className="text-headline">{t('taskSheet.unlocks')}</h3>
           <p className="text-footnote text-label-2">{t('taskSheet.unlocksHint')}</p>
-          <ul>{unlocks.map((unlock) => <Line key={unlock.id} title={unlock.title} status={unlock.status} />)}</ul>
+          <ul>{unlocks.map((unlock) => <NeedLine key={unlock.id} title={unlock.title} status={unlock.status} />)}</ul>
         </section>
       )}
     </>

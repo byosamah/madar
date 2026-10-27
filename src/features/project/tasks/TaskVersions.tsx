@@ -10,30 +10,35 @@ import { versionOf } from '../../../lib/taskPeople';
 import { Group } from './DetailRows';
 import { TaskTiming, type Timing } from './TaskTiming';
 
+/** One round of a task: "Version 2 open since 12 Oct", or "Version 1 finished 28 Sept", with the reason under it. With `rows` it is a row of a Group on the phone. */
+function VersionLine({ task, version, rows = false }: { task: Task; version: NonNullable<Task['versions']>[number]; rows?: boolean }) {
+  const { t } = useTranslation();
+  const lang = useLang();
+  // The version in progress ends when the task is done again. An older one ended when the next one opened.
+  const finishedAt = version.n === versionOf(task) ? (task.status === 'done' ? task.completedAt : null) : version.finishedAt;
+  const n = formatNumber(version.n, lang);
+  return (
+    <li className={rows ? 'flex min-h-12 flex-col justify-center px-4 py-2' : 'flex min-h-11 flex-col justify-center py-1'}>
+      <span className="text-subheadline">
+        {finishedAt
+          ? t('taskSheet.versionDone', { n, date: formatDay(stampDay(finishedAt), lang) })
+          : t('taskSheet.versionOpen', { n, date: formatDay(stampDay(version.openedAt), lang) })}
+      </span>
+      {version.reason && <bdi className="text-footnote text-label-2">{version.reason}</bdi>}
+    </li>
+  );
+}
+
 /** The rounds of a task, newest first: "Version 2 open since 12 Oct, Client comments" and "Version 1 finished 28 Sept". Nothing shows before a second version. */
 export function TaskVersions({ task, layout = 'plain' }: { task: Task; layout?: 'plain' | 'rows' }) {
   const { t } = useTranslation();
-  const lang = useLang();
-  const current = versionOf(task);
-  if (current < 2 || !task.versions) return null;
+  if (versionOf(task) < 2 || !task.versions) return null;
+  const versions = [...task.versions].sort((a, b) => b.n - a.n);
   if (layout === 'rows') {
     return (
       <Group title={t('taskSheet.versions')}>
         <ol className="hairline">
-          {[...task.versions].sort((a, b) => b.n - a.n).map((version) => {
-            const finishedAt = version.n === current ? (task.status === 'done' ? task.completedAt : null) : version.finishedAt;
-            const n = formatNumber(version.n, lang);
-            return (
-              <li key={version.n} className="flex min-h-12 flex-col justify-center px-4 py-2">
-                <span className="text-subheadline">
-                  {finishedAt
-                    ? t('taskSheet.versionDone', { n, date: formatDay(stampDay(finishedAt), lang) })
-                    : t('taskSheet.versionOpen', { n, date: formatDay(stampDay(version.openedAt), lang) })}
-                </span>
-                {version.reason && <bdi className="text-footnote text-label-2">{version.reason}</bdi>}
-              </li>
-            );
-          })}
+          {versions.map((version) => <VersionLine key={version.n} task={task} version={version} rows />)}
         </ol>
       </Group>
     );
@@ -42,21 +47,7 @@ export function TaskVersions({ task, layout = 'plain' }: { task: Task; layout?: 
     <section aria-labelledby="task-versions" className="flex flex-col gap-1">
       <h3 id="task-versions" className="text-headline">{t('taskSheet.versions')}</h3>
       <ol className="flex flex-col">
-        {[...task.versions].sort((a, b) => b.n - a.n).map((version) => {
-          // The version in progress ends when the task is done again. An older one ended when the next one opened.
-          const finishedAt = version.n === current ? (task.status === 'done' ? task.completedAt : null) : version.finishedAt;
-          const n = formatNumber(version.n, lang);
-          return (
-            <li key={version.n} className="flex min-h-11 flex-col justify-center py-1">
-              <span className="text-subheadline">
-                {finishedAt
-                  ? t('taskSheet.versionDone', { n, date: formatDay(stampDay(finishedAt), lang) })
-                  : t('taskSheet.versionOpen', { n, date: formatDay(stampDay(version.openedAt), lang) })}
-              </span>
-              {version.reason && <bdi className="text-footnote text-label-2">{version.reason}</bdi>}
-            </li>
-          );
-        })}
+        {versions.map((version) => <VersionLine key={version.n} task={task} version={version} />)}
       </ol>
     </section>
   );

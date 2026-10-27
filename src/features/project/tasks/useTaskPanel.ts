@@ -5,18 +5,20 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '../../../api/errors';
 import type { ProjectDetail, TaskDetail } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
-import { usePersonName } from '../../../app/personName';
 import { useAction, useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
 import { useCan } from '../../../app/useRight';
 import { focusLost } from '../../../components/Sheet';
+import { BOARD_COLUMNS, moveTargets } from '../../../lib/board';
 import { actorContext } from '../../../lib/grammar';
 import { helpersOf } from '../../../lib/taskPeople';
 import { TASK_PANEL, usePanelLink } from '../panelLink';
 import { useDateReason } from './DateReason';
 import { mayChangeOf } from './nextStep';
 import { useStageBack } from './StageBack';
+import { personOption } from './TaskHelpers';
 import { EMPTY_FILES, newItemId, type ChecklistDraft, type Patch } from './TaskParts';
+import { useLeadChoices } from './useLeadChoices';
 
 export type TaskPanelProps = { detail: ProjectDetail | null; data: TaskDetail; onClose: () => void; noteFirst: boolean };
 
@@ -26,7 +28,6 @@ export type TaskPanelProps = { detail: ProjectDetail | null; data: TaskDetail; o
  */
 export function useTaskPanel({ detail, data, onClose, noteFirst }: TaskPanelProps) {
   const { t } = useTranslation();
-  const nameOf = usePersonName();
   const toast = useToast();
   const session = useCall('session.get', {});
   const files = useCall('files.list', detail ? { projectId: detail.project.id, taskId: data.task.id } : { taskId: data.task.id });
@@ -81,14 +82,6 @@ export function useTaskPanel({ detail, data, onClose, noteFirst }: TaskPanelProp
     },
   });
   const deleted = useRef(false);
-  // A new lead gets the usual Undo toast. It also says when the person joined the team, and one Undo takes back both
-  // (audit 2026-10-03, F-22).
-  const leadJoins = useRef(false);
-  const newLead = useUndoable('tasks.update', {
-    message: (output) => (output.owner
-      ? t(leadJoins.current ? 'taskSheet.newLeadJoined' : 'taskSheet.newLead', { name: nameOf(output.owner), context: actorContext(output.owner) })
-      : t('lead.removed')),
-  });
   // A person on the team takes a task with no lead in one press, and Undo gives it back (owner, 2026-10-05).
   const take = useUndoable('tasks.take', { message: () => t('lead.taken') });
   // A person on the team joins a task as a helper in one press, or leaves it, and Undo takes it back (fbk_035, owner 2026-10-20).
@@ -140,7 +133,6 @@ export function useTaskPanel({ detail, data, onClose, noteFirst }: TaskPanelProp
   // Role rights version 2: one flag for each kind of change. The details, the dates and the work are three switches.
   const canDetails = viewerCan.editDetails === true;
   const canDates = viewerCan.editDates === true;
-  const canWork = viewerCan.work === true;
   const mayChange = mayChangeOf(viewerCan);
   // Escape, a tap outside on a phone, Back and another task close the panel before a field loses the focus. So the panel saves
   // what the person typed when it closes, by any way, as the X button always did (audit 2026-10-03, F-15).
@@ -175,13 +167,21 @@ export function useTaskPanel({ detail, data, onClose, noteFirst }: TaskPanelProp
   const officePeople = pickable.filter((person) => person.id === makerId || person.id === data.task.ownerId || data.helpers.some((helper) => helper.id === person.id));
   const people = detail ? detail.members.map((member) => member.user) : officePeople;
   if (data.owner && !people.some((person) => person.id === data.owner?.id)) people.push(data.owner);
-  // The leader and the Admin may pick anyone active. A person outside the team joins it when picked (colleague comment 9).
-  // An office task has no team, so nobody joins one.
-  const teamIds = detail ? new Set([...people.map((person) => person.id), ...(detail.leader ? [detail.leader.id] : [])]) : new Set(pickable.map((person) => person.id));
-  // The maker of a task who is not the leader picks only from the team: only the leader and the Admin add a person to it
-  // (owner, 2026-10-07).
-  // (naming a person outside the team adds them to it, which asks project.team)
-  const choices = detail && !detail.viewerCan.editTeam ? pickable.filter((person) => teamIds.has(person.id)) : pickable;
+  // The panel counts the lead as on the team, also when the lead left it (naming a person outside the team adds them to it, which asks
+  // project.team).
+  const { teamIds, pickable: choices, changeLead } = useLeadChoices({ taskId: task.id, humans: pickable, detail, leadOnTeam: data.owner });
+  // While the task waits for review, its lead gets the pull-back choices and no Done (audit 2026-10-03, F-19).
+  const statusOptions = BOARD_COLUMNS
+    .filter((status) => status === task.status || moveTargets(task.status, false, task.needsReview, task.ownerId !== null).includes(status))
+    .map((status) => ({ value: status, label: t(`taskStatus.${status}`) }));
+  // "No lead" comes first (owner, 2026-10-05). A task in review or done keeps its lead, so it offers no "No lead".
+  const ownerOptions = {
+    showNoLead: task.ownerId === null || task.status === 'todo' || task.status === 'in_progress',
+    people: viewerCan.editAll
+      ? (data.owner && !choices.some((person) => person.id === task.ownerId) ? [...choices, data.owner] : choices)
+        .map((person) => ({ value: person.id, label: personOption(person, teamIds.has(person.id), t) }))
+      : [],
+  };
   const me = session.data?.authority.id;
   // A helper may leave the task with one press at the end of the panel (fbk_035).
   const helping = me !== undefined && helpersOf(task).includes(me);
@@ -201,12 +201,12 @@ export function useTaskPanel({ detail, data, onClose, noteFirst }: TaskPanelProp
 
   return {
     data, detail, task, viewerCan, noteFirst,
-    canDetails, canDates, canWork, mayChange,
+    canDetails, canDates, mayChange,
     root, reviewBlock,
     title, setTitle, description, setDescription, unsaved, note, setNote,
     patch,
-    move, approve, sendBack, take, join, leave, remove, saveTemplate, newLead, complete,
-    leadJoins,
+    move, approve, sendBack, take, join, leave, remove, saveTemplate, complete,
+    changeLead, statusOptions, ownerOptions,
     people, choices, teamIds, makerId, helping, canUndoAgent,
     files: files.data ?? EMPTY_FILES,
     section, setSection,
