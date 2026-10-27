@@ -76,8 +76,8 @@ projects. The sheets of the Projects list (new, edit): `src/features/projects/CL
 - dnd-kit is a chunk of its own. `SortableTaskRows.tsx` draws static rows, and a list with a grip loads `DragLayer.tsx` through
   `dragLayerLoader.ts` and swaps it in. The test helpers load the layer first (`DragLayerSwap.test.tsx` holds the swap). The checklist drag is
   the same pattern (`ChecklistDrag.tsx`, `checklistLayerLoader.ts`, `ChecklistSwap.test.tsx`); one drop calls `change` once with the whole
-  list. `lazyLayer.ts` (in the project folder) holds what the three loaders share (task rows, checklist, Files tab): `createLayerLoader` and the swap hook
-  `useLayerSwap`, which also gives the focus back. It imports no dnd-kit. A dnd-kit keyboard drag in jsdom needs `getBoundingClientRect`
+  list. The three loaders and their swaps stay written out in each part: one shared loader file (`lazyLayer.ts`, 2026-10-27) split the
+  first load of the remote build from 30 into 48 files, and `check-bundles.ts` refused it. A dnd-kit keyboard drag in jsdom needs `getBoundingClientRect`
   mocked for each row (`features/work/WorkOrder.test.tsx`), and the test awaits the place message after Space and after each arrow key.
 - `TaskPeople.tsx` loads `TaskPeopleList.tsx` through `lazyOverlay`, so vaul stays out of the first load. A failed import reloads the page
   once (`reloadOnFailedImport`). A second failure shows the toast of a failed step through `ListGuard`. A test of a failed import needs its

@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef, useState, type ComponentType, type MutableRefObject, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ChecklistItem, Task } from '../../../api/contract/entities';
 import type { FileView, TaskDetail } from '../../../api/contract/views';
@@ -18,14 +18,13 @@ import { Button } from '../../../components/Button';
 import { canPreview, PreviewSheet } from '../files/PreviewSheet';
 import { fileSizeText } from '../../../lib/fileSize';
 import { Group } from './DetailRows';
+import type { DragChecklistProps } from './ChecklistDrag';
 import { loadChecklistLayer, loadedChecklistLayer } from './checklistLayerLoader';
 import { ChecklistRow, ItemGrip } from './ChecklistRow';
 import { historyText } from './history';
-import { useLayerSwap } from '../lazyLayer';
+import { markFocus, restoreFocus, type FocusMark } from './SortableTaskRows';
 
 export type Patch = Partial<Pick<Task, 'title' | 'description' | 'dueDate' | 'startDate' | 'schedule' | 'durationDays' | 'ownerId' | 'helperIds' | 'prerequisiteIds' | 'flagged' | 'needsReview' | 'checklist'>> & { stageId?: string };
-
-const checklistLayer = { loaded: loadedChecklistLayer, load: loadChecklistLayer };
 
 /** A label and a value as plain text, for a field the viewer cannot change (spec 2.3: no dead controls). */
 export function Fact({ label, children }: { label: string; children: ReactNode }) {
@@ -70,8 +69,27 @@ export function Checklist({ task, edit, tick, onChange, draft, rows = false }: {
   // A person who edits the checklist puts the items in their own order with a grip at the end of each item (fbk_043). One drop saves the
   // whole list once. dnd-kit is a chunk of its own: the list first draws static rows, and the drag layer takes their place once loaded.
   const sortable = edit && items.length > 1;
+  const [Layer, setLayer] = useState<ComponentType<DragChecklistProps> | null>(loadedChecklistLayer);
   const listRef = useRef<HTMLUListElement>(null);
-  const Layer = useLayerSwap(checklistLayer, sortable, listRef);
+  const mark = useRef<FocusMark | null>(null);
+  useEffect(() => {
+    if (!sortable || Layer) return undefined;
+    let live = true;
+    loadChecklistLayer().then((layer) => {
+      if (!live) return;
+      mark.current = markFocus(listRef.current);
+      setLayer(() => layer);
+    }, () => undefined);
+    return () => {
+      live = false;
+    };
+  }, [sortable, Layer]);
+  useLayoutEffect(() => {
+    if (!Layer || !mark.current) return;
+    const kept = mark.current;
+    mark.current = null;
+    restoreFocus(listRef.current, kept);
+  }, [Layer]);
   const plain = !edit && !tick;
   const list = (
     <>
