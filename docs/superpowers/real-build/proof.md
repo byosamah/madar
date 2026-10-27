@@ -2647,3 +2647,19 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
 - `all.sh test` (605084a on the test copy, quick checks pass), then `echo production | scripts/deploy/all.sh production` run by Claude with the
   owner's OK. Live checks: health from supabase, `fileStore` r2, 156 calls; database, lock and asyncContext ok; /mcp with no token 401; through the
   connector, projects.list answers 15 short rows with page { total 15, offset 0, limit 50, next null }.
+
+### Release record: production at 1ef279be (2026-10-27, the agent reads the chats for context, madar.readFirst before any other tool)
+- The owner's goal (2026-10-27): the answer to a question about a project or a to-do is often in a chat. The MCP agent now reads the project chat,
+  the posts, the to-do thread and the search before it answers about a project or a to-do (the paragraph "Context:" of INSTRUCTIONS, 18a6300c).
+  The first line of INSTRUCTIONS and the text of madar.readFirst now ask for that call once, before any other tool (1ef279be): Claude Code showed
+  only the first 4,100 of 24,330 characters of the instructions, so an agent that only read missed most of the rules. What's new 120, for the
+  holders of ai.readChats.
+- Gates: typecheck; server/mcp 51 files, 613 tests (toolSize.test.ts included); src/whatsNew and src/i18n 84 tests; the 4 screen files that read
+  What's new, 59 tests; server/entries/bundles.test.ts; npm run build and build:server pass. NOT run: the full npm test (over the owner's 5-minute
+  limit), test:db, test:it and test:mcp (no data, call or loader change), and the deploy suite.
+- `all.sh test` twice (18a6300c, then 1ef279be; quick checks pass), then `echo production | scripts/deploy/all.sh production` run by Claude on the
+  owner's "go production". Live checks: health from supabase, fileStore r2, 156 calls; database, lock and asyncContext ok; /mcp with no token 401;
+  page 200 with the title Madar; /favicon.ico 200; the words file holds the new What's new title; madar.readFirst through the owner's connector
+  answers the new first line and the Context paragraph.
+- Screenshot: the What's new page on the test copy (English, dark) shows the entry under 27 Oct. No other screen changed.
+- The guides of 5f11e5f1 (the words file of a copy, the fast MCP gate) waited on rb/notes-2026-10-27 and joined main with this record.

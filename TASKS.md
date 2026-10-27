@@ -1258,3 +1258,8 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [x] Merge lead: `npm run test:it` for `server/it/confirms.it.test.ts`, `npm run test:db`, `npm run test:mcp`, the full `npm test` (done 2026-10-26: production at 605084ab)
 
 - [ ] Look at the 158-tool list of an Admin's agent in a fresh Claude session (VS Code allows 128 tools in one request); production at 605084ab
+
+## The agent reads the chats for context (2026-10-27)
+- [x] The paragraph "Context:" of INSTRUCTIONS, right after the six rules, in the first 4,000 characters (`contextDocs.test.ts`); What's new 120 (done 2026-10-27: production at 1ef279be)
+- [x] madar.readFirst once, before any other tool: the first line of INSTRUCTIONS and the tool text (done 2026-10-27: production at 1ef279be)
+- [ ] In a new Claude chat, check that the agent calls madar.readFirst first and reads the project chat before it answers about a project
