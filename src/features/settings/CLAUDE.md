@@ -25,7 +25,8 @@ Settings (desk) and the same sections on the Me tab (phone), and the Admin secti
   `TemplateDetails.tsx` shows the fields beside it (a Sheet on a phone). The editor works on a text draft (`templateDraft.ts`): a stage
   start moves its tasks by the same days (`moveStageStart`, on blur), a new wait that points back moves the part that waits (`addWait`, with an
   Undo toast), and Cancel, Escape and the close button ask "Discard the changes?" when the draft changed. A control with `data-autofocus`
-  takes the focus in a sheet.
+  takes the focus in a sheet. The limits of the editor are `DAYS_MAX` (365 days) and `NAME_MAX` (60 letters) in `templateDraft.ts`: the
+  chart and the fields import them. A wait ends with `removeWait`.
 - `moveTaskToStage` (`templateDraft.ts`) has one rule: the move changes the stage and nothing else, so the days of a task stay and the waits
   stay true. A note says when the days are outside the new stage (`taskOutsideStage`). The one exception is a task that Add task just made
   and the person has not touched (`DraftTask.fresh`, set by `addTask`, cleared by `touchTask`; a task with a wait is never placed again): it

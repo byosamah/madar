@@ -14,7 +14,7 @@ import { PlusIcon } from '../../../components/icons/animated/plus';
 import { XIcon } from '../../../components/icons/animated/x';
 import type { ProjectTemplateRow } from '../../../api/handlers/projectTemplates';
 import {
-  addRole, addStage, addTask, addWait, draftInput, draftOf, draftProblem, emptyDraft, importStages, removeRole,
+  addRole, addStage, addTask, addWait, draftInput, draftOf, draftProblem, emptyDraft, importStages, NAME_MAX, removeRole, removeWait,
   type DraftProblem, type DraftRole, type TemplateDraft,
 } from './templateDraft';
 import { AddStagesSheet } from './AddStagesSheet';
@@ -36,7 +36,7 @@ function RoleRow({ role, n, people, onChange, onRemove, error }: {
           className="field col-start-1 row-start-1 min-h-11"
           dir="auto"
           autoComplete="off"
-          maxLength={60}
+          maxLength={NAME_MAX}
           value={role.name}
           onChange={(event) => onChange({ ...role, name: event.target.value })}
         />
@@ -132,16 +132,7 @@ export function ProjectTemplateEditor({ template, copy, onClose, onSaved }: {
       () => setDraft((current) => (current === result.draft ? draft : current)),
     );
   };
-  const unlink = (kind: Kind, waitingId: string, neededId: string) => {
-    const strip = <T extends { id: string; prerequisiteIds?: string[] }>(part: T): T => {
-      if (part.id !== waitingId) return part;
-      const rest = (part.prerequisiteIds ?? []).filter((id) => id !== neededId);
-      const next = { ...part };
-      delete next.prerequisiteIds;
-      return rest.length > 0 ? { ...next, prerequisiteIds: rest } : next;
-    };
-    setDraft(kind === 'task' ? { ...draft, tasks: draft.tasks.map(strip) } : { ...draft, stages: draft.stages.map(strip) });
-  };
+  const unlink = (kind: Kind, waitingId: string, neededId: string) => setDraft(removeWait(draft, kind, waitingId, neededId));
 
   const focusLater = (id: string) => requestAnimationFrame(() => document.getElementById(id)?.focus());
   const newStage = () => {
@@ -195,7 +186,7 @@ export function ProjectTemplateEditor({ template, copy, onClose, onSaved }: {
             required
             dir="auto"
             autoComplete="off"
-            maxLength={60}
+            maxLength={NAME_MAX}
             className="w-full max-w-sm"
             value={draft.name}
             error={nameError}

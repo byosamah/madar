@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ProjectTemplate } from '../../../api/contract/entities';
 import {
   addRole, addStage, addTask, addWait, draftError, draftInput, draftProblem, draftOf, draftPlanTemplate, duplicateDraft, emptyDraft, moveStage, moveStageStart, removeRole,
-  importStages, moveTaskToStage, removeStage, removeTask, startsBeforeStageAbove, tasksEndDay, touchTask, type TemplateDraft,
+  importStages, moveTaskToStage, removeStage, removeTask, removeWait, startsBeforeStageAbove, tasksEndDay, touchTask, type TemplateDraft,
 } from './templateDraft';
 
 const SAVED: ProjectTemplate = {
@@ -448,6 +448,45 @@ describe('addWait: a link that points back moves the waiting part (ADM-08)', () 
     const draft = two();
     expect(addWait(draft, 'task', 't3', 't1')).toEqual({ draft, moved: [] });
     expect(addWait(draft, 'task', 't1', 'tX')).toEqual({ draft, moved: [] });
+  });
+});
+
+describe('removeWait: ends one wait of a part', () => {
+  const waiting = (): TemplateDraft => {
+    const draft = draftOf(SAVED);
+    return {
+      ...draft,
+      stages: [draft.stages[0], { ...draft.stages[1], prerequisiteIds: ['s1'] }],
+      tasks: [draft.tasks[0], { ...draft.tasks[1], prerequisiteIds: ['t1', 'tX'] }],
+    };
+  };
+
+  it('takes one wait out of a task and keeps its other waits', () => {
+    const cut = removeWait(waiting(), 'task', 't2', 't1');
+    expect(cut.tasks[1].prerequisiteIds).toEqual(['tX']);
+    expect(cut.stages).toEqual(waiting().stages);
+  });
+
+  it('leaves the key out when the last wait goes, for a task and for a stage', () => {
+    const task = removeWait(removeWait(waiting(), 'task', 't2', 't1'), 'task', 't2', 'tX');
+    expect(task.tasks[1]).not.toHaveProperty('prerequisiteIds');
+    const stage = removeWait(waiting(), 'stage', 's2', 's1');
+    expect(stage.stages[1]).not.toHaveProperty('prerequisiteIds');
+    expect(stage.tasks).toEqual(waiting().tasks);
+  });
+
+  it('changes no other part, and no part when the wait is not there', () => {
+    const before = waiting();
+    expect(removeWait(before, 'task', 't2', 't1').tasks[0]).toBe(before.tasks[0]);
+    expect(removeWait(before, 'task', 't1', 't2').tasks).toEqual(before.tasks);
+    expect(removeWait(before, 'task', 't9', 't1').tasks).toEqual(before.tasks);
+  });
+
+  it('does not move the days of the part: only addWait moves days', () => {
+    const { draft } = addWait(draftOf(SAVED), 'task', 't1', 't2');
+    const moved = draft.tasks[0].start;
+    expect(removeWait(draft, 'task', 't1', 't2').tasks[0]).toMatchObject({ start: moved });
+    expect(removeWait(draft, 'task', 't1', 't2').tasks[0]).not.toHaveProperty('prerequisiteIds');
   });
 });
 

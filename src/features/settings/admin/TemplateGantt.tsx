@@ -3,10 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { MAX_PREREQUISITES } from '../../../api/contract/limits';
 import { SegmentedControl } from '../../../components/SegmentedControl';
 import { counted } from '../../../lib/grammar';
+import { arrowStep } from '../../../lib/keys';
 import { stageSpan, templateDays } from '../../../lib/projectPlan';
 import { FormError } from '../../auth/AuthPage';
 import { barOf, chartDays, dayAt, waitsThrough, weekStarts } from './ganttMath';
-import { draftPlanTemplate, moveStageStart, touchTask, wholeNumber, type DraftTask, type TemplateDraft } from './templateDraft';
+import { DAYS_MAX, draftPlanTemplate, moveStageStart, touchTask, wholeNumber, type DraftTask, type TemplateDraft } from './templateDraft';
 
 /** One working day is this many pixels wide on the chart at least. "Fit" widens the chart to its box, "Zoom in" doubles it and more. */
 const DAY_PX = 12;
@@ -15,8 +16,6 @@ const ZOOM_PX = 28;
 const ROW_PX = 40;
 /** The height of the week numbers above the rows. */
 const HEAD_PX = 24;
-/** The longest task length, in working days. The server refuses a longer one. */
-const MAX_DAYS = 365;
 
 export type Kind = 'stage' | 'task';
 /** One bar: `start` and `length` are whole working days from day 0. `base` is the own start of a stage, or the start of a task. */
@@ -115,7 +114,7 @@ export function TemplateGantt({ draft, onChange, onLink, selected, onSelect }: {
   const resolve = (gestureNow: Gesture, clientX: number): Place => {
     const { bar, mode } = gestureNow;
     const delta = dayAt(localX(clientX), width(), days) - gestureNow.day0;
-    if (mode === 'end') return { start: bar.start, length: clamp(bar.length + delta, 1, Math.min(MAX_DAYS, days - bar.start)) };
+    if (mode === 'end') return { start: bar.start, length: clamp(bar.length + delta, 1, Math.min(DAYS_MAX, days - bar.start)) };
     if (bar.kind === 'stage') return { start: bar.start + clamp(delta, -bar.start, days - bar.length - bar.start), length: bar.length };
     return { start: clamp(bar.start + delta, 0, days - bar.length), length: bar.length };
   };
@@ -127,19 +126,24 @@ export function TemplateGantt({ draft, onChange, onLink, selected, onSelect }: {
   const drag = (event: ReactPointerEvent<HTMLElement>) => {
     const now = gesture.current;
     if (!now) return;
-    setPreview({ kind: now.bar.kind, id: now.bar.id, ...resolve(now, event.clientX) });
+    const { kind, id } = now.bar;
+    const place = resolve(now, event.clientX);
+    // The same place keeps the same preview, so the chart does not draw again.
+    setPreview((prev) => (prev && prev.kind === kind && prev.id === id && prev.start === place.start && prev.length === place.length ? prev : { kind, id, ...place }));
+  };
+  /** Applies the new place of a bar to the draft: a stage moves with its tasks, a task changes its length or its start. Nothing changes for the same place. */
+  const commit = (bar: Bar, mode: Mode, next: Place) => {
+    if (next.start === bar.start && next.length === bar.length) return;
+    if (bar.kind === 'stage') onChange(moveStageStart(draft, bar.id, bar.base + (next.start - bar.start)));
+    else if (mode === 'end') patchTask(bar.id, { days: String(next.length) });
+    else patchTask(bar.id, { start: String(next.start) });
   };
   const release = (event: ReactPointerEvent<HTMLElement>) => {
     const now = gesture.current;
     if (!now) return;
     gesture.current = null;
     setPreview(null);
-    const next = resolve(now, event.clientX);
-    const { bar } = now;
-    if (next.start === bar.start && next.length === bar.length) return;
-    if (bar.kind === 'stage') onChange(moveStageStart(draft, bar.id, bar.base + (next.start - bar.start)));
-    else if (now.mode === 'end') patchTask(bar.id, { days: String(next.length) });
-    else patchTask(bar.id, { start: String(next.start) });
+    commit(now.bar, now.mode, resolve(now, event.clientX));
   };
   const cancel = () => {
     gesture.current = null;
@@ -147,25 +151,11 @@ export function TemplateGantt({ draft, onChange, onLink, selected, onSelect }: {
   };
 
   /** The arrow keys of a bar: one working day, or five with Shift. The step is forward in the time direction of the language. */
-  const stepOf = (event: KeyboardEvent<HTMLElement>): number => {
-    const amount = event.shiftKey ? 5 : 1;
-    if (event.key === (rtl ? 'ArrowLeft' : 'ArrowRight')) return amount;
-    if (event.key === (rtl ? 'ArrowRight' : 'ArrowLeft')) return -amount;
-    return 0;
-  };
+  const stepOf = (event: KeyboardEvent<HTMLElement>): number => arrowStep(event.key, rtl) * (event.shiftKey ? 5 : 1);
   const nudge = (bar: Bar, mode: Mode, step: number) => {
-    if (bar.kind === 'stage') {
-      const shift = Math.max(-bar.start, step);
-      if (shift !== 0) onChange(moveStageStart(draft, bar.id, bar.base + shift));
-      return;
-    }
-    if (mode === 'end') {
-      const length = clamp(bar.length + step, 1, MAX_DAYS);
-      if (length !== bar.length) patchTask(bar.id, { days: String(length) });
-      return;
-    }
-    const start = Math.max(0, bar.start + step);
-    if (start !== bar.start) patchTask(bar.id, { start: String(start) });
+    if (bar.kind === 'stage') commit(bar, mode, { start: bar.start + Math.max(-bar.start, step), length: bar.length });
+    else if (mode === 'end') commit(bar, mode, { start: bar.start, length: clamp(bar.length + step, 1, DAYS_MAX) });
+    else commit(bar, mode, { start: Math.max(0, bar.start + step), length: bar.length });
   };
   const handlers = (mode: Mode, bar: Bar) => ({
     onPointerDown: (event: ReactPointerEvent<HTMLElement>) => press(event, mode, bar),

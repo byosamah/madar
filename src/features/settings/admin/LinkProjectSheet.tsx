@@ -32,13 +32,22 @@ function PickList({ title, parts, items, picked, onPick }: {
 }) {
   const { t } = useTranslation();
   if (parts.length === 0) return null;
-  const groups = [...new Set(items.map((item) => item.group))];
+  // Built once for all the parts: the items of each group, and how many parts hold each item.
+  const byGroup = new Map<string | undefined, Item[]>();
+  for (const item of items) {
+    const list = byGroup.get(item.group);
+    if (list) list.push(item);
+    else byGroup.set(item.group, [item]);
+  }
+  const groups = [...byGroup.keys()];
+  const holders = new Map<string, number>();
+  for (const itemId of Object.values(picked)) if (itemId) holders.set(itemId, (holders.get(itemId) ?? 0) + 1);
   return (
     <section className="flex flex-col gap-2">
       <h4 className="field-label">{title}</h4>
       {parts.map((part) => {
-        const held = new Set(Object.entries(picked).filter(([partId]) => partId !== part.id).map(([, itemId]) => itemId));
-        const choices = items.filter((item) => !held.has(item.id));
+        // An item is hidden when another part holds it. The part itself may hold one item, so that one does not count.
+        const free = (item: Item) => (holders.get(item.id) ?? 0) - (picked[part.id] === item.id ? 1 : 0) === 0;
         const option = (item: Item) => <option key={item.id} value={item.id}>{item.label}</option>;
         return (
           <div key={part.id} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
@@ -51,8 +60,8 @@ function PickList({ title, parts, items, picked, onPick }: {
             >
               <option value="">{t('projectTemplates.link.noMatch')}</option>
               {groups.length > 1 || groups[0] !== undefined
-                ? groups.map((group) => <optgroup key={group ?? ''} label={group ?? ''}>{choices.filter((item) => item.group === group).map(option)}</optgroup>)
-                : choices.map(option)}
+                ? groups.map((group) => <optgroup key={group ?? ''} label={group ?? ''}>{byGroup.get(group)!.filter(free).map(option)}</optgroup>)
+                : items.filter(free).map(option)}
             </select>
           </div>
         );
@@ -115,18 +124,38 @@ export function LinkProjectSheet({ projectId, template, onClose, onDone, mode = 
   const matchedCount = stageParts.length + taskParts.length - unmatchedCount;
   // The dates that the added parts get: the plan from the project start, moved forward when it is past (the server uses the same function).
   const startDate = project.data?.project.startDate ?? null;
+  const plan = useMemo(() => (startDate ? planProject(template, { startDate, fixedIds: [] }) : null), [startDate, template]);
+  // The dates show only for "Add them", so a pick does not work them out for "Leave them out".
   const addedDates = useMemo(() => {
-    if (!startDate) return null;
-    const plan = planProject(template, { startDate, fixedIds: [] });
-    if (!plan.ok) return null;
+    if (rest !== 'add' || !plan?.ok) return null;
     const open = (kind: 'stages' | 'tasks', parts: { id: string }[]) => parts.filter((part) => !picks[kind][part.id]).map((part) => part.id);
     return shiftAdded(plan, { taskIds: open('tasks', template.tasks), stageIds: open('stages', template.stages) }, todayISO());
-  }, [startDate, template, picks]);
+  }, [plan, template, picks, rest]);
   const datesLine = !startDate
     ? t('projectTemplates.apply.noStart')
     : addedDates?.startDate && addedDates.endDate
       ? [t('projectTemplates.apply.dates', { from: formatDay(addedDates.startDate, lang), to: formatDay(addedDates.endDate, lang) }), ...(addedDates.shiftDays > 0 ? [t('projectTemplates.apply.datesMoved')] : [])].join(' ')
       : null;
+
+  // The two lists of picks, for the parts that match the names or the parts that do not.
+  const lists = (isMatched: boolean) => (
+    <>
+      <PickList
+        title={t('projectTemplates.link.stages')}
+        parts={stageParts.filter((part) => matched('stages', part.id) === isMatched)}
+        items={stageItems}
+        picked={picks.stages}
+        onPick={(partId, itemId) => choose('stages', partId, itemId)}
+      />
+      <PickList
+        title={t('projectTemplates.link.tasks')}
+        parts={taskParts.filter((part) => matched('tasks', part.id) === isMatched)}
+        items={taskItems}
+        picked={picks.tasks}
+        onPick={(partId, itemId) => choose('tasks', partId, itemId)}
+      />
+    </>
+  );
 
   const submit = async () => {
     if (match.data === undefined || users.data === undefined || saving) return;
@@ -211,40 +240,14 @@ export function LinkProjectSheet({ projectId, template, onClose, onDone, mode = 
                     {datesLine !== null && <p>{datesLine}</p>}
                   </div>
                 )}
-                <PickList
-                  title={t('projectTemplates.link.stages')}
-                  parts={stageParts.filter((part) => !matched('stages', part.id))}
-                  items={stageItems}
-                  picked={picks.stages}
-                  onPick={(partId, itemId) => choose('stages', partId, itemId)}
-                />
-                <PickList
-                  title={t('projectTemplates.link.tasks')}
-                  parts={taskParts.filter((part) => !matched('tasks', part.id))}
-                  items={taskItems}
-                  picked={picks.tasks}
-                  onPick={(partId, itemId) => choose('tasks', partId, itemId)}
-                />
+                {lists(false)}
               </section>
             )}
             {matchedCount > 0 && (
               <details className="rounded-xl border border-separator px-3 py-1">
                 <summary className="flex min-h-11 cursor-pointer items-center text-subheadline font-medium">{t('projectTemplates.link.matchedTitle', { count: matchedCount })}</summary>
                 <div className="flex flex-col gap-4 pb-3 pt-2">
-                  <PickList
-                    title={t('projectTemplates.link.stages')}
-                    parts={stageParts.filter((part) => matched('stages', part.id))}
-                    items={stageItems}
-                    picked={picks.stages}
-                    onPick={(partId, itemId) => choose('stages', partId, itemId)}
-                  />
-                  <PickList
-                    title={t('projectTemplates.link.tasks')}
-                    parts={taskParts.filter((part) => matched('tasks', part.id))}
-                    items={taskItems}
-                    picked={picks.tasks}
-                    onPick={(partId, itemId) => choose('tasks', partId, itemId)}
-                  />
+                  {lists(true)}
                 </div>
               </details>
             )}

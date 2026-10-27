@@ -10,7 +10,7 @@ import { XIcon } from '../../../components/icons/animated/x';
 import { CheckRow } from './CheckRow';
 import type { Kind, Picked } from './TemplateGantt';
 import {
-  moveStage, moveStageStart, moveTaskToStage, removeStage, removeTask, startsBeforeStageAbove, taskOutsideStage, tasksEndDay, touchTask, wholeNumber,
+  moveStage, moveStageStart, moveTaskToStage, NAME_MAX, removeStage, removeTask, startsBeforeStageAbove, taskOutsideStage, tasksEndDay, touchTask, wholeNumber,
   type DraftProblem, type DraftStage, type DraftTask, type TemplateDraft,
 } from './templateDraft';
 
@@ -155,7 +155,7 @@ function StageDetails({ stage, draft, setDraft, onLink, onUnlink, onPick, error 
         label={t('projectTemplates.stageName')}
         dir="auto"
         autoComplete="off"
-        maxLength={60}
+        maxLength={NAME_MAX}
         value={stage.name}
         error={error('name')}
         onChange={(event) => setStage({ ...stage, name: event.target.value })}

@@ -31,7 +31,10 @@ export type TemplateDraft = { name: string; roles: DraftRole[]; stages: DraftSta
 export type TemplateParts = { name: string; roles: TemplateRole[]; stages: TemplateStage[]; tasks: TemplateTask[] };
 
 const OFFSET_MAX = 2000;
-const DAYS_MAX = 365;
+/** The longest length of a task or a stage, in working days. The editor, the chart and the server all refuse a longer one. */
+export const DAYS_MAX = 365;
+/** The longest name of a template, a role or a stage. The editor and the server both refuse a longer one. */
+export const NAME_MAX = 60;
 const NEW_TASK_DAYS = 5;
 
 export function emptyDraft(): TemplateDraft {
@@ -81,9 +84,6 @@ export function draftOf(template: ProjectTemplate): TemplateDraft {
     partSeq: Math.max(template.partSeq ?? 0, highestPartNumber(template)),
   };
 }
-
-/** The longest name of a template. The editor and the server both refuse a longer one. */
-const NAME_MAX = 60;
 
 /**
  * The name of a copy: the copy word, then " 2", " 3" and so on while the name is in use. A name in use is compared without case
@@ -219,6 +219,14 @@ function newTaskStart(draft: TemplateDraft, stageId: string): number {
     : stageStart ?? templateDays(draftPlanTemplate(draft));
 }
 
+/** The tasks with `task` after the last task of its stage, or at the end when that stage has none. The list stays grouped by stage. */
+function insertInStage(tasks: readonly DraftTask[], task: DraftTask): DraftTask[] {
+  const last = tasks.map((part) => part.stageId).lastIndexOf(task.stageId);
+  const next = [...tasks];
+  next.splice(last === -1 ? next.length : last + 1, 0, task);
+  return next;
+}
+
 /** A new task starts where the last task of its stage ends (newTaskStart), for 5 days. It is "fresh" until the person sets its days. */
 export function addTask(draft: TemplateDraft, stageId: string): TemplateDraft {
   const start = newTaskStart(draft, stageId);
@@ -226,11 +234,7 @@ export function addTask(draft: TemplateDraft, stageId: string): TemplateDraft {
     id: freeId(draft, 't'), stageId, title: '', roleId: '', start: String(start), days: String(NEW_TASK_DAYS), flexible: true,
     description: '', checklist: [], needsReview: true, fresh: true,
   };
-  // The task goes after the last task of its stage, so the list stays grouped by stage.
-  const last = draft.tasks.map((t) => t.stageId).lastIndexOf(stageId);
-  const tasks = [...draft.tasks];
-  tasks.splice(last === -1 ? tasks.length : last + 1, 0, task);
-  return { ...draft, tasks };
+  return { ...draft, tasks: insertInStage(draft.tasks, task) };
 }
 
 /** The task after the person set its days (start or length): it is no longer fresh, so a move to another stage keeps its days. */
@@ -254,10 +258,7 @@ export function moveTaskToStage(draft: TemplateDraft, taskId: string, stageId: s
   const rest = draft.tasks.filter((part) => part.id !== taskId);
   const placed = task.fresh && (task.prerequisiteIds ?? []).length === 0;
   const moved: DraftTask = { ...task, stageId, ...(placed ? { start: String(newTaskStart({ ...draft, tasks: rest }, stageId)) } : {}) };
-  const last = rest.map((part) => part.stageId).lastIndexOf(stageId);
-  const tasks = [...rest];
-  tasks.splice(last === -1 ? tasks.length : last + 1, 0, moved);
-  return { ...draft, tasks };
+  return { ...draft, tasks: insertInStage(rest, moved) };
 }
 
 /**
@@ -533,4 +534,14 @@ export function addWait(draft: TemplateDraft, kind: 'stage' | 'task', waitingId:
     }
   }
   return { draft: next, moved };
+}
+
+/**
+ * Ends the wait of `waitingId` for `neededId`. The other waits of the part stay, and the key goes when no wait is left, as waitsOf
+ * leaves it out. The part keeps its days: the days that the wait moved stay where they are.
+ */
+export function removeWait(draft: TemplateDraft, kind: 'stage' | 'task', waitingId: string, neededId: string): TemplateDraft {
+  const gone = new Set([neededId]);
+  const strip = <T extends { id: string; prerequisiteIds?: string[] }>(part: T): T => (part.id === waitingId ? withoutWaits(part, gone) : part);
+  return kind === 'task' ? { ...draft, tasks: draft.tasks.map(strip) } : { ...draft, stages: draft.stages.map(strip) };
 }

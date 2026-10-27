@@ -158,9 +158,8 @@ export function ChangeCard({ kind, rows, choices, onChoose, nameOf }: {
     projects: counted(t, 'projectTemplates.update.projectCount', withItems.length),
   });
   const ctx: LineContext = { t, lang, nameOf };
-  const groups = withItems.map((row) => ({ row, lines: listOf(row.diff, kind).map((item) => lineOf(kind, item, ctx)) }));
-  const shown = all ? Infinity : LINES;
-  let used = 0;
+  // The lines still to show. Each project takes what it needs from this budget, so only the shown lines are built.
+  let left = all ? Infinity : LINES;
   const id = `update-kind-${kind}`;
   return (
     <section aria-labelledby={id} className="surface flex flex-col gap-2 rounded-card p-4">
@@ -179,8 +178,9 @@ export function ChangeCard({ kind, rows, choices, onChoose, nameOf }: {
       <p className="ps-8 text-footnote text-ink-2">{line}</p>
       {kind === 'edited' && <p className="ps-8 text-footnote text-ink-2">{t('projectTemplates.update.editedHint')}</p>}
       <ul className="flex flex-col gap-2 ps-8">
-        {groups.map(({ row, lines }) => {
-          const visible = lines.filter(() => (used += 1) <= shown);
+        {withItems.map((row) => {
+          const visible = listOf(row.diff, kind).slice(0, left).map((item) => lineOf(kind, item, ctx));
+          left -= visible.length;
           if (visible.length === 0) return null;
           return (
             <li key={row.project.id} className="flex flex-col gap-0.5">
