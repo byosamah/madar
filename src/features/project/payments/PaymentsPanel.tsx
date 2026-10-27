@@ -14,6 +14,7 @@ import { LoadFailed } from '../../../components/LoadFailed';
 import { StatusSign } from '../../../components/StatusSign';
 import { formatDay, formatNumber, type Lang } from '../../../lib/dates';
 import { PAYMENT_PANEL, usePanelLink } from '../panelLink';
+import { SECTION_LABEL } from '../sectionLabel';
 import { PaymentSheet, type PaymentDraft } from './PaymentSheet';
 
 /** "SAR 120,000" in English and "120,000 ر.س" in Arabic. Madar writes Western digits in both. */
@@ -34,8 +35,6 @@ export function PaymentSign({ row }: { row: PaymentRow }) {
   if (row.payment.daftra) return <StatusSign state="invoiced">{t('payments.status.invoiced')}</StatusSign>;
   return <StatusSign state={row.status === 'overdue' ? 'late' : 'active'}>{t(`payments.status.${row.status === 'overdue' ? 'overdue' : 'awaiting'}`)}</StatusSign>;
 }
-
-const HEADING = 'text-footnote font-semibold uppercase tracking-[0.06em] text-ink-2';
 
 /**
  * The payment milestones of a project (colleague comment 6). Only the Admin, Management and Accounting see this panel;
@@ -62,7 +61,7 @@ export function PaymentsPanel({ projectId }: { projectId: string }) {
     <section aria-labelledby="overview-payments" className="panel flex flex-col gap-3 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <h2 id="overview-payments" className={HEADING}>{t('payments.title')}</h2>
+          <h2 id="overview-payments" className={SECTION_LABEL}>{t('payments.title')}</h2>
           {rows.length > 0 && (
             <p className={`${PRIVATE} tabular pt-1 text-footnote text-ink-2`}>{t('payments.summary', { received: amountText(t, lang, received), total: amountText(t, lang, total) })}</p>
           )}

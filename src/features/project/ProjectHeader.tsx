@@ -10,19 +10,19 @@ import { useIsPhone } from '../../app/useIsPhone';
 import type { ProjectDetail } from '../../api/contract/views';
 import { Button } from '../../components/Button';
 import { HiddenMark } from '../../components/HiddenMark';
-import { ProgressLine } from '../../components/ProgressLine';
 import { ProjectTile } from '../../components/ProjectTile';
-import { signOfProject } from '../../components/StatusSign';
 import { spring } from '../../design/motion';
 import { NextDeadlineLabel } from '../projects/ProjectCard';
 import { HealthControl } from './HealthControl';
 import { phoneMainButton } from './mainButton';
-import { usePostDraft } from './overview/postDraft';
+import { useHasPostDraft } from './overview/postDraft';
 import { ProjectActions, ProjectSheets, type ProjectSheetName } from './ProjectActions';
 import { StageControl } from './StageControl';
+import { StageProgress } from './StageProgress';
 import type { ProjectTab } from './tabs';
 import { clientName } from '../../lib/clientName';
 import { isHiddenProject, isInternalProject, shownCode, shownName } from '../../lib/projectLabel';
+import { currentStageIndex } from '../../lib/stageFlow';
 import { useLang } from '../../app/lang';
 
 /** The tile and the name alone, drawn at once while the project loads, so the tapped row grows into them (motion moment 1). */
@@ -73,10 +73,11 @@ function PhoneHeader({ detail, onPost, tab, controls }: { detail: ProjectDetail;
   const { t } = useTranslation();
   const lang = useLang();
   const { project } = detail;
-  const [draft] = usePostDraft(project.id, true);
-  const main = phoneMainButton(tab, detail.viewerCan, draft.trim() !== '');
+  // Only "has text" is read, so a key typed in the update box does not render the whole header again.
+  const hasDraft = useHasPostDraft(project.id);
+  const main = phoneMainButton(tab, detail.viewerCan, hasDraft);
   const viewOnly = isViewOnly(detail.viewerCan);
-  const index = detail.stages.findIndex((stage) => stage.id === detail.currentStage.id);
+  const index = currentStageIndex(detail.stages, detail.currentStage);
   const count = t('projects.stageCount', { n: index + 1, total: detail.stages.length });
   return (
     <header className="flex flex-col gap-3">
@@ -99,15 +100,7 @@ function PhoneHeader({ detail, onPost, tab, controls }: { detail: ProjectDetail;
         <span className="text-footnote text-ink-2">{count}</span>
         <span className="ms-auto"><HealthControl detail={detail} open={controls.health} onOpenChange={controls.onHealth} /></span>
       </div>
-      <ProgressLine
-        index={index}
-        total={detail.stages.length}
-        complete={project.status === 'completed'}
-        tone={signOfProject(detail)}
-        label={count}
-        size="md"
-        className="w-full"
-      />
+      <StageProgress detail={detail} size="md" className="w-full" />
       {(detail.viewerCan.postUpdate || detail.chatId) && (
         <div data-action-row className="flex gap-2">
           {detail.viewerCan.postUpdate && (
@@ -131,7 +124,6 @@ function DeskHeader({ detail, onPost, controls }: { detail: ProjectDetail; onPos
   const lang = useLang();
   const { project } = detail;
   const viewOnly = isViewOnly(detail.viewerCan);
-  const index = detail.stages.findIndex((stage) => stage.id === detail.currentStage.id);
   return (
     <header className="flex flex-col gap-3">
       <Link to={projectsListLink()} className="pressable -ms-2 inline-flex min-h-11 items-center gap-0.5 self-start rounded-full pe-3 ps-1 text-subheadline font-semibold text-link max-sm:hidden">
@@ -163,14 +155,7 @@ function DeskHeader({ detail, onPost, controls }: { detail: ProjectDetail; onPos
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <StageControl detail={detail} open={controls.stage} onOpenChange={controls.onStage} />
-        <ProgressLine
-          index={index}
-          total={detail.stages.length}
-          complete={project.status === 'completed'}
-          tone={signOfProject(detail)}
-          label={t('projects.stageCount', { n: index + 1, total: detail.stages.length })}
-          className="w-28 sm:w-36"
-        />
+        <StageProgress detail={detail} className="w-28 sm:w-36" />
         <NextDeadlineLabel deadline={detail.nextDeadline} stageEnd={detail.stageEnd} continuous={detail.project.continuous} />
         <HealthControl detail={detail} open={controls.health} onOpenChange={controls.onHealth} />
       </div>

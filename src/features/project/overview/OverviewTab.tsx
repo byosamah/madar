@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
-import type { TaskRow, TrackerRow } from '../../../api/contract/views';
+import type { FeedItem, TaskRow, TrackerRow } from '../../../api/contract/views';
 import { useLang } from '../../../app/lang';
 import { PRIVATE } from '../../../app/privateMark';
 import { useIsPhone } from '../../../app/useIsPhone';
@@ -10,15 +10,17 @@ import { Age } from '../../../components/Age';
 import { AgentLabel } from '../../../components/AgentLabel';
 import { Avatar } from '../../../components/Avatar';
 import { LoadFailed } from '../../../components/LoadFailed';
-import { ProgressLine } from '../../../components/ProgressLine';
 import { RichText } from '../../../components/RichText';
 import { ProjectSign } from '../../../components/ProjectSign';
-import { signOfProject, StatusSign } from '../../../components/StatusSign';
-import { formatDay, stampDay, todayISO } from '../../../lib/dates';
+import { StatusSign } from '../../../components/StatusSign';
+import { diffDays, formatDay, stampDay, todayISO } from '../../../lib/dates';
 import { dueText, dueWord, wordForDays } from '../../../lib/due';
 import { actorContext, counted } from '../../../lib/grammar';
 import { currentWork, needsAttention, stageStanding } from '../../../lib/overview';
+import { currentStageIndex } from '../../../lib/stageFlow';
 import { PAYMENT_PANEL, TASK_PANEL, usePanelLink } from '../panelLink';
+import { SECTION_LABEL } from '../sectionLabel';
+import { StageProgress } from '../StageProgress';
 import type { TabProps } from '../tabs';
 import { TaskSheet } from '../tasks/TaskSheet';
 import { Loop } from '../tracker/OpenLoops';
@@ -29,8 +31,6 @@ import { Composer } from './Composer';
 import { ProjectMeetings } from './ProjectMeetings';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { CornerUpLeftIcon } from '../../../components/icons/animated/corner-up-left';
-
-const HEADING = 'text-footnote font-semibold uppercase tracking-[0.06em] text-ink-2';
 
 /** One task as a short line: title, owner, gentle due word. A press opens the task panel. */
 function TaskLine({ row, onOpen, showOwner = true }: { row: TaskRow; onOpen: (id: string) => void; showOwner?: boolean }) {
@@ -58,13 +58,13 @@ function Standing({ detail, rows, phone = false }: TabProps & { rows: TaskRow[];
   const lang = useLang();
   const nameOf = usePersonName();
   const { project, currentStage, stages, health, healthSetBy } = detail;
-  const index = stages.findIndex((stage) => stage.id === currentStage.id);
+  const index = currentStageIndex(stages, currentStage);
   const standing = stageStanding(rows, currentStage, todayISO());
   // A stage end date never makes a continuous project late (fbk_069): the date shows plain, with no count of days.
   const late = !project.continuous && standing.daysLeft !== null && standing.daysLeft < 0;
   return (
     <section aria-labelledby="overview-standing" className="panel flex flex-col gap-4 p-5">
-      <h2 id="overview-standing" className={HEADING}>{t('overview.standing')}</h2>
+      <h2 id="overview-standing" className={SECTION_LABEL}>{t('overview.standing')}</h2>
       {/* A phone shows the stage name, the count and the steps in the header, so this panel keeps the facts only. */}
       {!phone && (
         <>
@@ -75,7 +75,7 @@ function Standing({ detail, rows, phone = false }: TabProps & { rows: TaskRow[];
             </div>
             {health ? <StatusSign state={health.value}>{t(`health.${health.value}`)}</StatusSign> : <ProjectSign project={project} staleDays={detail.staleDays} />}
           </div>
-          <ProgressLine index={index} total={stages.length} complete={project.status === 'completed'} size="md" tone={signOfProject(detail)} label={t('projects.stageCount', { n: index + 1, total: stages.length })} />
+          <StageProgress detail={detail} size="md" />
         </>
       )}
       {project.stageBack && project.stageBack.toStageId === currentStage.id && (
@@ -122,6 +122,16 @@ function Standing({ detail, rows, phone = false }: TabProps & { rows: TaskRow[];
   );
 }
 
+/** The title of a group in Attention: its name and how many items it holds. */
+function GroupHeading({ label, count }: { label: string; count: number }) {
+  return (
+    <h3 className="flex items-center gap-2 text-subheadline font-semibold text-ink">
+      {label}
+      <span className="tabular rounded-full bg-fill px-2 text-caption font-semibold text-ink-2">{count}</span>
+    </h3>
+  );
+}
+
 function Attention({ projectId, rows, tracker, onOpen, seesPayments }: { projectId: string; rows: TaskRow[]; tracker: TrackerRow[] | undefined; onOpen: (id: string) => void; seesPayments: boolean }) {
   const { t } = useTranslation();
   const lang = useLang();
@@ -148,14 +158,11 @@ function Attention({ projectId, rows, tracker, onOpen, seesPayments }: { project
   ].filter((part) => part.items.length > 0);
   return (
     <section aria-labelledby="overview-attention" className="panel flex flex-col gap-3 p-5">
-      <h2 id="overview-attention" className={HEADING}>{t('overview.attention')}</h2>
+      <h2 id="overview-attention" className={SECTION_LABEL}>{t('overview.attention')}</h2>
       {parts.length === 0 && waiting.length === 0 && awaiting.length === 0 && <p className="text-subheadline text-ink-2">{t('overview.allClear')}</p>}
       {parts.map((part) => (
         <div key={part.key} className="flex flex-col gap-1">
-          <h3 className="flex items-center gap-2 text-subheadline font-semibold text-ink">
-            {t(`overview.groups.${part.key}`)}
-            <span className="tabular rounded-full bg-fill px-2 text-caption font-semibold text-ink-2">{part.items.length}</span>
-          </h3>
+          <GroupHeading label={t(`overview.groups.${part.key}`)} count={part.items.length} />
           <ul className="-mx-2 flex flex-col">
             {part.items.slice(0, 3).map((row) => <TaskLine key={row.task.id} row={row} onOpen={onOpen} />)}
           </ul>
@@ -164,10 +171,7 @@ function Attention({ projectId, rows, tracker, onOpen, seesPayments }: { project
       ))}
       {awaiting.length > 0 && (
         <div className="flex flex-col gap-1">
-          <h3 className="flex items-center gap-2 text-subheadline font-semibold text-ink">
-            {t('overview.groups.payment')}
-            <span className="tabular rounded-full bg-fill px-2 text-caption font-semibold text-ink-2">{awaiting.length}</span>
-          </h3>
+          <GroupHeading label={t('overview.groups.payment')} count={awaiting.length} />
           <ul className="-mx-2 flex flex-col">
             {awaiting.map((row) => {
               const word = wordForDays(row.dueInDays);
@@ -190,10 +194,7 @@ function Attention({ projectId, rows, tracker, onOpen, seesPayments }: { project
       )}
       {waiting.length > 0 && (
         <div className="flex flex-col gap-1">
-          <h3 className="flex items-center gap-2 text-subheadline font-semibold text-ink">
-            {t('tracker.waitingClient')}
-            <span className="tabular rounded-full bg-fill px-2 text-caption font-semibold text-ink-2">{waiting.length}</span>
-          </h3>
+          <GroupHeading label={t('tracker.waitingClient')} count={waiting.length} />
           <ul className="flex flex-col">
             {waiting.map((row) => <Loop key={row.entry.id} row={row} onOpen={() => toTracker(row.entry.id)} compact />)}
           </ul>
@@ -208,7 +209,7 @@ function People({ detail, rows, onOpen }: TabProps & { rows: TaskRow[]; onOpen: 
   const nameOf = usePersonName();
   return (
     <section aria-labelledby="overview-people" className="panel flex flex-col gap-1 p-5">
-      <h2 id="overview-people" className={`${HEADING} pb-2`}>{t('overview.people')}</h2>
+      <h2 id="overview-people" className={`${SECTION_LABEL} pb-2`}>{t('overview.people')}</h2>
       <ul className="hairline flex flex-col">
         {detail.members.map((member) => {
           const work = currentWork(rows, member.user.id);
@@ -242,11 +243,11 @@ function ComingUp({ detail }: TabProps) {
   const next = detail.deadlines.filter((deadline) => deadline.date >= today).slice(0, 4);
   return (
     <section aria-labelledby="overview-coming" className="panel flex flex-col gap-2 p-5">
-      <h2 id="overview-coming" className={HEADING}>{t('overview.comingUp')}</h2>
+      <h2 id="overview-coming" className={SECTION_LABEL}>{t('overview.comingUp')}</h2>
       {next.length === 0 ? <p className="text-subheadline text-ink-2">{t('overview.noDeadlines')}</p> : (
         <ul className="flex flex-col gap-2">
           {next.map((deadline) => {
-            const word = wordForDays(Math.round((Date.parse(deadline.date) - Date.parse(today)) / 86_400_000));
+            const word = wordForDays(diffDays(today, deadline.date));
             return (
               <li key={deadline.id} className="flex items-baseline justify-between gap-3 text-subheadline">
                 <bdi className="min-w-0 truncate text-ink">{deadline.name}</bdi>
@@ -260,24 +261,33 @@ function ComingUp({ detail }: TabProps) {
   );
 }
 
+/** The author line and the first lines of one post. The Latest update panel and the Updates panel of a phone both draw it. */
+function PostGist({ item }: { item: Extract<FeedItem, { kind: 'update' }> }) {
+  const nameOf = usePersonName();
+  return (
+    <>
+      <span className="flex items-center gap-2">
+        <Avatar user={item.author} size={24} />
+        <bdi className="truncate text-footnote font-semibold text-ink">{nameOf(item.author)}</bdi>
+        {item.author.kind === 'agent' && <AgentLabel />}
+        <span className="text-footnote text-ink-2"><Age stamp={item.at} /></span>
+      </span>
+      <div dir="auto" className="line-clamp-4 text-subheadline text-ink"><RichText body={item.body} /></div>
+    </>
+  );
+}
+
 function LatestUpdate({ detail }: TabProps) {
   const { t } = useTranslation();
-  const nameOf = usePersonName();
   const posts = useCall('updates.list', { projectId: detail.project.id, filter: 'posts' });
   const latest = posts.data?.find((item) => item.kind === 'update');
   return (
     <section aria-labelledby="overview-latest" className="panel flex flex-col gap-3 p-5">
-      <h2 id="overview-latest" className={HEADING}>{t('overview.latest')}</h2>
+      <h2 id="overview-latest" className={SECTION_LABEL}>{t('overview.latest')}</h2>
       {posts.data && !latest && <p className="text-subheadline text-ink-2">{t('overview.noPosts')}</p>}
       {latest && latest.kind === 'update' && (
         <div className="flex flex-col gap-2">
-          <span className="flex items-center gap-2">
-            <Avatar user={latest.author} size={24} />
-            <bdi className="truncate text-footnote font-semibold text-ink">{nameOf(latest.author)}</bdi>
-            {latest.author.kind === 'agent' && <AgentLabel />}
-            <span className="text-footnote text-ink-2"><Age stamp={latest.at} /></span>
-          </span>
-          <div dir="auto" className="line-clamp-4 text-subheadline text-ink"><RichText body={latest.body} /></div>
+          <PostGist item={latest} />
         </div>
       )}
       <Link to="?tab=activity" className="flex min-h-11 items-center self-start text-subheadline font-semibold text-link">{t('overview.seeActivity')}</Link>
@@ -288,25 +298,18 @@ function LatestUpdate({ detail }: TabProps) {
 /** The Updates panel of a phone: the post box, then the two newest posts, then the link to the whole feed. */
 function UpdatesPanel({ detail }: TabProps) {
   const { t } = useTranslation();
-  const nameOf = usePersonName();
   const posts = useCall('updates.list', { projectId: detail.project.id, filter: 'posts' });
   const newest = (posts.data ?? []).filter((item) => item.kind === 'update').slice(0, 2);
   return (
     <section aria-labelledby="overview-updates" className="panel flex flex-col gap-3 p-5">
-      <h2 id="overview-updates" className={HEADING}>{t('overview.feed')}</h2>
+      <h2 id="overview-updates" className={SECTION_LABEL}>{t('overview.feed')}</h2>
       {detail.viewerCan.postUpdate ? <Composer detail={detail} compact /> : <p className="text-footnote text-label-2">{t('overview.cannotPost')}</p>}
       {posts.data && newest.length === 0 && <p className="text-subheadline text-ink-2">{t('overview.noPosts')}</p>}
       {newest.length > 0 && (
         <ul className="flex flex-col gap-3">
           {newest.map((item) => item.kind === 'update' && (
             <li key={item.id} data-post className="flex flex-col gap-2">
-              <span className="flex items-center gap-2">
-                <Avatar user={item.author} size={24} />
-                <bdi className="truncate text-footnote font-semibold text-ink">{nameOf(item.author)}</bdi>
-                {item.author.kind === 'agent' && <AgentLabel />}
-                <span className="text-footnote text-ink-2"><Age stamp={item.at} /></span>
-              </span>
-              <div dir="auto" className="line-clamp-4 text-subheadline text-ink"><RichText body={item.body} /></div>
+              <PostGist item={item} />
             </li>
           ))}
         </ul>
@@ -331,39 +334,37 @@ export function OverviewTab({ detail }: TabProps) {
   // PRJ-9, PRJ-10, V-36).
   const panel = usePanelLink(TASK_PANEL);
   const open = (taskId: string) => panel.open({ task: taskId });
-  if (tasks.error && !tasks.data) return <LoadFailed error={tasks.error} onRetry={() => void tasks.refetch()} />;
+  if (tasks.error && !tasks.data) return <LoadFailed query={tasks} />;
   const rows = tasks.data ?? [];
   const taskId = params.get('task');
+  // Until the tasks arrive, a quiet space stands in, never a false "Nothing needs attention" (audit 2026-10-03, PRJ-18).
+  // A phone shows the stage name, the count and the steps in its header, so its Standing panel keeps the facts only.
+  const standing = tasks.data ? (
+    <>
+      <Standing detail={detail} rows={rows} phone={phone} />
+      <Attention projectId={detail.project.id} rows={rows} tracker={tracker.data} onOpen={open} seesPayments={detail.viewerCan.payments} />
+    </>
+  ) : <div aria-busy="true" className="panel min-h-64" />;
+  const sheet = taskId && <TaskSheet key={taskId} taskId={taskId} detail={detail} onClose={panel.close} />;
   if (phone) {
     // One column in this order: standing, attention, payments, updates, meetings, coming up, people, about (phone D).
     return (
       <div className="flex min-w-0 flex-col gap-5">
-        {tasks.data ? (
-          <>
-            <Standing detail={detail} rows={rows} phone />
-            <Attention projectId={detail.project.id} rows={rows} tracker={tracker.data} onOpen={open} seesPayments={detail.viewerCan.payments} />
-          </>
-        ) : <div aria-busy="true" className="panel min-h-64" />}
+        {standing}
         {detail.viewerCan.payments && <PaymentsPanel projectId={detail.project.id} />}
         <UpdatesPanel detail={detail} />
         <ProjectMeetings detail={detail} />
         <ComingUp detail={detail} />
         {tasks.data && <People detail={detail} rows={rows} onOpen={open} />}
         <AboutPanel detail={detail} />
-        {taskId && <TaskSheet key={taskId} taskId={taskId} detail={detail} onClose={panel.close} />}
+        {sheet}
       </div>
     );
   }
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="flex min-w-0 flex-col gap-5">
-        {/* Until the tasks arrive, a quiet space stands in, never a false "Nothing needs attention" (audit 2026-10-03, PRJ-18). */}
-        {tasks.data ? (
-          <>
-            <Standing detail={detail} rows={rows} />
-            <Attention projectId={detail.project.id} rows={rows} tracker={tracker.data} onOpen={open} seesPayments={detail.viewerCan.payments} />
-          </>
-        ) : <div aria-busy="true" className="panel min-h-64" />}
+        {standing}
         {detail.viewerCan.payments && <PaymentsPanel projectId={detail.project.id} />}
         {tasks.data && <People detail={detail} rows={rows} onOpen={open} />}
       </div>
@@ -373,7 +374,7 @@ export function OverviewTab({ detail }: TabProps) {
         <LatestUpdate detail={detail} />
         <AboutPanel detail={detail} />
       </aside>
-      {taskId && <TaskSheet key={taskId} taskId={taskId} detail={detail} onClose={panel.close} />}
+      {sheet}
     </div>
   );
 }

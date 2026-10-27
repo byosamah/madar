@@ -8,6 +8,7 @@ import { meetingLink, phaseOf } from '../../../lib/meetings';
 import { isLive } from '../../../lib/overview';
 import { MeetingForm } from '../../meetings/MeetingForm';
 import { projectMeetingsInput } from '../../meetings/readInputs';
+import { SECTION_LABEL } from '../sectionLabel';
 import type { TabProps } from '../tabs';
 
 /** The most meetings the panel shows. */
@@ -34,7 +35,7 @@ export function ProjectMeetings({ detail }: TabProps) {
   if (next.length === 0 && !mayPlan) return null;
   return (
     <section aria-labelledby="overview-meetings" className="panel flex flex-col gap-2 p-5">
-      <h2 id="overview-meetings" className="text-footnote font-semibold uppercase tracking-[0.06em] text-ink-2">{t('meetings.project.title')}</h2>
+      <h2 id="overview-meetings" className={SECTION_LABEL}>{t('meetings.project.title')}</h2>
       {next.length === 0 ? <p className="text-subheadline text-ink-2">{t('meetings.project.none')}</p> : (
         <ul className="-mx-2 flex flex-col">
           {next.map((row) => (

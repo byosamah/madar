@@ -17,6 +17,11 @@ export function stagesChrono<S extends StageShape>(stages: S[]): S[] {
   return [...stages].sort(compareStages);
 }
 
+/** The place of the current stage in the list of stages, from 0. It is -1 when the stage is not in the list. */
+export function currentStageIndex(stages: { id: string }[], currentStage: { id: string }): number {
+  return stages.findIndex((stage) => stage.id === currentStage.id);
+}
+
 /** Tasks in time order: start date, then due date, then the stage's place in time, then the title. A date that is not set comes last. */
 export function compareTasks(a: TaskShape, b: TaskShape, stageRank: (stageId: string | null) => number = () => 0): number {
   return (a.startDate ?? LATE).localeCompare(b.startDate ?? LATE)

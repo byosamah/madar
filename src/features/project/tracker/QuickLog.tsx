@@ -10,16 +10,15 @@ import { useIsPhone } from '../../../app/useIsPhone';
 import { Button } from '../../../components/Button';
 import { CalendarPopover } from '../../../components/CalendarPopover';
 import { Sheet } from '../../../components/Sheet';
-import { SegmentedControl } from '../../../components/SegmentedControl';
 import { Switch } from '../../../components/Switch';
 import { isFinePointer } from '../../../lib/calendar';
 import { todayISO } from '../../../lib/dates';
-import { sideForType, sidesOf, waitingFor } from '../../../lib/tracker';
-import { addWorkingDays } from '../../../lib/workdays';
+import { sideForType, waitingFor } from '../../../lib/tracker';
 import { AttachButton, PickedFiles, onPastePictures, useAttachments, useBlockFileDrop } from '../../files/Attachments';
 import { ChatDropArea, DropReceiver } from '../../inbox/ChatDrop';
+import { DirectionPicker, waitLabelKey } from './formParts';
 import { ReplyFields } from './ReplyFields';
-import { repliers } from './replyRights';
+import { defaultReplier, defaultReplyDay, repliers } from './replyRights';
 import { TypeIcon } from './marks';
 import { arrowStep } from '../../../lib/keys';
 
@@ -28,14 +27,14 @@ import { arrowStep } from '../../../lib/keys';
  * sensible defaults, so Enter saves. The type and the side stay as set for the next entry. The side follows the type: only a message,
  * a file or an "Other" entry asks for it. An entry that needs a reply also asks who replies and by which day.
  */
-export function QuickLog({ projectId, members: everyone, canReply = true, canAssign = true, canAttach = true, sheet }: {
+export function QuickLog({ projectId, members: everyone, canReply, canAssign, canAttach, sheet }: {
   projectId: string; members: UserCard[];
   /** False when the person lacks tracker.reply (or task.add here): the entry can wait, but no reply to-do is asked for. */
-  canReply?: boolean;
+  canReply: boolean;
   /** False when the person lacks task.assign: only the person can be the one who replies. */
-  canAssign?: boolean;
+  canAssign: boolean;
   /** False when the person lacks file.upload: no Attach button. */
-  canAttach?: boolean;
+  canAttach: boolean;
   /**
    * On a phone the form opens in a sheet from one main button (phone D). QuickLog then draws only the sheet and stays mounted with its
    * tab, so the type and the side stay as set for the next entry. The Log it button sits in the footer of the sheet.
@@ -96,9 +95,8 @@ export function QuickLog({ projectId, members: everyone, canReply = true, canAss
     typeButtons.current[next]?.focus();
   };
 
-  const sides = sidesOf(type);
   const needsReply = wait && waitingFor(direction) === 'us';
-  const who = replier || (members.some((member) => member.id === me) ? me : members[0]?.id) || '';
+  const who = replier || defaultReplier(members, me);
 
   const submit = async () => {
     const title = text.trim();
@@ -116,7 +114,7 @@ export function QuickLog({ projectId, members: everyone, canReply = true, canAss
       }
     }
     const waiting = wait ? waitingFor(direction) : null;
-    const replyBy = canReply && waiting === 'us' && who ? { userId: who, dueDate: replyDate || addWorkingDays(todayISO(), 2) } : undefined;
+    const replyBy = canReply && waiting === 'us' && who ? { userId: who, dueDate: replyDate || defaultReplyDay() } : undefined;
     log.mutate({ projectId, type, direction, title, date: date || todayISO(), waiting, fileIds, replyBy });
   };
 
@@ -168,23 +166,20 @@ export function QuickLog({ projectId, members: everyone, canReply = true, canAss
             onClick={() => pickType(value)}
             className={`pressable flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl border-2 px-1 text-footnote font-semibold ${value === type ? 'border-ink bg-panel text-ink' : 'border-transparent bg-fill text-ink-2 hover:text-ink'}`}
           >
-            <TypeIcon type={value} size={20} animated />
+            <TypeIcon type={value} size={20} />
             {t(`tracker.type.${value}`)}
           </button>
         ))}
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        {sides.length > 1 && (
-          <SegmentedControl
-            label={t('tracker.directionLabel')}
-            value={direction}
-            options={sides.map((value) => ({ value, label: t(`tracker.direction.${value}`) }))}
-            onChange={(value) => {
-              setDirection(value);
-              setWait(false);
-            }}
-          />
-        )}
+        <DirectionPicker
+          type={type}
+          direction={direction}
+          onChange={(value) => {
+            setDirection(value);
+            setWait(false);
+          }}
+        />
         <span ref={dateBox} className="inline-flex">
           <input
             ref={dateInput}
@@ -203,10 +198,10 @@ export function QuickLog({ projectId, members: everyone, canReply = true, canAss
           />
         </span>
         {canAttach && <AttachButton onPick={attachments.add} disabled={attachments.full} />}
-        <Switch id="tracker-wait" label={t(waitingFor(direction) === 'us' ? 'tracker.needsReply' : 'tracker.waitingToggle')} checked={wait} onChange={setWait} />
+        <Switch id="tracker-wait" label={t(waitLabelKey(direction))} checked={wait} onChange={setWait} />
       </div>
       {needsReply && canReply && members.length > 0 && (
-        <ReplyFields id="tracker-reply" members={members} userId={who} dueDate={replyDate || addWorkingDays(todayISO(), 2)} onUser={setReplier} onDueDate={setReplyDate} />
+        <ReplyFields id="tracker-reply" members={members} userId={who} dueDate={replyDate || defaultReplyDay()} onUser={setReplier} onDueDate={setReplyDate} />
       )}
       <PickedFiles files={attachments.files} onRemove={attachments.remove} progress={attachments.progress} busy={uploading} />
       {calendarAnchor && (

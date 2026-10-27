@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ProjectDetail } from '../../../api/contract/views';
 import { useUndoable } from '../../../app/actions';
-import { useLang } from '../../../app/lang';
 import { useByPersonName, usePersonName } from '../../../app/personName';
 import { useAction, useCall } from '../../../app/runtime';
 import { useToast } from '../../../app/toasts';
@@ -10,7 +9,6 @@ import { Avatar } from '../../../components/Avatar';
 import { Button } from '../../../components/Button';
 import { SelectField, TextField } from '../../../components/Fields';
 import { Menu, type MenuItem } from '../../../components/Menu';
-import { formatNumber } from '../../../lib/dates';
 import { LeaderSheet } from '../ProjectActions';
 import type { TabProps } from '../tabs';
 import { AccessBlock } from './AccessBlock';
@@ -20,7 +18,6 @@ type Member = ProjectDetail['members'][number];
 
 function MemberRow({ member, detail, onMakeLeader }: { member: Member; detail: ProjectDetail; onMakeLeader: () => void }) {
   const { t } = useTranslation();
-  const lang = useLang();
   const nameOf = usePersonName();
   const toast = useToast();
   const { user } = member;
@@ -44,9 +41,7 @@ function MemberRow({ member, detail, onMakeLeader }: { member: Member; detail: P
       <Avatar user={user} size={36} />
       <div className="min-w-0 flex-1">
         <p className="truncate font-semibold"><bdi>{nameOf(user)}</bdi></p>
-        <p className="flex flex-wrap gap-x-3 text-footnote text-label-2">
-          <span>{t('team.openTasks', { n: member.openTasks })}</span>
-        </p>
+        <p className="flex flex-wrap gap-x-3 text-footnote text-label-2">{t('team.openTasks', { n: member.openTasks })}</p>
       </div>
       {edit ? (
         <input
@@ -119,7 +114,7 @@ function AddMember({ detail }: TabProps) {
   );
 }
 
-/** The leader, then the members, with disciplines, open tasks and, for the leader and the Admin, hours this month (spec 5.8). */
+/** The leader, then the members, with disciplines and open tasks (spec 5.8). */
 export function TeamTab({ detail }: TabProps) {
   const { t } = useTranslation();
   const leader = detail.members.find((member) => member.isLeader);

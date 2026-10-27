@@ -104,7 +104,8 @@ projects. The sheets of the Projects list (new, edit): `src/features/projects/CL
   desk `?tab=more` opens Overview. `tabOfLink`, `litPhoneTab`, `isMorePage` and `tabSearch` hold these rules. `ProjectHeader` owns the open
   sheets and swaps `PhoneHeader` and `DeskHeader`, so a phone turned sideways keeps the open sheet. `phoneMainButton` (`mainButton.ts`)
   decides the one navy button of each tab.
-- `usePostDraft` (`overview/postDraft.ts`) keeps the update draft in memory and in the draft store key `post:<project>`. The Project chat
+- `usePostDraft` (`overview/postDraft.ts`) keeps the update draft in memory and in the draft store key `post:<project>`. `PhoneHeader` reads
+  only `useHasPostDraft` (a boolean from the same store), so a key in the update box does not render the header. The Project chat
   link and the file-share "Open" action send `state.from = pathname + search` for Back.
 - The Tracker log form is a `Sheet` that stays mounted, so the type and the side stay for the next line. A PDF opens a sheet with a real
   `<a target="_blank">` made after the signed link loads (the Arabic word is «افتح الملف»: `src/i18n/arabic.test.ts` refuses Latin letters).

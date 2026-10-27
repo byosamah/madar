@@ -11,6 +11,9 @@ const live = new Map<string, string>();
 const listeners = new Set<() => void>();
 const keyOf = (owner: string, projectId: string) => `${owner}|${projectId}`;
 
+/** The text of the box for a person and a project: the live text, else the draft store. */
+const textOf = (owner: string, projectId: string): string => live.get(keyOf(owner, projectId)) ?? readDraft(owner, `post:${projectId}`);
+
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => { listeners.delete(listener); };
@@ -31,7 +34,7 @@ export function usePostDraft(projectId: string, persist: boolean): [string, (nex
   const key = keyOf(owner, projectId);
   const shared = useSyncExternalStore(
     subscribe,
-    () => live.get(key) ?? readDraft(owner, `post:${projectId}`),
+    () => textOf(owner, projectId),
     () => '',
   );
   const [local, setLocal] = useState('');
@@ -41,4 +44,17 @@ export function usePostDraft(projectId: string, persist: boolean): [string, (nex
     for (const listener of [...listeners]) listener();
   }, [key, owner, projectId]);
   return persist ? [shared, setShared] : [local, setLocal];
+}
+
+/**
+ * True while the box of this project holds text. It reads the same text as `usePostDraft`, but it answers a boolean, so a reader
+ * renders again only when the box turns empty or filled, not on each key.
+ */
+export function useHasPostDraft(projectId: string): boolean {
+  const owner = useDraftOwner() ?? '';
+  return useSyncExternalStore(
+    subscribe,
+    () => textOf(owner, projectId).trim() !== '',
+    () => false,
+  );
 }

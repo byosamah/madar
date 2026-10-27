@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useDraftOwner } from '../../../app/drafts';
 import { renderWithRuntime } from '../../../test/render';
-import { clearLivePostDrafts, usePostDraft } from './postDraft';
+import { clearLivePostDrafts, useHasPostDraft, usePostDraft } from './postDraft';
 
 function Reader({ label, persist }: { label: string; persist: boolean }) {
   const [text, setText] = usePostDraft('prj_001', persist);
@@ -22,6 +22,18 @@ function Gate({ persist = true }: { persist?: boolean }) {
       {show && <><Reader label="A" persist={persist} /><Reader label="B" persist={persist} /></>}
     </>
   );
+}
+
+function Watcher({ onRender }: { onRender: () => void }) {
+  const has = useHasPostDraft('prj_001');
+  onRender();
+  return <p>{has ? 'has text' : 'is empty'}</p>;
+}
+
+function WatchGate({ onRender }: { onRender: () => void }) {
+  const owner = useDraftOwner();
+  if (!owner) return null;
+  return <><Reader label="A" persist /><Watcher onRender={onRender} /></>;
 }
 
 afterEach(() => {
@@ -59,5 +71,21 @@ describe('the draft of the project update box (phone D, P4)', () => {
     await renderWithRuntime(<Gate persist={false} />);
     await userEvent.type(await screen.findByLabelText('A'), 'Mine');
     expect(screen.getByLabelText('B')).toHaveValue('');
+  });
+
+  it('tells only whether the box holds text, so a key renders its reader at most once', async () => {
+    const onRender = vi.fn();
+    await renderWithRuntime(<WatchGate onRender={onRender} />);
+    const box = await screen.findByLabelText('A');
+    expect(screen.getByText('is empty')).toBeInTheDocument();
+    await userEvent.type(box, 'a');
+    expect(await screen.findByText('has text')).toBeInTheDocument();
+    const rendered = onRender.mock.calls.length;
+    await userEvent.type(box, 'bcd');
+    expect(onRender).toHaveBeenCalledTimes(rendered);
+    await userEvent.clear(box);
+    expect(await screen.findByText('is empty')).toBeInTheDocument();
+    await userEvent.type(box, '   ');
+    expect(screen.getByText('is empty')).toBeInTheDocument();
   });
 });

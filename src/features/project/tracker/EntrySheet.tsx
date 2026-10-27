@@ -17,14 +17,15 @@ import { SegmentedControl } from '../../../components/SegmentedControl';
 import { Sheet } from '../../../components/Sheet';
 import { StatusSign } from '../../../components/StatusSign';
 import { Switch } from '../../../components/Switch';
-import { formatDay, stampDay, todayISO } from '../../../lib/dates';
+import { formatDay, stampDay } from '../../../lib/dates';
 import { actorContext } from '../../../lib/grammar';
-import { AUTO_KEY, isOpen, activeMembers, sideForType, sidesOf, waitingFor } from '../../../lib/tracker';
-import { addWorkingDays } from '../../../lib/workdays';
+import { AUTO_KEY, isOpen, activeMembers, sideForType, waitingFor } from '../../../lib/tracker';
 import { FileChips } from '../../files/Attachments';
+import { DirectionPicker, waitLabelKey } from './formParts';
 import { ReplyFields } from './ReplyFields';
-import { repliers, useReplyRights } from './replyRights';
+import { defaultReplier, defaultReplyDay, repliers, useReplyRights } from './replyRights';
 import { DirectionMark, TypeIcon } from './marks';
+import { useCloseLoop } from './useCloseLoop';
 import { taskLink } from '../../../lib/params';
 import { meetingLink } from '../../../lib/meetings';
 import { AddMinutes, MinutesBody, QUIET } from '../../meetings/MinutesPart';
@@ -101,17 +102,10 @@ function EditForm({ row, detail, onDone }: { row: TrackerRow; detail: ProjectDet
             setDirection(sideForType(value, direction));
           }}
         />
-        {sidesOf(type).length > 1 && (
-          <SegmentedControl
-            label={t('tracker.directionLabel')}
-            value={direction}
-            options={sidesOf(type).map((value) => ({ value, label: t(`tracker.direction.${value}`) }))}
-            onChange={setDirection}
-          />
-        )}
+        <DirectionPicker type={type} direction={direction} onChange={setDirection} />
       </div>
       <DateField id="tracker-edit-date" label={t('tracker.date')} clearable={false} value={date} onChange={setDate} />
-      <Switch id="tracker-edit-wait" label={t(waitingFor(direction) === 'us' ? 'tracker.needsReply' : 'tracker.waitingToggle')} checked={wait} onChange={setWait} />
+      <Switch id="tracker-edit-wait" label={t(waitLabelKey(direction))} checked={wait} onChange={setWait} />
       <fieldset className="flex flex-col">
         <legend className="field-label pb-1">{t('tracker.peopleField')}</legend>
         {options.map((user) => (
@@ -141,9 +135,9 @@ function AssignReply({ row, members: everyone, canAssign }: { row: TrackerRow; m
   const members = repliers(everyone, me, canAssign);
   const [asking, setAsking] = useState(false);
   const [userId, setUserId] = useState('');
-  const [dueDate, setDueDate] = useState(() => addWorkingDays(todayISO(), 2));
+  const [dueDate, setDueDate] = useState(defaultReplyDay);
   const assign = useUndoable('tracker.assignReply', { message: () => t('tracker.replyAssigned'), onSuccess: () => setAsking(false) });
-  const who = userId || (members.some((member) => member.id === me) ? me : members[0]?.id) || '';
+  const who = userId || defaultReplier(members, me);
   if (!asking) return <p className="pt-3"><Button onClick={() => setAsking(true)}>{t('tracker.assignReply')}</Button></p>;
   return (
     <div className="flex flex-col gap-3 pt-3">
@@ -172,12 +166,11 @@ export function EntrySheet({ row, detail, onClose }: { row: TrackerRow; detail: 
   const nameOf = usePersonName();
   const [editing, setEditing] = useState(false);
   const [writing, setWriting] = useState(false);
-  const close = useUndoable('tracker.close', { message: () => t(row.entry.waiting === 'us' ? 'tracker.answeredToast' : 'tracker.receivedToast') });
+  const { close, action } = useCloseLoop(row);
   const remove = useUndoable('tracker.delete', { message: () => t('tracker.deleted'), onSuccess: onClose });
   const { entry } = row;
   const { canReply, canAssign } = useReplyRights(detail);
   const open = isOpen(entry);
-  const action = t(entry.waiting === 'us' ? 'tracker.answered' : 'tracker.received');
   const footer = !editing && (
     <>
       {row.canDelete && <Button variant="destructive" disabled={remove.isPending} onClick={() => remove.mutate({ id: entry.id })}>{t('common.delete')}</Button>}

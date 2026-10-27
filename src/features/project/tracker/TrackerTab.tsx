@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import { TRACKER_TYPES, TrackerDirection as Sides, type TrackerDirection, type TrackerType } from '../../../api/contract/entities';
+import type { TrackerRow } from '../../../api/contract/views';
 import { useCall } from '../../../app/runtime';
+import { useStableHandler } from '../../../app/useStableHandler';
 import { useIsPhone } from '../../../app/useIsPhone';
 import { useRight } from '../../../app/useRight';
 import { Button } from '../../../components/Button';
@@ -51,7 +53,8 @@ export function TrackerTab({ detail }: TabProps) {
   // history step and Close goes back over it, so an entry costs no extra Back (audit 2026-10-03, S-1).
   const openId = params.get('entry');
   const panel = usePanelLink(ENTRY_PANEL);
-  const setOpenId = (id: string | null) => (id ? panel.open({ entry: id }) : panel.close());
+  // One function for the life of the tab, so the rows of the history do not render again when an entry opens.
+  const setOpenId = useStableHandler((id: string | null) => (id ? panel.open({ entry: id }) : panel.close()));
   // The Overview opens an entry here, and its opener is then gone. So when an entry closes and the focus is not on this tab,
   // the focus goes to the entry's row, or to the Tracker tab itself, never to the page (audit 2026-10-03, V-30). The timer
   // runs after the sheet gave the focus back to its opener, when that opener is still on the page.
@@ -77,6 +80,7 @@ export function TrackerTab({ detail }: TabProps) {
   // Export needs tracker.export, and the reply fields need tracker.reply (role rights version 2).
   const mayExport = useRight('tracker.export');
   const { canReply, canAssign } = useReplyRights(detail);
+  const members = useMemo(() => activeMembers(detail.members), [detail.members]);
   const open = useCall('tracker.list', { projectId, openOnly: true });
   const history = useCall('tracker.list', {
     projectId,
@@ -85,10 +89,17 @@ export function TrackerTab({ detail }: TabProps) {
     ...(filter.openOnly && { openOnly: true }),
   });
   const active = [filter.type !== 'all', filter.direction !== 'all', filter.openOnly].filter(Boolean).length;
-  const shown = [...(history.data ?? []), ...(open.data ?? [])].find((row) => row.entry.id === openId);
+  const rowOf = (rows: TrackerRow[] | undefined) => rows?.find((row) => row.entry.id === openId);
+  const shown = openId ? rowOf(history.data) ?? rowOf(open.data) : undefined;
   const canLog = detail.viewerCan.logTracker === true;
-  const loops = open.error && !open.data ? <LoadFailed error={open.error} onRetry={() => void open.refetch()} /> : <OpenLoops rows={open.data ?? []} onOpen={setOpenId} />;
-  const quickLog = <QuickLog projectId={projectId} members={activeMembers(detail.members)} canReply={canReply} canAssign={canAssign} canAttach={detail.viewerCan.upload === true} sheet={phone ? { open: logOpen, onOpenChange: setLogOpen } : undefined} />;
+  // A list that did not load says so and offers Retry; OpenLoops draws nothing for the empty list that is then left.
+  const loops = (
+    <>
+      <LoadFailed query={open} />
+      <OpenLoops rows={open.data ?? []} onOpen={setOpenId} />
+    </>
+  );
+  const quickLog = <QuickLog projectId={projectId} members={members} canReply={canReply} canAssign={canAssign} canAttach={detail.viewerCan.upload === true} sheet={phone ? { open: logOpen, onOpenChange: setLogOpen } : undefined} />;
   return (
     <div ref={root} className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       {phone ? (
@@ -102,7 +113,6 @@ export function TrackerTab({ detail }: TabProps) {
         </>
       ) : (
         <>
-          {/* A list that did not load says so and offers Retry (audit 2026-10-03, PRJ-4). */}
           {loops}
           {canLog ? quickLog : <p className="text-footnote text-label-2">{t('tracker.cannotLog')}</p>}
         </>

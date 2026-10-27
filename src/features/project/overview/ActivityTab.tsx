@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import { useCall } from '../../../app/runtime';
@@ -33,6 +33,8 @@ export function ActivityTab({ detail }: TabProps) {
   const [shown, setShown] = useState<{ filter: string; limit: number }>({ filter, limit: PAGE });
   const limit = shown.filter === filter ? shown.limit : PAGE;
   const feed = useCall('updates.list', { projectId: detail.project.id, filter, limit }, { keepPrevious: true });
+  // The people of the mention picker are the same for every item of the feed.
+  const people = useMemo(() => detail.members.map((member) => member.user), [detail.members]);
   const more = Boolean(feed.data && !feed.isPlaceholderData && feed.data.length >= limit && limit < MOST);
   // A link to an older post (from a mention) loads older items until the post shows.
   const missing = Boolean(openUpdate && feed.data && !feed.isPlaceholderData && !feed.data.some((item) => item.id === openUpdate));
@@ -63,7 +65,7 @@ export function ActivityTab({ detail }: TabProps) {
               key={item.id}
               item={item}
               projectId={detail.project.id}
-              people={detail.members.map((member) => member.user)}
+              people={people}
               canPost={detail.viewerCan.comment === true}
               canAttach={detail.viewerCan.upload === true}
               startOpen={item.id === openUpdate}

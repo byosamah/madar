@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addWorkingDays, compareStages, compareTasks, openPrerequisites, openPrerequisiteStages, stageOverlaps, stagesChrono, shiftPlan, stageTagOf, workingDaysLate } from './stageFlow';
+import { addWorkingDays, compareStages, compareTasks, currentStageIndex, openPrerequisites, openPrerequisiteStages, stageOverlaps, stagesChrono, shiftPlan, stageTagOf, workingDaysLate } from './stageFlow';
 
 const stage = (id: string, order: number, startDate: string | null, endDate: string | null, prerequisiteIds?: string[]) => ({ id, order, startDate, endDate, prerequisiteIds });
 const task = (id: string, stageId: string, status = 'todo', extra: Record<string, unknown> = {}) => ({ id, stageId, title: id, status, dueDate: null, ...extra });
@@ -18,6 +18,17 @@ describe('stage and task order', () => {
     const c = task('c', 's1', 'todo', { startDate: null, dueDate: '2026-09-01' });
     const d = task('d', 's1', 'todo', { startDate: '2026-10-01', dueDate: null });
     expect([a, b, c, d].sort((x, y) => compareTasks(x, y, rank)).map((t) => t.id)).toEqual(['b', 'a', 'd', 'c']);
+  });
+});
+
+describe('the current stage index', () => {
+  const stages = [stage('s1', 0, null, null), stage('s2', 1, null, null), stage('s3', 2, null, null)];
+  it('is the place of the current stage in the list, from 0', () => {
+    expect(currentStageIndex(stages, { id: 's1' })).toBe(0);
+    expect(currentStageIndex(stages, stages[2])).toBe(2);
+  });
+  it('is -1 when the stage is not in the list', () => {
+    expect(currentStageIndex(stages, { id: 'gone' })).toBe(-1);
   });
 });
 

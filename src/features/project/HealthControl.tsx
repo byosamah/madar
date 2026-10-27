@@ -59,14 +59,11 @@ function HealthWord({ detail, canSet }: { detail: ProjectDetail; canSet: boolean
 }
 
 /** The leader or the Admin can set the health by hand with a reason (spec 4.2). Others see the word only. */
-export function HealthControl({ detail, open: shown, onOpenChange }: { detail: ProjectDetail; open?: boolean; onOpenChange?: (open: boolean) => void }) {
+export function HealthControl({ detail, open, onOpenChange }: { detail: ProjectDetail; open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation();
   // The header may own the open choice, so a phone turned to a wide screen keeps the form open (phone D). The button is the anchor of
   // the desk panel: a state, so the panel draws when the button of the new layout has mounted.
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
-  const [own, setOwn] = useState(false);
-  const open = shown ?? own;
-  const setOpen = onOpenChange ?? setOwn;
   if (!detail.viewerCan.healthOverride || !detail.health) return <HealthWord detail={detail} canSet={false} />;
   return (
     <>
@@ -75,13 +72,13 @@ export function HealthControl({ detail, open: shown, onOpenChange }: { detail: P
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
-        onClick={() => setOpen(!open)}
+        onClick={() => onOpenChange(!open)}
         className="pressable -my-2 grid min-h-11 place-items-center rounded-full max-sm:min-w-11"
       >
         <HealthWord detail={detail} canSet />
       </button>
-      <SheetOrPopover open={open} onOpenChange={setOpen} anchor={anchor} title={t('health.override')}>
-        <HealthForm detail={detail} onClose={() => setOpen(false)} />
+      <SheetOrPopover open={open} onOpenChange={onOpenChange} anchor={anchor} title={t('health.override')}>
+        <HealthForm detail={detail} onClose={() => onOpenChange(false)} />
       </SheetOrPopover>
     </>
   );

@@ -15,6 +15,7 @@ import { TextField } from '../../../components/Fields';
 import { LoadFailed } from '../../../components/LoadFailed';
 import { clientName } from '../../../lib/clientName';
 import { formatDay, type Lang } from '../../../lib/dates';
+import { SECTION_LABEL } from '../sectionLabel';
 import { amountText } from './PaymentsPanel';
 
 /**
@@ -29,7 +30,6 @@ import { amountText } from './PaymentsPanel';
  * - Every state is calm: one line, one next step. A failed read shows the reason and Retry (LoadFailed); the rest of the sheet keeps working.
  */
 
-const HEADING = 'text-footnote font-semibold uppercase tracking-[0.06em] text-ink-2';
 const QUIET = 'pressable inline-flex min-h-11 items-center self-start rounded-full text-footnote font-medium text-link';
 const SEARCH_WAIT_MS = 350;
 
@@ -44,7 +44,6 @@ const inHalalas = (riyals: number): number => Math.round(riyals * 100);
 export type DaftraPart = {
   /** The part for the body of the sheet, or null. */
   part: ReactNode;
-  /** The main button Link for the footer, or null. When it shows, Save is a plain button. */
   /** True while the Link button shows in the part: the sheet's Save is then a plain button, so the sheet keeps one main button. */
   linkShown: boolean;
   /** A Daftra write is on its way: the other buttons wait. */
@@ -112,6 +111,8 @@ export function useDaftraPart({ projectId, row, busy, onDone }: { projectId: str
   });
   const unlinkWrite = useUndoable('payments.unlinkInvoice', { message: () => t('daftra.unlinkedToast', { no: isolate(lang, toastNo.current) }), onSuccess: onDone });
   const pending = match.isPending || linkWrite.isPending || unlinkWrite.isPending;
+  // A part with no Link button: every state except 3 and 4.
+  const bare = (part: ReactNode): DaftraPart => ({ part, linkShown: false, pending });
 
   if (!payment) return { part: null, linkShown: false, pending: false };
 
@@ -119,7 +120,7 @@ export function useDaftraPart({ projectId, row, busy, onDone }: { projectId: str
   const invoiceLine = (invoice: DaftraInvoiceView) => t('daftra.suggested', { no: isolate(lang, invoice.no), amount: money(invoice.total), day: formatDay(invoice.issuedOn, lang) });
   const section = (body: ReactNode) => (
     <section aria-labelledby="payment-daftra" className="mt-4 flex flex-col gap-2 rounded-2xl bg-fill/60 p-4">
-      <h3 id="payment-daftra" className={HEADING}>{t('daftra.title')}</h3>
+      <h3 id="payment-daftra" className={SECTION_LABEL}>{t('daftra.title')}</h3>
       {body}
     </section>
   );
@@ -128,10 +129,8 @@ export function useDaftraPart({ projectId, row, busy, onDone }: { projectId: str
   if (linked) {
     const paid = !!payment.receivedOn;
     const differs = !paid && inHalalas(linked.total) !== inHalalas(payment.amount);
-    return {
-      pending,
-      linkShown: false,
-      part: section(
+    return bare(
+      section(
         <>
           <p className="tabular text-subheadline text-ink">
             {paid ? t('daftra.paidLine', { no: isolate(lang, linked.invoiceNo) }) : t('daftra.invoicedLine', { no: isolate(lang, linked.invoiceNo) })}
@@ -150,32 +149,30 @@ export function useDaftraPart({ projectId, row, busy, onDone }: { projectId: str
           )}
         </>,
       ),
-    };
+    );
   }
 
   // States 0 to 4 are only for a holder of the switch, on an open payment, in a copy that has Daftra.
-  if (!asking || status.isPending || (status.data && !status.data.ready) || hidden) return { part: null, linkShown: false, pending };
-  if (status.error) return { part: section(<LoadFailed query={status} />), linkShown: false, pending };
-  if (read.isPending) return { part: section(<p className="text-footnote text-ink-2" role="status">{t('daftra.checking')}</p>), linkShown: false, pending };
-  if (read.error && !link) return { part: section(<LoadFailed query={read} />), linkShown: false, pending };
-  if (!link) return { part: null, linkShown: false, pending };
+  if (!asking || status.isPending || (status.data && !status.data.ready) || hidden) return bare(null);
+  if (status.error) return bare(section(<LoadFailed query={status} />));
+  if (read.isPending) return bare(section(<p className="text-footnote text-ink-2" role="status">{t('daftra.checking')}</p>));
+  if (read.error && !link) return bare(section(<LoadFailed query={read} />));
+  if (!link) return bare(null);
 
   // State 0: no Daftra account for the project.
-  if (link.noAccount === 'no_sub_company') return { part: section(<p className="text-subheadline text-ink">{t('daftra.noSubCompany')}</p>), linkShown: false, pending };
+  if (link.noAccount === 'no_sub_company') return bare(section(<p className="text-subheadline text-ink">{t('daftra.noSubCompany')}</p>));
   if (link.noAccount) {
     const name = subCompany ? (lang === 'ar' ? subCompany.nameAr : subCompany.name) : '';
-    return { part: section(<p className="text-subheadline text-ink">{t('daftra.noAccount', { name: isolate(lang, name) })}</p>), linkShown: false, pending };
+    return bare(section(<p className="text-subheadline text-ink">{t('daftra.noAccount', { name: isolate(lang, name) })}</p>));
   }
   // State 1: the project has no client.
-  if (link.projectHasNoClient) return { part: section(<p className="text-subheadline text-ink">{t('daftra.noClient')}</p>), linkShown: false, pending };
+  if (link.projectHasNoClient) return bare(section(<p className="text-subheadline text-ink">{t('daftra.noClient')}</p>));
 
   // State 2: the client has no match in Daftra yet, or the person changes the match. No invoice can be linked meanwhile.
   if (link.matched === null || changing) {
     const current = link.matched;
-    return {
-      pending,
-      linkShown: false,
-      part: section(
+    return bare(
+      section(
         <>
           <p className="text-subheadline text-ink">{t('daftra.findClient', { name: isolate(lang, defaultName) })}</p>
           {current && (
@@ -207,7 +204,7 @@ export function useDaftraPart({ projectId, row, busy, onDone }: { projectId: str
           )}
         </>,
       ),
-    };
+    );
   }
 
   // States 3 and 4: the client is matched. The list of the other invoices opens from either state.

@@ -130,8 +130,8 @@ function EventLine({ item }: { item: EventItem }) {
 }
 
 /** A post as a card with its comments, or a system event as one quiet line (spec 5.2 and 7.2). */
-export function FeedEntry({ item, projectId, people, canPost, canAttach = true, startOpen }: {
-  item: FeedItem; projectId: string; people: UserCard[]; canPost: boolean; canAttach?: boolean; startOpen: boolean;
+export function FeedEntry({ item, projectId, people, canPost, canAttach, startOpen }: {
+  item: FeedItem; projectId: string; people: UserCard[]; canPost: boolean; canAttach: boolean; startOpen: boolean;
 }) {
   if (item.kind === 'update') return <PostCard item={item} projectId={projectId} people={people} canPost={canPost} canAttach={canAttach} startOpen={startOpen} />;
   return <EventLine item={item} />;

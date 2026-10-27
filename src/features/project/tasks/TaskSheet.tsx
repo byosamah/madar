@@ -79,7 +79,7 @@ export function TaskSheet({ taskId, detail, onClose, noteFirst = false }: { task
       )}
     >
       {task.data && <TaskBody detail={detail} data={task.data} onClose={onClose} noteFirst={noteFirst} />}
-      {!task.data && task.error && !gone && <LoadFailed error={task.error} onRetry={() => void task.refetch()} />}
+      {!gone && <LoadFailed query={task} />}
     </Sheet>
   );
 }

@@ -1,19 +1,17 @@
 import { useTranslation } from 'react-i18next';
 import type { TrackerRow } from '../../../api/contract/views';
-import { useUndoable } from '../../../app/actions';
 import { Button } from '../../../components/Button';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { CheckIcon } from '../../../components/icons/animated/check';
 import { ageInDays } from '../../../lib/tracker';
 import { todayISO } from '../../../lib/dates';
 import { ageText } from './marks';
+import { useCloseLoop } from './useCloseLoop';
 
 /** One open loop: the title, its age and one button to close it. The Overview shows the client's open loops too. */
 export function Loop({ row, onOpen, compact = false }: { row: TrackerRow; onOpen: () => void; compact?: boolean }) {
   const { t } = useTranslation();
-  // The toast uses the word of the button and the state: Answered or Received (audit 2026-10-03, BRW-15).
-  const close = useUndoable('tracker.close', { message: () => t(row.entry.waiting === 'us' ? 'tracker.answeredToast' : 'tracker.receivedToast') });
-  const action = t(row.entry.waiting === 'us' ? 'tracker.answered' : 'tracker.received');
+  const { close, action } = useCloseLoop(row);
   return (
     <li className="flex min-h-14 items-center gap-3">
       <button type="button" data-entry={row.entry.id} onClick={onOpen} aria-label={t('tracker.openEntry', { title: row.entry.title })} className="pressable min-w-0 flex-1 rounded-lg py-2 text-start hover:bg-fill">

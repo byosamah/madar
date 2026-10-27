@@ -16,7 +16,7 @@ import { WaypointsIcon } from '../../../components/icons/animated/waypoints';
 const ICON: Record<TrackerType, AnimatedIconComponent> = { meeting: UsersIcon, message: MessageCircleIcon, file: FileTextIcon, balady: StampIcon, other: EllipsisIcon };
 
 /** The icon of an entry type. It plays when its button or row is hovered or focused. */
-export function TypeIcon({ type, size = 18 }: { type: TrackerType; size?: number; animated?: boolean }) {
+export function TypeIcon({ type, size = 18 }: { type: TrackerType; size?: number }) {
   return <AnimatedIcon icon={ICON[type]} size={size} aria-hidden />;
 }
 

@@ -14,12 +14,13 @@ import { DateField } from '../../../components/DateField';
 import { SelectField, TextField } from '../../../components/Fields';
 import { IconButton } from '../../../components/IconButton';
 import { Sheet } from '../../../components/Sheet';
-import { diffDays, formatDay, formatMonth, listFormat, todayISO } from '../../../lib/dates';
+import { diffDays, formatDay, formatMonth, todayISO } from '../../../lib/dates';
+import { arrowStep } from '../../../lib/keys';
 import { chartRange, dayDelta, monthStarts, moveEdge, offsetPct, spanDays, widthPct, type Span } from '../../../lib/schedule';
-import { overlappingWith, stageOverlaps } from '../../../lib/stageFlow';
+import { currentStageIndex, stageOverlaps } from '../../../lib/stageFlow';
 import { HatchSwitch, useHatchOverlap } from '../../dashboard/hatch';
 import { currentTone } from '../../dashboard/scheduleMarks';
-import { stageDatesText } from '../StageControl';
+import { stageDatesText, stageOverlapText } from '../StageControl';
 import type { TabProps } from '../tabs';
 import { AnimatedIcon } from '../../../components/icons/AnimatedIcon';
 import { DeleteIcon } from '../../../components/icons/animated/delete';
@@ -58,7 +59,7 @@ function StageBar({
   const handle = (edge: Edge) => {
     const day = edge === 'start' ? span.start : span.end;
     const onKeyDown = (event: KeyboardEvent) => {
-      const step = event.key === (rtl ? 'ArrowLeft' : 'ArrowRight') ? 1 : event.key === (rtl ? 'ArrowRight' : 'ArrowLeft') ? -1 : 0;
+      const step = arrowStep(event.key, rtl);
       if (step === 0) return;
       event.preventDefault();
       const next = moveEdge(span, edge, step);
@@ -123,6 +124,7 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
   const todayAt = { insetInlineStart: `${offsetPct(range, today)}%` };
   const todayLine = <span aria-hidden style={todayAt} className="absolute inset-y-0 w-0.5 rounded-full bg-ink/70" />;
   const overlaps = stageOverlaps(detail.stages);
+  const currentIndex = currentStageIndex(detail.stages, detail.currentStage);
   const [hatch, setHatch] = useHatchOverlap();
   // The current stage says the state of the project in the tones of the Dashboard and the meeting, never the project color,
   // so an On track project never shows amber and a Late one never shows green (audit 2026-10-03, F-12).
@@ -148,9 +150,7 @@ function Timeline({ detail, range, today }: { detail: ProjectDetail; range: Span
           <span style={todayAt} className="absolute bottom-0 -translate-x-1/2 text-caption font-semibold text-ink rtl:translate-x-1/2">{t('schedule.today')}</span>
         </div>
         {detail.stages.map((stage, index) => {
-          const currentIndex = detail.stages.findIndex((item) => item.id === detail.currentStage.id);
-          const saved = stage.startDate && stage.endDate ? { start: stage.startDate, end: stage.endDate } : null;
-          const span = saved;
+          const span = stage.startDate && stage.endDate ? { start: stage.startDate, end: stage.endDate } : null;
           return (
             <Fragment key={stage.id}>
               <div className="flex min-h-11 min-w-0 items-center text-subheadline"><bdi dir="auto" className="min-w-0 truncate">{stage.name}</bdi></div>
@@ -214,18 +214,16 @@ function StageDates({ detail }: TabProps) {
   const [failures, setFailures] = useState(0);
   const rollback = { onError: () => setFailures((count) => count + 1) };
   const edit = detail.viewerCan.editStages === true;
-  const list = listFormat(lang);
   const overlaps = stageOverlaps(detail.stages);
-  const name = (stage: Stage) => (
-    <>
-      <span dir="auto" className="block text-subheadline font-medium">{stage.name}</span>
-      {overlappingWith(stage.id, overlaps).length > 0 && (
-        <span dir="auto" className="block text-footnote text-ink-2">
-          {t('project.stageOverlap', { names: list.format(overlappingWith(stage.id, overlaps).map((id) => detail.stages.find((other) => other.id === id)?.name ?? '')) })}
-        </span>
-      )}
-    </>
-  );
+  const name = (stage: Stage) => {
+    const overlapText = stageOverlapText(detail.stages, stage.id, overlaps, t, lang);
+    return (
+      <>
+        <span dir="auto" className="block text-subheadline font-medium">{stage.name}</span>
+        {overlapText && <span dir="auto" className="block text-footnote text-ink-2">{overlapText}</span>}
+      </>
+    );
+  };
   return (
     <section aria-labelledby="schedule-stages" className="panel p-5">
       <h2 id="schedule-stages" className="text-headline text-ink">{t('schedule.stages')}</h2>
@@ -263,6 +261,26 @@ function StageDates({ detail }: TabProps) {
   );
 }
 
+/** The three fields of a deadline: name, date and stage. The add form and the edit sheet draw it with their own id prefix. */
+function DeadlineFields({ idPrefix, stages, name, onName, date, onDate, stageId, onStageId }: {
+  idPrefix: string; stages: Stage[];
+  name: string; onName: (name: string) => void;
+  date: string; onDate: (date: string) => void;
+  stageId: string; onStageId: (stageId: string) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <>
+      <TextField id={`${idPrefix}-name`} label={t('schedule.deadlineName')} value={name} dir="auto" onChange={(event) => onName(event.target.value)} />
+      <DateField id={`${idPrefix}-date`} label={t('schedule.deadlineDate')} clearable={false} value={date} onChange={onDate} />
+      <SelectField id={`${idPrefix}-stage`} label={t('schedule.deadlineStage')} value={stageId} onChange={(event) => onStageId(event.target.value)}>
+        <option value="">{t('files.noStage')}</option>
+        {stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
+      </SelectField>
+    </>
+  );
+}
+
 /** One deadline in a sheet: its name, date and stage (audit 2026-10-03, PRJ-13). Save changes it with Undo. */
 function DeadlineSheet({ detail, deadline, onClose }: { detail: ProjectDetail; deadline: Deadline; onClose: () => void }) {
   const { t } = useTranslation();
@@ -295,12 +313,7 @@ function DeadlineSheet({ detail, deadline, onClose }: { detail: ProjectDetail; d
           submit();
         }}
       >
-        <TextField id="deadline-edit-name" label={t('schedule.deadlineName')} value={name} dir="auto" onChange={(event) => setName(event.target.value)} />
-        <DateField id="deadline-edit-date" label={t('schedule.deadlineDate')} clearable={false} value={date} onChange={setDate} />
-        <SelectField id="deadline-edit-stage" label={t('schedule.deadlineStage')} value={stageId} onChange={(event) => setStageId(event.target.value)}>
-          <option value="">{t('files.noStage')}</option>
-          {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
-        </SelectField>
+        <DeadlineFields idPrefix="deadline-edit" stages={detail.stages} name={name} onName={setName} date={date} onDate={setDate} stageId={stageId} onStageId={setStageId} />
       </form>
     </Sheet>
   );
@@ -360,12 +373,7 @@ function Deadlines({ detail }: TabProps) {
             if (name.trim() && date) add.mutate({ projectId: detail.project.id, name: name.trim(), date, stageId: stageId || null });
           }}
         >
-          <TextField id="deadline-name" label={t('schedule.deadlineName')} value={name} dir="auto" onChange={(event) => setName(event.target.value)} />
-          <DateField id="deadline-date" label={t('schedule.deadlineDate')} clearable={false} value={date} onChange={setDate} />
-          <SelectField id="deadline-stage" label={t('schedule.deadlineStage')} value={stageId} onChange={(event) => setStageId(event.target.value)}>
-            <option value="">{t('files.noStage')}</option>
-            {detail.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
-          </SelectField>
+          <DeadlineFields idPrefix="deadline" stages={detail.stages} name={name} onName={setName} date={date} onDate={setDate} stageId={stageId} onStageId={setStageId} />
           <Button type="submit" disabled={!name.trim() || !date || add.isPending}>{t('schedule.addDeadline')}</Button>
         </form>
       )}

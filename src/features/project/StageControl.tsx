@@ -12,7 +12,7 @@ import { useCall } from '../../app/runtime';
 import { SheetOrPopover } from '../../components/SheetOrPopover';
 import { useIsPhone } from '../../app/useIsPhone';
 import { formatDay, listFormat, type Lang } from '../../lib/dates';
-import { openStagesNeededBy, overlappingWith, stageOverlaps } from '../../lib/stageFlow';
+import { currentStageIndex, openStagesNeededBy, overlappingWith, stageOverlaps, type Overlap } from '../../lib/stageFlow';
 
 /** The dates of a stage in words. A stage with one date says that date, not "No dates" (audit 2026-10-03, PRJ-23). */
 export function stageDatesText(stage: Stage, t: TFunction, lang: Lang): string {
@@ -20,6 +20,14 @@ export function stageDatesText(stage: Stage, t: TFunction, lang: Lang): string {
   if (stage.startDate) return t('project.stageStarts', { date: formatDay(stage.startDate, lang) });
   if (stage.endDate) return t('project.stageEnds', { date: formatDay(stage.endDate, lang) });
   return t('project.noDates');
+}
+
+/** The sentence that names the stages that run at the same time as a stage, or null when none does. */
+export function stageOverlapText(stages: Pick<Stage, 'id' | 'name'>[], stageId: string, overlaps: Overlap[], t: TFunction, lang: Lang): string | null {
+  const ids = overlappingWith(stageId, overlaps);
+  if (ids.length === 0) return null;
+  const nameOf = (id: string) => stages.find((other) => other.id === id)?.name ?? '';
+  return t('project.stageOverlap', { names: listFormat(lang).format(ids.map(nameOf)) });
 }
 
 /**
@@ -37,14 +45,14 @@ function StageDetails({ detail, stage }: { detail: ProjectDetail; stage: Stage }
   const nameOf = (id: string) => detail.stages.find((other) => other.id === id)?.name ?? '';
   const needs = stage.prerequisiteIds ?? [];
   const waiting = tasks.data ? openStagesNeededBy(stage.id, detail.stages, tasks.data.map((row) => row.task)) : [];
-  const alongside = overlappingWith(stage.id, stageOverlaps(detail.stages));
+  const overlapText = stageOverlapText(detail.stages, stage.id, stageOverlaps(detail.stages), t, lang);
   const others = detail.stages.filter((other) => other.id !== stage.id);
   const dates = stageDatesText(stage, t, lang);
   return (
     <div aria-label={t('project.stageList')} role="group" className="flex flex-col gap-1 rounded-2xl bg-fill p-3">
       <p className="tabular text-subheadline text-ink">{dates}</p>
       {tasks.data && <p className="text-subheadline text-ink-2">{t('project.stageTasks', { done, total: inStage.length })}</p>}
-      {alongside.length > 0 && <p dir="auto" className="text-subheadline text-ink-2">{t('project.stageOverlap', { names: list.format(alongside.map(nameOf)) })}</p>}
+      {overlapText && <p dir="auto" className="text-subheadline text-ink-2">{overlapText}</p>}
       {waiting.length > 0 && <p dir="auto" className="text-subheadline font-medium text-ink">{t('project.stageWaiting', { names: list.format(waiting.map((other) => other.name)) })}</p>}
       {detail.viewerCan.editStages ? (
         <fieldset className="mt-2 flex flex-col">
@@ -78,21 +86,18 @@ function StageDetails({ detail, stage }: { detail: ProjectDetail; stage: Stage }
  * The current stage as one quiet button. It opens the stages in time order, each with its dates, tasks and prerequisites.
  * The current stage follows the tasks (the earliest stage with an open task), so nobody picks it here (owner, 2026-10-02).
  */
-export function StageControl({ detail, open: shown, onOpenChange }: { detail: ProjectDetail; open?: boolean; onOpenChange?: (open: boolean) => void }) {
+export function StageControl({ detail, open, onOpenChange }: { detail: ProjectDetail; open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation();
   const phone = useIsPhone();
   // The header may own the open choice, so a phone turned to a wide screen keeps the list open (phone D). The button is the anchor of
   // the desk panel: a state, so the panel draws when the button of the new layout has mounted.
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
-  const [own, setOwn] = useState(false);
-  const open = shown ?? own;
-  const setOpen = onOpenChange ?? setOwn;
   const [picked, setPicked] = useState(detail.currentStage.id);
-  const currentIndex = detail.stages.findIndex((stage) => stage.id === detail.currentStage.id);
+  const currentIndex = currentStageIndex(detail.stages, detail.currentStage);
   const selected = detail.stages.find((stage) => stage.id === picked) ?? detail.currentStage;
   const toggle = () => {
     setPicked(detail.currentStage.id);
-    setOpen(!open);
+    onOpenChange(!open);
   };
   return (
     <>
@@ -107,7 +112,7 @@ export function StageControl({ detail, open: shown, onOpenChange }: { detail: Pr
         <bdi>{detail.currentStage.name}</bdi>
         <AnimatedIcon icon={ChevronDownIcon} size={16} className="text-ink-2" aria-hidden />
       </button>
-      <SheetOrPopover open={open} onOpenChange={setOpen} anchor={anchor} title={t('project.stages')}>
+      <SheetOrPopover open={open} onOpenChange={onOpenChange} anchor={anchor} title={t('project.stages')}>
         <div className="flex flex-col gap-3">
           {/* The sheet of a phone draws the title itself. */}
           {!phone && <p className="text-headline text-ink">{t('project.stages')}</p>}

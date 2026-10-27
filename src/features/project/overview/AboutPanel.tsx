@@ -59,20 +59,21 @@ export function AboutPanel({ detail }: { detail: ProjectDetail }) {
   );
   // An internal project has no code on the screens, no place, no area and no contract date (fbk_044). It keeps its start and end.
   const internal = isInternalProject(project);
-  const clientFacts: [string, ReactNode][] = internal ? [] : [
-    [t('projectCode.group'), code],
-    [t('projectForm.location'), locationLine],
-    [t('projectForm.area'), project.areaM2 === null ? none : formatNumber(project.areaM2, lang)],
-    [t('projectForm.contractStartDate'), project.contractStartDate ? formatDay(project.contractStartDate, lang, 'long') : none],
-  ];
-  const facts: [string, ReactNode][] = [
-    ...clientFacts.slice(0, 1),
-    ...(subCompanyLine ? [[t('subCompanies.label'), subCompanyLine] as [string, ReactNode]] : []),
-    ...(templateName ? [[t('projectTemplates.aboutLabel'), <bdi key="template" dir="auto">{templateName}</bdi>] as [string, ReactNode]] : []),
-    ...clientFacts.slice(1),
+  const facts: [string, ReactNode][] = [];
+  if (!internal) facts.push([t('projectCode.group'), code]);
+  if (subCompanyLine) facts.push([t('subCompanies.label'), subCompanyLine]);
+  if (templateName) facts.push([t('projectTemplates.aboutLabel'), <bdi dir="auto">{templateName}</bdi>]);
+  if (!internal) {
+    facts.push(
+      [t('projectForm.location'), locationLine],
+      [t('projectForm.area'), project.areaM2 === null ? none : formatNumber(project.areaM2, lang)],
+      [t('projectForm.contractStartDate'), project.contractStartDate ? formatDay(project.contractStartDate, lang, 'long') : none],
+    );
+  }
+  facts.push(
     [t('projectForm.startDate'), project.startDate ? formatDay(project.startDate, lang, 'long') : none],
     [t('projectForm.endDate'), project.continuous ? t('projects.continuous') : project.targetEndDate ? formatDay(project.targetEndDate, lang, 'long') : none],
-  ];
+  );
   return (
     <section aria-labelledby="about-title" className="panel flex flex-col gap-5 p-5">
       <h2 id="about-title" className="text-section text-ink">{t('project.about')}</h2>
