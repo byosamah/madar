@@ -2663,3 +2663,18 @@ the Mazj books changed. Mazj is a business incubator, not the office: its invoic
   answers the new first line and the Context paragraph.
 - Screenshot: the What's new page on the test copy (English, dark) shows the entry under 27 Oct. No other screen changed.
 - The guides of 5f11e5f1 (the words file of a copy, the fast MCP gate) waited on rb/notes-2026-10-27 and joined main with this record.
+
+### Release record: production at b57528bf (2026-10-27, lean guides, and code comments that agree with them)
+- The owner's goal (2026-10-27): the 18 CLAUDE.md guides held 4,852 lines, and a session that edited `src/api` loaded about 78,000 tokens
+  of guides. The cleanup (0af9fb19) fixed the stale facts, moved the rules of one feature into 23 folder guides, and moved the dated
+  history to `docs/decision-log.md`. Such a session now loads about 14,000 tokens. b57528bf fixed 4 code comments that disagreed with the
+  guides: the Mac backup runs only on the owner's ask, the pooler idle is 1 s, the Daftra keys have no key role, and the files backup is
+  paused on B2. No screen, call or behavior changed.
+- Gates: typecheck; the 5 test files that read the touched files (`scripts/deploy` secrets and deploy, `scripts/backup` due, macBackup and
+  workflows), 174 tests. NOT run: the full npm test (over the owner's 5-minute limit), test:db, test:it, test:mcp and the deploy suite (no
+  code path changed).
+- `all.sh test` from a clean worktree of main (`.claude/worktrees/deploy-clean`: deploy-test held another session's unsaved TASKS.md), then
+  `echo production | scripts/deploy/all.sh production` run by Claude on the owner's "go production". Live checks: health from supabase,
+  fileStore r2, 156 calls; /mcp with no token 401; page 200 with the title Madar; /favicon.ico 200; madar.vado.sa serves the bootstrap file
+  of the deploy.
+- No What's new entry: people see no change.

@@ -1263,3 +1263,8 @@ Branch `rb/mcp-parity` (from `rb/b26-join`). Record: `server/mcp/CLAUDE.md`, sec
 - [x] The paragraph "Context:" of INSTRUCTIONS, right after the six rules, in the first 4,000 characters (`contextDocs.test.ts`); What's new 120 (done 2026-10-27: production at 1ef279be)
 - [x] madar.readFirst once, before any other tool: the first line of INSTRUCTIONS and the tool text (done 2026-10-27: production at 1ef279be)
 - [ ] In a new Claude chat, check that the agent calls madar.readFirst first and reads the project chat before it answers about a project
+
+## Lean guides (2026-10-27)
+- [x] Clean the 18 CLAUDE.md guides: stale facts fixed, the rules of one feature in 23 folder guides, the history in `docs/decision-log.md` (done 2026-10-27: production at b57528bf)
+- [x] Fix 4 code comments that disagreed with the guides: Mac backup, pooler idle, Daftra key role, files backup (done 2026-10-27: production at b57528bf)
+- [ ] Rewrite `.github/workflows/files-backup.yml` for R2 alone (it still copies to a B2 crypt remote) before anyone enables it
